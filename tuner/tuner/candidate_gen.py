@@ -27,7 +27,7 @@ import z3
 from dataclasses import astuple, dataclass
 from enum import Enum
 from os import mkdir, path, makedirs
-from typing import Optional
+from typing import Optional, Generator
 from textwrap import indent
 from abc import ABC, abstractmethod
 
@@ -46,6 +46,7 @@ class DispatchKind(Enum):
     batch_mmt = 4
     batch_matmul = 5
     broadcast_rhs_mmt = 6
+    mmt4d = 7
 
 
 class ElementType(Enum):
@@ -187,20 +188,169 @@ class GpuPipelineOptions:
 
 
 @dataclass
-class Configuration:
+class BaseConfiguration:
+    tile_sizes: list[int]
+
+    @abstractmethod
+    def get_mmt_tile_sizes(self) -> list[int]:
+        return self.tile_sizes
+
+    @abstractmethod
+    def get_batch_mmt_tile_sizes(self) -> list[int]:
+        return [1] + self.tile_sizes
+
+    def get_contract_tile_sizes(self, tile_dims: list[str]) -> list[int]:
+        m, n, k = self.tile_sizes
+        tile_size = [1] * len(tile_dims)
+        for idx, dim in enumerate(tile_dims):
+            if dim == "m":
+                tile_size[idx] = m
+            if dim == "n":
+                tile_size[idx] = n
+            if dim == "k":
+                tile_size[idx] = k
+        return tile_size
+
+    @abstractmethod
+    def get_pipeline_config(self) -> str:
+        pass
+
+    @abstractmethod
+    def get_intrinsic_config(self) -> str:
+        pass
+
+    def get_base_mlir_config(self, tile_sizes: list[int]) -> str:
+        tile_sizes_str = ", ".join(map(str, tile_sizes))
+        return f"""
+    %config = transform.param.constant #iree_codegen.compilation_info<
+        lowering_config = #iree_codegen.lowering_config<tile_sizes = [[{tile_sizes_str}]]>,
+    """
+
+    @abstractmethod
+    def get_mlir_config(self, tile_sizes: list[int]) -> str:
+        base_config = self.get_base_mlir_config(tile_sizes)
+        full_config = f"""
+        translation_info = #iree_codegen.translation_info<NONE>
+        > -> !transform.any_param
+    """
+
+        return base_config + full_config
+
+    @abstractmethod
+    def apply_configuration(self, template: list[str], tile_sizes: list[int]) -> str:
+        pass
+
+
+@dataclass
+class LLVMGPUConfiguration(BaseConfiguration):
     subgroup_size: int
     workgroup_size: list[int]
     intrinsic: MfmaIntrinsic
-    tile_sizes: list[int]
     subgroup_m_count: int
     subgroup_n_count: int
     gpu_pipeline_options: GpuPipelineOptions
     waves_per_eu: int
 
+    def get_pipeline_config(self) -> str:
+        extra_config = ""
+        if not self.gpu_pipeline_options.all_default():
+            extra_config += f", gpu_pipeline_options = {self.gpu_pipeline_options}"
+        if self.waves_per_eu != 2:
+            extra_config += (
+                f', llvm_func_attrs = {{"amdgpu-waves-per-eu" = "{self.waves_per_eu}"}}'
+            )
+
+        return extra_config
+
+    def get_intrinsic_config(self) -> str:
+        return str(self.intrinsic)
+
+    def get_mlir_config(self, tile_sizes: list[int]) -> str:
+        base_config = self.get_base_mlir_config(tile_sizes)
+        wg_x, wg_y, wg_z = self.workgroup_size
+
+        backend_config = f"""
+        translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
+            workgroup_size = [{wg_x}, {wg_y}, {wg_z}] subgroup_size = {self.subgroup_size},
+            {{mma_schedule = #iree_gpu.mma_schedule<
+                intrinsic = #iree_gpu.mma_layout<{self.get_intrinsic_config()}>,
+                subgroup_m_count = {self.subgroup_m_count}, subgroup_n_count = {self.subgroup_n_count}>
+            {self.get_pipeline_config()}}}>
+        > -> !transform.any_param
+    """
+
+        return base_config + backend_config
+
+    def apply_configuration(self, template: list[str], tile_sizes: list[int]) -> str:
+        tune_logger.info(f"Applying: {self}")
+
+        expr0 = re.compile(
+            r"<intrinsic = #iree_gpu\.mma_layout<(.+)>, subgroup_m_count = ([0-9]+), subgroup_n_count = ([0-9]+)>"
+        )
+        expr1 = re.compile(
+            r"LLVMGPUVectorDistribute workgroup_size = \[.+\] subgroup_size = ([0-9]+),"
+        )
+        expr2 = re.compile(r"tile_sizes = \[\[([0-9]+)(, ([0-9]+))+\]\]")
+        expr3 = re.compile(
+            r"gpu_pipeline_options = #iree_gpu\.pipeline_options<([^>]*)>"
+        )
+        expr4 = re.compile(r"\"amdgpu-waves-per-eu\" = \"([0-9])\"")
+
+        repl0 = f"<intrinsic = #iree_gpu.mma_layout<{self.intrinsic}>, subgroup_m_count = {self.subgroup_m_count}, subgroup_n_count = {self.subgroup_n_count}>"
+        repl1 = f'LLVMGPUVectorDistribute workgroup_size = [{", ".join(map(str, self.workgroup_size))}] subgroup_size = {self.subgroup_size},'
+        repl2 = f'tile_sizes = [[{", ".join(map(str, tile_sizes))}]]'
+        repl3 = f"gpu_pipeline_options = {self.gpu_pipeline_options}"
+        repl4 = f'"amdgpu-waves-per-eu" = "{self.waves_per_eu}"'
+
+        new_mlir = ""
+        for line in template:
+            if "intrinsic =" in line:
+                line = re.sub(expr0, repl0, line)
+            if "LLVMGPUVectorDistribute " in line:
+                line = re.sub(expr1, repl1, line)
+            if "tile_sizes" in line:
+                line = re.sub(expr2, repl2, line)
+            if "gpu_pipeline_options =" in line:
+                line = re.sub(expr3, repl3, line)
+            if "amdgpu-waves-per-eu" in line:
+                line = re.sub(expr4, repl4, line)
+            new_mlir += line
+
+        return new_mlir
+
+
+@dataclass
+class LLVMCPUConfiguration(BaseConfiguration):
+    def get_mlir_config(self, tile_sizes: list[int]) -> str:
+        base_config = self.get_base_mlir_config(tile_sizes)
+
+        backend_config = f"""
+        translation_info = #iree_codegen.translation_info<Mmt4dTilingExpert>
+        > -> !transform.any_param
+    """
+
+        return base_config + backend_config
+
+    def apply_configuration(self, template: list[str], tile_sizes: list[int]) -> str:
+        tune_logger.info(f"Applying: {self}")
+
+        expr0 = re.compile(r"tile_sizes = \[\[([0-9]+)(, ([0-9]+))+\]\]")
+
+        repl0 = f'tile_sizes = [[{", ".join(map(str, tile_sizes))}]]'
+
+        new_mlir = ""
+        for line in template:
+            if "tile_sizes" in line:
+                line = re.sub(expr0, repl0, line)
+            new_mlir += line
+
+        return new_mlir
+
 
 class MlirRegex(Enum):
     ssa_value = r"%[a-zA-Z0-9-_]+"
     tensor_type = r"tensor<(([0-9]+x)+((f|i)[0-9]+))>"
+    device_target = r'#hal\.device\.target<"(?P<target>[a-zA-Z0-9-_]+)"'
 
     def __str__(self) -> str:
         return self.value
@@ -217,10 +367,6 @@ class MlirRegex(Enum):
 def read_input_mlir(filename: str) -> list[str]:
     with open(filename, "r") as f:
         return f.readlines()
-
-
-def get_mmt_tile_sizes(configuration: Configuration):
-    return configuration.tile_sizes
 
 
 @dataclass
@@ -242,68 +388,6 @@ class ConvDimInfo:
     @staticmethod
     def from_problem_size(problem_size: ProblemSize):
         return ConvDimInfo.from_rhs_res(problem_size.rhs_type, problem_size.res_type)
-
-
-def get_contract_tile_sizes(configuration: Configuration, tile_dims: str) -> list[int]:
-    m, n, k = configuration.tile_sizes
-    tile_size = [1] * len(tile_dims)
-    for idx, dim in enumerate(tile_dims):
-        if dim == "m":
-            tile_size[idx] = m
-        if dim == "n":
-            tile_size[idx] = n
-        if dim == "k":
-            tile_size[idx] = k
-    return tile_size
-
-
-def get_batch_mmt_tile_sizes(configuration: Configuration) -> list[int]:
-    return [1] + configuration.tile_sizes
-
-
-def get_pipeline_config(configuration: Configuration) -> str:
-    extra_config = ""
-    if not configuration.gpu_pipeline_options.all_default():
-        extra_config += f", gpu_pipeline_options = {configuration.gpu_pipeline_options}"
-    if configuration.waves_per_eu != 2:
-        extra_config += f', llvm_func_attrs = {{"amdgpu-waves-per-eu" = "{configuration.waves_per_eu}"}}'
-    return extra_config
-
-
-def apply_configuration(
-    template: list[str], configuration: Configuration, tile_sizes: list[int]
-) -> str:
-    tune_logger.info(f"Applying: {configuration}")
-    expr0 = re.compile(
-        r"<intrinsic = #iree_gpu\.mma_layout<(.+)>, subgroup_m_count = ([0-9]+), subgroup_n_count = ([0-9]+)>"
-    )
-    expr1 = re.compile(
-        r"LLVMGPUVectorDistribute workgroup_size = \[.+\] subgroup_size = ([0-9]+),"
-    )
-    expr2 = re.compile(r"tile_sizes = \[\[([0-9]+)(, ([0-9]+))+\]\]")
-    expr3 = re.compile(r"gpu_pipeline_options = #iree_gpu\.pipeline_options<([^>]*)>")
-    expr4 = re.compile(r"\"amdgpu-waves-per-eu\" = \"([0-9])\"")
-    repl0 = f"<intrinsic = #iree_gpu.mma_layout<{configuration.intrinsic}>, subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>"
-    repl1 = f'LLVMGPUVectorDistribute workgroup_size = [{", ".join(map(str, configuration.workgroup_size))}] subgroup_size = {configuration.subgroup_size},'
-    repl2 = f'tile_sizes = [[{", ".join(map(str, tile_sizes))}]]'
-    repl3 = f"gpu_pipeline_options = {configuration.gpu_pipeline_options}"
-    repl4 = f'"amdgpu-waves-per-eu" = "{configuration.waves_per_eu}"'
-
-    new_mlir = ""
-    for line in template:
-        if "intrinsic =" in line:
-            line = re.sub(expr0, repl0, line)
-        if "LLVMGPUVectorDistribute " in line:
-            line = re.sub(expr1, repl1, line)
-        if "tile_sizes" in line:
-            line = re.sub(expr2, repl2, line)
-        if "gpu_pipeline_options =" in line:
-            line = re.sub(expr3, repl3, line)
-        if "amdgpu-waves-per-eu" in line:
-            line = re.sub(expr4, repl4, line)
-        new_mlir += line
-
-    return new_mlir
 
 
 def parse_tensor_type(tensor_type: str) -> ShapedType:
@@ -377,141 +461,239 @@ def calculate_shared_memory_usage_in_bytes(
     return lhs_memory + rhs_memory
 
 
-def generate_constraints(
-    problem_size: ProblemSize,
-    tile_sizes,
-    num_subgroups,
-    subgroup_size,
-    intrinsic_size,
-    workgroup_size,
-    subgroup_m_count,
-    subgroup_n_count,
-    waves_per_eu,
-):
-    M, N, K = (
-        problem_size.matmul_size.M,
-        problem_size.matmul_size.N,
-        problem_size.matmul_size.K,
-    )
-    m, n, k = tile_sizes
-    intrinsic_mn, intrinsic_k = intrinsic_size
-    wg_x, wg_y, wg_z = workgroup_size
-    wg_threads = z3.Int("wg_threads")
-    constraints = [wg_threads == wg_x * wg_y * wg_z]
-    constraints += [subgroup_size == 64, wg_threads <= 1024]
-    constraints += [
-        get_mfma_intrinsic_constraints(
-            problem_size, intrinsic_mn, intrinsic_mn, intrinsic_k
+class SolutionGenerationStrategy(ABC):
+    @abstractmethod
+    def generate_solutions(
+        self, problem_size: ProblemSize, num_subgroups: int
+    ) -> Generator[BaseConfiguration, None, None]:
+        pass
+
+
+class LLVMGPUSolutionStrategy(SolutionGenerationStrategy):
+    def generate_solutions(
+        self,
+        problem_size: ProblemSize,
+        num_subgroups: int,
+    ):
+        M, N, K = problem_size.MNK
+        tune_logger.info(f"{M},{N},{K}")
+        m, n, k = z3.Int("m"), z3.Int("n"), z3.Int("k")
+        subgroup_size = z3.Int("subgroup_size")
+        intrinsic_mn = z3.Int("intrinsic_mn")
+        intrinsic_k = z3.Int("intrinsic_k")
+        wg_x, wg_y, wg_z = z3.Int("wg_x"), z3.Int("wg_y"), z3.Int("wg_z")
+        sg_m_cnt = z3.Int("sg_m_cnt")
+        sg_n_cnt = z3.Int("sg_n_cnt")
+        waves_per_eu = z3.Int("waves_per_eu")
+        all_vars = [
+            m,
+            n,
+            k,
+            subgroup_size,
+            intrinsic_mn,
+            intrinsic_k,
+            wg_x,
+            wg_y,
+            wg_z,
+            sg_m_cnt,
+            sg_n_cnt,
+            waves_per_eu,
+        ]
+
+        solver = z3.Solver()
+        constraints = self.generate_constraints(
+            problem_size,
+            [m, n, k],
+            num_subgroups,
+            subgroup_size,
+            [intrinsic_mn, intrinsic_k],
+            [wg_x, wg_y, wg_z],
+            sg_m_cnt,
+            sg_n_cnt,
+            waves_per_eu,
         )
-    ]
-    subgroup_k_count = 1
-    constraints += [
-        m >= intrinsic_mn,
-        m <= 512,
-        m <= M,
-    ]
-    constraints += [n >= intrinsic_mn, n <= 512, n <= N, N % n == 0]
-    constraints += [k >= intrinsic_k, k <= 512, k <= K, K % k == 0]
-    for x in (subgroup_m_count, subgroup_n_count):
-        constraints += [x >= 1, x <= 32]
+        solver.add(z3.simplify(z3.And(constraints)))
+        tune_logger.debug(f"Initial constraints: {solver}")
+        i = 0
+        while solver.check() == z3.sat:
+            model = solver.model()
+            lookup = lambda var: model[var].as_long()
 
-    subgroup_m_tile_count = z3.Int("sg_m_tcnt")
-    subgroup_n_tile_count = z3.Int("sg_n_tcnt")
-    subgroup_k_tile_count = z3.Int("sg_k_tcnt")
-    for x in (subgroup_m_tile_count, subgroup_n_tile_count, subgroup_k_tile_count):
-        constraints += [x >= 1, x <= 32]
+            config = LLVMGPUConfiguration(
+                subgroup_size=lookup(subgroup_size),
+                workgroup_size=[lookup(wg_x), lookup(wg_y), lookup(wg_z)],
+                tile_sizes=[lookup(m), lookup(n), lookup(k)],
+                subgroup_m_count=lookup(sg_m_cnt),
+                subgroup_n_count=lookup(sg_n_cnt),
+                gpu_pipeline_options=GpuPipelineOptions(),
+                waves_per_eu=lookup(waves_per_eu),
+                intrinsic=MfmaIntrinsic(
+                    problem_size.res_type.element_type,
+                    lookup(intrinsic_mn),
+                    lookup(intrinsic_mn),
+                    lookup(intrinsic_k),
+                    problem_size.lhs_type.element_type,
+                ),
+            )
 
-    constraints += [m == subgroup_m_count * subgroup_m_tile_count * intrinsic_mn]
-    constraints += [n == subgroup_n_count * subgroup_n_tile_count * intrinsic_mn]
-    constraints += [k == subgroup_k_count * subgroup_k_tile_count * intrinsic_k]
-    constraints += [wg_x == subgroup_size * subgroup_n_count]
-    constraints += [wg_y == subgroup_m_count]
-    constraints += [wg_z == subgroup_k_count]
-    constraints += [z3.Or(wg_x <= n, wg_x <= m)]
-    constraints += [k % intrinsic_mn == 0]
-    constraints += [(k * n) % wg_threads == 0]
-    constraints += [(k * m) % wg_threads == 0]
-    subgroups = subgroup_m_count * subgroup_n_count
-    if num_subgroups > 0:
-        constraints += [subgroups == num_subgroups]
-    else:
-        constraints += [subgroups >= 1, subgroups <= 10]
+            solver.add(
+                z3.simplify(z3.Not(z3.And(list(x == model[x] for x in all_vars))))
+            )
+            i += 1
+            yield config
 
-    constraints += [waves_per_eu == 2]
-    # constraints += [z3.Or(waves_per_eu == 2, waves_per_eu == 3, waves_per_eu == 4)]
-
-    shared_memory = calculate_shared_memory_usage_in_bytes(problem_size, m, n, k)
-    constraints += [shared_memory <= 65536]
-
-    constraints += get_dispatch_constraints(problem_size, m, n, k)
-
-    return constraints
-
-
-def generate_solutions(problem_size: ProblemSize, num_subgrups: int):
-    M, N, K = problem_size.MNK
-    tune_logger.info(f"{M},{N},{K}")
-    m, n, k = z3.Int("m"), z3.Int("n"), z3.Int("k")
-    subgroup_size = z3.Int("subgroup_size")
-    intrinsic_mn = z3.Int("intrinsic_mn")
-    intrinsic_k = z3.Int("intrinsic_k")
-    wg_x, wg_y, wg_z = z3.Int("wg_x"), z3.Int("wg_y"), z3.Int("wg_z")
-    sg_m_cnt = z3.Int("sg_m_cnt")
-    sg_n_cnt = z3.Int("sg_n_cnt")
-    waves_per_eu = z3.Int("waves_per_eu")
-    all_vars = [
-        m,
-        n,
-        k,
+    def generate_constraints(
+        self,
+        problem_size: ProblemSize,
+        tile_sizes,
+        num_subgroups,
         subgroup_size,
-        intrinsic_mn,
-        intrinsic_k,
-        wg_x,
-        wg_y,
-        wg_z,
-        sg_m_cnt,
-        sg_n_cnt,
+        intrinsic_size,
+        workgroup_size,
+        subgroup_m_count,
+        subgroup_n_count,
         waves_per_eu,
-    ]
-
-    solver = z3.Solver()
-    constraints = generate_constraints(
-        problem_size,
-        [m, n, k],
-        num_subgrups,
-        subgroup_size,
-        [intrinsic_mn, intrinsic_k],
-        [wg_x, wg_y, wg_z],
-        sg_m_cnt,
-        sg_n_cnt,
-        waves_per_eu,
-    )
-    solver.add(z3.simplify(z3.And(constraints)))
-    tune_logger.debug(f"Initial constraints: {solver}")
-    i = 0
-    while solver.check() == z3.sat:
-        model = solver.model()
-        lookup = lambda var: model[var].as_long()
-
-        config = Configuration(
-            lookup(subgroup_size),
-            [lookup(wg_x), lookup(wg_y), lookup(wg_z)],
-            MfmaIntrinsic(
-                problem_size.res_type.element_type,
-                lookup(intrinsic_mn),
-                lookup(intrinsic_mn),
-                lookup(intrinsic_k),
-                problem_size.lhs_type.element_type,
-            ),
-            [lookup(m), lookup(n), lookup(k)],
-            lookup(sg_m_cnt),
-            lookup(sg_n_cnt),
-            GpuPipelineOptions(),
-            lookup(waves_per_eu),
+    ):
+        M, N, K = (
+            problem_size.matmul_size.M,
+            problem_size.matmul_size.N,
+            problem_size.matmul_size.K,
         )
-        solver.add(z3.simplify(z3.Not(z3.And(list(x == model[x] for x in all_vars)))))
-        i += 1
-        yield config
+        m, n, k = tile_sizes
+        intrinsic_mn, intrinsic_k = intrinsic_size
+        wg_x, wg_y, wg_z = workgroup_size
+        wg_threads = z3.Int("wg_threads")
+        constraints = [wg_threads == wg_x * wg_y * wg_z]
+        constraints += [subgroup_size == 64, wg_threads <= 1024]
+        constraints += [
+            get_mfma_intrinsic_constraints(
+                problem_size, intrinsic_mn, intrinsic_mn, intrinsic_k
+            )
+        ]
+        subgroup_k_count = 1
+        constraints += [
+            m >= intrinsic_mn,
+            m <= 512,
+            m <= M,
+        ]
+        constraints += [n >= intrinsic_mn, n <= 512, n <= N, N % n == 0]
+        constraints += [k >= intrinsic_k, k <= 512, k <= K, K % k == 0]
+        for x in (subgroup_m_count, subgroup_n_count):
+            constraints += [x >= 1, x <= 32]
+
+        subgroup_m_tile_count = z3.Int("sg_m_tcnt")
+        subgroup_n_tile_count = z3.Int("sg_n_tcnt")
+        subgroup_k_tile_count = z3.Int("sg_k_tcnt")
+        for x in (subgroup_m_tile_count, subgroup_n_tile_count, subgroup_k_tile_count):
+            constraints += [x >= 1, x <= 32]
+
+        constraints += [m == subgroup_m_count * subgroup_m_tile_count * intrinsic_mn]
+        constraints += [n == subgroup_n_count * subgroup_n_tile_count * intrinsic_mn]
+        constraints += [k == subgroup_k_count * subgroup_k_tile_count * intrinsic_k]
+        constraints += [wg_x == subgroup_size * subgroup_n_count]
+        constraints += [wg_y == subgroup_m_count]
+        constraints += [wg_z == subgroup_k_count]
+        constraints += [z3.Or(wg_x <= n, wg_x <= m)]
+        constraints += [k % intrinsic_mn == 0]
+        constraints += [(k * n) % wg_threads == 0]
+        constraints += [(k * m) % wg_threads == 0]
+        subgroups = subgroup_m_count * subgroup_n_count
+        if num_subgroups > 0:
+            constraints += [subgroups == num_subgroups]
+        else:
+            constraints += [subgroups >= 1, subgroups <= 10]
+
+        constraints += [waves_per_eu == 2]
+        # constraints += [z3.Or(waves_per_eu == 2, waves_per_eu == 3, waves_per_eu == 4)]
+
+        shared_memory = calculate_shared_memory_usage_in_bytes(problem_size, m, n, k)
+        constraints += [shared_memory <= 65536]
+
+        constraints += get_dispatch_constraints(problem_size, m, n, k)
+
+        return constraints
+
+
+class LLVMCPUSolutionStrategy(SolutionGenerationStrategy):
+    def generate_solutions(
+        self,
+        problem_size: ProblemSize,
+        num_subgroups: int,
+    ):
+        M, N, K = problem_size.MNK
+        tune_logger.info(f"{M},{N},{K}")
+        m, n, k = z3.Int("m"), z3.Int("n"), z3.Int("k")
+        all_vars = [
+            m,
+            n,
+            k,
+        ]
+
+        solver = z3.Solver()
+        constraints = self.generate_constraints(
+            problem_size,
+            [m, n, k],
+        )
+        solver.add(z3.simplify(z3.And(constraints)))
+        tune_logger.debug(f"Initial constraints: {solver}")
+        i = 0
+        while solver.check() == z3.sat:
+            model = solver.model()
+            lookup = lambda var: model[var].as_long()
+
+            config = LLVMCPUConfiguration(
+                tile_sizes=[lookup(m), lookup(n), lookup(k)],
+            )
+
+            solver.add(
+                z3.simplify(z3.Not(z3.And(list(x == model[x] for x in all_vars))))
+            )
+            i += 1
+            yield config
+
+    def generate_constraints(
+        self,
+        problem_size: ProblemSize,
+        tile_sizes,
+    ) -> list:
+        M, N, K = (
+            problem_size.matmul_size.M,
+            problem_size.matmul_size.N,
+            problem_size.matmul_size.K,
+        )
+        m, n, k = tile_sizes
+
+        constraints = []
+        constraints += [m >= 1, m <= 512, m <= M]
+        constraints += [n >= 1, n <= 512, n <= N, N % n == 0]
+        constraints += [n >= 1, k <= 512, k <= K, K % k == 0]
+
+        shared_memory = calculate_shared_memory_usage_in_bytes(problem_size, m, n, k)
+        constraints += [shared_memory <= 65536]
+
+        constraints += get_dispatch_constraints(problem_size, m, n, k)
+
+        return constraints
+
+
+@dataclass
+class SolutionStrategyFactory:
+    @staticmethod
+    def create_strategy(mlir_text: str) -> SolutionGenerationStrategy:
+        match = re.search(MlirRegex.device_target.value, mlir_text)
+
+        if not match:
+            raise ValueError("No target found")
+
+        target = match.group("target")
+        return SolutionStrategyFactory.get_strategy(target)
+
+    @staticmethod
+    def get_strategy(target: str) -> SolutionGenerationStrategy:
+        if target == "local":
+            return LLVMCPUSolutionStrategy()
+        else:
+            return LLVMGPUSolutionStrategy()
 
 
 def get_default_output_dir() -> str:
@@ -558,7 +740,7 @@ class DispatchTuner(ABC):
         self,
         problem_size: ProblemSize,
         template: list[str],
-        configuration: Configuration,
+        configuration: BaseConfiguration,
     ) -> MLIRTransformation:
         """Apply parameter transformations to the operation."""
         pass
@@ -584,6 +766,12 @@ class DispatchTunerRegistry:
                 "LLVMGPUVectorDistribute" in str(attr.attr)
             ):
                 return True
+
+            if (attr.name == "translation_info") and (
+                "Mmt4dTilingExpert" in str(attr.attr)
+            ):
+                return True
+
         assert False, "Translation info not supported"
 
     def find_handler(self, op_name: str) -> DispatchTuner:
@@ -601,6 +789,7 @@ class MmtTuner(DispatchTuner):
         mmt_re = None
         dps = None
         for line in template:
+
             if "linalg.generic" not in line:
                 continue
             if r'iterator_types = ["parallel", "parallel", "reduction"]' not in line:
@@ -644,16 +833,18 @@ class MmtTuner(DispatchTuner):
                 res_type=res_shaped_type,
                 dispatch_kind=DispatchKind.mmt,
             )
+
         assert mmt_re
         assert dps, f"'{mmt_re}' not found in given context"
 
     def get_transform_function_mmt(
-        self, problem_size: ProblemSize, functionName: str, configuration: Configuration
+        self,
+        problem_size: ProblemSize,
+        functionName: str,
+        configuration: BaseConfiguration,
     ) -> str:
-        tile_sizes = ", ".join(map(str, get_mmt_tile_sizes(configuration)))
-
-        wg_x, wg_y, wg_z = configuration.workgroup_size
-        extra_config = get_pipeline_config(configuration)
+        tile_sizes = configuration.get_mmt_tile_sizes()
+        config_mlir = configuration.get_mlir_config(tile_sizes)
 
         return f"""
     transform.named_sequence @{functionName}(%matmul: !transform.any_op {{transform.readonly}}) -> (!transform.any_op, !transform.any_param) {{
@@ -662,15 +853,7 @@ class MmtTuner(DispatchTuner):
     %rhs = transform.get_operand %matmul[1] : (!transform.any_op) -> !transform.any_value
     transform.iree.match.cast_compatible_type %lhs = tensor<{problem_size.lhs_type}> : !transform.any_value
     transform.iree.match.cast_compatible_type %rhs = tensor<{problem_size.rhs_type}> : !transform.any_value
-    %config = transform.param.constant #iree_codegen.compilation_info<
-        lowering_config = #iree_codegen.lowering_config<tile_sizes = [[{tile_sizes}]]>,
-        translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
-        workgroup_size = [{wg_x}, {wg_y}, {wg_z}] subgroup_size = {configuration.subgroup_size},
-        {{mma_schedule = #iree_gpu.mma_schedule<
-            intrinsic = #iree_gpu.mma_layout<{configuration.intrinsic}>,
-            subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>
-        {extra_config}}}>
-        > -> !transform.any_param
+    {config_mlir}
     transform.yield %matmul, %config : !transform.any_op, !transform.any_param
     }}
     """
@@ -679,7 +862,7 @@ class MmtTuner(DispatchTuner):
         self,
         problem_size: ProblemSize,
         template: list[str],
-        configuration: Configuration,
+        configuration: BaseConfiguration,
     ) -> MLIRTransformation:
         M, N, K = problem_size.MNK
         modified = indent(
@@ -688,8 +871,110 @@ class MmtTuner(DispatchTuner):
             ),
             "//   ",
         )
-        modified += apply_configuration(
-            template, configuration, get_mmt_tile_sizes(configuration)
+        modified += configuration.apply_configuration(
+            template, configuration.get_mmt_tile_sizes()
+        )
+        embeddable = indent(
+            self.get_transform_function_mmt(problem_size, f"match_op", configuration),
+            "  ",
+        )
+        return MLIRTransformation(template, modified, embeddable)
+
+
+class Mmt4dTuner(DispatchTuner):
+    def supports(self, op_name: str) -> bool:
+        return "mmt4d" in op_name
+
+    def get_shapes(self, template: list[str]) -> ProblemSize:
+        mmt_re = None
+        dps = None
+        for line in template:
+
+            if "linalg.mmt4d" not in line:
+                continue
+            # ins(%3, %4 : tensor<256x1280x8x1xf16>, tensor<1280x1280x8x1xf16>) outs(%6 : tensor<256x1280x8x8xf32>)
+            mmt_re = rf"{MlirRegex.dps_ins_two_args()}\s+{MlirRegex.dps_outs_one_arg()}"
+
+            dps = re.search(mmt_re, line)
+            if dps is None:
+                continue
+
+            lhs_tensor_type = dps.group("LHS")
+            rhs_tensor_type = dps.group("RHS")
+            lhs_shaped_type = parse_tensor_type(lhs_tensor_type)
+            assert lhs_shaped_type.rank() == 4
+            lhs_M = lhs_shaped_type.shape[0] * lhs_shaped_type.shape[2]
+            lhs_K = lhs_shaped_type.shape[1] * lhs_shaped_type.shape[3]
+
+            rhs_shaped_type = parse_tensor_type(rhs_tensor_type)
+            assert rhs_shaped_type.rank() == 4
+            rhs_N = rhs_shaped_type.shape[0] * rhs_shaped_type.shape[2]
+            rhs_K = rhs_shaped_type.shape[1] * rhs_shaped_type.shape[3]
+            assert lhs_shaped_type.element_type == rhs_shaped_type.element_type
+            assert lhs_K == rhs_K
+
+            res_tensor_type = dps.group("RES")
+            res_shaped_type = parse_tensor_type(res_tensor_type)
+            assert res_shaped_type.rank() == 4
+            res_M = res_shaped_type.shape[0] * res_shaped_type.shape[2]
+            res_N = res_shaped_type.shape[1] * res_shaped_type.shape[3]
+
+            assert lhs_K == rhs_K
+            assert lhs_M == res_M
+            assert rhs_N == res_N
+
+            matmul_size = MatmulSize(
+                lhs_M,
+                rhs_N,
+                lhs_K,
+            )
+            return ProblemSize(
+                matmul_size,
+                lhs_type=lhs_shaped_type,
+                rhs_type=rhs_shaped_type,
+                res_type=res_shaped_type,
+                dispatch_kind=DispatchKind.mmt4d,
+            )
+
+        assert mmt_re
+        assert dps, f"'{mmt_re}' not found in given context"
+
+    def get_transform_function_mmt(
+        self,
+        problem_size: ProblemSize,
+        functionName: str,
+        configuration: BaseConfiguration,
+    ) -> str:
+        tile_sizes = configuration.get_mmt_tile_sizes()
+        config_mlir = configuration.get_mlir_config(tile_sizes)
+
+        return f"""
+    transform.named_sequence @{functionName}(%matmul: !transform.any_op {{transform.readonly}}) -> (!transform.any_op, !transform.any_param) {{
+    %mmt = transform.include @match_mmt4d_f16_f16_f32 failures(propagate) (%matmul) : (!transform.any_op) -> !transform.any_op
+    %lhs = transform.get_operand %matmul[0] : (!transform.any_op) -> !transform.any_value
+    %rhs = transform.get_operand %matmul[1] : (!transform.any_op) -> !transform.any_value
+    transform.iree.match.cast_compatible_type %lhs = tensor<{problem_size.lhs_type}> : !transform.any_value
+    transform.iree.match.cast_compatible_type %rhs = tensor<{problem_size.rhs_type}> : !transform.any_value
+    {config_mlir}
+    transform.yield %matmul, %config : !transform.any_op, !transform.any_param
+    }}
+    """
+
+    def apply_params(
+        self,
+        problem_size: ProblemSize,
+        template: list[str],
+        configuration: BaseConfiguration,
+    ) -> MLIRTransformation:
+        M, N, K = problem_size.MNK
+        modified = indent(
+            self.get_transform_function_mmt(
+                problem_size, f"match_mmt4d_{M}x{N}x{K}", configuration
+            ),
+            "//   ",
+        )
+        modified += configuration.apply_configuration(
+            template, configuration.get_mmt_tile_sizes()
         )
         embeddable = indent(
             self.get_transform_function_mmt(problem_size, f"match_op", configuration),
@@ -702,7 +987,7 @@ class ConvTuner(DispatchTuner):
     def supports(self, op_name: str) -> bool:
         return "conv_2d_nhwc_hwcf" in op_name
 
-    def get_conv_tile_sizes(self, configuration: Configuration) -> list[int]:
+    def get_conv_tile_sizes(self, configuration: BaseConfiguration) -> list[int]:
         m, n, k = configuration.tile_sizes
         batch = 1
         fh = 1
@@ -771,7 +1056,10 @@ class ConvTuner(DispatchTuner):
     # int64_t fw = filterShape[1];
     # int64_t ic = filterShape[2];
     def get_transform_function_conv(
-        self, problem_size: ProblemSize, functionName: str, configuration: Configuration
+        self,
+        problem_size: ProblemSize,
+        functionName: str,
+        configuration: BaseConfiguration,
     ) -> str:
         dynamic_batch_input_ty = problem_size.lhs_type
         dynamic_batch_input_ty.shape = dynamic_batch_input_ty.shape.copy()
@@ -785,10 +1073,8 @@ class ConvTuner(DispatchTuner):
         filter = f"tensor<{problem_size.rhs_type}>"
         output = f"tensor<{dynamic_batch_output_ty}>"
 
-        tile_sizes = ", ".join(map(str, self.get_conv_tile_sizes(configuration)))
-
-        wg_x, wg_y, wg_z = configuration.workgroup_size
-        extra_config = get_pipeline_config(configuration)
+        tile_sizes = self.get_conv_tile_sizes(configuration)
+        config_mlir = configuration.get_mlir_config(tile_sizes)
 
         return f"""
     transform.named_sequence @{functionName}(%conv: !transform.any_op {{transform.readonly}})
@@ -799,15 +1085,7 @@ class ConvTuner(DispatchTuner):
         ins(%lhs, %rhs : {input}, {filter})
         outs(%out : {output}) -> {output}
     }} : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
-        %config = transform.param.constant #iree_codegen.compilation_info<
-        lowering_config = #iree_codegen.lowering_config<tile_sizes = [[{tile_sizes}]]>,
-        translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
-        workgroup_size = [{wg_x}, {wg_y}, {wg_z}] subgroup_size = {configuration.subgroup_size},
-            {{mma_schedule = #iree_gpu.mma_schedule<
-                intrinsic = #iree_gpu.mma_layout<{configuration.intrinsic}>,
-                subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>
-            {extra_config}}}>
-        > -> !transform.any_param
+        {config_mlir}
     transform.yield %conv, %config : !transform.any_op, !transform.any_param
     }}
     """
@@ -816,7 +1094,7 @@ class ConvTuner(DispatchTuner):
         self,
         problem_size: ProblemSize,
         template: list[str],
-        configuration: Configuration,
+        configuration: BaseConfiguration,
     ) -> MLIRTransformation:
         conv_dims = ConvDimInfo.from_problem_size(problem_size)
         modified = indent(
@@ -827,8 +1105,8 @@ class ConvTuner(DispatchTuner):
             ),
             "//   ",
         )
-        modified += apply_configuration(
-            template, configuration, self.get_conv_tile_sizes(configuration)
+        modified += configuration.apply_configuration(
+            template, self.get_conv_tile_sizes(configuration)
         )
         embeddable = indent(
             self.get_transform_function_conv(problem_size, f"match_op", configuration),
@@ -970,12 +1248,10 @@ class ContractionTuner(DispatchTuner):
         self,
         problem_size: ProblemSize,
         functionName: str,
-        configuration: Configuration,
+        configuration: BaseConfiguration,
     ) -> str:
-        tile_sizes = ", ".join(map(str, get_batch_mmt_tile_sizes(configuration)))
-
-        wg_x, wg_y, wg_z = configuration.workgroup_size
-        extra_config = get_pipeline_config(configuration)
+        tile_sizes = configuration.get_batch_mmt_tile_sizes()
+        config_mlir = configuration.get_mlir_config(tile_sizes)
 
         lhs_dynamic_batch = problem_size.lhs_type
         lhs_dynamic_batch.shape = lhs_dynamic_batch.shape.copy()
@@ -988,15 +1264,7 @@ transform.named_sequence @{functionName}(%generic: !transform.any_op {{transform
 %rhs = transform.get_operand %generic[1] : (!transform.any_op) -> !transform.any_value
 transform.iree.match.cast_compatible_type %lhs = tensor<{lhs_dynamic_batch}> : !transform.any_value
 transform.iree.match.cast_compatible_type %rhs = tensor<{problem_size.rhs_type}> : !transform.any_value
-%config = transform.param.constant #iree_codegen.compilation_info<
-    lowering_config = #iree_codegen.lowering_config<tile_sizes = [[{tile_sizes}]]>,
-    translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
-    workgroup_size = [{wg_x}, {wg_y}, {wg_z}] subgroup_size = {configuration.subgroup_size},
-    {{mma_schedule = #iree_gpu.mma_schedule<
-        intrinsic = #iree_gpu.mma_layout<{configuration.intrinsic}>,
-        subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>
-    {extra_config}}}>
-    > -> !transform.any_param
+{config_mlir}
 transform.yield %generic, %config : !transform.any_op, !transform.any_param
 }}
 """
@@ -1005,7 +1273,7 @@ transform.yield %generic, %config : !transform.any_op, !transform.any_param
         self,
         problem_size: ProblemSize,
         template: list[str],
-        configuration: Configuration,
+        configuration: BaseConfiguration,
     ) -> MLIRTransformation:
         M, N, K = problem_size.MNK
         modified = indent(
@@ -1014,8 +1282,8 @@ transform.yield %generic, %config : !transform.any_op, !transform.any_param
             ),
             "//   ",
         )
-        modified += apply_configuration(
-            template, configuration, get_batch_mmt_tile_sizes(configuration)
+        modified += configuration.apply_configuration(
+            template, configuration.get_batch_mmt_tile_sizes()
         )
 
         embeddable = indent(
@@ -1030,7 +1298,7 @@ transform.yield %generic, %config : !transform.any_op, !transform.any_param
         self,
         problem_size: ProblemSize,
         template: list[str],
-        configuration: Configuration,
+        configuration: BaseConfiguration,
     ) -> MLIRTransformation:
         if self.is_broadcast_rhs_mmt(template):
             return self.apply_params_broadcast_rhs_mmt(
@@ -1040,10 +1308,9 @@ transform.yield %generic, %config : !transform.any_op, !transform.any_param
         # TODO: Generate transform function.
         return MLIRTransformation(
             template,
-            apply_configuration(
+            configuration.apply_configuration(
                 template,
-                configuration,
-                get_contract_tile_sizes(configuration, self.tile_dims),
+                configuration.get_contract_tile_sizes(self.tile_dims),
             ),
             "",
         )
@@ -1104,12 +1371,10 @@ class BatchMmtTuner(DispatchTuner):
         self,
         problem_size: ProblemSize,
         functionName: str,
-        configuration: Configuration,
+        configuration: BaseConfiguration,
     ) -> str:
-        tile_sizes = ", ".join(map(str, get_batch_mmt_tile_sizes(configuration)))
-
-        wg_x, wg_y, wg_z = configuration.workgroup_size
-        extra_config = get_pipeline_config(configuration)
+        tile_sizes = configuration.get_batch_mmt_tile_sizes()
+        config_mlir = configuration.get_mlir_config(tile_sizes)
 
         return f"""
 transform.named_sequence @{functionName}(%generic: !transform.any_op {{transform.readonly}}) -> (!transform.any_op, !transform.any_param) {{
@@ -1118,15 +1383,7 @@ transform.named_sequence @{functionName}(%generic: !transform.any_op {{transform
 %rhs = transform.get_operand %generic[1] : (!transform.any_op) -> !transform.any_value
 transform.iree.match.cast_compatible_type %lhs = tensor<{problem_size.lhs_type}> : !transform.any_value
 transform.iree.match.cast_compatible_type %rhs = tensor<{problem_size.rhs_type}> : !transform.any_value
-%config = transform.param.constant #iree_codegen.compilation_info<
-    lowering_config = #iree_codegen.lowering_config<tile_sizes = [[{tile_sizes}]]>,
-    translation_info = #iree_codegen.translation_info<LLVMGPUVectorDistribute
-    workgroup_size = [{wg_x}, {wg_y}, {wg_z}] subgroup_size = {configuration.subgroup_size},
-    {{mma_schedule = #iree_gpu.mma_schedule<
-        intrinsic = #iree_gpu.mma_layout<{configuration.intrinsic}>,
-        subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>
-    {extra_config}}}>
-    > -> !transform.any_param
+{config_mlir}
 transform.yield %generic, %config : !transform.any_op, !transform.any_param
 }}
 """
@@ -1135,7 +1392,7 @@ transform.yield %generic, %config : !transform.any_op, !transform.any_param
         self,
         problem_size: ProblemSize,
         template: list[str],
-        configuration: Configuration,
+        configuration: BaseConfiguration,
     ) -> MLIRTransformation:
         M, N, K = problem_size.MNK
         B = problem_size.matmul_size.B
@@ -1145,8 +1402,8 @@ transform.yield %generic, %config : !transform.any_op, !transform.any_param
             ),
             "//   ",
         )
-        modified += apply_configuration(
-            template, configuration, get_batch_mmt_tile_sizes(configuration)
+        modified += configuration.apply_configuration(
+            template, configuration.get_batch_mmt_tile_sizes()
         )
 
         embeddable = indent(
@@ -1235,18 +1492,14 @@ class BatchMatmulTuner(DispatchTuner):
         problem_size: ProblemSize,
         tile_dims: str,
         functionName: str,
-        configuration: Configuration,
+        configuration: BaseConfiguration,
     ) -> str:
         input0 = f"tensor<{problem_size.lhs_type}>"
         input1 = f"tensor<{problem_size.rhs_type}>"
         output = f"tensor<{problem_size.res_type}>"
 
-        tile_sizes = ", ".join(
-            map(str, get_contract_tile_sizes(configuration, tile_dims))
-        )
-
-        wg_x, wg_y, wg_z = configuration.workgroup_size
-        extra_config = get_pipeline_config(configuration)
+        tile_sizes = configuration.get_contract_tile_sizes(tile_dims)
+        config_mlir = configuration.get_mlir_config(tile_sizes)
 
         return f"""
     transform.named_sequence @{functionName}(%batch_matmul: !transform.any_op {{transform.readonly}})
@@ -1257,15 +1510,7 @@ class BatchMatmulTuner(DispatchTuner):
         ins(%lhs, %rhs : {input0}, {input1})
         outs(%out : {output}) -> {output}
     }} : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
-        %config = transform.param.constant #iree_codegen.compilation_info<
-        lowering_config = #iree_codegen.lowering_config<tile_sizes = [[{tile_sizes}]]>,
-        translation_info = #iree_codegen.translation_info<LLVMGPUPadAndVectorDistribute
-        workgroup_size = [{wg_x}, {wg_y}, {wg_z}] subgroup_size = {configuration.subgroup_size},
-            {{mma_schedule = #iree_gpu.mma_schedule<
-                intrinsic = #iree_gpu.mma_layout<{configuration.intrinsic}>,
-                subgroup_m_count = {configuration.subgroup_m_count}, subgroup_n_count = {configuration.subgroup_n_count}>
-            {extra_config}}}>
-        > -> !transform.any_param
+        {config_mlir}
     transform.yield %batch_matmul, %config : !transform.any_op, !transform.any_param
     }}
     """
@@ -1274,7 +1519,7 @@ class BatchMatmulTuner(DispatchTuner):
         self,
         problem_size: ProblemSize,
         template: list[str],
-        configuration: Configuration,
+        configuration: BaseConfiguration,
     ) -> MLIRTransformation:
         M, N, K = problem_size.MNK
         modified = indent(
@@ -1286,10 +1531,9 @@ class BatchMatmulTuner(DispatchTuner):
             ),
             "//   ",
         )
-        modified += apply_configuration(
+        modified += configuration.apply_configuration(
             template,
-            configuration,
-            get_contract_tile_sizes(configuration, self.tile_dims),
+            configuration.get_contract_tile_sizes(self.tile_dims),
         )
 
         embeddable = indent(
@@ -1362,6 +1606,7 @@ def tune(
     dispatch_tuner_registry.register(
         [
             MmtTuner(),
+            Mmt4dTuner(),
             ConvTuner(),
             ContractionTuner(lhs_dims, rhs_dims, tile_dims),
             BatchMmtTuner(),
@@ -1374,8 +1619,12 @@ def tune(
     dispatch_tuner = walk_result.dispatch_tuner
     problem_size = dispatch_tuner.get_shapes(mlir_template)
     tune_logger.debug(str(problem_size))
+
+    solutions_strategy = SolutionStrategyFactory.create_strategy(mlir_text)
     configs = []
-    for i, config in enumerate(generate_solutions(problem_size, num_subgroups)):
+    for i, config in enumerate(
+        solutions_strategy.generate_solutions(problem_size, num_subgroups)
+    ):
         if i >= limit:
             break
         tune_logger.info(f"Solution #{i+1}: {config}")
