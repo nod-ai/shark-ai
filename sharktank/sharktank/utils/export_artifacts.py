@@ -206,7 +206,7 @@ class ExportArtifacts:
             "--iree-global-opt-propagate-transposes=true",
             "--iree-opt-aggressively-propagate-transposes=true",
             "--iree-opt-data-tiling=false",
-            "--iree-preprocessing-pass-pipeline=\"builtin.module\\(util.func\\(iree-preprocessing-generalize-linalg-matmul-experimental\\)\\)\"",
+            '--iree-preprocessing-pass-pipeline="builtin.module\\(util.func\\(iree-preprocessing-generalize-linalg-matmul-experimental\\)\\)"',
             f"-o={vmfb_path}",
         ]
         if self.tensor_parallelism_size > 1:
@@ -251,7 +251,6 @@ class ExportArtifacts:
             compile_cmd: Command used to compile the program, for inclusion in error messages.
         Raises Exception if running fails for some reason.
         """
-        import pdb; pdb.set_trace()
         benchmark_args = []
         if self.tensor_parallelism_size > 1:
             base_irpa_path, _ = os.path.splitext(irpa_path)
