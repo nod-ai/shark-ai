@@ -195,6 +195,7 @@ class ExportArtifacts:
         vmfb_path,
         cwd,
         hal_dump_path: Optional[Path] = None,
+        args: Optional[List[str]] = None,
     ):
         # TODO: Control flag to enable multiple backends
         compile_args = [
@@ -202,11 +203,6 @@ class ExportArtifacts:
             f"{mlir_path}",
             f"--iree-hip-target={self.iree_hip_target}",
             f"--iree-hal-target-backends={self.iree_hal_target_backends}",
-            "--iree-dispatch-creation-enable-aggressive-fusion=true",
-            "--iree-global-opt-propagate-transposes=true",
-            "--iree-opt-aggressively-propagate-transposes=true",
-            "--iree-opt-data-tiling=false",
-            '--iree-preprocessing-pass-pipeline="builtin.module\\(util.func\\(iree-preprocessing-generalize-linalg-matmul-experimental\\)\\)"',
             f"-o={vmfb_path}",
         ]
         if self.tensor_parallelism_size > 1:
@@ -214,17 +210,14 @@ class ExportArtifacts:
                 f"--iree-hal-target-device=hip[{i}]"
                 for i in range(self.tensor_parallelism_size)
             ]
-            tp_flags = [
-                "--iree-hal-force-indirect-command-buffers=true",
-                "--iree-stream-resource-memory-model=discrete",
-                "--iree-hip-legacy-sync=false",
-            ]
             compile_args += iree_hal_target_devices
-            compile_args += tp_flags
         if hal_dump_path:
             compile_args += [
                 f"--iree-hal-dump-executable-files-to={hal_dump_path}/files"
             ]
+        # Append optional arguments if provided
+        if args:
+            compile_args += args
         cmd = subprocess.list2cmdline(compile_args)
 
         logging.getLogger().info(f"Launching compile command:\n" f"cd {cwd} && {cmd}")

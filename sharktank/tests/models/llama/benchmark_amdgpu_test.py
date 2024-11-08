@@ -49,6 +49,13 @@ class BaseBenchmarkTest(unittest.TestCase):
 
     def setUp(self):
         self.hip_device_id = os.getenv("HIP_DEVICE_ID", default="0")
+        self.compile_args = [
+            "--iree-dispatch-creation-enable-aggressive-fusion=true",
+            "--iree-global-opt-propagate-transposes=true",
+            "--iree-opt-aggressively-propagate-transposes=true",
+            "--iree-opt-data-tiling=false",
+            '--iree-preprocessing-pass-pipeline="builtin.module\\(util.func\\(iree-preprocessing-generalize-linalg-matmul-experimental\\)\\)"',
+        ]
 
 
 @is_mi300x
@@ -154,6 +161,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             vmfb_path=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
+            args=self.compile_args,
         )
         # benchmark prefill
         self.llama8b_f16_decomposed_artifacts.iree_benchmark_vmfb(
@@ -195,6 +203,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             vmfb_path=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
+            args=self.compile_args,
         )
         # benchmark prefill
         self.llama8b_f16_torch_sdpa_artifacts.iree_benchmark_vmfb(
@@ -236,6 +245,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             vmfb_path=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
+            args=self.compile_args,
         )
         # benchmark prefill
         self.llama8b_fp8_decomposed_artifacts.iree_benchmark_vmfb(
@@ -277,6 +287,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             vmfb_path=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
+            args=self.compile_args,
         )
         # benchmark prefill
         self.llama8b_fp8_torch_sdpa_artifacts.iree_benchmark_vmfb(
@@ -379,6 +390,11 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             f"--input=@{self.decode_args_fp8}/cache_state_f16.npy",
             "--benchmark_repetitions=3",
         ]
+        self.compile_args += [
+            "--iree-hal-force-indirect-command-buffers=true",
+            "--iree-stream-resource-memory-model=discrete",
+            "--iree-hip-legacy-sync=false",
+        ]
 
     @pytest.mark.xfail(
         reason="Benchmarking Error", strict=True, raises=IreeBenchmarkException
@@ -409,6 +425,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             vmfb_path=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
+            args=self.compile_args,
         )
         # benchmark prefill
         self.llama70b_f16_decomposed_artifacts.iree_benchmark_vmfb(
@@ -454,6 +471,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             vmfb_path=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
+            args=self.compile_args,
         )
         # benchmark prefill
         self.llama70b_f16_torch_sdpa_artifacts.iree_benchmark_vmfb(
@@ -501,6 +519,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             vmfb_path=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
+            args=self.compile_args,
         )
         # benchmark prefill
         self.llama70b_fp8_decomposed_artifacts.iree_benchmark_vmfb(
@@ -548,6 +567,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             vmfb_path=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
+            args=self.compile_args,
         )
         # benchmark prefill
         self.llama70b_fp8_torch_sdpa_artifacts.iree_benchmark_vmfb(
@@ -680,6 +700,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             vmfb_path=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
+            args=self.compile_args,
         )
         # benchmark prefill
         self.llama405b_f16_decomposed_artifacts.iree_benchmark_vmfb(
@@ -725,6 +746,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             vmfb_path=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
+            args=self.compile_args,
         )
         # benchmark prefill
         self.llama405b_f16_torch_sdpa_artifacts.iree_benchmark_vmfb(
@@ -772,6 +794,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             vmfb_path=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
+            args=self.compile_args,
         )
         # benchmark prefill
         self.llama405b_fp8_decomposed_artifacts.iree_benchmark_vmfb(
@@ -819,6 +842,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             vmfb_path=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
+            args=self.compile_args,
         )
         # benchmark prefill
         self.llama405b_fp8_torch_sdpa_artifacts.iree_benchmark_vmfb(
