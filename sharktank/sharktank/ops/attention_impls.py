@@ -47,7 +47,7 @@ def _extract_linear_scale(t):
     return unbox_tensor(t), None
 
 
-def flash_attention(q, k, v, a):
+def flash_attention(q, k, v, a, is_causal, scale):
     scale = torch.scalar_tensor(1.0 / math.sqrt(q.shape[-1]), dtype=torch.float32)
 
     q, qscale = _extract_linear_scale(q)
