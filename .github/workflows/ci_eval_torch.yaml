@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-name: CI - Perplexity
+name: CI - Perplexity Torch
 
 on:
   workflow_dispatch:
@@ -21,62 +21,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test_perplexity_vmfb:
-    timeout-minutes: 1000
-    name: "IREE/vmfb"
-    strategy:
-      matrix:
-        version: [3.11]
-        runs-on: [llama-mi300x-3]
-      fail-fast: false
-    runs-on: ${{matrix.runs-on}}
-    defaults:
-      run:
-        shell: bash
-    env:
-      PIP_CACHE_DIR: "${{ github.workspace }}/.pip-cache"
-      SHARK_PLATFORM_REPO_ROOT: ${{ github.workspace }}
-    steps:
-      - name: "Setting up Python"
-        id: setup_python
-        uses: actions/setup-python@v3
-        with:
-          python-version: ${{matrix.version}}
-
-      - name: "Checkout Code"
-        uses: actions/checkout@v3
-
-      - name: Cache Pip Packages
-        uses: actions/cache@v4
-        id: cache-pip
-        with:
-          path: ${{ env.PIP_CACHE_DIR }}
-          key: pip-${{ steps.setup_python.outputs.python-version }}-${{ hashFiles('*requirements*.txt','sharktank/requirements*.txt') }}
-
-      - name: Install sharktank deps
-        run: |
-          python -m pip install --no-compile --upgrade pip
-          # Note: We install in three steps in order to satisfy requirements
-          # from non default locations first. Installing the PyTorch CPU
-          # wheels saves multiple minutes and a lot of bandwidth on runner setup.
-          pip install --no-compile -r pytorch-cpu-requirements.txt
-          pip install --no-compile -f https://iree.dev/pip-release-links.html --src deps \
-            -e "git+https://github.com/iree-org/iree-turbine.git#egg=iree-turbine"
-          pip install --no-compile -r requirements.txt -r sharktank/requirements-tests.txt -e sharktank/
-
-          # Try with the latest nightly releases, not what iree-turbine uses.
-          # We could also pin to a known working or stable version.
-          # This should eventually stabilize. Do the best we can for now.
-          pip install -f https://iree.dev/pip-release-links.html --upgrade \
-            iree-base-compiler \
-            iree-base-runtime \
-            "numpy<2.0"
-      - name: Run perplexity test with vmfb
-        run:  pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_vmfb_test.py --longrun --iree-device='hip://7' --iree-hip-target=gfx942 --iree-hal-target-backends=rocm --llama3-8b-f16-model-path=/data/llama3.1/8b/llama8b_f16.irpa --llama3-8b-tokenizer-path=/data/llama3.1/8b/tokenizer_config.json
-
   test_perplexity_torch:
     timeout-minutes: 1000
-    name: "Torch/eager mode"
+    name: "Perplexity Torch"
     strategy:
       matrix:
         version: [3.11]
@@ -117,5 +64,5 @@ jobs:
             -e "git+https://github.com/iree-org/iree-turbine.git#egg=iree-turbine"
           pip install --no-compile -r requirements.txt -r sharktank/requirements-tests.txt -e sharktank/
 
-      - name: Run perplexity test in eager mode
+      - name: Run perplexity test with Torch
         run:  pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_torch_test.py --longrun --llama3-8b-f16-model-path=/data/llama3.1/8b/llama8b_f16.irpa --llama3-8b-tokenizer-path=/data/llama3.1/8b/tokenizer_config.json

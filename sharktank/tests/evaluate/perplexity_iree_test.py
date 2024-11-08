@@ -8,7 +8,7 @@ import unittest
 import pytest
 import json
 
-from sharktank.evaluate import perplexity_vmfb
+from sharktank.evaluate import perplexity_iree
 
 longrun = pytest.mark.skipif("not config.getoption('longrun')")
 
@@ -35,7 +35,7 @@ class PerplexityTest(unittest.TestCase):
         model_name = "llama3_8B_f16_decomposed_vmfb"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
-        current_perplexity = perplexity_vmfb.main(
+        current_perplexity = perplexity_iree.main(
             [
                 f"--irpa-file={self.llama3_8b_f16_model}",
                 f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
@@ -70,7 +70,7 @@ class PerplexityTest(unittest.TestCase):
         model_name = "llama3_8B_f16_vmfb"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
-        current_perplexity = perplexity_vmfb.main(
+        current_perplexity = perplexity_iree.main(
             [
                 f"--irpa-file={self.llama3_8b_f16_model}",
                 f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
@@ -105,7 +105,7 @@ class PerplexityTest(unittest.TestCase):
         model_name = "llama3_8B_fp8_decomposed_vmfb"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
-        current_perplexity = perplexity_vmfb.main(
+        current_perplexity = perplexity_iree.main(
             [
                 f"--irpa-file={self.llama3_8b_fp8_model}",
                 f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
@@ -140,7 +140,7 @@ class PerplexityTest(unittest.TestCase):
         model_name = "llama3_8B_fp8_vmfb"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
-        current_perplexity = perplexity_vmfb.main(
+        current_perplexity = perplexity_iree.main(
             [
                 f"--irpa-file={self.llama3_8b_fp8_model}",
                 f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
@@ -175,7 +175,7 @@ class PerplexityTest(unittest.TestCase):
         model_name = "llama3_405B_f16_decomposed_vmfb"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
-        current_perplexity = perplexity_vmfb.main(
+        current_perplexity = perplexity_iree.main(
             [
                 f"--irpa-file={self.llama3_405b_f16_model}",
                 f"--tokenizer-config-json={self.llama3_405b_tokenizer}",
@@ -210,7 +210,7 @@ class PerplexityTest(unittest.TestCase):
         model_name = "llama3_405B_f16_vmfb"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
-        current_perplexity = perplexity_vmfb.main(
+        current_perplexity = perplexity_iree.main(
             [
                 f"--irpa-file={self.llama3_405b_f16_model}",
                 f"--tokenizer-config-json={self.llama3_405b_tokenizer}",
@@ -245,7 +245,7 @@ class PerplexityTest(unittest.TestCase):
         model_name = "llama3_405B_fp8_decomposed_vmfb"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
-        current_perplexity = perplexity_vmfb.main(
+        current_perplexity = perplexity_iree.main(
             [
                 f"--irpa-file={self.llama3_405b_fp8_model}",
                 f"--tokenizer-config-json={self.llama3_405b_tokenizer}",
@@ -280,7 +280,7 @@ class PerplexityTest(unittest.TestCase):
         model_name = "llama3_405B_fp8_vmfb"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
-        current_perplexity = perplexity_vmfb.main(
+        current_perplexity = perplexity_iree.main(
             [
                 f"--irpa-file={self.llama3_405b_fp8_model}",
                 f"--tokenizer-config-json={self.llama3_405b_tokenizer}",
