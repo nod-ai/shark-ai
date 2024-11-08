@@ -69,7 +69,7 @@ jobs:
           pip install --no-compile -f https://iree.dev/pip-release-links.html --src deps \
             -e "git+https://github.com/iree-org/iree-turbine.git#egg=iree-turbine"
 
-          # Test with pinned nightly releases, not what iree-turbine uses.
+          # Test with nightly releases, not what iree-turbine uses.
           pip install -f https://iree.dev/pip-release-links.html --upgrade \
             iree-base-compiler==3.0.0rc20241115 \
             iree-base-runtime==3.0.0rc20241115

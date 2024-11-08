@@ -123,15 +123,15 @@ class ExportArtifacts:
     def shard_irpa_file(
         self,
         *,
-        gguf_file: str,
+        irpa_file: str,
         output_irpa: str,
     ):
         shard_irpa_args = [
             "python3",
             "-m",
             "sharktank.examples.sharding.shard_llm_dataset",
-            "--gguf-file",
-            gguf_file,
+            "--irpa-file",
+            irpa_file,
             "--output-irpa-file",
             output_irpa,
             "--tensor-parallelism-size",
@@ -202,6 +202,11 @@ class ExportArtifacts:
             f"{mlir_path}",
             f"--iree-hip-target={self.iree_hip_target}",
             f"--iree-hal-target-backends={self.iree_hal_target_backends}",
+            "--iree-dispatch-creation-enable-aggressive-fusion=true",
+            "--iree-global-opt-propagate-transposes=true",
+            "--iree-opt-aggressively-propagate-transposes=true",
+            "--iree-opt-data-tiling=false",
+            "--iree-preprocessing-pass-pipeline=\"builtin.module\\(util.func\\(iree-preprocessing-generalize-linalg-matmul-experimental\\)\\)\"",
             f"-o={vmfb_path}",
         ]
         if self.tensor_parallelism_size > 1:
@@ -209,12 +214,17 @@ class ExportArtifacts:
                 f"--iree-hal-target-device=hip[{i}]"
                 for i in range(self.tensor_parallelism_size)
             ]
+            tp_flags = [
+                "--iree-hal-force-indirect-command-buffers=true",
+                "--iree-stream-resource-memory-model=discrete",
+                "--iree-hip-legacy-sync=false",
+            ]
             compile_args += iree_hal_target_devices
+            compile_args += tp_flags
         if hal_dump_path:
             compile_args += [
                 f"--iree-hal-dump-executable-files-to={hal_dump_path}/files"
             ]
-
         cmd = subprocess.list2cmdline(compile_args)
 
         logging.getLogger().info(f"Launching compile command:\n" f"cd {cwd} && {cmd}")
@@ -241,6 +251,7 @@ class ExportArtifacts:
             compile_cmd: Command used to compile the program, for inclusion in error messages.
         Raises Exception if running fails for some reason.
         """
+        import pdb; pdb.set_trace()
         benchmark_args = []
         if self.tensor_parallelism_size > 1:
             base_irpa_path, _ = os.path.splitext(irpa_path)

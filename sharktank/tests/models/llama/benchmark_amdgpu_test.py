@@ -57,7 +57,6 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         super().setUp()
         # TODO: add numpy files to Azure and download from it
         self.artifacts_dir = Path("/data/llama-3.1/weights/8b")
-        self.gguf_path = self.artifacts_dir / "fp16/llama3.1_8b_fp16.gguf"
         self.irpa_path = self.artifacts_dir / "fp16/llama3.1_8b_fp16.irpa"
         self.irpa_path_fp8 = self.artifacts_dir / "f8/llama8b_fp8.irpa"
         self.tensor_parallelism_size = 1
@@ -173,6 +172,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
 
+    @skipif_run_8b_llama
     @pytest.mark.xfail(reason="Compile Error", strict=True, raises=IreeCompileException)
     def testBenchmark8B_f16_Non_Decomposed(self):
         output_file_name = self.dir_path_8b / "f16_torch"
@@ -303,7 +303,6 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         super().setUp()
         # TODO: add numpy files to Azure and download from it
         self.artifacts_dir = Path("/data/llama-3.1/weights/70b")
-        self.gguf_path = self.artifacts_dir / "fp16/llama3.1_70b_f16.gguf"
         self.irpa_path = self.artifacts_dir / "fp16/llama3.1_70b_f16.irpa"
         self.irpa_path_fp8 = self.artifacts_dir / "f8/llama70b_fp8.irpa"
         self.tensor_parallelism_size = 8
@@ -576,7 +575,6 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         # TODO: add numpy files to Azure and download from it
         self.artifacts_dir = Path("/data/llama-3.1/weights/405b")
         self.irpa_path = self.artifacts_dir / "fp16/llama3.1_405b_fp16.irpa"
-        self.gguf_path = self.artifacts_dir / "fp16/llama3_405b_f16.gguf"
         self.irpa_path_fp8 = self.artifacts_dir / "f8/llama405b_fp8.irpa"
         self.tensor_parallelism_size = 8
         self.dir_path_405b = self.dir_path / "llama-405b"
