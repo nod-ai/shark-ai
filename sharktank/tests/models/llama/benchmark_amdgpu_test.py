@@ -181,6 +181,40 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         )
 
     @skipif_run_8b_llama
+    def testBenchmark8B_f16_Non_Decomposed_Prefill(self):
+        output_file_name = self.dir_path_8b / "f16_torch_prefill"
+        output_mlir = self.llama8b_f16_torch_sdpa_artifacts.create_file(
+            suffix=".mlir", prefix=output_file_name
+        )
+        output_json = self.llama8b_f16_torch_sdpa_artifacts.create_file(
+            suffix=".json", prefix=output_file_name
+        )
+        output_vmfb = self.llama8b_f16_torch_sdpa_artifacts.create_file(
+            suffix=".vmfb", prefix=output_file_name
+        )
+        self.llama8b_f16_torch_sdpa_artifacts.attention_kernel = "torch"
+        export_return_code = self.llama8b_f16_torch_sdpa_artifacts.export_to_mlir(
+            mlir_path=output_mlir,
+            json_path=output_json,
+            skip_decode=True,
+        )
+        self.llama8b_f16_torch_sdpa_artifacts.compile_to_vmfb(
+            mlir_path=str(output_mlir),
+            vmfb_path=output_vmfb,
+            hal_dump_path=output_file_name,
+            cwd=self.repo_root,
+            args=self.compile_args,
+        )
+        # benchmark prefill
+        self.llama8b_f16_torch_sdpa_artifacts.iree_benchmark_vmfb(
+            hip_device_id=self.hip_device_id,
+            vmfb_name=output_vmfb,
+            irpa_path=self.irpa_path,
+            args=self.iree_run_prefill_args,
+            cwd=self.repo_root,
+        )
+
+    @skipif_run_8b_llama
     @pytest.mark.xfail(reason="Compile Error", strict=True, raises=IreeCompileException)
     def testBenchmark8B_f16_Non_Decomposed(self):
         output_file_name = self.dir_path_8b / "f16_torch"

@@ -71,8 +71,9 @@ jobs:
 
           # Test with nightly releases, not what iree-turbine uses.
           pip install -f https://iree.dev/pip-release-links.html --upgrade \
-            iree-base-compiler==3.0.0rc20241115 \
-            iree-base-runtime==3.0.0rc20241115
+            iree-base-compiler==2.9.0rc20241108 \
+            iree-base-runtime==2.9.0rc20241108 \
+            "numpy<2.0"
 
       - name: Run llama tests
         run: pytest sharktank/tests/models/llama/benchmark_amdgpu_test.py -v -s --run-all-llama --iree-hip-target=gfx942 --html=out/index.html

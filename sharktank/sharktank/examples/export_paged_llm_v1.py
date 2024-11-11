@@ -54,8 +54,23 @@ def main():
         help="Enables strictness during export",
         action="store_true",
     )
+<<<<<<< HEAD
     cli.add_quantization_options(parser)
     cli.add_model_options(parser)
+=======
+    parser.add_argument(
+        "--attention-kernel",
+        type=str,
+        default="decomposed",
+        choices=["decomposed", "torch"],
+    )
+    parser.add_argument(
+        "--skip-decode",
+        help="Enables prefill only, skips decode",
+        action="store_true",
+    )
+
+>>>>>>> c745549 (Add non-decomposed 8b f16 prefill only test nightly)
     args = cli.parse(parser)
     dataset_type = cli.get_input_data_files(args)
     dataset_type = "irpa" if "irpa" in dataset_type else "gguf"
@@ -312,7 +327,8 @@ def main():
     bsizes = []
     for bs in args.bs:
         generate_batch_prefill(bs)
-        generate_batch_decode(bs)
+        if not args.skip_decode:
+            generate_batch_decode(bs)
         bsizes.append(bs)
     config = generate_params_json(hp, bsizes, bsizes)
     print("GENERATED!")

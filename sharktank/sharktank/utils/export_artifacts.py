@@ -160,6 +160,7 @@ class ExportArtifacts:
         *,
         mlir_path: str,
         json_path: str,
+        skip_decode: Optional[bool] = None,
     ):
         export_args = [
             "python3",
@@ -170,6 +171,8 @@ class ExportArtifacts:
             f"--output-config={json_path}",
             f"--bs={str(self.batch_size)}",
         ]
+        if skip_decode:
+            export_args.append("--skip-decode")
         if self.attention_kernel in ["decomposed", "torch"]:
             export_args.append("--attention-kernel")
             export_args.append(self.attention_kernel)
