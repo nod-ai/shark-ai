@@ -54,7 +54,7 @@ class BaseBenchmarkTest(unittest.TestCase):
             "--iree-global-opt-propagate-transposes=true",
             "--iree-opt-aggressively-propagate-transposes=true",
             "--iree-opt-data-tiling=false",
-            '--iree-preprocessing-pass-pipeline="builtin.module\\(util.func\\(iree-preprocessing-generalize-linalg-matmul-experimental\\)\\)"',
+            "--iree-preprocessing-pass-pipeline='builtin.module(util.func(iree-preprocessing-generalize-linalg-matmul-experimental))'",
         ]
 
 
