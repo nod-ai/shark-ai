@@ -8,9 +8,8 @@ import unittest
 import pytest
 import json
 
+from sharktank.utils.testing import longrun
 from sharktank.evaluate import perplexity_torch
-
-longrun = pytest.mark.skipif("not config.getoption('longrun')")
 
 
 @pytest.mark.usefixtures(

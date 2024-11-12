@@ -134,6 +134,22 @@ def pytest_addoption(parser):
     )
 
     parser.addoption(
+        "--google-t5-v1-1-small-fp32-model-path",
+        type=Path,
+        action="store",
+        default=None,
+        help="Google T5 v1.1 small fp32 model path",
+    )
+
+    parser.addoption(
+        "--google-t5-v1-1-xxl-fp32-model-path",
+        type=Path,
+        action="store",
+        default=None,
+        help="Google T5 v1.1 XXL fp32 model path",
+    )
+
+    parser.addoption(
         "--baseline-perplexity-scores",
         type=Path,
         action="store",
@@ -255,6 +271,16 @@ def get_model_artifacts(request: FixtureRequest):
     )
     model_path["llama3_405b_fp8_model_path"] = set_fixture_from_cli_option(
         request, "--llama3-405b-fp8-model-path", "llama3_405b_fp8_model"
+    )
+    model_path["google__t5_v1_1_small_fp32_model_path"] = set_fixture_from_cli_option(
+        request,
+        "--google-t5-v1-1-small-fp32-model-path",
+        "google__t5_v1_1_small_fp32_model",
+    )
+    model_path["google__t5_v1_1_xxl_fp32_model_path"] = set_fixture_from_cli_option(
+        request,
+        "--google-t5-v1-1-xxl-fp32-model-path",
+        "google__t5_v1_1_xxl_fp32_model",
     )
     return model_path
 

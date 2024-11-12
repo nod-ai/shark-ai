@@ -141,36 +141,19 @@ def elementwise_binary(operator, x, y, *args, **kwargs):
 
 
 @elementwise.override(
-    AllOfExprsVariadic(
-        IsOfType(Tensor, InferenceTensor),
-        IsOfType(Tensor, InferenceTensor, Number),
-        IsOfType(Tensor, InferenceTensor, Number),
+    AllOfExprs(
+        IsOfType(Tensor, PrimitiveTensor),
+        IsOfType(Tensor, PrimitiveTensor, Number),
+        IsOfType(Tensor, PrimitiveTensor, Number),
     )
 )
-def elementwise_variadic(operator, x, y, *args):
-    """Folds by successively applying the binary operator from left to right until
-    exhaustion.
-
-    Match a variable number of tensor/number arguments with at least 3 such arguments.
-
-    Example matches
-    ```
-    (Tensor, Tensor, Tensor)
-    (Tensor, DefaultPrimitiveTensor, float),
-    (SplitPrimitiveTensor, ReplicatedTensor, int, Tensor)
-    ```
-
-    Will not match
-    ```
-    (Tensor)
-    (Tensor, Tensor)
-    (int, Tensor, Tensor)
-    ```
-    """
-    res = elementwise(operator, x, y)
-    for arg in args:
-        res = elementwise(operator, res, arg)
-    return res
+def elementwise_trenary(operator, x, y, z, *args, **kwargs):
+    x = unbox_tensor(x)
+    if isinstance(y, PrimitiveTensor):
+        y = unbox_tensor(y)
+    if isinstance(z, PrimitiveTensor):
+        z = unbox_tensor(z)
+    return operator(x, y, z, *args, **kwargs)
 
 
 # Embedding Lookup

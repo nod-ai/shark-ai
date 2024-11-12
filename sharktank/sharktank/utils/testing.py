@@ -14,8 +14,12 @@ import torch
 from typing import Any, Callable
 from operator import eq
 from collections.abc import Iterable
+import pytest
+import gc
 
 from ..types import *
+
+longrun = pytest.mark.skipif("not config.getoption('longrun')")
 
 # Range of torch.rand() is [0,1)
 # Range of torch.rand() * 2 - 1 is [-1, 1), includes negative values
@@ -28,6 +32,7 @@ class TempDirTestBase(unittest.TestCase):
         self._temp_dir = Path(tempfile.mkdtemp(type(self).__qualname__))
 
     def tearDown(self):
+        gc.collect()
         shutil.rmtree(self._temp_dir, ignore_errors=True)
 
 
