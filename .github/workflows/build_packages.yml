@@ -38,7 +38,9 @@ jobs:
         id: version_rc
         run: |
           sharktank_package_version=$(python3 build_tools/gen_version_info_rc.py sharktank)
+          echo "sharktank_package_version=${sharktank_package_version}" >> $GITHUB_ENV
           shortfin_package_version=$(python3 build_tools/gen_version_info_rc.py shortfin)
+          echo "shortfin_package_version=${shortfin_package_version}" >> $GITHUB_ENV
       - name: Upload version_info_rc.json
         uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
         with:
@@ -134,3 +136,18 @@ jobs:
         allowUpdates: true
         replacesArtifacts: true
         makeLatest: false
+
+  test:
+    name: "Trigger test packages"
+    needs: build_packages
+    runs-on: ubuntu-24.04
+    steps:
+      - name: "Invoke workflow :: Test Packages"
+        uses: benc-uk/workflow-dispatch@e2e5e9a103e331dad343f381a29e654aea3cf8fc # v1.2.4
+        with:
+          workflow: Validate and Publish Release
+          inputs: |
+            {
+              "sharktank_package_version": "${{ env.sharktank_package_version }}",
+              "shortfin_package_version": "${{ env.shortfin_package_version }}",
+            }

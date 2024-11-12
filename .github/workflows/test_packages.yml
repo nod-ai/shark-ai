@@ -1,0 +1,52 @@
+# Copyright 2024 Advanced Micro Devices, Inc.
+#
+# Licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+name: Test packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      sharktank_package_version:
+        description: "Version of the sharktank package"
+        required: true
+      shortfin_package_version:
+        description: "Version of the shortfin package"
+        required: true
+
+jobs:
+  test_sharktank:
+    name: "Test sharktank package"
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Setup python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.3
+        with:
+          python-version: 3.11
+      - name: Install Python packages
+        run: |
+          python -m pip install sharktank==${{ github.event.inputs.sharktank_package_version }} \
+            -f https://github.com/nod-ai/SHARK-Platform/releases/expanded_assets/dev-wheels
+      - name: Test import sharktank
+        id: import_sharktank
+        run: |
+          python -c "import sharktank; print('Sanity check passed')"
+
+  test_shortfin:
+    name: "Test shortfin package"
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Setup python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.3
+        with:
+          python-version: 3.11
+      - name: Install Python packages
+        run: |
+          python -m pip install shortfin==${{ github.event.inputs.shortfin_package_version }} \
+            -f https://github.com/nod-ai/SHARK-Platform/releases/expanded_assets/dev-wheels
+      - name: Test import shortfin
+        id: import_shortfin
+        run: |
+          python -c "import shortfin; print('Sanity check passed')"
