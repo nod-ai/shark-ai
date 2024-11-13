@@ -60,29 +60,15 @@ def test_parse_tensor_type():
 
 
 def test_get_mmt_tile_sizes():
-    config = candidate_gen.Configuration(
-        subgroup_size=0,
-        workgroup_size=[],
-        intrinsic="",
+    config = candidate_gen.BaseConfiguration(
         tile_sizes=[128, 320, 32],
-        subgroup_m_count=0,
-        subgroup_n_count=0,
-        gpu_pipeline_options=candidate_gen.GpuPipelineOptions(),
-        waves_per_eu=0,
     )
-    assert candidate_gen.get_mmt_tile_sizes(config) == [128, 320, 32]
+    assert config.get_mmt_tile_sizes() == [128, 320, 32]
 
 
 def test_get_conv_tile_sizes():
-    config = candidate_gen.Configuration(
-        subgroup_size=64,
-        workgroup_size=[256, 1, 1],
-        intrinsic="#iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>",
+    config = candidate_gen.BaseConfiguration(
         tile_sizes=[464, 320, 16],
-        subgroup_m_count=1,
-        subgroup_n_count=4,
-        gpu_pipeline_options=candidate_gen.GpuPipelineOptions(),
-        waves_per_eu=1,
     )
     assert candidate_gen.ConvTuner().get_conv_tile_sizes(config) == [
         1,
@@ -122,7 +108,26 @@ def test_gpu_pipeline_options():
 
 
 def test_get_contract_tile_sizes():
-    config = candidate_gen.Configuration(
+    config = candidate_gen.BaseConfiguration(
+        tile_sizes=[4, 8, 16],
+    )
+    assert config.get_contract_tile_sizes(["m", "n", "k"]) == [4, 8, 16]
+    assert config.get_contract_tile_sizes(["n", "m", "k"]) == [8, 4, 16]
+    assert config.get_contract_tile_sizes(["k", "n", "m"]) == [16, 8, 4]
+    assert config.get_contract_tile_sizes(["k", "k", "k"]) == [16, 16, 16]
+
+
+def test_get_pipeline_config_base():
+    config = candidate_gen.BaseConfiguration(
+        tile_sizes=[4, 8, 16],
+    )
+
+    config1_str: str = config.get_pipeline_config()
+    assert config1_str == None
+
+
+def test_get_pipeline_config_llvmgpu():
+    config = candidate_gen.LLVMGPUConfiguration(
         subgroup_size=32,
         workgroup_size=[16, 16, 1],
         intrinsic="",
@@ -132,40 +137,27 @@ def test_get_contract_tile_sizes():
         gpu_pipeline_options=candidate_gen.GpuPipelineOptions(),
         waves_per_eu=2,
     )
-    assert candidate_gen.get_contract_tile_sizes(config, ["m", "n", "k"]) == [4, 8, 16]
-    assert candidate_gen.get_contract_tile_sizes(config, ["n", "m", "k"]) == [8, 4, 16]
-    assert candidate_gen.get_contract_tile_sizes(config, ["k", "n", "m"]) == [16, 8, 4]
-    assert candidate_gen.get_contract_tile_sizes(config, ["k", "k", "k"]) == [
-        16,
-        16,
-        16,
-    ]
-
-
-def test_get_pipeline_config():
-    config = candidate_gen.Configuration(
-        subgroup_size=32,
-        workgroup_size=[16, 16, 1],
-        intrinsic="",
-        tile_sizes=[4, 8, 16],
-        subgroup_m_count=1,
-        subgroup_n_count=1,
-        gpu_pipeline_options=candidate_gen.GpuPipelineOptions(),
-        waves_per_eu=2,
-    )
-    config1_str: str = candidate_gen.get_pipeline_config(config)
+    config1_str: str = config.get_pipeline_config()
     assert config1_str == ""
 
     config.waves_per_eu = 4
-    config2_str: str = candidate_gen.get_pipeline_config(config)
+    config2_str: str = config.get_pipeline_config()
     assert config2_str == ', llvm_func_attrs = {"amdgpu-waves-per-eu" = "4"}'
 
     config.gpu_pipeline_options.prefetch_shared_memory = True
-    config3_str = candidate_gen.get_pipeline_config(config)
+    config3_str = config.get_pipeline_config()
     assert (
         config3_str
         == ', gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>, llvm_func_attrs = {"amdgpu-waves-per-eu" = "4"}'
     )
+
+
+def test_get_pipeline_config_llvmcpu():
+    config = candidate_gen.LLVMCPUConfiguration(
+        tile_sizes=[4, 8, 16],
+    )
+    config1_str: str = config.get_pipeline_config()
+    assert config1_str == None
 
 
 def test_get_shapes_mmt():
@@ -181,6 +173,27 @@ def test_get_shapes_mmt():
         candidate_gen.ShapedType([1280, 1280], candidate_gen.ElementType.f16),
         candidate_gen.ShapedType([2048, 1280], candidate_gen.ElementType.f32),
         candidate_gen.DispatchKind.mmt,
+    )
+
+
+def test_get_shapes_mmt4d():
+    template = [
+        r"%5 = tensor.empty() : tensor<256x1280x8x8xf32>",
+        r"%6 = linalg.fill {lowering_config = #iree_codegen.lowering_config<tile_sizes = [[4, 4, 0, 0], [1, 1, 0, 8], [0, 0, 0, 0], [0, 0, 0, 0]]>} ins(%cst : f16) outs(%5 : tensor<256x1280x8x8xf32>) -> tensor<256x1280x8x8xf32>",
+        r"%7 = linalg.mmt4d {lowering_config = #iree_codegen.lowering_config<tile_sizes = [[4, 4, 0, 0, 0, 0], [1, 1, 0, 8, 8, 0], [0, 0, 1, 0, 0, 1]]>} ins(%3, %4 : tensor<256x1280x8x1xf16>, tensor<1280x1280x8x1xf16>) outs(%6 : tensor<256x1280x8x8xf32>) -> tensor<256x1280x8x8xf32>",
+    ]
+    assert candidate_gen.Mmt4dTuner().get_shapes(template) == candidate_gen.ProblemSize(
+        matmul_size=candidate_gen.MatmulSize(2048, 10240, 1280),
+        lhs_type=candidate_gen.ShapedType(
+            [256, 1280, 8, 1], candidate_gen.ElementType.f16
+        ),
+        rhs_type=candidate_gen.ShapedType(
+            [1280, 1280, 8, 1], candidate_gen.ElementType.f16
+        ),
+        res_type=candidate_gen.ShapedType(
+            [256, 1280, 8, 8], candidate_gen.ElementType.f32
+        ),
+        dispatch_kind=candidate_gen.DispatchKind.mmt4d,
     )
 
 
@@ -303,7 +316,7 @@ def test_get_compatible_mfma_intrinsics():
     ]
 
 
-def test_generate_solutions():
+def test_generate_solutions_llvmgpu():
     matmul_size = candidate_gen.MatmulSize(2048, 3840, 1280)
     lhs_type = candidate_gen.ShapedType([2048, 1280], candidate_gen.ElementType.f16)
     rhs_type = candidate_gen.ShapedType([3840, 1280], candidate_gen.ElementType.f16)
@@ -311,7 +324,25 @@ def test_generate_solutions():
     problem_size = candidate_gen.ProblemSize(
         matmul_size, lhs_type, rhs_type, res_type, candidate_gen.DispatchKind.mmt
     )
-    configs = candidate_gen.generate_solutions(problem_size, 4)
+
+    gpu_strategy = candidate_gen.LLVMGPUSolutionStrategy()
+    configs = gpu_strategy.generate_solutions(problem_size, 4)
+
+    assert configs is not None
+
+
+def test_generate_solutions_llvmcpu():
+    matmul_size = candidate_gen.MatmulSize(2048, 3840, 1280)
+    lhs_type = candidate_gen.ShapedType([2048, 1280], candidate_gen.ElementType.f16)
+    rhs_type = candidate_gen.ShapedType([3840, 1280], candidate_gen.ElementType.f16)
+    res_type = candidate_gen.ShapedType([2048, 3840], candidate_gen.ElementType.f32)
+    problem_size = candidate_gen.ProblemSize(
+        matmul_size, lhs_type, rhs_type, res_type, candidate_gen.DispatchKind.mmt
+    )
+
+    cpu_strategy = candidate_gen.LLVMCPUSolutionStrategy()
+    configs = cpu_strategy.generate_solutions(problem_size, 4)
+
     assert configs is not None
 
 
@@ -347,7 +378,7 @@ def test_calculate_shared_memory_usage_in_bytes():
     )
 
 
-def test_generate_constraints_valid_input():
+def test_generate_constraints_valid_input_llvmgpu():
     matmul_size = candidate_gen.MatmulSize(1024, 1024, 1024)
     lhs_type = candidate_gen.ShapedType([1024, 1024], candidate_gen.ElementType.f16)
     rhs_type = candidate_gen.ShapedType([1024, 1024], candidate_gen.ElementType.f16)
@@ -373,7 +404,8 @@ def test_generate_constraints_valid_input():
     sg_n_cnt = candidate_gen.z3.Int("sg_n_cnt")
     waves_per_eu = candidate_gen.z3.Int("waves_per_eu")
 
-    constraints = candidate_gen.generate_constraints(
+    solution_strategy = candidate_gen.LLVMGPUSolutionStrategy()
+    constraints = solution_strategy.generate_constraints(
         problem_size,
         [m, n, k],
         4,
@@ -392,7 +424,33 @@ def test_generate_constraints_valid_input():
     assert solver.check() == candidate_gen.z3.sat
 
 
-def test_generate_constraints_invalid_input():
+def test_generate_constraints_valid_input_llvmcpu():
+    matmul_size = candidate_gen.MatmulSize(1024, 1024, 1024)
+    lhs_type = candidate_gen.ShapedType([1024, 1024], candidate_gen.ElementType.f16)
+    rhs_type = candidate_gen.ShapedType([1024, 1024], candidate_gen.ElementType.f16)
+    res_type = candidate_gen.ShapedType([1024, 1024], candidate_gen.ElementType.f32)
+    problem_size = candidate_gen.ProblemSize(
+        matmul_size, lhs_type, rhs_type, res_type, candidate_gen.DispatchKind.mmt
+    )
+    m, n, k = (
+        candidate_gen.z3.Int("m"),
+        candidate_gen.z3.Int("n"),
+        candidate_gen.z3.Int("k"),
+    )
+
+    solution_strategy = candidate_gen.LLVMCPUSolutionStrategy()
+    constraints = solution_strategy.generate_constraints(
+        problem_size,
+        [m, n, k],
+    )
+
+    solver = candidate_gen.z3.Solver()
+    solver.add(constraints)
+
+    assert solver.check() == candidate_gen.z3.sat
+
+
+def test_generate_constraints_invalid_input_llvmgpu():
     # Define input parameters that should lead to unsatisfiable constraints
     matmul_size = candidate_gen.MatmulSize(1024, 1024, 1024)
     lhs_type = candidate_gen.ShapedType([1024, 1024], candidate_gen.ElementType.f16)
@@ -418,7 +476,8 @@ def test_generate_constraints_invalid_input():
     sg_n_cnt = candidate_gen.z3.Int("sg_n_cnt")
     waves_per_eu = candidate_gen.z3.Int("waves_per_eu")
 
-    constraints = candidate_gen.generate_constraints(
+    solution_strategy = candidate_gen.LLVMGPUSolutionStrategy()
+    constraints = solution_strategy.generate_constraints(
         problem_size,
         [m, n, k],
         4,
@@ -438,13 +497,42 @@ def test_generate_constraints_invalid_input():
     assert solver.check() == candidate_gen.z3.unsat
 
 
+def test_generate_constraints_invalid_input_llvmcpu():
+    matmul_size = candidate_gen.MatmulSize(1024, 1024, 1024)
+    lhs_type = candidate_gen.ShapedType([1024, 1024], candidate_gen.ElementType.f16)
+    rhs_type = candidate_gen.ShapedType([1024, 1024], candidate_gen.ElementType.f16)
+    res_type = candidate_gen.ShapedType([1024, 1024], candidate_gen.ElementType.f32)
+    problem_size = candidate_gen.ProblemSize(
+        matmul_size, lhs_type, rhs_type, res_type, candidate_gen.DispatchKind.mmt
+    )
+    m, n, k = (
+        candidate_gen.z3.Int("m"),
+        candidate_gen.z3.Int("n"),
+        candidate_gen.z3.Int("k"),
+    )
+
+    solution_strategy = candidate_gen.LLVMCPUSolutionStrategy()
+    constraints = solution_strategy.generate_constraints(
+        problem_size,
+        [m, n, k],
+    )
+
+    constraints.append(m > 1000)  # Tile size should never be negative
+
+    solver = candidate_gen.z3.Solver()
+    solver.add(constraints)
+
+    # Check if the constraints are unsatisfiable
+    assert solver.check() == candidate_gen.z3.unsat
+
+
 def remove_comments(mlir: str) -> str:
     return "\n".join(
         filter(lambda x: not x.lstrip().startswith("//"), mlir.splitlines())
     )
 
 
-def test_apply_params_mmt():
+def test_apply_params_mmt_llvmgpu():
     mlir_template = [
         "<intrinsic = #iree_gpu.mma_layout<MFMA_F32_32x32x8_F16>, subgroup_m_count = 16, subgroup_n_count = 16>",
         "<LLVMGPUVectorDistribute workgroup_size = [16, 16] subgroup_size = 16,",
@@ -455,7 +543,7 @@ def test_apply_params_mmt():
 
     M, N, K = 2048, 1280, 1280
 
-    config = candidate_gen.Configuration(
+    config = candidate_gen.LLVMGPUConfiguration(
         subgroup_size=16,
         workgroup_size=[16, 16, 1],
         intrinsic=candidate_gen.MfmaIntrinsic.mfma_f32_16x16x16_f16(),
@@ -499,7 +587,128 @@ def test_apply_params_mmt():
     assert '{llvm_func_attrs = {"amdgpu-waves-per-eu" = "8"}' in modified
 
 
-def test_apply_params_conv():
+def test_apply_params_mmt_llvmcpu():
+    mlir_template = [
+        "<Mmt4dTilingExpert",
+        "<tile_sizes = [[8, 8, 8]]>",
+    ]
+
+    M, N, K = 2048, 1280, 1280
+
+    config = candidate_gen.LLVMCPUConfiguration(
+        tile_sizes=[8, 8, 8],
+    )
+
+    problem_size = candidate_gen.ProblemSize(
+        candidate_gen.MatmulSize(M, N, K),
+        candidate_gen.ShapedType([M, K], candidate_gen.ElementType.f16),
+        candidate_gen.ShapedType([N, K], candidate_gen.ElementType.f16),
+        candidate_gen.ShapedType([M, N], candidate_gen.ElementType.f32),
+        candidate_gen.DispatchKind.mmt,
+    )
+    tf_mlir = candidate_gen.MmtTuner().apply_params(problem_size, mlir_template, config)
+
+    modified = tf_mlir.modified
+    embeddable = tf_mlir.embeddable
+
+    assert modified
+    modified = remove_comments(modified)
+    assert embeddable
+    assert "Mmt4dTilingExpert" in modified
+    assert "tile_sizes = [[8, 8, 8]]" in modified
+
+
+def test_apply_params_mmt4d_llvmgpu():
+    mlir_template = [
+        "<intrinsic = #iree_gpu.mma_layout<MFMA_F32_32x32x8_F16>, subgroup_m_count = 16, subgroup_n_count = 16>",
+        "<LLVMGPUVectorDistribute workgroup_size = [16, 16] subgroup_size = 16,",
+        "<tile_sizes = [[8, 8, 8]]>",
+        "gpu_pipeline_options = #iree_gpu.pipeline_options<reorder_workgroups_strategy = None>",
+        '{llvm_func_attrs = {"amdgpu-waves-per-eu" = "4"}',
+    ]
+
+    M, N, K = 2048, 1280, 1280
+
+    config = candidate_gen.LLVMGPUConfiguration(
+        subgroup_size=16,
+        workgroup_size=[16, 16, 1],
+        intrinsic=candidate_gen.MfmaIntrinsic.mfma_f32_16x16x16_f16(),
+        tile_sizes=[8, 8, 8],
+        subgroup_m_count=16,
+        subgroup_n_count=16,
+        gpu_pipeline_options=candidate_gen.GpuPipelineOptions(
+            prefetch_shared_memory=True
+        ),
+        waves_per_eu=8,
+    )
+
+    problem_size = candidate_gen.ProblemSize(
+        candidate_gen.MatmulSize(M, N, K),
+        candidate_gen.ShapedType([M, K], candidate_gen.ElementType.f16),
+        candidate_gen.ShapedType([N, K], candidate_gen.ElementType.f16),
+        candidate_gen.ShapedType([M, N], candidate_gen.ElementType.f32),
+        candidate_gen.DispatchKind.mmt,
+    )
+    tf_mlir = candidate_gen.Mmt4dTuner().apply_params(
+        problem_size, mlir_template, config
+    )
+
+    modified = tf_mlir.modified
+    embeddable = tf_mlir.embeddable
+
+    assert modified
+    modified = remove_comments(modified)
+    assert embeddable
+    assert (
+        "intrinsic = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, subgroup_m_count = 16, subgroup_n_count = 16"
+        in modified
+    )
+    assert (
+        "LLVMGPUVectorDistribute workgroup_size = [16, 16, 1] subgroup_size = 16"
+        in modified
+    )
+    assert "tile_sizes = [[8, 8, 8]]" in modified
+    assert (
+        "gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>"
+        in modified
+    )
+    assert '{llvm_func_attrs = {"amdgpu-waves-per-eu" = "8"}' in modified
+
+
+def test_apply_params_mmt4d_llvmcpu():
+    mlir_template = [
+        "<Mmt4dTilingExpert",
+        "<tile_sizes = [[8, 8, 8]]>",
+    ]
+
+    M, N, K = 2048, 1280, 1280
+
+    config = candidate_gen.LLVMCPUConfiguration(
+        tile_sizes=[8, 8, 8],
+    )
+
+    problem_size = candidate_gen.ProblemSize(
+        candidate_gen.MatmulSize(M, N, K),
+        candidate_gen.ShapedType([M, K], candidate_gen.ElementType.f16),
+        candidate_gen.ShapedType([N, K], candidate_gen.ElementType.f16),
+        candidate_gen.ShapedType([M, N], candidate_gen.ElementType.f32),
+        candidate_gen.DispatchKind.mmt,
+    )
+    tf_mlir = candidate_gen.Mmt4dTuner().apply_params(
+        problem_size, mlir_template, config
+    )
+
+    modified = tf_mlir.modified
+    embeddable = tf_mlir.embeddable
+
+    assert modified
+    modified = remove_comments(modified)
+    assert embeddable
+    assert "Mmt4dTilingExpert" in modified
+    assert "tile_sizes = [[8, 8, 8]]" in modified
+
+
+def test_apply_params_conv_llvmgpu():
     mlir_template = [
         "<intrinsic = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, subgroup_m_count = 16, subgroup_n_count = 16>",
         "<LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64,",
@@ -509,7 +718,7 @@ def test_apply_params_conv():
 
     n, oh, ow, oc, fh, fw, ic = 2, 64, 64, 640, 3, 3, 640
 
-    config = candidate_gen.Configuration(
+    config = candidate_gen.LLVMGPUConfiguration(
         subgroup_size=64,
         workgroup_size=[256, 1, 1],
         intrinsic=candidate_gen.MfmaIntrinsic.mfma_f32_16x16x16_f16(),
@@ -558,7 +767,43 @@ def test_apply_params_conv():
     assert '{llvm_func_attrs = {"amdgpu-waves-per-eu" = "2"}' in modified
 
 
-def test_apply_params_contract():
+def test_apply_params_conv_llvmcpu():
+    mlir_template = [
+        "Mmt4dTilingExpert",
+        "<tile_sizes = [[1, 1, 64, 128, 1, 1, 32]]>",
+    ]
+
+    n, oh, ow, oc, fh, fw, ic = 2, 64, 64, 640, 3, 3, 640
+
+    config = candidate_gen.LLVMCPUConfiguration(
+        tile_sizes=[464, 320, 16],
+    )
+
+    problem_size = candidate_gen.ProblemSize(
+        candidate_gen.MatmulSize(oh * ow, oc, fh * fw * ic),
+        candidate_gen.ShapedType(
+            [n, oh + 2, ow + 2, oc], candidate_gen.ElementType.f16
+        ),
+        candidate_gen.ShapedType([fh, fw, ic, oc], candidate_gen.ElementType.f16),
+        candidate_gen.ShapedType([n, oh, ow, oc], candidate_gen.ElementType.f32),
+        candidate_gen.DispatchKind.conv,
+    )
+    tf_mlir = candidate_gen.ConvTuner().apply_params(
+        problem_size, mlir_template, config
+    )
+
+    modified = tf_mlir.modified
+    embeddable = tf_mlir.embeddable
+
+    assert modified
+    modified = remove_comments(modified)
+
+    assert embeddable
+    assert "Mmt4dTilingExpert" in modified
+    assert "tile_sizes = [[1, 1, 464, 320, 1, 1, 16]]" in modified
+
+
+def test_apply_params_contract_llvmgpu():
     mlir_template = [
         "<intrinsic = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, subgroup_m_count = 2, subgroup_n_count = 2>}>",
         "<LLVMGPUVectorDistribute workgroup_size = [128, 2, 1] subgroup_size = 64,",
@@ -575,7 +820,7 @@ def test_apply_params_contract():
         candidate_gen.DispatchKind.contraction,
     )
 
-    config = candidate_gen.Configuration(
+    config = candidate_gen.LLVMGPUConfiguration(
         subgroup_size=64,
         workgroup_size=[256, 1, 1],
         intrinsic=candidate_gen.MfmaIntrinsic.mfma_f32_32x32x8_f16(),
@@ -605,7 +850,37 @@ def test_apply_params_contract():
     assert '{llvm_func_attrs = {"amdgpu-waves-per-eu" = "2"}' in new_mlir
 
 
-def test_apply_params_batch_matmul():
+def test_apply_params_contract_llvmcpu():
+    mlir_template = [
+        "Mmt4dTilingExpert",
+        "<tile_sizes = [[1, 1, 1, 64, 64, 128]]>",
+    ]
+
+    tile_dims = "*mnk"
+    problem_size = candidate_gen.ProblemSize(
+        candidate_gen.MatmulSize(2048, 3840, 1280),
+        candidate_gen.ShapedType([2, 1024, 1280], candidate_gen.ElementType.f16),
+        candidate_gen.ShapedType([3, 20, 64, 1280], candidate_gen.ElementType.f16),
+        candidate_gen.ShapedType([3, 2, 20, 1024, 64], candidate_gen.ElementType.f32),
+        candidate_gen.DispatchKind.contraction,
+    )
+
+    config = candidate_gen.LLVMCPUConfiguration(
+        tile_sizes=[480, 384, 32],
+    )
+
+    tf_mlir = candidate_gen.ContractionTuner("mk", "nk", tile_dims).apply_params(
+        problem_size, mlir_template, config
+    )
+
+    new_mlir = tf_mlir.modified
+
+    assert new_mlir
+    assert "Mmt4dTilingExpert" in new_mlir
+    assert "tile_sizes = [[1, 480, 384, 32]]" in new_mlir
+
+
+def test_apply_params_batch_matmul_llvmgpu():
     mlir_template = [
         "<intrinsic = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, subgroup_m_count = 4, subgroup_n_count = 1>}>",
         "<LLVMGPUVectorDistribute workgroup_size = [64, 4, 1] subgroup_size = 64,",
@@ -622,7 +897,7 @@ def test_apply_params_batch_matmul():
         candidate_gen.DispatchKind.batch_matmul,
     )
 
-    config = candidate_gen.Configuration(
+    config = candidate_gen.LLVMGPUConfiguration(
         subgroup_size=64,
         workgroup_size=[128, 2, 1],
         intrinsic=candidate_gen.MfmaIntrinsic.mfma_f32_32x32x8_f16(),
@@ -656,7 +931,41 @@ def test_apply_params_batch_matmul():
     assert '{llvm_func_attrs = {"amdgpu-waves-per-eu" = "2"}' in modified
 
 
-def test_apply_params_batch_mmt_float():
+def test_apply_params_batch_matmul_llvmcpu():
+    mlir_template = [
+        "Mmt4dTilingExpert",
+        "<tile_sizes = [[1, 128, 64, 64]]>",
+    ]
+
+    tile_dims = "bmnk"
+    problem_size = candidate_gen.ProblemSize(
+        candidate_gen.MatmulSize(968, 320, 640, 64),
+        candidate_gen.ShapedType([64, 968, 640], candidate_gen.ElementType.f16),
+        candidate_gen.ShapedType([64, 640, 320], candidate_gen.ElementType.f16),
+        candidate_gen.ShapedType([64, 968, 320], candidate_gen.ElementType.f32),
+        candidate_gen.DispatchKind.batch_matmul,
+    )
+
+    config = candidate_gen.LLVMCPUConfiguration(
+        tile_sizes=[416, 320, 128],
+    )
+
+    tf_mlir = candidate_gen.BatchMatmulTuner("mk", "nk", tile_dims).apply_params(
+        problem_size, mlir_template, config
+    )
+
+    modified = tf_mlir.modified
+    embeddable = tf_mlir.embeddable
+
+    assert modified
+    modified = remove_comments(modified)
+
+    assert embeddable
+    assert "Mmt4dTilingExpert" in modified
+    assert "tile_sizes = [[1, 416, 320, 128]]" in modified
+
+
+def test_apply_params_batch_mmt_float_llvmgpu():
     mlir_template = [
         "<intrinsic = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, subgroup_m_count = 4, subgroup_n_count = 1>}>",
         "<LLVMGPUVectorDistribute workgroup_size = [64, 4, 1] subgroup_size = 64,",
@@ -672,7 +981,7 @@ def test_apply_params_batch_mmt_float():
         candidate_gen.DispatchKind.batch_mmt,
     )
 
-    config = candidate_gen.Configuration(
+    config = candidate_gen.LLVMGPUConfiguration(
         subgroup_size=64,
         workgroup_size=[128, 2, 1],
         intrinsic=candidate_gen.MfmaIntrinsic.mfma_f32_16x16x16_f16(),
@@ -704,7 +1013,38 @@ def test_apply_params_batch_mmt_float():
     assert '{llvm_func_attrs = {"amdgpu-waves-per-eu" = "2"}' in modified
 
 
-def test_apply_params_batch_mmt_int():
+def test_apply_params_batch_mmt_float_llvmcpu():
+    mlir_template = [
+        "Mmt4dTilingExpert",
+        "<tile_sizes = [[1, 128, 128, 64]]>",
+    ]
+
+    problem_size = candidate_gen.ProblemSize(
+        candidate_gen.MatmulSize(4096, 640, 640, 2),
+        candidate_gen.ShapedType([2, 4096, 640], candidate_gen.ElementType.f16),
+        candidate_gen.ShapedType([2, 640, 640], candidate_gen.ElementType.f16),
+        candidate_gen.ShapedType([2, 4096, 640], candidate_gen.ElementType.f32),
+        candidate_gen.DispatchKind.batch_mmt,
+    )
+
+    config = candidate_gen.LLVMCPUConfiguration(
+        tile_sizes=[128, 64, 128],
+    )
+
+    tf_mlir = candidate_gen.BatchMmtTuner().apply_params(
+        problem_size, mlir_template, config
+    )
+
+    modified = tf_mlir.modified
+    embeddable = tf_mlir.embeddable
+
+    assert embeddable
+    assert modified
+    assert "Mmt4dTilingExpert" in modified
+    assert "tile_sizes = [[1, 128, 64, 128]]" in modified
+
+
+def test_apply_params_batch_mmt_int_llvmgpu():
     mlir_template = [
         "<intrinsic = #iree_gpu.mma_layout<MFMA_I32_16x16x32_I8>, subgroup_m_count = 4, subgroup_n_count = 1>}>",
         "<LLVMGPUVectorDistribute workgroup_size = [64, 4, 1] subgroup_size = 64,",
@@ -720,7 +1060,7 @@ def test_apply_params_batch_mmt_int():
         candidate_gen.DispatchKind.batch_mmt,
     )
 
-    config = candidate_gen.Configuration(
+    config = candidate_gen.LLVMGPUConfiguration(
         subgroup_size=64,
         workgroup_size=[128, 2, 1],
         intrinsic=candidate_gen.MfmaIntrinsic.mfma_i32_32x32x16_i8(),
@@ -775,7 +1115,59 @@ def test_apply_params_batch_mmt_int():
     assert "workgroup_size = [128, 2, 1] subgroup_size = 64" in embeddable
 
 
-def test_apply_params_broadcast_rhs_mmt():
+def test_apply_params_batch_mmt_int_llvmcpu():
+    mlir_template = [
+        "Mmt4dTilingExpert",
+        "<tile_sizes = [[1, 128, 128, 64]]>",
+    ]
+
+    problem_size = candidate_gen.ProblemSize(
+        candidate_gen.MatmulSize(4096, 640, 640, 2),
+        candidate_gen.ShapedType([2, 4096, 640], candidate_gen.ElementType.i8),
+        candidate_gen.ShapedType([2, 640, 640], candidate_gen.ElementType.i8),
+        candidate_gen.ShapedType([2, 4096, 640], candidate_gen.ElementType.i32),
+        candidate_gen.DispatchKind.batch_mmt,
+    )
+
+    config = candidate_gen.LLVMCPUConfiguration(
+        tile_sizes=[128, 64, 128],
+    )
+
+    tf_mlir = candidate_gen.BatchMmtTuner().apply_params(
+        problem_size, mlir_template, config
+    )
+
+    modified = tf_mlir.modified
+    embeddable = tf_mlir.embeddable
+
+    assert modified
+    assert "//   transform.named_sequence @match_batch_mmt_2x4096x640x640(" in modified
+    modified = remove_comments(modified)
+
+    assert "Mmt4dTilingExpert" in modified
+    assert "tile_sizes = [[1, 128, 64, 128]]" in modified
+
+    assert embeddable
+    assert "transform.named_sequence @match_op(" in embeddable
+    assert (
+        "transform.include @match_batch_mmt_i8_i8_i32 failures(propagate)" in embeddable
+    )
+    assert (
+        "transform.iree.match.cast_compatible_type %lhs = tensor<2x4096x640xi8> : !transform.any_value"
+        in embeddable
+    )
+    assert (
+        "transform.iree.match.cast_compatible_type %rhs = tensor<2x640x640xi8> : !transform.any_value"
+        in embeddable
+    )
+    assert (
+        "%config = transform.param.constant #iree_codegen.compilation_info<"
+        in embeddable
+    )
+    assert "tile_sizes = [[1, 128, 64, 128]]" in embeddable
+
+
+def test_apply_params_broadcast_rhs_mmt_llvmgpu():
     mlir_template = [
         "<intrinsic = #iree_gpu.mma_layout<MFMA_I32_16x16x32_I8>, subgroup_m_count = 4, subgroup_n_count = 1>}>",
         "<LLVMGPUVectorDistribute workgroup_size = [64, 4, 1] subgroup_size = 64,",
@@ -791,7 +1183,7 @@ def test_apply_params_broadcast_rhs_mmt():
         candidate_gen.DispatchKind.broadcast_rhs_mmt,
     )
 
-    config = candidate_gen.Configuration(
+    config = candidate_gen.LLVMGPUConfiguration(
         subgroup_size=64,
         workgroup_size=[128, 2, 1],
         intrinsic=candidate_gen.MfmaIntrinsic.mfma_i32_32x32x16_i8(),
@@ -848,6 +1240,62 @@ def test_apply_params_broadcast_rhs_mmt():
     assert "tile_sizes = [[1, 128, 64, 128]]" in embeddable
     assert 'llvm_func_attrs = {"amdgpu-waves-per-eu" = "4"}' in embeddable
     assert "workgroup_size = [128, 2, 1] subgroup_size = 64" in embeddable
+
+
+def test_apply_params_broadcast_rhs_mmt_llvmcpu():
+    mlir_template = [
+        "Mmt4dTilingExpert",
+        "<tile_sizes = [[1, 128, 128, 64]]>",
+    ]
+
+    problem_size = candidate_gen.ProblemSize(
+        candidate_gen.MatmulSize(4096, 640, 640, 2),
+        candidate_gen.ShapedType([2, 4096, 640], candidate_gen.ElementType.i8),
+        candidate_gen.ShapedType([640, 640], candidate_gen.ElementType.i8),
+        candidate_gen.ShapedType([2, 4096, 640], candidate_gen.ElementType.i32),
+        candidate_gen.DispatchKind.broadcast_rhs_mmt,
+    )
+
+    config = candidate_gen.LLVMCPUConfiguration(
+        tile_sizes=[128, 64, 128],
+    )
+
+    tf_mlir = candidate_gen.ContractionTuner(
+        "mk", "nk", "mnk"
+    ).apply_params_broadcast_rhs_mmt(problem_size, mlir_template, config)
+
+    modified = tf_mlir.modified
+    embeddable = tf_mlir.embeddable
+
+    assert modified
+    assert (
+        "//   transform.named_sequence @match_broadcast_rhs_mmt_Bx4096x640x640("
+        in modified
+    )
+    modified = remove_comments(modified)
+
+    assert "Mmt4dTilingExpert" in modified
+    assert "tile_sizes = [[1, 128, 64, 128]]" in modified
+
+    assert embeddable
+    assert "transform.named_sequence @match_op(" in embeddable
+    assert (
+        "transform.include @match_broadcast_rhs_mmt_i8_i8_i32 failures(propagate)"
+        in embeddable
+    )
+    assert (
+        "transform.iree.match.cast_compatible_type %lhs = tensor<?x4096x640xi8> : !transform.any_value"
+        in embeddable
+    )
+    assert (
+        "transform.iree.match.cast_compatible_type %rhs = tensor<640x640xi8> : !transform.any_value"
+        in embeddable
+    )
+    assert (
+        "%config = transform.param.constant #iree_codegen.compilation_info<"
+        in embeddable
+    )
+    assert "tile_sizes = [[1, 128, 64, 128]]" in embeddable
 
 
 def test_detect_broadcast_rhs_mmt():

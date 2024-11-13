@@ -64,7 +64,7 @@ class CandidateTracker:
     candidate_id: int
     dispatch_mlir_path: Optional[Path] = None
     dispatch_config_path: Optional[Path] = None
-    configuration: Optional[candidate_gen.Configuration] = None
+    configuration: Optional[candidate_gen.BaseConfiguration] = None
     compilation_successful: Optional[bool] = None
     compiled_dispatch_path: Optional[Path] = None
     compiled_dispatch_hash: Optional[str] = None
