@@ -65,16 +65,15 @@ jobs:
           pip install --no-compile -r pytorch-cpu-requirements.txt
           pip install --no-compile -r requirements.txt -r sharktank/requirements-tests.txt -e sharktank/
 
-          # Install latest iree-tubrine.
+          # Install latest iree-turbine.
           pip install --no-compile -f https://iree.dev/pip-release-links.html --src deps \
             -e "git+https://github.com/iree-org/iree-turbine.git#egg=iree-turbine"
 
 
           # Test with nightly releases, not what iree-turbine uses.
-          pip install -f https://iree.dev/pip-release-links.html --upgrade \
-            iree-base-compiler==2.9.1rc20241110 \
-            iree-base-runtime==2.9.1rc20241110 \
-            "numpy<2.0"
+          pip install --upgrade --pre --no-cache-dir -f https://iree.dev/pip-release-links.html \
+            iree-base-compiler \
+            iree-base-runtime \
 
       - name: Run llama 8b tests
         run: pytest sharktank/tests/models/llama/benchmark_amdgpu_test.py -v -s --iree-hip-target=gfx942 --run-8b-llama
