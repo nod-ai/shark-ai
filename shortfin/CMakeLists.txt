@@ -40,7 +40,8 @@ if(NOT WIN32)
 endif()
 
 # Pins
-set(SHORTFIN_IREE_GIT_TAG "iree-2.9.0rc20241108")
+file(STRINGS ${CMAKE_CURRENT_SOURCE_DIR}/build_tools/iree_version.txt IREE_VERSION_STRING)
+set(SHORTFIN_IREE_GIT_TAG "iree-${IREE_VERSION_STRING}")
 
 # build options
 option(SHORTFIN_BUILD_PYTHON_BINDINGS "Builds Python Bindings" OFF)

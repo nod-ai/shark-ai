@@ -103,13 +103,19 @@ jobs:
       with:
         submodules: false
 
+    - name: Read IREE version
+      working-directory: ${{ env.LIBSHORTFIN_DIR }}
+      run: |
+        IREE_VERSION=$(cat build_tools/iree_version.txt)
+        echo "IREE_REF=iree-${IREE_VERSION}" >> $GITHUB_ENV
+
     - name: Checkout IREE repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       with:
         repository: iree-org/iree
         path: ${{ env.IREE_SOURCE_DIR }}
         submodules: false
-        ref: iree-2.9.0rc20241108
+        ref: ${{ env.IREE_REF }}
 
     - name: Initalize IREE submodules
       working-directory: ${{ env.IREE_SOURCE_DIR }}

@@ -1,4 +1,4 @@
-# Keep in sync with "ref: iree-" in .github/workflows/* and GIT_TAG in CMakeLists.txt
+# Keep in sync with version in shortfin/buidl_tools/iree_version.txt
 -f https://iree.dev/pip-release-links.html
 iree-base-compiler==2.9.0rc20241108
 iree-base-runtime==2.9.0rc20241108
