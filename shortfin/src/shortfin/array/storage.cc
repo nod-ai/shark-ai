@@ -33,12 +33,25 @@ storage::storage(local::ScopedDevice device, iree::hal_buffer_ptr buffer,
       device_(device) {
   logging::construct("array::storage", this);
 }
-storage::~storage() { logging::destruct("array::storage", this); }
+storage::~storage() {
+  logging::destruct("array::storage", this);
+  SHORTFIN_TRACE_SCOPE_NAMED("storage::~storage");
+  // The timeline resource holds the back reference to the owning fiber,
+  // which keeps all devices alive. Buffers must be destroyed before devices,
+  // so destruction sequencing matters and we make it explicit.
+  buffer_.reset();
+  timeline_resource_.reset();
+}
 
 storage storage::import_buffer(local::ScopedDevice &device,
-                               iree::hal_buffer_ptr buffer) {
+                               iree::hal_buffer_ptr buffer,
+                               bool async_allocation) {
+  TimelineResourceDestructor dtor;
+  if (async_allocation) {
+    dtor = TimelineResource::CreateAsyncBufferDestructor(device, buffer);
+  }
   return storage(device, std::move(buffer),
-                 device.fiber().NewTimelineResource());
+                 device.fiber().NewTimelineResource(std::move(dtor)));
 }
 
 storage storage::allocate_device(ScopedDevice &device,
@@ -47,7 +60,6 @@ storage storage::allocate_device(ScopedDevice &device,
   if (!device.raw_device()) {
     throw std::invalid_argument("Cannot allocate with a null device affinity");
   }
-  auto allocator = iree_hal_device_allocator(device.raw_device()->hal_device());
   iree::hal_buffer_ptr buffer;
   iree_hal_buffer_params_t params = {
       .usage = IREE_HAL_BUFFER_USAGE_DEFAULT,
@@ -55,10 +67,38 @@ storage storage::allocate_device(ScopedDevice &device,
       .type = IREE_HAL_MEMORY_TYPE_OPTIMAL_FOR_DEVICE,
       .queue_affinity = device.affinity().queue_affinity(),
   };
-  SHORTFIN_THROW_IF_ERROR(iree_hal_allocator_allocate_buffer(
-      allocator, params, allocation_size, buffer.for_output()));
+  Account &account = device.fiber().scheduler().GetDefaultAccount(device);
+  iree_hal_semaphore_t *timeline_sem = account.timeline_sem();
+  uint64_t current_timepoint = account.timeline_idle_timepoint();
+  uint64_t signal_timepoint = account.timeline_acquire_timepoint();
+  iree_hal_semaphore_list_t wait_semaphore_list{
+      .count = 1,
+      .semaphores = &timeline_sem,
+      .payload_values = &current_timepoint,
+  };
+  iree_hal_semaphore_list_t signal_semaphore_list{
+      .count = 1,
+      .semaphores = &timeline_sem,
+      .payload_values = &signal_timepoint,
+  };
+  SHORTFIN_SCHED_LOG(
+      "storage::allocate_device(device={}, affinity={:x}):[{}, Wait@{} ->"
+      "Signal:@{}]",
+      static_cast<void *>(device.raw_device()->hal_device()),
+      device.affinity().queue_affinity(), static_cast<void *>(timeline_sem),
+      current_timepoint, signal_timepoint);
+  // Async allocate.
+  SHORTFIN_THROW_IF_ERROR(iree_hal_device_queue_alloca(
+      device.raw_device()->hal_device(), device.affinity().queue_affinity(),
+      wait_semaphore_list, signal_semaphore_list,
+      IREE_HAL_ALLOCATOR_POOL_DEFAULT, params, allocation_size,
+      buffer.for_output()));
+
+  // Device allocations are always async.
+  TimelineResourceDestructor dtor =
+      TimelineResource::CreateAsyncBufferDestructor(device, buffer);
   return storage(device, std::move(buffer),
-                 device.fiber().NewTimelineResource());
+                 device.fiber().NewTimelineResource(std::move(dtor)));
 }
 
 storage storage::allocate_host(ScopedDevice &device,
@@ -100,11 +140,9 @@ void storage::fill(const void *pattern, iree_host_size_t pattern_length) {
   device_.fiber().scheduler().AppendCommandBuffer(
       device_, TransactionType::TRANSFER, [&](Account &account) {
         // Must depend on all of this buffer's use dependencies to avoid
-        // write-after-read hazard.
+        // write-after-read hazard (which implicitly includes
+        // write-after-write).
         account.active_deps_extend(timeline_resource_->use_barrier());
-        // And depend on any prior mutation in order to avoid a
-        // write-after-write hazard.
-        account.active_deps_extend(timeline_resource_->mutation_barrier());
 
         SHORTFIN_SCHED_LOG("  : FillBuffer({})",
                            static_cast<void *>(buffer_.get()));
@@ -115,9 +153,11 @@ void storage::fill(const void *pattern, iree_host_size_t pattern_length) {
                 /*length=*/iree_hal_buffer_byte_length(buffer_)),
             pattern, pattern_length, IREE_HAL_FILL_FLAG_NONE));
 
-        // And move our own mutation barrier to the current pending timeline
-        // value.
+        // And move our own use and mutation barrier to the current pending
+        // timeline value.
         timeline_resource_->set_mutation_barrier(
+            account.timeline_sem(), account.timeline_idle_timepoint());
+        timeline_resource_->use_barrier_insert(
             account.timeline_sem(), account.timeline_idle_timepoint());
       });
 }
@@ -131,7 +171,6 @@ void storage::copy_from(storage &source_storage) {
             source_storage.timeline_resource_->mutation_barrier());
         // And depend on our own use and mutations dependencies.
         account.active_deps_extend(timeline_resource_->use_barrier());
-        account.active_deps_extend(timeline_resource_->mutation_barrier());
 
         SHORTFIN_SCHED_LOG("  : CopyBuffer({} -> {})",
                            static_cast<void *>(source_storage.buffer_.get()),
@@ -144,9 +183,11 @@ void storage::copy_from(storage &source_storage) {
             iree_hal_make_buffer_ref(buffer_, 0, byte_length()),
             IREE_HAL_COPY_FLAG_NONE));
 
-        // Move our own mutation barrier to the current pending timeline
+        // Move our own use and mutation barrier to the current pending timeline
         // value.
         timeline_resource_->set_mutation_barrier(
+            account.timeline_sem(), account.timeline_idle_timepoint());
+        timeline_resource_->use_barrier_insert(
             account.timeline_sem(), account.timeline_idle_timepoint());
         // And extend the source use barrier.
         source_storage.timeline_resource_->use_barrier_insert(
@@ -212,7 +253,7 @@ void storage::AddAsInvocationArgument(local::ProgramInvocation *inv,
   SHORTFIN_TRACE_SCOPE_NAMED("storage::AddAsInvocationArgument");
   iree::vm_opaque_ref ref;
   *(&ref) = iree_hal_buffer_retain_ref(buffer_);
-  inv->AddArg(std::move(ref));
+  inv->AddArg(std::move(ref), timeline_resource_.get());
 
   AddInvocationArgBarrier(inv, barrier);
 }
@@ -237,7 +278,8 @@ storage storage::ImportInvocationResultStorage(local::ProgramInvocation *inv,
   SHORTFIN_TRACE_SCOPE_NAMED("storage::ImportInvocationResultStorage");
   local::ScopedDevice device =
       local::ScopedDevice(*inv->fiber(), inv->device_selection());
-  auto imported_storage = storage::import_buffer(device, std::move(buffer));
+  auto imported_storage = storage::import_buffer(device, std::move(buffer),
+                                                 /*async_allocation=*/true);
 
   auto coarse_signal = inv->coarse_signal();
   if (coarse_signal.first) {
@@ -264,7 +306,6 @@ void storage::AddInvocationArgBarrier(local::ProgramInvocation *inv,
       inv->DeviceSelect(device_.affinity());
       break;
     case ProgramResourceBarrier::WRITE:
-      inv->wait_insert(timeline_resource_->mutation_barrier());
       inv->wait_insert(timeline_resource_->use_barrier());
       inv->DeviceSelect(device_.affinity());
       break;

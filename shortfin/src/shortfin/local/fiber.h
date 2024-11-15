@@ -127,8 +127,9 @@ class SHORTFIN_API Fiber : public std::enable_shared_from_this<Fiber> {
     return ScopedDevice(*this, DeviceAffinity(d));
   }
   detail::Scheduler &scheduler() { return scheduler_; }
-  detail::TimelineResource::Ref NewTimelineResource() {
-    return scheduler().NewTimelineResource(shared_ptr());
+  detail::TimelineResource::Ref NewTimelineResource(
+      detail::TimelineResourceDestructor destructor = nullptr) {
+    return scheduler().NewTimelineResource(shared_ptr(), std::move(destructor));
   }
 
  private:
