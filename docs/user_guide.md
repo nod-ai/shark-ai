@@ -39,6 +39,10 @@ Setup your Python environment with the following commands:
 # Set up a virtual environment to isolate packages from other envs.
 python3.11 -m venv 3.11.venv
 source 3.11.venv/bin/activate
+
+# Optional: faster installation of torch with just CPU support.
+# See other options at https://pytorch.org/get-started/locally/
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 ```
 
 ## Install SHARK and its dependencies
