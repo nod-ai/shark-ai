@@ -40,7 +40,7 @@ def model_test_dir(request, tmp_path_factory):
     Yields:
         Tuple[Path, Path]: The paths to the Hugging Face home and the temp dir.
     """
-    logger.info("Preparing model artifacts...")
+    logger.info("::group::Preparing model artifacts...")
 
     repo_id = request.param["repo_id"]
     model_file = request.param["model_file"]
@@ -110,7 +110,7 @@ def llm_server(request, model_test_dir, available_port):
     Yields:
         subprocess.Popen: The server process that was started.
     """
-    logger.info("Starting LLM server...")
+    logger.info("::group::Starting LLM server...")
     hf_home, tmp_dir = model_test_dir
     model_file = request.param["model_file"]
     settings = request.param["settings"]
