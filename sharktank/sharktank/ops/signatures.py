@@ -210,18 +210,18 @@ def elementwise(operator, *args, **kwargs) -> AnyTensor:
 
 @elementwise.trampoline
 def _elementwise_trampoline(d: SignatureDispatcher, operator, *args, **kwargs):
-    tensors = []
+    dispatch_args = []
     for a in args:
-        if isinstance(a, (Tensor, InferenceTensor)):
-            tensors.append(a)
+        if isinstance(a, (Tensor, InferenceTensor, Number)):
+            dispatch_args.append(a)
         else:
             break
-    for override in d.find_overrides(tensors):
+    for override in d.find_overrides(dispatch_args):
         result = override(operator, *args, **kwargs)
         if result is not NotImplemented:
             return override, result
     else:
-        d.fail(tensors)
+        d.fail(dispatch_args)
 
 
 @overridable
