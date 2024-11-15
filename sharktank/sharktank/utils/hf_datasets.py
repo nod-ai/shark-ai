@@ -298,6 +298,52 @@ Dataset(
     ),
 ).alias_to("llama2_7B_f16")
 
+Dataset(
+    "google/t5-v1_1-small",
+    (
+        RemoteFile(
+            "config",
+            "google/t5-v1_1-small",
+            "config.json",
+            extra_filenames=["generation_config.json", "special_tokens_map.json"],
+        ),
+        RemoteFile(
+            "tokenizer_config.json",
+            "google/t5-v1_1-small",
+            "tokenizer_config.json",
+            extra_filenames=["spiece.model"],
+        ),
+        RemoteFile(
+            "pytorch_model.bin",
+            "google/t5-v1_1-small",
+            "pytorch_model.bin",
+        ),
+    ),
+)
+
+Dataset(
+    "google/t5-v1_1-xxl",
+    (
+        RemoteFile(
+            "config",
+            "google/t5-v1_1-xxl",
+            "config.json",
+            extra_filenames=["generation_config.json", "special_tokens_map.json"],
+        ),
+        RemoteFile(
+            "tokenizer_config.json",
+            "google/t5-v1_1-xxl",
+            "tokenizer_config.json",
+            extra_filenames=["spiece.model"],
+        ),
+        RemoteFile(
+            "pytorch_model.bin",
+            "google/t5-v1_1-xxl",
+            "pytorch_model.bin",
+        ),
+    ),
+)
+
 ################################################################################
 # Tool entrypoint
 ################################################################################

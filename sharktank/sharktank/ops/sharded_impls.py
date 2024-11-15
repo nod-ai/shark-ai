@@ -10,6 +10,7 @@ from typing import List, Optional, Sequence, Union, Any, Tuple
 import itertools
 from numbers import Number
 import math
+import functools
 
 from ..types import (
     AnyTensor,
@@ -59,9 +60,9 @@ def all_reduce_split_or_unreduced(
     # If we don't move first, common sub-expression elimination is free to collapse all
     # reductions into one and then copy to all devices, which is not what we want.
     shards = [
-        elementwise(
-            torch.add,
-            *[
+        functools.reduce(
+            lambda x, y: elementwise(torch.add, x, y),
+            [
                 shard if i == j else transfer_to_logical_device(shard, i)
                 for j, shard in enumerate(input.shards)
             ],
@@ -1177,7 +1178,7 @@ def unshard_unreduced(input: UnreducedTensor) -> Tensor:
         shard if i == 0 else transfer_to_logical_device(shard, 0)
         for i, shard in enumerate(shards)
     ]
-    return elementwise(torch.add, *shards)
+    return functools.reduce(lambda x, y: elementwise(torch.add, x, y), shards)
 
 
 @unshard.override(Tensor)

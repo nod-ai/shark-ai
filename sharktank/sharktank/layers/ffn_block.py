@@ -4,11 +4,12 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import Optional
+from typing import Optional, Callable
 
 import torch
 import torch.nn.functional as F
 from .. import ops
+from ..types import AnyTensor
 
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
@@ -22,18 +23,29 @@ class FFN(ThetaLayer):
     def __init__(
         self,
         theta: Theta,
+        is_gated: bool = None,
+        activation_fn: Optional[Callable[[AnyTensor], AnyTensor]] = None,
     ):
         super().__init__(theta)
 
-        self.add_module("ffn_gate", LinearLayer(theta("ffn_gate")))
+        self.is_gated = is_gated is None or is_gated
+        self.activation_fn = activation_fn or F.silu
+        if self.is_gated:
+            self.add_module("ffn_gate", LinearLayer(theta("ffn_gate")))
         self.add_module("ffn_up", LinearLayer(theta("ffn_up")))
         self.add_module("ffn_down", LinearLayer(theta("ffn_down")))
 
     def forward(
         self,
-        h: torch.Tensor,
-    ):
-        ffn_gate = ops.elementwise(F.silu, self.ffn_gate(h))
-        ffn_up = self.ffn_up(h)
-        ffn_down = self.ffn_down(ffn_gate * ffn_up)
-        return ffn_down
+        h: AnyTensor,
+    ) -> AnyTensor:
+        if self.is_gated:
+            ffn_gate = ops.elementwise(self.activation_fn, self.ffn_gate(h))
+            ffn_up = self.ffn_up(h)
+            ffn_down = self.ffn_down(ffn_gate * ffn_up)
+            return ffn_down
+        else:
+            h = self.ffn_up(h)
+            h = ops.elementwise(self.activation_fn, h)
+            h = self.ffn_down(h)
+            return h

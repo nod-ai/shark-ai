@@ -13,6 +13,7 @@ import numbers
 from torch import Tensor, dtype
 from ..types import AnyTensor, ShardedTensor, Theta, sharding, InferenceTensor
 from numbers import Number
+import math
 
 from ._registry import *
 
@@ -28,6 +29,7 @@ __all__ = [
     "expand",
     "flatten",
     "gather",
+    "gelu_tanh_approximation",
     "get_index",
     "gemm",
     "group_norm_affine",
@@ -372,6 +374,23 @@ def _gather_trampoline(
             return override, result
     else:
         d.fail(dispatch_args)
+
+
+def gelu_tanh_approximation(input: AnyTensor) -> AnyTensor:
+    """Gaussian Error Linear Units paper: https://arxiv.org/abs/1606.08415
+    Approximation with tanh"""
+    return (
+        0.5
+        * input
+        * (
+            1.0
+            + elementwise(
+                torch.tanh,
+                math.sqrt(2.0 / math.pi)
+                * (input + 0.044715 * elementwise(torch.pow, input, 3.0)),
+            )
+        )
+    )
 
 
 @overridable
