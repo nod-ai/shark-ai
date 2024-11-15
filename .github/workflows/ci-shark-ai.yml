@@ -58,7 +58,7 @@ jobs:
           # from non default locations first. Installing the PyTorch CPU
           # wheels saves multiple minutes and a lot of bandwidth on runner setup.
           pip install --no-compile -r pytorch-cpu-requirements.txt
-          pip install --no-compile -r requirements.txt -e sharktank/ shortfin/
+          pip install --no-compile -r requirements.txt -e sharktank/
 
           # Install latest iree-tubrine.
           pip install --no-compile -f https://iree.dev/pip-release-links.html --src deps \
@@ -70,6 +70,9 @@ jobs:
           pip install -f https://iree.dev/pip-release-links.html --upgrade --pre \
             iree-base-compiler \
             iree-base-runtime
+
+      - name: Install shortfin
+        run: pip install --no-compile -e shortfin/
 
       - name: Run LLM Integration Tests
         run: pytest -v app_tests/integration_tests/llm --log-cli-level=INFO
