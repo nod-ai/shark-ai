@@ -68,7 +68,7 @@ jobs:
         run: |
           pip install --no-compile -e shortfin/
 
-      - name: Ensure iree-turbine is latest and iree are latest nightly
+      - name: Ensure iree-turbine is latest and iree is latest nightly
         run: |
           # Install latest iree-tubrine.
           pip install --no-compile -f https://iree.dev/pip-release-links.html --src deps \
