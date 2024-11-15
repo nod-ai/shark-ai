@@ -19,6 +19,7 @@ from packaging.version import Version
 
 parser = argparse.ArgumentParser()
 parser.add_argument("path", type=Path)
+parser.add_argument("--version-suffix", action="store", type=str)
 args = parser.parse_args()
 
 VERSION_FILE = args.path / "version.json"
@@ -38,11 +39,14 @@ def write_version_info():
 
 version_info = load_version_info()
 
+if args.version_suffix:
+    VERSION_SUFFIX = args.version_suffix
+else:
+    VERSION_SUFFIX = "rc" + datetime.today().strftime("%Y%m%d")
+
 PACKAGE_VERSION = version_info.get("package-version")
 PACKAGE_BASE_VERSION = Version(PACKAGE_VERSION).base_version
-PACKAGE_LOCAL_VERSION = (
-    PACKAGE_BASE_VERSION + "rc" + datetime.today().strftime("%Y%m%d")
-)
+PACKAGE_LOCAL_VERSION = PACKAGE_BASE_VERSION + VERSION_SUFFIX
 
 version_local = {"package-version": PACKAGE_LOCAL_VERSION}
 
