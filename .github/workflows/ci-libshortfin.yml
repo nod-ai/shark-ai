@@ -4,19 +4,19 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-name: CI - shortfin - Windows
+name: CI - shortfin
 
 on:
   workflow_dispatch:
   pull_request:
     paths:
-      - '.github/workflows/ci_windows_x64-libshortfin.yml'
+      - '.github/workflows/ci-libshortfin.yml'
       - 'shortfin/**'
   push:
     branches:
       - main
     paths:
-      - '.github/workflows/ci_windows_x64-libshortfin.yml'
+      - '.github/workflows/ci-libshortfin.yml'
       - 'shortfin/**'
 
 permissions:
@@ -36,11 +36,29 @@ env:
 
 jobs:
   build-and-test:
-    name: Build and test
-    runs-on: windows-2022
+    name: "Build and test :: ${{ matrix.name }} :: ${{ matrix.python-version }}"
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+        include:
+          - name: Ubuntu 24.04
+            runs-on: ubuntu-24.04
+            cmake-options:
+              -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18 -DCMAKE_LINKER_TYPE=LLD
+          - name: Windows
+            runs-on: windows-2022
+            cmake-options:
 
     steps:
-    - name: Configure MSVC
+    - name: (Linux) Install dependencies
+      if: "runner.os == 'Linux'"
+      run: |
+        sudo apt update
+        sudo apt install clang lld cmake ninja-build
+
+    - name: (Windows) Configure MSVC
+      if: "runner.os == 'Windows'"
       uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
 
     - name: Checkout repository
@@ -65,12 +83,13 @@ jobs:
         git submodule update --init --depth 1 -- third_party/googletest
         git submodule update --init --depth 1 -- third_party/hip-build-deps/
 
-    - name: Setup Python
+    - name: "Setup Python :: ${{ matrix.platform }} :: ${{ matrix.python-version }}"
       uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
       with:
-        python-version: "3.12"
+        python-version: ${{ matrix.python-version }}
         cache: "pip"
     - name: Install Python packages
+      # TODO: Switch to `pip install -r requirements.txt -e shortfin/`.
       working-directory: ${{ env.LIBSHORTFIN_DIR }}
       run: |
         pip install -r requirements-tests.txt
@@ -87,7 +106,8 @@ jobs:
           -Bbuild \
           -DSHORTFIN_BUNDLE_DEPS=ON \
           -DSHORTFIN_IREE_SOURCE_DIR="${{ env.IREE_REPO_DIR }}" \
-          -DSHORTFIN_BUILD_PYTHON_BINDINGS=ON
+          -DSHORTFIN_BUILD_PYTHON_BINDINGS=ON \
+          ${{matrix.cmake-options}}
         cmake --build build --target all
         pip install -v -e build/
 
@@ -96,3 +116,23 @@ jobs:
       run: |
         ctest --timeout 30 --output-on-failure --test-dir build
         pytest -s
+
+    - name: "Build shortfin (host-only) :: ${{ matrix.name }} :: ${{ matrix.python-version }}"
+      if: "runner.os == 'Linux'"
+      working-directory: ${{ env.LIBSHORTFIN_DIR }}
+      run: |
+        mkdir build-host-only
+        # In this configuration, also build static+dynamic in order to verify
+        # that path structurally works.
+        cmake -GNinja \
+          -S. \
+          -Bbuild-host-only \
+          -DCMAKE_C_COMPILER=clang-18 \
+          -DCMAKE_CXX_COMPILER=clang++-18 \
+          -DCMAKE_LINKER_TYPE=LLD \
+          -DSHORTFIN_IREE_SOURCE_DIR="${{ env.IREE_REPO_DIR }}" \
+          -DSHORTFIN_BUILD_PYTHON_BINDINGS=ON \
+          -DSHORTFIN_HAVE_AMDGPU=OFF \
+          -DSHORTFIN_BUILD_STATIC=ON \
+          -DSHORTFIN_BUILD_DYNAMIC=ON
+        cmake --build build-host-only --target all
