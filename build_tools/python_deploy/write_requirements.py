@@ -6,10 +6,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 # This script writes the `packaging/shark-ai/requirements.txt` file and pins
-# the versions of the dependencies accordingly. For nighly releases,
+# the versions of the dependencies accordingly. For nightly releases,
 #  * sharktank
 #  * shortfin
-# get pinned to the corresponding nighly version. For stable releases,
+# get pinned to the corresponding nightly version. The IREE packages are
+# unpinned. For stable releases,
 # * iree-base-compiler
 # * iree-base-runtime
 # * iree-turbine
@@ -61,6 +62,9 @@ SHORTFIN_PACKAGE_VERSION = shortfin_version.get("package-version")
 stable_packages_list = ["iree-base-compiler", "iree-base-runtime", "iree-turbine"]
 
 if Version(PACKAGE_VERSION).is_prerelease:
+    requirements = ""
+    for package in stable_packages_list:
+        requirements += package + "\n"
     # TODO: Include sharktank as a dependencies of future releases
     # requirements = (
     #     "sharktank=="
