@@ -17,7 +17,7 @@ Our current user guide requires that you have:
 
 This section will help you install Python and set up a Python environment with venv.
 
-Officially we support Python versions: 3.11, 3.12, 3.13, 3.13t
+Officially we support Python versions: 3.11, 3.12, 3.13
 
 The rest of this guide assumes you are using Python 3.11.
 
