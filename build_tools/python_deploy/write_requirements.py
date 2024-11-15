@@ -69,14 +69,12 @@ if Version(PACKAGE_VERSION).is_prerelease:
     # requirements = (
     #     "sharktank=="
     #     + Version(SHARKTANK_PACKAGE_VERSION).base_version
-    #     + "rc"
     #     + args.version_suffix
     #     + "\n"
     # )
     requirements += (
         "shortfin=="
         + Version(SHORTFIN_PACKAGE_VERSION).base_version
-        + "rc"
         + args.version_suffix
     )
 
