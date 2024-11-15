@@ -53,8 +53,8 @@ def write_requirements(requirements):
 metapackage_version = load_version_info(VERSION_FILE_LOCAL)
 PACKAGE_VERSION = metapackage_version.get("package-version")
 
-sharktank_version = load_version_info(VERSION_FILE_SHARKTANK)
-SHARKTANK_PACKAGE_VERSION = sharktank_version.get("package-version")
+# sharktank_version = load_version_info(VERSION_FILE_SHARKTANK)
+# SHARKTANK_PACKAGE_VERSION = sharktank_version.get("package-version")
 
 shortfin_version = load_version_info(VERSION_FILE_SHORTFIN)
 SHORTFIN_PACKAGE_VERSION = shortfin_version.get("package-version")
