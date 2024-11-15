@@ -24,6 +24,13 @@ from .utils import (
 logger = logging.getLogger(__name__)
 
 
+def ghstartgroup(msg):
+    # check if we are in github ci
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        return ""
+    return f"\n::group::{msg}"
+
+
 @pytest.fixture(scope="module")
 def model_test_dir(request, tmp_path_factory):
     """Prepare model artifacts for starting the LLM server.
@@ -40,7 +47,9 @@ def model_test_dir(request, tmp_path_factory):
     Yields:
         Tuple[Path, Path]: The paths to the Hugging Face home and the temp dir.
     """
-    logger.info("::group::Preparing model artifacts...")
+    logger.info(
+        "Preparing model artifacts..." + ghstartgroup("Preparing model artifacts")
+    )
 
     repo_id = request.param["repo_id"]
     model_file = request.param["model_file"]
@@ -110,7 +119,7 @@ def llm_server(request, model_test_dir, available_port):
     Yields:
         subprocess.Popen: The server process that was started.
     """
-    logger.info("::group::Starting LLM server...")
+    logger.info("Starting LLM server..." + ghstartgroup("Starting LLM server"))
     hf_home, tmp_dir = model_test_dir
     model_file = request.param["model_file"]
     settings = request.param["settings"]
