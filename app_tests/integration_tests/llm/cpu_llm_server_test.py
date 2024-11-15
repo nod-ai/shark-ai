@@ -87,10 +87,10 @@ def test_llm_server(llm_server, available_port):
     logger.info("::group::Sending HTTP Generation Request")
     output = do_generate(PROMPT, available_port)
     # log to GITHUB_STEP_SUMMARY if we are in a GitHub Action
-    # using equivalent of echo "{name}={value}" >> "$GITHUB_OUTPUT"
     if "GITHUB_ACTION" in os.environ:
-        with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+        with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
             # log prompt
+            f.write("LLM results:\n")
             f.write(f"- llm_prompt:`{PROMPT}`\n")
             f.write(f"- llm_output:`{output}`\n")
     logger.info(output)
