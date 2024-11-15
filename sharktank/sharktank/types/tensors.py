@@ -411,6 +411,11 @@ class InferenceTensor(ABC):
         # numbers on the lhs.
         return self.__add__(lhs)
 
+    def __iadd__(self, rhs):
+        from ..ops import elementwise
+
+        return elementwise(torch.add, self, rhs, out=self)
+
     def __mod__(self, rhs):
         from ..ops import elementwise
 
