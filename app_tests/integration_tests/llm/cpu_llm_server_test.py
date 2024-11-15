@@ -37,7 +37,7 @@ def do_generate(prompt, port):
     # Create a GenerateReqInput-like structure
     data = {
         "text": prompt,
-        "sampling_params": {"max_completion_tokens": 50, "temperature": 0.7},
+        "sampling_params": {"max_completion_tokens": 15, "temperature": 0.7},
         "rid": uuid.uuid4().hex,
         "return_logprob": False,
         "logprob_start_len": -1,
