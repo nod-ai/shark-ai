@@ -37,8 +37,11 @@ jobs:
       - name: Generate release candidate versions
         id: version_rc
         run: |
-          sharktank_package_version=$(python3 build_tools/python_deploy/compute_local_version.py sharktank)
-          shortfin_package_version=$(python3 build_tools/python_deploy/compute_local_version.py shortfin)
+          version_suffix="$(printf 'rc%(%Y%m%d)T')"
+          echo "version_suffix=${version_suffix}" >> $GITHUB_ENV
+          sharktank_package_version=$(python3 build_tools/python_deploy/compute_local_version.py --version-suffix=${version_suffix} sharktank)
+          shortfin_package_version=$(python3 build_tools/python_deploy/compute_local_version.py --version-suffix=${version_suffix} shortfin)
+          sharkai_package_version=$(python3 build_tools/python_deploy/compute_common_version.py -rc --version-suffix=${version_suffix} --write-json)
       - name: Upload version_local.json
         uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
         with:
@@ -46,6 +49,7 @@ jobs:
           path: |
             sharktank/version_local.json
             shortfin/version_local.json
+            shark-ai/version_local.json
 
   build_packages:
     name: "${{ matrix.package }} :: ${{ matrix.platform }} :: ${{ matrix.python-version }}"
@@ -58,8 +62,10 @@ jobs:
           # Ubuntu packages.
           - runs-on: ubuntu-24.04
             platform: linux-x86_64
+            package: shark-ai
+          - runs-on: ubuntu-24.04
+            platform: linux-x86_64
             package: sharktank
-            python-version: cp311-cp311  # Ignored (generic wheel), set for workflow naming
           - runs-on: ubuntu-24.04
             platform: linux-x86_64
             package: shortfin
@@ -97,6 +103,15 @@ jobs:
         name: version_local
         path: ./c/
         merge-multiple: true
+
+    - name: Build shark-ai (Linux x86_64)
+      if: "matrix.package == 'shark-ai' && matrix.platform == 'linux-x86_64'"
+      env:
+        OUTPUT_DIR: "${{ github.workspace }}/bindist"
+      run: |
+        [ -e ./bindist/* ] && rm ./bindist/*
+        ./c/build_tools/python_deploy/write_requirements.py --version-suffix=${version_suffix}
+        ./c/shark-ai/build_tools/build_linux_package.sh
 
     - name: Build sharktank (Linux x86_64)
       if: "matrix.package == 'sharktank' && matrix.platform == 'linux-x86_64'"
