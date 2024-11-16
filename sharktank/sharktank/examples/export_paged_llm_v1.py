@@ -54,17 +54,6 @@ def main():
         help="Enables strictness during export",
         action="store_true",
     )
-    parser.add_argument(
-        "--attention-kernel",
-        type=str,
-        default="decomposed",
-        choices=["decomposed", "torch"],
-    )
-    parser.add_argument(
-        "--skip-decode",
-        help="Enables prefill only, skips decode",
-        action="store_true",
-    )
 
     cli.add_quantization_options(parser)
     cli.add_model_options(parser)
