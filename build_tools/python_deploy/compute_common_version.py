@@ -24,6 +24,7 @@ from packaging.version import Version
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--write-json", action="store_true")
+parser.add_argument("--version-suffix", action="store", type=str)
 
 release_type = parser.add_mutually_exclusive_group()
 release_type.add_argument("-stable", "--stable-release", action="store_true")  # default
@@ -35,6 +36,10 @@ args = parser.parse_args()
 if not (args.stable_release or args.nightly_release):
     parser.print_usage(sys.stderr)
     sys.stderr.write("error: A release type is required\n")
+    sys.exit(1)
+
+if args.stable_release and args.version_suffix:
+    sys.stderr.write("error: A version suffix is only supported for stable releases\n")
     sys.exit(1)
 
 THIS_DIR = Path(__file__).parent.resolve()
@@ -70,7 +75,12 @@ else:
     COMMON_VERSION = SHORTFIN_BASE_VERSION
 
 if args.nightly_release:
-    COMMON_VERSION += "rc" + datetime.today().strftime("%Y%m%d")
+    if args.version_suffix:
+        VERSION_SUFFIX = args.version_suffix
+    else:
+        VERSION_SUFFIX = "rc" + datetime.today().strftime("%Y%m%d")
+
+    COMMON_VERSION += VERSION_SUFFIX
 
 if args.write_json:
     version_local = {"package-version": COMMON_VERSION}
