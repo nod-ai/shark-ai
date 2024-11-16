@@ -21,9 +21,9 @@ from sharktank.utils.export_artifacts import (
 )
 
 is_mi300x = pytest.mark.skipif("config.getoption('iree_hip_target') != 'gfx942'")
-skipif_run_8b_llama = pytest.mark.skipif(
-    'config.getoption("run-8b-llama") and not config.getoption("run-all-llama")',
-    reason="Skipping largs tests when --run-8b is set.",
+skipif_run_quick_llama_test = pytest.mark.skipif(
+    'config.getoption("run-quick-llama-test") and not config.getoption("run-nightly-llama-tests")',
+    reason="Skipping largs tests when --run-quick-llama-test is set.",
 )
 
 
@@ -180,7 +180,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
 
-    @skipif_run_8b_llama
+    @skipif_run_quick_llama_test
     def testBenchmark8B_f16_Non_Decomposed_Prefill(self):
         output_file_name = self.dir_path_8b / "f16_torch_prefill"
         output_mlir = self.llama8b_f16_torch_sdpa_artifacts.create_file(
@@ -214,7 +214,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
 
-    @skipif_run_8b_llama
+    @skipif_run_quick_llama_test
     @pytest.mark.xfail(reason="Compile Error", strict=True, raises=IreeCompileException)
     def testBenchmark8B_f16_Non_Decomposed(self):
         output_file_name = self.dir_path_8b / "f16_torch"
@@ -342,7 +342,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
 
 
 @is_mi300x
-@skipif_run_8b_llama
+@skipif_run_quick_llama_test
 class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
     def setUp(self):
         super().setUp()
@@ -622,7 +622,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
 
 
 @is_mi300x
-@skipif_run_8b_llama
+@skipif_run_quick_llama_test
 class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
     def setUp(self):
         super().setUp()
