@@ -54,10 +54,6 @@ def main():
         help="Enables strictness during export",
         action="store_true",
     )
-<<<<<<< HEAD
-    cli.add_quantization_options(parser)
-    cli.add_model_options(parser)
-=======
     parser.add_argument(
         "--attention-kernel",
         type=str,
@@ -70,7 +66,8 @@ def main():
         action="store_true",
     )
 
->>>>>>> c745549 (Add non-decomposed 8b f16 prefill only test nightly)
+    cli.add_quantization_options(parser)
+    cli.add_model_options(parser)
     args = cli.parse(parser)
     dataset_type = cli.get_input_data_files(args)
     dataset_type = "irpa" if "irpa" in dataset_type else "gguf"

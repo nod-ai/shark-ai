@@ -75,7 +75,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--run-quick-llama-test",
         action="store_true",
-        dest="--run-quick-llama-test",
+        dest="run-quick-llama-test",
         default=False,
         help="Enable llama 8b f16 decomposed benchmarking test",
     )
