@@ -210,7 +210,7 @@
     ],
     "mean_perplexity": 6.060831
   },
-  "llama3_8B_f16_decomposed_vmfb": {
+  "llama3_8B_f16_decomposed_iree": {
     "perplexities": [
       6.651368,
       22.059452,
