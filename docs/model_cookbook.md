@@ -210,6 +210,8 @@ iree-compile /tmp/open_llama_3b_v2/open-llama-3b-v2-f16.mlir \
   -o /tmp/open_llama_3b_v2/open-llama-3b-v2-f16_cpu.vmfb
 ```
 
+TODO: replace these instructions with the newer shortfin code
+
 Run via `service_v1_cli.py` (shortfin serving, with tokenizer):
 
 * TODO: script (via service CLI?) to dump inputs/outputs to .bin/.npy files
