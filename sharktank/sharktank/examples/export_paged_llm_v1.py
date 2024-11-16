@@ -54,6 +54,7 @@ def main():
         help="Enables strictness during export",
         action="store_true",
     )
+
     cli.add_quantization_options(parser)
     cli.add_model_options(parser)
     args = cli.parse(parser)
@@ -312,7 +313,8 @@ def main():
     bsizes = []
     for bs in args.bs:
         generate_batch_prefill(bs)
-        generate_batch_decode(bs)
+        if not args.skip_decode:
+            generate_batch_decode(bs)
         bsizes.append(bs)
     config = generate_params_json(hp, bsizes, bsizes)
     print("GENERATED!")

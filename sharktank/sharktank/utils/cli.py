@@ -69,6 +69,11 @@ def add_model_options(parser: argparse.ArgumentParser):
         default="decomposed",
         choices=["decomposed", "torch"],
     )
+    parser.add_argument(
+        "--skip-decode",
+        help="Enables prefill only, skips decode",
+        action="store_true",
+    )
 
 
 def add_quantization_options(parser: argparse.ArgumentParser):

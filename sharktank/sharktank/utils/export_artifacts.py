@@ -123,15 +123,15 @@ class ExportArtifacts:
     def shard_irpa_file(
         self,
         *,
-        gguf_file: str,
+        irpa_file: str,
         output_irpa: str,
     ):
         shard_irpa_args = [
             "python3",
             "-m",
             "sharktank.examples.sharding.shard_llm_dataset",
-            "--gguf-file",
-            gguf_file,
+            "--irpa-file",
+            irpa_file,
             "--output-irpa-file",
             output_irpa,
             "--tensor-parallelism-size",
@@ -160,6 +160,7 @@ class ExportArtifacts:
         *,
         mlir_path: str,
         json_path: str,
+        skip_decode: Optional[bool] = None,
     ):
         export_args = [
             "python3",
@@ -170,6 +171,8 @@ class ExportArtifacts:
             f"--output-config={json_path}",
             f"--bs={str(self.batch_size)}",
         ]
+        if skip_decode:
+            export_args.append("--skip-decode")
         if self.attention_kernel in ["decomposed", "torch"]:
             export_args.append("--attention-kernel")
             export_args.append(self.attention_kernel)
@@ -195,6 +198,7 @@ class ExportArtifacts:
         vmfb_path,
         cwd,
         hal_dump_path: Optional[Path] = None,
+        args: Optional[List[str]] = None,
     ):
         # TODO: Control flag to enable multiple backends
         compile_args = [
@@ -214,7 +218,9 @@ class ExportArtifacts:
             compile_args += [
                 f"--iree-hal-dump-executable-files-to={hal_dump_path}/files"
             ]
-
+        # Append optional arguments if provided
+        if args:
+            compile_args += args
         cmd = subprocess.list2cmdline(compile_args)
 
         logging.getLogger().info(f"Launching compile command:\n" f"cd {cwd} && {cmd}")

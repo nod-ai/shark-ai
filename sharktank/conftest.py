@@ -73,17 +73,17 @@ def pytest_addoption(parser):
     )
 
     parser.addoption(
-        "--run-8b-llama",
+        "--run-quick-llama-test",
         action="store_true",
-        dest="run-8b-llama",
+        dest="run-quick-llama-test",
         default=False,
-        help="Enable llama 8b benchmarking tests",
+        help="Enable llama 8b f16 decomposed benchmarking test",
     )
 
     parser.addoption(
-        "--run-all-llama",
+        "--run-nightly-llama-tests",
         action="store_true",
-        dest="run-all-llama",
+        dest="run-nightly-llama-tests",
         default=False,
         help="Enable all llama benchmarking tests",
     )
