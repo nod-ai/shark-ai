@@ -46,8 +46,5 @@ class FluxScheduler(torch.nn.Module):
         self.timesteps = torch.stack(timesteps, dim=0).clone().detach()
 
     def prepare(self, num_steps):
-        # s = num_steps.item()
-        # torch._check(s >= 1)
-        # torch._check(s <= 100)
         timesteps = self.timesteps[num_steps]
         return timesteps
