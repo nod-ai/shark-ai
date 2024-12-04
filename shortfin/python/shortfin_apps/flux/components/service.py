@@ -382,7 +382,6 @@ class InferenceExecutorProcess(sf.Process):
             await device0
             for i in range(req_count):
                 req = self.exec_requests[i]
-                breakpoint()
                 req.done.set_success()
             if self.service.prog_isolation == sf.ProgramIsolation.PER_FIBER:
                 self.service.idle_fibers.add(self.fiber)
@@ -723,7 +722,6 @@ class InferenceExecutorProcess(sf.Process):
                 data = [0.3 + j * 0.1 for _ in range(req.height * req.width)]
                 images_planar.view(0, j).items = data
             permuted = sfnp.transpose(images_planar, (0, 2, 3, 1))
-            breakpoint()
             cast_image = sfnp.multiply(127.5, (sfnp.add(permuted, 1.0)))
             image = sfnp.round(cast_image, dtype=sfnp.uint8)
 
