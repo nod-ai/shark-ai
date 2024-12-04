@@ -1,0 +1,36 @@
+{
+  "base_model_name": "flux_dev",
+  "is_schnell": false,
+  "num_latents_channels": 16,
+  "max_seq_len": 512,
+  "clip_max_seq_len": 77,
+  "clip_batch_sizes": [
+    1
+  ],
+  "clip_dtype": "bfloat16",
+  "clip_module_name": "compiled_flux_text_encoder",
+  "t5xxl_batch_sizes": [
+    1
+  ],
+  "t5xxl_dtype": "float32",
+  "t5xxl_module_name": "module",
+  "t5xxl_fn_name": "forward_bs4",
+  "sampler_batch_sizes": [
+    1
+  ],
+  "sampler_dtype": "float32",
+  "sampler_module_name": "module",
+  "sampler_fn_name": "main_graph",
+  "vae_batch_sizes": [
+    1
+  ],
+  "vae_dtype": "float32",
+  "vae_module_name": "compiled_flux_auto_encoder",
+  "vae_fn_name": "decode",
+  "dims": [
+    [
+      1024,
+      1024
+    ]
+  ]
+}

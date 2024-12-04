@@ -1,0 +1,18 @@
+{
+  "prompt": [
+    " a cat under the snow with blue eyes, covered by snow, cinematic style, medium shot, professional photo, animal",
+    " a cat under the snow with green eyes, covered by snow, cinematic style, medium shot, professional photo, animal"
+  ],
+  "neg_prompt": "Watermark, blurry, oversaturated, low resolution, pollution",
+  "height": 1024,
+  "width": 1024,
+  "steps": 20,
+  "guidance_scale": [
+    7.5,
+    7.9
+  ],
+  "seed": 0,
+  "output_type": [
+    "base64"
+  ]
+}

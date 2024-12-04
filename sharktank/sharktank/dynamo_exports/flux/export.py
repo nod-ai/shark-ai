@@ -41,6 +41,8 @@ fluxconfigs = {
             z_channels=16,
             scale_factor=0.3611,
             shift_factor=0.1159,
+            height=1024,
+            width=1024,
         ),
     ),
     "flux-schnell": ModelSpec(
@@ -55,6 +57,8 @@ fluxconfigs = {
             z_channels=16,
             scale_factor=0.3611,
             shift_factor=0.1159,
+            height=1024,
+            width=1024,
         ),
     ),
 }
@@ -126,10 +130,11 @@ def get_te_model_and_inputs(
 def get_ae_model_and_inputs(hf_model_name, precision, batch_size, height, width):
     dtype = torch_dtypes[precision]
     aeparams = fluxconfigs[hf_model_name].ae_params
+    aeparams.height = height
+    aeparams.width = width
     ae = AutoEncoder(params=aeparams).to(dtype)
     latents_shape = (
         batch_size,
-        16,
         int(height * width / 256),
         64,
     )
