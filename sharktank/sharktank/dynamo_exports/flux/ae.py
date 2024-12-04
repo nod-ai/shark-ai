@@ -2,6 +2,7 @@ from torch import Tensor, nn
 import torch
 from einops import rearrange
 from dataclasses import dataclass
+import math
 
 # This Flux AE implementation is copied from  https://github.com/black-forest-labs/flux.
 
@@ -17,6 +18,8 @@ class AutoEncoderParams:
     z_channels: int
     scale_factor: float
     shift_factor: float
+    height: int
+    width: int
 
 
 def swish(x: Tensor) -> Tensor:
@@ -325,14 +328,8 @@ class AutoEncoder(nn.Module):
 
         self.scale_factor = params.scale_factor
         self.shift_factor = params.shift_factor
-
-    @property
-    def device(self) -> torch.device:
-        return next(self.parameters()).device
-
-    @property
-    def dtype(self) -> torch.dtype:
-        return next(self.parameters()).dtype
+        self.height = params.height
+        self.width = params.width
 
     def encode(self, x: Tensor) -> Tensor:
         z = self.reg(self.encoder(x))
@@ -340,8 +337,16 @@ class AutoEncoder(nn.Module):
         return z
 
     def decode(self, z: Tensor) -> Tensor:
-        z = z / self.scale_factor + self.shift_factor
-        return self.decoder(z)
+        d_in = rearrange(
+            z,
+            "b (h w) (c ph pw) -> b c (h ph) (w pw)",
+            h=math.ceil(self.height / 16),
+            w=math.ceil(self.width / 16),
+            ph=2,
+            pw=2,
+        )
+        d_in = d_in / self.scale_factor + self.shift_factor
+        return self.decoder(d_in)
 
     def forward(self, x: Tensor) -> Tensor:
         return self.decode(self.encode(x))

@@ -47,7 +47,7 @@ class ClipTextEncoderModule(torch.nn.Module):
             load_into(f, self.clip.transformer, "", "cpu", self.dtype)
 
     def forward(self, clip_ids):
-        vec = self.clip(clip_ids)[1]
+        vec = self.clip(clip_ids)
 
         return vec
 
