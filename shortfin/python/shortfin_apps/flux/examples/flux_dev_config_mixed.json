@@ -7,7 +7,7 @@
   "clip_batch_sizes": [
     1
   ],
-  "clip_dtype": "bfloat16",
+  "clip_dtype": "float32",
   "clip_module_name": "compiled_flux_text_encoder",
   "t5xxl_batch_sizes": [
     1

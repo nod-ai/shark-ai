@@ -346,7 +346,7 @@ class AutoEncoder(nn.Module):
             pw=2,
         )
         d_in = d_in / self.scale_factor + self.shift_factor
-        return self.decoder(d_in)
+        return self.decoder(d_in).clamp(-1, 1)
 
     def forward(self, x: Tensor) -> Tensor:
         return self.decode(self.encode(x))
