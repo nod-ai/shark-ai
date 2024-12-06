@@ -19,13 +19,13 @@ from PIL import Image
 
 sample_request = {
     "prompt": [
-        " a cat under the snow with blue eyes, covered by snow, cinematic style, medium shot, professional photo, animal",
+        " A mountain with a halo cloud over it, Death Mountain, spooky, Zelda",
     ],
     "neg_prompt": ["Watermark, blurry, oversaturated, low resolution, pollution"],
     "height": [1024],
     "width": [1024],
-    "steps": [20],
-    "guidance_scale": [3],
+    "steps": [50],
+    "guidance_scale": [3.5],
     "seed": [0],
     "output_type": ["base64"],
     "rid": ["string"],

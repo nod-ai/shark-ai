@@ -6,9 +6,12 @@
 
 import asyncio
 import logging
+import math
+import torch
 import numpy as np
 from tqdm.auto import tqdm
 from pathlib import Path
+from typing import Callable
 from PIL import Image
 import base64
 
@@ -21,6 +24,8 @@ from .messages import InferenceExecRequest, InferencePhase, StrobeMessage
 from .tokenizer import Tokenizer
 from .metrics import measure
 
+from einops import rearrange
+
 logger = logging.getLogger("shortfin-flux.service")
 
 prog_isolations = {
@@ -28,6 +33,37 @@ prog_isolations = {
     "per_fiber": sf.ProgramIsolation.PER_FIBER,
     "per_call": sf.ProgramIsolation.PER_CALL,
 }
+
+
+def time_shift(mu: float, sigma: float, t: torch.Tensor):
+    return math.exp(mu) / (math.exp(mu) + (1 / t - 1) ** sigma)
+
+
+def get_lin_function(
+    x1: float = 256, y1: float = 0.5, x2: float = 4096, y2: float = 1.15
+) -> Callable[[float], float]:
+    m = (y2 - y1) / (x2 - x1)
+    b = y1 - m * x1
+    return lambda x: m * x + b
+
+
+def get_schedule(
+    num_steps: int,
+    image_seq_len: int,
+    base_shift: float = 0.5,
+    max_shift: float = 1.15,
+    shift: bool = True,
+) -> list[float]:
+    # extra step for zero
+    timesteps = torch.linspace(1, 0, num_steps + 1)
+
+    # shifting the schedule to favor high timesteps for higher signal images
+    if shift:
+        # estimate mu based on linear estimation between two points
+        mu = get_lin_function(y1=base_shift, y2=max_shift)(image_seq_len)
+        timesteps = time_shift(mu, 1.0, timesteps)
+
+    return timesteps.tolist()
 
 
 class GenerateService:
@@ -420,9 +456,10 @@ class InferenceExecutorProcess(sf.Process):
             # Generate random sample latents.
             seed = request.seed
             channels = self.service.model_params.num_latents_channels
+            image_seq_len = (request.height) * (request.width) // 256
             latents_shape = [
                 1,
-                (requests[0].height) * (requests[0].width) // 256,
+                image_seq_len,
                 64,
             ]
             # latents_shape = (
@@ -446,6 +483,11 @@ class InferenceExecutorProcess(sf.Process):
 
             request.sample.copy_from(sample_host)
             await device
+            request.timesteps = get_schedule(
+                request.steps,
+                image_seq_len,
+                shift=not self.service.model_params.is_schnell,
+            )
         return
 
     async def _clip(self, device, requests):
@@ -464,7 +506,7 @@ class InferenceExecutorProcess(sf.Process):
         clip_inputs = [
             sfnp.device_array.for_device(
                 device,
-                [req_bs, self.service.model_params.clip_max_seq_len, 2],
+                [req_bs, self.service.model_params.clip_max_seq_len],
                 sfnp.sint64,
             ),
         ]
@@ -486,12 +528,12 @@ class InferenceExecutorProcess(sf.Process):
             fn,
             "".join([f"\n  {i}: {ary.shape}" for i, ary in enumerate(clip_inputs)]),
         )
-        (vec, _) = await fn(*clip_inputs, fiber=self.fiber)
+        (vec,) = await fn(*clip_inputs, fiber=self.fiber)
 
         await device
         for i in range(req_bs):
             cfg_mult = 2
-            requests[i].vec = vec.view(slice(i * cfg_mult, (i + 1) * cfg_mult))
+            requests[i].vec = vec.view(slice(i, (i + 1)))
 
         return
 
@@ -580,7 +622,9 @@ class InferenceExecutorProcess(sf.Process):
                 device, vec_shape, self.service.model_params.sampler_dtype
             ),
             "step": sfnp.device_array.for_device(device, [1], sfnp.int64),
-            "num_steps": sfnp.device_array.for_device(device, [1], sfnp.int64),
+            "timesteps": sfnp.device_array.for_device(
+                device, [100], self.service.model_params.sampler_dtype
+            ),
             "guidance_scale": sfnp.device_array.for_device(
                 device, [req_bs], self.service.model_params.sampler_dtype
             ),
@@ -618,17 +662,20 @@ class InferenceExecutorProcess(sf.Process):
 
             # Batch CLIP projections.
             vec = requests[i].vec
-            denoise_inputs["vec"].view(slice(cfg_dim, cfg_dim + cfg_mult)).copy_from(
-                vec
-            )
+            for nc in range(2):
+                denoise_inputs["vec"].view(slice(nc, nc + 1)).copy_from(vec)
 
         denoise_inputs["guidance_scale"].copy_from(gs_host)
+        await device
+        ts_host = denoise_inputs["timesteps"].for_transfer()
+        with ts_host.map(write=True) as m:
+            m.fill(float(1))
+        for tstep in range(len(requests[0].timesteps)):
+            with ts_host.view(tstep).map(write=True, discard=True) as m:
+                m.fill(np.asarray(requests[0].timesteps[tstep], dtype="float32"))
 
-        ns_host = denoise_inputs["num_steps"].for_transfer()
-        with ns_host.map(write=True) as m:
-            ns_host.items = [step_count]
-
-        denoise_inputs["num_steps"].copy_from(ns_host)
+        denoise_inputs["timesteps"].copy_from(ts_host)
+        await device
 
         for i, t in tqdm(
             enumerate(range(step_count)),
@@ -640,14 +687,25 @@ class InferenceExecutorProcess(sf.Process):
                 s_host.items = [i]
             denoise_inputs["step"].copy_from(s_host)
 
-            logger.debug(
+            logger.info(
                 "INVOKE %r",
                 fns["sampler"],
             )
+            await device
+            # np_arrs = {}
+            # host_arrs = {}
+            # for key, value in denoise_inputs.items():
+            #     host_arrs[key] = denoise_inputs[key].for_transfer()
+            #     host_arrs[key].copy_from(denoise_inputs[key])
+            #     await device
+            #     np_arrs[key] = np.array(host_arrs[key])
+            # for key, value in np_arrs.items():
+            #     np.save(f"{key}.npy", value)
+
             (noise_pred,) = await fns["sampler"](
                 *denoise_inputs.values(), fiber=self.fiber
             )
-
+            await device
             denoise_inputs["img"].copy_from(noise_pred)
 
         for idx, req in enumerate(requests):
@@ -671,7 +729,7 @@ class InferenceExecutorProcess(sf.Process):
         await device
         latents_shape = [
             req_bs,
-            (requests[0].height) * (requests[0].width) // 256,
+            (requests[0].height * requests[0].width) // 256,
             64,
         ]
         latents = sfnp.device_array.for_device(
@@ -688,7 +746,6 @@ class InferenceExecutorProcess(sf.Process):
             "".join([f"\n  0: {latents.shape}"]),
         )
         (image,) = await fn(latents, fiber=self.fiber)
-
         await device
         images_shape = [
             req_bs,
@@ -709,23 +766,23 @@ class InferenceExecutorProcess(sf.Process):
         # Process output images
         for req in requests:
             image_shape = [
-                1,
                 3,
                 req.height,
                 req.width,
             ]
+            out_shape = [req.height, req.width, 3]
             images_planar = sfnp.device_array.for_host(
                 device, image_shape, self.service.model_params.vae_dtype
             )
             images_planar.copy_from(req.image_array)
-            for j in range(3):
-                data = [0.3 + j * 0.1 for _ in range(req.height * req.width)]
-                images_planar.view(0, j).items = data
-            permuted = sfnp.transpose(images_planar, (0, 2, 3, 1))
-            cast_image = sfnp.multiply(127.5, (sfnp.add(permuted, 1.0)))
-            image = sfnp.round(cast_image, dtype=sfnp.uint8)
-
-            image_bytes = bytes(image.map(read=True))
+            permuted = sfnp.device_array.for_host(
+                device, out_shape, self.service.model_params.vae_dtype
+            )
+            out = sfnp.device_array.for_host(device, out_shape, sfnp.uint8)
+            sfnp.transpose(images_planar, (1, 2, 0), out=permuted)
+            permuted = sfnp.multiply(127.5, (sfnp.add(permuted, 1.0)))
+            out = sfnp.round(permuted, dtype=sfnp.uint8)
+            image_bytes = bytes(out.map(read=True))
 
             image = base64.b64encode(image_bytes).decode("utf-8")
             req.result_image = image
