@@ -8,6 +8,7 @@ from collections import OrderedDict
 import functools
 import iree.compiler
 import os
+from pathlib import Path
 from parameterized import parameterized
 from copy import copy
 import pytest
@@ -47,18 +48,18 @@ from sharktank.utils.testing import (
     test_prompts,
 )
 from sharktank.models.clip.export import (
-    export_clip_text_model_mlir,
     export_clip_text_model_dataset_from_hugging_face,
     hugging_face_clip_attention_to_theta,
     hugging_face_clip_encoder_layer_to_theta,
     hugging_face_clip_encoder_to_theta,
     hugging_face_clip_text_model_to_dataset,
     hugging_face_clip_text_model_to_theta,
-    clip_text_model_to_dataset,
 )
 from sharktank.models.clip.testing import (
     make_random_input_token_sequences,
     make_clip_text_model_random_theta,
+    export_clip_text_model_iree_test_data,
+    clip_toy_text_model_config,
 )
 from sharktank.models.clip import (
     ClipAttention,
@@ -72,13 +73,15 @@ from sharktank import ops
 with_clip_data = pytest.mark.skipif("not config.getoption('with_clip_data')")
 
 
-@pytest.mark.usefixtures("caching", "path_prefix")
+@pytest.mark.usefixtures("path_prefix")
 class ClipTextIreeTest(TempDirTestBase):
     def setUp(self):
         super().setUp()
         torch.random.manual_seed(12345)
         if self.path_prefix is None:
-            self.path_prefix = f"{self._temp_dir}/"
+            self.path_prefix = self._temp_dir
+        else:
+            self.path_prefix = Path(self.path_prefix)
 
     @with_clip_data
     def testSmokeExportLargeF32FromHuggingFace(self):
@@ -90,11 +93,19 @@ class ClipTextIreeTest(TempDirTestBase):
             huggingface_repo_id,
         ).download()
         target_dtype_name = dtype_to_serialized_short_name(torch.float32)
-        target_model_path_prefix = f"{self.path_prefix}{huggingface_repo_id_as_path}_text_model_{target_dtype_name}"
+        target_model_path_prefix = (
+            self.path_prefix
+            / f"{huggingface_repo_id_as_path}_text_model_{target_dtype_name}"
+        )
         output_path = f"{target_model_path_prefix}.irpa"
         export_clip_text_model_dataset_from_hugging_face(
             huggingface_repo_id, output_path
         )
+
+    def testSmokeExportToyIreeTestData(self):
+        from sharktank.models.clip.export_toy_text_model_iree_test_data import main
+
+        main([f"--output-dir={self.path_prefix/'clip_toy_text_model'}"])
 
     @with_clip_data
     def testCompareLargeIreeF32AgainstTorchEagerF32(self):
@@ -141,43 +152,31 @@ class ClipTextIreeTest(TempDirTestBase):
         )
         target_dtype_name = dtype_to_serialized_short_name(target_dtype)
         reference_model_path_prefix = (
-            f"{self.path_prefix}{file_artifact_prefix_name}_{reference_dtype_name}"
+            self.path_prefix / f"{file_artifact_prefix_name}_{reference_dtype_name}"
         )
         target_model_path_prefix = (
-            f"{self.path_prefix}{file_artifact_prefix_name}_{target_dtype_name}"
-        )
-
-        target_config = copy(reference_model.config)
-        target_config.dtype = target_dtype
-        reference_dataset = clip_text_model_to_dataset(reference_model)
-        target_dataset = Dataset(
-            root_theta=reference_dataset.root_theta.transform(
-                functools.partial(set_float_dtype, dtype=target_config.dtype)
-            ),
-            properties=target_config.to_properties(),
+            self.path_prefix / f"{file_artifact_prefix_name}_{target_dtype_name}"
         )
 
         parameters_path = f"{target_model_path_prefix}.irpa"
-        if not self.caching or not os.path.exists(parameters_path):
-            target_dataset.save(parameters_path)
-
-        dataset = Dataset.load(parameters_path)
-        target_config = ClipTextConfig.from_properties(dataset.properties)
         input_args = OrderedDict([("input_ids", input_ids)])
         batch_size = input_ids.shape[0]
-
         mlir_path = f"{target_model_path_prefix}.mlir"
-        if not self.caching or not os.path.exists(mlir_path):
-            export_clip_text_model_mlir(
-                parameters_path, batch_sizes=[batch_size], mlir_output_path=mlir_path
-            )
+
+        export_clip_text_model_iree_test_data(
+            reference_model=reference_model,
+            target_dtype=target_dtype,
+            input_ids=input_ids,
+            target_mlir_output_path=mlir_path,
+            target_iree_parameters_output_path=parameters_path,
+        )
+
         iree_module_path = f"{target_model_path_prefix}.vmfb"
-        if not self.caching or not os.path.exists(iree_module_path):
-            iree.compiler.compile_file(
-                mlir_path,
-                output_file=iree_module_path,
-                extra_args=["--iree-hal-target-device=hip", "--iree-hip-target=gfx942"],
-            )
+        iree.compiler.compile_file(
+            mlir_path,
+            output_file=iree_module_path,
+            extra_args=["--iree-hal-target-device=hip", "--iree-hip-target=gfx942"],
+        )
 
         reference_result_dict = call_torch_module_function(
             module=reference_model,
@@ -211,11 +210,11 @@ class ClipTextIreeTest(TempDirTestBase):
             for i in range(len(expected_outputs))
         ]
 
-        actual_last_hidden_states = actual_outputs[0]
-        expected_last_hidden_states = expected_outputs[0]
+        actual_last_hidden_state = actual_outputs[0]
+        expected_last_hidden_state = expected_outputs[0]
 
         assert_text_encoder_state_close(
-            actual_last_hidden_states, expected_last_hidden_states, atol
+            actual_last_hidden_state, expected_last_hidden_state, atol
         )
 
     def runTestCompareRandomModelIreeAgainstTorch(
@@ -243,21 +242,7 @@ class ClipTextIreeTest(TempDirTestBase):
         self, reference_dtype: torch.dtype, target_dtype: torch.dtype, atol: float
     ):
         batch_size = 4
-        num_attention_heads = 5
-        vocab_size = 11
-        reference_config = ClipTextConfig(
-            vocab_size=vocab_size,
-            hidden_size=13 * num_attention_heads,
-            intermediate_size=7,
-            projection_dim=3,
-            num_attention_heads=num_attention_heads,
-            max_position_embeddings=17,
-            layer_norm_eps=1e-4,
-            num_hidden_layers=2,
-            bos_token_id=vocab_size - 2,
-            eos_token_id=vocab_size - 1,
-            dtype=reference_dtype,
-        )
+        reference_config = clip_toy_text_model_config(reference_dtype)
         file_artifact_prefix_name = "clip_text_model_toy"
         self.runTestCompareRandomModelIreeAgainstTorch(
             reference_config=reference_config,
@@ -404,21 +389,9 @@ class ClipTextEagerTest(TestCase):
     ):
         torch.set_default_dtype(reference_dtype)
         batch_size = 19
-        tgt_len = 23
-        num_attention_heads = 5
         vocab_size = 11
-        reference_config = transformers.CLIPTextConfig(
-            vocab_size=vocab_size,
-            hidden_size=13 * num_attention_heads,
-            intermediate_size=7,
-            projection_dim=3,
-            num_attention_heads=num_attention_heads,
-            layer_norm_eps=1e-4,
-            num_hidden_layers=2,
-            final_layer_norm=1e-3,
-            bos_token_id=vocab_size - 2,
-            eos_token_id=vocab_size - 1,
-        )
+        config = clip_toy_text_model_config()
+        reference_config = config.to_hugging_face_clip_text_model_config()
         reference_model = HfCLIPTextModel(
             reference_config,
         )
@@ -432,7 +405,9 @@ class ClipTextEagerTest(TestCase):
         )
         model = ClipTextModel(theta, config)
 
-        input_ids = torch.randint(low=0, high=vocab_size, size=[batch_size, tgt_len])
+        input_ids = torch.randint(
+            low=0, high=vocab_size, size=[batch_size, config.max_position_embeddings]
+        )
 
         expected_outputs = reference_model(input_ids=input_ids)
 
@@ -471,16 +446,10 @@ class ClipAttentionTest(TestCase):
     ):
         torch.set_default_dtype(reference_dtype)
         batch_size = 19
-        tgt_len = 23
+        config = clip_toy_text_model_config()
+        reference_config = config.to_hugging_face_clip_text_model_config()
+        tgt_len = config.max_position_embeddings
         src_len = tgt_len
-        num_attention_heads = 2
-        reference_config = transformers.CLIPTextConfig(
-            vocab_size=11,
-            hidden_size=13 * num_attention_heads,
-            intermediate_size=7,
-            projection_dim=3,
-            num_attention_heads=num_attention_heads,
-        )
         reference_model = HfCLIPAttention(
             reference_config,
         )
@@ -495,7 +464,7 @@ class ClipAttentionTest(TestCase):
         model = ClipAttention(theta, config)
 
         reference_hidden_states = make_rand_torch(
-            shape=[batch_size, tgt_len, reference_config.hidden_size],
+            shape=[batch_size, tgt_len, config.hidden_size],
             dtype=reference_dtype,
         )
         reference_attention_mask = make_random_mask(
@@ -551,17 +520,10 @@ class ClipEncoderLayerTest(TestCase):
     ):
         torch.set_default_dtype(reference_dtype)
         batch_size = 19
-        tgt_len = 23
+        config = clip_toy_text_model_config()
+        reference_config = config.to_hugging_face_clip_text_model_config()
+        tgt_len = config.max_position_embeddings
         src_len = tgt_len
-        num_attention_heads = 2
-        reference_config = transformers.CLIPTextConfig(
-            vocab_size=11,
-            hidden_size=13 * num_attention_heads,
-            intermediate_size=7,
-            projection_dim=3,
-            num_attention_heads=num_attention_heads,
-            layer_norm_eps=1e-4,
-        )
         reference_model = HfCLIPEncoderLayer(
             reference_config,
         )
@@ -634,15 +596,8 @@ class ClipEncoderTest(TestCase):
         batch_size = 19
         tgt_len = 23
         src_len = tgt_len
-        num_attention_heads = 5
-        reference_config = transformers.CLIPTextConfig(
-            vocab_size=11,
-            hidden_size=13 * num_attention_heads,
-            intermediate_size=7,
-            projection_dim=3,
-            num_attention_heads=num_attention_heads,
-            layer_norm_eps=1e-4,
-            num_hidden_layers=2,
+        reference_config = (
+            clip_toy_text_model_config().to_hugging_face_clip_text_model_config()
         )
         reference_model = HfCLIPEncoder(
             reference_config,
