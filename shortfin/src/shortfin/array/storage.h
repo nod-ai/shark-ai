@@ -79,8 +79,11 @@ class SHORTFIN_API storage : public local::ProgramInvocationMarshalable {
   const local::ScopedDevice &device() const { return device_; }
   local::Fiber &fiber() const { return device_.fiber(); }
 
+  // Imports a raw buffer as a `storage`, associating it with the device fiber's
+  // timeline.
   static storage import_buffer(local::ScopedDevice &device,
-                               iree::hal_buffer_ptr buffer);
+                               iree::hal_buffer_ptr buffer,
+                               bool async_allocation);
 
   // Allocates device storage, compatible with the given device affinity.
   // By default, this will be IREE_HAL_MEMORY_TYPE_OPTIMAL_FOR_DEVICE.
@@ -178,6 +181,7 @@ class SHORTFIN_API storage : public local::ProgramInvocationMarshalable {
  private:
   storage(local::ScopedDevice device, iree::hal_buffer_ptr buffer,
           local::detail::TimelineResource::Ref timeline_resource);
+  void AsyncDeallocate();
   // ProgramInvocationMarshalable implementation.
   void AddAsInvocationArgument(local::ProgramInvocation *inv,
                                local::ProgramResourceBarrier barrier) override;
@@ -195,9 +199,6 @@ class SHORTFIN_API storage : public local::ProgramInvocationMarshalable {
   static storage ImportInvocationResultStorage(local::ProgramInvocation *inv,
                                                iree::hal_buffer_ptr buffer);
 
-  // The timeline resource holds the back reference to the owning fiber,
-  // which keeps all devices alive. Buffers must be destroyed before devices,
-  // so this must be declared first.
   local::detail::TimelineResource::Ref timeline_resource_;
   iree::hal_buffer_ptr buffer_;
   local::ScopedDevice device_;

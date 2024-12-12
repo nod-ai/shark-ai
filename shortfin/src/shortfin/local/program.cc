@@ -313,9 +313,17 @@ void ProgramInvocation::Deleter::operator()(ProgramInvocation *inst) {
   // Trailing arg list and result list. The arg list pointer is only available
   // at construction, so we use the knowledge that it is stored right after
   // the object. The result_list_ is available for the life of the invocation.
-  iree_vm_list_deinitialize(static_cast<iree_vm_list_t *>(
-      static_cast<void *>(memory + sizeof(ProgramInvocation))));
+  auto *arg_list = static_cast<iree_vm_list_t *>(
+      static_cast<void *>(memory + sizeof(ProgramInvocation)));
+  iree_host_size_t arg_size = iree_vm_list_size(arg_list);
+
+  iree_vm_list_deinitialize(arg_list);
   iree_vm_list_deinitialize(inst->result_list_);
+
+  // Release any arg resource references.
+  for (iree_host_size_t i = 0; i < arg_size; ++i) {
+    if (inst->arg_resources_[i]) inst->arg_resources_[i]->Release();
+  }
 
   // Was allocated in New as a uint8_t[] so delete it by whence it came.
   delete[] memory;
@@ -351,14 +359,15 @@ ProgramInvocation::Ptr ProgramInvocation::New(
       iree_vm_list_storage_size(&variant_type_def, arg_count);
   iree_host_size_t result_storage_size =
       iree_vm_list_storage_size(&variant_type_def, result_count);
+  iree_host_size_t arg_resource_size =
+      sizeof(detail::TimelineResource *) * arg_count;
 
   // Allocate storage for the ProgramInvocation, arg, result list and placement
   // new the ProgramInvocation into the storage area.
   std::unique_ptr<uint8_t[]> inst_storage(
       new uint8_t[sizeof(ProgramInvocation) + arg_storage_size +
-                  result_storage_size]);
+                  result_storage_size + arg_resource_size]);
   new (inst_storage.get()) ProgramInvocation();
-
   // Initialize trailing lists. Abort on failure since this is a bug and we
   // would otherwise leak.
   iree_vm_list_t *arg_list;
@@ -373,6 +382,10 @@ ProgramInvocation::Ptr ProgramInvocation::New(
        .data_length = result_storage_size},
       &variant_type_def, result_count, &result_list));
 
+  uint8_t *arg_resource_ptr = inst_storage.get() + sizeof(ProgramInvocation) +
+                              arg_storage_size + result_storage_size;
+  std::memset(arg_resource_ptr, 0, arg_resource_size);
+
   Ptr inst(static_cast<ProgramInvocation *>(
                static_cast<void *>(inst_storage.release())),
            Deleter());
@@ -382,6 +395,8 @@ ProgramInvocation::Ptr ProgramInvocation::New(
   inst->state.params.function = vm_function;
   inst->state.params.invocation_model = invocation_model;
   inst->result_list_ = result_list;
+  inst->arg_resources_ = static_cast<detail::TimelineResource **>(
+      static_cast<void *>(arg_resource_ptr));
   return inst;
 }
 
@@ -391,14 +406,26 @@ void ProgramInvocation::CheckNotScheduled() {
   }
 }
 
-void ProgramInvocation::AddArg(iree::vm_opaque_ref ref) {
+void ProgramInvocation::AddArg(iree::vm_opaque_ref ref,
+                               detail::TimelineResource *resource) {
   CheckNotScheduled();
+  iree_host_size_t arg_index = iree_vm_list_size(arg_list());
   SHORTFIN_THROW_IF_ERROR(iree_vm_list_push_ref_move(arg_list(), &ref));
+  if (resource) {
+    arg_resources_[arg_index] = resource;
+    resource->Retain();
+  }
 }
 
-void ProgramInvocation::AddArg(iree_vm_ref_t *ref) {
+void ProgramInvocation::AddArg(iree_vm_ref_t *ref,
+                               detail::TimelineResource *resource) {
   CheckNotScheduled();
+  iree_host_size_t arg_index = iree_vm_list_size(arg_list());
   SHORTFIN_THROW_IF_ERROR(iree_vm_list_push_ref_retain(arg_list(), ref));
+  if (resource) {
+    arg_resources_[arg_index] = resource;
+    resource->Retain();
+  }
 }
 
 iree_status_t ProgramInvocation::FinalizeCallingConvention(
@@ -422,6 +449,15 @@ iree_status_t ProgramInvocation::FinalizeCallingConvention(
           iree_hal_fence_insert(maybe_wait_fence, timeline_sem, timeline_now));
       signal_sem_ = sched_account.timeline_sem();
       signal_timepoint_ = sched_account.timeline_acquire_timepoint();
+
+      // Extend any arg resources to our signal timepoint.
+      iree_host_size_t arg_count = iree_vm_list_size(arg_list);
+      for (iree_host_size_t i = 0; i < arg_count; ++i) {
+        detail::TimelineResource *resource = arg_resources_[i];
+        if (resource) {
+          resource->use_barrier_insert(signal_sem_, signal_timepoint_);
+        }
+      }
     }
 
     // Push wait fence (or null if no wait needed).
