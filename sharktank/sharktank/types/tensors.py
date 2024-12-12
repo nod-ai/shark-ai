@@ -28,8 +28,10 @@ import torch
 from torch import Tensor
 from torch.utils._pytree import register_pytree_node, SequenceKey
 import torch.utils._pytree
+
 from ..utils.math import ceildiv
 from iree.turbine.aot import (
+    DeviceAffinity,
     DeviceTensorTrait,
     ExternalTensorTrait,
 )
@@ -791,6 +793,7 @@ class ShardedTensorBase(ShardedTensor):
         ts: list[torch.Tensor],
         name: str = UnnamedTensorName,
         shape: Optional[list[int]],
+        devices: Optional[list],
     ):
         assert len(ts) > 0
         assert shard_dim is None or (shard_dim >= 0 and len(ts[0].shape) > shard_dim)
@@ -805,6 +808,19 @@ class ShardedTensorBase(ShardedTensor):
             for i, t in enumerate(ts)
         )
 
+        if devices is None:
+            devices = [DeviceAffinity(i) for i in range(len(self._shards))]
+
+        self._devices: tuple[DeviceAffinity] = tuple(devices)
+
+    def assign_affinities(self, affinities):
+        assert len(affinities) == len(self._devices)
+        self._devices = tuple(affinities)
+        for s, d in zip(self._shards, self._devices):
+            if isinstance(s, DefaultPrimitiveTensor):
+                s = s.as_torch()
+            DeviceTensorTrait(d.ordinal, d.queues).set(s)
+
     @property
     def shard_count(self) -> int:
         return len(self._shards)
@@ -812,6 +828,10 @@ class ShardedTensorBase(ShardedTensor):
     @property
     def shards(self) -> tuple[InferenceTensor]:
         return self._shards
+
+    @property
+    def devices(self) -> tuple[DeviceAffinity]:
+        return self._devices
 
     @property
     def is_replicated(self) -> bool:
@@ -870,9 +890,8 @@ class ShardedTensorBase(ShardedTensor):
             t_name = str(i)
             try:
                 t = raw_tensors[t_name]
-                ts.append(t)
-                # TODO: this should be changed to tracked device affinity
                 DeviceTensorTrait(i).set(t)
+                ts.append(t)
             except KeyError as e:
                 raise IOError(
                     f"Missing component tensor '{t_name}' in {raw_tensors.keys()}"
@@ -965,6 +984,7 @@ class SplitPrimitiveTensor(ShardedTensorBase):
         shard_count: None | int = None,
         name: str = UnnamedTensorName,
         shape: Optional[list[int]] = None,
+        devices: list | None = None,
     ):
         """
         If `ts` is a list of tensors, it is interpreted as the shards.
@@ -973,16 +993,25 @@ class SplitPrimitiveTensor(ShardedTensorBase):
         will be split along dimension `shard_dim` into `shard_count`
         number of pieces.
         """
-        if isinstance(ts, torch.Tensor):
-            from ..ops import transfer_to_logical_device
 
+        assert shard_count is None or isinstance(ts, torch.Tensor)
+        shard_count = shard_count if shard_count is not None else len(ts)
+
+        if devices is None:
+            devices = [DeviceAffinity(i) for i in range(shard_count)]
+
+        assert len(devices) == shard_count
+
+        if isinstance(ts, torch.Tensor):
             assert shard_count is not None
             ts = ts.split(ceildiv(ts.shape[shard_dim], shard_count), dim=shard_dim)
-            ts = [transfer_to_logical_device(t, i) for i, t in enumerate(ts)]
+
+            from ..ops import transfer_to_logical_device
+
+            ts = [transfer_to_logical_device(t, d.ordinal) for t, d in zip(ts, devices)]
             assert len(ts) == shard_count
             shard_count = None
 
-        assert shard_count is None
         assert len(ts) > 0
         first_shape = ts[0].shape
         assert len(first_shape) > shard_dim
@@ -1004,7 +1033,9 @@ class SplitPrimitiveTensor(ShardedTensorBase):
                 s == t for i, (s, t) in enumerate(zip(shape, t_shape)) if i != shard_dim
             ), f"Shape mismatch for non-split dimension for tensor shard {i} with shape {t.shape}"
 
-        super().__init__(name=name, ts=ts, shape=shape, shard_dim=shard_dim)
+        super().__init__(
+            name=name, ts=ts, shape=shape, shard_dim=shard_dim, devices=devices
+        )
 
     def _is_slicing_split_dim(self, key):
         if isinstance(
@@ -1072,7 +1103,9 @@ class SplitPrimitiveTensor(ShardedTensorBase):
                 # Rank reduction dimension before the split dim.
                 shard_dim -= 1
 
-        return SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim)
+        return SplitPrimitiveTensor(
+            ts=shards, shard_dim=shard_dim, devices=self.devices
+        )
 
     def __setitem__(self, key, value):
         assert isinstance(value, SplitPrimitiveTensor)
@@ -1098,7 +1131,8 @@ class ReplicatedTensor(ShardedTensor):
     def __init__(
         self,
         *,
-        ts: list[torch.Tensor] | torch.Tensor,
+        ts: list[torch.Tensor],
+        devices: None | list[DeviceAffinity] = None,
         shard_count: None | int = None,
         name: str = UnnamedTensorName,
     ):
@@ -1108,13 +1142,7 @@ class ReplicatedTensor(ShardedTensor):
         If `ts` is a tensor then `shard_count` must be provided and it,
         will be replicated that many times.
         """
-        if isinstance(ts, torch.Tensor):
-            assert shard_count is not None
-            from ..ops import transfer_to_logical_device
-
-            ts = [transfer_to_logical_device(ts, i) for i in range(shard_count)]
-            shard_count = None
-
+        assert not isinstance(ts, torch.Tensor)
         assert shard_count is None
         assert len(ts) > 0
         first_shape = ts[0].shape
@@ -1134,6 +1162,19 @@ class ReplicatedTensor(ShardedTensor):
             for i, t in enumerate(ts)
         )
 
+        if devices is None:
+            devices = tuple([DeviceAffinity(i) for i in range(len(ts))])
+
+        self._devices: tuple[DeviceAffinity] = tuple(devices)
+
+    def assign_affinities(self, affinities):
+        assert len(affinities) == len(self._devices)
+        self._devices = tuple(affinities)
+        for s, d in zip(self._shards, self._devices):
+            if isinstance(s, DefaultPrimitiveTensor):
+                s = s.as_torch()
+            DeviceTensorTrait(d.ordinal, d.queues).set(s)
+
     @property
     def shard_count(self) -> int:
         return len(self._shards)
@@ -1141,6 +1182,10 @@ class ReplicatedTensor(ShardedTensor):
     @property
     def shards(self) -> tuple[InferenceTensor]:
         return self._shards
+
+    @property
+    def devices(self) -> tuple[DeviceAffinity]:
+        return self._devices
 
     @property
     def is_replicated(self) -> bool:
@@ -1188,9 +1233,8 @@ class ReplicatedTensor(ShardedTensor):
                 nt = deepcopy(t)
                 ts.append(nt)
 
-            # TODO This should be changed to assigned affinities
-            for i in range(shard_count):
-                DeviceTensorTrait(i).set(ts[i])
+            for i, t in enumerate(ts):
+                DeviceTensorTrait(i).set(t)
 
         except KeyError as e:
             raise IOError(f"Missing component tensor '' in {raw_tensors.keys()}") from e
@@ -1210,12 +1254,13 @@ class ReplicatedTensor(ShardedTensor):
                 else:
                     shard_keys.append(k)
             shards.append(shard[*shard_keys])
-        return ReplicatedTensor(ts=shards)
+        return ReplicatedTensor(ts=shards, devices=self.devices)
 
     def __repr__(self):
         return (
             f"ReplicatedTensor({self.name}, {self.shape}, "
             f"shard_count={len(self._shards)} "
+            f"devices={self.devices} "
             f"of {self.shards[0].shape})"
         )
 
@@ -1243,13 +1288,14 @@ class UnreducedTensor(ShardedTensorBase):
         self,
         *,
         ts: list[torch.Tensor],
+        devices: Optional[list] = None,
         name: str = UnnamedTensorName,
         shape: Optional[list[int]] = None,
     ):
         assert len(ts) > 0
         shape = list(ts[0].shape if shape is None else shape)
         assert all(shape == list(t.shape) for t in ts)
-        super().__init__(name=name, ts=ts, shape=shape, shard_dim=None)
+        super().__init__(name=name, ts=ts, shape=shape, shard_dim=None, devices=devices)
 
 
 def flatten_tensor_tree(

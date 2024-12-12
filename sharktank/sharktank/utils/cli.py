@@ -70,8 +70,13 @@ def add_model_options(parser: argparse.ArgumentParser):
         choices=["decomposed", "torch"],
     )
     parser.add_argument(
+        "--skip-prefill",
+        help="Skips exporting prefill",
+        action="store_true",
+    )
+    parser.add_argument(
         "--skip-decode",
-        help="Enables prefill only, skips decode",
+        help="Skips exporting decode",
         action="store_true",
     )
 

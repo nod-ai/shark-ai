@@ -9,6 +9,8 @@ from typing import Optional
 from dataclasses import dataclass
 from typing import Union
 
+from iree.turbine.aot import DeviceAffinity
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -62,7 +64,7 @@ class PagedLlamaModelV1(BaseCausalLMModel):
     unsharded result or chain it with other tensor-parallel operations.
     """
 
-    def __init__(self, theta: Theta, config: LlamaModelConfig):
+    def __init__(self, theta: Theta, config: LlamaModelConfig, devices: list = None):
         hp = config.hp
         super().__init__(
             theta,
@@ -80,6 +82,9 @@ class PagedLlamaModelV1(BaseCausalLMModel):
         self.use_hf = config.use_hf
         self.attention_kernel = config.attention_kernel
 
+        if devices is None:
+            devices = [DeviceAffinity(i) for i in range(config.tensor_parallelism_size)]
+
         self.add_module(
             "token_embedding",
             TokenEmbeddingLayer(theta("token_embd"), dtype=config.activation_dtype),
@@ -91,9 +96,9 @@ class PagedLlamaModelV1(BaseCausalLMModel):
                 rope_freq_base=hp.rope_freq_base,
                 max_seqlen=hp.context_length,
                 device=self.device,
+                devices=devices,
                 use_hf=self.use_hf,
                 static_tables=config.static_tables,
-                tensor_parallelism_size=config.tensor_parallelism_size,
             ),
         )
         self.add_module(
@@ -238,8 +243,12 @@ class PagedLlamaModelV1(BaseCausalLMModel):
                 )
                 for _ in range(self.config.tensor_parallelism_size)
             ]
-            xk_temp = SplitPrimitiveTensor(ts=xk_temp_shard, shard_dim=2)
-            xv_temp = SplitPrimitiveTensor(ts=xv_temp_shard, shard_dim=2)
+            xk_temp = SplitPrimitiveTensor(
+                ts=xk_temp_shard, shard_dim=2, devices=tokens.devices
+            )
+            xv_temp = SplitPrimitiveTensor(
+                ts=xv_temp_shard, shard_dim=2, devices=tokens.devices
+            )
 
         h = self.token_embedding(tokens)
         self.trace_tensor("llama.token_embedding", h)

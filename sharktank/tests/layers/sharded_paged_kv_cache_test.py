@@ -5,13 +5,16 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import unittest
-from sharktank.layers import PagedKVCache
 import torch
-from sharktank.utils import iterables_equal
 from copy import deepcopy
 from typing import List, Tuple
+
+from iree.turbine.aot import DeviceAffinity
+
 from sharktank import ops
+from sharktank.layers import PagedKVCache
 from sharktank.types import SplitPrimitiveTensor
+from sharktank.utils import iterables_equal
 
 
 class ShardedPagedKVCacheTest(unittest.TestCase):
@@ -31,6 +34,7 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
         self.batch_size = 11
         self.block_seq_len = 2
         self.max_seq_len = self.block_seq_len * self.block_seq_stride
+        self.devices = [DeviceAffinity(i) for i in range(self.shard_count)]
 
         self.cache = PagedKVCache(
             transformer_block_count=self.transformer_block_count,
@@ -131,7 +135,7 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
                 for t in read_into_partitions_snapshot
             ]
         )
-        sharded_page_ids = ops.replicate(page_ids, count=self.shard_count)
+        sharded_page_ids = ops.replicate(page_ids, devices=self.devices)
         self.sharded_cache.read(
             state=sharded_cache_state,
             read_into_partitions=sharded_read_into_partitions,
@@ -179,8 +183,8 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
                 for t in cache_partitions
             ]
         )
-        sharded_seq_positions = ops.replicate(seq_positions, count=self.shard_count)
-        sharded_page_ids = ops.replicate(page_ids, count=self.shard_count)
+        sharded_seq_positions = ops.replicate(seq_positions, devices=self.devices)
+        sharded_page_ids = ops.replicate(page_ids, devices=self.devices)
         self.sharded_cache.write_timestep(
             state=sharded_cache_state,
             cache_partitions=sharded_cache_partitions,
@@ -224,7 +228,7 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
                 for t in cache_partitions
             ]
         )
-        sharded_page_ids = ops.replicate(page_ids, count=self.shard_count)
+        sharded_page_ids = ops.replicate(page_ids, devices=self.devices)
         self.sharded_cache.write(
             state=sharded_cache_state,
             cache_partitions=sharded_cache_partitions,

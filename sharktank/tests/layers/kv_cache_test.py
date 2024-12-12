@@ -8,6 +8,7 @@ import unittest
 
 import torch
 
+from iree.turbine.aot import DeviceAffinity
 from sharktank.ops import replicate, reshard_split, unshard
 from sharktank.layers import *
 from sharktank.types import *
@@ -148,6 +149,8 @@ def test_sharded_direct():
 
     write_seq_length = seq_length - 5
 
+    devices = [DeviceAffinity(i) for i in range(shard_count)]
+
     # Write a prefill in:
     write_ones = reshard_split(
         torch.full(
@@ -204,7 +207,7 @@ def test_sharded_direct():
     )
 
     write_pos = replicate(
-        torch.full((bs,), write_seq_length, dtype=torch.int64), shard_count
+        torch.full((bs,), write_seq_length, dtype=torch.int64), devices
     )
     cache.write_timestep(
         allocation,
@@ -379,11 +382,13 @@ def test_sharded_paged():
         device=None,
     )
 
+    devices = [DeviceAffinity(i) for i in range(shard_count)]
+
     write_seq_length = seq_length - 4
     page_count = bs * seq_length // block_seq_stride
     page_ids = torch.arange(page_count, dtype=torch.int64)
     page_ids = page_ids.view(bs, seq_length // block_seq_stride)
-    page_ids = replicate(page_ids, shard_count)
+    page_ids = replicate(page_ids, devices=devices)
     write_page_ids = page_ids[:, : write_seq_length // block_seq_stride]
 
     allocation = cache.allocate(page_count=page_count)
@@ -458,7 +463,7 @@ def test_sharded_paged():
     )
 
     write_pos = replicate(
-        torch.full((bs,), write_seq_length, dtype=torch.int64), shard_count
+        torch.full((bs,), write_seq_length, dtype=torch.int64), devices
     )
 
     cache.write_timestep(

@@ -106,7 +106,7 @@ class ShardedTensorTest(unittest.TestCase):
 
     def testReplicatedTensorExtractSlice(self):
         tensor = torch.rand([2, 3, 4], dtype=torch.float32)
-        replicated_tensor = ReplicatedTensor(ts=tensor, shard_count=3)
+        replicated_tensor = ReplicatedTensor(ts=[tensor] * 3)
         s = [slice(1, 2), slice(0, 3, 2), None]
         expected_result = tensor[s]
         replicated_sliced_tensor = replicated_tensor[s]
@@ -116,7 +116,7 @@ class ShardedTensorTest(unittest.TestCase):
 
     def testReplicatedTensorExtractElement(self):
         tensor = torch.rand([2, 3, 4], dtype=torch.float32)
-        replicated_tensor = ReplicatedTensor(ts=tensor, shard_count=3)
+        replicated_tensor = ReplicatedTensor(ts=[tensor] * 3)
         idx = (
             1,
             2,

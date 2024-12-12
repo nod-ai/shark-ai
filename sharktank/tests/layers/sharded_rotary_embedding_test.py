@@ -7,6 +7,8 @@
 
 import torch
 
+from iree.turbine.aot import DeviceAffinity
+
 from sharktank.layers import RotaryEmbeddingLayer
 from sharktank import ops
 from sharktank.types import (
@@ -27,6 +29,8 @@ def test_sharded_rotary_table():
     max_seqlen = 128
     rope_freq_base = None
 
+    devices = [DeviceAffinity(i) for i in range(4)]
+
     # First we setup and get the default rotary embedding layer
     xq = torch.rand((bs, max_seqlen, heads, rope_dims), dtype=torch.float)
     xk = torch.rand((bs, max_seqlen, heads, rope_dims), dtype=torch.float)
@@ -45,7 +49,7 @@ def test_sharded_rotary_table():
         rope_dimension_count=rope_dims,
         max_seqlen=max_seqlen,
         rope_freq_base=rope_freq_base,
-        tensor_parallelism_size=4,
+        devices=devices,
     )
     sq = shard_layer(xt=xq, start_index=0)
     sk = shard_layer(xt=xk, start_index=0)

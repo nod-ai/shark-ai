@@ -6,7 +6,7 @@
 
 import unittest
 import pytest
-from typing import Any, List, Tuple, OrderedDict
+from typing import Any, Tuple, OrderedDict
 from sharktank.models.llama.llama import LlamaModelConfig, PagedLlamaModelV1
 import sharktank.ops as ops
 from sharktank.types import unbox_tensor, Dataset, UnreducedTensor, SplitPrimitiveTensor

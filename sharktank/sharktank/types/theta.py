@@ -25,8 +25,6 @@ from ..utils.io import ShardedArchiveBuilder
 
 from .tensors import (
     InferenceTensor,
-    PrimitiveTensor,
-    QuantizedTensor,
     InferenceTensorMetadata,
     DefaultPrimitiveTensor,
     REGISTERED_INFERENCE_TENSOR_CLASSES,

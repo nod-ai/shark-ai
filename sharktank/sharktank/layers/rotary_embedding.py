@@ -27,10 +27,11 @@ class RotaryEmbeddingLayer(BaseLayer):
         use_hf: bool = False,
         static_tables: bool = False,
         use_table: bool = True,
-        tensor_parallelism_size: int = 1,
+        devices: list | None = None,
     ):
         super().__init__()
         self.device = device
+        self.devices = devices
         self.rope_dimension_count = rope_dimension_count
         self.max_seqlen = max_seqlen
         self.use_hf = use_hf
@@ -38,7 +39,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         self.use_table = use_table
 
         self.rope_freq_base = rope_freq_base if rope_freq_base is not None else 10000.0
-        self.tensor_parallelism_size = tensor_parallelism_size
+        self.devices = devices
         if static_tables:
             ops.module_register_buffer(
                 self, "static_rotary_embed_table", self._create_rotary_embed_table()
@@ -80,7 +81,9 @@ class RotaryEmbeddingLayer(BaseLayer):
                 )
                 for xt_shard, rotary_shard in zip(xt.shards, rotary_shards)
             ]
-            xt = SplitPrimitiveTensor(ts=xt_shards, shard_dim=xt.shard_dim)
+            xt = SplitPrimitiveTensor(
+                ts=xt_shards, shard_dim=xt.shard_dim, devices=xt.devices
+            )
             return xt
         else:
             return self.forward_unsharded(
@@ -189,7 +192,7 @@ class RotaryEmbeddingLayer(BaseLayer):
                     self._compute_rotary_embed_table(s.flatten()).unflatten(0, shape)
                     for s in positions_seq.shards
                 ]
-                freqs_cis = ReplicatedTensor(ts=ts)
+                freqs_cis = ReplicatedTensor(ts=ts, devices=positions_seq.devices)
             else:
                 freqs_cis = self._compute_rotary_embed_table(positions_seq.flatten())
                 freqs_cis = freqs_cis.unflatten(0, shape)
@@ -215,7 +218,9 @@ class RotaryEmbeddingLayer(BaseLayer):
             )
             for xt_shard, mask_shard in zip(xt.shards, mask.shards)
         ]
-        xt = SplitPrimitiveTensor(ts=xt_shards, shard_dim=xt.shard_dim)
+        xt = SplitPrimitiveTensor(
+            ts=xt_shards, shard_dim=xt.shard_dim, devices=xt.devices
+        )
         return xt
 
     def apply_batched_mask_unsharded(self, *, xt: torch.Tensor, mask: torch.Tensor):
@@ -259,8 +264,8 @@ class RotaryEmbeddingLayer(BaseLayer):
         return self._replicate(freqs_cis)
 
     def _replicate(self, t):
-        if self.tensor_parallelism_size > 1:
+        if self.devices is not None and len(self.devices) > 1:
             # Replicate across all devices, the data is not a lot and the computation is cheap.
-            t = ops.replicate(t, self.tensor_parallelism_size)
+            t = ops.replicate(t, self.devices)
 
         return t

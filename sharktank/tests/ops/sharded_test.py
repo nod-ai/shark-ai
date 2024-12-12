@@ -630,7 +630,7 @@ class AttentionTest(unittest.TestCase):
         q_s = SplitPrimitiveTensor(shard_dim=0, ts=q.split(1, dim=0))
         k_s = SplitPrimitiveTensor(shard_dim=0, ts=k.split(1, dim=0))
         v_s = SplitPrimitiveTensor(shard_dim=0, ts=v.split(1, dim=0))
-        a_s = ReplicatedTensor(ts=a, shard_count=4)
+        a_s = ReplicatedTensor(ts=[a] * 4)
 
         expected_result = ops.scaled_dot_product_attention(
             q, k, v, a=a, is_causal=False
@@ -754,7 +754,7 @@ class MatmulTest(unittest.TestCase):
         expected_result = torch.matmul(a, b)
         shard_count = 3
         a_sharded = SplitPrimitiveTensor(ts=a, shard_dim=1, shard_count=shard_count)
-        b_sharded = ReplicatedTensor(ts=b, shard_count=shard_count)
+        b_sharded = ReplicatedTensor(ts=[b] * shard_count)
         res_sharded = ops.matmul(a_sharded, b_sharded)
         assert isinstance(res_sharded, SplitPrimitiveTensor)
         assert res_sharded.shard_dim == 1
@@ -837,7 +837,7 @@ class ReplicateTest(unittest.TestCase):
         tensor = torch.rand(4, 5, dtype=torch.float32)
         shard_count = 3
         actual_result = ops.replicate(tensor, count=shard_count)
-        expected_result = ReplicatedTensor(ts=tensor, shard_count=shard_count)
+        expected_result = ReplicatedTensor(ts=[tensor] * shard_count)
         assert expected_result.is_deep_equal(actual_result)
 
         # Test that is a copy.

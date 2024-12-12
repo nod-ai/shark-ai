@@ -18,10 +18,11 @@ from sharktank.utils.math import ceildiv
 
 # TODO: Should be using a base class with the protocol supported.
 from ..models.llama.llama import LlamaModelConfig, PagedLlamaModelV1
-from ..models.llama.sharding import shard_theta
 from ..models.mixtral.mixtral import *
 from ..models.grok.grok import *
 from .. import ops
+
+from typing import Union, Sequence
 
 
 def main():
@@ -55,6 +56,11 @@ def main():
         help="Enables strictness during export",
         action="store_true",
     )
+    parser.add_argument(
+        "--use-queue-affinities",
+        help="Enables queue affinities for multidevice",
+        action="store_true",
+    )
 
     cli.add_quantization_options(parser)
     cli.add_model_options(parser)
@@ -74,10 +80,36 @@ def main():
         tensor_parallelism_size=tensor_parallelism_size,
         use_hf=False,
         static_tables=False,  # Rely on the compiler for hoisting tables.
-        kv_cache_type="direct" if args.bs == [1] else "paged",
+        kv_cache_type="paged" if args.bs == [1] else "paged",
         attention_kernel=args.attention_kernel,
     )
     llama_config.fake_quant = args.fake_quant
+
+    def setup_queue_affinities(sharding):
+        return [DeviceAffinity(0, [str(i)]) for i in range(sharding)]
+
+    def assign_affinities(theta, affinities):
+        def transform(tensors: Union[None, InferenceTensor, Sequence[InferenceTensor]]):
+            if tensors is None:
+                return tensors
+            if isinstance(tensors, Sequence):
+                return [transform(t) for t in tensors]
+            if isinstance(tensors, ShardedTensor):
+                tensors.assign_affinities(affinities)
+                return tensors
+            if isinstance(tensors, InferenceTensor):
+                return tensors
+
+            raise ValueError("Unknown device for reassigned affinities")
+
+        return theta.transform(transform)
+
+    affinities = [
+        DeviceAffinity(i) for i in range(llama_config.tensor_parallelism_size)
+    ]
+    if args.use_queue_affinities:
+        affinities = setup_queue_affinities(llama_config.tensor_parallelism_size)
+        dataset.root_theta = assign_affinities(dataset.root_theta, affinities)
 
     if llama_config.hp.expert_count:
         if llama_config.hp.model_arch == "grok":
@@ -85,7 +117,7 @@ def main():
         else:
             model = PagedMixtralModelV1(dataset.root_theta, llama_config)
     else:
-        model = PagedLlamaModelV1(dataset.root_theta, llama_config)
+        model = PagedLlamaModelV1(dataset.root_theta, llama_config, affinities)
 
     def generate_params_json(
         hp: LlamaHParams, prefill_bs: list[int], decode_bs: list[int]
@@ -121,7 +153,7 @@ def main():
 
     fxb = FxProgramsBuilder(model)
 
-    def setup_cache(model, shard_count):
+    def setup_cache(model, affinities):
         if model.config.kv_cache_type == "paged":
             cache_state = model.cache.allocate(
                 page_count=hp.context_length // llama_config.block_seq_stride
@@ -143,24 +175,21 @@ def main():
                 ]
 
                 for i in range(llama_config.tensor_parallelism_size):
-                    arg_affinities[i] = DeviceAffinity(str(i))
+                    arg_affinities[i] = affinities[i]
 
             return unpacked, shard_dim, dynamic_shapes, arg_affinities
 
         elif model.config.kv_cache_type == "direct":
-            cache_state = model.cache.allocate(bs=1)
-            # Direct cache dimensions:
-            #   2 * transformer_block_count of...
-            #   [bs, seq_length, attn_head_count, attn_head_dim]
-            dynamic_shapes = [None]
-            arg_affinities = {}
-            shard_dim = None
-            return torch.stack(cache_state), shard_dim, dynamic_shapes, arg_affinities
+            raise NotImplementedError(f"Direct cache is not currently functional")
+
         else:
             raise NotImplementedError(f"Unsupported KV cache type: {type(model.cache)}")
 
     def repack_cache(cache, shard_dim):
-        return [SplitPrimitiveTensor(ts=c, shard_dim=shard_dim) for c in cache]
+        return [
+            SplitPrimitiveTensor(ts=c, shard_dim=shard_dim, devices=affinities)
+            for c in cache
+        ]
 
     def generate_batch_prefill(bs: int):
         # torch.export.Dim would make min at least 2
@@ -177,7 +206,7 @@ def main():
         seq_lens = torch.empty(bs, dtype=torch.int64)
 
         cache, cache_shard_dim, cache_dynamic_shapes, arg_affinities = setup_cache(
-            model, llama_config.tensor_parallelism_size
+            model, affinities
         )
 
         if llama_config.tensor_parallelism_size > 1:
@@ -219,9 +248,9 @@ def main():
             if llama_config.tensor_parallelism_size != 1:
                 shard_count = llama_config.tensor_parallelism_size
 
-                tokens = ops.replicate(tokens, count=shard_count)
-                attention_mask = ops.replicate(attention_mask, count=shard_count)
-                seq_block_ids = ops.replicate(seq_block_ids, count=shard_count)
+                tokens = ops.replicate(tokens, devices=affinities)
+                attention_mask = ops.replicate(attention_mask, devices=affinities)
+                seq_block_ids = ops.replicate(seq_block_ids, devices=affinities)
 
                 cache_tensors = repack_cache(cs, cache_shard_dim)
 
@@ -256,7 +285,7 @@ def main():
             cache_shard_dim,
             cache_dynamic_shapes,
             arg_affinities,
-        ) = setup_cache(model, llama_config.tensor_parallelism_size)
+        ) = setup_cache(model, affinities)
 
         if llama_config.tensor_parallelism_size > 1:
             # We need to offset the indices for the cache
@@ -264,7 +293,7 @@ def main():
 
             # Inputs have default affinity 0
             for i in range(4):
-                arg_affinities[i] = DeviceAffinity("0")
+                arg_affinities[i] = affinities[0]
 
         dynamic_shapes = {
             "tokens": {},
@@ -303,12 +332,10 @@ def main():
             attention_mask = model.decode_attention_mask(input_mask)
 
             if llama_config.tensor_parallelism_size != 1:
-                shard_count = llama_config.tensor_parallelism_size
-
-                tokens = ops.replicate(tokens, count=shard_count)
-                attention_mask = ops.replicate(attention_mask, count=shard_count)
-                start_positions = ops.replicate(start_positions, count=shard_count)
-                seq_block_ids = ops.replicate(seq_block_ids, count=shard_count)
+                tokens = ops.replicate(tokens, devices=affinities)
+                attention_mask = ops.replicate(attention_mask, devices=affinities)
+                start_positions = ops.replicate(start_positions, devices=affinities)
+                seq_block_ids = ops.replicate(seq_block_ids, devices=affinities)
 
                 cache_state = repack_cache(cache_state, cache_shard_dim)
 
@@ -327,7 +354,8 @@ def main():
 
     bsizes = []
     for bs in args.bs:
-        generate_batch_prefill(bs)
+        if not args.skip_prefill:
+            generate_batch_prefill(bs)
         if not args.skip_decode:
             generate_batch_decode(bs)
         bsizes.append(bs)

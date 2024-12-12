@@ -15,6 +15,8 @@ import sys
 
 import torch
 
+from iree.turbine.aot import DeviceAffinity
+
 from ..layers import *
 from ..types import *
 
@@ -156,9 +158,10 @@ class Batch:
         token_ids = self.token_ids
         if model.config.tensor_parallelism_size != 1:
             tp = model.config.tensor_parallelism_size
-            token_ids = replicate(token_ids, tp)
-            attention_mask = replicate(attention_mask, tp)
-            seq_block_ids_tensor = replicate(seq_block_ids_tensor, tp)
+            devices = [DeviceAffinity(i) for i in range(tp)]
+            token_ids = replicate(token_ids, devices)
+            attention_mask = replicate(attention_mask, devices)
+            seq_block_ids_tensor = replicate(seq_block_ids_tensor, devices)
 
         logits = model.prefill(
             token_ids,
@@ -199,10 +202,11 @@ class Batch:
 
         if model.config.tensor_parallelism_size != 1:
             tp = model.config.tensor_parallelism_size
-            self.next_tokens = replicate(self.next_tokens, tp)
-            start_positions = replicate(start_positions, tp)
-            seq_block_ids_tensor = replicate(seq_block_ids_tensor, tp)
-            decode_attention_mask = replicate(decode_attention_mask, tp)
+            devices = [DeviceAffinity(i) for i in range(tp)]
+            self.next_tokens = replicate(self.next_tokens, devices)
+            start_positions = replicate(start_positions, devices)
+            seq_block_ids_tensor = replicate(seq_block_ids_tensor, devices)
+            decode_attention_mask = replicate(decode_attention_mask, devices)
 
         logits = model.decode(
             self.next_tokens,
@@ -279,8 +283,7 @@ def main():
         tensor_parallelism_size=args.tensor_parallelism_size,
         fake_quant=args.fake_quant,
     )
-    if config.tensor_parallelism_size > 1:
-        dataset.root_theta = shard_theta(dataset.root_theta, config)
+    affinities = [DeviceAffinity(i) for i in range(args.tensor_parallelism_size)]
 
     if config.hp.expert_count:
         if config.hp.model_arch == "grok":
@@ -288,7 +291,7 @@ def main():
         else:
             model = PagedMixtralModelV1(dataset.root_theta, config)
     else:
-        model = PagedLlamaModelV1(dataset.root_theta, config)
+        model = PagedLlamaModelV1(dataset.root_theta, config, devices=affinities)
 
     if args.save_intermediates_path:
         from ..utils.patching import SaveModuleResultTensorsPatch
