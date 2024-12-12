@@ -476,6 +476,14 @@ def unsqueeze_default(tensor: Union[Tensor, PrimitiveTensor], dim: int) -> Tenso
     return torch.unsqueeze(tensor, dim)
 
 
+@squeeze.override(AllOfType(AnyTensor, PrimitiveTensor))
+def squeeze_default(tensor, dim: Optional[int] = None) -> AnyTensor:
+    if dim is None:
+        return torch.squeeze(unbox_tensor(tensor))
+    else:
+        return torch.squeeze(unbox_tensor(tensor), dim)
+
+
 @view.override(Tensor)
 def view_default(tensor: Union[Tensor, PrimitiveTensor], shape: List[int]) -> Tensor:
     return unbox_tensor(tensor).view(*shape)

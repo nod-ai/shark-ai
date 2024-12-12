@@ -571,7 +571,6 @@ class ResnetBlock2D(ThetaLayer):
         hidden_states = ops.elementwise(self.nonlinearity, hidden_states)
         hidden_states = self.conv1(hidden_states)
 
-        assert self.time_emb_proj is not None
         if self.time_emb_proj is not None:
             temb = ops.elementwise(self.nonlinearity, temb)
             temb = self.time_emb_proj(temb)[:, :, None, None]
