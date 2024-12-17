@@ -66,7 +66,7 @@ def flash_attention(q, k, v, a, is_causal, scale):
     if v.dtype == torch.float32:
         v = v.to(torch.float16)
 
-    atten = kernels.flash_attention(q, k, v, scale)
+    atten = kernels.flash_attention(q, k, v, a, scale)
 
     atten = atten * vscale if vscale is not None else atten
     return atten
