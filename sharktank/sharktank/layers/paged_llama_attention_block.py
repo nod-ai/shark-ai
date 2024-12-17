@@ -10,13 +10,14 @@ import math
 
 import torch
 import torch.nn.functional as F
-from ..types import QuantizerTensor
+from ..types import *
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
 from .norm import RMSNormLayer
 from .rotary_embedding import RotaryEmbeddingLayer
 from .kv_cache import PagedKVCache
 from .. import ops
+from .. import kernels
 
 __all__ = [
     "PagedLlamaAttentionBlock",
@@ -75,6 +76,16 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         if "kv_cache" in theta.keys:
             self.cache_quantizer: Optional[QuantizerTensor] = theta.optional_tensor(
                 "kv_cache.quantizer"
+            )
+        self.attention_scale = None
+        self.probs_quantizer = None
+        if "attn_scale" in theta.keys:
+            self.attention_scale = theta("attn_scale").as_torch()
+            self.probs_quantizer = StaticScaledQuantizer(
+                name="attn_scale.quantizer",
+                scale=1.0 / (self.attention_scale * 2.0),
+                reciprocal_scale=self.attention_scale * 2.0,
+                dtype=torch.float8_e4m3fnuz,
             )
 
         if theta.optional_tensor("attn_output_norm") is None:
@@ -178,15 +189,15 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         xq = ops.to(xq, dtype=self.attention_dtype)
         keys = ops.to(keys, dtype=self.attention_dtype)
         values = ops.to(values, dtype=self.attention_dtype)
-        if attention_mask is not None:
-            attention_mask = ops.to(attention_mask, dtype=self.attention_dtype)
+        # if attention_mask is not None:
+        #    attention_mask = ops.to(attention_mask, dtype=self.attention_dtype)
 
         if self.attention_kernel == "decomposed":
-            attn_weights = ops.matmul(xq, keys.transpose(2, 3))
-            if self.attention_scale is None:
-                attn_weights = attn_weights / math.sqrt(self.head_dim)
-            else:
-                attn_weights = attn_weights * self.attention_scale
+
+            attn_weights = ops.matmul(
+                xq.to(torch.float32), keys.transpose(2, 3).to(torch.float32)
+            )
+            attn_weights = attn_weights / math.sqrt(self.head_dim)
 
             # Flash attention.
             if self.softcap is not None:
@@ -210,10 +221,31 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             attn_weights = ops.softmax(
                 ops.to(attn_weights, dtype=torch.float32), dim=-1
             )
+            if self.probs_quantizer is not None:
+                if self.fake_quant:
+                    attn_weights = (
+                        self.probs_quantizer.quantize(attn_weights).unpack().dequant()
+                    )
+                else:
+                    attn_weights = (
+                        self.probs_quantizer.quantize(attn_weights).unpack().qs
+                    )
+
             attn_weights = ops.to(attn_weights, dtype=xq.dtype)
             attn_output = ops.matmul(
                 attn_weights, values
             )  # (bs, heads, slen, head_dim)
+        elif self.attention_kernel == "sharktank":
+            if attention_mask is not None:
+                attn_output = kernels.masked_flash_attention(
+                    xq,
+                    keys,
+                    values,
+                    attention_mask[0, 0, :, :],
+                    self.attention_scale,
+                )
+            else:
+                attn_output = kernels.flash_attention(xq, keys, values)
         else:
             if self.softcap is not None:
                 raise ValueError("softcap not supported yet")
