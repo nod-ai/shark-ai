@@ -58,10 +58,11 @@ jobs:
 
           # Install nightly IREE packages.
           # We could also pin to a known working or stable version.
+          # Pinned to 1226 by Xida on Dec 30 due to
           pip install -f https://iree.dev/pip-release-links.html --pre --upgrade \
-            iree-base-compiler \
-            iree-base-runtime \
-            iree-turbine
+            iree-base-compiler==3.1.0rc20241226 \
+            iree-base-runtime==3.1.0rc20241226 \
+            iree-turbine==3.1.0rc20241226
 
           pip install --no-compile -r requirements.txt -r sharktank/requirements-tests.txt -e sharktank/
           pip freeze
