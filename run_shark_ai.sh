@@ -57,10 +57,8 @@ SHARD_WEIGHTS=0
 SKIP_COMPILE=0
 EXPORT_DIR=0
 
-ERROR=0
-
 err() { printf "%s\n" "$*" >&2 && exit 1; }
-log() { printf "%s\n" "$*" >&2; }
+log() { $VERBOSE_LOGGING && printf "%s\n" "$*" >&2; }
 
 unset h
 unset i
@@ -71,6 +69,7 @@ unset w
 unset t
 unset a
 unset b
+unset e
 
 parse_and_handle_args() {
   while getopts ":ehvsxw:t:a:b:i:" flag; do
@@ -83,9 +82,6 @@ parse_and_handle_args() {
         ;;
       w)
         WEIGHT_FILE_LOC=$OPTARG
-        ;;
-      t)
-        TOKENIZER_JSON_LOC=$OPTARG
         ;;
       a)
         ARTIFACT_LOC=$OPTARG
@@ -102,15 +98,15 @@ parse_and_handle_args() {
         ;;
       s)
         SHARD_WEIGHTS=1
-        $VERBOSE_LOGGING && log "[INFO] Weights will be sharded with tp 8"
+        log "[INFO] Weights will be sharded with tp 8"
         ;;
       x)
         SKIP_COMPILE=1
-        $VERBOSE_LOGGING && log "[INFO] Compilation will be skipped"
+        log "[INFO] Compilation will be skipped"
         ;;
       e)
         EXPORT=1
-        $VERBOSE_LOGGING && log "[INFO] Export is enabled"
+        log "[INFO] Export is enabled"
 	;;
       :)
         err "[ERROR] option -$OPTARG expected an argument"
@@ -136,26 +132,22 @@ check_valid() {
   [[ -f $WEIGHT_FILE_LOC ]] || (err "[ERROR] Missing argument -w or invalid path to weight file" && exit 1)
 
   # When we do not want to skip compile.
-  if [[ $IREE_BUILD_DIR -eq 0 ]] && [[ $SKIP_COMPILE -eq 0 ]]; then 
+  if [[ $IREE_BUILD_DIR -eq 0 ]] && [[ $SKIP_COMPILE -eq 0 ]]; then
     compiler_loc=$(which iree-compile)
     [[ ! -z $compiler_loc ]] || err "[ERROR] iree-compile not in PATH, and IREE_BUILD_DIR was not provided through '-i'"
     IREE_BUILD_DIR=$(dirname $compiler_loc)
     log "[WARNING] Invalid path to IREE build dir. Defaulting to installed python package"
-    $VERBOSE_LOGGING && log "[INFO] Using iree-compile from $IREE_BUILD_DIR/tools/"
+    log "[INFO] Using iree-compile from $IREE_BUILD_DIR/tools/"
   fi
 
-  [[ -f $TOKENIZER_JSON_LOC/tokenizer_config.json ]] || (err "[ERROR] Invalid path to tokenizer.json")
-  [[ -f $TOKENIZER_JSON_LOC/tokenizer.json ]] || (err "[ERROR] Expected tokenizer.json to be in the same dir as tokenizer_config.json")
-
-  $VERBOSE_LOGGING && log "[INFO] Using weight file from $WEIGHT_FILE_LOC"
-  $VERBOSE_LOGGING && log "[INFO] Setting artifacts dir to $ARTIFACT_LOC"
-  $VERBOSE_LOGGING && log "[INFO] Generated config.json will be placed in $MODEL_CONFIG_LOC"
+  log "[INFO] Using weight file from $WEIGHT_FILE_LOC"
 }
 
 sharktank_export() {
-  $VERBOSE_LOGGING && log "[INFO] Starting Export..."
+  log "[INFO] Starting Export..."
   MLIR_PATH=$EXPORT_DIR/model.mlir
-  $VERBOSE_LOGGING && log "[INFO] Model MLIR will be saved at $MLIR_PATH"
+  log "[INFO] Model MLIR will be saved at $MLIR_PATH"
+  log "[INFO] Generated config.json will be placed in $MODEL_CONFIG_LOC"
 
   python3 -m sharktank.examples.export_paged_llm_v1 --gguf-file=$WEIGHT_FILE_LOC --output-mlir=$MLIR_PATH --output-config=$MODEL_CONFIG_LOC --bs=$EXPORT_BATCH_SIZES 2>&1
   if [[ $? -ne 0 ]]; then
@@ -167,7 +159,7 @@ sharktank_export() {
 }
 
 shard() {
-    $VERBOSE_LOGGING && log "[INFO] Sharding enabled. Sharding weights and saving to $ARTIFACT_LOC"
+    log "[INFO] Sharding enabled. Sharding weights and saving to $ARTIFACT_LOC"
 
     if [[ $ARTIFACT_LOC -eq 0 ]]; then
       ARTIFACT_LOC=$EXPORT_DIR/artifacts
@@ -175,9 +167,11 @@ shard() {
       log "[WARNING] Invalid or missing path to artifacts dir; Defaulting to $EXPORT_DIR/artifacts"
     fi
 
+    log "[INFO] Setting artifacts dir to $ARTIFACT_LOC"
+
     weight_file_stem=$(echo $WEIGHT_FILE_LOC | rev | cut -d / -f 1 | cut --complement -d . -f 1 | rev)
     shard_file_suffix="_tp8.irpa"
-    SHARD_OUTPUT_FILE="$ARTIFACT_LOC/$weight_file_stem$shard_file_suffix" 
+    SHARD_OUTPUT_FILE="$ARTIFACT_LOC/$weight_file_stem$shard_file_suffix"
     python3 -m sharktank.examples.sharding.shard_llm_dataset \
       --irpa-file $WEIGHT_FILE_LOC \
       --output-irpa $SHARD_OUTPUT_FILE \
@@ -199,7 +193,7 @@ main() {
   fi
 
   if [[ $EXPORT  -eq 1 ]]; then
-      sharktank_export
+    sharktank_export
   fi
 
   if [[ $SHARD_WEIGHTS -eq 1 ]]; then
