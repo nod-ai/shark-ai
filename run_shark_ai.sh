@@ -13,15 +13,14 @@ shopt -s extglob
 #   1. -h -- prints the help string [same as no flag given at all].
 #   2. -o -- specifies the export directory, where the MLIR and the VMFB are placed.
 #   3. -w -- specifies the location of the weight file.
-#   4. -t -- specifies the location of the tokenizer_config.json file. It is expected
-#            that  tokenizer.json be present in the same file.
-#   5. -a -- specifies where to place the artifacts (such as sharded weights).
+#   4. -a -- specifies where to place the artifacts (such as sharded weights).
 #            if this flag is unset, the artifact dir defaults to <export_dir>/artifacts/.
-#   6. -b -- specifies the batch sizes for the export.
-#   7. -i -- path to the IREE build dir (for dev purposes).
-#   8. -v -- enable verbose logging.
-#   9. -s -- Whether to shard the weights or not. Defaults to tp1 if not set, else tp8.
-#  10. -x -- If set, compilation is skipped. Useful when only sharding or export is required.
+#   5. -b -- specifies the batch sizes for the export.
+#   6. -i -- path to the IREE build dir (for dev purposes).
+#   7. -v -- enable verbose logging.
+#   8. -s -- Whether to shard the weights or not. Defaults to tp1 if not set, else tp8.
+#   9. -x -- If set, compilation is skipped. Useful when only sharding or export is required.
+#  10. -e -- If set, export is called. This allows sharding to be run separately from export.
 
 
 print_help_string() {
@@ -33,24 +32,24 @@ Some options must be madatorily specified.
                     when no flags are specified.
     -v            enables verbose logging. When not specified, only errors are logged.
     -w            the location of the GGUF/IRPA file(s) that contain the parameters. (required)
-    -t            the location of tokenizer_config.json. It is expected that tokenizer.json
-                    should be present at the same location (required).
-    -a            the location of the artifacts (sharded weights). (required when -s is set).
+    -a            the location of the artifacts (sharded weights). (defaults to EXPORT_DIR/artifacts)
     -b            batch sizes for the export. Multiple batch sizes should be separated by ','.
-                    Defaults to (1,4).
+                    defaults to (1,4).
     -i            location of the IREE build directory, to use local build for compilation.
                     defaults to the PATH value if not set.
     -s            use to enable sharding. shards to tp8 if set, otherwise tp1.
     -x            whether to skip compilation and only export the model.
+    -e            calls export first if set. This allows the export and sharding commands to be
+                    run independently.
 
 EXPORT_DIR is a positional argument, to be placed at the end. Specifies where the exported model will be placed."
 }
 
 VERBOSE_LOGGING=false
 WEIGHT_FILE_LOC=0
-TOKENIZER_JSON_LOC=0
 ARTIFACT_LOC=0
 EXPORT_BATCH_SIZES=1,4
+EXPORT=0
 ROCR_VISIBLE_DEVICES=1
 MODEL_CONFIG_LOC=0
 IREE_BUILD_DIR=0
@@ -74,7 +73,7 @@ unset a
 unset b
 
 parse_and_handle_args() {
-  while getopts ":hvsxw:t:a:b:i:" flag; do
+  while getopts ":ehvsxw:t:a:b:i:" flag; do
     case "$flag" in
       h)
         print_help_string && exit 0
@@ -109,6 +108,10 @@ parse_and_handle_args() {
         SKIP_COMPILE=1
         $VERBOSE_LOGGING && log "[INFO] Compilation will be skipped"
         ;;
+      e)
+        EXPORT=1
+        $VERBOSE_LOGGING && log "[INFO] Export is enabled"
+	;;
       :)
         err "[ERROR] option -$OPTARG expected an argument"
         ;;
@@ -138,14 +141,13 @@ check_valid() {
     [[ ! -z $compiler_loc ]] || err "[ERROR] iree-compile not in PATH, and IREE_BUILD_DIR was not provided through '-i'"
     IREE_BUILD_DIR=$(dirname $compiler_loc)
     log "[WARNING] Invalid path to IREE build dir. Defaulting to installed python package"
+    $VERBOSE_LOGGING && log "[INFO] Using iree-compile from $IREE_BUILD_DIR/tools/"
   fi
 
   [[ -f $TOKENIZER_JSON_LOC/tokenizer_config.json ]] || (err "[ERROR] Invalid path to tokenizer.json")
   [[ -f $TOKENIZER_JSON_LOC/tokenizer.json ]] || (err "[ERROR] Expected tokenizer.json to be in the same dir as tokenizer_config.json")
 
-  $VERBOSE_LOGGING && log "[INFO] Using iree-compile from $IREE_BUILD_DIR/tools/"
   $VERBOSE_LOGGING && log "[INFO] Using weight file from $WEIGHT_FILE_LOC"
-  $VERBOSE_LOGGING && log "[INFO] Using tokenizer<_config>.json from $TOKENIZER_JSON_LOC"
   $VERBOSE_LOGGING && log "[INFO] Setting artifacts dir to $ARTIFACT_LOC"
   $VERBOSE_LOGGING && log "[INFO] Generated config.json will be placed in $MODEL_CONFIG_LOC"
 }
@@ -162,7 +164,9 @@ sharktank_export() {
 
   log "[INFO] Successfully exported model to $EXPORT_DIR"
 
-  if [[ $SHARD_WEIGHTS -eq 1 ]]; then
+}
+
+shard() {
     $VERBOSE_LOGGING && log "[INFO] Sharding enabled. Sharding weights and saving to $ARTIFACT_LOC"
 
     if [[ $ARTIFACT_LOC -eq 0 ]]; then
@@ -184,14 +188,24 @@ sharktank_export() {
     fi
 
     log "[INFO] Succesfully sharded weights; unranked shard file located at $SHARD_OUTPUT_FILE"
-  fi
-
 }
 
 main() {
   parse_and_handle_args "$@"
   check_valid
-  sharktank_export
+
+  if [[ $EXPORT -eq 0 ]] && [[ $SHARD_WEIGHTS -eq 0 ]]; then
+    err "[ERROR] At least one of export (-e) or shard (-s) must be specified"
+  fi
+
+  if [[ $EXPORT  -eq 1 ]]; then
+      sharktank_export
+  fi
+
+  if [[ $SHARD_WEIGHTS -eq 1 ]]; then
+    shard
+  fi
+
 }
 
 main "$@"
