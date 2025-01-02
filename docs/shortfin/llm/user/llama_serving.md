@@ -272,3 +272,32 @@ If you want to find the process again:
 ```bash
 ps -f | grep shortfin
 ```
+
+## Server Options
+
+To run the server with different options, you can use the
+following command to see the available flags:
+
+```bash
+python -m shortfin_apps.llm.server --help
+```
+
+### Server Options
+
+A full list of options can be found below:
+
+| Argument                                        | Description                                                                                                                                                                         |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--host HOST`                                   | Specify the host to bind the server.                                                                                                                                                |
+| `--port PORT`                                   | Specify the port to bind the server.                                                                                                                                                |
+| `--root-path ROOT_PATH`                         | Root path to use for installing behind a path-based proxy.                                                                                                                          |
+| `--timeout-keep-alive TIMEOUT_KEEP_ALIVE`       | Keep-alive timeout duration.                                                                                                                                                        |
+| `--tokenizer_json TOKENIZER_JSON`               | Path to a `tokenizer.json` file.                                                                                                                                                    |
+| `--tokenizer_config_json TOKENIZER_CONFIG_JSON` | Path to a `tokenizer_config.json` file.                                                                                                                                             |
+| `--model_config MODEL_CONFIG`                   | Path to the model config file.                                                                                                                                                      |
+| `--vmfb VMFB`                                   | Model [VMFB](https://iree.dev/developers/general/developer-tips/#inspecting-vmfb-files) to load.                                                                                    |
+| `--parameters [FILE ...]`                       | Parameter archives to load (supports: `gguf`, `irpa`, `safetensors`).                                                                                                               |
+| `--device {local-task,hip,amdgpu}`              | Device to serve on (e.g., `local-task`, `hip`). Same options as [iree-run-module --list_drivers](https://iree.dev/guides/deployment-configurations/gpu-rocm/#get-the-iree-runtime). |
+| `--device_ids [DEVICE_IDS ...]`                 | Device IDs visible to the system builder. Defaults to None (full visibility). Can be an index or a device ID like `amdgpu:0:0@0`.                                                   |
+| `--isolation {none,per_fiber,per_call}`         | Concurrency control: How to isolate programs.                                                                                                                                       |
+| `--amdgpu_async_allocations`                    | Enable asynchronous allocations for AMD GPU device contexts.                                                                                                                        |

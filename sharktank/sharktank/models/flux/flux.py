@@ -11,6 +11,7 @@ https://github.com/black-forest-labs/flux/blob/main/src/flux/model.py
 
 from typing import Any, Optional
 from collections import OrderedDict
+from copy import copy
 import math
 from dataclasses import dataclass
 import torch
@@ -96,6 +97,7 @@ class FluxModelV1(ThetaLayer):
             theta,
         )
 
+        self.params = copy(params)
         self.in_channels = params.in_channels
         self.out_channels = self.in_channels
         if params.hidden_size % params.num_heads != 0:
@@ -146,6 +148,8 @@ class FluxModelV1(ThetaLayer):
             LastLayer(theta("final_layer")),
         )
 
+        self.dtype = self._deduce_dtype()
+
     def forward(
         self,
         img: AnyTensor,
@@ -193,12 +197,12 @@ class FluxModelV1(ThetaLayer):
             raise ValueError(f'Only function "forward" is supported. Got "{function}"')
 
         # TODO: do not hardcode these but derive the required shapes from the config.
-        img = torch.rand([batch_size, 1024, 64])
-        img_ids = torch.rand([batch_size, 1024, 3])
-        txt = torch.rand([batch_size, 512, 4096])
-        txt_ids = torch.rand([batch_size, 512, 3])
-        timesteps = torch.rand([batch_size])
-        y = torch.rand([batch_size, 768])
+        img = torch.rand([batch_size, 1024, 64], dtype=self.dtype)
+        img_ids = torch.rand([batch_size, 1024, 3], dtype=torch.float32)
+        txt = torch.rand([batch_size, 512, 4096], dtype=self.dtype)
+        txt_ids = torch.rand([batch_size, 512, 3], dtype=torch.float32)
+        timesteps = torch.rand([batch_size], dtype=self.dtype)
+        y = torch.rand([batch_size, 768], dtype=self.dtype)
 
         args = tuple()
         kwargs = OrderedDict(
@@ -211,7 +215,18 @@ class FluxModelV1(ThetaLayer):
                 ("y", y),
             )
         )
+
+        if self.guidance:
+            kwargs["guidance"] = torch.rand([batch_size], dtype=self.dtype)
+
         return args, kwargs
+
+    def _deduce_dtype(self) -> torch.dtype:
+        dtype = self.theta("img_in.weight").dtype
+        assert (
+            dtype == self.theta("time_in.in_layer.weight").dtype
+        ), "Inconsistent dtype"
+        return dtype
 
 
 ################################################################################
