@@ -102,9 +102,7 @@ def _get_jinja2_env() -> Environment:
 
 
 def call_function(target_function: Operation, *operands: Value) -> Sequence[Value]:
-    target_symbol = FlatSymbolRefAttr.get(
-        StringAttr(target_function.attributes["sym_name"]).value_bytes
-    )
+    target_symbol = FlatSymbolRefAttr.get(target_function.attributes["sym_name"].value)
     ftype = FunctionType(TypeAttr(target_function.attributes["function_type"]).value)
     operands = [i for i in operands if i is not None]
     return Operation.create(

@@ -419,6 +419,21 @@ Dataset(
         ),
     ),
 )
+Dataset(
+    "black-forest-labs/FLUX.1-dev/black-forest-labs-transformer",
+    (
+        RemoteFile(
+            "config",
+            "black-forest-labs/FLUX.1-dev",
+            "transformer/config.json",
+        ),
+        RemoteFile(
+            "parameters",
+            "black-forest-labs/FLUX.1-dev",
+            "flux1-dev.safetensors",
+        ),
+    ),
+)
 
 
 ################################################################################

@@ -1,0 +1,4 @@
+# Dependencies only required during development.
+
+azure-identity>=1.19
+azure-storage-blob>=12.24
