@@ -54,7 +54,7 @@ jobs:
         repository: iree-org/iree
         path: ${{ env.IREE_REPO_DIR }}
         submodules: false
-        ref: iree-3.1.0rc20241204
+        ref: iree-3.1.0rc20241220
 
     - name: Initalize IREE submodules
       working-directory: ${{ env.IREE_REPO_DIR }}
