@@ -13,9 +13,9 @@ from sharktank.models.flux.flux import (
     FluxParams,
 )
 from sharktank.models.flux.export import (
-    export_flux_transformer_model_mlir,
     export_flux_transformer_from_hugging_face,
 )
+from sharktank.models.flux.testing import export_dev_random_single_layer
 import sharktank.ops as ops
 from sharktank.layers.testing import (
     make_rand_torch,
@@ -216,52 +216,29 @@ class FluxTest(TempDirTestBase):
         self.num_heads = 24
         self.batch_size = 5
 
-    def testExportBfloat16SingleLayer(self):
-        dtype = torch.bfloat16
-        params = FluxParams(
-            in_channels=64,
-            out_channels=64,
-            vec_in_dim=768,
-            context_in_dim=4096,
-            hidden_size=3072,
-            mlp_ratio=4.0,
-            num_heads=24,
-            depth=1,
-            depth_single_blocks=1,
-            axes_dim=[16, 56, 56],
-            theta=10_000,
-            qkv_bias=True,
-            guidance_embed=False,
-        )
-        theta = make_random_theta(dtype)
-        theta = self.save_load_theta(theta)
-        flux = FluxModelV1(
-            theta=theta,
-            params=params,
-        )
-
-        export_flux_transformer_model_mlir(
-            flux,
-            output_path=self._temp_dir / "model.mlir",
-            batch_sizes=[self.batch_size],
+    def testExportDevRandomSingleLayerBf16(self):
+        export_dev_random_single_layer(
+            dtype=torch.bfloat16,
+            batch_sizes=[1],
+            mlir_output_path=self._temp_dir / "model.mlir",
+            parameters_output_path=self._temp_dir / "parameters.irpa",
         )
 
     @with_flux_data
-    def testExportSchnellFromHuggingFace(self):
+    def testExportSchnellTransformerFromHuggingFace(self):
         export_flux_transformer_from_hugging_face(
             "black-forest-labs/FLUX.1-schnell/black-forest-labs-transformer",
             mlir_output_path=self._temp_dir / "model.mlir",
             parameters_output_path=self._temp_dir / "parameters.irpa",
         )
 
-    def save_load_theta(self, theta: Theta):
-        # Roundtrip to disk to avoid treating parameters as constants that would appear
-        # in the MLIR.
-        theta.rename_tensors_to_paths()
-        dataset = Dataset(root_theta=theta, properties={})
-        file_path = self._temp_dir / "parameters.irpa"
-        dataset.save(file_path)
-        return Dataset.load(file_path).root_theta
+    @with_flux_data
+    def testExportDevTransformerFromHuggingFace(self):
+        export_flux_transformer_from_hugging_face(
+            "black-forest-labs/FLUX.1-dev/black-forest-labs-transformer",
+            mlir_output_path=self._temp_dir / "model.mlir",
+            parameters_output_path=self._temp_dir / "parameters.irpa",
+        )
 
 
 if __name__ == "__main__":

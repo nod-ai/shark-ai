@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from typing import Any, Callable, Optional, Union, Collection, Sequence, List
-
+from tempfile import TemporaryFile
 import json
 from pathlib import Path
 from types import NotImplementedType
@@ -32,7 +32,13 @@ from .tensors import (
     REGISTERED_INFERENCE_TENSOR_CLASSES,
 )
 
-__all__ = ["Dataset", "flat_to_nested_dict", "Theta", "torch_module_to_theta"]
+__all__ = [
+    "Dataset",
+    "flat_to_nested_dict",
+    "Theta",
+    "torch_module_to_theta",
+    "save_load_theta",
+]
 
 IOReportCallback = Callable[[str], None]
 
@@ -295,6 +301,16 @@ def _norm_name_path(name_parts) -> list[str]:
         part = str(part)
         accum.extend(part.split("."))
     return accum
+
+
+def save_load_theta(theta: Theta) -> Theta:
+    """Roundtrip to disk to avoid treating parameters as constants that would appear
+    in the MLIR."""
+    theta.rename_tensors_to_paths()
+    dataset = Dataset(root_theta=theta, properties={})
+    with TemporaryFile(prefix="save_load_theta", suffix=".irpa") as file_path:
+        dataset.save(file_path)
+        return Dataset.load(file_path).root_theta
 
 
 ################################################################################

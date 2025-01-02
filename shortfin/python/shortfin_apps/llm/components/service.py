@@ -383,7 +383,7 @@ class InferenceExecutorProcess(sf.Process):
             if self.phase == InferencePhase.PREFILL:
                 seq_lens_host = seq_lens.for_transfer()
                 with seq_lens_host.map(discard=True) as m:
-                    m.fill(0)
+                    m.fill(1)
                     m.items = [len(req.input_token_ids) for req in self.exec_requests]
                 seq_lens_host.copy_to(seq_lens)
 
