@@ -69,4 +69,4 @@ jobs:
       - name: Run LLM Integration Tests
         run: |
           source ${VENV_DIR}/bin/activate
-          pytest -v app_tests/integration_tests/llm/shortfin --log-cli-level=INFO
+          ROCR_VISIBLE_DEVICES=0 pytest -v app_tests/integration_tests/llm/shortfin --log-cli-level=INFO

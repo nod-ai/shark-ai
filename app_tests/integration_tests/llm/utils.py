@@ -11,6 +11,7 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+from typing import Union
 
 import requests
 from transformers import AutoTokenizer
@@ -22,22 +23,68 @@ class AccuracyValidationException(RuntimeError):
     pass
 
 
+def run_subprocess(cmd, **kwargs):
+    """
+    Run a subprocess command, combining stdout and stderr.
+    Only output if there's an error.
+
+    Args:
+        cmd: Command to run (list or string)
+        **kwargs: Additional arguments to pass to subprocess.Popen
+
+    Returns:
+        CompletedProcess instance
+
+    Raises:
+        subprocess.CalledProcessError: If the command returns non-zero exit status
+    """
+    # Ensure we always capture output and combine streams
+    kwargs.update(
+        {
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.STDOUT,
+            "universal_newlines": True,
+        }
+    )
+
+    try:
+        # Run the process
+        process = subprocess.Popen(cmd, **kwargs)
+
+        # Capture output
+        output, _ = process.communicate()
+
+        # Check return code
+        if process.returncode != 0:
+            logger.error(f"Command failed with exit code {process.returncode}")
+            logger.error(f"Command output:\n{output}")
+            raise subprocess.CalledProcessError(process.returncode, cmd, output)
+
+        return subprocess.CompletedProcess(cmd, process.returncode, output, None)
+
+    except Exception as e:
+        if isinstance(e, subprocess.CalledProcessError):
+            raise
+        logger.error(f"Failed to execute command: {e}")
+        logger.error(f"Command was: {cmd}")
+        raise
+
+
 def download_huggingface_model(local_dir, repo_id, model_file):
     model_path = local_dir / model_file
     logger.info(f"Preparing model_path: {model_path}..")
     if not os.path.exists(model_path):
         logger.info(f"Downloading model {repo_id} {model_file} from Hugging Face...")
-        subprocess.run(
+        run_subprocess(
             f"huggingface-cli download --local-dir {local_dir} {repo_id} {model_file}",
             shell=True,
-            check=True,
         )
         logger.info(f"Model downloaded to {model_path}")
     else:
         logger.info("Using cached model")
 
 
-def download_with_hf_datasets(local_dir: Path | str, model_name: str):
+def download_with_hf_datasets(local_dir: Union[Path, str], model_name: str):
     """Download a model using `sharktank.utils.hf_datasets` script.
 
     Args:
@@ -48,7 +95,7 @@ def download_with_hf_datasets(local_dir: Path | str, model_name: str):
         local_dir = str(local_dir)
 
     logger.info(f"Download model {model_name} with `hf_datasets` to {local_dir}...")
-    subprocess.run(
+    run_subprocess(
         [
             "python",
             "-m",
@@ -56,8 +103,7 @@ def download_with_hf_datasets(local_dir: Path | str, model_name: str):
             model_name,
             "--local-dir",
             local_dir,
-        ],
-        check=True,
+        ]
     )
     logger.info(f"Model {model_name} successfully downloaded.")
 
@@ -85,7 +131,7 @@ def export_paged_llm_v1(mlir_path, config_path, model_path, batch_sizes):
         f"  Config Path: {config_path}\n"
         f"  Batch Sizes: {bs_string}"
     )
-    subprocess.run(
+    run_subprocess(
         [
             "python",
             "-m",
@@ -95,23 +141,21 @@ def export_paged_llm_v1(mlir_path, config_path, model_path, batch_sizes):
             f"--output-mlir={mlir_path}",
             f"--output-config={config_path}",
             f"--bs={bs_string}",
-        ],
-        check=True,
+        ]
     )
     logger.info(f"Model successfully exported to {mlir_path}")
 
 
 def compile_model(mlir_path, vmfb_path, device_settings):
     logger.info(f"Compiling model to {vmfb_path}")
-    subprocess.run(
+    run_subprocess(
         [
             "iree-compile",
             mlir_path,
             "-o",
             vmfb_path,
         ]
-        + device_settings["device_flags"],
-        check=True,
+        + device_settings["device_flags"]
     )
     logger.info(f"Model successfully compiled to {vmfb_path}")
 
@@ -174,35 +218,24 @@ def start_llm_server(
     multi=False,
 ):
     logger.info("Starting LLM server...")
+    cmd_args = _start_llm_server_args(
+        tokenizer_path,
+        model_config_path,
+        vmfb_path,
+        parameters_path,
+        settings,
+        port,
+    )
+
     if multi:
         server_process = multiprocessing.Process(
-            target=subprocess.Popen(
-                _start_llm_server_args(
-                    tokenizer_path,
-                    model_config_path,
-                    vmfb_path,
-                    parameters_path,
-                    settings,
-                    port,
-                ),
-            )
+            target=run_subprocess, args=(cmd_args,)
         )
         server_process.start()
-
     else:
-        # Start the server
-        server_process = subprocess.Popen(
-            _start_llm_server_args(
-                tokenizer_path,
-                model_config_path,
-                vmfb_path,
-                parameters_path,
-                settings,
-                port,
-            )
-        )
+        server_process = run_subprocess(cmd_args)
+
     logger.info("Process started... waiting for server")
-    # Wait for server to start
     wait_for_server(f"http://localhost:{port}", timeout)
     return server_process
 
