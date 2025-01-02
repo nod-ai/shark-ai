@@ -104,6 +104,10 @@ class PagePool:
             page_table = sf.array.device_array.for_device(
                 device, page_table_shape, self.config.dtype
             )
+            page_table_host = page_table.for_transfer()
+            with page_table_host.map(discard=True) as m:
+                m.fill(0)
+            page_table_host.copy_to(page_table)
             self.page_tables.append(page_table)
 
     def acquire_free_pages(self, count: int) -> list[PageInfo] | None:
