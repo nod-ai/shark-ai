@@ -4,9 +4,7 @@ import subprocess
 import sys
 import os
 import shutil
-from argparse import ArgumentParser, Namespace
-
-from sharktank.examples.paged_llm_v1 import main as PagedLLMMain
+from argparse import ArgumentParser, Namespace, RawTextHelpFormatter
 
 fmt = logging.Formatter("[%(levelname)s] %(message)s")
 
@@ -18,13 +16,42 @@ logger.addHandler(stdout)
 logger.propagate = False
 
 
+class CliParser(ArgumentParser):
+    def print_help(self, file=None) -> None:
+        if file is None:
+            file = sys.stdout
+
+        help_text = """usage: export_and_serve.py [-h] [-v] [-c] -w WEIGHT_FILE [-e] [-a ARTIFACT_DIR] [-s] [-b BATCH_SIZES] [-i IR] [-p {1,8}] export_dir
+
+Utility script to combine shark-ai tools
+
+positional arguments:
+  export_dir                        the directory where the exported artifacts will be saved.
+
+options:
+  -h, --help                        show this help message and exit
+  -v, --verbose                     set logging level to INFO. The default logging level is WARNING.
+  -c, --compile                     compile the exported model as part of the pipeline. Default is FALSE.
+  -w, --weight-file WEIGHT_FILE     the location of the GGUF/IRPA file(s) that contain the parameters.
+  -e, --export                      export the model in tp1 mode.
+  -a, --artifact-dir ARTIFACT_DIR   the location where the artifacts (sharded weights) should be saved. Defaults to EXPORT_DIR/artifacts/
+  -s, --shard                       shard the weight file in tp8 mode and export to MLIR.
+  -b, --batch-sizes BATCH_SIZES     batch sizes for export. Multiple batch sizes should be separated by a ','.
+  -i, --ir IR                       location for the MLIR to be compiled, if compilation is done independently.
+  -p, --tensor-parallel {1,8}       tensor parallel size. Used for independent compilation. Defaults to 1.
+        """
+        _ = file.write(help_text + "\n")
+
+
 class BasePipeline:
     def __init__(
         self,
         compile: bool,
         shard: bool,
         export: bool,
+        tp: int,
         batch_sizes: list[int],
+        ir_path: Path | None,
         artifacts_dir: Path,
         weight_loc: Path,
         export_dir: Path,
@@ -40,6 +67,8 @@ class BasePipeline:
         self.export_batch_sizes: list[int] = batch_sizes
         self.hip_target: str = "gfx942"
         self.hal_target_backend: str = "rocm"
+        self.ir_path: Path | None = ir_path
+        self.tp: int = tp
 
     def exec_pipeline(self):
         self.validate()
@@ -53,9 +82,9 @@ class BasePipeline:
             self.compile_model()
 
     def validate(self):
-        if not self.shard and not self.export and self.compile:
+        if not self.shard and not self.export and not self.ir_path and self.compile:
             logger.error(
-                "To run compilation, either TP1 export (-e) or TP8 export (-s) must be specified"
+                "To run compilation, either TP1 export (-e) or TP8 export (-s) must be specified, or path to IR must be passed in"
             )
             exit(1)
 
@@ -106,6 +135,9 @@ class BasePipeline:
 
         if self.compile:
             logger.info("Compilation is enabled")
+            if self.ir_path is not None:
+                logger.info(f"IR for compilation located at {self.ir_path}")
+                self.mlir_path = self.ir_path
 
         logger.info(f"Exported model will be saved to {self.export_dir}")
 
@@ -178,7 +210,6 @@ class BasePipeline:
             capture_output=True,
         )
 
-        # Exit if the command fails, no point in throwing an exception.
         if export_subp.returncode != 0:
             logger.error("Failed to export model in TP8 mode")
             print(export_subp.stderr.decode(), file=sys.stderr)
@@ -195,7 +226,7 @@ class BasePipeline:
                 "iree-compile binary is required to be in PATH for compilation."
             )
 
-        if self.shard:
+        if self.shard or self.tp == 8:
             self._compile_tp8()
         else:
             self._compile_tp1()
@@ -241,7 +272,7 @@ class BasePipeline:
         cmd += [f"--iree-hal-target-device=hip[{idx}]" for idx in range(0, 8)]
 
         # TODO(vinayakdsci): Add a flag to support targets other than gfx942.
-        cmd += ["--iree-hip-target=gfx942"]
+        cmd += [f"--iree-hip-target={self.hip_target}"]
 
         compile_subp = subprocess.run(
             cmd,
@@ -269,6 +300,13 @@ def main(args: Namespace) -> None:
     export = args.export
     weight_loc = args.weight_file
     export_dir = args.export_dir
+    ir_path = args.ir
+    tp = args.tensor_parallel
+
+    if ir_path is not None and not compile:
+        logger.warning(
+            "Path to IR was provided through -i, but compilation was not enabled."
+        )
 
     batch_sizes = [1, 4]
     if args.batch_sizes:
@@ -278,17 +316,29 @@ def main(args: Namespace) -> None:
         logger.setLevel(logging.INFO)
 
     base_pipeline = BasePipeline(
-        compile, shard, export, batch_sizes, artifacts_dir, weight_loc, export_dir
+        compile,
+        shard,
+        export,
+        tp,
+        batch_sizes,
+        ir_path,
+        artifacts_dir,
+        weight_loc,
+        export_dir,
     )
 
     base_pipeline.exec_pipeline()
 
 
-def _get_argparser() -> ArgumentParser:
+def _get_argparser() -> CliParser:
     msg = "Utility script to combine shark-ai tools"
     # The argparser should not print the usage when an error occurs.
     # We handle that ourselves.
-    parser = ArgumentParser(prog="export_and_serve.py", description=msg)
+    parser = CliParser(
+        prog="export_and_serve.py",
+        description=msg,
+        formatter_class=RawTextHelpFormatter,
+    )
     parser.add_argument(
         "-v",
         "--verbose",
@@ -306,6 +356,7 @@ def _get_argparser() -> ArgumentParser:
     parser.add_argument(
         "export_dir",
         type=Path,
+        help="the directory where the exported artifacts will be saved.",
     )
     parser.add_argument(
         "-w",
@@ -338,6 +389,20 @@ def _get_argparser() -> ArgumentParser:
         "--batch-sizes",
         type=str,
         help="batch sizes for export. Multiple batch sizes should be separated by a ','.",
+    )
+    parser.add_argument(
+        "-i",
+        "--ir",
+        type=Path,
+        help="location for the MLIR to be compiled, if compilation is done independently.",
+    )
+    parser.add_argument(
+        "-p",
+        "--tensor-parallel",
+        type=int,
+        default=1,
+        choices=[1, 8],
+        help="tensor parallel size (required for independent compilation).",
     )
     return parser
 
