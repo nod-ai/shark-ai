@@ -13,7 +13,7 @@ from iree.turbine import aot
 
 from sharktank.types import Dataset
 from sharktank.models.vae.model import VaeDecoderModel
-from sharktank.models.vae.tools.diffuser_ref import run_torch_vae
+from sharktank.models.vae.tools.diffuser_ref import run_torch_vae, run_flux
 from sharktank.models.vae.tools.run_vae import export_vae
 from sharktank.models.vae.tools.sample_data import get_random_inputs
 
@@ -32,6 +32,7 @@ from sharktank.utils.iree import (
     call_torch_module_function,
     flatten_for_iree_signature,
     iree_to_torch,
+    device_array_to_host,
 )
 import iree.compiler
 from collections import OrderedDict
@@ -196,6 +197,124 @@ class VaeSDXLDecoderTest(unittest.TestCase):
         torch.testing.assert_close(
             ref_results, torch.from_numpy(iree_result), atol=3e-5, rtol=6e-6
         )
+
+
+@with_vae_data
+class VaeFluxDecoderTest(unittest.TestCase):
+    def setUp(self):
+        hf_model_id = "black-forest-labs/FLUX.1-dev"
+        hf_hub_download(
+            repo_id=hf_model_id,
+            local_dir="flux_vae",
+            local_dir_use_symlinks=False,
+            revision="main",
+            filename="vae/config.json",
+        )
+        hf_hub_download(
+            repo_id=hf_model_id,
+            local_dir="flux_vae",
+            local_dir_use_symlinks=False,
+            revision="main",
+            filename="vae/diffusion_pytorch_model.safetensors",
+        )
+        torch.manual_seed(12345)
+        dataset = import_hf_dataset(
+            "flux_vae/vae/config.json",
+            ["flux_vae/vae/diffusion_pytorch_model.safetensors"],
+        )
+        dataset.save("flux_vae/vae_bf16.irpa", io_report_callback=print)
+        dataset_f32 = import_hf_dataset(
+            "flux_vae/vae/config.json",
+            ["flux_vae/vae/diffusion_pytorch_model.safetensors"],
+            target_dtype=torch.float32,
+        )
+        dataset_f32.save("flux_vae/vae_f32.irpa", io_report_callback=print)
+
+    def testCompareBF16EagerVsHuggingface(self):
+        dtype = torch.bfloat16
+        inputs = get_random_inputs(dtype=dtype, device="cpu", bs=1, config="flux")
+        ref_results = run_flux(inputs, dtype)
+
+        ds = Dataset.load("flux_vae/vae_bf16.irpa", file_type="irpa")
+        model = VaeDecoderModel.from_dataset(ds).to(device="cpu")
+
+        results = model.forward(inputs)
+        # TODO: verify numerics
+        torch.testing.assert_close(ref_results, results, atol=3e-2, rtol=3e5)
+
+    def testCompareF32EagerVsHuggingface(self):
+        dtype = torch.float32
+        inputs = get_random_inputs(dtype=dtype, device="cpu", bs=1, config="flux")
+        ref_results = run_flux(inputs, dtype)
+
+        ds = Dataset.load("flux_vae/vae_f32.irpa", file_type="irpa")
+        model = VaeDecoderModel.from_dataset(ds).to(device="cpu", dtype=dtype)
+
+        results = model.forward(inputs)
+        torch.testing.assert_close(ref_results, results)
+
+    def testVaeIreeVsHuggingFace(self):
+        dtype = torch.bfloat16
+        inputs = get_random_inputs(
+            dtype=torch.float32, device="cpu", bs=1, config="flux"
+        )
+        ref_results = run_flux(inputs.to(dtype), dtype)
+
+        ds = Dataset.load("flux_vae/vae_bf16.irpa", file_type="irpa")
+
+        model = VaeDecoderModel.from_dataset(ds).to(device="cpu")
+
+        # TODO: Decomposing attention due to https://github.com/iree-org/iree/issues/19286, remove once issue is resolved
+        module = export_vae(model, inputs, True)
+
+        module.save_mlir("flux_vae/vae.mlir")
+        extra_args = [
+            "--iree-hal-target-backends=rocm",
+            "--iree-hip-target=gfx942",
+            "--iree-opt-const-eval=false",
+            "--iree-opt-strip-assertions=true",
+            "--iree-global-opt-propagate-transposes=true",
+            "--iree-opt-outer-dim-concat=true",
+            "--iree-llvmgpu-enable-prefetch=true",
+            "--iree-hip-waves-per-eu=2",
+            "--iree-dispatch-creation-enable-aggressive-fusion=true",
+            "--iree-codegen-llvmgpu-use-vector-distribution=true",
+            "--iree-execution-model=async-external",
+            "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline,iree-preprocessing-pad-to-intrinsics)",
+        ]
+
+        iree.compiler.compile_file(
+            "flux_vae/vae.mlir",
+            output_file="flux_vae/vae.vmfb",
+            extra_args=extra_args,
+        )
+
+        iree_devices = get_iree_devices(driver="hip", device_count=1)
+
+        iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
+            module_path="flux_vae/vae.vmfb",
+            devices=iree_devices,
+            parameters_path="flux_vae/vae.irpa",
+        )
+
+        input_args = OrderedDict([("inputs", inputs)])
+        iree_args = flatten_for_iree_signature(input_args)
+
+        iree_args = prepare_iree_module_function_args(
+            args=iree_args, devices=iree_devices
+        )
+        iree_result = device_array_to_host(
+            run_iree_module_function(
+                module=iree_module,
+                vm_context=iree_vm_context,
+                args=iree_args,
+                driver="hip",
+                function_name="forward",
+            )[0]
+        )
+
+        # TODO verify these numerics
+        torch.testing.assert_close(ref_results, iree_result, atol=3.3e-2, rtol=4e5)
 
 
 if __name__ == "__main__":

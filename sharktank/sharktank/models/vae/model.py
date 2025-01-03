@@ -15,6 +15,8 @@ from .config import *
 from .layers import *
 from sharktank.models.punet.layers import UpDownBlock2D, GroupNormLayer
 from typing import Optional
+from einops import rearrange
+import math
 
 
 class VaeDecoderModel(ThetaLayer):
@@ -23,12 +25,13 @@ class VaeDecoderModel(ThetaLayer):
         hp = HParams.from_dict(ds.properties["hparams"])
         return cls(hp, ds.root_theta)
 
-    def __init__(self, hp: HParams, theta: Theta):
+    def __init__(self, hp, theta: Theta):
         super().__init__(theta)
         self.hp = hp
 
         # input conv
-        self.post_quant_conv = Conv2DLayer(theta("post_quant_conv"), padding=(0, 0))
+        if hp.use_post_quant_conv:
+            self.post_quant_conv = Conv2DLayer(theta("post_quant_conv"), padding=(0, 0))
         self.conv_in = Conv2DLayer(theta("decoder")("conv_in"), padding=(1, 1))
         # Mid
         self.mid_block = self._create_mid_block(theta("decoder")("mid_block"))
@@ -71,9 +74,20 @@ class VaeDecoderModel(ThetaLayer):
                 "latent_embeds": latent_embeds,
             },
         )
-        sample = 1 / self.hp.scaling_factor * sample
+        if not self.hp.use_post_quant_conv:
+            sample = rearrange(
+                sample,
+                "b (h w) (c ph pw) -> b c (h ph) (w pw)",
+                h=math.ceil(1024 / 16),
+                w=math.ceil(1024 / 16),
+                ph=2,
+                pw=2,
+            )
+        sample = sample / self.hp.scaling_factor + self.hp.shift_factor
 
-        sample = self.post_quant_conv(sample)
+        if self.hp.use_post_quant_conv:
+            sample = self.post_quant_conv(sample)
+
         sample = self.conv_in(sample)
         self.trace_golden("conv_in", sample)
         # TODO add training and gradient checkpointing support
@@ -90,7 +104,11 @@ class VaeDecoderModel(ThetaLayer):
 
         sample = self.conv_act(sample)
         sample = self.conv_out(sample)
-        sample = (sample / 2 + 0.5).clamp(0, 1)
+
+        if not self.hp.use_post_quant_conv:
+            sample = sample.clamp(-1, 1)
+        else:
+            sample = (sample / 2 + 0.5).clamp(0, 1)
         return sample
 
     def _create_mid_block(self, mid_block_theta: Theta) -> nn.Module:

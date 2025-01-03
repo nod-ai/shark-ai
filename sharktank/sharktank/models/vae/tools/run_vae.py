@@ -21,6 +21,7 @@ from iree.turbine.aot import FxProgramsBuilder, export, decompositions
 from iree.turbine.dynamo.passes import (
     DEFAULT_DECOMPOSITIONS,
 )
+import numpy as np
 
 
 def export_vae(model, sample_inputs, decomp_attn):
@@ -81,6 +82,19 @@ def main(argv):
         action="store_true",
         help="Compares results vs HF diffusers reference model",
     )
+
+    parser.add_argument(
+        "--torch_model",
+        default="stabilityai/stable-diffusion-xl-base-1.0",
+        help="HF reference model id",
+    )
+
+    parser.add_argument(
+        "--sharktank_config",
+        default="sdxl",
+        help="Sharktank config providing hyperparamters [sdxl or flux]",
+    )
+
     parser.add_argument(
         "--decomp_attn",
         action="store_true",
@@ -95,12 +109,13 @@ def main(argv):
     ds.to(device=device)
 
     mdl = VaeDecoderModel.from_dataset(ds)
-
     # Run a step for debugging.
     if args.inputs:
         inputs = load_inputs(args.inputs, dtype=dtype, device=device, bs=args.bs)
     else:
-        inputs = get_random_inputs(dtype=dtype, device=device, bs=args.bs)
+        inputs = get_random_inputs(
+            dtype=dtype, device=device, bs=args.bs, config=args.sharktank_config
+        )
 
     if args.export:
         # TODO move export from a run_vae file
@@ -126,11 +141,12 @@ def main(argv):
             intermediates_saver.save_file(args.save_intermediates_path)
 
         if args.compare_vs_torch:
-            from .diffuser_ref import run_torch_vae
+            from .diffuser_ref import run_torch_vae, run_flux
 
-            diffusers_results = run_torch_vae(
-                "stabilityai/stable-diffusion-xl-base-1.0", inputs
-            )
+            if args.sharktank_config == "flux":
+                diffusers_results = run_flux(inputs, torch.bfloat16)
+            elif args.sharktank_config == "sdxl":
+                run_torch_vae(args.torch_model, inputs)
             print("diffusers results:", diffusers_results)
             torch.testing.assert_close(diffusers_results, results)
 
