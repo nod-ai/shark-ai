@@ -129,7 +129,7 @@ def find_available_port():
         return port
 
 
-def wait_for_server(url, timeout=10):
+def wait_for_server(url, timeout=60):
     logger.info(f"Waiting for server to start at {url}...")
     start = time.time()
     while time.time() - start < timeout:
