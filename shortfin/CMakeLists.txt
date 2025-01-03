@@ -44,7 +44,8 @@ add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
 add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 
 # Pins
-set(SHORTFIN_IREE_GIT_TAG "iree-3.1.0rc20241204")
+# TODO: switch back to a tag like `iree-3.1.0rc20241220` after the next nightly release.
+set(SHORTFIN_IREE_GIT_TAG "0a0483e997bea993cdf26e62ef5c68a043011e1b")
 
 # build options
 option(SHORTFIN_BUILD_PYTHON_BINDINGS "Builds Python Bindings" OFF)

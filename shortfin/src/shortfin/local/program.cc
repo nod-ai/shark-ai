@@ -663,7 +663,8 @@ void StaticProgramParameters::Load(std::filesystem::path file_path,
 
   // Parse.
   SHORTFIN_THROW_IF_ERROR(iree_io_parse_file_index(
-      to_iree_string_view(options.format), file_handle.get(), index_.get()));
+      to_iree_string_view(options.format), file_handle.get(), index_.get(),
+      host_allocator_));
 }
 
 // -------------------------------------------------------------------------- //
