@@ -31,7 +31,7 @@ parser.add_argument("--version-suffix", action="store", type=str)
 args = parser.parse_args()
 
 
-THIS_DIR = Path(__file__).parent.resolve()
+THIS_DIR = Path(__file__).parent
 REPO_ROOT = THIS_DIR.parent.parent
 
 VERSION_FILE_SHARKTANK = REPO_ROOT / "sharktank/version_local.json"
