@@ -8,11 +8,10 @@
 # those as examples and launch them here.
 
 from pathlib import Path
-import pytest
 import subprocess
 import sys
 
-project_dir = Path(__file__).resolve().parent.parent.parent
+project_dir = Path(__file__).absolute().parent.parent.parent
 example_dir = project_dir / "examples" / "python"
 
 

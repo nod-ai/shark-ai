@@ -163,7 +163,7 @@ def main():
     print(f"Top model candidates: {top_model_candidates}")
 
     print("Check the detailed execution logs in:")
-    print(path_config.run_log.resolve())
+    print(path_config.run_log.absolute())
 
     for candidate in candidate_trackers:
         libtuner.logging.debug(candidate)
