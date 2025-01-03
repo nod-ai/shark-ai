@@ -21,6 +21,7 @@ import torch.nn.functional as F
 from ...layers import *
 from ...types import *
 from ...utils.create_cache import *
+from ...utils.testing import make_rand_torch
 from ... import ops
 
 __all__ = [
@@ -196,13 +197,37 @@ class FluxModelV1(ThetaLayer):
         if not (function is None or function == "forward"):
             raise ValueError(f'Only function "forward" is supported. Got "{function}"')
 
-        # TODO: do not hardcode these but derive the required shapes from the config.
-        img = torch.rand([batch_size, 1024, 64], dtype=self.dtype)
-        img_ids = torch.rand([batch_size, 1024, 3], dtype=torch.float32)
-        txt = torch.rand([batch_size, 512, 4096], dtype=self.dtype)
-        txt_ids = torch.rand([batch_size, 512, 3], dtype=torch.float32)
+        # The allowed range of these values is dependent on the model size.
+        # They will not work for all variants, specifically toy-sized models.
+        output_img_height = 1024
+        output_img_width = 1024
+        output_img_channels = 3
+
+        img = self._get_noise(
+            batch_size, output_img_height, output_img_width, self.dtype
+        )
+
+        _, c, h, w = img.shape
+        img = img.reshape(batch_size, h * w // 4, c * 4)
+
+        img_ids = torch.zeros(h // 2, w // 2, output_img_channels)
+        img_ids[..., 1] = img_ids[..., 1] + torch.arange(h // 2)[:, None]
+        img_ids[..., 2] = img_ids[..., 2] + torch.arange(w // 2)[None, :]
+        img_ids = img_ids.reshape(1, h * w // 4, output_img_channels)
+        img_ids = img_ids.repeat(batch_size, 1, 1)
+
+        # T5 encoder output
+        txt_context_length = 512
+        txt_dims_per_token = 4096
+        txt = torch.rand([1, txt_context_length, txt_dims_per_token], dtype=self.dtype)
+        txt = txt.repeat(batch_size, 1, 1)
+        txt_ids = torch.zeros(batch_size, txt.shape[1], output_img_channels)
+
         timesteps = torch.rand([batch_size], dtype=self.dtype)
-        y = torch.rand([batch_size, 768], dtype=self.dtype)
+
+        # CLIP text model output
+        y = make_rand_torch([1, 768], dtype=self.dtype)
+        y = y.repeat(batch_size, 1)
 
         args = tuple()
         kwargs = OrderedDict(
@@ -217,9 +242,25 @@ class FluxModelV1(ThetaLayer):
         )
 
         if self.guidance:
-            kwargs["guidance"] = torch.rand([batch_size], dtype=self.dtype)
+            kwargs["guidance"] = torch.full([batch_size], 3.5, dtype=self.dtype)
 
         return args, kwargs
+
+    def _get_noise(
+        self,
+        batch_size: int,
+        height: int,
+        width: int,
+        dtype: torch.dtype,
+    ):
+        return torch.randn(
+            batch_size,
+            16,
+            # allow for packing
+            2 * math.ceil(height / 16),
+            2 * math.ceil(width / 16),
+            dtype=dtype,
+        )
 
     def _deduce_dtype(self) -> torch.dtype:
         dtype = self.theta("img_in.weight").dtype
