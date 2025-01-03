@@ -130,10 +130,11 @@ def get_te_model_and_inputs(
 
 
 class FluxAEWrapper(torch.nn.Module):
-    def __init__(self, height=1024, width=1024):
+    def __init__(self, height=1024, width=1024, precision="fp32"):
         super().__init__()
+        dtype = torch_dtypes[precision]
         self.ae = AutoencoderKL.from_pretrained(
-            "black-forest-labs/FLUX.1-dev", subfolder="vae"
+            "black-forest-labs/FLUX.1-dev", subfolder="vae", torch_dtypes=dtype
         )
         self.height = height
         self.width = width
@@ -156,7 +157,7 @@ def get_ae_model_and_inputs(hf_model_name, precision, batch_size, height, width)
     aeparams = fluxconfigs[hf_model_name].ae_params
     aeparams.height = height
     aeparams.width = width
-    ae = FluxAEWrapper(height, width)
+    ae = FluxAEWrapper(height, width, precision).to(dtype)
     latents_shape = (
         batch_size,
         int(height * width / 256),
