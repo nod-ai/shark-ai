@@ -67,11 +67,11 @@ class ShapedType:
 
 
 @dataclass
-class MatmulSize:
-    M: int
-    N: int
-    K: int
-    B: int = 1
+class ContractionSizes:
+    M: list[int]
+    N: list[int]
+    K: list[int]
+    B: list[int]
 
 
 @dataclass
@@ -84,14 +84,15 @@ class ContractionDimensions:
 
 @dataclass
 class ProblemSize:
-    matmul_size: MatmulSize
+    matmul_size: ContractionSizes
     lhs_type: ShapedType
     rhs_type: ShapedType
     res_type: ShapedType
     dispatch_kind: DispatchKind
+    cdims: ContractionDimensions
 
     @property
-    def MNK(self) -> tuple[int, int, int]:
+    def MNK(self) -> tuple[list[int], list[int], list[int]]:
         return (self.matmul_size.M, self.matmul_size.N, self.matmul_size.K)
 
 
@@ -130,7 +131,7 @@ def get_lowering_config(
         # A local variable to hold the transformed value.
         promoted_value = value
         match key:
-            case "workgroup" | "reduction":
+            case "workgroup" | "reduction" | "subgroup":
                 if isinstance(value, list):
                     promoted_value = ir.ArrayAttr.get(
                         [tuner_ctx.type.getI64(x) for x in value]

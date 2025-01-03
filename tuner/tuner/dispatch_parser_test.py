@@ -78,10 +78,10 @@ def test_get_contraction_operation(tuner_ctx: common.TunerContext) -> None:
     assert mmt_op is not None
     assert isinstance(mmt_op.opview, linalg.GenericOp)
     shapes: common.ProblemSize = parser.get_shapes(transpose_b_str.splitlines())
-    assert shapes.matmul_size.B == 1
-    assert shapes.matmul_size.M == 16
-    assert shapes.matmul_size.N == 32
-    assert shapes.matmul_size.K == 64
+    assert shapes.matmul_size.B == []
+    assert shapes.matmul_size.M == [16]
+    assert shapes.matmul_size.N == [32]
+    assert shapes.matmul_size.K == [64]
     assert shapes.lhs_type.shape == [16, 64]
     assert isinstance(shapes.lhs_type.element_type, ir.F16Type)
     assert shapes.rhs_type.shape == [32, 64]
@@ -102,10 +102,32 @@ def test_get_contraction_operation(tuner_ctx: common.TunerContext) -> None:
     module = ir.Module.parse(bmm_transposed_inputs_str, context)
     mmt_op = parser.get_contraction_operation(module)
     shapes = parser.get_shapes(bmm_transposed_inputs_str.splitlines())
-    assert shapes.matmul_size.B == 5
-    assert shapes.matmul_size.M == 8
-    assert shapes.matmul_size.N == 40
-    assert shapes.matmul_size.K == 128
+    assert shapes.matmul_size.B == [5]
+    assert shapes.matmul_size.M == [8]
+    assert shapes.matmul_size.N == [40]
+    assert shapes.matmul_size.K == [128]
+
+    with ir.Location.unknown():
+        bmm_transposed_inputs_str = CONTRACTION_TEMPLATE.format(
+            lhs_type=ir.RankedTensorType.get(
+                [16, 8, 15, 16, 64, 256], ir.F16Type.get()
+            ),
+            rhs_type=ir.RankedTensorType.get(
+                [16, 9, 15, 16, 128, 256], ir.F16Type.get()
+            ),
+            res_type=ir.RankedTensorType.get([16, 8, 9, 16, 64, 128], ir.F32Type.get()),
+            lhs_map="affine_map<(b0, m0, n0, k0, b1, m1, n1, k1) -> (b0, m0, k0, b1, m1, k1)>",
+            rhs_map="affine_map<(b0, m0, n0, k0, b1, m1, n1, k1) -> (b0, n0, k0, b1, n1, k1)>",
+            res_map="affine_map<(b0, m0, n0, k0, b1, m1, n1, k1) -> (b0, m0, n0, b1, m1, n1)>",
+            iterator_types='["parallel", "parallel", "parallel", "reduction", "parallel", "parallel", "parallel", "reduction"]',
+        )
+    module = ir.Module.parse(bmm_transposed_inputs_str, context)
+    mmt_op = parser.get_contraction_operation(module)
+    shapes = parser.get_shapes(bmm_transposed_inputs_str.splitlines())
+    assert shapes.matmul_size.B == [16, 16]
+    assert shapes.matmul_size.M == [8, 64]
+    assert shapes.matmul_size.N == [9, 128]
+    assert shapes.matmul_size.K == [15, 256]
 
 
 def test_get_conv_operation(tuner_ctx: common.TunerContext) -> None:
