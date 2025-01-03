@@ -56,6 +56,21 @@ class MockScopedDevice:
 def mock_device_array():
     """Create mock device array with proper interface implementation"""
 
+    class MockMapping:
+        def __enter__(self):
+            return self
+
+        def __exit__(
+            self,
+            exc_type: object | None,
+            exc_value: object | None,
+            exc_tb: object | None,
+        ):
+            pass
+
+        def fill(self, value: int):
+            pass
+
     class MockDeviceArray:
         def __init__(self):
             self.shape = None
@@ -66,6 +81,17 @@ def mock_device_array():
 
         def copy_from(self, src):
             pass
+
+        def copy_to(self, dst):
+            pass
+
+        def for_transfer(self):
+            return MockDeviceArray()
+
+        def map(
+            self, *, read: bool = False, write: bool = False, discard: bool = False
+        ):
+            return MockMapping()
 
     return MockDeviceArray()
 
