@@ -170,6 +170,7 @@ class FluxTest(TempDirTestBase):
         raises=AssertionError,
         reason="Accuracy is not good enough. The observed absolute error is 8976.53.",
     )
+    @with_flux_data
     def testCompareDevRandomSingleLayerIreeBf16AgainstTorchEagerF32(self):
         self.runCompareDevRandomSingleLayerIreeAgainstTorchEager(
             reference_dtype=torch.float32, target_dtype=torch.bfloat16
@@ -179,6 +180,7 @@ class FluxTest(TempDirTestBase):
         raises=AssertionError,
         reason="Accuracy is probably not good enough. The observed absolute error is 73.25.",
     )
+    @with_flux_data
     def testCompareDevRandomSingleLayerIreeF32AgainstTorchEagerF32(self):
         self.runCompareDevRandomSingleLayerIreeAgainstTorchEager(
             reference_dtype=torch.float32, target_dtype=torch.float32
