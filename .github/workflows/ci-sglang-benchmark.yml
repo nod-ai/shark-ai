@@ -70,8 +70,8 @@ jobs:
 
           # Pin to known-working versions.
           pip install -f https://iree.dev/pip-release-links.html --pre --upgrade \
-            iree-base-compiler==3.1.0rc20241204 \
-            iree-base-runtime==3.1.0rc20241204 \
+            iree-base-compiler==3.1.0rc20241220 \
+            iree-base-runtime==3.1.0rc20241220 \
             "numpy<2.0"
 
           # Install SGLang
