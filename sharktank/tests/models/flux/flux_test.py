@@ -170,6 +170,12 @@ class FluxTest(TempDirTestBase):
         raises=AssertionError,
         reason="Accuracy is not good enough. The observed absolute error is 8976.53.",
     )
+    @pytest.mark.skip(
+        reason=(
+            "Waiting on merging of fix for https://github.com/iree-org/iree/issues/19539. "
+            "Without it IREE compilation enters an infinite loop."
+        )
+    )
     @with_flux_data
     def testCompareDevRandomSingleLayerIreeBf16AgainstTorchEagerF32(self):
         self.runCompareDevRandomSingleLayerIreeAgainstTorchEager(
@@ -179,6 +185,12 @@ class FluxTest(TempDirTestBase):
     @pytest.mark.xfail(
         raises=AssertionError,
         reason="Accuracy is probably not good enough. The observed absolute error is 73.25.",
+    )
+    @pytest.mark.skip(
+        reason=(
+            "Waiting on merging of fix for https://github.com/iree-org/iree/issues/19539. "
+            "Without it IREE compilation enters an infinite loop."
+        )
     )
     @with_flux_data
     def testCompareDevRandomSingleLayerIreeF32AgainstTorchEagerF32(self):
