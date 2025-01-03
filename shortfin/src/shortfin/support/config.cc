@@ -12,6 +12,7 @@
 #include <cstdlib>
 
 #include "fmt/format.h"
+#include "fmt/xchar.h"
 #include "shortfin/support/logging.h"
 
 namespace shortfin {

@@ -49,7 +49,11 @@ class GenerateItemProcess(sf.Process):
         self.eos_token_id = eos_token_id
 
     async def run(self):
-        exec = InferenceExecRequest(InferencePhase.PREFILL, self.input_token_ids)
+        exec = InferenceExecRequest(
+            phase=InferencePhase.PREFILL,
+            input_token_ids=self.input_token_ids,
+            rid=self.gen_req.rid,
+        )
         try:
             self.client.batcher.submit(exec)
             await exec.done

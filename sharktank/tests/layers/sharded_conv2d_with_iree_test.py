@@ -6,6 +6,9 @@ import unittest
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import pytest
+import sys
+
 from pathlib import Path
 import tempfile
 import torch
@@ -181,6 +184,12 @@ def run_test_sharded_conv2d_with_iree(
         )
 
 
+@pytest.mark.xfail(
+    torch.__version__ >= (2, 5), reason="https://github.com/nod-ai/shark-ai/issues/682"
+)
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="https://github.com/nod-ai/shark-ai/issues/698"
+)
 def test_sharded_conv2d_with_iree(
     mlir_path: Optional[Path],
     module_path: Optional[Path],

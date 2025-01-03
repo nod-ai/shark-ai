@@ -1,20 +1,13 @@
 iree-turbine
 
 # Runtime deps.
-gguf==0.10.0
-numpy<2.0
-
-# Needed for newer gguf versions (TODO: remove when gguf package includes this)
-# sentencepiece>=0.1.98,<=0.2.0
+gguf>=0.11.0
+numpy
 
 # Model deps.
 huggingface-hub==0.22.2
 transformers==4.40.0
 datasets
-
-# It is expected that you have installed a PyTorch version/variant specific
-# to your needs, so we only include a minimum version spec.
-torch>=2.3.0
 
 # Serving deps.
 fastapi>=0.112.2

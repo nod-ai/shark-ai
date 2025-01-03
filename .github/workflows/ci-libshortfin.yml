@@ -9,15 +9,9 @@ name: CI - shortfin
 on:
   workflow_dispatch:
   pull_request:
-    paths:
-      - '.github/workflows/ci-libshortfin.yml'
-      - 'shortfin/**'
   push:
     branches:
       - main
-    paths:
-      - '.github/workflows/ci-libshortfin.yml'
-      - 'shortfin/**'
 
 permissions:
   contents: read
@@ -44,7 +38,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: ["Ubuntu (Clang)(full)", "Ubuntu (Clang)(host-only)", "Ubuntu (GCC)", "Windows (MSVC)"]
+        name: ["Ubuntu (Clang)(full)", "Ubuntu (Clang)(host-only)", "Windows (MSVC)"]
         python-version: ["3.10", "3.11", "3.12"]
         include:
           - name: Ubuntu (Clang)(full)
@@ -59,16 +53,21 @@ jobs:
             cmake-options:
               -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18 -DCMAKE_LINKER_TYPE=LLD -DSHORTFIN_HAVE_AMDGPU=OFF -DSHORTFIN_BUILD_STATIC=ON -DSHORTFIN_BUILD_DYNAMIC=ON
             additional-packages: clang lld
-          - name: Ubuntu (GCC)
+          - name: Ubuntu (GCC 13)
             runs-on: ubuntu-24.04
+            # Only test with GCC 13 and Python 3.12
+            python-version: "3.12"
+            cmake-options:
+              -DCMAKE_C_COMPILER=gcc-13 -DCMAKE_CXX_COMPILER=g++-13
+          - name: Ubuntu (GCC 14)
+            runs-on: ubuntu-24.04
+            # Only test with GCC 14 and Python 3.12
+            python-version: "3.12"
+            cmake-options:
+              -DCMAKE_C_COMPILER=gcc-14 -DCMAKE_CXX_COMPILER=g++-14
           - name: Windows (MSVC)
             runs-on: windows-2022
         exclude:
-          # Only test Python 3.12 with GCC
-          - name: Ubuntu (GCC)
-            python-version: "3.10"
-          - name: Ubuntu (GCC)
-            python-version: "3.11"
           # TODO: Include additional Python versions for Windows after build got fixed
           - name: Windows (MSVC)
             python-version: "3.10"
@@ -152,3 +151,22 @@ jobs:
       run: |
         ctest --timeout 30 --output-on-failure --test-dir build
         pytest -s --durations=10
+
+  # Depends on all other jobs to provide an aggregate job status.
+  ci_libshortfin_summary:
+    if: always()
+    runs-on: ubuntu-24.04
+    needs:
+      - build-and-test
+    steps:
+      - name: Getting failed jobs
+        run: |
+          echo '${{ toJson(needs) }}'
+          FAILED_JOBS="$(echo '${{ toJson(needs) }}' \
+            | jq --raw-output \
+            'map_values(select(.result!="success" and .result!="skipped")) | keys | join(",")' \
+          )"
+          if [[ "${FAILED_JOBS}" != "" ]]; then
+            echo "The following jobs failed: ${FAILED_JOBS}"
+            exit 1
+          fi

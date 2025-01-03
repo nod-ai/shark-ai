@@ -68,12 +68,14 @@ class Perplexity:
         kv_cache_type,
         tensor_parallelism_size,
         attention_kernel,
+        block_seq_stride,
     ):
         self.torch_device = torch_device
         self.iree_device = iree_device
         self.iree_hip_target = iree_hip_target
         self.iree_hal_target_backends = iree_hal_target_backends
         self.kv_cache_type = kv_cache_type
+        self.block_seq_stride = block_seq_stride
         self.activation_dtype = torch.float16
         self.attention_dtype = torch.float16
         self.tensor_parallelism_size = tensor_parallelism_size
@@ -136,6 +138,7 @@ class Perplexity:
             iree_hal_target_backends=self.iree_hal_target_backends,
             attention_kernel=self.attention_kernel,
             tensor_parallelism_size=self.tensor_parallelism_size,
+            block_seq_stride=self.block_seq_stride,
         )
         vmfb_path = export_artifacts.get_artifacts()
         return vmfb_path
@@ -145,7 +148,7 @@ class Perplexity:
 
         self.config = LlamaModelConfig(
             hp=configs.LlamaHParams.from_gguf_props(weight_path.properties),
-            block_seq_stride=16,
+            block_seq_stride=self.block_seq_stride,
             kv_cache_type=self.kv_cache_type,
             device=self.torch_device,
             activation_dtype=self.activation_dtype,
@@ -394,6 +397,7 @@ def run_perplexity(
     tensor_parallelism_size,
     attention_kernel,
     num_prompts,
+    block_seq_stride,
 ):
     start = time.time()
     perplexity = Perplexity(
@@ -404,6 +408,7 @@ def run_perplexity(
         kv_cache_type=kv_cache_type,
         tensor_parallelism_size=tensor_parallelism_size,
         attention_kernel=attention_kernel,
+        block_seq_stride=block_seq_stride,
     )
 
     perplexity.get_prompts(num_prompts=num_prompts)
@@ -425,8 +430,18 @@ def run_perplexity(
 
 def main(argv):
     parser = cli.create_parser()
-    parser.add_argument("--kv-cache-type", default="paged", help="KV cache type")
-    parser.add_argument("--torch-device", help="Torch device (or default)")
+    parser.add_argument(
+        "--attention-kernel",
+        type=str,
+        default="decomposed",
+        choices=["decomposed", "torch_sdpa"],
+    )
+    parser.add_argument(
+        "--block-seq-stride",
+        help="Block sequence stride for paged KV cache, must divide evenly into the context length",
+        type=int,
+        default=32,
+    )
     parser.add_argument("--iree-device", help="List an IREE device (e.g., 'hip://0')")
     parser.add_argument(
         "--iree-hip-target",
@@ -440,11 +455,12 @@ def main(argv):
         default="rocm",
         help="Specify the iree-hal target backends (e.g., rocm)",
     )
+    parser.add_argument("--kv-cache-type", default="paged", help="KV cache type")
     parser.add_argument(
-        "--attention-kernel",
-        type=str,
-        default="decomposed",
-        choices=["decomposed", "torch_sdpa"],
+        "--num-prompts",
+        type=int,
+        default=100,
+        help="Number of prompts for perplexity test (1 to 100)",
     )
     parser.add_argument(
         "--tensor-parallelism-size",
@@ -452,36 +468,29 @@ def main(argv):
         default=1,
         help="Number of devices for tensor parallel sharding",
     )
-    parser.add_argument(
-        "--num-prompts",
-        type=int,
-        default=100,
-        help="Number of prompts for perplexity test",
-    )
+    parser.add_argument("--torch-device", help="Torch device (or default)")
 
     cli.add_tokenizer_options(parser)
     cli.add_input_dataset_options(parser)
     args = cli.parse(parser, args=argv)
 
     torch_device = torch.device(args.torch_device) if args.torch_device else None
-    iree_device = args.iree_device
-    kv_cache_type = args.kv_cache_type
     weight_path = cli.get_input_dataset(args)
     tokenizer = cli.get_tokenizer(args)
-    weight_path_str = str(args.irpa_file)
 
     ppl = run_perplexity(
         weight_path=weight_path,
-        weight_path_str=weight_path_str,
+        weight_path_str=str(args.irpa_file),
         tokenizer=tokenizer,
         torch_device=torch_device,
-        iree_device=iree_device,
+        iree_device=args.iree_device,
         iree_hip_target=args.iree_hip_target,
         iree_hal_target_backends=args.iree_hal_target_backends,
-        kv_cache_type=kv_cache_type,
+        kv_cache_type=args.kv_cache_type,
         tensor_parallelism_size=args.tensor_parallelism_size,
         attention_kernel=args.attention_kernel,
         num_prompts=args.num_prompts,
+        block_seq_stride=args.block_seq_stride,
     )
 
     logger.info(f"\n{json.dumps(ppl, indent=2)}")

@@ -14,6 +14,7 @@ from typing import Any
 from iree.compiler import ir  # type: ignore
 
 from iree.compiler.dialects import iree_gpu  # type: ignore
+from iree.compiler.dialects import iree_codegen  # type: ignore
 
 
 class CommonTypes:
@@ -78,6 +79,14 @@ class MatmulSize:
 
 
 @dataclass
+class ContractionDimensions:
+    batch: list[int]
+    m: list[int]
+    n: list[int]
+    k: list[int]
+
+
+@dataclass
 class ProblemSize:
     matmul_size: MatmulSize
     lhs_type: ShapedType
@@ -97,26 +106,24 @@ def get_compatible_mfma_intrinsics(
     def is_comptible(mma_intrinsic: iree_gpu.MMAIntrinsic) -> bool:
         mma_attr = iree_gpu.MMAIntrinsicAttr.get(mma_intrinsic).mma
         a_type, b_type, c_type = mma_attr.abc_element_types
-        if problem_size.res_type.element_type != c_type:
+        if not isinstance(problem_size.res_type.element_type, type(c_type)):
             return False
         if problem_size.dispatch_kind != DispatchKind.batch_matmul:
-            if (
-                problem_size.lhs_type.element_type != a_type
-                or problem_size.rhs_type.element_type != b_type
-            ):
+            if not isinstance(
+                problem_size.lhs_type.element_type, type(a_type)
+            ) or not isinstance(problem_size.rhs_type.element_type, type(b_type)):
                 return False
         return True
 
     return list(filter(is_comptible, mma_intrinsics))
 
 
-@dataclass
-class Configuration:
-    subgroup_size: int
-    workgroup_size: list[int]
-    lowering_config: iree_gpu.LoweringConfigAttr
-    gpu_pipeline_options: iree_gpu.PipelineOptionsAttr
-    waves_per_eu: int
+# The key name for GPUPipelineOptionsAttr in the translation info config dictionary.
+GPU_PIPELINE_OPTIONS_KEY = "gpu_pipeline_options"
+# The key name for llvm_func_attrs attribute in the translation info config dictionary.
+LLVM_FUNC_ATTRS_KEY = "llvm_func_attrs"
+# The Key name for the 'amdgpu-waves-per-eu' within the llvm_func_attrs attribute.
+WAVES_PER_EU_KEY = "amdgpu-waves-per-eu"
 
 
 def get_lowering_config(
@@ -157,15 +164,34 @@ def get_lowering_config(
     return iree_gpu.LoweringConfigAttr.get(lowering_config_attrs)
 
 
-def get_pipeline_config(configuration: Configuration) -> str:
-    extra_config = ""
-    pipeline_options = configuration.gpu_pipeline_options
-    if pipeline_options != iree_gpu.PipelineOptionsAttr.get():
-        extra_config += f", gpu_pipeline_options = {pipeline_options}"
+# Generate a config dictionary used in translation_info attribute.
+def get_translation_info_config(
+    pipeline_options: iree_gpu.PipelineOptionsAttr, waves_per_eu: int
+) -> ir.DictAttr:
+    """
+    Example IR
+    translation_info = #iree_codegen.translation_info<
+                    pipeline = LLVMGPUVectorDistribute workgroup_size = [512, 1, 1] subgroup_size = 64,
+                    {gpu_pipeline_options = #iree_gpu.pipeline_options<...>,
+                     llvm_func_attrs = {"amdgpu-waves-per-eu" = "3"}
+                    }
+                >
+    """
+    waves_per_eu_str = str(waves_per_eu)
 
-    if configuration.waves_per_eu != 2:
-        extra_config += f', llvm_func_attrs = {{"amdgpu-waves-per-eu" = "{configuration.waves_per_eu}"}}'
-    return extra_config
+    # Create the waves_per_eu dictionary attribute.
+    waves_per_eu_dict = ir.DictAttr.get(
+        {WAVES_PER_EU_KEY: ir.StringAttr.get(waves_per_eu_str)}
+    )
+
+    config_dict = ir.DictAttr.get(
+        {
+            GPU_PIPELINE_OPTIONS_KEY: pipeline_options,
+            LLVM_FUNC_ATTRS_KEY: waves_per_eu_dict,
+        }
+    )
+
+    return config_dict
 
 
 def read_input_mlir(filename: str) -> list[str]:

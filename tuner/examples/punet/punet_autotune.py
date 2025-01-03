@@ -113,6 +113,15 @@ class PunetClient(libtuner.TuningClient):
         ]
         return command
 
+    def get_iree_compile_flags(self) -> list[str]:
+        return []
+
+    def get_iree_benchmark_module_flags(self) -> list[str]:
+        return []
+
+    def get_benchmark_timeout_s(self) -> int:
+        return 0
+
 
 def main():
     args = libtuner.parse_arguments()

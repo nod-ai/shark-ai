@@ -4,6 +4,8 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import pytest
+
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
@@ -118,6 +120,14 @@ class PagedLlamaAttentionBlockTest(unittest.TestCase):
         asm = str(output.mlir_module)
         self.assertNotIn("scaled_dot_product_attention", asm)
 
+    @pytest.mark.xfail(
+        torch.__version__ >= (2, 4),
+        reason="https://github.com/nod-ai/shark-ai/issues/684",
+    )
+    @pytest.mark.skipif(
+        torch.__version__ >= (2, 5),
+        reason="https://github.com/nod-ai/shark-ai/issues/684, error slows down CI",
+    )
     def testExportNondecomposed(self):
         dtype = torch.float32
 

@@ -66,12 +66,17 @@ def add_model_options(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--attention-kernel",
         type=str,
-        default="decomposed",
+        default="torch",
         choices=["decomposed", "torch"],
     )
     parser.add_argument(
+        "--skip-prefill",
+        help="Skips exporting prefill",
+        action="store_true",
+    )
+    parser.add_argument(
         "--skip-decode",
-        help="Enables prefill only, skips decode",
+        help="Skips export decode",
         action="store_true",
     )
 
@@ -100,7 +105,7 @@ def add_tokenizer_options(parser: argparse.ArgumentParser):
     )
 
 
-def get_input_data_files(args) -> Optional[dict[str, Path]]:
+def get_input_data_files(args) -> Optional[dict[str, list[Path]]]:
     """Gets data files given the input arguments.
 
     Keys may contain:
@@ -112,9 +117,9 @@ def get_input_data_files(args) -> Optional[dict[str, Path]]:
         dataset = hf_datasets.get_dataset(args.hf_dataset).download()
         return dataset
     elif args.gguf_file is not None:
-        return {"gguf": args.gguf_file}
+        return {"gguf": [args.gguf_file]}
     elif args.irpa_file is not None:
-        return {"irpa": args.irpa_file}
+        return {"irpa": [args.irpa_file]}
 
 
 def get_input_dataset(args) -> Dataset:
@@ -124,10 +129,10 @@ def get_input_dataset(args) -> Dataset:
     """
     data_files = get_input_data_files(args)
     if "gguf" in data_files:
-        return Dataset.load(data_files["gguf"], file_type="gguf")
+        return Dataset.load(data_files["gguf"][0], file_type="gguf")
 
     if "irpa" in data_files:
-        return Dataset.load(data_files["irpa"], file_type="irpa")
+        return Dataset.load(data_files["irpa"][0], file_type="irpa")
 
     raise ValueError(f'Dataset format unsupported. Must be "gguf" or "irpa".')
 
@@ -142,7 +147,7 @@ def get_tokenizer(args) -> tokenizer.InferenceTokenizer:
         return tokenizer.fake_tokenizer()
 
     if args.tokenizer_config_json is not None:
-        data_files = {"tokenizer_config.json": args.tokenizer_config_json}
+        data_files = {"tokenizer_config.json": [args.tokenizer_config_json]}
     else:
         data_files = get_input_data_files(args)
 
@@ -150,7 +155,7 @@ def get_tokenizer(args) -> tokenizer.InferenceTokenizer:
     if tokenizer_type is None:
         if "tokenizer_config.json" in data_files:
             return tokenizer.load_tokenizer(
-                data_files["tokenizer_config.json"].parent,
+                data_files["tokenizer_config.json"][0].parent,
                 tokenizer_type="transformers",
             )
         else:

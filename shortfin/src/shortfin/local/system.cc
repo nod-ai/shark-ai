@@ -7,6 +7,7 @@
 #include "shortfin/local/system.h"
 
 #include <fmt/core.h>
+#include <fmt/xchar.h>
 
 #include "iree/hal/utils/allocators.h"
 #include "shortfin/local/fiber.h"

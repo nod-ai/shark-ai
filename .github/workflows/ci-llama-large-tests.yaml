@@ -9,8 +9,8 @@ name: Llama Benchmarking Tests
 on:
   workflow_dispatch:
   schedule:
-    # Weekdays at 4:00 AM UTC = 9:00 PM PST.
-    - cron: "0 4 * * 1-5"
+    # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
+    - cron: "0 11 * * 1-5"
 
 concurrency:
   # A PR number if a pull request and otherwise the commit hash. This cancels
@@ -53,11 +53,11 @@ jobs:
         run: |
           source ${VENV_DIR}/bin/activate
           python -m pip install --no-compile --upgrade pip
+
           # Note: We install in three steps in order to satisfy requirements
           # from non default locations first. Installing the PyTorch CPU
           # wheels saves multiple minutes and a lot of bandwidth on runner setup.
           pip install --no-compile -r pytorch-cpu-requirements.txt
-          pip install --no-compile -r requirements.txt -r sharktank/requirements-tests.txt -e sharktank/
 
           # Install nightly IREE packages.
           # We could also pin to a known working or stable version.
@@ -65,6 +65,8 @@ jobs:
             iree-base-compiler \
             iree-base-runtime \
             iree-turbine
+
+          pip install --no-compile -r requirements.txt -r sharktank/requirements-tests.txt -e sharktank/
 
           pip freeze
 

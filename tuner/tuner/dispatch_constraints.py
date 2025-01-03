@@ -157,9 +157,9 @@ def getMMAAttr(
         a_type, b_type, c_type = mma_attr.abc_element_types
         mnk = mma_attr.mnk_shape
         if (
-            a_type == lhs_type
-            and b_type == rhs_type
-            and c_type == output_type
+            isinstance(a_type, type(lhs_type))
+            and isinstance(b_type, type(rhs_type))
+            and isinstance(c_type, type(output_type))
             and m == mnk[0]
             and n == mnk[1]
             and k == mnk[2]
@@ -178,7 +178,7 @@ def generate_solutions(
     problem_size: ProblemSize,
     num_subgrups: int,
     mma_intrinsics: list[iree_gpu.MMAIntrinsic],
-) -> Iterator[Configuration]:
+) -> Iterator[iree_codegen.CompilationInfoAttr]:
     M, N, K = problem_size.MNK
     tuner_ctx.logger.info(f"{M},{N},{K}")
     m, n, k = z3.Int("m"), z3.Int("n"), z3.Int("k")
@@ -244,13 +244,23 @@ def generate_solutions(
             subgroup_m_count=lookup(sg_m_cnt),
             subgroup_n_count=lookup(sg_n_cnt),
         )
-        config = Configuration(
-            lookup(subgroup_size),
+        pipeline_attr = iree_codegen.DispatchLoweringPassPipelineAttr.get(
+            iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute
+        )
+        pipeline_options = iree_gpu.PipelineOptionsAttr.get()
+        config_dict = get_translation_info_config(
+            pipeline_options, lookup(waves_per_eu)
+        )
+        translation_info = iree_codegen.TranslationInfoAttr.get(
+            pipeline_attr,
+            None,
             [lookup(wg_x), lookup(wg_y), lookup(wg_z)],
-            lowering_config,
-            iree_gpu.PipelineOptionsAttr.get(),
-            lookup(waves_per_eu),
+            lookup(subgroup_size),
+            config_dict,
+        )
+        compilation_info = iree_codegen.CompilationInfoAttr.get(
+            lowering_config, translation_info
         )
         solver.add(z3.simplify(z3.Not(z3.And(list(x == model[x] for x in all_vars)))))
         i += 1
-        yield config
+        yield compilation_info

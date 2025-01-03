@@ -90,6 +90,7 @@ def export_paged_llm_v1(mlir_path, config_path, model_path, batch_sizes):
             "python",
             "-m",
             "sharktank.examples.export_paged_llm_v1",
+            "--block-seq-stride=16",
             f"--{model_path.suffix.strip('.')}-file={model_path}",
             f"--output-mlir={mlir_path}",
             f"--output-config={config_path}",

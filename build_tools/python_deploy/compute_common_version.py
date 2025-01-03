@@ -17,37 +17,28 @@ import argparse
 from pathlib import Path
 import json
 from datetime import datetime
-import sys
+import subprocess
 
 from packaging.version import Version
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--write-json", action="store_true")
-parser.add_argument("--version-suffix", action="store", type=str)
 
-release_type = parser.add_mutually_exclusive_group()
-release_type.add_argument("-stable", "--stable-release", action="store_true")  # default
+release_type = parser.add_mutually_exclusive_group(required=True)
+release_type.add_argument("-stable", "--stable-release", action="store_true")
 release_type.add_argument("-rc", "--nightly-release", action="store_true")
-
+release_type.add_argument("-dev", "--development-release", action="store_true")
+release_type.add_argument("--version-suffix", action="store", type=str)
 
 args = parser.parse_args()
-
-if not (args.stable_release or args.nightly_release):
-    parser.print_usage(sys.stderr)
-    sys.stderr.write("error: A release type is required\n")
-    sys.exit(1)
-
-if args.stable_release and args.version_suffix:
-    sys.stderr.write("error: A version suffix is only supported for stable releases\n")
-    sys.exit(1)
 
 THIS_DIR = Path(__file__).parent.resolve()
 REPO_ROOT = THIS_DIR.parent.parent
 
-VERSION_FILE_SHARKTANK = REPO_ROOT / "sharktank/version.json"
-VERSION_FILE_SHORTFIN = REPO_ROOT / "shortfin/version.json"
-VERSION_FILE_LOCAL = REPO_ROOT / "shark-ai/version_local.json"
+VERSION_FILE_SHARKTANK_PATH = REPO_ROOT / "sharktank/version.json"
+VERSION_FILE_SHORTFIN_PATH = REPO_ROOT / "shortfin/version.json"
+VERSION_FILE_LOCAL_PATH = REPO_ROOT / "shark-ai/version_local.json"
 
 
 def load_version_info(version_file):
@@ -55,35 +46,36 @@ def load_version_info(version_file):
         return json.load(f)
 
 
-def write_version_info():
-    with open(VERSION_FILE_LOCAL, "w") as f:
-        json.dump(version_local, f, indent=2)
+def write_version_info(version_file, version):
+    with open(version_file, "w") as f:
+        json.dump({"package-version": version}, f, indent=2)
         f.write("\n")
 
 
-sharktank_version = load_version_info(VERSION_FILE_SHARKTANK)
-SHARKTANK_PACKAGE_VERSION = sharktank_version.get("package-version")
-SHARKTANK_BASE_VERSION = Version(SHARKTANK_PACKAGE_VERSION).base_version
+sharktank_version = load_version_info(VERSION_FILE_SHARKTANK_PATH)
+sharktank_package_version = sharktank_version.get("package-version")
+sharktank_base_version = Version(sharktank_package_version).base_version
 
-shortfin_version = load_version_info(VERSION_FILE_SHORTFIN)
-SHORTFIN_PACKAGE_VERSION = shortfin_version.get("package-version")
-SHORTFIN_BASE_VERSION = Version(SHORTFIN_PACKAGE_VERSION).base_version
+shortfin_version = load_version_info(VERSION_FILE_SHORTFIN_PATH)
+shortfin_package_version = shortfin_version.get("package-version")
+shortfin_base_version = Version(shortfin_package_version).base_version
 
-if SHARKTANK_BASE_VERSION > SHORTFIN_BASE_VERSION:
-    COMMON_VERSION = SHARKTANK_BASE_VERSION
+if sharktank_base_version > shortfin_base_version:
+    common_version = sharktank_base_version
 else:
-    COMMON_VERSION = SHORTFIN_BASE_VERSION
+    common_version = shortfin_base_version
 
 if args.nightly_release:
-    if args.version_suffix:
-        VERSION_SUFFIX = args.version_suffix
-    else:
-        VERSION_SUFFIX = "rc" + datetime.today().strftime("%Y%m%d")
-
-    COMMON_VERSION += VERSION_SUFFIX
+    common_version += "rc" + datetime.today().strftime("%Y%m%d")
+elif args.development_release:
+    common_version += (
+        ".dev0+"
+        + subprocess.check_output(["git", "rev-parse", "HEAD"]).decode("ascii").strip()
+    )
+elif args.version_suffix:
+    common_version += args.version_suffix
 
 if args.write_json:
-    version_local = {"package-version": COMMON_VERSION}
-    write_version_info()
+    write_version_info(VERSION_FILE_LOCAL_PATH, common_version)
 
-print(COMMON_VERSION)
+print(common_version)

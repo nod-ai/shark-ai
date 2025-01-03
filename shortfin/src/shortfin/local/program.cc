@@ -8,6 +8,7 @@
 
 #include "fmt/core.h"
 #include "fmt/std.h"
+#include "fmt/xchar.h"
 #include "iree/io/formats/parser_registry.h"
 #include "iree/modules/hal/module.h"
 #include "iree/modules/io/parameters/module.h"

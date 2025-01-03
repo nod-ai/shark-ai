@@ -67,7 +67,7 @@ def sdxl_fp16_base_files():
 
 @pytest.fixture(scope="module")
 def sdxl_fp16_dataset(sdxl_fp16_base_files, temp_dir):
-    from sharktank.models.punet.tools import import_hf_dataset
+    from sharktank.tools import import_hf_dataset
 
     dataset = temp_dir / "sdxl_fp16_dataset.irpa"
     import_hf_dataset.main(

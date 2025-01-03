@@ -4,6 +4,9 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import pytest
+import sys
+
 from pathlib import Path
 import tempfile
 
@@ -19,7 +22,6 @@ from sharktank.types import *
 import iree.runtime
 from typing import List, Optional
 import os
-import pytest
 
 vm_context: iree.runtime.VmContext = None
 
@@ -227,6 +229,12 @@ def run_test_sharded_resnet_block_with_iree(
     reason="Maybe numerical issues with low accuracy.",
     strict=True,
     raises=AssertionError,
+)
+@pytest.mark.xfail(
+    torch.__version__ >= (2, 5), reason="https://github.com/nod-ai/shark-ai/issues/683"
+)
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="https://github.com/nod-ai/shark-ai/issues/698"
 )
 def test_sharded_resnet_block_with_iree(
     mlir_path: Optional[Path],

@@ -15,6 +15,7 @@ from typing import Generator
 
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_gpu  # type: ignore
+from iree.compiler.dialects import iree_codegen  # type: ignore
 
 
 @pytest.fixture
@@ -84,27 +85,34 @@ def test_get_pipeline_config(tuner_ctx: common.TunerContext) -> None:
         subgroup_m_count=1,
         subgroup_n_count=1,
     )
-    config = common.Configuration(
-        subgroup_size=32,
-        workgroup_size=[16, 16, 1],
-        lowering_config=lowering_config,
-        gpu_pipeline_options=iree_gpu.PipelineOptionsAttr.get(),
-        waves_per_eu=2,
+    pipeline_attr = iree_codegen.DispatchLoweringPassPipelineAttr.get(
+        iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute
     )
-    config1_str: str = common.get_pipeline_config(config)
-    assert config1_str == ""
-
-    config.waves_per_eu = 4
-    config2_str: str = common.get_pipeline_config(config)
-    assert config2_str == ', llvm_func_attrs = {"amdgpu-waves-per-eu" = "4"}'
-
-    config.gpu_pipeline_options = iree_gpu.PipelineOptionsAttr.get(
-        prefetch_shared_memory=True
+    pipeline_options = iree_gpu.PipelineOptionsAttr.get()
+    config_dict = common.get_translation_info_config(pipeline_options, 2)
+    translation_info = iree_codegen.TranslationInfoAttr.get(
+        pipeline_attr, None, [16, 16, 1], 32, config_dict
     )
-    config3_str = common.get_pipeline_config(config)
+    compilation_info = iree_codegen.CompilationInfoAttr.get(
+        lowering_config, translation_info
+    )
+    config1_str: str = str(
+        compilation_info.translation_info.configuration[common.LLVM_FUNC_ATTRS_KEY]
+    )
+    assert config1_str == '{"amdgpu-waves-per-eu" = "2"}'
+
+    pipeline_options = iree_gpu.PipelineOptionsAttr.get(prefetch_shared_memory=True)
+    config_dict = common.get_translation_info_config(pipeline_options, 4)
+    translation_info = iree_codegen.TranslationInfoAttr.get(
+        pipeline_attr, None, [16, 16, 1], 32, config_dict
+    )
+    compilation_info = iree_codegen.CompilationInfoAttr.get(
+        lowering_config, translation_info
+    )
+    config2_str: str = str(compilation_info.translation_info.configuration)
     assert (
-        config3_str
-        == ', gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>, llvm_func_attrs = {"amdgpu-waves-per-eu" = "4"}'
+        config2_str
+        == '{gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>, llvm_func_attrs = {"amdgpu-waves-per-eu" = "4"}}'
     )
 
 
@@ -207,13 +215,17 @@ def test_get_lowering_config(tuner_ctx: common.TunerContext) -> None:
         == "#iree_gpu.lowering_config<{reduction = [0, 0, 16], subgroup_m_count = 1 : i64, subgroup_n_count = 1 : i64, workgroup = [4, 8, 0]}>"
     )
 
-    config = common.Configuration(
-        subgroup_size=32,
-        workgroup_size=[16, 16, 1],
-        lowering_config=lowering_config,
-        gpu_pipeline_options=iree_gpu.PipelineOptionsAttr.get(),
-        waves_per_eu=2,
+    pipeline_attr = iree_codegen.DispatchLoweringPassPipelineAttr.get(
+        iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute
+    )
+    pipeline_options = iree_gpu.PipelineOptionsAttr.get()
+    config_dict = common.get_translation_info_config(pipeline_options, 2)
+    translation_info = iree_codegen.TranslationInfoAttr.get(
+        pipeline_attr, None, [16, 16, 1], 32, config_dict
+    )
+    compilation_info = iree_codegen.CompilationInfoAttr.get(
+        lowering_config, translation_info
     )
 
-    assert config.lowering_config.mma_kind is None
-    assert config.lowering_config.subgroup_count_mn == (1, 1)
+    assert compilation_info.lowering_config.mma_kind is None
+    assert compilation_info.lowering_config.subgroup_count_mn == (1, 1)

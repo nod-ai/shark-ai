@@ -46,6 +46,12 @@ def main():
         default="4",
     )
     parser.add_argument(
+        "--block-seq-stride",
+        help="Block sequence stride for paged KV cache, must divide evenly into the context length",
+        type=int,
+        default=32,
+    )
+    parser.add_argument(
         "--verbose",
         help="Include verbose logging",
         action="store_true",
@@ -73,9 +79,9 @@ def main():
         hp,
         tensor_parallelism_size=tensor_parallelism_size,
         use_hf=False,
-        static_tables=False,  # Rely on the compiler for hoisting tables.
         kv_cache_type="direct" if args.bs == [1] else "paged",
         attention_kernel=args.attention_kernel,
+        block_seq_stride=args.block_seq_stride,
     )
     llama_config.fake_quant = args.fake_quant
 
@@ -212,22 +218,16 @@ def main():
             else:
                 cache_tensors = cs
 
-            sl = tokens.shape[1]
-            input_mask = model.input_mask(seq_lens, sl)
-            attention_mask = model.attention_mask(input_mask)
-
             if llama_config.tensor_parallelism_size != 1:
                 shard_count = llama_config.tensor_parallelism_size
 
                 tokens = ops.replicate(tokens, count=shard_count)
-                attention_mask = ops.replicate(attention_mask, count=shard_count)
                 seq_block_ids = ops.replicate(seq_block_ids, count=shard_count)
-
                 cache_tensors = repack_cache(cs, cache_shard_dim)
 
             logits = model.prefill(
                 tokens,
-                attention_mask=attention_mask,
+                attention_mask=None,  # We rely on causal attention
                 seq_block_ids=seq_block_ids,
                 cache_state=cache_tensors,
             )
@@ -327,7 +327,8 @@ def main():
 
     bsizes = []
     for bs in args.bs:
-        generate_batch_prefill(bs)
+        if not args.skip_prefill:
+            generate_batch_prefill(bs)
         if not args.skip_decode:
             generate_batch_decode(bs)
         bsizes.append(bs)

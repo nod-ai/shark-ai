@@ -216,14 +216,12 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 attn_weights, values
             )  # (bs, heads, slen, head_dim)
         else:
-            is_causal = True
-            attention_mask = None
             attn_output = ops.scaled_dot_product_attention(
                 q=xq,  # [bs, ..., sl, dim]
                 k=keys,  # [bs, ..., sl, dim]
                 v=values,  # [bs, ..., sl, dim]
                 a=attention_mask,  # [bs, ..., sl, sl]
-                is_causal=is_causal,  # assumes causal masking when true
+                is_causal=attention_mask is None,  # assumes causal masking when true
                 scale=None,  # defaults to 1/sqrt(dim)
             )
 

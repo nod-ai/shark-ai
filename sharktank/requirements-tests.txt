@@ -2,3 +2,4 @@ datasets==3.0.0
 parameterized
 pytest==8.0.0
 pytest-html
+diffusers

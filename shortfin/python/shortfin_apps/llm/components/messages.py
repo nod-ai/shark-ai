@@ -21,12 +21,13 @@ class InferencePhase(Enum):
 class InferenceExecRequest(sf.Message):
     """Performs a prefill operation."""
 
-    def __init__(self, phase: InferencePhase, input_token_ids: list[int]):
+    def __init__(self, phase: InferencePhase, input_token_ids: list[int], rid=None):
         super().__init__()
         self.phase = phase
         self.start_position: int = 0
         self.input_token_ids = input_token_ids
         self.done = sf.VoidFuture()
+        self.rid = rid
 
         # Response control.
         # If True, return all sequence position logits. If False, return only

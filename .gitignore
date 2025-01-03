@@ -33,12 +33,13 @@ wheelhouse
 # Local-only config options
 version_local.json
 
-#Model artifacts
+# Model artifacts
 *.pt
 *.safetensors
 *.gguf
 *.vmfb
 genfiles/
+export/
 *.zip
 tmp/
 

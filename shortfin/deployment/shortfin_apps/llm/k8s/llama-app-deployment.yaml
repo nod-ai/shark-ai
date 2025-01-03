@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shark-llama-app-deployment
+spec:
+  replicas: 4 # number of server instances
+  selector:
+    matchLabels:
+      app: shark-llama-app
+  template:
+    metadata:
+      labels:
+        app: shark-llama-app
+    spec:
+      containers:
+      - name: shark-llama-app-container
+        image: rocm/dev-ubuntu-22.04:6.3
+        command: ["/bin/bash", "-c"]
+        # update to artifacts you generated form llama_serving.md (this is an example with the base llama3.1 8b tp1 artifacts)
+        # change cli flags for instantiation of server to match your intended llama configuration
+        args:
+        - |
+          sudo apt update &&
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash &&
+          sudo apt install git -y &&
+          sudo apt install python3.11 python3.11-dev python3.11-venv -y &&
+          sudo apt-get install wget -y &&
+          python3.11 -m venv shark_venv && source shark_venv/bin/activate &&
+          mkdir shark_artifacts &&
+          wget https://sharkpublic.blob.core.windows.net/sharkpublic/stephen/llama3.1_8b/config.json -O shark_artifacts/config.json &&
+          wget https://sharkpublic.blob.core.windows.net/sharkpublic/stephen/llama3.1_8b/meta-llama-3.1-8b-instruct.f16.gguf -O shark_artifacts/meta-llama-3.1-8b-instruct.f16.gguf &&
+          wget https://sharkpublic.blob.core.windows.net/sharkpublic/stephen/llama3.1_8b/model.vmfb -O shark_artifacts/model.vmfb &&
+          wget https://sharkpublic.blob.core.windows.net/sharkpublic/stephen/llama3.1_8b/tokenizer_config.json -O shark_artifacts/tokenizer_config.json &&
+          wget https://sharkpublic.blob.core.windows.net/sharkpublic/stephen/llama3.1_8b/tokenizer.json -O shark_artifacts/tokenizer.json &&
+          pip install --pre  shortfin[apps] -f https://github.com/nod-ai/shark-ai/releases/expanded_assets/dev-wheels &&
+          pip install pandas &&
+          python -m shortfin_apps.llm.server --tokenizer_json=shark_artifacts/tokenizer.json --model_config=shark_artifacts/config.json --vmfb=shark_artifacts/model.vmfb --parameters=shark_artifacts/meta-llama-3.1-8b-instruct.f16.gguf --device=hip;
+        resources:
+          # change number of gpus required here based on your llama configuration
+          requests:
+            amd.com/gpu: 1
+          limits:
+            amd.com/gpu: 1
+      restartPolicy: Always
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: shark-llama-app-service
+spec:
+  selector:
+    app: shark-llama-app
+  ports:
+  - protocol: TCP
+    port: 80 # external port
+    targetPort: 8000 # port the container exposes
+  type: LoadBalancer

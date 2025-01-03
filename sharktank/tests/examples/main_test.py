@@ -4,11 +4,16 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import pytest
+import sys
 import unittest
 
 from sharktank.utils.testing import MainRunnerTestBase
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="https://github.com/nod-ai/shark-ai/issues/698"
+)
 class ShardingTests(MainRunnerTestBase):
     def testExportFfnNet(self):
         from sharktank.examples.sharding.export_ffn_net import main

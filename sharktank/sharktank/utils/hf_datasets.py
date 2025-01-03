@@ -33,16 +33,26 @@ class RemoteFile:
     filename: str
     extra_filenames: Sequence[str] = ()
 
-    def download(self, *, local_dir: Optional[Path] = None) -> Path:
-        for extra_filename in self.extra_filenames:
-            hf_hub_download(
-                repo_id=self.repo_id, filename=extra_filename, local_dir=local_dir
-            )
-        return Path(
-            hf_hub_download(
-                repo_id=self.repo_id, filename=self.filename, local_dir=local_dir
+    def download(self, *, local_dir: Optional[Path] = None) -> list[Path]:
+        res = []
+        res.append(
+            Path(
+                hf_hub_download(
+                    repo_id=self.repo_id, filename=self.filename, local_dir=local_dir
+                )
             )
         )
+        for extra_filename in self.extra_filenames:
+            res.append(
+                Path(
+                    hf_hub_download(
+                        repo_id=self.repo_id,
+                        filename=extra_filename,
+                        local_dir=local_dir,
+                    )
+                )
+            )
+        return res
 
 
 @dataclass
@@ -59,7 +69,7 @@ class Dataset:
         alias_dataset(self.name, to_name)
         return self
 
-    def download(self, *, local_dir: Optional[Path] = None) -> Dict[str, Path]:
+    def download(self, *, local_dir: Optional[Path] = None) -> Dict[str, list[Path]]:
         return {f.file_id: f.download(local_dir=local_dir) for f in self.files}
 
 
@@ -363,6 +373,69 @@ Dataset(
     ),
 )
 
+# The Flux transformer is in 2 formats.
+# This is used in diffusers.FluxTransformer2DModel
+Dataset(
+    "black-forest-labs/FLUX.1-schnell/transformer",
+    (
+        RemoteFile(
+            "config",
+            "black-forest-labs/FLUX.1-schnell",
+            "transformer/config.json",
+        ),
+        RemoteFile(
+            "parameters",
+            "black-forest-labs/FLUX.1-schnell",
+            "transformer/diffusion_pytorch_model-00001-of-00003.safetensors",
+            extra_filenames=[
+                "transformer/diffusion_pytorch_model-00002-of-00003.safetensors",
+                "transformer/diffusion_pytorch_model-00003-of-00003.safetensors",
+            ],
+        ),
+        RemoteFile(
+            "parameters-index",
+            "black-forest-labs/FLUX.1-schnell",
+            "transformer/diffusion_pytorch_model.safetensors.index.json",
+        ),
+    ),
+)
+
+# The Flux transformer is in 2 formats.
+# This is used in the Black Forest's Flux repo.
+# https://github.com/black-forest-labs/flux
+# We have based our implementation on that.
+Dataset(
+    "black-forest-labs/FLUX.1-schnell/black-forest-labs-transformer",
+    (
+        RemoteFile(
+            "config",
+            "black-forest-labs/FLUX.1-schnell",
+            "transformer/config.json",
+        ),
+        RemoteFile(
+            "parameters",
+            "black-forest-labs/FLUX.1-schnell",
+            "flux1-schnell.safetensors",
+        ),
+    ),
+)
+Dataset(
+    "black-forest-labs/FLUX.1-dev/black-forest-labs-transformer",
+    (
+        RemoteFile(
+            "config",
+            "black-forest-labs/FLUX.1-dev",
+            "transformer/config.json",
+        ),
+        RemoteFile(
+            "parameters",
+            "black-forest-labs/FLUX.1-dev",
+            "flux1-dev.safetensors",
+        ),
+    ),
+)
+
+
 ################################################################################
 # Tool entrypoint
 ################################################################################
@@ -386,8 +459,8 @@ def main():
     for dataset_name in args.dataset_name:
         print(f"Downloading dataset {dataset_name}")
         ds = get_dataset(dataset_name).download(local_dir=args.local_dir)
-        for key, path in ds.items():
-            print(f"  {key}: {path}")
+        for key, paths in ds.items():
+            print(f"  {key}: {paths}")
 
 
 if __name__ == "__main__":

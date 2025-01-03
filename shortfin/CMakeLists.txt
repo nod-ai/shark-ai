@@ -39,6 +39,10 @@ if(NOT WIN32)
   set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 endif()
 
+# For unicode support Windows libfmt requires compiling with /utf-8.
+add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
+add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
+
 # Pins
 set(SHORTFIN_IREE_GIT_TAG "iree-3.1.0rc20241204")
 
@@ -140,7 +144,7 @@ if(SHORTFIN_BUNDLE_DEPS)
   FetchContent_Declare(
     fmt
     GIT_REPOSITORY https://github.com/fmtlib/fmt.git
-    GIT_TAG        e69e5f977d458f2650bb346dadf2ad30c5320281 # 10.2.1 (sync with spdlog)
+    GIT_TAG        0c9fce2ffefecfdce794e1859584e25877b7b592 # 11.0.2 (sync with spdlog)
   )
 
   ## spdlog
@@ -149,7 +153,7 @@ if(SHORTFIN_BUNDLE_DEPS)
   FetchContent_Declare(
     spdlog
     GIT_REPOSITORY https://github.com/gabime/spdlog.git
-    GIT_TAG        2d4acf8cc321d7783d8f2e22e17a794c6d0e9450 # v1.14.1
+    GIT_TAG        8e5613379f5140fefb0b60412fbf1f5406e7c7f8 # v1.15.0
   )
 
   ## xtl: required for xtensor

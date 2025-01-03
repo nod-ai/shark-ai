@@ -65,10 +65,10 @@ def make_mmdit_double_block_random_theta(
     mlp_hidden_size3 = int(2 * (mlp_ratio - 1) * hidden_size)
     return Theta(
         {
-            "img_attn.norm.key_norm.weight": DefaultPrimitiveTensor(  #
+            "img_attn.norm.key_norm.scale": DefaultPrimitiveTensor(  #
                 data=make_rand_torch((in_channels,), dtype=dtype)
             ),
-            "img_attn.norm.query_norm.weight": DefaultPrimitiveTensor(  #
+            "img_attn.norm.query_norm.scale": DefaultPrimitiveTensor(  #
                 data=make_rand_torch((in_channels,), dtype=dtype)
             ),
             "img_attn.proj.bias": DefaultPrimitiveTensor(
@@ -101,10 +101,10 @@ def make_mmdit_double_block_random_theta(
             "img_mod.lin.weight": DefaultPrimitiveTensor(
                 data=make_rand_torch((mlp_hidden_size3, hidden_size), dtype=dtype)
             ),
-            "txt_attn.norm.key_norm.weight": DefaultPrimitiveTensor(  #
+            "txt_attn.norm.key_norm.scale": DefaultPrimitiveTensor(  #
                 data=make_rand_torch((in_channels,), dtype=dtype)
             ),
-            "txt_attn.norm.query_norm.weight": DefaultPrimitiveTensor(  #
+            "txt_attn.norm.query_norm.scale": DefaultPrimitiveTensor(  #
                 data=make_rand_torch((in_channels,), dtype=dtype)
             ),
             "txt_attn.proj.bias": DefaultPrimitiveTensor(
@@ -155,10 +155,10 @@ def make_mmdit_single_block_random_theta(
     mlp_hidden_size3 = int((2 * mlp_ratio - 1) * hidden_size)
     return Theta(
         {
-            "attn.norm.key_norm.weight": DefaultPrimitiveTensor(  #
+            "norm.key_norm.scale": DefaultPrimitiveTensor(  #
                 data=make_rand_torch((in_channels,), dtype=dtype)
             ),
-            "attn.norm.query_norm.weight": DefaultPrimitiveTensor(  #
+            "norm.query_norm.scale": DefaultPrimitiveTensor(  #
                 data=make_rand_torch((in_channels,), dtype=dtype)
             ),
             "attn.proj.bias": DefaultPrimitiveTensor(
@@ -179,10 +179,10 @@ def make_mmdit_single_block_random_theta(
             "linear2.weight": DefaultPrimitiveTensor(
                 data=make_rand_torch((hidden_size, mlp_hidden_size2), dtype=dtype)
             ),
-            "mod.lin.bias": DefaultPrimitiveTensor(
+            "modulation.lin.bias": DefaultPrimitiveTensor(
                 data=make_rand_torch((mlp_hidden_size,), dtype=dtype)
             ),
-            "mod.lin.weight": DefaultPrimitiveTensor(
+            "modulation.lin.weight": DefaultPrimitiveTensor(
                 data=make_rand_torch((mlp_hidden_size, hidden_size), dtype=dtype)
             ),
         }

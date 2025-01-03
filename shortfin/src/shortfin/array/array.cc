@@ -10,6 +10,7 @@
 
 #include "fmt/core.h"
 #include "fmt/ranges.h"
+#include "fmt/xchar.h"
 #include "shortfin/array/xtensor_bridge.h"
 #include "shortfin/support/logging.h"
 

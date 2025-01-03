@@ -4,15 +4,12 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import Dict
-
+from typing import Dict, Optional
+from collections import OrderedDict
 import torch
 import torch.nn as nn
 
-from ..types import (
-    InferenceTensor,
-    Theta,
-)
+from ..types import InferenceTensor, Theta, AnyTensor
 from ..utils import debugging
 
 __all__ = [
@@ -55,6 +52,21 @@ class BaseLayer(nn.Module):
             for t in ts:
                 if torch.isnan(t).any():
                     raise AssertionError(f"Tensor contains nans! {t}")
+
+    def sample_inputs(
+        self, batch_size: int = 1, function: Optional[str] = None
+    ) -> tuple[tuple[AnyTensor], OrderedDict[str, AnyTensor]]:
+        """Return sample inputs that can be used to run the function from the model.
+        If function is None then layer is treated as the callable.
+        E.g.
+        ```
+        args, kwargs = model.sample_inputs()
+        model(*args, **kwargs)
+        ```
+
+        One purpose of this method is to standardize exportation of models to MLIR.
+        """
+        raise NotImplementedError()
 
 
 class ThetaLayer(BaseLayer):

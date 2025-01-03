@@ -383,6 +383,11 @@ class InferenceTensor(ABC):
             return tuple(self.shape)
         return self.shape[dim]
 
+    def squeeze(self, dim: Optional[int] = None) -> "AnyTensor":
+        from ..ops import squeeze
+
+        return squeeze(self, dim)
+
     def transpose(self, dim0: int, dim1: int) -> "AnyTensor":
         from ..ops import transpose
 

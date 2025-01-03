@@ -86,7 +86,7 @@ class Llama7BTest(BaseLlamaTest):
         self.data_files = hf_datasets.get_dataset(
             default_arguments["hf_dataset"]
         ).download(local_dir=Path("."))
-        self.dataset = Dataset.load(self.data_files["gguf"], file_type="gguf")
+        self.dataset = Dataset.load(self.data_files["gguf"][0], file_type="gguf")
         self.tokenizer_config = tokenizer.load_tokenizer(
             default_arguments["tokenizer-config-json"].parent,
             tokenizer_type="transformers",
@@ -138,7 +138,7 @@ class Llama8BTest(BaseLlamaTest):
         self.data_files = hf_datasets.get_dataset(
             default_arguments["hf_dataset"]
         ).download(local_dir=Path("."))
-        self.dataset = Dataset.load(self.data_files["gguf"], file_type="gguf")
+        self.dataset = Dataset.load(self.data_files["gguf"][0], file_type="gguf")
         self.tokenizer_config = tokenizer.load_tokenizer(
             default_arguments["tokenizer-config-json"].parent,
             tokenizer_type="transformers",

@@ -6,6 +6,8 @@
 
 #include "shortfin/local/systems/amdgpu.h"
 
+#include <fmt/xchar.h>
+
 #include "shortfin/support/logging.h"
 #include "shortfin/support/sysconfig.h"
 

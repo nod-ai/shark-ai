@@ -37,12 +37,17 @@ REPO_ROOT="$(cd "$THIS_DIR"/../../ && pwd)"
 SCRIPT_NAME="$(basename $0)"
 ARCH="$(uname -m)"
 
-# Note: we can switch to https://github.com/nod-ai/base-docker-images as needed for extra deps.
-MANYLINUX_DOCKER_IMAGE="${MANYLINUX_DOCKER_IMAGE:-quay.io/pypa/manylinux_2_28_${ARCH}:latest}"
 PYTHON_VERSIONS="${OVERRIDE_PYTHON_VERSIONS:-cp311-cp311 cp312-cp312 cp313-cp313}"
 OUTPUT_DIR="${OUTPUT_DIR:-${THIS_DIR}/wheelhouse}"
 CACHE_DIR="${CACHE_DIR:-}"
 SHORTFIN_ENABLE_TRACING="${SHORTFIN_ENABLE_TRACING:-ON}"
+
+if [[ "${ARCH}" == "x86_64" ]]; then
+  MANYLINUX_DOCKER_IMAGE="${MANYLINUX_DOCKER_IMAGE:-ghcr.io/nod-ai/manylinux_x86_64@sha256:4acf83343706d1e37252d6001ded3c97a73bc38620580f855b4e65e35ddc5681}"
+else
+  # TODO: publish a multi-platform manylinux image and include more deps in all platforms (rust, ccache, etc.)
+  MANYLINUX_DOCKER_IMAGE="${MANYLINUX_DOCKER_IMAGE:-quay.io/pypa/manylinux_2_28_${ARCH}:latest}"
+fi
 
 function run_on_host() {
   echo "Running on host"

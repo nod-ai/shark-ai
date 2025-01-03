@@ -53,8 +53,8 @@ def write_requirements(requirements):
 metapackage_version = load_version_info(VERSION_FILE_LOCAL)
 PACKAGE_VERSION = metapackage_version.get("package-version")
 
-# sharktank_version = load_version_info(VERSION_FILE_SHARKTANK)
-# SHARKTANK_PACKAGE_VERSION = sharktank_version.get("package-version")
+sharktank_version = load_version_info(VERSION_FILE_SHARKTANK)
+SHARKTANK_PACKAGE_VERSION = sharktank_version.get("package-version")
 
 shortfin_version = load_version_info(VERSION_FILE_SHORTFIN)
 SHORTFIN_PACKAGE_VERSION = shortfin_version.get("package-version")
@@ -65,13 +65,12 @@ if Version(PACKAGE_VERSION).is_prerelease:
     requirements = ""
     for package in stable_packages_list:
         requirements += package + "\n"
-    # TODO: Include sharktank as a dependencies of future releases
-    # requirements = (
-    #     "sharktank=="
-    #     + Version(SHARKTANK_PACKAGE_VERSION).base_version
-    #     + args.version_suffix
-    #     + "\n"
-    # )
+    requirements = (
+        "sharktank=="
+        + Version(SHARKTANK_PACKAGE_VERSION).base_version
+        + args.version_suffix
+        + "\n"
+    )
     requirements += (
         "shortfin=="
         + Version(SHORTFIN_PACKAGE_VERSION).base_version
@@ -89,10 +88,9 @@ else:
     requirements = ""
     for package in stable_packages_list:
         requirements += package + "==" + STABLE_VERSION_TO_PIN + "\n"
-    # TODO: Include sharktank as a dependencies of future releases
-    # requirements += (
-    #     "sharktank==" + Version(SHARKTANK_PACKAGE_VERSION).base_version + "\n"
-    # )
+    requirements += (
+        "sharktank==" + Version(SHARKTANK_PACKAGE_VERSION).base_version + "\n"
+    )
     requirements += "shortfin==" + Version(SHORTFIN_PACKAGE_VERSION).base_version
 
     write_requirements(requirements)

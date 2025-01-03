@@ -92,6 +92,7 @@ class ExportArtifacts:
         iree_hal_target_backends: str,
         attention_kernel: str,
         tensor_parallelism_size: int,
+        block_seq_stride: int,
     ):
         self.sharktank_dir = str(
             Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent
@@ -102,6 +103,7 @@ class ExportArtifacts:
         self.iree_hal_target_backends = iree_hal_target_backends
         self.attention_kernel = attention_kernel
         self.tensor_parallelism_size = tensor_parallelism_size
+        self.block_seq_stride = block_seq_stride
 
     def timeit(func):
         def wrapper(*args, **kwargs):
@@ -178,6 +180,7 @@ class ExportArtifacts:
             f"--output-mlir={mlir_path}",
             f"--output-config={json_path}",
             f"--bs={str(self.batch_size)}",
+            f"--block-seq-stride={self.block_seq_stride}",
         ]
         if skip_decode:
             export_args.append("--skip-decode")
@@ -280,7 +283,6 @@ class ExportArtifacts:
         benchmark_args += [
             "iree-benchmark-module",
             "--hip_use_streams=true",
-            "--hip_allow_inline_execution=true",
             "--device_allocator=caching",
             f"--module={vmfb_name}",
         ]

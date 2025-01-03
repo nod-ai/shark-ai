@@ -8,6 +8,7 @@
 
 #include <fmt/core.h>
 #include <fmt/ranges.h>
+#include <fmt/xchar.h>
 
 #include "shortfin/local/system.h"
 #include "shortfin/support/logging.h"
