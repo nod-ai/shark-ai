@@ -118,26 +118,22 @@ class ContractionOpInterfaceParser(DispatchParser):
         assert matcher.lhs_dims, "no lhs dimensions"
         assert matcher.rhs_dims, "no rhs dimensions"
         assert matcher.res_dims, "no result dimensions"
-        assert len(cdims.batch) <= 1, f"must have at most 1 batch dimension"
-        assert len(cdims.m) == 1, f"must have a single m dimension"
-        assert len(cdims.n) == 1, f"must have a single n dimension"
-        assert len(cdims.k) == 1, f"must have a single k dimension"
         lhs_type = ir.RankedTensorType(contraction_op.operands[0].type)
         rhs_type = ir.RankedTensorType(contraction_op.operands[1].type)
         res_type = ir.RankedTensorType(contraction_op.operands[2].type)
-        matmul_size = MatmulSize(
-            lhs_type.shape[matcher.lhs_dims.index(cdims.m[0])],
-            rhs_type.shape[matcher.rhs_dims.index(cdims.n[0])],
-            lhs_type.shape[matcher.lhs_dims.index(cdims.k[0])],
+        matmul_size = ContractionSizes(
+            M=[lhs_type.shape[matcher.lhs_dims.index(dim)] for dim in cdims.m],
+            N=[rhs_type.shape[matcher.rhs_dims.index(dim)] for dim in cdims.n],
+            K=[lhs_type.shape[matcher.lhs_dims.index(dim)] for dim in cdims.k],
+            B=[lhs_type.shape[matcher.lhs_dims.index(dim)] for dim in cdims.batch],
         )
-        if len(cdims.batch) == 1:
-            matmul_size.B = lhs_type.shape[matcher.lhs_dims.index(cdims.batch[0])]
         return ProblemSize(
             matmul_size,
             lhs_type=ShapedType(lhs_type.shape, lhs_type.element_type),
             rhs_type=ShapedType(rhs_type.shape, rhs_type.element_type),
             res_type=ShapedType(res_type.shape, res_type.element_type),
             dispatch_kind=DispatchKind.contraction,
+            cdims=matcher.contraction_dimensions,
         )
 
 

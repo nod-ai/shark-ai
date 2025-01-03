@@ -428,6 +428,11 @@ class ExecutionPhases(str, Enum):
     benchmark_models = "benchmark-models"
 
 
+class CodegenPipelines(str, Enum):
+    llvmgpu_vector_distribute = "llvmgpu_vector_distribute"
+    llvmgpu_tile_and_fuse = "llvmgpu_tile_and_fuse"
+
+
 def parse_arguments(
     initial_parser: Optional[argparse.ArgumentParser] = None,
 ) -> argparse.Namespace:
@@ -498,6 +503,12 @@ def parse_arguments(
     )
     candidate_gen_args.add_argument(
         "--tile-dims", help="Map of tile size matmul dims", type=str, default="mnk"
+    )
+    general_args.add_argument(
+        "--codegen-pipeline",
+        choices=[x.value for x in CodegenPipelines],
+        default=CodegenPipelines.llvmgpu_vector_distribute,
+        help="Codegen pipeline to tune for",
     )
 
     return parser.parse_args()
@@ -1038,6 +1049,16 @@ def generate_candidates(
     return candidates
 
 
+def get_iree_codegen_pipeline(pipeline: CodegenPipelines):
+    match pipeline:
+        case CodegenPipelines.llvmgpu_vector_distribute:
+            return iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute
+        case CodegenPipelines.llvmgpu_tile_and_fuse:
+            return iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse
+        case _:
+            assert False, "unexpected codegen pipeline"
+
+
 def generate_candidate_specs(
     args: argparse.Namespace,
     path_config: PathConfig,
@@ -1065,6 +1086,7 @@ def generate_candidate_specs(
                 tuner_context=tuning_client.tuner_context,
                 limit=args.num_candidates,
                 num_subgroups=args.num_subgroups,
+                codegen_pipeline=get_iree_codegen_pipeline(args.codegen_pipeline),
             )
         logging.debug("candidate_gen.py ends")
         handle_error(
