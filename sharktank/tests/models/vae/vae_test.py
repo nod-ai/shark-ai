@@ -259,15 +259,21 @@ class VaeFluxDecoderTest(unittest.TestCase):
             dtype=torch.float32, device="cpu", bs=1, config="flux"
         )
         ref_results = run_flux(inputs.to(dtype), dtype)
+        ref_results_f32 = run_flux(inputs, torch.float32)
 
         ds = Dataset.load("flux_vae/vae_bf16.irpa", file_type="irpa")
+        ds_f32 = Dataset.load("flux_vae/vae_f32.irpa", file_type="irpa")
 
         model = VaeDecoderModel.from_dataset(ds).to(device="cpu")
+        model_f32 = VaeDecoderModel.from_dataset(ds_f32).to(device="cpu")
 
         # TODO: Decomposing attention due to https://github.com/iree-org/iree/issues/19286, remove once issue is resolved
         module = export_vae(model, inputs, True)
+        module_f32 = export_vae(model_f32, inputs, True)
 
-        module.save_mlir("flux_vae/vae.mlir")
+        module.save_mlir("flux_vae/vae_bf16.mlir")
+        module_f32.save_mlir("flux_vae/vae_f32.mlir")
+
         extra_args = [
             "--iree-hal-target-backends=rocm",
             "--iree-hip-target=gfx942",
@@ -284,17 +290,22 @@ class VaeFluxDecoderTest(unittest.TestCase):
         ]
 
         iree.compiler.compile_file(
-            "flux_vae/vae.mlir",
-            output_file="flux_vae/vae.vmfb",
+            "flux_vae/vae_bf16.mlir",
+            output_file="flux_vae/vae_bf16.vmfb",
+            extra_args=extra_args,
+        )
+        iree.compiler.compile_file(
+            "flux_vae/vae_f32.mlir",
+            output_file="flux_vae/vae_f32.vmfb",
             extra_args=extra_args,
         )
 
         iree_devices = get_iree_devices(driver="hip", device_count=1)
 
         iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
-            module_path="flux_vae/vae.vmfb",
+            module_path="flux_vae/vae_bf16.vmfb",
             devices=iree_devices,
-            parameters_path="flux_vae/vae.irpa",
+            parameters_path="flux_vae/vae_bf16.irpa",
         )
 
         input_args = OrderedDict([("inputs", inputs)])
@@ -315,6 +326,30 @@ class VaeFluxDecoderTest(unittest.TestCase):
 
         # TODO verify these numerics
         torch.testing.assert_close(ref_results, iree_result, atol=3.3e-2, rtol=4e5)
+
+        iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
+            module_path="flux_vae/vae_f32.vmfb",
+            devices=iree_devices,
+            parameters_path="flux_vae/vae_f32.irpa",
+        )
+
+        input_args = OrderedDict([("inputs", inputs)])
+        iree_args = flatten_for_iree_signature(input_args)
+
+        iree_args = prepare_iree_module_function_args(
+            args=iree_args, devices=iree_devices
+        )
+        iree_result_f32 = device_array_to_host(
+            run_iree_module_function(
+                module=iree_module,
+                vm_context=iree_vm_context,
+                args=iree_args,
+                driver="hip",
+                function_name="forward",
+            )[0]
+        )
+
+        torch.testing.assert_close(ref_results_f32, iree_result_f32)
 
 
 if __name__ == "__main__":
