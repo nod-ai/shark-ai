@@ -69,7 +69,7 @@ python -m shortfin_apps.sd.server --help
 
 ## Getting started
 
-As part of our current release we support serving [SDXL](https://stablediffusionxl.com/) and [Llama 3.1](https://ai.meta.com/blog/meta-llama-3-1/) variants as well as an initial release of <code>sharktank</code>, SHARK's model development toolkit which is leveraged in order to compile these models to be high performant.
+As part of our current release we support serving [SDXL](https://stablediffusionxl.com/) and [Llama 3.1](https://ai.meta.com/blog/meta-llama-3-1/) variants as well as an initial release of `sharktank`, SHARK's model development toolkit which is leveraged in order to compile these models to be high performant.
 
 ### SDXL
 
@@ -80,6 +80,6 @@ To get started with SDXL, please follow the [SDXL User Guide](../shortfin/python
 
 To get started with Llama 3.1, please follow the [Llama User Guide](shortfin/llm/user/llama_serving.md).
 
-* Once you've set up the Llama server in the guide above, we recommend that you use [SGLang Frontend](https://sgl-project.github.io/frontend/frontend.html) by following the [Using <code>shortfin</code> with <code>sglang</code> guide](shortfin/llm/user/shortfin_with_sglang_frontend_language.md)
+* Once you've set up the Llama server in the guide above, we recommend that you use [SGLang Frontend](https://sgl-project.github.io/frontend/frontend.html) by following the [Using `shortfin` with `sglang` guide](shortfin/llm/user/shortfin_with_sglang_frontend_language.md)
 * If you would like to deploy LLama on a Kubernetes cluster we also provide a simple set of instructions and deployment configuration to do so [here](shortfin/llm/user/llama_serving_on_kubernetes.md).
-* Finally, if you'd like to leverage the instructions above to run against a different variant of Llama 3.1, it's supported. However, you will need to generate a gguf dataset for that variant. In order to do this leverage the [HuggingFace](https://huggingface.co/)'s [<code>huggingface-cli</code>](https://huggingface.co/docs/huggingface_hub/en/guides/cli) in combination with [llama.cpp](https://github.com/ggerganov/llama.cpp)'s convert_hf_to_gguf.py. In future releases, we plan to streamline these instructions to make it easier for users to compile their own models from HuggingFace.
+* Finally, if you'd like to leverage the instructions above to run against a different variant of Llama 3.1, it's supported. However, you will need to generate a gguf dataset for that variant. In order to do this leverage the [HuggingFace](https://huggingface.co/)'s [`huggingface-cli`](https://huggingface.co/docs/huggingface_hub/en/guides/cli) in combination with [llama.cpp](https://github.com/ggerganov/llama.cpp)'s convert_hf_to_gguf.py. In future releases, we plan to streamline these instructions to make it easier for users to compile their own models from HuggingFace.
