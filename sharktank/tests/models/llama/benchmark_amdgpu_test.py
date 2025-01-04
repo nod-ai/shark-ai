@@ -453,6 +453,9 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             "--benchmark_repetitions=3",
         ]
 
+    @pytest.mark.xfail(
+        reason="Benchmarking Error", strict=True, raises=IreeBenchmarkException
+    )
     def testBenchmark70B_f16_TP8_Non_Decomposed_Input_Len_128(self):
         output_file_name = self.dir_path_70b / "f16_torch_128"
         output_mlir = self.llama70b_f16_torch_sdpa_artifacts.create_file(
@@ -469,7 +472,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             / f"fp16/tp8/llama3.1_70b_fp16_tp{self.tensor_parallelism_size}_parameters.irpa"
         )
         if output_shard_file_name.exists():
-            self.irpa_path = output_shard_file_name
+            self.llama70b_f16_torch_sdpa_artifacts.irpa_path = output_shard_file_name
         export_return_code = self.llama70b_f16_torch_sdpa_artifacts.export_to_mlir(
             mlir_path=output_mlir,
             json_path=output_json,
@@ -499,6 +502,54 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         )
 
     @pytest.mark.xfail(
+        reason="Benchmarking Error", strict=True, raises=IreeBenchmarkException
+    )
+    def testBenchmark70B_f16_TP8_Non_Decomposed_Input_Len_2048(self):
+        output_file_name = self.dir_path_70b / "f16_torch_2048"
+        output_mlir = self.llama70b_f16_torch_sdpa_artifacts.create_file(
+            suffix=".mlir", prefix=output_file_name
+        )
+        output_json = self.llama70b_f16_torch_sdpa_artifacts.create_file(
+            suffix=".json", prefix=output_file_name
+        )
+        output_vmfb = self.llama70b_f16_torch_sdpa_artifacts.create_file(
+            suffix=".vmfb", prefix=output_file_name
+        )
+        output_shard_file_name = (
+            self.artifacts_dir
+            / f"fp16/tp8/llama3.1_70b_fp16_tp{self.tensor_parallelism_size}_parameters.irpa"
+        )
+        if output_shard_file_name.exists():
+            self.llama70b_f16_torch_sdpa_artifacts.irpa_path = output_shard_file_name
+        export_return_code = self.llama70b_f16_torch_sdpa_artifacts.export_to_mlir(
+            mlir_path=output_mlir,
+            json_path=output_json,
+        )
+        self.llama70b_f16_torch_sdpa_artifacts.compile_to_vmfb(
+            mlir_path=str(output_mlir),
+            vmfb_path=output_vmfb,
+            hal_dump_path=output_file_name,
+            cwd=self.repo_root,
+            args=self.compile_args,
+        )
+        # benchmark prefill
+        self.llama70b_f16_torch_sdpa_artifacts.iree_benchmark_vmfb(
+            hip_device_id=self.iree_device,
+            vmfb_name=output_vmfb,
+            irpa_path=self.irpa_path,
+            args=self.iree_run_prefill_nondecomposed_args_2048_tp8_fp16,
+            cwd=self.repo_root,
+        )
+        # benchmark decode
+        self.llama70b_f16_torch_sdpa_artifacts.iree_benchmark_vmfb(
+            hip_device_id=self.iree_device,
+            vmfb_name=output_vmfb,
+            irpa_path=self.irpa_path,
+            args=self.iree_run_decode_nondecomposed_args_2048_tp8_fp16,
+            cwd=self.repo_root,
+        )
+
+    @pytest.mark.xfail(
         reason="70b fp8 irpa does not exist", strict=True, raises=ExportMlirException
     )
     def testBenchmark70B_fp8_TP8_Decomposed(self):
@@ -517,7 +568,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             / f"f8/tp8/llama3.1_70b_fp8_tp{self.tensor_parallelism_size}_parameters.irpa"
         )
         if output_shard_file_name.exists():
-            self.irpa_path = output_shard_file_name
+            self.llama70b_f16_torch_sdpa_artifacts.irpa_path = output_shard_file_name
         export_return_code = self.llama70b_fp8_decomposed_artifacts.export_to_mlir(
             mlir_path=output_mlir,
             json_path=output_json,
@@ -565,7 +616,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             / f"f8/tp8/llama3.1_70b_fp8_tp{self.tensor_parallelism_size}_parameters.irpa"
         )
         if output_shard_file_name.exists():
-            self.irpa_path = output_shard_file_name
+            self.llama70b_f16_torch_sdpa_artifacts.irpa_path = output_shard_file_name
         export_return_code = self.llama70b_fp8_torch_sdpa_artifacts.export_to_mlir(
             mlir_path=output_mlir,
             json_path=output_json,
@@ -702,7 +753,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             / f"fp16/tp8/llama3.1_405b_fp16_tp{self.tensor_parallelism_size}_parameters.irpa"
         )
         if output_shard_file_name.exists():
-            self.irpa_path = output_shard_file_name
+            self.llama405b_f16_torch_sdpa_artifacts.irpa_path = output_shard_file_name
         export_return_code = self.llama405b_f16_torch_sdpa_artifacts.export_to_mlir(
             mlir_path=output_mlir,
             json_path=output_json,
@@ -751,7 +802,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             / f"f8/tp8/llama3.1_405b_fp8_tp{self.tensor_parallelism_size}_parameters.irpa"
         )
         if output_shard_file_name.exists():
-            self.irpa_path = output_shard_file_name
+            self.llama405b_fp8_decomposed_artifacts.irpa_path = output_shard_file_name
         export_return_code = self.llama405b_fp8_decomposed_artifacts.export_to_mlir(
             mlir_path=output_mlir,
             json_path=output_json,
@@ -799,7 +850,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             / f"f8/tp8/llama3.1_405b_fp8_tp{self.tensor_parallelism_size}_parameters.irpa"
         )
         if output_shard_file_name.exists():
-            self.irpa_path = output_shard_file_name
+            self.llama405b_fp8_decomposed_artifacts.irpa_path = output_shard_file_name
         export_return_code = self.llama405b_fp8_torch_sdpa_artifacts.export_to_mlir(
             mlir_path=output_mlir,
             json_path=output_json,
