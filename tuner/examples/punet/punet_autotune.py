@@ -23,6 +23,7 @@ python -m examples.punet benchmark.mlir --num-candidates=64 --num-model-candidat
 
 from tuner import libtuner
 from pathlib import Path
+import os
 
 
 class PunetClient(libtuner.TuningClient):
@@ -53,7 +54,7 @@ class PunetClient(libtuner.TuningClient):
         command = [
             "iree-benchmark-module",
             f"--device={libtuner.DEVICE_ID_PLACEHOLDER}",
-            f"--module={compiled_vmfb_path.resolve()}",
+            f"--module={os.path.abspath(compiled_vmfb_path)}",
             "--hip_use_streams=true",
             "--hip_allow_inline_execution=true",
             "--batch_size=1000",
@@ -71,13 +72,13 @@ class PunetClient(libtuner.TuningClient):
     ) -> list[str]:
         mlir_spec_path = candidate_tracker.spec_path
         assert mlir_spec_path is not None
-        target_dir = mlir_spec_path.resolve().parent.parent.parent
+        target_dir = Path(os.path.abspath(mlir_spec_path)).parent.parent.parent
         output_name = f"unet_candidate_{candidate_tracker.candidate_id}.vmfb"
         command = [
             "compile-punet-base.sh",
             "iree-compile",
             "gfx942",
-            f"{mlir_spec_path.resolve()}",
+            f"{os.path.abspath(mlir_spec_path)}",
             "./punet.mlir",
             "-o",
             (target_dir / output_name).as_posix(),
@@ -99,7 +100,7 @@ class PunetClient(libtuner.TuningClient):
             "--hip_use_streams=true",
             "--hip_allow_inline_execution=true",
             "--device_allocator=caching",
-            f"--module={unet_candidate_path.resolve()}",
+            f"--module={os.path.abspath(unet_candidate_path)}",
             "--parameters=model=punet.irpa",
             "--function=main",
             "--input=1x4x128x128xf16",

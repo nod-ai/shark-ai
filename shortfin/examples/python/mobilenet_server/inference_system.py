@@ -8,6 +8,7 @@
 import asyncio
 from pathlib import Path
 import sys
+import os
 
 import shortfin as sf
 import shortfin.array as sfnp
@@ -152,5 +153,5 @@ def run_cli(home_dir: Path, argv):
 
 
 if __name__ == "__main__":
-    home_dir = Path(__file__).resolve().parent
+    home_dir = Path(os.path.abspath(__file__)).parent
     run_cli(home_dir, sys.argv[1:])
