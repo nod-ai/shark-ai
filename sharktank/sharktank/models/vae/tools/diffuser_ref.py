@@ -7,6 +7,8 @@
 import argparse
 import torch
 from diffusers import AutoencoderKL
+from einops import rearrange
+import math
 
 
 class VaeModel(torch.nn.Module):
@@ -51,6 +53,34 @@ class VaeModel(torch.nn.Module):
 
 
 def run_torch_vae(hf_model_name, example_input):
-
     vae_model = VaeModel(hf_model_name)
     return vae_model.decode(example_input)
+
+
+# TODO Remove and integrate with VaeModel
+class FluxAEWrapper(torch.nn.Module):
+    def __init__(self, height=1024, width=1024):
+        super().__init__()
+        self.ae = AutoencoderKL.from_pretrained(
+            "black-forest-labs/FLUX.1-dev", subfolder="vae", torch_dtype=torch.bfloat16
+        )
+        self.height = height
+        self.width = width
+
+    def forward(self, z):
+        d_in = rearrange(
+            z,
+            "b (h w) (c ph pw) -> b c (h ph) (w pw)",
+            h=math.ceil(self.height / 16),
+            w=math.ceil(self.width / 16),
+            ph=2,
+            pw=2,
+        )
+        d_in = d_in / self.ae.config.scaling_factor + self.ae.config.shift_factor
+        return self.ae.decode(d_in, return_dict=False)[0].clamp(-1, 1)
+
+
+def run_flux(example_input, dtype):
+    # TODO add support for other height/width sizes
+    vae_model = FluxAEWrapper(1024, 1024).to(dtype)
+    return vae_model.forward(example_input)

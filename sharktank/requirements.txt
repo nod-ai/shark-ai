@@ -5,9 +5,10 @@ gguf>=0.11.0
 numpy
 
 # Model deps.
-huggingface-hub==0.22.2
+huggingface-hub
 transformers==4.40.0
 datasets
+einops
 
 # Serving deps.
 fastapi>=0.112.2

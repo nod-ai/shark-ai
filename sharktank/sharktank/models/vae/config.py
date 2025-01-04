@@ -38,6 +38,8 @@ class HParams:
     layers_per_block: int = 2
     norm_num_groups: int = 32
     scaling_factor: float = 0.13025
+    use_post_quant_conv: bool = True
+    shift_factor: float = 0.0
 
     def assert_default_values(self, attr_names: Sequence[str]):
         for name in attr_names:
