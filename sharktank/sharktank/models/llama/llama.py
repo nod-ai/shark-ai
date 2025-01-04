@@ -67,6 +67,7 @@ class PagedLlamaModelV1(BaseCausalLMModel):
         super().__init__(
             theta,
             context_length=config.hp.context_length,
+            static_tables=config.static_tables,
             device=config.device,
             activation_dtype=config.activation_dtype,
             attention_dtype=config.attention_dtype,
@@ -91,6 +92,7 @@ class PagedLlamaModelV1(BaseCausalLMModel):
                 max_seqlen=hp.context_length,
                 device=self.device,
                 use_hf=self.use_hf,
+                static_tables=config.static_tables,
                 tensor_parallelism_size=config.tensor_parallelism_size,
             ),
         )
@@ -124,7 +126,7 @@ class PagedLlamaModelV1(BaseCausalLMModel):
         tokens: Union[torch.Tensor, ReplicatedTensor],
         *,
         # [1, 1, batch_seq_len, batch_seq_len]
-        attention_mask: Optional[Union[torch.Tensor, ReplicatedTensor]],
+        attention_mask: Union[torch.Tensor, ReplicatedTensor],
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: Union[torch.Tensor, ReplicatedTensor],
         cache_state: list[Union[torch.Tensor, SplitPrimitiveTensor]],

@@ -221,7 +221,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 k=keys,  # [bs, ..., sl, dim]
                 v=values,  # [bs, ..., sl, dim]
                 a=attention_mask,  # [bs, ..., sl, sl]
-                is_causal=attention_mask is None,  # assumes causal masking when true
+                is_causal=False,  # assumes causal masking when true
                 scale=None,  # defaults to 1/sqrt(dim)
             )
 
