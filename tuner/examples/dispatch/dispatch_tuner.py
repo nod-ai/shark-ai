@@ -22,7 +22,7 @@ python -m examples.dispatch benchmark.mlir --num-candidates=64 --dry-run
 """
 
 from tuner import libtuner
-from pathlib import Path, PurePath
+from pathlib import Path
 import os
 
 
@@ -35,7 +35,7 @@ class DispatchTuner(libtuner.TuningClient):
     ) -> list[str]:
         assert candidate_tracker.dispatch_mlir_path is not None
         mlir_path: Path = candidate_tracker.dispatch_mlir_path
-        script_dir = Path(__file__).absolute().parent
+        script_dir = Path(os.path.abspath(__file__)).parent
         command = [
             (script_dir / "compile_dispatch.sh").as_posix(),
             mlir_path.as_posix(),
@@ -55,7 +55,7 @@ class DispatchTuner(libtuner.TuningClient):
         command = [
             "iree-benchmark-module",
             f"--device={libtuner.DEVICE_ID_PLACEHOLDER}",
-            f"--module={compiled_vmfb_path.absolute()}",
+            f"--module={os.path.abspath(compiled_vmfb_path)}",
             "--batch_size=1000",
             "--benchmark_repetitions=3",
             "--benchmark_format=json",
@@ -93,7 +93,7 @@ def main():
     args = libtuner.parse_arguments()
     path_config = libtuner.PathConfig()
     # These will not be used, so always default to the empty config in the script dir.
-    script_dir = Path(__file__).absolute().parent
+    script_dir = Path(os.path.abspath(__file__)).parent
     path_config.global_config_prolog_mlir = (
         script_dir / path_config.global_config_prolog_mlir
     )
@@ -133,7 +133,7 @@ def main():
     top_candidates = libtuner.benchmark_dispatches(
         args, path_config, compiled_candidates, candidate_trackers, dispatch_tuner
     )
-    print(f"\nStored results in {path_config.output_unilog.absolute()}\n")
+    print(f"\nStored results in {os.path.abspath(path_config.output_unilog)}\n")
     if stop_after_phase == libtuner.ExecutionPhases.benchmark_dispatches:
         return
 
@@ -141,7 +141,7 @@ def main():
     print(f"Candidate trackers are saved in {path_config.candidate_trackers_pkl}\n")
 
     print("Check the detailed execution logs in:")
-    print(path_config.run_log.absolute())
+    print(os.path.abspath(path_config.run_log))
 
     for candidate in candidate_trackers:
         libtuner.logging.debug(candidate)

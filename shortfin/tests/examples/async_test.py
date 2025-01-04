@@ -10,8 +10,9 @@
 from pathlib import Path
 import subprocess
 import sys
+import os
 
-project_dir = Path(__file__).absolute().parent.parent.parent
+project_dir = Path(os.path.abspath(__file__)).parent.parent.parent
 example_dir = project_dir / "examples" / "python"
 
 

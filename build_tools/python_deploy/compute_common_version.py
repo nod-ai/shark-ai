@@ -18,6 +18,7 @@ from pathlib import Path
 import json
 from datetime import datetime
 import subprocess
+import os
 
 from packaging.version import Version
 
@@ -33,7 +34,7 @@ release_type.add_argument("--version-suffix", action="store", type=str)
 
 args = parser.parse_args()
 
-THIS_DIR = Path(__file__).parent.absolute()
+THIS_DIR = Path(os.path.abspath(__file__)).parent
 REPO_ROOT = THIS_DIR.parent.parent
 
 VERSION_FILE_SHARKTANK_PATH = REPO_ROOT / "sharktank/version.json"
