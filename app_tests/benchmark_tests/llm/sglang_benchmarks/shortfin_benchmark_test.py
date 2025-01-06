@@ -7,7 +7,6 @@
 import logging
 import multiprocessing
 import os
-from pathlib import Path
 import pytest
 import time
 from unittest.mock import patch
