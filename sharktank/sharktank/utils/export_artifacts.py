@@ -92,7 +92,7 @@ class ExportArtifacts:
         attention_kernel: str,
         tensor_parallelism_size: int,
         block_seq_stride: int,
-        iree_hal_target_device: Optional[str] = None,
+        iree_hal_target_device: str,
     ):
         self.sharktank_dir = str(
             Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent
@@ -220,11 +220,13 @@ class ExportArtifacts:
         ]
         if self.tensor_parallelism_size > 1:
             iree_hal_target_devices = [
-                f"--iree-hal-target-device=hip[{i}]"
+                f"--iree-hal-target-device={self.iree_hal_target_device}[{i}]"
                 for i in range(self.tensor_parallelism_size)
             ]
         else:
-            iree_hal_target_devices = ["--iree-hal-target-device=hip"]
+            iree_hal_target_devices = [
+                f"--iree-hal-target-device={self.iree_hal_target_device}"
+            ]
         compile_args += iree_hal_target_devices
         if hal_dump_path:
             compile_args += [
