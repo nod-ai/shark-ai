@@ -232,6 +232,7 @@ def send_json_file(url="http://0.0.0.0:8000", num_copies=1):
 
     except requests.exceptions.RequestException as e:
         print(f"Error sending the request: {e}")
+        raise e
 
     return imgs, response.status_code
 
