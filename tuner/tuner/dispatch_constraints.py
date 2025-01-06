@@ -232,15 +232,16 @@ def generate_solutions(
             problem_size.lhs_type.element_type,
             problem_size.rhs_type.element_type,
         )
+        workgroup_tiles = [lookup(m), lookup(n), 0]
+        reduction_tiles = [0, 0, lookup(k)]
+        if problem_size.dispatch_kind == DispatchKind.conv:
+            workgroup_tiles = [1, 1, lookup(m), lookup(n), 0, 0, 0]
+            reduction_tiles = [0, 0, 0, 0, 1, 1, lookup(k)]
         lowering_config = get_lowering_config(
             tuner_ctx=tuner_ctx,
             mma_kind=mma_attr,
-            workgroup=[lookup(m), lookup(n), 0],
-            reduction=[
-                0,
-                0,
-                lookup(k),
-            ],
+            workgroup=workgroup_tiles,
+            reduction=reduction_tiles,
             subgroup_m_count=lookup(sg_m_cnt),
             subgroup_n_count=lookup(sg_n_cnt),
         )
