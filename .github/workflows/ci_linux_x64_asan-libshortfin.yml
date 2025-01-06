@@ -9,15 +9,9 @@ name: CI - shortfin - ASan
 on:
   workflow_dispatch:
   pull_request:
-    paths:
-      - '.github/workflows/ci_linux_x64_asan-libshortfin.yml'
-      - 'shortfin/**'
   push:
     branches:
       - main
-    paths:
-      - '.github/workflows/ci_linux_x64_asan-libshortfin.yml'
-      - 'shortfin/**'
 
 permissions:
   contents: read

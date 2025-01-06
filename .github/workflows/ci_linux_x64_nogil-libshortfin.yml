@@ -9,16 +9,9 @@ name: CI - shortfin - Python 3.13 Free-threaded
 on:
   workflow_dispatch:
   pull_request:
-    paths:
-      - '.github/workflows/ci_linux_x64-libshortfin.yml'
-      - 'shortfin/**'
-
   push:
     branches:
       - main
-    paths:
-      - '.github/workflows/ci_linux_x64-libshortfin.yml'
-      - 'shortfin/**'
 
 permissions:
   contents: read

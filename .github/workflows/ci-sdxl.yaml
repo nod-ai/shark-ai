@@ -9,15 +9,9 @@ name: CI - shortfin - SDXL
 on:
   workflow_dispatch:
   pull_request:
-    paths:
-      - '.github/workflows/ci-sdxl.yaml'
-      - 'shortfin/**'
   push:
     branches:
       - main
-    paths:
-      - '.github/workflows/ci-sdxl.yaml'
-      - 'shortfin/**'
 
 permissions:
   contents: read
