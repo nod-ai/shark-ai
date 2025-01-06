@@ -90,7 +90,6 @@ def main():
 
     path_config = libtuner.PathConfig()
     path_config.base_dir.mkdir(parents=True, exist_ok=True)
-    path_config.output_unilog.touch()
     # TODO(Max191): Make candidate_trackers internal to TuningClient.
     candidate_trackers: list[libtuner.CandidateTracker] = []
     stop_after_phase: str = args.stop_after

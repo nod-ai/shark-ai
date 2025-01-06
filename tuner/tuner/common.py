@@ -45,12 +45,8 @@ class TunerContext:
 
 
 class DispatchKind(Enum):
-    conv = 1
-    mmt = 2
-    contraction = 3
-    batch_mmt = 4
-    batch_matmul = 5
-    broadcast_rhs_mmt = 6
+    conv = 0
+    contraction = 1
 
 
 @dataclass
@@ -108,11 +104,10 @@ def get_compatible_mfma_intrinsics(
         a_type, b_type, c_type = mma_attr.abc_element_types
         if not isinstance(problem_size.res_type.element_type, type(c_type)):
             return False
-        if problem_size.dispatch_kind != DispatchKind.batch_matmul:
-            if not isinstance(
-                problem_size.lhs_type.element_type, type(a_type)
-            ) or not isinstance(problem_size.rhs_type.element_type, type(b_type)):
-                return False
+        if not isinstance(
+            problem_size.lhs_type.element_type, type(a_type)
+        ) or not isinstance(problem_size.rhs_type.element_type, type(b_type)):
+            return False
         return True
 
     return list(filter(is_comptible, mma_intrinsics))
