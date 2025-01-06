@@ -142,7 +142,7 @@ jobs:
       run: |
         eval "$(pyenv init -)"
         pip install -r requirements-tests.txt
-        pip install -r requirements-iree-compiler.txt
+        pip install -r ../requirements-iree-pinned.txt
         pip freeze
 
     - name: Save Python dependencies cache
