@@ -61,10 +61,10 @@ optimal parameter configurations to use during model compilation.
 
 ### Models
 
-Model name | Model recipes | Serving apps
----------- | ------------- | ------------
-SDXL       | [`sharktank/sharktank/models/punet/`](https://github.com/nod-ai/shark-ai/tree/main/sharktank/sharktank/models/punet) | [`shortfin/python/shortfin_apps/sd/`](https://github.com/nod-ai/shark-ai/tree/main/shortfin/python/shortfin_apps/sd)
-llama      | [`sharktank/sharktank/models/llama/`](https://github.com/nod-ai/shark-ai/tree/main/sharktank/sharktank/models/llama) | [`shortfin/python/shortfin_apps/llm/`](https://github.com/nod-ai/shark-ai/tree/main/shortfin/python/shortfin_apps/llm)
+Model name | Model recipes | Serving apps | Guide |
+---------- | ------------- | ------------ | ----- |
+SDXL       | [`sharktank/sharktank/models/punet/`](https://github.com/nod-ai/shark-ai/tree/main/sharktank/sharktank/models/punet) | [`shortfin/python/shortfin_apps/sd/`](https://github.com/nod-ai/shark-ai/tree/main/shortfin/python/shortfin_apps/sd) | [shortfin/python/shortfin_apps/sd/README.md](shortfin/python/shortfin_apps/sd/README.md)
+llama      | [`sharktank/sharktank/models/llama/`](https://github.com/nod-ai/shark-ai/tree/main/sharktank/sharktank/models/llama) | [`shortfin/python/shortfin_apps/llm/`](https://github.com/nod-ai/shark-ai/tree/main/shortfin/python/shortfin_apps/llm) | [docs/shortfin/llm/user/llama_serving.md](docs/shortfin/llm/user/llama_serving.md)
 
 ## SHARK Developers
 
