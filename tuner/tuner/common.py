@@ -43,6 +43,14 @@ class TunerContext:
         self.logger: logging.Logger = logger
         self.type: CommonTypes = CommonTypes(mlir_ctx)
 
+    def __enter__(self):
+        self.mlir_ctx.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.mlir_ctx.__exit__(exc_type, exc_value, traceback)
+        return False
+
 
 class DispatchKind(Enum):
     conv = 0

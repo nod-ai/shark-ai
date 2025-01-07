@@ -103,10 +103,18 @@ class PathConfig:
 
 
 class TuningClient(ABC):
-    def __init__(self):
-        mlir_ctx = ir.Context()
-        logger = logging.getLogger("tune")
-        self.tuner_context = TunerContext(mlir_ctx, logger)
+    def __init__(self, tuner_context: TunerContext):
+        self.tuner_context = tuner_context
+
+    def __enter__(self):
+        # Enter the context of TunerContext
+        self.tuner_context.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        # Exit the context of TunerContext
+        self.tuner_context.__exit__(exc_type, exc_value, traceback)
+        return False
 
     @abstractmethod
     def get_iree_compile_flags(self) -> list[str]:
@@ -644,11 +652,11 @@ def generate_candidate_specs(
         # source mlir.
         mlir_text = candidate_gen.strip_compilation_info(path_config.template_mlir)
         mlir_module = dispatch_parser.parse_mlir(mlir_text, tuning_client.tuner_context)
-        with tuning_client.tuner_context.mlir_ctx:
+        with tuning_client.tuner_context as tuner_context:
             logging.debug("Captured messages from candidate_gen.py:")
             config_specs: list[ir.Module] = candidate_gen.generate_configs_and_td_specs(
                 input_module=mlir_module,
-                tuner_context=tuning_client.tuner_context,
+                tuner_context=tuner_context,
                 limit=args.num_candidates,
                 num_subgroups=args.num_subgroups,
                 codegen_pipeline=get_iree_codegen_pipeline(args.codegen_pipeline),

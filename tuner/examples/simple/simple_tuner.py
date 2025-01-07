@@ -5,13 +5,16 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import argparse
+import logging
 from pathlib import Path
 from tuner import libtuner
+from iree.compiler import ir  # type: ignore
+from tuner.common import *
 
 
 class TestTuner(libtuner.TuningClient):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, tuner_context: libtuner.TunerContext):
+        super().__init__(tuner_context)
         self.compile_flags = ["--compile-from=executable-sources"]
         self.benchmark_flags = ["--benchmark_repetitions=3", "--input=1"]
 
