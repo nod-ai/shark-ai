@@ -642,15 +642,14 @@ def generate_candidate_specs(
         # source mlir.
         mlir_text = candidate_gen.strip_compilation_info(path_config.template_mlir)
         mlir_module = dispatch_parser.parse_mlir(mlir_text, tuning_client.tuner_context)
-        with tuning_client.tuner_context as tuner_context:
-            logging.debug("Captured messages from candidate_gen.py:")
-            config_specs: list[ir.Module] = candidate_gen.generate_configs_and_td_specs(
-                input_module=mlir_module,
-                tuner_context=tuner_context,
-                limit=args.num_candidates,
-                num_subgroups=args.num_subgroups,
-                codegen_pipeline=get_iree_codegen_pipeline(args.codegen_pipeline),
-            )
+        logging.debug("Captured messages from candidate_gen.py:")
+        config_specs: list[ir.Module] = candidate_gen.generate_configs_and_td_specs(
+            input_module=mlir_module,
+            tuner_context=tuning_client.tuner_context,
+            limit=args.num_candidates,
+            num_subgroups=args.num_subgroups,
+            codegen_pipeline=get_iree_codegen_pipeline(args.codegen_pipeline),
+        )
         logging.debug("candidate_gen.py ends")
         handle_error(
             condition=(len(config_specs) <= 1), msg="Failed to generate any candidates"

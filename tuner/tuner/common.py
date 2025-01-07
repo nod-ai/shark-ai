@@ -4,10 +4,10 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from __future__ import annotations
 import logging
 from dataclasses import astuple, dataclass, field
 from enum import Enum
+from types import TracebackType
 from typing import Optional
 from typing import Any
 from typing_extensions import Literal
@@ -46,13 +46,17 @@ class TunerContext:
         )  # Default to "tune" logger
         self.type: CommonTypes = CommonTypes(self.mlir_ctx)
 
-    def __enter__(self) -> TunerContext:
+    def __enter__(self) -> "TunerContext":
         self.mlir_ctx.__enter__()
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback) -> Literal[False]:
-        self.mlir_ctx.__exit__(exc_type, exc_value, traceback)
-        return False
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> bool:
+        return self.mlir_ctx.__exit__(exc_type, exc_value, traceback)
 
 
 class DispatchKind(Enum):
