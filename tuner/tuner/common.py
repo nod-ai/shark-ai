@@ -10,12 +10,10 @@ from enum import Enum
 from types import TracebackType
 from typing import Optional
 from typing import Any
-from typing_extensions import Literal
 
 from iree.compiler import ir  # type: ignore
 
 from iree.compiler.dialects import iree_gpu  # type: ignore
-from iree.compiler.dialects import iree_codegen  # type: ignore
 
 
 class CommonTypes:

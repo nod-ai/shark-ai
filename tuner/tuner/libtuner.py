@@ -18,7 +18,6 @@ and implement a complete tuning loop for a specific model.
 
 import math
 import signal
-import subprocess
 import sys
 import shutil
 import logging
@@ -26,7 +25,6 @@ import argparse
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-import time
 import multiprocessing
 import queue
 from tqdm import tqdm
@@ -37,6 +35,7 @@ from abc import ABC, abstractmethod
 import iree.runtime as ireert  # type: ignore
 import iree.compiler as ireec  # type: ignore
 from iree.compiler import ir  # type: ignore
+from iree.compiler.dialects import iree_codegen  # type: ignore
 from . import candidate_gen
 from . import dispatch_parser
 from .op_matchers import *
