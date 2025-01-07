@@ -216,17 +216,8 @@ def make_random_theta(config: FluxParams, dtype: torch.dtype):
     return Theta(tensor_dict)
 
 
-def export_dev_random_single_layer(
-    dtype: torch.dtype,
-    mlir_output_path: PathLike,
-    parameters_output_path: PathLike,
-    batch_sizes: list[int] = flux_transformer_default_batch_sizes,
-):
-    rng_state = torch.get_rng_state()
-    torch.random.manual_seed(12345)
-
-    dtype = torch.bfloat16
-    params = FluxParams(
+def make_dev_single_layer_config():
+    return FluxParams(
         in_channels=64,
         out_channels=64,
         vec_in_dim=768,
@@ -241,6 +232,19 @@ def export_dev_random_single_layer(
         qkv_bias=True,
         guidance_embed=True,
     )
+
+
+def export_dev_random_single_layer(
+    dtype: torch.dtype,
+    mlir_output_path: PathLike,
+    parameters_output_path: PathLike,
+    batch_sizes: list[int] = flux_transformer_default_batch_sizes,
+):
+    rng_state = torch.get_rng_state()
+    torch.random.manual_seed(12345)
+
+    dtype = torch.bfloat16
+    params = make_dev_single_layer_config()
     theta = make_random_theta(params, dtype)
     flux = FluxModelV1(
         theta=theta,

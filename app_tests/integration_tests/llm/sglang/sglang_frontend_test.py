@@ -32,6 +32,14 @@ DEVICE_SETTINGS = {
 ACCEPTED_THRESHOLD = 0.7
 
 
+def register_shortfin_backend(port):
+    backend = sgl.Shortfin(
+        chat_template=get_chat_template("llama-3-instruct"),
+        base_url=f"http://localhost:{port}",
+    )
+    sgl.set_default_backend(backend)
+
+
 def compute_similarity(model: SentenceTransformer, sentence_1: str, sentence_2: str):
     embeddings = model.encode([sentence_1, sentence_2])
     return util.pytorch_cos_sim(embeddings[0], embeddings[1]).item()
@@ -72,7 +80,10 @@ def tip_suggestion(s):
     ],
     indirect=True,
 )
-def test_multi_turn_qa(load_comparison_model, start_server, register_shortfin_backend):
+def test_multi_turn_qa(load_comparison_model, start_server):
+    server, port = start_server
+    register_shortfin_backend(port)
+
     model = load_comparison_model
 
     question_1 = "Name the capital city of the USA."
@@ -130,9 +141,10 @@ def test_multi_turn_qa(load_comparison_model, start_server, register_shortfin_ba
     ],
     indirect=True,
 )
-def test_stream_multi_turn_qa(
-    load_comparison_model, start_server, register_shortfin_backend
-):
+def test_stream_multi_turn_qa(load_comparison_model, start_server):
+    server, port = start_server
+    register_shortfin_backend(port)
+
     def clean_message(message: str):
         """Remove chat tags from message before comparison.
 
@@ -183,9 +195,9 @@ def test_stream_multi_turn_qa(
     ],
     indirect=True,
 )
-def test_batch_multi_turn_qa(
-    load_comparison_model, start_server, register_shortfin_backend
-):
+def test_batch_multi_turn_qa(load_comparison_model, start_server):
+    server, port = start_server
+    register_shortfin_backend(port)
     model = load_comparison_model
 
     question_1_1 = "Name the capital city of the USA."
@@ -287,7 +299,9 @@ def test_batch_multi_turn_qa(
     ],
     indirect=True,
 )
-def test_fork(load_comparison_model, start_server, register_shortfin_backend):
+def test_fork(load_comparison_model, start_server):
+    server, port = start_server
+    register_shortfin_backend(port)
     model = load_comparison_model
 
     logger.info("Testing fork...")
