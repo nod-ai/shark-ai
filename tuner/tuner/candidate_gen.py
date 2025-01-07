@@ -9,11 +9,17 @@
 
 """
 Generate candidates by tweaking op configuration for tuning.
+
+It can be invoked in two ways:
+    1. From another python script, import and call `generate_configs_and_td_specs()`
+    2. Run this script directly from the command
+Usage: python -m tuner.candidate_gen mmt_benchmark.mlir -o spec_dir -l 1024
 """
 
-# import argparse
+import argparse
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional
 from abc import abstractmethod
 
@@ -25,6 +31,7 @@ from .common import *
 from .dispatch_constraints import *
 from .dispatch_parser import *
 from .spec_builder import *
+from . import libtuner
 
 tune_logger = logging.getLogger("tune")
 
@@ -225,3 +232,59 @@ def generate_configs_and_td_specs(
 
     tune_logger.info(f"Generated {len(config_specs)} tuning specs")
     return config_specs
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("input", help="Input mlir file", type=str)
+    parser.add_argument(
+        "-o", "--output", help="Output dir", type=str, default=get_default_output_dir()
+    )
+    parser.add_argument(
+        "-l",
+        "--limit",
+        help="Max number of candidates generated",
+        type=int,
+        default=4096,
+    )
+    parser.add_argument(
+        "--num-subgroups",
+        help="Number of subgroups per workgroup to use. (-1 == unconstrained)",
+        type=int,
+        default=-1,
+    )
+    parser.add_argument(
+        "--verbose", "-v", action="store_true", help="Enable verbose output to stdout"
+    )
+
+    args = parser.parse_args()
+    tune_logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
+
+    # Create printing formatter for logging info
+    formatter = logging.Formatter("%(message)s")
+
+    # Create a handler to print to console
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    tune_logger.addHandler(console_handler)
+
+    with ir.Context() as ctx:
+        tuner_ctx = TunerContext(ctx, tune_logger)
+        mlir_text = libtuner.strip_compilation_info(args.input)
+        mlir_module = parse_mlir(mlir_text, tuner_ctx)
+        specs = generate_configs_and_td_specs(
+            mlir_module,
+            tuner_ctx,
+            args.limit,
+            args.num_subgroups,
+        )
+        for candidate_num, spec in enumerate(specs):
+            spec_dir = Path(args.output)
+            spec_path = spec_dir / f"{candidate_num}_spec.mlir"
+            spec_dir.mkdir(parents=True, exist_ok=True)
+            with open(spec_path, "w") as f:
+                f.write(str(spec))
+
+
+if __name__ == "__main__":
+    args = main()
