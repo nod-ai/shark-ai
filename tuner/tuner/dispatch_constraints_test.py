@@ -31,8 +31,8 @@ def tuner_ctx() -> Generator[common.TunerContext, None, None]:
 
 
 def test_generate_solutions(tuner_ctx: common.TunerContext) -> None:
-    matmul_size = common.ContractionSizes([2048], [3840], [1280], [])
-    cdims = common.ContractionDimensions([], [0], [1], [2])
+    matmul_size = common.ContractionSizes([2048], [3840], [1280])
+    contraction_dims = common.ContractionDimensions([0], [1], [2])
     lhs_type = common.ShapedType([2048, 1280], tuner_ctx.type.f16)
     rhs_type = common.ShapedType([3840, 1280], tuner_ctx.type.f16)
     res_type = common.ShapedType([2048, 3840], tuner_ctx.type.f32)
@@ -42,7 +42,7 @@ def test_generate_solutions(tuner_ctx: common.TunerContext) -> None:
         rhs_type,
         res_type,
         common.DispatchKind.contraction,
-        cdims,
+        contraction_dims,
     )
     configs = dispatch_constraints.generate_solutions(
         tuner_ctx,
@@ -60,8 +60,8 @@ def test_generate_solutions(tuner_ctx: common.TunerContext) -> None:
 
 
 def test_calculate_shared_memory_usage_in_bytes(tuner_ctx: common.TunerContext) -> None:
-    matmul_size = common.ContractionSizes([1024], [1024], [1024], [])
-    cdims = common.ContractionDimensions([], [0], [1], [2])
+    matmul_size = common.ContractionSizes([1024], [1024], [1024])
+    contraction_dims = common.ContractionDimensions([0], [1], [2])
     lhs_type = common.ShapedType([1024, 1024], tuner_ctx.type.f16)
     rhs_type = common.ShapedType([1024, 1024], tuner_ctx.type.f16)
     res_type = common.ShapedType([1024, 1024], tuner_ctx.type.f32)
@@ -71,7 +71,7 @@ def test_calculate_shared_memory_usage_in_bytes(tuner_ctx: common.TunerContext) 
         rhs_type,
         res_type,
         common.DispatchKind.contraction,
-        cdims,
+        contraction_dims,
     )
     assert (
         dispatch_constraints.calculate_shared_memory_usage_in_bytes(
@@ -87,7 +87,7 @@ def test_calculate_shared_memory_usage_in_bytes(tuner_ctx: common.TunerContext) 
         rhs_type,
         res_type,
         common.DispatchKind.contraction,
-        cdims,
+        contraction_dims,
     )
     assert (
         dispatch_constraints.calculate_shared_memory_usage_in_bytes(
@@ -103,7 +103,7 @@ def test_calculate_shared_memory_usage_in_bytes(tuner_ctx: common.TunerContext) 
         rhs_type,
         res_type,
         common.DispatchKind.contraction,
-        cdims,
+        contraction_dims,
     )
     assert (
         dispatch_constraints.calculate_shared_memory_usage_in_bytes(
@@ -124,16 +124,16 @@ def test_generate_tile_and_fuse_constraints_valid_input(
     tuner_ctx: common.TunerContext,
 ) -> None:
     matmul_size = common.ContractionSizes(
-        B=[2, 16],
         M=[4, 32],
         N=[6, 64],
         K=[8, 128],
+        B=[2, 16],
     )
-    cdims = common.ContractionDimensions(
-        batch=[0, 4],
+    contraction_dims = common.ContractionDimensions(
         m=[1, 5],
         n=[2, 6],
         k=[3, 7],
+        batch=[0, 4],
     )
     lhs_type = common.ShapedType([2, 4, 8, 16, 32, 128], tuner_ctx.type.f16)
     rhs_type = common.ShapedType([2, 6, 8, 16, 64, 128], tuner_ctx.type.f16)
@@ -144,7 +144,7 @@ def test_generate_tile_and_fuse_constraints_valid_input(
         rhs_type,
         res_type,
         common.DispatchKind.contraction,
-        cdims,
+        contraction_dims,
     )
     # Define input parameters as z3 Ints
     m, n, k = (
@@ -198,16 +198,16 @@ def test_generate_tile_and_fuse_constraints_invalid_input(
 ) -> None:
     # Define input parameters that should lead to unsatisfiable constraints
     matmul_size = common.ContractionSizes(
-        B=[2, 16],
         M=[4, 32],
         N=[6, 64],
         K=[8, 128],
+        B=[2, 16],
     )
-    cdims = common.ContractionDimensions(
-        batch=[0, 4],
+    contraction_dims = common.ContractionDimensions(
         m=[1, 5],
         n=[2, 6],
         k=[3, 7],
+        batch=[0, 4],
     )
     lhs_type = common.ShapedType([2, 4, 8, 16, 32, 128], tuner_ctx.type.f16)
     rhs_type = common.ShapedType([2, 6, 8, 16, 64, 128], tuner_ctx.type.f16)
@@ -218,7 +218,7 @@ def test_generate_tile_and_fuse_constraints_invalid_input(
         rhs_type,
         res_type,
         common.DispatchKind.contraction,
-        cdims,
+        contraction_dims,
     )
     # Define input parameters as z3 Ints
     m, n, k = (
@@ -271,8 +271,8 @@ def test_generate_tile_and_fuse_constraints_invalid_input(
 def test_generate_vector_distribute_constraints_valid_input(
     tuner_ctx: common.TunerContext,
 ) -> None:
-    matmul_size = common.ContractionSizes([1024], [1024], [1024], [])
-    cdims = common.ContractionDimensions([], [0], [1], [2])
+    matmul_size = common.ContractionSizes([1024], [1024], [1024])
+    contraction_dims = common.ContractionDimensions([0], [1], [2])
     lhs_type = common.ShapedType([1024, 1024], tuner_ctx.type.f16)
     rhs_type = common.ShapedType([1024, 1024], tuner_ctx.type.f16)
     res_type = common.ShapedType([1024, 1024], tuner_ctx.type.f32)
@@ -282,7 +282,7 @@ def test_generate_vector_distribute_constraints_valid_input(
         rhs_type,
         res_type,
         common.DispatchKind.contraction,
-        cdims,
+        contraction_dims,
     )
     # Define input parameters as z3 Ints
     m, n, k = (
@@ -331,8 +331,8 @@ def test_generate_vector_distribute_constraints_invalid_input(
     tuner_ctx: common.TunerContext,
 ) -> None:
     # Define input parameters that should lead to unsatisfiable constraints
-    matmul_size = common.ContractionSizes([1024], [1024], [1024], [])
-    cdims = common.ContractionDimensions([], [0], [1], [2])
+    matmul_size = common.ContractionSizes([1024], [1024], [1024])
+    contraction_dims = common.ContractionDimensions([0], [1], [2])
     lhs_type = common.ShapedType([1024, 1024], tuner_ctx.type.f16)
     rhs_type = common.ShapedType([1024, 1024], tuner_ctx.type.f16)
     res_type = common.ShapedType([1024, 1024], tuner_ctx.type.f32)
@@ -342,7 +342,7 @@ def test_generate_vector_distribute_constraints_invalid_input(
         rhs_type,
         res_type,
         common.DispatchKind.contraction,
-        cdims,
+        contraction_dims,
     )
     m, n, k = (
         [z3.Int("m")],

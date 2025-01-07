@@ -7,6 +7,7 @@
 # Given an input dispatch, this code modifies the hyperparameters
 # in the code and runs it.
 
+import math
 import z3  # type: ignore
 from typing import Iterator
 
@@ -79,13 +80,13 @@ def calculate_shared_memory_usage_in_bytes(
 def generate_vector_distribute_constraints(
     problem_size: ProblemSize,
     tile_sizes: list[list[z3.ArithRef]],
-    num_subgroups,
-    subgroup_size,
-    intrinsic_size,
-    workgroup_size,
-    subgroup_m_count,
-    subgroup_n_count,
-    waves_per_eu,
+    num_subgroups: int,
+    subgroup_size: z3.ArithRef,
+    intrinsic_size: list[z3.ArithRef],
+    workgroup_size: list[z3.ArithRef],
+    subgroup_m_count: z3.ArithRef,
+    subgroup_n_count: z3.ArithRef,
+    waves_per_eu: z3.ArithRef,
     mma_intrinsics: list[iree_gpu.MMAIntrinsic],
 ):
     M, N, K = (
@@ -155,13 +156,13 @@ def generate_vector_distribute_constraints(
 def generate_tile_and_fuse_constraints(
     problem_size: ProblemSize,
     tile_sizes: list[list[z3.ArithRef]],
-    num_subgroups,
-    subgroup_size,
-    intrinsic_size,
-    workgroup_size,
-    subgroup_m_count,
-    subgroup_n_count,
-    waves_per_eu,
+    num_subgroups: int,
+    subgroup_size: z3.ArithRef,
+    intrinsic_size: list[z3.ArithRef],
+    workgroup_size: list[z3.ArithRef],
+    subgroup_m_count: z3.ArithRef,
+    subgroup_n_count: z3.ArithRef,
+    waves_per_eu: z3.ArithRef,
     mma_intrinsics: list[iree_gpu.MMAIntrinsic],
 ):
     M, N, K = problem_size.MNK
@@ -178,21 +179,15 @@ def generate_tile_and_fuse_constraints(
     ]
     subgroup_k_count = 1
 
-    def get_product_expr(vars):
-        prod_expr = 1
-        for v in vars:
-            prod_expr *= v
-        return prod_expr
-
     constraints += [
         m_tiles[-1] >= intrinsic_mn,
         m_tiles[-1] % intrinsic_mn == 0,
         n_tiles[-1] >= intrinsic_mn,
         n_tiles[-1] % intrinsic_mn == 0,
         k_tiles[-1] * intrinsic_k <= K[-1],
-        get_product_expr(m_tiles) <= 512,
-        get_product_expr(n_tiles) <= 512,
-        get_product_expr(k_tiles) <= 512 / intrinsic_k,
+        math.prod(m_tiles) <= 512,
+        math.prod(n_tiles) <= 512,
+        math.prod(k_tiles) <= 512 / intrinsic_k,
     ]
     constraints += [m_shape % m == 0 for m, m_shape in zip(m_tiles, M)]
     constraints += [n_shape % n == 0 for n, n_shape in zip(n_tiles, N)]
@@ -213,8 +208,8 @@ def generate_tile_and_fuse_constraints(
     subgroup_k_tile_count = z3.Int("sg_k_tcnt")
     for x in (subgroup_m_tile_count, subgroup_n_tile_count, subgroup_k_tile_count):
         constraints += [x >= 1, x <= 32]
-    constraints += [get_product_expr(subgroup_m_tiles) == subgroup_m_tile_count]
-    constraints += [get_product_expr(subgroup_n_tiles) == subgroup_n_tile_count]
+    constraints += [math.prod(subgroup_m_tiles) == subgroup_m_tile_count]
+    constraints += [math.prod(subgroup_n_tiles) == subgroup_n_tile_count]
     constraints += [
         m % m_subgroup == 0 for m, m_subgroup in zip(m_tiles, subgroup_m_tiles)
     ]
@@ -225,16 +220,12 @@ def generate_tile_and_fuse_constraints(
     constraints += [n_subgroup > 0 for n_subgroup in subgroup_n_tiles]
 
     constraints += [
-        get_product_expr(m_tiles)
-        == subgroup_m_count * subgroup_m_tile_count * intrinsic_mn
+        math.prod(m_tiles) == subgroup_m_count * subgroup_m_tile_count * intrinsic_mn
     ]
     constraints += [
-        get_product_expr(n_tiles)
-        == subgroup_n_count * subgroup_n_tile_count * intrinsic_mn
+        math.prod(n_tiles) == subgroup_n_count * subgroup_n_tile_count * intrinsic_mn
     ]
-    constraints += [
-        get_product_expr(k_tiles) == subgroup_k_count * subgroup_k_tile_count
-    ]
+    constraints += [math.prod(k_tiles) == subgroup_k_count * subgroup_k_tile_count]
     subgroups = subgroup_m_count * subgroup_n_count
     if num_subgroups > 0:
         constraints += [subgroups == num_subgroups]
@@ -365,52 +356,58 @@ def generate_solutions(
             problem_size.rhs_type.element_type,
         )
 
-        def set_cdim_tile_sizes(tile_sizes, cdims, csizes):
-            for dim, size in zip(cdims, csizes):
+        def set_cdim_tile_sizes(tile_sizes, contraction_dims, csizes):
+            for dim, size in zip(contraction_dims, csizes):
                 tile_sizes[dim] = size
 
         # Get workgroup tile sizes.
         workgroup_tile_sizes = [0] * (
-            len(M) + len(N) + len(K) + len(problem_size.cdims.batch)
-        )
-        set_cdim_tile_sizes(
-            workgroup_tile_sizes, problem_size.cdims.m, [lookup(v) for v in m_vars]
-        )
-        set_cdim_tile_sizes(
-            workgroup_tile_sizes, problem_size.cdims.n, [lookup(v) for v in n_vars]
+            len(M) + len(N) + len(K) + len(problem_size.contraction_dims.batch)
         )
         set_cdim_tile_sizes(
             workgroup_tile_sizes,
-            problem_size.cdims.batch,
-            [1] * len(problem_size.cdims.batch),
+            problem_size.contraction_dims.m,
+            [lookup(v) for v in m_vars],
+        )
+        set_cdim_tile_sizes(
+            workgroup_tile_sizes,
+            problem_size.contraction_dims.n,
+            [lookup(v) for v in n_vars],
+        )
+        set_cdim_tile_sizes(
+            workgroup_tile_sizes,
+            problem_size.contraction_dims.batch,
+            [1] * len(problem_size.contraction_dims.batch),
         )
 
         # Get subgroup tile sizes.
         subgroup_tile_sizes = [0] * (
-            len(M) + len(N) + len(K) + len(problem_size.cdims.batch)
+            len(M) + len(N) + len(K) + len(problem_size.contraction_dims.batch)
         )
         set_cdim_tile_sizes(
             subgroup_tile_sizes,
-            problem_size.cdims.m,
+            problem_size.contraction_dims.m,
             [lookup(v) for v in subgroup_m_vars],
         )
         set_cdim_tile_sizes(
             subgroup_tile_sizes,
-            problem_size.cdims.n,
+            problem_size.contraction_dims.n,
             [lookup(v) for v in subgroup_n_vars],
         )
         set_cdim_tile_sizes(
             subgroup_tile_sizes,
-            problem_size.cdims.batch,
-            [1] * len(problem_size.cdims.batch),
+            problem_size.contraction_dims.batch,
+            [1] * len(problem_size.contraction_dims.batch),
         )
 
         # Get reduction tile sizes.
         reduction_tile_sizes = [0] * (
-            len(M) + len(N) + len(K) + len(problem_size.cdims.batch)
+            len(M) + len(N) + len(K) + len(problem_size.contraction_dims.batch)
         )
         set_cdim_tile_sizes(
-            reduction_tile_sizes, problem_size.cdims.k, [lookup(v) for v in k_vars]
+            reduction_tile_sizes,
+            problem_size.contraction_dims.k,
+            [lookup(v) for v in k_vars],
         )
 
         # Create the LoweringConfigAttr.

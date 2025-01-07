@@ -6,7 +6,7 @@
 
 import re
 import logging
-from dataclasses import astuple, dataclass
+from dataclasses import astuple, dataclass, field
 from enum import Enum
 from typing import Optional
 from typing import Any
@@ -71,15 +71,15 @@ class ContractionSizes:
     M: list[int]
     N: list[int]
     K: list[int]
-    B: list[int]
+    B: list[int] = field(default_factory=list)
 
 
 @dataclass
 class ContractionDimensions:
-    batch: list[int]
     m: list[int]
     n: list[int]
     k: list[int]
+    batch: list[int] = field(default_factory=list)
 
 
 @dataclass
@@ -89,7 +89,7 @@ class ProblemSize:
     rhs_type: ShapedType
     res_type: ShapedType
     dispatch_kind: DispatchKind
-    cdims: ContractionDimensions
+    contraction_dims: ContractionDimensions
 
     @property
     def MNK(self) -> tuple[list[int], list[int], list[int]]:

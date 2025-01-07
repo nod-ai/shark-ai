@@ -60,8 +60,8 @@ class ContractionOpInterfaceParser(DispatchParser):
         ir_module = ir.Module.parse("\n".join(template))
         contraction_op = match_root_op(ir_module, matcher)
         assert contraction_op is not None, f"contraction op not found"
-        cdims = matcher.contraction_dimensions
-        assert cdims, "no contraction dimensions"
+        contraction_dims = matcher.contraction_dimensions
+        assert contraction_dims, "no contraction dimensions"
         assert matcher.lhs_dims, "no lhs dimensions"
         assert matcher.rhs_dims, "no rhs dimensions"
         assert matcher.res_dims, "no result dimensions"
@@ -69,10 +69,22 @@ class ContractionOpInterfaceParser(DispatchParser):
         rhs_type = ir.RankedTensorType(contraction_op.operands[1].type)
         res_type = ir.RankedTensorType(contraction_op.operands[2].type)
         matmul_size = ContractionSizes(
-            M=[lhs_type.shape[matcher.lhs_dims.index(dim)] for dim in cdims.m],
-            N=[rhs_type.shape[matcher.rhs_dims.index(dim)] for dim in cdims.n],
-            K=[lhs_type.shape[matcher.lhs_dims.index(dim)] for dim in cdims.k],
-            B=[lhs_type.shape[matcher.lhs_dims.index(dim)] for dim in cdims.batch],
+            M=[
+                lhs_type.shape[matcher.lhs_dims.index(dim)]
+                for dim in contraction_dims.m
+            ],
+            N=[
+                rhs_type.shape[matcher.rhs_dims.index(dim)]
+                for dim in contraction_dims.n
+            ],
+            K=[
+                lhs_type.shape[matcher.lhs_dims.index(dim)]
+                for dim in contraction_dims.k
+            ],
+            B=[
+                lhs_type.shape[matcher.lhs_dims.index(dim)]
+                for dim in contraction_dims.batch
+            ],
         )
         return ProblemSize(
             matmul_size,
@@ -80,7 +92,7 @@ class ContractionOpInterfaceParser(DispatchParser):
             rhs_type=ShapedType(rhs_type.shape, rhs_type.element_type),
             res_type=ShapedType(res_type.shape, res_type.element_type),
             dispatch_kind=DispatchKind.contraction,
-            cdims=cdims,
+            contraction_dims=contraction_dims,
         )
 
 
@@ -115,14 +127,12 @@ class ConvolutionOpInterfaceParser(DispatchParser):
                 M=[dim_info.n, dim_info.oh, dim_info.ow],
                 N=[dim_info.oc],
                 K=[dim_info.fh, dim_info.fw, dim_info.ic],
-                B=[],
             ),
             lhs_type=ShapedType(lhs_type.shape, lhs_type.element_type),
             rhs_type=ShapedType(rhs_type.shape, rhs_type.element_type),
             res_type=ShapedType(res_type.shape, res_type.element_type),
             dispatch_kind=DispatchKind.conv,
-            cdims=ContractionDimensions(
-                batch=[],
+            contraction_dims=ContractionDimensions(
                 m=[0, 1, 2],
                 n=[3],
                 k=[4, 5, 6],
