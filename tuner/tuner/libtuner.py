@@ -607,6 +607,16 @@ def run_iree_benchmark_module_command(benchmark_pack: BenchmarkPack):
                 time_unit=time_and_unit[1],
             )
             times.append(time_us)
+
+    # If there are no times, then benchmarking failed at runtime. Record the
+    # time as math.inf.
+    if len(times) == 0:
+        return BenchmarkResult(
+            candidate_id=candidate_id,
+            time=math.inf,
+            device_id=str(device_id),
+        )
+
     mean_benchmark_time = sum(times) / float(len(times))
     logging.debug(f"Benchmark time of candidate {candidate_id}: {mean_benchmark_time}")
     return BenchmarkResult(
