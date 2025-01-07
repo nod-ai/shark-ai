@@ -25,9 +25,12 @@ def tuner_ctx() -> Generator[common.TunerContext, None, None]:
     from logging import Logger
     from unittest.mock import MagicMock
 
-    with ir.Context() as ctx:
-        logger: Logger = MagicMock(spec=Logger)
-        yield common.TunerContext(ctx, logger)
+    # Mock the logger
+    mock_logger = MagicMock(spec=Logger)
+
+    # Use TunerContext with the mocked logger
+    with common.TunerContext(logger=mock_logger) as ctx:
+        yield ctx
 
 
 def test_generate_solutions(tuner_ctx: common.TunerContext) -> None:

@@ -106,16 +106,6 @@ class TuningClient(ABC):
     def __init__(self, tuner_context: TunerContext):
         self.tuner_context = tuner_context
 
-    def __enter__(self):
-        # Enter the context of TunerContext
-        self.tuner_context.__enter__()
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        # Exit the context of TunerContext
-        self.tuner_context.__exit__(exc_type, exc_value, traceback)
-        return False
-
     @abstractmethod
     def get_iree_compile_flags(self) -> list[str]:
         pass

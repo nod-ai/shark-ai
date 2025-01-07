@@ -4,12 +4,13 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import re
+from __future__ import annotations
 import logging
 from dataclasses import astuple, dataclass, field
 from enum import Enum
 from typing import Optional
 from typing import Any
+from typing_extensions import Literal
 
 from iree.compiler import ir  # type: ignore
 
@@ -38,16 +39,18 @@ class CommonTypes:
 
 
 class TunerContext:
-    def __init__(self, mlir_ctx: ir.Context, logger: logging.Logger):
-        self.mlir_ctx: ir.Context = mlir_ctx
-        self.logger: logging.Logger = logger
-        self.type: CommonTypes = CommonTypes(mlir_ctx)
+    def __init__(self, logger: Optional[logging.Logger] = None):
+        self.mlir_ctx: ir.Context = ir.Context()
+        self.logger: logging.Logger = logger or logging.getLogger(
+            "tune"
+        )  # Default to "tune" logger
+        self.type: CommonTypes = CommonTypes(self.mlir_ctx)
 
-    def __enter__(self):
+    def __enter__(self) -> TunerContext:
         self.mlir_ctx.__enter__()
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type, exc_value, traceback) -> Literal[False]:
         self.mlir_ctx.__exit__(exc_type, exc_value, traceback)
         return False
 
