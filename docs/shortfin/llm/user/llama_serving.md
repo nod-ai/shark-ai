@@ -87,6 +87,15 @@ LLama3.1 8b f16 model.
 python -m sharktank.utils.hf_datasets llama3_8B_fp16 --local-dir $EXPORT_DIR
 ```
 
+> Note: If you have the model weights as a collection of `.safetensor` files (downloaded from HuggingFace Model Hub, for example), you can use the `convert_hf_to_gguf.py` script from the `llama.cpp` repository to convert them to a single `.gguf` file.
+> ```bash
+> export WEIGHTS_DIR=/path/to/safetensor/weights_directory/
+> git clone --depth 1 https://github.com/ggerganov/llama.cpp.git
+> cd llama.cpp
+> python3 convert_hf_to_gguf.py $WEIGHTS_DIR --outtype f16 --outfile $EXPORT_DIR/<output_gguf_name>.gguf
+> ```
+> Now this GGUF file can be used in the instructions ahead.
+
 ### Define environment variables
 
 We'll first define some environment variables that are shared between the
