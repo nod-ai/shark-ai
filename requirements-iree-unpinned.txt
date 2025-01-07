@@ -4,6 +4,4 @@
 --find-links https://iree.dev/pip-release-links.html
 iree-base-compiler
 iree-base-runtime
-
-# TODO(#760): include iree-turbine in this requirements file too?
-# iree-turbine
+iree-turbine
