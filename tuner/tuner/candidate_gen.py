@@ -20,6 +20,7 @@ import argparse
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+import subprocess
 from typing import Optional
 from abc import abstractmethod
 
@@ -31,7 +32,6 @@ from .common import *
 from .dispatch_constraints import *
 from .dispatch_parser import *
 from .spec_builder import *
-from . import libtuner
 
 tune_logger = logging.getLogger("tune")
 
@@ -234,6 +234,98 @@ def generate_configs_and_td_specs(
     return config_specs
 
 
+@dataclass
+class RunPack:
+    command: list[str]
+    check: bool = True
+    timeout_seconds: Optional[int] = None
+
+
+@dataclass
+class RunResult:
+    process_res: Optional[subprocess.CompletedProcess]
+    is_timeout: bool
+
+
+def run_command(run_pack: RunPack) -> RunResult:
+    command = run_pack.command
+    check = run_pack.check
+    timeout_seconds = run_pack.timeout_seconds
+
+    result = None
+    is_timeout = False
+    try:
+        # Convert the command list to a command string for logging
+        command_str = " ".join(command)
+        logging.debug(f"Run: {command_str}")
+
+        # Add timeout to subprocess.run call
+        result = subprocess.run(
+            command,
+            check=check,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+        )
+
+        if result.stdout:
+            logging.debug(f"stdout: {result.stdout}")
+        if result.stderr:
+            logging.debug(f"stderr: {result.stderr}")
+    except subprocess.TimeoutExpired as e:
+        logging.warning(
+            f"Command '{command_str}' timed out after {timeout_seconds} seconds."
+        )
+        is_timeout = True
+    except subprocess.CalledProcessError as e:
+        print(e.output)
+        logging.error(
+            f"Command '{command_str}' returned non-zero exit status {e.returncode}."
+        )
+        logging.error(f"Command '{command_str}' failed with error: {e.stderr}")
+        if check:
+            raise
+    except KeyboardInterrupt:
+        print("Ctrl+C detected, terminating child processes...")
+
+    return RunResult(result, is_timeout)
+
+
+# The `strip_root_op_attr` and `strip_compilation_info` functions are used for
+# getting consistent inputs to the compilation step in tuning. Inputs may come
+# in with lowering configs, translation info, and root_op attrs when the input
+# is a benchmark, but not when the input is a source MLIR file. Stripping the
+# info makes the inputs to compilation consistent, and allows for overwriting
+# the compilation info with generated TD specs during codegen.
+def strip_root_op_attr(module: ir.Module):
+    root_ops: list[ir.Operation] = get_ops_from_module(module, is_root_op)
+    for root_op in root_ops:
+        assert (
+            ROOT_OP_ATTR_NAME in root_op.opview.attributes
+        ), f"expected root op to have '{ROOT_OP_ATTR_NAME}' attr"
+        del root_op.opview.attributes[ROOT_OP_ATTR_NAME]
+
+
+# See the above comment for `strip_root_op_attr`.
+def strip_compilation_info(input_path: Path) -> str:
+    # Strip compilation info from the source and save the stripped IR
+    strip_command = [
+        f"iree-opt",
+        f"{input_path}",
+        f"--iree-codegen-strip-compilation-info",
+    ]
+    result = run_command(
+        RunPack(
+            command=strip_command,
+            check=True,
+        )
+    )
+    assert (
+        result.process_res is not None
+    ), "expected result from stripping compilation info"
+    return result.process_res.stdout
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("input", help="Input mlir file", type=str)
@@ -270,7 +362,7 @@ def main():
 
     with ir.Context() as ctx:
         tuner_ctx = TunerContext(ctx, tune_logger)
-        mlir_text = libtuner.strip_compilation_info(args.input)
+        mlir_text = strip_compilation_info(args.input)
         mlir_module = parse_mlir(mlir_text, tuner_ctx)
         specs = generate_configs_and_td_specs(
             mlir_module,
