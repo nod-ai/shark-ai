@@ -170,10 +170,10 @@ class ContractionOpInterfaceMatcher(GenericOpMatcher):
             return False
 
         self.contraction_dimensions = ContractionDimensions(
-            batch=batch_dims,
             m=m_dims,
             n=n_dims,
             k=k_dims,
+            batch=batch_dims,
         )
         self.lhs_dims = lhs_dims
         self.rhs_dims = rhs_dims

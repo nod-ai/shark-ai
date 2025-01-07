@@ -104,7 +104,7 @@ jobs:
       uses: actions/cache/restore@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
       with:
         path: ${{ env.PYENV_ROOT }}
-        key: ${{ runner.os }}-python-deps-${{ hashFiles('shortfin/requirements-tests.txt') }}-v${{ env.CACHE_DEPS_VER }}
+        key: ${{ runner.os }}-python-deps-${{ hashFiles('shortfin/requirements-tests.txt', 'requirements-iree-pinned.txt') }}-v${{ env.CACHE_DEPS_VER }}
 
     - name: Restore Python ASan cache
       id: cache-python-asan
@@ -152,4 +152,4 @@ jobs:
       working-directory: ${{ env.LIBSHORTFIN_DIR }}
       run: |
         eval "$(pyenv init -)"
-        pytest -s
+        pytest -s --durations=10 --timeout=30
