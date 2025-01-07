@@ -80,7 +80,7 @@ def main():
         tensor_parallelism_size=tensor_parallelism_size,
         use_hf=False,
         static_tables=False,  # Rely on the compiler for hoisting tables.
-        kv_cache_type="direct" if args.bs == [1] else "paged",
+        kv_cache_type="paged",
         attention_kernel=args.attention_kernel,
         block_seq_stride=args.block_seq_stride,
     )
