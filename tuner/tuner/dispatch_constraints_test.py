@@ -124,20 +124,20 @@ def test_generate_tile_and_fuse_constraints_valid_input(
     tuner_ctx: common.TunerContext,
 ) -> None:
     matmul_size = common.ContractionSizes(
-        M=[4, 32],
-        N=[6, 64],
-        K=[8, 128],
-        B=[2, 16],
+        M=[32],
+        N=[64],
+        K=[128],
+        B=[2],
     )
     contraction_dims = common.ContractionDimensions(
-        m=[1, 5],
-        n=[2, 6],
-        k=[3, 7],
-        batch=[0, 4],
+        m=[1],
+        n=[2],
+        k=[3],
+        batch=[0],
     )
-    lhs_type = common.ShapedType([2, 4, 8, 16, 32, 128], tuner_ctx.type.f16)
-    rhs_type = common.ShapedType([2, 6, 8, 16, 64, 128], tuner_ctx.type.f16)
-    res_type = common.ShapedType([2, 4, 6, 16, 32, 64], tuner_ctx.type.f32)
+    lhs_type = common.ShapedType([2, 32, 128], tuner_ctx.type.f16)
+    rhs_type = common.ShapedType([2, 64, 128], tuner_ctx.type.f16)
+    res_type = common.ShapedType([2, 32, 64], tuner_ctx.type.f32)
     problem_size = common.ProblemSize(
         matmul_size,
         lhs_type,
@@ -148,13 +148,13 @@ def test_generate_tile_and_fuse_constraints_valid_input(
     )
     # Define input parameters as z3 Ints
     m, n, k = (
-        [z3.Int("m0"), z3.Int("m1")],
-        [z3.Int("n0"), z3.Int("n1")],
-        [z3.Int("k0"), z3.Int("k1")],
+        [z3.Int("m0")],
+        [z3.Int("n0")],
+        [z3.Int("k0")],
     )
     subgroup_m, subgroup_n = (
-        [z3.Int("subgroup_m0"), z3.Int("subgroup_m1")],
-        [z3.Int("subgroup_n0"), z3.Int("subgroup_n1")],
+        [z3.Int("subgroup_m0")],
+        [z3.Int("subgroup_n0")],
     )
     subgroup_size = z3.Int("subgroup_size")
     intrinsic_mn = z3.Int("intrinsic_mn")
@@ -198,20 +198,20 @@ def test_generate_tile_and_fuse_constraints_invalid_input(
 ) -> None:
     # Define input parameters that should lead to unsatisfiable constraints
     matmul_size = common.ContractionSizes(
-        M=[4, 32],
-        N=[6, 64],
-        K=[8, 128],
-        B=[2, 16],
+        M=[32],
+        N=[64],
+        K=[128],
+        B=[2],
     )
     contraction_dims = common.ContractionDimensions(
-        m=[1, 5],
-        n=[2, 6],
-        k=[3, 7],
-        batch=[0, 4],
+        m=[1],
+        n=[2],
+        k=[3],
+        batch=[0],
     )
-    lhs_type = common.ShapedType([2, 4, 8, 16, 32, 128], tuner_ctx.type.f16)
-    rhs_type = common.ShapedType([2, 6, 8, 16, 64, 128], tuner_ctx.type.f16)
-    res_type = common.ShapedType([2, 4, 6, 16, 32, 64], tuner_ctx.type.f32)
+    lhs_type = common.ShapedType([2, 32, 128], tuner_ctx.type.f16)
+    rhs_type = common.ShapedType([2, 64, 128], tuner_ctx.type.f16)
+    res_type = common.ShapedType([2, 32, 64], tuner_ctx.type.f32)
     problem_size = common.ProblemSize(
         matmul_size,
         lhs_type,
@@ -222,13 +222,13 @@ def test_generate_tile_and_fuse_constraints_invalid_input(
     )
     # Define input parameters as z3 Ints
     m, n, k = (
-        [z3.Int("m0"), z3.Int("m1")],
-        [z3.Int("n0"), z3.Int("n1")],
-        [z3.Int("k0"), z3.Int("k1")],
+        [z3.Int("m0")],
+        [z3.Int("n0")],
+        [z3.Int("k0")],
     )
     subgroup_m, subgroup_n = (
-        [z3.Int("subgroup_m0"), z3.Int("subgroup_m1")],
-        [z3.Int("subgroup_n0"), z3.Int("subgroup_n1")],
+        [z3.Int("subgroup_m0")],
+        [z3.Int("subgroup_n0")],
     )
     subgroup_size = z3.Int("subgroup_size")
     intrinsic_mn = z3.Int("intrinsic_mn")
