@@ -35,7 +35,6 @@ env:
   PYENV_REF: 96b3fb2fc3bee85650cb22e2cb06c83c24509a6d # v2.4.17
   PYTHON_VER: 3.12.7
   CACHE_ASAN_VER: 2
-  CACHE_DEPS_VER: 1
   LIBSHORTFIN_DIR: ${{ github.workspace }}/shortfin/
 
 jobs:
@@ -99,13 +98,6 @@ jobs:
         sudo apt update
         sudo apt install clang lld cmake ninja-build
 
-    - name: Restore Python dependencies cache
-      id: cache-python-deps-restore
-      uses: actions/cache/restore@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
-      with:
-        path: ${{ env.PYENV_ROOT }}
-        key: ${{ runner.os }}-python-deps-${{ hashFiles('shortfin/requirements-tests.txt') }}-v${{ env.CACHE_DEPS_VER }}
-
     - name: Restore Python ASan cache
       id: cache-python-asan
       if: steps.cache-python-deps-restore.outputs.cache-hit != 'true'
@@ -119,21 +111,12 @@ jobs:
         echo "${{ env.PYENV_ROOT }}/bin" >> $GITHUB_PATH
 
     - name: Install Python dependencies
-      if: steps.cache-python-deps-restore.outputs.cache-hit != 'true'
       working-directory: ${{ env.LIBSHORTFIN_DIR }}
       run: |
         eval "$(pyenv init -)"
         pip install -r requirements-tests.txt
         pip install -r ../requirements-iree-pinned.txt
         pip freeze
-
-    - name: Save Python dependencies cache
-      if: steps.cache-python-deps-restore.outputs.cache-hit != 'true'
-      id: cache-python-deps-save
-      uses: actions/cache/save@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
-      with:
-        path: ${{ env.PYENV_ROOT }}
-        key: ${{ steps.cache-python-deps-restore.outputs.cache-primary-key }}
 
     - name: Build shortfin
       working-directory: ${{ env.LIBSHORTFIN_DIR }}
