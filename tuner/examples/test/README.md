@@ -35,5 +35,6 @@ python -m examples.test double_mmt.mlir mmt_benchmark.mlir \
 python -m examples.test <model_file_path> <benchmark_file_path> \
     --test_num_dispatch_candidates=<num_dispatch_candidates> \
     --test_num_model_candidates=<num_model_candidates> \
-    --test_hip_target=<hip_target> \ --num-candidates=<num_generated_candidates>
+    --test_hip_target=<hip_target> \
+    --num-candidates=<num_generated_candidates>
 ```

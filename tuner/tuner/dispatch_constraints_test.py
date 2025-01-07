@@ -36,7 +36,7 @@ def test_generate_solutions(tuner_ctx: common.TunerContext) -> None:
     rhs_type = common.ShapedType([3840, 1280], tuner_ctx.type.f16)
     res_type = common.ShapedType([2048, 3840], tuner_ctx.type.f32)
     problem_size = common.ProblemSize(
-        matmul_size, lhs_type, rhs_type, res_type, common.DispatchKind.mmt
+        matmul_size, lhs_type, rhs_type, res_type, common.DispatchKind.contraction
     )
     configs = dispatch_constraints.generate_solutions(
         tuner_ctx,
@@ -59,7 +59,7 @@ def test_calculate_shared_memory_usage_in_bytes(tuner_ctx: common.TunerContext) 
     rhs_type = common.ShapedType([1024, 1024], tuner_ctx.type.f16)
     res_type = common.ShapedType([1024, 1024], tuner_ctx.type.f32)
     problem_size = common.ProblemSize(
-        matmul_size, lhs_type, rhs_type, res_type, common.DispatchKind.mmt
+        matmul_size, lhs_type, rhs_type, res_type, common.DispatchKind.contraction
     )
     assert (
         dispatch_constraints.calculate_shared_memory_usage_in_bytes(
@@ -70,7 +70,7 @@ def test_calculate_shared_memory_usage_in_bytes(tuner_ctx: common.TunerContext) 
 
     lhs_type = common.ShapedType([1024, 1024], tuner_ctx.type.i8)
     problem_size = common.ProblemSize(
-        matmul_size, lhs_type, rhs_type, res_type, common.DispatchKind.mmt
+        matmul_size, lhs_type, rhs_type, res_type, common.DispatchKind.contraction
     )
     assert (
         dispatch_constraints.calculate_shared_memory_usage_in_bytes(
@@ -81,7 +81,7 @@ def test_calculate_shared_memory_usage_in_bytes(tuner_ctx: common.TunerContext) 
 
     rhs_type = common.ShapedType([1024, 1024], tuner_ctx.type.i32)
     problem_size = common.ProblemSize(
-        matmul_size, lhs_type, rhs_type, res_type, common.DispatchKind.mmt
+        matmul_size, lhs_type, rhs_type, res_type, common.DispatchKind.contraction
     )
     assert (
         dispatch_constraints.calculate_shared_memory_usage_in_bytes(
@@ -97,7 +97,7 @@ def test_generate_constraints_valid_input(tuner_ctx: common.TunerContext) -> Non
     rhs_type = common.ShapedType([1024, 1024], tuner_ctx.type.f16)
     res_type = common.ShapedType([1024, 1024], tuner_ctx.type.f32)
     problem_size = common.ProblemSize(
-        matmul_size, lhs_type, rhs_type, res_type, common.DispatchKind.mmt
+        matmul_size, lhs_type, rhs_type, res_type, common.DispatchKind.contraction
     )
     # Define input parameters as z3 Ints
     m, n, k = (
@@ -149,7 +149,7 @@ def test_generate_constraints_invalid_input(tuner_ctx: common.TunerContext) -> N
     rhs_type = common.ShapedType([1024, 1024], tuner_ctx.type.f16)
     res_type = common.ShapedType([1024, 1024], tuner_ctx.type.f32)
     problem_size = common.ProblemSize(
-        matmul_size, lhs_type, rhs_type, res_type, common.DispatchKind.mmt
+        matmul_size, lhs_type, rhs_type, res_type, common.DispatchKind.contraction
     )
     m, n, k = (
         z3.Int("m"),
