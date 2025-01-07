@@ -119,11 +119,12 @@ def test_get_pipeline_config(tuner_ctx: common.TunerContext) -> None:
 def test_get_compatible_mfma_intrinsics(tuner_ctx: common.TunerContext) -> None:
     assert common.get_compatible_mfma_intrinsics(
         common.ProblemSize(
-            common.MatmulSize(2048, 1280, 1280),
+            common.ContractionSizes([2048], [1280], [1280]),
             common.ShapedType([2048, 1280], tuner_ctx.type.f16),
             common.ShapedType([1280, 1280], tuner_ctx.type.f16),
             common.ShapedType([2048, 1280], tuner_ctx.type.f32),
             common.DispatchKind.contraction,
+            common.ContractionDimensions([0], [1], [2]),
         ),
         [
             iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
@@ -138,11 +139,12 @@ def test_get_compatible_mfma_intrinsics(tuner_ctx: common.TunerContext) -> None:
 
     assert common.get_compatible_mfma_intrinsics(
         common.ProblemSize(
-            common.MatmulSize(2048, 1280, 1280),
+            common.ContractionSizes([2048], [1280], [1280]),
             common.ShapedType([2048, 1280], tuner_ctx.type.i8),
             common.ShapedType([1280, 1280], tuner_ctx.type.i8),
             common.ShapedType([2048, 1280], tuner_ctx.type.i32),
             common.DispatchKind.contraction,
+            common.ContractionDimensions([0], [1], [2]),
         ),
         [
             iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
@@ -158,11 +160,12 @@ def test_get_compatible_mfma_intrinsics(tuner_ctx: common.TunerContext) -> None:
     assert (
         common.get_compatible_mfma_intrinsics(
             common.ProblemSize(
-                common.MatmulSize(968, 320, 640, 64),
+                common.ContractionSizes([968], [320], [640], [64]),
                 common.ShapedType([64, 968, 640], tuner_ctx.type.f32),
                 common.ShapedType([64, 640, 320], tuner_ctx.type.f32),
                 common.ShapedType([64, 968, 320], tuner_ctx.type.f32),
                 common.DispatchKind.contraction,
+                common.ContractionDimensions([1], [2], [3], [0]),
             ),
             [
                 iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,

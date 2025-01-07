@@ -6,7 +6,7 @@
 
 import re
 import logging
-from dataclasses import astuple, dataclass
+from dataclasses import astuple, dataclass, field
 from enum import Enum
 from typing import Optional
 from typing import Any
@@ -67,31 +67,64 @@ class ShapedType:
 
 
 @dataclass
-class MatmulSize:
-    M: int
-    N: int
-    K: int
-    B: int = 1
+class ContractionSizes:
+    """
+    Represents the size of the iteration space along each contraction dimension.
+    For example, the following is a simple batch mmt:
+      linalg.generic ... indexing_maps = [
+          affine_map<(b, m, n, k) -> (b, m, k)>,
+          affine_map<(b, m, n, k) -> (b, n, k)>,
+          affine_map<(b, m, n, k) -> (b, m, n)>,
+        ] ...
+        ins(%lhs: tensor<4x8x32xf16>, %rhs: tensor<4x16x32xf16>)
+        outs(%acc: tensor<4x8x16xf16>)
+    The ContractionSizes would be:
+      M = [8]
+      N = [16]
+      K = [32]
+      B = [4]
+    """
+
+    M: list[int]
+    N: list[int]
+    K: list[int]
+    B: list[int] = field(default_factory=list)
 
 
 @dataclass
 class ContractionDimensions:
-    batch: list[int]
+    """
+    Stores which dimensions of the iteration space belong to M, N, K, or Batch.
+    For example, the following is a simple batch mmt:
+    linalg.generic ... indexing_maps = [
+        affine_map<(b, m, n, k) -> (b, m, k)>,
+        affine_map<(b, m, n, k) -> (b, n, k)>,
+        affine_map<(b, m, n, k) -> (b, m, n)>,
+        ]
+    The ContractionDimensions would be:
+    M = [1]
+    N = [2]
+    K = [3]
+    B = [0]
+    """
+
     m: list[int]
     n: list[int]
     k: list[int]
+    batch: list[int] = field(default_factory=list)
 
 
 @dataclass
 class ProblemSize:
-    matmul_size: MatmulSize
+    matmul_size: ContractionSizes
     lhs_type: ShapedType
     rhs_type: ShapedType
     res_type: ShapedType
     dispatch_kind: DispatchKind
+    contraction_dims: ContractionDimensions
 
     @property
-    def MNK(self) -> tuple[int, int, int]:
+    def MNK(self) -> tuple[list[int], list[int], list[int]]:
         return (self.matmul_size.M, self.matmul_size.N, self.matmul_size.K)
 
 
@@ -130,7 +163,7 @@ def get_lowering_config(
         # A local variable to hold the transformed value.
         promoted_value = value
         match key:
-            case "workgroup" | "reduction":
+            case "workgroup" | "reduction" | "subgroup":
                 if isinstance(value, list):
                     promoted_value = ir.ArrayAttr.get(
                         [tuner_ctx.type.getI64(x) for x in value]

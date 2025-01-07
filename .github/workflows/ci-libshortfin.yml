@@ -131,7 +131,7 @@ jobs:
       working-directory: ${{ env.LIBSHORTFIN_DIR }}
       run: |
         ctest --timeout 30 --output-on-failure --test-dir build
-        pytest -s --durations=10
+        pytest -s --durations=10 --timeout=30
 
   # Depends on all other jobs to provide an aggregate job status.
   ci_libshortfin_summary:

@@ -89,10 +89,10 @@ class ExportArtifacts:
         irpa_path: str,
         batch_size: int,
         iree_hip_target: str,
-        iree_hal_target_backends: str,
         attention_kernel: str,
         tensor_parallelism_size: int,
         block_seq_stride: int,
+        iree_hal_target_device: str,
     ):
         self.sharktank_dir = str(
             Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent
@@ -100,7 +100,7 @@ class ExportArtifacts:
         self.irpa_path = irpa_path
         self.batch_size = batch_size
         self.iree_hip_target = iree_hip_target
-        self.iree_hal_target_backends = iree_hal_target_backends
+        self.iree_hal_target_device = iree_hal_target_device
         self.attention_kernel = attention_kernel
         self.tensor_parallelism_size = tensor_parallelism_size
         self.block_seq_stride = block_seq_stride
@@ -216,15 +216,18 @@ class ExportArtifacts:
             f"iree-compile",
             f"{mlir_path}",
             f"--iree-hip-target={self.iree_hip_target}",
-            f"--iree-hal-target-backends={self.iree_hal_target_backends}",
             f"-o={vmfb_path}",
         ]
         if self.tensor_parallelism_size > 1:
             iree_hal_target_devices = [
-                f"--iree-hal-target-device=hip[{i}]"
+                f"--iree-hal-target-device={self.iree_hal_target_device}[{i}]"
                 for i in range(self.tensor_parallelism_size)
             ]
-            compile_args += iree_hal_target_devices
+        else:
+            iree_hal_target_devices = [
+                f"--iree-hal-target-device={self.iree_hal_target_device}"
+            ]
+        compile_args += iree_hal_target_devices
         if hal_dump_path:
             compile_args += [
                 f"--iree-hal-dump-executable-files-to={hal_dump_path}/files"
@@ -283,7 +286,6 @@ class ExportArtifacts:
         benchmark_args += [
             "iree-benchmark-module",
             "--hip_use_streams=true",
-            "--device_allocator=caching",
             f"--module={vmfb_name}",
         ]
         benchmark_args += params

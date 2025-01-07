@@ -226,9 +226,9 @@ def pytest_addoption(parser):
     )
 
     parser.addoption(
-        "--iree-hal-target-backends",
+        "--iree-hal-target-device",
         action="store",
-        help="Specify the iree-hal target backend (e.g., rocm)",
+        help="Specify the iree-hal target device (e.g., hip)",
     )
 
     parser.addoption(
@@ -354,8 +354,8 @@ def get_iree_flags(request: FixtureRequest):
     model_path["iree_hip_target"] = set_fixture_from_cli_option(
         request, "--iree-hip-target", "iree_hip_target"
     )
-    model_path["iree_hal_target_backends"] = set_fixture_from_cli_option(
-        request, "--iree-hal-target-backends", "iree_hal_target_backends"
+    model_path["iree_hal_target_device"] = set_fixture_from_cli_option(
+        request, "--iree-hal-target-device", "iree_hal_target_device"
     )
 
 

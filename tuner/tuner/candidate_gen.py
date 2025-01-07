@@ -194,6 +194,7 @@ def generate_configs_and_td_specs(
     tuner_context: TunerContext,
     limit: int = 4096,  # Max candidates to be generated
     num_subgroups: int = 4,  # GPU spec, used to determine candidate generation constraints
+    codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline = iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
 ) -> list[ir.Module]:
     dispatch_tuner_registry = DispatchTunerRegistry(check_translation_info=False)
     dispatch_tuner_registry.register(
@@ -221,7 +222,9 @@ def generate_configs_and_td_specs(
     variant_op = variant_op_list[0]
     mma_list = iree_codegen.query_mma_intrinsics(variant_op)
     for i, config in enumerate(
-        generate_solutions(tuner_context, problem_size, num_subgroups, mma_list)
+        generate_solutions(
+            tuner_context, problem_size, num_subgroups, mma_list, codegen_pipeline
+        )
     ):
         if i >= limit:
             break
