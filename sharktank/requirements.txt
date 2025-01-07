@@ -8,7 +8,3 @@ numpy
 huggingface-hub==0.22.2
 transformers==4.40.0
 datasets
-
-# Serving deps.
-fastapi>=0.112.2
-uvicorn>=0.30.6

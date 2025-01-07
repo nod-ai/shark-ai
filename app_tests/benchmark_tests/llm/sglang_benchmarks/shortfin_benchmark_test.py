@@ -83,9 +83,7 @@ def test_shortfin_benchmark(
     model_path = tmp_dir / model_param_file_name
 
     # Start shortfin llm server
-    port = find_available_port()
-    server_process = start_llm_server(
-        port,
+    server_process, port = start_llm_server(
         tokenizer_path,
         config_path,
         vmfb_path,

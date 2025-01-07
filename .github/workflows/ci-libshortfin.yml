@@ -25,7 +25,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  IREE_REPO_DIR: ${{ github.workspace }}/iree
   LIBSHORTFIN_DIR: ${{ github.workspace }}/shortfin/
 
 jobs:
@@ -95,23 +94,6 @@ jobs:
       with:
         toolchain: stable
 
-    - name: Checkout IREE repo
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      with:
-        repository: iree-org/iree
-        path: ${{ env.IREE_REPO_DIR }}
-        submodules: false
-        ref: iree-3.1.0rc20241220
-
-    - name: Initalize IREE submodules
-      working-directory: ${{ env.IREE_REPO_DIR }}
-      run : |
-        git submodule update --init --depth 1 -- third_party/benchmark
-        git submodule update --init --depth 1 -- third_party/cpuinfo/
-        git submodule update --init --depth 1 -- third_party/flatcc
-        git submodule update --init --depth 1 -- third_party/googletest
-        git submodule update --init --depth 1 -- third_party/hip-build-deps/
-
     - name: "Setup Python ${{ matrix.python-version }}"
       uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
       with:
@@ -134,7 +116,6 @@ jobs:
         cmake -GNinja \
           -S. \
           -Bbuild \
-          -DSHORTFIN_IREE_SOURCE_DIR="${{ env.IREE_REPO_DIR }}" \
           -DSHORTFIN_BUILD_PYTHON_BINDINGS=ON \
           ${{matrix.cmake-options}}
         cmake --build build --target all

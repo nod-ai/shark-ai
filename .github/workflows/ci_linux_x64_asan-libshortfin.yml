@@ -36,7 +36,6 @@ env:
   PYTHON_VER: 3.12.7
   CACHE_ASAN_VER: 2
   CACHE_DEPS_VER: 1
-  IREE_SOURCE_DIR: ${{ github.workspace }}/iree
   LIBSHORTFIN_DIR: ${{ github.workspace }}/shortfin/
 
 jobs:
@@ -100,23 +99,6 @@ jobs:
         sudo apt update
         sudo apt install clang lld cmake ninja-build
 
-    - name: Checkout IREE repo
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      with:
-        repository: iree-org/iree
-        path: ${{ env.IREE_SOURCE_DIR }}
-        submodules: false
-        ref: iree-3.1.0rc20241220
-
-    - name: Initalize IREE submodules
-      working-directory: ${{ env.IREE_SOURCE_DIR }}
-      run : |
-        git submodule update --init --depth 1 -- third_party/benchmark
-        git submodule update --init --depth 1 -- third_party/cpuinfo/
-        git submodule update --init --depth 1 -- third_party/flatcc
-        git submodule update --init --depth 1 -- third_party/googletest
-        git submodule update --init --depth 1 -- third_party/hip-build-deps/
-
     - name: Restore Python dependencies cache
       id: cache-python-deps-restore
       uses: actions/cache/restore@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
@@ -157,7 +139,6 @@ jobs:
       working-directory: ${{ env.LIBSHORTFIN_DIR }}
       run: |
         eval "$(pyenv init -)"
-        SHORTFIN_IREE_SOURCE_DIR="${{ env.IREE_SOURCE_DIR }}" \
         SHORTFIN_ENABLE_ASAN=ON \
         SHORTFIN_DEV_MODE=ON \
         SHORTFIN_RUN_CTESTS=ON \

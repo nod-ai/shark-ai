@@ -44,6 +44,7 @@ add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
 add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 
 # Pins
+# Keep in sync with requirements-iree-compiler.txt.
 set(SHORTFIN_IREE_GIT_TAG "iree-3.1.0rc20241220")
 
 # build options
