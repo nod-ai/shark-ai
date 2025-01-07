@@ -43,8 +43,10 @@ endif()
 add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
 add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 
-# Pins
-# Keep in sync with requirements-iree-compiler.txt.
+# Version pins for dependencies.
+# Prefer to keep the IREE git tag synced with the Python package version in the
+# requirements-iree-pinned.txt file. At a minimum, the compiler from those
+# packages must be compatible with the runtime at this source ref.
 set(SHORTFIN_IREE_GIT_TAG "iree-3.1.0rc20241220")
 
 # build options
