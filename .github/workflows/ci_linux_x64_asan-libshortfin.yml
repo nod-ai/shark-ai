@@ -152,4 +152,4 @@ jobs:
       working-directory: ${{ env.LIBSHORTFIN_DIR }}
       run: |
         eval "$(pyenv init -)"
-        pytest -s
+        pytest -s --durations=10 --timeout=30
