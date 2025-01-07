@@ -66,42 +66,48 @@ class ShapedType:
         return "x".join(map(dim_to_str, self.shape)) + "x" + str(self.element_type)
 
 
-# Represents the size of the iteration space along each contraction dimension.
-# For example, the following is a simple batch mmt:
-#   linalg.generic ... indexing_maps = [
-#       affine_map<(b, m, n, k) -> (b, m, k)>,
-#       affine_map<(b, m, n, k) -> (b, n, k)>,
-#       affine_map<(b, m, n, k) -> (b, m, n)>,
-#     ] ...
-#     ins(%lhs: tensor<4x8x32xf16>, %rhs: tensor<4x16x32xf16>)
-#     outs(%acc: tensor<4x8x16xf16>)
-# The ContractionSizes would be:
-#   M = [8]
-#   N = [16]
-#   K = [32]
-#   B = [4]
 @dataclass
 class ContractionSizes:
+    """
+    Represents the size of the iteration space along each contraction dimension.
+    For example, the following is a simple batch mmt:
+      linalg.generic ... indexing_maps = [
+          affine_map<(b, m, n, k) -> (b, m, k)>,
+          affine_map<(b, m, n, k) -> (b, n, k)>,
+          affine_map<(b, m, n, k) -> (b, m, n)>,
+        ] ...
+        ins(%lhs: tensor<4x8x32xf16>, %rhs: tensor<4x16x32xf16>)
+        outs(%acc: tensor<4x8x16xf16>)
+    The ContractionSizes would be:
+      M = [8]
+      N = [16]
+      K = [32]
+      B = [4]
+    """
+
     M: list[int]
     N: list[int]
     K: list[int]
     B: list[int] = field(default_factory=list)
 
 
-# Stores which dimensions of the iteration space belong to M, N, K, or Batch.
-# For example, the following is a simple batch mmt:
-#   linalg.generic ... indexing_maps = [
-#       affine_map<(b, m, n, k) -> (b, m, k)>,
-#       affine_map<(b, m, n, k) -> (b, n, k)>,
-#       affine_map<(b, m, n, k) -> (b, m, n)>,
-#     ]
-# The ContractionDimensions would be:
-#   M = [1]
-#   N = [2]
-#   K = [3]
-#   B = [0]
 @dataclass
 class ContractionDimensions:
+    """
+    Stores which dimensions of the iteration space belong to M, N, K, or Batch.
+    For example, the following is a simple batch mmt:
+    linalg.generic ... indexing_maps = [
+        affine_map<(b, m, n, k) -> (b, m, k)>,
+        affine_map<(b, m, n, k) -> (b, n, k)>,
+        affine_map<(b, m, n, k) -> (b, m, n)>,
+        ]
+    The ContractionDimensions would be:
+    M = [1]
+    N = [2]
+    K = [3]
+    B = [0]
+    """
+
     m: list[int]
     n: list[int]
     k: list[int]
