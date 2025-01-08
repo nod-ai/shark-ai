@@ -29,7 +29,7 @@ class SimpleTuner(libtuner.TuningClient):
 def read_flags_file(flags_file: str) -> list[str]:
     if not flags_file:
         return []
-    
+
     with open(flags_file) as file:
         return file.read().splitlines()
 
@@ -84,7 +84,9 @@ def main():
         print("Validation successful!\n")
 
     compile_flags: list[str] = read_flags_file(args.simple_compile_flags_file)
-    model_benchmark_flags: list[str] = read_flags_file(args.simple_model_benchmark_flags_file)
+    model_benchmark_flags: list[str] = read_flags_file(
+        args.simple_model_benchmark_flags_file
+    )
 
     print("Generating candidate tuning specs...")
     with TunerContext() as tuner_context:
@@ -97,7 +99,9 @@ def main():
             return
 
         print("Compiling dispatch candidates...")
-        simple_tuner.compile_flags = compile_flags + ["--compile-from=executable-sources"]
+        simple_tuner.compile_flags = compile_flags + [
+            "--compile-from=executable-sources"
+        ]
         compiled_candidates = libtuner.compile(
             args, path_config, candidates, candidate_trackers, simple_tuner
         )
