@@ -39,9 +39,7 @@ class CommonTypes:
 class TunerContext:
     def __init__(self, logger: Optional[logging.Logger] = None):
         self.mlir_ctx: ir.Context = ir.Context()
-        self.logger: logging.Logger = logger or logging.getLogger(
-            "tune"
-        )  # Default to "tune" logger
+        self.logger: logging.Logger = logger or logging.getLogger("tune")
         self.type: CommonTypes = CommonTypes(self.mlir_ctx)
 
     def __enter__(self) -> "TunerContext":
