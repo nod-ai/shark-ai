@@ -96,8 +96,7 @@ pip install -r requirements.txt -e sharktank/ shortfin/
 # Optionally clone and install the latest editable iree-turbine dep in deps/,
 # along with nightly versions of iree-base-compiler and iree-base-runtime.
 pip install -f https://iree.dev/pip-release-links.html --upgrade --pre \
-  iree-base-compiler iree-base-runtime --src deps \
-  -e "git+https://github.com/iree-org/iree-turbine.git#egg=iree-turbine"
+  iree-base-compiler iree-base-runtime iree-turbine
 ```
 
 See also: [nightly_releases.md](nightly_releases.md).
