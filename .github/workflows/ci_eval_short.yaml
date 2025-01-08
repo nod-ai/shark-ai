@@ -8,10 +8,10 @@ name: CI - sharktank perplexity short
 
 on:
   workflow_dispatch:
-  # pull_request:
-  # push:
-  #   branches:
-  #     - main
+  pull_request:
+  push:
+    branches:
+      - main
 
 concurrency:
   # A PR number if a pull request and otherwise the commit hash. This cancels
