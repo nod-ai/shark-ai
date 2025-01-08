@@ -372,6 +372,7 @@ def main():
             tuner_ctx,
             args.limit,
             args.num_subgroups,
+            iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
         )
         for candidate_num, spec in enumerate(specs):
             spec_dir = Path(args.output)
