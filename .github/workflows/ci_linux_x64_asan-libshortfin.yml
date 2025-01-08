@@ -32,8 +32,8 @@ concurrency:
 
 env:
   PYENV_ROOT: ${{ github.workspace }}/pyenv
-  PYENV_REF: 96b3fb2fc3bee85650cb22e2cb06c83c24509a6d # v2.4.17
-  PYTHON_VER: 3.12.7
+  PYENV_REF: 2aff0df76deacd9b6c49de8870f0255d24d3b31b # v2.5.0
+  PYTHON_VER: 3.12.8
   CACHE_ASAN_VER: 2
   CACHE_DEPS_VER: 1
   LIBSHORTFIN_DIR: ${{ github.workspace }}/shortfin/
@@ -76,7 +76,7 @@ jobs:
       working-directory: ${{ env.PYENV_ROOT }}
       run: |
         src/configure && make -C src
-        export PATH=${{ env.PYENV_ROOT }}/bin:$PATH && eval "$(pyenv init -)"
+        export PATH=${{ env.PYENV_ROOT }}/bin:$PATH && eval "$(pyenv init - bash)"
         CC=clang-18 CXX=clang++-18 LDFLAGS="-lstdc++" PYTHON_CONFIGURE_OPTS="--with-address-sanitizer" pyenv install -v ${{ env.PYTHON_VER }}
         pyenv global ${{ env.PYTHON_VER }}
 
@@ -104,7 +104,7 @@ jobs:
       uses: actions/cache/restore@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
       with:
         path: ${{ env.PYENV_ROOT }}
-        key: ${{ runner.os }}-python-deps-${{ hashFiles('shortfin/requirements-tests.txt') }}-v${{ env.CACHE_DEPS_VER }}
+        key: ${{ runner.os }}-python-deps-${{ hashFiles('shortfin/requirements-tests.txt', 'requirements-iree-pinned.txt') }}-v${{ env.CACHE_DEPS_VER }}
 
     - name: Restore Python ASan cache
       id: cache-python-asan
@@ -122,7 +122,7 @@ jobs:
       if: steps.cache-python-deps-restore.outputs.cache-hit != 'true'
       working-directory: ${{ env.LIBSHORTFIN_DIR }}
       run: |
-        eval "$(pyenv init -)"
+        eval "$(pyenv init - bash)"
         pip install -r requirements-tests.txt
         pip install -r ../requirements-iree-pinned.txt
         pip freeze
@@ -138,7 +138,7 @@ jobs:
     - name: Build shortfin
       working-directory: ${{ env.LIBSHORTFIN_DIR }}
       run: |
-        eval "$(pyenv init -)"
+        eval "$(pyenv init - bash)"
         SHORTFIN_ENABLE_ASAN=ON \
         SHORTFIN_DEV_MODE=ON \
         SHORTFIN_RUN_CTESTS=ON \
@@ -151,5 +151,5 @@ jobs:
         ASAN_OPTIONS: detect_odr_violation=0
       working-directory: ${{ env.LIBSHORTFIN_DIR }}
       run: |
-        eval "$(pyenv init -)"
-        pytest -s
+        eval "$(pyenv init - bash)"
+        pytest -s --durations=10 --timeout=30

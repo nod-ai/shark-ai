@@ -72,18 +72,15 @@ jobs:
           python -m pip install --no-compile --upgrade pip
 
           # Note: We install in three steps in order to satisfy requirements
-          # from non default locations first. Installing the PyTorch CPU
-          # wheels saves multiple minutes and a lot of bandwidth on runner setup.
-          pip install --no-compile --index-url https://download.pytorch.org/whl/cpu torch==${{matrix.torch-version}}+cpu
+          # from non default locations first.
+          pip install --no-compile \
+            --index-url https://download.pytorch.org/whl/cpu torch==${{matrix.torch-version}}+cpu
+          pip install -r requirements-iree-pinned.txt
+          pip install --no-compile \
+            -r sharktank/requirements-tests.txt \
+            -e sharktank/
 
-          # Install nightly IREE packages.
-          # We could also pin to a known working or stable version.
-          pip install -f https://iree.dev/pip-release-links.html --pre \
-            iree-base-compiler \
-            iree-base-runtime \
-            iree-turbine
-
-          pip install --no-compile -r requirements.txt -r sharktank/requirements-tests.txt -e sharktank/
+          pip freeze
 
       - name: Run sharktank tests
         if: ${{ !cancelled() }}
@@ -121,19 +118,16 @@ jobs:
         run: |
           source ${VENV_DIR}/bin/activate
           python -m pip install --no-compile --upgrade pip
+
           # Note: We install in three steps in order to satisfy requirements
-          # from non default locations first. Installing the PyTorch CPU
-          # wheels saves multiple minutes and a lot of bandwidth on runner setup.
+          # from non default locations first.
           pip install --no-compile -r pytorch-cpu-requirements.txt
+          pip install -r requirements-iree-pinned.txt
+          pip install --no-compile \
+            -r sharktank/requirements-tests.txt \
+            -e sharktank/
 
-          # Install nightly IREE packages.
-          # We could also pin to a known working or stable version.
-          pip install -f https://iree.dev/pip-release-links.html --pre --upgrade \
-            iree-base-compiler \
-            iree-base-runtime \
-            iree-turbine
-
-          pip install --no-compile -r requirements.txt -r sharktank/requirements-tests.txt -e sharktank/
+          pip freeze
 
       - name: Run tests
       # TODO: unify with-*-data flags into a single flag and make it possible to run
@@ -180,18 +174,14 @@ jobs:
           python -m pip install --no-compile --upgrade pip
 
           # Note: We install in three steps in order to satisfy requirements
-          # from non default locations first. Installing the PyTorch CPU
-          # wheels saves multiple minutes and a lot of bandwidth on runner setup.
+          # from non default locations first.
           pip install --no-compile -r pytorch-cpu-requirements.txt
+          pip install -r requirements-iree-pinned.txt
+          pip install --no-compile \
+            -r sharktank/requirements-tests.txt \
+            -e sharktank/
 
-          # Install nightly IREE packages.
-          # We could also pin to a known working or stable version.
-          pip install -f https://iree.dev/pip-release-links.html --pre \
-            iree-base-compiler \
-            iree-base-runtime \
-            iree-turbine
-
-          pip install --no-compile -r requirements.txt -r sharktank/requirements-tests.txt -e sharktank/
+          pip freeze
 
       - name: Run punet tests
         run: |

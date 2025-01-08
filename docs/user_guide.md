@@ -78,8 +78,10 @@ To get started with SDXL, please follow the [SDXL User Guide](../shortfin/python
 
 ### Llama 3.1
 
-To get started with Llama 3.1, please follow the [Llama User Guide](shortfin/llm/user/llama_serving.md).
+To get started with Llama 3.1, please follow the [Llama User Guide][1].
 
 * Once you've set up the Llama server in the guide above, we recommend that you use [SGLang Frontend](https://sgl-project.github.io/frontend/frontend.html) by following the [Using `shortfin` with `sglang` guide](shortfin/llm/user/shortfin_with_sglang_frontend_language.md)
 * If you would like to deploy LLama on a Kubernetes cluster we also provide a simple set of instructions and deployment configuration to do so [here](shortfin/llm/user/llama_serving_on_kubernetes.md).
-* Finally, if you'd like to leverage the instructions above to run against a different variant of Llama 3.1, it's supported. However, you will need to generate a gguf dataset for that variant. In order to do this leverage the [HuggingFace](https://huggingface.co/)'s [`huggingface-cli`](https://huggingface.co/docs/huggingface_hub/en/guides/cli) in combination with [llama.cpp](https://github.com/ggerganov/llama.cpp)'s convert_hf_to_gguf.py. In future releases, we plan to streamline these instructions to make it easier for users to compile their own models from HuggingFace.
+* Finally, if you'd like to leverage the instructions above to run against a different variant of Llama 3.1, it's supported. However, you will need to generate a gguf dataset for that variant (explained in the [user guide][1]). In future releases, we plan to streamline these instructions to make it easier for users to compile their own models from HuggingFace.
+
+[1]: shortfin/llm/user/llama_serving.md

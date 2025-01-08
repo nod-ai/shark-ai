@@ -6,5 +6,4 @@
 iree-base-compiler==3.1.0rc20250107
 iree-base-runtime==3.1.0rc20250107
 
-# TODO(#760): include iree-turbine in this requirements file too?
-# iree-turbine==3.1.0rc20241205
+iree-turbine==3.1.0rc20250107

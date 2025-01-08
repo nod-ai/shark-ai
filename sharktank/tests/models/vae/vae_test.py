@@ -100,6 +100,9 @@ class VaeSDXLDecoderTest(unittest.TestCase):
 
         torch.testing.assert_close(ref_results, results)
 
+    @pytest.mark.xfail(
+        reason="Waiting on fix for https://github.com/iree-org/iree/issues/19623"
+    )
     def testVaeIreeVsHuggingFace(self):
         dtype = getattr(torch, "float32")
         inputs = get_random_inputs(dtype=dtype, device="cpu", bs=1)
