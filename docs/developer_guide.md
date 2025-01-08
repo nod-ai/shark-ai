@@ -99,6 +99,14 @@ pip install -f https://iree.dev/pip-release-links.html --upgrade --pre \
   iree-base-compiler iree-base-runtime iree-turbine
 ```
 
+You can also install an editable iree-turbine dep:
+```bash
+# Optionally clone and install the latest editable iree-turbine dep in deps/.
+pip install -f https://iree.dev/pip-release-links.html --upgrade --pre \
+  iree-base-compiler iree-base-runtime --src deps \
+  -e "git+https://github.com/iree-org/iree-turbine.git#egg=iree-turbine"
+```
+
 See also: [nightly_releases.md](nightly_releases.md).
 
 ### Running tests
