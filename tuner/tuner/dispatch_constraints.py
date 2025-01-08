@@ -86,7 +86,6 @@ def generate_vector_distribute_constraints(
     workgroup_size: list[z3.ArithRef],
     subgroup_m_count: z3.ArithRef,
     subgroup_n_count: z3.ArithRef,
-    waves_per_eu: z3.ArithRef,
     mma_intrinsics: list[iree_gpu.MMAIntrinsic],
 ):
     M, N, K = (
@@ -142,9 +141,6 @@ def generate_vector_distribute_constraints(
     else:
         constraints += [subgroups >= 1, subgroups <= 10]
 
-    constraints += [waves_per_eu == 2]
-    # constraints += [z3.Or(waves_per_eu == 2, waves_per_eu == 3, waves_per_eu == 4)]
-
     shared_memory = calculate_shared_memory_usage_in_bytes(problem_size, [m], [n], [k])
     constraints += [shared_memory <= 65536]
 
@@ -162,7 +158,6 @@ def generate_tile_and_fuse_constraints(
     workgroup_size: list[z3.ArithRef],
     subgroup_m_count: z3.ArithRef,
     subgroup_n_count: z3.ArithRef,
-    waves_per_eu: z3.ArithRef,
     mma_intrinsics: list[iree_gpu.MMAIntrinsic],
 ):
     M, N, K = problem_size.MNK
@@ -230,8 +225,6 @@ def generate_tile_and_fuse_constraints(
         constraints += [subgroups >= 1, subgroups <= 10]
     constraints += [wg_threads == subgroups * subgroup_size]
 
-    constraints += [waves_per_eu == 2]
-
     shared_memory = calculate_shared_memory_usage_in_bytes(
         problem_size, m_tiles, n_tiles, k_tiles
     )
@@ -269,11 +262,89 @@ def getMMAAttr(
     )
 
 
+@dataclass
+class PipelineOptionsSearchSpace:
+    prefetch_shared_memory: list[Optional[bool]] = field(default_factory=lambda: [None])
+    no_reduce_shared_memory_bank_conflicts: list[Optional[bool]] = field(
+        default_factory=lambda: [None]
+    )
+
+
+def generate_allowed_pipeline_options(
+    pipeline_options_search_space: PipelineOptionsSearchSpace,
+) -> list[iree_gpu.PipelineOptionsAttr]:
+    pipeline_options_list = []
+    for psm in pipeline_options_search_space.prefetch_shared_memory:
+        for (
+            nrbc
+        ) in pipeline_options_search_space.no_reduce_shared_memory_bank_conflicts:
+            pipeline_options_list.append(
+                iree_gpu.PipelineOptionsAttr.get(
+                    prefetch_shared_memory=psm,
+                    no_reduce_shared_memory_bank_conflicts=nrbc,
+                )
+            )
+    return pipeline_options_list
+
+
+def generate_compilation_infos(
+    tuner_ctx: TunerContext,
+    mma_attr: iree_gpu.MMAAttr,
+    workgroup_tile_sizes: list[int],
+    reduction_tile_sizes: list[int],
+    subgroup_tile_sizes: list[int],
+    workgroup_sizes: tuple[int, int, int],
+    subgroup_size: int,
+    subgroup_m_count: int,
+    subgroup_n_count: int,
+    codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline,
+    pipeline_options_search_space: PipelineOptionsSearchSpace,
+    allowed_waves_per_eu: list[int],
+) -> list[iree_codegen.CompilationInfoAttr]:
+    # Create the LoweringConfigAttr.
+    lowering_config_args = {
+        "tuner_ctx": tuner_ctx,
+        "mma_kind": mma_attr,
+        "workgroup": workgroup_tile_sizes,
+        "reduction": reduction_tile_sizes,
+        "subgroup_m_count": subgroup_m_count,
+        "subgroup_n_count": subgroup_n_count,
+    }
+    if codegen_pipeline == iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse:
+        lowering_config_args["subgroup"] = subgroup_tile_sizes
+        lowering_config_args["promote_operands"] = [0, 1]
+    lowering_config = get_lowering_config(**lowering_config_args)
+
+    # Create the TranslationInfoAttr
+    pipeline_attr = iree_codegen.DispatchLoweringPassPipelineAttr.get(codegen_pipeline)
+    pipeline_options_list = generate_allowed_pipeline_options(
+        pipeline_options_search_space
+    )
+    wg_x, wg_y, wg_z = workgroup_sizes
+    compilation_infos = []
+    for pipeline_options in pipeline_options_list:
+        for waves_per_eu in allowed_waves_per_eu:
+            config_dict = get_translation_info_config(pipeline_options, waves_per_eu)
+            translation_info = iree_codegen.TranslationInfoAttr.get(
+                pipeline_attr,
+                None,
+                [wg_x, wg_y, wg_z],
+                subgroup_size,
+                config_dict,
+            )
+            compilation_infos.append(
+                iree_codegen.CompilationInfoAttr.get(lowering_config, translation_info)
+            )
+    return compilation_infos
+
+
 def generate_solutions(
     tuner_ctx: TunerContext,
     problem_size: ProblemSize,
     num_subgrups: int,
     mma_intrinsics: list[iree_gpu.MMAIntrinsic],
+    allowed_waves_per_eu: list[int] = [2],
+    pipeline_options_search_space: PipelineOptionsSearchSpace = PipelineOptionsSearchSpace(),
     codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline = iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
 ) -> Iterator[iree_codegen.CompilationInfoAttr]:
     M, N, K = problem_size.MNK
@@ -290,7 +361,6 @@ def generate_solutions(
     wg_x, wg_y, wg_z = z3.Int("wg_x"), z3.Int("wg_y"), z3.Int("wg_z")
     sg_m_cnt = z3.Int("sg_m_cnt")
     sg_n_cnt = z3.Int("sg_n_cnt")
-    waves_per_eu = z3.Int("waves_per_eu")
     all_vars = (
         m_vars
         + n_vars
@@ -304,7 +374,6 @@ def generate_solutions(
             wg_z,
             sg_m_cnt,
             sg_n_cnt,
-            waves_per_eu,
         ]
     )
 
@@ -320,7 +389,6 @@ def generate_solutions(
                 [wg_x, wg_y, wg_z],
                 sg_m_cnt,
                 sg_n_cnt,
-                waves_per_eu,
                 mma_intrinsics,
             )
             constraints += [v == 0 for v in subgroup_m_vars + subgroup_n_vars]
@@ -334,7 +402,6 @@ def generate_solutions(
                 [wg_x, wg_y, wg_z],
                 sg_m_cnt,
                 sg_n_cnt,
-                waves_per_eu,
                 mma_intrinsics,
             )
     solver.add(z3.simplify(z3.And(constraints)))
@@ -407,43 +474,23 @@ def generate_solutions(
             [lookup(v) for v in k_vars],
         )
 
-        # Create the LoweringConfigAttr.
-        lowering_config_args = {
-            "tuner_ctx": tuner_ctx,
-            "mma_kind": mma_attr,
-            "workgroup": workgroup_tile_sizes,
-            "reduction": reduction_tile_sizes,
-            "subgroup_m_count": lookup(sg_m_cnt),
-            "subgroup_n_count": lookup(sg_n_cnt),
-        }
-        if (
-            codegen_pipeline
-            == iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse
-        ):
-            lowering_config_args["subgroup"] = subgroup_tile_sizes
-        lowering_config = get_lowering_config(**lowering_config_args)
-
-        # Create the TranslationInfoAttr
-        pipeline_attr = iree_codegen.DispatchLoweringPassPipelineAttr.get(
-            codegen_pipeline
-        )
-        pipeline_options = iree_gpu.PipelineOptionsAttr.get()
-        config_dict = get_translation_info_config(
-            pipeline_options, lookup(waves_per_eu)
-        )
-        translation_info = iree_codegen.TranslationInfoAttr.get(
-            pipeline_attr,
-            None,
-            [lookup(wg_x), lookup(wg_y), lookup(wg_z)],
+        compilation_infos = generate_compilation_infos(
+            tuner_ctx,
+            mma_attr,
+            workgroup_tile_sizes,
+            reduction_tile_sizes,
+            subgroup_tile_sizes,
+            (lookup(wg_x), lookup(wg_y), lookup(wg_z)),
             lookup(subgroup_size),
-            config_dict,
-        )
-
-        # Create the CompilationInfoAttr.
-        compilation_info = iree_codegen.CompilationInfoAttr.get(
-            lowering_config, translation_info
+            lookup(sg_m_cnt),
+            lookup(sg_n_cnt),
+            codegen_pipeline,
+            pipeline_options_search_space,
+            allowed_waves_per_eu,
         )
 
         solver.add(z3.simplify(z3.Not(z3.And(list(x == model[x] for x in all_vars)))))
         i += 1
-        yield compilation_info
+
+        for compilation_info in compilation_infos:
+            yield compilation_info

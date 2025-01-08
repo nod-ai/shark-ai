@@ -166,7 +166,6 @@ def test_generate_tile_and_fuse_constraints_valid_input(
     )
     sg_m_cnt = z3.Int("sg_m_cnt")
     sg_n_cnt = z3.Int("sg_n_cnt")
-    waves_per_eu = z3.Int("waves_per_eu")
 
     constraints = dispatch_constraints.generate_tile_and_fuse_constraints(
         problem_size,
@@ -177,7 +176,6 @@ def test_generate_tile_and_fuse_constraints_valid_input(
         [wg_x, wg_y, wg_z],
         sg_m_cnt,
         sg_n_cnt,
-        waves_per_eu,
         [
             iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
             iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
@@ -240,7 +238,6 @@ def test_generate_tile_and_fuse_constraints_invalid_input(
     )
     sg_m_cnt = z3.Int("sg_m_cnt")
     sg_n_cnt = z3.Int("sg_n_cnt")
-    waves_per_eu = z3.Int("waves_per_eu")
 
     constraints = dispatch_constraints.generate_tile_and_fuse_constraints(
         problem_size,
@@ -251,7 +248,6 @@ def test_generate_tile_and_fuse_constraints_invalid_input(
         [wg_x, wg_y, wg_z],
         sg_m_cnt,
         sg_n_cnt,
-        waves_per_eu,
         [
             iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
             iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
@@ -300,7 +296,6 @@ def test_generate_vector_distribute_constraints_valid_input(
     )
     sg_m_cnt = z3.Int("sg_m_cnt")
     sg_n_cnt = z3.Int("sg_n_cnt")
-    waves_per_eu = z3.Int("waves_per_eu")
 
     constraints = dispatch_constraints.generate_vector_distribute_constraints(
         problem_size,
@@ -311,7 +306,6 @@ def test_generate_vector_distribute_constraints_valid_input(
         [wg_x, wg_y, wg_z],
         sg_m_cnt,
         sg_n_cnt,
-        waves_per_eu,
         [
             iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
             iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
@@ -359,7 +353,6 @@ def test_generate_vector_distribute_constraints_invalid_input(
     )
     sg_m_cnt = z3.Int("sg_m_cnt")
     sg_n_cnt = z3.Int("sg_n_cnt")
-    waves_per_eu = z3.Int("waves_per_eu")
 
     constraints = dispatch_constraints.generate_vector_distribute_constraints(
         problem_size,
@@ -370,7 +363,6 @@ def test_generate_vector_distribute_constraints_invalid_input(
         [wg_x, wg_y, wg_z],
         sg_m_cnt,
         sg_n_cnt,
-        waves_per_eu,
         [
             iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
             iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,

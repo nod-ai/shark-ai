@@ -40,6 +40,7 @@ from . import candidate_gen
 from . import dispatch_parser
 from .op_matchers import *
 from .common import *
+from .dispatch_constraints import *
 
 
 # Default values for num_candidates and devices, change it as needed
@@ -299,6 +300,24 @@ def parse_arguments(
     )
     candidate_gen_args.add_argument(
         "--tile-dims", help="Map of tile size matmul dims", type=str, default="mnk"
+    )
+    candidate_gen_args.add_argument(
+        "--prefetch-shared-memory-options",
+        type=lambda t: [s.strip().lower() == "true" for s in t.split(",")],
+        default=[True],
+        help="Comma-separated list of allowed values for the prefetch_shared_memory pipeline option. Possible values: [True, False]",
+    )
+    candidate_gen_args.add_argument(
+        "--no-reduce-shared-memory-bank-conflicts-options",
+        type=lambda t: [s.strip().lower() == "true" for s in t.split(",")],
+        default=[None],
+        help="Comma-separated list of allowed values for the no_reduce_shared_memory_bank_conflicts pipeline option. Possible values: [True, False]",
+    )
+    candidate_gen_args.add_argument(
+        "--waves-per-eu-options",
+        type=lambda t: [int(s) for s in t.split(",")],
+        default=[2],
+        help="Comma-separated list of allowed values for the waves_per_eu config option. Possible values: Any positive integer value",
     )
     general_args.add_argument(
         "--codegen-pipeline",
@@ -642,11 +661,17 @@ def generate_candidate_specs(
         mlir_text = candidate_gen.strip_compilation_info(path_config.template_mlir)
         mlir_module = dispatch_parser.parse_mlir(mlir_text, tuning_client.tuner_context)
         logging.debug("Captured messages from candidate_gen.py:")
+        pipeline_options_search_space = PipelineOptionsSearchSpace(
+            prefetch_shared_memory=args.prefetch_shared_memory_options,
+            no_reduce_shared_memory_bank_conflicts=args.no_reduce_shared_memory_bank_conflicts_options,
+        )
         config_specs: list[ir.Module] = candidate_gen.generate_configs_and_td_specs(
             input_module=mlir_module,
             tuner_context=tuning_client.tuner_context,
             limit=args.num_candidates,
             num_subgroups=args.num_subgroups,
+            allowed_waves_per_eu=args.waves_per_eu_options,
+            pipeline_options_search_space=pipeline_options_search_space,
             codegen_pipeline=get_iree_codegen_pipeline(args.codegen_pipeline),
         )
         logging.debug("candidate_gen.py ends")

@@ -194,6 +194,8 @@ def generate_configs_and_td_specs(
     tuner_context: TunerContext,
     limit: int = 4096,  # Max candidates to be generated
     num_subgroups: int = 4,  # GPU spec, used to determine candidate generation constraints
+    allowed_waves_per_eu: list[int] = [2],
+    pipeline_options_search_space: PipelineOptionsSearchSpace = PipelineOptionsSearchSpace(),
     codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline = iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
 ) -> list[ir.Module]:
     dispatch_tuner_registry = DispatchTunerRegistry(check_translation_info=False)
@@ -223,7 +225,13 @@ def generate_configs_and_td_specs(
     mma_list = iree_codegen.query_mma_intrinsics(variant_op)
     for i, config in enumerate(
         generate_solutions(
-            tuner_context, problem_size, num_subgroups, mma_list, codegen_pipeline
+            tuner_context,
+            problem_size,
+            num_subgroups,
+            mma_list,
+            allowed_waves_per_eu,
+            pipeline_options_search_space,
+            codegen_pipeline,
         )
     ):
         if i >= limit:
@@ -349,6 +357,24 @@ def main():
         default=-1,
     )
     parser.add_argument(
+        "--prefetch-shared-memory-options",
+        type=lambda t: [s.strip().lower() == "true" for s in t.split(",")],
+        default=[True],
+        help="Comma-separated list of allowed values for the prefetch_shared_memory pipeline option. Possible values: [True, False]",
+    )
+    parser.add_argument(
+        "--no-reduce-shared-memory-bank-conflicts-options",
+        type=lambda t: [s.strip().lower() == "true" for s in t.split(",")],
+        default=[None],
+        help="Comma-separated list of allowed values for the no_reduce_shared_memory_bank_conflicts pipeline option. Possible values: [True, False]",
+    )
+    parser.add_argument(
+        "--waves-per-eu-options",
+        type=lambda t: [int(s) for s in t.split(",")],
+        default=[2],
+        help="Comma-separated list of allowed values for the waves_per_eu config option. Possible values: Any positive integer value",
+    )
+    parser.add_argument(
         "--verbose", "-v", action="store_true", help="Enable verbose output to stdout"
     )
 
@@ -363,15 +389,20 @@ def main():
     console_handler.setFormatter(formatter)
     tune_logger.addHandler(console_handler)
 
-    with ir.Context() as ctx:
-        tuner_ctx = TunerContext(ctx, tune_logger)
+    with TunerContext() as tuner_ctx:
         mlir_text = strip_compilation_info(args.input)
         mlir_module = parse_mlir(mlir_text, tuner_ctx)
+        pipeline_options_search_space = PipelineOptionsSearchSpace(
+            prefetch_shared_memory=args.prefetch_shared_memory_options,
+            no_reduce_shared_memory_bank_conflicts=args.no_reduce_shared_memory_bank_conflicts_options,
+        )
         specs = generate_configs_and_td_specs(
             mlir_module,
             tuner_ctx,
             args.limit,
             args.num_subgroups,
+            args.waves_per_eu_options,
+            pipeline_options_search_space,
             iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
         )
         for candidate_num, spec in enumerate(specs):
