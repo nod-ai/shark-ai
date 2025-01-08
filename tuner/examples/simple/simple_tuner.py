@@ -65,22 +65,22 @@ def main():
     parser = argparse.ArgumentParser(description="Autotune test script")
     test_args = parser.add_argument_group("Example Test Options")
     test_args.add_argument(
-        "test_model_file", type=Path, help="Path to the model file to tune (.mlir)"
+        "simple_model_file", type=Path, help="Path to the model file to tune (.mlir)"
     )
     test_args.add_argument(
-        "--test_num_dispatch_candidates",
+        "--simple-num-dispatch-candidates",
         type=int,
         default=None,
         help="Number of dispatch candidates to keep for model benchmarks.",
     )
     test_args.add_argument(
-        "--test_num_model_candidates",
+        "--simple-num-model-candidates",
         type=int,
         default=None,
         help="Number of model candidates to produce after tuning.",
     )
     test_args.add_argument(
-        "--test_hip_target",
+        "--simple-hip-target",
         type=str,
         default="gfx942",
         help="Hip target for tuning.",
@@ -98,42 +98,43 @@ def main():
     libtuner.setup_logging(args, path_config)
     print(path_config.run_log, end="\n\n")
 
-    # TODO(Max191): Some bug seems to be causing OOM errors in benchmarking
-    # when device validation happens, so this is commented for now. Uncomment
-    # when the bug is fixed.
     if not args.dry_run:
         print("Validating devices")
         libtuner.validate_devices(args.devices)
         print("Validation successful!\n")
 
-    print("Generating candidates...")
+    print("Generating candidate tuning specs...")
     test_tuner = TestTuner()
     candidates = libtuner.generate_candidate_specs(
         args, path_config, candidate_trackers, test_tuner
     )
-    print(f"Stored candidate specs in {path_config.specs_dir}\n")
+    print(f"Stored candidate tuning specs in {path_config.specs_dir}\n")
     if stop_after_phase == libtuner.ExecutionPhases.generate_candidates:
         return
 
-    print("Compiling candidates...")
+    print("Compiling dispatch candidates...")
     compiled_candidates = libtuner.compile(
         args, path_config, candidates, candidate_trackers, test_tuner
     )
+    if stop_after_phase == libtuner.ExecutionPhases.compile_dispatches:
+        return
 
-    print("Benchmarking compiled candidates...")
+    print("Benchmarking compiled dispatch candidates...")
     top_candidates = libtuner.benchmark(
         args,
         path_config,
         compiled_candidates,
         candidate_trackers,
         test_tuner,
-        args.test_num_dispatch_candidates,
+        args.simple_num_dispatch_candidates,
     )
+    if stop_after_phase == libtuner.ExecutionPhases.benchmark_dispatches:
+        return
 
     print("Compiling models with top candidates...")
     test_tuner.compile_flags = [
         "--iree-hal-target-backends=rocm",
-        f"--iree-hip-target={args.test_hip_target}",
+        f"--iree-hip-target={args.simple_hip_target}",
     ]
     compiled_model_candidates = libtuner.compile(
         args,
@@ -141,8 +142,10 @@ def main():
         top_candidates,
         candidate_trackers,
         test_tuner,
-        args.test_model_file,
+        args.simple_model_file,
     )
+    if stop_after_phase == libtuner.ExecutionPhases.compile_models:
+        return
 
     print("Benchmarking compiled model candidates...")
     test_tuner.benchmark_flags = [
@@ -156,7 +159,7 @@ def main():
         compiled_model_candidates,
         candidate_trackers,
         test_tuner,
-        args.test_num_model_candidates,
+        args.simple_num_model_candidates,
     )
 
     print(f"Top model candidates: {top_model_candidates}")
