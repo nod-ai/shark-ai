@@ -14,8 +14,9 @@ By default, the port is set to 8000. If you would like to change this, use `--po
 
 You can check if this (or any) port is in use on Linux with `ss -ntl | grep 8000`.
 
+From a source checkout of shortfin:
 ```
-python -m shortfin_apps.flux.server --device=amdgpu --device_ids=0 --build_preference=precompiled --topology="spx_single"
+python -m shortfin_apps.flux.server --model_config=./python/shortfin_apps/flux/examples/flux_dev_config_mixed.json --device=amdgpu --fibers_per_device=1 --workers_per_device=1 --isolation="per_fiber" --flagfile=./python/shortfin_apps/flux/examples/flux_flags_gfx942.txt --build_preference=precompiled
 ```
  - Wait until your server outputs:
 ```
