@@ -65,7 +65,7 @@ jobs:
       working-directory: ${{ env.LIBSHORTFIN_DIR }}
       run: |
         pip install -r requirements-tests.txt
-        pip install -r requirements-iree-compiler.txt
+        pip install -r ../requirements-iree-pinned.txt
         pip freeze
 
     - name: Install shortfin

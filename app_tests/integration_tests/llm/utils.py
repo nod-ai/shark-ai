@@ -129,17 +129,22 @@ def find_available_port():
         return port
 
 
-def wait_for_server(url, timeout=10):
+def wait_for_server(url, timeout):
     logger.info(f"Waiting for server to start at {url}...")
     start = time.time()
-    while time.time() - start < timeout:
+    elapsed = 0
+    while elapsed <= timeout:
         try:
             requests.get(f"{url}/health")
             logger.info("Server successfully started")
             return
         except requests.exceptions.ConnectionError:
+            logger.info(
+                f"Server has not started yet; waited {elapsed} seconds; timeout: {timeout} seconds."
+            )
             time.sleep(1)
-    raise TimeoutError(f"Server did not start within {timeout} seconds")
+        elapsed = time.time() - start
+    raise TimeoutError(f"Server did not start within {timeout} seconds at {url}")
 
 
 def _start_llm_server_args(
@@ -164,16 +169,16 @@ def _start_llm_server_args(
 
 
 def start_llm_server(
-    port,
     tokenizer_path,
     model_config_path,
     vmfb_path,
     parameters_path,
     settings,
-    timeout=10,
+    timeout,
     multi=False,
 ):
-    logger.info("Starting LLM server...")
+    port = find_available_port()
+    logger.info(f"Starting LLM server on port {port}...")
     if multi:
         server_process = multiprocessing.Process(
             target=subprocess.Popen(
@@ -204,7 +209,7 @@ def start_llm_server(
     logger.info("Process started... waiting for server")
     # Wait for server to start
     wait_for_server(f"http://localhost:{port}", timeout)
-    return server_process
+    return server_process, port
 
 
 def start_log_group(headline):

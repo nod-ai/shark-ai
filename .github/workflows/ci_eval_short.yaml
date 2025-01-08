@@ -52,21 +52,16 @@ jobs:
           python -m pip install --no-compile --upgrade pip
 
           # Note: We install in three steps in order to satisfy requirements
-          # from non default locations first. Installing the PyTorch CPU
-          # wheels saves multiple minutes and a lot of bandwidth on runner setup.
+          # from non default locations first.
           pip install --no-compile -r pytorch-cpu-requirements.txt
+          pip install -r requirements-iree-pinned.txt
+          pip install --no-compile \
+            -r sharktank/requirements-tests.txt \
+            -e sharktank/
 
-          # Install nightly IREE packages.
-          # We could also pin to a known working or stable version.
-          pip install -f https://iree.dev/pip-release-links.html --pre --upgrade \
-            iree-base-compiler \
-            iree-base-runtime \
-            iree-turbine
-
-          pip install --no-compile -r requirements.txt -r sharktank/requirements-tests.txt -e sharktank/
           pip freeze
 
       - name: Run perplexity test with vmfb
         run: |
           source ${VENV_DIR}/bin/activate
-          pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_iree_test.py --bs=5 --iree-device=hip://0 --iree-hip-target=gfx942 --iree-hal-target-backends=rocm --llama3-8b-f16-model-path=/data/llama3.1/8b/llama8b_f16.irpa --llama3-8b-tokenizer-path=/data/llama3.1/8b/tokenizer_config.json
+          pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_iree_test.py --bs=5 --iree-device=hip://0 --iree-hip-target=gfx942 --iree-hal-target-device=hip --llama3-8b-f16-model-path=/data/llama3.1/8b/llama8b_f16.irpa --llama3-8b-tokenizer-path=/data/llama3.1/8b/tokenizer_config.json
