@@ -29,6 +29,8 @@ For an initial trial to test the tuning loop, use:
 cd ../../
 python -m examples.simple examples/simple/double_mmt.mlir \
     examples/simple/tmp/mmt_benchmark.mlir \
+    --simple-compile-flags-file=examples/simple/compile_flags.txt \
+    --simple-model-benchmark-flags-file=examples/simple/model_benchmark_flags.txt \
     --devices=hip://0 --num-candidates=30 \
     --simple-num-dispatch-candidates=5 --simple-num-model-candidates=3 \
 ```
@@ -36,10 +38,11 @@ python -m examples.simple examples/simple/double_mmt.mlir \
 ### Basic Usage
 ```shell
 python -m examples.simple <model_file_path> <benchmark_file_path> \
-    --devices=hip://0 --num-candidates=1024 \
-    --test-num-dispatch-candidates=<num_dispatch_candidates> \
-    --test-num-model-candidates=<num_model_candidates> \
-    --test-hip-target=<hip_target> \
+    --devices=hip://0,hip://1 --num-candidates=1024 \
+    --simple-compile-flags-file=<compile_flags_path> \
+    --simple-model-benchmark-flags-file=<model_benchmark_flags_path> \
+    --simple-num-dispatch-candidates=<num_dispatch_candidates> \
+    --simple-num-model-candidates=<num_model_candidates> \
     --num-candidates=<num_generated_candidates> \
     --codegen-pipeline=<codegen_pipeline>
 ```

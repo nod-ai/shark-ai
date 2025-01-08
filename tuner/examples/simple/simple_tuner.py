@@ -13,8 +13,8 @@ from tuner.common import *
 class SimpleTuner(libtuner.TuningClient):
     def __init__(self, tuner_context: libtuner.TunerContext):
         super().__init__(tuner_context)
-        self.compile_flags = ["--compile-from=executable-sources"]
-        self.benchmark_flags = ["--benchmark_repetitions=3", "--input=1"]
+        self.compile_flags: list[str] = []
+        self.benchmark_flags: list[str] = []
 
     def get_iree_compile_flags(self) -> list[str]:
         return self.compile_flags
@@ -24,6 +24,14 @@ class SimpleTuner(libtuner.TuningClient):
 
     def get_benchmark_timeout_s(self) -> int:
         return 10
+
+
+def read_flags_file(flags_file: str) -> list[str]:
+    if not flags_file:
+        return []
+    
+    with open(flags_file) as file:
+        return file.read().splitlines()
 
 
 def main():
@@ -46,10 +54,16 @@ def main():
         help="Number of model candidates to produce after tuning.",
     )
     client_args.add_argument(
-        "--simple-hip-target",
+        "--simple-compile-flags-file",
         type=str,
-        default="gfx942",
-        help="Hip target for tuning.",
+        default="",
+        help="Path to the flags file for iree-compile.",
+    )
+    client_args.add_argument(
+        "--simple-model-benchmark-flags-file",
+        type=str,
+        default="",
+        help="Path to the flags file for iree-benchmark-module for model benchmarking.",
     )
     # Remaining arguments come from libtuner
     args = libtuner.parse_arguments(parser)
@@ -69,6 +83,9 @@ def main():
         libtuner.validate_devices(args.devices)
         print("Validation successful!\n")
 
+    compile_flags: list[str] = read_flags_file(args.simple_compile_flags_file)
+    model_benchmark_flags: list[str] = read_flags_file(args.simple_model_benchmark_flags_file)
+
     print("Generating candidate tuning specs...")
     with TunerContext() as tuner_context:
         simple_tuner = SimpleTuner(tuner_context)
@@ -80,6 +97,7 @@ def main():
             return
 
         print("Compiling dispatch candidates...")
+        simple_tuner.compile_flags = compile_flags + ["--compile-from=executable-sources"]
         compiled_candidates = libtuner.compile(
             args, path_config, candidates, candidate_trackers, simple_tuner
         )
@@ -87,6 +105,7 @@ def main():
             return
 
         print("Benchmarking compiled dispatch candidates...")
+        simple_tuner.benchmark_flags = ["--input=1", "--benchmark_repetitions=3"]
         top_candidates = libtuner.benchmark(
             args,
             path_config,
@@ -99,10 +118,7 @@ def main():
             return
 
         print("Compiling models with top candidates...")
-        simple_tuner.compile_flags = [
-            "--iree-hal-target-backends=rocm",
-            f"--iree-hip-target={args.simple_hip_target}",
-        ]
+        simple_tuner.compile_flags = compile_flags
         compiled_model_candidates = libtuner.compile(
             args,
             path_config,
@@ -115,11 +131,7 @@ def main():
             return
 
         print("Benchmarking compiled model candidates...")
-        simple_tuner.benchmark_flags = [
-            "--benchmark_repetitions=3",
-            "--input=2048x2048xf16",
-            "--input=2048x2048xf16",
-        ]
+        simple_tuner.benchmark_flags = model_benchmark_flags
         top_model_candidates = libtuner.benchmark(
             args,
             path_config,
