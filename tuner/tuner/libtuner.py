@@ -18,7 +18,6 @@ and implement a complete tuning loop for a specific model.
 
 import math
 import signal
-import subprocess
 import sys
 import shutil
 import logging
@@ -26,7 +25,6 @@ import argparse
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-import time
 import multiprocessing
 import queue
 from tqdm import tqdm
@@ -37,6 +35,7 @@ from abc import ABC, abstractmethod
 import iree.runtime as ireert  # type: ignore
 import iree.compiler as ireec  # type: ignore
 from iree.compiler import ir  # type: ignore
+from iree.compiler.dialects import iree_codegen  # type: ignore
 from . import candidate_gen
 from . import dispatch_parser
 from .op_matchers import *
@@ -103,10 +102,8 @@ class PathConfig:
 
 
 class TuningClient(ABC):
-    def __init__(self):
-        mlir_ctx = ir.Context()
-        logger = logging.getLogger("tune")
-        self.tuner_context = TunerContext(mlir_ctx, logger)
+    def __init__(self, tuner_context: TunerContext):
+        self.tuner_context = tuner_context
 
     @abstractmethod
     def get_iree_compile_flags(self) -> list[str]:
@@ -644,15 +641,14 @@ def generate_candidate_specs(
         # source mlir.
         mlir_text = candidate_gen.strip_compilation_info(path_config.template_mlir)
         mlir_module = dispatch_parser.parse_mlir(mlir_text, tuning_client.tuner_context)
-        with tuning_client.tuner_context.mlir_ctx:
-            logging.debug("Captured messages from candidate_gen.py:")
-            config_specs: list[ir.Module] = candidate_gen.generate_configs_and_td_specs(
-                input_module=mlir_module,
-                tuner_context=tuning_client.tuner_context,
-                limit=args.num_candidates,
-                num_subgroups=args.num_subgroups,
-                codegen_pipeline=get_iree_codegen_pipeline(args.codegen_pipeline),
-            )
+        logging.debug("Captured messages from candidate_gen.py:")
+        config_specs: list[ir.Module] = candidate_gen.generate_configs_and_td_specs(
+            input_module=mlir_module,
+            tuner_context=tuning_client.tuner_context,
+            limit=args.num_candidates,
+            num_subgroups=args.num_subgroups,
+            codegen_pipeline=get_iree_codegen_pipeline(args.codegen_pipeline),
+        )
         logging.debug("candidate_gen.py ends")
         handle_error(
             condition=(len(config_specs) <= 1), msg="Failed to generate any candidates"

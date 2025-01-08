@@ -40,7 +40,7 @@ Then, make pyenv available by adding the below to your `~/.bashrc`:
 ```bash
 export PYENV_ROOT="$HOME/.pyenv"
 command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"
-eval "$(pyenv init -)"
+eval "$(pyenv init - bash)"
 ```
 
 Finally, install a pyenv-managed version of python

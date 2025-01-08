@@ -125,7 +125,7 @@ def get_map_result_dim_positions(map: ir.AffineMap):
 
 
 class ContractionOpInterfaceMatcher(GenericOpMatcher):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.contraction_dimensions: Optional[ContractionDimensions] = None
         self.lhs_dims: Optional[list[int]] = None
