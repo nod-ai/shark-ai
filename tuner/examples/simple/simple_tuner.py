@@ -19,6 +19,9 @@ class SimpleTuner(libtuner.TuningClient):
     def get_iree_compile_flags(self) -> list[str]:
         return self.compile_flags
 
+    def get_iree_compile_timeout_s(self) -> int:
+        return 10
+
     def get_iree_benchmark_module_flags(self) -> list[str]:
         return self.benchmark_flags
 
