@@ -466,7 +466,11 @@ def run_iree_compile_command(compile_pack: CompilePack) -> Optional[int]:
             timeout_seconds=compile_pack.iree_compile_timeout,
         )
     )
-    if result.process_res is None or result.is_timeout:
+
+    # We need to check if the output vmfb exists as iree-compile returns a success
+    # status code when crash reproducers are dumped.
+    output_vmfb_exists = candidate_tracker.compiled_vmfb_path.is_file()
+    if result.process_res is None or result.is_timeout or not output_vmfb_exists:
         return None
     return candidate_tracker.candidate_id
 
@@ -520,7 +524,7 @@ def run_iree_benchmark_module_command(benchmark_pack: BenchmarkPack):
             **extra_flags,
         )
     except ireert.benchmark.BenchmarkTimeoutError as e:
-        logging.warning(
+        logging.info(
             f"Benchmark of candidate {candidate_id} timed out after {timeout} seconds."
         )
         return BenchmarkResult(
@@ -557,7 +561,7 @@ def run_iree_benchmark_module_command(benchmark_pack: BenchmarkPack):
         )
 
     mean_benchmark_time = sum(times) / float(len(times))
-    logging.debug(f"Benchmark time of candidate {candidate_id}: {mean_benchmark_time}")
+    logging.debug(f"Benchmark time of candidate {candidate_id}: {mean_benchmark_time:.2f}")
     return BenchmarkResult(
         candidate_id=candidate_id,
         time=mean_benchmark_time,
