@@ -688,7 +688,11 @@ def generate_candidate_specs(
                 candidate_num
             )
             with open(spec_path, "w") as f:
-                f.write(str(spec))
+                # Write the module with local scope so that compilation info
+                # attributes are inlined. This makes it easier to split up the
+                # TD spec and combine with other specs after tuning.
+                local_scope_spec_str: str = spec.operation.get_asm(use_local_scope=True)
+                f.write(local_scope_spec_str)
             new_candidate = CandidateTracker(
                 mlir_path=path_config.template_mlir,
                 candidate_id=candidate_num,
