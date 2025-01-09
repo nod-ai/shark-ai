@@ -497,10 +497,10 @@ def run_iree_benchmark_module_command(benchmark_pack: BenchmarkPack):
         assert flag[:2] == "--", "iree_benchmark_module_flags should begin with '--'"
         split_key_value = flag[2:].split("=")
         assert (
-            len(split_key_value) == 2
+            len(split_key_value) >= 1
         ), "iree_benchmark_module_flags should have the format --<key>=<value>"
         key = split_key_value[0]
-        value = split_key_value[1]
+        value = '='.join(split_key_value[1:])
         # Allow the tuning client to pass `--function=@func_name`.
         if key == "function":
             func_name = value
