@@ -47,7 +47,10 @@ add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 # Prefer to keep the IREE git tag synced with the Python package version in the
 # requirements-iree-pinned.txt file. At a minimum, the compiler from those
 # packages must be compatible with the runtime at this source ref.
-set(SHORTFIN_IREE_GIT_TAG "iree-3.1.0rc20241220")
+# TODO: switch back to iree-3.2.0rcYYYYMMDD style tag matching Python package
+#       pin after future nightly releases
+set(SHORTFIN_IREE_GIT_TAG "9055c9d1f6342a061a6747ef9b385816b96a0a8f")
+
 
 # build options
 option(SHORTFIN_BUILD_PYTHON_BINDINGS "Builds Python Bindings" OFF)
