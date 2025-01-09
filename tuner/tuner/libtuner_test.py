@@ -281,3 +281,27 @@ def test_validate_baselines_device_id_match():
         first_baseline, second_baseline
     )
     assert result is True
+
+
+def test_validate_baseline_regression():
+    first_baseline = {"hip://0": 1000.0, "hip://1": 2000.0}
+    second_baseline = {"hip://0": 1100.0, "hip://1": 1900.0}
+    regression_devices = libtuner.validate_baseline_regression(
+        first_baseline, second_baseline
+    )
+    assert regression_devices == ["hip://0"]
+
+    first_baseline = {"hip://0": 1000.0, "hip://1": 2000.0}
+    second_baseline = {"hip://0": 1000.0, "hip://1": 2000.0}
+
+    regression_devices = libtuner.validate_baseline_regression(
+        first_baseline, second_baseline
+    )
+    assert regression_devices == []
+
+    first_baseline = {"hip://0": 1000.0, "hip://1": 2000.0}
+    second_baseline = {"hip://0": 1100.0}
+    regression_devices = libtuner.validate_baseline_regression(
+        first_baseline, second_baseline
+    )
+    assert regression_devices == ["hip://0"]

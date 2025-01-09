@@ -25,7 +25,6 @@ from typing import Optional
 from abc import abstractmethod
 
 from iree.compiler import ir  # type: ignore
-
 from iree.compiler.dialects import iree_codegen  # type: ignore
 
 from .common import *
@@ -350,7 +349,7 @@ def main() -> None:
             prefetch_shared_memory=args.prefetch_shared_memory_options,
             no_reduce_shared_memory_bank_conflicts=args.no_reduce_shared_memory_bank_conflicts_options,
         )
-        specs: list[ir.Module] = generate_configs_and_td_specs(
+        specs = generate_configs_and_td_specs(
             mlir_module,
             tuner_ctx,
             args.limit,
@@ -364,7 +363,7 @@ def main() -> None:
             spec_path = spec_dir / f"{candidate_num}_spec.mlir"
             spec_dir.mkdir(parents=True, exist_ok=True)
             with open(spec_path, "w") as f:
-                local_scope_spec_str: str = spec.operation.get_asm(use_local_scope=True)
+                local_scope_spec_str = spec.operation.get_asm(use_local_scope=True)
                 f.write(local_scope_spec_str)
 
 
