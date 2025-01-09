@@ -450,14 +450,10 @@ def run_iree_compile_command(compile_pack: CompilePack) -> Optional[int]:
     crash_dump_path = f"{output_path}.crash_report.mlir"
     assert candidate_tracker.mlir_path, "expected input mlir file path"
     input_file = candidate_tracker.mlir_path.as_posix()
-    # TODO(Max191): Make the device in `traget_backend` a command line option
-    # instead of hardcoding rocm.
-    target_backend = "rocm"
     iree_compile = ireec.binaries.find_tool("iree-compile")
     compile_command = [
         iree_compile,
         input_file,
-        f"--iree-hal-target-backends={target_backend}",
         f"-o={output_path}",
         f"--mlir-pass-pipeline-crash-reproducer={crash_dump_path}",
         f"--iree-codegen-tuning-spec-path={td_spec_path}",
