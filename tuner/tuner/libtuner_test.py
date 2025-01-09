@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import argparse
+import math
 import pytest
 import json
 from subprocess import CompletedProcess
@@ -173,6 +174,61 @@ def test_validate_devices_with_invalid_device() -> None:
                     exit_program=True,
                 )
                 assert expected_call in mock_handle_error.call_args_list
+
+
+def test_select_best_benchmark_results() -> None:
+    candidate_results = [
+        libtuner.BenchmarkResult(1, 0.5, "hip://0"),
+        libtuner.BenchmarkResult(2, 0.3, "hip://1"),
+        libtuner.BenchmarkResult(3, 0.2, "hip://2"),
+        libtuner.BenchmarkResult(4, 0.1, "hip://3"),
+    ]
+    baseline_results = [
+        libtuner.BenchmarkResult(0, 1.0, "hip://0"),
+        libtuner.BenchmarkResult(0, 0.1, "hip://1"),
+        libtuner.BenchmarkResult(0, 0.1, "hip://2"),
+        libtuner.BenchmarkResult(0, 0.1, "hip://3"),
+    ]
+    best_results: list[
+        libtuner.BenchmarkResult
+    ] = libtuner.select_best_benchmark_results(
+        candidate_results=candidate_results,
+        baseline_results=baseline_results,
+        num_candidates=3,
+    )
+    assert best_results[0].candidate_id == 1
+    assert best_results[1].candidate_id == 4
+    assert best_results[2].candidate_id == 3
+
+    baseline_results = [
+        libtuner.BenchmarkResult(0, math.inf, "hip://0"),
+        libtuner.BenchmarkResult(0, 0.1, "hip://1"),
+        libtuner.BenchmarkResult(0, 0.1, "hip://2"),
+        libtuner.BenchmarkResult(0, 0.1, "hip://3"),
+    ]
+    best_results = libtuner.select_best_benchmark_results(
+        candidate_results=candidate_results,
+        baseline_results=baseline_results,
+        num_candidates=3,
+    )
+    assert best_results[0].candidate_id == 4
+    assert best_results[1].candidate_id == 3
+    assert best_results[2].candidate_id == 2
+
+    baseline_results = [
+        libtuner.BenchmarkResult(0, math.inf, "hip://0"),
+        libtuner.BenchmarkResult(0, math.inf, "hip://1"),
+        libtuner.BenchmarkResult(0, math.inf, "hip://2"),
+        libtuner.BenchmarkResult(0, math.inf, "hip://3"),
+    ]
+    best_results = libtuner.select_best_benchmark_results(
+        candidate_results=candidate_results,
+        baseline_results=baseline_results,
+        num_candidates=3,
+    )
+    assert best_results[0].candidate_id == 4
+    assert best_results[1].candidate_id == 3
+    assert best_results[2].candidate_id == 2
 
 
 def test_enum_collision():
