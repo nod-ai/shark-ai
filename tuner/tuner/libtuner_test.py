@@ -244,3 +244,40 @@ def test_select_best_benchmark_results() -> None:
 
 def test_enum_collision():
     from iree.compiler.dialects import linalg, vector, iree_gpu, iree_codegen, iree_input  # type: ignore
+
+
+def test_validate_benchmark_results():
+    benchmark_results = [
+        libtuner.BenchmarkResult(0, math.inf, "hip://0"),
+    ]
+
+    result = libtuner.validate_benchmark_results(benchmark_results)
+    assert result == []
+
+    benchmark_results = [
+        libtuner.BenchmarkResult(0, math.inf, "hip://0"),
+        libtuner.BenchmarkResult(0, 0.1, "hip://1"),
+    ]
+    result = libtuner.validate_benchmark_results(benchmark_results)
+    assert len(result) == 1
+    assert result[0].candidate_id == 0
+    assert result[0].time == 0.1
+    assert result[0].device_id == "hip://1"
+
+
+def test_validate_baselines_device_id_match():
+    first_baseline = {"hip://0": 1000.0, "hip://1": 2000.0}
+    second_baseline = {"hip://1": 1500.0, "hip://2": 2500.0}
+
+    result = libtuner.validate_baselines_device_ids_match(
+        first_baseline, second_baseline
+    )
+    assert result is False
+
+    first_baseline = {"hip://0": 1000.0, "hip://1": 2000.0}
+    second_baseline = {"hip://0": 1500.0, "hip://1": 2500.0}
+
+    result = libtuner.validate_baselines_device_ids_match(
+        first_baseline, second_baseline
+    )
+    assert result is True

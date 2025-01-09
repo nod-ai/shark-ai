@@ -221,6 +221,52 @@ def validate_devices(user_devices: list[str]) -> None:
         )
 
 
+def validate_benchmark_results(
+    benchmark_results: list[BenchmarkResult],
+) -> list[BenchmarkResult]:
+    filtered_benchmark_results = [r for r in benchmark_results if math.isfinite(r.time)]
+    if len(filtered_benchmark_results) == 0:
+        logging.error("No successful candidate benchmarks.")
+
+    return filtered_benchmark_results
+
+
+def map_baseline_by_device(baseline_results: list[BenchmarkResult]) -> dict[str, float]:
+    return {r.device_id: r.time for r in baseline_results}
+
+
+def validate_baselines_device_ids_match(
+    first_baseline_by_device: dict[str, float],
+    second_baseline_by_device: dict[str, float],
+) -> bool:
+    return first_baseline_by_device.keys() == second_baseline_by_device.keys()
+
+
+def validate_baseline_regression(
+    first_baseline_by_device: dict[str, float],
+    second_baseline_by_device: dict[str, float],
+) -> bool:
+    regression_detected = False
+    for device_id in first_baseline_by_device:
+        if device_id not in second_baseline_by_device:
+            continue
+        first_baseline_time = first_baseline_by_device[device_id]
+        second_baseline_time = second_baseline_by_device[device_id]
+
+        if second_baseline_time > first_baseline_time * 1.03:
+            percentage_slower = (
+                (second_baseline_time - first_baseline_time) / first_baseline_time
+            ) * 100
+            logging.warning(
+                f"Performance regression detected on device {device_id}: "
+                f"Baseline time = {first_baseline_time}, Post-baseline time = {second_baseline_time}, "
+                f"Slower by {percentage_slower:.3f}%"
+            )
+            regression_detected = True
+
+    return regression_detected
+
+
 class ExecutionPhases(str, Enum):
     dont_stop = ""
     generate_candidates = "generate-candidates"
