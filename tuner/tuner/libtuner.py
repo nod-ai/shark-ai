@@ -530,9 +530,7 @@ def run_iree_benchmark_module_command(benchmark_pack: BenchmarkPack):
         )
 
     times = []
-    logging.debug(f"candidate {candidate_id} benchmark_results: {benchmark_results}")
     for benchmark_result in benchmark_results:
-        logging.debug(f"candidate {candidate_id} benchmark_result: {benchmark_result}")
         benchmark_name = benchmark_result.benchmark_name
         # With multiple benchmark results, there will be `real_time_mean`, but
         # not with single iteration benchmark results, so ignore the mean time
@@ -845,6 +843,7 @@ def benchmark(
         initializer=init_worker_context,
         initializer_inputs=(worker_context_queue,),
     )
+    candidate_results = [r for r in candidate_results if math.isfinite(r.time)]
 
     # Benchmarking baselines on each involved device.
     worker_context_queue = create_worker_context_queue(args.devices)
@@ -862,6 +861,10 @@ def benchmark(
         initializer=init_worker_context,
         initializer_inputs=(worker_context_queue,),
     )
+    baseline_results = [r for r in baseline_results if math.isfinite(r.time)]
+    assert len(baseline_results) == len(
+        args.devices
+    ), "baseline benchmarks should not fail"
     baseline_times_by_device = {}
     for r in baseline_results:
         baseline_times_by_device[r.device_id] = r.time
