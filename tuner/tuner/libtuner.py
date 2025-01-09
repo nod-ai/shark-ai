@@ -500,7 +500,7 @@ def run_iree_benchmark_module_command(benchmark_pack: BenchmarkPack):
             len(split_key_value) >= 1
         ), "iree_benchmark_module_flags should have the format --<key>=<value>"
         key = split_key_value[0]
-        value = '='.join(split_key_value[1:])
+        value = "=".join(split_key_value[1:])
         # Allow the tuning client to pass `--function=@func_name`.
         if key == "function":
             func_name = value
