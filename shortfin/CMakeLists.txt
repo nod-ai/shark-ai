@@ -246,7 +246,7 @@ else()
     GIT_REPOSITORY https://github.com/iree-org/iree.git
     GIT_TAG "${SHORTFIN_IREE_GIT_TAG}"
     GIT_SUBMODULES ${IREE_SUBMODULES}
-    GIT_SHALLOW TRUE
+    GIT_SHALLOW FALSE  # TODO: switch back to TRUE when SHORTFIN_IREE_GIT_TAG is a tag and not a commit
     SYSTEM
     EXCLUDE_FROM_ALL
   )
