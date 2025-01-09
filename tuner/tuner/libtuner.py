@@ -457,8 +457,6 @@ def run_iree_compile_command(compile_pack: CompilePack) -> Optional[int]:
     compile_command = [
         iree_compile,
         input_file,
-        f"--iree-input-type={str(ireec.core.InputType.AUTO)}",
-        f"--iree-vm-bytecode-module-output-format={str(ireec.core.OutputFormat.FLATBUFFER_BINARY)}",
         f"--iree-hal-target-backends={target_backend}",
         f"-o={output_path}",
         f"--mlir-pass-pipeline-crash-reproducer={crash_dump_path}",

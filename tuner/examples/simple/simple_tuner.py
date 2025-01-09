@@ -15,12 +15,13 @@ class SimpleTuner(libtuner.TuningClient):
         super().__init__(tuner_context)
         self.compile_flags: list[str] = []
         self.benchmark_flags: list[str] = []
+        self.compile_timeout: int = 10
 
     def get_iree_compile_flags(self) -> list[str]:
         return self.compile_flags
 
     def get_iree_compile_timeout_s(self) -> int:
-        return 10
+        return self.compile_timeout
 
     def get_iree_benchmark_module_flags(self) -> list[str]:
         return self.benchmark_flags
@@ -126,6 +127,7 @@ def main():
 
         print("Compiling models with top candidates...")
         simple_tuner.compile_flags = compile_flags
+        simple_tuner.compile_timeout = 60
         compiled_model_candidates = libtuner.compile(
             args,
             path_config,
