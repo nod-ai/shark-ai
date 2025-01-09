@@ -561,7 +561,9 @@ def run_iree_benchmark_module_command(benchmark_pack: BenchmarkPack):
         )
 
     mean_benchmark_time = sum(times) / float(len(times))
-    logging.debug(f"Benchmark time of candidate {candidate_id}: {mean_benchmark_time:.2f}")
+    logging.debug(
+        f"Benchmark time of candidate {candidate_id}: {mean_benchmark_time:.2f}"
+    )
     return BenchmarkResult(
         candidate_id=candidate_id,
         time=mean_benchmark_time,
