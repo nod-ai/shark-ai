@@ -34,7 +34,6 @@ class PerplexityTest(unittest.TestCase):
         with open(self.baseline_perplexity_scores, "r") as f:
             self.baseline_perplexity = json.load(f)
 
-    @pytest.mark.xfail(reason="Runtime segfault", run=False)
     def test_llama3_8B_f16_decomposed(self):
 
         # Llama 3.1 8B decomposed
