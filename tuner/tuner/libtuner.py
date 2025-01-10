@@ -221,9 +221,12 @@ def validate_devices(user_devices: list[str]) -> None:
         )
 
 
-def validate_benchmark_results(
+def get_valid_benchmark_results(
     benchmark_results: list[BenchmarkResult],
 ) -> list[BenchmarkResult]:
+    """
+    Filter the benchmark_results list to return list with finite `time` values.
+    """
     filtered_benchmark_results = [r for r in benchmark_results if math.isfinite(r.time)]
     if len(filtered_benchmark_results) == 0:
         logging.error("No successful candidate benchmarks.")
@@ -231,23 +234,29 @@ def validate_benchmark_results(
     return filtered_benchmark_results
 
 
+def check_baseline_devices_uniqueness(baseline_results: list[BenchmarkResult]) -> bool:
+    seen = set()
+    for result in baseline_results:
+        if result.device_id in seen:
+            return False
+        seen.add(result.device_id)
+    return True
+
+
 def map_baseline_by_device(baseline_results: list[BenchmarkResult]) -> dict[str, float]:
     return {r.device_id: r.time for r in baseline_results}
 
 
-def validate_baselines_device_ids_match(
-    first_baseline_by_device: dict[str, float],
-    second_baseline_by_device: dict[str, float],
-) -> bool:
-    return first_baseline_by_device.keys() == second_baseline_by_device.keys()
-
-
-def validate_baseline_regression(
-    first_baseline_by_device: dict[str, float],
-    second_baseline_by_device: dict[str, float],
+def detect_baseline_regression(
+    first_baseline_results: list[BenchmarkResult],
+    second_baseline_results: list[BenchmarkResult],
 ) -> list[str]:
+    """
+    Detects performance regressions between two sets of baseline results.
+    """
     regression_device_ids = []
-
+    first_baseline_by_device = map_baseline_by_device(first_baseline_results)
+    second_baseline_by_device = map_baseline_by_device(second_baseline_results)
     for device_id in first_baseline_by_device:
         if device_id not in second_baseline_by_device:
             continue
@@ -909,7 +918,7 @@ def select_best_benchmark_results(
     baseline_results: list[BenchmarkResult],
     num_candidates: Optional[int],
 ) -> list[BenchmarkResult]:
-    filtered_candidate_results = validate_benchmark_results(candidate_results)
+    filtered_candidate_results = get_valid_benchmark_results(candidate_results)
     if len(filtered_candidate_results) == 0:
         logging.error("No successful candidate benchmarks.")
         return []
@@ -982,8 +991,8 @@ def benchmark(
         tuning_client=tuning_client,
         candidate_trackers=candidate_trackers,
     )
-
-    baseline_times_by_device = map_baseline_by_device(baseline_results)
+    if not check_baseline_devices_uniqueness(baseline_results):
+        logging.warning("Duplicate device IDs detected in the first baseline results.")
 
     candidate_indices = [i for i in compiled_candidates if i != 0]
     candidate_results = benchmark_candidates(
@@ -1002,15 +1011,17 @@ def benchmark(
         tuning_client=tuning_client,
         candidate_trackers=candidate_trackers,
     )
-    post_baseline_times_by_device = map_baseline_by_device(post_baseline_results)
 
-    if validate_baselines_device_ids_match(
-        baseline_times_by_device, post_baseline_times_by_device
-    ):
+    if not check_baseline_devices_uniqueness(post_baseline_results):
+        logging.warning("Duplicate device IDs detected in the second baseline results.")
+
+    first_baseline_by_device = map_baseline_by_device(baseline_results)
+    second_baseline_by_device = map_baseline_by_device(post_baseline_results)
+    if first_baseline_by_device.keys() != second_baseline_by_device.keys():
         logging.warning("Device ID mismatch between baseline runs.")
 
-    regression_devices = validate_baseline_regression(
-        baseline_times_by_device, post_baseline_results
+    regression_devices = detect_baseline_regression(
+        baseline_results, post_baseline_results
     )
     if regression_devices:
         logging.warning(

@@ -251,57 +251,71 @@ def test_validate_benchmark_results():
         libtuner.BenchmarkResult(0, math.inf, "hip://0"),
     ]
 
-    result = libtuner.validate_benchmark_results(benchmark_results)
+    result = libtuner.get_valid_benchmark_results(benchmark_results)
     assert result == []
 
     benchmark_results = [
         libtuner.BenchmarkResult(0, math.inf, "hip://0"),
         libtuner.BenchmarkResult(0, 0.1, "hip://1"),
     ]
-    result = libtuner.validate_benchmark_results(benchmark_results)
+    result = libtuner.get_valid_benchmark_results(benchmark_results)
     assert len(result) == 1
     assert result[0].candidate_id == 0
     assert result[0].time == 0.1
     assert result[0].device_id == "hip://1"
 
 
-def test_validate_baselines_device_id_match():
-    first_baseline = {"hip://0": 1000.0, "hip://1": 2000.0}
-    second_baseline = {"hip://1": 1500.0, "hip://2": 2500.0}
+def test_check_baseline_devices_uniqueness():
+    baseline_results = [
+        libtuner.BenchmarkResult(0, 1000.0, "hip://0"),
+        libtuner.BenchmarkResult(0, 2000.0, "hip://1"),
+        libtuner.BenchmarkResult(0, 3000.0, "hip://2"),
+    ]
+    assert libtuner.check_baseline_devices_uniqueness(baseline_results)
 
-    result = libtuner.validate_baselines_device_ids_match(
-        first_baseline, second_baseline
-    )
-    assert result is False
-
-    first_baseline = {"hip://0": 1000.0, "hip://1": 2000.0}
-    second_baseline = {"hip://0": 1500.0, "hip://1": 2500.0}
-
-    result = libtuner.validate_baselines_device_ids_match(
-        first_baseline, second_baseline
-    )
-    assert result is True
+    baseline_results = [
+        libtuner.BenchmarkResult(0, 1000.0, "hip://0"),
+        libtuner.BenchmarkResult(0, 2000.0, "hip://0"),
+        libtuner.BenchmarkResult(0, 3000.0, "hip://2"),
+    ]
+    assert not libtuner.check_baseline_devices_uniqueness(baseline_results)
 
 
-def test_validate_baseline_regression():
-    first_baseline = {"hip://0": 1000.0, "hip://1": 2000.0}
-    second_baseline = {"hip://0": 1100.0, "hip://1": 1900.0}
-    regression_devices = libtuner.validate_baseline_regression(
+def test_detect_baseline_regression():
+    first_baseline = [
+        libtuner.BenchmarkResult(0, 1000.0, "hip://0"),
+        libtuner.BenchmarkResult(0, 2000.0, "hip://1"),
+    ]
+    second_baseline = [
+        libtuner.BenchmarkResult(0, 1100.0, "hip://0"),
+        libtuner.BenchmarkResult(0, 1900.0, "hip://1"),
+    ]
+    regression_devices = libtuner.detect_baseline_regression(
         first_baseline, second_baseline
     )
     assert regression_devices == ["hip://0"]
 
-    first_baseline = {"hip://0": 1000.0, "hip://1": 2000.0}
-    second_baseline = {"hip://0": 1000.0, "hip://1": 2000.0}
-
-    regression_devices = libtuner.validate_baseline_regression(
+    first_baseline = [
+        libtuner.BenchmarkResult(0, 1000.0, "hip://0"),
+        libtuner.BenchmarkResult(0, 2000.0, "hip://1"),
+    ]
+    second_baseline = [
+        libtuner.BenchmarkResult(0, 1000.0, "hip://0"),
+        libtuner.BenchmarkResult(0, 1000.0, "hip://1"),
+    ]
+    regression_devices = libtuner.detect_baseline_regression(
         first_baseline, second_baseline
     )
     assert regression_devices == []
 
-    first_baseline = {"hip://0": 1000.0, "hip://1": 2000.0}
-    second_baseline = {"hip://0": 1100.0}
-    regression_devices = libtuner.validate_baseline_regression(
+    first_baseline = [
+        libtuner.BenchmarkResult(0, 1000.0, "hip://0"),
+        libtuner.BenchmarkResult(0, 2000.0, "hip://1"),
+    ]
+    second_baseline = [
+        libtuner.BenchmarkResult(0, 1100.0, "hip://0"),
+    ]
+    regression_devices = libtuner.detect_baseline_regression(
         first_baseline, second_baseline
     )
     assert regression_devices == ["hip://0"]
