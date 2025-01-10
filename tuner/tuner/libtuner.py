@@ -18,7 +18,6 @@ and implement a complete tuning loop for a specific model.
 
 import math
 import signal
-import subprocess
 import sys
 import shutil
 import logging
@@ -26,7 +25,6 @@ import argparse
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-import time
 import multiprocessing
 import queue
 from tqdm import tqdm
@@ -37,10 +35,12 @@ from abc import ABC, abstractmethod
 import iree.runtime as ireert  # type: ignore
 import iree.compiler as ireec  # type: ignore
 from iree.compiler import ir  # type: ignore
+from iree.compiler.dialects import iree_codegen  # type: ignore
 from . import candidate_gen
 from . import dispatch_parser
 from .op_matchers import *
 from .common import *
+from .dispatch_constraints import *
 
 
 # Default values for num_candidates and devices, change it as needed
@@ -103,13 +103,15 @@ class PathConfig:
 
 
 class TuningClient(ABC):
-    def __init__(self):
-        mlir_ctx = ir.Context()
-        logger = logging.getLogger("tune")
-        self.tuner_context = TunerContext(mlir_ctx, logger)
+    def __init__(self, tuner_context: TunerContext):
+        self.tuner_context = tuner_context
 
     @abstractmethod
     def get_iree_compile_flags(self) -> list[str]:
+        pass
+
+    @abstractmethod
+    def get_iree_compile_timeout_s(self) -> int:
         pass
 
     @abstractmethod
@@ -124,6 +126,7 @@ class TuningClient(ABC):
 @dataclass
 class CompilePack:
     iree_compile_flags: list[str]
+    iree_compile_timeout: int
     candidate_tracker: CandidateTracker
 
 
@@ -303,6 +306,24 @@ def parse_arguments(
     candidate_gen_args.add_argument(
         "--tile-dims", help="Map of tile size matmul dims", type=str, default="mnk"
     )
+    candidate_gen_args.add_argument(
+        "--prefetch-shared-memory-options",
+        type=lambda t: [s.strip().lower() == "true" for s in t.split(",")],
+        default=[True],
+        help="Comma-separated list of allowed values for the prefetch_shared_memory pipeline option. Possible values: [True, False]",
+    )
+    candidate_gen_args.add_argument(
+        "--no-reduce-shared-memory-bank-conflicts-options",
+        type=lambda t: [s.strip().lower() == "true" for s in t.split(",")],
+        default=[None],
+        help="Comma-separated list of allowed values for the no_reduce_shared_memory_bank_conflicts pipeline option. Possible values: [True, False]",
+    )
+    candidate_gen_args.add_argument(
+        "--waves-per-eu-options",
+        type=lambda t: [int(s) for s in t.split(",")],
+        default=[2],
+        help="Comma-separated list of allowed values for the waves_per_eu config option. Possible values: Any positive integer value",
+    )
     general_args.add_argument(
         "--codegen-pipeline",
         choices=[x.value for x in CodegenPipelines],
@@ -424,30 +445,33 @@ def run_iree_compile_command(compile_pack: CompilePack) -> Optional[int]:
     logging.debug(
         f"Compiling candidate {candidate_tracker.candidate_id} with spec: {td_spec_path}"
     )
-    extra_flags = [
-        f"--iree-codegen-tuning-spec-path={td_spec_path}",
-    ]
-    extra_flags += compile_pack.iree_compile_flags
     assert candidate_tracker.compiled_vmfb_path, "expected output vmfb path"
     output_path = candidate_tracker.compiled_vmfb_path.as_posix()
     crash_dump_path = f"{output_path}.crash_report.mlir"
     assert candidate_tracker.mlir_path, "expected input mlir file path"
     input_file = candidate_tracker.mlir_path.as_posix()
-    # TODO(Max191): Make the device in `traget_backends` a command line option
-    # instead of hardcoding in ireec.compile_str.
-    try:
-        ireec.compile_file(
-            input_file=input_file,
-            target_backends=["rocm"],
-            output_file=output_path,
-            extra_args=extra_flags,
-            crash_reproducer_path=crash_dump_path,
+    iree_compile = ireec.binaries.find_tool("iree-compile")
+    compile_command = [
+        iree_compile,
+        input_file,
+        f"-o={output_path}",
+        f"--mlir-pass-pipeline-crash-reproducer={crash_dump_path}",
+        f"--iree-codegen-tuning-spec-path={td_spec_path}",
+    ]
+    compile_command += compile_pack.iree_compile_flags
+    result = candidate_gen.run_command(
+        candidate_gen.RunPack(
+            command=compile_command,
+            check=False,
+            timeout_seconds=compile_pack.iree_compile_timeout,
         )
-    except ireec.CompilerToolError as e:
-        logging.info(f"Compilation returned non-zero exit status.")
-        logging.debug(e)
-        return None
+    )
 
+    # We need to check if the output vmfb exists as iree-compile returns a success
+    # status code when crash reproducers are dumped.
+    output_vmfb_exists = candidate_tracker.compiled_vmfb_path.is_file()
+    if result.process_res is None or result.is_timeout or not output_vmfb_exists:
+        return None
     return candidate_tracker.candidate_id
 
 
@@ -500,7 +524,7 @@ def run_iree_benchmark_module_command(benchmark_pack: BenchmarkPack):
             **extra_flags,
         )
     except ireert.benchmark.BenchmarkTimeoutError as e:
-        logging.warning(
+        logging.info(
             f"Benchmark of candidate {candidate_id} timed out after {timeout} seconds."
         )
         return BenchmarkResult(
@@ -510,9 +534,7 @@ def run_iree_benchmark_module_command(benchmark_pack: BenchmarkPack):
         )
 
     times = []
-    logging.debug(f"candidate {candidate_id} benchmark_results: {benchmark_results}")
     for benchmark_result in benchmark_results:
-        logging.debug(f"candidate {candidate_id} benchmark_result: {benchmark_result}")
         benchmark_name = benchmark_result.benchmark_name
         # With multiple benchmark results, there will be `real_time_mean`, but
         # not with single iteration benchmark results, so ignore the mean time
@@ -539,7 +561,9 @@ def run_iree_benchmark_module_command(benchmark_pack: BenchmarkPack):
         )
 
     mean_benchmark_time = sum(times) / float(len(times))
-    logging.debug(f"Benchmark time of candidate {candidate_id}: {mean_benchmark_time}")
+    logging.debug(
+        f"Benchmark time of candidate {candidate_id}: {mean_benchmark_time:.2f}"
+    )
     return BenchmarkResult(
         candidate_id=candidate_id,
         time=mean_benchmark_time,
@@ -644,15 +668,20 @@ def generate_candidate_specs(
         # source mlir.
         mlir_text = candidate_gen.strip_compilation_info(path_config.template_mlir)
         mlir_module = dispatch_parser.parse_mlir(mlir_text, tuning_client.tuner_context)
-        with tuning_client.tuner_context.mlir_ctx:
-            logging.debug("Captured messages from candidate_gen.py:")
-            config_specs: list[ir.Module] = candidate_gen.generate_configs_and_td_specs(
-                input_module=mlir_module,
-                tuner_context=tuning_client.tuner_context,
-                limit=args.num_candidates,
-                num_subgroups=args.num_subgroups,
-                codegen_pipeline=get_iree_codegen_pipeline(args.codegen_pipeline),
-            )
+        logging.debug("Captured messages from candidate_gen.py:")
+        pipeline_options_search_space = PipelineOptionsSearchSpace(
+            prefetch_shared_memory=args.prefetch_shared_memory_options,
+            no_reduce_shared_memory_bank_conflicts=args.no_reduce_shared_memory_bank_conflicts_options,
+        )
+        config_specs: list[ir.Module] = candidate_gen.generate_configs_and_td_specs(
+            input_module=mlir_module,
+            tuner_context=tuning_client.tuner_context,
+            limit=args.num_candidates,
+            num_subgroups=args.num_subgroups,
+            allowed_waves_per_eu=args.waves_per_eu_options,
+            pipeline_options_search_space=pipeline_options_search_space,
+            codegen_pipeline=get_iree_codegen_pipeline(args.codegen_pipeline),
+        )
         logging.debug("candidate_gen.py ends")
         handle_error(
             condition=(len(config_specs) <= 1), msg="Failed to generate any candidates"
@@ -667,7 +696,11 @@ def generate_candidate_specs(
                 candidate_num
             )
             with open(spec_path, "w") as f:
-                f.write(str(spec))
+                # Write the module with local scope so that compilation info
+                # attributes are inlined. This makes it easier to split up the
+                # TD spec and combine with other specs after tuning.
+                local_scope_spec_str: str = spec.operation.get_asm(use_local_scope=True)
+                f.write(local_scope_spec_str)
             new_candidate = CandidateTracker(
                 mlir_path=path_config.template_mlir,
                 candidate_id=candidate_num,
@@ -750,6 +783,7 @@ def compile(
     task_list = [
         CompilePack(
             iree_compile_flags=tuning_client.get_iree_compile_flags(),
+            iree_compile_timeout=tuning_client.get_iree_compile_timeout_s(),
             candidate_tracker=candidate_trackers[i],
         )
         for i in candidates
@@ -758,6 +792,7 @@ def compile(
         task_list.append(
             CompilePack(
                 iree_compile_flags=tuning_client.get_iree_compile_flags(),
+                iree_compile_timeout=tuning_client.get_iree_compile_timeout_s(),
                 candidate_tracker=candidate_trackers[0],
             )
         )
@@ -787,6 +822,63 @@ def compile(
     return compiled_candidates
 
 
+def select_best_benchmark_results(
+    candidate_results: list[BenchmarkResult],
+    baseline_results: list[BenchmarkResult],
+    num_candidates: Optional[int],
+) -> list[BenchmarkResult]:
+    filtered_candidate_results = [r for r in candidate_results if math.isfinite(r.time)]
+    if len(filtered_candidate_results) == 0:
+        logging.error("No successful candidate benchmarks.")
+        return []
+    fallback_baseline_time: Optional[float] = None
+    filtered_baseline_results: list[BenchmarkResult] = []
+    for r in baseline_results:
+        if math.isfinite(r.time):
+            filtered_baseline_results.append(r)
+            fallback_baseline_time = r.time
+        else:
+            logging.warning(f"Baseline on device {r.device_id} failed.")
+    if fallback_baseline_time is None:
+        logging.warning(
+            f"All baseline benchmarks failed. Baselines will not be used to select top candidates"
+        )
+    baseline_times_by_device = {}
+    for r in filtered_baseline_results:
+        baseline_times_by_device[r.device_id] = r.time
+
+    # Select top candidates
+    def get_speedup(result: BenchmarkResult) -> float:
+        if result.device_id in baseline_times_by_device:
+            return result.time / baseline_times_by_device[result.device_id]
+        assert fallback_baseline_time is not None, "expected fallback_baseline_time"
+        return result.time / fallback_baseline_time
+
+    num_top_candidates = len(filtered_candidate_results)
+    if num_candidates is not None:
+        num_top_candidates = num_candidates
+
+    # Sort by the speedup over baseline on the same device. If a device failed
+    # the baseline benchmark, then use the fallback baseline. If there is no
+    # successful baseline, then the best we can do is to sort by the actual
+    # time.
+    sorting_key = get_speedup
+    if fallback_baseline_time is None:
+        sorting_key = lambda result: result.time
+    best_results = sorted(filtered_candidate_results, key=sorting_key)[
+        :num_top_candidates
+    ]
+    logging.info(f"Selected top[{len(best_results)}]:")
+
+    for r in best_results:
+        if fallback_baseline_time is not None:
+            speedup = f"{round(get_speedup(r) * 100, 2)}% of baseline"
+        else:
+            speedup = "baseline unavailable"
+        logging.info(f"Candidate {r.candidate_id} time: {r.time} ({speedup})")
+    return best_results
+
+
 def benchmark(
     args: argparse.Namespace,
     path_config: PathConfig,
@@ -796,6 +888,9 @@ def benchmark(
     num_candidates: Optional[int] = None,
 ):
     logging.debug("benchmark()")
+    if len(compiled_candidates) == 0:
+        logging.warning("No candidates to benchmark.")
+        return []
 
     task_list = [
         BenchmarkPack(
@@ -807,7 +902,7 @@ def benchmark(
         if i != 0
     ]
     worker_context_queue = create_worker_context_queue(args.devices)
-    candidate_results = multiprocess_progress_wrapper(
+    candidate_results: list[BenchmarkResult] = multiprocess_progress_wrapper(
         num_worker=len(args.devices),
         task_list=task_list,
         function=run_iree_benchmark_module_command,
@@ -824,32 +919,19 @@ def benchmark(
             candidate_tracker=candidate_trackers[0],
         )
     ] * len(args.devices)
-    baseline_results = multiprocess_progress_wrapper(
+    baseline_results: list[BenchmarkResult] = multiprocess_progress_wrapper(
         num_worker=len(args.devices),
         task_list=baseline_task_list,
         function=run_iree_benchmark_module_command,
         initializer=init_worker_context,
         initializer_inputs=(worker_context_queue,),
     )
-    baseline_times_by_device = {}
-    for r in baseline_results:
-        baseline_times_by_device[r.device_id] = r.time
 
-    # Select top candidates
-    def get_speedup(result: BenchmarkResult) -> float:
-        return result.time / baseline_times_by_device[result.device_id]
-
-    num_top_candidates = len(candidate_results)
-    if num_candidates is not None:
-        num_top_candidates = num_candidates
-    best_results = sorted(candidate_results, key=get_speedup)[:num_top_candidates]
-    logging.info(f"Selected top[{len(best_results)}]:")
-
-    for r in best_results:
-        speedup = round(get_speedup(r) * 100, 2)
-        logging.info(
-            f"Candidate {r.candidate_id} time: {r.time} ({speedup}% of baseline)"
-        )
+    best_results: list[BenchmarkResult] = select_best_benchmark_results(
+        candidate_results=candidate_results,
+        baseline_results=baseline_results,
+        num_candidates=num_candidates,
+    )
 
     top_candidates = [result.candidate_id for result in best_results]
     return top_candidates

@@ -1,6 +1,7 @@
 datasets==3.0.0
 diffusers
 parameterized
+protobuf
 pytest==8.0.0
 pytest-html
 pytest-xdist==3.5.0

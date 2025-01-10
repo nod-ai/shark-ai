@@ -4,17 +4,16 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import re
 import logging
 from dataclasses import astuple, dataclass, field
 from enum import Enum
+from types import TracebackType
 from typing import Optional
 from typing import Any
 
 from iree.compiler import ir  # type: ignore
 
 from iree.compiler.dialects import iree_gpu  # type: ignore
-from iree.compiler.dialects import iree_codegen  # type: ignore
 
 
 class CommonTypes:
@@ -38,10 +37,22 @@ class CommonTypes:
 
 
 class TunerContext:
-    def __init__(self, mlir_ctx: ir.Context, logger: logging.Logger):
-        self.mlir_ctx: ir.Context = mlir_ctx
-        self.logger: logging.Logger = logger
-        self.type: CommonTypes = CommonTypes(mlir_ctx)
+    def __init__(self, logger: Optional[logging.Logger] = None):
+        self.mlir_ctx: ir.Context = ir.Context()
+        self.logger: logging.Logger = logger or logging.getLogger("tune")
+        self.type: CommonTypes = CommonTypes(self.mlir_ctx)
+
+    def __enter__(self) -> "TunerContext":
+        self.mlir_ctx.__enter__()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> bool:
+        return self.mlir_ctx.__exit__(exc_type, exc_value, traceback)
 
 
 class DispatchKind(Enum):
@@ -163,7 +174,7 @@ def get_lowering_config(
         # A local variable to hold the transformed value.
         promoted_value = value
         match key:
-            case "workgroup" | "reduction" | "subgroup":
+            case "workgroup" | "reduction" | "subgroup" | "promote_operands":
                 if isinstance(value, list):
                     promoted_value = ir.ArrayAttr.get(
                         [tuner_ctx.type.getI64(x) for x in value]

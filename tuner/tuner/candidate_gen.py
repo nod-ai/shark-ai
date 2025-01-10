@@ -37,17 +37,6 @@ tune_logger = logging.getLogger("tune")
 
 
 class DispatchTuner(DispatchParser):
-    # TODO(https://github.com/nod-ai/shark-ai/issues/453): Remove this in favor of configuring using transform dialect.
-    @abstractmethod
-    def apply_params(
-        self,
-        problem_size: ProblemSize,
-        template: list[str],
-        compilation_info: iree_codegen.CompilationInfoAttr,
-    ) -> MLIRTransformation:
-        """Apply parameter transformations to the operation."""
-        pass
-
     @abstractmethod
     def get_td_spec(
         self,
@@ -59,24 +48,12 @@ class DispatchTuner(DispatchParser):
 
 
 class DispatchTunerRegistry:
-    def __init__(self, check_translation_info=True):
-        self.check_translation_info = check_translation_info
+    def __init__(self):
         self.registry = set()
 
     def register(self, dispatch_tuners: list[DispatchTuner]) -> None:
         for dispatch_tuner in dispatch_tuners:
             self.registry.add(dispatch_tuner)
-
-    # TODO(Max191): Remove translation info validation.
-    def validate_translation(self, attrs: list[ir.NamedAttribute]) -> bool:
-        if not self.check_translation_info:
-            return True
-        for attr in attrs:
-            if (attr.name == "translation_info") and (
-                "LLVMGPUVectorDistribute" in str(attr.attr)
-            ):
-                return True
-        assert False, "Translation info not supported"
 
     def find_handler(self, op_name: str) -> DispatchTuner:
         for dispatch_tuner in self.registry:
@@ -86,14 +63,6 @@ class DispatchTunerRegistry:
 
 
 class ContractionOpInterfaceTuner(DispatchTuner, ContractionOpInterfaceParser):
-    def apply_params(
-        self,
-        problem_size: ProblemSize,
-        template: list[str],
-        compilation_info: iree_codegen.CompilationInfoAttr,
-    ) -> MLIRTransformation:
-        raise NotImplementedError
-
     def get_td_spec(
         self,
         ir_module: ir.Module,
@@ -114,14 +83,6 @@ class ContractionOpInterfaceTuner(DispatchTuner, ContractionOpInterfaceParser):
 
 
 class ConvolutionOpInterfaceTuner(DispatchTuner, ConvolutionOpInterfaceParser):
-    def apply_params(
-        self,
-        problem_size: ProblemSize,
-        template: list[str],
-        compilation_info: iree_codegen.CompilationInfoAttr,
-    ) -> MLIRTransformation:
-        raise NotImplementedError
-
     def get_td_spec(
         self,
         ir_module: ir.Module,
@@ -158,8 +119,6 @@ def walk_callback_get_fn(
     walk_result: OpWalkResult,
     dispatch_tuner_registry: DispatchTunerRegistry,
 ) -> ir.WalkResult:
-    if op.name == "func.func":
-        dispatch_tuner_registry.validate_translation([a for a in op.opview.attributes])
     if op.name == "util.func":
         func_name = str(op.opview.sym_name)
         walk_result.was_interrupted = True
@@ -194,9 +153,11 @@ def generate_configs_and_td_specs(
     tuner_context: TunerContext,
     limit: int = 4096,  # Max candidates to be generated
     num_subgroups: int = 4,  # GPU spec, used to determine candidate generation constraints
+    allowed_waves_per_eu: list[int] = [2],
+    pipeline_options_search_space: PipelineOptionsSearchSpace = PipelineOptionsSearchSpace(),
     codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline = iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
 ) -> list[ir.Module]:
-    dispatch_tuner_registry = DispatchTunerRegistry(check_translation_info=False)
+    dispatch_tuner_registry = DispatchTunerRegistry()
     dispatch_tuner_registry.register(
         [
             ContractionOpInterfaceTuner(),
@@ -223,7 +184,13 @@ def generate_configs_and_td_specs(
     mma_list = iree_codegen.query_mma_intrinsics(variant_op)
     for i, config in enumerate(
         generate_solutions(
-            tuner_context, problem_size, num_subgroups, mma_list, codegen_pipeline
+            tuner_context,
+            problem_size,
+            num_subgroups,
+            mma_list,
+            allowed_waves_per_eu,
+            pipeline_options_search_space,
+            codegen_pipeline,
         )
     ):
         if i >= limit:
@@ -349,6 +316,24 @@ def main():
         default=-1,
     )
     parser.add_argument(
+        "--prefetch-shared-memory-options",
+        type=lambda t: [s.strip().lower() == "true" for s in t.split(",")],
+        default=[True],
+        help="Comma-separated list of allowed values for the prefetch_shared_memory pipeline option. Possible values: [True, False]",
+    )
+    parser.add_argument(
+        "--no-reduce-shared-memory-bank-conflicts-options",
+        type=lambda t: [s.strip().lower() == "true" for s in t.split(",")],
+        default=[None],
+        help="Comma-separated list of allowed values for the no_reduce_shared_memory_bank_conflicts pipeline option. Possible values: [True, False]",
+    )
+    parser.add_argument(
+        "--waves-per-eu-options",
+        type=lambda t: [int(s) for s in t.split(",")],
+        default=[2],
+        help="Comma-separated list of allowed values for the waves_per_eu config option. Possible values: Any positive integer value",
+    )
+    parser.add_argument(
         "--verbose", "-v", action="store_true", help="Enable verbose output to stdout"
     )
 
@@ -363,15 +348,20 @@ def main():
     console_handler.setFormatter(formatter)
     tune_logger.addHandler(console_handler)
 
-    with ir.Context() as ctx:
-        tuner_ctx = TunerContext(ctx, tune_logger)
+    with TunerContext() as tuner_ctx:
         mlir_text = strip_compilation_info(args.input)
         mlir_module = parse_mlir(mlir_text, tuner_ctx)
-        specs = generate_configs_and_td_specs(
+        pipeline_options_search_space = PipelineOptionsSearchSpace(
+            prefetch_shared_memory=args.prefetch_shared_memory_options,
+            no_reduce_shared_memory_bank_conflicts=args.no_reduce_shared_memory_bank_conflicts_options,
+        )
+        specs: list[ir.Module] = generate_configs_and_td_specs(
             mlir_module,
             tuner_ctx,
             args.limit,
             args.num_subgroups,
+            args.waves_per_eu_options,
+            pipeline_options_search_space,
             iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
         )
         for candidate_num, spec in enumerate(specs):
@@ -379,7 +369,8 @@ def main():
             spec_path = spec_dir / f"{candidate_num}_spec.mlir"
             spec_dir.mkdir(parents=True, exist_ok=True)
             with open(spec_path, "w") as f:
-                f.write(str(spec))
+                local_scope_spec_str: str = spec.operation.get_asm(use_local_scope=True)
+                f.write(local_scope_spec_str)
 
 
 if __name__ == "__main__":

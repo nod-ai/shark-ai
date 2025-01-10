@@ -95,8 +95,8 @@ function build_shark_ai_meta_package() {
 
   # TODO: rework `write_requirements.py` to use the versions from the downloaded whls?
   echo "Computing local versions for sharktank and shortfin..."
-  ${SCRIPT_DIR}/compute_local_version.py ${REPO_ROOT}/sharktank
-  ${SCRIPT_DIR}/compute_local_version.py ${REPO_ROOT}/shortfin
+  ${SCRIPT_DIR}/compute_local_version.py ${REPO_ROOT}/sharktank -stable --write-json
+  ${SCRIPT_DIR}/compute_local_version.py ${REPO_ROOT}/shortfin -stable --write-json
 
   echo "Computing common version for shark-ai meta package..."
   ${SCRIPT_DIR}/compute_common_version.py --stable-release --write-json
