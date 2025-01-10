@@ -15,7 +15,8 @@ class SimpleTuner(libtuner.TuningClient):
         super().__init__(tuner_context)
         self.compile_flags: list[str] = []
         self.benchmark_flags: list[str] = []
-        self.compile_timeout: int = 10
+        self.compile_timeout: int = 16
+        self.benchmark_timeout: int = 16
 
     def get_iree_compile_flags(self) -> list[str]:
         return self.compile_flags
@@ -27,7 +28,7 @@ class SimpleTuner(libtuner.TuningClient):
         return self.benchmark_flags
 
     def get_benchmark_timeout_s(self) -> int:
-        return 10
+        return self.benchmark_timeout
 
 
 def read_flags_file(flags_file: str) -> list[str]:
@@ -127,7 +128,7 @@ def main():
 
         print("Compiling models with top candidates...")
         simple_tuner.compile_flags = compile_flags
-        simple_tuner.compile_timeout = 60
+        simple_tuner.compile_timeout = 120
         compiled_model_candidates = libtuner.compile(
             args,
             path_config,
@@ -141,6 +142,7 @@ def main():
 
         print("Benchmarking compiled model candidates...")
         simple_tuner.benchmark_flags = model_benchmark_flags
+        simple_tuner.benchmark_timeout = 60
         top_model_candidates = libtuner.benchmark(
             args,
             path_config,
@@ -154,6 +156,3 @@ def main():
 
         print("Check the detailed execution logs in:")
         print(path_config.run_log.resolve())
-
-    for candidate in candidate_trackers:
-        libtuner.logging.debug(candidate)

@@ -497,10 +497,10 @@ def run_iree_benchmark_module_command(benchmark_pack: BenchmarkPack):
         assert flag[:2] == "--", "iree_benchmark_module_flags should begin with '--'"
         split_key_value = flag[2:].split("=")
         assert (
-            len(split_key_value) == 2
+            len(split_key_value) >= 1
         ), "iree_benchmark_module_flags should have the format --<key>=<value>"
         key = split_key_value[0]
-        value = split_key_value[1]
+        value = "=".join(split_key_value[1:])
         # Allow the tuning client to pass `--function=@func_name`.
         if key == "function":
             func_name = value
@@ -803,7 +803,7 @@ def compile(
     compiled_candidates = [c for c in compiled_candidates if c is not None]
     success_rate = float(len(compiled_candidates)) / float(len(candidates))
     logging.info(
-        f"Successfully compiled [{len(compiled_candidates)}] candidates. Success rate: {success_rate}"
+        f"Successfully compiled [{len(compiled_candidates)}] candidates. Success rate: {success_rate:.2f}"
     )
 
     # Remove duplicate vmfbs from the candidate list.
@@ -875,7 +875,7 @@ def select_best_benchmark_results(
             speedup = f"{round(get_speedup(r) * 100, 2)}% of baseline"
         else:
             speedup = "baseline unavailable"
-        logging.info(f"Candidate {r.candidate_id} time: {r.time} ({speedup})")
+        logging.info(f"Candidate {r.candidate_id} time: {r.time:.2f} ({speedup})")
     return best_results
 
 

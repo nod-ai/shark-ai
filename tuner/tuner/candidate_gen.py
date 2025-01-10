@@ -237,11 +237,6 @@ def run_command(run_pack: RunPack) -> RunResult:
             text=True,
             timeout=timeout_seconds,
         )
-
-        if result.stdout:
-            logging.debug(f"stdout: {result.stdout}")
-        if result.stderr:
-            logging.debug(f"stderr: {result.stderr}")
     except subprocess.TimeoutExpired as e:
         logging.warning(
             f"Command '{command_str}' timed out after {timeout_seconds} seconds."

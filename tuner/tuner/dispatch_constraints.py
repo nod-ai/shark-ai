@@ -309,10 +309,11 @@ def generate_compilation_infos(
         "reduction": reduction_tile_sizes,
         "subgroup_m_count": subgroup_m_count,
         "subgroup_n_count": subgroup_n_count,
+        "promote_operands": [0, 1],
     }
     if codegen_pipeline == iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse:
         lowering_config_args["subgroup"] = subgroup_tile_sizes
-        lowering_config_args["promote_operands"] = [0, 1]
+
     lowering_config = get_lowering_config(**lowering_config_args)
 
     # Create the TranslationInfoAttr
