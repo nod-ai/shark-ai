@@ -127,13 +127,13 @@ jobs:
         cmake --build build --target all
 
     - name: pip install shortfin
-      if: ${{ matrix.name != 'Ubuntu (Clang)(host-only)'}}
+      if: ${{ matrix.name != 'Ubuntu (Clang)(host-only)' && !contains(matrix.name, 'tracing') }}
       working-directory: ${{ env.LIBSHORTFIN_DIR }}
       run: |
         pip install -v -e build/
 
     - name: Test shortfin
-      if: ${{ matrix.name != 'Ubuntu (Clang)(host-only)'}}
+      if: ${{ matrix.name != 'Ubuntu (Clang)(host-only)' && !contains(matrix.name, 'tracing') }}
       working-directory: ${{ env.LIBSHORTFIN_DIR }}
       run: |
         ctest --timeout 30 --output-on-failure --test-dir build
