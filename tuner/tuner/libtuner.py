@@ -79,6 +79,7 @@ class PathConfig:
 
     # To be set outside of class
     run_log: Optional[Path] = field(init=False, default=None)
+    tune_output: Optional[Path] = field(init=False, default=None)
 
     def __post_init__(self):
         object.__setattr__(self, "base_dir", self._name_base_dir())
@@ -94,6 +95,9 @@ class PathConfig:
 
     def _set_run_log(self, run_log: Path):
         object.__setattr__(self, "run_log", run_log)
+
+    def _set_tune_output(self, tune_output: Path):
+        object.__setattr__(self, "tune_output", self.base_dir / tune_output)
 
     def get_candidate_spec_filename(self, candidate_id: int) -> str:
         return f"{candidate_id}_spec.mlir"
@@ -801,7 +805,7 @@ def compile(
         num_worker=num_worker, task_list=task_list, function=run_iree_compile_command
     )
     compiled_candidates = [c for c in compiled_candidates if c is not None]
-    success_rate = float(len(compiled_candidates)) / float(len(candidates))
+    success_rate = float(len(compiled_candidates)) / float(len(task_list))
     logging.info(
         f"Successfully compiled [{len(compiled_candidates)}] candidates. Success rate: {success_rate:.2f}"
     )

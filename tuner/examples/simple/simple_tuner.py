@@ -75,6 +75,7 @@ def main():
 
     path_config = libtuner.PathConfig()
     path_config.base_dir.mkdir(parents=True, exist_ok=True)
+    path_config._set_tune_output(Path("autotune_output.txt"))
     # TODO(Max191): Make candidate_trackers internal to TuningClient.
     candidate_trackers: list[libtuner.CandidateTracker] = []
     stop_after_phase: str = args.stop_after
@@ -156,3 +157,13 @@ def main():
 
         print("Check the detailed execution logs in:")
         print(path_config.run_log.resolve())
+
+        print("Check the tuning results in:")
+        print(path_config.tune_output.resolve())
+        with open(path_config.tune_output, "w") as file:
+            file.write(f"Top dispatch candidates: {top_candidates}\n")
+            for id in top_candidates:
+                file.write(f"{candidate_trackers[id].spec_path.resolve()}\n")
+            file.write(f"Top model candidates: {top_model_candidates}\n")
+            for id in top_model_candidates:
+                file.write(f"{candidate_trackers[id].spec_path.resolve()}\n")
