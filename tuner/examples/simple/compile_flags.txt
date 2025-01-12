@@ -1,0 +1,2 @@
+--iree-hal-target-backends=rocm
+--iree-hip-target=gfx942

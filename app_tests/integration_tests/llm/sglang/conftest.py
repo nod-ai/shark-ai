@@ -27,11 +27,10 @@ from sentence_transformers import SentenceTransformer
 logger = logging.getLogger(__name__)
 
 
-@pytest.fixture(scope="module")
-def register_shortfin_backend(available_port):
+def register_shortfin_backend(port):
     backend = sgl.Shortfin(
         chat_template=get_chat_template("llama-3-instruct"),
-        base_url=f"http://localhost:{available_port}",
+        base_url=f"http://localhost:{port}",
     )
     sgl.set_default_backend(backend)
 
@@ -68,12 +67,7 @@ def pre_process_model(request, tmp_path_factory):
 
 
 @pytest.fixture(scope="module")
-def available_port():
-    return find_available_port()
-
-
-@pytest.fixture(scope="module")
-def start_server(request, pre_process_model, available_port):
+def start_server(request, pre_process_model):
     os.environ["ROCR_VISIBLE_DEVICES"] = "1"
     device_settings = request.param["device_settings"]
 
@@ -85,8 +79,7 @@ def start_server(request, pre_process_model, available_port):
     config_path = export_dir / "config.json"
 
     logger.info("Starting server...")
-    server_process = start_llm_server(
-        available_port,
+    server_process, port = start_llm_server(
         tokenizer_path,
         config_path,
         vmfb_path,
@@ -96,7 +89,7 @@ def start_server(request, pre_process_model, available_port):
     )
     logger.info("Server started")
 
-    yield server_process
+    yield server_process, port
 
     server_process.terminate()
     server_process.wait()

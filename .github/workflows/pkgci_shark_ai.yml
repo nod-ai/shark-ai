@@ -1,0 +1,95 @@
+# Copyright 2024 Advanced Micro Devices, Inc.
+#
+# Licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+name: PkgCI - shark-ai
+
+on:
+  workflow_call:
+    inputs:
+      artifact_run_id:
+        type: string
+        default: ""
+  workflow_dispatch:
+    inputs:
+      artifact_run_id:
+        type: string
+        description: "Id for a workflow run that produced dev packages"
+        default: ""
+
+jobs:
+  test_shortfin_llm_server:
+    name: "Integration Tests - Shortfin LLM Server"
+    strategy:
+      matrix:
+        version: [3.11]
+      fail-fast: false
+    runs-on: mi300x-4
+    # runs-on: ubuntu-latest # everything else works but this throws an "out of resources" during model loading
+    # TODO: make a copy of this that runs on standard runners with tiny llama instead of a 8b model
+    defaults:
+      run:
+        shell: bash
+    env:
+      PACKAGE_DOWNLOAD_DIR: ${{ github.workspace }}/.packages
+      VENV_DIR: ${{ github.workspace }}/.venv
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: "Setting up Python"
+        id: setup_python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: ${{matrix.version}}
+
+      - name: Set Python version without dot
+        run: |
+          echo "PY_VERSION_NO_DOT=$(echo ${{ matrix.version }} | tr -d '.')" >> $GITHUB_ENV
+
+      - name: Setup UV caching
+        run: |
+          CACHE_DIR="${GITHUB_WORKSPACE}/.uv-cache"
+          echo "UV_CACHE_DIR=${CACHE_DIR}" >> $GITHUB_ENV
+          mkdir -p "${CACHE_DIR}"
+
+      - name: Cache UV packages
+        uses: actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4.1.2
+        with:
+          path: .uv-cache
+          key: ${{ runner.os }}-uv-py${{ matrix.version }}-${{ hashFiles('requirements-iree-pinned.txt', 'pytorch-cpu-requirements.txt', 'sharktank/requirements.txt', 'sharktank/requirements-tests.txt', 'shortfin/requirements-tests.txt') }}
+
+      - name: Download sharktank artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: snapshot-sharktank-linux-x86_64-cp${{ env.PY_VERSION_NO_DOT }}-cp${{ env.PY_VERSION_NO_DOT }}
+          path: ${{ env.PACKAGE_DOWNLOAD_DIR }}
+
+      - name: Download shortfin artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: snapshot-shortfin-linux-x86_64-cp${{ env.PY_VERSION_NO_DOT }}-cp${{ env.PY_VERSION_NO_DOT }}
+          path: ${{ env.PACKAGE_DOWNLOAD_DIR }}
+
+      - name: Download shark-ai artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: snapshot-shark-ai-linux-x86_64-cp${{ env.PY_VERSION_NO_DOT }}-cp${{ env.PY_VERSION_NO_DOT }}
+          path: ${{ env.PACKAGE_DOWNLOAD_DIR }}
+
+      - name: Setup venv
+        run: |
+          ./build_tools/pkgci/setup_venv.py ${VENV_DIR} \
+            --artifact-path=${PACKAGE_DOWNLOAD_DIR} \
+            --fetch-gh-workflow=${{ inputs.artifact_run_id }}
+
+      - name: Install pinned IREE packages
+        run: |
+          source ${VENV_DIR}/bin/activate
+          uv pip install -r requirements-iree-pinned.txt
+
+      - name: Run LLM Integration Tests
+        run: |
+          source ${VENV_DIR}/bin/activate
+          pytest -v -s app_tests/integration_tests/llm/shortfin --log-cli-level=INFO

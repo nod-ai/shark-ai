@@ -1,0 +1,7 @@
+# Unpinned versions of IREE dependencies.
+
+--pre
+--find-links https://iree.dev/pip-release-links.html
+iree-base-compiler
+iree-base-runtime
+iree-turbine
