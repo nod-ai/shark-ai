@@ -141,10 +141,10 @@ def main(argv):
             intermediates_saver.save_file(args.save_intermediates_path)
 
         if args.compare_vs_torch:
-            from .diffuser_ref import run_torch_vae, run_flux
+            from .diffuser_ref import run_torch_vae, run_flux_vae
 
             if args.sharktank_config == "flux":
-                diffusers_results = run_flux(inputs, torch.bfloat16)
+                diffusers_results = run_flux_vae(inputs, torch.bfloat16)
             elif args.sharktank_config == "sdxl":
                 run_torch_vae(args.torch_model, inputs)
             print("diffusers results:", diffusers_results)

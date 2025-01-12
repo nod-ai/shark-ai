@@ -80,7 +80,7 @@ class FluxAEWrapper(torch.nn.Module):
         return self.ae.decode(d_in, return_dict=False)[0].clamp(-1, 1)
 
 
-def run_flux(example_input, dtype):
+def run_flux_vae(example_input, dtype):
     # TODO add support for other height/width sizes
     vae_model = FluxAEWrapper(1024, 1024).to(dtype)
     return vae_model.forward(example_input)

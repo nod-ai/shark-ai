@@ -13,7 +13,7 @@ from iree.turbine import aot
 
 from sharktank.types import Dataset
 from sharktank.models.vae.model import VaeDecoderModel
-from sharktank.models.vae.tools.diffuser_ref import run_torch_vae, run_flux
+from sharktank.models.vae.tools.diffuser_ref import run_torch_vae, run_flux_vae
 from sharktank.models.vae.tools.run_vae import export_vae
 from sharktank.models.vae.tools.sample_data import get_random_inputs
 
@@ -240,7 +240,7 @@ class VaeFluxDecoderTest(TempDirTestBase):
     def testCompareBF16EagerVsHuggingface(self):
         dtype = torch.bfloat16
         inputs = get_random_inputs(dtype=dtype, device="cpu", bs=1, config="flux")
-        ref_results = run_flux(inputs, dtype)
+        ref_results = run_flux_vae(inputs, dtype)
 
         ds = Dataset.load("{self._temp_dir}/flux_vae_bf16.irpa", file_type="irpa")
         model = VaeDecoderModel.from_dataset(ds).to(device="cpu")
@@ -252,7 +252,7 @@ class VaeFluxDecoderTest(TempDirTestBase):
     def testCompareF32EagerVsHuggingface(self):
         dtype = torch.float32
         inputs = get_random_inputs(dtype=dtype, device="cpu", bs=1, config="flux")
-        ref_results = run_flux(inputs, dtype)
+        ref_results = run_flux_vae(inputs, dtype)
 
         ds = Dataset.load("{self._temp_dir}/flux_vae_f32.irpa", file_type="irpa")
         model = VaeDecoderModel.from_dataset(ds).to(device="cpu", dtype=dtype)
@@ -265,8 +265,8 @@ class VaeFluxDecoderTest(TempDirTestBase):
         inputs = get_random_inputs(
             dtype=torch.float32, device="cpu", bs=1, config="flux"
         )
-        ref_results = run_flux(inputs.to(dtype), dtype)
-        ref_results_f32 = run_flux(inputs, torch.float32)
+        ref_results = run_flux_vae(inputs.to(dtype), dtype)
+        ref_results_f32 = run_flux_vae(inputs, torch.float32)
 
         ds = Dataset.load("{self._temp_dir}/flux_vae_bf16.irpa", file_type="irpa")
         ds_f32 = Dataset.load("{self._temp_dir}/flux_vae_f32.irpa", file_type="irpa")
