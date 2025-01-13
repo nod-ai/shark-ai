@@ -76,10 +76,10 @@ class PathConfig:
     candidates_dir: Path = field(init=False)
     compiled_dir: Path = field(init=False)
     specs_dir: Path = field(init=False)
+    output_dir: Path = field(init=False)
 
     # To be set outside of class
     run_log: Optional[Path] = field(init=False, default=None)
-    tune_output: Optional[Path] = field(init=False, default=None)
 
     def __post_init__(self):
         object.__setattr__(self, "base_dir", self._name_base_dir())
@@ -87,6 +87,7 @@ class PathConfig:
         object.__setattr__(self, "candidates_dir", self.base_dir / "candidates")
         object.__setattr__(self, "compiled_dir", self.candidates_dir / "compiled")
         object.__setattr__(self, "specs_dir", self.candidates_dir / "specs")
+        object.__setattr__(self, "output_dir", self.base_dir / "summary.log")
 
     def _name_base_dir(self) -> Path:
         timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M")
@@ -95,9 +96,6 @@ class PathConfig:
 
     def _set_run_log(self, run_log: Path):
         object.__setattr__(self, "run_log", run_log)
-
-    def _set_tune_output(self, tune_output: Path):
-        object.__setattr__(self, "tune_output", self.base_dir / tune_output)
 
     def get_candidate_spec_filename(self, candidate_id: int) -> str:
         return f"{candidate_id}_spec.mlir"
@@ -725,6 +723,12 @@ def generate_candidate_specs(
     return candidates
 
 
+def get_compilation_success_rate(compiled_candiates: list[Any]) -> float:
+    successful_candidates = [c for c in compiled_candiates if c is not None]
+    success_rate = float(len(successful_candidates)) / float(len(compiled_candiates))
+    return success_rate
+
+
 def collision_handler(index_hash_list: list[tuple[int, str]]) -> tuple[bool, list[int]]:
     """If a collision is found, generate a list of new indexes. If no collision, `unique_indexes = []`"""
     # Check if candidate produces tbe same .vmfb
@@ -804,11 +808,11 @@ def compile(
     compiled_candidates = multiprocess_progress_wrapper(
         num_worker=num_worker, task_list=task_list, function=run_iree_compile_command
     )
-    compiled_candidates = [c for c in compiled_candidates if c is not None]
-    success_rate = float(len(compiled_candidates)) / float(len(task_list))
+    success_rate = get_compilation_success_rate(compiled_candidates)
     logging.info(
         f"Successfully compiled [{len(compiled_candidates)}] candidates. Success rate: {success_rate:.2f}"
     )
+    compiled_candidates = [c for c in compiled_candidates if c is not None]
 
     # Remove duplicate vmfbs from the candidate list.
     compiled_candidate_hashes = []
@@ -830,6 +834,7 @@ def select_best_benchmark_results(
     candidate_results: list[BenchmarkResult],
     baseline_results: list[BenchmarkResult],
     num_candidates: Optional[int],
+    path_config: Optional[PathConfig] = None,
 ) -> list[BenchmarkResult]:
     filtered_candidate_results = [r for r in candidate_results if math.isfinite(r.time)]
     if len(filtered_candidate_results) == 0:
@@ -874,12 +879,19 @@ def select_best_benchmark_results(
     ]
     logging.info(f"Selected top[{len(best_results)}]:")
 
+    results = []
     for r in best_results:
         if fallback_baseline_time is not None:
             speedup = f"{round(get_speedup(r) * 100, 2)}% of baseline"
         else:
             speedup = "baseline unavailable"
-        logging.info(f"Candidate {r.candidate_id} time: {r.time:.2f} ({speedup})")
+        result = f"Candidate {r.candidate_id} time: {r.time:.2f} ({speedup})"
+        logging.info(result)
+        results.append(result)
+
+    if path_config is not None:
+        with open(path_config.output_dir, "a") as file:
+            file.writelines(f"{result}\n" for result in results)
     return best_results
 
 
@@ -935,6 +947,7 @@ def benchmark(
         candidate_results=candidate_results,
         baseline_results=baseline_results,
         num_candidates=num_candidates,
+        path_config=path_config,
     )
 
     top_candidates = [result.candidate_id for result in best_results]

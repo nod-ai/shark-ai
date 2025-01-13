@@ -176,6 +176,17 @@ def test_validate_devices_with_invalid_device() -> None:
                 assert expected_call in mock_handle_error.call_args_list
 
 
+def test_get_compilation_success_rate():
+    compiled_candidates = [0, None, 2, None, 4]
+    assert libtuner.get_compilation_success_rate(compiled_candidates) == 3.0 / 5.0
+
+    compiled_candidates = [0, 1, 2, 3, 4]
+    assert libtuner.get_compilation_success_rate(compiled_candidates) == 1.0
+
+    compiled_candidates = [None, None, None]
+    assert libtuner.get_compilation_success_rate(compiled_candidates) == 0.0
+
+
 def test_select_best_benchmark_results() -> None:
     candidate_results = [
         libtuner.BenchmarkResult(1, 0.5, "hip://0"),

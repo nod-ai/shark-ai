@@ -75,7 +75,6 @@ def main():
 
     path_config = libtuner.PathConfig()
     path_config.base_dir.mkdir(parents=True, exist_ok=True)
-    path_config._set_tune_output(Path("autotune_output.txt"))
     # TODO(Max191): Make candidate_trackers internal to TuningClient.
     candidate_trackers: list[libtuner.CandidateTracker] = []
     stop_after_phase: str = args.stop_after
@@ -115,6 +114,8 @@ def main():
             return
 
         print("Benchmarking compiled dispatch candidates...")
+        with open(path_config.output_dir, "w") as file:
+            file.write(f"Summarization about top dispatch candidates:\n")
         simple_tuner.benchmark_flags = ["--input=1", "--benchmark_repetitions=3"]
         top_candidates = libtuner.benchmark(
             args,
@@ -124,6 +125,10 @@ def main():
             simple_tuner,
             args.simple_num_dispatch_candidates,
         )
+        with open(path_config.output_dir, "a") as file:
+            file.write(f"Top dispatch candidates: {top_candidates}\n")
+            for id in top_candidates:
+                file.write(f"{candidate_trackers[id].spec_path.resolve()}\n")
         if stop_after_phase == libtuner.ExecutionPhases.benchmark_dispatches:
             return
 
@@ -142,6 +147,8 @@ def main():
             return
 
         print("Benchmarking compiled model candidates...")
+        with open(path_config.output_dir, "a") as file:
+            file.write(f"Summarization about top model candidates:\n")
         simple_tuner.benchmark_flags = model_benchmark_flags
         simple_tuner.benchmark_timeout = 60
         top_model_candidates = libtuner.benchmark(
@@ -152,18 +159,14 @@ def main():
             simple_tuner,
             args.simple_num_model_candidates,
         )
-
+        with open(path_config.output_dir, "a") as file:
+            file.write(f"Top model candidates: {top_model_candidates}\n")
+            for id in top_model_candidates:
+                file.write(f"{candidate_trackers[id].spec_path.resolve()}\n")
         print(f"Top model candidates: {top_model_candidates}")
 
         print("Check the detailed execution logs in:")
         print(path_config.run_log.resolve())
 
         print("Check the tuning results in:")
-        print(path_config.tune_output.resolve())
-        with open(path_config.tune_output, "w") as file:
-            file.write(f"Top dispatch candidates: {top_candidates}\n")
-            for id in top_candidates:
-                file.write(f"{candidate_trackers[id].spec_path.resolve()}\n")
-            file.write(f"Top model candidates: {top_model_candidates}\n")
-            for id in top_model_candidates:
-                file.write(f"{candidate_trackers[id].spec_path.resolve()}\n")
+        print(path_config.output_dir.resolve())
