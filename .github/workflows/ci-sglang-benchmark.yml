@@ -65,8 +65,11 @@ jobs:
           # Note: We install in three steps in order to satisfy requirements
           # from non default locations first.
           pip install --no-compile -r pytorch-cpu-requirements.txt
-          # Pin to known-working versions.
-          pip install -r requirements-iree-pinned.txt
+
+          # Use newest possible releases to be able to track commits that may
+          # cause errors or performance changes.
+          pip install -r requirements-iree-unpinned.txt
+
           pip install --no-compile \
             -r sharktank/requirements-tests.txt \
             -r shortfin/requirements-tests.txt \
