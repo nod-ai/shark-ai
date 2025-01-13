@@ -24,10 +24,11 @@ jobs:
   test_perplexity_iree:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
     timeout-minutes: 1000
-    name: "IREE Perplexity"
+    name: "IREE Perplexity :: ${{ matrix.version }} :: ${{ matrix.requirements }}"
     strategy:
       matrix:
         version: [3.11]
+        requirements: [pinned, unpinned]
         runs-on: [llama-mi300x-3]
       fail-fast: false
     runs-on: ${{matrix.runs-on}}
@@ -47,24 +48,16 @@ jobs:
       - name: Create Python venv
         run: python -m venv ${VENV_DIR}
 
-      - name: Install sharktank deps
+      - name: Install sharktank deps (${{ matrix.requirements }} IREE)
         run: |
           source ${VENV_DIR}/bin/activate
           python -m pip install --no-compile --upgrade pip
-
-          # Note: We install in three steps in order to satisfy requirements
-          # from non default locations first. Installing the PyTorch CPU
-          # wheels saves multiple minutes and a lot of bandwidth on runner setup.
           pip install --no-compile -r pytorch-cpu-requirements.txt
-
-          # Install nightly IREE packages.
-          # We could also pin to a known working or stable version.
-          pip install -f https://iree.dev/pip-release-links.html --pre --upgrade \
-            iree-base-compiler \
-            iree-base-runtime \
-            iree-turbine
-
-          pip install --no-compile -r requirements.txt -r sharktank/requirements-tests.txt -e sharktank/
+          pip install -r requirements-iree-${{ matrix.requirements }}.txt
+          pip install --no-compile \
+            -r sharktank/requirements.txt \
+            -r sharktank/requirements-tests.txt \
+            -e sharktank/
           pip freeze
 
       - name: Run perplexity test with IREE
@@ -106,22 +99,17 @@ jobs:
       - name: Create Python venv
         run: python -m venv ${VENV_DIR}
 
-      - name: Install sharktank deps
+      - name: Install sharktank deps (unpinned IREE)
         run: |
           source ${VENV_DIR}/bin/activate
           python -m pip install --no-compile --upgrade pip
-
-          # Note: We install in three steps in order to satisfy requirements
-          # from non default locations first. Installing the PyTorch CPU
-          # wheels saves multiple minutes and a lot of bandwidth on runner setup.
           pip install --no-compile -r pytorch-cpu-requirements.txt
-
-          # Install nightly iree-turbine.
-          # We could also pin to a known working or stable version.
-          pip install -f https://iree.dev/pip-release-links.html --pre --upgrade \
-            iree-turbine
-
-          pip install --no-compile -r requirements.txt -r sharktank/requirements-tests.txt -e sharktank/
+          pip install -r requirements-iree-unpinned.txt
+          pip install --no-compile \
+            -r sharktank/requirements.txt \
+            -r sharktank/requirements-tests.txt \
+            -e sharktank/
+          pip freeze
 
       - name: Run perplexity test with Torch
         run: |
