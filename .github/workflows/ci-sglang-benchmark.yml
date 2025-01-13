@@ -85,7 +85,7 @@ jobs:
           pytest -v app_tests/benchmark_tests/llm/sglang_benchmarks/shortfin_benchmark_test.py --log-cli-level=INFO --html=shortfin_index.html --self-contained-html
 
       - name: Upload pytest report
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
         with:
           name: shortfin_benchmark
           path: shortfin_index.html
@@ -165,7 +165,7 @@ jobs:
         run: docker image rm lmsysorg/sglang:v0.3.5.post1-rocm620
 
       - name: Upload pytest report
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
         with:
           name: sglang_benchmark
           path: sglang_index.html
