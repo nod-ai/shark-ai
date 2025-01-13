@@ -67,7 +67,10 @@ jobs:
           pip install --no-compile -r pytorch-cpu-requirements.txt
           # Pin to known-working versions.
           pip install -r requirements-iree-pinned.txt
-          pip install --no-compile -r requirements.txt -e sharktank/ shortfin/
+          pip install --no-compile \
+            -r sharktank/requirements-tests.txt \
+            -r shortfin/requirements-tests.txt \
+            -e sharktank/ shortfin/
 
           # Install SGLang
           pip install "git+https://github.com/nod-ai/sglang.git#subdirectory=python"
