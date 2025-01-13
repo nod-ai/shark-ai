@@ -234,16 +234,15 @@ def get_valid_benchmark_results(
     return filtered_benchmark_results
 
 
-def check_baseline_devices_uniqueness(baseline_results: list[BenchmarkResult]) -> bool:
-    seen = set()
-    for result in baseline_results:
-        if result.device_id in seen:
-            return False
-        seen.add(result.device_id)
-    return True
+def are_baseline_devices_unique(baseline_results: list[BenchmarkResult]) -> bool:
+    return len(baseline_results) == len(
+        set(map(lambda r: r.device_id, baseline_results))
+    )
 
 
 def map_baseline_by_device(baseline_results: list[BenchmarkResult]) -> dict[str, float]:
+    if not are_baseline_devices_unique(baseline_results):
+        logging.warning("Duplicate device IDs detected in the baseline results.")
     return {r.device_id: r.time for r in baseline_results}
 
 
@@ -253,6 +252,7 @@ def detect_baseline_regression(
 ) -> list[str]:
     """
     Detects performance regressions between two sets of baseline results.
+    Returns a list of device IDs where performance regressions are detected.
     """
     regression_device_ids = []
     first_baseline_by_device = map_baseline_by_device(first_baseline_results)
@@ -260,16 +260,16 @@ def detect_baseline_regression(
     for device_id in first_baseline_by_device:
         if device_id not in second_baseline_by_device:
             continue
-        first_baseline_time = first_baseline_by_device[device_id]
-        second_baseline_time = second_baseline_by_device[device_id]
+        first_baseline_ms = first_baseline_by_device[device_id]
+        second_baseline_ms = second_baseline_by_device[device_id]
 
-        if second_baseline_time > first_baseline_time * 1.03:
+        if second_baseline_ms > first_baseline_ms * 1.03:
             percentage_slower = (
-                (second_baseline_time - first_baseline_time) / first_baseline_time
+                (second_baseline_ms - first_baseline_ms) / first_baseline_ms
             ) * 100
             logging.warning(
                 f"Performance regression detected on device {device_id}: "
-                f"Baseline time = {first_baseline_time}, Post-baseline time = {second_baseline_time}, "
+                f"First baseline time = {first_baseline_ms} ms, Second baseline time = {second_baseline_ms} ms, "
                 f"Slower by {percentage_slower:.3f}%"
             )
             regression_device_ids.append(device_id)
@@ -620,7 +620,7 @@ def run_iree_benchmark_module_command(benchmark_pack: BenchmarkPack):
 
     mean_benchmark_time = sum(times) / float(len(times))
     logging.debug(
-        f"Benchmark time of candidate {candidate_id}: {mean_benchmark_time:.2f}"
+        f"Benchmark time of candidate {candidate_id}: {mean_benchmark_time:.2f} ms"
     )
     return BenchmarkResult(
         candidate_id=candidate_id,
@@ -991,7 +991,7 @@ def benchmark(
         tuning_client=tuning_client,
         candidate_trackers=candidate_trackers,
     )
-    if not check_baseline_devices_uniqueness(baseline_results):
+    if not are_baseline_devices_unique(baseline_results):
         logging.warning("Duplicate device IDs detected in the first baseline results.")
 
     candidate_indices = [i for i in compiled_candidates if i != 0]
@@ -1011,9 +1011,6 @@ def benchmark(
         tuning_client=tuning_client,
         candidate_trackers=candidate_trackers,
     )
-
-    if not check_baseline_devices_uniqueness(post_baseline_results):
-        logging.warning("Duplicate device IDs detected in the second baseline results.")
 
     first_baseline_by_device = map_baseline_by_device(baseline_results)
     second_baseline_by_device = map_baseline_by_device(post_baseline_results)

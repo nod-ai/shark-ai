@@ -271,14 +271,14 @@ def test_check_baseline_devices_uniqueness():
         libtuner.BenchmarkResult(0, 2000.0, "hip://1"),
         libtuner.BenchmarkResult(0, 3000.0, "hip://2"),
     ]
-    assert libtuner.check_baseline_devices_uniqueness(baseline_results)
+    assert libtuner.are_baseline_devices_unique(baseline_results)
 
     baseline_results = [
         libtuner.BenchmarkResult(0, 1000.0, "hip://0"),
         libtuner.BenchmarkResult(0, 2000.0, "hip://0"),
         libtuner.BenchmarkResult(0, 3000.0, "hip://2"),
     ]
-    assert not libtuner.check_baseline_devices_uniqueness(baseline_results)
+    assert not libtuner.are_baseline_devices_unique(baseline_results)
 
 
 def test_detect_baseline_regression():
