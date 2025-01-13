@@ -49,7 +49,7 @@ add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 # packages must be compatible with the runtime at this source ref.
 # TODO: switch back to iree-3.2.0rcYYYYMMDD style tag matching Python package
 #       pin after future nightly releases
-set(SHORTFIN_IREE_GIT_TAG "9055c9d1f6342a061a6747ef9b385816b96a0a8f")
+set(SHORTFIN_IREE_GIT_TAG "039b8b4ba8e57a3c148cd8f73370a973d64df202")
 
 
 # build options

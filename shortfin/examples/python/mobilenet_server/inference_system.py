@@ -152,5 +152,5 @@ def run_cli(home_dir: Path, argv):
 
 
 if __name__ == "__main__":
-    home_dir = Path(__file__).resolve().parent
+    home_dir = Path(__file__).parent
     run_cli(home_dir, sys.argv[1:])

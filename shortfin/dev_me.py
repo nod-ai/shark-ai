@@ -57,7 +57,7 @@ SETUPTOOLS_REQUIRED_VERSION = Version("61.0")
 
 class EnvInfo:
     def __init__(self, args):
-        self.this_dir = Path(__file__).resolve().parent
+        self.this_dir = Path(__file__).parent
         self.python_exe = sys.executable
         self.python_version = Version(".".join(str(v) for v in sys.version_info[1:2]))
         self.debug = bool(sysconfig.get_config_var("Py_DEBUG"))
@@ -76,7 +76,7 @@ class EnvInfo:
 
     def add_configured(self, path: Path):
         probe = path / "CMakeCache.txt"
-        if probe.resolve().exists():
+        if probe.exists():
             self.configured_dirs.append(path)
 
     def find_cmake(self, args):

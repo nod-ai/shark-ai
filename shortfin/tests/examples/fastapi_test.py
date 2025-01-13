@@ -14,7 +14,7 @@ import subprocess
 import sys
 import time
 
-project_dir = Path(__file__).resolve().parent.parent.parent
+project_dir = Path(__file__).parent.parent.parent
 example_dir = project_dir / "examples" / "python"
 
 

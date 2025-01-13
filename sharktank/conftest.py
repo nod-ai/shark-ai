@@ -19,7 +19,7 @@ TLD_MARKS = {
 
 def pytest_collection_modifyitems(items, config):
     # Add marks to all tests based on their top-level directory component.
-    root_path = Path(__file__).resolve().parent
+    root_path = Path(__file__).parent
     for item in items:
         item_path = Path(item.path)
         rel_path = item_path.relative_to(root_path)
