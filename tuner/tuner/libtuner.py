@@ -76,10 +76,10 @@ class PathConfig:
     candidates_dir: Path = field(init=False)
     compiled_dir: Path = field(init=False)
     specs_dir: Path = field(init=False)
-    output_dir: Path = field(init=False)
 
     # To be set outside of class
     run_log: Optional[Path] = field(init=False, default=None)
+    summary_log: Optional[Path] = field(init=False, default=None)
 
     def __post_init__(self):
         object.__setattr__(self, "base_dir", self._name_base_dir())
@@ -87,15 +87,17 @@ class PathConfig:
         object.__setattr__(self, "candidates_dir", self.base_dir / "candidates")
         object.__setattr__(self, "compiled_dir", self.candidates_dir / "compiled")
         object.__setattr__(self, "specs_dir", self.candidates_dir / "specs")
-        object.__setattr__(self, "output_dir", self.base_dir / "summary.log")
 
     def _name_base_dir(self) -> Path:
         timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M")
         base_dir = Path(f"./tuning_{timestamp}")
         return base_dir
 
-    def _set_run_log(self, run_log: Path):
+    def set_run_log(self, run_log: Path):
         object.__setattr__(self, "run_log", run_log)
+
+    def set_summary_log(self, summary_log: Path):
+        object.__setattr__(self, "summary_log", summary_log)
 
     def get_candidate_spec_filename(self, candidate_id: int) -> str:
         return f"{candidate_id}_spec.mlir"
@@ -339,7 +341,7 @@ def parse_arguments(
 def setup_logging(args: argparse.Namespace, path_config: PathConfig):
     log_file_name = f"autotune_{args.input_file.stem}.log"
     run_log_path = path_config.base_dir / log_file_name
-    path_config._set_run_log(run_log_path)
+    path_config.set_run_log(run_log_path)
 
     # Create file handler for logging to a file
     if path_config.run_log is None:
@@ -387,6 +389,18 @@ def setup_logging(args: argparse.Namespace, path_config: PathConfig):
     logging.debug(f"Input Arguments:")
     for arg, value in vars(args).items():
         tune_logger.info(f"{arg}: {value}")
+
+    summary_log_file = path_config.base_dir / "summary.log"
+    path_config.set_summary_log(summary_log_file)
+    summary_handler = logging.FileHandler(summary_log_file)
+    summary_handler.setLevel(logging.INFO)  # Log only INFO and higher
+    summary_formatter = logging.Formatter("%(asctime)s - %(message)s")
+    summary_handler.setFormatter(summary_formatter)
+
+    # Add summary logger to the root logger
+    summary_logger = logging.getLogger("summary")
+    summary_logger.setLevel(logging.INFO)
+    summary_logger.addHandler(summary_handler)
 
 
 def handle_error(
@@ -834,8 +848,8 @@ def select_best_benchmark_results(
     candidate_results: list[BenchmarkResult],
     baseline_results: list[BenchmarkResult],
     num_candidates: Optional[int],
-    path_config: Optional[PathConfig] = None,
 ) -> list[BenchmarkResult]:
+    summary_logger = logging.getLogger("summary")
     filtered_candidate_results = [r for r in candidate_results if math.isfinite(r.time)]
     if len(filtered_candidate_results) == 0:
         logging.error("No successful candidate benchmarks.")
@@ -879,19 +893,13 @@ def select_best_benchmark_results(
     ]
     logging.info(f"Selected top[{len(best_results)}]:")
 
-    results = []
     for r in best_results:
         if fallback_baseline_time is not None:
             speedup = f"{round(get_speedup(r) * 100, 2)}% of baseline"
         else:
             speedup = "baseline unavailable"
-        result = f"Candidate {r.candidate_id} time: {r.time:.2f} ({speedup})"
-        logging.info(result)
-        results.append(result)
-
-    if path_config is not None:
-        with open(path_config.output_dir, "a") as file:
-            file.writelines(f"{result}\n" for result in results)
+        result = f"Candidate {r.candidate_id} time: {r.time:.2f} ms ({speedup})"
+        summary_logger.info(result)
     return best_results
 
 
@@ -947,7 +955,6 @@ def benchmark(
         candidate_results=candidate_results,
         baseline_results=baseline_results,
         num_candidates=num_candidates,
-        path_config=path_config,
     )
 
     top_candidates = [result.candidate_id for result in best_results]

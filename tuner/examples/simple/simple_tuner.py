@@ -81,7 +81,8 @@ def main():
 
     print("Setup logging")
     libtuner.setup_logging(args, path_config)
-    print(path_config.run_log, end="\n\n")
+    print(path_config.run_log, end="\n")
+    print(path_config.summary_log, end="\n\n")
 
     if not args.dry_run:
         print("Validating devices")
@@ -96,6 +97,7 @@ def main():
     print("Generating candidate tuning specs...")
     with TunerContext() as tuner_context:
         simple_tuner = SimpleTuner(tuner_context)
+        summary_logger = logging.getLogger("summary")
         candidates = libtuner.generate_candidate_specs(
             args, path_config, candidate_trackers, simple_tuner
         )
@@ -114,8 +116,7 @@ def main():
             return
 
         print("Benchmarking compiled dispatch candidates...")
-        with open(path_config.output_dir, "w") as file:
-            file.write(f"Summarization about top dispatch candidates:\n")
+        summary_logger.info(f"Summarization about top dispatch candidates:")
         simple_tuner.benchmark_flags = ["--input=1", "--benchmark_repetitions=3"]
         top_candidates = libtuner.benchmark(
             args,
@@ -125,10 +126,9 @@ def main():
             simple_tuner,
             args.simple_num_dispatch_candidates,
         )
-        with open(path_config.output_dir, "a") as file:
-            file.write(f"Top dispatch candidates: {top_candidates}\n")
-            for id in top_candidates:
-                file.write(f"{candidate_trackers[id].spec_path.resolve()}\n")
+        summary_logger.info(f"Top dispatch candidates: {top_candidates}")
+        for id in top_candidates:
+            summary_logger.info(f"{candidate_trackers[id].spec_path.resolve()}")
         if stop_after_phase == libtuner.ExecutionPhases.benchmark_dispatches:
             return
 
@@ -147,8 +147,7 @@ def main():
             return
 
         print("Benchmarking compiled model candidates...")
-        with open(path_config.output_dir, "a") as file:
-            file.write(f"Summarization about top model candidates:\n")
+        summary_logger.info(f"Summarization about top model candidates:")
         simple_tuner.benchmark_flags = model_benchmark_flags
         simple_tuner.benchmark_timeout = 60
         top_model_candidates = libtuner.benchmark(
@@ -159,14 +158,13 @@ def main():
             simple_tuner,
             args.simple_num_model_candidates,
         )
-        with open(path_config.output_dir, "a") as file:
-            file.write(f"Top model candidates: {top_model_candidates}\n")
-            for id in top_model_candidates:
-                file.write(f"{candidate_trackers[id].spec_path.resolve()}\n")
+        summary_logger.info(f"Top model candidates: {top_model_candidates}")
+        for id in top_model_candidates:
+            summary_logger.info(f"{candidate_trackers[id].spec_path.resolve()}")
         print(f"Top model candidates: {top_model_candidates}")
 
         print("Check the detailed execution logs in:")
         print(path_config.run_log.resolve())
 
         print("Check the tuning results in:")
-        print(path_config.output_dir.resolve())
+        print(path_config.summary_log.resolve())
