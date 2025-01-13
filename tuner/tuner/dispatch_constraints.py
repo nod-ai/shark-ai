@@ -268,6 +268,7 @@ class PipelineOptionsSearchSpace:
     no_reduce_shared_memory_bank_conflicts: list[Optional[bool]] = field(
         default_factory=lambda: [None]
     )
+    use_igemm_convolution: list[Optional[bool]] = field(default_factory=lambda: [None])
 
 
 def generate_allowed_pipeline_options(
@@ -278,12 +279,14 @@ def generate_allowed_pipeline_options(
         for (
             nrbc
         ) in pipeline_options_search_space.no_reduce_shared_memory_bank_conflicts:
-            pipeline_options_list.append(
-                iree_gpu.PipelineOptionsAttr.get(
-                    prefetch_shared_memory=psm,
-                    no_reduce_shared_memory_bank_conflicts=nrbc,
+            for igemm in pipeline_options_search_space.use_igemm_convolution:
+                pipeline_options_list.append(
+                    iree_gpu.PipelineOptionsAttr.get(
+                        prefetch_shared_memory=psm,
+                        no_reduce_shared_memory_bank_conflicts=nrbc,
+                        use_igemm_convolution=igemm,
+                    )
                 )
-            )
     return pipeline_options_list
 
 
@@ -339,6 +342,25 @@ def generate_compilation_infos(
     return compilation_infos
 
 
+def adjust_problem_size_for_pipeline(
+    problem_size: ProblemSize,
+    pipeline_options_search_space: PipelineOptionsSearchSpace,
+    codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline,
+):
+    # Adjustment is only needed for IGEMM. Fail if the problem is not a conv
+    # going down the TileAndFuse pipeline.
+    if (
+        codegen_pipeline != iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse
+        or problem_size.dispatch_kind != DispatchKind.conv
+    ):
+        return
+    pipeline_options_search_space.use_igemm_convolution = [True]
+    # Flatten the K dimensions into a single dimension. The IGEMM transformation
+    # flattens the reduction channel and filter dimensions into one.
+    problem_size.contraction_dims.k = [problem_size.contraction_dims.k[0]]
+    problem_size.matmul_size.K = [math.prod(problem_size.matmul_size.K)]
+
+
 def generate_solutions(
     tuner_ctx: TunerContext,
     problem_size: ProblemSize,
@@ -348,6 +370,11 @@ def generate_solutions(
     pipeline_options_search_space: PipelineOptionsSearchSpace = PipelineOptionsSearchSpace(),
     codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline = iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
 ) -> Iterator[iree_codegen.CompilationInfoAttr]:
+    adjust_problem_size_for_pipeline(
+        problem_size,
+        pipeline_options_search_space,
+        codegen_pipeline,
+    )
     M, N, K = problem_size.MNK
     tuner_ctx.logger.info(f"{M},{N},{K}")
     m_vars = [z3.Int(f"m{i}") for i in range(len(M))]

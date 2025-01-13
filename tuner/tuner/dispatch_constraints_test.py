@@ -14,7 +14,7 @@ import z3  # type: ignore
 from typing import Generator
 
 from iree.compiler import ir  # type: ignore
-from iree.compiler.dialects import iree_gpu  # type: ignore
+from iree.compiler.dialects import iree_gpu, iree_codegen  # type: ignore
 
 from . import common
 from . import dispatch_constraints
@@ -118,6 +118,126 @@ def test_calculate_shared_memory_usage_in_bytes(tuner_ctx: common.TunerContext) 
         )
         == 12288
     )
+
+
+def test_adjust_problem_size_for_pipeline(
+    tuner_ctx: common.TunerContext,
+):
+    # Test Matmul TileAndFuse. Expect no change.
+    matmul_size = common.ContractionSizes(
+        M=[32],
+        N=[64],
+        K=[128],
+        B=[2],
+    )
+    contraction_dims = common.ContractionDimensions(
+        m=[1],
+        n=[2],
+        k=[3],
+        batch=[0],
+    )
+    lhs_type = common.ShapedType([2, 32, 128], tuner_ctx.type.f16)
+    rhs_type = common.ShapedType([2, 64, 128], tuner_ctx.type.f16)
+    res_type = common.ShapedType([2, 32, 64], tuner_ctx.type.f32)
+    matmul_problem_size = common.ProblemSize(
+        matmul_size,
+        lhs_type,
+        rhs_type,
+        res_type,
+        common.DispatchKind.contraction,
+        contraction_dims,
+    )
+    pipeline_options_space = dispatch_constraints.PipelineOptionsSearchSpace(
+        prefetch_shared_memory=[True],
+        no_reduce_shared_memory_bank_conflicts=[True, False],
+        use_igemm_convolution=[None],
+    )
+    taf_pipeline = iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse
+    dispatch_constraints.adjust_problem_size_for_pipeline(
+        problem_size=matmul_problem_size,
+        pipeline_options_search_space=pipeline_options_space,
+        codegen_pipeline=taf_pipeline,
+    )
+    assert pipeline_options_space.prefetch_shared_memory == [True]
+    assert pipeline_options_space.no_reduce_shared_memory_bank_conflicts == [
+        True,
+        False,
+    ]
+    assert pipeline_options_space.use_igemm_convolution == [None]
+    assert matmul_problem_size.matmul_size.M == [32]
+    assert matmul_problem_size.matmul_size.N == [64]
+    assert matmul_problem_size.matmul_size.K == [128]
+    assert matmul_problem_size.matmul_size.B == [2]
+    assert matmul_problem_size.contraction_dims.m == [1]
+    assert matmul_problem_size.contraction_dims.n == [2]
+    assert matmul_problem_size.contraction_dims.k == [3]
+    assert matmul_problem_size.contraction_dims.batch == [0]
+
+    # Test Conv VectorDistribute. Expect no change.
+    conv_size = common.ContractionSizes(
+        M=[2, 32, 32],
+        N=[256],
+        K=[3, 3, 512],
+    )
+    contraction_dims = common.ContractionDimensions(
+        m=[0, 1, 2],
+        n=[3],
+        k=[4, 5, 6],
+    )
+    lhs_type = common.ShapedType([2, 34, 34, 512], tuner_ctx.type.f16)
+    rhs_type = common.ShapedType([3, 3, 512, 256], tuner_ctx.type.f16)
+    res_type = common.ShapedType([2, 32, 32, 256], tuner_ctx.type.f32)
+    conv_problem_size = common.ProblemSize(
+        conv_size,
+        lhs_type,
+        rhs_type,
+        res_type,
+        common.DispatchKind.conv,
+        contraction_dims,
+    )
+    vec_dist_pipeline = (
+        iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute
+    )
+    dispatch_constraints.adjust_problem_size_for_pipeline(
+        problem_size=conv_problem_size,
+        pipeline_options_search_space=pipeline_options_space,
+        codegen_pipeline=vec_dist_pipeline,
+    )
+    assert pipeline_options_space.prefetch_shared_memory == [True]
+    assert pipeline_options_space.no_reduce_shared_memory_bank_conflicts == [
+        True,
+        False,
+    ]
+    assert pipeline_options_space.use_igemm_convolution == [None]
+    assert conv_problem_size.matmul_size.M == [2, 32, 32]
+    assert conv_problem_size.matmul_size.N == [256]
+    assert conv_problem_size.matmul_size.K == [3, 3, 512]
+    assert conv_problem_size.matmul_size.B == []
+    assert conv_problem_size.contraction_dims.m == [0, 1, 2]
+    assert conv_problem_size.contraction_dims.n == [3]
+    assert conv_problem_size.contraction_dims.k == [4, 5, 6]
+    assert conv_problem_size.contraction_dims.batch == []
+
+    # Test Conv TileAndFuse. Expect flat K dims and use_igemm_convolution True.
+    dispatch_constraints.adjust_problem_size_for_pipeline(
+        problem_size=conv_problem_size,
+        pipeline_options_search_space=pipeline_options_space,
+        codegen_pipeline=taf_pipeline,
+    )
+    assert pipeline_options_space.prefetch_shared_memory == [True]
+    assert pipeline_options_space.no_reduce_shared_memory_bank_conflicts == [
+        True,
+        False,
+    ]
+    assert pipeline_options_space.use_igemm_convolution == [True]
+    assert conv_problem_size.matmul_size.M == [2, 32, 32]
+    assert conv_problem_size.matmul_size.N == [256]
+    assert conv_problem_size.matmul_size.K == [4608]
+    assert conv_problem_size.matmul_size.B == []
+    assert conv_problem_size.contraction_dims.m == [0, 1, 2]
+    assert conv_problem_size.contraction_dims.n == [3]
+    assert conv_problem_size.contraction_dims.k == [4]
+    assert conv_problem_size.contraction_dims.batch == []
 
 
 def test_generate_tile_and_fuse_constraints_valid_input(
