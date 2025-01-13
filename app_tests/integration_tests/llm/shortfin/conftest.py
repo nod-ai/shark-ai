@@ -10,7 +10,7 @@ from ..model_management import (
     AzureConfig,
     ModelArtifacts,
 )
-from ..server_management import ServerManager, ServerConfig
+from ..server_management import ServerInstance, ServerConfig
 from .. import device_settings
 
 # Example model configurations
@@ -77,16 +77,15 @@ def server(model_artifacts, request):
     model_config = TEST_MODELS[model_id]
 
     server_config = ServerConfig(
-        port=ServerManager.find_available_port(),
         artifacts=model_artifacts,
         device_settings=model_config.device_settings,
         prefix_sharing_algorithm=request.param.get("prefix_sharing", "none"),
     )
 
-    server_manager = ServerManager(server_config)
-    process = server_manager.start()
-
-    yield process, server_config.port
+    server_instance = ServerInstance(server_config)
+    server_instance.start()
+    process, port = server_instance.process, server_instance.port
+    yield process, port
 
     process.terminate()
     process.wait()
