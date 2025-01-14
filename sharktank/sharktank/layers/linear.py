@@ -13,6 +13,7 @@ from ..types import (
     DynamicScaledQuantizer,
     QuantizedTensor,
     QuantizerTensor,
+    SplitPrimitiveTensor,
     StaticScaledQuantizer,
     TensorScaledLayout,
     PlanarQuantizedTensor,
@@ -43,12 +44,16 @@ class LinearLayer(ThetaLayer):
         weight_name: str = "weight",
         bias_name: str = "bias",
         fake_quant: bool = False,
+        experimental_mm_cache_size: Optional[int] = None,
+        experimental_mm_cache_sets: Optional[int] = None,
     ):
         super().__init__(theta)
         self._simulate_native_quant = True
         self.weight = self.theta_tensor(weight_name)
         self.bias = None
         self.fake_quant = fake_quant
+        self.experimental_mm_cache_size = experimental_mm_cache_size
+        self.experimental_mm_cache_sets = experimental_mm_cache_sets
         if bias_name in self.theta.keys:
             self.bias = self.theta_tensor(bias_name)
 
@@ -76,6 +81,23 @@ class LinearLayer(ThetaLayer):
 
         elif qdq_input is not None:
             x = qdq_input.quantize(x).unpack().dequant()
+
+        # TODO - This should be removed once the compiler supports it:
+        if (
+            self.experimental_mm_cache_sets is not None
+            and self.experimental_mm_cache_size is not None
+        ):
+            contract = x.shape[-1]
+            if isinstance(x, SplitPrimitiveTensor):
+                contract = contract // x.shard_count
+            element_size = torch.finfo(x.dtype).bits
+            cache_line_size = self.experimental_mm_cache_size * 8 // element_size
+            cache_size = self.experimental_mm_cache_sets * cache_line_size
+            if contract % cache_size == 0:
+                x = ops.pad(x, [0, cache_line_size], constant=0, per_shard=True)
+                weight = ops.pad(
+                    weight, [0, cache_line_size], constant=0, per_shard=True
+                )
 
         y = ops.linear(x, weight, bias)
 

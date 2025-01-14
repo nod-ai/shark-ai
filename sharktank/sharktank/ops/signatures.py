@@ -43,6 +43,7 @@ __all__ = [
     "matmul",
     "mean",
     "module_register_buffer",
+    "pad",
     "permute",
     "rms_norm",
     "repeat",
@@ -731,6 +732,33 @@ def _mean_trampoline(
     tensors = (x,)
     for override in d.find_overrides(tensors):
         result = override(x, dim, keepdim, dtype=dtype)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
+
+
+@overridable
+def pad(
+    x: AnyTensor,
+    pad: List[int],
+    constant: float = 0.0,
+) -> AnyTensor:
+    """See torch.pad"""
+    raise NotImplementedError
+
+
+@pad.trampoline
+def _pad_trampoline(
+    d: SignatureDispatcher,
+    x: AnyTensor,
+    pad: List[int],
+    constant: float = 0.0,
+    **kwargs,
+) -> AnyTensor:
+    tensors = (x,)
+    for override in d.find_overrides(tensors):
+        result = override(x, pad, constant, **kwargs)
         if result is not NotImplemented:
             return override, result
     else:

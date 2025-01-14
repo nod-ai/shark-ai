@@ -388,6 +388,11 @@ def module_register_buffer_default(
     return module.register_buffer(name, unbox_tensor(tensor))
 
 
+@pad.override(Tensor)
+def pad_default(x, pad, constant, **kwargs) -> Tensor:
+    return torch.nn.functional.pad(unbox_tensor(x), pad=pad, value=constant)
+
+
 @repeat.override(Tensor)
 def repeat_default(input: Union[Tensor, PrimitiveTensor], *sizes: List[int]) -> Tensor:
     return unbox_tensor(input).repeat(*sizes)

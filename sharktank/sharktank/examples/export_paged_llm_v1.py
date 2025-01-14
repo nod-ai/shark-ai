@@ -61,6 +61,18 @@ def main():
         help="Enables strictness during export",
         action="store_true",
     )
+    parser.add_argument(
+        "--experimental-mm-cache-size",
+        help="Experimental padding for matmuls to cache padding using cache size",
+        type=int,
+        default=None,
+    )
+    parser.add_argument(
+        "--experimental-mm-cache-sets",
+        help="Experimental padding for matmuls to cache padding using using number of cache sets",
+        type=int,
+        default=None,
+    )
 
     cli.add_quantization_options(parser)
     cli.add_model_options(parser)
@@ -75,6 +87,13 @@ def main():
         else 1
     )
 
+    if (args.experimental_mm_cache_size == None) != (
+        args.experimental_mm_cache_sets == None
+    ):
+        raise NotImplementedError(
+            f"Both values need to be set for experimental cache padding"
+        )
+
     llama_config = LlamaModelConfig(
         hp,
         tensor_parallelism_size=tensor_parallelism_size,
@@ -83,6 +102,8 @@ def main():
         kv_cache_type="paged",
         attention_kernel=args.attention_kernel,
         block_seq_stride=args.block_seq_stride,
+        experimental_mm_cache_size=args.experimental_mm_cache_size,
+        experimental_mm_cache_sets=args.experimental_mm_cache_sets,
     )
     llama_config.fake_quant = args.fake_quant
 
