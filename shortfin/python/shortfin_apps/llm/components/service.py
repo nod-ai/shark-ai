@@ -394,7 +394,7 @@ class InferenceExecutorProcess(sf.Process):
                 start_positions_host = start_positions.for_transfer()
                 with start_positions_host.map(discard=True) as m:
                     m.fill(
-                        1
+                        0
                     )  # Pad unused requests. Must pad with nonzero value because division by 0 floods clobber page (page 0) in cache with NaN values.
                     m.items = [req.start_position for req in self.exec_requests]
                 start_positions_host.copy_to(start_positions)
