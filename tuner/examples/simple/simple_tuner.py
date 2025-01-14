@@ -94,7 +94,6 @@ def main():
     )
 
     summary_log_file = path_config.base_dir / "summary.log"
-    path_config.set_summary_log(summary_log_file)
     summary_handler = logging.FileHandler(summary_log_file)
     summary_handler.setLevel(logging.INFO)
     summary_handler.setFormatter(
@@ -174,4 +173,4 @@ def main():
         print("Check the detailed execution logs in:")
         print(path_config.run_log.resolve())
         print("Check the summary in:")
-        print(path_config.summary_log.resolve())
+        print(summary_log_file.resolve())

@@ -79,7 +79,6 @@ class PathConfig:
 
     # To be set outside of class
     run_log: Optional[Path] = field(init=False, default=None)
-    summary_log: Optional[Path] = field(init=False, default=None)
 
     def __post_init__(self):
         object.__setattr__(self, "base_dir", self._name_base_dir())
@@ -95,9 +94,6 @@ class PathConfig:
 
     def set_run_log(self, run_log: Path):
         object.__setattr__(self, "run_log", run_log)
-
-    def set_summary_log(self, summary_log: Path):
-        object.__setattr__(self, "summary_log", summary_log)
 
     def get_candidate_spec_filename(self, candidate_id: int) -> str:
         return f"{candidate_id}_spec.mlir"
