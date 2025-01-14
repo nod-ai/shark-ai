@@ -14,8 +14,8 @@ on:
 
 jobs:
   update-iree:
-    if: ${{ github.repository_owner == 'iree-org' || github.event_name != 'schedule' }}
-    runs-on: ubuntu-22.04
+    if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
