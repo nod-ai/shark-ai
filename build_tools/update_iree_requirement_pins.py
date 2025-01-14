@@ -29,6 +29,7 @@ import textwrap
 
 REPO_ROOT = Path(__file__).parent.parent
 REQUIREMENTS_IREE_PINNED_PATH = REPO_ROOT / "requirements-iree-pinned.txt"
+SHORTFIN_CMAKELISTS_PATH = REPO_ROOT / "shortfin" / "CMakeLists.txt"
 
 
 def get_current_version(package_name):
@@ -82,12 +83,19 @@ def get_latest_version(package_name, extra_pip_args=[]):
     return version
 
 
+def get_current_git_tag():
+    with open(SHORTFIN_CMAKELISTS_PATH, "r") as f:
+        text = f.read()
+        return re.findall('SHORTFIN_IREE_GIT_TAG "(.*)"', text)[0]
+
+
 def main():
     print("Updating IREE version pins!")
 
     current_compiler_version = get_current_version("iree-base-compiler")
     current_runtime_version = get_current_version("iree-base-runtime")
     current_turbine_version = get_current_version("iree-turbine")
+    current_git_tag = get_current_git_tag()
 
     nightly_pip_args = [
         "--pre",
@@ -97,16 +105,22 @@ def main():
     latest_compiler_version = get_latest_version("iree-base-compiler", nightly_pip_args)
     latest_runtime_version = get_latest_version("iree-base-runtime", nightly_pip_args)
     latest_turbine_version = get_latest_version("iree-turbine", nightly_pip_args)
+    # TODO(scotttodd): Get this from git? It should generally be in sync with
+    #     the python packages and follow a naming convention. If that isn't
+    #     true, such as right after a stable release, then this may break.
+    latest_git_tag = f"iree-{latest_runtime_version}"
 
     print("\n-------------------------------------------------------------------------")
     print("Current versions:")
     print(f"  iree-base-compiler=={current_compiler_version}")
     print(f"  iree-base-runtime=={current_runtime_version}")
     print(f"  iree-turbine=={current_turbine_version}")
+    print(f'  SHORTFIN_IREE_GIT_TAG "{current_git_tag}"')
     print("Latest versions:")
     print(f"  iree-base-compiler=={latest_compiler_version}")
     print(f"  iree-base-runtime=={latest_runtime_version}")
     print(f"  iree-turbine=={latest_turbine_version}")
+    print(f'  SHORTFIN_IREE_GIT_TAG "{latest_git_tag}"')
 
     # Write to GitHub Actions environment variables for future steps to use if they want.
     github_env = os.getenv("GITHUB_ENV")
@@ -120,16 +134,19 @@ def main():
                 f"CURRENT_IREE_BASE_RUNTIME_VERSION={current_runtime_version}", file=fh
             )
             print(f"CURRENT_IREE_TURBINE_VERSION={current_turbine_version}", file=fh)
+            print(f"CURRENT_SHORTFIN_IREE_GIT_TAG={current_git_tag}", file=fh)
             print(
                 f"LATEST_IREE_BASE_COMPILER_VERSION={latest_compiler_version}", file=fh
             )
             print(f"LATEST_IREE_BASE_RUNTIME_VERSION={latest_runtime_version}", file=fh)
             print(f"LATEST_IREE_TURBINE_VERSION={latest_turbine_version}", file=fh)
+            print(f"LATEST_SHORTFIN_IREE_GIT_TAG={latest_git_tag}", file=fh)
 
     if (
         current_compiler_version == latest_compiler_version
         and current_runtime_version == latest_runtime_version
         and current_turbine_version == latest_turbine_version
+        and current_git_tag == latest_git_tag
     ):
         print("Already using the latest versions, exiting")
         return
@@ -157,6 +174,17 @@ def main():
         )
         print(f"New text:\n{textwrap.indent(text, '  ')}\n")
     with open(REQUIREMENTS_IREE_PINNED_PATH, "w") as f:
+        f.write(text)
+
+    print(f"Editing git tag in '{SHORTFIN_CMAKELISTS_PATH}'")
+    with open(SHORTFIN_CMAKELISTS_PATH, "r") as f:
+        text = f.read()
+        text = re.sub(
+            'SHORTFIN_IREE_GIT_TAG ".*"',
+            f'SHORTFIN_IREE_GIT_TAG "{latest_git_tag}"',
+            text,
+        )
+    with open(SHORTFIN_CMAKELISTS_PATH, "w") as f:
         f.write(text)
 
     print("-------------------------------------------------------------------------")

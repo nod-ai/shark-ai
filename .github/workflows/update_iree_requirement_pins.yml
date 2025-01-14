@@ -34,6 +34,7 @@ jobs:
           ${{ env.CURRENT_IREE_BASE_COMPILER_VERSION }} != ${{ env.LATEST_IREE_BASE_COMPILER_VERSION }} || \
           ${{ env.CURRENT_IREE_BASE_RUNTIME_VERSION }} != ${{ env.LATEST_IREE_BASE_RUNTIME_VERSION }} || \
           ${{ env.CURRENT_IREE_TURBINE_VERSION }} != ${{ env.LATEST_IREE_TURBINE_VERSION }}
+          ${{ env.CURRENT_SHORTFIN_IREE_GIT_TAG }} != ${{ env.LATEST_SHORTFIN_IREE_GIT_TAG }}
         uses: peter-evans/create-pull-request@67ccf781d68cd99b580ae25a5c18a1cc84ffff1f # v7.0.6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
