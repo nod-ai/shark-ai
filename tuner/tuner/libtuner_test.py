@@ -10,11 +10,23 @@ import pytest
 import json
 from subprocess import CompletedProcess
 from unittest.mock import call, patch, MagicMock
+from typing import Generator
 from . import libtuner
+from . import common
 
 """
 Usage: python -m pytest libtuner_test.py
 """
+
+
+@pytest.fixture
+def tuner_ctx() -> Generator[common.TunerContext, None, None]:
+    from logging import Logger
+    from unittest.mock import MagicMock
+
+    mock_logger = MagicMock(spec=Logger)
+    with common.TunerContext(logger=mock_logger) as ctx:
+        yield ctx
 
 
 def test_find_collisions() -> None:
@@ -187,7 +199,7 @@ def test_get_compilation_success_rate():
     assert libtuner.get_compilation_success_rate(compiled_candidates) == 0.0
 
 
-def test_select_best_benchmark_results() -> None:
+def test_select_best_benchmark_results(tuner_ctx: common.TunerContext) -> None:
     candidate_results = [
         libtuner.BenchmarkResult(1, 0.5, "hip://0"),
         libtuner.BenchmarkResult(2, 0.3, "hip://1"),
@@ -203,6 +215,7 @@ def test_select_best_benchmark_results() -> None:
     best_results: list[
         libtuner.BenchmarkResult
     ] = libtuner.select_best_benchmark_results(
+        tuner_context=tuner_ctx,
         candidate_results=candidate_results,
         baseline_results=baseline_results,
         num_candidates=3,
@@ -218,6 +231,7 @@ def test_select_best_benchmark_results() -> None:
         libtuner.BenchmarkResult(0, 0.1, "hip://3"),
     ]
     best_results = libtuner.select_best_benchmark_results(
+        tuner_context=tuner_ctx,
         candidate_results=candidate_results,
         baseline_results=baseline_results,
         num_candidates=3,
@@ -233,6 +247,7 @@ def test_select_best_benchmark_results() -> None:
         libtuner.BenchmarkResult(0, math.inf, "hip://3"),
     ]
     best_results = libtuner.select_best_benchmark_results(
+        tuner_context=tuner_ctx,
         candidate_results=candidate_results,
         baseline_results=baseline_results,
         num_candidates=3,

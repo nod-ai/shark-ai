@@ -338,7 +338,7 @@ def parse_arguments(
     return parser.parse_args()
 
 
-def setup_logging(args: argparse.Namespace, path_config: PathConfig):
+def setup_logging(args: argparse.Namespace, path_config: PathConfig) -> logging.Logger:
     log_file_name = f"autotune_{args.input_file.stem}.log"
     run_log_path = path_config.base_dir / log_file_name
     path_config.set_run_log(run_log_path)
@@ -390,17 +390,7 @@ def setup_logging(args: argparse.Namespace, path_config: PathConfig):
     for arg, value in vars(args).items():
         tune_logger.info(f"{arg}: {value}")
 
-    summary_log_file = path_config.base_dir / "summary.log"
-    path_config.set_summary_log(summary_log_file)
-    summary_handler = logging.FileHandler(summary_log_file)
-    summary_handler.setLevel(logging.INFO)  # Log only INFO and higher
-    summary_formatter = logging.Formatter("%(asctime)s - %(message)s")
-    summary_handler.setFormatter(summary_formatter)
-
-    # Add summary logger to the root logger
-    summary_logger = logging.getLogger("summary")
-    summary_logger.setLevel(logging.INFO)
-    summary_logger.addHandler(summary_handler)
+    return tune_logger
 
 
 def handle_error(
@@ -733,7 +723,7 @@ def generate_candidate_specs(
         tune_logger.exception("Error in candidate_gen.py:")
         raise
 
-    logging.info(f"Generated [{len(candidates) - 1}] candidates")
+    logging.debug(f"Generated [{len(candidates) - 1}] candidates")
     return candidates
 
 
@@ -845,11 +835,11 @@ def compile(
 
 
 def select_best_benchmark_results(
+    tuner_context: TunerContext,
     candidate_results: list[BenchmarkResult],
     baseline_results: list[BenchmarkResult],
     num_candidates: Optional[int],
 ) -> list[BenchmarkResult]:
-    summary_logger = logging.getLogger("summary")
     filtered_candidate_results = [r for r in candidate_results if math.isfinite(r.time)]
     if len(filtered_candidate_results) == 0:
         logging.error("No successful candidate benchmarks.")
@@ -891,7 +881,7 @@ def select_best_benchmark_results(
     best_results = sorted(filtered_candidate_results, key=sorting_key)[
         :num_top_candidates
     ]
-    logging.info(f"Selected top[{len(best_results)}]:")
+    tuner_context.logger.info(f"Selected top[{len(best_results)}]:")
 
     for r in best_results:
         if fallback_baseline_time is not None:
@@ -899,11 +889,12 @@ def select_best_benchmark_results(
         else:
             speedup = "baseline unavailable"
         result = f"Candidate {r.candidate_id} time: {r.time:.2f} ms ({speedup})"
-        summary_logger.info(result)
+        tuner_context.logger.info(result)
     return best_results
 
 
 def benchmark(
+    tuner_context: TunerContext,
     args: argparse.Namespace,
     path_config: PathConfig,
     compiled_candidates: list[int],
@@ -952,6 +943,7 @@ def benchmark(
     )
 
     best_results: list[BenchmarkResult] = select_best_benchmark_results(
+        tuner_context=tuner_context,
         candidate_results=candidate_results,
         baseline_results=baseline_results,
         num_candidates=num_candidates,

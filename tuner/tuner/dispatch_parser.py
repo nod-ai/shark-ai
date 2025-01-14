@@ -17,7 +17,7 @@ def parse_mlir(mlir_text: str, ctx: TunerContext) -> ir.Module:
     mlir_module = None
     try:
         mlir_module = ir.Module.parse(mlir_text, ctx.mlir_ctx)
-        ctx.logger.info("MLIR parsing successful!")
+        ctx.logger.debug("MLIR parsing successful!")
     except ir.MLIRError as e:
         ctx.logger.error(f"Error parsing MLIR: {e}")
         raise RuntimeError(f"Error parsing MLIR: {e}")

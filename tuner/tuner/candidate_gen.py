@@ -195,12 +195,12 @@ def generate_configs_and_td_specs(
     ):
         if i >= limit:
             break
-        tune_logger.info(f"Solution #{i+1}: {config}")
+        tune_logger.debug(f"Solution #{i+1}: {config}")
         td_spec_module = dispatch_tuner.get_td_spec(input_module, config)
         assert td_spec_module, "Failed to generate transform dialect spec"
         config_specs.append(td_spec_module)
 
-    tune_logger.info(f"Generated {len(config_specs)} tuning specs")
+    tune_logger.debug(f"Generated {len(config_specs)} tuning specs")
     return config_specs
 
 
