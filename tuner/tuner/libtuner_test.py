@@ -6,13 +6,9 @@
 
 import argparse
 import math
-import pytest
-import json
 from subprocess import CompletedProcess
 from unittest.mock import call, patch, MagicMock
-from typing import Generator
 from . import libtuner
-from . import common
 
 """
 Usage: python -m pytest libtuner_test.py

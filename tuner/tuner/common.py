@@ -46,9 +46,6 @@ class TunerContext:
         self.mlir_ctx.__enter__()
         return self
 
-    def add_logging_handler(self, handler: logging.Handler) -> None:
-        self.logger.addHandler(handler)
-
     def __exit__(
         self,
         exc_type: type[BaseException] | None,

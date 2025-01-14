@@ -102,7 +102,7 @@ def main():
     )
     print("Generating candidate tuning specs...")
     with TunerContext(logger=root_logger) as tuner_context:
-        tuner_context.add_logging_handler(summary_handler)
+        tuner_context.logger.addHandler(summary_handler)
         simple_tuner = SimpleTuner(tuner_context)
         candidates = libtuner.generate_candidate_specs(
             args, path_config, candidate_trackers, simple_tuner
@@ -121,11 +121,11 @@ def main():
         if stop_after_phase == libtuner.ExecutionPhases.compile_dispatches:
             return
 
-        print("Benchmarking compiled dispatch candidates...")
-        logging.info(f"Summarization about top dispatch candidates:")
+        message = "Benchmarking compiled dispatch candidates..."
+        print(message)
+        logging.info(message)
         simple_tuner.benchmark_flags = ["--input=1", "--benchmark_repetitions=3"]
         top_candidates = libtuner.benchmark(
-            tuner_context,
             args,
             path_config,
             compiled_candidates,
@@ -153,12 +153,12 @@ def main():
         if stop_after_phase == libtuner.ExecutionPhases.compile_models:
             return
 
-        print("Benchmarking compiled model candidates...")
-        logging.info(f"Summarization about top model candidates:")
+        message = "Benchmarking compiled model candidates..."
+        print(message)
+        logging.info(message)
         simple_tuner.benchmark_flags = model_benchmark_flags
         simple_tuner.benchmark_timeout = 60
         top_model_candidates = libtuner.benchmark(
-            tuner_context,
             args,
             path_config,
             compiled_model_candidates,
@@ -173,6 +173,5 @@ def main():
 
         print("Check the detailed execution logs in:")
         print(path_config.run_log.resolve())
-
-        print("Check the tuning results in:")
+        print("Check the summary in:")
         print(path_config.summary_log.resolve())
