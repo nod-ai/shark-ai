@@ -78,7 +78,6 @@ class LinearLayer(ThetaLayer):
             x = qdq_input.quantize(x).unpack().dequant()
 
         y = ops.linear(x, weight, bias)
-
         # Unconditionally dequantize.
         if isinstance(y, QuantizedTensor):
             y = y.unpack().dequant()
@@ -88,7 +87,7 @@ class LinearLayer(ThetaLayer):
         # level to do this, but for now its here.
         if not isinstance(y, QuantizedTensor):
             if y.dtype == torch.float8_e4m3fnuz:
-                y = ops.to(y, torch.float16)
+                y = ops.to(y, torch.bfloat16)
                 return y
         if qdq_output is not None:
             y = qdq_output.quantize(y).unpack().dequant()
