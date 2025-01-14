@@ -388,9 +388,9 @@ def setup_logging(args: argparse.Namespace, path_config: PathConfig) -> logging.
     # Log all arguments
     logging.debug(f"Input Arguments:")
     for arg, value in vars(args).items():
-        tune_logger.info(f"{arg}: {value}")
+        logging.debug(f"{arg}: {value}")
 
-    return tune_logger
+    return logging.getLogger()
 
 
 def handle_error(
@@ -727,7 +727,9 @@ def generate_candidate_specs(
     return candidates
 
 
-def get_compilation_success_rate(compiled_candiates: list[Any]) -> float:
+def get_compilation_success_rate(compiled_candiates: list[Optional[int]]) -> float:
+    if not compiled_candiates:
+        return 0.0
     successful_candidates = [c for c in compiled_candiates if c is not None]
     success_rate = float(len(successful_candidates)) / float(len(compiled_candiates))
     return success_rate
@@ -813,7 +815,7 @@ def compile(
         num_worker=num_worker, task_list=task_list, function=run_iree_compile_command
     )
     success_rate = get_compilation_success_rate(compiled_candidates)
-    logging.info(
+    logging.debug(
         f"Successfully compiled [{len(compiled_candidates)}] candidates. Success rate: {success_rate:.2f}"
     )
     compiled_candidates = [c for c in compiled_candidates if c is not None]
@@ -830,12 +832,11 @@ def compile(
     if collision_detected:
         compiled_candidates = unique_compiled_candidates
 
-    logging.info(f"Produced [{len(compiled_candidates)}] unique vmfbs")
+    logging.debug(f"Produced [{len(compiled_candidates)}] unique vmfbs")
     return compiled_candidates
 
 
 def select_best_benchmark_results(
-    tuner_context: TunerContext,
     candidate_results: list[BenchmarkResult],
     baseline_results: list[BenchmarkResult],
     num_candidates: Optional[int],
@@ -881,7 +882,7 @@ def select_best_benchmark_results(
     best_results = sorted(filtered_candidate_results, key=sorting_key)[
         :num_top_candidates
     ]
-    tuner_context.logger.info(f"Selected top[{len(best_results)}]:")
+    logging.info(f"Selected top[{len(best_results)}]:")
 
     for r in best_results:
         if fallback_baseline_time is not None:
@@ -889,7 +890,7 @@ def select_best_benchmark_results(
         else:
             speedup = "baseline unavailable"
         result = f"Candidate {r.candidate_id} time: {r.time:.2f} ms ({speedup})"
-        tuner_context.logger.info(result)
+        logging.info(result)
     return best_results
 
 
@@ -943,7 +944,6 @@ def benchmark(
     )
 
     best_results: list[BenchmarkResult] = select_best_benchmark_results(
-        tuner_context=tuner_context,
         candidate_results=candidate_results,
         baseline_results=baseline_results,
         num_candidates=num_candidates,
