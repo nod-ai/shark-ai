@@ -85,10 +85,6 @@ class TestLLMServer:
         indirect=True,
     )
     @pytest.mark.parametrize("concurrent_requests", [2, 4, 8])
-    @pytest.mark.xfail(
-        raises=AccuracyValidationException,
-        reason="Concurreny issues in Shortfin batch processing",
-    )
     def test_concurrent_generation(
         self, server: tuple[Any, int], concurrent_requests: int
     ) -> None:
