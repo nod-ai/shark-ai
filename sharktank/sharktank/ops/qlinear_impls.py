@@ -53,7 +53,7 @@ def qlinear_tensor_scaled(
         if x_layout.qs.dtype == torch.float8_e4m3fnuz:
             # assume quark
             return matmul(x_layout.qs, weight_layout.qs, transpose_rhs=True).to(
-                torch.float16
+                torch.bfloat16
             )
         else:
             return NotImplemented

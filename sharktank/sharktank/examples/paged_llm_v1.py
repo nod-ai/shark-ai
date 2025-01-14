@@ -42,11 +42,8 @@ class TorchGenerator:
     ):
         self.model = model
         self.tokenizer = tokenizer
-        if self.model.config.kv_cache_type == "paged":
-            self.shared_cache_state = model.cache.allocate(page_cache_size)
-            self.free_pages = list(range(1, page_cache_size))
-        else:
-            self.shared_cache_state = None
+        self.shared_cache_state = model.cache.allocate(page_cache_size)
+        self.free_pages = list(range(1, page_cache_size))
         self.end_token = end_token
 
     @property
@@ -67,10 +64,6 @@ class TorchGenerator:
         return Batch(self, token_ids, seq_lens, cache_state)
 
     def alloc_page(self) -> int:
-        if self.model.config.kv_cache_type == "direct":
-            # We don't allocate block ids for the direct cache.
-            return 0
-
         return self.free_pages.pop()
 
     def release_page(self, index: int):

@@ -18,6 +18,10 @@ from ...types import *
 from ...utils.create_cache import *
 from ... import ops
 
+
+from transformers.models.llama.configuration_llama import LlamaConfig
+from transformers.models.llama.modeling_llama import LlamaRotaryEmbedding
+
 __all__ = [
     "PagedLlamaModelV1",
 ]
@@ -82,8 +86,9 @@ class PagedLlamaModelV1(BaseCausalLMModel):
 
         self.add_module(
             "token_embedding",
-            TokenEmbeddingLayer(theta("token_embd"), dtype=config.activation_dtype),
+            TokenEmbeddingLayer(theta("token_embd"), dtype=torch.bfloat16),
         )
+        # self.attention_embedding = LlamaRotaryEmbedding(config=self.hf_config)
         self.add_module(
             "attention_embedding",
             RotaryEmbeddingLayer(
@@ -93,6 +98,7 @@ class PagedLlamaModelV1(BaseCausalLMModel):
                 device=self.device,
                 use_hf=self.use_hf,
                 tensor_parallelism_size=config.tensor_parallelism_size,
+                dtype=config.activation_dtype,
             ),
         )
         self.add_module(
@@ -258,6 +264,7 @@ class AttentionFFNBlock(ThetaLayer):
             "ffn",
             FFN(
                 theta=theta,
+                fake_quant=fake_quant,
             ),
         )
         self.add_module(
