@@ -636,11 +636,16 @@ def interpolate_split_batch_or_channel(
 
 
 @layer_norm.override(SplitPrimitiveTensor, Tensor, Tensor)
-def layer_norm_default(input, weight, bias, *, eps):
+def layer_norm_split(
+    input, weight, bias, *, eps, normalized_shape: Optional[tuple[int]]
+):
     assert input.shard_dim >= 0 and input.shard_dim < len(input.shape) - len(
         weight.shape
     )
-    shards = [layer_norm(shard, weight, bias, eps=eps) for shard in input.shards]
+    shards = [
+        layer_norm(shard, weight, bias, eps=eps, normalized_shape=normalized_shape)
+        for shard in input.shards
+    ]
     return SplitPrimitiveTensor(shard_dim=input.shard_dim, ts=shards)
 
 

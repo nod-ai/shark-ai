@@ -6,13 +6,38 @@
 
 import torch
 from os import PathLike
+from collections import OrderedDict
 
 from .flux import FluxParams, FluxModelV1
 from .export import export_flux_transformer, flux_transformer_default_batch_sizes
 from ...types import DefaultPrimitiveTensor, Theta, save_load_theta
 from ...layers.testing import (
     make_rand_torch,
+    make_mmdit_double_block_random_theta,
+    make_mmdit_single_block_random_theta,
 )
+
+
+def convert_flux_transformer_input_for_hugging_face_model(
+    img: torch.Tensor,
+    img_ids: torch.Tensor,
+    txt: torch.Tensor,
+    txt_ids: torch.Tensor,
+    timesteps: torch.Tensor,
+    y: torch.Tensor,
+    guidance: torch.Tensor | None = None,
+) -> dict[str, torch.Tensor]:
+    return OrderedDict(
+        [
+            ("hidden_states", img),
+            ("encoder_hidden_states", txt),
+            ("pooled_projections", y),
+            ("timestep", timesteps),
+            ("img_ids", img_ids.reshape(img_ids.shape[1:])),
+            ("txt_ids", txt_ids.reshape(txt_ids.shape[1:])),
+            ("guidance", guidance),
+        ]
+    )
 
 
 def make_random_theta(config: FluxParams, dtype: torch.dtype):
@@ -69,108 +94,6 @@ def make_random_theta(config: FluxParams, dtype: torch.dtype):
         "vector_in.out_layer.bias": DefaultPrimitiveTensor(  #
             data=make_rand_torch((hidden_size,), dtype=dtype)
         ),
-        "double_blocks.0.img_attn.norm.key_norm.scale": DefaultPrimitiveTensor(  #
-            data=make_rand_torch((in_channels2,), dtype=dtype)
-        ),
-        "double_blocks.0.img_attn.norm.query_norm.scale": DefaultPrimitiveTensor(  #
-            data=make_rand_torch((in_channels2,), dtype=dtype)
-        ),
-        "double_blocks.0.img_attn.proj.bias": DefaultPrimitiveTensor(
-            data=make_rand_torch((hidden_size,), dtype=dtype)
-        ),
-        "double_blocks.0.img_attn.proj.weight": DefaultPrimitiveTensor(
-            data=make_rand_torch((hidden_size, hidden_size), dtype=dtype)
-        ),
-        "double_blocks.0.img_attn.qkv.bias": DefaultPrimitiveTensor(
-            data=make_rand_torch((mlp_hidden_size,), dtype=dtype)
-        ),
-        "double_blocks.0.img_attn.qkv.weight": DefaultPrimitiveTensor(
-            data=make_rand_torch((mlp_hidden_size, hidden_size), dtype=dtype)
-        ),
-        "double_blocks.0.img_mlp.0.bias": DefaultPrimitiveTensor(
-            data=make_rand_torch((mlp_hidden_size2), dtype=dtype)
-        ),
-        "double_blocks.0.img_mlp.0.weight": DefaultPrimitiveTensor(
-            data=make_rand_torch((mlp_hidden_size2, hidden_size), dtype=dtype)
-        ),
-        "double_blocks.0.img_mlp.2.bias": DefaultPrimitiveTensor(
-            data=make_rand_torch((hidden_size), dtype=dtype)
-        ),
-        "double_blocks.0.img_mlp.2.weight": DefaultPrimitiveTensor(
-            data=make_rand_torch((hidden_size, mlp_hidden_size2), dtype=dtype)
-        ),
-        "double_blocks.0.img_mod.lin.bias": DefaultPrimitiveTensor(
-            data=make_rand_torch((mlp_hidden_size3,), dtype=dtype)
-        ),
-        "double_blocks.0.img_mod.lin.weight": DefaultPrimitiveTensor(
-            data=make_rand_torch((mlp_hidden_size3, hidden_size), dtype=dtype)
-        ),
-        "double_blocks.0.txt_attn.norm.key_norm.scale": DefaultPrimitiveTensor(  #
-            data=make_rand_torch((in_channels2,), dtype=dtype)
-        ),
-        "double_blocks.0.txt_attn.norm.query_norm.scale": DefaultPrimitiveTensor(  #
-            data=make_rand_torch((in_channels2,), dtype=dtype)
-        ),
-        "double_blocks.0.txt_attn.proj.bias": DefaultPrimitiveTensor(
-            data=make_rand_torch((hidden_size,), dtype=dtype)
-        ),
-        "double_blocks.0.txt_attn.proj.weight": DefaultPrimitiveTensor(
-            data=make_rand_torch((hidden_size, hidden_size), dtype=dtype)
-        ),
-        "double_blocks.0.txt_attn.qkv.bias": DefaultPrimitiveTensor(
-            data=make_rand_torch((mlp_hidden_size,), dtype=dtype)
-        ),
-        "double_blocks.0.txt_attn.qkv.weight": DefaultPrimitiveTensor(
-            data=make_rand_torch((mlp_hidden_size, hidden_size), dtype=dtype)
-        ),
-        "double_blocks.0.txt_mlp.0.bias": DefaultPrimitiveTensor(
-            data=make_rand_torch((mlp_hidden_size2), dtype=dtype)
-        ),
-        "double_blocks.0.txt_mlp.0.weight": DefaultPrimitiveTensor(
-            data=make_rand_torch((mlp_hidden_size2, hidden_size), dtype=dtype)
-        ),
-        "double_blocks.0.txt_mlp.2.bias": DefaultPrimitiveTensor(
-            data=make_rand_torch((hidden_size), dtype=dtype)
-        ),
-        "double_blocks.0.txt_mlp.2.weight": DefaultPrimitiveTensor(
-            data=make_rand_torch((hidden_size, mlp_hidden_size2), dtype=dtype)
-        ),
-        "double_blocks.0.txt_mod.lin.bias": DefaultPrimitiveTensor(
-            data=make_rand_torch((mlp_hidden_size3,), dtype=dtype)
-        ),
-        "double_blocks.0.txt_mod.lin.weight": DefaultPrimitiveTensor(
-            data=make_rand_torch((mlp_hidden_size3, hidden_size), dtype=dtype)
-        ),
-        "single_blocks.0.norm.key_norm.scale": DefaultPrimitiveTensor(  #
-            data=make_rand_torch((in_channels2,), dtype=dtype)
-        ),
-        "single_blocks.0.norm.query_norm.scale": DefaultPrimitiveTensor(  #
-            data=make_rand_torch((in_channels2,), dtype=dtype)
-        ),
-        "single_blocks.0.attn.proj.bias": DefaultPrimitiveTensor(
-            data=make_rand_torch((hidden_size,), dtype=dtype)
-        ),
-        "single_blocks.0.attn.proj.weight": DefaultPrimitiveTensor(
-            data=make_rand_torch((hidden_size, hidden_size), dtype=dtype)
-        ),
-        "single_blocks.0.linear1.bias": DefaultPrimitiveTensor(
-            data=make_rand_torch((mlp_hidden_size5,), dtype=dtype)
-        ),
-        "single_blocks.0.linear1.weight": DefaultPrimitiveTensor(
-            data=make_rand_torch((mlp_hidden_size5, hidden_size), dtype=dtype)
-        ),
-        "single_blocks.0.linear2.bias": DefaultPrimitiveTensor(
-            data=make_rand_torch((hidden_size), dtype=dtype)
-        ),
-        "single_blocks.0.linear2.weight": DefaultPrimitiveTensor(
-            data=make_rand_torch((hidden_size, mlp_hidden_size4), dtype=dtype)
-        ),
-        "single_blocks.0.modulation.lin.bias": DefaultPrimitiveTensor(
-            data=make_rand_torch((mlp_hidden_size,), dtype=dtype)
-        ),
-        "single_blocks.0.modulation.lin.weight": DefaultPrimitiveTensor(
-            data=make_rand_torch((mlp_hidden_size, hidden_size), dtype=dtype)
-        ),
         "final_layer.linear.weight": DefaultPrimitiveTensor(  #
             data=make_rand_torch(
                 (patch_size * patch_size * out_channels, hidden_size), dtype=dtype
@@ -186,6 +109,16 @@ def make_random_theta(config: FluxParams, dtype: torch.dtype):
             data=make_rand_torch((hidden_size * 2,), dtype=dtype)
         ),
     }
+
+    for i in range(config.depth):
+        tensor_dict[f"double_blocks.{i}"] = make_mmdit_double_block_random_theta(
+            in_channels=in_channels, hidden_size=hidden_size, mlp_ratio=mlp_ratio
+        ).flatten()
+
+    for i in range(config.depth_single_blocks):
+        tensor_dict[f"single_blocks.{i}"] = make_mmdit_single_block_random_theta(
+            in_channels=in_channels2, hidden_size=hidden_size, mlp_ratio=mlp_ratio
+        ).flatten()
 
     if config.guidance_embed:
         tensor_dict["guidance_in.in_layer.weight"] = DefaultPrimitiveTensor(  #

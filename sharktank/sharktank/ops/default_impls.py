@@ -304,18 +304,17 @@ def interpolate_default(
     )
 
 
-def layer_norm_default(input, weight, bias, *, eps):
+def layer_norm_default(input, weight, bias, *, eps, normalized_shape):
     input = unbox_tensor(input)
     if weight is not None:
         weight = unbox_tensor(weight)
-    else:
-        weight = torch.ones(input.shape, dtype=input.dtype)
     if bias is not None:
         bias = unbox_tensor(bias)
-    else:
-        bias = torch.zeros(input.shape, dtype=input.dtype)
+    if normalized_shape is None:
+        assert weight is not None
+        normalized_shape = weight.shape
     return F.layer_norm(
-        input, normalized_shape=weight.shape, weight=weight, bias=bias, eps=eps
+        input, normalized_shape=normalized_shape, weight=weight, bias=bias, eps=eps
     )
 
 

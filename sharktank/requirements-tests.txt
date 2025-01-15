@@ -1,3 +1,9 @@
+# Needed to load Hugging Face Flux transformer with low_cpu_mem_usage=True.
+# This is the only way to load this model that is split across multiple safetensors
+# files.
+# See https://github.com/huggingface/diffusers/issues/9343
+accelerate
+
 datasets==3.0.0
 diffusers
 parameterized

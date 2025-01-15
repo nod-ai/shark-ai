@@ -11,16 +11,19 @@ import torch
 import pytest
 import iree.compiler
 from collections import OrderedDict
+from diffusers import FluxTransformer2DModel
 from sharktank.models.flux.export import (
     export_flux_transformer_from_hugging_face,
     export_flux_transformer,
+    import_flux_transformer_dataset_from_hugging_face,
 )
 from sharktank.models.flux.testing import (
+    convert_flux_transformer_input_for_hugging_face_model,
     export_dev_random_single_layer,
     make_dev_single_layer_config,
     make_random_theta,
 )
-from sharktank.models.flux.flux import FluxModelV1
+from sharktank.models.flux.flux import FluxModelV1, FluxParams
 from sharktank.utils.testing import TempDirTestBase
 from sharktank.utils.iree import (
     get_iree_devices,
@@ -33,6 +36,7 @@ from sharktank.utils.iree import (
 )
 from sharktank import ops
 from sharktank.transforms.dataset import set_float_dtype
+from sharktank.types import Dataset, Theta
 
 logging.basicConfig(level=logging.DEBUG)
 with_flux_data = pytest.mark.skipif("not config.getoption('with_flux_data')")
@@ -56,6 +60,14 @@ iree_compile_flags = [
     "--iree-execution-model=async-external",
     "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline,iree-preprocessing-pad-to-intrinsics)",
 ]
+
+
+def covert_dtype_if_dtype(
+    t: torch.Tensor, source_dtype: torch.dtype, target_dtype: torch.dtype
+) -> torch.Tensor:
+    if t.dtype == source_dtype:
+        return t.to(dtype=target_dtype)
+    return t
 
 
 class FluxTest(TempDirTestBase):
@@ -104,16 +116,19 @@ class FluxTest(TempDirTestBase):
             batch_size
         )
 
-        def covert_target_to_reference_dtype(t: torch.Tensor) -> torch.Tensor:
-            if t.dtype == target_dtype:
-                return t.to(dtype=reference_model.dtype)
-            return t
-
         reference_input_args = [
-            covert_target_to_reference_dtype(t) for t in target_input_args
+            covert_dtype_if_dtype(
+                t, source_dtype=target_dtype, target_dtype=reference_model.dtype
+            )
+            for t in target_input_args
         ]
         reference_input_kwargs = OrderedDict(
-            (k, covert_target_to_reference_dtype(t))
+            (
+                k,
+                covert_dtype_if_dtype(
+                    t, source_dtype=target_dtype, target_dtype=reference_model.dtype
+                ),
+            )
             for k, t in target_input_kwargs.items()
         )
 
@@ -166,6 +181,42 @@ class FluxTest(TempDirTestBase):
         )
         self.runCompareIreeAgainstTorchEager(reference_model, target_dtype)
 
+    def runTestCompareTorchEagerAgainstHuggingFace(
+        self,
+        reference_model: FluxTransformer2DModel,
+        reference_dtype: torch.dtype,
+        target_model: FluxModelV1,
+        atol: float,
+    ):
+        target_input_args, target_input_kwargs = target_model.sample_inputs()
+
+        reference_input_args = [
+            covert_dtype_if_dtype(
+                t, source_dtype=target_model.dtype, target_dtype=reference_dtype
+            )
+            for t in target_input_args
+        ]
+        reference_input_kwargs = OrderedDict(
+            (
+                k,
+                covert_dtype_if_dtype(
+                    t, source_dtype=target_model.dtype, target_dtype=reference_dtype
+                ),
+            )
+            for k, t in target_input_kwargs.items()
+        )
+        reference_input_kwargs = convert_flux_transformer_input_for_hugging_face_model(
+            *reference_input_args, **reference_input_kwargs
+        )
+
+        reference_output = reference_model(**reference_input_kwargs)["sample"]
+        target_output = target_model(*target_input_args, **target_input_kwargs)
+        target_output = covert_dtype_if_dtype(
+            target_output, source_dtype=target_model.dtype, target_dtype=reference_dtype
+        )
+
+        torch.testing.assert_close(target_output, reference_output, atol=atol, rtol=0)
+
     @pytest.mark.xfail(
         raises=AssertionError,
         reason="Accuracy is not good enough. The observed absolute error is 8976.53.",
@@ -196,6 +247,69 @@ class FluxTest(TempDirTestBase):
     def testCompareDevRandomSingleLayerIreeF32AgainstTorchEagerF32(self):
         self.runCompareDevRandomSingleLayerIreeAgainstTorchEager(
             reference_dtype=torch.float32, target_dtype=torch.float32
+        )
+
+    @with_flux_data
+    def testCompareDevTorchEagerBf16AgainstHuggingFaceF32(self):
+        parameters_output_path = self._temp_dir / "parameters.irpa"
+        reference_dtype = torch.float32
+
+        reference_model = FluxTransformer2DModel.from_pretrained(
+            "black-forest-labs/FLUX.1-dev",
+            subfolder="transformer",
+            torch_dtype=reference_dtype,
+        )
+
+        import_flux_transformer_dataset_from_hugging_face(
+            repo_id="black-forest-labs/FLUX.1-dev/black-forest-labs-transformer",
+            parameters_output_path=parameters_output_path,
+        )
+        target_dataset = Dataset.load(parameters_output_path)
+        target_model = FluxModelV1(
+            theta=target_dataset.root_theta,
+            params=FluxParams.from_hugging_face_properties(target_dataset.properties),
+        )
+
+        self.runTestCompareTorchEagerAgainstHuggingFace(
+            reference_model=reference_model,
+            reference_dtype=reference_dtype,
+            target_model=target_model,
+            atol=4.0,
+        )
+
+    @with_flux_data
+    def testCompareDevTorchEagerF32AgainstHuggingFaceF32(self):
+        parameters_output_path = self._temp_dir / "parameters.irpa"
+        reference_dtype = torch.float32
+        target_dtype = torch.float32
+
+        reference_model = FluxTransformer2DModel.from_pretrained(
+            "black-forest-labs/FLUX.1-dev",
+            subfolder="transformer",
+            torch_dtype=reference_dtype,
+        )
+
+        import_flux_transformer_dataset_from_hugging_face(
+            repo_id="black-forest-labs/FLUX.1-dev/black-forest-labs-transformer",
+            parameters_output_path=parameters_output_path,
+        )
+        target_dataset = Dataset.load(parameters_output_path)
+        target_dataset.root_theta = Theta(
+            {
+                k: set_float_dtype(t, target_dtype)
+                for k, t in target_dataset.root_theta.flatten().items()
+            }
+        )
+        target_model = FluxModelV1(
+            theta=target_dataset.root_theta,
+            params=FluxParams.from_hugging_face_properties(target_dataset.properties),
+        )
+
+        self.runTestCompareTorchEagerAgainstHuggingFace(
+            reference_model=reference_model,
+            reference_dtype=reference_dtype,
+            target_model=target_model,
+            atol=1e-4,
         )
 
     @with_flux_data

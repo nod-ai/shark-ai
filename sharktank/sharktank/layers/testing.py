@@ -147,9 +147,6 @@ def make_mmdit_single_block_random_theta(
     mlp_ratio: float = 4.0,
     dtype: torch.dtype | None = None,
 ) -> Theta:
-    in_channels = 128
-    hidden_size = 3072
-    mlp_ratio = 4.0
     mlp_hidden_size = int((mlp_ratio - 1) * hidden_size)
     mlp_hidden_size2 = int((mlp_ratio + 1) * hidden_size)
     mlp_hidden_size3 = int((2 * mlp_ratio - 1) * hidden_size)
