@@ -485,7 +485,7 @@ def init_worker_context(queue: multiprocessing.Queue) -> None:
     worker_id, device_id = queue.get()
 
 
-def create_worker_context_queue(device_ids: list[int]) -> queue.Queue[tuple[int, int]]:
+def create_worker_context_queue(device_ids: list[str]) -> queue.Queue[tuple[int, int]]:
     """Create queue contains Worker ID and Device ID for worker initialization"""
     worker_contexts_queue = multiprocessing.Manager().Queue()
     for worker_id, device_id in enumerate(device_ids):
@@ -830,6 +830,62 @@ def benchmark_candidates(candidate_indices, devices, tuning_client, candidate_tr
     )
 
 
+class BaselineRunner:
+    def __init__(
+        self,
+        devices: list[str],
+        tuning_client: TuningClient,
+        candidate_tracker: CandidateTracker,
+        max_retries: int = 3,
+    ):
+        self.devices = devices
+        self.tuning_client = tuning_client
+        self.candidate_tracker = candidate_tracker
+        self.max_retries = max_retries
+
+    def run_baseline(self) -> list[Any]:
+        baseline_results = [None] * len(self.devices)
+        for attempt in range(1, self.max_retries + 1):
+            attempt_msg = f"Attempt {attempt}:"
+            logging.debug(f"{attempt_msg} Starting baseline benchmark on all devices.")
+            try:
+                task_list = [
+                    BenchmarkPack(
+                        iree_benchmark_module_flags=self.tuning_client.get_iree_benchmark_module_flags(),
+                        benchmark_timeout=self.tuning_client.get_benchmark_timeout_s(),
+                        candidate_tracker=self.candidate_tracker,
+                    )
+                ] * len(self.devices)
+
+                worker_context_queue = create_worker_context_queue(self.devices)
+                baseline_results = multiprocess_progress_wrapper(
+                    num_worker=len(self.devices),
+                    task_list=task_list,
+                    function=run_iree_benchmark_module_command,
+                    initializer=init_worker_context,
+                    initializer_inputs=(worker_context_queue,),
+                )
+
+                if any(
+                    r is not None and math.isfinite(r.time) for r in baseline_results
+                ):
+                    logging.debug(
+                        f"{attempt_msg} Baseline benchmark completed successfully."
+                    )
+                    break
+                else:
+                    raise ValueError(
+                        f"{attempt_msg} No valid times detected in baseline results."
+                    )
+
+            except Exception as e:
+                logging.warning(
+                    f"{attempt_msg} Baseline benchmark failed: {e}. "
+                    f"{'Retrying...' if attempt < self.max_retries else 'No more retries.'}"
+                )
+        return baseline_results
+
+
 def compile(
     args: argparse.Namespace,
     path_config: PathConfig,
@@ -984,14 +1040,15 @@ def benchmark(
         return []
 
     # Benchmarking baselines on each involved device.
-    baseline_indices = [0] * len(args.devices)
-    baseline_results = benchmark_candidates(
-        candidate_indices=baseline_indices,
+    baseline_tracker = candidate_trackers[0]
+    baseline_runner = BaselineRunner(
         devices=args.devices,
         tuning_client=tuning_client,
-        candidate_trackers=candidate_trackers,
+        candidate_tracker=baseline_tracker,
+        max_retries=3,
     )
-    if not are_baseline_devices_unique(baseline_results):
+    first_baseline_results = baseline_runner.run_baseline()
+    if not are_baseline_devices_unique(first_baseline_results):
         logging.warning("Duplicate device IDs detected in the first baseline results.")
 
     candidate_indices = [i for i in compiled_candidates if i != 0]
@@ -1002,32 +1059,28 @@ def benchmark(
         candidate_trackers=candidate_trackers,
     )
 
-    # Benchmarking baselines again to check for performance regressions.
-    # These may indicate machine instability, overheating, etc.
-    post_baseline_indices = [0] * len(args.devices)
-    post_baseline_results = benchmark_candidates(
-        candidate_indices=post_baseline_indices,
-        devices=args.devices,
-        tuning_client=tuning_client,
-        candidate_trackers=candidate_trackers,
-    )
+    second_baseline_results = baseline_runner.run_baseline()
 
-    first_baseline_by_device = map_baseline_by_device(baseline_results)
-    second_baseline_by_device = map_baseline_by_device(post_baseline_results)
+    first_baseline_by_device = map_baseline_by_device(first_baseline_results)
+    second_baseline_by_device = map_baseline_by_device(second_baseline_results)
     if first_baseline_by_device.keys() != second_baseline_by_device.keys():
         logging.warning("Device ID mismatch between baseline runs.")
 
     regression_devices = detect_baseline_regression(
-        baseline_results, post_baseline_results
+        first_baseline_results, second_baseline_results
     )
     if regression_devices:
         logging.warning(
             f"Performance regressions detected for the following devices: {', '.join(regression_devices)}"
         )
 
+    first_baseline_valid = any(math.isfinite(r.time) for r in first_baseline_results)
+    baseline_result = (
+        first_baseline_results if first_baseline_valid else second_baseline_results
+    )
     best_results: list[BenchmarkResult] = select_best_benchmark_results(
         candidate_results=candidate_results,
-        baseline_results=baseline_results,
+        baseline_results=baseline_result,
         num_candidates=num_candidates,
     )
 
