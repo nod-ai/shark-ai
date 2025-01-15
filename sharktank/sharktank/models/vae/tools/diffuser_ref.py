@@ -16,9 +16,15 @@ class VaeModel(torch.nn.Module):
         self,
         hf_model_name,
         custom_vae="",
+        height=1024,
+        width=1024,
+        flux=False,
     ):
         super().__init__()
         self.vae = None
+        self.height = height
+        self.width = width
+        self.flux = flux
         if custom_vae in ["", None]:
             self.vae = AutoencoderKL.from_pretrained(
                 hf_model_name,
@@ -44,43 +50,37 @@ class VaeModel(torch.nn.Module):
                     custom_vae,
                     subfolder="vae",
                 )
+        self.shift_factor = (
+            0.0
+            if self.vae.config.shift_factor is None
+            else self.vae.config.shift_factor
+        )
 
     def decode(self, inp):
-        # The reference vae decode does not do scaling and leaves it for the sdxl pipeline. We integrate it into vae for pipeline performance so using the hardcoded values from the config.json here
-        img = 1 / 0.13025 * inp
+        if self.flux:
+            inp = rearrange(
+                inp,
+                "b (h w) (c ph pw) -> b c (h ph) (w pw)",
+                h=math.ceil(self.height / 16),
+                w=math.ceil(self.width / 16),
+                ph=2,
+                pw=2,
+            )
+        img = inp / self.vae.config.scaling_factor + self.shift_factor
         x = self.vae.decode(img, return_dict=False)[0]
-        return (x / 2 + 0.5).clamp(0, 1)
+        if self.flux:
+            return x.clamp(-1, 1)
+        else:
+            return (x / 2 + 0.5).clamp(0, 1)
 
 
-def run_torch_vae(hf_model_name, example_input):
-    vae_model = VaeModel(hf_model_name)
+def run_torch_vae(
+    hf_model_name,
+    example_input,
+    height=1024,
+    width=1024,
+    flux=False,
+    dtype=torch.float32,
+):
+    vae_model = VaeModel(hf_model_name, height=height, width=width, flux=flux).to(dtype)
     return vae_model.decode(example_input)
-
-
-# TODO Remove and integrate with VaeModel
-class FluxAEWrapper(torch.nn.Module):
-    def __init__(self, height=1024, width=1024):
-        super().__init__()
-        self.ae = AutoencoderKL.from_pretrained(
-            "black-forest-labs/FLUX.1-dev", subfolder="vae", torch_dtype=torch.bfloat16
-        )
-        self.height = height
-        self.width = width
-
-    def forward(self, z):
-        d_in = rearrange(
-            z,
-            "b (h w) (c ph pw) -> b c (h ph) (w pw)",
-            h=math.ceil(self.height / 16),
-            w=math.ceil(self.width / 16),
-            ph=2,
-            pw=2,
-        )
-        d_in = d_in / self.ae.config.scaling_factor + self.ae.config.shift_factor
-        return self.ae.decode(d_in, return_dict=False)[0].clamp(-1, 1)
-
-
-def run_flux_vae(example_input, dtype):
-    # TODO add support for other height/width sizes
-    vae_model = FluxAEWrapper(1024, 1024).to(dtype)
-    return vae_model.forward(example_input)

@@ -13,7 +13,7 @@ from iree.turbine import aot
 
 from sharktank.types import Dataset
 from sharktank.models.vae.model import VaeDecoderModel
-from sharktank.models.vae.tools.diffuser_ref import run_torch_vae, run_flux_vae
+from sharktank.models.vae.tools.diffuser_ref import run_torch_vae
 from sharktank.models.vae.tools.run_vae import export_vae
 from sharktank.models.vae.tools.sample_data import get_random_inputs
 
@@ -169,7 +169,7 @@ class VaeSDXLDecoderTest(TempDirTestBase):
             vm_context=iree_vm_context,
             args=iree_args,
             driver="hip",
-            function_name="forward",
+            function_name="decode",
         )[0].to_host()
         # TODO: Verify these numerics are good or if tolerances are too loose
         # TODO: Upload IR on passing tests to keep https://github.com/iree-org/iree/blob/main/experimental/regression_suite/shark-test-suite-models/sdxl/test_vae.py at latest
@@ -197,7 +197,7 @@ class VaeSDXLDecoderTest(TempDirTestBase):
             vm_context=iree_vm_context,
             args=iree_args,
             driver="hip",
-            function_name="forward",
+            function_name="decode",
         )[0].to_host()
         # TODO: Upload IR on passing tests
         torch.testing.assert_close(
@@ -240,7 +240,9 @@ class VaeFluxDecoderTest(TempDirTestBase):
     def testCompareBF16EagerVsHuggingface(self):
         dtype = torch.bfloat16
         inputs = get_random_inputs(dtype=dtype, device="cpu", bs=1, config="flux")
-        ref_results = run_flux_vae(inputs, dtype)
+        ref_results = run_torch_vae(
+            "black-forest-labs/FLUX.1-dev", inputs, 1024, 1024, True, dtype
+        )
 
         ds = Dataset.load("{self._temp_dir}/flux_vae_bf16.irpa", file_type="irpa")
         model = VaeDecoderModel.from_dataset(ds).to(device="cpu")
@@ -252,7 +254,9 @@ class VaeFluxDecoderTest(TempDirTestBase):
     def testCompareF32EagerVsHuggingface(self):
         dtype = torch.float32
         inputs = get_random_inputs(dtype=dtype, device="cpu", bs=1, config="flux")
-        ref_results = run_flux_vae(inputs, dtype)
+        ref_results = run_torch_vae(
+            "black-forest-labs/FLUX.1-dev", inputs, 1024, 1024, True, dtype
+        )
 
         ds = Dataset.load("{self._temp_dir}/flux_vae_f32.irpa", file_type="irpa")
         model = VaeDecoderModel.from_dataset(ds).to(device="cpu", dtype=dtype)
@@ -265,8 +269,9 @@ class VaeFluxDecoderTest(TempDirTestBase):
         inputs = get_random_inputs(
             dtype=torch.float32, device="cpu", bs=1, config="flux"
         )
-        ref_results = run_flux_vae(inputs.to(dtype), dtype)
-        ref_results_f32 = run_flux_vae(inputs, torch.float32)
+        ref_results = run_torch_vae(
+            "black-forest-labs/FLUX.1-dev", inputs, 1024, 1024, True, torch.float32
+        )
 
         ds = Dataset.load("{self._temp_dir}/flux_vae_bf16.irpa", file_type="irpa")
         ds_f32 = Dataset.load("{self._temp_dir}/flux_vae_f32.irpa", file_type="irpa")
@@ -327,12 +332,14 @@ class VaeFluxDecoderTest(TempDirTestBase):
                 vm_context=iree_vm_context,
                 args=iree_args,
                 driver="hip",
-                function_name="forward",
+                function_name="decode",
             )[0]
         )
 
         # TODO verify these numerics
-        torch.testing.assert_close(ref_results, iree_result, atol=3.3e-2, rtol=4e5)
+        torch.testing.assert_close(
+            ref_results.to(torch.bfloat16), iree_result, atol=3.3e-2, rtol=4e5
+        )
 
         iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
             module_path="{self._temp_dir}/flux_vae_f32.vmfb",
@@ -352,11 +359,11 @@ class VaeFluxDecoderTest(TempDirTestBase):
                 vm_context=iree_vm_context,
                 args=iree_args,
                 driver="hip",
-                function_name="forward",
+                function_name="decode",
             )[0]
         )
 
-        torch.testing.assert_close(ref_results_f32, iree_result_f32)
+        torch.testing.assert_close(ref_results, iree_result_f32)
 
 
 if __name__ == "__main__":
