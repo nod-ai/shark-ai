@@ -20,6 +20,7 @@ from ._registry import *
 __all__ = [
     "all_gather",
     "all_reduce",
+    "barrier_on_logical_device",
     "cat",
     "conv2d",
     "einsum_2args",
@@ -1023,6 +1024,25 @@ def _to_trampoline(d: SignatureDispatcher, tensor: AnyTensor, *args, **kwargs):
             return override, result
     else:
         d.fail(dispatch_args)
+
+
+@overridable
+def barrier_on_logical_device(tensor: AnyTensor, ordinal: int) -> AnyTensor:
+    """Transfer the tensor to a device with ordinal `ordinal`."""
+    ...
+
+
+@barrier_on_logical_device.trampoline
+def _barrier_on_logical_device_trampoline(
+    d: SignatureDispatcher, tensor: AnyTensor, ordinal: int
+):
+    tensors = (tensor,)
+    for override in d.find_overrides(tensors):
+        result = override(tensor, ordinal)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
 
 
 @overridable
