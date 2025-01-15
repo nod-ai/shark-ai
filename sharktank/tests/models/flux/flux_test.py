@@ -62,7 +62,7 @@ iree_compile_flags = [
 ]
 
 
-def covert_dtype_if_dtype(
+def convert_dtype_if_dtype(
     t: torch.Tensor, source_dtype: torch.dtype, target_dtype: torch.dtype
 ) -> torch.Tensor:
     if t.dtype == source_dtype:
@@ -117,7 +117,7 @@ class FluxTest(TempDirTestBase):
         )
 
         reference_input_args = [
-            covert_dtype_if_dtype(
+            convert_dtype_if_dtype(
                 t, source_dtype=target_dtype, target_dtype=reference_model.dtype
             )
             for t in target_input_args
@@ -125,7 +125,7 @@ class FluxTest(TempDirTestBase):
         reference_input_kwargs = OrderedDict(
             (
                 k,
-                covert_dtype_if_dtype(
+                convert_dtype_if_dtype(
                     t, source_dtype=target_dtype, target_dtype=reference_model.dtype
                 ),
             )
@@ -191,7 +191,7 @@ class FluxTest(TempDirTestBase):
         target_input_args, target_input_kwargs = target_model.sample_inputs()
 
         reference_input_args = [
-            covert_dtype_if_dtype(
+            convert_dtype_if_dtype(
                 t, source_dtype=target_model.dtype, target_dtype=reference_dtype
             )
             for t in target_input_args
@@ -199,7 +199,7 @@ class FluxTest(TempDirTestBase):
         reference_input_kwargs = OrderedDict(
             (
                 k,
-                covert_dtype_if_dtype(
+                convert_dtype_if_dtype(
                     t, source_dtype=target_model.dtype, target_dtype=reference_dtype
                 ),
             )
@@ -211,7 +211,7 @@ class FluxTest(TempDirTestBase):
 
         reference_output = reference_model(**reference_input_kwargs)["sample"]
         target_output = target_model(*target_input_args, **target_input_kwargs)
-        target_output = covert_dtype_if_dtype(
+        target_output = convert_dtype_if_dtype(
             target_output, source_dtype=target_model.dtype, target_dtype=reference_dtype
         )
 
