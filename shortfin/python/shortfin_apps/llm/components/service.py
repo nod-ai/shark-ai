@@ -388,22 +388,19 @@ class InferenceExecutorProcess(sf.Process):
                 seq_lens_host.copy_to(seq_lens)
 
             # For decode, populate start_positions and seq_lens.
-            # paged_llm_v1 and export_paged_llm_v1 do some funky things with start_positions and seq_lens
-            # TODO: make them not so funky
             if self.phase == InferencePhase.DECODE:
                 start_positions_host = start_positions.for_transfer()
                 with start_positions_host.map(discard=True) as m:
-                    m.fill(
-                        1
-                    )  # Pad unused requests. Must pad with nonzero value because division by 0 floods clobber page (page 0) in cache with NaN values.
+                    m.fill(0)
                     m.items = [req.start_position for req in self.exec_requests]
                 start_positions_host.copy_to(start_positions)
 
                 seq_lens_host = seq_lens.for_transfer()
                 with seq_lens_host.map(discard=True) as m:
+                    # Pad unused requests.
                     m.fill(
-                        1
-                    )  # Pad unused requests. Must pad with nonzero value because division by 0 floods clobber page (page 0) in cache with NaN values.
+                        1  # Must pad with a nonzero value because a division by 0 during softmax floods clobber page (page 0) in cache with NaN values.
+                    )
                     m.items = [
                         req.start_position + len(req.input_token_ids)
                         for req in self.exec_requests
