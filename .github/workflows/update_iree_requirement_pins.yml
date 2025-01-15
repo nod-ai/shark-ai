@@ -41,7 +41,6 @@ jobs:
           ${{ env.CURRENT_SHORTFIN_IREE_GIT_TAG }} != ${{ env.LATEST_SHORTFIN_IREE_GIT_TAG }}
         uses: peter-evans/create-pull-request@67ccf781d68cd99b580ae25a5c18a1cc84ffff1f # v7.0.6
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
           base: main
           branch: integrates/iree
           delete-branch: true
