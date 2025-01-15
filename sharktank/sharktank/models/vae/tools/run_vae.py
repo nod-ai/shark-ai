@@ -129,7 +129,7 @@ def main(argv):
             intermediates_saver = SaveModuleResultTensorsPatch()
             intermediates_saver.patch_child_modules(mdl.cond_model)
 
-        results = mdl.decode(inputs)
+        results = mdl.forward(inputs)
         print("results:", results)
 
         if args.outputs:
