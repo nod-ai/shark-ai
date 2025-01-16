@@ -67,7 +67,6 @@ class PagedLlamaModelV1(BaseCausalLMModel):
         super().__init__(
             theta,
             context_length=config.hp.context_length,
-            static_tables=config.static_tables,
             device=config.device,
             activation_dtype=config.activation_dtype,
             attention_dtype=config.attention_dtype,
