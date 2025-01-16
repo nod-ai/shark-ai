@@ -91,7 +91,7 @@ class PagePool:
         # Initialize a page table on each device.
         page_table_shape = [
             self.config.alloc_page_count,
-            self.config.paged_kv_block_size_elements,
+            self.config.paged_kv_block_size_elements // len(devices),
         ]
         for device in devices:
             logging.info(

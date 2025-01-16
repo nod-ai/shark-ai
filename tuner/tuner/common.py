@@ -4,17 +4,16 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import re
 import logging
-from dataclasses import astuple, dataclass
+from dataclasses import astuple, dataclass, field
 from enum import Enum
+from types import TracebackType
 from typing import Optional
 from typing import Any
 
 from iree.compiler import ir  # type: ignore
 
 from iree.compiler.dialects import iree_gpu  # type: ignore
-from iree.compiler.dialects import iree_codegen  # type: ignore
 
 
 class CommonTypes:
@@ -38,19 +37,27 @@ class CommonTypes:
 
 
 class TunerContext:
-    def __init__(self, mlir_ctx: ir.Context, logger: logging.Logger):
-        self.mlir_ctx: ir.Context = mlir_ctx
-        self.logger: logging.Logger = logger
-        self.type: CommonTypes = CommonTypes(mlir_ctx)
+    def __init__(self, logger: Optional[logging.Logger] = None):
+        self.mlir_ctx: ir.Context = ir.Context()
+        self.logger: logging.Logger = logger or logging.getLogger("tune")
+        self.type: CommonTypes = CommonTypes(self.mlir_ctx)
+
+    def __enter__(self) -> "TunerContext":
+        self.mlir_ctx.__enter__()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> bool:
+        return self.mlir_ctx.__exit__(exc_type, exc_value, traceback)
 
 
 class DispatchKind(Enum):
-    conv = 1
-    mmt = 2
-    contraction = 3
-    batch_mmt = 4
-    batch_matmul = 5
-    broadcast_rhs_mmt = 6
+    conv = 0
+    contraction = 1
 
 
 @dataclass
@@ -71,31 +78,64 @@ class ShapedType:
 
 
 @dataclass
-class MatmulSize:
-    M: int
-    N: int
-    K: int
-    B: int = 1
+class ContractionSizes:
+    """
+    Represents the size of the iteration space along each contraction dimension.
+    For example, the following is a simple batch mmt:
+      linalg.generic ... indexing_maps = [
+          affine_map<(b, m, n, k) -> (b, m, k)>,
+          affine_map<(b, m, n, k) -> (b, n, k)>,
+          affine_map<(b, m, n, k) -> (b, m, n)>,
+        ] ...
+        ins(%lhs: tensor<4x8x32xf16>, %rhs: tensor<4x16x32xf16>)
+        outs(%acc: tensor<4x8x16xf16>)
+    The ContractionSizes would be:
+      M = [8]
+      N = [16]
+      K = [32]
+      B = [4]
+    """
+
+    M: list[int]
+    N: list[int]
+    K: list[int]
+    B: list[int] = field(default_factory=list)
 
 
 @dataclass
 class ContractionDimensions:
-    batch: list[int]
+    """
+    Stores which dimensions of the iteration space belong to M, N, K, or Batch.
+    For example, the following is a simple batch mmt:
+    linalg.generic ... indexing_maps = [
+        affine_map<(b, m, n, k) -> (b, m, k)>,
+        affine_map<(b, m, n, k) -> (b, n, k)>,
+        affine_map<(b, m, n, k) -> (b, m, n)>,
+        ]
+    The ContractionDimensions would be:
+    M = [1]
+    N = [2]
+    K = [3]
+    B = [0]
+    """
+
     m: list[int]
     n: list[int]
     k: list[int]
+    batch: list[int] = field(default_factory=list)
 
 
 @dataclass
 class ProblemSize:
-    matmul_size: MatmulSize
+    matmul_size: ContractionSizes
     lhs_type: ShapedType
     rhs_type: ShapedType
     res_type: ShapedType
     dispatch_kind: DispatchKind
+    contraction_dims: ContractionDimensions
 
     @property
-    def MNK(self) -> tuple[int, int, int]:
+    def MNK(self) -> tuple[list[int], list[int], list[int]]:
         return (self.matmul_size.M, self.matmul_size.N, self.matmul_size.K)
 
 
@@ -108,11 +148,10 @@ def get_compatible_mfma_intrinsics(
         a_type, b_type, c_type = mma_attr.abc_element_types
         if not isinstance(problem_size.res_type.element_type, type(c_type)):
             return False
-        if problem_size.dispatch_kind != DispatchKind.batch_matmul:
-            if not isinstance(
-                problem_size.lhs_type.element_type, type(a_type)
-            ) or not isinstance(problem_size.rhs_type.element_type, type(b_type)):
-                return False
+        if not isinstance(
+            problem_size.lhs_type.element_type, type(a_type)
+        ) or not isinstance(problem_size.rhs_type.element_type, type(b_type)):
+            return False
         return True
 
     return list(filter(is_comptible, mma_intrinsics))
@@ -135,7 +174,7 @@ def get_lowering_config(
         # A local variable to hold the transformed value.
         promoted_value = value
         match key:
-            case "workgroup" | "reduction":
+            case "workgroup" | "reduction" | "subgroup" | "promote_operands":
                 if isinstance(value, list):
                     promoted_value = ir.ArrayAttr.get(
                         [tuner_ctx.type.getI64(x) for x in value]

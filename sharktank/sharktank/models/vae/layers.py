@@ -17,7 +17,6 @@ from sharktank.models.punet.layers import (
     ResnetBlock2D,
     Upsample2D,
     GroupNormLayer,
-    AttentionLayer,
 )
 from .config import *
 
@@ -84,7 +83,6 @@ class AttentionLayer(ThetaLayer):
             hidden_states = self.group_norm(hidden_states.transpose(1, 2)).transpose(
                 1, 2
             )
-
         query = self.to_q(hidden_states)
 
         if encoder_hidden_states is None:
@@ -110,6 +108,7 @@ class AttentionLayer(ThetaLayer):
         hidden_states = hidden_states.transpose(1, 2).reshape(
             batch_size, -1, self.heads * head_dim
         )
+        hidden_states = hidden_states.to(query.dtype)
 
         # linear proj
         hidden_states = self.to_out(hidden_states)

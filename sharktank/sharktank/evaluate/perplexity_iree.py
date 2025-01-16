@@ -64,7 +64,7 @@ class Perplexity:
         torch_device,
         iree_device,
         iree_hip_target,
-        iree_hal_target_backends,
+        iree_hal_target_device,
         kv_cache_type,
         tensor_parallelism_size,
         attention_kernel,
@@ -73,7 +73,7 @@ class Perplexity:
         self.torch_device = torch_device
         self.iree_device = iree_device
         self.iree_hip_target = iree_hip_target
-        self.iree_hal_target_backends = iree_hal_target_backends
+        self.iree_hal_target_device = iree_hal_target_device
         self.kv_cache_type = kv_cache_type
         self.block_seq_stride = block_seq_stride
         self.activation_dtype = torch.float16
@@ -135,7 +135,7 @@ class Perplexity:
             irpa_path=self.weight_path_str,
             batch_size=self.bs,
             iree_hip_target=self.iree_hip_target,
-            iree_hal_target_backends=self.iree_hal_target_backends,
+            iree_hal_target_device=self.iree_hal_target_device,
             attention_kernel=self.attention_kernel,
             tensor_parallelism_size=self.tensor_parallelism_size,
             block_seq_stride=self.block_seq_stride,
@@ -392,7 +392,7 @@ def run_perplexity(
     torch_device,
     iree_device,
     iree_hip_target,
-    iree_hal_target_backends,
+    iree_hal_target_device,
     kv_cache_type,
     tensor_parallelism_size,
     attention_kernel,
@@ -404,7 +404,7 @@ def run_perplexity(
         torch_device=torch_device,
         iree_device=iree_device,
         iree_hip_target=iree_hip_target,
-        iree_hal_target_backends=iree_hal_target_backends,
+        iree_hal_target_device=iree_hal_target_device,
         kv_cache_type=kv_cache_type,
         tensor_parallelism_size=tensor_parallelism_size,
         attention_kernel=attention_kernel,
@@ -450,10 +450,10 @@ def main(argv):
         help="Specify the iree-hip target version (e.g., gfx942)",
     )
     parser.add_argument(
-        "--iree-hal-target-backends",
+        "--iree-hal-target-device",
         action="store",
-        default="rocm",
-        help="Specify the iree-hal target backends (e.g., rocm)",
+        default="hip",
+        help="Specify the iree-hal target device (e.g., hip, cpu)",
     )
     parser.add_argument("--kv-cache-type", default="paged", help="KV cache type")
     parser.add_argument(
@@ -485,7 +485,7 @@ def main(argv):
         torch_device=torch_device,
         iree_device=args.iree_device,
         iree_hip_target=args.iree_hip_target,
-        iree_hal_target_backends=args.iree_hal_target_backends,
+        iree_hal_target_device=args.iree_hal_target_device,
         kv_cache_type=args.kv_cache_type,
         tensor_parallelism_size=args.tensor_parallelism_size,
         attention_kernel=args.attention_kernel,

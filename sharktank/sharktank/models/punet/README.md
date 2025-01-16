@@ -26,6 +26,7 @@ model_dir=$(huggingface-cli download \
 python -m sharktank.models.punet.tools.import_hf_dataset \
     --config-json $model_dir/unet/config.json \
     --output-irpa-file ~/models/punet_fp16.irpa
+    --params $model_dir/unet/diffusion_pytorch_model.fp16.safetensors
 ```
 
 ## Running reference model
@@ -37,7 +38,7 @@ python -m sharktank.models.punet.tools.run_diffuser_ref
 ## Run punet model
 
 ```
-python -m sharktank.models.punet.tools.run_punet --irpa-file ~/models/punet_fp16.irpa
+python -m sharktank.tools.run_punet --irpa-file ~/models/punet_fp16.irpa
 ```
 
 ## Integration Testing

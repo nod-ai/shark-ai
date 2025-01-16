@@ -52,19 +52,17 @@ jobs:
           python -m pip install --no-compile --upgrade pip
 
           # Note: We install in three steps in order to satisfy requirements
-          # from non default locations first. Installing the PyTorch CPU
-          # wheels saves multiple minutes and a lot of bandwidth on runner setup.
+          # from non default locations first.
           pip install --no-compile -r pytorch-cpu-requirements.txt
 
           # Use newest possible releases to be able to track commits that may
           # cause errors.
-          pip install -f https://iree.dev/pip-release-links.html --pre --upgrade \
-            iree-base-compiler \
-            iree-base-runtime \
-            iree-turbine \
-            "numpy<2.0"
+          pip install -r requirements-iree-unpinned.txt
 
-          pip install --no-compile -r requirements.txt -e sharktank/ shortfin/
+          pip install --no-compile \
+            -r sharktank/requirements-tests.txt \
+            -r shortfin/requirements-tests.txt \
+            -e sharktank/ shortfin/
 
           # Install SGLang and sentence_transformers
           pip install "git+https://github.com/nod-ai/sglang.git#subdirectory=python"

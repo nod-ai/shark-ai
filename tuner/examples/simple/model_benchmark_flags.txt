@@ -1,0 +1,3 @@
+--device_allocator=caching
+--input=2048x2048xf16
+--input=2048x2048xf16

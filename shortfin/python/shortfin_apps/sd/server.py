@@ -33,7 +33,7 @@ logger = logging.getLogger("shortfin-sd")
 logger.addHandler(native_handler)
 logger.propagate = False
 
-THIS_DIR = Path(__file__).resolve().parent
+THIS_DIR = Path(__file__).parent
 
 UVICORN_LOG_CONFIG = {
     "version": 1,
@@ -398,7 +398,7 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
         artdir = home / ".cache" / "shark"
         args.artifacts_dir = str(artdir)
     else:
-        args.artifacts_dir = Path(args.artifacts_dir).resolve()
+        args.artifacts_dir = os.path.abspath(args.artifacts_dir)
 
     global sysman
     sysman, model_config, flagfile, tuning_spec = configure_sys(args)

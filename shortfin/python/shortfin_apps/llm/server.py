@@ -117,6 +117,7 @@ def configure(args) -> SystemManager:
         device=args.device,
         device_ids=args.device_ids,
         async_allocs=args.amdgpu_async_allocations,
+        amdgpu_allocators=args.amdgpu_allocators,
     )
 
     # Setup each service we are hosting.
@@ -208,6 +209,11 @@ def main(argv, log_config=uvicorn.config.LOGGING_CONFIG):
         "--amdgpu_async_allocations",
         action="store_true",
         help="Enable asynchronous allocations for amdgpu device contexts.",
+    )
+    parser.add_argument(
+        "--amdgpu_allocators",
+        default=None,
+        help="Allocator to use during VMFB invocation.",
     )
     args = parser.parse_args(argv)
 

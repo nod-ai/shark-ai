@@ -55,25 +55,19 @@ jobs:
           python -m pip install --no-compile --upgrade pip
 
           # Note: We install in three steps in order to satisfy requirements
-          # from non default locations first. Installing the PyTorch CPU
-          # wheels saves multiple minutes and a lot of bandwidth on runner setup.
+          # from non default locations first.
           pip install --no-compile -r pytorch-cpu-requirements.txt
-
-          # Install nightly IREE packages.
-          # We could also pin to a known working or stable version.
-          pip install -f https://iree.dev/pip-release-links.html --pre --upgrade \
-            iree-base-compiler \
-            iree-base-runtime \
-            iree-turbine
-
-          pip install --no-compile -r requirements.txt -r sharktank/requirements-tests.txt -e sharktank/
+          pip install -r requirements-iree-unpinned.txt
+          pip install --no-compile \
+            -r sharktank/requirements-tests.txt \
+            -e sharktank/
 
           pip freeze
 
       - name: Run llama tests
         run: |
           source ${VENV_DIR}/bin/activate
-          pytest sharktank/tests/models/llama/benchmark_amdgpu_test.py -v -s --run-nightly-llama-tests --iree-hip-target=gfx942 --iree-device=hip://7 --html=out/llm/llama/benchmark/index.html
+          pytest sharktank/tests/models/llama/benchmark_amdgpu_test.py -v -s --run-nightly-llama-tests --iree-hip-target=gfx942 --iree-device=hip://0 --html=out/llm/llama/benchmark/index.html
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4.0.0
@@ -84,7 +78,7 @@ jobs:
           keep_files: true
 
       - name: Upload llama executable files
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: llama-files
           path: ${{ github.workspace }}/${{ steps.date.outputs.date }}

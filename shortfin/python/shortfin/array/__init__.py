@@ -39,6 +39,9 @@ complex128 = _sfl.array.complex128
 
 base_array = _sfl.array.base_array
 device_array = _sfl.array.device_array
+read_barrier = _sfl.array.read_barrier
+write_barrier = _sfl.array.write_barrier
+disable_barrier = _sfl.array.disable_barrier
 storage = _sfl.array.storage
 DType = _sfl.array.DType
 
@@ -88,6 +91,9 @@ __all__ = [
     # Classes.
     "base_array",
     "device_array",
+    "read_barrier",
+    "write_barrier",
+    "disable_barrier",
     "storage",
     "DType",
     # Ops.

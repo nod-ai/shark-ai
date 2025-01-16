@@ -72,7 +72,7 @@ jobs:
           python3 build_tools/python_deploy/compute_common_version.py --version-suffix=${version_suffix} --write-json
 
       - name: Upload version_local.json files
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: version_local_files
           path: |
@@ -148,7 +148,7 @@ jobs:
         echo "SHORTFIN_ENABLE_TRACING=OFF" >> $GITHUB_ENV
     - name: Setup cache
       if: ${{ inputs.build_type == 'dev' }}
-      uses: actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4.1.2
+      uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
       with:
         path: ${{ env.CACHE_DIR }}
         key: build-packages-${{ matrix.package }}-${{ matrix.platform }}-${{ matrix.python-version }}-v1-${{ github.sha }}
@@ -177,7 +177,7 @@ jobs:
 
     # Always upload to GitHub artifacts.
     - name: Upload python wheels
-      uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+      uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
       with:
         if-no-files-found: error
         name: snapshot-${{ matrix.package }}-${{ matrix.platform }}-${{ matrix.python-version }}
@@ -185,7 +185,7 @@ jobs:
     # Upload release candidate versions to a 'dev-wheels' GitHub release.
     - name: Release rc python wheels
       if: ${{ inputs.build_type == 'rc' || inputs.build_type == '' }}
-      uses: ncipollo/release-action@2c591bcc8ecdcd2db72b97d6147f871fcd833ba5 # v1.14.0
+      uses: ncipollo/release-action@cdcc88a9acf3ca41c16c37bb7d21b9ad48560d87 # v1.15.0
       with:
         artifacts: bindist/*.whl
         tag: "dev-wheels"

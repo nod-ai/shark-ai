@@ -51,11 +51,8 @@ def export_flux_transformer(
     )
 
 
-def export_flux_transformer_from_hugging_face(
-    repo_id: str,
-    mlir_output_path: PathLike,
-    parameters_output_path: PathLike,
-    batch_sizes: list[int] = flux_transformer_default_batch_sizes,
+def import_flux_transformer_dataset_from_hugging_face(
+    repo_id: str, parameters_output_path: PathLike
 ):
     hf_dataset = get_dataset(
         repo_id,
@@ -65,6 +62,17 @@ def export_flux_transformer_from_hugging_face(
         config_json_path=hf_dataset["config"][0],
         param_paths=hf_dataset["parameters"],
         output_irpa_file=parameters_output_path,
+    )
+
+
+def export_flux_transformer_from_hugging_face(
+    repo_id: str,
+    mlir_output_path: PathLike,
+    parameters_output_path: PathLike,
+    batch_sizes: list[int] = flux_transformer_default_batch_sizes,
+):
+    import_flux_transformer_dataset_from_hugging_face(
+        repo_id=repo_id, parameters_output_path=parameters_output_path
     )
 
     dataset = Dataset.load(parameters_output_path)

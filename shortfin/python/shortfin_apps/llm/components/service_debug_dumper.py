@@ -14,6 +14,8 @@ import pandas as pd
 from typing import Dict, Any
 from pprint import pformat
 
+from shortfin.array import disable_barrier
+
 logger = logging.getLogger(__name__)
 
 
@@ -135,6 +137,8 @@ class ServiceDebugDumper:
             path = dump_path
             args_np = []
             for i, a in enumerate(args):
+                if isinstance(a, disable_barrier):
+                    a = a.delegate()
                 host_array = a.for_transfer()
                 host_array.copy_from(a)
                 await a.device

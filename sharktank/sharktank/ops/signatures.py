@@ -584,7 +584,12 @@ def _interpolate_trampoline(
 
 @overridable
 def layer_norm(
-    input: AnyTensor, weight: AnyTensor, bias: Optional[AnyTensor], *, eps: float
+    input: AnyTensor,
+    weight: Optional[AnyTensor],
+    bias: Optional[AnyTensor],
+    *,
+    eps: float,
+    normalized_shape: Optional[tuple[int]] = None,
 ):
     """Equivalent to torch.nn.functional.layer_norm(elementwise_affine=True)."""
     raise NotImplementedError
@@ -598,6 +603,7 @@ def _layer_norm_trampoline(
     bias: Optional[AnyTensor],
     *,
     eps: float,
+    normalized_shape: Optional[tuple[int]] = None,
 ):
     tensors = [input]
     if weight is not None:
@@ -605,7 +611,9 @@ def _layer_norm_trampoline(
     if bias is not None:
         tensors.append(bias)
     for override in d.find_overrides(tensors):
-        result = override(input, weight, bias, eps=eps)
+        result = override(
+            input, weight, bias, eps=eps, normalized_shape=normalized_shape
+        )
         if result is not NotImplemented:
             return override, result
     else:
@@ -819,7 +827,12 @@ def _replicate_trampoline(
 
 @overridable
 def scaled_dot_product_attention(
-    q: AnyTensor, k: AnyTensor, v: AnyTensor, a: Optional[AnyTensor], is_causal: bool
+    q: AnyTensor,
+    k: AnyTensor,
+    v: AnyTensor,
+    a: Optional[AnyTensor],
+    is_causal: bool = False,
+    scale: Optional[float] = None,
 ) -> AnyTensor:
     """Computes the scaled dot product attention using QKV."""
     raise NotImplementedError

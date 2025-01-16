@@ -119,6 +119,24 @@ def device_array_to_host(device_array: iree.runtime.DeviceArray) -> torch.Tensor
         return torch.tensor(device_array.to_host())
 
 
+def torch_tensor_to_device_array(
+    tensor: torch.Tensor, device: iree.runtime.HalDevice
+) -> iree.runtime.DeviceArray:
+    if tensor.dtype == torch.bfloat16:
+        tensor_as_int16 = tensor.view(dtype=torch.int16)
+        device_array_as_int16 = iree.runtime.asdevicearray(
+            device, unbox_tensor(tensor_as_int16).to("cpu").numpy()
+        )
+        buffer_view = iree.runtime.HalBufferView(
+            buffer=device_array_as_int16._buffer_view.get_buffer(),
+            shape=device_array_as_int16._buffer_view.shape,
+            element_type=iree.runtime.HalElementType.BFLOAT_16,
+        )
+        return iree.runtime.DeviceArray(device, buffer_view)
+
+    return iree.runtime.asdevicearray(device, unbox_tensor(tensor).to("cpu").numpy())
+
+
 def run_iree_module_function(
     module: iree.runtime.VmModule,
     vm_context: iree.runtime.VmContext,
@@ -180,11 +198,7 @@ def prepare_iree_module_function_args(
                 ]
             )
         elif isinstance(arg, (DefaultPrimitiveTensor, torch.Tensor)):
-            res.append(
-                iree.runtime.asdevicearray(
-                    devices[0], unbox_tensor(arg).to("cpu").numpy()
-                )
-            )
+            res.append(torch_tensor_to_device_array(arg, devices[0]))
         else:
             assert isinstance(arg, collections.abc.Sequence)
             res.extend(prepare_iree_module_function_args(arg, devices))
@@ -200,24 +214,27 @@ def flatten_for_iree_signature(tree: Tree) -> List[torch.Tensor]:
 def call_torch_module_function(
     module: torch.nn.Module,
     function_name: str,
-    kwargs: OrderedDict,
+    args: Optional[tuple[AnyTensor]] = None,
+    kwargs: Optional[OrderedDict] = None,
     trace_path_prefix: Optional[str] = None,
 ):
     """Call a torch module function with optional tracing.
     For tracing the arguments/results are flattened to match IREE's signature."""
+    args = args if args is not None else tuple()
+    kwargs = kwargs if kwargs is not None else OrderedDict()
     assert isinstance(
         kwargs, OrderedDict
     ), "Make sure when flattening the order is preserved"
     if trace_path_prefix is not None:
-        flat_args = flatten_for_iree_signature(kwargs)
+        flat_args = flatten_for_iree_signature([args, kwargs])
         for i, arg in enumerate(flat_args):
             np.save(
                 f"{trace_path_prefix}{function_name}_arg{i}.npy",
                 promote_bfloat16_to_float32(arg.to("cpu")).numpy(),
             )
-    res = getattr(module, function_name)(**kwargs)
+    res = getattr(module, function_name)(*args, **kwargs)
     if trace_path_prefix is not None:
-        flat_args = flatten_for_iree_signature(kwargs)
+        flat_args = flatten_for_iree_signature([args, kwargs])
         for i, arg in enumerate(flat_args):
             np.save(
                 f"{trace_path_prefix}{function_name}_arg{i}.npy",

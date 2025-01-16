@@ -352,6 +352,57 @@ py::object CreateMappingObject(PyMapping **out_cpp_mapping) {
   return py_mapping;
 }
 
+// Wraps a delegate argument with ProgramResourceBarrier::READ.
+class PyReadBarrier {
+ public:
+  explicit PyReadBarrier(py::object delegate)
+      : delegate_(std::move(delegate)) {}
+  void __sfinv_marshal__(py::capsule inv_capsule,
+                         py::handle /*ignored_resource_barrier*/) {
+    delegate_.attr("__sfinv_marshal__")(
+        inv_capsule, static_cast<int>(local::ProgramResourceBarrier::READ));
+  }
+
+  py::object &delegate() { return delegate_; }
+
+ private:
+  py::object delegate_;
+};
+
+// Wraps a delegate argument with ProgramResourceBarrier::WRITE.
+class PyWriteBarrier {
+ public:
+  explicit PyWriteBarrier(py::object delegate)
+      : delegate_(std::move(delegate)) {}
+  void __sfinv_marshal__(py::capsule inv_capsule,
+                         py::handle /*ignored_resource_barrier*/) {
+    delegate_.attr("__sfinv_marshal__")(
+        inv_capsule, static_cast<int>(local::ProgramResourceBarrier::WRITE));
+  }
+
+  py::object &delegate() { return delegate_; }
+
+ private:
+  py::object delegate_;
+};
+
+// Wraps a delegate argument with ProgramResourceBarrier::NONE.
+class PyDisableBarrier {
+ public:
+  explicit PyDisableBarrier(py::object delegate)
+      : delegate_(std::move(delegate)) {}
+  void __sfinv_marshal__(py::capsule inv_capsule,
+                         py::handle /*ignored_resource_barrier*/) {
+    delegate_.attr("__sfinv_marshal__")(
+        inv_capsule, static_cast<int>(local::ProgramResourceBarrier::NONE));
+  }
+
+  py::object &delegate() { return delegate_; }
+
+ private:
+  py::object delegate_;
+};
+
 }  // namespace
 
 void BindArray(py::module_ &m) {
@@ -672,6 +723,37 @@ void BindArray(py::module_ &m) {
         if (!contents) return "<<unmappable>>";
         return *contents;
       });
+
+  py::class_<PyReadBarrier>(m, "read_barrier")
+      .def(py::init<py::object>(), py::arg("delegate"),
+           R"(Construct a read_barrier by passing a Python delegate object.)")
+      .def(
+          "__sfinv_marshal__", &PyReadBarrier::__sfinv_marshal__,
+          py::arg("inv_capsule"), py::arg("ignored_resource_barrier"),
+          R"(Forward `__sfinv_marshal__` to `delegate`, forcing the barrier argument to ProgramResourceBarrier::READ.)")
+      .def("delegate", &PyReadBarrier::delegate,
+           R"(Returns the internal device_array delegate.)");
+
+  py::class_<PyWriteBarrier>(m, "write_barrier")
+      .def(py::init<py::object>(), py::arg("delegate"),
+           R"(Construct a write_barrier by passing a Python delegate object.)")
+      .def(
+          "__sfinv_marshal__", &PyWriteBarrier::__sfinv_marshal__,
+          py::arg("inv_capsule"), py::arg("ignored_resource_barrier"),
+          R"(Forward `__sfinv_marshal__` to `delegate`, forcing the barrier argument to ProgramResourceBarrier::WRITE.)")
+      .def("delegate", &PyWriteBarrier::delegate,
+           R"(Returns the internal device_array delegate.)");
+
+  py::class_<PyDisableBarrier>(m, "disable_barrier")
+      .def(
+          py::init<py::object>(), py::arg("delegate"),
+          R"(Construct a disable_barrier by passing a Python delegate object.)")
+      .def(
+          "__sfinv_marshal__", &PyDisableBarrier::__sfinv_marshal__,
+          py::arg("inv_capsule"), py::arg("ignored_resource_barrier"),
+          R"(Forward `__sfinv_marshal__` to `delegate`, forcing the barrier argument to ProgramResourceBarrier::DISABLE.)")
+      .def("delegate", &PyDisableBarrier::delegate,
+           R"(Returns the internal device_array delegate.)");
 
   BindArrayHostOps(m);
 }

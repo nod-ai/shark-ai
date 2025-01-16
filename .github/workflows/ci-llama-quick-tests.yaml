@@ -55,18 +55,13 @@ jobs:
           python -m pip install --no-compile --upgrade pip
 
           # Note: We install in three steps in order to satisfy requirements
-          # from non default locations first. Installing the PyTorch CPU
-          # wheels saves multiple minutes and a lot of bandwidth on runner setup.
+          # from non default locations first.
           pip install --no-compile -r pytorch-cpu-requirements.txt
+          pip install -r requirements-iree-pinned.txt
+          pip install --no-compile \
+            -r sharktank/requirements-tests.txt \
+            -e sharktank/
 
-          # Install nightly IREE packages.
-          # We could also pin to a known working or stable version.
-          pip install -f https://iree.dev/pip-release-links.html --pre --upgrade \
-            iree-base-compiler \
-            iree-base-runtime \
-            iree-turbine
-
-          pip install --no-compile -r requirements.txt -r sharktank/requirements-tests.txt -e sharktank/
           pip freeze
 
       - name: Run llama 8b f16 decomposed test
@@ -75,7 +70,7 @@ jobs:
           pytest sharktank/tests/models/llama/benchmark_amdgpu_test.py -v -s --iree-hip-target=gfx942 --iree-device=hip://0 --run-quick-llama-test
 
       - name: Upload llama executable files
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: llama-files
           path: ${{ github.workspace }}/${{ steps.date.outputs.date }}

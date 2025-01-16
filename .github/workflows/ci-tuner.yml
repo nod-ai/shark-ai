@@ -46,10 +46,7 @@ jobs:
       - name: Install tuner dependencies
         run: |
           pip install -r tuner/requirements-tuner.txt
-          python -m pip install \
-            --find-links https://iree.dev/pip-release-links.html \
-            --upgrade --pre \
-            iree-base-compiler iree-base-runtime
+          pip install -r requirements-iree-unpinned.txt
 
       - name: Run tuner tests
         run: pytest tuner/

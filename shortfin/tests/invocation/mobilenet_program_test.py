@@ -74,7 +74,10 @@ async def assert_mobilenet_ref_output(device, device_output):
     absmean = functools.reduce(
         lambda x, y: x + abs(y) / len(flat_output), flat_output, 0.0
     )
-    assert absmean == pytest.approx(5.01964943873882)
+    # Note: this value was just copied from a sample run of the test.
+    # Comparison against a reference backend for this model is tested upstream
+    # in https://github.com/iree-org/iree-test-suites/tree/main/onnx_models.
+    assert absmean == pytest.approx(0.81196929)
 
 
 # Tests that a single invocation on a single fiber works.

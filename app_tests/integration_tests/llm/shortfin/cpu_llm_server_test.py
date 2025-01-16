@@ -1,198 +1,154 @@
-# Copyright 2024 Advanced Micro Devices, Inc.
-#
-# Licensed under the Apache License v2.0 with LLVM Exceptions.
-# See https://llvm.org/LICENSE.txt for license information.
-# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-
-import concurrent.futures
-import logging
-import os
+"""Main test module for LLM server functionality."""
 import pytest
 import requests
 import uuid
-
-from ..utils import AccuracyValidationException, start_log_group, end_log_group
+import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
-CPU_SETTINGS = {
-    "device_flags": [
-        "-iree-hal-target-backends=llvm-cpu",
-        "--iree-llvmcpu-target-cpu=host",
-    ],
-    "device": "local-task",
-}
-IREE_HIP_TARGET = os.environ.get("IREE_HIP_TARGET", "gfx1100")
-gpu_settings = {
-    "device_flags": [
-        "-iree-hal-target-backends=rocm",
-        f"--iree-hip-target={IREE_HIP_TARGET}",
-    ],
-    "device": "hip",
-}
+# TODO: move this one level up and share this with sglang tests
+class AccuracyValidationException(RuntimeError):
+    """Custom exception for accuracy validation failures."""
 
-
-def do_generate(prompt, port, concurrent_requests=1):
-    logger.info("Generating request...")
-    headers = {"Content-Type": "application/json"}
-    # Create a GenerateReqInput-like structure
-    data = {
-        "text": prompt,
-        "sampling_params": {"max_completion_tokens": 15, "temperature": 0.7},
-        "rid": uuid.uuid4().hex,
-        "return_logprob": False,
-        "logprob_start_len": -1,
-        "top_logprobs_num": 0,
-        "return_text_in_logprobs": False,
-        "stream": False,
-    }
-    logger.info("Prompt text:")
-    logger.info(data["text"])
-    BASE_URL = f"http://localhost:{port}"
-
-    response_data = []
-    with concurrent.futures.ThreadPoolExecutor(
-        max_workers=concurrent_requests
-    ) as executor:
-        futures = [
-            executor.submit(
-                lambda: requests.post(
-                    f"{BASE_URL}/generate", headers=headers, json=data
-                )
-            )
-            for _ in range(concurrent_requests)
-        ]
-        for future in concurrent.futures.as_completed(futures):
-            response = future.result()
-
-            logger.info(f"Generate endpoint status code: {response.status_code}")
-            if response.status_code == 200:
-                logger.info("Generated text:")
-                data = response.text
-                assert data.startswith("data: ")
-                data = data[6:]
-                assert data.endswith("\n\n")
-                data = data[:-2]
-                logger.info(data)
-                response_data.append(data)
-            else:
-                response.raise_for_status()
-
-    return response_data
-
-
-@pytest.mark.parametrize(
-    "model_test_dir,write_config,llm_server",
-    [
-        pytest.param(
-            {
-                "repo_id": "SlyEcho/open_llama_3b_v2_gguf",
-                "model_file": "open-llama-3b-v2-f16.gguf",
-                "tokenizer_id": "openlm-research/open_llama_3b_v2",
-                "settings": CPU_SETTINGS,
-                "batch_sizes": [1, 4],
-            },
-            {"batch_sizes": [1, 4], "prefix_sharing_algorithm": "none"},
-            {"model_file": "open-llama-3b-v2-f16.gguf", "settings": CPU_SETTINGS},
-        ),
-        pytest.param(
-            {
-                "repo_id": "SlyEcho/open_llama_3b_v2_gguf",
-                "model_file": "open-llama-3b-v2-f16.gguf",
-                "tokenizer_id": "openlm-research/open_llama_3b_v2",
-                "settings": CPU_SETTINGS,
-                "batch_sizes": [1, 4],
-            },
-            {"batch_sizes": [1, 4], "prefix_sharing_algorithm": "trie"},
-            {"model_file": "open-llama-3b-v2-f16.gguf", "settings": CPU_SETTINGS},
-        ),
-    ],
-    indirect=True,
-)
-def test_llm_server(llm_server, available_port):
-    # Here you would typically make requests to your server
-    # and assert on the responses
-    assert llm_server.poll() is None
-    PROMPT = "1 2 3 4 5 "
-    expected_output_prefix = "6 7 8"
-    logger.info(
-        "Sending HTTP Generation Request"
-        + start_log_group("Sending HTTP Generation Request")
-    )
-    output = do_generate(PROMPT, available_port)[0]
-    # log to GITHUB_STEP_SUMMARY if we are in a GitHub Action
-    if "GITHUB_ACTION" in os.environ:
-        with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
-            # log prompt
-            f.write("LLM results:\n")
-            f.write(f"- llm_prompt:`{PROMPT}`\n")
-            f.write(f"- llm_output:`{output}`\n")
-    if not output.startswith(expected_output_prefix):
-        raise AccuracyValidationException(
-            f"Expected '{output}' to start with '{expected_output_prefix}'"
+    def __init__(
+        self,
+        expected: str = "[[expected generation output not provided]]",
+        actual: str = "[[actual generation output not provided]]",
+        message: str = None,
+    ):
+        self.expected = expected
+        self.actual = actual
+        self.message = (
+            message
+            or f"Output validation failed.\nExpected: {expected}\nActually: {actual}"
         )
-    logger.info("HTTP Generation Request Successful" + end_log_group())
+        super().__init__(self.message)
 
 
-@pytest.mark.parametrize(
-    "model_test_dir,write_config,llm_server",
-    [
-        pytest.param(
-            {
-                "repo_id": "SlyEcho/open_llama_3b_v2_gguf",
-                "model_file": "open-llama-3b-v2-f16.gguf",
-                "tokenizer_id": "openlm-research/open_llama_3b_v2",
-                "settings": CPU_SETTINGS,
-                "batch_sizes": [1, 4],
-            },
-            {"batch_sizes": [1, 4], "prefix_sharing_algorithm": "none"},
-            {"model_file": "open-llama-3b-v2-f16.gguf", "settings": CPU_SETTINGS},
-        ),
-        pytest.param(
-            {
-                "repo_id": "SlyEcho/open_llama_3b_v2_gguf",
-                "model_file": "open-llama-3b-v2-f16.gguf",
-                "tokenizer_id": "openlm-research/open_llama_3b_v2",
-                "settings": CPU_SETTINGS,
-                "batch_sizes": [1, 4],
-            },
-            {"batch_sizes": [1, 4], "prefix_sharing_algorithm": "trie"},
-            {"model_file": "open-llama-3b-v2-f16.gguf", "settings": CPU_SETTINGS},
-        ),
-    ],
-    indirect=True,
-)
-@pytest.mark.parametrize(
-    "concurrent_requests",
-    [2, 4, 8],
-)
-@pytest.mark.xfail(
-    raises=AccuracyValidationException,
-    reason="Concurreny issues in Shortfin batch processing",
-)
-def test_llm_server_concurrent(llm_server, available_port, concurrent_requests):
-    logger.info("Testing concurrent invocations")
+class TestLLMServer:
+    """Test suite for LLM server functionality."""
 
-    assert llm_server.poll() is None
-    PROMPT = "1 2 3 4 5 "
-    expected_output_prefix = "6 7 8"
-    logger.info(
-        "Sending HTTP Generation Request"
-        + start_log_group("Sending HTTP Generation Request")
+    @pytest.mark.parametrize(
+        "model_artifacts,server",
+        [
+            ("open_llama_3b", {"model": "open_llama_3b", "prefix_sharing": "none"}),
+            ("open_llama_3b", {"model": "open_llama_3b", "prefix_sharing": "trie"}),
+            pytest.param(
+                "llama3.1_8b",
+                {"model": "llama3.1_8b", "prefix_sharing": "none"},
+                marks=pytest.mark.xfail(
+                    reason="llama3.1_8b irpa file not available on CI machine"
+                ),
+            ),
+            pytest.param(
+                "llama3.1_8b",
+                {"model": "llama3.1_8b", "prefix_sharing": "trie"},
+                marks=pytest.mark.xfail(
+                    reason="llama3.1_8b irpa file not available on CI machine"
+                ),
+            ),
+        ],
+        ids=[
+            "open_llama_3b_none",
+            "open_llama_3b_trie",
+            "llama31_8b_none",
+            "llama31_8b_trie",
+        ],
+        indirect=True,
     )
-    outputs = do_generate(PROMPT, available_port, concurrent_requests)
+    def test_basic_generation(self, server: tuple[Any, int]) -> None:
+        """Tests basic text generation capabilities.
 
-    for output in outputs:
-        # log to GITHUB_STEP_SUMMARY if we are in a GitHub Action
-        if "GITHUB_ACTION" in os.environ:
-            with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
-                # log prompt
-                f.write("LLM results:\n")
-                f.write(f"- llm_prompt:`{PROMPT}`\n")
-                f.write(f"- llm_output:`{output}`\n")
+        Args:
+            server: Tuple of (process, port) from server fixture
+        """
+        process, port = server
+        assert process.poll() is None, "Server process terminated unexpectedly"
 
-        if not output.startswith(expected_output_prefix):
+        response = self._generate("1 2 3 4 5 ", port)
+        expected_prefix = "6 7 8"
+        if not response.startswith(expected_prefix):
             raise AccuracyValidationException(
-                f"Expected '{output}' to start with '{expected_output_prefix}'"
+                expected=f"{expected_prefix}...",
+                actual=response,
+                message=f"Generation did not match expected pattern.\nExpected to start with: {expected_prefix}\nActual response: {response}",
             )
-        logger.info("HTTP Generation Request Successful" + end_log_group())
+
+    @pytest.mark.parametrize(
+        "model_artifacts,server",
+        [
+            ("open_llama_3b", {"model": "open_llama_3b", "prefix_sharing": "none"}),
+            ("open_llama_3b", {"model": "open_llama_3b", "prefix_sharing": "trie"}),
+        ],
+        indirect=True,
+    )
+    @pytest.mark.parametrize("concurrent_requests", [2, 4, 8])
+    def test_concurrent_generation(
+        self, server: tuple[Any, int], concurrent_requests: int
+    ) -> None:
+        """Tests concurrent text generation requests.
+
+        Args:
+            server: Tuple of (process, port) from server fixture
+            concurrent_requests: Number of concurrent requests to test
+        """
+        process, port = server
+        assert process.poll() is None, "Server process terminated unexpectedly"
+
+        prompt = "1 2 3 4 5 "
+        expected_prefix = "6 7 8"
+
+        with ThreadPoolExecutor(max_workers=concurrent_requests) as executor:
+            futures = [
+                executor.submit(self._generate, prompt, port)
+                for _ in range(concurrent_requests)
+            ]
+
+            for future in as_completed(futures):
+                response = future.result()
+                if not response.startswith(expected_prefix):
+                    raise AccuracyValidationException(
+                        expected=f"{expected_prefix}...",
+                        actual=response,
+                        message=f"Concurrent generation did not match expected pattern.\nExpected to start with: {expected_prefix}\nActual response: {response}",
+                    )
+
+    def _generate(self, prompt: str, port: int) -> str:
+        """Helper method to make generation request to server.
+
+        Args:
+            prompt: Input text prompt
+            port: Server port number
+
+        Returns:
+            Generated text response
+
+        Raises:
+            requests.exceptions.RequestException: If request fails
+            AccuracyValidationException: If response format is invalid
+        """
+        response = requests.post(
+            f"http://localhost:{port}/generate",
+            headers={"Content-Type": "application/json"},
+            json={
+                "text": prompt,
+                "sampling_params": {"max_completion_tokens": 15, "temperature": 0.7},
+                "rid": uuid.uuid4().hex,
+                "stream": False,
+            },
+            timeout=30,  # Add reasonable timeout
+        )
+        response.raise_for_status()
+
+        # Parse and validate streaming response format
+        data = response.text
+        if not data.startswith("data: "):
+            raise AccuracyValidationException(
+                expected="Response starting with 'data: '",
+                actual=data,
+                message=f"Invalid response format.\nExpected format starting with 'data: '\nActual response: {data}",
+            )
+
+        return data[6:].rstrip("\n")

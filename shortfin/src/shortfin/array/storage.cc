@@ -92,7 +92,8 @@ storage storage::subspan(iree_device_size_t byte_offset,
                          iree_device_size_t byte_length) {
   storage new_storage(device_, {}, timeline_resource_);
   SHORTFIN_THROW_IF_ERROR(iree_hal_buffer_subspan(
-      buffer_, byte_offset, byte_length, new_storage.buffer_.for_output()));
+      buffer_, byte_offset, byte_length, host_allocator(),
+      new_storage.buffer_.for_output()));
   return new_storage;
 }
 
