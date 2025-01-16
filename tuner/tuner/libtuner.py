@@ -22,6 +22,7 @@ import sys
 import shutil
 import logging
 import argparse
+from collections import defaultdict
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -234,16 +235,32 @@ def get_valid_benchmark_results(
     return filtered_benchmark_results
 
 
-def are_baseline_devices_unique(baseline_results: list[BenchmarkResult]) -> bool:
+def are_baseline_devices_unique(
+    baseline_results: list[BenchmarkResult],
+) -> bool:
     return len(baseline_results) == len(
         set(map(lambda r: r.device_id, baseline_results))
     )
 
 
-def map_baseline_by_device(baseline_results: list[BenchmarkResult]) -> dict[str, float]:
-    if not are_baseline_devices_unique(baseline_results):
+def map_baseline_by_device(
+    baseline_result: list[BenchmarkResult],
+) -> dict[str, float]:
+    if not are_baseline_devices_unique(baseline_result):
         logging.warning("Duplicate device IDs detected in the baseline results.")
-    return {r.device_id: r.time for r in baseline_results}
+    baseline_device_times = defaultdict(list)
+
+    for r in baseline_result:
+        if math.isfinite(r.time):
+            baseline_device_times[r.device_id].append(r.time)
+
+    average_device_times = {
+        device_id: sum(times) / len(times)
+        for device_id, times in baseline_device_times.items()
+        if times
+    }
+
+    return average_device_times
 
 
 def detect_baseline_regression(
@@ -830,60 +847,69 @@ def benchmark_candidates(candidate_indices, devices, tuning_client, candidate_tr
     )
 
 
-class BaselineRunner:
-    def __init__(
+def benchmark_baseline(
+    devices: list[str],
+    tuning_client: TuningClient,
+    candidate_tracker: CandidateTracker,
+) -> list[BenchmarkResult]:
+    task_list = [
+        BenchmarkPack(
+            iree_benchmark_module_flags=tuning_client.get_iree_benchmark_module_flags(),
+            benchmark_timeout=tuning_client.get_benchmark_timeout_s(),
+            candidate_tracker=candidate_tracker,
+        )
+    ] * len(devices)
+
+    worker_context_queue = create_worker_context_queue(devices)
+    baseline_results = multiprocess_progress_wrapper(
+        num_worker=len(devices),
+        task_list=task_list,
+        function=run_iree_benchmark_module_command,
+        initializer=init_worker_context,
+        initializer_inputs=(worker_context_queue,),
+    )
+    return baseline_results
+
+
+class BaselineResultHandler:
+    def is_valid(
         self,
-        devices: list[str],
-        tuning_client: TuningClient,
-        candidate_tracker: CandidateTracker,
-        max_retries: int = 3,
-    ):
-        self.devices = devices
-        self.tuning_client = tuning_client
-        self.candidate_tracker = candidate_tracker
-        self.max_retries = max_retries
+        baseline_results: list[BenchmarkResult],
+    ) -> bool:
+        valid = any(math.isfinite(result.time) for result in baseline_results)
+        return valid
 
-    def run_baseline(self) -> list[Any]:
-        baseline_results = [None] * len(self.devices)
-        for attempt in range(1, self.max_retries + 1):
-            attempt_msg = f"Attempt {attempt}:"
-            logging.debug(f"{attempt_msg} Starting baseline benchmark on all devices.")
-            try:
-                task_list = [
-                    BenchmarkPack(
-                        iree_benchmark_module_flags=self.tuning_client.get_iree_benchmark_module_flags(),
-                        benchmark_timeout=self.tuning_client.get_benchmark_timeout_s(),
-                        candidate_tracker=self.candidate_tracker,
-                    )
-                ] * len(self.devices)
+    def is_valid_for_device(
+        self, baseline_results: list[BenchmarkResult], device_id: str
+    ) -> bool:
+        for result in baseline_results:
+            if result.device_id == device_id and math.isfinite(result.time):
+                return True
+        return False
 
-                worker_context_queue = create_worker_context_queue(self.devices)
-                baseline_results = multiprocess_progress_wrapper(
-                    num_worker=len(self.devices),
-                    task_list=task_list,
-                    function=run_iree_benchmark_module_command,
-                    initializer=init_worker_context,
-                    initializer_inputs=(worker_context_queue,),
-                )
+    def calculate_baseline_result(
+        self,
+        first_baseline_results: list[BenchmarkResult],
+        second_baseline_results: list[BenchmarkResult],
+    ) -> dict[str, float]:
 
-                if any(
-                    r is not None and math.isfinite(r.time) for r in baseline_results
-                ):
-                    logging.debug(
-                        f"{attempt_msg} Baseline benchmark completed successfully."
-                    )
-                    break
-                else:
-                    raise ValueError(
-                        f"{attempt_msg} No valid times detected in baseline results."
-                    )
+        baseline_device_times = defaultdict(list)
 
-            except Exception as e:
-                logging.warning(
-                    f"{attempt_msg} Baseline benchmark failed: {e}. "
-                    f"{'Retrying...' if attempt < self.max_retries else 'No more retries.'}"
-                )
-        return baseline_results
+        for r1 in first_baseline_results:
+            if math.isfinite(r1.time):
+                baseline_device_times[r1.device_id].append(r1.time)
+
+        for r2 in second_baseline_results:
+            if math.isfinite(r2.time):
+                baseline_device_times[r2.device_id].append(r2.time)
+
+        average_baseline_times = {
+            device_id: sum(times) / len(times)
+            for device_id, times in baseline_device_times.items()
+            if times
+        }
+
+        return average_baseline_times
 
 
 def compile(
@@ -971,33 +997,33 @@ def compile(
 
 def select_best_benchmark_results(
     candidate_results: list[BenchmarkResult],
-    baseline_results: list[BenchmarkResult],
+    baseline_times_by_device: dict[str, float],
     num_candidates: Optional[int],
 ) -> list[BenchmarkResult]:
     filtered_candidate_results = get_valid_benchmark_results(candidate_results)
     if len(filtered_candidate_results) == 0:
         logging.error("No successful candidate benchmarks.")
         return []
-    fallback_baseline_time: Optional[float] = None
-    filtered_baseline_results: list[BenchmarkResult] = []
-    # TODO(Bangtian): use median number instead of last valid baseline result as fallback.
-    for r in baseline_results:
-        if math.isfinite(r.time):
-            filtered_baseline_results.append(r)
-            fallback_baseline_time = r.time
-        else:
-            logging.warning(f"Baseline on device {r.device_id} failed.")
+    # Compute the average of all valid (finite) baseline times across devices to use as a fallback.
+    valid_baseline_times = [
+        t for t in baseline_times_by_device.values() if math.isfinite(t)
+    ]
+    fallback_baseline_time = (
+        sum(valid_baseline_times) / len(valid_baseline_times)
+        if valid_baseline_times
+        else None
+    )
     if fallback_baseline_time is None:
         logging.warning(
-            f"All baseline benchmarks failed. Baselines will not be used to select top candidates"
+            "All baseline benchmarks failed. Baselines will not be used to select top candidates."
         )
-
-    baseline_times_by_device = map_baseline_by_device(filtered_baseline_results)
 
     # Select top candidates
     def get_speedup(result: BenchmarkResult) -> float:
         if result.device_id in baseline_times_by_device:
-            return result.time / baseline_times_by_device[result.device_id]
+            baseline_time = baseline_times_by_device[result.device_id]
+            if math.isfinite(baseline_time):
+                return result.time / baseline_time
         assert fallback_baseline_time is not None, "expected fallback_baseline_time"
         return result.time / fallback_baseline_time
 
@@ -1041,14 +1067,16 @@ def benchmark(
 
     # Benchmarking baselines on each involved device.
     baseline_tracker = candidate_trackers[0]
-    baseline_runner = BaselineRunner(
+    first_baseline_result = benchmark_baseline(
         devices=args.devices,
         tuning_client=tuning_client,
         candidate_tracker=baseline_tracker,
-        max_retries=3,
     )
-    first_baseline_results = baseline_runner.run_baseline()
-    if not are_baseline_devices_unique(first_baseline_results):
+    baseline_handler = BaselineResultHandler()
+    if not baseline_handler.is_valid(first_baseline_result):
+        logging.warning("First baseline result is not valid")
+
+    if not are_baseline_devices_unique(first_baseline_result):
         logging.warning("Duplicate device IDs detected in the first baseline results.")
 
     candidate_indices = [i for i in compiled_candidates if i != 0]
@@ -1059,28 +1087,31 @@ def benchmark(
         candidate_trackers=candidate_trackers,
     )
 
-    second_baseline_results = baseline_runner.run_baseline()
+    second_baseline_result = benchmark_baseline(
+        devices=args.devices,
+        tuning_client=tuning_client,
+        candidate_tracker=baseline_tracker,
+    )
+    if not baseline_handler.is_valid(second_baseline_result):
+        logging.warning("Second baseline result is not valid")
 
-    first_baseline_by_device = map_baseline_by_device(first_baseline_results)
-    second_baseline_by_device = map_baseline_by_device(second_baseline_results)
-    if first_baseline_by_device.keys() != second_baseline_by_device.keys():
-        logging.warning("Device ID mismatch between baseline runs.")
+    if not are_baseline_devices_unique(second_baseline_result):
+        logging.warning("Duplicate device IDs detected in the first baseline results.")
 
     regression_devices = detect_baseline_regression(
-        first_baseline_results, second_baseline_results
+        first_baseline_result, second_baseline_result
     )
     if regression_devices:
         logging.warning(
             f"Performance regressions detected for the following devices: {', '.join(regression_devices)}"
         )
 
-    first_baseline_valid = any(math.isfinite(r.time) for r in first_baseline_results)
-    baseline_result = (
-        first_baseline_results if first_baseline_valid else second_baseline_results
+    baseline_result = baseline_handler.calculate_baseline_result(
+        first_baseline_result, second_baseline_result
     )
     best_results: list[BenchmarkResult] = select_best_benchmark_results(
         candidate_results=candidate_results,
-        baseline_results=baseline_result,
+        baseline_times_by_device=baseline_result,
         num_candidates=num_candidates,
     )
 
