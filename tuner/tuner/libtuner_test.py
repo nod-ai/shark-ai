@@ -187,73 +187,18 @@ def test_get_compilation_success_rate():
     assert libtuner.get_compilation_success_rate(compiled_candidates) == 0.0
 
 
-def test_select_best_benchmark_results() -> None:
-    candidate_results = [
-        libtuner.BenchmarkResult(1, 0.5, "hip://0"),
-        libtuner.BenchmarkResult(2, 0.3, "hip://1"),
-        libtuner.BenchmarkResult(3, 0.2, "hip://2"),
-        libtuner.BenchmarkResult(4, 0.1, "hip://3"),
-    ]
-    baseline_results = {
-        "hip://0": 1.0,
-        "hip://1": 0.1,
-        "hip://2": 0.1,
-        "hip://3": 0.1,
+def test_get_top_candidates() -> None:
+    speedup_by_candidate = {
+        1: 1.2,
+        2: 0.8,
+        3: 0.5,
+        4: 2.0,
     }
-    best_results: list[
-        libtuner.BenchmarkResult
-    ] = libtuner.select_best_benchmark_results(
-        candidate_results=candidate_results,
-        baseline_times_by_device=baseline_results,
-        num_candidates=3,
-    )
-    assert best_results[0].candidate_id == 1
-    assert best_results[1].candidate_id == 4
-    assert best_results[2].candidate_id == 3
-
-    baseline_results = {
-        "hip://0": math.inf,
-        "hip://1": 0.1,
-        "hip://2": 0.1,
-        "hip://3": 0.1,
-    }
-    best_results = libtuner.select_best_benchmark_results(
-        candidate_results=candidate_results,
-        baseline_times_by_device=baseline_results,
-        num_candidates=3,
-    )
-    assert best_results[0].candidate_id == 4
-    assert best_results[1].candidate_id == 3
-    assert best_results[2].candidate_id == 2
-
-    baseline_results = {
-        "hip://0": math.inf,
-        "hip://1": math.inf,
-        "hip://2": math.inf,
-        "hip://3": math.inf,
-    }
-    best_results = libtuner.select_best_benchmark_results(
-        candidate_results=candidate_results,
-        baseline_times_by_device=baseline_results,
-        num_candidates=3,
-    )
-    assert best_results[0].candidate_id == 4
-    assert best_results[1].candidate_id == 3
-    assert best_results[2].candidate_id == 2
-
-    # Baseline results are missing for "hip://2" and "hip://3"
-    baseline_results = {
-        "hip://0": 1.0,
-        "hip://1": 0.1,
-    }
-    best_results = libtuner.select_best_benchmark_results(
-        candidate_results=candidate_results,
-        baseline_times_by_device=baseline_results,
-        num_candidates=3,
-    )
-    assert best_results[0].candidate_id == 4
-    assert best_results[1].candidate_id == 3
-    assert best_results[2].candidate_id == 1
+    assert libtuner.get_top_candidates(speedup_by_candidate) == [3, 2, 1, 4]
+    assert libtuner.get_top_candidates(speedup_by_candidate, 3) == [3, 2, 1]
+    assert libtuner.get_top_candidates(speedup_by_candidate, 2) == [3, 2]
+    assert libtuner.get_top_candidates(speedup_by_candidate, 10) == [3, 2, 1, 4]
+    assert libtuner.get_top_candidates({}, num_candidates=3) == []
 
 
 def test_enum_collision():
@@ -335,87 +280,127 @@ def test_detect_baseline_regression():
     assert regression_devices == ["hip://0"]
 
 
-def test_is_valid():
+def test_add_run():
     handler = libtuner.BaselineResultHandler()
     baseline = [
-        libtuner.BenchmarkResult(0, math.inf, "hip://0"),
+        libtuner.BenchmarkResult(1, 0.5, "hip://0"),
+        libtuner.BenchmarkResult(2, math.inf, "hip://1"),
+        libtuner.BenchmarkResult(3, 0.7, "hip://0"),
+    ]
+    handler.add_run(baseline)
+
+    assert handler.runs["hip://0"] == [0.5, 0.7]
+    assert handler.runs["hip://1"] == []
+
+
+def test_num_successful_runs():
+    handler = libtuner.BaselineResultHandler()
+    assert handler.num_successful_runs("hip://0") == 0
+    assert handler.num_successful_runs("hip://1") == 0
+
+    baseline = [
+        libtuner.BenchmarkResult(1, 0.5, "hip://0"),
+        libtuner.BenchmarkResult(2, math.inf, "hip://1"),
+        libtuner.BenchmarkResult(3, 0.7, "hip://0"),
+        libtuner.BenchmarkResult(4, math.nan, "hip://1"),
+    ]
+    handler.add_run(baseline)
+    assert handler.num_successful_runs("hip://0") == 2
+    assert handler.num_successful_runs("hip://1") == 0
+
+    additional_baseline = [
+        libtuner.BenchmarkResult(5, 1.2, "hip://2"),
+        libtuner.BenchmarkResult(6, 0.9, "hip://2"),
+    ]
+    handler.add_run(additional_baseline)
+    assert handler.num_successful_runs("hip://2") == 2
+    assert handler.num_successful_runs("hip://3") == 0
+
+
+def test_get_average_result():
+    handler = libtuner.BaselineResultHandler()
+    assert handler.get_average_result("hip://0") is None
+    assert handler.get_average_result("hip://1") is None
+
+    baseline = [
+        libtuner.BenchmarkResult(0, 0.5, "hip://0"),
+        libtuner.BenchmarkResult(0, 0.7, "hip://0"),
+    ]
+    handler.add_run(baseline)
+
+    assert handler.get_average_result("hip://0") == 0.6
+    assert handler.get_average_result("hip://1") is None
+
+    additional_baseline = [
+        libtuner.BenchmarkResult(0, math.inf, "hip://1"),
         libtuner.BenchmarkResult(0, math.nan, "hip://1"),
+        libtuner.BenchmarkResult(0, 1.2, "hip://1"),
+        libtuner.BenchmarkResult(0, 0.8, "hip://1"),
     ]
+    handler.add_run(additional_baseline)
+    assert handler.get_average_result("hip://1") == 1.0
 
-    assert not handler.is_valid(baseline)
 
+def test_is_valid():
+    handler = libtuner.BaselineResultHandler()
+    assert not handler.is_valid()
     baseline = [
-        libtuner.BenchmarkResult(0, math.inf, "hip://0"),
-        libtuner.BenchmarkResult(0, 100.0, "hip://1"),
+        libtuner.BenchmarkResult(0, 0.5, "hip://0"),
+        libtuner.BenchmarkResult(0, math.inf, "hip://1"),
     ]
-    assert handler.is_valid(baseline)
-
-    baseline = [
-        libtuner.BenchmarkResult(0, 150.0, "hip://0"),
-        libtuner.BenchmarkResult(0, 100.0, "hip://1"),
-    ]
-    assert handler.is_valid(baseline)
+    handler.add_run(baseline)
+    assert handler.is_valid()
 
 
 def test_is_valid_for_device():
     handler = libtuner.BaselineResultHandler()
     baseline = [
-        libtuner.BenchmarkResult(0, 100.0, "hip://0"),
-        libtuner.BenchmarkResult(0, math.inf, "hip://1"),
+        libtuner.BenchmarkResult(0, 0.5, "hip://0"),
     ]
-    assert not handler.is_valid_for_device(baseline, "hip://2")
+    handler.add_run(baseline)
 
-    baseline = [
-        libtuner.BenchmarkResult(0, math.inf, "hip://0"),
-        libtuner.BenchmarkResult(0, math.nan, "hip://0"),
-    ]
-    assert not handler.is_valid_for_device(baseline, "hip://0")
-
-    baseline = [
-        libtuner.BenchmarkResult(0, math.inf, "hip://0"),
-        libtuner.BenchmarkResult(0, 50.0, "hip://0"),
-    ]
-    assert handler.is_valid_for_device(baseline, "hip://0")
-
-    baseline = [
-        libtuner.BenchmarkResult(0, 100.0, "hip://0"),
-        libtuner.BenchmarkResult(0, 200.0, "hip://0"),
-    ]
-    assert handler.is_valid_for_device(baseline, "hip://0")
+    assert handler.is_valid_for_device("hip://0")
+    assert not handler.is_valid_for_device("hip://1")
 
 
-def test_calculate_baseline_result():
+def test_calculate_speedup():
     handler = libtuner.BaselineResultHandler()
-    first_baseline = [
-        libtuner.BenchmarkResult(0, 100.0, "hip://0"),
-        libtuner.BenchmarkResult(0, 200.0, "hip://1"),
+    first_run_baseline = [
+        libtuner.BenchmarkResult(0, 1.0, "hip://0"),
+        libtuner.BenchmarkResult(0, 0.5, "hip://1"),
     ]
-    second_baseline = [
-        libtuner.BenchmarkResult(0, 120.0, "hip://0"),
-        libtuner.BenchmarkResult(0, 180.0, "hip://1"),
+    handler.add_run(first_run_baseline)
+
+    second_run_baseline = [
+        libtuner.BenchmarkResult(0, 0.8, "hip://0"),
+        libtuner.BenchmarkResult(0, math.inf, "hip://1"),
+        libtuner.BenchmarkResult(0, 1.2, "hip://2"),
     ]
-    assert handler.calculate_baseline_result(first_baseline, second_baseline) == {
-        "hip://0": 110.0,
-        "hip://1": 190.0,
+    handler.add_run(second_run_baseline)
+
+    candidates = [
+        libtuner.BenchmarkResult(1, 0.4, "hip://0"),
+        libtuner.BenchmarkResult(2, 0.3, "hip://1"),
+        libtuner.BenchmarkResult(3, 1.0, "hip://2"),
+        libtuner.BenchmarkResult(4, 0.2, "hip://3"),
+    ]
+    speedup = handler.calculate_speedup(candidates)
+
+    assert speedup == {
+        1: 0.4 / 0.9,
+        2: 0.3 / 0.5,
+        3: 1.0 / 1.2,
+        4: 0.2 / 0.875,
     }
 
-    first_baseline = [
-        libtuner.BenchmarkResult(0, math.inf, "hip://0"),
-        libtuner.BenchmarkResult(0, math.nan, "hip://1"),
+    candidates = [
+        libtuner.BenchmarkResult(5, 0.6, "hip://0"),
+        libtuner.BenchmarkResult(6, 0.4, "hip://1"),
+        libtuner.BenchmarkResult(7, 0.8, "hip://2"),
     ]
-    second_baseline = [
-        libtuner.BenchmarkResult(0, 120.0, "hip://0"),
-        libtuner.BenchmarkResult(0, 180.0, "hip://1"),
-    ]
-    assert handler.calculate_baseline_result(first_baseline, second_baseline) == {
-        "hip://0": 120.0,
-        "hip://1": 180.0,
+    speedup = handler.calculate_speedup(candidates)
+    assert speedup == {
+        5: 0.6 / 0.9,
+        6: 0.4 / 0.5,
+        7: 0.8 / 1.2,
     }
-
-    first_baseline = [
-        libtuner.BenchmarkResult(0, math.inf, "hip://0"),
-    ]
-    second_baseline = [
-        libtuner.BenchmarkResult(0, math.nan, "hip://0"),
-    ]
-    assert handler.calculate_baseline_result(first_baseline, second_baseline) == {}

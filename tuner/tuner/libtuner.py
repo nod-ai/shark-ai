@@ -872,44 +872,61 @@ def benchmark_baseline(
 
 
 class BaselineResultHandler:
-    def is_valid(
-        self,
-        baseline_results: list[BenchmarkResult],
-    ) -> bool:
-        valid = any(math.isfinite(result.time) for result in baseline_results)
-        return valid
+    def __init__(self) -> None:
+        self.runs: dict[str, list[float]] = defaultdict(list)
 
-    def is_valid_for_device(
-        self, baseline_results: list[BenchmarkResult], device_id: str
-    ) -> bool:
-        for result in baseline_results:
-            if result.device_id == device_id and math.isfinite(result.time):
-                return True
-        return False
+    def add_run(self, results: list[BenchmarkResult]) -> None:
+        for result in results:
+            if math.isfinite(result.time):
+                self.runs[result.device_id].append(result.time)
 
-    def calculate_baseline_result(
-        self,
-        first_baseline_results: list[BenchmarkResult],
-        second_baseline_results: list[BenchmarkResult],
-    ) -> dict[str, float]:
+    def num_successful_runs(self, device_id: str) -> int:
+        return len(self.runs[device_id])
 
-        baseline_device_times = defaultdict(list)
+    def get_average_result(self, device_id: str) -> Optional[float]:
+        times = self.runs.get(device_id, [])
+        if times:
+            return sum(times) / len(times)
+        return None
 
-        for r1 in first_baseline_results:
-            if math.isfinite(r1.time):
-                baseline_device_times[r1.device_id].append(r1.time)
+    def is_valid(self) -> bool:
+        return any(self.runs.values())
 
-        for r2 in second_baseline_results:
-            if math.isfinite(r2.time):
-                baseline_device_times[r2.device_id].append(r2.time)
+    def is_valid_for_device(self, device_id: str) -> bool:
+        return bool(self.runs.get(device_id))
 
-        average_baseline_times = {
-            device_id: sum(times) / len(times)
-            for device_id, times in baseline_device_times.items()
-            if times
-        }
+    def calculate_speedup(
+        self, candidate_results: list[BenchmarkResult]
+    ) -> dict[int, float]:
+        """
+        Calculate the speedup for a list of candidate results compared to the baseline.
+        Return A dictionary where the key is the candidate_id and the value is the speedup ratio.
+        """
+        baseline_times = [
+            time
+            for times in self.runs.values()
+            for time in times
+            if math.isfinite(time)
+        ]
+        fallback_baseline = (
+            sum(baseline_times) / len(baseline_times) if baseline_times else None
+        )
 
-        return average_baseline_times
+        speedup_by_candidate = {}
+        if fallback_baseline is None:
+            logging.warning("No valid baseline times available. ")
+            # Use the candidate time directly when no baselines are available
+            for candidate in candidate_results:
+                speedup_by_candidate[candidate.candidate_id] = candidate.time
+        else:
+            for candidate in candidate_results:
+                baseline_avg = self.get_average_result(candidate.device_id)
+                if baseline_avg is None or not math.isfinite(baseline_avg):
+                    baseline_avg = fallback_baseline
+                speedup_by_candidate[candidate.candidate_id] = (
+                    candidate.time / baseline_avg
+                )
+        return speedup_by_candidate
 
 
 def compile(
@@ -995,62 +1012,26 @@ def compile(
     return compiled_candidates
 
 
-def select_best_benchmark_results(
-    candidate_results: list[BenchmarkResult],
-    baseline_times_by_device: dict[str, float],
-    num_candidates: Optional[int],
-) -> list[BenchmarkResult]:
-    filtered_candidate_results = get_valid_benchmark_results(candidate_results)
-    if len(filtered_candidate_results) == 0:
-        logging.error("No successful candidate benchmarks.")
-        return []
-    # Compute the average of all valid (finite) baseline times across devices to use as a fallback.
-    valid_baseline_times = [
-        t for t in baseline_times_by_device.values() if math.isfinite(t)
-    ]
-    fallback_baseline_time = (
-        sum(valid_baseline_times) / len(valid_baseline_times)
-        if valid_baseline_times
-        else None
-    )
-    if fallback_baseline_time is None:
-        logging.warning(
-            "All baseline benchmarks failed. Baselines will not be used to select top candidates."
-        )
+def get_top_candidates(
+    speedup_by_candidate: dict[int, float],
+    num_candidates: Optional[int] = None,
+    use_speedup: bool = True,
+) -> list[int]:
+    sorted_candidates = sorted(speedup_by_candidate.items(), key=lambda x: x[1])
 
-    # Select top candidates
-    def get_speedup(result: BenchmarkResult) -> float:
-        if result.device_id in baseline_times_by_device:
-            baseline_time = baseline_times_by_device[result.device_id]
-            if math.isfinite(baseline_time):
-                return result.time / baseline_time
-        assert fallback_baseline_time is not None, "expected fallback_baseline_time"
-        return result.time / fallback_baseline_time
-
-    num_top_candidates = len(filtered_candidate_results)
     if num_candidates is not None:
-        num_top_candidates = num_candidates
+        sorted_candidates = sorted_candidates[:num_candidates]
 
-    # Sort by the speedup over baseline on the same device. If a device failed
-    # the baseline benchmark, then use the fallback baseline. If there is no
-    # successful baseline, then the best we can do is to sort by the actual
-    # time.
-    sorting_key = get_speedup
-    if fallback_baseline_time is None:
-        sorting_key = lambda result: result.time
-    best_results = sorted(filtered_candidate_results, key=sorting_key)[
-        :num_top_candidates
-    ]
-    logging.info(f"Selected top[{len(best_results)}]:")
-
-    for r in best_results:
-        if fallback_baseline_time is not None:
-            speedup = f"{round(get_speedup(r) * 100, 2)}% of baseline"
+    for candidate_id, metric_value in sorted_candidates:
+        if use_speedup:
+            percentage_of_baseline = metric_value * 100
+            logging.info(
+                f"Candidate {candidate_id} time: {metric_value:.2f} ms "
+                f"({percentage_of_baseline:.1f}% of baseline)"
+            )
         else:
-            speedup = "baseline unavailable"
-        result = f"Candidate {r.candidate_id} time: {r.time:.2f} ms ({speedup})"
-        logging.info(result)
-    return best_results
+            logging.info(f"Candidate {candidate_id} time: {metric_value:.2f} ms")
+    return [candidate_id for candidate_id, _ in sorted_candidates]
 
 
 def benchmark(
@@ -1073,8 +1054,9 @@ def benchmark(
         candidate_tracker=baseline_tracker,
     )
     baseline_handler = BaselineResultHandler()
-    if not baseline_handler.is_valid(first_baseline_result):
-        logging.warning("First baseline result is not valid")
+    baseline_handler.add_run(first_baseline_result)
+    if not baseline_handler.is_valid():
+        logging.warning("Baseline result is not valid after first run")
 
     if not are_baseline_devices_unique(first_baseline_result):
         logging.warning("Duplicate device IDs detected in the first baseline results.")
@@ -1092,11 +1074,13 @@ def benchmark(
         tuning_client=tuning_client,
         candidate_tracker=baseline_tracker,
     )
-    if not baseline_handler.is_valid(second_baseline_result):
-        logging.warning("Second baseline result is not valid")
+    baseline_handler.add_run(second_baseline_result)
+
+    if not baseline_handler.is_valid():
+        logging.warning("Baseline result is not valid after second run")
 
     if not are_baseline_devices_unique(second_baseline_result):
-        logging.warning("Duplicate device IDs detected in the first baseline results.")
+        logging.warning("Duplicate device IDs detected in the second baseline results.")
 
     regression_devices = detect_baseline_regression(
         first_baseline_result, second_baseline_result
@@ -1106,14 +1090,10 @@ def benchmark(
             f"Performance regressions detected for the following devices: {', '.join(regression_devices)}"
         )
 
-    baseline_result = baseline_handler.calculate_baseline_result(
-        first_baseline_result, second_baseline_result
+    speedup_result = baseline_handler.calculate_speedup(candidate_results)
+    # If the baseline is valid (`baseline_handler.is_valid()`), `speedup_result` represents the speedup values.
+    # Otherwise, `speedup_result` contains the raw time values.
+    top_candidates = get_top_candidates(
+        speedup_result, num_candidates, baseline_handler.is_valid()
     )
-    best_results: list[BenchmarkResult] = select_best_benchmark_results(
-        candidate_results=candidate_results,
-        baseline_times_by_device=baseline_result,
-        num_candidates=num_candidates,
-    )
-
-    top_candidates = [result.candidate_id for result in best_results]
     return top_candidates
