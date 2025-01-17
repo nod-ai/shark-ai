@@ -215,7 +215,6 @@ class ExportArtifacts:
         compile_args = [
             f"iree-compile",
             f"{mlir_path}",
-            f"--iree-hip-target={self.iree_hip_target}",
             f"-o={vmfb_path}",
         ]
         if self.tensor_parallelism_size > 1:
@@ -228,6 +227,9 @@ class ExportArtifacts:
                 f"--iree-hal-target-device={self.iree_hal_target_device}"
             ]
         compile_args += iree_hal_target_devices
+
+        if self.iree_hal_target_device == "hip":
+            compile_args += [f"--iree-hip-target={self.iree_hip_target}"]
         if hal_dump_path:
             compile_args += [
                 f"--iree-hal-dump-executable-files-to={hal_dump_path}/files"

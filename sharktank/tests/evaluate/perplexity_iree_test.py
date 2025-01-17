@@ -34,6 +34,39 @@ class PerplexityTest(unittest.TestCase):
         with open(self.baseline_perplexity_scores, "r") as f:
             self.baseline_perplexity = json.load(f)
 
+    def test_llama3_8B_f16_decomposed_fused_rotary(self):
+
+        # Llama 3.1 8B decomposed
+
+        model_name = "llama3_8B_f16_decomposed_iree_fused_rotary"
+        baseline_perplexity = self.baseline_perplexity[model_name]
+
+        current_perplexity = perplexity_iree.main(
+            [
+                f"--irpa-file={self.llama3_8b_f16_model}",
+                f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
+                f"--iree-device={self.iree_device}",
+                f"--iree-hal-target-device={self.iree_hal_target_device}",
+                f"--tensor-parallelism-size=1",
+                f"--attention-kernel=decomposed",
+                f"--num-prompts={self.batch_size}",
+            ]
+        )
+
+        baseline_mean_perplexity = round(
+            np.mean(baseline_perplexity["perplexities"][0 : self.batch_size]), 6
+        )
+        current_mean_perplexity = round(current_perplexity["mean_perplexity"], 6)
+
+        perplexity_difference = current_mean_perplexity - baseline_mean_perplexity
+
+        self.assertAlmostEqual(
+            baseline_mean_perplexity,
+            current_mean_perplexity,
+            delta=self.delta,
+            msg=f"Current perplexity deviates baseline by {perplexity_difference}",
+        )
+
     @pytest.mark.xfail(reason="Runtime segfault", run=False)
     def test_llama3_8B_f16_decomposed(self):
 
