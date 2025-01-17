@@ -182,6 +182,11 @@ class LlamaModelConfig:
     # the program and not.
     static_tables: bool = True
 
+    # Experimental matmul padding configuration designed to allow matmuls to pad
+    # to cache line configurations:
+    experimental_mm_cache_size: Optional[int] = None
+    experimental_mm_cache_sets: Optional[int] = None
+
 
 @dataclass
 class T5Config:

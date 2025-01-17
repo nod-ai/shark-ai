@@ -25,15 +25,38 @@ class FFN(ThetaLayer):
         theta: Theta,
         is_gated: bool = True,
         activation_fn: Callable[[AnyTensor], AnyTensor] = F.silu,
+        experimental_mm_cache_size: Optional[int] = None,
+        experimental_mm_cache_sets: Optional[int] = None,
     ):
         super().__init__(theta)
 
         self.is_gated = is_gated
         self.activation_fn = activation_fn
         if self.is_gated:
-            self.add_module("ffn_gate", LinearLayer(theta("ffn_gate")))
-        self.add_module("ffn_up", LinearLayer(theta("ffn_up")))
-        self.add_module("ffn_down", LinearLayer(theta("ffn_down")))
+            self.add_module(
+                "ffn_gate",
+                LinearLayer(
+                    theta("ffn_gate"),
+                    experimental_mm_cache_size=experimental_mm_cache_size,
+                    experimental_mm_cache_sets=experimental_mm_cache_sets,
+                ),
+            )
+        self.add_module(
+            "ffn_up",
+            LinearLayer(
+                theta("ffn_up"),
+                experimental_mm_cache_size=experimental_mm_cache_size,
+                experimental_mm_cache_sets=experimental_mm_cache_sets,
+            ),
+        )
+        self.add_module(
+            "ffn_down",
+            LinearLayer(
+                theta("ffn_down"),
+                experimental_mm_cache_size=experimental_mm_cache_size,
+                experimental_mm_cache_sets=experimental_mm_cache_sets,
+            ),
+        )
 
     def forward(
         self,

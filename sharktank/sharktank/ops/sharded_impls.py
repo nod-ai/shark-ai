@@ -866,6 +866,29 @@ def module_register_buffer_sharded(
     setattr(module, name, tensor)
 
 
+@pad.override(ReplicatedTensor)
+def pad_default(x, pad, constant, **kwargs) -> Tensor:
+    shards = [
+        torch.nn.functional.pad(unbox_tensor(shard), pad=pad, value=constant)
+        for shard in x.shards
+    ]
+    shard_dim = x.shard_dim
+    return SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim)
+
+
+@pad.override(ShardedTensor)
+def pad_default(x, pad, constant, per_shard) -> Tensor:
+    shard_dim = x.shard_dim
+    if per_shard and (pad[shard_dim * 2] != 0 or pad[shard_dim * 2 + 1] != 0):
+        raise ValueError(f"Shard dimension {shard_dim} cannot be non-zero")
+
+    padded_shards = [
+        torch.nn.functional.pad(unbox_tensor(shard), pad=pad, value=constant)
+        for shard in x.shards
+    ]
+    return SplitPrimitiveTensor(ts=padded_shards, shard_dim=shard_dim)
+
+
 @permute.override(SplitPrimitiveTensor)
 def permute_split(tensor: SplitPrimitiveTensor, dims: List[int]):
     permuted_shards = [permute(shard, dims) for shard in tensor.shards]

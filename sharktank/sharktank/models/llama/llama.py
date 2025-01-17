@@ -78,6 +78,8 @@ class PagedLlamaModelV1(BaseCausalLMModel):
         self.activation_dtype = config.activation_dtype
         self.use_hf = config.use_hf
         self.attention_kernel = config.attention_kernel
+        self.experimental_mm_cache_sets = config.experimental_mm_cache_sets
+        self.experimental_mm_cache_size = config.experimental_mm_cache_size
 
         self.add_module(
             "token_embedding",
@@ -113,6 +115,8 @@ class PagedLlamaModelV1(BaseCausalLMModel):
                     rms_epsilon=hp.attention_layer_norm_rms_epsilon,
                     attention_kernel=self.attention_kernel,
                     fake_quant=self.fake_quant,
+                    experimental_mm_cache_sets=self.experimental_mm_cache_sets,
+                    experimental_mm_cache_size=self.experimental_mm_cache_size,
                 )
                 for n in range(hp.block_count)
             ]
@@ -285,6 +289,8 @@ class AttentionFFNBlock(ThetaLayer):
         rms_epsilon: float,
         attention_kernel: str = "decomposed",
         fake_quant: bool = True,
+        experimental_mm_cache_size: Optional[int] = None,
+        experimental_mm_cache_sets: Optional[int] = None,
     ):
         super().__init__(theta)
         self.add_module(
@@ -299,12 +305,16 @@ class AttentionFFNBlock(ThetaLayer):
                 rms_epsilon=rms_epsilon,
                 attention_kernel=attention_kernel,
                 fake_quant=fake_quant,
+                experimental_mm_cache_size=experimental_mm_cache_size,
+                experimental_mm_cache_sets=experimental_mm_cache_sets,
             ),
         )
         self.add_module(
             "ffn",
             FFN(
                 theta=theta,
+                experimental_mm_cache_size=experimental_mm_cache_size,
+                experimental_mm_cache_sets=experimental_mm_cache_sets,
             ),
         )
         self.add_module(

@@ -41,6 +41,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         attention_scale: Optional[float] = None,
         softcap: Optional[float] = None,
         fake_quant: Optional[bool] = True,
+        experimental_mm_cache_size: Optional[int] = None,
+        experimental_mm_cache_sets: Optional[int] = None,
     ):
         super().__init__(theta)
 
@@ -58,16 +60,40 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             "attn_norm", RMSNormLayer(theta("attn_norm"), epsilon=rms_epsilon)
         )
         self.add_module(
-            "attn_q", LinearLayer(theta("attn_q"), fake_quant=self.fake_quant)
+            "attn_q",
+            LinearLayer(
+                theta("attn_q"),
+                fake_quant=self.fake_quant,
+                experimental_mm_cache_size=experimental_mm_cache_size,
+                experimental_mm_cache_sets=experimental_mm_cache_sets,
+            ),
         )
         self.add_module(
-            "attn_k", LinearLayer(theta("attn_k"), fake_quant=self.fake_quant)
+            "attn_k",
+            LinearLayer(
+                theta("attn_k"),
+                fake_quant=self.fake_quant,
+                experimental_mm_cache_size=experimental_mm_cache_size,
+                experimental_mm_cache_sets=experimental_mm_cache_sets,
+            ),
         )
         self.add_module(
-            "attn_v", LinearLayer(theta("attn_v"), fake_quant=self.fake_quant)
+            "attn_v",
+            LinearLayer(
+                theta("attn_v"),
+                fake_quant=self.fake_quant,
+                experimental_mm_cache_size=experimental_mm_cache_size,
+                experimental_mm_cache_sets=experimental_mm_cache_sets,
+            ),
         )
         self.add_module(
-            "attn_output", LinearLayer(theta("attn_output"), fake_quant=self.fake_quant)
+            "attn_output",
+            LinearLayer(
+                theta("attn_output"),
+                fake_quant=self.fake_quant,
+                experimental_mm_cache_size=experimental_mm_cache_size,
+                experimental_mm_cache_sets=experimental_mm_cache_sets,
+            ),
         )
         self.cache_quantizer = None
         if "kv_cache" in theta.keys:
