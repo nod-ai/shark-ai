@@ -842,7 +842,10 @@ class BaselineResultHandler:
         threshold: float = 1.03,
     ) -> list[str]:
         """
-        Return a list of device IDs where regressions were detected.
+        Returns a list of device IDs where performance regressions were detected.
+        A performance regression is defined as a baseline time from 'baseline_results'
+        for a device that exceeds the stored average baseline time for that device by
+        a factor greater than the specified 'threshold'.
         """
         regressions = []
         for result in baseline_results:
@@ -858,7 +861,7 @@ class BaselineResultHandler:
     def is_valid(self) -> bool:
         """
         Check if there are any valid finite baseline time recorded.
-        Return True iff at least a valid (finite) baseline time recorded.
+        Returns True iff at least one valid (finite) baseline time was recorded.
         """
         return any(
             self.get_valid_time_ms(device_id)
@@ -874,6 +877,17 @@ class BaselineResultHandler:
         """
         Calculate the speedup for a list of candidate results compared to the baseline.
         Returns a map from candidate_id to its speedup ratio.
+
+        Speedup is defined as the ratio of the candidate's runtime to the average baseline time
+        for the corresponding device as:
+
+            speedup = candidate_runtime / avg_baseline_time
+
+        If no valid baseline times are available, the candidate'sruntime is used directly as:
+
+            speedup = candidate_runtime
+
+        The speedup values are sorted in ascending order to select the top-performing candidates.
         """
         if not self.is_valid():
             logging.warning("No valid baseline times available.")
@@ -904,13 +918,8 @@ class BaselineResultHandler:
     def get_top_candidates(
         self,
         speedup_by_candidate: dict[int, float],
-        num_candidates: Optional[int] = None,
-    ) -> list[int]:
-        sorted_candidates = sorted(speedup_by_candidate.items(), key=lambda x: x[1])
-        if num_candidates is not None:
-            sorted_candidates = sorted_candidates[:num_candidates]
-
-        return [candidate_id for candidate_id, _ in sorted_candidates]
+    ) -> list[tuple[int, float]]:
+        return sorted(speedup_by_candidate.items(), key=lambda x: x[1])
 
 
 def compile(
@@ -1045,23 +1054,21 @@ def benchmark(
         logging.warning("Baseline run failed.")
 
     speedup_result = baseline_handler.calculate_speedup(candidate_results)
-    # If the baseline is valid (`baseline_handler.is_valid()`), `speedup_result` represents the speedup values.
-    # Otherwise, `speedup_result` contains the raw time values.
-    top_candidates = baseline_handler.get_top_candidates(speedup_result, num_candidates)
+    all_candidates_with_speedup = baseline_handler.get_top_candidates(speedup_result)
+    top_candidates_with_speedup = all_candidates_with_speedup[:num_candidates]
+
     if baseline_handler.is_valid():
         candidate_time_map = {
             result.candidate_id: result.time for result in candidate_results
         }
-        for candidate_id in top_candidates:
-            speedup_value = speedup_result[candidate_id]
+        for candidate_id, speedup in top_candidates_with_speedup:
             actual_time = candidate_time_map[candidate_id]
-            percentage_of_baseline = speedup_value * 100
+            percentage_of_baseline = speedup * 100
             logging.info(
                 f"Candidate {candidate_id} time: {actual_time:.2f} ms "
                 f"({percentage_of_baseline:.1f}% of baseline)"
             )
     else:
-        for candidate_id in top_candidates:
-            raw_time = speedup_result[candidate_id]
-            logging.info(f"Candidate {candidate_id} time: {raw_time:.2f} ms")
-    return top_candidates
+        for candidate_id, time in top_candidates_with_speedup:
+            logging.info(f"Candidate {candidate_id} time: {time:.2f} ms")
+    return [candidate_id for candidate_id, _ in top_candidates_with_speedup]

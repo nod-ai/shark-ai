@@ -268,9 +268,15 @@ def test_baseline_result_handler_speedup():
         4: 0.2 / 0.875,
     }
 
-    assert handler.get_top_candidates(speedup) == [4, 1, 2, 3]
-    assert handler.get_top_candidates(speedup, 2) == [4, 1]
-    assert handler.get_top_candidates(speedup, 5) == [4, 1, 2, 3]
+    all_candidates_with_speedup = handler.get_top_candidates(speedup)
+    assert all_candidates_with_speedup == [
+        (4, 0.2 / 0.875),
+        (1, 0.4 / 0.9),
+        (2, 0.3 / 0.5),
+        (3, 1.0 / 1.2),
+    ]
+    top_candidates_with_speedup = all_candidates_with_speedup[:2]
+    assert [candidate_id for candidate_id, _ in top_candidates_with_speedup] == [4, 1]
 
     candidates = [
         libtuner.BenchmarkResult(5, 0.6, "hip://0"),
@@ -284,9 +290,15 @@ def test_baseline_result_handler_speedup():
         7: 0.8 / 1.2,
     }
 
-    assert handler.get_top_candidates(speedup) == [5, 7, 6]
-    assert handler.get_top_candidates(speedup, 2) == [5, 7]
-    assert handler.get_top_candidates(speedup, 5) == [5, 7, 6]
+    all_candidates_with_speedup = handler.get_top_candidates(speedup)
+    print(all_candidates_with_speedup)
+    assert all_candidates_with_speedup == [
+        (5, 0.6 / 0.9),
+        (7, 0.8 / 1.2),
+        (6, 0.4 / 0.5),
+    ]
+    top_candidates_with_speedup = all_candidates_with_speedup[:2]
+    assert [candidate_id for candidate_id, _ in top_candidates_with_speedup] == [5, 7]
 
     handler = libtuner.BaselineResultHandler()
     speedup = handler.calculate_speedup(candidates)
@@ -295,6 +307,11 @@ def test_baseline_result_handler_speedup():
         6: 0.4,
         7: 0.8,
     }
-    assert handler.get_top_candidates(speedup) == [6, 5, 7]
-    assert handler.get_top_candidates(speedup, 2) == [6, 5]
-    assert handler.get_top_candidates(speedup, 5) == [6, 5, 7]
+    all_candidates_with_speedup = handler.get_top_candidates(speedup)
+    assert all_candidates_with_speedup == [
+        (6, 0.4),
+        (5, 0.6),
+        (7, 0.8),
+    ]
+    top_candidates_with_speedup = all_candidates_with_speedup[:2]
+    assert [candidate_id for candidate_id, _ in top_candidates_with_speedup] == [6, 5]
