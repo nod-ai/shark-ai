@@ -222,47 +222,6 @@ def validate_devices(user_devices: list[str]) -> None:
         )
 
 
-def get_valid_benchmark_results(
-    benchmark_results: list[BenchmarkResult],
-) -> list[BenchmarkResult]:
-    """
-    Filter the benchmark_results list to return list with finite `time` values.
-    """
-    filtered_benchmark_results = [r for r in benchmark_results if math.isfinite(r.time)]
-    if len(filtered_benchmark_results) == 0:
-        logging.error("No successful candidate benchmarks.")
-
-    return filtered_benchmark_results
-
-
-def are_baseline_devices_unique(
-    baseline_results: list[BenchmarkResult],
-) -> bool:
-    return len(baseline_results) == len(
-        set(map(lambda r: r.device_id, baseline_results))
-    )
-
-
-def map_baseline_by_device(
-    baseline_result: list[BenchmarkResult],
-) -> dict[str, float]:
-    if not are_baseline_devices_unique(baseline_result):
-        logging.warning("Duplicate device IDs detected in the baseline results.")
-    baseline_device_times = defaultdict(list)
-
-    for r in baseline_result:
-        if math.isfinite(r.time):
-            baseline_device_times[r.device_id].append(r.time)
-
-    average_device_times = {
-        device_id: sum(times) / len(times)
-        for device_id, times in baseline_device_times.items()
-        if times
-    }
-
-    return average_device_times
-
-
 class ExecutionPhases(str, Enum):
     dont_stop = ""
     generate_candidates = "generate-candidates"
@@ -849,6 +808,9 @@ class BaselineResultHandler:
         for result in results:
             self.device_baseline_times[result.device_id].append(result.time)
 
+    def are_baseline_devices_unique(self, results: list[BenchmarkResult]) -> bool:
+        return len(results) == len(set(map(lambda r: r.device_id, results)))
+
     def get_valid_time_ms(self, device_id: str) -> list[float]:
         return [
             time
@@ -1054,7 +1016,7 @@ def benchmark(
     if not baseline_handler.is_valid():
         logging.warning("Baseline result is not valid after first run")
 
-    if not are_baseline_devices_unique(first_baseline_result):
+    if not baseline_handler.are_baseline_devices_unique(first_baseline_result):
         logging.warning("Duplicate device IDs detected in the first baseline results.")
 
     candidate_indices = [i for i in compiled_candidates if i != 0]
@@ -1081,7 +1043,7 @@ def benchmark(
     if not baseline_handler.is_valid():
         logging.warning("Baseline result is not valid after second run")
 
-    if not are_baseline_devices_unique(second_baseline_result):
+    if not baseline_handler.are_baseline_devices_unique(second_baseline_result):
         logging.warning("Duplicate device IDs detected in the second baseline results.")
 
     speedup_result = baseline_handler.calculate_speedup(candidate_results)

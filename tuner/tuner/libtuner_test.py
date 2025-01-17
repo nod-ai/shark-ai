@@ -191,41 +191,6 @@ def test_enum_collision():
     from iree.compiler.dialects import linalg, vector, iree_gpu, iree_codegen, iree_input  # type: ignore
 
 
-def test_validate_benchmark_results():
-    benchmark_results = [
-        libtuner.BenchmarkResult(0, math.inf, "hip://0"),
-    ]
-
-    result = libtuner.get_valid_benchmark_results(benchmark_results)
-    assert result == []
-
-    benchmark_results = [
-        libtuner.BenchmarkResult(0, math.inf, "hip://0"),
-        libtuner.BenchmarkResult(0, 0.1, "hip://1"),
-    ]
-    result = libtuner.get_valid_benchmark_results(benchmark_results)
-    assert len(result) == 1
-    assert result[0].candidate_id == 0
-    assert result[0].time == 0.1
-    assert result[0].device_id == "hip://1"
-
-
-def test_check_baseline_devices_uniqueness():
-    baseline_results = [
-        libtuner.BenchmarkResult(0, 1000.0, "hip://0"),
-        libtuner.BenchmarkResult(0, 2000.0, "hip://1"),
-        libtuner.BenchmarkResult(0, 3000.0, "hip://2"),
-    ]
-    assert libtuner.are_baseline_devices_unique(baseline_results)
-
-    baseline_results = [
-        libtuner.BenchmarkResult(0, 1000.0, "hip://0"),
-        libtuner.BenchmarkResult(0, 2000.0, "hip://0"),
-        libtuner.BenchmarkResult(0, 3000.0, "hip://2"),
-    ]
-    assert not libtuner.are_baseline_devices_unique(baseline_results)
-
-
 def test_baseline_result_handler_valid():
     handler = libtuner.BaselineResultHandler()
     assert not handler.is_valid()
@@ -234,6 +199,8 @@ def test_baseline_result_handler_valid():
         libtuner.BenchmarkResult(0, math.inf, "hip://1"),
         libtuner.BenchmarkResult(0, 0.7, "hip://0"),
     ]
+    assert handler.are_baseline_devices_unique([])
+    assert not handler.are_baseline_devices_unique(baseline)
     handler.add_run(baseline)
     assert handler.is_valid()
     assert handler.is_valid_for_device("hip://0")
@@ -252,6 +219,7 @@ def test_baseline_result_handler_valid():
         libtuner.BenchmarkResult(0, 1.2, "hip://1"),
         libtuner.BenchmarkResult(0, 0.8, "hip://1"),
     ]
+    assert not handler.are_baseline_devices_unique(additional_baseline)
     handler.add_run(additional_baseline)
     assert handler.num_successful_runs("hip://0") == 2
     assert handler.num_successful_runs("hip://0") == 2
