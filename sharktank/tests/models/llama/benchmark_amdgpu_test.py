@@ -55,7 +55,6 @@ class BaseBenchmarkTest(unittest.TestCase):
             "--iree-opt-data-tiling=false",
             "--iree-preprocessing-pass-pipeline='builtin.module(util.func(iree-preprocessing-generalize-linalg-matmul-experimental))'",
             "--iree-stream-resource-memory-model=discrete",
-            "--iree-hip-legacy-sync=false",
             "--iree-hal-indirect-command-buffers=true",
             "--iree-hal-memoization=true",
             "--iree-opt-strip-assertions",
