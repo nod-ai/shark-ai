@@ -268,7 +268,7 @@ def test_baseline_result_handler_speedup():
         4: 0.2 / 0.875,
     }
 
-    all_candidates_with_speedup = handler.get_top_candidates(speedup)
+    all_candidates_with_speedup = handler.sort_candidates_with_speedup(speedup)
     assert all_candidates_with_speedup == [
         (4, 0.2 / 0.875),
         (1, 0.4 / 0.9),
@@ -290,8 +290,7 @@ def test_baseline_result_handler_speedup():
         7: 0.8 / 1.2,
     }
 
-    all_candidates_with_speedup = handler.get_top_candidates(speedup)
-    print(all_candidates_with_speedup)
+    all_candidates_with_speedup = handler.sort_candidates_with_speedup(speedup)
     assert all_candidates_with_speedup == [
         (5, 0.6 / 0.9),
         (7, 0.8 / 1.2),
@@ -307,7 +306,7 @@ def test_baseline_result_handler_speedup():
         6: 0.4,
         7: 0.8,
     }
-    all_candidates_with_speedup = handler.get_top_candidates(speedup)
+    all_candidates_with_speedup = handler.sort_candidates_with_speedup(speedup)
     assert all_candidates_with_speedup == [
         (6, 0.4),
         (5, 0.6),

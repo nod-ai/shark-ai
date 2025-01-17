@@ -881,9 +881,13 @@ class BaselineResultHandler:
         Speedup is defined as the ratio of the candidate's runtime to the average baseline time
         for the corresponding device as:
 
-            speedup = candidate_runtime / avg_baseline_time
+            speedup = candidate_runtime / avg_baseline_time (or fallback_baseline)
 
-        If no valid baseline times are available, the candidate'sruntime is used directly as:
+        If no valid baseline times are available for a specific device, the fallback baseline is used.
+        The fallback baseline is calculated as the average of all valid baseline times across devices.
+
+        If no valid baseline times are available across all devices, the candidate's runtime is
+        used directly as:
 
             speedup = candidate_runtime
 
@@ -909,13 +913,15 @@ class BaselineResultHandler:
 
         speedup_by_candidate = {}
         for candidate in candidate_results:
-            baseline_avg = self.get_average_result_ms(candidate.device_id)
-            if baseline_avg is None or not math.isfinite(baseline_avg):
-                baseline_avg = fallback_baseline
-            speedup_by_candidate[candidate.candidate_id] = candidate.time / baseline_avg
+            baseline_avg_ms = self.get_average_result_ms(candidate.device_id)
+            if baseline_avg_ms is None:
+                baseline_avg_ms = fallback_baseline
+            speedup_by_candidate[candidate.candidate_id] = (
+                candidate.time / baseline_avg_ms
+            )
         return speedup_by_candidate
 
-    def get_top_candidates(
+    def sort_candidates_with_speedup(
         self,
         speedup_by_candidate: dict[int, float],
     ) -> list[tuple[int, float]]:
@@ -1054,7 +1060,9 @@ def benchmark(
         logging.warning("Baseline run failed.")
 
     speedup_result = baseline_handler.calculate_speedup(candidate_results)
-    all_candidates_with_speedup = baseline_handler.get_top_candidates(speedup_result)
+    all_candidates_with_speedup = baseline_handler.sort_candidates_with_speedup(
+        speedup_result
+    )
     top_candidates_with_speedup = all_candidates_with_speedup[:num_candidates]
 
     if baseline_handler.is_valid():
