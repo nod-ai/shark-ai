@@ -206,8 +206,13 @@ def test_baseline_result_handler_valid():
     assert handler.is_valid_for_device("hip://0")
     assert not handler.is_valid_for_device("hip://1")
 
-    assert handler.device_baseline_times["hip://0"] == [0.5, 0.7]
-    assert handler.device_baseline_times["hip://1"] == [math.inf]
+    assert handler.device_baseline_results["hip://0"] == [
+        libtuner.BenchmarkResult(0, 0.5, "hip://0"),
+        libtuner.BenchmarkResult(0, 0.7, "hip://0"),
+    ]
+    assert handler.device_baseline_results["hip://1"] == [
+        libtuner.BenchmarkResult(0, math.inf, "hip://1"),
+    ]
 
     assert handler.num_successful_runs("hip://0") == 2
     assert handler.num_successful_runs("hip://1") == 0

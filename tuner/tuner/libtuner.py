@@ -801,21 +801,23 @@ def benchmark_baseline(
 
 class BaselineResultHandler:
     def __init__(self) -> None:
-        # Maps device IDs to a list of baseline run times (in milliseconds).
-        self.device_baseline_times: dict[str, list[float]] = defaultdict(list)
+        # Maps device IDs to a list of `BenchmarkResult`.
+        self.device_baseline_results: dict[str, list[BenchmarkResult]] = defaultdict(
+            list
+        )
 
     def add_run(self, results: list[BenchmarkResult]) -> None:
         for result in results:
-            self.device_baseline_times[result.device_id].append(result.time)
+            self.device_baseline_results[result.device_id].append(result)
 
     def are_baseline_devices_unique(self, results: list[BenchmarkResult]) -> bool:
-        return len(results) == len(set(map(lambda r: r.device_id, results)))
+        return len(results) == len(set(result.device_id for result in results))
 
     def get_valid_time_ms(self, device_id: str) -> list[float]:
         return [
-            time
-            for time in self.device_baseline_times.get(device_id, [])
-            if math.isfinite(time)
+            result.time
+            for result in self.device_baseline_results.get(device_id, [])
+            if math.isfinite(result.time)
         ]
 
     def num_successful_runs(self, device_id: str) -> int:
@@ -859,7 +861,7 @@ class BaselineResultHandler:
         """
         return any(
             self.get_valid_time_ms(device_id)
-            for device_id in self.device_baseline_times
+            for device_id in self.device_baseline_results
         )
 
     def is_valid_for_device(self, device_id: str) -> bool:
@@ -882,9 +884,10 @@ class BaselineResultHandler:
 
         # Calculate the fallback baseline as the average of all valid times across devices
         valid_baseline_times = [
-            time
-            for device_id in self.device_baseline_times
-            for time in self.get_valid_time_ms(device_id)
+            result.time
+            for device_id in self.device_baseline_results
+            for result in self.device_baseline_results[device_id]
+            if math.isfinite(result.time)
         ]
 
         fallback_baseline = sum(valid_baseline_times) / len(valid_baseline_times)
