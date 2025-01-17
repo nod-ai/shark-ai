@@ -393,12 +393,15 @@ class InferenceExecutorProcess(sf.Process):
             # Tokenize prompts and negative prompts. We tokenize in bs1 for now and join later.
             input_ids_list = []
             neg_ids_list = []
-            for tokenizer in self.service.tokenizers:
-                input_ids = tokenizer.encode(request.prompt)
-                input_ids_list.append(input_ids)
-                neg_ids = tokenizer.encode(request.neg_prompt)
-                neg_ids_list.append(neg_ids)
-            ids_list = [*input_ids_list, *neg_ids_list]
+            ids_list = request.input_ids
+            # Tokenize the prompts if the request does not hold input_ids.
+            if ids_list is None:
+                for tokenizer in self.service.tokenizers:
+                    input_ids = tokenizer.encode(request.prompt)
+                    input_ids_list.append(input_ids)
+                    neg_ids = tokenizer.encode(request.neg_prompt)
+                    neg_ids_list.append(neg_ids)
+                ids_list = [*input_ids_list, *neg_ids_list]
 
             request.input_ids = ids_list
 

@@ -114,6 +114,7 @@ class InferenceExecRequest(sf.Message):
             "steps",
             "guidance_scale",
             "seed",
+            "input_ids",
         ]
         rec_inputs = {}
         for item in gen_inputs:
