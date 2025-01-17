@@ -291,7 +291,7 @@ def strip_compilation_info(input_path: Path) -> str:
     return result.process_res.stdout
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("input", help="Input mlir file", type=str)
     parser.add_argument(
@@ -369,4 +369,4 @@ def main():
 
 
 if __name__ == "__main__":
-    args = main()
+    main()

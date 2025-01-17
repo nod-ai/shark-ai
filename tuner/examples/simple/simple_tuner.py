@@ -126,7 +126,6 @@ def main():
         simple_tuner.benchmark_flags = ["--input=1", "--benchmark_repetitions=3"]
         top_candidates = libtuner.benchmark(
             args,
-            path_config,
             compiled_candidates,
             candidate_trackers,
             simple_tuner,
@@ -159,7 +158,6 @@ def main():
         simple_tuner.benchmark_timeout = 60
         top_model_candidates = libtuner.benchmark(
             args,
-            path_config,
             compiled_model_candidates,
             candidate_trackers,
             simple_tuner,

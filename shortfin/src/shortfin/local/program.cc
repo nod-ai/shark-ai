@@ -633,13 +633,29 @@ void StaticProgramParameters::Load(std::filesystem::path file_path,
     options.format = file_path.extension().string();
   }
 
-  // Open file.
-  iree_file_read_flags_t read_flags = IREE_FILE_READ_FLAG_DEFAULT;
   if (options.mmap) {
-    read_flags = IREE_FILE_READ_FLAG_MMAP;
-  } else {
-    read_flags = IREE_FILE_READ_FLAG_PRELOAD;
+    this->LoadMmap(file_path, options);
+    return;
   }
+
+  auto file_path_string = file_path.string();
+  const iree_string_view_t path =
+      iree_make_cstring_view(file_path_string.c_str());
+  iree_io_file_handle_t *file_handle = NULL;
+  SHORTFIN_THROW_IF_ERROR(iree_io_file_handle_open(
+      IREE_IO_FILE_MODE_READ, path, host_allocator_, &file_handle));
+
+  // Parse.
+  SHORTFIN_THROW_IF_ERROR(
+      iree_io_parse_file_index(to_iree_string_view(options.format), file_handle,
+                               index_.get(), host_allocator_));
+}
+
+void StaticProgramParameters::LoadMmap(std::filesystem::path file_path,
+                                       LoadOptions options) {
+  SHORTFIN_TRACE_SCOPE_NAMED("StaticProgramParameters::LoadMmap");
+
+  iree_file_read_flags_t read_flags = IREE_FILE_READ_FLAG_MMAP;
   iree_file_contents_t *file_contents = nullptr;
   SHORTFIN_THROW_IF_ERROR(iree_file_read_contents(
       file_path.string().c_str(), read_flags, host_allocator_, &file_contents));

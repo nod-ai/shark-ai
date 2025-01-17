@@ -672,7 +672,7 @@ void BindLocal(py::module_ &m) {
       // Methods not on System but on child objects, taking System as an arg.
       // Emitted here for convenience.
       .def("load_module", &local::ProgramModule::Load, py::arg("path"),
-           py::arg("mmap") = true);
+           py::arg("mmap") = false);
 
   // Support classes.
   py::class_<local::Node>(m, "Node")
@@ -731,7 +731,7 @@ void BindLocal(py::module_ &m) {
       .def_prop_ro("exports", &local::ProgramModule::exports)
       .def("__repr__", &local::ProgramModule::to_s)
       .def_static("load", &local::ProgramModule::Load, py::arg("system"),
-                  py::arg("path"), py::arg("mmap") = true)
+                  py::arg("path"), py::arg("mmap") = false)
       .def_static(
           "parameter_provider",
           [](local::System &system, py::args params) {
@@ -817,7 +817,7 @@ void BindLocal(py::module_ &m) {
           },
           py::arg("file_path"), py::arg("format") = std::string_view(),
           py::arg("readable") = true, py::arg("writable") = false,
-          py::arg("mmap") = true);
+          py::arg("mmap") = false);
 
   struct DevicesSet {
     DevicesSet(py::object fiber_obj, std::optional<size_t> index = {})
