@@ -6,7 +6,6 @@
 
 import argparse
 import math
-from subprocess import CompletedProcess
 from unittest.mock import call, patch, MagicMock
 from . import libtuner
 

@@ -892,7 +892,6 @@ def select_best_benchmark_results(
 
 def benchmark(
     args: argparse.Namespace,
-    path_config: PathConfig,
     compiled_candidates: list[int],
     candidate_trackers: list[CandidateTracker],
     tuning_client: TuningClient,
