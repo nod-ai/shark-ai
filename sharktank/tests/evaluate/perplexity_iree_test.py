@@ -12,6 +12,7 @@ import numpy as np
 from sharktank.evaluate import perplexity_iree
 
 is_mi300x = pytest.mark.skipif("config.getoption('iree_hip_target') != 'gfx942'")
+is_cpu = pytest.mark.skipif("config.getoption('iree_device') != 'local-task'")
 skipif_run_quick_llama_test = pytest.mark.skipif(
     'not config.getoption("run-nightly-llama-tests")',
     reason="Run large tests if --run-nightly-llama-tests is passed",
@@ -33,6 +34,7 @@ class PerplexityTest(unittest.TestCase):
         with open(self.baseline_perplexity_scores, "r") as f:
             self.baseline_perplexity = json.load(f)
 
+    @is_cpu
     def test_llama3_8B_f16_decomposed_fused_rotary(self):
 
         # Llama 3.1 8B decomposed
