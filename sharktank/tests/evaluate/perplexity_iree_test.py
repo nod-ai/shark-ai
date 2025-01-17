@@ -25,7 +25,6 @@ skipif_run_quick_llama_test = pytest.mark.skipif(
     "baseline_perplexity_scores",
     "batch_size",
 )
-@is_mi300x
 class PerplexityTest(unittest.TestCase):
     def setUp(self):
         self.current_perplexity_all = {}
@@ -67,6 +66,7 @@ class PerplexityTest(unittest.TestCase):
             msg=f"Current perplexity deviates baseline by {perplexity_difference}",
         )
 
+    @is_mi300x
     @pytest.mark.xfail(reason="Runtime segfault", run=False)
     def test_llama3_8B_f16_decomposed(self):
 
@@ -102,6 +102,7 @@ class PerplexityTest(unittest.TestCase):
             msg=f"Current perplexity deviates baseline by {perplexity_difference}",
         )
 
+    @is_mi300x
     @skipif_run_quick_llama_test
     @pytest.mark.xfail(reason="Compile Error")
     def test_llama3_8B_f16(self):
@@ -138,6 +139,7 @@ class PerplexityTest(unittest.TestCase):
             msg=f"Current perplexity deviates baseline by {perplexity_difference}",
         )
 
+    @is_mi300x
     @skipif_run_quick_llama_test
     @pytest.mark.xfail(reason="Compile Error")
     def test_llama3_8B_fp8_decomposed(self):
@@ -174,6 +176,7 @@ class PerplexityTest(unittest.TestCase):
             msg=f"Current perplexity deviates baseline by {perplexity_difference}",
         )
 
+    @is_mi300x
     @skipif_run_quick_llama_test
     @pytest.mark.xfail(reason="Compile Error")
     def test_llama3_8B_fp8(self):
@@ -210,6 +213,7 @@ class PerplexityTest(unittest.TestCase):
             msg=f"Current perplexity deviates baseline by {perplexity_difference}",
         )
 
+    @is_mi300x
     @skipif_run_quick_llama_test
     @pytest.mark.xfail(
         reason="Sharding is unsupported",
@@ -248,6 +252,7 @@ class PerplexityTest(unittest.TestCase):
             msg=f"Current perplexity deviates baseline by {perplexity_difference}",
         )
 
+    @is_mi300x
     @skipif_run_quick_llama_test
     @pytest.mark.xfail(reason="Compile Error")
     def test_llama3_405B_f16(self):
@@ -284,6 +289,7 @@ class PerplexityTest(unittest.TestCase):
             msg=f"Current perplexity deviates baseline by {perplexity_difference}",
         )
 
+    @is_mi300x
     @skipif_run_quick_llama_test
     @pytest.mark.xfail(reason="Compile Error")
     def test_llama3_405B_fp8_decomposed(self):
@@ -320,6 +326,7 @@ class PerplexityTest(unittest.TestCase):
             msg=f"Current perplexity deviates baseline by {perplexity_difference}",
         )
 
+    @is_mi300x
     @skipif_run_quick_llama_test
     @pytest.mark.xfail(reason="Compile Error")
     def test_llama3_405B_fp8(self):
