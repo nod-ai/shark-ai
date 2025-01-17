@@ -199,8 +199,8 @@ def test_baseline_result_handler_valid():
         libtuner.BenchmarkResult(0, math.inf, "hip://1"),
         libtuner.BenchmarkResult(0, 0.7, "hip://0"),
     ]
-    assert handler.are_baseline_devices_unique([])
-    assert not handler.are_baseline_devices_unique(baseline)
+    assert libtuner.BaselineResultHandler.are_baseline_devices_unique([])
+    assert not libtuner.BaselineResultHandler.are_baseline_devices_unique(baseline)
     handler.add_run(baseline)
     assert handler.is_valid()
     assert handler.is_valid_for_device("hip://0")
@@ -214,9 +214,9 @@ def test_baseline_result_handler_valid():
         libtuner.BenchmarkResult(0, math.inf, "hip://1"),
     ]
 
-    assert handler.num_successful_runs("hip://0") == 2
-    assert handler.num_successful_runs("hip://1") == 0
-    assert handler.num_successful_runs("hip://2") == 0
+    assert handler.get_valid_time_ms("hip://0") == [0.5, 0.7]
+    assert handler.get_valid_time_ms("hip://1") == []
+    assert handler.get_valid_time_ms("hip://2") == []
 
     additional_baseline = [
         libtuner.BenchmarkResult(0, math.inf, "hip://1"),
@@ -224,10 +224,12 @@ def test_baseline_result_handler_valid():
         libtuner.BenchmarkResult(0, 1.2, "hip://1"),
         libtuner.BenchmarkResult(0, 0.8, "hip://1"),
     ]
-    assert not handler.are_baseline_devices_unique(additional_baseline)
+    assert not libtuner.BaselineResultHandler.are_baseline_devices_unique(
+        additional_baseline
+    )
     handler.add_run(additional_baseline)
-    assert handler.num_successful_runs("hip://0") == 2
-    assert handler.num_successful_runs("hip://0") == 2
+    assert handler.get_valid_time_ms("hip://0") == [0.5, 0.7]
+    assert handler.get_valid_time_ms("hip://1") == [1.2, 0.8]
     assert handler.is_valid_for_device("hip://1")
 
     assert handler.get_average_result_ms("hip://0") == 0.6
