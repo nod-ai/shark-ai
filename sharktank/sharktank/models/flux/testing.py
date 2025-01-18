@@ -47,11 +47,6 @@ def make_random_theta(config: FluxParams, dtype: torch.dtype):
     in_channels2 = 128
     hidden_size = config.hidden_size
     mlp_ratio = config.mlp_ratio
-    mlp_hidden_size = int((mlp_ratio - 1) * hidden_size)
-    mlp_hidden_size2 = int(mlp_ratio * hidden_size)
-    mlp_hidden_size3 = int(2 * (mlp_ratio - 1) * hidden_size)
-    mlp_hidden_size4 = int((mlp_ratio + 1) * hidden_size)
-    mlp_hidden_size5 = int((2 * mlp_ratio - 1) * hidden_size)
     context_in_dim = config.context_in_dim
     time_dim = 256
     vec_dim = config.vec_in_dim

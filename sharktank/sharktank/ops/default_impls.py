@@ -437,6 +437,13 @@ def to_default(tensor: Tensor, *args, **kwargs):
     return unbox_tensor(tensor).to(*args, **kwargs)
 
 
+@trace_tensor.override(AllOfExprsVariadic(IsOfType(Tensor, InferenceTensor)))
+def trace_tensor(key: str, *tensors: tuple[AnyTensor]):
+    if len(tensors) != 1:
+        raise ValueError("Tracing more than one tensor at a time is not supported.")
+    iree.turbine.ops.iree.trace_tensor(key, unshard(tensors[0]))
+
+
 @transfer_to_logical_device.override(Tensor)
 def transfer_to_logical_device_default(tensor: Tensor, ordinal: int):
     return iree.turbine.ops.iree.transfer_to_logical_device(

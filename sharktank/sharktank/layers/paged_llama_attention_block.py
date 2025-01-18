@@ -199,7 +199,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             self.assert_not_nan(attn_weights)
 
             # Apply attention mask.
-            self.trace_tensor("attn_weights", attn_weights, values=False)
+            self.trace_tensor("attn_weights", attn_weights)
             if attention_mask is not None:
                 # self.trace_tensor("attn_mask", attention_mask)
                 attn_weights = attn_weights + attention_mask
