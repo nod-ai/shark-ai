@@ -259,16 +259,7 @@ def test_baseline_result_handler_speedup():
         libtuner.BenchmarkResult(3, 1.0, "hip://2"),
         libtuner.BenchmarkResult(4, 0.2, "hip://3"),
     ]
-    speedup = handler.calculate_speedup(candidates)
-
-    assert speedup == {
-        1: 0.4 / 0.9,
-        2: 0.3 / 0.5,
-        3: 1.0 / 1.2,
-        4: 0.2 / 0.875,
-    }
-
-    all_candidates_with_speedup = handler.sort_candidates_with_speedup(speedup)
+    all_candidates_with_speedup = handler.get_candidates_ordered_by_speedup(candidates)
     assert all_candidates_with_speedup == [
         (4, 0.2 / 0.875),
         (1, 0.4 / 0.9),
@@ -283,14 +274,7 @@ def test_baseline_result_handler_speedup():
         libtuner.BenchmarkResult(6, 0.4, "hip://1"),
         libtuner.BenchmarkResult(7, 0.8, "hip://2"),
     ]
-    speedup = handler.calculate_speedup(candidates)
-    assert speedup == {
-        5: 0.6 / 0.9,
-        6: 0.4 / 0.5,
-        7: 0.8 / 1.2,
-    }
-
-    all_candidates_with_speedup = handler.sort_candidates_with_speedup(speedup)
+    all_candidates_with_speedup = handler.get_candidates_ordered_by_speedup(candidates)
     assert all_candidates_with_speedup == [
         (5, 0.6 / 0.9),
         (7, 0.8 / 1.2),
@@ -300,13 +284,7 @@ def test_baseline_result_handler_speedup():
     assert [candidate_id for candidate_id, _ in top_candidates_with_speedup] == [5, 7]
 
     handler = libtuner.BaselineResultHandler()
-    speedup = handler.calculate_speedup(candidates)
-    assert speedup == {
-        5: 0.6,
-        6: 0.4,
-        7: 0.8,
-    }
-    all_candidates_with_speedup = handler.sort_candidates_with_speedup(speedup)
+    all_candidates_with_speedup = handler.get_candidates_ordered_by_speedup(candidates)
     assert all_candidates_with_speedup == [
         (6, 0.4),
         (5, 0.6),

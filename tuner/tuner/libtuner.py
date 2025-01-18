@@ -871,12 +871,11 @@ class BaselineResultHandler:
     def is_valid_for_device(self, device_id: str) -> bool:
         return len(self.get_valid_time_ms(device_id)) != 0
 
-    def calculate_speedup(
+    def get_candidates_ordered_by_speedup(
         self, candidate_results: list[BenchmarkResult]
-    ) -> dict[int, float]:
+    ) -> list[tuple[int, float]]:
         """
-        Calculate the speedup for a list of candidate results compared to the baseline.
-        Returns a map from candidate_id to its speedup ratio.
+        Returns a list of tuples (candidate_id, speedup) sorted in ascending order.
 
         Speedup is defined as the ratio of the candidate's runtime to the average baseline time
         for the corresponding device as:
@@ -884,22 +883,23 @@ class BaselineResultHandler:
             speedup = candidate_runtime / avg_baseline_time (or fallback_baseline)
 
         If no valid baseline times are available for a specific device, the fallback baseline is used.
-        The fallback baseline is calculated as the average of all valid baseline times across devices.
+        The fallback baseline is the average of all valid baseline times across devices.
 
         If no valid baseline times are available across all devices, the candidate's runtime is
         used directly as:
 
             speedup = candidate_runtime
-
-        The speedup values are sorted in ascending order to select the top-performing candidates.
         """
         if not self.is_valid():
             logging.warning("No valid baseline times available.")
             # Use the candidate time directly when no baselines are available.
-            return {
-                candidate.candidate_id: candidate.time
-                for candidate in candidate_results
-            }
+            return sorted(
+                [
+                    (candidate.candidate_id, candidate.time)
+                    for candidate in candidate_results
+                ],
+                key=lambda x: x[1],
+            )
 
         # Calculate the fallback baseline as the average of all valid times across devices.
         valid_baseline_times = [
@@ -911,21 +911,14 @@ class BaselineResultHandler:
 
         fallback_baseline = sum(valid_baseline_times) / len(valid_baseline_times)
 
-        speedup_by_candidate = {}
+        candidates_with_speedup = []
         for candidate in candidate_results:
             baseline_avg_ms = self.get_average_result_ms(candidate.device_id)
             if baseline_avg_ms is None:
                 baseline_avg_ms = fallback_baseline
-            speedup_by_candidate[candidate.candidate_id] = (
-                candidate.time / baseline_avg_ms
-            )
-        return speedup_by_candidate
-
-    def sort_candidates_with_speedup(
-        self,
-        speedup_by_candidate: dict[int, float],
-    ) -> list[tuple[int, float]]:
-        return sorted(speedup_by_candidate.items(), key=lambda x: x[1])
+            speedup = candidate.time / baseline_avg_ms
+            candidates_with_speedup.append((candidate.candidate_id, speedup))
+        return sorted(candidates_with_speedup, key=lambda x: x[1])
 
 
 def compile(
@@ -1059,24 +1052,23 @@ def benchmark(
     if not baseline_handler.is_valid():
         logging.warning("Baseline run failed.")
 
-    speedup_result = baseline_handler.calculate_speedup(candidate_results)
-    all_candidates_with_speedup = baseline_handler.sort_candidates_with_speedup(
-        speedup_result
+    all_candidates_with_speedup = baseline_handler.get_candidates_ordered_by_speedup(
+        candidate_results
     )
     top_candidates_with_speedup = all_candidates_with_speedup[:num_candidates]
 
     if baseline_handler.is_valid():
-        candidate_time_map = {
+        candidate_id_to_time_ms = {
             result.candidate_id: result.time for result in candidate_results
         }
         for candidate_id, speedup in top_candidates_with_speedup:
-            actual_time = candidate_time_map[candidate_id]
+            time_ms = candidate_id_to_time_ms[candidate_id]
             percentage_of_baseline = speedup * 100
             logging.info(
-                f"Candidate {candidate_id} time: {actual_time:.2f} ms "
+                f"Candidate {candidate_id} time: {time_ms:.2f} ms "
                 f"({percentage_of_baseline:.1f}% of baseline)"
             )
     else:
-        for candidate_id, time in top_candidates_with_speedup:
-            logging.info(f"Candidate {candidate_id} time: {time:.2f} ms")
+        for candidate_id, time_ms in top_candidates_with_speedup:
+            logging.info(f"Candidate {candidate_id} time: {time_ms:.2f} ms")
     return [candidate_id for candidate_id, _ in top_candidates_with_speedup]
