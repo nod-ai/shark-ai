@@ -290,11 +290,14 @@ def test_baseline_result_handler_speedup():
     ]
 
     handler = libtuner.BaselineResultHandler()
-    all_candidates = handler.get_candidates_ordered_by_speedup(candidates)
-    assert all_candidates == [
-        candidates[1],
-        candidates[0],
-        candidates[2],
+    all_candidates_with_speedup = handler.get_candidates_ordered_by_speedup(candidates)
+    assert all_candidates_with_speedup == [
+        (candidates[1], 1.0),
+        (candidates[0], 1.0),
+        (candidates[2], 1.0),
     ]
-    top_candidates = all_candidates[:2]
-    assert [candidate.candidate_id for candidate in top_candidates] == [6, 5]
+    top_candidates_with_speedup = all_candidates_with_speedup[:2]
+    assert [candidate.candidate_id for candidate, _ in top_candidates_with_speedup] == [
+        6,
+        5,
+    ]

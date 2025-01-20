@@ -31,7 +31,7 @@ import queue
 from tqdm import tqdm
 import hashlib
 from dataclasses import dataclass, field
-from typing import Type, Optional, Callable, Iterable, Any, Union
+from typing import Type, Optional, Callable, Iterable, Any
 from abc import ABC, abstractmethod
 import iree.runtime as ireert  # type: ignore
 import iree.compiler as ireec  # type: ignore
@@ -876,14 +876,13 @@ class BaselineResultHandler:
 
     def get_candidates_ordered_by_speedup(
         self, candidate_results: list[BenchmarkResult]
-    ) -> Union[list[BenchmarkResult], list[tuple[BenchmarkResult, float]]]:
+    ) -> list[tuple[BenchmarkResult, float]]:
         """
-        returns:
-        - `list[BenchmarkResult]` sorted by runtime if no valid baselines exist.
-        - `list[tuple[BenchmarkResult, float]]` sorted by speedup when baselines are available.
+        Returns a list of tuples (BenchmarkResult, speedup) sorted in ascending order based on speedup
+        or raw runtime.
 
-        If no valid baseline times are available across all devices, candidates are sorted
-        and returned based on their raw runtime in ascending order.
+        If no valid baseline times are available across all devices, candidates are sorted based on
+        their raw runtime. A placeholder speedup value of 1.0 is assigned to each candidate.
 
         If valid baseline times exist, speedup is defined as the ratio of the candidate's runtime to
         the average baseline time for the corresponding device as:
@@ -896,7 +895,10 @@ class BaselineResultHandler:
         if not self.is_valid():
             logging.warning("No valid baseline times available.")
             # Use the candidate time directly when no baselines are available.
-            return sorted(candidate_results, key=lambda candidate: candidate.time)
+            return sorted(
+                [(candidate, 1.0) for candidate in candidate_results],
+                key=lambda x: x[0].time,
+            )
 
         # Calculate the fallback baseline as the average of all valid times across devices.
         valid_baseline_times = [
@@ -1065,11 +1067,7 @@ def benchmark(
                 f"({percentage_of_baseline:.1f}% of baseline)"
             )
     else:
-        top_candiates = [
-            result if isinstance(result, BenchmarkResult) else result[0]
-            for result in top_candidates_with_speedup
-        ]
-        for candidate in top_candiates:
+        for candidate, _ in top_candidates_with_speedup:
             time_ms = candidate.time
             candidate_id = candidate.candidate_id
             top_candidate_ids.append(candidate_id)
