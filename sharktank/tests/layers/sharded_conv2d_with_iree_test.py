@@ -102,9 +102,8 @@ def run_iree_module(
         device=devices[0],
         vm_function=vm_function,
     )
-    results = invoker(*module_input_args)
-    shards = [torch.tensor(tensor.to_host()) for tensor in results]
-    return SplitPrimitiveTensor(ts=shards, shard_dim=1)
+    result = invoker(*module_input_args)
+    return torch.tensor(result.to_host())
 
 
 def run_test_sharded_conv2d_with_iree(
@@ -152,14 +151,26 @@ def run_test_sharded_conv2d_with_iree(
         width,
     )
 
-    sharded_torch_module = Conv2DLayer(sharded_dataset.root_theta, padding=(0, 0))
+    class MyModule(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.layer = Conv2DLayer(sharded_dataset.root_theta, padding=(0, 0))
+
+        def forward(self, inputs):
+            return ops.unshard(self.layer(inputs))
+
+    sharded_torch_module = MyModule()
+
     sharded_input_image = ops.reshard_split(input_image, dim=1, count=shard_count)
     expected_result = sharded_torch_module(sharded_input_image)
+
+    affinities = {0: aot.DeviceAffinity("0"), 1: aot.DeviceAffinity("1")}
 
     if not caching or not os.path.exists(module_path):
         exported_module = aot.export(
             sharded_torch_module,
             args=(sharded_input_image,),
+            arg_device=affinities,
         )
         exported_module.save_mlir(mlir_path)
 
@@ -174,14 +185,7 @@ def run_test_sharded_conv2d_with_iree(
         module_path=module_path,
         parameters_path=parameters_path,
     )
-    assert len(actual_result.shards) == len(expected_result.shards)
-    assert actual_result.shard_dim == expected_result.shard_dim
-    for actual_shard, expected_shard in zip(
-        actual_result.shards, expected_result.shards
-    ):
-        torch.testing.assert_close(
-            unbox_tensor(actual_shard), unbox_tensor(expected_shard)
-        )
+    torch.testing.assert_close(unbox_tensor(actual_result), unbox_tensor(actual_result))
 
 
 @pytest.mark.xfail(

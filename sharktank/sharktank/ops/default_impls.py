@@ -68,6 +68,7 @@ def conv2d_default(
 conv2d.override(Tensor, Tensor, Tensor, auto_dequant=True)(conv2d_default)
 conv2d.override(Tensor, Tensor, auto_dequant=True)(conv2d_default)
 
+
 # Einsum
 def mk_menk_men(inputs, weights):
     # batch dims: m, lhs pdims: none, lhs rdims: k, rhs pdims: en, rhs rdims: k
@@ -439,6 +440,13 @@ def to_default(tensor: Tensor, *args, **kwargs):
 @transfer_to_logical_device.override(Tensor)
 def transfer_to_logical_device_default(tensor: Tensor, ordinal: int):
     return iree.turbine.ops.iree.transfer_to_logical_device(
+        f"{ordinal}", unbox_tensor(tensor)
+    )
+
+
+@barrier_on_logical_device.override(Tensor)
+def barrier_on_device_default(tensor: Tensor, ordinal: int):
+    return iree.turbine.ops.iree.barrier_on_logical_device(
         f"{ordinal}", unbox_tensor(tensor)
     )
 

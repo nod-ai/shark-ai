@@ -105,9 +105,7 @@ def run_iree_module(
         device=devices[0],
         vm_function=vm_function,
     )
-    results = invoker(*module_input_args)
-    shards = [torch.tensor(tensor.to_host()) for tensor in results]
-    return SplitPrimitiveTensor(ts=shards, shard_dim=1)
+    return torch.tensor(invoker(*module_input_args).to_host())
 
 
 def run_test_sharded_resnet_block_with_iree(
@@ -158,16 +156,24 @@ def run_test_sharded_resnet_block_with_iree(
 
     sharded_dataset = Dataset.load(parameters_path)
 
-    sharded_resnet_block = ResnetBlock2D(
-        theta=sharded_dataset.root_theta,
-        groups=norm_groups,
-        eps=eps,
-        non_linearity="relu",
-        output_scale_factor=None,
-        dropout=0.0,
-        temb_channels=input_time_emb_shape[1],
-        time_embedding_norm="default",
-    )
+    class MyModule(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.block = ResnetBlock2D(
+                theta=sharded_dataset.root_theta,
+                groups=norm_groups,
+                eps=eps,
+                non_linearity="relu",
+                output_scale_factor=None,
+                dropout=0.0,
+                temb_channels=input_time_emb_shape[1],
+                time_embedding_norm="default",
+            )
+
+        def forward(self, *inputs):
+            return ops.unshard(self.block(*inputs))
+
+    sharded_resnet_block = MyModule()
     sharded_input_image = ops.reshard_split(input_image, dim=1, count=shard_count)
     sharded_input_time_emb = ops.replicate(input_time_emb, count=shard_count)
     expected_result = sharded_resnet_block(sharded_input_image, sharded_input_time_emb)
@@ -188,12 +194,19 @@ def run_test_sharded_resnet_block_with_iree(
     torch.testing.assert_close(unsharded_result, ops.unshard(expected_result))
 
     if not caching or not os.path.exists(module_path):
+        devices = {
+            0: aot.DeviceAffinity("0"),
+            1: aot.DeviceAffinity("1"),
+            2: aot.DeviceAffinity("0"),
+            3: aot.DeviceAffinity("1"),
+        }
         exported_resnet_block = aot.export(
             sharded_resnet_block,
             args=(
                 sharded_input_image,
                 sharded_input_time_emb,
             ),
+            arg_device=devices,
         )
         exported_resnet_block.save_mlir(mlir_path)
 
@@ -209,17 +222,7 @@ def run_test_sharded_resnet_block_with_iree(
         module_path=module_path,
         parameters_path=parameters_path,
     )
-    assert len(actual_result.shards) == len(expected_result.shards)
-    # TODO: reenable this test once numerical issues are resolved.
-    # The absolute accuracy is > 0.00042. Is this good enough?
-    # Maybe add a test with fp64, where if the accuracy is high would give us more
-    # confidence that fp32 is also OK.
-    for actual_shard, expected_shard in zip(
-        actual_result.shards, expected_result.shards
-    ):
-        torch.testing.assert_close(
-            unbox_tensor(actual_shard), unbox_tensor(expected_shard)
-        )
+    torch.testing.assert_close(actual_result, unsharded_result)
 
     global vm_context
     del vm_context
@@ -254,6 +257,7 @@ def test_sharded_resnet_block_with_iree(
         # in turn holds files params.rank0.irpa and params.rank1.irpa open.
         ignore_cleanup_errors=True
     ) as tmp_dir:
+        tmp_dir = "/tmp"
         mlir_path = Path(tmp_dir) / "model.mlir" if mlir_path is None else mlir_path
         module_path = (
             Path(tmp_dir) / "module.vmfb" if module_path is None else module_path
