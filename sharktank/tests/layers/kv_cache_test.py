@@ -53,18 +53,8 @@ def test_paged():
         page_ids=write_page_ids,
     )
 
-    # Check the written values have updated:
-    read_empty = [
-        torch.empty(
-            (bs, write_seq_length, attn_head_count, attn_head_dim), dtype=torch.float32
-        ),
-        torch.empty(
-            (bs, write_seq_length, attn_head_count, attn_head_dim), dtype=torch.float32
-        ),
-    ]
     read_back = cache.read(
         allocation,
-        read_into_partitions=read_empty,
         transformer_block_index=1,
         seq_len=write_seq_length,
         page_ids=write_page_ids,
@@ -76,19 +66,8 @@ def test_paged():
     for i in range(transformer_block_count):
         if i == 1:
             continue
-        read_ones = [
-            torch.zeros(
-                (bs, write_seq_length, attn_head_count, attn_head_dim),
-                dtype=torch.float32,
-            ),
-            torch.zeros(
-                (bs, write_seq_length, attn_head_count, attn_head_dim),
-                dtype=torch.float32,
-            ),
-        ]
         read_ones = cache.read(
             allocation,
-            read_into_partitions=read_ones,
             transformer_block_index=i,
             seq_len=write_seq_length,
             page_ids=write_page_ids,
@@ -112,19 +91,8 @@ def test_paged():
         page_ids=page_ids,
     )
 
-    read_empty = [
-        torch.zeros(
-            (bs, write_seq_length + block_seq_stride, attn_head_count, attn_head_dim),
-            dtype=torch.float32,
-        ),
-        torch.zeros(
-            (bs, write_seq_length + block_seq_stride, attn_head_count, attn_head_dim),
-            dtype=torch.float32,
-        ),
-    ]
     read_back = cache.read(
         allocation,
-        read_into_partitions=read_empty,
         transformer_block_index=1,
         seq_len=write_seq_length + 1,
         page_ids=page_ids,
@@ -191,28 +159,8 @@ def test_sharded_paged():
         page_ids=write_page_ids,
     )
 
-    # Check the written values have updated:
-    empty_k = reshard_split(
-        torch.empty(
-            (bs, write_seq_length, attn_head_count, attn_head_dim), dtype=torch.float32
-        ),
-        dim=2,
-        count=shard_count,
-    )
-
-    empty_v = reshard_split(
-        torch.empty(
-            (bs, write_seq_length, attn_head_count, attn_head_dim), dtype=torch.float32
-        ),
-        dim=2,
-        count=shard_count,
-    )
-
-    read_empty = [empty_k, empty_v]
-
     read_back = cache.read(
         allocation,
-        read_into_partitions=read_empty,
         transformer_block_index=1,
         seq_len=write_seq_length,
         page_ids=write_page_ids,
@@ -245,27 +193,8 @@ def test_sharded_paged():
         page_ids=page_ids,
     )
 
-    empty_k = reshard_split(
-        torch.zeros(
-            (bs, write_seq_length + block_seq_stride, attn_head_count, attn_head_dim),
-            dtype=torch.float32,
-        ),
-        dim=2,
-        count=shard_count,
-    )
-
-    empty_v = reshard_split(
-        torch.zeros(
-            (bs, write_seq_length + block_seq_stride, attn_head_count, attn_head_dim),
-            dtype=torch.float32,
-        ),
-        dim=2,
-        count=shard_count,
-    )
-
     read_back = cache.read(
         allocation,
-        read_into_partitions=[empty_k, empty_v],
         transformer_block_index=1,
         seq_len=write_seq_length + 1,
         page_ids=page_ids,

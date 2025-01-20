@@ -158,25 +158,22 @@ class PagedKVCache:
         self,
         state: list[Union[torch.Tensor, SplitPrimitiveTensor]],
         *,
-        read_into_partitions: list[Union[torch.Tensor, SplitPrimitiveTensor]],
         transformer_block_index: int,
         seq_len: int,
-        page_ids: Union[torch.Tensor, ReplicatedTensor],
+        page_ids: Optional[Union[torch.Tensor, ReplicatedTensor]] = None,
     ):
-        """Reads cache partitions from the page table for the given page_ids.
+        """Reads K/V caches the page table for the given page_ids.
 
         Args:
         state: State struct as returned from allocate().
-        read_into_partitions: List of cache partitions to read into in-place.
         transformer_block_index: The index of the transformer block accessing
             the cache.
         page_ids: Tensor of [bs, max_seqlen // block_pos_stride] of page ids
             to access.
 
-        Returns a tuple of cache partitions (i.e. k and v caches for the transformer
-        block), linearized. Note that this reference approach to reading by
-        materializing linearly may not be terribly efficient unless if the
-        compiler can fuse the gather.
+        Returns the K/V cache partitions, linearized. Note that this reference
+        approach to reading by materializing linearly may not be terribly
+        efficient unless if the compiler can fuse the gather.
         """
         page_table = self.unflatten_page_table(state)  # 6D
 
@@ -204,12 +201,8 @@ class PagedKVCache:
             transformer_block_index * transformer_block_stride
         )
 
-        def read_cache_partition(
-            index: int, into_partition: Union[torch.Tensor, SplitPrimitiveTensor]
-        ):
-            subblock_ids = (
-                (base_subblock_ids + index) if index > 0 else base_subblock_ids
-            )
+        def read_cache_partition(index: int):
+            subblock_ids = base_subblock_ids + index
             # TODO: Potentially clamp all page 0 indices to the mask value.
             # Or even better, require that the ids are replicated such that access is
             # legal.
@@ -217,19 +210,17 @@ class PagedKVCache:
             # index into the sub-pages, we flatten to do a linear index_select
             # copy of the sub-blocks by collapsing the first two dims so we have
             # a linear list.
-            # TODO: Can be rewritten into inplace with out= on index_select.
             selected = (
                 ops.index_select(subblock_table, 0, subblock_ids.flatten(0, 1))
                 .unflatten(0, blocked_shape[0:2])
                 .flatten(1, 2)
             )
-            # trace_tensor("kv.selected", selected)
-            into_partition[...] = selected
+            return selected
 
-        for index, read_into_partition in enumerate(read_into_partitions):
-            read_cache_partition(index, read_into_partition)
+        key = read_cache_partition(0)
+        value = read_cache_partition(1)
 
-        return tuple([p[:, :seq_len, :] for p in read_into_partitions])
+        return key[:, :seq_len], value[:, :seq_len]
 
     def write_timestep(
         self,

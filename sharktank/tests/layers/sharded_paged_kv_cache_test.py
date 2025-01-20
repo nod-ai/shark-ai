@@ -104,44 +104,24 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
             sharded_cache_state,
         ) = self.make_unsharded_and_sharded_equal_cache_states()
 
-        read_into_partitions_snapshot = [
-            torch.rand(
-                self.batch_size,
-                self.block_seq_len * self.block_seq_stride,
-                self.attn_head_count,
-                self.attn_head_dim,
-            )
-            for _ in range(self.cache_partition_count)
-        ]
-        read_into_partitions = deepcopy(read_into_partitions_snapshot)
         transformer_block_index = 1
         page_ids = torch.randint(
             low=0, high=self.page_count, size=[self.batch_size, self.block_seq_len]
         ).reshape([self.batch_size, self.block_seq_len])
-        self.cache.read(
+        unsharded_read = self.cache.read(
             state=cache_state,
-            read_into_partitions=read_into_partitions,
             transformer_block_index=transformer_block_index,
             page_ids=page_ids,
             seq_len=self.block_seq_len * self.block_seq_stride,
         )
-        sharded_read_into_partitions = deepcopy(
-            [
-                ops.reshard_split(t, dim=2, count=self.shard_count)
-                for t in read_into_partitions_snapshot
-            ]
-        )
         sharded_page_ids = ops.replicate(page_ids, count=self.shard_count)
-        self.sharded_cache.read(
+        sharded_read = self.sharded_cache.read(
             state=sharded_cache_state,
-            read_into_partitions=sharded_read_into_partitions,
             transformer_block_index=transformer_block_index,
             page_ids=sharded_page_ids,
             seq_len=self.block_seq_len * self.block_seq_stride,
         )
-        for unsharded, sharded in zip(
-            read_into_partitions, sharded_read_into_partitions
-        ):
+        for unsharded, sharded in zip(unsharded_read, sharded_read):
             assert ops.equal(unsharded, ops.unshard(sharded))
 
     def testWriteTimestep(self):

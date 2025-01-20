@@ -98,8 +98,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         attention_mask: Optional[torch.Tensor] = None,
         embedding_batch_mask: Optional[torch.Tensor] = None,
         cache_state: list[torch.Tensor] = None,
-        xk_temp: Optional[torch.Tensor] = None,
-        xv_temp: Optional[torch.Tensor] = None,
     ):
         assert bool(start_index is not None) ^ bool(embedding_batch_mask is not None)
 
@@ -158,8 +156,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             kv_seq_len=kv_seq_len,
             start_positions=start_positions,
             cache_state=cache_state,
-            xk_temp=xk_temp,
-            xv_temp=xv_temp,
         )
 
         # Expand kv heads for GQA.
@@ -245,8 +241,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         seq_block_ids: Optional[torch.Tensor],
         kv_seq_len: int,
         start_positions: Optional[torch.Tensor] = None,
-        xk_temp: Optional[torch.Tensor] = None,
-        xv_temp: Optional[torch.Tensor] = None,
     ):
         cache = self.cache
         # Manage the cache.
@@ -266,7 +260,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         # use a memory efficient attention kernel that can do indirect
         # reads, skipping this materialization. This path is taken for
         # a decode step.
-        assert xk_temp is not None and xv_temp is not None
         assert xk_cache_update.shape[1] == 1
         assert xv_cache_update.shape[1] == 1
         assert kv_seq_len == seq_block_ids.shape[1] * cache.block_seq_stride
@@ -286,10 +279,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         # Restore from the cache.
         xk, xv = cache.read(
             cache_state,
-            read_into_partitions=[
-                xk_temp[:, 0:kv_seq_len, ...],
-                xv_temp[:, 0:kv_seq_len, ...],
-            ],
             transformer_block_index=self.block_index,
             page_ids=seq_block_ids,
             seq_len=kv_seq_len,
