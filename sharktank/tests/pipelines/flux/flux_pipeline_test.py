@@ -24,7 +24,7 @@ from sharktank.types import Dataset, dtype_to_serialized_short_name
 from sharktank.pipelines.flux import (
     FluxPipeline,
     export_flux_pipeline_mlir,
-    #export_flux_pipeline_iree_parameters,
+    export_flux_pipeline_iree_parameters,
 )
 from sharktank.utils.testing import TempDirTestBase
 from sharktank.transforms.dataset import set_float_dtype
@@ -110,10 +110,17 @@ class FluxPipelineEagerTest(TestCase):
 
         # Generate outputs using string prompt
         prompt = "a photo of a forest with mist"
+        latents = reference_model._get_noise(
+            1,
+            1024,
+            1024,
+            seed=12345,
+        ).to(dtype=dtype)
         reference_image_output = reference_model(
             prompt=prompt,
             height=1024,
             width=1024,
+            latents=latents,
             num_inference_steps=1,
             guidance_scale=3.5
         ).images[0]
@@ -123,6 +130,7 @@ class FluxPipelineEagerTest(TestCase):
             prompt=prompt,
             height=1024,
             width=1024,
+            latents=latents,
             num_inference_steps=1,
             guidance_scale=3.5
         )
@@ -159,17 +167,6 @@ class FluxPipelineIreeTest(TempDirTestBase):
         rtol: Optional[float] = None,
     ):
         """Compare IREE pipeline against eager execution."""
-        # Initialize reference model
-        reference_model = FluxPipeline(
-            t5_path="/data/t5-v1_1-xxl/model.gguf",
-            clip_path="/data/flux/FLUX.1-dev/text_encoder/model.irpa",
-            transformer_path="/data/flux/FLUX.1-dev/transformer/model.irpa",
-            ae_path="/data/flux/FLUX.1-dev/vae/model.irpa",
-            t5_tokenizer_path="/data/flux/FLUX.1-dev/tokenizer_2/",
-            clip_tokenizer_path="/data/flux/FLUX.1-dev/tokenizer/",
-            dtype=reference_dtype,
-        )
-
         # Create input tokens
         t5_tokenizer = T5Tokenizer.from_pretrained("/data/flux/FLUX.1-dev/tokenizer_2/")
         clip_tokenizer = CLIPTokenizer.from_pretrained("/data/flux/FLUX.1-dev/tokenizer/")
@@ -177,34 +174,31 @@ class FluxPipelineIreeTest(TempDirTestBase):
         prompt = "a photo of a forest with mist"
         t5_prompt_ids = torch.tensor([t5_tokenizer(prompt).input_ids], dtype=torch.long)
         clip_prompt_ids = torch.tensor([clip_tokenizer(prompt).input_ids], dtype=torch.long)
-        latents = reference_model._get_noise(
-            1,
-            1024,
-            1024,
-            seed=12345,
-        ).to(dtype=target_dtype) # TODO: it isn't great to be getting this from the reference model
+        # latents = reference_model._get_noise(
+        #     1,
+        #     1024,
+        #     1024,
+        #     seed=12345,
+        # ).to(dtype=target_dtype) # TODO: it isn't great to be getting this from the reference model
         
-        input_args = OrderedDict([
-            ("t5_prompt_ids", t5_prompt_ids),
-            ("clip_prompt_ids", clip_prompt_ids),
-            ("latents", latents)
-        ])
+        # input_args = OrderedDict([
+        #     ("t5_prompt_ids", t5_prompt_ids),
+        #     ("clip_prompt_ids", clip_prompt_ids),
+        #     ("latents", latents)
+        # ])
         batch_size = t5_prompt_ids.shape[0]
-
-        # Get reference result
-        reference_result = reference_model.forward(t5_prompt_ids, clip_prompt_ids, latents)
 
         # Export and compile for IREE
         target_dtype_name = dtype_to_serialized_short_name(target_dtype)
         target_path_prefix = f"{self.path_prefix}flux_pipeline_{target_dtype_name}"
 
-        parameters_path = f"/data/flux/FLUX.1-dev/"
-        # if not self.caching or not os.path.exists(parameters_path):
-        #     export_flux_pipeline_iree_parameters(
-        #         "/data/flux/FLUX.1-dev",
-        #         parameters_path,
-        #         dtype=target_dtype,
-        #     )
+        parameters_path = "/data/flux/FLUX.1-dev/"
+        if not self.caching or not os.path.exists(mlir_path):
+            export_flux_pipeline_iree_parameters(
+                "/data/flux/FLUX.1-dev/",
+                parameters_path,
+                dtype=target_dtype,
+            )
 
         mlir_path = f"{target_path_prefix}.mlir"
         if not self.caching or not os.path.exists(mlir_path):
@@ -262,10 +256,26 @@ class FluxPipelineIreeTest(TempDirTestBase):
                 trace_path_prefix=f"{target_path_prefix}_iree_",
             )
         )
+
+        # Reference model
+        reference_model = FluxPipeline(
+            t5_path="/data/t5-v1_1-xxl/model.gguf",
+            clip_path="/data/flux/FLUX.1-dev/text_encoder/model.irpa",
+            transformer_path="/data/flux/FLUX.1-dev/transformer/model.irpa",
+            ae_path="/data/flux/FLUX.1-dev/vae/model.irpa",
+            t5_tokenizer_path="/data/flux/FLUX.1-dev/tokenizer_2/",
+            clip_tokenizer_path="/data/flux/FLUX.1-dev/tokenizer/",
+            dtype=reference_dtype,
+        )
+        # reference_result = reference_model.forward(t5_prompt_ids, clip_prompt_ids, latents)
+
+        # Reformat the result for direct comparison
         iree_result = [
             ops.to(iree_result[i], dtype=reference_result[i].dtype)
             for i in range(len(reference_result))
         ]
+
+        
 
         torch.testing.assert_close(reference_result, iree_result, atol=atol, rtol=rtol)
 
@@ -284,10 +294,10 @@ class FluxPipelineIreeTest(TempDirTestBase):
         reason="BF16 vs F32 accuracy needs investigation",
     )
     @with_flux_data
-    def testFluxPipelineIreeBF16vsF32(self):
+    def testFluxPipelineIreeBF16(self):
         """Test BF16 IREE pipeline against F16 eager execution."""
         self.runTestFluxPipelineIreeCompare(
-            reference_dtype=torch.float32,
+            reference_dtype=torch.float16,
             target_dtype=torch.bfloat16,
             atol=1e-2,
             rtol=1.6e-2,

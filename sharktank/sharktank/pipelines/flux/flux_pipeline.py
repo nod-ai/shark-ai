@@ -49,9 +49,9 @@ class FluxPipeline(nn.Module):
             t5_dataset.properties,
             feed_forward_proj="gated-gelu",
         )
-        t5_dataset.root_theta = t5_dataset.root_theta.transform(
-            functools.partial(set_float_dtype, dtype=dtype)
-        )
+        # t5_dataset.root_theta = t5_dataset.root_theta.transform(
+        #     functools.partial(set_float_dtype, dtype=dtype)
+        # )
         self.t5_model = T5Encoder(theta=t5_dataset.root_theta, config=t5_config)
         self.add_module('t5_model', self.t5_model)
         self.t5_model.to(device)
@@ -61,9 +61,9 @@ class FluxPipeline(nn.Module):
         # TODO: Refactor CLIP to not make the config rely on HuggingFace
         hf_clip_model = HfCLIPTextModel.from_pretrained("/data/flux/FLUX.1-dev/text_encoder/")
         clip_config = ClipTextConfig.from_hugging_face_clip_text_model_config(hf_clip_model.config)
-        clip_dataset.root_theta = clip_dataset.root_theta.transform(
-            functools.partial(set_float_dtype, dtype=dtype)
-        )
+        # clip_dataset.root_theta = clip_dataset.root_theta.transform(
+        #     functools.partial(set_float_dtype, dtype=dtype)
+        # )
         self.clip_model = ClipTextModel(theta=clip_dataset.root_theta, config=clip_config)
         self.add_module('clip_model', self.clip_model)
         self.clip_model.to(device)
@@ -71,9 +71,9 @@ class FluxPipeline(nn.Module):
         # Load Flux Transformer
         transformer_dataset = Dataset.load(transformer_path)
         transformer_params = FluxParams.from_hugging_face_properties(transformer_dataset.properties)
-        transformer_dataset.root_theta = transformer_dataset.root_theta.transform(
-            functools.partial(set_float_dtype, dtype=dtype)
-        )
+        # transformer_dataset.root_theta = transformer_dataset.root_theta.transform(
+        #     functools.partial(set_float_dtype, dtype=dtype)
+        # )
         self.transformer_model = FluxModelV1(
             theta=transformer_dataset.root_theta,
             params=transformer_params
@@ -83,9 +83,9 @@ class FluxPipeline(nn.Module):
 
         # Load VAE
         ae_dataset = Dataset.load(ae_path)
-        ae_dataset.root_theta = ae_dataset.root_theta.transform(
-            functools.partial(set_float_dtype, dtype=dtype)
-        )
+        # ae_dataset.root_theta = ae_dataset.root_theta.transform(
+        #     functools.partial(set_float_dtype, dtype=dtype)
+        # )
         self.ae_model = VaeDecoderModel.from_dataset(ae_dataset)
         self.add_module('ae_model', self.ae_model)
         self.ae_model.to(device)
@@ -119,6 +119,7 @@ class FluxPipeline(nn.Module):
         prompt: str,
         height: int = 1024,
         width: int = 1024,
+        latents: Optional[Tensor] = None,
         num_inference_steps: Optional[int] = 50,
         guidance_scale: float = 3.5,
         seed: Optional[int] = None,
@@ -143,12 +144,13 @@ class FluxPipeline(nn.Module):
             raise ValueError("Tokenizers must be provided to use the __call__ method")
             
         t5_prompt_ids, clip_prompt_ids = self.tokenize_prompt(prompt)
-        latents = self._get_noise(
-            1,
-            height,
-            width,
-            seed=seed,
-        )
+        if not latents:
+            latents = self._get_noise(
+                1,
+                height,
+                width,
+                seed=seed,
+            )
         
         with torch.inference_mode():
             return self.forward(
