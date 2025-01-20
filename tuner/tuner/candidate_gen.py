@@ -25,7 +25,6 @@ from typing import Optional
 from abc import abstractmethod
 
 from iree.compiler import ir  # type: ignore
-
 from iree.compiler.dialects import iree_codegen  # type: ignore
 
 from .common import *

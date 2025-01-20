@@ -118,9 +118,14 @@ option(SHORTFIN_ENABLE_ASAN "Enable ASAN" OFF)
 if(SHORTFIN_ENABLE_ASAN)
   add_compile_options(-fsanitize=address)
   add_link_options(-fsanitize=address)
-
-  # Enable more ASAN checks.
   add_compile_definitions(IREE_SANITIZER_ADDRESS)
+endif()
+
+option(SHORTFIN_ENABLE_TSAN "Enable TSAN" OFF)
+if(SHORTFIN_ENABLE_TSAN)
+  add_compile_options(-fsanitize=thread)
+  add_link_options(-fsanitize=thread)
+  add_compile_definitions(IREE_SANITIZER_THREAD)
 endif()
 
 # Thread safety annotations: Enabled if the compiler supports it.
