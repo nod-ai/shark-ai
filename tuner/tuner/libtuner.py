@@ -31,7 +31,7 @@ import queue
 from tqdm import tqdm
 import hashlib
 from dataclasses import dataclass, field
-from typing import Type, Optional, Callable, Iterable, Any
+from typing import Type, Optional, Callable, Iterable, Any, Union
 from abc import ABC, abstractmethod
 import iree.runtime as ireert  # type: ignore
 import iree.compiler as ireec  # type: ignore
@@ -146,6 +146,9 @@ class BenchmarkResult:
 
     def is_valid(self) -> bool:
         return math.isfinite(self.time)
+
+    def __iter__(self):
+        return iter((self.candidate_id, self.time, self.device_id))
 
 
 def unit_to_microseconds(real_time: float, time_unit: str) -> float:
@@ -873,33 +876,27 @@ class BaselineResultHandler:
 
     def get_candidates_ordered_by_speedup(
         self, candidate_results: list[BenchmarkResult]
-    ) -> list[tuple[int, float]]:
+    ) -> Union[list[BenchmarkResult], list[tuple[BenchmarkResult, float]]]:
         """
-        Returns a list of tuples (candidate_id, speedup) sorted in ascending order.
+        returns:
+        - `list[BenchmarkResult]` sorted by runtime if no valid baselines exist.
+        - `list[tuple[BenchmarkResult, float]]` sorted by speedup when baselines are available.
 
-        Speedup is defined as the ratio of the candidate's runtime to the average baseline time
-        for the corresponding device as:
+        If no valid baseline times are available across all devices, candidates are sorted
+        and returned based on their raw runtime in ascending order.
+
+        If valid baseline times exist, speedup is defined as the ratio of the candidate's runtime to
+        the average baseline time for the corresponding device as:
 
             speedup = candidate_runtime / avg_baseline_time (or fallback_baseline)
 
         If no valid baseline times are available for a specific device, the fallback baseline is used.
         The fallback baseline is the average of all valid baseline times across devices.
-
-        If no valid baseline times are available across all devices, the candidate's runtime is
-        used directly as:
-
-            speedup = candidate_runtime
         """
         if not self.is_valid():
             logging.warning("No valid baseline times available.")
             # Use the candidate time directly when no baselines are available.
-            return sorted(
-                [
-                    (candidate.candidate_id, candidate.time)
-                    for candidate in candidate_results
-                ],
-                key=lambda x: x[1],
-            )
+            return sorted(candidate_results, key=lambda candidate: candidate.time)
 
         # Calculate the fallback baseline as the average of all valid times across devices.
         valid_baseline_times = [
@@ -917,7 +914,7 @@ class BaselineResultHandler:
             if baseline_avg_ms is None:
                 baseline_avg_ms = fallback_baseline
             speedup = candidate.time / baseline_avg_ms
-            candidates_with_speedup.append((candidate.candidate_id, speedup))
+            candidates_with_speedup.append((candidate, speedup))
         return sorted(candidates_with_speedup, key=lambda x: x[1])
 
 
@@ -1056,19 +1053,25 @@ def benchmark(
         candidate_results
     )
     top_candidates_with_speedup = all_candidates_with_speedup[:num_candidates]
-
+    top_candidate_ids = []
     if baseline_handler.is_valid():
-        candidate_id_to_time_ms = {
-            result.candidate_id: result.time for result in candidate_results
-        }
-        for candidate_id, speedup in top_candidates_with_speedup:
-            time_ms = candidate_id_to_time_ms[candidate_id]
+        for candidate, speedup in top_candidates_with_speedup:
+            time_ms = candidate.time
+            candidate_id = candidate.candidate_id
             percentage_of_baseline = speedup * 100
+            top_candidate_ids.append(candidate_id)
             logging.info(
                 f"Candidate {candidate_id} time: {time_ms:.2f} ms "
                 f"({percentage_of_baseline:.1f}% of baseline)"
             )
     else:
-        for candidate_id, time_ms in top_candidates_with_speedup:
+        top_candiates = [
+            result if isinstance(result, BenchmarkResult) else result[0]
+            for result in top_candidates_with_speedup
+        ]
+        for candidate in top_candiates:
+            time_ms = candidate.time
+            candidate_id = candidate.candidate_id
+            top_candidate_ids.append(candidate_id)
             logging.info(f"Candidate {candidate_id} time: {time_ms:.2f} ms")
-    return [candidate_id for candidate_id, _ in top_candidates_with_speedup]
+    return top_candidate_ids
