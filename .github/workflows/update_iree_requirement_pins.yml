@@ -27,7 +27,7 @@ env:
 jobs:
   check-for-existing-branch:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     outputs:
       branch-exists: ${{ steps.check-exists.outputs.branch-exists }}
 
