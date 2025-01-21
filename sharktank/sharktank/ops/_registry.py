@@ -277,7 +277,6 @@ class SignatureDispatcher:
         targets = []
         for override in self._overrides:
             override_type_spec = override.type_spec
-
             # Check if the override is a boolean type expression and if it is that it
             # satisfied.
             if self._is_type_expr_target(override_type_spec, type_spec):

@@ -38,6 +38,7 @@ class DebugFlags:
     # certain eager use cases are still having problems with these custom
     # kernels, so keeping it to unblock progress.
     use_custom_iree_kernels: bool = True
+    use_custom_generic_attention: bool = False
 
     def set(self, part: str):
         m = re.match(SETTING_PART_PATTERN, part)
@@ -56,6 +57,8 @@ class DebugFlags:
             self.save_goldens_path = Path(value)
         elif name == "use_custom_iree_kernels":
             self.use_custom_iree_kernels = logical_sense
+        elif name == "use_custom_generic_attention":
+            self.use_custom_generic_attention = logical_sense
         else:
             logger.warn("Unrecognized %s flag: '%s'", FLAGS_ENV_NAME, name)
 
