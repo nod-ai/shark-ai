@@ -94,7 +94,7 @@ class ShardedLlamaTest(unittest.TestCase):
         seq_block_ids = torch.arange(
             self.batch_size * batch_seq_len // self.config.block_seq_stride
         ).view(self.batch_size, -1)
-        cache_state = model.cache.paged.allocate(page_count=self.cache_page_count)
+        cache_state = model.cache.allocate(page_count=self.cache_page_count)
         cache_state = [torch.rand_like(cache_state[0])]
         return OrderedDict(
             [
@@ -109,14 +109,14 @@ class ShardedLlamaTest(unittest.TestCase):
         self, model: PagedLlamaModelV1, sharded_model: PagedLlamaModelV1
     ) -> Tuple[OrderedDict[str, Any], OrderedDict[str, Any]]:
         prefill_kwargs = self.make_prefill_args(model)
-        sharded_cache_state = sharded_model.cache.paged.allocate(
+        sharded_cache_state = sharded_model.cache.allocate(
             page_count=self.cache_page_count
         )
         assert iterables_equal(
             prefill_kwargs["cache_state"][0].shape, sharded_cache_state[0].shape
         )
         sharded_prefill_kwargs = deepcopy(prefill_kwargs)
-        sharded_cache_state = sharded_model.cache.paged.shard_state(
+        sharded_cache_state = sharded_model.cache.shard_state(
             sharded_prefill_kwargs["cache_state"]
         )
         sharded_prefill_kwargs["cache_state"] = sharded_cache_state
@@ -149,7 +149,7 @@ class ShardedLlamaTest(unittest.TestCase):
         seq_block_ids = torch.arange(
             self.batch_size * batch_seq_len // self.config.block_seq_stride
         ).view(self.batch_size, -1)
-        cache_state = model.cache.paged.allocate(page_count=self.cache_page_count)
+        cache_state = model.cache.allocate(page_count=self.cache_page_count)
         cache_state = [torch.rand_like(cache_state[0])]
         return OrderedDict(
             [
@@ -166,7 +166,7 @@ class ShardedLlamaTest(unittest.TestCase):
     ) -> Tuple[OrderedDict[str, Any], OrderedDict[str, Any]]:
         decode_kwargs = self.make_decode_args(model)
         sharded_decode_kwargs = deepcopy(decode_kwargs)
-        sharded_decode_kwargs["cache_state"] = sharded_model.cache.paged.shard_state(
+        sharded_decode_kwargs["cache_state"] = sharded_model.cache.shard_state(
             sharded_decode_kwargs["cache_state"]
         )
 
@@ -203,7 +203,7 @@ class ShardedLlamaTest(unittest.TestCase):
         )
         expected_cache_state = prefill_kwargs["cache_state"][0]
         actual_cache_state = ops.unshard(
-            sharded_model.cache.paged.unflatten_page_table(
+            sharded_model.cache.unflatten_page_table(
                 sharded_prefill_kwargs["cache_state"]
             )
         ).flatten(start_dim=1)
@@ -224,7 +224,7 @@ class ShardedLlamaTest(unittest.TestCase):
         )
         expected_decode_cache_state = decode_kwargs["cache_state"][0]
         actual_decode_cache_state = ops.unshard(
-            sharded_model.cache.paged.unflatten_page_table(
+            sharded_model.cache.unflatten_page_table(
                 sharded_decode_kwargs["cache_state"]
             )
         ).flatten(start_dim=1)

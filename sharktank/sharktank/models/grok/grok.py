@@ -59,7 +59,7 @@ class PagedGrokModelV1(BaseCausalLMModel):
         )
         self.config = config
         self.hp = hp
-        self.cache = create_kv_cache(self.config)
+        self.cache = create_paged_kv_cache(self.config)
         self.activation_dtype = config.activation_dtype
         self.add_module(
             "token_embedding",

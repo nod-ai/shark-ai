@@ -74,7 +74,7 @@ class PagedLlamaModelV1(BaseCausalLMModel):
         )
         self.config = config
         self.hp = hp
-        self.cache = create_kv_cache(self.config)
+        self.cache = create_paged_kv_cache(self.config)
         self.activation_dtype = config.activation_dtype
         self.use_hf = config.use_hf
         self.attention_kernel = config.attention_kernel
