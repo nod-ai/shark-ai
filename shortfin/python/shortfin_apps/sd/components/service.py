@@ -397,9 +397,9 @@ class InferenceExecutorProcess(sf.Process):
             # Tokenize the prompts if the request does not hold input_ids.
             if ids_list is None:
                 for tokenizer in self.service.tokenizers:
-                    input_ids = tokenizer.encode(request.prompt)
+                    input_ids = tokenizer.encode(request.prompt).input_ids
                     input_ids_list.append(input_ids)
-                    neg_ids = tokenizer.encode(request.neg_prompt)
+                    neg_ids = tokenizer.encode(request.neg_prompt).input_ids
                     neg_ids_list.append(neg_ids)
                 ids_list = [*input_ids_list, *neg_ids_list]
 
@@ -465,7 +465,7 @@ class InferenceExecutorProcess(sf.Process):
                 with host_arrs[idx].view(i).map(write=True, discard=True) as m:
 
                     # TODO: fix this attr redundancy
-                    np_arr = requests[i].input_ids[idx].input_ids
+                    np_arr = requests[i].input_ids[idx]
 
                     m.fill(np_arr)
             clip_inputs[idx].copy_from(host_arrs[idx])
