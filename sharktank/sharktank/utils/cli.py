@@ -32,7 +32,7 @@ def parse(parser: argparse.ArgumentParser, *, args: Sequence[str] | None = None)
     """Parses arguments and does any prescribed global process setup."""
     parsed_args = parser.parse_args(args)
     # Set torch dtypes
-    for attr in ["activation_dtype, attention_dtype"]:
+    for attr in ["activation_dtype", "attention_dtype"]:
         if hasattr(parsed_args, attr):
             dtype = getattr(torch, getattr(parsed_args, attr))
             assert isinstance(dtype, torch.dtype)
