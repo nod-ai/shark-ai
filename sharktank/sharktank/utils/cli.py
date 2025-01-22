@@ -11,7 +11,7 @@ from typing import Dict, Optional, Sequence
 import argparse
 import logging
 from pathlib import Path
-
+import torch
 from ..types import Dataset
 
 from . import hf_datasets
@@ -31,6 +31,12 @@ def create_parser(
 def parse(parser: argparse.ArgumentParser, *, args: Sequence[str] | None = None):
     """Parses arguments and does any prescribed global process setup."""
     parsed_args = parser.parse_args(args)
+    # Set torch dtypes
+    for attr in ["activation_dtype, attention_dtype"]:
+        if hasattr(parsed_args, attr):
+            dtype = getattr(torch, getattr(parsed_args, attr))
+            assert isinstance(dtype, torch.dtype)
+            setattr(parsed_args, attr, dtype)
     return parsed_args
 
 
@@ -78,6 +84,24 @@ def add_model_options(parser: argparse.ArgumentParser):
         "--skip-decode",
         help="Skips export decode",
         action="store_true",
+    )
+    parser.add_argument(
+        "--use-hf",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "--activation-dtype",
+        help="DType to use for activations in the model",
+        default="float32",
+    )
+    parser.add_argument("--device", help="Torch device (or default)")
+
+    parser.add_argument(
+        "--tensor-parallelism-size",
+        type=int,
+        default=1,
+        help="Number of devices for tensor parallel sharding. Will be overridden by dataset.properties if present",
     )
 
 

@@ -234,21 +234,9 @@ def main():
 
     parser = cli.create_parser()
     parser.add_argument("prompt", nargs="+", help="Prompt strings")
-    parser.add_argument("--kv-cache-type", default="paged", help="KV cache type")
-    parser.add_argument("--device", help="Torch device (or default)")
     parser.add_argument(
         "--save_intermediates_path",
         help="save module forward outputs to safetensors, ex: run_0 will save to run_0_prefill.savetensors",
-    )
-    parser.add_argument(
-        "--activation-dtype",
-        help="DType to use for activations in the model",
-        default="float32",
-    )
-    parser.add_argument(
-        "--use-hf",
-        action="store_true",
-        default=False,
     )
     parser.add_argument(
         "--tensor-parallelism-size",
@@ -262,18 +250,15 @@ def main():
     cli.add_model_options(parser)
     args = cli.parse(parser)
     device = torch.device(args.device) if args.device else None
-    activation_dtype = getattr(torch, args.activation_dtype)
-    assert isinstance(activation_dtype, torch.dtype)
     dataset = cli.get_input_dataset(args)
     tokenizer = cli.get_tokenizer(args)
     prompts = args.prompt
     config = LlamaModelConfig(
         hp=configs.LlamaHParams.from_gguf_props(dataset.properties),
         block_seq_stride=16,
-        kv_cache_type=args.kv_cache_type,
         device=device,
-        activation_dtype=activation_dtype,
-        attention_dtype=activation_dtype,
+        activation_dtype=args.activation_dtype,
+        attention_dtype=args.activation_dtype,
         attention_kernel=args.attention_kernel,
         use_hf=args.use_hf,
         tensor_parallelism_size=args.tensor_parallelism_size,

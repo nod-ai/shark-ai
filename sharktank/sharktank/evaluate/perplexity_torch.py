@@ -59,11 +59,13 @@ class Perplexity_torch:
         self,
         device,
         kv_cache_type,
+        activation_dtype=torch.float32,
+        attention_dtype=torch.float32,
     ):
         self.device = device
         self.kv_cache_type = kv_cache_type
-        self.activation_dtype = torch.float32
-        self.attention_dtype = torch.float32
+        self.activation_dtype = activation_dtype
+        self.attention_dtype = attention_dtype
 
     def timeit(func):
         def wrapper(*args, **kwargs):
@@ -321,21 +323,7 @@ def run_perplexity_torch(
 
 def main(argv):
     parser = cli.create_parser()
-    parser.add_argument("--kv-cache-type", default="paged", help="KV cache type")
-    parser.add_argument("--device", help="Torch device (or default)")
-    parser.add_argument(
-        "--attention-kernel",
-        type=str,
-        default="decomposed",
-        choices=["decomposed", "torch_sdpa"],
-    )
 
-    parser.add_argument(
-        "--tensor-parallelism-size",
-        type=int,
-        default=1,
-        help="Number of devices for tensor parallel sharding.",
-    )
     parser.add_argument(
         "--num-prompts",
         type=int,
@@ -343,21 +331,26 @@ def main(argv):
         help="Number of prompts for perplexity test",
     )
 
+    cli.add_model_options(parser)
     cli.add_input_dataset_options(parser)
     cli.add_tokenizer_options(parser)
     args = cli.parse(parser, args=argv)
 
     device = torch.device(args.device) if args.device else None
-    kv_cache_type = args.kv_cache_type
     dataset = cli.get_input_dataset(args)
     tokenizer = cli.get_tokenizer(args)
+    # Override flag if dataset disagrees
+    tensor_parallelism_size = (
+        dataset.properties["tensor_parallelism_size"]
+        if "tensor_parallelism_size" in dataset.properties
+        else args.tensor_parallelism_size
+    )
 
     ppl = run_perplexity_torch(
         dataset=dataset,
         tokenizer=tokenizer,
         device=device,
-        kv_cache_type=kv_cache_type,
-        tensor_parallelism_size=args.tensor_parallelism_size,
+        tensor_parallelism_size=tensor_parallelism_size,
         attention_kernel=args.attention_kernel,
         num_prompts=args.num_prompts,
     )

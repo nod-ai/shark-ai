@@ -72,17 +72,18 @@ def main():
     tensor_parallelism_size = (
         dataset.properties["tensor_parallelism_size"]
         if "tensor_parallelism_size" in dataset.properties
-        else 1
+        else args.tensor_parallelism_size
     )
 
     llama_config = LlamaModelConfig(
         hp,
         tensor_parallelism_size=tensor_parallelism_size,
-        use_hf=False,
+        use_hf=args.use_hf,
         static_tables=False,  # Rely on the compiler for hoisting tables.
-        kv_cache_type="paged",
         attention_kernel=args.attention_kernel,
         block_seq_stride=args.block_seq_stride,
+        activation_dtype=args.activation_dtype,
+        attention_dtype=args.attention_dtype,
     )
     llama_config.fake_quant = args.fake_quant
 
