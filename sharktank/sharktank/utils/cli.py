@@ -93,7 +93,12 @@ def add_model_options(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--activation-dtype",
         help="DType to use for activations in the model",
-        default="float32",
+        default="float16",
+    )
+    parser.add_argument(
+        "--attention-dtype",
+        help="DType to use for activations in the model",
+        default="float16",
     )
     parser.add_argument("--device", help="Torch device (or default)")
 
