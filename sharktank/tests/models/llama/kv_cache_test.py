@@ -43,7 +43,6 @@ class KVCacheTest(unittest.TestCase):
             transformer_block_count=self.head_count,
             attn_head_count=self.head_count,
             attn_head_dim=self.head_dim,
-            cache_partition_count=2,  # One for each of K/V.
             block_seq_stride=self.block_seq_stride,
             device=self.device,
             dtype=self.attention_dtype,

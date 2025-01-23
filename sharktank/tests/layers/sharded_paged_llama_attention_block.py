@@ -33,7 +33,6 @@ class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
         self.attention_head_dim = 11 * 2
         self.rms_epsilon = 0.01
         self.block_seq_stride = 17
-        self.cache_partition_count = 2
         self.page_count = 23
         self.embedding_length = self.attention_head_count * self.attention_head_dim
         self.rope_dimension_count = self.attention_head_dim
@@ -62,7 +61,6 @@ class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
                 transformer_block_count=self.transformer_block_count,
                 attn_head_count=self.head_count_kv,
                 attn_head_dim=self.attention_head_dim,
-                cache_partition_count=self.cache_partition_count,
                 block_seq_stride=self.block_seq_stride,
                 dtype=dtype,
                 shard_count=shard_count,
