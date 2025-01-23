@@ -85,7 +85,11 @@ jobs:
       - name: Run sharktank tests
         if: ${{ !cancelled() }}
         run: |
-          pytest -n 4 sharktank/ --durations=10
+          pytest \
+            -n 4 \
+            --durations=10 \
+            -m "not expensive" \
+            sharktank/
 
 
   test_with_data:

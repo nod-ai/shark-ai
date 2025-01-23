@@ -17,6 +17,26 @@ from ...utils.hf_datasets import get_dataset
 
 flux_transformer_default_batch_sizes = [1]
 
+iree_compile_flags = [
+    "--iree-hal-target-device=hip",
+    "--iree-hip-target=gfx942",
+    "--iree-opt-const-eval=false",
+    "--iree-opt-strip-assertions=true",
+    "--iree-global-opt-propagate-transposes=true",
+    "--iree-dispatch-creation-enable-fuse-horizontal-contractions=true",
+    "--iree-dispatch-creation-enable-aggressive-fusion=true",
+    "--iree-opt-aggressively-propagate-transposes=true",
+    "--iree-opt-outer-dim-concat=true",
+    "--iree-vm-target-truncate-unsupported-floats",
+    "--iree-llvmgpu-enable-prefetch=true",
+    "--iree-opt-data-tiling=false",
+    "--iree-codegen-gpu-native-math-precision=true",
+    "--iree-codegen-llvmgpu-use-vector-distribution",
+    "--iree-hip-waves-per-eu=2",
+    "--iree-execution-model=async-external",
+    "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline,iree-preprocessing-pad-to-intrinsics)",
+]
+
 
 def export_flux_transformer_model_mlir(
     model: FluxModelV1,
