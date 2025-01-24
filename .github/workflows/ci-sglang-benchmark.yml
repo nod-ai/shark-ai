@@ -40,7 +40,7 @@ jobs:
       matrix:
         version: [3.11]
       fail-fast: false
-    runs-on: mi300x-4
+    runs-on: mi300x-3
     defaults:
       run:
         shell: bash
@@ -97,7 +97,7 @@ jobs:
       matrix:
         version: [3.11]
       fail-fast: false
-    runs-on: mi300x-4
+    runs-on: mi300x-3
     defaults:
       run:
         shell: bash
