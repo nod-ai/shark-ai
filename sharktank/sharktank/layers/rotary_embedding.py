@@ -28,6 +28,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         use_hf: bool = False,
         use_table: bool = True,
         tensor_parallelism_size: int = 1,
+        dtype: torch.dtype = torch.float16,
     ):
         super().__init__()
         self.device = device
@@ -35,7 +36,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         self.max_seqlen = max_seqlen
         self.use_hf = use_hf
         self.use_table = use_table
-
+        self.dtype = dtype
         self.rope_freq_base = rope_freq_base if rope_freq_base is not None else 10000.0
         self.tensor_parallelism_size = tensor_parallelism_size
 
@@ -276,8 +277,8 @@ class RotaryEmbeddingLayer(BaseLayer):
 
             freqs = torch.cat((freqs, freqs), dim=-1)
             emb = torch.outer(t.float(), freqs.float())
-            cos = torch.cos(emb).to(torch.bfloat16)
-            sin = torch.sin(emb).to(torch.bfloat16)
+            cos = torch.cos(emb).to(self.dtype)
+            sin = torch.sin(emb).to(self.dtype)
             return (cos, sin)
 
         freqs = 1.0 / (
