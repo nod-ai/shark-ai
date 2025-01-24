@@ -65,7 +65,6 @@ class Perplexity:
         iree_device,
         iree_hip_target,
         iree_hal_target_device,
-        kv_cache_type,
         tensor_parallelism_size,
         attention_kernel,
         block_seq_stride,
@@ -77,7 +76,6 @@ class Perplexity:
         self.iree_device = iree_device
         self.iree_hip_target = iree_hip_target
         self.iree_hal_target_device = iree_hal_target_device
-        self.kv_cache_type = kv_cache_type
         self.block_seq_stride = block_seq_stride
         self.activation_dtype = activation_dtype
         self.attention_dtype = attention_dtype
@@ -154,7 +152,6 @@ class Perplexity:
         self.config = LlamaModelConfig(
             hp=configs.LlamaHParams.from_gguf_props(weight_path.properties),
             block_seq_stride=self.block_seq_stride,
-            kv_cache_type=self.kv_cache_type,
             device=self.torch_device,
             activation_dtype=self.activation_dtype,
             attention_dtype=self.attention_dtype,
@@ -398,7 +395,6 @@ def run_perplexity(
     iree_device,
     iree_hip_target,
     iree_hal_target_device,
-    kv_cache_type,
     tensor_parallelism_size,
     attention_kernel,
     num_prompts,
@@ -411,7 +407,6 @@ def run_perplexity(
         iree_device=iree_device,
         iree_hip_target=iree_hip_target,
         iree_hal_target_device=iree_hal_target_device,
-        kv_cache_type=kv_cache_type,
         tensor_parallelism_size=tensor_parallelism_size,
         attention_kernel=attention_kernel,
         block_seq_stride=block_seq_stride,
