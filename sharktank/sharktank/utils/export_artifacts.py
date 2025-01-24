@@ -303,7 +303,7 @@ class ExportArtifacts:
             raise IreeBenchmarkException(proc, cwd)
 
     def create_file(self, *, suffix, prefix):
-        file_path = Path(prefix).with_suffix(suffix)
+        file_path = Path(prefix + suffix)
         f = open(file_path, "w")
         return file_path
 
