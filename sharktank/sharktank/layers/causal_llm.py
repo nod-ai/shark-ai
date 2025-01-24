@@ -42,13 +42,6 @@ class BaseCausalLMModel(ThetaLayer):
         self.context_length = context_length
         self.fake_quant = fake_quant
 
-        if static_tables:
-            self.register_buffer(
-                "causal_context_mask", self.generate_causal_context_mask()
-            )
-        else:
-            self.causal_context_mask = None
-
     def _assert_device(self, *ts: torch.Tensor, dtype: Optional[torch.dtype] = None):
         if self.device is not None:
             for t in ts:
@@ -67,11 +60,10 @@ class BaseCausalLMModel(ThetaLayer):
         """
         return float("-inf")
 
-    def generate_causal_context_mask(self) -> torch.Tensor:
-        context_length = self.context_length
+    def generate_causal_context_mask(self, batch_seqlen: int) -> torch.Tensor:
         unary_broadcast_ones = torch.ones([1, 1], dtype=torch.bool, device=self.device)
         context_broadcast_ones = unary_broadcast_ones.expand(
-            context_length, context_length
+            batch_seqlen, batch_seqlen
         )
         causal_context_mask = torch.triu(
             context_broadcast_ones,
@@ -117,18 +109,14 @@ class BaseCausalLMModel(ThetaLayer):
         Since this is a bool tensor of context_length^2, different deployment
         scenarios can benefit from managing this in different ways.
         """
-        if causal_context_mask is None:
-            # Try to use the statically generated.
-            causal_context_mask = self.causal_context_mask
+        _, batch_seqlen = input_mask.shape
         if causal_context_mask is None:
             # Fallback to dynamically generated.
-            causal_context_mask = self.generate_causal_context_mask()
+            causal_context_mask = self.generate_causal_context_mask(batch_seqlen)
 
         # Combine the causal context mask and input mask.
         dtype = self.attention_dtype
-        _, batch_seq_len = input_mask.shape
-        causal_mask = causal_context_mask[:, :, :batch_seq_len, :batch_seq_len]
-        boolean_mask = torch.logical_or(causal_mask, input_mask[:, None, None, :])
+        boolean_mask = torch.logical_or(causal_context_mask, input_mask[:, None, None, :])
         numeric_mask = torch.where(
             boolean_mask, self._maximally_negative_value(dtype), 0
         ).to(dtype)
