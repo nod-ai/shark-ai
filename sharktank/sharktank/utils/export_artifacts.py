@@ -309,12 +309,12 @@ class ExportArtifacts:
 
     def get_artifacts(self):
 
-        self.dir_path = self.sharktank_dir + "/" + "tmp_perplexity_ci_artifacts/"
+        self.dir_path = self.sharktank_dir + "/" + "perplexity_ci_artifacts/"
         temp_dir = Path(self.dir_path)
         temp_dir.mkdir(parents=True, exist_ok=True)
 
         model_name = (
-            str(self.irpa_path).split("/")[-1].split(".")[0]
+            str(self.irpa_path).split("/")[-1].rsplit(".", 1)[0]
             + "_"
             + self.attention_kernel
         )
