@@ -137,7 +137,6 @@ class RotaryEmbeddingLayer(BaseLayer):
             cos = cos[None, :, None, :].repeat(xt.shape[0], 1, 1, 1)
             sin = sin[None, :, None, :].repeat(xt.shape[0], 1, 1, 1)
             xt = xt.transpose(1, 2)
-            print(xt.shape, cos.shape, sin.shape)
             xt_out = (xt_ * cos) + (self.rotate_half(xt_) * sin)
             return xt_out
 
@@ -176,15 +175,12 @@ class RotaryEmbeddingLayer(BaseLayer):
             0
         ) + start_positions.unsqueeze(1)
         # Broadcast lookup to [b, ...].
-        print("start_positions", start_positions.shape)
-        print("positions_seq", positions_seq.shape)
-        print("batch_seq_len", batch_seq_len)
         self.trace_tensor("rope.positions_seq", positions_seq)
         if self.use_hf:
             assert self.use_table, "use_hf requires use_table"
             freqs_cis = self.rotary_embed_table
             cos, sin = [x[positions_seq.flatten(), :] for x in freqs_cis]
-            freqs_cis = (cos[None, :, None, :], sin[None, :, None, :])
+            freqs_cis = (cos[:, None, None, :], sin[:, None, None, :])
             return freqs_cis
 
         if self.use_table:
@@ -235,8 +231,6 @@ class RotaryEmbeddingLayer(BaseLayer):
 
         if self.use_hf:
             cos, sin = mask
-            cos = cos.unsqueeze(2)
-            sin = sin.unsqueeze(2)
             xt = xt.transpose(1, 2)
             xt_out = (xt * cos) + (self.rotate_half(xt) * sin)
             return xt_out.transpose(1, 2)
