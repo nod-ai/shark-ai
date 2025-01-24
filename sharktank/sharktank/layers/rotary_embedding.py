@@ -28,7 +28,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         use_hf: bool = False,
         use_table: bool = True,
         tensor_parallelism_size: int = 1,
-        dtype: torch.dtype = torch.float16,
+        dtype: torch.dtype = torch.float32,
     ):
         super().__init__()
         self.device = device
