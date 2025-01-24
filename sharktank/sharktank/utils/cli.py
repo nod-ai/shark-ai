@@ -108,6 +108,12 @@ def add_model_options(parser: argparse.ArgumentParser):
         default=1,
         help="Number of devices for tensor parallel sharding. Will be overridden by dataset.properties if present",
     )
+    parser.add_argument(
+        "--block-seq-stride",
+        help="Block sequence stride for paged KV cache, must divide evenly into the context length",
+        type=int,
+        default=32,
+    )
 
 
 def add_quantization_options(parser: argparse.ArgumentParser):

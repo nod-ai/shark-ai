@@ -46,12 +46,6 @@ def main():
         default="4",
     )
     parser.add_argument(
-        "--block-seq-stride",
-        help="Block sequence stride for paged KV cache, must divide evenly into the context length",
-        type=int,
-        default=32,
-    )
-    parser.add_argument(
         "--verbose",
         help="Include verbose logging",
         action="store_true",
