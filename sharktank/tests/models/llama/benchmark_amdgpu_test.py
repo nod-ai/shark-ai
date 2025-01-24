@@ -66,7 +66,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
     def setUp(self):
         super().setUp()
         # TODO: add numpy files to Azure and download from it
-        self.artifacts_dir = Path("/data/llama3.1/weights/8b")
+        self.artifacts_dir = Path("/shark-dev/data/llama3.1/weights/8b")
         self.artifacts_dir_2048 = Path("/shark-dev/8b")
         self.irpa_path = self.artifacts_dir / "fp16/llama3.1_8b_fp16.irpa"
         self.irpa_path_fp8 = self.artifacts_dir / "f8/llama3.1_8b_fp8.irpa"
@@ -326,7 +326,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
     def setUp(self):
         super().setUp()
         # TODO: add numpy files to Azure and download from it
-        self.artifacts_dir = Path("/data/llama3.1/weights/70b")
+        self.artifacts_dir = Path("/shark-dev/data/llama3.1/weights/70b")
         self.artifacts_dir_2048 = Path("/shark-dev/70b")
         self.irpa_path = self.artifacts_dir / "fp16/llama3.1_70b_f16.irpa"
         self.irpa_path_fp8 = self.artifacts_dir / "f8/llama70b_fp8.irpa"
@@ -654,7 +654,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
     def setUp(self):
         super().setUp()
         # TODO: add numpy files to Azure and download from it
-        self.artifacts_dir = Path("/data/llama3.1/weights/405b")
+        self.artifacts_dir = Path("/shark-dev/data/llama3.1/weights/405b")
         self.artifacts_dir_2048 = Path("/shark-dev/405b")
         self.irpa_path = self.artifacts_dir / "fp16/llama3.1_405b_fp16.irpa"
         self.irpa_path_fp8 = self.artifacts_dir / "f8/llama3.1_405b_fp8.irpa"
