@@ -342,7 +342,7 @@ class MLPEmbedder(ThetaLayer):
         return self.out_layer(x)
 
 
-class EmbedND(torch.nn.Module):
+class EmbedND(BaseLayer):
     def __init__(self, dim: int, theta: int, axes_dim: list[int]):
         super().__init__()
         self.dim = dim

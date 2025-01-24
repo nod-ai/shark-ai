@@ -11,3 +11,4 @@ protobuf
 pytest==8.0.0
 pytest-html
 pytest-xdist==3.5.0
+safetensors>=0.4.5
