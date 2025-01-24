@@ -341,4 +341,15 @@ class ExportArtifacts:
                     cwd=self.sharktank_dir,
                 )
 
+        cmd = [
+            f"ls",
+            f"-lha",
+            f"{temp_dir}",
+        ]
+        cmd = subprocess.list2cmdline(cmd)
+
+        proc = subprocess.run(cmd, shell=True, capture_output=True)
+
+        logger.info(f" Listing artifacts:\n{proc.returncode}")
+
         return vmfb_path
