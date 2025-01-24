@@ -58,12 +58,10 @@ class Perplexity_torch:
     def __init__(
         self,
         device,
-        kv_cache_type,
         activation_dtype=torch.float32,
         attention_dtype=torch.float32,
     ):
         self.device = device
-        self.kv_cache_type = kv_cache_type
         self.activation_dtype = activation_dtype
         self.attention_dtype = attention_dtype
 
@@ -115,7 +113,6 @@ class Perplexity_torch:
         self.config = LlamaModelConfig(
             hp=configs.LlamaHParams.from_gguf_props(dataset.properties),
             block_seq_stride=16,
-            kv_cache_type=self.kv_cache_type,
             device=self.device,
             activation_dtype=self.activation_dtype,
             attention_dtype=self.attention_dtype,
@@ -298,14 +295,13 @@ def run_perplexity_torch(
     dataset,
     tokenizer,
     device,
-    kv_cache_type,
     tensor_parallelism_size,
     attention_kernel,
     num_prompts,
 ):
     start = time.time()
 
-    perplexity = Perplexity_torch(device=device, kv_cache_type=kv_cache_type)
+    perplexity = Perplexity_torch(device=device)
     perplexity.get_prompts(num_prompts=num_prompts)
     perplexity.load_model(dataset, tokenizer, tensor_parallelism_size, attention_kernel)
     ppl = perplexity.get_perplexity()

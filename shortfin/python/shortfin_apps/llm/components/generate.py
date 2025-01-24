@@ -125,14 +125,19 @@ class ClientGenerateBatchProcess(sf.Process):
         try:
             # Launch all individual generate processes and wait for them to finish.
             gen_processes = []
+            input_ids = self.gen_req.input_ids
+            is_pretokenized = input_ids is not None
             # TODO: We should send this to an executor and await the results.
-            input_batch = self.tokenize()
+            if is_pretokenized:
+                input_batch = [input_ids] if self.gen_req.is_single else input_ids
+            else:
+                input_batch = self.tokenize()
             for index, input_tokens in enumerate(input_batch):
                 gen_process = GenerateItemProcess(
                     self,
                     self.gen_req,
                     index,
-                    input_tokens.ids,
+                    input_tokens if is_pretokenized else input_tokens.ids,
                     max_completion_tokens=self.gen_req.sampling_params[
                         "max_completion_tokens"
                     ],
@@ -184,4 +189,4 @@ class ClientGenerateBatchProcess(sf.Process):
             logger.debug("Generated encodings: %r", encodings)
             return encodings
         else:
-            raise NotImplementedError("GenerateReqInput.input_ids handling NYI")
+            raise ValueError("Cannot tokenize 'None' value")
