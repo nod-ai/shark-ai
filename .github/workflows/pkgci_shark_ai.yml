@@ -26,7 +26,7 @@ jobs:
       matrix:
         version: [3.11]
       fail-fast: false
-    runs-on: mi300x-4
+    runs-on: mi300x-3
     # runs-on: ubuntu-latest # everything else works but this throws an "out of resources" during model loading
     # TODO: make a copy of this that runs on standard runners with tiny llama instead of a 8b model
     defaults:
