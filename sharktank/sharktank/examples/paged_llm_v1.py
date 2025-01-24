@@ -42,8 +42,8 @@ class TorchGenerator:
     ):
         self.model = model
         self.tokenizer = tokenizer
-        if model.cache.is_paged:
-            self.shared_cache_state = model.cache.paged.allocate(page_cache_size)
+        if self.model.config.kv_cache_type == "paged":
+            self.shared_cache_state = model.cache.allocate(page_cache_size)
             self.free_pages = list(range(1, page_cache_size))
         else:
             self.shared_cache_state = None
@@ -63,18 +63,18 @@ class TorchGenerator:
         if self.shared_cache_state is not None:
             cache_state = self.shared_cache_state
         else:
-            cache_state = self.model.cache.direct.allocate(bs=len(prompts))
+            cache_state = self.model.cache.allocate(bs=len(prompts))
         return Batch(self, token_ids, seq_lens, cache_state)
 
     def alloc_page(self) -> int:
-        if self.model.cache.is_direct:
+        if self.model.config.kv_cache_type == "direct":
             # We don't allocate block ids for the direct cache.
             return 0
 
         return self.free_pages.pop()
 
     def release_page(self, index: int):
-        if self.model.cache.is_direct:
+        if self.model.config.kv_cache_type == "direct":
             return
         self.free_pages.append(index)
 
@@ -238,12 +238,6 @@ def main():
         "--save_intermediates_path",
         help="save module forward outputs to safetensors, ex: run_0 will save to run_0_prefill.savetensors",
     )
-    parser.add_argument(
-        "--tensor-parallelism-size",
-        type=int,
-        default=1,
-        help="How many devices are involved for tensor parallel sharding.",
-    )
     cli.add_input_dataset_options(parser)
     cli.add_tokenizer_options(parser)
     cli.add_quantization_options(parser)
@@ -255,7 +249,7 @@ def main():
     prompts = args.prompt
     config = LlamaModelConfig(
         hp=configs.LlamaHParams.from_gguf_props(dataset.properties),
-        block_seq_stride=16,
+        block_seq_stride=args.block_seq_stride,
         device=device,
         activation_dtype=args.activation_dtype,
         attention_dtype=args.activation_dtype,
