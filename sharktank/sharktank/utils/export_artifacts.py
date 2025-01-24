@@ -93,6 +93,7 @@ class ExportArtifacts:
         tensor_parallelism_size: int,
         block_seq_stride: int,
         iree_hal_target_device: str,
+        use_attention_mask: bool = False,
     ):
         self.sharktank_dir = str(
             Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent
@@ -104,6 +105,7 @@ class ExportArtifacts:
         self.attention_kernel = attention_kernel
         self.tensor_parallelism_size = tensor_parallelism_size
         self.block_seq_stride = block_seq_stride
+        self.use_attention_mask = use_attention_mask
 
     def timeit(func):
         def wrapper(*args, **kwargs):
@@ -187,6 +189,8 @@ class ExportArtifacts:
         if self.attention_kernel in ["decomposed", "torch"]:
             export_args.append("--attention-kernel")
             export_args.append(self.attention_kernel)
+        if self.use_attention_mask:
+            export_args.append("--use-attention-mask")
 
         cwd = self.sharktank_dir
         cmd = subprocess.list2cmdline(export_args)

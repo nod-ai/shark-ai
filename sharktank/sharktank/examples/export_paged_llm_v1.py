@@ -61,6 +61,11 @@ def main():
         help="Enables strictness during export",
         action="store_true",
     )
+    parser.add_argument(
+        "--use-attention-mask",
+        help="Generates attention mask during export",
+        action="store_true",
+    )
 
     cli.add_quantization_options(parser)
     cli.add_model_options(parser)
@@ -220,16 +225,24 @@ def main():
             else:
                 cache_tensors = cs
 
+            attention_mask = None
+            if args.use_attention_mask:
+                sl = tokens.shape[1]
+                input_mask = model.input_mask(seq_lens, sl)
+                attention_mask = model.attention_mask(input_mask)
+
             if llama_config.tensor_parallelism_size != 1:
                 shard_count = llama_config.tensor_parallelism_size
 
                 tokens = ops.replicate(tokens, count=shard_count)
+                if attention_mask:
+                    attention_mask = ops.replicate(attention_mask, count=shard_count)
                 seq_block_ids = ops.replicate(seq_block_ids, count=shard_count)
                 cache_tensors = repack_cache(cs, cache_shard_dim)
 
             logits = model.prefill(
                 tokens,
-                attention_mask=None,  # We rely on causal attention
+                attention_mask=attention_mask,
                 seq_block_ids=seq_block_ids,
                 cache_state=cache_tensors,
             )

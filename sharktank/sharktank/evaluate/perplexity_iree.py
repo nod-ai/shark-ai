@@ -69,6 +69,7 @@ class Perplexity:
         tensor_parallelism_size,
         attention_kernel,
         block_seq_stride,
+        use_attention_mask,
     ):
         self.torch_device = torch_device
         self.iree_device = iree_device
@@ -80,6 +81,7 @@ class Perplexity:
         self.attention_dtype = torch.float16
         self.tensor_parallelism_size = tensor_parallelism_size
         self.attention_kernel = attention_kernel
+        self.use_attention_mask = use_attention_mask
 
     def timeit(func):
         def wrapper(*args, **kwargs):
@@ -139,6 +141,7 @@ class Perplexity:
             attention_kernel=self.attention_kernel,
             tensor_parallelism_size=self.tensor_parallelism_size,
             block_seq_stride=self.block_seq_stride,
+            use_attention_mask=self.use_attention_mask,
         )
         vmfb_path = export_artifacts.get_artifacts()
         return vmfb_path
@@ -398,6 +401,7 @@ def run_perplexity(
     attention_kernel,
     num_prompts,
     block_seq_stride,
+    use_attention_mask,
 ):
     start = time.time()
     perplexity = Perplexity(
@@ -409,6 +413,7 @@ def run_perplexity(
         tensor_parallelism_size=tensor_parallelism_size,
         attention_kernel=attention_kernel,
         block_seq_stride=block_seq_stride,
+        use_attention_mask=use_attention_mask,
     )
 
     perplexity.get_prompts(num_prompts=num_prompts)
@@ -434,7 +439,7 @@ def main(argv):
         "--attention-kernel",
         type=str,
         default="decomposed",
-        choices=["decomposed", "torch_sdpa"],
+        choices=["decomposed", "torch"],
     )
     parser.add_argument(
         "--block-seq-stride",
@@ -478,6 +483,8 @@ def main(argv):
     weight_path = cli.get_input_dataset(args)
     tokenizer = cli.get_tokenizer(args)
 
+    use_attention_mask = True
+
     ppl = run_perplexity(
         weight_path=weight_path,
         weight_path_str=str(args.irpa_file),
@@ -491,6 +498,7 @@ def main(argv):
         attention_kernel=args.attention_kernel,
         num_prompts=args.num_prompts,
         block_seq_stride=args.block_seq_stride,
+        use_attention_mask=use_attention_mask,
     )
 
     logger.info(f"\n{json.dumps(ppl, indent=2)}")
