@@ -44,14 +44,25 @@ def paged_attention(
     # Full sequence length.
     kv_seq_len = seq_block_ids.shape[1] * attention_block.cache.block_seq_stride
 
-    xk, xv = attention_block.transact_cache(
-        xk_cache_update=xk,
-        xv_cache_update=xv,
-        seq_block_ids=seq_block_ids,
-        kv_seq_len=kv_seq_len,
-        start_positions=start_positions,
-        cache_state=cache_state,
-    )
+    if attention_block.cache.is_paged:
+        xk, xv = attention_block.transact_cache_paged(
+            xk_cache_update=xk,
+            xv_cache_update=xv,
+            seq_block_ids=seq_block_ids,
+            kv_seq_len=kv_seq_len,
+            start_positions=start_positions,
+            cache_state=cache_state,
+        )
+    elif attention_block.cache.is_direct:
+        xk, xv = attention_block.transact_cache_direct(
+            xk_cache_update=xk,
+            xv_cache_update=xv,
+            start_positions=start_positions,
+            kv_seq_len=kv_seq_len,
+            cache_state=cache_state,
+        )
+    else:
+        raise NotImplementedError(f"Unsupported KV cache type: {type(cache)}")
 
     # Expand kv heads for GQA.
     gqa_n_rep = attention_block.head_count // attention_block.head_count_kv
