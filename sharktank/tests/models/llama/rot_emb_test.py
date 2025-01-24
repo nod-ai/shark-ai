@@ -56,10 +56,10 @@ class HFRotaryComparisonTest(unittest.TestCase):
 
         hf_rotary = HFRotaryEmbedding()
 
-        example = torch.rand(bs, length, heads, dims, dtype=torch.test_dtype)
+        example = torch.rand(bs, length, heads, dims, dtype=test_dtype)
         positions = torch.arange(0, length)[None, :].repeat(bs, 1)
 
-        decode_example = torch.rand(bs, 1, heads, dims, dtype=torch.test_dtype)
+        decode_example = torch.rand(bs, 1, heads, dims, dtype=test_dtype)
         mask = st_rotary.compute_batch_mask(
             start_positions=torch.arange(0, bs), batch_seq_len=1
         )
