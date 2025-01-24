@@ -10,4 +10,5 @@ parameterized
 protobuf
 pytest==8.0.0
 pytest-html
+pytest-timeout
 pytest-xdist==3.5.0
