@@ -67,7 +67,7 @@ class VaeDecoderModel(ThetaLayer):
             sample ('torch.Tensor') input latents of shape (batch_size, num_channels, height, width)
 
         """
-        self.trace_goldens(
+        self.trace_tensor(
             "inputs",
             {
                 "sample": sample,
@@ -89,10 +89,10 @@ class VaeDecoderModel(ThetaLayer):
             sample = self.post_quant_conv(sample)
 
         sample = self.conv_in(sample)
-        self.trace_golden("conv_in", sample)
+        self.trace_tensor("conv_in", sample)
         # TODO add training and gradient checkpointing support
         sample = self.mid_block(sample, latent_embeds)
-        self.trace_golden("mid_block", sample)
+        self.trace_tensor("mid_block", sample)
 
         sample = sample.to(self.upscale_dtype)
         for up_block in self.up_blocks:
