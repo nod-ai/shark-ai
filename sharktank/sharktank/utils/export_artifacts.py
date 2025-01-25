@@ -303,7 +303,7 @@ class ExportArtifacts:
             raise IreeBenchmarkException(proc, cwd)
 
     def create_file(self, *, suffix, prefix):
-        file_path = Path(prefix + suffix)
+        file_path = Path(prefix).with_suffix(suffix)
         f = open(file_path, "w")
         return file_path
 
@@ -314,7 +314,7 @@ class ExportArtifacts:
         temp_dir.mkdir(parents=True, exist_ok=True)
 
         model_name = (
-            str(self.irpa_path).split("/")[-1].rsplit(".", 1)[0]
+            str(self.irpa_path).split("/")[-1].rsplit(".", 1)[0].replace(".", "_")
             + "_"
             + self.attention_kernel
         )
