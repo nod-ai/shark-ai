@@ -1,7 +1,9 @@
 """Test fixtures and configurations."""
+
+import hashlib
 import pytest
 from pathlib import Path
-import hashlib
+from tokenizers import Tokenizer, Encoding
 
 from ..model_management import (
     ModelProcessor,
@@ -25,8 +27,10 @@ TEST_MODELS = {
     ),
     "llama3.1_8b": ModelConfig(
         source=ModelSource.LOCAL,
-        local_path=Path("/data/llama3.1/8b/llama8b_f16.irpa"),
-        model_file="llama8b_f16.irpa",
+        local_path=Path(
+            "/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa"
+        ),
+        model_file="llama3.1_8b_fp16_instruct.irpa",
         tokenizer_id="NousResearch/Meta-Llama-3.1-8B",
         batch_sizes=(1, 4),
         device_settings=device_settings.CPU,
@@ -89,3 +93,9 @@ def server(model_artifacts, request):
 
     process.terminate()
     process.wait()
+
+
+@pytest.fixture(scope="module")
+def encoded_prompt(model_artifacts: ModelArtifacts, request) -> list[int]:
+    tokenizer = Tokenizer.from_file(str(model_artifacts.tokenizer_path))
+    return tokenizer.encode(request.param).ids
