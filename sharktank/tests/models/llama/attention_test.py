@@ -25,7 +25,7 @@ from transformers.models.llama.configuration_llama import LlamaConfig
 
 class AttentionBlockTest(unittest.TestCase):
     def test(self):
-        torch.manual_seed(123456)
+        torch.manual_seed(1234567)
         torch.set_default_dtype(torch.float32)
         block_index = 0
         seq_len = 13
