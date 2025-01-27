@@ -69,7 +69,6 @@ class HFRotaryComparisonTest(unittest.TestCase):
         hf_results = hf_rotary.forward(
             xt=decode_example, positions=torch.arange(0, bs).unsqueeze(1)
         )
-        # print(torch.max(torch.abs(hf_results - st_results)))
         assert torch.all(torch.eq(st_results, hf_results))
 
         hf_results = hf_rotary(xt=example, positions=positions)
