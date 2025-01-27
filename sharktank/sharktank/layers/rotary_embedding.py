@@ -220,12 +220,9 @@ class RotaryEmbeddingLayer(BaseLayer):
         return xt_out.type_as(xt)
 
     def _compute_rotary_embed_table(self, t):
-        dim = self.rope_dimension_count
-        freqs = 1.0 / (
-            self.rope_freq_base ** ((torch.arange(0, dim) // 2).float() / dim * 2.0)
+        return compute_rotary_embedding_table(
+            t, self.rope_dimension_count, self.rope_freq_base, torch.float32
         )
-        freqs = torch.outer(t, freqs).float()
-        return freqs
 
     def _create_rotary_embed_table(self):
         t = torch.arange(self.max_seqlen, device=self.device)
@@ -238,3 +235,17 @@ class RotaryEmbeddingLayer(BaseLayer):
             t = ops.replicate(t, self.tensor_parallelism_size)
 
         return t
+
+
+def compute_rotary_embedding_table(
+    positions: torch.Tensor,
+    rope_dimension_count: int,
+    rope_freq_base: float,
+    dtype: torch.dtype,
+) -> torch.Tensor:
+    dim = rope_dimension_count
+    freqs = 1.0 / (
+        rope_freq_base ** ((torch.arange(0, dim) // 2).to(dtype=dtype) / dim * 2.0)
+    )
+    freqs = torch.outer(positions, freqs)
+    return freqs
