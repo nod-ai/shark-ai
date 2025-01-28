@@ -25,7 +25,9 @@ from transformers import CLIPTextModel
 from ae import AutoEncoder, AutoEncoderParams
 from scheduler import FluxScheduler
 from mmdit import get_flux_transformer_model
-
+from sharktank.models.vae.model import VaeDecoderModel
+#from sharktank.models.flux import FluxParams, FluxModelV1
+from sharktank.types.theta import Theta, Dataset, torch_module_to_theta
 
 @dataclass
 class ModelSpec:
@@ -126,16 +128,30 @@ def get_te_model_and_inputs(
             ]
             return te, input_args
         case "t5xxl":
-            return None, None
+            te = HFEmbedder(
+                "t5xxl",
+                max_length=512,
+                torch_dtype=torch.float32,
+            )
+            clip_ids_shape = (
+                batch_size,
+                512,
+            )
+            input_args = [
+                torch.ones(clip_ids_shape, dtype=torch.int64),
+            ]
+            return te, input_args
 
 
 class FluxAEWrapper(torch.nn.Module):
     def __init__(self, height=1024, width=1024, precision="fp32"):
         super().__init__()
         dtype = torch_dtypes[precision]
-        self.ae = AutoencoderKL.from_pretrained(
-            "black-forest-labs/FLUX.1-dev", subfolder="vae", torch_dtypes=dtype
-        )
+        #self.ae = AutoencoderKL.from_pretrained(
+        #    "black-forest-labs/FLUX.1-dev", subfolder="vae", torch_dtypes=dtype
+        #)
+        dataset = Dataset.load("/data/flux/flux/FLUX.1-dev/exported_parameters_f32/vae.irpa")
+        self.ae = VaeDecoderModel.from_dataset(dataset)
         self.height = height
         self.width = width
 
@@ -148,8 +164,9 @@ class FluxAEWrapper(torch.nn.Module):
             ph=2,
             pw=2,
         )
-        d_in = d_in / self.ae.config.scaling_factor + self.ae.config.shift_factor
-        return self.ae.decode(d_in, return_dict=False)[0].clamp(-1, 1)
+        #d_in = d_in / self.ae.config.scaling_factor + self.ae.config.shift_factor
+        #return self.ae.decode(d_in, return_dict=False)[0].clamp(-1, 1)
+        return self.ae.forward(d_in)
 
 
 def get_ae_model_and_inputs(hf_model_name, precision, batch_size, height, width):
@@ -218,9 +235,10 @@ def export_flux_model(
         add_ops=decomp_list,
     ):
         if component == "mmdit":
-            model, sample_inputs, _ = get_flux_model_and_inputs(
+            model, sample_inputs = get_flux_model_and_inputs(
                 hf_model_name, precision, batch_size, max_length, height, width
             )
+            print(sample_inputs)
 
             fxb = FxProgramsBuilder(model)
 
@@ -344,6 +362,10 @@ def get_filename(args):
         case "clip":
             return create_safe_name(
                 args.model, f"clip_bs{args.batch_size}_77_{args.precision}"
+            )
+        case "t5xxl":
+            return create_safe_name(
+                args.model, f"t5xxl_bs{args.batch_size}_256_{args.precision}"
             )
         case "scheduler":
             return create_safe_name(

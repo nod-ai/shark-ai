@@ -4,6 +4,8 @@ import math
 from diffusers import FluxTransformer2DModel
 from typing import Callable
 from iree.turbine.aot import *
+from sharktank.models.flux.flux import FluxModelV1, FluxParams
+from sharktank.types.theta import Theta, Dataset, torch_module_to_theta
 
 
 def get_local_path(local_dir, model_dir):
@@ -13,74 +15,45 @@ def get_local_path(local_dir, model_dir):
     return model_local_dir
 
 
-class FluxModelCFG(torch.nn.Module):
-    def __init__(self, torch_dtype):
-        super().__init__()
-        self.mmdit = FluxTransformer2DModel.from_single_file(
-            "https://huggingface.co/black-forest-labs/FLUX.1-dev/blob/main/flux1-dev.safetensors"
-        ).to(torch_dtype)
 
-    def forward(
+class FluxDenoiseStepModel(torch.nn.Module):
+    def __init__(
         self,
-        hidden_states,
-        encoder_hidden_states,
-        pooled_projections,
-        img_ids,
-        txt_ids,
-        guidance_vec,
-        t_vec,
-        t_curr,
-        t_prev,
-        cfg_scale,
+        theta,
+        params,
+        batch_size=1,
+        max_length=512,
+        height=1024,
+        width=1024,
     ):
-        pred = self.mmdit(
-            hidden_states=hidden_states,
-            img_ids=img_ids,
-            encoder_hidden_states=encoder_hidden_states,
-            txt_ids=txt_ids,
-            pooled_projections=pooled_projections,
-            timestep=t_vec,
-            guidance=guidance_vec,
-            return_dict=False,
-        )[0]
-        pred_uncond, pred = torch.chunk(pred, 2, dim=0)
-        pred = pred_uncond + cfg_scale * (pred - pred_uncond)
-        hidden_states = hidden_states + (t_prev - t_curr) * pred
-        return hidden_states
-
-
-class FluxModelSchnell(torch.nn.Module):
-    def __init__(self, torch_dtype):
         super().__init__()
-        self.mmdit = FluxTransformer2DModel.from_single_file(
-            "https://huggingface.co/black-forest-labs/FLUX.1-schnell/blob/main/flux1-schnell.safetensors"
-        ).to(torch_dtype)
+        self.mmdit = FluxModelV1(theta=theta, params=params)
+        self.batch_size = batch_size
+        img_ids = torch.zeros(height // 16, width // 16, 3)
+        img_ids[..., 1] = img_ids[..., 1] + torch.arange(height // 16)[:, None]
+        img_ids[..., 2] = img_ids[..., 2] + torch.arange(width // 16)[None, :]
+        self.img_ids = img_ids.reshape(1, height * width // 256, 3)
+        self.txt_ids = torch.zeros(1, max_length, 3)
 
-    def forward(
-        self,
-        hidden_states,
-        encoder_hidden_states,
-        pooled_projections,
-        img_ids,
-        txt_ids,
-        guidance_vec,
-        t_vec,
-        t_curr,
-        t_prev,
-        cfg_scale,
-    ):
+    def forward(self, img, txt, vec, step, timesteps, guidance_scale):
+        guidance_vec = guidance_scale.repeat(self.batch_size)
+        t_curr = torch.index_select(timesteps, 0, step)
+        t_prev = torch.index_select(timesteps, 0, step + 1)
+        t_vec = t_curr.repeat(self.batch_size)
+
         pred = self.mmdit(
-            hidden_states=hidden_states,
-            img_ids=img_ids,
-            encoder_hidden_states=encoder_hidden_states,
-            txt_ids=txt_ids,
-            pooled_projections=pooled_projections,
-            timestep=t_vec,
+            img=img,
+            img_ids=self.img_ids,
+            txt=txt,
+            txt_ids=self.txt_ids,
+            y=vec,
+            timesteps=t_vec,
             guidance=guidance_vec,
-            return_dict=False,
-        )[0]
-        hidden_states = hidden_states + (t_prev - t_curr) * pred
-        return hidden_states
+        )
+        #pred_uncond, pred = torch.chunk(pred, 2, dim=0)
+        #pred = pred_uncond + guidance_scale * (pred - pred_uncond)
+        img = img + (t_prev - t_curr) * pred
+        return img
 
 
 @torch.no_grad()
@@ -93,68 +66,29 @@ def get_flux_transformer_model(
     torch_dtype=torch.float32,
     bs=1,
 ):
-
-    latent_h, latent_w = (
-        img_height // compression_factor,
-        img_width // compression_factor,
+    #transformer_dataset = Dataset.load(transformer_path)
+    #transformer_dataset = Dataset.load("/data/flux/flux/FLUX.1-dev/transformer/model.irpa")
+    transformer_dataset = Dataset.load("/data/flux/flux/FLUX.1-dev/exported_parameters_f32/transformer.irpa")
+    model = FluxDenoiseStepModel(theta=transformer_dataset.root_theta, params=FluxParams.from_hugging_face_properties(transformer_dataset.properties))
+    #model = FluxModelV1(theta=transformer_dataset.root_theta, params=FluxParams.from_hugging_face_properties(transformer_dataset.properties))
+    #dataset = Dataset.load("/data/flux/flux/FLUX.1-dev/exported_parameters_f32/transformer.irpa")
+    #transformer_params = FluxParams.from_hugging_face_properties(transformer_dataset.properties)
+    #model = FluxModelV1(
+    #    theta=transformer_dataset.root_theta,
+    #    params=transformer_params
+    #)
+    sample_args, sample_kwargs = model.mmdit.sample_inputs()
+    sample_inputs = (
+        sample_kwargs["img"],
+        #sample_kwargs["img_ids"],
+        sample_kwargs["txt"],
+        #sample_kwargs["txt_ids"],
+        sample_kwargs["y"],
+        torch.full((bs,), 1, dtype=torch.int64),
+        torch.full((100,), 1, dtype=torch_dtype), # TODO: non-dev timestep sizes
+        sample_kwargs["guidance"],
     )
-
-    if "schnell" in hf_model_path:
-        model = FluxModelSchnell(torch_dtype=torch_dtype)
-        config = model.mmdit.config
-        sample_inputs = (
-            torch.randn(
-                bs,
-                (latent_h // 2) * (latent_w // 2),
-                config["in_channels"],
-                dtype=torch_dtype,
-            ),
-            torch.randn(bs, max_len, config["joint_attention_dim"], dtype=torch_dtype),
-            torch.randn(bs, config["pooled_projection_dim"], dtype=torch_dtype),
-            torch.randn((latent_h // 2) * (latent_w // 2), 3, dtype=torch_dtype),
-            torch.randn(max_len, 3, dtype=torch_dtype),
-            torch.tensor([1.0] * bs, dtype=torch_dtype),
-            torch.tensor([1.0] * bs, dtype=torch_dtype),
-            torch.tensor([1.0], dtype=torch_dtype),
-            torch.tensor([1.0], dtype=torch_dtype),
-            torch.tensor([1.0] * bs, dtype=torch_dtype),
-        )
-    else:
-        model = FluxModelCFG(torch_dtype=torch_dtype)
-        config = model.mmdit.config
-        cfg_bs = bs * 2
-        sample_inputs = (
-            torch.randn(
-                cfg_bs,
-                (latent_h // 2) * (latent_w // 2),
-                config["in_channels"],
-                dtype=torch_dtype,
-            ),
-            torch.randn(
-                cfg_bs, max_len, config["joint_attention_dim"], dtype=torch_dtype
-            ),
-            torch.randn(cfg_bs, config["pooled_projection_dim"], dtype=torch_dtype),
-            torch.randn((latent_h // 2) * (latent_w // 2), 3, dtype=torch_dtype),
-            torch.randn(max_len, 3, dtype=torch_dtype),
-            torch.tensor([1.0] * bs, dtype=torch_dtype),
-            torch.tensor([1.0] * cfg_bs, dtype=torch_dtype),
-            torch.tensor([1.0], dtype=torch_dtype),
-            torch.tensor([1.0], dtype=torch_dtype),
-            torch.tensor([1.0] * bs, dtype=torch_dtype),
-        )
-
-    input_names = [
-        "hidden_states",
-        "encoder_hidden_states",
-        "pooled_projections",
-        "img_ids",
-        "txt_ids",
-        "guidance_vec",
-        "t_curr",
-        "t_prev",
-        "cfg_scale",
-    ]
-    return model, sample_inputs, input_names
+    return model, sample_inputs
 
     # if not os.path.isfile(onnx_path):
     #     output_names = ["latent"]

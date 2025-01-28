@@ -55,13 +55,15 @@ class ModelParams:
 
     max_seq_len: int = 512
     t5xxl_module_name: str = "module"
-    t5xxl_fn_name: str = "forward_bs4"
+    t5xxl_fn_name: str = "encode_prompts"
     t5xxl_dtype: sfnp.DType = sfnp.bfloat16
 
     # Channel dim of latents.
     num_latents_channels: int = 16
 
-    sampler_module_name: str = ""
+    #sampler_module_name: str = "compiled_flux_transformer"
+    #sampler_fn_name: str = "run_forward"
+    sampler_module_name: str = "module"
     sampler_fn_name: str = "main_graph"
     sampler_dtype: sfnp.DType = sfnp.float32
 

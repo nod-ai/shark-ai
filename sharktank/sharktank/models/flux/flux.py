@@ -188,6 +188,7 @@ class FluxModelV1(ThetaLayer):
                     "Didn't get guidance strength for guidance distilled model."
                 )
             vec = vec + self.guidance_in(timestep_embedding(guidance, 256))
+        
         vec = vec + self.vector_in(y)
 
         txt = self.txt_in(txt)

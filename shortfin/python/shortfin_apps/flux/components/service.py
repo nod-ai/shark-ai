@@ -202,7 +202,7 @@ class GenerateService:
                 self.inference_functions[worker_idx]["t5xxl"][
                     bs
                 ] = self.inference_programs[worker_idx]["t5xxl"][
-                    f"{self.model_params.t5xxl_module_name}.forward_bs4"
+                    f"{self.model_params.t5xxl_module_name}.encode_prompts"
                 ]
             self.inference_functions[worker_idx]["denoise"] = {}
             for bs in self.model_params.sampler_batch_sizes:
@@ -513,7 +513,6 @@ class InferenceExecutorProcess(sf.Process):
                 break
 
         # Prepare tokenized input ids for CLIP inference
-
         clip_inputs = [
             sfnp.device_array.for_device(
                 device,
@@ -539,12 +538,19 @@ class InferenceExecutorProcess(sf.Process):
             fn,
             "".join([f"\n  {i}: {ary.shape}" for i, ary in enumerate(clip_inputs)]),
         )
-        (vec,) = await fn(*clip_inputs, fiber=self.fiber)
-
         await device
+        (vec,) = await fn(*clip_inputs, fiber=self.fiber)
+        await device
+        
         for i in range(req_bs):
-            cfg_mult = 2
+            cfg_mult = 1
             requests[i].vec = vec.view(slice(i, (i + 1)))
+        
+        await device
+        a = vec.for_transfer()
+        a.copy_from(vec)
+        await device
+        print(torch.frombuffer(a.items, dtype=torch.float32).shape)
 
         return
 
@@ -560,10 +566,10 @@ class InferenceExecutorProcess(sf.Process):
                 break
 
         # Prepare tokenized input ids for t5xxl inference
-
+        bs_or_something =1
         t5xxl_inputs = [
             sfnp.device_array.for_device(
-                device, [4, self.service.model_params.max_seq_len], sfnp.sint64
+                device, [bs_or_something, self.service.model_params.max_seq_len], sfnp.sint64
             ),
         ]
         host_arrs = [None]
@@ -571,7 +577,7 @@ class InferenceExecutorProcess(sf.Process):
             host_arrs[idx] = arr.for_transfer()
             for i in range(req_bs):
                 np_arr = requests[i].t5xxl_input_ids[idx].input_ids
-                for rep in range(4):
+                for rep in range(bs_or_something):
                     with host_arrs[idx].view(rep).map(write=True, discard=True) as m:
                         m.fill(np_arr)
             t5xxl_inputs[idx].copy_from(host_arrs[idx])
@@ -586,7 +592,7 @@ class InferenceExecutorProcess(sf.Process):
         (txt,) = await fn(*t5xxl_inputs, fiber=self.fiber)
         await device
         for i in range(req_bs):
-            cfg_mult = 2
+            cfg_mult = 1
             requests[i].txt = txt.view(slice(i * cfg_mult, (i + 1) * cfg_mult))
 
         return
@@ -594,7 +600,8 @@ class InferenceExecutorProcess(sf.Process):
     async def _denoise(self, device, requests):
         req_bs = len(requests)
         step_count = requests[0].steps
-        cfg_mult = 2 if not self.service.model_params.is_schnell else 1
+        #cfg_mult = 2 if not self.service.model_params.is_schnell else 1
+        cfg_mult = 1
         # Produce denoised latents
         entrypoints = self.service.inference_functions[self.worker_index]["denoise"]
         if req_bs not in list(entrypoints.keys()):
@@ -618,6 +625,7 @@ class InferenceExecutorProcess(sf.Process):
             self.service.model_params.max_seq_len,
             4096,
         ]
+        print(req_bs * cfg_mult, 768)
         vec_shape = [
             req_bs * cfg_mult,
             768,
@@ -641,15 +649,27 @@ class InferenceExecutorProcess(sf.Process):
             ),
         }
         # Send guidance scale to device.
+        print("hi")
+        await device
         gs_host = denoise_inputs["guidance_scale"].for_transfer()
         sample_host = sfnp.device_array.for_host(
             device, img_shape, self.service.model_params.sampler_dtype
         )
         guidance_float = sfnp.device_array.for_host(device, [req_bs], sfnp.float32)
+        print("hi")
+        await device
+
+        #for key, value in denoise_inputs.items():
+            #host_arrs[key] = denoise_inputs[key].for_transfer()
+            #host_arrs[key].copy_from(denoise_inputs[key])
+            #await device
+            #print(torch.frombuffer(host_arrs[key].items, dtype=torch.float32).shape)
 
         for i in range(req_bs):
             guidance_float.view(i).items = [requests[i].guidance_scale]
             cfg_dim = i * cfg_mult
+            print("hi")
+            await device
 
             # Reshape and batch sample latent inputs on device.
             # Currently we just generate random latents in the desired shape. Rework for img2img.
@@ -658,21 +678,30 @@ class InferenceExecutorProcess(sf.Process):
                 sample_host.view(slice(cfg_dim + rep, cfg_dim + rep + 1)).copy_from(
                     req_samp
                 )
+            print("hi")
+            await device
 
             denoise_inputs["img"].view(slice(cfg_dim, cfg_dim + cfg_mult)).copy_from(
                 sample_host
             )
+            print("hi")
+            await device
 
             # Batch t5xxl hidden states.
             txt = requests[i].txt
             denoise_inputs["txt"].view(slice(cfg_dim, cfg_dim + cfg_mult)).copy_from(
                 txt
             )
+            print("hi")
+            await device
 
             # Batch CLIP projections.
             vec = requests[i].vec
-            for nc in range(2):
+            #for nc in range(cfg_mult):
+            for nc in range(1):
                 denoise_inputs["vec"].view(slice(nc, nc + 1)).copy_from(vec)
+            print("hi")
+            await device
         sfnp.convert(
             guidance_float, dtype=self.service.model_params.sampler_dtype, out=gs_host
         )
