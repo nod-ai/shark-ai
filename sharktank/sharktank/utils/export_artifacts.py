@@ -94,8 +94,8 @@ class ExportArtifacts:
         block_seq_stride: int,
         iree_hal_target_device: str,
         use_attention_mask: bool = False,
-        activation_dype: str,
-        attention_dtype: str,
+        activation_dype: str = "float16",
+        attention_dtype: str = "float16",
     ):
         self.sharktank_dir = str(
             Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent
