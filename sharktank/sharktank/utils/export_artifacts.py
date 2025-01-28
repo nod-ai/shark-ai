@@ -94,7 +94,7 @@ class ExportArtifacts:
         block_seq_stride: int,
         iree_hal_target_device: str,
         use_attention_mask: bool = False,
-        activation_dype: str = "float16",
+        activation_dtype: str = "float16",
         attention_dtype: str = "float16",
     ):
         self.sharktank_dir = str(
@@ -108,7 +108,7 @@ class ExportArtifacts:
         self.tensor_parallelism_size = tensor_parallelism_size
         self.block_seq_stride = block_seq_stride
         self.use_attention_mask = use_attention_mask
-        self.activation_dtype = activation_dype
+        self.activation_dtype = activation_dtype
         self.attention_dtype = attention_dtype
 
     def timeit(func):
