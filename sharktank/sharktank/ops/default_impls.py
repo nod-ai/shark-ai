@@ -407,7 +407,7 @@ def rms_norm_default(
         orig_dtype = x.dtype
     variance = x.pow(2).mean(-1, keepdim=True)
     output = x * elementwise(torch.rsqrt, variance + epsilon)
-    output = elementwise(torch.mul, weight, output.to(orig_dtype))
+    output = elementwise(torch.mul, weight, to(output, orig_dtype))
     return output
 
 
