@@ -35,8 +35,8 @@ class PagedKVCache:
 
     * transformer block
     * cache partition (K or V cache)
-    * block sequence stride (number of sequence positions per block)
     * attention heads
+    * block sequence stride (number of sequence positions per block)
     * attention dimensionality
 
     Note that the internal page structure matches the organization of the
@@ -55,7 +55,6 @@ class PagedKVCache:
         transformer_block_count: int,
         attn_head_count: int,
         attn_head_dim: int,
-        cache_partition_count: int = 2,
         block_seq_stride: int = 16,
         dtype: torch.dtype = torch.float32,
         device: Optional[torch.device] = None,
@@ -64,7 +63,6 @@ class PagedKVCache:
         self.transformer_block_count = transformer_block_count
         self.attn_head_count = attn_head_count
         self.attn_head_dim = attn_head_dim
-        self.cache_partition_count = cache_partition_count
         self.block_seq_stride = block_seq_stride
         self.shard_count = shard_count
         if attn_head_count % shard_count != 0:
@@ -75,9 +73,9 @@ class PagedKVCache:
         # Some derived values based on attributes.
         self.sub_page_dims = [
             self.transformer_block_count,
-            self.cache_partition_count,
-            self.block_seq_stride,
+            2,
             self.attn_head_count // self.shard_count,
+            self.block_seq_stride,
             self.attn_head_dim,
         ]
         self.page_slab_flat_dim = math.prod(self.sub_page_dims)
@@ -98,7 +96,7 @@ class PagedKVCache:
             shards = [
                 shard.unflatten(1, self.sub_page_dims) for shard in page_slab.shards
             ]
-            return SplitPrimitiveTensor(ts=shards, shard_dim=4)
+            return SplitPrimitiveTensor(ts=shards, shard_dim=3)
 
     def shard_state(
         self, state: List[torch.Tensor]
@@ -115,14 +113,14 @@ class PagedKVCache:
             [
                 -1,
                 self.transformer_block_count,
-                self.cache_partition_count,
-                self.block_seq_stride,
+                2,
                 self.attn_head_count,
+                self.block_seq_stride,
                 self.attn_head_dim,
             ]
         )
         sharded_page_table = ops.reshard_split(
-            page_table, dim=4, count=self.shard_count
+            page_table, dim=3, count=self.shard_count
         )
         shards = [
             ops.flatten(shard, start_dim=1) for shard in sharded_page_table.shards
@@ -178,14 +176,6 @@ class PagedKVCache:
         page_table = self.unflatten_page_table(state)  # 6D
 
         bs, block_seq_len, *_ = page_ids.shape
-        # Blocks dim 1,2 according to the configured block stride.
-        blocked_shape = [
-            bs,
-            block_seq_len,
-            self.block_seq_stride,
-            self.attn_head_count // self.shard_count,
-            self.attn_head_dim,
-        ]
 
         # Reshape the page cache into sub-blocks so that we can index at the
         # granularity of the transformer_block and cache partition.
@@ -195,8 +185,8 @@ class PagedKVCache:
         #   [page, attn_layer, cache_partition]
         # Where the cache line can be 0 (k) or 1 (v).
         subblock_table = page_table.flatten(start_dim=0, end_dim=2)
-        page_stride = self.transformer_block_count * self.cache_partition_count
-        transformer_block_stride = self.cache_partition_count
+        page_stride = self.transformer_block_count * 2
+        transformer_block_stride = 2
         base_subblock_ids = page_ids * page_stride + (
             transformer_block_index * transformer_block_stride
         )
@@ -211,8 +201,14 @@ class PagedKVCache:
             # copy of the sub-blocks by collapsing the first two dims so we have
             # a linear list.
             selected = (
+                # Read Layout is: (bs, block_seq_len), kv_head_count, block_seq_stride, head_dim
+                # Output Layout is: bs, (block_seq_len, block_seq_stride), kv_head_count, head_dim
                 ops.index_select(subblock_table, 0, subblock_ids.flatten(0, 1))
-                .unflatten(0, blocked_shape[0:2])
+                # bs, block_seq_len, kv_head_count, block_seq_stride, head_dim
+                .unflatten(0, (bs, block_seq_len))
+                # bs, block_seq_len, block_seq_stride, kv_head_count, head_dim
+                .transpose(2, 3)
+                # bs, (block_seq_len, block_seq_stride), kv_head_count, head_dim
                 .flatten(1, 2)
             )
             return selected
@@ -225,8 +221,10 @@ class PagedKVCache:
     def write_timestep(
         self,
         state: list[Union[torch.Tensor, SplitPrimitiveTensor]],
-        # List of [bs, 1, attn_head_count, attn_head_dim]
-        cache_partitions: list[Union[torch.Tensor, SplitPrimitiveTensor]],
+        # [bs, 1, attn_head_count, attn_head_dim]
+        key: Union[torch.Tensor, SplitPrimitiveTensor],
+        # [bs, 1, attn_head_count, attn_head_dim]
+        value: Union[torch.Tensor, SplitPrimitiveTensor],
         *,
         transformer_block_index: int,
         # [bs]
@@ -234,55 +232,61 @@ class PagedKVCache:
         # [bs, max_seqlen // block_pos_stride]
         page_ids: Union[torch.Tensor, ReplicatedTensor],
     ):
-        """Writes a single batched timestep across all cache partitions.
-
-        Note that this internally loops over the batch size, which cannot be
-        dynamic.
-        """
+        """Writes a single batched timestep across all cache partitions."""
         device = self.device
         page_table = self.unflatten_page_table(state)  # 6D
         bs, *_ = seq_positions.shape
-        assert len(cache_partitions) == self.cache_partition_count
 
-        # [bs, 1, atten_head_count, attn_head_dim]
-        for idx, cache_partition in enumerate(cache_partitions):
-            # [bs, 1]
-            page_index = seq_positions // self.block_seq_stride
+        page_index = seq_positions // self.block_seq_stride
+        page_id = ops.gather(page_ids, dim=1, index=page_index.unsqueeze(1))
+        page_offset = (seq_positions % self.block_seq_stride).unsqueeze(1)
 
-            page_id = ops.gather(page_ids, dim=1, index=page_index.unsqueeze(1))
-            page_offset = (seq_positions % self.block_seq_stride).unsqueeze(1)
+        # This probably be written much better..., but after fighting
+        # a lot of with torch-mlir and dynamo, this is a hacky enough
+        # version that works. We are doing a lot of praying to the compiler
+        # here for scatter fusion.
+        # vLLM does this write using a custom kernel to write the key and
+        # value partitions.
+        #
+        # Here, we are trying to get the index to be a broadcasted version
+        # of the partition layout in which we are going to write in:
+        # [bs, kv_head_count, 1]
+        page_id = page_id.unsqueeze(-1).expand(bs, self.attn_head_count, 1)
+        head_id = (
+            torch.arange(0, self.attn_head_count, dtype=page_ids.dtype)
+            .unsqueeze(0)
+            .unsqueeze(-1)
+            .expand(bs, self.attn_head_count, 1)
+        )
+        page_offset = page_offset.unsqueeze(-1).expand(bs, self.attn_head_count, 1)
 
-            # [1, 1]
-            if isinstance(seq_positions, ReplicatedTensor):
-                partitions = [
-                    torch.tensor(idx).unsqueeze(0)
-                    for _ in range(seq_positions.shard_count)
-                ]
+        # This is a hack. Without this IREE generates a seperate dispatch for
+        # each layer, as well as fails to compiles for all dispatches except
+        # for layer 0.
+        block_idx = torch.full(
+            (bs, self.attn_head_count, 1), transformer_block_index, dtype=page_ids.dtype
+        )
 
-                transformer_block = [
-                    torch.full((bs, 1), transformer_block_index, device=device)
-                    for _ in range(seq_positions.shard_count)
-                ]
+        for idx, cache_partition in enumerate([key, value]):
+            # Input Layout: bs, 1, kv_head_count, attn_head_dim
+            # Partition Layout: (bs, 1), kv_head_count, block_seq_stride, head_dim
 
-                partitions = ReplicatedTensor(ts=partitions)
-                transformer_block = ReplicatedTensor(ts=transformer_block)
-            else:
-                partitions = torch.tensor(idx).unsqueeze(0)
-                transformer_block = torch.full(
-                    (bs, 1), transformer_block_index, device=device
-                )
+            # Same hack as above.
+            part_idx = torch.full(
+                (bs, self.attn_head_count, 1), idx, dtype=page_ids.dtype
+            )
 
-            partitions = partitions.repeat(bs, 1)
-
-            indices = (page_id, transformer_block, partitions, page_offset)
-            page_table.index_put_(indices=indices, values=cache_partition)
-
-        return
+            # bs, kv_head_count, 1, attn_head_dim
+            partition_view = cache_partition.transpose(1, 2)
+            page_table[
+                page_id, block_idx, part_idx, head_id, page_offset
+            ] = partition_view
 
     def write(
         self,
         state: list[Union[torch.Tensor, SplitPrimitiveTensor]],
-        cache_partitions: list[Union[torch.Tensor, SplitPrimitiveTensor]],
+        key: Union[torch.Tensor, SplitPrimitiveTensor],
+        value: Union[torch.Tensor, SplitPrimitiveTensor],
         *,
         transformer_block_index: int,
         page_ids: Union[torch.Tensor, ReplicatedTensor],
@@ -304,20 +308,28 @@ class PagedKVCache:
         #   [page, attn_layer, cache_partition]
         # Where the cache line can be 0 (k) or 1 (v).
         subblock_table = page_table.flatten(start_dim=0, end_dim=2)
-        page_stride = self.transformer_block_count * self.cache_partition_count
-        transformer_block_stride = self.cache_partition_count
+        page_stride = self.transformer_block_count * 2
+        transformer_block_stride = 2
         base_subblock_ids = page_ids * page_stride + (
             transformer_block_index * transformer_block_stride
         )
 
-        for index, partition in enumerate(cache_partitions):
-            part_block_view = partition.unflatten(
-                1, (block_seq_len, self.block_seq_stride)
+        def reshape_input(x):
+            # Input Layout: bs, (block_seq_len, block_seq_stride), kv_head_count, head_dim
+            # Write Layout: (bs, block_seq_len), kv_head_count, block_seq_stride, head_dim
+
+            return (
+                x
+                # bs, block_seq_len, block_seq_stride, kv_head_count, head_dim
+                .unflatten(1, (block_seq_len, self.block_seq_stride))
+                # bs, block_seq_len, kv_head_count, block_seq_stride, head_dim
+                .transpose(2, 3)
+                # (bs, block_seq_len), kv_head_count, block_seq_stride, head_dim
+                .flatten(0, 1)
             )
-            part_block_view = part_block_view.flatten(0, 1)
 
-            subblock_ids = (
-                (base_subblock_ids + index) if index > 0 else base_subblock_ids
-            ).flatten(0, 1)
+        key_ids = base_subblock_ids.flatten(0, 1)
+        value_ids = base_subblock_ids.flatten(0, 1) + 1
 
-            subblock_table.index_copy_(0, subblock_ids, part_block_view)
+        subblock_table.index_copy_(0, key_ids, reshape_input(key))
+        subblock_table.index_copy_(0, value_ids, reshape_input(value))
