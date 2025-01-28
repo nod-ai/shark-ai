@@ -309,7 +309,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
             irpa_path=self.irpa_path_fp8,
-            args=self.iree_run_prefill_args,
+            args=self.iree_run_prefill_args_fp8,
             cwd=self.repo_root,
         )
         # benchmark decode
@@ -317,7 +317,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
             irpa_path=self.irpa_path_fp8,
-            args=self.iree_run_decode_args,
+            args=self.iree_run_decode_args_fp8,
             cwd=self.repo_root,
         )
 
