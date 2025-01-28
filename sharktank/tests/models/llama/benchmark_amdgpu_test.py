@@ -282,7 +282,9 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         )
 
     @pytest.mark.xfail(
-        reason="Compile Error", strict=False, raises=IreeCompileException
+        reason="Benchmark inputs not configured yet.",
+        strict=False,
+        raises=IreeBenchmarkException,
     )
     def testBenchmark8B_fp8_Non_Decomposed(self):
         output_file_name = self.dir_path_8b / "fp8_torch"
