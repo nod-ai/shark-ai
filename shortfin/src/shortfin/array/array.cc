@@ -109,7 +109,7 @@ void device_array::AddAsInvocationArgument(
 
   iree::vm_opaque_ref ref;
   *(&ref) = iree_hal_buffer_view_move_ref(buffer_view);
-  inv->AddArg(std::move(ref));
+  inv->AddArg(std::move(ref), storage().timeline_resource_.get());
 
   storage().AddInvocationArgBarrier(inv, barrier);
 }

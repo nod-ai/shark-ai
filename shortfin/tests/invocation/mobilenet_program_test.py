@@ -89,6 +89,7 @@ def test_invoke_mobilenet_single_per_fiber(lsys, fiber0, mobilenet_program_funct
         device_input = get_mobilenet_ref_input(device)
         (device_output,) = await mobilenet_program_function(device_input, fiber=fiber0)
         await assert_mobilenet_ref_output(device, device_output)
+        del device_output
 
     lsys.run(main())
 
@@ -106,6 +107,7 @@ def test_invoke_mobilenet_single_per_call(
             device_input, fiber=fiber0
         )
         await assert_mobilenet_ref_output(device, device_output)
+        del device_output
 
     lsys.run(main())
 
@@ -123,12 +125,14 @@ def test_invoke_mobilenet_chained_per_fiber(lsys, fiber0, mobilenet_program_func
             for _ in range(5)
         ]
 
-        await asyncio.gather(
+        gather = asyncio.gather(
             *[
                 assert_mobilenet_ref_output(device, device_output)
                 for (device_output,) in results
             ]
         )
+        del results
+        await gather
 
     lsys.run(main())
 
@@ -157,12 +161,14 @@ def test_invoke_mobilenet_parallel_per_call(
             ]
         )
 
-        await asyncio.gather(
+        gather = asyncio.gather(
             *[
                 assert_mobilenet_ref_output(device, device_output)
                 for (device_output,) in results
             ]
         )
+        del results
+        await gather
 
     lsys.run(main())
 
@@ -189,12 +195,14 @@ def test_invoke_mobilenet_parallel_per_call_explicit(
             ]
         )
 
-        await asyncio.gather(
+        gather = asyncio.gather(
             *[
                 assert_mobilenet_ref_output(device, device_output)
                 for (device_output,) in results
             ]
         )
+        del results
+        await gather
 
     lsys.run(main())
 
@@ -221,6 +229,7 @@ def test_invoke_mobilenet_multi_fiber_per_fiber(lsys, mobilenet_program_function
             )
             print(f"{self}: Program complete (+{duration()}ms)")
             await assert_mobilenet_ref_output(device, device_output)
+            del device_output
             print(f"{self} End (+{duration()}ms)")
 
     async def main():
