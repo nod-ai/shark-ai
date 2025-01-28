@@ -44,10 +44,6 @@ jobs:
         with:
           python-version: ${{matrix.version}}
 
-      - name: Set Python version without dot
-        run: |
-          echo "PY_VERSION_NO_DOT=$(echo ${{ matrix.version }} | tr -d '.')" >> $GITHUB_ENV
-
       - name: Setup UV caching
         run: |
           CACHE_DIR="${GITHUB_WORKSPACE}/.uv-cache"
@@ -60,23 +56,12 @@ jobs:
           path: .uv-cache
           key: ${{ runner.os }}-uv-py${{ matrix.version }}-${{ hashFiles('requirements-iree-pinned.txt', 'pytorch-cpu-requirements.txt', 'sharktank/requirements.txt', 'sharktank/requirements-tests.txt', 'shortfin/requirements-tests.txt') }}
 
-      - name: Download sharktank artifacts
+      - name: Download package artifacts
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          name: snapshot-sharktank-linux-x86_64-cp${{ env.PY_VERSION_NO_DOT }}-cp${{ env.PY_VERSION_NO_DOT }}
+          pattern: snapshot-*-linux-x86_64-*
           path: ${{ env.PACKAGE_DOWNLOAD_DIR }}
-
-      - name: Download shortfin artifacts
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
-        with:
-          name: snapshot-shortfin-linux-x86_64-cp${{ env.PY_VERSION_NO_DOT }}-cp${{ env.PY_VERSION_NO_DOT }}
-          path: ${{ env.PACKAGE_DOWNLOAD_DIR }}
-
-      - name: Download shark-ai artifacts
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
-        with:
-          name: snapshot-shark-ai-linux-x86_64-cp${{ env.PY_VERSION_NO_DOT }}-cp${{ env.PY_VERSION_NO_DOT }}
-          path: ${{ env.PACKAGE_DOWNLOAD_DIR }}
+          merge-multiple: true
 
       - name: Setup venv
         run: |
