@@ -8,6 +8,8 @@ import os
 import re
 from dataclasses import dataclass
 import math
+import torch
+from typing import Callable
 
 from einops import rearrange
 
@@ -16,18 +18,15 @@ from iree.turbine.aot import *
 from iree.turbine.dynamo.passes import (
     DEFAULT_DECOMPOSITIONS,
 )
-import torch
 
-from diffusers.models.transformers import FluxTransformer2DModel
-from diffusers.models.autoencoders import AutoencoderKL
-from te import HFEmbedder
 from transformers import CLIPTextModel
-from ae import AutoEncoder, AutoEncoderParams
-from scheduler import FluxScheduler
-from mmdit import get_flux_transformer_model
+from sharktank.models.clip import ClipTextModel, ClipTextConfig
+from sharktank.models.t5 import T5Encoder, T5Config
+from sharktank.models.flux.flux import FluxModelV1, FluxParams
 from sharktank.models.vae.model import VaeDecoderModel
-#from sharktank.models.flux import FluxParams, FluxModelV1
 from sharktank.types.theta import Theta, Dataset, torch_module_to_theta
+
+
 
 @dataclass
 class ModelSpec:
@@ -100,6 +99,72 @@ def create_safe_name(hf_model_name, model_name_str=""):
     return safe_name
 
 
+class FluxDenoiseStepModel(torch.nn.Module):
+    def __init__(
+        self,
+        theta,
+        params,
+        batch_size=1,
+        max_length=512,
+        height=1024,
+        width=1024,
+    ):
+        super().__init__()
+        self.mmdit = FluxModelV1(theta=theta, params=params)
+        self.batch_size = batch_size
+        img_ids = torch.zeros(height // 16, width // 16, 3)
+        img_ids[..., 1] = img_ids[..., 1] + torch.arange(height // 16)[:, None]
+        img_ids[..., 2] = img_ids[..., 2] + torch.arange(width // 16)[None, :]
+        self.img_ids = img_ids.reshape(1, height * width // 256, 3)
+        self.txt_ids = torch.zeros(1, max_length, 3)
+
+    def forward(self, img, txt, vec, step, timesteps, guidance_scale):
+        guidance_vec = guidance_scale.repeat(self.batch_size)
+        t_curr = torch.index_select(timesteps, 0, step)
+        t_prev = torch.index_select(timesteps, 0, step + 1)
+        t_vec = t_curr.repeat(self.batch_size)
+
+        pred = self.mmdit(
+            img=img,
+            img_ids=self.img_ids,
+            txt=txt,
+            txt_ids=self.txt_ids,
+            y=vec,
+            timesteps=t_vec,
+            guidance=guidance_vec,
+        )
+        # TODO: Use guidance scale
+        # pred_uncond, pred = torch.chunk(pred, 2, dim=0)
+        # pred = pred_uncond + guidance_scale * (pred - pred_uncond)
+        img = img + (t_prev - t_curr) * pred
+        return img
+
+
+@torch.no_grad()
+def get_flux_transformer_model(
+    hf_model_path,
+    img_height=1024,
+    img_width=1024,
+    compression_factor=8,
+    max_len=512,
+    torch_dtype=torch.float32,
+    bs=1,
+):
+    # DNS: refactor file to select datatype
+    transformer_dataset = Dataset.load("/data/flux/flux/FLUX.1-dev/exported_parameters_f32/transformer.irpa")
+    model = FluxDenoiseStepModel(theta=transformer_dataset.root_theta, params=FluxParams.from_hugging_face_properties(transformer_dataset.properties))
+    sample_args, sample_kwargs = model.mmdit.sample_inputs()
+    sample_inputs = (
+        sample_kwargs["img"],
+        sample_kwargs["txt"],
+        sample_kwargs["y"],
+        torch.full((bs,), 1, dtype=torch.int64),
+        torch.full((100,), 1, dtype=torch_dtype), # TODO: non-dev timestep sizes
+        sample_kwargs["guidance"],
+    )
+    return model, sample_inputs
+
+
 def get_flux_model_and_inputs(
     hf_model_name, precision, batch_size, max_length, height, width
 ):
@@ -108,6 +173,40 @@ def get_flux_model_and_inputs(
         hf_model_name, height, width, 8, max_length, dtype, batch_size
     )
 
+# Copied from https://github.com/black-forest-labs/flux
+class HFEmbedder(nn.Module):
+    def __init__(self, version: str, max_length: int, **hf_kwargs):
+        super().__init__()
+        self.is_clip = version.startswith("openai")
+        self.max_length = max_length
+        self.output_key = "pooler_output" if self.is_clip else "last_hidden_state"
+
+        if self.is_clip:
+            self.hf_module: CLIPTextModel = CLIPTextModel.from_pretrained(
+                version, **hf_kwargs
+            )
+            # DNS: Refactor to not rely on huggingface
+            config = ClipTextConfig.from_hugging_face_clip_text_model_config(self.hf_module.config)
+            config.dtype = torch.float32
+            dataset = Dataset.load("/data/flux/flux/FLUX.1-dev/exported_parameters_f32/clip.irpa")
+            self.hf_module = ClipTextModel(theta=dataset.root_theta, config=config)
+        else:
+            t5_dataset = Dataset.load("/data/flux/flux/FLUX.1-dev/exported_parameters_f32/t5.irpa")
+            t5_config = T5Config.from_gguf_properties(
+                t5_dataset.properties,
+                feed_forward_proj="gated-gelu",
+            )
+            self.hf_module = T5Encoder(theta=t5_dataset.root_theta, config=t5_config)
+
+        self.hf_module = self.hf_module.eval().requires_grad_(False)
+
+    def forward(self, input_ids) -> Tensor:
+        outputs = self.hf_module(
+            input_ids=input_ids,
+            attention_mask=None,
+            output_hidden_states=False,
+        )
+        return outputs[self.output_key]
 
 def get_te_model_and_inputs(
     hf_model_name, component, precision, batch_size, max_length
@@ -135,7 +234,7 @@ def get_te_model_and_inputs(
             )
             clip_ids_shape = (
                 batch_size,
-                512,
+                512, #DNS
             )
             input_args = [
                 torch.ones(clip_ids_shape, dtype=torch.int64),
@@ -147,9 +246,6 @@ class FluxAEWrapper(torch.nn.Module):
     def __init__(self, height=1024, width=1024, precision="fp32"):
         super().__init__()
         dtype = torch_dtypes[precision]
-        #self.ae = AutoencoderKL.from_pretrained(
-        #    "black-forest-labs/FLUX.1-dev", subfolder="vae", torch_dtypes=dtype
-        #)
         dataset = Dataset.load("/data/flux/flux/FLUX.1-dev/exported_parameters_f32/vae.irpa")
         self.ae = VaeDecoderModel.from_dataset(dataset)
         self.height = height
@@ -195,6 +291,52 @@ def get_ae_model_and_inputs(hf_model_name, precision, batch_size, height, width)
     return ae, encode_inputs, decode_inputs
 
 
+def time_shift(mu: float, sigma: float, t: torch.Tensor):
+    return math.exp(mu) / (math.exp(mu) + (1 / t - 1) ** sigma)
+
+
+def get_lin_function(
+    x1: float = 256, y1: float = 0.5, x2: float = 4096, y2: float = 1.15
+) -> Callable[[float], float]:
+    m = (y2 - y1) / (x2 - x1)
+    b = y1 - m * x1
+    return lambda x: m * x + b
+
+
+def get_schedule(
+    num_steps: int,
+    image_seq_len: int,
+    base_shift: float = 0.5,
+    max_shift: float = 1.15,
+    shift: bool = True,
+) -> list[float]:
+    # extra step for zero
+    timesteps = torch.linspace(1, 0, num_steps + 1)
+
+    # shifting the schedule to favor high timesteps for higher signal images
+    if shift:
+        # eastimate mu based on linear estimation between two points
+        mu = get_lin_function(y1=base_shift, y2=max_shift)(image_seq_len)
+        timesteps = time_shift(mu, 1.0, timesteps)
+
+    return timesteps
+
+
+class FluxScheduler(torch.nn.Module):
+    def __init__(self, max_length, torch_dtype, is_schnell=False):
+        super().__init__()
+        self.is_schnell = is_schnell
+        self.max_length = max_length
+        timesteps = [torch.empty((100), dtype=torch_dtype, requires_grad=False)] * 100
+        for i in range(1, 100):
+            schedule = get_schedule(i, max_length, shift=not self.is_schnell)
+            timesteps[i] = torch.nn.functional.pad(schedule, (0, 99 - i), "constant", 0)
+        self.timesteps = torch.stack(timesteps, dim=0).clone().detach()
+
+    def prepare(self, num_steps):
+        timesteps = self.timesteps[num_steps]
+        return timesteps
+
 def get_scheduler_model_and_inputs(hf_model_name, max_length, precision):
     is_schnell = "schnell" in hf_model_name
     mod = FluxScheduler(
@@ -203,8 +345,6 @@ def get_scheduler_model_and_inputs(hf_model_name, max_length, precision):
         is_schnell=is_schnell,
     )
     sample_inputs = (torch.empty(1, dtype=torch.int64),)
-    # tdim = torch.export.Dim("timesteps")
-    # dynamic_inputs = {"timesteps": {0: tdim}}
     return mod, sample_inputs
 
 
@@ -262,7 +402,7 @@ def export_flux_model(
 
             module = CompiledModule.get_mlir_module(inst)
 
-        elif component in ["clip", "t5xxl"]:
+        elif component == "clip":
             model, sample_inputs = get_te_model_and_inputs(
                 hf_model_name, component, precision, batch_size, max_length
             )
@@ -288,21 +428,38 @@ def export_flux_model(
             inst = CompiledFluxTextEncoder(context=Context(), import_to="IMPORT")
 
             module = CompiledModule.get_mlir_module(inst)
+        elif component == "t5xxl":
+            model, sample_inputs = get_te_model_and_inputs(
+                hf_model_name, component, precision, batch_size, max_length
+            )
+
+            fxb = FxProgramsBuilder(model)
+
+            @fxb.export_program(
+                args=(sample_inputs,),
+            )
+            def _forward(
+                module,
+                inputs,
+            ):
+                return module.forward(*inputs)
+
+            class CompiledFluxTextEncoder2(CompiledModule):
+                encode_prompts = _forward
+
+            if external_weights:
+                externalize_module_parameters(model)
+                save_module_parameters(external_weight_path, model)
+
+            inst = CompiledFluxTextEncoder(context=Context(), import_to="IMPORT")
+
+            module = CompiledModule.get_mlir_module(inst)
         elif component == "vae":
             model, encode_inputs, decode_inputs = get_ae_model_and_inputs(
                 hf_model_name, precision, batch_size, height, width
             )
 
             fxb = FxProgramsBuilder(model)
-
-            # @fxb.export_program(
-            #     args=(encode_inputs,),
-            # )
-            # def _encode(
-            #     module,
-            #     inputs,
-            # ):
-            #     return module.encode(*inputs)
 
             @fxb.export_program(
                 args=(decode_inputs,),
