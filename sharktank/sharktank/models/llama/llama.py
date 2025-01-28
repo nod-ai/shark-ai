@@ -86,9 +86,8 @@ class PagedLlamaModelV1(BaseCausalLMModel):
 
         self.add_module(
             "token_embedding",
-            TokenEmbeddingLayer(theta("token_embd"), dtype=torch.bfloat16),
+            TokenEmbeddingLayer(theta("token_embd"), dtype=self.activation_dtype),
         )
-        # self.attention_embedding = LlamaRotaryEmbedding(config=self.hf_config)
         self.add_module(
             "attention_embedding",
             RotaryEmbeddingLayer(
