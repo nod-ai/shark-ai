@@ -44,6 +44,7 @@ addopts = [
     "-m=unit",
 ]
 markers = [
+    "benchmark: model benchmarks",
     "expensive: tests that are very expensive",
     "export: tests that require export from torch",
     "golden: tests that compare to some golden values",
