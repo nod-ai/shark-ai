@@ -1,7 +1,7 @@
 name: Windows Test
 
 on:
-    push:
+  push:
     branches:
       - eliasj42/runner-test
 
