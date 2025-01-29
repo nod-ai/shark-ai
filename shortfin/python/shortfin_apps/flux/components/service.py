@@ -460,12 +460,6 @@ class InferenceExecutorProcess(sf.Process):
                 image_seq_len,
                 64,
             ]
-            # latents_shape = (
-            #     1,
-            #     channels,
-            #     request.height // 8,
-            #     request.width // 8,
-            # )
 
             # Create and populate sample device array.
             generator = sfnp.RandomGenerator(seed)
@@ -488,8 +482,6 @@ class InferenceExecutorProcess(sf.Process):
                 )
 
                 request.sample.copy_from(sample_transfer)
-                # sample_debug = torch.frombuffer(sample_transfer.items, dtype=torch.bfloat16)
-                # print(sample_debug)
             else:
                 request.sample.copy_from(sample_host)
 
@@ -550,7 +542,6 @@ class InferenceExecutorProcess(sf.Process):
         a = vec.for_transfer()
         a.copy_from(vec)
         await device
-        print(torch.frombuffer(a.items, dtype=torch.float32).shape)
 
         return
 
@@ -566,7 +557,8 @@ class InferenceExecutorProcess(sf.Process):
                 break
 
         # Prepare tokenized input ids for t5xxl inference
-        bs_or_something =1
+        # TODO(eagarvey): Refactor
+        bs_or_something = 1
         t5xxl_inputs = [
             sfnp.device_array.for_device(
                 device, [bs_or_something, self.service.model_params.max_seq_len], sfnp.sint64
@@ -592,7 +584,7 @@ class InferenceExecutorProcess(sf.Process):
         (txt,) = await fn(*t5xxl_inputs, fiber=self.fiber)
         await device
         for i in range(req_bs):
-            cfg_mult = 1
+            cfg_mult = requests[i].cfg_mult
             requests[i].txt = txt.view(slice(i * cfg_mult, (i + 1) * cfg_mult))
 
         return
@@ -600,8 +592,8 @@ class InferenceExecutorProcess(sf.Process):
     async def _denoise(self, device, requests):
         req_bs = len(requests)
         step_count = requests[0].steps
-        #cfg_mult = 2 if not self.service.model_params.is_schnell else 1
-        cfg_mult = 1
+        cfg_mult = self.requests[0].cfg_mult
+
         # Produce denoised latents
         entrypoints = self.service.inference_functions[self.worker_index]["denoise"]
         if req_bs not in list(entrypoints.keys()):
@@ -649,27 +641,16 @@ class InferenceExecutorProcess(sf.Process):
             ),
         }
         # Send guidance scale to device.
-        print("hi")
-        await device
         gs_host = denoise_inputs["guidance_scale"].for_transfer()
         sample_host = sfnp.device_array.for_host(
             device, img_shape, self.service.model_params.sampler_dtype
         )
         guidance_float = sfnp.device_array.for_host(device, [req_bs], sfnp.float32)
-        print("hi")
         await device
-
-        #for key, value in denoise_inputs.items():
-            #host_arrs[key] = denoise_inputs[key].for_transfer()
-            #host_arrs[key].copy_from(denoise_inputs[key])
-            #await device
-            #print(torch.frombuffer(host_arrs[key].items, dtype=torch.float32).shape)
 
         for i in range(req_bs):
             guidance_float.view(i).items = [requests[i].guidance_scale]
             cfg_dim = i * cfg_mult
-            print("hi")
-            await device
 
             # Reshape and batch sample latent inputs on device.
             # Currently we just generate random latents in the desired shape. Rework for img2img.
@@ -678,30 +659,21 @@ class InferenceExecutorProcess(sf.Process):
                 sample_host.view(slice(cfg_dim + rep, cfg_dim + rep + 1)).copy_from(
                     req_samp
                 )
-            print("hi")
-            await device
 
             denoise_inputs["img"].view(slice(cfg_dim, cfg_dim + cfg_mult)).copy_from(
                 sample_host
             )
-            print("hi")
-            await device
 
             # Batch t5xxl hidden states.
             txt = requests[i].txt
             denoise_inputs["txt"].view(slice(cfg_dim, cfg_dim + cfg_mult)).copy_from(
                 txt
             )
-            print("hi")
-            await device
 
             # Batch CLIP projections.
             vec = requests[i].vec
-            #for nc in range(cfg_mult):
-            for nc in range(1):
+            for nc in range(cfg_mult):
                 denoise_inputs["vec"].view(slice(nc, nc + 1)).copy_from(vec)
-            print("hi")
-            await device
         sfnp.convert(
             guidance_float, dtype=self.service.model_params.sampler_dtype, out=gs_host
         )
@@ -738,16 +710,6 @@ class InferenceExecutorProcess(sf.Process):
                 fns["sampler"],
             )
             await device
-            # np_arrs = {}
-            # host_arrs = {}
-            # for key, value in denoise_inputs.items():
-            #     host_arrs[key] = denoise_inputs[key].for_transfer()
-            #     host_arrs[key].copy_from(denoise_inputs[key])
-            #     await device
-            #     np_arrs[key] = np.array(host_arrs[key])
-            # for key, value in np_arrs.items():
-            #     np.save(f"{key}.npy", value)
-
             (noise_pred,) = await fns["sampler"](
                 *denoise_inputs.values(), fiber=self.fiber
             )
@@ -806,13 +768,7 @@ class InferenceExecutorProcess(sf.Process):
         latents = sfnp.device_array.for_device(
             device, latents_shape, self.service.model_params.vae_dtype
         )
-        # latents_host = sfnp.device_array.for_host(
-        #     device, latents_shape, self.service.model_params.vae_dtype
-        # )
-        # latents_host.copy_from(latents)
-        # print(latents_host)
-        # lat_arr = np.array(latents_host, dtype="float32")
-        # np.save("vae_in.npy", lat_arr)
+        
         for i in range(req_bs):
             latents.view(i).copy_from(requests[i].denoised_latents)
 
@@ -830,15 +786,12 @@ class InferenceExecutorProcess(sf.Process):
             requests[0].height,
             requests[0].width,
         ]
+        await device
         images_host = sfnp.device_array.for_host(
             device, images_shape, self.service.model_params.vae_dtype
         )
         await device
         images_host.copy_from(image)
-        # await device
-        # print(images_host)
-        # img_arr = np.array(images_host, dtype="float32")
-        # np.save("vae_out.npy", img_arr)
         await device
         for idx, req in enumerate(requests):
             req.image_array = images_host.view(idx)

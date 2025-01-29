@@ -3,6 +3,7 @@
   "is_schnell": false,
   "num_latents_channels": 16,
   "max_seq_len": 512,
+  "cfg_mult": 1,
   "clip_max_seq_len": 77,
   "clip_batch_sizes": [
     1
