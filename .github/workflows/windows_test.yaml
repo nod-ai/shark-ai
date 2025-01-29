@@ -1,0 +1,15 @@
+name: Windows Test
+
+on:
+    push:
+    branches:
+      - eliasj42/runner-test
+
+jobs:
+  build:
+    runs-on: azure-windows-scale-nod-ai
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Run build
+        run: echo "Running on ARC organization-wide runner!"
