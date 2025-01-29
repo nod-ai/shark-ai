@@ -10,9 +10,7 @@ import torch
 import unittest
 import pytest
 
-# is_mi300x = pytest.mark.skipif("config.getoption('iree_hip_target') != 'gfx942'")
 
-# @is_mi300x
 @pytest.mark.skip(reason="need to generate values to compare against")
 class QuarkParityTest(unittest.TestCase):
     def test_compare_against_quark(self):
