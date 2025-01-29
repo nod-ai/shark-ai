@@ -329,16 +329,17 @@ def main():
         intermediates_saver.save_file(
             args.save_intermediates_path + "_prefill.safetensors"
         )
-    counter = 0
-    while not batch.done:
-        batch.decode()
-        if args.save_intermediates_path:
-            intermediates_saver.save_file(
-                args.save_intermediates_path + f"_step_{counter}.safetensors"
-            )
-        print(f":: Result tokens: {batch.results}")
-        batch.print_current_results()
-        counter += 1
+    if not args.skip_decode:
+        counter = 0
+        while not batch.done:
+            batch.decode()
+            if args.save_intermediates_path:
+                intermediates_saver.save_file(
+                    args.save_intermediates_path + f"_step_{counter}.safetensors"
+                )
+            print(f":: Result tokens: {batch.results}")
+            batch.print_current_results()
+            counter += 1
 
 
 if __name__ == "__main__":

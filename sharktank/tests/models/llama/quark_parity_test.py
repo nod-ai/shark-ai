@@ -9,18 +9,19 @@ from safetensors import safe_open
 import torch
 import unittest
 import pytest
+from pathlib import Path
+import subprocess
+
+with_quark_data = pytest.mark.skipif("not config.getoption('with_quark_data')")
 
 
-@pytest.mark.skip(reason="need to generate values to compare against")
 class QuarkParityTest(unittest.TestCase):
+    def setUp(self):
+        super().setUp()
+        self.path_prefix = Path("/shark-dev/quark_test")
+
+    @with_quark_data
     def test_compare_against_quark(self):
-        def both(key, index=None):
-            o = ours[key]
-            t = theirs[key]
-            if index is None:
-                return o, t
-            else:
-                return o[index], t[index]
 
         mapping = dict()
         for i in range(32):
@@ -42,17 +43,28 @@ class QuarkParityTest(unittest.TestCase):
                 mapping[a + "_input_0"] = b + "_input_0"
 
         ours = dict()
-        with safe_open("../ours_newest_prefill.safetensors", "pytorch") as st:
+        our_path = self.path_prefix / "prefill.safetensors"
+        with safe_open(our_path, "pytorch") as st:
             for key in st.keys():
                 ours[key] = st.get_tensor(key)
 
-        theirs = dict()
-        with safe_open("../theirs2.safetensors", "pytorch") as st:
+        golden = dict()
+        golden_path = self.path_prefix / "golden.safetensors"
+        with safe_open(golden_path, "pytorch") as st:
             for key in st.keys():
                 if key in mapping:
-                    theirs[mapping[key]] = st.get_tensor(key)
+                    golden[mapping[key]] = st.get_tensor(key)
 
         test_layers = [v for k, v in mapping.items()]
+
+        def both(key, index=None):
+            o = ours[key]
+            t = golden[key]
+            if index is None:
+                return o, t
+            else:
+                return o[index], t[index]
+
         for lyr in test_layers:
             name = lyr
             if name in ours.keys() and name != "freqs":

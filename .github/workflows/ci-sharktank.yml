@@ -141,12 +141,14 @@ jobs:
             --with-flux-data \
             --with-t5-data \
             --with-vae-data \
+            --with-quark-data \
             sharktank/tests/models/clip/clip_test.py \
             sharktank/tests/models/t5/t5_test.py \
             sharktank/tests/models/flux/flux_test.py \
             sharktank/tests/models/vae/vae_test.py \
+            sharktank/tests/models/llama/quark_parity_test.py \
             --durations=0 \
-            --timeout=600
+            --timeout=800
 
 
   test_integration:
