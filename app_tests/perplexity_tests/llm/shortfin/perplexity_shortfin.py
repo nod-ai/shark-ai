@@ -14,6 +14,8 @@ import re
 from pathlib import Path
 from datetime import timedelta
 from tqdm import tqdm
+import uuid
+import requests
 
 import numpy as np
 
@@ -123,17 +125,18 @@ class Perplexity:
 
     @timeit
     def compile_model(self, weight_path_str):
-        self.sharktank_dir = str(
-            Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent
-        )
-        self.weight_path_str = weight_path_str
+        # self.sharktank_dir = str(
+        #     Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent
+        # )
+        # self.weight_path_str = weight_path_str
 
-        (
-            self.mlir_path,
-            self.config_path,
-            self.vmfb_path,
-            self.edited_config_path,
-        ) = get_artifacts(source_dir=self.sharktank_dir, irpa_path=self.weight_path_str)
+        # (
+        #     self.mlir_path,
+        #     self.config_path,
+        #     self.vmfb_path,
+        #     self.edited_config_path,
+        # ) = get_artifacts(source_dir=self.sharktank_dir, irpa_path=self.weight_path_str)
+
         # Export model
         gpu_settings = {
             "device_flags": [
@@ -152,27 +155,27 @@ class Perplexity:
         # Compile model
         compile_model(self.mlir_path, self.vmfb_path, device_settings=gpu_settings)
 
-        # Write config
-        prefix_sharing_algorithm = "none"  # trie
-        config = {
-            "module_name": "module",
-            "module_abi_version": 1,
-            "max_seq_len": 2048,
-            "attn_head_count": 32,
-            "attn_head_dim": 100,
-            "prefill_batch_sizes": batch_sizes,
-            "decode_batch_sizes": batch_sizes,
-            "transformer_block_count": 26,
-            "paged_kv_cache": {
-                "block_seq_stride": 16,
-                "device_block_count": 256,
-                "prefix_sharing_algorithm": prefix_sharing_algorithm,
-            },
-        }
-        logger.info(f"Saving edited config to: {self.edited_config_path}\n")
-        logger.info(f"Config: {json.dumps(config, indent=2)}")
-        with open(self.edited_config_path, "w") as f:
-            json.dump(config, f)
+        # Write config - not needed anymore
+        # prefix_sharing_algorithm = "none"  # trie
+        # config = {
+        #     "module_name": "module",
+        #     "module_abi_version": 1,
+        #     "max_seq_len": 2048,
+        #     "attn_head_count": 32,
+        #     "attn_head_dim": 100,
+        #     "prefill_batch_sizes": batch_sizes,
+        #     "decode_batch_sizes": batch_sizes,
+        #     "transformer_block_count": 26,
+        #     "paged_kv_cache": {
+        #         "block_seq_stride": 16,
+        #         "device_block_count": 256,
+        #         "prefix_sharing_algorithm": prefix_sharing_algorithm,
+        #     },
+        # }
+        # logger.info(f"Saving edited config to: {self.edited_config_path}\n")
+        # logger.info(f"Config: {json.dumps(config, indent=2)}")
+        # with open(self.edited_config_path, "w") as f:
+        #     json.dump(config, f)
 
     @timeit
     def get_prompts(self, num_prompts):
@@ -198,14 +201,52 @@ class Perplexity:
         logger.info(f" Batch size: {self.bs}")
 
     @timeit
+    def generate(self, prompt: str | list[int], port: int, input_ids=False) -> str:
+        """Helper method to make generation request to server.
+
+        Args:
+            prompt: Input text prompt
+            port: Server port number
+
+        Returns:
+            Generated text response
+
+        Raises:
+            requests.exceptions.RequestException: If request fails
+            AccuracyValidationException: If response format is invalid
+        """
+        payload = {
+            "sampling_params": {"max_completion_tokens": 15, "temperature": 0.7},
+            "rid": uuid.uuid4().hex,
+            "stream": False,
+            "return_logprob": True,  # dummy param in /home/aramalin/shark-ai/shortfin/python/shortfin_apps/llm/components/io_struct.py needs to be plumbed thro' to return logits
+        }
+        if input_ids:
+            payload["input_ids"] = prompt
+        else:
+            payload["text"] = prompt
+        response = requests.post(
+            f"http://localhost:{port}/generate",
+            headers={"Content-Type": "application/json"},
+            json=payload,
+            timeout=30,  # Add reasonable timeout
+        )
+        response.raise_for_status()
+
+        # TODO: Parse response for logits
+        logits = response.text
+
+        return logits
+
+    @timeit
     def get_logits(self, page_cache_size):
 
-        # TODO: put llm server here
+        # TODO:
         """
-        GenerateReqInput /io struct- input format-add groundtruth prompt as new arg
-        generate.py - prefill decode reqs created-use the groundtruth prompt tokens instead of predicted toks to loop for decode
-        Plumb thro' return_logprob param to actually return logits, service.py sends logits - https://github.com/nod-ai/shark-ai/blob/04d383b5a67de031bf6e8626a84d030c346792eb/shortfin/python/shortfin_apps/llm/components/service.py#L479
+        GenerateReqInput /io struct- input format-add groundtruth prompt as new arg (Done)
+        generate.py - prefill decode reqs created-use the groundtruth prompt tokens instead of predicted toks in decode loop (follow TODOs)
         from integration_tests.llm.utils import (start_llm_server) = starts the llm server (ref: shark-ai/app_tests/benchmark_tests/llm/sglang_benchmarks/shortfin_benchmark_test.py)
+        Optional, if perplexity_tests/llm/generate.py logits don't work: Plumb thro' return_logprob param to actually return logits, service.py sends logits - https://github.com/nod-ai/shark-ai/blob/04d383b5a67de031bf6e8626a84d030c346792eb/shortfin/python/shortfin_apps/llm/components/service.py#L479
         """
         # TODO: run do_generate and get logits here
 

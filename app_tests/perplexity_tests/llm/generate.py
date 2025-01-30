@@ -7,7 +7,9 @@
 import asyncio
 import io
 import logging
+from typing import List, Optional
 
+import torch
 import shortfin as sf
 import shortfin.array as sfnp
 
@@ -37,44 +39,70 @@ class GenerateItemProcess(sf.Process):
         input_token_ids: list[int],
         max_completion_tokens: int,
         eos_token_id: int,
+        input_groundtruth: Optional[list[int]] = None,
     ):
         super().__init__(fiber=client.fiber)
         self.client = client
         self.gen_req = gen_req
         self.index = index
-        self.input_token_ids = input_token_ids
+        self.input_token_ids = input_token_ids  #
         self.result_token_ids: list[int] = []
         self.max_completion_tokens = max_completion_tokens
         self.eos_token_id = eos_token_id
+        self.input_groundtruth = input_groundtruth
 
     async def run(self):
+        # TODO:
         exec = InferenceExecRequest(
             phase=InferencePhase.PREFILL,
-            input_token_ids=self.input_token_ids,
+            input_token_ids=self.input_groundtruth[
+                [0], [0], [0]
+            ],  # TODO: pass all first tokens of the entire batch of input_groundtruth
             rid=self.gen_req.rid,
         )
+
+        all_logits = []
         try:
             self.client.batcher.submit(exec)
             await exec.done
 
             # Prefill result.
-            token = sfnp.argmax(exec.result_logits)
-            # token_int = token.items[0]
+            prefill_logits = exec.result_logits
+            token = sfnp.argmax(prefill_logits)
+            all_logits = prefill_logits
 
+            # token_int = token.items[0]
             # self.append_token(token_int)
+
+            self.append_token(
+                self.input_groundtruth[[0], [0], [0]]
+            )  # TODO: pass all first tokens of the entire batch of input_groundtruth
+
             # Decode loop.
             exec.start_position = len(self.input_token_ids) - 1
-            # for i in range(self.max_completion_tokens):
-            exec.reset(InferencePhase.DECODE)
-            exec.input_token_ids.append(token_int)
-            exec.start_position += 1
-            self.client.batcher.submit(exec)
-            await exec.done
-            token = sfnp.argmax(exec.result_logits)
-            # token_int = token.items[0]
-            # self.append_token(token_int)
-            # if token_int == self.eos_token_id:
-            #     break
+            exec.start_position = len(self.input_token_ids) - 1
+
+            for i in range(self.max_completion_tokens):
+                exec.reset(InferencePhase.DECODE)
+                exec.input_token_ids.append(
+                    self.input_groundtruth[[1], [1], [1]]
+                )  # TODO: pass all consecutive tokens of the entire batch of input_groundtruth
+                exec.start_position += 1
+                self.client.batcher.submit(exec)
+                await exec.done
+                decode_logits = exec.result_logits
+                all_logits = torch.cat(
+                    (all_logits, decode_logits), 1
+                )  # only torch package dependency in shortfin, find alternatives to concat w/o torch
+
+                token = sfnp.argmax(decode_logits)
+                self.append_token(
+                    self.input_groundtruth[[1], [1], [1]]
+                )  # TODO: pass all consecutive tokens of the entire batch of input_groundtruth
+                # token_int = token.items[0]
+                # self.append_token(token_int)
+                # if token_int == self.eos_token_id:
+                #     break
         finally:
             exec.free_cache_pages()
 
