@@ -3,7 +3,6 @@
 # Licensed under the Apache License v2.0 with LLVM Exceptions.
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-
 import os
 import sys
 import subprocess
@@ -94,6 +93,8 @@ class ExportArtifacts:
         block_seq_stride: int,
         iree_hal_target_device: str,
         use_attention_mask: bool = False,
+        activation_dtype: str = "float16",
+        attention_dtype: str = "float16",
     ):
         self.sharktank_dir = str(
             Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent
@@ -106,6 +107,8 @@ class ExportArtifacts:
         self.tensor_parallelism_size = tensor_parallelism_size
         self.block_seq_stride = block_seq_stride
         self.use_attention_mask = use_attention_mask
+        self.activation_dtype = activation_dtype
+        self.attention_dtype = attention_dtype
 
     def timeit(func):
         def wrapper(*args, **kwargs):
@@ -183,6 +186,8 @@ class ExportArtifacts:
             f"--output-config={json_path}",
             f"--bs={str(self.batch_size)}",
             f"--block-seq-stride={self.block_seq_stride}",
+            f"--attention-dtype={self.attention_dtype}",
+            f"--activation-dtype={self.activation_dtype}",
         ]
         if skip_decode:
             export_args.append("--skip-decode")

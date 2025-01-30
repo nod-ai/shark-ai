@@ -24,7 +24,7 @@ import uvicorn
 
 
 from .components.generate import ClientGenerateBatchProcess
-from .components.config_struct import ModelParams
+from .components.config_struct import ModelParams, ServerParams
 from .components.io_struct import GenerateReqInput
 from .components.manager import SystemManager
 from .components.service import GenerateService
@@ -112,12 +112,18 @@ def get_eos_from_tokenizer_config(json_path):
 
 
 def configure(args) -> SystemManager:
+    # Load server configuration with priority: command line > config file > defaults
+    server_params = ServerParams.load(
+        args.server_config if hasattr(args, "server_config") else None
+    )
+    server_params.update_from_args(args)
+
     # Setup system (configure devices, etc).
     sysman = SystemManager(
         device=args.device,
-        device_ids=args.device_ids,
-        async_allocs=args.amdgpu_async_allocations,
-        amdgpu_allocators=args.amdgpu_allocators,
+        device_ids=server_params.device_ids,
+        async_allocs=server_params.amdgpu_async_allocations,
+        amdgpu_allocators=server_params.amdgpu_allocators,
     )
 
     # Setup each service we are hosting.
@@ -131,7 +137,8 @@ def configure(args) -> SystemManager:
         sysman=sysman,
         tokenizer=tokenizer,
         model_params=model_params,
-        program_isolation=args.isolation,
+        server_params=server_params,
+        program_isolation=server_params.program_isolation,
     )
     sm.load_inference_module(args.vmfb)
     sm.load_inference_parameters(*args.parameters, parameter_scope="model")
@@ -214,6 +221,17 @@ def main(argv, log_config=uvicorn.config.LOGGING_CONFIG):
         "--amdgpu_allocators",
         default=None,
         help="Allocator to use during VMFB invocation.",
+    )
+    parser.add_argument(
+        "--server_config",
+        type=Path,
+        help="Path to server configuration file",
+    )
+    parser.add_argument(
+        "--prefix_sharing_algorithm",
+        type=str,
+        choices=["none", "trie"],
+        help="Algorithm to use for prefix sharing in KV cache",
     )
     args = parser.parse_args(argv)
 

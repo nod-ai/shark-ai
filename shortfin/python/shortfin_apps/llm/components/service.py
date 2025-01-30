@@ -18,7 +18,7 @@ from .kvcache.base_attention_cache import (
 )
 from .kvcache.trie_attention_cache import TriePagedAttentionCache
 from .kvcache.page_pool import PagePoolConfig, PagePool, PageInfo
-from .config_struct import ModelParams
+from .config_struct import ModelParams, ServerParams
 from .manager import SystemManager
 from .messages import InferenceExecRequest, InferencePhase, StrobeMessage
 from .tokenizer import Tokenizer
@@ -47,6 +47,7 @@ class GenerateService:
         sysman: SystemManager,
         tokenizer: Tokenizer,
         model_params: ModelParams,
+        server_params: "ServerParams",
         program_isolation: str = "per_call",
     ):
         self.name = name
@@ -55,6 +56,7 @@ class GenerateService:
         self.sysman = sysman
         self.tokenizer = tokenizer
         self.model_params = model_params
+        self.server_params = server_params
         self.inference_parameters: list[sf.BaseProgramParameters] = []
         self.inference_modules: list[sf.ProgramModule] = []
 
@@ -71,19 +73,19 @@ class GenerateService:
         page_pool = PagePool(
             devices=self.main_fiber.devices_dict.values(), config=page_pool_config
         )
-        if model_params.paged_kv_cache.prefix_sharing_algorithm == "trie":
+        if server_params.prefix_sharing_algorithm == "trie":
             self.page_cache = TriePagedAttentionCache(
                 page_pool=page_pool,
                 tokens_per_page=model_params.paged_kv_cache.block_seq_stride,
             )
-        elif model_params.paged_kv_cache.prefix_sharing_algorithm == "none":
+        elif server_params.prefix_sharing_algorithm == "none":
             self.page_cache = BasePagedAttentionCache(
                 page_pool=page_pool,
                 tokens_per_page=model_params.paged_kv_cache.block_seq_stride,
             )
         else:
             raise ValueError(
-                f"Unknown model_params.paged_kv_cache.prefix_sharing_algorithm {model_params.paged_kv_cache.prefix_sharing_algorithm}. Currently only supporting 'trie' and 'none'."
+                f"Unknown prefix_sharing_algorithm {server_params.prefix_sharing_algorithm}. Currently only supporting 'trie' and 'none'."
             )
 
         self.program_isolation = PROG_ISOLATIONS[program_isolation]

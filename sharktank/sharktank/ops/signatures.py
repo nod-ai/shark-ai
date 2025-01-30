@@ -769,18 +769,25 @@ def _module_register_buffer_trampoline(
 
 
 @overridable
-def rms_norm(x: AnyTensor, weight: AnyTensor, *, epsilon: float) -> AnyTensor:
+def rms_norm(
+    x: AnyTensor, weight: AnyTensor, *, epsilon: float, orig_dtype: torch.dtype
+) -> AnyTensor:
     """Computes the full, unbiased RMS normalization of an input."""
     raise NotImplementedError
 
 
 @rms_norm.trampoline
 def _rms_norm_trampoline(
-    d: SignatureDispatcher, x: AnyTensor, weight: AnyTensor, *, epsilon: float
+    d: SignatureDispatcher,
+    x: AnyTensor,
+    weight: AnyTensor,
+    *,
+    epsilon: float,
+    orig_dtype: torch.dtype,
 ):
     tensors = (x, weight)
     for override in d.find_overrides(tensors):
-        result = override(x, weight, epsilon=epsilon)
+        result = override(x, weight, epsilon=epsilon, orig_dtype=orig_dtype)
         if result is not NotImplemented:
             return override, result
     else:

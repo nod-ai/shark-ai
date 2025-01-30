@@ -25,15 +25,20 @@ class FFN(ThetaLayer):
         theta: Theta,
         is_gated: bool = True,
         activation_fn: Callable[[AnyTensor], AnyTensor] = F.silu,
+        fake_quant: bool = False,
     ):
         super().__init__(theta)
 
         self.is_gated = is_gated
         self.activation_fn = activation_fn
         if self.is_gated:
-            self.add_module("ffn_gate", LinearLayer(theta("ffn_gate")))
-        self.add_module("ffn_up", LinearLayer(theta("ffn_up")))
-        self.add_module("ffn_down", LinearLayer(theta("ffn_down")))
+            self.add_module(
+                "ffn_gate", LinearLayer(theta("ffn_gate"), fake_quant=fake_quant)
+            )
+        self.add_module("ffn_up", LinearLayer(theta("ffn_up"), fake_quant=fake_quant))
+        self.add_module(
+            "ffn_down", LinearLayer(theta("ffn_down"), fake_quant=fake_quant)
+        )
 
     def forward(
         self,
