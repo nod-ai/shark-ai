@@ -113,7 +113,7 @@ def apply_per_layer_quant(
 
     # It looks dumb but, this step is required for numerical correctness against quark.
     # weight = weight.view(torch.float8_e4m3fn)
-    weight = (weight.to(torch.float64) * weight_quant_scale).to(torch.float16)
+    weight = (weight.to(torch.float64) * weight_quant_scale).to(torch.bfloat16)
 
     weight_quant_zero_point = layer_theta.optional_tensor("weight_zero_point")
     if weight_quant_zero_point == None:
@@ -148,6 +148,7 @@ def apply_per_layer_quant(
         weight_quant = weight_quantizer.quantize(weight, name=weight_name)
         updated_tensors[weight_quant.name] = weight_quant
 
+    # In older quark models the qkv layer is fused. Unfuse.
     if "qkv" in layer_name:
         # The qkv layer is fused in the quark model, decompose back into individual q, k , and v weights
         q_weight, k_weight, v_weight = torch.split(weight, split_sizes)
@@ -275,8 +276,6 @@ def single_replace(
     updated_tensors: dict[str, InferenceTensor],
 ):
     data = quant_theta(layer_name).tensor("weight").as_torch()
-    if data.dtype == torch.bfloat16:
-        data = data.to(torch.float32)
     updated_tensors[gguf_name] = DefaultPrimitiveTensor(name=gguf_name, data=data)
 
 

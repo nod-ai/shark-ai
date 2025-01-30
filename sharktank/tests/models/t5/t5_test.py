@@ -514,7 +514,9 @@ class T5AttentionTest(TestCase):
             shape=[batch_size, 1, 1, batch_seq_len], dtype=reference_dtype
         )
         expected_outputs = reference_model(
-            hidden_states=reference_hidden_states, mask=reference_mask
+            hidden_states=reference_hidden_states,
+            mask=reference_mask,
+            query_length=batch_seq_len,
         )
 
         hidden_states = ops.to(reference_hidden_states, dtype=target_dtype)

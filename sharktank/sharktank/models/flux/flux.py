@@ -128,7 +128,8 @@ class FluxModelV1(ThetaLayer):
             [
                 MMDITDoubleBlock(
                     theta("double_blocks", i),
-                    self.num_heads,
+                    num_heads=self.num_heads,
+                    hidden_size=self.hidden_size,
                 )
                 for i in range(params.depth)
             ]
@@ -138,7 +139,8 @@ class FluxModelV1(ThetaLayer):
             [
                 MMDITSingleBlock(
                     theta("single_blocks", i),
-                    self.num_heads,
+                    num_heads=self.num_heads,
+                    hidden_size=self.hidden_size,
                 )
                 for i in range(params.depth_single_blocks)
             ]
@@ -305,10 +307,10 @@ def timestep_embedding(
     return embedding
 
 
-def layer_norm(inp):
-    weight = torch.ones(inp.shape)
-    bias = torch.zeros(inp.shape)
-    return ops.layer_norm(inp, weight, bias, eps=1e-6)
+def layer_norm(inp: torch.Tensor):
+    return ops.layer_norm(
+        inp, normalized_shape=(inp.shape[-1],), weight=None, bias=None, eps=1e-6
+    )
 
 
 def qk_norm(q, k, v, rms_q, rms_k):
@@ -340,7 +342,7 @@ class MLPEmbedder(ThetaLayer):
         return self.out_layer(x)
 
 
-class EmbedND(torch.nn.Module):
+class EmbedND(BaseLayer):
     def __init__(self, dim: int, theta: int, axes_dim: list[int]):
         super().__init__()
         self.dim = dim

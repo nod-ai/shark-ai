@@ -297,8 +297,6 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         dummy_page = PageInfo(
             index=0,  # Root uses reserved index 0
             pool=self.page_pool,
-            token_offset=0,
-            token_count=0,
         )
         self.root = TrieNode(tokens=tuple(), page=dummy_page)
         self.leaves: Set[TrieNode] = set()

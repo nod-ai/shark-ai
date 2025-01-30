@@ -265,7 +265,7 @@ class SHORTFIN_API ProgramModule {
 
   // Loads a dynamic bytecode module (VMFB) from a path on the file system.
   static ProgramModule Load(System &system, const std::filesystem::path &path,
-                            bool mmap = true);
+                            bool mmap = false);
 
   // Creates a ProgramModule that will provide the given list of parameters
   // to modules loaded after it. In IREE parlance, this produces an
@@ -386,7 +386,7 @@ class SHORTFIN_API StaticProgramParameters : public BaseProgramParameters {
     // Whether the backing file can be written.
     bool writable = false;
     // Whether to mmap the file.
-    bool mmap = true;
+    bool mmap = false;
   };
   // Load parameters from a supported file format, applying no name
   // transformation.
@@ -396,6 +396,8 @@ class SHORTFIN_API StaticProgramParameters : public BaseProgramParameters {
  private:
   iree_allocator_t host_allocator_;
   iree::io_parameter_index_ptr index_;
+
+  void LoadMmap(std::filesystem::path file_path, LoadOptions options);
 };
 
 namespace detail {

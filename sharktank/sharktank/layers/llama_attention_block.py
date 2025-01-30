@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from typing import Optional
+import math
 
 import torch
 import torch.nn.functional as F
@@ -29,7 +30,6 @@ class LlamaAttentionBlock(ThetaLayer):
         head_count: int,
         head_dim: int,
         head_count_kv: int,
-        embedding: RotaryEmbeddingLayer,
         rms_epsilon: float,
     ):
         super().__init__(theta)
@@ -41,7 +41,6 @@ class LlamaAttentionBlock(ThetaLayer):
         self.add_module("attn_v", LinearLayer(theta("attn_v")))
         self.add_module("attn_output", LinearLayer(theta("attn_output")))
 
-        self.embedding = embedding
         self.head_count = head_count
         self.head_dim = head_dim
         self.head_count_kv = head_count_kv
@@ -50,6 +49,7 @@ class LlamaAttentionBlock(ThetaLayer):
         self,
         h: torch.Tensor,
         *,
+        embedding: RotaryEmbeddingLayer,
         cache_k: torch.Tensor,
         cache_v: torch.Tensor,
         start_index: int,
@@ -72,11 +72,11 @@ class LlamaAttentionBlock(ThetaLayer):
         # Fast path to start_index based embedding lookup if available.
         # Falls back to a slower position based index lookup.
         if start_index is not None:
-            xq, xk = embedding.forward(xq=xq, xk=xk, start_index=start_index)
+            xq = embedding.forward(xt=xq, start_index=start_index)
+            xk = embedding.forward(xt=xk, start_index=start_index)
         else:
-            xq, xk = embedding.apply_batched_mask(
-                xq=xq, xk=xk, mask=embedding_batch_mask
-            )
+            xq = embedding.apply_batched_mask(xt=xq, mask=embedding_batch_mask)
+            xk = embedding.apply_batched_mask(xt=xk, mask=embedding_batch_mask)
 
         # Expand kv heads for GQA.
         gqa_n_rep = self.head_count // self.head_count_kv
@@ -108,9 +108,7 @@ class LlamaAttentionBlock(ThetaLayer):
         values = values.transpose(1, 2)
 
         # Flash attention.
-        attn_weights = torch.matmul(xq, keys.transpose(2, 3)) / torch.sqrt(
-            self.head_dim
-        )
+        attn_weights = torch.matmul(xq, keys.transpose(2, 3)) / math.sqrt(self.head_dim)
 
         # Apply attention mask.
         if attention_mask is not None:

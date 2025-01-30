@@ -47,7 +47,7 @@ add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 # Prefer to keep the IREE git tag synced with the Python package version in the
 # requirements-iree-pinned.txt file. At a minimum, the compiler from those
 # packages must be compatible with the runtime at this source ref.
-set(SHORTFIN_IREE_GIT_TAG "iree-3.2.0rc20250113")
+set(SHORTFIN_IREE_GIT_TAG "iree-3.2.0rc20250124")
 
 
 # build options
@@ -118,9 +118,14 @@ option(SHORTFIN_ENABLE_ASAN "Enable ASAN" OFF)
 if(SHORTFIN_ENABLE_ASAN)
   add_compile_options(-fsanitize=address)
   add_link_options(-fsanitize=address)
-
-  # Enable more ASAN checks.
   add_compile_definitions(IREE_SANITIZER_ADDRESS)
+endif()
+
+option(SHORTFIN_ENABLE_TSAN "Enable TSAN" OFF)
+if(SHORTFIN_ENABLE_TSAN)
+  add_compile_options(-fsanitize=thread)
+  add_link_options(-fsanitize=thread)
+  add_compile_definitions(IREE_SANITIZER_THREAD)
 endif()
 
 # Thread safety annotations: Enabled if the compiler supports it.

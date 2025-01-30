@@ -157,7 +157,11 @@ int BlockingExecutor::ThreadInstance::RunOnThread() noexcept {
     auto status = iree_wait_source_wait_one(signal_transact.await(),
                                             iree_infinite_timeout());
     IREE_CHECK_OK(status);
-    Task exec_task = std::move(current_task);
+    Task exec_task;
+    {
+      iree::slim_mutex_lock_guard g(executor->control_mu_);
+      exec_task = std::move(current_task);
+    }
     if (exec_task) {
       exec_task();
     }

@@ -8,9 +8,9 @@ import unittest
 import torch
 import torch.nn as nn
 from sharktank.models.llama.llama import (
+    LlamaAttentionBlock,
     PagedLlamaAttentionBlock,
     PagedKVCache,
-    DirectKVCache,
 )
 from sharktank.models.llama.testing import *
 from sharktank.layers.rotary_embedding import RotaryEmbeddingLayer
@@ -48,15 +48,14 @@ class KVCacheTest(unittest.TestCase):
             device=self.device,
             dtype=self.attention_dtype,
         )
-        self.direct_kv_cache = DirectKVCache(
-            block_seq_stride=self.block_seq_stride,
-            transformer_block_count=self.head_count,
-            attn_head_count=self.head_count,
-            attn_head_dim=self.head_dim,
-            seq_length=self.max_seq_len,
-            device=self.device,
-            dtype=self.attention_dtype,
-        )
+        self.direct_k_cache = [
+            torch.empty([self.bs, self.max_seq_len, self.head_count_kv, self.head_dim])
+            for _ in range(self.block_count)
+        ]
+        self.direct_v_cache = [
+            torch.empty([self.bs, self.max_seq_len, self.head_count_kv, self.head_dim])
+            for _ in range(self.block_count)
+        ]
         self.attention_embedding = RotaryEmbeddingLayer(
             rope_dimension_count=self.rope_dimension_count,
             rope_freq_base=self.rope_freq_base,
@@ -80,10 +79,8 @@ class KVCacheTest(unittest.TestCase):
         )
         self.direct_attn_blocks = nn.ModuleList(
             [
-                PagedLlamaAttentionBlock(
+                LlamaAttentionBlock(
                     theta=self.attention_block_theta,
-                    block_index=n,
-                    cache=self.direct_kv_cache,
                     head_count=self.head_count,
                     head_dim=self.head_dim,
                     head_count_kv=self.head_count_kv,
@@ -96,12 +93,6 @@ class KVCacheTest(unittest.TestCase):
         self.paged_seq_block_ids = torch.tensor(
             [
                 [127],
-            ]
-        )
-        self.direct_cache_state = self.direct_kv_cache.allocate(bs=1)
-        self.direct_seq_block_ids = torch.tensor(
-            [
-                [0],
             ]
         )
         self.embedding_batch_mask = self.attention_embedding.compute_batch_mask(
@@ -139,8 +130,8 @@ class KVCacheTest(unittest.TestCase):
                 embedding=self.attention_embedding,
                 start_index=0,
                 attention_mask=self.prefill_attention_mask,
-                cache_state=self.direct_cache_state,
-                seq_block_ids=self.direct_seq_block_ids,
+                cache_k=self.direct_k_cache[block_idx],
+                cache_v=self.direct_v_cache[block_idx],
             )
         page_table = self.paged_kv_cache.unflatten_page_table(self.paged_cache_state)
         index_written = self.start_positions.item()
@@ -150,13 +141,13 @@ class KVCacheTest(unittest.TestCase):
         """
         page_id = self.paged_seq_block_ids[0][0].item()
         """
-            direct_cache_state is a list of num_transformer_blocks * 2 (one for K and one for V),
-            so here we index into the first transformer block's keys with self.direct_cache_state[0]
-            and the first transformer block's values with self.direct_cache_state[1]. Each row
+            direct_cache_state is a list of num_transformer_blocks (one for K and one for V),
+            so here we index into the first transformer block's keys with self.direct_k_cache[0]
+            and the first transformer block's values with self.direct_v_cache[0]. Each row
             in direct_cache_state is a tensor of [bs, seq_len , attn_heads, attn_dim], so we make sure
             the first 8 (start_position) tensors starting at sequence 0 of the seq_len are written to.
         """
-        updated_direct_cache_state = self.direct_cache_state[0][
+        updated_direct_k_cache_state = self.direct_k_cache[0][
             :, :index_written
         ].squeeze(0)
         """
@@ -172,10 +163,10 @@ class KVCacheTest(unittest.TestCase):
             first transformer block's K cache for the first 8 (start_positions) tensors starting at
             sequence 0.
         """
-        updated_paged_cache_state = page_table[page_id][0, 0, :index_written]
-        assert updated_direct_cache_state.shape == updated_paged_cache_state.shape
+        updated_paged_k_cache_state = page_table[page_id][0, 0, :index_written]
+        assert updated_direct_k_cache_state.shape == updated_paged_k_cache_state.shape
         torch.testing.assert_close(
-            updated_direct_cache_state, updated_paged_cache_state
+            updated_direct_k_cache_state, updated_paged_k_cache_state
         )
 
         paged_prefill_attn_output = paged_input_tensor
@@ -246,20 +237,18 @@ class KVCacheTest(unittest.TestCase):
                 embedding=self.attention_embedding,
                 embedding_batch_mask=self.embedding_batch_mask,
                 attention_mask=decode_attention_mask,
-                cache_state=self.direct_cache_state,
-                seq_block_ids=self.direct_seq_block_ids,
-                xk_temp=xk_temp,
-                xv_temp=xv_temp,
+                cache_k=self.direct_k_cache,
+                cache_v=self.direct_v_cache,
             )
 
         page_table = self.paged_kv_cache.unflatten_page_table(self.paged_cache_state)
         index_written = self.start_positions.item()
         page_id = self.paged_seq_block_ids[0][0].item()
-        updated_direct_cache_state_keys = self.direct_cache_state[0][
+        updated_direct_cache_state_keys = self.direct_k_cache[0][
             :, index_written
         ].squeeze(0)
         updated_paged_cache_state_keys = page_table[page_id][0, 0, index_written]
-        updated_direct_cache_state_values = self.direct_cache_state[1][
+        updated_direct_cache_state_values = self.direct_v_cache[0][
             :, index_written
         ].squeeze(0)
         updated_paged_cache_state_values = page_table[page_id][0, 1, index_written]

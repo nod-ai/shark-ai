@@ -22,6 +22,7 @@ import sys
 import shutil
 import logging
 import argparse
+from collections import defaultdict
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -92,7 +93,7 @@ class PathConfig:
         base_dir = Path(f"./tuning_{timestamp}")
         return base_dir
 
-    def _set_run_log(self, run_log: Path):
+    def set_run_log(self, run_log: Path):
         object.__setattr__(self, "run_log", run_log)
 
     def get_candidate_spec_filename(self, candidate_id: int) -> str:
@@ -142,6 +143,12 @@ class BenchmarkResult:
     candidate_id: int
     time: float
     device_id: str
+
+    def is_valid(self) -> bool:
+        return math.isfinite(self.time)
+
+    def __iter__(self):
+        return iter((self.candidate_id, self.time, self.device_id))
 
 
 def unit_to_microseconds(real_time: float, time_unit: str) -> float:
@@ -334,10 +341,10 @@ def parse_arguments(
     return parser.parse_args()
 
 
-def setup_logging(args: argparse.Namespace, path_config: PathConfig):
+def setup_logging(args: argparse.Namespace, path_config: PathConfig) -> logging.Logger:
     log_file_name = f"autotune_{args.input_file.stem}.log"
     run_log_path = path_config.base_dir / log_file_name
-    path_config._set_run_log(run_log_path)
+    path_config.set_run_log(run_log_path)
 
     # Create file handler for logging to a file
     if path_config.run_log is None:
@@ -384,7 +391,9 @@ def setup_logging(args: argparse.Namespace, path_config: PathConfig):
     # Log all arguments
     logging.debug(f"Input Arguments:")
     for arg, value in vars(args).items():
-        tune_logger.info(f"{arg}: {value}")
+        logging.debug(f"{arg}: {value}")
+
+    return logging.getLogger()
 
 
 def handle_error(
@@ -427,7 +436,7 @@ def init_worker_context(queue: multiprocessing.Queue) -> None:
     worker_id, device_id = queue.get()
 
 
-def create_worker_context_queue(device_ids: list[int]) -> queue.Queue[tuple[int, int]]:
+def create_worker_context_queue(device_ids: list[str]) -> queue.Queue[tuple[int, int]]:
     """Create queue contains Worker ID and Device ID for worker initialization"""
     worker_contexts_queue = multiprocessing.Manager().Queue()
     for worker_id, device_id in enumerate(device_ids):
@@ -562,7 +571,7 @@ def run_iree_benchmark_module_command(benchmark_pack: BenchmarkPack):
 
     mean_benchmark_time = sum(times) / float(len(times))
     logging.debug(
-        f"Benchmark time of candidate {candidate_id}: {mean_benchmark_time:.2f}"
+        f"Benchmark time of candidate {candidate_id}: {mean_benchmark_time:.2f} ms"
     )
     return BenchmarkResult(
         candidate_id=candidate_id,
@@ -717,8 +726,16 @@ def generate_candidate_specs(
         tune_logger.exception("Error in candidate_gen.py:")
         raise
 
-    logging.info(f"Generated [{len(candidates) - 1}] candidates")
+    logging.debug(f"Generated [{len(candidates) - 1}] candidates")
     return candidates
+
+
+def get_compilation_success_rate(compiled_candiates: list[Optional[int]]) -> float:
+    if not compiled_candiates:
+        return 0.0
+    successful_candidates = [c for c in compiled_candiates if c is not None]
+    success_rate = float(len(successful_candidates)) / float(len(compiled_candiates))
+    return success_rate
 
 
 def collision_handler(index_hash_list: list[tuple[int, str]]) -> tuple[bool, list[int]]:
@@ -737,6 +754,170 @@ def collision_handler(index_hash_list: list[tuple[int, str]]) -> tuple[bool, lis
         unique_indexes.append(indices[0])
 
     return collision_detected, unique_indexes
+
+
+def benchmark_candidates(
+    candidate_indices, devices, tuning_client, candidate_trackers
+) -> list[BenchmarkResult]:
+    """
+    Runs the benchmarking for a given list of candidate indices.
+    """
+    worker_context_queue = create_worker_context_queue(devices)
+
+    task_list = [
+        BenchmarkPack(
+            iree_benchmark_module_flags=tuning_client.get_iree_benchmark_module_flags(),
+            benchmark_timeout=tuning_client.get_benchmark_timeout_s(),
+            candidate_tracker=candidate_trackers[idx],
+        )
+        for idx in candidate_indices
+    ]
+
+    # Perform benchmarking.
+    return multiprocess_progress_wrapper(
+        num_worker=len(devices),
+        task_list=task_list,
+        function=run_iree_benchmark_module_command,
+        initializer=init_worker_context,
+        initializer_inputs=(worker_context_queue,),
+    )
+
+
+def benchmark_baseline(
+    devices: list[str],
+    tuning_client: TuningClient,
+    candidate_tracker: CandidateTracker,
+) -> list[BenchmarkResult]:
+    task_list = [
+        BenchmarkPack(
+            iree_benchmark_module_flags=tuning_client.get_iree_benchmark_module_flags(),
+            benchmark_timeout=tuning_client.get_benchmark_timeout_s(),
+            candidate_tracker=candidate_tracker,
+        )
+    ] * len(devices)
+
+    worker_context_queue = create_worker_context_queue(devices)
+    baseline_results = multiprocess_progress_wrapper(
+        num_worker=len(devices),
+        task_list=task_list,
+        function=run_iree_benchmark_module_command,
+        initializer=init_worker_context,
+        initializer_inputs=(worker_context_queue,),
+    )
+    return baseline_results
+
+
+class BaselineResultHandler:
+    def __init__(self) -> None:
+        # Maps device IDs to a list of `BenchmarkResult`.
+        self.device_baseline_results: dict[str, list[BenchmarkResult]] = defaultdict(
+            list
+        )
+
+    def add_run(self, results: list[BenchmarkResult]) -> None:
+        if not BaselineResultHandler.are_baseline_devices_unique(results):
+            logging.warning(
+                "Duplicate device IDs detected in the first baseline results."
+            )
+        for result in results:
+            self.device_baseline_results[result.device_id].append(result)
+
+    @staticmethod
+    def are_baseline_devices_unique(results: list[BenchmarkResult]) -> bool:
+        return len(results) == len(set(result.device_id for result in results))
+
+    def get_valid_time_ms(self, device_id: str) -> list[float]:
+        return [
+            result.time
+            for result in self.device_baseline_results.get(device_id, [])
+            if result.is_valid()
+        ]
+
+    def get_average_result_ms(self, device_id: str) -> Optional[float]:
+        valid_times = self.get_valid_time_ms(device_id)
+        if valid_times:
+            return sum(valid_times) / len(valid_times)
+        return None
+
+    def detect_regressions(
+        self,
+        baseline_results: list[BenchmarkResult],
+        threshold: float = 1.03,
+    ) -> list[str]:
+        """
+        Returns a list of device IDs where performance regressions were detected.
+        A performance regression is defined as a baseline time from 'baseline_results'
+        for a device that exceeds the stored average baseline time for that device by
+        a factor greater than the specified 'threshold'.
+        """
+        regressions = []
+        for result in baseline_results:
+            if not result.is_valid():
+                continue
+
+            baseline_avg = self.get_average_result_ms(result.device_id)
+            if baseline_avg is not None and result.time > baseline_avg * threshold:
+                regressions.append(result.device_id)
+
+        return regressions
+
+    def is_valid(self) -> bool:
+        """
+        Check if there are any valid finite baseline time recorded.
+        Returns True iff at least one valid (finite) baseline time was recorded.
+        """
+        return any(
+            self.get_valid_time_ms(device_id)
+            for device_id in self.device_baseline_results
+        )
+
+    def is_valid_for_device(self, device_id: str) -> bool:
+        return len(self.get_valid_time_ms(device_id)) != 0
+
+    def get_candidates_ordered_by_speedup(
+        self, candidate_results: list[BenchmarkResult]
+    ) -> list[tuple[BenchmarkResult, float]]:
+        """
+        Returns a list of tuples (BenchmarkResult, speedup) sorted in ascending order based on speedup
+        or raw runtime.
+
+        If no valid baseline times are available across all devices, candidates are sorted based on
+        their raw runtime. A placeholder speedup value of 1.0 is assigned to each candidate.
+
+        If valid baseline times exist, speedup is defined as the ratio of the candidate's runtime to
+        the average baseline time for the corresponding device as:
+
+            speedup = candidate_runtime / avg_baseline_time (or fallback_baseline)
+
+        If no valid baseline times are available for a specific device, the fallback baseline is used.
+        The fallback baseline is the average of all valid baseline times across devices.
+        """
+        if not self.is_valid():
+            logging.warning("No valid baseline times available.")
+            # Use the candidate time directly when no baselines are available.
+            return sorted(
+                [(candidate, 1.0) for candidate in candidate_results],
+                key=lambda x: x[0].time,
+            )
+
+        # Calculate the fallback baseline as the average of all valid times across devices.
+        valid_baseline_times = [
+            result.time
+            for device_id in self.device_baseline_results
+            for result in self.device_baseline_results[device_id]
+            if result.is_valid()
+        ]
+
+        fallback_baseline = sum(valid_baseline_times) / len(valid_baseline_times)
+
+        candidates_with_speedup = []
+        for candidate in candidate_results:
+            baseline_avg_ms = self.get_average_result_ms(candidate.device_id)
+            if baseline_avg_ms is None:
+                baseline_avg_ms = fallback_baseline
+            speedup = candidate.time / baseline_avg_ms
+            candidates_with_speedup.append((candidate, speedup))
+        return sorted(candidates_with_speedup, key=lambda x: x[1])
 
 
 def compile(
@@ -800,11 +981,11 @@ def compile(
     compiled_candidates = multiprocess_progress_wrapper(
         num_worker=num_worker, task_list=task_list, function=run_iree_compile_command
     )
-    compiled_candidates = [c for c in compiled_candidates if c is not None]
-    success_rate = float(len(compiled_candidates)) / float(len(candidates))
-    logging.info(
+    success_rate = get_compilation_success_rate(compiled_candidates)
+    logging.debug(
         f"Successfully compiled [{len(compiled_candidates)}] candidates. Success rate: {success_rate:.2f}"
     )
+    compiled_candidates = [c for c in compiled_candidates if c is not None]
 
     # Remove duplicate vmfbs from the candidate list.
     compiled_candidate_hashes = []
@@ -818,70 +999,12 @@ def compile(
     if collision_detected:
         compiled_candidates = unique_compiled_candidates
 
-    logging.info(f"Produced [{len(compiled_candidates)}] unique vmfbs")
+    logging.debug(f"Produced [{len(compiled_candidates)}] unique vmfbs")
     return compiled_candidates
-
-
-def select_best_benchmark_results(
-    candidate_results: list[BenchmarkResult],
-    baseline_results: list[BenchmarkResult],
-    num_candidates: Optional[int],
-) -> list[BenchmarkResult]:
-    filtered_candidate_results = [r for r in candidate_results if math.isfinite(r.time)]
-    if len(filtered_candidate_results) == 0:
-        logging.error("No successful candidate benchmarks.")
-        return []
-    fallback_baseline_time: Optional[float] = None
-    filtered_baseline_results: list[BenchmarkResult] = []
-    for r in baseline_results:
-        if math.isfinite(r.time):
-            filtered_baseline_results.append(r)
-            fallback_baseline_time = r.time
-        else:
-            logging.warning(f"Baseline on device {r.device_id} failed.")
-    if fallback_baseline_time is None:
-        logging.warning(
-            f"All baseline benchmarks failed. Baselines will not be used to select top candidates"
-        )
-    baseline_times_by_device = {}
-    for r in filtered_baseline_results:
-        baseline_times_by_device[r.device_id] = r.time
-
-    # Select top candidates
-    def get_speedup(result: BenchmarkResult) -> float:
-        if result.device_id in baseline_times_by_device:
-            return result.time / baseline_times_by_device[result.device_id]
-        assert fallback_baseline_time is not None, "expected fallback_baseline_time"
-        return result.time / fallback_baseline_time
-
-    num_top_candidates = len(filtered_candidate_results)
-    if num_candidates is not None:
-        num_top_candidates = num_candidates
-
-    # Sort by the speedup over baseline on the same device. If a device failed
-    # the baseline benchmark, then use the fallback baseline. If there is no
-    # successful baseline, then the best we can do is to sort by the actual
-    # time.
-    sorting_key = get_speedup
-    if fallback_baseline_time is None:
-        sorting_key = lambda result: result.time
-    best_results = sorted(filtered_candidate_results, key=sorting_key)[
-        :num_top_candidates
-    ]
-    logging.info(f"Selected top[{len(best_results)}]:")
-
-    for r in best_results:
-        if fallback_baseline_time is not None:
-            speedup = f"{round(get_speedup(r) * 100, 2)}% of baseline"
-        else:
-            speedup = "baseline unavailable"
-        logging.info(f"Candidate {r.candidate_id} time: {r.time:.2f} ({speedup})")
-    return best_results
 
 
 def benchmark(
     args: argparse.Namespace,
-    path_config: PathConfig,
     compiled_candidates: list[int],
     candidate_trackers: list[CandidateTracker],
     tuning_client: TuningClient,
@@ -892,46 +1015,61 @@ def benchmark(
         logging.warning("No candidates to benchmark.")
         return []
 
-    task_list = [
-        BenchmarkPack(
-            iree_benchmark_module_flags=tuning_client.get_iree_benchmark_module_flags(),
-            benchmark_timeout=tuning_client.get_benchmark_timeout_s(),
-            candidate_tracker=candidate_trackers[i],
-        )
-        for i in compiled_candidates
-        if i != 0
-    ]
-    worker_context_queue = create_worker_context_queue(args.devices)
-    candidate_results: list[BenchmarkResult] = multiprocess_progress_wrapper(
-        num_worker=len(args.devices),
-        task_list=task_list,
-        function=run_iree_benchmark_module_command,
-        initializer=init_worker_context,
-        initializer_inputs=(worker_context_queue,),
-    )
-
     # Benchmarking baselines on each involved device.
-    worker_context_queue = create_worker_context_queue(args.devices)
-    baseline_task_list = [
-        BenchmarkPack(
-            iree_benchmark_module_flags=tuning_client.get_iree_benchmark_module_flags(),
-            benchmark_timeout=tuning_client.get_benchmark_timeout_s(),
-            candidate_tracker=candidate_trackers[0],
+    baseline_tracker = candidate_trackers[0]
+    first_baseline_result = benchmark_baseline(
+        devices=args.devices,
+        tuning_client=tuning_client,
+        candidate_tracker=baseline_tracker,
+    )
+    baseline_handler = BaselineResultHandler()
+    baseline_handler.add_run(first_baseline_result)
+    if not baseline_handler.is_valid():
+        logging.warning("Baseline run failed.")
+
+    candidate_indices = [i for i in compiled_candidates if i != 0]
+    candidate_results = benchmark_candidates(
+        candidate_indices=candidate_indices,
+        devices=args.devices,
+        tuning_client=tuning_client,
+        candidate_trackers=candidate_trackers,
+    )
+
+    second_baseline_result = benchmark_baseline(
+        devices=args.devices,
+        tuning_client=tuning_client,
+        candidate_tracker=baseline_tracker,
+    )
+
+    regression_devices = baseline_handler.detect_regressions(second_baseline_result)
+    if regression_devices:
+        logging.warning(
+            f"Performance regressions detected for the following devices: {', '.join(regression_devices)}."
         )
-    ] * len(args.devices)
-    baseline_results: list[BenchmarkResult] = multiprocess_progress_wrapper(
-        num_worker=len(args.devices),
-        task_list=baseline_task_list,
-        function=run_iree_benchmark_module_command,
-        initializer=init_worker_context,
-        initializer_inputs=(worker_context_queue,),
-    )
+    baseline_handler.add_run(second_baseline_result)
 
-    best_results: list[BenchmarkResult] = select_best_benchmark_results(
-        candidate_results=candidate_results,
-        baseline_results=baseline_results,
-        num_candidates=num_candidates,
-    )
+    if not baseline_handler.is_valid():
+        logging.warning("Baseline run failed.")
 
-    top_candidates = [result.candidate_id for result in best_results]
-    return top_candidates
+    all_candidates_with_speedup = baseline_handler.get_candidates_ordered_by_speedup(
+        candidate_results
+    )
+    top_candidates_with_speedup = all_candidates_with_speedup[:num_candidates]
+    top_candidate_ids = []
+    if baseline_handler.is_valid():
+        for candidate, speedup in top_candidates_with_speedup:
+            time_ms = candidate.time
+            candidate_id = candidate.candidate_id
+            percentage_of_baseline = speedup * 100
+            top_candidate_ids.append(candidate_id)
+            logging.info(
+                f"Candidate {candidate_id} time: {time_ms:.2f} ms "
+                f"({percentage_of_baseline:.1f}% of baseline)"
+            )
+    else:
+        for candidate, _ in top_candidates_with_speedup:
+            time_ms = candidate.time
+            candidate_id = candidate.candidate_id
+            top_candidate_ids.append(candidate_id)
+            logging.info(f"Candidate {candidate_id} time: {time_ms:.2f} ms")
+    return top_candidate_ids

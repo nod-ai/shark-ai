@@ -1,12 +1,10 @@
 """Handles server lifecycle and configuration."""
-import json
 import socket
 from contextlib import closing
 from dataclasses import dataclass
 import subprocess
 import time
 import requests
-from pathlib import Path
 import sys
 from typing import Optional
 
@@ -51,7 +49,6 @@ class ServerInstance:
         self.config = config
         self.process: Optional[subprocess.Popen] = None
         self.port: Optional[int] = None
-        self.config_path: Optional[Path] = None
 
     @staticmethod
     def find_available_port() -> int:
@@ -61,31 +58,11 @@ class ServerInstance:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             return s.getsockname()[1]
 
-    def _write_config(self) -> Path:
-        """Creates server config by extending the exported model config."""
-        # TODO: eliminate this by moving prefix sharing algorithm to be a cmdline arg of server.py
-        source_config_path = self.config.artifacts.config_path
-        server_config_path = (
-            source_config_path.parent
-            / f"server_config_{self.config.prefix_sharing_algorithm}.json"
-        )
-
-        # Read the exported config as base
-        with open(source_config_path) as f:
-            config = json.load(f)
-        config["paged_kv_cache"][
-            "prefix_sharing_algorithm"
-        ] = self.config.prefix_sharing_algorithm
-        with open(server_config_path, "w") as f:
-            json.dump(config, f)
-        return server_config_path
-
     def start(self) -> None:
         """Starts the server process."""
         if self.process is not None:
             raise RuntimeError("Server is already running")
 
-        self.config_path = self._write_config()
         self.port = self.find_available_port()
 
         cmd = [
@@ -93,10 +70,11 @@ class ServerInstance:
             "-m",
             "shortfin_apps.llm.server",
             f"--tokenizer_json={self.config.artifacts.tokenizer_path}",
-            f"--model_config={self.config_path}",
+            f"--model_config={self.config.artifacts.config_path}",
             f"--vmfb={self.config.artifacts.vmfb_path}",
             f"--parameters={self.config.artifacts.weights_path}",
             f"--port={self.port}",
+            f"--prefix_sharing_algorithm={self.config.prefix_sharing_algorithm}",
         ]
         cmd.extend(self.config.device_settings.server_flags)
 

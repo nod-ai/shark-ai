@@ -34,7 +34,7 @@ class RMSNormLayer(ThetaLayer):
     def forward(self, x: torch.Tensor):
         orig_dtype = x.dtype
         x = ops.to(x, self.dtype)
-        norm = ops.rms_norm(x, self.weight, epsilon=self.epsilon)
+        norm = ops.rms_norm(x, self.weight, epsilon=self.epsilon, orig_dtype=orig_dtype)
         # Will automatically upcast to the dtype of the weight, which is
         # often in higher precision. Downcast back to expected.
         norm = ops.to(norm, orig_dtype)

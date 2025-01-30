@@ -8,7 +8,7 @@ from iree.build import *
 from iree.build.executor import FileNamespace
 import os
 
-ARTIFACT_VERSION = "01062025"
+ARTIFACT_VERSION = "01202025"
 SDXL_CONFIG_BUCKET = f"https://sharkpublic.blob.core.windows.net/sharkpublic/sdxl/{ARTIFACT_VERSION}/configs/"
 
 

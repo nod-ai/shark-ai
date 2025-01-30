@@ -184,7 +184,7 @@ Now that we are finished with setup, we can start the Shortfin LLM Server.
 
 Run the following command to launch the Shortfin LLM Server in the background:
 
-> **Note**
+> [!NOTE]
 > By default, our server will start at `http://localhost:8000`.
 > You can specify the `--host` and/or `--port` arguments, to run at a different address.
 >

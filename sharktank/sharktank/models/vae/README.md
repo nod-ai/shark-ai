@@ -16,10 +16,14 @@ python -m sharktank.models.punet.tools.import_hf_dataset \
 ```
 
 # Run Vae decoder model eager mode
+# Sample SDXL command
 ```
-python -m sharktank.models.vae.tools.run_vae --irpa-file ~/models/vae.irpa --device cpu
+python -m sharktank.models.vae.tools.run_vae --irpa-file ~/models/vae.irpa --device cpu --dtype=float32
 ```
-
+# Sample Flux command to run through iree and compare vs huggingface diffusers torch model
+```
+python -m sharktank.models.vae.tools.run_vae --irpa-file ~/models/vae.irpa --device cpu --compare_vs_torch --dtype=float32 --sharktank_config=flux --torch_model=black-forest-labs/FLUX.1-dev
+```
 ## License
 
 Significant portions of this implementation were derived from diffusers,

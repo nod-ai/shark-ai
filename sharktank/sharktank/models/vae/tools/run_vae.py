@@ -39,7 +39,7 @@ def export_vae(model, sample_inputs, decomp_attn):
         fxb = FxProgramsBuilder(model)
 
         @fxb.export_program(
-            name=f"forward",
+            name=f"decode",
             args=tuple(torch.unsqueeze(sample_inputs, 0)),
             strict=False,
         )
@@ -86,7 +86,7 @@ def main(argv):
     parser.add_argument(
         "--torch_model",
         default="stabilityai/stable-diffusion-xl-base-1.0",
-        help="HF reference model id",
+        help="HF reference model id, currently tested with stabilityai/stable-diffusion-xl-base-1.0 and black-forest-labs/FLUX.1-dev",
     )
 
     parser.add_argument(
@@ -141,12 +141,14 @@ def main(argv):
             intermediates_saver.save_file(args.save_intermediates_path)
 
         if args.compare_vs_torch:
-            from .diffuser_ref import run_torch_vae, run_flux_vae
+            from .diffuser_ref import run_torch_vae
 
             if args.sharktank_config == "flux":
-                diffusers_results = run_flux_vae(inputs, torch.bfloat16)
+                diffusers_results = run_torch_vae(
+                    args.torch_model, inputs, flux=True, dtype=dtype
+                )
             elif args.sharktank_config == "sdxl":
-                run_torch_vae(args.torch_model, inputs)
+                run_torch_vae(args.torch_model, inputs, flux=False, dtype=dtype)
             print("diffusers results:", diffusers_results)
             torch.testing.assert_close(diffusers_results, results)
 

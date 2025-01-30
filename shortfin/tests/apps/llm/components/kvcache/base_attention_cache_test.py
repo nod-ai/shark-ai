@@ -23,7 +23,7 @@ class MockPagePool(PagePool):
     def __init__(self, total_pages: int):
         self._queue = queue.Queue()
         for i in range(total_pages):
-            page = PageInfo(index=i, pool=self, token_offset=0, token_count=0)
+            page = PageInfo(index=i, pool=self)
             self._queue.put(page)
 
     def acquire_free_pages(self, count: int) -> List[PageInfo]:

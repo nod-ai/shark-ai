@@ -42,7 +42,11 @@ def all_gather_split(
     shards = [
         cat(
             [
-                shard if i == j else transfer_to_logical_device(shard, i)
+                (
+                    barrier_on_logical_device(shard, i)
+                    if i == j
+                    else transfer_to_logical_device(shard, i)
+                )
                 for j, shard in enumerate(input.shards)
             ],
             dim=dim,
@@ -63,7 +67,11 @@ def all_reduce_split_or_unreduced(
         functools.reduce(
             lambda x, y: elementwise(torch.add, x, y),
             [
-                shard if i == j else transfer_to_logical_device(shard, i)
+                (
+                    barrier_on_logical_device(shard, i)
+                    if i == j
+                    else transfer_to_logical_device(shard, i)
+                )
                 for j, shard in enumerate(input.shards)
             ],
         )
@@ -636,11 +644,16 @@ def interpolate_split_batch_or_channel(
 
 
 @layer_norm.override(SplitPrimitiveTensor, Tensor, Tensor)
-def layer_norm_default(input, weight, bias, *, eps):
+def layer_norm_split(
+    input, weight, bias, *, eps, normalized_shape: Optional[tuple[int]]
+):
     assert input.shard_dim >= 0 and input.shard_dim < len(input.shape) - len(
         weight.shape
     )
-    shards = [layer_norm(shard, weight, bias, eps=eps) for shard in input.shards]
+    shards = [
+        layer_norm(shard, weight, bias, eps=eps, normalized_shape=normalized_shape)
+        for shard in input.shards
+    ]
     return SplitPrimitiveTensor(shard_dim=input.shard_dim, ts=shards)
 
 
@@ -1085,7 +1098,11 @@ def reshard_like_unreduced_to_replicated(
 @sharded_cat.override(SplitPrimitiveTensor)
 def sharded_cat_unsharded(tensor: SplitPrimitiveTensor):
     shard_ts = [
-        transfer_to_logical_device(shard.as_torch(), 0) if i != 0 else shard.as_torch()
+        (
+            transfer_to_logical_device(shard.as_torch(), 0)
+            if i != 0
+            else barrier_on_logical_device(shard.as_torch(), 0)
+        )
         for i, shard in enumerate(tensor.shards)
     ]
     return torch.cat(shard_ts, dim=tensor.shard_dim)
@@ -1177,7 +1194,11 @@ def unshard_split(input: SplitPrimitiveTensor) -> Tensor:
 def unshard_unreduced(input: UnreducedTensor) -> Tensor:
     shards = input.shards
     shards = [
-        shard if i == 0 else transfer_to_logical_device(shard, 0)
+        (
+            barrier_on_logical_device(shard, i)
+            if i == 0
+            else transfer_to_logical_device(shard, 0)
+        )
         for i, shard in enumerate(shards)
     ]
     return functools.reduce(lambda x, y: elementwise(torch.add, x, y), shards)

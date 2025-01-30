@@ -145,7 +145,8 @@ jobs:
             sharktank/tests/models/t5/t5_test.py \
             sharktank/tests/models/flux/flux_test.py \
             sharktank/tests/models/vae/vae_test.py \
-            --durations=0
+            --durations=0 \
+            --timeout=600
 
 
   test_integration:
@@ -186,7 +187,8 @@ jobs:
       - name: Run punet tests
         run: |
           pytest -v sharktank/ -m punet_quick \
-            --durations=0
+            --durations=0 \
+            --timeout=600
 
   # Depends on other jobs to provide an aggregate job status.
   # TODO(#584): move test_with_data and test_integration to a pkgci integration test workflow?

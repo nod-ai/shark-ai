@@ -18,7 +18,7 @@ from .base import Theta, ThetaLayer
 from .linear import LinearLayer
 from .modulation import ModulationLayer
 from .norm import RMSNormLayer
-from .paged_llama_attention_block import PagedLlamaAttentionBlock
+import functools
 
 
 def qk_norm(q, k, v, rms_q, rms_k):
@@ -37,9 +37,7 @@ def apply_rope(xq: Tensor, xk: Tensor, freqs_cis: Tensor) -> tuple[Tensor, Tenso
 def attention(q, k, v, pe):
     q, k = apply_rope(q, k, pe)  # todo
 
-    x = ops.scaled_dot_product_attention(
-        q=q, k=k, v=v, a=None, is_causal=True, scale=None
-    )
+    x = ops.scaled_dot_product_attention(q=q, k=k, v=v, a=None)
     x = ops.permute(x, (0, 2, 1, 3))
     x = x.reshape(x.shape[0], x.shape[1], -1)
 
@@ -47,10 +45,11 @@ def attention(q, k, v, pe):
 
 
 class MMDITDoubleBlock(ThetaLayer):
-    def __init__(self, theta, num_heads: int):
+    def __init__(self, theta, num_heads: int, hidden_size: int):
         super().__init__(theta)
 
         self.num_heads = num_heads
+        self.hidden_size = hidden_size
         self.add_module("img_mod", ModulationLayer(theta("img_mod"), double=True))
         self.add_module("img_attn_qkv", LinearLayer(theta("img_attn.qkv")))
         self.add_module(
@@ -96,7 +95,9 @@ class MMDITDoubleBlock(ThetaLayer):
         txt_mod1, txt_mod2 = self.txt_mod(vec)
 
         # prepare image for attention
-        img_modulated = ops.layer_norm(img, None, None, eps=1e-6)
+        img_modulated = ops.layer_norm(
+            img, normalized_shape=(self.hidden_size,), weight=None, bias=None, eps=1e-6
+        )
         img_modulated = (1 + img_mod1.scale) * img_modulated + img_mod1.shift
         img_qkv = self.img_attn_qkv(img_modulated)
         img_qkv_2 = img_qkv.view(
@@ -109,7 +110,9 @@ class MMDITDoubleBlock(ThetaLayer):
         )
 
         # prepare text for attention
-        txt_modulated = ops.layer_norm(txt, None, None, eps=1e-6)
+        txt_modulated = ops.layer_norm(
+            txt, normalized_shape=(self.hidden_size,), weight=None, bias=None, eps=1e-6
+        )
         txt_modulated = (1 + txt_mod1.scale) * txt_modulated + txt_mod1.shift
         txt_qkv = self.txt_attn_qkv(txt_modulated)
         txt_qkv_2 = txt_qkv.view(
@@ -133,21 +136,25 @@ class MMDITDoubleBlock(ThetaLayer):
         # TODO: Refactor this for code reuse with the txt blocks
         img = img + img_mod1.gate * self.img_attn_proj(img_attn)
         img_mlp_in = (1 + img_mod2.scale) * ops.layer_norm(
-            img, None, None, eps=1e-6
+            img, normalized_shape=(self.hidden_size,), weight=None, bias=None, eps=1e-6
         ) + img_mod2.shift
         img_mlp_out1 = self.img_mlp1(img_mlp_in)
-        img_mlp_out2 = ops.elementwise(F.gelu, img_mlp_out1)
+        img_mlp_out2 = ops.elementwise(
+            functools.partial(F.gelu, approximate="tanh"), img_mlp_out1
+        )
         img_mlp_out3 = self.img_mlp2(img_mlp_out2)
         img = img + img_mod2.gate * img_mlp_out3
 
         # calculate the text blocks
         txt = txt + txt_mod1.gate * self.txt_attn_proj(txt_attn)
         txt_mlp_in = (1 + txt_mod2.scale) * ops.layer_norm(
-            txt, None, None, eps=1e-6
+            txt, normalized_shape=(self.hidden_size,), weight=None, bias=None, eps=1e-6
         ) + txt_mod2.shift
         txt_mlp_out1 = self.txt_mlp1(txt_mlp_in)
         # TODO: Unify with modulation layer by taking act_fn as an arg
-        txt_mlp_out2 = ops.elementwise(F.gelu, txt_mlp_out1)
+        txt_mlp_out2 = ops.elementwise(
+            functools.partial(F.gelu, approximate="tanh"), txt_mlp_out1
+        )
         txt_mlp_out3 = self.txt_mlp2(txt_mlp_out2)
         txt = txt + txt_mod2.gate * txt_mlp_out3
 
@@ -155,10 +162,11 @@ class MMDITDoubleBlock(ThetaLayer):
 
 
 class MMDITSingleBlock(ThetaLayer):
-    def __init__(self, theta, num_heads: int):
+    def __init__(self, theta, num_heads: int, hidden_size: int):
         super().__init__(theta)
 
         self.num_heads = num_heads
+        self.hidden_size = hidden_size
         self.add_module("mod", ModulationLayer(theta("modulation"), double=False))
         self.add_module(
             "attn_norm_q",
@@ -177,7 +185,9 @@ class MMDITSingleBlock(ThetaLayer):
 
     def forward(self, x: Tensor, vec: Tensor, pe: Tensor) -> tuple[Tensor, Tensor]:
         mod, _ = self.mod(vec)
-        x_norm = ops.layer_norm(x, None, None, eps=1e-6)
+        x_norm = ops.layer_norm(
+            x, normalized_shape=(self.hidden_size,), weight=None, bias=None, eps=1e-6
+        )
         x_mod = (1 + mod.scale) * x_norm + mod.shift
         x_lin = self.linear1(x_mod)
         qkv, mlp = torch.split(
@@ -192,6 +202,6 @@ class MMDITSingleBlock(ThetaLayer):
         # compute attention
         attn = attention(q, k, v, pe=pe)
         # compute activation in mlp stream, cat again and run second linear layer
-        gelu = ops.elementwise(F.gelu, mlp)
+        gelu = ops.elementwise(functools.partial(F.gelu, approximate="tanh"), mlp)
         output = self.linear2(torch.cat((attn, gelu), 2))
         return x + mod.gate * output

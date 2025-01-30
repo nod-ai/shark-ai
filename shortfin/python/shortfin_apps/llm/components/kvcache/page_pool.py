@@ -22,10 +22,6 @@ class PageInfo:
 
     index: int
     pool: PagePool
-    token_offset: int  # Offset within the page
-    token_count: int  # Number of tokens stored in this page
-    writing: bool = False
-    read_ref_count: int = 0  # Number of threads that still need to read this page. When this reaches 0, page is eligible for release
 
 
 @dataclass
@@ -80,8 +76,6 @@ class PagePool:
             PageInfo(
                 index=i,
                 pool=self,
-                token_offset=0,
-                token_count=0,
             )
             for i in range(self.config.alloc_page_count)
         ]
@@ -104,6 +98,10 @@ class PagePool:
             page_table = sf.array.device_array.for_device(
                 device, page_table_shape, self.config.dtype
             )
+            page_table_host = page_table.for_transfer()
+            with page_table_host.map(discard=True) as m:
+                m.fill(0)
+            page_table_host.copy_to(page_table)
             self.page_tables.append(page_table)
 
     def acquire_free_pages(self, count: int) -> list[PageInfo] | None:
@@ -123,7 +121,6 @@ class PagePool:
 
         Args:
             src_page: Source page to copy from
-            token_count: Optional number of tokens to copy. If None, copies all tokens.
 
         Returns:
             New PageInfo containing the copied data
@@ -140,9 +137,6 @@ class PagePool:
             dst_view = page_table.view(dst_page.index)
             # Copy the data
             dst_view.copy_from(src_view)
-
-        # Setup destination page metadata
-        dst_page.token_offset = 0  # Always start at beginning of new page
 
         return dst_page
 

@@ -20,6 +20,7 @@ from ._registry import *
 __all__ = [
     "all_gather",
     "all_reduce",
+    "barrier_on_logical_device",
     "cat",
     "conv2d",
     "einsum_2args",
@@ -57,6 +58,7 @@ __all__ = [
     "softmax",
     "squeeze",
     "to",
+    "trace_tensor",
     "transfer_to_logical_device",
     "transpose",
     "unflatten",
@@ -584,7 +586,12 @@ def _interpolate_trampoline(
 
 @overridable
 def layer_norm(
-    input: AnyTensor, weight: AnyTensor, bias: Optional[AnyTensor], *, eps: float
+    input: AnyTensor,
+    weight: Optional[AnyTensor],
+    bias: Optional[AnyTensor],
+    *,
+    eps: float,
+    normalized_shape: Optional[tuple[int]] = None,
 ):
     """Equivalent to torch.nn.functional.layer_norm(elementwise_affine=True)."""
     raise NotImplementedError
@@ -598,6 +605,7 @@ def _layer_norm_trampoline(
     bias: Optional[AnyTensor],
     *,
     eps: float,
+    normalized_shape: Optional[tuple[int]] = None,
 ):
     tensors = [input]
     if weight is not None:
@@ -605,7 +613,9 @@ def _layer_norm_trampoline(
     if bias is not None:
         tensors.append(bias)
     for override in d.find_overrides(tensors):
-        result = override(input, weight, bias, eps=eps)
+        result = override(
+            input, weight, bias, eps=eps, normalized_shape=normalized_shape
+        )
         if result is not NotImplemented:
             return override, result
     else:
@@ -759,18 +769,25 @@ def _module_register_buffer_trampoline(
 
 
 @overridable
-def rms_norm(x: AnyTensor, weight: AnyTensor, *, epsilon: float) -> AnyTensor:
+def rms_norm(
+    x: AnyTensor, weight: AnyTensor, *, epsilon: float, orig_dtype: torch.dtype
+) -> AnyTensor:
     """Computes the full, unbiased RMS normalization of an input."""
     raise NotImplementedError
 
 
 @rms_norm.trampoline
 def _rms_norm_trampoline(
-    d: SignatureDispatcher, x: AnyTensor, weight: AnyTensor, *, epsilon: float
+    d: SignatureDispatcher,
+    x: AnyTensor,
+    weight: AnyTensor,
+    *,
+    epsilon: float,
+    orig_dtype: torch.dtype,
 ):
     tensors = (x, weight)
     for override in d.find_overrides(tensors):
-        result = override(x, weight, epsilon=epsilon)
+        result = override(x, weight, epsilon=epsilon, orig_dtype=orig_dtype)
         if result is not NotImplemented:
             return override, result
     else:
@@ -819,7 +836,12 @@ def _replicate_trampoline(
 
 @overridable
 def scaled_dot_product_attention(
-    q: AnyTensor, k: AnyTensor, v: AnyTensor, a: Optional[AnyTensor], is_causal: bool
+    q: AnyTensor,
+    k: AnyTensor,
+    v: AnyTensor,
+    a: Optional[AnyTensor],
+    is_causal: bool = False,
+    scale: Optional[float] = None,
 ) -> AnyTensor:
     """Computes the scaled dot product attention using QKV."""
     raise NotImplementedError
@@ -1010,6 +1032,42 @@ def _to_trampoline(d: SignatureDispatcher, tensor: AnyTensor, *args, **kwargs):
             return override, result
     else:
         d.fail(dispatch_args)
+
+
+@overridable
+def trace_tensor(key: str, *tensors: tuple[AnyTensor]):
+    ...
+
+
+@trace_tensor.trampoline
+def _transfer_to_logical_device_trampoline(
+    d: SignatureDispatcher, key: str, *tensors: tuple[AnyTensor]
+):
+    for override in d.find_overrides(tensors):
+        result = override(key, *tensors)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
+
+
+@overridable
+def barrier_on_logical_device(tensor: AnyTensor, ordinal: int) -> AnyTensor:
+    """Transfer the tensor to a device with ordinal `ordinal`."""
+    ...
+
+
+@barrier_on_logical_device.trampoline
+def _barrier_on_logical_device_trampoline(
+    d: SignatureDispatcher, tensor: AnyTensor, ordinal: int
+):
+    tensors = (tensor,)
+    for override in d.find_overrides(tensors):
+        result = override(tensor, ordinal)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
 
 
 @overridable

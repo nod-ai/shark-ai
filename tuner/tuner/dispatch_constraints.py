@@ -376,7 +376,7 @@ def generate_solutions(
         codegen_pipeline,
     )
     M, N, K = problem_size.MNK
-    tuner_ctx.logger.info(f"{M},{N},{K}")
+    tuner_ctx.logger.debug(f"{M},{N},{K}")
     m_vars = [z3.Int(f"m{i}") for i in range(len(M))]
     n_vars = [z3.Int(f"n{i}") for i in range(len(N))]
     k_vars = [z3.Int(f"k{i}") for i in range(len(K))]

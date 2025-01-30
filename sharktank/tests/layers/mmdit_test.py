@@ -34,12 +34,10 @@ class MMDITTest(TempDirTestBase):
         self.batch_size = 3
 
     def testDoubleExport(self):
-
-        theta = make_mmdit_double_block_random_theta()
+        theta = make_mmdit_double_block_random_theta(hidden_size=self.hidden_size)
         theta = self.save_load_theta(theta)
         mmdit = MMDITDoubleBlock(
-            theta=theta,
-            num_heads=self.num_heads,
+            theta=theta, num_heads=self.num_heads, hidden_size=self.hidden_size
         )
 
         img = torch.rand([self.batch_size, 1024, self.hidden_size])
@@ -58,12 +56,10 @@ class MMDITTest(TempDirTestBase):
         asm = str(output.mlir_module)
 
     def testSingleExport(self):
-
-        theta = make_mmdit_single_block_random_theta()
+        theta = make_mmdit_single_block_random_theta(hidden_size=self.hidden_size)
         theta = self.save_load_theta(theta)
         mmdit = MMDITSingleBlock(
-            theta=theta,
-            num_heads=self.num_heads,
+            theta=theta, num_heads=self.num_heads, hidden_size=self.hidden_size
         )
 
         inp = torch.rand([self.batch_size, 1024, self.hidden_size])

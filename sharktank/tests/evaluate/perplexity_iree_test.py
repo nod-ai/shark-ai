@@ -85,7 +85,7 @@ class PerplexityTest(unittest.TestCase):
                 f"--iree-hal-target-device={self.iree_hal_target_device}",
                 f"--iree-hip-target={self.iree_hip_target}",
                 f"--tensor-parallelism-size=1",
-                f"--attention-kernel=torch_sdpa",
+                f"--attention-kernel=torch",
                 f"--num-prompts={self.batch_size}",
             ]
         )
@@ -157,7 +157,7 @@ class PerplexityTest(unittest.TestCase):
                 f"--iree-hal-target-device={self.iree_hal_target_device}",
                 f"--iree-hip-target={self.iree_hip_target}",
                 f"--tensor-parallelism-size=1",
-                f"--attention-kernel=torch_sdpa",
+                f"--attention-kernel=torch",
                 f"--num-prompts={self.batch_size}",
             ]
         )
@@ -231,7 +231,7 @@ class PerplexityTest(unittest.TestCase):
                 f"--iree-hal-target-device={self.iree_hal_target_device}",
                 f"--iree-hip-target={self.iree_hip_target}",
                 f"--tensor-parallelism-size={self.tensor_parallelism_size}",
-                f"--attention-kernel=torch_sdpa",
+                f"--attention-kernel=torch",
                 f"--num-prompts={self.batch_size}",
             ]
         )
@@ -303,7 +303,7 @@ class PerplexityTest(unittest.TestCase):
                 f"--iree-hal-target-device={self.iree_hal_target_device}",
                 f"--iree-hip-target={self.iree_hip_target}",
                 f"--tensor-parallelism-size={self.tensor_parallelism_size}",
-                f"--attention-kernel=torch_sdpa",
+                f"--attention-kernel=torch",
                 f"--num-prompts={self.batch_size}",
             ]
         )

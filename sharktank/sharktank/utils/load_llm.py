@@ -45,11 +45,11 @@ class TorchGenerator:
         token_ids = torch.tensor(token_ids, device=self.model.device)
         seq_lens = torch.tensor(seq_lens, device=self.model.device)
 
-        if self.model.cache.is_paged:
-            cache_state = self.model.cache.paged.allocate(page_cache_size)
+        if self.model.config.kv_cache_type == "paged":
+            cache_state = self.model.cache.allocate(page_cache_size)
             self.free_pages = list(range(1, page_cache_size))
-        else:
-            cache_state = self.model.cache.direct.allocate(bs=len(prompts))
+        elif self.model.config.kv_cache_type == "direct":
+            cache_state = self.model.cache.allocate(bs=1)
         return Batch(self, token_ids, seq_lens, cache_state)
 
     def begin_eval_batch(
@@ -59,22 +59,22 @@ class TorchGenerator:
         bs: int,
         page_cache_size: int = 128,
     ):
-        if self.model.cache.is_paged:
-            cache_state = self.model.cache.paged.allocate(page_cache_size)
+        if self.model.config.kv_cache_type == "paged":
+            cache_state = self.model.cache.allocate(page_cache_size)
             self.free_pages = list(range(1, page_cache_size))
-        else:
-            cache_state = self.model.cache.direct.allocate(bs=bs)
+        elif self.model.config.kv_cache_type == "direct":
+            cache_state = self.model.cache.allocate(bs=1)
         return Batch(self, token_batch, seq_lens_batch, cache_state)
 
     def alloc_page(self) -> int:
-        if self.model.cache.is_direct:
+        if self.model.config.kv_cache_type == "direct":
             # We don't allocate block ids for the direct cache.
             return 0
 
         return self.free_pages.pop()
 
     def release_page(self, index: int):
-        if self.model.cache.is_direct:
+        if self.model.config.kv_cache_type == "direct":
             return
         self.free_pages.append(index)
 

@@ -16,8 +16,8 @@ false.
   to emit information. When disabled, it is a no-op.
 * `enable_nan_checks`: Enables certain expensive nan checks that may be
   included in the model.
-* `save_goldens_path`: When set to a path, any tensor traced via
-  `trace_tensor(golden=True)` will be added to a safetensors file and output
+* `trace_path`: When set to a path, any tensor traced via
+  `trace_tensor()` will be added to a safetensors file and output
   in a deterministic way to the path.
 * `use_custom_int_conv_kernel`: Uses custom kernels for integer convolution
   arithmetic. This produces the most optimal compiled results but can impede

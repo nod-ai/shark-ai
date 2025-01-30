@@ -40,11 +40,14 @@ def load_iree_module(
     module_path: str,
     devices: List[iree.runtime.HalDevice],
     parameters_path: Optional[str] = None,
+    debug_sink: Optional[iree.runtime.HalModuleDebugSink] = None,
 ) -> Tuple[iree.runtime.VmModule, iree.runtime.VmContext, iree.runtime.VmInstance]:
     """The VmContext and VmInstance need to outlive the VmModule and any device
     buffers."""
     vm_instance = iree.runtime.VmInstance()
-    hal_module = iree.runtime.create_hal_module(instance=vm_instance, devices=devices)
+    hal_module = iree.runtime.create_hal_module(
+        instance=vm_instance, devices=devices, debug_sink=debug_sink
+    )
     modules = [hal_module]
     if parameters_path is not None:
         params_path = Path(parameters_path)
@@ -262,3 +265,28 @@ def call_torch_module_function(
 
 def iree_to_torch(*tensors: iree.runtime.DeviceArray) -> List[torch.Tensor]:
     return [device_array_to_host(tensor) for tensor in tensors]
+
+
+def make_hal_buffer_view_trace_default_callback(
+    device: iree.runtime.HalDevice,
+) -> iree.runtime.HalModuleBufferViewTraceCallback:
+    """Will sink into whatever is configured in the utils.debugging module.
+
+    Ideally we would like to not have to specify the device, but we can't reliably get
+    the array on the host from HalBufferView if the memory is not host-mappable.
+    In that case a copy from device-to-host needs to be executed."""
+    from . import debugging
+
+    class Callback:
+        def __init__(self, device: iree.runtime.HalDevice):
+            # Make sure we don't create a circular reference.
+            self.device = device
+
+        def __call__(self, key: str, buffer_views: List[iree.runtime.HalBufferView]):
+            tensors = [
+                device_array_to_host(iree.runtime.DeviceArray(self.device, buffer_view))
+                for buffer_view in buffer_views
+            ]
+            debugging.get_trace_tensor_callback()(key, *tensors)
+
+    return Callback(device)
