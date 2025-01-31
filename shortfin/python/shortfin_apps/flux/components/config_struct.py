@@ -78,6 +78,9 @@ class ModelParams:
     # ABI of the module.
     module_abi_version: int = 1
 
+    # TODO: Understand when this should be a value other than 1
+    cfg_mult: int = 1
+
     @property
     def max_clip_batch_size(self) -> int:
         return self.clip_batch_sizes[-1]

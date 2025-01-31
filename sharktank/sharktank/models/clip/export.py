@@ -55,7 +55,7 @@ def clip_text_model_to_dataset(model: ClipTextModel) -> Dataset:
 def export_clip_text_model_iree_parameters(model: ClipTextModel, output_path: PathLike, dtype=None):
     dataset = clip_text_model_to_dataset(model)
     if dtype:
-        dataset.root_theta = tdataset.root_theta.transform(
+        dataset.root_theta = dataset.root_theta.transform(
             functools.partial(set_float_dtype, dtype=dtype)
         )
     dataset.save(output_path)

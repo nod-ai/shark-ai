@@ -290,7 +290,7 @@ class ClipTextConfig:
     output_hidden_states: bool = False
     use_return_dict: bool = True
     dtype: torch.dtype = torch.float32
-
+    
     @staticmethod
     def from_hugging_face_clip_text_model_config(
         config: "transformers.CLIPTextConfig", # type: ignore
