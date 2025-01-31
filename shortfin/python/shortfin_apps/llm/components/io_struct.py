@@ -11,8 +11,8 @@ Portions adapted from API definitions originating in:
 sglang: Copyright 2023-2024 SGLang Team, Licensed under the Apache License, Version 2.0
 """
 
-from typing import Dict, List, Optional, Union
 from dataclasses import dataclass
+from typing import Dict, List, Optional, Union
 import uuid
 
 
@@ -31,6 +31,8 @@ class GenerateReqInput:
     sampling_params: Union[List[Dict], Dict] = None
     # The request id.
     rid: Optional[Union[List[str], str]] = None
+    # Whether to decode the response before returning it.
+    return_input_ids: bool = False
     # Whether to return logprobs.
     return_logprob: Optional[Union[List[bool], bool]] = None
     # If return logprobs, the start location in the prompt for returning logprobs.

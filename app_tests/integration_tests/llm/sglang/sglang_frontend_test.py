@@ -8,9 +8,7 @@ import logging
 import re
 import pytest
 
-from ..utils import (
-    AccuracyValidationException,
-)
+from ..model_management import AccuracyValidationException
 
 pytest.importorskip("sglang")
 import sglang as sgl
@@ -21,13 +19,15 @@ from sentence_transformers import SentenceTransformer, util
 
 logger = logging.getLogger(__name__)
 
-DEVICE_SETTINGS = {
-    "device_flags": [
+from ..device_settings import DeviceSettings
+
+DEVICE_SETTINGS = DeviceSettings(
+    compile_flags=(
         "--iree-hal-target-backends=rocm",
         "--iree-hip-target=gfx942",
-    ],
-    "device": "hip",
-}
+    ),
+    server_flags=("--device=hip",),
+)
 
 ACCEPTED_THRESHOLD = 0.7
 
@@ -71,16 +71,17 @@ def tip_suggestion(s):
 
 
 @pytest.mark.parametrize(
-    "pre_process_model,start_server",
+    "model_artifacts,start_server,load_comparison_model",
     [
         (
             {"device_settings": DEVICE_SETTINGS},
             {"device_settings": DEVICE_SETTINGS},
+            None,
         )
     ],
     indirect=True,
 )
-def test_multi_turn_qa(load_comparison_model, start_server):
+def test_multi_turn_qa(model_artifacts, start_server, load_comparison_model):
     server, port = start_server
     register_shortfin_backend(port)
 
@@ -132,16 +133,17 @@ def test_multi_turn_qa(load_comparison_model, start_server):
 
 
 @pytest.mark.parametrize(
-    "pre_process_model,start_server",
+    "model_artifacts,start_server,load_comparison_model",
     [
         (
             {"device_settings": DEVICE_SETTINGS},
             {"device_settings": DEVICE_SETTINGS},
+            None,
         )
     ],
     indirect=True,
 )
-def test_stream_multi_turn_qa(load_comparison_model, start_server):
+def test_stream_multi_turn_qa(model_artifacts, start_server, load_comparison_model):
     server, port = start_server
     register_shortfin_backend(port)
 
@@ -186,16 +188,17 @@ def test_stream_multi_turn_qa(load_comparison_model, start_server):
 
 
 @pytest.mark.parametrize(
-    "pre_process_model,start_server",
+    "model_artifacts,start_server,load_comparison_model",
     [
         (
             {"device_settings": DEVICE_SETTINGS},
             {"device_settings": DEVICE_SETTINGS},
+            None,
         )
     ],
     indirect=True,
 )
-def test_batch_multi_turn_qa(load_comparison_model, start_server):
+def test_batch_multi_turn_qa(model_artifacts, start_server, load_comparison_model):
     server, port = start_server
     register_shortfin_backend(port)
     model = load_comparison_model
@@ -290,16 +293,17 @@ def test_batch_multi_turn_qa(load_comparison_model, start_server):
 
 
 @pytest.mark.parametrize(
-    "pre_process_model,start_server",
+    "model_artifacts,start_server,load_comparison_model",
     [
         (
             {"device_settings": DEVICE_SETTINGS},
             {"device_settings": DEVICE_SETTINGS},
+            None,
         )
     ],
     indirect=True,
 )
-def test_fork(load_comparison_model, start_server):
+def test_fork(model_artifacts, start_server, load_comparison_model):
     server, port = start_server
     register_shortfin_backend(port)
     model = load_comparison_model

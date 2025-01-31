@@ -4,60 +4,19 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Configuration objects.
+"""
+Configuration objects.
 
-Parameters that are intrinsic to a specific model.
-
-In a typical transformer model, the KV cache is organized similar to (mapped to
-our parameter names below):
-    k = tensor.empty(transformer_block_count, batch_size, seq,
-                    attn_head_count_kv, attn_head_dim)
-    v = ...
-
-For context, a popular model has parameters of:
-    attn_dtype_size = 2  # (fp16)
-    max_seq_len = 2048
-    transformer_block_count = 32
-    attn_head_count_kv = 32
-    attn_head_dim = 128   # (dim / head_count)
-
-If paging, then we primarily care about the organization of a single block, where
-a block represents a single position in the sequence for a single item in the batch.
-Therefore, it will be organized like:
-    block = torch.empty(transformer_block_count, 2, attn_head_count_kv, attn_head_dim)
-
-In this scenario, we declare that one block holds the KV cache for all transformer
-block layers because it reduces the accounting. As such, for the above example,
-a single position in the sequence will be 524,288 bytes, assuming a 2-byte element
-type. If we choose to block by block_stride=16 positions, each block will be 8MiB.
-Assuming we wanted to dedicate 12GiB to the block cache, this would equate to 1536
-blocks for a total number of sequence positions of 24,576.
-
-These are well-known numbers but are derived above to give a sense of scale.
-
-In order to indirect through to the block cache, we have to provide the index map
-to specific invocations:
-
-* Prefill: Prefill is only writing to the blocks from [0:prompt_len], so it will
-    need write indices of [batch_size, prompt_len // block_stride + 1].
-* Decode step: Decode is auto-regressive, and needs to first compute the new kv
-    row and then attend over all rows in the cache up to this point in the sequence.
-
-If wanting to avoid dynamic allocation of transients, we can also pool the index
-tables based on the maximum batch size and maximum sequence length. Since all
-block cache sizes are well within the range of an i16, we will use that for storage.
-Therefore, each batch invocation would need a block lookup table of:
-
-    byte_size = max_batch_size * (max_seq_len // block_stride) * sizeof(int16_t)
-
-For a max_batch_size of 16, this is 4KiB of block index table lookups per
-invocation. We don't have to statically allocate this, but the system is more
-predictable if we just reserve what we need. Again, numbers are given to give a
-sense of scale only: real workloads will vary.
+Classes:
+- ModelParams: for reading and managing config keys specified in `config.json` files exported by `python -m sharktank.examples.export_paged_llm_v1`
+- ServerParams: for specifying config keys needed by `python -m shortfin_apps.llm.server`
 """
 
-from dataclasses import dataclass
+import json
+import os
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Optional
 
 import dataclasses_json
 from dataclasses_json import dataclass_json, Undefined
@@ -78,7 +37,55 @@ dataclasses_json.cfg.global_config.decoders[sfnp.DType] = _decode_dtype
 @dataclass_json(undefined=Undefined.RAISE)
 @dataclass
 class PagedKVCacheParams:
-    """Parameters for the paged KV cache."""
+    """Parameters for the paged KV cache.
+
+    In a typical transformer model, the KV cache is organized similar to (mapped to
+    our parameter names below):
+        k = tensor.empty(transformer_block_count, batch_size, seq,
+                        attn_head_count_kv, attn_head_dim)
+        v = ...
+
+    For context, a popular model has parameters of:
+        attn_dtype_size = 2  # (fp16)
+        max_seq_len = 2048
+        transformer_block_count = 32
+        attn_head_count_kv = 32
+        attn_head_dim = 128   # (dim / head_count)
+
+    If paging, then we primarily care about the organization of a single block, where
+    a block represents a single position in the sequence for a single item in the batch.
+    Therefore, it will be organized like:
+        block = torch.empty(transformer_block_count, 2, attn_head_count_kv, attn_head_dim)
+
+    In this scenario, we declare that one block holds the KV cache for all transformer
+    block layers because it reduces the accounting. As such, for the above example,
+    a single position in the sequence will be 524,288 bytes, assuming a 2-byte element
+    type. If we choose to block by block_stride=16 positions, each block will be 8MiB.
+    Assuming we wanted to dedicate 12GiB to the block cache, this would equate to 1536
+    blocks for a total number of sequence positions of 24,576.
+
+    These are well-known numbers but are derived above to give a sense of scale.
+
+    In order to indirect through to the block cache, we have to provide the index map
+    to specific invocations:
+
+    * Prefill: Prefill is only writing to the blocks from [0:prompt_len], so it will
+        need write indices of [batch_size, prompt_len // block_stride + 1].
+    * Decode step: Decode is auto-regressive, and needs to first compute the new kv
+        row and then attend over all rows in the cache up to this point in the sequence.
+
+    If wanting to avoid dynamic allocation of transients, we can also pool the index
+    tables based on the maximum batch size and maximum sequence length. Since all
+    block cache sizes are well within the range of an i16, we will use that for storage.
+    Therefore, each batch invocation would need a block lookup table of:
+
+        byte_size = max_batch_size * (max_seq_len // block_stride) * sizeof(int16_t)
+
+    For a max_batch_size of 16, this is 4KiB of block index table lookups per
+    invocation. We don't have to statically allocate this, but the system is more
+    predictable if we just reserve what we need. Again, numbers are given to give a
+    sense of scale only: real workloads will vary.
+    """
 
     # Tokens per page.
     block_seq_stride: int
@@ -90,8 +97,6 @@ class PagedKVCacheParams:
     # Size of the cache on each device.
     # Default: 256
     device_block_count: int
-
-    prefix_sharing_algorithm: str = "none"  # currently supporting none and trie
 
 
 @dataclass_json(undefined=Undefined.RAISE)
@@ -194,3 +199,69 @@ def human_size(num, suffix="B"):
             return f"{num:3.1f}{unit}{suffix}"
         num /= 1024.0
     return f"{num:.1f}Yi{suffix}"
+
+
+@dataclass_json(undefined=Undefined.RAISE)
+@dataclass
+class ServerParams:
+    """
+    Parameters relevant to a specific server launch.
+
+    shortfin_apps.llm.server accepts an optional json server_config file for this + commandline arguments for setting attributes of this class.
+
+    Commandline args take priority over server_config.json, which takes precedence over defaults defined in this dataclass.
+    """
+
+    # KV cache configuration
+    prefix_sharing_algorithm: str = "none"  # none or trie
+
+    # Server runtime configuration
+    host: Optional[str] = None
+    port: int = 8000
+    root_path: Optional[str] = None
+    timeout_keep_alive: int = 5
+
+    # Program isolation configuration
+    program_isolation: str = "per_call"
+
+    # Device configuration
+    device_ids: list[str] = field(default_factory=list)
+    amdgpu_async_allocations: bool = False
+    amdgpu_allocators: Optional[str] = None
+
+    @staticmethod
+    def load(config_path: Optional[Path] = None) -> "ServerParams":
+        """Create a new ServerParams object by overriding defaults from a `server_config.json` file.
+
+        Args:
+            config_path: Path to config file.
+
+        Returns:
+            ServerParams instance with defaults or loaded values
+        """
+        params = ServerParams()
+        if config_path and config_path.exists():
+            with open(config_path) as f:
+                file_params = ServerParams.from_json(f.read())
+                # Update only non-None values from file
+                for field in params.__dataclass_fields__:
+                    file_value = getattr(file_params, field)
+                    if file_value is not None:
+                        setattr(params, field, file_value)
+        return params
+
+    def update_from_args(self, args) -> None:
+        """Update configuration from command line arguments.
+
+        Args:
+            args: Parsed command line arguments
+
+        Command line arguments take highest priority.
+        """
+        for field in self.__dataclass_fields__:
+            if hasattr(args, field):
+                arg_value = getattr(args, field)
+                if (
+                    arg_value is not None
+                ):  # Only override if a cmdline arg of the same name was provided
+                    setattr(self, field, arg_value)

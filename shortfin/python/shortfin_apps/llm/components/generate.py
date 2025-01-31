@@ -6,6 +6,7 @@
 
 import asyncio
 import io
+import json
 import logging
 
 import shortfin as sf
@@ -47,6 +48,8 @@ class GenerateItemProcess(sf.Process):
         self.result_token_ids: list[int] = []
         self.max_completion_tokens = max_completion_tokens
         self.eos_token_id = eos_token_id
+
+        self.streamed_tokens_index = 0
 
     async def run(self):
         exec = InferenceExecRequest(
@@ -133,14 +136,17 @@ class ClientGenerateBatchProcess(sf.Process):
             else:
                 input_batch = self.tokenize()
             for index, input_tokens in enumerate(input_batch):
+                max_completion_tokens = (
+                    self.gen_req.sampling_params["max_completion_tokens"]
+                    if self.gen_req.is_single
+                    else self.gen_req.sampling_params[index]["max_completion_tokens"]
+                )
                 gen_process = GenerateItemProcess(
                     self,
                     self.gen_req,
                     index,
                     input_tokens if is_pretokenized else input_tokens.ids,
-                    max_completion_tokens=self.gen_req.sampling_params[
-                        "max_completion_tokens"
-                    ],
+                    max_completion_tokens=max_completion_tokens,
                     eos_token_id=self.tokenizer.eos_token_id,
                 )
                 gen_processes.append(gen_process)
@@ -155,13 +161,17 @@ class ClientGenerateBatchProcess(sf.Process):
             else:
                 logging.debug("Responding to one shot batch")
                 out = io.BytesIO()
-                result_texts = self.tokenizer.decode(
-                    [p.result_token_ids for p in gen_processes]
-                )
-                for result_text in result_texts:
-                    out.write(b"data: ")
-                    out.write(result_text.encode())
-                    out.write(b"\n\n")
+                result_tokens = [p.result_token_ids for p in gen_processes]
+                if self.gen_req.return_input_ids:
+                    if self.gen_req.is_single:
+                        result_tokens = result_tokens[0]
+                    out.write(bytes(json.dumps(result_tokens), "utf-8"))
+                else:
+                    result_texts = self.tokenizer.decode(result_tokens)
+                    for result_text in result_texts:
+                        out.write(b"data: ")
+                        out.write(result_text.encode())
+                        out.write(b"\n\n")
                 self.responder.send_response(out.getvalue())
         finally:
             self.responder.ensure_response()
@@ -169,12 +179,26 @@ class ClientGenerateBatchProcess(sf.Process):
     def stream_results(self, gen_process: GenerateItemProcess):
         if not self.gen_req.stream:
             return
-        (result_text,) = self.tokenizer.decode([gen_process.result_token_ids])
         out = io.BytesIO()
-        out.write(b"data: ")
-        out.write(result_text.encode())
-        out.write(b"\n\n")
+        result_tokens = gen_process.result_token_ids[
+            gen_process.streamed_tokens_index :
+        ]
+        rid = (
+            gen_process.gen_req.rid
+            if gen_process.gen_req.is_single
+            else gen_process.gen_req.rid[gen_process.index]
+        )
+        if not self.gen_req.return_input_ids:
+            (result_text,) = self.tokenizer.decode([result_tokens])
+            out.write(f"data({rid}): ".encode())
+            out.write(result_text.encode())
+            out.write(b"\n\n")
+        else:
+            out.write(f"data({rid}): ".encode())
+            out.write(str(result_tokens[0]).encode())
+            out.write(b"\n\n")
         self.responder.stream_part(out.getvalue())
+        gen_process.streamed_tokens_index += len(result_tokens)
 
     def tokenize(self) -> list[Encoding]:
         gen_req = self.gen_req

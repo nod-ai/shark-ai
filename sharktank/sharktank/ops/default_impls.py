@@ -400,11 +400,14 @@ def reshape_default(input: Union[PrimitiveTensor, Tensor], shape: List[int]) -> 
 
 # RMS norm
 @rms_norm.override(AllOfType(Tensor, InferenceTensor))
-def rms_norm_default(x, weight, *, epsilon: float) -> Tensor:
+def rms_norm_default(
+    x, weight, *, epsilon: float, orig_dtype: Union[None, torch.dtype]
+) -> Tensor:
+    if orig_dtype is None:
+        orig_dtype = x.dtype
     variance = x.pow(2).mean(-1, keepdim=True)
     output = x * elementwise(torch.rsqrt, variance + epsilon)
-    # The cast here is to match the hf implementation, affects numerics
-    output = elementwise(torch.mul, weight, to(output, weight.dtype))
+    output = elementwise(torch.mul, weight, to(output, orig_dtype))
     return output
 
 

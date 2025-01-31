@@ -14,13 +14,12 @@ import sys
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 )
-from integration_tests.llm.utils import (
-    compile_model,
-    end_log_group,
-    export_paged_llm_v1,
-    download_with_hf_datasets,
-    start_log_group,
+from integration_tests.llm.model_management import (
+    ModelConfig,
+    ModelProcessor,
+    ModelSource,
 )
+from integration_tests.llm.logging_utils import start_log_group, end_log_group
 
 logger = logging.getLogger(__name__)
 
@@ -47,16 +46,19 @@ def pre_process_model(request, tmp_path_factory):
     settings = request.param["settings"]
     batch_sizes = request.param["batch_sizes"]
 
-    mlir_path = tmp_dir / "model.mlir"
-    config_path = tmp_dir / "config.json"
-    vmfb_path = tmp_dir / "model.vmfb"
+    # Configure model
+    config = ModelConfig(
+        model_file=model_param_file_name,
+        tokenizer_id=model_name,  # Using model_name as tokenizer_id, adjust if needed
+        batch_sizes=batch_sizes,
+        device_settings=settings,
+        source=ModelSource.HUGGINGFACE,
+        repo_id=model_name,  # Using model_name as repo_id, adjust if needed
+    )
 
-    model_path = tmp_dir / model_param_file_name
-    download_with_hf_datasets(tmp_dir, model_name)
-
-    export_paged_llm_v1(mlir_path, config_path, model_path, batch_sizes)
-
-    compile_model(mlir_path, vmfb_path, settings)
+    # Process model through all stages
+    processor = ModelProcessor(tmp_dir)
+    artifacts = processor.process_model(config)
 
     logger.info("Model artifacts setup successfully" + end_log_group())
     MODEL_DIR_CACHE[param_key] = tmp_dir

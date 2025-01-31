@@ -19,12 +19,9 @@ from .utils import (
     log_jsonl_result,
 )
 
-from integration_tests.llm.utils import (
-    end_log_group,
-    find_available_port,
-    start_llm_server,
-    start_log_group,
-)
+from integration_tests.llm.logging_utils import end_log_group, start_log_group
+from integration_tests.llm.server_management import ServerConfig, ServerInstance
+from integration_tests.llm.model_management import ModelArtifacts
 
 logger = logging.getLogger(__name__)
 
@@ -83,20 +80,24 @@ def test_shortfin_benchmark(
     model_path = tmp_dir / model_param_file_name
 
     # Start shortfin llm server
-    server_process, port = start_llm_server(
-        tokenizer_path,
-        config_path,
-        vmfb_path,
-        model_path,
-        device_settings,
-        timeout=30,
+    server_config = ServerConfig(
+        artifacts=ModelArtifacts(
+            weights_path=model_path,
+            tokenizer_path=tokenizer_path,
+            mlir_path=tmp_dir / "model.mlir",
+            vmfb_path=vmfb_path,
+            config_path=config_path,
+        ),
+        device_settings=device_settings,
     )
+    server = ServerInstance(server_config)
+    server.start()
 
     # Run and collect SGLang Serving Benchmark
     benchmark_args = SGLangBenchmarkArgs(
         backend="shortfin",
         num_prompt=10,
-        base_url=f"http://localhost:{port}",
+        base_url=f"http://localhost:{server.port}",
         tokenizer=tmp_dir,
         request_rate=request_rate,
     )
@@ -130,5 +131,4 @@ def test_shortfin_benchmark(
     except Exception as e:
         logger.error(e)
 
-    server_process.terminate()
-    server_process.wait()
+    server.stop()

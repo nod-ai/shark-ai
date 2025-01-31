@@ -13,8 +13,12 @@ pytest.importorskip("sglang")
 from sglang import bench_serving
 
 from .utils import SGLangBenchmarkArgs, log_jsonl_result
-
-from integration_tests.llm.utils import download_tokenizer, wait_for_server
+from integration_tests.llm.model_management import (
+    ModelConfig,
+    ModelProcessor,
+    ModelSource,
+)
+from integration_tests.llm.server_management import ServerInstance
 
 logger = logging.getLogger(__name__)
 
@@ -26,17 +30,31 @@ logger = logging.getLogger(__name__)
 def test_sglang_benchmark(request_rate, tokenizer_id, sglang_args, tmp_path_factory):
     tmp_dir = tmp_path_factory.mktemp("sglang_benchmark_test")
 
-    # Download tokenizer for llama3_8B_fp16
-    download_tokenizer(tmp_dir, tokenizer_id)
+    # Download tokenizer using ModelProcessor
+    config = ModelConfig(
+        model_file="tokenizer.json",  # Only need tokenizer
+        tokenizer_id=tokenizer_id,
+        batch_sizes=(1,),  # Not relevant for tokenizer only
+        device_settings=None,  # Not relevant for tokenizer only
+        source=ModelSource.HUGGINGFACE,
+        repo_id=tokenizer_id,
+    )
+    processor = ModelProcessor(tmp_dir)
+    artifacts = processor.process_model(config)
 
     logger.info("Beginning SGLang benchmark test...")
 
     port = sglang_args
     base_url = f"http://localhost:{port}"
 
-    # Setting a high timeout gives enough time for downloading model artifacts
-    # and starting up server... Takes a little longer than shortfin.
-    wait_for_server(base_url, timeout=600)
+    # Wait for server using ServerInstance's method
+    server = ServerInstance(
+        None
+    )  # We don't need config since we're just using wait_for_ready
+    server.port = int(port)  # Set port manually since we didn't start the server
+    server.wait_for_ready(
+        timeout=600
+    )  # High timeout for model artifacts download and server startup
 
     benchmark_args = SGLangBenchmarkArgs(
         backend="sglang",

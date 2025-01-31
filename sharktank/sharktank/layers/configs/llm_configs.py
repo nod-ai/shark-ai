@@ -49,7 +49,7 @@ class LlamaHParams:
         name_prefix = p.get("general.architecture", "llama")
         default_expert_count = 0
         default_expert_used_count = 0
-        default_rope_freq_base = 10000.0
+        default_rope_freq_base = 500000.0
         default_rope_dimension_count = 128
         attention_head_count = _int_prop(p, f"{name_prefix}.attention.head_count")
         rope_dimension_count = _optional_int_prop(

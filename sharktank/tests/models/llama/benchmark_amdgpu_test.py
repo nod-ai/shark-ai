@@ -100,6 +100,8 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             attention_kernel="torch",
             tensor_parallelism_size=self.tensor_parallelism_size,
             block_seq_stride=32,
+            activation_dtype="bfloat16",
+            attention_dtype="float8_e4m3fnuz",
         )
         self.prefill_args_bs4_128_stride_32_f16 = (
             self.artifacts_dir / "prefill_args_bs4_128_stride_32"
@@ -279,7 +281,11 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
 
-    @pytest.mark.xfail(reason="Compile Error", strict=True, raises=IreeCompileException)
+    @pytest.mark.xfail(
+        reason="Benchmark inputs not configured yet.",
+        strict=False,
+        raises=IreeBenchmarkException,
+    )
     def testBenchmark8B_fp8_Non_Decomposed(self):
         output_file_name = self.dir_path_8b / "fp8_torch"
         output_mlir = self.llama8b_fp8_torch_sdpa_artifacts.create_file(
@@ -307,7 +313,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
             irpa_path=self.irpa_path_fp8,
-            args=self.iree_run_prefill_args,
+            args=self.iree_run_prefill_args_fp8,
             cwd=self.repo_root,
         )
         # benchmark decode
@@ -315,7 +321,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
             irpa_path=self.irpa_path_fp8,
-            args=self.iree_run_decode_args,
+            args=self.iree_run_decode_args_fp8,
             cwd=self.repo_root,
         )
 
