@@ -83,7 +83,9 @@ class GenerateService:
                 worker = sysman.ls.create_worker(f"{name}-inference-{device.name}-{i}")
                 self.workers.append(worker)
             for i in range(self.fibers_per_device):
-                tgt_worker = self.workers[idx * workers_per_device + i % workers_per_device]
+                tgt_worker = self.workers[
+                    idx * workers_per_device + i % workers_per_device
+                ]
                 fiber = sysman.ls.create_fiber(tgt_worker, devices=[device])
                 self.fibers.append(fiber)
                 self.idle_fibers.add(fiber)
