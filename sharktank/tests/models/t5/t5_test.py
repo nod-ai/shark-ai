@@ -365,7 +365,7 @@ class T5EncoderIreeTest(TempDirTestBase):
                 module=iree_module,
                 vm_context=iree_vm_context,
                 args=iree_args,
-                driver="hip",
+                device=iree_devices[0],
                 function_name=f"forward_bs{batch_size}",
                 trace_path_prefix=f"{target_model_path_prefix}_iree_",
             )

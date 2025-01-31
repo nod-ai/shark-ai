@@ -160,7 +160,7 @@ class FluxTest(TempDirTestBase):
                 module=iree_module,
                 vm_context=iree_vm_context,
                 args=iree_args,
-                driver="hip",
+                device=iree_devices[0],
                 function_name=f"forward_bs{batch_size}",
             )
         )

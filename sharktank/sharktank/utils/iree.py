@@ -144,7 +144,7 @@ def run_iree_module_function(
     module: iree.runtime.VmModule,
     vm_context: iree.runtime.VmContext,
     args: List[iree.runtime.DeviceArray],
-    driver: str,
+    device: iree.runtime.HalDevice,
     function_name: str = "main",
     trace_path_prefix: Optional[str] = None,
 ) -> List[iree.runtime.DeviceArray]:
@@ -154,7 +154,7 @@ def run_iree_module_function(
         vm_context=vm_context,
         # TODO: rework iree.runtime.FunctionInvoker interface for multiple devices.
         # This works, but does not look right.
-        device=iree.runtime.get_device(driver, cache=False),
+        device=device,
         vm_function=vm_function,
     )
 

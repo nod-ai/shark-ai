@@ -384,7 +384,7 @@ class TestTraceTensors(TempDirTestBase):
             module=iree_module,
             vm_context=iree_vm_context,
             args=iree_args,
-            driver="local-task",
+            device=iree_devices[0],
             function_name=f"forward",
         )
 
