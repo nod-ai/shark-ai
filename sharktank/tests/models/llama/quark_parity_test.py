@@ -42,8 +42,24 @@ class QuarkParityTest(unittest.TestCase):
                 mapping[a] = b
                 mapping[a + "_input_0"] = b + "_input_0"
 
+        command = [
+            "python",
+            "-m",
+            "sharktank.examples.paged_llm_v1",
+            "The capitol of Texas is",
+            f"--irpa-file={self.path_prefix}/fp8_bf16_weight.irpa",
+            f"--tokenizer-config-json={self.path_prefix}/tokenizer.json" "--fake-quant",
+            "--attention-kernel=torch",
+            "--activation-dtype=bfloat16",
+            f"--save_intermediates_path={self.path_prefix}/ours",
+            "--use-hf",
+            "--attention-dtype=bfloat16" "--skip-decode",
+        ]
+        subprocess.call(command)
+        subprocess.wait()
+
         ours = dict()
-        our_path = self.path_prefix / "prefill.safetensors"
+        our_path = self.path_prefix / "ours_prefill.safetensors"
         with safe_open(our_path, "pytorch") as st:
             for key in st.keys():
                 ours[key] = st.get_tensor(key)
