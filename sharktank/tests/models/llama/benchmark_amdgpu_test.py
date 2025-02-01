@@ -194,7 +194,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
 
-    # @skipif_run_quick_llama_test
+    @skipif_run_quick_llama_test
     def testBenchmark8B_f16_Non_Decomposed_Input_Len_128(self):
         output_file_name = self.dir_path_8b / "f16_torch_128"
         output_mlir = self.llama8b_f16_torch_sdpa_artifacts.create_file(
@@ -234,7 +234,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
 
-    # @skipif_run_quick_llama_test
+    @skipif_run_quick_llama_test
     def testBenchmark8B_f16_Non_Decomposed_Input_Len_2048(self):
         output_file_name = self.dir_path_8b / "f16_torch_2048"
         output_mlir = self.llama8b_f16_torch_sdpa_artifacts.create_file(
