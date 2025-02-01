@@ -22,10 +22,13 @@ class QuarkParityTest(unittest.TestCase):
 
     @with_quark_data
     def test_compare_against_quark(self):
-        sharktank_dir = str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent.parent)
+        sharktank_dir = str(
+            Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent.parent
+        )
         our_path = self.path_prefix / "ours_prefill.safetensors"
         if os.path.exists(our_path):
             os.remove(our_path)
+
         mapping = dict()
         for i in range(32):
             hf = f"model.layers.{i}"
@@ -62,7 +65,9 @@ class QuarkParityTest(unittest.TestCase):
             "--block-seq-stride=16",
         ]
         command = subprocess.list2cmdline(command)
-        proc = subprocess.run(command, shell=True, capture_output=True, cwd=sharktank_dir)
+        proc = subprocess.run(
+            command, shell=True, capture_output=True, cwd=sharktank_dir
+        )
 
         ours = dict()
         with safe_open(our_path, "pytorch") as st:
