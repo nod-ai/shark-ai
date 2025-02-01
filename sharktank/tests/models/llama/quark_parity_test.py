@@ -3,7 +3,7 @@
 # Licensed under the Apache License v2.0 with LLVM Exceptions.
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-
+import os
 
 from safetensors import safe_open
 import torch
@@ -22,7 +22,7 @@ class QuarkParityTest(unittest.TestCase):
 
     @with_quark_data
     def test_compare_against_quark(self):
-
+        sharktank_dir = str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent.parent)
         mapping = dict()
         for i in range(32):
             hf = f"model.layers.{i}"
@@ -48,15 +48,18 @@ class QuarkParityTest(unittest.TestCase):
             "sharktank.examples.paged_llm_v1",
             "The capitol of Texas is",
             f"--irpa-file={self.path_prefix}/fp8_bf16_weight.irpa",
-            f"--tokenizer-config-json={self.path_prefix}/tokenizer.json" "--fake-quant",
+            f"--tokenizer-config-json=/data/llama3.1/8b/tokenizer.json",
+            "--fake-quant",
             "--attention-kernel=torch",
             "--activation-dtype=bfloat16",
             f"--save_intermediates_path={self.path_prefix}/ours",
             "--use-hf",
-            "--attention-dtype=bfloat16" "--skip-decode",
+            "--attention-dtype=bfloat16",
+            "--skip-decode",
+            "--block-seq-stride=16",
         ]
-        subprocess.call(command)
-        subprocess.wait()
+        command = subprocess.list2cmdline(command)
+        proc = subprocess.run(command, shell=True, capture_output=True, cwd=sharktank_dir)
 
         ours = dict()
         our_path = self.path_prefix / "ours_prefill.safetensors"
