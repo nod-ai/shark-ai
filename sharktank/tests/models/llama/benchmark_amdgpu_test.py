@@ -69,7 +69,9 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         self.artifacts_dir = Path("/shark-dev/8b")
         self.weights_dir = self.artifacts_dir / "instruct/weights"
         self.irpa_path = self.weights_dir / "llama3.1_8b_instruct_fp16.irpa"
-        self.irpa_path_fp8 = self.weights_dir / "fp8/native_fp8_e4m3fnuz_llama3_8b.irpa"
+        self.irpa_path_fp8 = (
+            self.artifacts_dir / "fp8/native_fp8_e4m3fnuz_llama3_8b.irpa"
+        )
         self.tensor_parallelism_size = 1
         self.dir_path_8b = self.dir_path / "llama-8b"
         self.temp_dir_8b = Path(self.dir_path_8b)
