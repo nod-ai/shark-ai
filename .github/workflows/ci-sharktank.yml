@@ -88,7 +88,6 @@ jobs:
           pytest \
             -n 4 \
             --durations=10 \
-            -m "not expensive" \
             sharktank/
 
 
@@ -190,7 +189,9 @@ jobs:
 
       - name: Run punet tests
         run: |
-          pytest -v sharktank/ -m punet_quick \
+          pytest -v sharktank/ \
+            -m "punet_quick or model_punet" \
+            --with-expensive \
             --durations=0 \
             --timeout=600
 

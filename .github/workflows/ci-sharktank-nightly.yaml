@@ -72,16 +72,16 @@ jobs:
             --verbose \
             --capture=no \
             --iree-hip-target=gfx942 \
-            --iree-device=hip://6 \
+            --iree-device=hip://0 \
             --with-flux-data \
-            -m="benchmark and expensive" \
-            --html=out/benchmark/index.html \
+            -m="benchmark" \
+            --html=out/sharktank-nightly/benchmark/index.html \
             sharktank/tests
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4.0.0
         with:
           github_token: ${{ secrets.SHARK_PLATFORM_GH_TOKEN }}
-          publish_dir: ./out/benchmark
-          destination_dir: ./benchmark
+          publish_dir: ./out/sharktank-nightly
+          destination_dir: ./sharktank-nightly
           keep_files: true
