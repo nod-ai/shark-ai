@@ -14,6 +14,7 @@ import pytest
 import torch
 
 from iree.turbine import aot
+from iree.turbine.support.conversions import TORCH_DTYPE_TO_IREE_TYPE_ASM
 from sharktank import kernels
 from sharktank.utils.testing import skip
 
@@ -60,31 +61,15 @@ class batch_matmul_transpose_b_test(unittest.TestCase):
         ref = torch.matmul(a.to(dtype=accum_dtype), bT.to(dtype=accum_dtype))
         torch.testing.assert_close(result, ref, atol=1e-3, rtol=0)
 
-    def testExportStaticDims(self):
-        class MyModule(torch.nn.Module):
-            def forward(self, a, b):
-                return kernels.batch_matmul_transpose_b(a, b)
-
-        mod = MyModule()
-        dtype = torch.int32
-        ep = torch.export.export(
-            mod,
-            args=(
-                (torch.rand([4, 16, 2]) * 64).to(dtype),
-                (torch.rand([4, 8, 2]) * 64).to(dtype),
-            ),
-        )
-        output = aot.export(ep)
-        output.verify()
-        asm = str(output.mlir_module)
-        self.assertIn(
-            "@sharktank_batch_matmul_transpose_b_L4x16x2xi32_R4x8x2xi32_i32", asm
-        )
-
-    def testExportArgF8AccumF32(self):
-        accum_dtype = torch.float32
-        arg_type = torch.float8_e4m3fnuz
-
+    @parameterized.expand(
+        [
+            (torch.int32, None),
+            (torch.float8_e4m3fnuz, torch.float32),
+        ]
+    )
+    def testExportStaticDims(
+        self, arg_dtype: torch.dtype, accum_dtype: torch.dtype | None
+    ):
         class MyModule(torch.nn.Module):
             def forward(self, a, b):
                 return kernels.batch_matmul_transpose_b(a, b, accum_dtype=accum_dtype)
@@ -93,15 +78,22 @@ class batch_matmul_transpose_b_test(unittest.TestCase):
         ep = torch.export.export(
             mod,
             args=(
-                (torch.rand([4, 16, 2])).to(arg_type),
-                (torch.rand([4, 8, 2])).to(arg_type),
+                (torch.rand([4, 16, 2]) * 64).to(arg_dtype),
+                (torch.rand([4, 8, 2]) * 64).to(arg_dtype),
             ),
         )
         output = aot.export(ep)
         output.verify()
         asm = str(output.mlir_module)
+        arg_dtype_asm = TORCH_DTYPE_TO_IREE_TYPE_ASM[arg_dtype]
+        accum_dtype_asm = arg_dtype_asm
+        if accum_dtype is not None:
+            accum_dtype_asm = TORCH_DTYPE_TO_IREE_TYPE_ASM[accum_dtype]
         self.assertIn(
-            "@sharktank_batch_matmul_transpose_b_L4x16x2xf8E4M3FNUZ_R4x8x2xf8E4M3FNUZ_f32",
+            (
+                "@sharktank_batch_matmul_transpose_b_"
+                f"L4x16x2x{arg_dtype_asm}_R4x8x2x{arg_dtype_asm}_{accum_dtype_asm}"
+            ),
             asm,
         )
 
