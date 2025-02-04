@@ -50,6 +50,7 @@ class SGLangBenchmarkArgs:
             disable_ignore_eos=False,
             lora_name=None,
             profile=False,
+            sharegpt_context_len=None,
         )
 
     def __repr__(self):
