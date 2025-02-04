@@ -108,4 +108,4 @@ def test_shortfin_benchmark(
     except Exception as e:
         logger.error(e)
 
-    server.stop()
+    process.stop()
