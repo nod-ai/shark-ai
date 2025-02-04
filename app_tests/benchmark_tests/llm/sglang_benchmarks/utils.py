@@ -51,6 +51,7 @@ class SGLangBenchmarkArgs:
             lora_name=None,
             profile=False,
             sharegpt_context_len=None,
+            apply_chat_template=False,
         )
 
     def __repr__(self):
