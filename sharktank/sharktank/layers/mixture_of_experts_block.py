@@ -41,7 +41,7 @@ class MoeBlock(ThetaLayer):
         score_experts=softmax,
         normalize_experts=True,
         add_residual=True,
-        route_scale: Optional[float]
+        route_scale: Optional[float] = None,
     ):
         super().__init__(theta)
         self.expert_used_count = expert_used_count
@@ -95,7 +95,9 @@ class MoeBlock(ThetaLayer):
             expert_gate /= expert_gate.sum(dim=-1, keepdim=True)
 
         expert_gate = expert_gate.to(ffn_input.dtype)
-        expert_gate = expert_gate * self.route_scale
+
+        if self.route_scale is not None:
+            expert_gate = expert_gate * self.route_scale
 
         moe_output = self.experts(ffn_input, top_k_experts, expert_gate)
 
