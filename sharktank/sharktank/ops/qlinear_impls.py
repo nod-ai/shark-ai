@@ -93,7 +93,6 @@ def qlinear_tensor_scaled(
 
     # Fall back to automatic fusion based on integer, high precision matmul.
     y_qs = _invoke_mmt_kernel(x_qs, weight_qs, accum_dtype=accum_dtype)
-    return y_qs
 
     # Offset correction. By applying the offset correction in post, it is
     # set up to fuse with its consumer, which is already doing additional
@@ -188,8 +187,7 @@ def _invoke_mmt_kernel(lhs, rhs, *, accum_dtype):
             rhs_size = [lhs.shape[0]] + list(rhs.shape)
             rhs = rhs.unsqueeze(0).expand(rhs_size)
             rhs_rank = len(rhs.shape)
-        y_qs = kernels.batch_matmul_transpose_b(lhs, rhs)
-        return y_qs
+        y_qs = kernels.batch_matmul_transpose_b(lhs, rhs, accum_dtype=accum_dtype)
         # Squeeze the batch dimension to maintain shape parity with other
         # layers.
         if len(y_qs.shape) > 2:
