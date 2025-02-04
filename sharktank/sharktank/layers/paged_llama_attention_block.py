@@ -205,7 +205,11 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             assert self.attention_scale is not None
             if attention_mask is not None:
                 attn_output = kernels.masked_flash_attention(
-                    xq, keys, values, attention_mask, self.attention_scale
+                    xq,
+                    keys,
+                    values,
+                    attention_mask.squeeze(0).squeeze(0),
+                    self.attention_scale,
                 )
             else:
                 attn_output = kernels.flash_attention(xq, keys, values)

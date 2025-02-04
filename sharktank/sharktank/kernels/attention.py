@@ -61,7 +61,6 @@ class masked_flash_attention(CustomOp):
         q_desc.specialize_dims(0, 1, -1)
         k_desc.specialize_dims(0, 1, -1)
         v_desc.specialize_dims(0, 1, -1)
-        a_desc.specialize_dims(0, 1)
 
         # Result 0: Shape batch..., m, n
         ksel.return_new_tensor((*q_bs, q_l, v_e), dtype=torch.float16).specialize_dims(
@@ -88,7 +87,7 @@ class masked_flash_attention(CustomOp):
         b = str(int(b1) * int(b2))
         i_type_str = str(q_tensor_type.element_type)
         scale_type_str = str(scale_tensor_type.element_type)
-        o_type_str = "f16"
+        o_type_str = "f32"
 
         target_function_name = f"sharktank_masked_flash_attention_{b1}_{b2}_{d}_{e}_{i_type_str}_{scale_type_str}_{o_type_str}"
         kwargs = {

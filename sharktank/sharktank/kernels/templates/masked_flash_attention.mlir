@@ -7,7 +7,7 @@
 !q_type = tensor<{{b1}}x{{b2}}x{{l}}x{{d}}x{{i_dtype}}>
 !k_type = tensor<{{b1}}x{{b2}}x{{s}}x{{d}}x{{i_dtype}}>
 !v_type = tensor<{{b1}}x{{b2}}x{{s}}x{{e}}x{{i_dtype}}>
-!a_type = tensor<{{1}}x{{1}}x{{l}}x{{s}}x{{i_dtype}}>
+!a_type = tensor<{{l}}x{{s}}x{{i_dtype}}>
 !trans_v_type = tensor<{{b1}}x{{b2}}x{{e}}x{{s}}x{{i_dtype}}>
 !o_type = tensor<{{b1}}x{{b2}}x{{l}}x{{e}}x{{o_dtype}}>
 !o_dyn_type = tensor<?x?x?x{{o_dtype}}>
@@ -15,7 +15,7 @@
 !q_collapsed_type = tensor<{{b}}x{{l}}x{{d}}x{{i_dtype}}>
 !k_collapsed_type = tensor<{{b}}x{{s}}x{{d}}x{{i_dtype}}>
 !v_collapsed_type = tensor<{{b}}x{{s}}x{{e}}x{{i_dtype}}>
-!a_collapsed_type = tensor<{{1}}x{{l}}x{{s}}x{{i_dtype}}>
+!a_collapsed_type = tensor<{{l}}x{{s}}x{{i_dtype}}>
 !s_type = tensor<{{scale_dtype}}>
 
 module {
@@ -44,7 +44,6 @@ util.func private @{{func_name}}(
         %collapsed_q = tensor.collapse_shape %q [[0, 1], [2], [3]] : !q_type into !q_collapsed_type
         %collapsed_k = tensor.collapse_shape %k [[0, 1], [2], [3]] : !k_type into !k_collapsed_type
         %collapsed_v = tensor.collapse_shape %v [[0, 1], [2], [3]] : !v_type into !v_collapsed_type
-        %collapsed_a = tensor.collapse_shape %a [[0, 1], [2], [3]] : !a_type into !a_collapsed_type
 
         %atten = iree_linalg_ext.attention {indexing_maps = [
                     affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d3)>,
@@ -53,7 +52,7 @@ util.func private @{{func_name}}(
                     affine_map<(d0, d1, d2, d3, d4) -> ()>,
                     affine_map<(d0, d1, d2, d3, d4) -> (d1, d4)>,
                     affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2)>]}
-                    ins(%collapsed_q, %collapsed_k, %collapsed_v, %scale, %collapsed_a : !q_collapsed_type, !k_collapsed_type, !v_collapsed_type, {{scale_dtype}}, !a_collapsed_type) outs(%empty : !o_collapsed_type) {
+                    ins(%collapsed_q, %collapsed_k, %collapsed_v, %scale, %a : !q_collapsed_type, !k_collapsed_type, !v_collapsed_type, {{scale_dtype}}, !a_collapsed_type) outs(%empty : !o_collapsed_type) {
                       ^bb0(%score: f32):
                         iree_linalg_ext.yield %score : f32
                     } -> !o_collapsed_type
