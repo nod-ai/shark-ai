@@ -73,7 +73,6 @@ def main():
         if "tensor_parallelism_size" in dataset.properties
         else args.tensor_parallelism_size
     )
-    attention_dtype = getattr(torch, args.attention_dtype)
     llama_config = LlamaModelConfig(
         hp,
         tensor_parallelism_size=tensor_parallelism_size,

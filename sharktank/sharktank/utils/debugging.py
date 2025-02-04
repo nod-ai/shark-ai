@@ -37,7 +37,7 @@ class DebugFlags:
     # certain eager use cases are still having problems with these custom
     # kernels, so keeping it to unblock progress.
     use_custom_iree_kernels: bool = True
-    use_custom_generic_attention: bool = False
+    use_custom_generic_attention: bool = True
 
     def set(self, part: str):
         m = re.match(SETTING_PART_PATTERN, part)

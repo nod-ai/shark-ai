@@ -24,6 +24,7 @@ from ..types import (
     AnyTensor,
     PlanarQuantizedTensor,
 )
+from ..kernels import flash_attention, masked_flash_attention
 
 from ..types.layouts import TensorScaledLayout
 

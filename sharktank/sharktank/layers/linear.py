@@ -59,6 +59,7 @@ class LinearLayer(ThetaLayer):
         if self.q_input is not None and self.qdq_input is not None:
             raise AssertionError(f"LinearLayer cannot have both q_input and qdq_input")
         self.qdq_output: Optional[QuantizedTensor] = theta.optional_tensor("qdq_output")
+        self.q_output: Optional[QuantizerTensor] = theta.optional_tensor("q_output")
 
     def forward(self, x):
         weight = self.weight
@@ -79,6 +80,9 @@ class LinearLayer(ThetaLayer):
 
         y = ops.linear(x, weight, bias)
         # Unconditionally dequantize.
+        if self.q_output is not None:
+            y = self.q_output.quantize(y)
+            return y.unpack().qs
         if isinstance(y, QuantizedTensor):
             y = y.unpack().dequant()
         # Note that f8_e4m3fnuz types on AMD GPUs accumulate to fp32.
