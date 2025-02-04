@@ -130,6 +130,9 @@ if __name__ == "__main__":
         "attn.wkv_b.weight": "wkv_b.weight",
         "attn.wo.weight": "wo.weight",
         "attn.wq.weight": "wq.weight",
+        "attn.wq_a.weight": "wq_a.weight",
+        "attn.wq_b.weight": "wq_b.weight",
+        "attn.q_norm.weight": "q_norm.weight",
         "attn_norm.weight": "attn_norm.weight",
         "ffn.w1.weight": "ffn.ffn_gate.weight",
         "ffn.w2.weight": "ffn.ffn_down.weight",
@@ -177,6 +180,7 @@ if __name__ == "__main__":
                     experts[id] = {}
                 experts[id][split[3]] = weight
                 continue
+            print(name)
             assert False and "unhandled tensor found"
 
         expert_keys = experts[0].keys() if experts else []

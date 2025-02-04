@@ -133,7 +133,14 @@ class PagedLatentAttentionBlock(ThetaLayer):
         )
         self.add_module("kv_norm", RMSNormLayer(theta("kv_norm"), epsilon=rms_epsilon))
 
-        self.add_module("wq", LinearLayer(theta("wq")))
+        self.wq = None
+        if "wq" in theta:
+            self.wq = LinearLayer(theta("wq"))
+        else:
+            self.wq_a = LinearLayer(theta("wq_a"))
+            self.wq_b = LinearLayer(theta("wq_b"))
+            self.q_norm = RMSNormLayer(theta("q_norm"), epsilon=rms_epsilon)
+
         self.add_module("wkv_a", LinearLayer(theta("wkv_a")))
         self.add_module("wkv_b", LinearLayer(theta("wkv_b")))
         self.add_module("wo", LinearLayer(theta("wo")))
@@ -145,7 +152,13 @@ class PagedLatentAttentionBlock(ThetaLayer):
         embedding: RotaryEmbeddingLayer,
     ):
         h = self.attn_norm(h)
-        q = self.wq(h).unflatten(2, (self.head_count, -1))
+
+        if self.wq is not None:
+            q = self.wq(h).unflatten(2, (self.head_count, -1))
+        else:
+            q = self.wq_b(self.q_norm(self.wq_a(h)))
+            q = q.unflatten(2, (self.head_count, -1))
+
         qk_nope_head_dim = q.shape[-1] - self.rope_dimension_count
         q_nope = q[:, :, :, :qk_nope_head_dim]
         q_rope = q[:, :, :, qk_nope_head_dim:]
