@@ -390,9 +390,6 @@ iree-compile /path/to/output/llama3.1-405b.mlir \
 
 ### Run the server
 
-Now that we have compiled our sharded model, we can run the server with the 
-`--parameters` flag to specify the path to our sharded model files:
-
 > [!NOTE]
 > For running a sharded model, we must specify each irpa file in `--parameters`,
 > and the number of devices in `--device_ids` should be equal to the 
