@@ -114,8 +114,8 @@ class FluxTest(TempDirTestBase):
         iree_module_path = self._temp_dir / "model.vmfb"
         logger.info("Compiling MLIR file...")
         iree.compiler.compile_file(
-            mlir_path,
-            output_file=iree_module_path,
+            str(mlir_path),
+            output_file=str(iree_module_path),
             extra_args=iree_compile_flags,
         )
 

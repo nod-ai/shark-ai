@@ -67,7 +67,7 @@ def import_hf_dataset(
     if output_irpa_file is None:
         return dataset
 
-    dataset.save(output_irpa_file, io_report_callback=logger.info)
+    dataset.save(output_irpa_file, io_report_callback=logger.debug)
 
 
 def main(argv: list[str]):
