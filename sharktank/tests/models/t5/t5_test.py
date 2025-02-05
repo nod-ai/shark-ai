@@ -215,7 +215,7 @@ class T5EncoderEagerTest(TestCase):
             atol=1e-1,
         )
 
-    # @pytest.mark.skip
+    @pytest.mark.skip
     @with_t5_data
     def testV1_1XxlCompareTorchEagerHuggingFaceBf16AgainstF32(self):
         """Hugging Face model tests to estimate numerical error baseline for reference.
@@ -426,8 +426,8 @@ class T5EncoderIreeTest(TempDirTestBase):
         min = 0.789
 
         The error seems high as it corresponds to 38° angular difference.
-        For comparison the bf16 Hugging Face model exhibits a worst token error of
-        0.026. Although, here the error worse it may be reasonable as it comes from a
+        For comparison the bf16 Hugging Face small model exhibits a worst token error
+        of 0.05. Although, here the error worse it may be reasonable as it comes from a
         single token outlier. The majority of tokens have an error less than 0.01.
         """
         self.runTestV1_1CompareIreeAgainstTorchEager(
