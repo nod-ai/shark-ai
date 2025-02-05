@@ -137,6 +137,8 @@ jobs:
         run: |
           source ${VENV_DIR}/bin/activate
           pytest \
+            -v \
+            --log-cli-level=info \
             --with-clip-data \
             --with-flux-data \
             --with-t5-data \
