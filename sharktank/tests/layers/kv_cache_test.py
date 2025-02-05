@@ -48,7 +48,8 @@ def test_paged():
 
     cache.write(
         allocation,
-        cache_partitions=[write_ones, write_twos],
+        write_ones,
+        write_twos,
         transformer_block_index=1,
         page_ids=write_page_ids,
     )
@@ -85,7 +86,8 @@ def test_paged():
     write_pos = torch.full((bs,), write_seq_length, dtype=torch.int64)
     cache.write_timestep(
         allocation,
-        cache_partitions=[write_threes, write_fours],
+        write_threes,
+        write_fours,
         transformer_block_index=1,
         seq_positions=write_pos,
         page_ids=page_ids,
@@ -154,7 +156,8 @@ def test_sharded_paged():
 
     cache.write(
         allocation,
-        cache_partitions=[write_ones, write_twos],
+        write_ones,
+        write_twos,
         transformer_block_index=1,
         page_ids=write_page_ids,
     )
@@ -187,7 +190,8 @@ def test_sharded_paged():
 
     cache.write_timestep(
         allocation,
-        cache_partitions=[write_threes, write_fours],
+        write_threes,
+        write_fours,
         transformer_block_index=1,
         seq_positions=write_pos,
         page_ids=page_ids,
