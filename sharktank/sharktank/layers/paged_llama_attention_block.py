@@ -100,9 +100,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         cache_state: list[torch.Tensor] = None,
     ):
         assert bool(start_index is not None) ^ bool(embedding_batch_mask is not None)
-
         x = self.attn_norm(h)
-
         bs, batch_seq_len, feature_dim = x.shape
         assert feature_dim == self.head_count * self.head_dim
 
@@ -128,22 +126,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
 
         # Used by fp8_e4m3fnuz model
         if self.cache_quantizer is not None:
-            # For fake quant, store the fp16 qdq value in the cache
-            if self.fake_quant:
-                xk = (
-                    self.cache_quantizer.quantize(xk)
-                    .unpack()
-                    .dequant()
-                    .to(torch.float16)
-                )
-                xv = (
-                    self.cache_quantizer.quantize(xv)
-                    .unpack()
-                    .dequant()
-                    .to(torch.float16)
-                )
-            # For real quant, store the quantized fp8 value in the cache
-            else:
+            if not self.fake_quant:
                 # TODO: this seems like a bastardization of our quantized tensor api
                 # Probably want to add support for using quantized tensors more directly
                 xk = self.cache_quantizer.quantize(xk).unpack().qs
@@ -175,11 +158,14 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         # Fake quant is already dequantized when stored in the cache.
         if self.cache_quantizer and not self.fake_quant:
             xk = self.cache_quantizer.dequantize_raw_tensor(
-                xk, torch.float16, name="xk_deq"
+                xk, torch.bfloat16, name="xk_deq"
             )
             xv = self.cache_quantizer.dequantize_raw_tensor(
-                xv, torch.float16, name="xv_deq"
+                xv, torch.bfloat16, name="xv_deq"
             )
+            if attention_mask is not None:
+                attention_mask = attention_mask.to(torch.bfloat16)
+
         # Transpose into [bs, heads, sl, dim]
         xq = xq.transpose(1, 2)
         keys = xk.transpose(1, 2)
@@ -223,7 +209,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
 
         attn_output = attn_output.transpose(1, 2)
         attn_output = attn_output.flatten(2, 3)
-
         # Project.
         attn_output = self.attn_output(attn_output)
         attn_output = self.attn_output_norm(attn_output)

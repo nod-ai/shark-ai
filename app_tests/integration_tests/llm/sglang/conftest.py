@@ -4,18 +4,17 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import json
 import logging
 import os
 import pytest
+from pathlib import Path
 
-from ..utils import (
-    find_available_port,
-    start_llm_server,
-    download_with_hf_datasets,
-    export_paged_llm_v1,
-    compile_model,
+from ..model_management import (
+    ModelProcessor,
+    ModelConfig,
+    ModelSource,
 )
+from ..server_management import ServerInstance, ServerConfig
 
 pytest.importorskip("sglang")
 import sglang as sgl
@@ -36,63 +35,42 @@ def register_shortfin_backend(port):
 
 
 @pytest.fixture(scope="module")
-def pre_process_model(request, tmp_path_factory):
+def model_artifacts(request, tmp_path_factory):
     device_settings = request.param["device_settings"]
     tmp_dir = tmp_path_factory.mktemp("sglang_integration_tests")
 
-    # Download model
-    model_params_path = tmp_dir / "meta-llama-3.1-8b-instruct.f16.gguf"
-    download_with_hf_datasets(tmp_dir, "llama3_8B_fp16")
-
-    # Export to mlir
-    mlir_path = tmp_dir / "model.mlir"
-    config_path = tmp_dir / "config.json"
-    batch_sizes = [1, 4]
-    export_paged_llm_v1(
-        mlir_path,
-        config_path,
-        model_params_path,
-        batch_sizes,
+    model_config = ModelConfig(
+        source=ModelSource.HUGGINGFACE,
+        repo_id="SanctumAI/Meta-Llama-3.1-8B-Instruct-GGUF",
+        model_file="meta-llama-3.1-8b-instruct.f16.gguf",
+        tokenizer_id="NousResearch/Meta-Llama-3.1-8B",
+        batch_sizes=(1, 4),
+        device_settings=device_settings,
     )
 
-    # Compile Model
-    vmfb_path = tmp_dir / "model.vmfb"
-    compile_model(
-        mlir_path,
-        vmfb_path,
-        device_settings,
-    )
-
-    return tmp_dir
+    processor = ModelProcessor(tmp_dir)
+    return processor.process_model(model_config)
 
 
 @pytest.fixture(scope="module")
-def start_server(request, pre_process_model):
+def start_server(request, model_artifacts):
     os.environ["ROCR_VISIBLE_DEVICES"] = "1"
     device_settings = request.param["device_settings"]
 
-    export_dir = pre_process_model
-
-    tokenizer_path = export_dir / "tokenizer.json"
-    model_params_path = export_dir / "meta-llama-3.1-8b-instruct.f16.gguf"
-    vmfb_path = export_dir / "model.vmfb"
-    config_path = export_dir / "config.json"
-
-    logger.info("Starting server...")
-    server_process, port = start_llm_server(
-        tokenizer_path,
-        config_path,
-        vmfb_path,
-        model_params_path,
-        device_settings,
-        timeout=30,
+    server_config = ServerConfig(
+        artifacts=model_artifacts,
+        device_settings=device_settings,
+        prefix_sharing_algorithm="none",
     )
-    logger.info("Server started")
 
-    yield server_process, port
+    server_instance = ServerInstance(server_config)
+    server_instance.start()
+    process, port = server_instance.process, server_instance.port
 
-    server_process.terminate()
-    server_process.wait()
+    yield process, port
+
+    process.terminate()
+    process.wait()
 
 
 @pytest.fixture(scope="module")

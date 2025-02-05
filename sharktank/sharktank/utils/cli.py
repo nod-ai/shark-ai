@@ -114,6 +114,12 @@ def add_model_options(parser: argparse.ArgumentParser):
         type=int,
         default=32,
     )
+    parser.add_argument(
+        "--device-block-count",
+        help="Block per device for paged KV cache",
+        type=int,
+        default=512,
+    )
 
 
 def add_quantization_options(parser: argparse.ArgumentParser):

@@ -365,7 +365,7 @@ class T5EncoderIreeTest(TempDirTestBase):
                 module=iree_module,
                 vm_context=iree_vm_context,
                 args=iree_args,
-                driver="hip",
+                device=iree_devices[0],
                 function_name=f"forward_bs{batch_size}",
                 trace_path_prefix=f"{target_model_path_prefix}_iree_",
             )
@@ -514,7 +514,9 @@ class T5AttentionTest(TestCase):
             shape=[batch_size, 1, 1, batch_seq_len], dtype=reference_dtype
         )
         expected_outputs = reference_model(
-            hidden_states=reference_hidden_states, mask=reference_mask
+            hidden_states=reference_hidden_states,
+            mask=reference_mask,
+            query_length=batch_seq_len,
         )
 
         hidden_states = ops.to(reference_hidden_states, dtype=target_dtype)

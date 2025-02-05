@@ -115,7 +115,7 @@ def main():
             "paged_kv_cache": {
                 "attention_head_count_kv": hp.attention_head_count_kv,
                 "block_seq_stride": llama_config.block_seq_stride,
-                "device_block_count": 256,  # so that this makes its way into the config file & can be edited.
+                "device_block_count": args.device_block_count,  # so that this makes its way into the config file & can be edited.
             },
         }
 

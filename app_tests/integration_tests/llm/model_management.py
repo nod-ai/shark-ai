@@ -3,10 +3,18 @@ import logging
 from pathlib import Path
 import subprocess
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict
 from enum import Enum, auto
 
+from sharktank.utils.hf_datasets import Dataset, RemoteFile, get_dataset
+
 logger = logging.getLogger(__name__)
+
+
+class AccuracyValidationException(RuntimeError):
+    """Exception raised when accuracy validation fails."""
+
+    pass
 
 
 class ModelSource(Enum):
@@ -34,13 +42,17 @@ class ModelConfig:
     batch_sizes: Tuple[int, ...]
     device_settings: "DeviceSettings"
     source: ModelSource
+    dataset_name: Optional[str] = None  # Name of the dataset in hf_datasets.py
     repo_id: Optional[str] = None
     local_path: Optional[Path] = None
     azure_config: Optional[AzureConfig] = None
 
     def __post_init__(self):
-        if self.source == ModelSource.HUGGINGFACE and not self.repo_id:
-            raise ValueError("repo_id required for HuggingFace models")
+        if self.source == ModelSource.HUGGINGFACE:
+            if not (self.dataset_name or self.repo_id):
+                raise ValueError(
+                    "Either dataset_name or repo_id required for HuggingFace models"
+                )
         elif self.source == ModelSource.LOCAL and not self.local_path:
             raise ValueError("local_path required for local models")
         elif self.source == ModelSource.AZURE and not self.azure_config:
@@ -70,6 +82,8 @@ class ModelStageManager:
     def _get_model_dir(self) -> Path:
         """Creates and returns appropriate model directory based on source."""
         if self.config.source == ModelSource.HUGGINGFACE:
+            if self.config.dataset_name:
+                return self.base_dir / self.config.dataset_name.replace("/", "_")
             return self.base_dir / self.config.repo_id.replace("/", "_")
         elif self.config.source == ModelSource.LOCAL:
             return self.base_dir / "local" / self.config.local_path.stem
@@ -82,15 +96,36 @@ class ModelStageManager:
         raise ValueError(f"Unsupported model source: {self.config.source}")
 
     def _download_from_huggingface(self) -> Path:
-        """Downloads model from HuggingFace."""
+        """Downloads model from HuggingFace using hf_datasets.py."""
         model_path = self.model_dir / self.config.model_file
         if not model_path.exists():
-            logger.info(f"Downloading model {self.config.repo_id} from HuggingFace")
-            subprocess.run(
-                f"huggingface-cli download --local-dir {self.model_dir} {self.config.repo_id} {self.config.model_file}",
-                shell=True,
-                check=True,
-            )
+            if self.config.dataset_name:
+                logger.info(
+                    f"Downloading model {self.config.dataset_name} using hf_datasets"
+                )
+                dataset = get_dataset(self.config.dataset_name)
+                downloaded_files = dataset.download(local_dir=self.model_dir)
+
+                # Find the model file in downloaded files
+                for file_id, paths in downloaded_files.items():
+                    for path in paths:
+                        if path.name == self.config.model_file:
+                            return path
+
+                raise ValueError(
+                    f"Model file {self.config.model_file} not found in dataset {self.config.dataset_name}"
+                )
+            else:
+                logger.info(f"Downloading model {self.config.repo_id} from HuggingFace")
+                # Create a temporary dataset for direct repo downloads
+                remote_file = RemoteFile(
+                    file_id="model",
+                    repo_id=self.config.repo_id,
+                    filename=self.config.model_file,
+                )
+                downloaded_paths = remote_file.download(local_dir=self.model_dir)
+                return downloaded_paths[0]
+
         return model_path
 
     def _copy_from_local(self) -> Path:
@@ -132,14 +167,30 @@ class ModelStageManager:
         return model_path
 
     def prepare_tokenizer(self) -> Path:
-        """Downloads and prepares tokenizer."""
+        """Downloads and prepares tokenizer using hf_datasets.py when possible."""
         tokenizer_path = self.model_dir / "tokenizer.json"
+
         if not tokenizer_path.exists():
-            logger.info(f"Downloading tokenizer {self.config.tokenizer_id}")
+            # First try to get tokenizer from dataset if available
+            if self.config.dataset_name:
+                dataset = get_dataset(self.config.dataset_name)
+                downloaded_files = dataset.download(local_dir=self.model_dir)
+
+                # Look for tokenizer files in downloaded files
+                for file_id, paths in downloaded_files.items():
+                    for path in paths:
+                        if path.name == "tokenizer.json":
+                            return path
+
+            # Fall back to downloading from transformers if not found in dataset
+            logger.info(
+                f"Downloading tokenizer {self.config.tokenizer_id} using transformers"
+            )
             from transformers import AutoTokenizer
 
             tokenizer = AutoTokenizer.from_pretrained(self.config.tokenizer_id)
             tokenizer.save_pretrained(self.model_dir)
+
         return tokenizer_path
 
     def export_model(self, weights_path: Path) -> Tuple[Path, Path]:

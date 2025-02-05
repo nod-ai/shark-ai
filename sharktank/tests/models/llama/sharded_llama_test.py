@@ -340,7 +340,7 @@ class ShardedLlamaTest(unittest.TestCase):
             function_name="prefill",
             module=iree_module,
             vm_context=vm_context,
-            driver=iree_driver,
+            device=iree_devices[0],
             trace_path_prefix=path_prefix if dump_enabled else None,
         )
         prefill_iree_result = UnreducedTensor(ts=iree_to_torch(*prefill_iree_result))
@@ -367,7 +367,7 @@ class ShardedLlamaTest(unittest.TestCase):
             function_name="decode",
             module=iree_module,
             vm_context=vm_context,
-            driver=iree_driver,
+            device=iree_devices[0],
             trace_path_prefix=path_prefix if dump_enabled else None,
         )
         decode_iree_result = UnreducedTensor(ts=iree_to_torch(*decode_iree_result))

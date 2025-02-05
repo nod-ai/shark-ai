@@ -248,7 +248,7 @@ class RmsNormTest(unittest.TestCase):
     def testTorchImpl(self):
         t1 = torch.rand(16, 128, dtype=torch.float32)
         t2 = torch.rand(16, 128, dtype=torch.float32)
-        result = ops.rms_norm(t1, t2, epsilon=1e-10)
+        result = ops.rms_norm(t1, t2, epsilon=1e-10, orig_dtype=torch.float32)
         actual = self._ref(t1, t2, epsilon=1e-10)
         torch.testing.assert_close(actual, result)
 
@@ -256,7 +256,7 @@ class RmsNormTest(unittest.TestCase):
         t1 = torch.rand(16, 128, dtype=torch.float32)
         t2 = torch.rand(16, 128, dtype=torch.float32)
         t2_pt = DefaultPrimitiveTensor(data=t2)
-        result = ops.rms_norm(t1, t2_pt, epsilon=1e-10)
+        result = ops.rms_norm(t1, t2_pt, epsilon=1e-10, orig_dtype=torch.float32)
         actual = self._ref(t1, t2, epsilon=1e-10)
         torch.testing.assert_close(actual, result)
 
@@ -384,7 +384,7 @@ class TestTraceTensors(TempDirTestBase):
             module=iree_module,
             vm_context=iree_vm_context,
             args=iree_args,
-            driver="local-task",
+            device=iree_devices[0],
             function_name=f"forward",
         )
 

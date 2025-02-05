@@ -400,11 +400,14 @@ def reshape_default(input: Union[PrimitiveTensor, Tensor], shape: List[int]) -> 
 
 # RMS norm
 @rms_norm.override(AllOfType(Tensor, InferenceTensor))
-def rms_norm_default(x, weight, *, epsilon: float) -> Tensor:
+def rms_norm_default(
+    x, weight, *, epsilon: float, orig_dtype: Union[None, torch.dtype]
+) -> Tensor:
+    if orig_dtype is None:
+        orig_dtype = x.dtype
     variance = x.pow(2).mean(-1, keepdim=True)
     output = x * elementwise(torch.rsqrt, variance + epsilon)
-    # The cast here is to match the hf implementation, affects numerics
-    output = elementwise(torch.mul, weight, to(output, weight.dtype))
+    output = elementwise(torch.mul, weight, to(output, orig_dtype))
     return output
 
 
@@ -496,6 +499,11 @@ def squeeze_default(tensor, dim: Optional[int] = None) -> AnyTensor:
         return torch.squeeze(unbox_tensor(tensor))
     else:
         return torch.squeeze(unbox_tensor(tensor), dim)
+
+
+@topk.override(AllOfType(AnyTensor, PrimitiveTensor))
+def topk_default(tensor, k: int, dim: int) -> AnyTensor:
+    return torch.topk(tensor, k=k, dim=dim)
 
 
 @view.override(Tensor)

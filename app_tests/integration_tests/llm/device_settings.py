@@ -15,3 +15,11 @@ CPU = DeviceSettings(
     ),
     server_flags=("--device=local-task",),
 )
+
+GFX942 = DeviceSettings(
+    compile_flags=(
+        "--iree-hal-target-backends=rocm",
+        "--iree-hip-target=gfx942",
+    ),
+    server_flags=("--device=hip",),
+)

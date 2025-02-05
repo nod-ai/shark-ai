@@ -102,7 +102,6 @@ class PagedMixtralModelV1(BaseCausalLMModel):
             self.moe_blocks.append(
                 MoeBlock(
                     theta("blk", n),
-                    expert_count=hp.expert_count,
                     expert_used_count=hp.expert_used_count,
                     rms_epsilon=hp.attention_layer_norm_rms_epsilon,
                 )

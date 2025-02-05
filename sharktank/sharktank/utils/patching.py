@@ -65,7 +65,7 @@ class SaveModuleResultTensorsPatch(Patch):
             del self.tensors[module_name]
             self.duplicate_tensors[module_name] = 0
             self.tensors[f"{module_name}#0"] = orig_dup
-        elif module_name in self.duplicate_tensors:
+        if module_name in self.duplicate_tensors:
             index = self.duplicate_tensors[module_name] + 1
             self.duplicate_tensors[module_name] = index
             self.tensors[f"{module_name}#{index}"] = result_tensor

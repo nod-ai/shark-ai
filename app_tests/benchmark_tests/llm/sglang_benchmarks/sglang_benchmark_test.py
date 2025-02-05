@@ -8,15 +8,55 @@ import logging
 import pytest
 import time
 from unittest.mock import patch
+from transformers import AutoTokenizer
+import os
+import requests
 
 pytest.importorskip("sglang")
 from sglang import bench_serving
 
 from .utils import SGLangBenchmarkArgs, log_jsonl_result
-
-from integration_tests.llm.utils import download_tokenizer, wait_for_server
+from integration_tests.llm.model_management import (
+    ModelConfig,
+    ModelProcessor,
+    ModelSource,
+)
+from integration_tests.llm.server_management import ServerInstance
 
 logger = logging.getLogger(__name__)
+
+
+def download_tokenizer(local_dir, tokenizer_id):
+    # Set up tokenizer if it doesn't exist
+    tokenizer_path = local_dir / "tokenizer.json"
+    logger.info(f"Preparing tokenizer_path: {tokenizer_path}...")
+    if not os.path.exists(tokenizer_path):
+        logger.info(f"Downloading tokenizer {tokenizer_id} from Hugging Face...")
+        tokenizer = AutoTokenizer.from_pretrained(
+            tokenizer_id,
+        )
+        tokenizer.save_pretrained(local_dir)
+        logger.info(f"Tokenizer saved to {tokenizer_path}")
+    else:
+        logger.info("Using cached tokenizer")
+
+
+def wait_for_server(url, timeout):
+    logger.info(f"Waiting for server to start at {url}...")
+    start = time.time()
+    elapsed = 0
+    while elapsed <= timeout:
+        try:
+            requests.get(f"{url}/health")
+            logger.info("Server successfully started")
+            return
+        except requests.exceptions.ConnectionError:
+            logger.info(
+                f"Server has not started yet; waited {elapsed} seconds; timeout: {timeout} seconds."
+            )
+            time.sleep(1)
+        elapsed = time.time() - start
+    raise TimeoutError(f"Server did not start within {timeout} seconds at {url}")
 
 
 @pytest.mark.parametrize(
@@ -26,7 +66,6 @@ logger = logging.getLogger(__name__)
 def test_sglang_benchmark(request_rate, tokenizer_id, sglang_args, tmp_path_factory):
     tmp_dir = tmp_path_factory.mktemp("sglang_benchmark_test")
 
-    # Download tokenizer for llama3_8B_fp16
     download_tokenizer(tmp_dir, tokenizer_id)
 
     logger.info("Beginning SGLang benchmark test...")
