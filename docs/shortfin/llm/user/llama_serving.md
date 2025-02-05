@@ -1,5 +1,19 @@
 # Llama end to end serving instructions
 
+## Supported Models
+
+The following models are supported for serving:
+
+<!-- TODO(https://github.com/iree-org/iree/issues/19832): Determine lower-bound of tp required for 405b -->
+| Model Name                | HuggingFace Model                                                                               | Tensor Parallelism Range |
+| ------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------ |
+| `Llama-3.1-8B`            | [meta-llama/Llama-3.1-8B](https://huggingface.co/meta-llama/Llama-3.1-8B)                       | tp1-tp8                  |
+| `Llama-3.1-8B-Instruct`   | [meta-llama/Llama-3.1-8B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct)     | tp1-tp8                  |
+| `Llama-3.1-70B`           | [meta-llama/Llama-3.1-70B](https://huggingface.co/meta-llama/Llama-3.1-70B)                     | tp1-tp8                  |
+| `Llama-3.1-70B-Instruct`  | [meta-llama/Llama-3.1-70B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-70B-Instruct)   | tp1-tp8                  |
+| `Llama-3.1-405b`          | [meta-llama/Llama-3.1-405B](https://huggingface.co/meta-llama/Llama-3.1-405B)                   | tp8                      |
+| `Llama-3.1-405b-Instruct` | [meta-llama/Llama-3.1-405B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-405B-Instruct) | tp8                      |
+
 ## Introduction
 
 This guide demonstrates how to serve the
@@ -22,6 +36,8 @@ Overview:
 2. Download model files then compile the model for our accelerator(s) of choice
 3. Start a server using the compiled model files
 4. Send chat requests to the server and receive chat responses back
+5. Running with sharded models
+6. Server options
 
 ## 1. Setup
 
@@ -120,9 +136,7 @@ These variables configure the model export and compilation process:
 export MLIR_PATH=$EXPORT_DIR/model.mlir
 export OUTPUT_CONFIG_PATH=$EXPORT_DIR/config.json
 export VMFB_PATH=$EXPORT_DIR/model.vmfb
-export EXPORT_BATCH_SIZES=1,4
-# NOTE: This is temporary, until multi-device is fixed
-export ROCR_VISIBLE_DEVICES=1
+export EXPORT_BATCH_SIZES=4
 ```
 
 ### Export to MLIR using sharktank
@@ -202,7 +216,8 @@ python -m shortfin_apps.llm.server \
    --model_config=$OUTPUT_CONFIG_PATH \
    --vmfb=$VMFB_PATH \
    --parameters=$MODEL_PARAMS_PATH \
-   --device=hip > shortfin_llm_server.log 2>&1 &
+   --device=hip \
+   --device_ids 0 |& tee shortfin_llm_server.log &
 shortfin_process=$!
 ```
 
@@ -283,7 +298,127 @@ If you want to find the process again:
 ps -f | grep shortfin
 ```
 
-## Server Options
+## 5. Running with sharded models
+
+<!-- TODO(#402): Streamline the way that models are sharded/exported/compiled for server. -->
+
+Sharding, in the context of LLMs, refers to splitting the model’s parameters
+across multiple machines or GPUs so that each device only handles a portion of
+the overall weight matrix. This technique allows large models to fit into
+memory and be trained or inferred upon more efficiently by distributing the
+computational load.
+
+For a more detailed explanation of sharding and different sharding + optimization
+techniques, see [Efficient Training on Multiple GPUs](https://huggingface.co/docs/transformers/v4.48.2/en/perf_train_gpu_many).
+
+For models that require sharding, like [Llama-3.1-405b](#supported-models), we
+will use the [`sharktank.examples.sharding.shard_llm_dataset`](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/examples/sharding/shard_llm_dataset.py)
+script, which exports our model as sharded `irpa` files.
+
+Specifically, we use the [Tensor Parallelism](https://huggingface.co/docs/transformers/v4.48.2/en/perf_train_gpu_many#tensor-parallelism)
+technique in `sharktank`.
+
+> [!NOTE]
+> The `--tensor-parallelism-size` argument specifies the number of shards to
+> create. For the Llama-3.1-405b model, we will use a `tensor-parallelism-size`
+> of 8.
+
+### Shard a `gguf` file
+
+```bash
+python -m sharktank.examples.sharding.shard_llm_dataset \
+  --gguf-file /path/to/model/llama3.1-405b.gguf \
+  --output-irpa /path/to/output/llama3.1-405b.irpa \
+  --tensor-parallelism-size 8
+```
+
+### Shard an `irpa` file
+
+```bash
+python -m sharktank.examples.sharding.shard_llm_dataset \
+  --irpa-file /path/to/model/llama3.1-405b.irpa \
+  --output-irpa /path/to/output/llama3.1-405b.irpa \
+  --tensor-parallelism-size 8
+```
+
+This will create `tensor_parallelism_size + 1` irpa files in our output dir
+for each shard.
+
+For example, our command above with `tensor-parallelism-size=8` will produce
+the following files in our output directory:
+
+```text
+llama3.1-405b.irpa
+llama3.1-405b.rank0.irpa
+llama3.1-405b.rank1.irpa
+llama3.1-405b.rank2.irpa
+llama3.1-405b.rank3.irpa
+llama3.1-405b.rank4.irpa
+llama3.1-405b.rank5.irpa
+llama3.1-405b.rank6.irpa
+llama3.1-405b.rank7.irpa
+```
+
+### Exporting to MLIR
+
+For exporting a sharded model to `mlir`, we will target the `unranked irpa` file
+in our export command:
+
+```bash
+python -m sharktank.examples.export_paged_llm_v1 \
+  --irpa-file /path/to/output/llama3.1-405b.irpa \
+  --output-mlir /path/to/output/llama3.1-405b.mlir \
+  --output-config /path/to/output/llama3.1-405b.config.json \
+  --bs 4
+```
+
+### Compiling to VMFB
+
+For compiling a sharded model to `vmfb`, we must ensure that the number of
+devices we have specified are equal to our `tensor-parallelism-size`:
+
+```bash
+iree-compile /path/to/output/llama3.1-405b.mlir \
+  -o /path/to/output/llama3.1-405b.vmfb \
+  --iree-hal-target-device=hip[0] \
+  --iree-hal-target-device=hip[1] \
+  --iree-hal-target-device=hip[2] \
+  --iree-hal-target-device=hip[3] \
+  --iree-hal-target-device=hip[4] \
+  --iree-hal-target-device=hip[5] \
+  --iree-hal-target-device=hip[6] \
+  --iree-hal-target-device=hip[7] \
+  --iree-hip-target=gfx942
+```
+
+### Run the server
+
+> [!NOTE]
+> For running a sharded model, we must specify each irpa file in `--parameters`,
+> and the number of devices in `--device_ids` should be equal to the
+> `tensor-parallelism-size` of the model.
+
+```bash
+python -m shortfin_apps.llm.server \
+   --tokenizer_json /path/to/output/tokenizer.json \
+   --model_config /path/to/output/llama3.1-405b.config.json \
+   --vmfb /path/to/output/llama3.1-405b.vmfb \
+   --parameters \
+      /path/to/output/llama3.1-405b.irpa \
+      /path/to/output/llama3.1-405b.rank0.irpa \
+      /path/to/output/llama3.1-405b.rank1.irpa \
+      /path/to/output/llama3.1-405b.rank2.irpa \
+      /path/to/output/llama3.1-405b.rank3.irpa \
+      /path/to/output/llama3.1-405b.rank4.irpa \
+      /path/to/output/llama3.1-405b.rank5.irpa \
+      /path/to/output/llama3.1-405b.rank6.irpa \
+      /path/to/output/llama3.1-405b.rank7.irpa \
+   --device=hip \
+   --device_ids 0 1 2 3 4 5 6 7 |& tee shortfin_llm_server.log &
+shortfin_process=$!
+```
+
+## 6. Server Options
 
 To run the server with different options, you can use the
 following command to see the available flags:
@@ -296,18 +431,18 @@ python -m shortfin_apps.llm.server --help
 
 A full list of options can be found below:
 
-| Argument                                        | Description                                                                                                                                                                         |
-| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--host HOST`                                   | Specify the host to bind the server.                                                                                                                                                |
-| `--port PORT`                                   | Specify the port to bind the server.                                                                                                                                                |
-| `--root-path ROOT_PATH`                         | Root path to use for installing behind a path-based proxy.                                                                                                                          |
-| `--timeout-keep-alive TIMEOUT_KEEP_ALIVE`       | Keep-alive timeout duration.                                                                                                                                                        |
-| `--tokenizer_json TOKENIZER_JSON`               | Path to a `tokenizer.json` file.                                                                                                                                                    |
-| `--tokenizer_config_json TOKENIZER_CONFIG_JSON` | Path to a `tokenizer_config.json` file.                                                                                                                                             |
-| `--model_config MODEL_CONFIG`                   | Path to the model config file.                                                                                                                                                      |
-| `--vmfb VMFB`                                   | Model [VMFB](https://iree.dev/developers/general/developer-tips/#inspecting-vmfb-files) to load.                                                                                    |
-| `--parameters [FILE ...]`                       | Parameter archives to load (supports: `gguf`, `irpa`, `safetensors`).                                                                                                               |
-| `--device {local-task,hip,amdgpu}`              | Device to serve on (e.g., `local-task`, `hip`). Same options as [iree-run-module --list_drivers](https://iree.dev/guides/deployment-configurations/gpu-rocm/#get-the-iree-runtime). |
-| `--device_ids [DEVICE_IDS ...]`                 | Device IDs visible to the system builder. Defaults to None (full visibility). Can be an index or a device ID like `amdgpu:0:0@0`.                                                   |
-| `--isolation {none,per_fiber,per_call}`         | Concurrency control: How to isolate programs.                                                                                                                                       |
-| `--amdgpu_async_allocations`                    | Enable asynchronous allocations for AMD GPU device contexts.                                                                                                                        |
+| Argument                                        | Description                                                                                                                                                                                                          |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--host HOST`                                   | Specify the host to bind the server.                                                                                                                                                                                 |
+| `--port PORT`                                   | Specify the port to bind the server.                                                                                                                                                                                 |
+| `--root-path ROOT_PATH`                         | Root path to use for installing behind a path-based proxy.                                                                                                                                                           |
+| `--timeout-keep-alive TIMEOUT_KEEP_ALIVE`       | Keep-alive timeout duration.                                                                                                                                                                                         |
+| `--tokenizer_json TOKENIZER_JSON`               | Path to a `tokenizer.json` file.                                                                                                                                                                                     |
+| `--tokenizer_config_json TOKENIZER_CONFIG_JSON` | Path to a `tokenizer_config.json` file.                                                                                                                                                                              |
+| `--model_config MODEL_CONFIG`                   | Path to the model config file.                                                                                                                                                                                       |
+| `--vmfb VMFB`                                   | Model [VMFB](https://iree.dev/developers/general/developer-tips/#inspecting-vmfb-files) to load.                                                                                                                     |
+| `--parameters [FILE ...]`                       | Parameter archives to load (supports: `gguf`, `irpa`, `safetensors`).                                                                                                                                                |
+| `--device {local-task,hip,amdgpu}`              | Device to serve on (e.g., `local-task`, `hip`). Same options as [iree-run-module --list_drivers](https://iree.dev/guides/deployment-configurations/gpu-rocm/#get-the-iree-runtime).                                  |
+| `--device_ids [DEVICE_IDS ...]`                 | Device IDs visible to the system builder. Defaults to None (full visibility). Can be an index or a device ID like `amdgpu:0:0@0`. The number of `device_ids` should be equal to the tensor parallelism of the model. |
+| `--isolation {none,per_fiber,per_call}`         | Concurrency control: How to isolate programs.                                                                                                                                                                        |
+| `--amdgpu_async_allocations`                    | Enable asynchronous allocations for AMD GPU device contexts.                                                                                                                                                         |

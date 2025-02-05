@@ -18,7 +18,6 @@ class MoeBlockTest(unittest.TestCase):
     def test(self):
         model = MoeBlock(
             theta=make_moe_block_theta()("blk.0"),
-            expert_count=8,
             expert_used_count=2,
             rms_epsilon=1e-5,
         )
