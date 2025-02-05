@@ -35,11 +35,15 @@ if __name__ == "__main__":
     )
 
     model = PagedDeepseekModelV1(theta=theta, config=config)
-    x = torch.from_numpy(numpy.load(args.ids_path))
-    results = model.prefill(tokens=x)
+    ids = torch.from_numpy(numpy.load(args.ids_path))
+    results = model.prefill(tokens=ids)
 
     if args.results_path:
         expected = torch.from_numpy(numpy.load(args.results_path))
         diff = expected - results
+        expected_ce = torch.nn.functional.cross_entropy(expected[0, :-1], ids[0, 1:])
+        result_ce = torch.nn.functional.cross_entropy(results[0, :-1], ids[0, 1:])
         sqdiff = math.sqrt(torch.sum(diff * diff) / diff.numel())
         print(f"Squared error {sqdiff}")
+        print(f"Expected Cross Entropy {expected_ce}")
+        print(f"Result Cross Entropy {result_ce}")
