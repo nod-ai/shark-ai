@@ -216,9 +216,9 @@ class T5EncoderEagerTest(TestCase):
     )
     @with_t5_data
     def testV1_1SmallCompareTorchEagerHuggingFaceBf16AgainstF32(self):
-        """We don't want to really run the test of only Hugging Face models.
-        But we would like to keep it around as a reference.
-        It provides some baseline of what numerical error to expect.
+        """Hugging Face model tests to estimate numerical error baseline for reference.
+        We don't want to run this test regularly, but we would like to keep it around
+        as a reference. It provides some baseline of what numerical error to expect.
         """
         self.runTestV1_1CompareTorchEagerHuggingFace(
             "google/t5-v1_1-small",
@@ -231,9 +231,9 @@ class T5EncoderEagerTest(TestCase):
     # @pytest.mark.skip
     @with_t5_data
     def testV1_1XxlCompareTorchEagerHuggingFaceBf16AgainstF32(self):
-        """We don't want to really run the test of only Hugging Face models.
-        But we would like to keep it around as a reference.
-        It provides some baseline of what numerical error to expect.
+        """Hugging Face model tests to estimate numerical error baseline for reference.
+        We don't want to run this test regularly, but we would like to keep it around
+        as a reference. It provides some baseline of what numerical error to expect.
         """
         self.runTestV1_1CompareTorchEagerHuggingFace(
             "google/t5-v1_1-xxl",
@@ -438,19 +438,15 @@ class T5EncoderIreeTest(TempDirTestBase):
     @with_t5_data
     def testV1_1CompareXxlIreeBf16AgainstTorchEagerF32(self):
         """The observed absolute numerical error is 0.21.
-        Per token cosine similarity metrics.
+        Per token cosine similarity metrics are
         mean = 0.997
-        median = 0.9997
         std dev = 0.018
         min = 0.789
-        max = 0.99999
 
-        Intuitively the error looks high as it corresponds to 38° angular difference.
-        The bf16 Hugging Face model exhibits a worst token error of 0.05/0.026 for the
-        small/xxl variant with std dev of 0.005/0.0024.
-        Although the error is still worse comparatively, it seems reasonable.
-        It comes from a single outlier.
-        The majority of tokens have an error less than 0.01.
+        The error seems high as it corresponds to 38° angular difference.
+        For comparison the bf16 Hugging Face model exhibits a worst token error of
+        0.026. Although, here the error worse it may be reasonable as it comes from a
+        single token outlier. The majority of tokens have an error less than 0.01.
         """
         self.runTestV1_1CompareIreeAgainstTorchEager(
             "google/t5-v1_1-xxl",
