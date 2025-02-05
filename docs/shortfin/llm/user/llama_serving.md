@@ -302,8 +302,8 @@ ps -f | grep shortfin
 
 <!-- TODO(#402): Streamline the way that models are sharded/exported/compiled for server. -->
 
-For models that require sharding, like [Llama-3.1-405b](#supported-models), we 
-will use the [`sharktank.examples.sharding.shard_llm_dataset`](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/examples/sharding/shard_llm_dataset.py) 
+For models that require sharding, like [Llama-3.1-405b](#supported-models), we
+will use the [`sharktank.examples.sharding.shard_llm_dataset`](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/examples/sharding/shard_llm_dataset.py)
 script, which exports our model as sharded `irpa` files.
 
 > [!NOTE]
@@ -329,10 +329,10 @@ python -m sharktank.examples.sharding.shard_llm_dataset \
   --tensor-parallelism-size 8
 ```
 
-This will create `tensor_parallelism_size + 1` irpa files in our output dir 
+This will create `tensor_parallelism_size + 1` irpa files in our output dir
 for each shard.
 
-For example, our command above with `tensor-parallelism-size=8` will produce 
+For example, our command above with `tensor-parallelism-size=8` will produce
 the following files in our output directory:
 
 ```text
@@ -349,7 +349,7 @@ llama3.1-405b.rank7.irpa
 
 ### Exporting to MLIR
 
-For exporting a sharded model to `mlir`, we will target the `unranked irpa` file 
+For exporting a sharded model to `mlir`, we will target the `unranked irpa` file
 in our export command:
 
 ```bash
@@ -362,7 +362,7 @@ python -m sharktank.examples.export_paged_llm_v1 \
 
 ### Compiling to VMFB
 
-For compiling a sharded model to `vmfb`, we must ensure that the number of 
+For compiling a sharded model to `vmfb`, we must ensure that the number of
 devices we have specified are equal to our `tensor-parallelism-size`:
 
 ```bash
@@ -392,7 +392,7 @@ iree-compile /path/to/output/llama3.1-405b.mlir \
 
 > [!NOTE]
 > For running a sharded model, we must specify each irpa file in `--parameters`,
-> and the number of devices in `--device_ids` should be equal to the 
+> and the number of devices in `--device_ids` should be equal to the
 > `tensor-parallelism-size` of the model.
 
 ```bash
