@@ -107,5 +107,4 @@ def test_shortfin_benchmark(
         logger.info("Benchmark run successful" + end_log_group())
     except Exception as e:
         logger.error(e)
-
-    process.stop()
+        raise e
