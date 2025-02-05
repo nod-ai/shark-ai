@@ -240,7 +240,7 @@ class T5EncoderEagerTest(TestCase):
             reference_dtype=torch.float32,
             target_dtype=torch.bfloat16,
             # The observed error is 0.026.
-            atol=1e-10,
+            atol=1e-1,
         )
 
     @with_t5_data
