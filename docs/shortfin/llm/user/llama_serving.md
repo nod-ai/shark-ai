@@ -302,9 +302,21 @@ ps -f | grep shortfin
 
 <!-- TODO(#402): Streamline the way that models are sharded/exported/compiled for server. -->
 
+Sharding, in the context of LLMs, refers to splitting the model’s parameters
+across multiple machines or GPUs so that each device only handles a portion of
+the overall weight matrix. This technique allows large models to fit into
+memory and be trained or inferred upon more efficiently by distributing the
+computational load.
+
+For a more detailed explanation of sharding and different sharding + optimization
+techniques, see [Efficient Training on Multiple GPUs](https://huggingface.co/docs/transformers/v4.48.2/en/perf_train_gpu_many).
+
 For models that require sharding, like [Llama-3.1-405b](#supported-models), we
 will use the [`sharktank.examples.sharding.shard_llm_dataset`](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/examples/sharding/shard_llm_dataset.py)
 script, which exports our model as sharded `irpa` files.
+
+Specifically, we use the [Tensor Parallelism](https://huggingface.co/docs/transformers/v4.48.2/en/perf_train_gpu_many#tensor-parallelism)
+technique in `sharktank`.
 
 > [!NOTE]
 > The `--tensor-parallelism-size` argument specifies the number of shards to
@@ -376,16 +388,7 @@ iree-compile /path/to/output/llama3.1-405b.mlir \
   --iree-hal-target-device=hip[5] \
   --iree-hal-target-device=hip[6] \
   --iree-hal-target-device=hip[7] \
-  --iree-hip-target=gfx942 \
-  --iree-dispatch-creation-enable-aggressive-fusion=true \
-  --iree-global-opt-propagate-transposes=true \
-  --iree-opt-aggressively-propagate-transposes=true \
-  --iree-opt-data-tiling=false \
-  --iree-preprocessing-pass-pipeline='builtin.module(util.func(iree-preprocessing-generalize-linalg-matmul-experimental))' \
-  --iree-hal-indirect-command-buffers=true \
-  --iree-stream-resource-memory-model=discrete \
-  --iree-hal-memoization=true \
-  --iree-opt-strip-assertions
+  --iree-hip-target=gfx942
 ```
 
 ### Run the server
