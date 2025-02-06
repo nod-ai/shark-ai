@@ -258,6 +258,9 @@ def parse_arguments(
     # General options
     general_args = parser.add_argument_group("General Options")
     general_args.add_argument(
+        "--extra-spec-file", type=Path, help="Path to an additional spec file to append to each spec"
+    )
+    general_args.add_argument(
         "--verbose", "-v", action="store_true", help="Enable verbose output to stdout"
     )
     general_args.add_argument(
@@ -685,6 +688,7 @@ def generate_candidate_specs(
         config_specs: list[ir.Module] = candidate_gen.generate_configs_and_td_specs(
             input_module=mlir_module,
             tuner_context=tuning_client.tuner_context,
+            args=args,
             limit=args.num_candidates,
             num_subgroups=args.num_subgroups,
             allowed_waves_per_eu=args.waves_per_eu_options,

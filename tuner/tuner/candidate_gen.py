@@ -41,6 +41,7 @@ class DispatchTuner(DispatchParser):
         self,
         ir_module: ir.Module,
         compilation_info: iree_codegen.CompilationInfoAttr,
+        args: argparse.Namespace,
     ) -> ir.Module:
         """Generate a transform dialect spec that applies the compilation info attr."""
         pass
@@ -66,6 +67,7 @@ class ContractionOpInterfaceTuner(DispatchTuner, ContractionOpInterfaceParser):
         self,
         ir_module: ir.Module,
         compilation_info: iree_codegen.CompilationInfoAttr,
+        args: argparse.Namespace,
     ) -> ir.Module:
         contraction_op: ir.Operation = self.get_contraction_operation(ir_module)
         lhs_type = ir.ShapedType(contraction_op.operands[0].type)
@@ -77,7 +79,7 @@ class ContractionOpInterfaceTuner(DispatchTuner, ContractionOpInterfaceParser):
         # TODO(Max191): Get the function name from the func.func in the input module.
         func_name = f"match_contraction_{M}x{N}x{K}_{lhs_type.element_type}x{rhs_type.element_type}x{acc_type.element_type}"
         return build_td_spec(
-            ir_module.context, contraction_op, compilation_info, func_name
+            ir_module.context, contraction_op, compilation_info, func_name, args
         )
 
 
@@ -86,6 +88,7 @@ class ConvolutionOpInterfaceTuner(DispatchTuner, ConvolutionOpInterfaceParser):
         self,
         ir_module: ir.Module,
         compilation_info: iree_codegen.CompilationInfoAttr,
+        args: argparse.Namespace,
     ) -> ir.Module:
         conv_op: ir.Operation = self.get_conv_operation(ir_module)
         assert (
@@ -104,7 +107,7 @@ class ConvolutionOpInterfaceTuner(DispatchTuner, ConvolutionOpInterfaceParser):
         conv_type = conv_op.name.split(".")[-1]
         # TODO(Max191): Get the function name from the func.func in the input module.
         func_name = f"match_{conv_type}_{N}x{H}x{W}x{C}x{P}x{Q}x{F}_{lhs_type.element_type}x{rhs_type.element_type}x{acc_type.element_type}"
-        return build_td_spec(ir_module.context, conv_op, compilation_info, func_name)
+        return build_td_spec(ir_module.context, conv_op, compilation_info, func_name, args)
 
 
 @dataclass
@@ -150,6 +153,7 @@ def get_default_output_dir() -> str:
 def generate_configs_and_td_specs(
     input_module: ir.Module,  # Path to the mlir file to be tuned
     tuner_context: TunerContext,
+    args: argparse.Namespace,
     limit: int = 4096,  # Max candidates to be generated
     num_subgroups: int = 4,  # GPU spec, used to determine candidate generation constraints
     allowed_waves_per_eu: list[int] = [2],
@@ -174,7 +178,7 @@ def generate_configs_and_td_specs(
     tune_logger.debug(str(problem_size))
 
     # Index 0 is reserved for default config, so it gets a placeholder spec.
-    config_specs: list[ir.Module] = [get_placeholder_spec(input_module.context)]
+    config_specs: list[ir.Module] = [get_placeholder_spec(input_module.context, args)]
 
     # Get the MMA intrinisic intructions supported by the target.
     variant_op_list = iree_codegen.get_executable_variant_ops(input_module)
@@ -195,7 +199,7 @@ def generate_configs_and_td_specs(
         if i >= limit:
             break
         tune_logger.debug(f"Solution #{i+1}: {config}")
-        td_spec_module = dispatch_tuner.get_td_spec(input_module, config)
+        td_spec_module = dispatch_tuner.get_td_spec(input_module, config, args)
         assert td_spec_module, "Failed to generate transform dialect spec"
         config_specs.append(td_spec_module)
 
@@ -352,6 +356,7 @@ def main() -> None:
         specs: list[ir.Module] = generate_configs_and_td_specs(
             mlir_module,
             tuner_ctx,
+            args,
             args.limit,
             args.num_subgroups,
             args.waves_per_eu_options,

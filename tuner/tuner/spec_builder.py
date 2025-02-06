@@ -7,8 +7,10 @@
 # Given an input dispatch, this code modifies the hyperparameters
 # in the code and runs it.
 
+import argparse
+from pathlib import Path
 from iree.compiler import ir  # type: ignore
-from iree.compiler.dialects import iree_codegen  # type: ignore
+from iree.compiler.dialects import iree_codegen, transform  # type: ignore
 
 from .common import *
 from .dispatch_constraints import *
@@ -16,16 +18,73 @@ from .dispatch_parser import *
 from .op_matchers import ROOT_OP_ATTR_NAME
 
 
-def get_placeholder_spec(context: ir.Context) -> ir.Module:
-    spec_text = f"""
-        module attributes {{ transform.with_named_sequence }} {{
-            transform.named_sequence
-            @__kernel_config(%variant_op: !transform.any_op {{transform.readonly}}) -> !transform.any_op
-                attributes {{ iree_codegen.tuning_spec_entrypoint }} {{
-                transform.yield %variant_op : !transform.any_op
+def get_matcher_calls(op: ir.Operation, matchers: list[ir.Attribute], actions: list[ir.Attribute]):
+    if not isinstance(op.opview, transform.ForeachMatchOp):
+        return ir.WalkResult.ADVANCE
+    matchers.extend(op.opview.attributes["matchers"])
+    actions.extend(op.opview.attributes["actions"])
+    return ir.WalkResult.INTERRUPT
+
+def get_extra_spec_info(spec_file: Path, used_matcher_names: list[str], used_action_names: list[str]):
+    with open(spec_file) as f:
+        spec = f.read()
+    with ir.Context():
+        spec_module = ir.Module.parse(spec)
+        matchers: transform.NamedSequenceOp = []
+        matcher_calls: list[ir.FlatSymbolRefAttr] = []
+        matcher_call_actions: list[ir.FlatSymbolRefAttr] = []
+        for op in spec_module.body.operations:
+            if not isinstance(op, transform.NamedSequenceOp):
+                continue
+            if op.sym_name.value == "__kernel_config":
+                op.walk(
+                    lambda op: get_matcher_calls(op, matcher_calls, matcher_call_actions),
+                    ir.WalkOrder.POST_ORDER,
+                )
+                continue
+            matchers.append(op)
+        filtered_matcher_calls = []
+        filtered_matcher_call_actions = []
+        for call, action in zip(matcher_calls, matcher_call_actions):
+            if call.value in used_matcher_names:
+                continue
+            filtered_matcher_calls.append(call)
+            filtered_matcher_call_actions.append(action)
+        filtered_matchers = [matcher for matcher in matchers if matcher.sym_name.value not in used_matcher_names + used_action_names]
+    matcher_calls_str = "\n, ".join([f"{call} -> {action}" for call, action in zip(filtered_matcher_calls, filtered_matcher_call_actions)])
+    matchers_str = "\n".join([str(op) for op in filtered_matchers])
+    return matchers_str, matcher_calls_str
+
+def get_placeholder_spec(context: ir.Context, args: argparse.Namespace) -> ir.Module:
+    extra_matchers, extra_matcher_fn_calls = get_extra_spec_info(
+        args.extra_spec_file,
+        used_matcher_names=[],
+        used_action_names=[],
+    )
+    if len(extra_matcher_fn_calls) == 0:
+        spec_text = f"""
+            module attributes {{ transform.with_named_sequence }} {{
+                transform.named_sequence
+                @__kernel_config(%variant_op: !transform.any_op {{transform.readonly}}) -> !transform.any_op
+                    attributes {{ iree_codegen.tuning_spec_entrypoint }} {{
+                    transform.yield %variant_op : !transform.any_op
+                }}
             }}
-        }}
-        """
+            """
+    else:
+        spec_text = f"""
+            module attributes {{ transform.with_named_sequence }} {{
+                {extra_matchers}
+                transform.named_sequence
+                @__kernel_config(%variant_op: !transform.any_op {{transform.consumed}}) -> !transform.any_op
+                    attributes {{ iree_codegen.tuning_spec_entrypoint }} {{
+                    %res = transform.foreach_match in %variant_op
+                        {extra_matcher_fn_calls}
+                    : (!transform.any_op) -> (!transform.any_op)
+                    transform.yield %res : !transform.any_op
+                }}
+            }}
+            """
     return ir.Module.parse(spec_text, context)
 
 
@@ -36,7 +95,13 @@ def build_td_spec(
     op: ir.Operation,
     compilation_info: iree_codegen.CompilationInfoAttr,
     func_name: str,
+    args: argparse.Namespace,
 ) -> ir.Module:
+    extra_matchers, extra_matcher_fn_calls = get_extra_spec_info(
+        args.extra_spec_file,
+        used_matcher_names=[func_name],
+        used_action_names=["apply_op_config"],
+    )
     bbargs = []
     # The `root_op` attribute will prevent matching of ops without the attr in
     # the resulting TD spec matcher if it is not removed, so we remove it here.
@@ -95,12 +160,15 @@ def build_td_spec(
                 transform.yield %cont, %config : !transform.any_op, !transform.any_param
             }}
 
+            {extra_matchers}
+
             // Entry Point
             transform.named_sequence
             @__kernel_config(%variant_op: !transform.any_op {{transform.consumed}}) -> !transform.any_op
                 attributes {{ iree_codegen.tuning_spec_entrypoint }} {{
                 %res = transform.foreach_match in %variant_op
                     @{func_name} -> @apply_op_config
+                    , {extra_matcher_fn_calls}
                 : (!transform.any_op) -> !transform.any_op
                 transform.yield %res : !transform.any_op
             }}

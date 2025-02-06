@@ -6,6 +6,7 @@
 
 import argparse
 from pathlib import Path
+import shutil
 from tuner import libtuner
 from tuner.common import *
 
@@ -45,6 +46,12 @@ def main():
     client_args = parser.add_argument_group("Simple Example Tuner Options")
     client_args.add_argument(
         "simple_model_file", type=Path, help="Path to the model file to tune (.mlir)"
+    )
+    client_args.add_argument(
+        "--simple-best-spec-output-path",
+        type=Path,
+        help="Path to write the best tuned spec after",
+        default=None,
     )
     client_args.add_argument(
         "--simple-num-dispatch-candidates",
@@ -135,6 +142,10 @@ def main():
         for id in top_candidates:
             logging.info(f"{candidate_trackers[id].spec_path.resolve()}")
         if stop_after_phase == libtuner.ExecutionPhases.benchmark_dispatches:
+            if args.simple_best_spec_output_path:
+                top_spec_path = path_config.specs_dir / path_config.get_candidate_spec_filename(top_candidates[0])
+                shutil.copy(top_spec_path, args.simple_best_spec_output_path)
+                print(f"Saved top spec ({top_spec_path}) to {args.simple_best_spec_output_path}")
             return
 
         print("Compiling models with top candidates...")
@@ -167,6 +178,11 @@ def main():
         for id in top_model_candidates:
             logging.info(f"{candidate_trackers[id].spec_path.resolve()}")
         print(f"Top model candidates: {top_model_candidates}")
+        
+        if args.simple_best_spec_output_path:
+            top_spec_path = path_config.specs_dir / path_config.get_candidate_spec_filename(top_model_candidates[0])
+            shutil.copy(top_spec_path, args.simple_best_spec_output_path)
+            print(f"Saved top spec ({top_spec_path}) to {args.simple_best_spec_output_path}")
 
         print("Check the detailed execution logs in:")
         print(path_config.run_log.resolve())
