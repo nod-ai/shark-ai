@@ -592,7 +592,7 @@ class InferenceExecutorProcess(sf.Process):
     async def _denoise(self, device, requests):
         req_bs = len(requests)
         step_count = requests[0].steps
-        cfg_mult = self.requests[0].cfg_mult
+        cfg_mult = requests[0].cfg_mult
 
         # Produce denoised latents
         entrypoints = self.service.inference_functions[self.worker_index]["denoise"]
@@ -659,21 +659,59 @@ class InferenceExecutorProcess(sf.Process):
                 sample_host.view(slice(cfg_dim + rep, cfg_dim + rep + 1)).copy_from(
                     req_samp
                 )
-
             denoise_inputs["img"].view(slice(cfg_dim, cfg_dim + cfg_mult)).copy_from(
                 sample_host
             )
 
             # Batch t5xxl hidden states.
             txt = requests[i].txt
-            denoise_inputs["txt"].view(slice(cfg_dim, cfg_dim + cfg_mult)).copy_from(
-                txt
-            )
+            if (
+                self.service.model_params.t5xxl_dtype
+                != self.service.model_params.sampler_dtype
+            ):
+                inter = sfnp.device_array.for_host(
+                    device, txt_shape, dtype=self.service.model_params.sampler_dtype
+                )
+                host = sfnp.device_array.for_host(
+                    device, txt_shape, dtype=self.service.model_params.t5xxl_dtype
+                )
+                host.view(slice(cfg_dim, cfg_dim + cfg_mult)).copy_from(txt)
+                await device
+                sfnp.convert(
+                    host,
+                    dtype=self.service.model_params.sampler_dtype,
+                    out=inter,
+                )
+                denoise_inputs["txt"].view(slice(cfg_dim, cfg_dim + cfg_mult)).copy_from(inter)
+            else:
+                denoise_inputs["txt"].view(slice(cfg_dim, cfg_dim + cfg_mult)).copy_from(
+                    txt
+                )
 
             # Batch CLIP projections.
             vec = requests[i].vec
-            for nc in range(cfg_mult):
-                denoise_inputs["vec"].view(slice(nc, nc + 1)).copy_from(vec)
+            if (
+                self.service.model_params.t5xxl_dtype
+                != self.service.model_params.sampler_dtype
+            ):
+                for nc in range(cfg_mult):
+                    inter = sfnp.device_array.for_host(
+                        device, vec_shape, dtype=self.service.model_params.sampler_dtype
+                    )
+                    host = sfnp.device_array.for_host(
+                        device, vec_shape, dtype=self.service.model_params.clip_dtype
+                    )
+                    host.view(slice(nc, nc + 1)).copy_from(vec)
+                    await device
+                    sfnp.convert(
+                        host,
+                        dtype=self.service.model_params.sampler_dtype,
+                        out=inter,
+                    )
+                    denoise_inputs["vec"].view(slice(nc, nc + 1)).copy_from(inter)
+            else:
+                for nc in range(cfg_mult):
+                    denoise_inputs["vec"].view(slice(nc, nc + 1)).copy_from(vec)
         sfnp.convert(
             guidance_float, dtype=self.service.model_params.sampler_dtype, out=gs_host
         )
@@ -778,6 +816,7 @@ class InferenceExecutorProcess(sf.Process):
             fn,
             "".join([f"\n  0: {latents.shape}"]),
         )
+        await device
         (image,) = await fn(latents, fiber=self.fiber)
         await device
         images_shape = [
@@ -810,6 +849,7 @@ class InferenceExecutorProcess(sf.Process):
                 device, image_shape, self.service.model_params.vae_dtype
             )
             images_planar.copy_from(req.image_array)
+            await device
             permuted = sfnp.device_array.for_host(
                 device, out_shape, self.service.model_params.vae_dtype
             )
