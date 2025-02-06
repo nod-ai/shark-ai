@@ -13,8 +13,8 @@
   "t5xxl_batch_sizes": [
     1
   ],
-  "t5xxl_dtype": "bfloat16",
-  "t5xxl_module_name": "compiled_flux_text_encoder2",
+  "t5xxl_dtype": "float32",
+  "t5xxl_module_name": "compiled_flux_text_encoder_2",
   "t5xxl_fn_name": "encode_prompts",
   "sampler_batch_sizes": [
     1

@@ -48,6 +48,7 @@ class InferenceExecRequest(sf.Message):
         steps: int | None = None,
         guidance_scale: float | sfnp.device_array | None = None,
         seed: int | None = None,
+        cfg_mult: int = 1,
         clip_input_ids: list[list[int]] | None = None,
         t5xxl_input_ids: list[list[int]] | None = None,
         sample: sfnp.device_array | None = None,
@@ -74,6 +75,7 @@ class InferenceExecRequest(sf.Message):
         self.height = height
         self.width = width
         self.seed = seed
+        self.cfg_mult = 1
 
         # Encode phase.
         # This is a list of sequenced positive and negative token ids and pooler token ids.
