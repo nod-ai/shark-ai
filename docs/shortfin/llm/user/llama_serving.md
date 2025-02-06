@@ -32,12 +32,12 @@ shark-ai.
 
 Overview:
 
-1. Setup, installing dependencies and configuring the environment
-2. Download model files then compile the model for our accelerator(s) of choice
-3. Start a server using the compiled model files
-4. Send chat requests to the server and receive chat responses back
-5. Running with sharded models
-6. Server options
+1. [Setup, installing dependencies and configuring the environment](#1-setup)
+2. [Download model files then compile the model for our accelerator(s) of choice](#2-download-and-compile-the-model)
+3. [Start a server using the compiled model files](#3-run-the-shortfin-llm-server)
+4. [Send chat requests to the server and receive chat responses back](#4-test-the-server)
+5. [Running with sharded models](#5-running-with-sharded-models)
+6. [Server options](#6-server-options)
 
 ## 1. Setup
 
@@ -112,6 +112,14 @@ python -m sharktank.utils.hf_datasets llama3_8B_fp16 --local-dir $EXPORT_DIR
 > python3 convert_hf_to_gguf.py $WEIGHTS_DIR --outtype f16 --outfile $EXPORT_DIR/<output_gguf_name>.gguf
 > ```
 > Now this GGUF file can be used in the instructions ahead.
+>
+> If you would like to convert the model from a [`.gguf`](https://iree.dev/guides/parameters/#gguf)
+> file to a [`.irpa`](https://iree.dev/guides/parameters/#irpa) file, you can
+> use our [`sharktank.tools.dump_gguf`](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/tools/dump_gguf.py)
+> script:
+> ```bash
+> python -m sharktank.tools.dump_gguf --gguf-file $EXPORT_DIR/<output_gguf_name>.gguf --save $EXPORT_DIR/<output_irpa_name>.irpa
+> ```
 
 ### Define environment variables
 
