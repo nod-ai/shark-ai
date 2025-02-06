@@ -7,6 +7,7 @@
 from typing import Any
 import argparse
 import logging
+import asyncio
 from pathlib import Path
 import sys
 import os
@@ -18,10 +19,12 @@ import uvicorn
 # Import first as it does dep checking and reporting.
 from shortfin.interop.fastapi import FastAPIResponder
 from shortfin.support.logging_setup import native_handler
+import shortfin as sf
 
 from fastapi import FastAPI, Request, Response
 
 from .components.generate import GenerateImageProcess
+from .components.messages import InferenceExecRequest
 from .components.config_struct import ModelParams
 from .components.io_struct import GenerateReqInput
 from .components.manager import SystemManager
@@ -157,26 +160,12 @@ def get_modules(args, model_config, flagfile, td_spec):
                     vmfbs[key].extend([name])
     return vmfbs, params
 
-class MicroSDXLServer():
-    def __init__(args):
-        model_config, topology_config, flagfile, tuning_spec, args = get_configs(args)
-        sysman = SystemManager(args.device, args.device_ids, args.amdgpu_async_allocations)
-        model_params = ModelParams.load_json(model_config)
-        vmfbs, params = get_modules(args, model_config, flagfile, tuning_spec)
-        self.service = GenerateService(
-            name="sd",
-            sysman=sysman,
-            tokenizers=tokenizers,
-            model_params=model_params,
-            fibers_per_device=args.fibers_per_device,
-            workers_per_device=args.workers_per_device,
-            prog_isolation=args.isolation,
-            show_progress=args.show_progress,
-            trace_execution=args.trace_execution,
-        )
+class MicroSDXLServer(sf.Process):
+    def __init__(self, args, service, vmfbs, params):
+        self.service = service
         for key, vmfblist in vmfbs.items():
-        for vmfb in vmfblist:
-            self.service.load_inference_module(vmfb, component=key)
+            for vmfb in vmfblist:
+                self.service.load_inference_module(vmfb, component=key)
         for key, datasets in params.items():
             self.service.load_inference_parameters(*datasets, parameter_scope="model", component=key)
     
@@ -346,6 +335,36 @@ def main(argv):
         default=1,
         help="Use tunings for attention and matmul ops. 0 to disable.",
     )
+    parser.add_argument(
+        "--prompt",
+        type=str,
+        default="a cat under the snow with blue eyes, covered by snow, cinematic style, medium shot, professional photo, animal",
+        help="Image generation prompt",
+    )
+    parser.add_argument(
+        "--neg_prompt",
+        type=str,
+        default="Watermark, blurry, oversaturated, low resolution, pollution",
+        help="Image generation negative prompt",
+    )
+    parser.add_argument(
+        "--steps",
+        type=int,
+        default="20",
+        help="Number of inference steps. More steps usually means a better image. Interactive only.",
+    )
+    parser.add_argument(
+        "--guidance_scale",
+        type=float,
+        default="0.7",
+        help="Guidance scale for denoising.",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default="0",
+        help="RNG seed for image latents.",
+    )
     args = parser.parse_args(argv)
     if not args.artifacts_dir:
         home = Path.home()
@@ -353,19 +372,35 @@ def main(argv):
         args.artifacts_dir = str(artdir)
     else:
         args.artifacts_dir = os.path.abspath(args.artifacts_dir)
-    service = MicroSDXLServer(args)
-    imgs = asyncio.run(
-        service.generate_image(
+    tokenizers = []
+    for idx, tok_name in enumerate(args.tokenizers):
+        subfolder = f"tokenizer_{idx + 1}" if idx > 0 else "tokenizer"
+        tokenizers.append(Tokenizer.from_pretrained(tok_name, subfolder))
+    model_config, topology_config, flagfile, tuning_spec, args = get_configs(args)
+    sysman = SystemManager(args.device, args.device_ids, args.amdgpu_async_allocations)
+    model_params = ModelParams.load_json(model_config)
+    vmfbs, params = get_modules(args, model_config, flagfile, tuning_spec)
+    service = GenerateService(
+        name="sd",
+        sysman=sysman,
+        tokenizers=tokenizers,
+        model_params=model_params,
+        fibers_per_device=args.fibers_per_device,
+        workers_per_device=args.workers_per_device,
+        prog_isolation=args.isolation,
+        show_progress=args.show_progress,
+        trace_execution=args.trace_execution,
+    )
+    service = MicroSDXLServer(args, service, vmfbs, params)
+    imgs = asyncio.run(service.generate_image(
             args.prompt,
             args.neg_prompt,
-            args.height,
-            args.width,
+            1024,
+            1024,
             args.steps,
             args.guidance_scale,
             args.seed,
-        input_ids = None,
-        )
-    )
+    ))
     breakpoint()
 
 
