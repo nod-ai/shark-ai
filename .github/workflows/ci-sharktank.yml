@@ -85,7 +85,10 @@ jobs:
       - name: Run sharktank tests
         if: ${{ !cancelled() }}
         run: |
-          pytest -n 4 sharktank/ --durations=10
+          pytest \
+            -n 4 \
+            --durations=10 \
+            sharktank/
 
 
   test_with_data:
@@ -188,7 +191,9 @@ jobs:
 
       - name: Run punet tests
         run: |
-          pytest -v sharktank/ -m punet_quick \
+          pytest -v sharktank/ \
+            -m "punet_quick or model_punet" \
+            --with-expensive \
             --durations=0 \
             --timeout=600
 

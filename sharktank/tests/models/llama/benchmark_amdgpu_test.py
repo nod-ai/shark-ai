@@ -19,8 +19,8 @@ from sharktank.utils.export_artifacts import (
     IreeBenchmarkException,
     IreeCompileException,
 )
+from sharktank.utils.testing import is_mi300x
 
-is_mi300x = pytest.mark.skipif("config.getoption('iree_hip_target') != 'gfx942'")
 skipif_run_quick_llama_test = pytest.mark.skipif(
     'config.getoption("run-quick-llama-test") and not config.getoption("run-nightly-llama-tests")',
     reason="Skipping largs tests when --run-quick-llama-test is set.",
