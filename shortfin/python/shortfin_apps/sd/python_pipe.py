@@ -203,10 +203,38 @@ class MicroSDXLServer(sf.Process):
         if self.service.prog_isolation == sf.ProgramIsolation.PER_FIBER:
                 self.service.idle_fibers.add(fiber)
         self.imgs = imgs
-        
         return
 
-def main(argv):
+class Main:
+    def __init__(self, sysman):
+        self.sysman = sysman
+
+    async def main(self, args):
+        tokenizers = []
+        for idx, tok_name in enumerate(args.tokenizers):
+            subfolder = f"tokenizer_{idx + 1}" if idx > 0 else "tokenizer"
+            tokenizers.append(Tokenizer.from_pretrained(tok_name, subfolder))
+        model_config, topology_config, flagfile, tuning_spec, args = get_configs(args)
+        model_params = ModelParams.load_json(model_config)
+        vmfbs, params = get_modules(args, model_config, flagfile, tuning_spec)
+        service = GenerateService(
+            name="sd",
+            sysman=self.sysman,
+            tokenizers=tokenizers,
+            model_params=model_params,
+            fibers_per_device=args.fibers_per_device,
+            workers_per_device=args.workers_per_device,
+            prog_isolation=args.isolation,
+            show_progress=args.show_progress,
+            trace_execution=args.trace_execution,
+        )
+        service = MicroSDXLServer(args, service, vmfbs, params)
+        service.service.start()
+        await asyncio.gather(service.launch())
+
+        return service.imgs
+
+def run_cli(argv):
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", type=str, default=None)
     parser.add_argument("--port", type=int, default=8000)
@@ -370,34 +398,13 @@ def main(argv):
         args.artifacts_dir = str(artdir)
     else:
         args.artifacts_dir = os.path.abspath(args.artifacts_dir)
-    tokenizers = []
-    for idx, tok_name in enumerate(args.tokenizers):
-        subfolder = f"tokenizer_{idx + 1}" if idx > 0 else "tokenizer"
-        tokenizers.append(Tokenizer.from_pretrained(tok_name, subfolder))
-    model_config, topology_config, flagfile, tuning_spec, args = get_configs(args)
     sysman = SystemManager(args.device, args.device_ids, args.amdgpu_async_allocations)
-    model_params = ModelParams.load_json(model_config)
-    vmfbs, params = get_modules(args, model_config, flagfile, tuning_spec)
-    service = GenerateService(
-        name="sd",
-        sysman=sysman,
-        tokenizers=tokenizers,
-        model_params=model_params,
-        fibers_per_device=args.fibers_per_device,
-        workers_per_device=args.workers_per_device,
-        prog_isolation=args.isolation,
-        show_progress=args.show_progress,
-        trace_execution=args.trace_execution,
-    )
-    service = MicroSDXLServer(args, service, vmfbs, params)
-    service.service.start()
-    asyncio.gather(service.launch())
-    print(service.imgs)
-    breakpoint()
-
+    main = Main(sysman)
+    imgs = sysman.ls.run(main.main(args))
+    print(imgs)
 
 if __name__ == "__main__":
     logging.root.setLevel(logging.INFO)
-    main(
+    run_cli(
         sys.argv[1:],
     )
