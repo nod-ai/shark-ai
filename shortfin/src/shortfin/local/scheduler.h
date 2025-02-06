@@ -24,6 +24,7 @@ namespace detail {
 
 class Account;
 class Scheduler;
+class TimelineResource;
 
 // Transactions are accumulated into a command buffer by type and in
 // auto-flush mode, the command buffer is submitted upon a change of type.
@@ -52,6 +53,10 @@ enum class TransactionMode {
   // Pending command buffers are not flushed until explicitly set to do so.
   EXPLICIT = 1,
 };
+
+// Destructor callback to be invoked just before the timeline resource is
+// destroyed.
+using TimelineResourceDestructor = std::function<void(TimelineResource &)>;
 
 // Control object for a resource that is tracked on the timeline. Each such
 // resource is associated with a single Account. In the case of a resource
@@ -104,6 +109,7 @@ class SHORTFIN_API TimelineResource {
     Ref(Ref &&other) : res_(other.res_) { other.res_ = nullptr; }
     ~Ref() { reset(); }
     TimelineResource *operator->() { return res_; }
+    TimelineResource *get() { return res_; }
 
     void reset() {
       if (res_) {
@@ -117,7 +123,14 @@ class SHORTFIN_API TimelineResource {
   };
   TimelineResource(TimelineResource &other) = delete;
 
-  // Sets the mutation barrier.
+  // Creates an asynchronous buffer destructor for this resource. When the
+  // resource is about to be destroyed, an async dealloca will be issued at
+  // the use barrier.
+  static TimelineResourceDestructor CreateAsyncBufferDestructor(
+      ScopedDevice &scoped_device, iree::hal_buffer_ptr buffer);
+
+  // Sets the mutation barrier. The mutation barrier is the point on a timeline
+  // beyond which there are no further writes.
   // Note that the semaphore set in this way is not retained as it is
   // assumed to be part of the local scheduler.
   void set_mutation_barrier(iree_hal_semaphore_t *sem, uint64_t timepoint) {
@@ -135,6 +148,8 @@ class SHORTFIN_API TimelineResource {
     }
   }
 
+  // Barrier beyond which there are no further uses of the resource, including
+  // both reads and writes.
   // Use barrier can have new timepoints inserted or converted to a
   // semaphore list.
   void use_barrier_insert(iree_hal_semaphore_t *sem, uint64_t timepoint);
@@ -144,14 +159,15 @@ class SHORTFIN_API TimelineResource {
 
   iree_allocator_t host_allocator();
 
- private:
-  TimelineResource(std::shared_ptr<Fiber> fiber, size_t semaphore_capacity);
-  ~TimelineResource();
   void Retain() { refcnt_++; }
   void Release() {
     if (--refcnt_ == 0) delete this;
   }
 
+ private:
+  TimelineResource(std::shared_ptr<Fiber> fiber, size_t semaphore_capacity,
+                   TimelineResourceDestructor destructor);
+  ~TimelineResource();
   int refcnt_ = 0;
 
   // Back reference to the owning fiber.
@@ -166,6 +182,9 @@ class SHORTFIN_API TimelineResource {
   // Use barrier fence. The fact that this is a fence object with a fixed
   // capacity is an implementation detail.
   iree::hal_fence_ptr use_barrier_fence_;
+
+  // Destructor to be called just prior to the TimelineResource being destroyed.
+  TimelineResourceDestructor destructor_;
   friend class Scheduler;
 };
 
@@ -261,9 +280,11 @@ class SHORTFIN_API Scheduler {
   // Gets a fresh TimelineResource which can be used for tracking resource
   // read/write and setting barriers. Note that these are all allocated fresh
   // on each call today but may be pooled in the future.
-  TimelineResource::Ref NewTimelineResource(std::shared_ptr<Fiber> fiber) {
+  TimelineResource::Ref NewTimelineResource(
+      std::shared_ptr<Fiber> fiber,
+      TimelineResourceDestructor destructor = nullptr) {
     return TimelineResource::Ref(
-        new TimelineResource(std::move(fiber), semaphore_count_));
+        new TimelineResource(std::move(fiber), semaphore_count_, destructor));
   }
 
   // Creates a new fence with capacity for all semaphores that are extant at

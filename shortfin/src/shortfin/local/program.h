@@ -16,6 +16,7 @@
 #include "shortfin/local/async.h"
 #include "shortfin/local/device.h"
 #include "shortfin/local/program_interfaces.h"
+#include "shortfin/local/scheduler.h"
 #include "shortfin/local/worker.h"
 #include "shortfin/support/api.h"
 #include "shortfin/support/iree_helpers.h"
@@ -110,14 +111,12 @@ class SHORTFIN_API ProgramInvocation {
   // thusly are satisfied.
   void wait_insert(iree_hal_semaphore_list_t sem_list);
 
-  // Adds a marshalable argument with a configurable concurrency barrier.
-  void AddArg(ProgramInvocationMarshalable &marshalable,
-              ProgramResourceBarrier barrier = ProgramResourceBarrier::READ);
-
   // Adds a ref object argument. This low level interface directly adds a
   // reference object and does not manipulate any execution barriers.
-  void AddArg(iree::vm_opaque_ref ref);  // Moves a reference in.
-  void AddArg(iree_vm_ref_t *ref);       // Borrows the reference.
+  void AddArg(iree::vm_opaque_ref ref,
+              detail::TimelineResource *resource);  // Moves a reference in.
+  void AddArg(iree_vm_ref_t *ref,
+              detail::TimelineResource *resource);  // Borrows the reference.
 
   // Transfers ownership of an invocation and schedules it on worker, returning
   // a future that will resolve to the owned invocation upon completion.
@@ -198,6 +197,7 @@ class SHORTFIN_API ProgramInvocation {
   iree::vm_context_ptr vm_context_;
   detail::ProgramIsolate *isolate_;
   iree_vm_list_t *result_list_ = nullptr;
+  detail::TimelineResource **arg_resources_ = nullptr;
   std::optional<Future> future_;
   iree::hal_fence_ptr wait_fence_;
   iree_hal_semaphore_t *signal_sem_ = nullptr;

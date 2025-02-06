@@ -106,4 +106,13 @@ void error::AppendStatusMessage() {
   }
 }
 
+std::string DebugPrintSemaphoreList(iree_hal_semaphore_list_t &sl) {
+  std::vector<std::string> parts;
+  for (unsigned i = 0; i < sl.count; ++i) {
+    parts.push_back(fmt::format("{}@{}", static_cast<void *>(sl.semaphores[i]),
+                                sl.payload_values[i]));
+  }
+  return fmt::format("({})", fmt::join(parts, ", "));
+}
+
 }  // namespace shortfin::iree
