@@ -24,11 +24,11 @@ import shortfin as sf
 from fastapi import FastAPI, Request, Response
 
 from .components.generate import GenerateImageProcess
-from .components.messages import InferenceExecRequest
+from .components.messages import InferenceExecRequest, InferencePhase
 from .components.config_struct import ModelParams
 from .components.io_struct import GenerateReqInput
 from .components.manager import SystemManager
-from .components.service import GenerateService
+from .components.service import GenerateService, InferenceExecutorProcess
 from .components.tokenizer import Tokenizer
 
 
@@ -162,51 +162,49 @@ def get_modules(args, model_config, flagfile, td_spec):
 
 class MicroSDXLServer(sf.Process):
     def __init__(self, args, service, vmfbs, params):
+        super().__init__(fiber=service.fibers[0])
         self.service = service
         for key, vmfblist in vmfbs.items():
             for vmfb in vmfblist:
                 self.service.load_inference_module(vmfb, component=key)
         for key, datasets in params.items():
             self.service.load_inference_parameters(*datasets, parameter_scope="model", component=key)
-    
-    async def generate_image(
-        self,
-        prompt,
-        neg_prompt,
-        height,
-        width,
-        steps,
-        guidance_scale,
-        seed,
-        input_ids = None,
+        self.args = args
+        self.exec = None
+        self.imgs = None
+
+    async def run(
+        self
     ):
-        exec = InferenceExecRequest(
-            prompt,
-            neg_prompt,
-            height,
-            width,
-            steps,
-            guidance_scale,
-            seed,
-            input_ids,
+        args = self.args
+        self.exec = InferenceExecRequest(
+            args.prompt,
+            args.neg_prompt,
+            1024,
+            1024,
+            args.steps,
+            args.guidance_scale,
+            args.seed,
         )
-        exec.phases[InferencePhase.POSTPROCESS]["required"] = False
+        self.exec.phases[InferencePhase.POSTPROCESS]["required"] = False
         fiber = self.service.idle_fibers.pop()
         fiber_idx = self.service.fibers.index(fiber)
         worker_idx = self.service.get_worker_index(fiber)
         exec_process = InferenceExecutorProcess(self.service, fiber)
         if self.service.prog_isolation != sf.ProgramIsolation.PER_FIBER:
                 self.service.idle_fibers.add(fiber)
-        exec_process.exec_requests.append(exec)
+        exec_process.exec_requests.append(self.exec)
         exec_process.launch()
         await asyncio.gather(exec_process)
         imgs = []
+        await self.exec.done
         for req in exec_process.exec_requests:
-            if req.image_array:
-                imgs.append(req.image_array)
+            imgs.append(req.image_array)
         if self.service.prog_isolation == sf.ProgramIsolation.PER_FIBER:
                 self.service.idle_fibers.add(fiber)
-        return imgs
+        self.imgs = imgs
+        
+        return
 
 def main(argv):
     parser = argparse.ArgumentParser()
@@ -392,15 +390,9 @@ def main(argv):
         trace_execution=args.trace_execution,
     )
     service = MicroSDXLServer(args, service, vmfbs, params)
-    imgs = asyncio.run(service.generate_image(
-            args.prompt,
-            args.neg_prompt,
-            1024,
-            1024,
-            args.steps,
-            args.guidance_scale,
-            args.seed,
-    ))
+    service.service.start()
+    asyncio.gather(service.launch())
+    print(service.imgs)
     breakpoint()
 
 
