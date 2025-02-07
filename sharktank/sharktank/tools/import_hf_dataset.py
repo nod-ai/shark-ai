@@ -48,12 +48,11 @@ def import_hf_dataset(
     meta_params = {k: v for k, v in config_json.items() if k.startswith("_")}
     hparams = {k: v for k, v in config_json.items() if not k.startswith("_")}
 
+    tensors = []
     for params_path in param_paths:
         with safetensors.safe_open(params_path, framework="pt", device="cpu") as st:
-            tensors = [
-                DefaultPrimitiveTensor(
-                    name=name, data=st.get_tensor(name).to(target_dtype)
-                )
+            tensors += [
+                DefaultPrimitiveTensor(name=name, data=st.get_tensor(name))
                 for name in st.keys()
             ]
 

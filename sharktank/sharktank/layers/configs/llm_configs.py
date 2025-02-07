@@ -234,8 +234,8 @@ class T5Config:
     def from_gguf_properties(properties: dict[str, Any], **kwargs):
         assert properties["general.architecture"] == "t5"
         assert (
-            properties["t5.attention.layer_norm_epsilon"]
-            == properties["t5.attention.layer_norm_rms_epsilon"]
+           properties["t5.attention.layer_norm_epsilon"]
+           == properties["t5.attention.layer_norm_rms_epsilon"]
         )
 
         all_kwargs = {"vocab_size": None, "feed_forward_proj": None}
@@ -299,10 +299,10 @@ class ClipTextConfig:
     output_hidden_states: bool = False
     use_return_dict: bool = True
     dtype: torch.dtype = torch.float32
-
+    
     @staticmethod
     def from_hugging_face_clip_text_model_config(
-        config: "transformers.CLIPTextConfig",
+        config: "transformers.CLIPTextConfig", # type: ignore
     ) -> "ClipTextConfig":
         return ClipTextConfig(
             vocab_size=config.vocab_size,
@@ -323,7 +323,7 @@ class ClipTextConfig:
             dtype=config.torch_dtype or torch.float32,
         )
 
-    def to_hugging_face_clip_text_model_config(self) -> "transformers.CLIPTextConfig":
+    def to_hugging_face_clip_text_model_config(self) -> "transformers.CLIPTextConfig": # type: ignore
         kwargs = self.to_properties()
         kwargs["torch_dtype"] = kwargs["dtype"]
         del kwargs["dtype"]

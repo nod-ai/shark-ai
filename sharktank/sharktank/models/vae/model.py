@@ -74,15 +74,6 @@ class VaeDecoderModel(ThetaLayer):
                 "latent_embeds": latent_embeds,
             },
         )
-        if not self.hp.use_post_quant_conv:
-            sample = rearrange(
-                sample,
-                "b (h w) (c ph pw) -> b c (h ph) (w pw)",
-                h=math.ceil(1024 / 16),
-                w=math.ceil(1024 / 16),
-                ph=2,
-                pw=2,
-            )
         sample = sample / self.hp.scaling_factor + self.hp.shift_factor
 
         if self.hp.use_post_quant_conv:
