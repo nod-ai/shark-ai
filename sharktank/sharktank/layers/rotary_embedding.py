@@ -51,6 +51,18 @@ class RotaryEmbeddingLayer(BaseLayer):
         start_index: int,
     ):
         table = self.rotary_embed_table
+        if isinstance(xt, ReplicatedTensor):
+            return ReplicatedTensor(
+                ts=[
+                    self.forward_unsharded(
+                        xt=unbox_tensor(s),
+                        start_index=start_index,
+                        rotary_embed_table=unbox_tensor(t),
+                    )
+                    for s, t in zip(xt.shards, table.shards)
+                ]
+            )
+
         if not isinstance(xt, SplitPrimitiveTensor):
             return self.forward_unsharded(
                 xt=xt,

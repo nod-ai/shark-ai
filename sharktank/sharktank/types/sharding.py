@@ -162,6 +162,16 @@ class LinearLayerSharding(ThetaLayerSharding):
         )
 
 
+class LinearReplicatedWeightAndBiasSharding(LinearLayerSharding):
+    def __init__(self, shard_count: int, weight_and_bias_spit_dim: int = 0):
+        """The linear operation is replicated across devices"""
+        super().__init__(
+            premul_input=Replicated(shard_count=shard_count),
+            weight=Replicated(shard_count=shard_count),
+            bias=Replicated(shard_count=shard_count),
+        )
+
+
 class LinearSplitParallelWeightAndBiasSharding(LinearLayerSharding):
     def __init__(self, shard_count: int, weight_and_bias_spit_dim: int = 0):
         """Split one parallel dimension for both the weight and bias.

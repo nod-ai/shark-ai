@@ -163,7 +163,7 @@ class PagedLatentAttentionBlock(ThetaLayer):
         q_nope = q[:, :, :, :qk_nope_head_dim]
         q_rope = q[:, :, :, qk_nope_head_dim:]
         q_rope = embedding(xt=q_rope, start_index=0)
-        q = torch.cat((q_nope, q_rope), dim=-1)
+        q = ops.cat((q_nope, q_rope), dim=-1)
 
         kv = self.wkv_a(h)
         kv_nope_size = kv.shape[-1] - self.rope_dimension_count
@@ -179,6 +179,14 @@ class PagedLatentAttentionBlock(ThetaLayer):
         v = wkv_b[:, :, :, qk_nope_head_dim:]
 
         k_rope = ops.repeat(k_rope, (1, 1, k_nope.shape[2] // k_rope.shape[2], 1))
+
+        if isinstance(k_rope, ReplicatedTensor) and isinstance(
+            k_nope, SplitPrimitiveTensor
+        ):
+            k_rope = ops.reshard_split(
+                k_rope, dim=k_nope.shard_dim, count=k_nope.shard_count
+            )
+
         k = ops.cat((k_nope, k_rope), dim=-1)
 
         q = q.transpose(1, 2)
