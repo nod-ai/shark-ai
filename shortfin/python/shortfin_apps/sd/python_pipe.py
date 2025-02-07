@@ -409,7 +409,7 @@ def run_cli(argv):
     parser.add_argument(
         "--reps",
         type=int,
-        default=64,
+        default=1,
         help="Benchmark samples.",
     )
     args = parser.parse_args(argv)
