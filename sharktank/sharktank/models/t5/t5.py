@@ -54,12 +54,27 @@ class T5LayerFF(nn.Module):
         activation_dtype: torch.dtype,
     ):
         super().__init__()
+
+        ffn_theta = theta("DenseReluDense")
+        ffn_theta_dict = {}
+        if is_gated_act:
+            ffn_theta_dict["ffn_gate"] = ffn_theta("wi_0").tree
+            ffn_theta_dict["ffn_up"] = ffn_theta("wi_1").tree
+        else:
+            ffn_theta_dict["ffn_up"] = ffn_theta("wi").tree
+        ffn_theta_dict["ffn_down"] = ffn_theta("wo").tree
+        ffn_theta = Theta(ffn_theta_dict)
+
         self.dense_activation_dense = FFN(
-            theta=theta, is_gated=is_gated_act, activation_fn=ACT2FN[dense_act_fn]
+            theta=ffn_theta,
+            is_gated=is_gated_act,
+            activation_fn=ACT2FN[dense_act_fn],
         )
 
         self.layer_norm = RMSNormLayer(
-            theta=theta("ffn_norm"), epsilon=layer_norm_epsilon, dtype=activation_dtype
+            theta=theta("layer_norm"),
+            epsilon=layer_norm_epsilon,
+            dtype=activation_dtype,
         )
 
     def forward(self, hidden_states):
@@ -93,14 +108,14 @@ class T5Attention(BaseLayer):
         self.inner_dim = self.n_heads * self.key_value_proj_dim
         self.activation_dtype = activation_dtype
 
-        self.q = LinearLayer(theta("attn_q"))
-        self.k = LinearLayer(theta("attn_k"))
-        self.v = LinearLayer(theta("attn_v"))
-        self.o = LinearLayer(theta("attn_o"))
+        self.q = LinearLayer(theta("q"))
+        self.k = LinearLayer(theta("k"))
+        self.v = LinearLayer(theta("v"))
+        self.o = LinearLayer(theta("o"))
 
         if self.has_relative_attention_bias:
             self.relative_attention_bias = TokenEmbeddingLayer(
-                theta("attn_rel_b"), dtype=activation_dtype
+                theta("relative_attention_bias"), dtype=activation_dtype
             )
         self.pruned_heads = set()
 
@@ -360,7 +375,7 @@ class T5SelfAttention(BaseLayer):
     ):
         super().__init__()
         self.attention = T5Attention(
-            theta=theta,
+            theta=theta("SelfAttention"),
             is_decoder=is_decoder,
             relative_attention_num_buckets=relative_attention_num_buckets,
             relative_attention_max_distance=relative_attention_max_distance,
@@ -371,7 +386,9 @@ class T5SelfAttention(BaseLayer):
             has_relative_attention_bias=has_relative_attention_bias,
         )
         self.layer_norm = RMSNormLayer(
-            theta=theta("attn_norm"), epsilon=layer_norm_epsilon, dtype=activation_dtype
+            theta=theta("layer_norm"),
+            epsilon=layer_norm_epsilon,
+            dtype=activation_dtype,
         )
 
     def forward(
@@ -482,7 +499,7 @@ class T5Block(nn.Module):
         self.layer = nn.ModuleList()
         self.layer.append(
             T5SelfAttention(
-                theta=theta,
+                theta=theta(f"layer.{len(self.layer)}"),
                 is_decoder=is_decoder,
                 relative_attention_num_buckets=relative_attention_num_buckets,
                 relative_attention_max_distance=relative_attention_max_distance,
@@ -497,7 +514,7 @@ class T5Block(nn.Module):
         if self.is_decoder:
             self.layer.append(
                 T5CrossAttention(
-                    theta=theta,
+                    theta=theta(f"layer.{len(self.layer)}"),
                     is_decoder=is_decoder,
                     relative_attention_num_buckets=relative_attention_num_buckets,
                     relative_attention_max_distance=relative_attention_max_distance,
@@ -511,7 +528,7 @@ class T5Block(nn.Module):
 
         self.layer.append(
             T5LayerFF(
-                theta=theta,
+                theta=theta(f"layer.{len(self.layer)}"),
                 is_gated_act=is_gated_act,
                 dense_act_fn=dense_act_fn,
                 layer_norm_epsilon=layer_norm_epsilon,
@@ -654,12 +671,11 @@ class T5Stack(BaseLayer):
         self.embed_tokens = embed_tokens
         self.config = config
         self.is_decoder = config.is_decoder
-        theta_prefix = "dec" if config.is_decoder else "enc"
 
         self.block = torch.nn.ModuleList(
             [
                 T5Block(
-                    theta=theta(f"{theta_prefix}.blk.{i}"),
+                    theta=theta(f"block.{i}"),
                     is_decoder=config.is_decoder,
                     relative_attention_num_buckets=config.relative_attention_num_buckets,
                     relative_attention_max_distance=config.relative_attention_max_distance,
@@ -678,7 +694,7 @@ class T5Stack(BaseLayer):
         self.add_module(
             "final_layer_norm",
             RMSNormLayer(
-                theta(f"{theta_prefix}.output_norm"),
+                theta(f"final_layer_norm"),
                 epsilon=config.layer_norm_epsilon,
                 dtype=config.activation_dtype,
             ),
@@ -1043,7 +1059,7 @@ class T5Encoder(BaseLayer):
         self.add_module(
             "token_embedding",
             TokenEmbeddingLayer(
-                theta("token_embd"), dtype=theta("token_embd").tensor("weight").dtype
+                theta("shared"), dtype=theta("shared").tensor("weight").dtype
             ),
         )
 
@@ -1051,7 +1067,9 @@ class T5Encoder(BaseLayer):
         encoder_config.use_cache = False
         encoder_config.is_encoder_decoder = False
         self.encoder = T5Stack(
-            theta=theta, config=encoder_config, embed_tokens=self.token_embedding
+            theta=theta("encoder"),
+            config=encoder_config,
+            embed_tokens=self.token_embedding,
         )
 
     @property
