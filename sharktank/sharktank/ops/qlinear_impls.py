@@ -50,10 +50,10 @@ def qlinear_tensor_scaled(
 
     # Handle only integer and fp8 quantizations.
     if x_layout.qs.dtype.is_floating_point or weight_layout.qs.dtype.is_floating_point:
-        if x_layout.qs.dtype == torch.float8_e4m3fnuz:
-            # assume quark
-            return matmul(x_layout.qs, weight_layout.qs, transpose_rhs=True)
-        else:
+        if (
+            x_layout.qs.dtype != torch.float8_e4m3fnuz
+            or weight_layout.qs.dtype != torch.float8_e4m3fnuz
+        ):
             return NotImplemented
 
     # Bias.
@@ -187,9 +187,7 @@ def _invoke_mmt_kernel(lhs, rhs, *, accum_dtype):
             rhs_size = [lhs.shape[0]] + list(rhs.shape)
             rhs = rhs.unsqueeze(0).expand(rhs_size)
             rhs_rank = len(rhs.shape)
-        y_qs = kernels.batch_matmul_transpose_b(
-            lhs.to(accum_dtype), rhs.to(accum_dtype)
-        )
+        y_qs = kernels.batch_matmul_transpose_b(lhs, rhs, accum_dtype=accum_dtype)
         # Squeeze the batch dimension to maintain shape parity with other
         # layers.
         if len(y_qs.shape) > 2:
