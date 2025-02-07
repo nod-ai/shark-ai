@@ -93,7 +93,7 @@ class GenerateService:
             self.inference_programs[idx] = {}
             self.inference_functions[idx] = {}
         # Scope dependent objects.
-        self.batcher = BatcherProcess(self)
+        # self.batcher = BatcherProcess(self)
 
     def get_worker_index(self, fiber):
         if fiber not in self.fibers:
@@ -182,10 +182,11 @@ class GenerateService:
                 ] = self.inference_programs[worker_idx]["vae"][
                     f"{self.model_params.vae_module_name}.decode"
                 ]
-        self.batcher.launch()
+        #self.batcher.launch()
 
     def shutdown(self):
-        self.batcher.shutdown()
+        #self.batcher.shutdown()
+        pass
 
     def __repr__(self):
         modules = [
