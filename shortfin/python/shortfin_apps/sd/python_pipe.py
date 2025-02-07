@@ -10,6 +10,7 @@ import logging
 import asyncio
 from pathlib import Path
 import sys
+import time
 import os
 import copy
 import subprocess
@@ -161,14 +162,11 @@ def get_modules(args, model_config, flagfile, td_spec):
     return vmfbs, params
 
 class MicroSDXLServer(sf.Process):
-    def __init__(self, args, service, vmfbs, params):
+
+    def __init__(self, args, service):
         super().__init__(fiber=service.fibers[0])
         self.service = service
-        for key, vmfblist in vmfbs.items():
-            for vmfb in vmfblist:
-                self.service.load_inference_module(vmfb, component=key)
-        for key, datasets in params.items():
-            self.service.load_inference_parameters(*datasets, parameter_scope="model", component=key)
+
         self.args = args
         self.exec = None
         self.imgs = None
@@ -187,6 +185,9 @@ class MicroSDXLServer(sf.Process):
             args.seed,
         )
         self.exec.phases[InferencePhase.POSTPROCESS]["required"] = False
+        while len(self.service.idle_fibers) == 0:
+            time.sleep(0.5)
+            print("All fibers busy...")
         fiber = self.service.idle_fibers.pop()
         fiber_idx = self.service.fibers.index(fiber)
         worker_idx = self.service.get_worker_index(fiber)
@@ -198,10 +199,10 @@ class MicroSDXLServer(sf.Process):
         await asyncio.gather(exec_process)
         imgs = []
         await self.exec.done
+
         for req in exec_process.exec_requests:
             imgs.append(req.image_array)
-        if self.service.prog_isolation == sf.ProgramIsolation.PER_FIBER:
-                self.service.idle_fibers.add(fiber)
+        
         self.imgs = imgs
         return
 
@@ -217,7 +218,7 @@ class Main:
         model_config, topology_config, flagfile, tuning_spec, args = get_configs(args)
         model_params = ModelParams.load_json(model_config)
         vmfbs, params = get_modules(args, model_config, flagfile, tuning_spec)
-        service = GenerateService(
+        sdxl_service = GenerateService(
             name="sd",
             sysman=self.sysman,
             tokenizers=tokenizers,
@@ -228,11 +229,25 @@ class Main:
             show_progress=args.show_progress,
             trace_execution=args.trace_execution,
         )
-        service = MicroSDXLServer(args, service, vmfbs, params)
-        service.service.start()
-        await asyncio.gather(service.launch())
+        for key, vmfblist in vmfbs.items():
+            for vmfb in vmfblist:
+                sdxl_service.load_inference_module(vmfb, component=key)
+        for key, datasets in params.items():
+            sdxl_service.load_inference_parameters(*datasets, parameter_scope="model", component=key)
+        sdxl_service.start()
+        start = time.time()
+        reps = args.reps
+        procs = []
+        for i in range(reps):
+            service = MicroSDXLServer(args, sdxl_service)
+            procs.append(service)
+        await asyncio.gather(*[proc.launch() for proc in procs])
+        print(f"Completed {reps} reps in {time.time() - start} seconds.")
+        imgs = []
+        for process in procs:
+            imgs.append(process.imgs)
 
-        return service.imgs
+        return imgs
 
 def run_cli(argv):
     parser = argparse.ArgumentParser()
@@ -388,8 +403,14 @@ def run_cli(argv):
     parser.add_argument(
         "--seed",
         type=int,
-        default="0",
+        default=0,
         help="RNG seed for image latents.",
+    )
+    parser.add_argument(
+        "--reps",
+        type=int,
+        default=64,
+        help="Benchmark samples.",
     )
     args = parser.parse_args(argv)
     if not args.artifacts_dir:
@@ -401,7 +422,7 @@ def run_cli(argv):
     sysman = SystemManager(args.device, args.device_ids, args.amdgpu_async_allocations)
     main = Main(sysman)
     imgs = sysman.ls.run(main.main(args))
-    print(imgs)
+    print(f"number of images generated: {len(imgs)}")
 
 if __name__ == "__main__":
     logging.root.setLevel(logging.INFO)
