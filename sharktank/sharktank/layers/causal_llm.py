@@ -95,10 +95,17 @@ class BaseCausalLMModel(ThetaLayer):
         mask = range_vector >= matrix
         return mask
 
-    def decode_attention_mask(self, boolean_input_mask: torch.Tensor):
+    def decode_attention_mask(
+        self, boolean_input_mask: torch.Tensor, seq_block_ids: torch.Tensor
+    ):
         dtype = self.attention_dtype
+        # Calculate total sequence length from blocks
+        total_seq_len = seq_block_ids.shape[1] * self.config.block_seq_stride
+        # Expand boolean mask to [batch_size, total_seq_len]
+        expanded_mask = boolean_input_mask.expand(-1, total_seq_len)
+        # Convert to numeric mask
         numeric_mask = torch.where(
-            boolean_input_mask, self._maximally_negative_value(dtype), 0
+            expanded_mask, self._maximally_negative_value(dtype), 0
         ).to(dtype)
         return numeric_mask.unsqueeze(1).unsqueeze(1).to(self.device)
 
