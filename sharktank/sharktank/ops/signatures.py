@@ -58,6 +58,7 @@ __all__ = [
     "softmax",
     "squeeze",
     "to",
+    "topk",
     "trace_tensor",
     "transfer_to_logical_device",
     "transpose",
@@ -1176,6 +1177,23 @@ def _squeeze_trampoline(
     tensors = (tensor,)
     for override in d.find_overrides(tensor):
         result = override(tensor, dim)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
+
+
+@overridable
+def topk(tensor, k: int, dim: int) -> AnyTensor:
+    """See torch.topk"""
+    ...
+
+
+@topk.trampoline
+def _topk_trampoline(d: SignatureDispatcher, tensor, k: int, dim: int) -> AnyTensor:
+    tensors = (tensor,)
+    for override in d.find_overrides(tensor):
+        result = override(tensor, k=k, dim=dim)
         if result is not NotImplemented:
             return override, result
     else:

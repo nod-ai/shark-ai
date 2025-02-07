@@ -501,6 +501,11 @@ def squeeze_default(tensor, dim: Optional[int] = None) -> AnyTensor:
         return torch.squeeze(unbox_tensor(tensor), dim)
 
 
+@topk.override(AllOfType(AnyTensor, PrimitiveTensor))
+def topk_default(tensor, k: int, dim: int) -> AnyTensor:
+    return torch.topk(tensor, k=k, dim=dim)
+
+
 @view.override(Tensor)
 def view_default(tensor: Union[Tensor, PrimitiveTensor], shape: List[int]) -> Tensor:
     return unbox_tensor(tensor).view(*shape)

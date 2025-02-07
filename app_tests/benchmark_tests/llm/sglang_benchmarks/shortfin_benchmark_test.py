@@ -34,85 +34,62 @@ device_settings = {
 }
 
 
+@pytest.mark.parametrize("request_rate", [1, 2, 4, 8, 16, 32])
 @pytest.mark.parametrize(
-    "request_rate,model_param_file_name",
+    "model_artifacts,server",
     [
-        (req_rate, "meta-llama-3.1-8b-instruct.f16.gguf")
-        for req_rate in [1, 2, 4, 8, 16, 32]
+        pytest.param(
+            "llama3.1_8b",
+            {"model": "llama3.1_8b", "prefix_sharing": "none"},
+        ),
+        pytest.param(
+            "llama3.1_8b",
+            {"model": "llama3.1_8b", "prefix_sharing": "trie"},
+        ),
     ],
-)
-@pytest.mark.parametrize(
-    "pre_process_model,write_config",
-    [
-        pytest.param(
-            {
-                "model_name": "llama3_8B_fp16",
-                "model_param_file_name": "meta-llama-3.1-8b-instruct.f16.gguf",
-                "settings": device_settings,
-                "batch_sizes": [1, 4],
-            },
-            {"batch_sizes": [1, 4], "prefix_sharing_algorithm": "none"},
-        ),
-        pytest.param(
-            {
-                "model_name": "llama3_8B_fp16",
-                "model_param_file_name": "meta-llama-3.1-8b-instruct.f16.gguf",
-                "settings": device_settings,
-                "batch_sizes": [1, 4],
-            },
-            {"batch_sizes": [1, 4], "prefix_sharing_algorithm": "trie"},
-        ),
+    ids=[
+        "llama31_8b_none",
+        "llama31_8b_trie",
     ],
     indirect=True,
 )
 def test_shortfin_benchmark(
-    request_rate, model_param_file_name, pre_process_model, write_config
+    request_rate,
+    model_artifacts: ModelArtifacts,
+    server,
+    request,
 ):
     # TODO: Remove when multi-device is fixed
     os.environ["ROCR_VISIBLE_DEVICES"] = "1"
 
-    tmp_dir = pre_process_model
+    process, port = server
 
-    config_path = write_config
-    prefix_sharing_algorithm = config_path.stem.split("_")[-1]
-    vmfb_path = tmp_dir / "model.vmfb"
-    tokenizer_path = tmp_dir / "tokenizer.json"
-    model_path = tmp_dir / model_param_file_name
-
-    # Start shortfin llm server
-    server_config = ServerConfig(
-        artifacts=ModelArtifacts(
-            weights_path=model_path,
-            tokenizer_path=tokenizer_path,
-            mlir_path=tmp_dir / "model.mlir",
-            vmfb_path=vmfb_path,
-            config_path=config_path,
-        ),
-        device_settings=device_settings,
-    )
-    server = ServerInstance(server_config)
-    server.start()
-
+    tmp_dir = model_artifacts.tokenizer_path.parent
     # Run and collect SGLang Serving Benchmark
     benchmark_args = SGLangBenchmarkArgs(
         backend="shortfin",
         num_prompt=10,
-        base_url=f"http://localhost:{server.port}",
+        base_url=f"http://localhost:{port}",
         tokenizer=tmp_dir,
         request_rate=request_rate,
     )
+
+    paramid = (
+        request.node.callspec.id
+    )  # this would be the param id, e.g. llama31_8b_trie
+
     output_file = (
         tmp_dir
-        / f"{benchmark_args.backend}_{benchmark_args.num_prompt}_{benchmark_args.request_rate}_{prefix_sharing_algorithm}.jsonl"
+        / f"{benchmark_args.backend}_{benchmark_args.num_prompt}_{benchmark_args.request_rate}_{paramid}.jsonl"
     )
     benchmark_args.output_file = output_file
 
     logger.info(
-        f"Starting benchmark run with prefix sharing algorith {prefix_sharing_algorithm}..."
-        + start_log_group(f"Benchmark run with {prefix_sharing_algorithm} algorithm")
+        f"Starting benchmark run on {paramid}..."
+        + start_log_group(f"Benchmark run on {paramid}")
     )
     logger.info("Running SGLang Benchmark with the following settings:")
-    logger.info(f"Prefix sharing algorith: {prefix_sharing_algorithm}")
+    logger.info(f"Test parameterization: {paramid}")
     logger.info(f"Benchmark Args: {benchmark_args}")
     try:
         start = time.time()
@@ -130,5 +107,4 @@ def test_shortfin_benchmark(
         logger.info("Benchmark run successful" + end_log_group())
     except Exception as e:
         logger.error(e)
-
-    server.stop()
+        raise e

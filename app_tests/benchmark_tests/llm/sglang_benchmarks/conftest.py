@@ -18,7 +18,11 @@ from integration_tests.llm.model_management import (
     ModelConfig,
     ModelProcessor,
     ModelSource,
+    ModelArtifacts,
 )
+from integration_tests.llm.server_management import ServerInstance, ServerConfig
+
+from integration_tests.llm import device_settings
 from integration_tests.llm.logging_utils import start_log_group, end_log_group
 
 logger = logging.getLogger(__name__)
@@ -26,80 +30,62 @@ logger = logging.getLogger(__name__)
 MODEL_DIR_CACHE = {}
 
 
-@pytest.fixture(scope="module")
-def pre_process_model(request, tmp_path_factory):
-    tmp_dir = tmp_path_factory.mktemp("sglang_benchmark_test")
-
-    logger.info(
-        "Preparing model artifacts..." + start_log_group("Preparing model artifacts")
-    )
-
-    param_key = hashlib.md5(str(request.param).encode()).hexdigest()
-    if (directory := MODEL_DIR_CACHE.get(param_key)) is not None:
-        logger.info(
-            f"Reusing existing model artifacts directory: {directory}" + end_log_group()
-        )
-        return MODEL_DIR_CACHE[param_key]
-
-    model_name = request.param["model_name"]
-    model_param_file_name = request.param["model_param_file_name"]
-    settings = request.param["settings"]
-    batch_sizes = request.param["batch_sizes"]
-
-    # Configure model
-    config = ModelConfig(
-        model_file=model_param_file_name,
-        tokenizer_id=model_name,  # Using model_name as tokenizer_id, adjust if needed
-        batch_sizes=batch_sizes,
-        device_settings=settings,
+# we can replace this with an import after #890 merges
+TEST_MODELS = {
+    "llama3.1_8b": ModelConfig(
         source=ModelSource.HUGGINGFACE,
-        repo_id=model_name,  # Using model_name as repo_id, adjust if needed
-    )
-
-    # Process model through all stages
-    processor = ModelProcessor(tmp_dir)
-    artifacts = processor.process_model(config)
-
-    logger.info("Model artifacts setup successfully" + end_log_group())
-    MODEL_DIR_CACHE[param_key] = tmp_dir
-    return tmp_dir
+        repo_id="SanctumAI/Meta-Llama-3.1-8B-Instruct-GGUF",
+        model_file="meta-llama-3.1-8b-instruct.f16.gguf",
+        tokenizer_id="NousResearch/Meta-Llama-3.1-8B",
+        batch_sizes=(1, 4),
+        device_settings=device_settings.GFX942,
+    ),
+}
 
 
 @pytest.fixture(scope="module")
-def write_config(request, pre_process_model):
-    batch_sizes = request.param["batch_sizes"]
-    prefix_sharing_algorithm = request.param["prefix_sharing_algorithm"]
+def model_artifacts(tmp_path_factory, request):
+    """Prepares model artifacts in a cached directory."""
+    model_config = TEST_MODELS[request.param]
+    cache_key = hashlib.md5(str(model_config).encode()).hexdigest()
 
-    # Construct the new config filename
-    config_path = (
-        pre_process_model
-        / f"{'_'.join(str(bs) for bs in batch_sizes)}_{prefix_sharing_algorithm}.json"
+    cache_dir = tmp_path_factory.mktemp("model_cache")
+    model_dir = cache_dir / cache_key
+
+    # Return cached artifacts if available
+    if model_dir.exists():
+        return ModelArtifacts(
+            weights_path=model_dir / model_config.model_file,
+            tokenizer_path=model_dir / "tokenizer.json",
+            mlir_path=model_dir / "model.mlir",
+            vmfb_path=model_dir / "model.vmfb",
+            config_path=model_dir / "config.json",
+        )
+
+    # Process model and create artifacts
+    processor = ModelProcessor(cache_dir)
+    return processor.process_model(model_config)
+
+
+@pytest.fixture(scope="module")
+def server(model_artifacts, request):
+    """Starts and manages the test server."""
+    model_id = request.param["model"]
+    model_config = TEST_MODELS[model_id]
+
+    server_config = ServerConfig(
+        artifacts=model_artifacts,
+        device_settings=model_config.device_settings,
+        prefix_sharing_algorithm=request.param.get("prefix_sharing", "none"),
     )
 
-    # Read the base config file
-    base_config_path = pre_process_model / "config.json"
-    with open(base_config_path, "r") as f:
-        config = json.load(f)
+    server_instance = ServerInstance(server_config)
+    server_instance.start()
+    process, port = server_instance.process, server_instance.port
+    yield process, port
 
-    # Override specific fields
-    config.update(
-        {
-            "prefill_batch_sizes": batch_sizes,
-            "decode_batch_sizes": batch_sizes,
-            "paged_kv_cache": {
-                **config.get(
-                    "paged_kv_cache", {}
-                ),  # Preserve other paged_kv_cache settings
-                "prefix_sharing_algorithm": prefix_sharing_algorithm,
-            },
-        }
-    )
-
-    logger.info(f"Saving edited config to: {config_path}\n")
-    logger.info(f"Config: {json.dumps(config, indent=2)}")
-    with open(config_path, "w") as f:
-        json.dump(config, f)
-    yield config_path
+    process.terminate()
+    process.wait()
 
 
 def pytest_addoption(parser):

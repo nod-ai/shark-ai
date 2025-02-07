@@ -78,13 +78,14 @@ class GenerateService:
         self.idle_fibers = set()
         # For each worker index we create one on each device, and add their fibers to the idle set.
         # This roughly ensures that the first picked fibers are distributed across available devices.
-        for i in range(self.workers_per_device):
-            for idx, device in enumerate(self.sysman.ls.devices):
+        for idx, device in enumerate(self.sysman.ls.devices):
+            for i in range(self.workers_per_device):
                 worker = sysman.ls.create_worker(f"{name}-inference-{device.name}-{i}")
                 self.workers.append(worker)
-        for idx, device in enumerate(self.sysman.ls.devices):
             for i in range(self.fibers_per_device):
-                tgt_worker = self.workers[i % len(self.workers)]
+                tgt_worker = self.workers[
+                    idx * workers_per_device + i % workers_per_device
+                ]
                 fiber = sysman.ls.create_fiber(tgt_worker, devices=[device])
                 self.fibers.append(fiber)
                 self.idle_fibers.add(fiber)

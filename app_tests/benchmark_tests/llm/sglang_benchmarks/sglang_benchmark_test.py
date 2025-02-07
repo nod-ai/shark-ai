@@ -8,6 +8,9 @@ import logging
 import pytest
 import time
 from unittest.mock import patch
+from transformers import AutoTokenizer
+import os
+import requests
 
 pytest.importorskip("sglang")
 from sglang import bench_serving
@@ -23,6 +26,39 @@ from integration_tests.llm.server_management import ServerInstance
 logger = logging.getLogger(__name__)
 
 
+def download_tokenizer(local_dir, tokenizer_id):
+    # Set up tokenizer if it doesn't exist
+    tokenizer_path = local_dir / "tokenizer.json"
+    logger.info(f"Preparing tokenizer_path: {tokenizer_path}...")
+    if not os.path.exists(tokenizer_path):
+        logger.info(f"Downloading tokenizer {tokenizer_id} from Hugging Face...")
+        tokenizer = AutoTokenizer.from_pretrained(
+            tokenizer_id,
+        )
+        tokenizer.save_pretrained(local_dir)
+        logger.info(f"Tokenizer saved to {tokenizer_path}")
+    else:
+        logger.info("Using cached tokenizer")
+
+
+def wait_for_server(url, timeout):
+    logger.info(f"Waiting for server to start at {url}...")
+    start = time.time()
+    elapsed = 0
+    while elapsed <= timeout:
+        try:
+            requests.get(f"{url}/health")
+            logger.info("Server successfully started")
+            return
+        except requests.exceptions.ConnectionError:
+            logger.info(
+                f"Server has not started yet; waited {elapsed} seconds; timeout: {timeout} seconds."
+            )
+            time.sleep(1)
+        elapsed = time.time() - start
+    raise TimeoutError(f"Server did not start within {timeout} seconds at {url}")
+
+
 @pytest.mark.parametrize(
     "request_rate,tokenizer_id",
     [(req_rate, "NousResearch/Meta-Llama-3-8B") for req_rate in [1, 2, 4, 8, 16, 32]],
@@ -30,31 +66,16 @@ logger = logging.getLogger(__name__)
 def test_sglang_benchmark(request_rate, tokenizer_id, sglang_args, tmp_path_factory):
     tmp_dir = tmp_path_factory.mktemp("sglang_benchmark_test")
 
-    # Download tokenizer using ModelProcessor
-    config = ModelConfig(
-        model_file="tokenizer.json",  # Only need tokenizer
-        tokenizer_id=tokenizer_id,
-        batch_sizes=(1,),  # Not relevant for tokenizer only
-        device_settings=None,  # Not relevant for tokenizer only
-        source=ModelSource.HUGGINGFACE,
-        repo_id=tokenizer_id,
-    )
-    processor = ModelProcessor(tmp_dir)
-    artifacts = processor.process_model(config)
+    download_tokenizer(tmp_dir, tokenizer_id)
 
     logger.info("Beginning SGLang benchmark test...")
 
     port = sglang_args
     base_url = f"http://localhost:{port}"
 
-    # Wait for server using ServerInstance's method
-    server = ServerInstance(
-        None
-    )  # We don't need config since we're just using wait_for_ready
-    server.port = int(port)  # Set port manually since we didn't start the server
-    server.wait_for_ready(
-        timeout=600
-    )  # High timeout for model artifacts download and server startup
+    # Setting a high timeout gives enough time for downloading model artifacts
+    # and starting up server... Takes a little longer than shortfin.
+    wait_for_server(base_url, timeout=600)
 
     benchmark_args = SGLangBenchmarkArgs(
         backend="sglang",
