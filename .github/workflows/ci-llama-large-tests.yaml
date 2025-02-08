@@ -28,7 +28,7 @@ jobs:
       matrix:
         version: [3.11]
       fail-fast: false
-    runs-on: linux-mi300-gpu-1
+    runs-on: llama-mi300x-1
     defaults:
       run:
         shell: bash
@@ -48,9 +48,6 @@ jobs:
           python-version: ${{matrix.version}}
       - name: Create Python venv
         run: python -m venv ${VENV_DIR}
-
-      - name: Confirm successful mount
-        run: ls /shark-dev
 
       - name: Install pip deps
         run: |
