@@ -170,7 +170,17 @@ linear.override(Tensor, QuantizedTensor)(linear_quantized_weight)
 linear.override(Tensor, QuantizedTensor, AnyTensor)(linear_quantized_weight)
 
 
-def _invoke_mmt_kernel(lhs, rhs, *, accum_dtype):
+def _is_dtype_unsigned_integer(dtype: torch.dtype):
+    return (
+        not dtype.is_complex()
+        and not dtype.is_floating_point()
+        and not dtype.is_signed()
+    )
+
+
+def _invoke_mmt_kernel(
+    lhs: torch.Tensor, rhs: torch.Tensor, *, accum_dtype: torch.dtype
+):
     if debugging.flags.use_custom_iree_kernels:
         # The custom kernel requires that the lhs and rhs be the same
         # rank. Broadcast the rhs to match.
@@ -187,7 +197,17 @@ def _invoke_mmt_kernel(lhs, rhs, *, accum_dtype):
             rhs_size = [lhs.shape[0]] + list(rhs.shape)
             rhs = rhs.unsqueeze(0).expand(rhs_size)
             rhs_rank = len(rhs.shape)
-        y_qs = kernels.batch_matmul_transpose_b(lhs, rhs, accum_dtype=accum_dtype)
+        if (
+            _is_dtype_unsigned_integer(lhs.dtype)
+            or _is_dtype_unsigned_integer(rhs.dtype)
+            or _is_dtype_unsigned_integer(accum_dtype)
+        ):
+            # TODO: make the kernel work with unsigned types.
+            y_qs = kernels.batch_matmul_transpose_b(
+                lhs.to(dtype=accum_dtype), rhs.to(dtype=accum_dtype)
+            )
+        else:
+            y_qs = kernels.batch_matmul_transpose_b(lhs, rhs, accum_dtype=accum_dtype)
         # Squeeze the batch dimension to maintain shape parity with other
         # layers.
         if len(y_qs.shape) > 2:

@@ -61,6 +61,63 @@ class batch_matmul_transpose_b_test(unittest.TestCase):
         ref = torch.matmul(a.to(dtype=accum_dtype), bT.to(dtype=accum_dtype))
         torch.testing.assert_close(result, ref, atol=1e-3, rtol=0)
 
+    @pytest.mark.xfail(
+        reason="Does not work with unsigned types. The kernel needs to be adapted."
+    )
+    def testArgUi8AccumI32(self):
+        arg_dtype = torch.uint8
+        a = ((torch.rand([2, 3, 5]) * 255) + 0.5).to(dtype=arg_dtype)
+        b = ((torch.rand([2, 4, 5]) * 255) + 0.5).to(dtype=arg_dtype)
+        accum_dtype = torch.int32
+        result = kernels.batch_matmul_transpose_b(a, b, accum_dtype=accum_dtype)
+
+        bT = torch.transpose(b, 1, 2)
+        ref = torch.matmul(a.to(dtype=accum_dtype), bT.to(dtype=accum_dtype))
+        torch.testing.assert_close(result, ref, atol=0, rtol=0)
+
+    @pytest.mark.xfail(
+        reason="Does not work with unsigned types. The kernel needs to be adapted."
+    )
+    def testArgLhsI8RhsUi8AccumI32(self):
+        a = ((torch.rand([2, 3, 5]) - 0.5) * 255).to(dtype=torch.int8)
+        b = ((torch.rand([2, 4, 5]) * 255) + 0.5).to(dtype=torch.uint8)
+        accum_dtype = torch.int32
+        result = kernels.batch_matmul_transpose_b(a, b, accum_dtype=accum_dtype)
+
+        bT = torch.transpose(b, 1, 2)
+        ref = torch.matmul(a.to(dtype=accum_dtype), bT.to(dtype=accum_dtype))
+        torch.testing.assert_close(result, ref, atol=0, rtol=0)
+
+    def testArgI8AccumI32(self):
+        arg_dtype = torch.int8
+        a = ((torch.rand([2, 3, 5]) - 0.5) * 255).to(dtype=arg_dtype)
+        b = ((torch.rand([2, 3, 5]) - 0.5) * 255).to(dtype=arg_dtype)
+        accum_dtype = torch.int32
+        result = kernels.batch_matmul_transpose_b(a, b, accum_dtype=accum_dtype)
+
+        bT = torch.transpose(b, 1, 2)
+        ref = torch.matmul(a.to(dtype=accum_dtype), bT.to(dtype=accum_dtype))
+        torch.testing.assert_close(result, ref, atol=0, rtol=0)
+
+    @pytest.mark.xfail(
+        reason="""No uint32 dtype conversions in IREE Turbine.
+        Does not work with unsigned types. The kernel needs to be adapted.
+        The problem is that we reinterpret cast to signless integer types.
+        Maybe linalg.batch_matmul_transpose_b when promoting from i8 to i32 assumes a
+        signed type even though i8 is signless."""
+    )
+    def testArgUi8AccumUi32(self):
+        arg_dtype = torch.uint8
+        a = ((torch.rand([2, 3, 5]) * 255) + 0.5).to(dtype=arg_dtype)
+        b = ((torch.rand([2, 4, 5]) * 255) + 0.5).to(dtype=arg_dtype)
+        accum_dtype = torch.uint32
+        result = kernels.batch_matmul_transpose_b(a, b, accum_dtype=accum_dtype)
+
+        bT = torch.transpose(b, 1, 2)
+        ref = torch.matmul(a.to(dtype=torch.int32), bT.to(dtype=torch.int32))
+        ref = ref.to(dtype=accum_dtype)
+        torch.testing.assert_close(result, ref, atol=0, rtol=0)
+
     @parameterized.expand(
         [
             (torch.int32, None),
