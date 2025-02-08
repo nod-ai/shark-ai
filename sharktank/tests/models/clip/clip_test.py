@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 from parameterized import parameterized
 from copy import copy
+import logging
 import pytest
 import torch
 from torch.utils._pytree import tree_map
@@ -71,6 +72,8 @@ from sharktank.layers.configs.llm_configs import ClipTextConfig
 from sharktank import ops
 
 with_clip_data = pytest.mark.skipif("not config.getoption('with_clip_data')")
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.mark.usefixtures("path_prefix")
@@ -163,6 +166,7 @@ class ClipTextIreeTest(TempDirTestBase):
         batch_size = input_ids.shape[0]
         mlir_path = f"{target_model_path_prefix}.mlir"
 
+        logger.info("Exporting clip text model to MLIR...")
         export_clip_text_model_iree_test_data(
             reference_model=reference_model,
             target_dtype=target_dtype,
@@ -172,12 +176,14 @@ class ClipTextIreeTest(TempDirTestBase):
         )
 
         iree_module_path = f"{target_model_path_prefix}.vmfb"
+        logger.info("Compiling MLIR file...")
         iree.compiler.compile_file(
             mlir_path,
             output_file=iree_module_path,
             extra_args=["--iree-hal-target-device=hip", "--iree-hip-target=gfx942"],
         )
 
+        logger.info("Invoking reference torch function...")
         reference_result_dict = call_torch_module_function(
             module=reference_model,
             function_name="forward",
@@ -187,6 +193,7 @@ class ClipTextIreeTest(TempDirTestBase):
         expected_outputs = flatten_for_iree_signature(reference_result_dict)
 
         iree_devices = get_iree_devices(driver="hip", device_count=1)
+        logger.info("Loading IREE module...")
         iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
             module_path=iree_module_path,
             devices=iree_devices,
@@ -195,6 +202,7 @@ class ClipTextIreeTest(TempDirTestBase):
         iree_args = prepare_iree_module_function_args(
             args=flatten_for_iree_signature(input_args), devices=iree_devices
         )
+        logger.info("Invoking IREE function...")
         iree_result = iree_to_torch(
             *run_iree_module_function(
                 module=iree_module,
@@ -213,6 +221,7 @@ class ClipTextIreeTest(TempDirTestBase):
         actual_last_hidden_state = actual_outputs[0]
         expected_last_hidden_state = expected_outputs[0]
 
+        logger.info("Comparing outputs...")
         assert_text_encoder_state_close(
             actual_last_hidden_state, expected_last_hidden_state, atol
         )

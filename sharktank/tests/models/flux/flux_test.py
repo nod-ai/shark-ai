@@ -40,6 +40,7 @@ from sharktank.transforms.dataset import set_float_dtype
 from sharktank.types import Dataset, Theta
 
 logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 with_flux_data = pytest.mark.skipif("not config.getoption('with_flux_data')")
 
 iree_compile_flags = [
@@ -102,6 +103,7 @@ class FluxTest(TempDirTestBase):
         parameters_path = self._temp_dir / "parameters.irpa"
         batch_size = 1
         batch_sizes = [batch_size]
+        logger.info("Exporting flux transformer to MLIR...")
         export_flux_transformer(
             target_torch_model,
             mlir_output_path=mlir_path,
@@ -110,9 +112,10 @@ class FluxTest(TempDirTestBase):
         )
 
         iree_module_path = self._temp_dir / "model.vmfb"
+        logger.info("Compiling MLIR file...")
         iree.compiler.compile_file(
-            mlir_path,
-            output_file=iree_module_path,
+            str(mlir_path),
+            output_file=str(iree_module_path),
             extra_args=iree_compile_flags,
         )
 
@@ -136,6 +139,7 @@ class FluxTest(TempDirTestBase):
             for k, t in target_input_kwargs.items()
         )
 
+        logger.info("Invoking reference torch function...")
         reference_result_dict = call_torch_module_function(
             module=reference_model,
             function_name="forward",
@@ -145,6 +149,7 @@ class FluxTest(TempDirTestBase):
         expected_outputs = flatten_for_iree_signature(reference_result_dict)
 
         iree_devices = get_iree_devices(driver="hip", device_count=1)
+        logger.info("Loading IREE module...")
         iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
             module_path=iree_module_path,
             devices=iree_devices,
@@ -155,6 +160,7 @@ class FluxTest(TempDirTestBase):
             devices=iree_devices,
         )
 
+        logger.info("Invoking IREE function...")
         iree_result = iree_to_torch(
             *run_iree_module_function(
                 module=iree_module,
@@ -168,6 +174,7 @@ class FluxTest(TempDirTestBase):
             ops.to(iree_result[i], dtype=expected_outputs[i].dtype)
             for i in range(len(expected_outputs))
         ]
+        logger.info("Comparing outputs...")
         torch.testing.assert_close(actual_outputs, expected_outputs, atol=atol, rtol=0)
 
     def runTestCompareDevIreeAgainstHuggingFace(

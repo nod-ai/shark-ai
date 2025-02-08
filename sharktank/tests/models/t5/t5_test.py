@@ -18,6 +18,7 @@ from transformers import (
 from typing import Optional
 import os
 from collections import OrderedDict
+import logging
 import pytest
 import torch
 from torch.utils._pytree import tree_map, tree_unflatten, tree_flatten_with_path
@@ -60,6 +61,8 @@ from sharktank import ops
 import iree.compiler
 
 with_t5_data = pytest.mark.skipif("not config.getoption('with_t5_data')")
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.mark.usefixtures("get_model_artifacts")
@@ -184,15 +187,18 @@ class T5EncoderEagerTest(TestCase):
             pad_to_multiple_of=config.context_length_padding_block_size,
         ).input_ids
 
+        logger.info("Invoking Torch eager model...")
         model = T5Encoder(theta=dataset.root_theta, config=config)
         model.eval()
 
+        logger.info("Invoking reference HuggingFace model...")
         expected_outputs = reference_model(input_ids=input_ids)
         actual_outputs = model(input_ids=input_ids)
         actual_outputs = tree_map(
             lambda t: ops.to(t, dtype=reference_dtype), actual_outputs
         )
 
+        logger.info("Comparing outputs...")
         torch.testing.assert_close(
             actual_outputs, expected_outputs, atol=atol, rtol=rtol
         )
@@ -340,11 +346,13 @@ class T5EncoderIreeTest(TempDirTestBase):
 
         mlir_path = f"{target_model_path_prefix}.mlir"
         if not self.caching or not os.path.exists(mlir_path):
+            logger.info("Exporting T5 encoder model to MLIR...")
             export_encoder_mlir(
                 parameters_path, batch_sizes=[batch_size], mlir_output_path=mlir_path
             )
         iree_module_path = f"{target_model_path_prefix}.vmfb"
         if not self.caching or not os.path.exists(iree_module_path):
+            logger.info("Compiling MLIR file...")
             iree.compiler.compile_file(
                 mlir_path,
                 output_file=iree_module_path,
@@ -352,6 +360,7 @@ class T5EncoderIreeTest(TempDirTestBase):
             )
 
         iree_devices = get_iree_devices(driver="hip", device_count=1)
+        logger.info("Loading IREE module...")
         iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
             module_path=iree_module_path,
             devices=iree_devices,
@@ -360,6 +369,7 @@ class T5EncoderIreeTest(TempDirTestBase):
         iree_args = prepare_iree_module_function_args(
             args=flatten_for_iree_signature(input_args), devices=iree_devices
         )
+        logger.info("Invoking IREE function...")
         iree_result = iree_to_torch(
             *run_iree_module_function(
                 module=iree_module,
@@ -375,6 +385,7 @@ class T5EncoderIreeTest(TempDirTestBase):
             for i in range(len(reference_result))
         ]
 
+        logger.info("Comparing outputs...")
         torch.testing.assert_close(reference_result, iree_result, atol=atol, rtol=rtol)
 
     @with_t5_data
