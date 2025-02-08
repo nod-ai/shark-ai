@@ -171,11 +171,7 @@ linear.override(Tensor, QuantizedTensor, AnyTensor)(linear_quantized_weight)
 
 
 def _is_dtype_unsigned_integer(dtype: torch.dtype):
-    return (
-        not dtype.is_complex()
-        and not dtype.is_floating_point()
-        and not dtype.is_signed()
-    )
+    return not dtype.is_complex and not dtype.is_floating_point and not dtype.is_signed
 
 
 def _invoke_mmt_kernel(
