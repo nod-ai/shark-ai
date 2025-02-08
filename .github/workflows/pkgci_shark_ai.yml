@@ -93,4 +93,3 @@ jobs:
         run: |
           source ${VENV_DIR}/bin/activate
           pytest -v -s --test_device=${{ matrix.test_device }} app_tests/integration_tests/llm/shortfin/open_llama_3b_llm_server_test.py --log-cli-level=INFO
-
