@@ -26,7 +26,6 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
         self.attn_head_count = self.shard_count * 7
         self.block_seq_stride = 19
         self.attn_head_dim = 17
-        self.cache_partition_count = 2
         self.page_count = 23
         self.batch_size = 11
         self.block_seq_len = 2
@@ -37,7 +36,6 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
             attn_head_count=self.attn_head_count,
             block_seq_stride=self.block_seq_stride,
             attn_head_dim=self.attn_head_dim,
-            cache_partition_count=self.cache_partition_count,
             dtype=self.dtype,
         )
         self.sharded_cache = PagedKVCache(
@@ -46,7 +44,6 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
             attn_head_count=self.attn_head_count,
             block_seq_stride=self.block_seq_stride,
             attn_head_dim=self.attn_head_dim,
-            cache_partition_count=self.cache_partition_count,
             dtype=self.dtype,
         )
 
@@ -137,7 +134,7 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
                 self.attn_head_count,
                 self.attn_head_dim,
             )
-            for _ in range(self.cache_partition_count)
+            for _ in range(2)
         ]
         transformer_block_index = 1
         seq_positions = torch.randint(
@@ -148,7 +145,8 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
         )
         self.cache.write_timestep(
             state=cache_state,
-            cache_partitions=cache_partitions,
+            key=cache_partitions[0],
+            value=cache_partitions[1],
             transformer_block_index=transformer_block_index,
             seq_positions=seq_positions,
             page_ids=page_ids,
@@ -163,7 +161,8 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
         sharded_page_ids = ops.replicate(page_ids, count=self.shard_count)
         self.sharded_cache.write_timestep(
             state=sharded_cache_state,
-            cache_partitions=sharded_cache_partitions,
+            key=sharded_cache_partitions[0],
+            value=sharded_cache_partitions[1],
             transformer_block_index=transformer_block_index,
             seq_positions=sharded_seq_positions,
             page_ids=sharded_page_ids,
@@ -185,7 +184,7 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
                 self.attn_head_count,
                 self.attn_head_dim,
             )
-            for _ in range(self.cache_partition_count)
+            for _ in range(2)
         ]
         transformer_block_index = 1
         assert self.batch_size * self.block_seq_len <= self.page_count
@@ -194,7 +193,8 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
         )
         self.cache.write(
             state=cache_state,
-            cache_partitions=cache_partitions,
+            key=cache_partitions[0],
+            value=cache_partitions[1],
             transformer_block_index=transformer_block_index,
             page_ids=page_ids,
         )
@@ -207,7 +207,8 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
         sharded_page_ids = ops.replicate(page_ids, count=self.shard_count)
         self.sharded_cache.write(
             state=sharded_cache_state,
-            cache_partitions=sharded_cache_partitions,
+            key=sharded_cache_partitions[0],
+            value=sharded_cache_partitions[1],
             transformer_block_index=transformer_block_index,
             page_ids=sharded_page_ids,
         )

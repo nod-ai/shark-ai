@@ -233,7 +233,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             # Prefill: Write the entire cache.
             cache.write(
                 cache_state,
-                cache_partitions=[xk_cache_update, xv_cache_update],
+                xk_cache_update,
+                xv_cache_update,
                 transformer_block_index=self.block_index,
                 page_ids=seq_block_ids,
             )
@@ -252,10 +253,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         # Write our one updated cache row into the cache.
         cache.write_timestep(
             cache_state,
-            cache_partitions=[
-                xk_cache_update,
-                xv_cache_update,
-            ],
+            xk_cache_update,
+            xv_cache_update,
             transformer_block_index=self.block_index,
             seq_positions=start_positions,
             page_ids=seq_block_ids,
