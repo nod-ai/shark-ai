@@ -9,6 +9,7 @@ import argparse
 import logging
 import asyncio
 from pathlib import Path
+import math
 import sys
 import time
 import os
@@ -39,76 +40,55 @@ logger.propagate = False
 
 THIS_DIR = Path(__file__).parent
 
-def get_configs(args):
+def get_configs(
+        model_config,
+        flagfile,
+        target,
+        artifacts_dir,
+        use_tuned = True,
+    ):
     # Returns one set of config artifacts.
     modelname = "sdxl"
-    model_config = args.model_config if args.model_config else None
-    topology_config = None
     tuning_spec = None
-    flagfile = args.flagfile if args.flagfile else None
-    topology_inp = args.topology if args.topology else "spx_single"
     cfg_builder_args = [
         sys.executable,
         "-m",
         "iree.build",
         os.path.join(THIS_DIR, "components", "config_artifacts.py"),
-        f"--target={args.target}",
-        f"--output-dir={args.artifacts_dir}",
+        f"--target={target}",
+        f"--output-dir={artifacts_dir}",
         f"--model={modelname}",
-        f"--topology={topology_inp}",
     ]
     outs = subprocess.check_output(cfg_builder_args).decode()
     outs_paths = outs.splitlines()
     for i in outs_paths:
-        if "sdxl_config" in i and not args.model_config:
+        if "sdxl_config" in i and not model_config:
             model_config = i
-        elif "topology" in i and args.topology:
-            topology_config = i
-        elif "flagfile" in i and not args.flagfile:
+        elif "flagfile" in i and not flagfile:
             flagfile = i
-        elif "attention_and_matmul_spec" in i and args.use_tuned:
+        elif "attention_and_matmul_spec" in i and use_tuned:
             tuning_spec = i
 
-    if args.use_tuned and args.tuning_spec:
-        tuning_spec = os.path.abspath(args.tuning_spec)
+    if use_tuned and tuning_spec:
+        tuning_spec = os.path.abspath(tuning_spec)
 
-    if topology_config:
-        with open(topology_config, "r") as f:
-            contents = [line.rstrip() for line in f]
-        for spec in contents:
-            if "--" in spec:
-                arglist = spec.strip("--").split("=")
-                arg = arglist[0]
-                if len(arglist) > 2:
-                    value = arglist[1:]
-                    for val in value:
-                        try:
-                            val = int(val)
-                        except ValueError:
-                            val = val
-                elif len(arglist) == 2:
-                    value = arglist[-1]
-                    try:
-                        value = int(value)
-                    except ValueError:
-                        value = value
-                else:
-                    # It's a boolean arg.
-                    value = True
-                setattr(args, arg, value)
-            else:
-                # It's an env var.
-                arglist = spec.split("=")
-                os.environ[arglist[0]] = arglist[1]
-    return model_config, topology_config, flagfile, tuning_spec, args
+    return model_config, flagfile, tuning_spec
 
 
-def get_modules(args, model_config, flagfile, td_spec):
+def get_modules(
+        target,
+        device,
+        model_config,
+        flagfile=None,
+        td_spec=None,
+        extra_compile_flags=[],
+        artifacts_dir=None,
+    ):
     # TODO: Move this out of server entrypoint
     vmfbs = {"clip": [], "unet": [], "vae": [], "scheduler": []}
     params = {"clip": [], "unet": [], "vae": []}
     model_flags = copy.deepcopy(vmfbs)
-    model_flags["all"] = args.compile_flags
+    model_flags["all"] = extra_compile_flags
 
     if flagfile:
         with open(flagfile, "r") as f:
@@ -135,13 +115,13 @@ def get_modules(args, model_config, flagfile, td_spec):
             "iree.build",
             os.path.join(THIS_DIR, "components", "builders.py"),
             f"--model-json={model_config}",
-            f"--target={args.target}",
-            f"--splat={args.splat}",
-            f"--build-preference={args.build_preference}",
-            f"--output-dir={args.artifacts_dir}",
+            f"--target={target}",
+            f"--splat=False",
+            f"--build-preference=precompiled",
+            f"--output-dir={artifacts_dir}",
             f"--model={modelname}",
-            f"--iree-hal-target-device={args.device}",
-            f"--iree-hip-target={args.target}",
+            f"--iree-hal-target-device={device}",
+            f"--iree-hip-target={target}",
             f"--iree-compile-extra-args={ireec_extra_args}",
         ]
         logger.info(f"Preparing runtime artifacts for {modelname}...")
@@ -161,7 +141,7 @@ def get_modules(args, model_config, flagfile, td_spec):
                     vmfbs[key].extend([name])
     return vmfbs, params
 
-class MicroSDXLServer(sf.Process):
+class MicroSDXLExecutor(sf.Process):
 
     def __init__(self, args, service):
         super().__init__(fiber=service.fibers[0])
@@ -206,48 +186,158 @@ class MicroSDXLServer(sf.Process):
         self.imgs = imgs
         return
 
+class SDXLSampleProcessor():
+    def __init__(self, service):
+        self.service = service
+        self.max_procs = 2
+        self.num_procs = 0
+        self.imgs = []
+        self.procs = set()
+
+    def process(self, args):
+        proc = MicroSDXLExecutor(args, self.service)
+        self.num_procs += 1
+        proc.launch()
+        self.procs.add(proc)
+        return
+
+    def read(self):
+        items = set()
+        for proc in self.procs:
+            if proc.imgs is not None:
+                img = proc.imgs
+                self.procs.remove(proc)
+                self.num_procs -= 1
+                return img
+        return None
+
+
+def create_service(
+        model_params,
+        device,
+        tokenizers, 
+        vmfbs, 
+        params,
+        device_idx=None,
+        device_ids=[],
+        fibers_per_device=1,
+        isolation="per_call",
+        trace_execution=False,
+        amdgpu_async_allocations=False,
+    ):
+    if device_idx is not None:
+        sysman = SystemManager(device, [device_idx], amdgpu_async_allocations)
+    else:
+        sysman = SystemManager(device, device_ids, amdgpu_async_allocations)
+
+    sdxl_service = GenerateService(
+        name="sd",
+        sysman=sysman,
+        tokenizers=tokenizers,
+        model_params=model_params,
+        fibers_per_device=fibers_per_device,
+        workers_per_device=1,
+        prog_isolation=isolation,
+        show_progress=False,
+        trace_execution=trace_execution,
+    )
+    for key, vmfblist in vmfbs.items():
+        for vmfb in vmfblist:
+            sdxl_service.load_inference_module(vmfb, component=key)
+    for key, datasets in params.items():
+        sdxl_service.load_inference_parameters(*datasets, parameter_scope="model", component=key)
+    sdxl_service.start()
+    return sdxl_service
+
+def prepare_service(args):
+    tokenizers = []
+    for idx, tok_name in enumerate(args.tokenizers):
+        subfolder = f"tokenizer_{idx + 1}" if idx > 0 else "tokenizer"
+        tokenizers.append(Tokenizer.from_pretrained(tok_name, subfolder))
+    model_config, flagfile, tuning_spec = get_configs(
+        args.model_config,
+        args.flagfile,
+        args.target,
+        args.artifacts_dir,
+        args.use_tuned
+    )
+    model_params = ModelParams.load_json(model_config)
+    vmfbs, params = get_modules(args.target, args.device, model_config, flagfile, tuning_spec, artifacts_dir=args.artifacts_dir)
+    return model_params, tokenizers, vmfbs, params
+
+
 class Main:
     def __init__(self, sysman):
         self.sysman = sysman
 
-    async def main(self, args):
-        tokenizers = []
-        for idx, tok_name in enumerate(args.tokenizers):
-            subfolder = f"tokenizer_{idx + 1}" if idx > 0 else "tokenizer"
-            tokenizers.append(Tokenizer.from_pretrained(tok_name, subfolder))
-        model_config, topology_config, flagfile, tuning_spec, args = get_configs(args)
-        model_params = ModelParams.load_json(model_config)
-        vmfbs, params = get_modules(args, model_config, flagfile, tuning_spec)
-        sdxl_service = GenerateService(
-            name="sd",
-            sysman=self.sysman,
-            tokenizers=tokenizers,
-            model_params=model_params,
-            fibers_per_device=args.fibers_per_device,
-            workers_per_device=args.workers_per_device,
-            prog_isolation=args.isolation,
-            show_progress=args.show_progress,
-            trace_execution=args.trace_execution,
-        )
-        for key, vmfblist in vmfbs.items():
-            for vmfb in vmfblist:
-                sdxl_service.load_inference_module(vmfb, component=key)
-        for key, datasets in params.items():
-            sdxl_service.load_inference_parameters(*datasets, parameter_scope="model", component=key)
-        sdxl_service.start()
-        start = time.time()
-        reps = args.reps
-        procs = []
-        for i in range(reps):
-            service = MicroSDXLServer(args, sdxl_service)
-            procs.append(service)
-        await asyncio.gather(*[proc.launch() for proc in procs])
-        print(f"Completed {reps} reps in {time.time() - start} seconds.")
-        imgs = []
-        for process in procs:
-            imgs.append(process.imgs)
+    def main(self, args): #queue
+        model_params, tokenizers, vmfbs, params = prepare_service(args)
+        shared_service = False
+        services = set()
+        if shared_service:
+            services.add(
+                create_service(
+                    model_params,
+                    args.device,
+                    tokenizers,
+                    vmfbs,
+                    params,
+                    trace_execution=args.trace_execution, 
+                    amdgpu_async_allocations=args.amdgpu_async_allocations
+                )
+            )
+        else:
+            for idx, device in enumerate(self.sysman.ls.device_names):
+                services.add(create_service(model_params, args.device, tokenizers, vmfbs, params, device_idx = idx, trace_execution=args.trace_execution, amdgpu_async_allocations=args.amdgpu_async_allocations))
+        procs = set()
+        procs_per_service = 2
+        for service in services:
+            for i in range(procs_per_service):
+                sample_processor = SDXLSampleProcessor(service)
+                procs.add(sample_processor)
 
-        return imgs
+        samples = args.samples
+        queue = set()
+        # n sets of arguments into a queue
+
+        for i in range(samples):
+            # Run until told to stop or queue exhaustion
+            # OR multiple dequeue threads pulling from queue
+            # read, instantiate, launch
+            # knob : concurrency control
+            queue.add(i)
+
+        start = time.time()
+        imgs = []
+        # Fire off jobs
+        while len(queue) > 0:
+            # round robin pop items from queue into executors
+            this_processor = procs.pop()
+            while this_processor.num_procs >= this_processor.max_procs:
+                procs.add(this_processor)
+                this_processor = procs.pop()
+                # Try reading and clearing out processes before checking again.
+                for proc in procs:
+                    results = proc.read()
+                    if results:
+                        imgs.append(results)
+                        print(f"{len(imgs)} samples received, of a total {samples}")
+            # Pop item from queue and initiate process.
+            queue.pop()
+            this_processor.process(args)
+            procs.add(this_processor)
+
+
+        # Read responses
+        while len(imgs) < samples:
+            for proc in procs:
+                results = proc.read()
+                if results:
+                    imgs.append(results)
+                    print(f"{len(imgs)} samples received, of a total {samples}")
+
+        print(f"Completed {samples} samples in {time.time() - start} seconds.")
+        return
 
 def run_cli(argv):
     parser = argparse.ArgumentParser()
@@ -364,13 +454,6 @@ def run_cli(argv):
         help="Path to transform dialect spec if compiling an executable with tunings.",
     )
     parser.add_argument(
-        "--topology",
-        type=str,
-        default=None,
-        choices=["spx_single", "cpx_single", "spx_multi", "cpx_multi"],
-        help="Use one of four known performant preconfigured device/fiber topologies.",
-    )
-    parser.add_argument(
         "--use_tuned",
         type=int,
         default=1,
@@ -407,10 +490,16 @@ def run_cli(argv):
         help="RNG seed for image latents.",
     )
     parser.add_argument(
-        "--reps",
+        "--samples",
         type=int,
         default=1,
         help="Benchmark samples.",
+    )
+    parser.add_argument(
+        "--max_concurrent_procs",
+        type=int,
+        default=16,
+        help="Maximum number of executor threads to run at any given time.",
     )
     args = parser.parse_args(argv)
     if not args.artifacts_dir:
@@ -419,10 +508,10 @@ def run_cli(argv):
         args.artifacts_dir = str(artdir)
     else:
         args.artifacts_dir = os.path.abspath(args.artifacts_dir)
+
     sysman = SystemManager(args.device, args.device_ids, args.amdgpu_async_allocations)
     main = Main(sysman)
-    imgs = sysman.ls.run(main.main(args))
-    print(f"number of images generated: {len(imgs)}")
+    main.main(args)
 
 if __name__ == "__main__":
     logging.root.setLevel(logging.INFO)
