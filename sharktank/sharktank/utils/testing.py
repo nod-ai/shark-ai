@@ -27,6 +27,24 @@ def make_rand_torch(shape: list[int], dtype: Optional[torch.dtype] = torch.float
     return torch.rand(shape, dtype=dtype) * 2 - 1
 
 
+# Range of torch.rand() is [0,1)
+# Range of torch.rand() * 2 - 1 is [-1, 1), includes negative values
+def make_rand(
+    shape: list[int],
+    name: Optional[str] = None,
+    dtype: Optional[torch.dtype] = torch.float32,
+):
+    tensor = torch.rand(shape) * 2 - 1
+    if dtype == torch.float8_e4m3fnuz:
+        scale = torch.tensor(torch.finfo(dtype).max)
+        quantizer = StaticScaledQuantizer(scale=scale, dtype=dtype)
+        return quantizer.quantize(tensor)
+
+    if dtype is not None:
+        tensor = tensor.to(dtype)
+    return DefaultPrimitiveTensor(name=name, data=tensor)
+
+
 def make_random_mask(shape: tuple[int], dtype: Optional[torch.dtype] = None):
     mask = make_rand_torch(shape=shape, dtype=dtype)
     mask = (mask >= 0).to(dtype=dtype)
