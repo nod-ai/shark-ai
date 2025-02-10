@@ -29,7 +29,7 @@ jobs:
       matrix:
         version: [3.11]
       fail-fast: false
-    runs-on: mi300x-3
+    runs-on: linux-mi300-1gpu-ossci
     defaults:
       run:
         shell: bash
