@@ -26,7 +26,7 @@ dtype_to_filetag = {
     sfnp.bfloat16: "bf16",
 }
 
-ARTIFACT_VERSION = "12032024"
+ARTIFACT_VERSION = "02102024"
 FLUX_BUCKET = (
     f"https://sharkpublic.blob.core.windows.net/sharkpublic/flux.1/{ARTIFACT_VERSION}/"
 )

@@ -4,41 +4,17 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-# DO NOT SUBMIT: REVIEW AND TEST FILE
-
 """Tests for Flux text-to-image pipeline."""
 
-import functools
 from typing import Optional
-import os
-from collections import OrderedDict
 import pytest
 import torch
 from unittest import TestCase
 import numpy
 
-from transformers import CLIPTokenizer, T5Tokenizer
 from diffusers import FluxPipeline as ReferenceFluxPipeline
 
-from sharktank.types import Dataset, dtype_to_serialized_short_name
-from sharktank.pipelines.flux import (
-    FluxPipeline,
-    export_flux_pipeline_mlir,
-    export_flux_pipeline_iree_parameters,
-)
-from sharktank.utils.testing import TempDirTestBase
-from sharktank.transforms.dataset import set_float_dtype
-from sharktank.utils.iree import (
-    get_iree_devices,
-    load_iree_module,
-    run_iree_module_function,
-    prepare_iree_module_function_args,
-    call_torch_module_function,
-    flatten_for_iree_signature,
-    iree_to_torch,
-)
-from sharktank import ops
-import iree.compiler
+from sharktank.pipelines.flux import FluxPipeline
 
 with_flux_data = pytest.mark.skipif("not config.getoption('with_flux_data')")
 
@@ -87,13 +63,13 @@ class FluxPipelineEagerTest(TestCase):
 
         torch.testing.assert_close(output, reference_output) # TODO: why is this not passing?
 
-    def runTestFluxPipelineAgainstReference(
+    def runTestFluxPipelineAgainstHuggingFace(
         self,
         dtype: torch.dtype,
         atol: Optional[float] = None,
         rtol: Optional[float] = None,
     ):
-        """Compare pipeline outputs between different dtypes."""
+        """Compare pipeline outputs against a HuggingFace based reference"""
         # Initialize reference model
         reference_model = ReferenceFluxPipeline.from_pretrained("/data/flux/FLUX.1-dev/")
 
@@ -138,16 +114,16 @@ class FluxPipelineEagerTest(TestCase):
         torch.testing.assert_close(reference_output, target_output, atol=atol, rtol=rtol)
 
     @with_flux_data
-    def testFluxPipelineF32(self):
+    def testFluxPipelineF32AgainstHuggingFace(self):
         """Test F32 pipeline against reference."""
-        self.runTestFluxPipelineAgainstReference(
+        self.runTestFluxPipelineAgainstHuggingFace(
             dtype=torch.float32,
         )
 
     @with_flux_data
-    def testFluxPipelineBF16(self):
+    def testFluxPipelineBF16AgainstHuggingFace(self):
         """Test BF16 pipeline against refence."""
-        self.runTestFluxPipelineAgainstReference(
+        self.runTestFluxPipelineAgainstHuggingFace(
             dtype=torch.bfloat16,
         )
 

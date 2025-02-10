@@ -122,17 +122,16 @@ class FluxPipeline(BaseLayer):
                 seed=seed,
             )
         
-        with torch.inference_mode():
-            return self.forward(
-                t5_prompt_ids,
-                clip_prompt_ids,
-                latents,
-                height=height,
-                width=width,
-                num_inference_steps=num_inference_steps,
-                guidance_scale=guidance_scale,
-                seed=seed,
-            )
+        return self.forward(
+            t5_prompt_ids,
+            clip_prompt_ids,
+            latents,
+            height=height,
+            width=width,
+            num_inference_steps=num_inference_steps,
+            guidance_scale=guidance_scale,
+            seed=seed,
+        )
 
 
     def forward(
@@ -142,7 +141,7 @@ class FluxPipeline(BaseLayer):
         latents: Tensor,
         height: int = 1024,
         width: int = 1024,
-        num_inference_steps: Optional[int] = 1, # TODO: DO NOT SUBMIT
+        num_inference_steps: Optional[int] = None,
         guidance_scale: float = 3.5,
         seed: Optional[int] = None,
     ) -> Tensor:
@@ -171,9 +170,6 @@ class FluxPipeline(BaseLayer):
         # Decode latents
         x = self._unpack(x.to(dtype=self.dtype), height, width)
         x = self.ae_model(x)
-            
-        if torch.cuda.is_available():
-            torch.cuda.synchronize()
 
         x = x[0]
         x = x.cpu()
@@ -182,7 +178,7 @@ class FluxPipeline(BaseLayer):
         return x.float()
 
 
-    def _prepare(self, t5, clip, t5_prompt_ids, clip_prompt_ids, img: Tensor) -> dict[str, Tensor]:
+    def _prepare(self, t5: T5Encoder, clip: ClipTextModel, t5_prompt_ids: Tensor, clip_prompt_ids: Tensor, img: Tensor) -> dict[str, Tensor]:
         """Prepare inputs for the transformer model.
         
         Args:
@@ -278,7 +274,7 @@ class FluxPipeline(BaseLayer):
         vec: Tensor,
         # sampling parameters
         timesteps: list[float],
-        guidance: float = 4.0,
+        guidance: float = 3.5,
         # extra img tokens
         img_cond: Optional[Tensor] = None,
     ) -> Tensor:
@@ -323,11 +319,24 @@ class FluxPipeline(BaseLayer):
             Tuple of (t5_prompt_ids, clip_prompt_ids) tensors
         """
         # T5 tokenization
-        t5_prompt_ids = [self.t5_tokenizer(p).input_ids for p in [prompt]]
+        t5_prompt_ids = [self.t5_tokenizer(p,
+            truncation=True,
+            max_length=self.max_length,
+            return_length=False,
+            return_overflowing_tokens=False,
+            padding="max_length",
+            return_tensors="pt",).input_ids for p in [prompt]
+        ]
         t5_prompt_ids = torch.tensor(t5_prompt_ids, dtype=torch.long)
 
         # CLIP tokenization
-        clip_prompt_ids = [self.clip_tokenizer(p).input_ids for p in [prompt]]
+        clip_prompt_ids = [self.clip_tokenizer(p,
+            truncation=True,
+            max_length=self.max_length,
+            return_length=False,
+            return_overflowing_tokens=False,
+            padding="max_length",
+            return_tensors="pt",).input_ids for p in [prompt]]
         clip_prompt_ids = torch.tensor(clip_prompt_ids, dtype=torch.long)
         
         return t5_prompt_ids, clip_prompt_ids
