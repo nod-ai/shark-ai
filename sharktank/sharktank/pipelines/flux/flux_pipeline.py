@@ -13,6 +13,7 @@ from PIL import Image
 from torch import Tensor
 from transformers import CLIPTokenizer, T5Tokenizer, CLIPTextModel as HfCLIPTextModel
 
+from sharktank.layers.base import BaseLayer
 from sharktank.models.t5 import T5Config, T5Encoder
 from sharktank.models.clip import ClipTextModel, ClipTextConfig
 from sharktank.models.flux.flux import FluxModelV1, FluxParams
@@ -20,7 +21,7 @@ from sharktank.models.vae.model import VaeDecoderModel
 from sharktank.types import Dataset
 from sharktank.transforms.dataset import set_float_dtype
 
-class FluxPipeline(nn.Module):
+class FluxPipeline(BaseLayer):
     """Pipeline for text-to-image generation using the Flux model."""
     
     def __init__(
@@ -31,12 +32,15 @@ class FluxPipeline(nn.Module):
         ae_path: PathLike,
         t5_tokenizer_path: Optional[PathLike] = None,
         clip_tokenizer_path: Optional[PathLike] = None,
-        device: str = "cuda" if torch.cuda.is_available() else "cpu",
+        device: str = None,
         dtype: torch.dtype = torch.bfloat16,
     ):
         """Initialize the Flux pipeline."""
         super().__init__()
-        self.device = torch.device(device)
+        if device:
+            self.device = torch.device(device)
+        else:
+            self.device = torch.get_default_device()
         self.dtype = dtype
         if t5_tokenizer_path:
             self.t5_tokenizer = T5Tokenizer.from_pretrained(t5_tokenizer_path)
@@ -49,9 +53,6 @@ class FluxPipeline(nn.Module):
             t5_dataset.properties,
             feed_forward_proj="gated-gelu",
         )
-        # t5_dataset.root_theta = t5_dataset.root_theta.transform(
-        #     functools.partial(set_float_dtype, dtype=dtype)
-        # )
         self.t5_model = T5Encoder(theta=t5_dataset.root_theta, config=t5_config)
         self.add_module('t5_model', self.t5_model)
         self.t5_model.to(device)
@@ -61,9 +62,6 @@ class FluxPipeline(nn.Module):
         # TODO: Refactor CLIP to not make the config rely on HuggingFace
         hf_clip_model = HfCLIPTextModel.from_pretrained("/data/flux/FLUX.1-dev/text_encoder/")
         clip_config = ClipTextConfig.from_hugging_face_clip_text_model_config(hf_clip_model.config)
-        # clip_dataset.root_theta = clip_dataset.root_theta.transform(
-        #     functools.partial(set_float_dtype, dtype=dtype)
-        # )
         self.clip_model = ClipTextModel(theta=clip_dataset.root_theta, config=clip_config)
         self.add_module('clip_model', self.clip_model)
         self.clip_model.to(device)
@@ -71,9 +69,6 @@ class FluxPipeline(nn.Module):
         # Load Flux Transformer
         transformer_dataset = Dataset.load(transformer_path)
         transformer_params = FluxParams.from_hugging_face_properties(transformer_dataset.properties)
-        # transformer_dataset.root_theta = transformer_dataset.root_theta.transform(
-        #     functools.partial(set_float_dtype, dtype=dtype)
-        # )
         self.transformer_model = FluxModelV1(
             theta=transformer_dataset.root_theta,
             params=transformer_params
@@ -83,36 +78,11 @@ class FluxPipeline(nn.Module):
 
         # Load VAE
         ae_dataset = Dataset.load(ae_path)
-        # ae_dataset.root_theta = ae_dataset.root_theta.transform(
-        #     functools.partial(set_float_dtype, dtype=dtype)
-        # )
         self.ae_model = VaeDecoderModel.from_dataset(ae_dataset)
         self.add_module('ae_model', self.ae_model)
         self.ae_model.to(device)
 
         self._rng = torch.Generator(device="cpu")
-        
-    def _get_noise(
-        self,
-        num_samples: int,
-        height: int,
-        width: int,
-        seed: Optional[int] = None,
-    ) -> Tensor:
-        """Generate initial noise for the diffusion process."""
-        if seed is not None:
-            self._rng.manual_seed(seed)
-            
-        return torch.randn(
-            num_samples,
-            16,
-            # allow for packing
-            2 * math.ceil(height / 16),
-            2 * math.ceil(width / 16),
-            device=self.device,
-            dtype=self.dtype,
-            generator=self._rng,
-        )
     
     def __call__(
         self,
@@ -145,7 +115,7 @@ class FluxPipeline(nn.Module):
             
         t5_prompt_ids, clip_prompt_ids = self.tokenize_prompt(prompt)
         if not latents:
-            latents = self._get_noise(
+            latents = self.transformer_model._get_noise(
                 1,
                 height,
                 width,

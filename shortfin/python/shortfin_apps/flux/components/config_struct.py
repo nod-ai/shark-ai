@@ -71,7 +71,7 @@ class ModelParams:
     vae_fn_name: str = "decode"
     vae_dtype: sfnp.DType = sfnp.float32
 
-    # Whether model is "schnell" (fast) or not. This is roughly equivalent to "turbo" from SDXL.
+    # Whether model is "schnell" (fast) or not. This is roughly equivalent to "turbo" from FLUX.
     # It cuts batch dims in half for sampling/encoding and removes negative prompt functionality.
     is_schnell: bool = False
 

@@ -27,10 +27,10 @@ dtype_to_filetag = {
 }
 
 ARTIFACT_VERSION = "12032024"
-SDXL_BUCKET = (
+FLUX_BUCKET = (
     f"https://sharkpublic.blob.core.windows.net/sharkpublic/flux.1/{ARTIFACT_VERSION}/"
 )
-SDXL_WEIGHTS_BUCKET = (
+FLUX_WEIGHTS_BUCKET = (
     "https://sharkpublic.blob.core.windows.net/sharkpublic/flux.1/weights/"
 )
 
@@ -237,7 +237,7 @@ class FetchHttpWithCheckAction(BuildAction):
                 self._invoke(retries=retries)
 
 
-@entrypoint(description="Retreives a set of SDXL submodels.")
+@entrypoint(description="Retreives a set of FLUX submodels.")
 def flux(
     model_json=cl_arg(
         "model-json",
@@ -263,8 +263,8 @@ def flux(
     ctx = executor.BuildContext.current()
     update = needs_update(ctx)
 
-    mlir_bucket = SDXL_BUCKET + "mlir/"
-    vmfb_bucket = SDXL_BUCKET + "vmfbs/"
+    mlir_bucket = FLUX_BUCKET + "mlir/"
+    vmfb_bucket = FLUX_BUCKET + "vmfbs/"
     if "gfx" in target:
         target = "amdgpu-" + target
 
@@ -295,7 +295,7 @@ def flux(
                 fetch_http(name=f, url=url)
 
     params_filenames = get_params_filenames(model_params, model=model, splat=splat)
-    params_urls = get_url_map(params_filenames, SDXL_WEIGHTS_BUCKET)
+    params_urls = get_url_map(params_filenames, FLUX_WEIGHTS_BUCKET)
     for f, url in params_urls.items():
         if needs_file(f, ctx, url):
             fetch_http_check_size(name=f, url=url)
