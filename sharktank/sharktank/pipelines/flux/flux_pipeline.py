@@ -1,17 +1,15 @@
 """Flux text-to-image generation pipeline."""
 
 import argparse
-import functools
 import math
 from os import PathLike
 from typing import Callable, Optional
 
 import torch
-import torch.nn as nn
 from einops import rearrange, repeat
 from PIL import Image
 from torch import Tensor
-from transformers import CLIPTokenizer, T5Tokenizer, CLIPTextModel as HfCLIPTextModel
+from transformers import CLIPTokenizer, T5Tokenizer
 
 from sharktank.layers.base import BaseLayer
 from sharktank.models.t5 import T5Config, T5Encoder
@@ -19,7 +17,6 @@ from sharktank.models.clip import ClipTextModel, ClipTextConfig
 from sharktank.models.flux.flux import FluxModelV1, FluxParams
 from sharktank.models.vae.model import VaeDecoderModel
 from sharktank.types import Dataset
-from sharktank.transforms.dataset import set_float_dtype
 
 class FluxPipeline(BaseLayer):
     """Pipeline for text-to-image generation using the Flux model."""
@@ -59,9 +56,7 @@ class FluxPipeline(BaseLayer):
 
         # Load CLIP
         clip_dataset = Dataset.load(clip_path)
-        # TODO: Refactor CLIP to not make the config rely on HuggingFace
-        hf_clip_model = HfCLIPTextModel.from_pretrained("/data/flux/FLUX.1-dev/text_encoder/")
-        clip_config = ClipTextConfig.from_hugging_face_clip_text_model_config(hf_clip_model.config)
+        clip_config = ClipTextConfig.from_properties(clip_dataset.properties)
         self.clip_model = ClipTextModel(theta=clip_dataset.root_theta, config=clip_config)
         self.add_module('clip_model', self.clip_model)
         self.clip_model.to(device)
@@ -220,6 +215,7 @@ class FluxPipeline(BaseLayer):
     def _time_shift(self, mu: float, sigma: float, t: Tensor) -> Tensor:
         """Apply time shift to the schedule."""
         return math.exp(mu) / (math.exp(mu) + (1 / t - 1) ** sigma)
+
     def _get_lin_function(
         self,
         x1: float = 256,
@@ -231,7 +227,6 @@ class FluxPipeline(BaseLayer):
         m = (y2 - y1) / (x2 - x1)
         b = y1 - m * x1
         return lambda x: m * x + b
-
 
     def _get_schedule(
         self,
@@ -297,7 +292,6 @@ class FluxPipeline(BaseLayer):
             img = img + (t_prev_vec - t_curr_vec) * pred
 
         return img
-
 
     def _unpack(self, x: Tensor, height: int, width: int) -> Tensor:
         return rearrange(
