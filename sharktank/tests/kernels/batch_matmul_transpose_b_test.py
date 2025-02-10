@@ -42,13 +42,11 @@ class batch_matmul_transpose_b_test(unittest.TestCase):
         ref = torch.matmul(a, bT)
         torch.testing.assert_close(result, ref, atol=atol, rtol=rtol)
 
-    @pytest.mark.xfail(
-        reason="""Does not compile for llvm-cpu with
-          <unknown>:0: error: 'llvm.fpext' op operand #0 must be floating point LLVM type or LLVM dialect-compatible vector of floating point LLVM type, but got 'vector<4xi8>'
-          <unknown>:0: note: see current operation: %120 = "llvm.fpext"(%109) : (vector<4xi8>) -> vector<4xf32>
-          """
-    )
     def testArgF8AccumF32(self):
+        # TODO: make this test not use eager but actually execute with IREE.
+        # Does not compile for llvm-cpu with
+        # <unknown>:0: error: 'llvm.fpext' op operand #0 must be floating point LLVM type or LLVM dialect-compatible vector of floating point LLVM type, but got 'vector<4xi8>'
+        # <unknown>:0: note: see current operation: %120 = "llvm.fpext"(%109) : (vector<4xi8>) -> vector<4xf32>
         arg_dtype = torch.float8_e4m3fnuz
         a = torch.rand([3, 4, 6]).to(arg_dtype)
         b = torch.rand([3, 5, 6]).to(arg_dtype)
@@ -61,10 +59,9 @@ class batch_matmul_transpose_b_test(unittest.TestCase):
         ref = torch.matmul(a.to(dtype=accum_dtype), bT.to(dtype=accum_dtype))
         torch.testing.assert_close(result, ref, atol=1e-3, rtol=0)
 
-    @pytest.mark.xfail(
-        reason="Does not work with unsigned types. The kernel needs to be adapted."
-    )
     def testArgUi8AccumI32(self):
+        # TODO: make this test not use eager but actually execute with IREE.
+        # Does not work with unsigned types. The kernel needs to be adapted.
         arg_dtype = torch.uint8
         a = ((torch.rand([2, 3, 5]) * 255) + 0.5).to(dtype=arg_dtype)
         b = ((torch.rand([2, 4, 5]) * 255) + 0.5).to(dtype=arg_dtype)
@@ -75,9 +72,6 @@ class batch_matmul_transpose_b_test(unittest.TestCase):
         ref = torch.matmul(a.to(dtype=accum_dtype), bT.to(dtype=accum_dtype))
         torch.testing.assert_close(result, ref, atol=0, rtol=0)
 
-    @pytest.mark.xfail(
-        reason="Does not work with unsigned types. The kernel needs to be adapted."
-    )
     def testArgLhsI8RhsUi8AccumI32(self):
         a = ((torch.rand([2, 3, 5]) - 0.5) * 255).to(dtype=torch.int8)
         b = ((torch.rand([2, 4, 5]) * 255) + 0.5).to(dtype=torch.uint8)

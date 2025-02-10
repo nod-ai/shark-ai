@@ -49,6 +49,10 @@ class _batch_matmul_transpose_b(CustomOp):
         "batch_matmul_transpose_b(Tensor lhs, Tensor rhs, str accum_dtype) -> (Tensor)"
     )
 
+    def eager_execute(self, lhs: torch.Tensor, rhs: torch.Tensor, accum_dtype: str):
+        dtype = IREE_TYPE_ASM_TO_TORCH_DTYPE[accum_dtype]
+        return torch.matmul(lhs.to(dtype=dtype), rhs.transpose(-1, -2).to(dtype=dtype))
+
     def select(self, ksel: KernelSelection):
         lhs_desc = ksel.arg_tensor(0)  # Shape [B, M, K]
         rhs_desc = ksel.arg_tensor(1)  # Shape [B, N, K]
