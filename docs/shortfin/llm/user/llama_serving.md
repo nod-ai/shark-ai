@@ -310,6 +310,11 @@ ps -f | grep shortfin
 
 <!-- TODO(#402): Streamline the way that models are sharded/exported/compiled for server. -->
 
+> [!WARNING]
+>
+> There is a [known issue](https://github.com/iree-org/iree/issues/19948)
+> impacting the accuracy of outputs from *sharded llama* variants.
+
 Sharding, in the context of LLMs, refers to splitting the model’s parameters
 across multiple machines or GPUs so that each device only handles a portion of
 the overall weight matrix. This technique allows large models to fit into

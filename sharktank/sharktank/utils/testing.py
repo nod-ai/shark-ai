@@ -239,8 +239,56 @@ def assert_iterables_equal(
         ), f"Iterables not equal at index {i} for elements {v1} and {v2}"
 
 
+def assert_tensor_close(
+    actual: torch.Tensor,
+    expected: torch.Tensor,
+    atol: float,
+    max_outliers_fraction: Optional[float] = None,
+    inlier_atol: Optional[float] = None,
+):
+    if (max_outliers_fraction is None and inlier_atol is not None) or (
+        max_outliers_fraction is not None and inlier_atol is None
+    ):
+        raise ValueError(
+            "max_outliers_fraction and inlier_atol must be provided or not together."
+        )
+
+    try:
+        torch.testing.assert_close(
+            actual,
+            expected,
+            atol=atol,
+            rtol=0,
+        )
+
+        if inlier_atol is not None:
+            outliers = (actual - expected).abs() > inlier_atol
+            outliers_fraction = outliers.count_nonzero() / outliers.numel()
+            if outliers_fraction > max_outliers_fraction:
+                raise AssertionError(
+                    f"The fraction of outliers {outliers_fraction:%} is above the allowed "
+                    f"{max_outliers_fraction:%}. Inlier atol={inlier_atol}."
+                )
+    except AssertionError as ex:
+        diff = actual - expected
+        std, mean = torch.std_mean(diff)
+        msg = (
+            "Difference (actual - expected):\n"
+            f"mean = {mean}\n"
+            f"median = {diff.median()}\n"
+            f"std dev = {std}\n"
+            f"min = {diff.min()}\n"
+            f"max = {diff.max()}\n"
+        )
+        raise AssertionError(msg) from ex
+
+
 def assert_text_encoder_state_close(
-    actual: torch.Tensor, expected: torch.Tensor, atol: float
+    actual: torch.Tensor,
+    expected: torch.Tensor,
+    atol: float,
+    max_outliers_fraction: Optional[float] = None,
+    inlier_atol: Optional[float] = None,
 ):
     """The cosine similarity has been suggested to compare encoder states.
 
@@ -261,11 +309,13 @@ def assert_text_encoder_state_close(
         expected,
         dim=-1,
     )
-    torch.testing.assert_close(
-        cosine_similarity_per_token,
-        torch.ones_like(cosine_similarity_per_token),
+
+    assert_tensor_close(
+        actual=cosine_similarity_per_token,
+        expected=torch.ones_like(cosine_similarity_per_token),
         atol=atol,
-        rtol=0,
+        max_outliers_fraction=max_outliers_fraction,
+        inlier_atol=inlier_atol,
     )
 
 

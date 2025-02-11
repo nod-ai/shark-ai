@@ -32,7 +32,7 @@ jobs:
             test_device: cpu
             python-version: 3.11
           - name: amdgpu_rocm_mi300_gfx942
-            runs-on: linux-mi300-gpu-1
+            runs-on: linux-mi300-1gpu-ossci
             test_device: gfx942
             python-version: 3.11
           # temporarily disable mi250 because the cluster is unsable & slow

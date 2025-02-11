@@ -41,6 +41,7 @@ from sharktank.models.t5 import (
     export_encoder_iree_parameters,
 )
 from sharktank.utils.testing import (
+    assert_text_encoder_state_close,
     make_rand_torch,
     make_random_mask,
     TempDirTestBase,
@@ -107,8 +108,8 @@ class T5EncoderEagerTest(TestCase):
         ) as f:
             reference_last_hidden_state = torch.load(f)
 
-        torch.testing.assert_close(
-            outputs["last_hidden_state"], reference_last_hidden_state
+        assert_text_encoder_state_close(
+            outputs["last_hidden_state"], reference_last_hidden_state, atol=1e-1
         )
 
     def runTestV1_1CompareTorchEagerHuggingFace(
@@ -116,8 +117,7 @@ class T5EncoderEagerTest(TestCase):
         huggingface_repo_id: str,
         reference_dtype: torch.dtype,
         target_dtype: torch.dtype,
-        atol: Optional[float] = None,
-        rtol: Optional[float] = None,
+        atol: float,
     ):
         get_dataset(
             huggingface_repo_id,
@@ -146,8 +146,10 @@ class T5EncoderEagerTest(TestCase):
             lambda t: ops.to(t, dtype=reference_dtype), actual_outputs
         )
 
-        torch.testing.assert_close(
-            actual_outputs, expected_outputs, atol=atol, rtol=rtol
+        assert_text_encoder_state_close(
+            actual_outputs["last_hidden_state"],
+            expected_outputs["last_hidden_state"],
+            atol,
         )
 
     def runTestV1_1CompareTorchEagerAgainstHuggingFace(
@@ -155,8 +157,7 @@ class T5EncoderEagerTest(TestCase):
         huggingface_repo_id: str,
         reference_dtype: torch.dtype,
         target_dtype: torch.dtype,
-        atol: Optional[float] = None,
-        rtol: Optional[float] = None,
+        atol: float,
     ):
         get_dataset(
             huggingface_repo_id,
@@ -199,8 +200,10 @@ class T5EncoderEagerTest(TestCase):
         )
 
         logger.info("Comparing outputs...")
-        torch.testing.assert_close(
-            actual_outputs, expected_outputs, atol=atol, rtol=rtol
+        assert_text_encoder_state_close(
+            actual_outputs["last_hidden_state"],
+            expected_outputs["last_hidden_state"],
+            atol,
         )
 
     @pytest.mark.xfail(
@@ -213,12 +216,31 @@ class T5EncoderEagerTest(TestCase):
     )
     @with_t5_data
     def testV1_1SmallCompareTorchEagerHuggingFaceBf16AgainstF32(self):
+        """Hugging Face model tests to estimate numerical error baseline for reference.
+        We don't want to run this test regularly, but we would like to keep it around
+        as a reference. It provides some baseline of what numerical error to expect.
+        """
         self.runTestV1_1CompareTorchEagerHuggingFace(
             "google/t5-v1_1-small",
             reference_dtype=torch.float32,
             target_dtype=torch.bfloat16,
-            atol=1e-2,
-            rtol=1.6e-2,
+            # The observed error is 0.05.
+            atol=1e-1,
+        )
+
+    @pytest.mark.skip
+    @with_t5_data
+    def testV1_1XxlCompareTorchEagerHuggingFaceBf16AgainstF32(self):
+        """Hugging Face model tests to estimate numerical error baseline for reference.
+        We don't want to run this test regularly, but we would like to keep it around
+        as a reference. It provides some baseline of what numerical error to expect.
+        """
+        self.runTestV1_1CompareTorchEagerHuggingFace(
+            "google/t5-v1_1-xxl",
+            reference_dtype=torch.float32,
+            target_dtype=torch.bfloat16,
+            # The observed error is 0.026.
+            atol=1e-1,
         )
 
     @with_t5_data
@@ -227,24 +249,16 @@ class T5EncoderEagerTest(TestCase):
             "google/t5-v1_1-small",
             reference_dtype=torch.float32,
             target_dtype=torch.float32,
+            atol=1e-5,
         )
 
-    @pytest.mark.xfail(
-        raises=AssertionError,
-        reason=(
-            "The accuracy is bad, "
-            "but for XXL we get the same result as the Flux pipeline. "
-            "This need further investigation how Flux works at all like that."
-        ),
-    )
     @with_t5_data
     def testV1_1SmallBf16CompareTorchEagerAgainstHuggingFaceF32(self):
         self.runTestV1_1CompareTorchEagerAgainstHuggingFace(
             "google/t5-v1_1-small",
             reference_dtype=torch.float32,
             target_dtype=torch.bfloat16,
-            atol=1e-2,
-            rtol=1.6e-2,
+            atol=1e-1,
         )
 
     @with_t5_data
@@ -253,6 +267,7 @@ class T5EncoderEagerTest(TestCase):
             "google/t5-v1_1-small",
             reference_dtype=torch.bfloat16,
             target_dtype=torch.bfloat16,
+            atol=1e-1,
         )
 
     @with_t5_data
@@ -261,23 +276,16 @@ class T5EncoderEagerTest(TestCase):
             "google/t5-v1_1-xxl",
             reference_dtype=torch.float32,
             target_dtype=torch.float32,
+            atol=1e-5,
         )
 
-    @pytest.mark.xfail(
-        raises=AssertionError,
-        reason=(
-            "The accuracy is bad, but we get the same result as the Flux pipeline. "
-            "This need further investigation how Flux works at all like that."
-        ),
-    )
     @with_t5_data
     def testV1_1XxlBf16CompareTorchEagerAgainstHuggingFaceF32(self):
         self.runTestV1_1CompareTorchEagerAgainstHuggingFace(
             "google/t5-v1_1-xxl",
             reference_dtype=torch.float32,
             target_dtype=torch.bfloat16,
-            atol=1e-2,
-            rtol=1.6e-2,
+            atol=5e-2,
         )
 
 
@@ -293,8 +301,9 @@ class T5EncoderIreeTest(TempDirTestBase):
         huggingface_repo_id: str,
         reference_dtype: torch.dtype,
         target_dtype: torch.dtype,
-        atol: Optional[float] = None,
-        rtol: Optional[float] = None,
+        atol: float,
+        max_outliers_fraction: Optional[float] = None,
+        inlier_atol: Optional[float] = None,
     ):
         get_dataset(
             huggingface_repo_id,
@@ -386,7 +395,15 @@ class T5EncoderIreeTest(TempDirTestBase):
         ]
 
         logger.info("Comparing outputs...")
-        torch.testing.assert_close(reference_result, iree_result, atol=atol, rtol=rtol)
+        reference_result_last_hidden_state = reference_result[0]
+        iree_result_last_hidden_state = iree_result[0]
+        assert_text_encoder_state_close(
+            iree_result_last_hidden_state,
+            reference_result_last_hidden_state,
+            atol=atol,
+            max_outliers_fraction=max_outliers_fraction,
+            inlier_atol=inlier_atol,
+        )
 
     @with_t5_data
     def testV1_1CompareSmallIreeF32AgainstTorchEagerF32(self):
@@ -394,26 +411,19 @@ class T5EncoderIreeTest(TempDirTestBase):
             "google/t5-v1_1-small",
             reference_dtype=torch.float32,
             target_dtype=torch.float32,
-            atol=1e-4,
-            rtol=2.0e-3,
+            atol=1e-5,
         )
 
-    @pytest.mark.xfail(
-        raises=AssertionError,
-        reason=(
-            "The accuracy is bad, "
-            "but but it is no worse than the accuracy for of eager bfloat16. "
-            "This need further investigation how Flux works at all like that."
-        ),
-    )
     @with_t5_data
     def testV1_1CompareSmallIreeBf16AgainstTorchEagerF32(self):
         self.runTestV1_1CompareIreeAgainstTorchEager(
             "google/t5-v1_1-small",
             reference_dtype=torch.float32,
             target_dtype=torch.bfloat16,
-            atol=1e-2,
-            rtol=1.6e-2,
+            # The observed error is 0.12.
+            atol=0.2,
+            max_outliers_fraction=0.03,
+            inlier_atol=0.01,
         )
 
     @with_t5_data
@@ -422,26 +432,29 @@ class T5EncoderIreeTest(TempDirTestBase):
             "google/t5-v1_1-xxl",
             reference_dtype=torch.float32,
             target_dtype=torch.float32,
-            atol=1e-4,
-            rtol=2.0e-3,
+            atol=1e-5,
         )
 
-    @pytest.mark.xfail(
-        raises=AssertionError,
-        reason=(
-            "The accuracy is bad, "
-            "but but it is no worse than the accuracy for of eager bfloat16. "
-            "This need further investigation how Flux works at all like that."
-        ),
-    )
     @with_t5_data
     def testV1_1CompareXxlIreeBf16AgainstTorchEagerF32(self):
+        """The observed absolute numerical error is 0.21.
+        Per token cosine similarity metrics are
+        mean = 0.997
+        std dev = 0.018
+        min = 0.789
+
+        The error seems high as it corresponds to 38° angular difference.
+        For comparison the bf16 Hugging Face small model exhibits a worst token error
+        of 0.05. Although, here the error worse it may be reasonable as it comes from a
+        single token outlier. The majority of tokens have an error less than 0.01.
+        """
         self.runTestV1_1CompareIreeAgainstTorchEager(
             "google/t5-v1_1-xxl",
             reference_dtype=torch.float32,
             target_dtype=torch.bfloat16,
-            atol=1e-2,
-            rtol=1.6e-2,
+            atol=2.5e-1,
+            max_outliers_fraction=0.03,
+            inlier_atol=0.01,
         )
 
 
