@@ -13,8 +13,15 @@ from sharktank.types import Dataset
 import argparse
 import torch
 
+dtype_map = {
+    "float32" : torch.float32,
+    "float16" : torch.float16,
+    "float8" : torch.float8_e4m3fnuz,
+}
+
 parser = argparse.ArgumentParser()
 parser.add_argument("-s", "--seed", default=12345)
+parser.add_argument("-d", "--dtype", default="float32")
 parser.add_argument("-o", "--output", default="/tmp/toy_llama.irpa")
 
 
@@ -58,7 +65,7 @@ def generate(seed: int, dtype=torch.float32):
 
 def main():
     args = parser.parse_args()
-    theta, config = generate(args.seed)
+    theta, config = generate(args.seed, dtype=dtype_map[args.dtype])
     config_dict = config.hp.to_gguf_props()
     dataset = Dataset(config_dict, theta)
     dataset.save(args.output)

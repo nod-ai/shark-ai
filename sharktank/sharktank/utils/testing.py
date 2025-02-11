@@ -38,7 +38,7 @@ def make_rand(
     if dtype == torch.float8_e4m3fnuz:
         scale = torch.tensor(torch.finfo(dtype).max)
         quantizer = StaticScaledQuantizer(scale=scale, dtype=dtype)
-        return quantizer.quantize(tensor)
+        return quantizer.quantize(tensor, name=name)
 
     if dtype is not None:
         tensor = tensor.to(dtype)
