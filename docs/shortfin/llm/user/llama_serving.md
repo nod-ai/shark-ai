@@ -262,7 +262,7 @@ Next, let's send a generation request:
 curl http://localhost:8000/generate \
     -H "Content-Type: application/json" \
     -d '{
-        "text": "Name the capital of the United States.",
+        "text": "<|begin_of_text|>Name the capital of the United States.<|eot_id|>",
         "sampling_params": {"max_completion_tokens": 50}
     }'
 ```
@@ -281,7 +281,7 @@ port = 8000 # Change if running on a different port
 generate_url = f"http://localhost:{port}/generate"
 
 def generation_request():
-    payload = {"text": "Name the capital of the United States.", "sampling_params": {"max_completion_tokens": 50}}
+    payload = {"text": "<|begin_of_text|>Name the capital of the United States.<|eot_id|>", "sampling_params": {"max_completion_tokens": 50}}
     try:
         resp = requests.post(generate_url, json=payload)
         resp.raise_for_status()  # Raises an HTTPError for bad responses
