@@ -275,7 +275,9 @@ class PagedKVCache:
             partitions = partitions.repeat(bs, 1)
 
             indices = (page_id, transformer_block, partitions, page_offset)
-            page_table.index_put_(indices=indices, values=cache_partition)
+            page_table.index_put_(
+                indices=indices, values=ops.to(cache_partition, dtype=page_table.dtype)
+            )
 
         return
 
@@ -320,4 +322,6 @@ class PagedKVCache:
                 (base_subblock_ids + index) if index > 0 else base_subblock_ids
             ).flatten(0, 1)
 
-            subblock_table.index_copy_(0, subblock_ids, part_block_view)
+            subblock_table.index_copy_(
+                0, subblock_ids, ops.to(part_block_view, dtype=subblock_table.dtype)
+            )
