@@ -93,6 +93,8 @@ pip install -f https://iree.dev/pip-release-links.html --upgrade --pre \
   iree-base-compiler \
   iree-base-runtime \
   iree-turbine
+
+ pip install transformers dataclasses-json uvicorn fastapi pillow aiohttp
 ```
 
 To install an editable `iree-turbine` package from the latest source:
