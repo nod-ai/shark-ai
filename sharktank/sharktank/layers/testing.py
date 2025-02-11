@@ -17,6 +17,7 @@ def make_llama_attention_block_theta(
     head_dim: int,
     embedding_length: int,
     dtype: torch.dtype | None = None,
+    norm_dtype: torch.dtype | None = None,
 ) -> Theta:
     return Theta(
         {
@@ -43,7 +44,7 @@ def make_llama_attention_block_theta(
             "attn_norm.weight": make_rand(
                 name=f"blk.{block_idx}.attn_norm.weight",
                 shape=(embedding_length),
-                dtype=dtype,
+                dtype=norm_dtype,
             ),
         }
     )

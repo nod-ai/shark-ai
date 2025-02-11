@@ -48,6 +48,7 @@ def make_attention_block_ffn_theta_v2(
     embedding_length: int,
     feed_forward_length: int,
     dtype: torch.dtype | None = None,
+    norm_dtype: torch.dtype | None = None,
 ) -> Theta:
     attention_theta = make_llama_attention_block_theta(
         block_idx=block_idx,
@@ -56,13 +57,14 @@ def make_attention_block_ffn_theta_v2(
         head_dim=head_dim,
         embedding_length=embedding_length,
         dtype=dtype,
+        norm_dtype=norm_dtype,
     )
     ffn_theta = Theta(
         {
             "ffn_norm.weight": make_rand(
                 name=f"blk.{block_idx}.ffn_norm.weight",
                 shape=(head_count * head_dim),
-                dtype=dtype,
+                dtype=norm_dtype,
             ),
             "ffn_gate.weight": make_rand(
                 name=f"blk.{block_idx}.ffn_gate.weight",
@@ -116,7 +118,10 @@ def make_moe_block_theta(feature_dim=1024, ffn_dim=6144, num_experts=8) -> Theta
 
 
 def make_random_llama_theta(
-    config: LlamaModelConfig, vocab_size: int, dtype: Optional[torch.dtype] = None
+    config: LlamaModelConfig,
+    vocab_size: int,
+    dtype: Optional[torch.dtype] = None,
+    norm_dtype: Optional[torch.dtype] = None,
 ) -> Theta:
     res = {
         "token_embd.weight": make_rand(
@@ -134,6 +139,7 @@ def make_random_llama_theta(
             embedding_length=config.hp.embedding_length,
             feed_forward_length=config.hp.feed_forward_length,
             dtype=dtype,
+            norm_dtype=norm_dtype,
         ).tree
 
     res[f"output.weight"] = make_rand(
@@ -144,7 +150,7 @@ def make_random_llama_theta(
     res[f"output_norm.weight"] = make_rand(
         name="output_norm.weight",
         shape=(1, config.hp.embedding_length),
-        dtype=dtype,
+        dtype=norm_dtype,
     )
 
     return Theta(res)

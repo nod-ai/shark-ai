@@ -18,11 +18,8 @@ parser.add_argument("-s", "--seed", default=12345)
 parser.add_argument("-o", "--output", default="/tmp/toy_llama.irpa")
 
 
-def main():
-    args = parser.parse_args()
-    torch.manual_seed(args.seed)
-
-    dtype = torch.float16
+def generate(seed: int, dtype=torch.float32):
+    torch.manual_seed(seed)
     block_seq_stride = 16
     max_blocks = 8
     attention_head_count = 8
@@ -53,12 +50,16 @@ def main():
     )
 
     theta = make_random_llama_theta(
-        config=config,
-        vocab_size=vocabulary_size,
+        config=config, vocab_size=vocabulary_size, dtype=dtype, norm_dtype=torch.float32
     )
 
-    config_dict = config.hp.to_gguf_props()
+    return theta, config
 
+
+def main():
+    args = parser.parse_args()
+    theta, config = generate(args.seed)
+    config_dict = config.hp.to_gguf_props()
     dataset = Dataset(config_dict, theta)
     dataset.save(args.output)
 
