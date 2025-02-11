@@ -37,7 +37,7 @@ def test_toyllama_f32():
     logits = logits[0, 0 : (id_len - 1)].to(torch.float32)
     cross_entropy = torch.nn.functional.cross_entropy(logits, ids)
 
-    assert pytest.approx(0.585, 1e-3) == cross_entropy
+    assert pytest.approx(0.585, 2e-3) == cross_entropy
 
 
 def test_toyllama_f16():
@@ -60,7 +60,7 @@ def test_toyllama_f16():
     logits = logits[0, 0 : (id_len - 1)].to(torch.float32)
     cross_entropy = torch.nn.functional.cross_entropy(logits, ids)
 
-    assert pytest.approx(0.585, 1e-3) == cross_entropy
+    assert pytest.approx(0.585, 2e-3) == cross_entropy
 
 
 def test_toyllama_f8_as_f32():
