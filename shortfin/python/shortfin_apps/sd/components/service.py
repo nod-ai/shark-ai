@@ -584,7 +584,7 @@ class InferenceExecutorProcess(sf.Process):
             *init_inputs, fiber=self.fiber
         )
 
-        accum_step_duration = 0 # Accumulated duration for all steps
+        accum_step_duration = 0  # Accumulated duration for all steps
         for i, t in tqdm(
             enumerate(range(step_count)),
             disable=(not self.service.show_progress),
@@ -631,8 +631,9 @@ class InferenceExecutorProcess(sf.Process):
             duration = time.time() - start
             accum_step_duration += duration
         average_step_duration = accum_step_duration / step_count
-        log_duration_str(average_step_duration, "denoise (UNet) single step average", req_bs)
-
+        log_duration_str(
+            average_step_duration, "denoise (UNet) single step average", req_bs
+        )
 
         for idx, req in enumerate(requests):
             req.denoised_latents = sfnp.device_array.for_device(
