@@ -627,7 +627,7 @@ class InferenceExecutorProcess(sf.Process):
             )
             (latent_model_output,) = await fns["step"](*step_inputs, fiber=self.fiber)
             latents.copy_from(latent_model_output)
-            
+
             duration = time.time() - start
             accum_step_duration += duration
         average_step_duration = accum_step_duration / step_count
