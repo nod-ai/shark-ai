@@ -34,7 +34,7 @@ def test_toyllama_f32():
         tokens=ids, cache_state=pages, attention_mask=None, seq_block_ids=page_ids
     )
     ids = ids[0, 1:id_len]
-    logits = logits[0, 0 : (id_len - 1)]
+    logits = logits[0, 0 : (id_len - 1)].to(torch.float32)
     cross_entropy = torch.nn.functional.cross_entropy(logits, ids)
 
     assert pytest.approx(0.585, 1e-3) == cross_entropy
@@ -57,7 +57,7 @@ def test_toyllama_f16():
         tokens=ids, cache_state=pages, attention_mask=None, seq_block_ids=page_ids
     )
     ids = ids[0, 1:id_len]
-    logits = logits[0, 0 : (id_len - 1)]
+    logits = logits[0, 0 : (id_len - 1)].to(torch.float32)
     cross_entropy = torch.nn.functional.cross_entropy(logits, ids)
 
     assert pytest.approx(0.585, 1e-3) == cross_entropy
