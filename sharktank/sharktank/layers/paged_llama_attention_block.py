@@ -101,12 +101,15 @@ class PagedLlamaAttentionBlock(ThetaLayer):
     ):
         assert bool(start_index is not None) ^ bool(embedding_batch_mask is not None)
         x = self.attn_norm(h)
-        bs, batch_seq_len, feature_dim = x.shape
-        assert feature_dim == self.head_count * self.head_dim
+        bs, batch_seq_len, _ = x.shape
 
         xq = self.attn_q(x)
         xk = self.attn_k(x)
         xv = self.attn_v(x)
+
+        assert xq.shape[-1] == self.head_count * self.head_dim
+        assert xk.shape[-1] == self.head_count_kv * self.head_dim
+        assert xv.shape[-1] == self.head_count_kv * self.head_dim
 
         xq = xq.view(bs, batch_seq_len, self.head_count, self.head_dim)
         xk = xk.view(bs, batch_seq_len, self.head_count_kv, self.head_dim)
