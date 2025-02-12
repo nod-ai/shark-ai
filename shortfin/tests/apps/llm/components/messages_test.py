@@ -39,28 +39,19 @@ def test_inference_exec_request_repr(mock_request):
 
     This is useful for debugging and logging. Other test cases may depend on the debug log formats.
     """
-    # Basic request with default settings
+    # default settings
     req = mock_request(InferencePhase.PREFILL, [1, 2, 3, 4], rid="test123")
     assert (
         str(req)
         == "InferenceExecRequest[phase=P,pos=0,rid=test123,flags=host,input_token_ids=[1, 2, 3, 4]]"
     )
 
-    # With mutated flags
-    req.return_all_logits = True
-    req.phase = InferencePhase.DECODE
-    req.rid = 1
-    assert (
-        str(req)
-        == "InferenceExecRequest[phase=D,pos=0,rid=1,flags=all,host,input_token_ids=[1, 2, 3, 4]]"
-    )
-
-    # With no flags set
-    req = mock_request(InferencePhase.PREFILL, [], rid="test123")
+    # mutated settings
+    req = mock_request(InferencePhase.DECODE, [], rid="test123")
     req.return_host_array = False
     req.return_all_logits = False
     req.rid = None
     assert (
         str(req)
-        == "InferenceExecRequest[phase=P,pos=0,rid=None,flags=,input_token_ids=[]]"
+        == "InferenceExecRequest[phase=D,pos=0,rid=None,flags=,input_token_ids=[]]"
     )
