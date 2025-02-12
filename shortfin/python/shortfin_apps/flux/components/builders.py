@@ -10,20 +10,19 @@ import os
 import shortfin.array as sfnp
 import copy
 
-from shortfin_apps.sd.components.config_struct import ModelParams
+from shortfin_apps.flux.components.config_struct import ModelParams
 from shortfin_apps.utils import *
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
 parent = os.path.dirname(this_dir)
-default_config_json = os.path.join(parent, "examples", "sdxl_config_i8.json")
+default_config_json = os.path.join(parent, "examples", "flux_dev_config_mixed.json")
 
-
-ARTIFACT_VERSION = "11182024"
-SDXL_BUCKET = (
-    f"https://sharkpublic.blob.core.windows.net/sharkpublic/sdxl/{ARTIFACT_VERSION}/"
+ARTIFACT_VERSION = "02102024"
+FLUX_BUCKET = (
+    f"https://sharkpublic.blob.core.windows.net/sharkpublic/flux.1/{ARTIFACT_VERSION}/"
 )
-SDXL_WEIGHTS_BUCKET = (
-    "https://sharkpublic.blob.core.windows.net/sharkpublic/sdxl/weights/"
+FLUX_WEIGHTS_BUCKET = (
+    "https://sharkpublic.blob.core.windows.net/sharkpublic/flux.1/weights/"
 )
 
 
@@ -32,6 +31,8 @@ def filter_by_model(filenames, model):
         return filenames
     filtered = []
     for i in filenames:
+        if model == "t5xxl" and i == "google__t5_v1_1_xxl_encoder_fp32.irpa":
+            filtered.extend([i])
         if model.lower() in i.lower():
             filtered.extend([i])
     return filtered
@@ -57,22 +58,13 @@ def get_vmfb_filenames(
 
 def get_params_filenames(model_params: ModelParams, model=None, splat: bool = False):
     params_filenames = []
-    base = (
-        "stable_diffusion_xl_base_1_0"
-        if model_params.base_model_name.lower() == "sdxl"
-        else model_params.base_model_name
-    )
-    modnames = ["clip", "vae"]
+    base = "flux_dev" if not model_params.is_schnell else model_params.base_model_name
+    modnames = ["clip", "sampler", "vae"]
     mod_precs = [
         dtype_to_filetag[model_params.clip_dtype],
-        dtype_to_filetag[model_params.unet_dtype],
+        dtype_to_filetag[model_params.sampler_dtype],
+        dtype_to_filetag[model_params.vae_dtype],
     ]
-    if model_params.use_i8_punet:
-        modnames.append("punet")
-        mod_precs.append("i8")
-    else:
-        modnames.append("unet")
-        mod_precs.append(dtype_to_filetag[model_params.unet_dtype])
     if splat == "True":
         for idx, mod in enumerate(modnames):
             params_filenames.extend(
@@ -80,23 +72,21 @@ def get_params_filenames(model_params: ModelParams, model=None, splat: bool = Fa
             )
     else:
         for idx, mod in enumerate(modnames):
-            params_filenames.extend(
-                [base + "_" + mod + "_dataset_" + mod_precs[idx] + ".irpa"]
-            )
+            params_filenames.extend([base + "_" + mod + "_" + mod_precs[idx] + ".irpa"])
+
+    # this is a hack
+    params_filenames.extend(["google__t5_v1_1_xxl_encoder_fp32.irpa"])
+
     return filter_by_model(params_filenames, model)
 
 
 def get_file_stems(model_params: ModelParams):
     file_stems = []
-    base = (
-        ["stable_diffusion_xl_base_1_0"]
-        if model_params.base_model_name.lower() == "sdxl"
-        else [model_params.base_model_name]
-    )
+    base = ["flux_dev" if not model_params.is_schnell else model_params.base_model_name]
     mod_names = {
         "clip": "clip",
-        "unet": "punet" if model_params.use_i8_punet else "unet",
-        "scheduler": model_params.scheduler_id + "Scheduler",
+        "t5xxl": "t5xxl",
+        "sampler": "sampler",
         "vae": "vae",
     }
     for mod, modname in mod_names.items():
@@ -108,34 +98,28 @@ def get_file_stems(model_params: ModelParams):
         for bs in getattr(model_params, f"{mod}_batch_sizes", [1]):
             bsizes.extend([f"bs{bs}"])
         ord_params.extend([bsizes])
-        if mod in ["unet", "clip"]:
+        if mod in ["sampler"]:
             ord_params.extend([[str(model_params.max_seq_len)]])
-        if mod in ["unet", "vae", "scheduler"]:
+        elif mod == "clip":
+            ord_params.extend([[str(model_params.clip_max_seq_len)]])
+        if mod in ["sampler", "vae"]:
             dims = []
             for dim_pair in model_params.dims:
                 dim_pair_str = [str(d) for d in dim_pair]
                 dims.extend(["x".join(dim_pair_str)])
             ord_params.extend([dims])
-        if mod == "scheduler":
-            dtype_str = dtype_to_filetag[model_params.unet_dtype]
-        elif mod != "unet":
-            dtype_str = dtype_to_filetag[
-                getattr(model_params, f"{mod}_dtype", sfnp.float16)
-            ]
-        else:
-            dtype_str = (
-                "i8"
-                if model_params.use_i8_punet
-                else dtype_to_filetag[model_params.unet_dtype]
-            )
+
+        dtype_str = dtype_to_filetag[
+            getattr(model_params, f"{mod}_dtype", sfnp.float32)
+        ]
         ord_params.extend([[dtype_str]])
         for x in list(itertools.product(*ord_params)):
             file_stems.extend(["_".join(x)])
     return file_stems
 
 
-@entrypoint(description="Retreives a set of SDXL submodels.")
-def sdxl(
+@entrypoint(description="Retreives a set of FLUX submodels.")
+def flux(
     model_json=cl_arg(
         "model-json",
         default=default_config_json,
@@ -160,8 +144,8 @@ def sdxl(
     ctx = executor.BuildContext.current()
     update = needs_update(ctx)
 
-    mlir_bucket = SDXL_BUCKET + "mlir/"
-    vmfb_bucket = SDXL_BUCKET + "vmfbs/"
+    mlir_bucket = FLUX_BUCKET + "mlir/"
+    vmfb_bucket = FLUX_BUCKET + "vmfbs/"
     if "gfx" in target:
         target = "amdgpu-" + target
 
@@ -192,7 +176,7 @@ def sdxl(
                 fetch_http(name=f, url=url)
 
     params_filenames = get_params_filenames(model_params, model=model, splat=splat)
-    params_urls = get_url_map(params_filenames, SDXL_WEIGHTS_BUCKET)
+    params_urls = get_url_map(params_filenames, FLUX_WEIGHTS_BUCKET)
     for f, url in params_urls.items():
         if needs_file(f, ctx, url):
             fetch_http_check_size(name=f, url=url)

@@ -12,8 +12,8 @@ https://github.com/black-forest-labs/flux/blob/main/src/flux/model.py
 from typing import Any, Optional
 from collections import OrderedDict
 from copy import copy
+from dataclasses import dataclass, asdict
 import math
-from dataclasses import dataclass
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -48,6 +48,19 @@ class FluxParams:
     theta: int
     qkv_bias: bool
     guidance_embed: bool
+
+    def to_hugging_face_properties(self) -> dict[str, Any]:
+        hparams = {
+            "in_channels": self.in_channels,
+            "pooled_projection_dim": self.vec_in_dim,
+            "joint_attention_dim": self.context_in_dim,
+            "num_attention_heads": self.num_heads,
+            "num_layers": self.depth,
+            "num_single_layers": self.depth_single_blocks,
+            "attention_head_dim": sum(self.axes_dim),
+            "guidance_embeds": self.guidance_embed,
+        }
+        return {"hparams": hparams}
 
     @staticmethod
     def from_hugging_face_properties(properties: dict[str, Any]) -> "FluxParams":
@@ -175,6 +188,7 @@ class FluxModelV1(ThetaLayer):
                     "Didn't get guidance strength for guidance distilled model."
                 )
             vec = vec + self.guidance_in(timestep_embedding(guidance, 256))
+
         vec = vec + self.vector_in(y)
 
         txt = self.txt_in(txt)

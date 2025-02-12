@@ -253,7 +253,9 @@ def configure_mode(env_info: EnvInfo, args):
 def build_mode(env_info: EnvInfo):
     print("Building")
     for build_dir in env_info.configured_dirs:
-        subprocess.check_call([env_info.cmake_exe, "--build", str(build_dir)])
+        subprocess.check_call(
+            [env_info.cmake_exe, "--build", str(build_dir), "--verbose"]
+        )
 
 
 if __name__ == "__main__":
