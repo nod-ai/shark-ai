@@ -556,11 +556,9 @@ class InferenceExecutorProcess(sf.Process):
                 break
 
         # Prepare tokenized input ids for t5xxl inference
-        # TODO(eagarvey): Refactor
-        bs_or_something = 1
         t5xxl_inputs = [
             sfnp.device_array.for_device(
-                device, [bs_or_something, self.service.model_params.max_seq_len], sfnp.sint64
+                device, [1, self.service.model_params.t5xxl_max_seq_len], sfnp.sint64
             ),
         ]
         host_arrs = [None]
@@ -568,9 +566,8 @@ class InferenceExecutorProcess(sf.Process):
             host_arrs[idx] = arr.for_transfer()
             for i in range(req_bs):
                 np_arr = requests[i].t5xxl_input_ids[idx].input_ids
-                for rep in range(bs_or_something):
-                    with host_arrs[idx].view(rep).map(write=True, discard=True) as m:
-                        m.fill(np_arr)
+                with host_arrs[idx].view(0).map(write=True, discard=True) as m:
+                    m.fill(np_arr)
             t5xxl_inputs[idx].copy_from(host_arrs[idx])
 
         # Encode tokenized inputs.
@@ -613,13 +610,12 @@ class InferenceExecutorProcess(sf.Process):
         # Assume we are doing classifier-free guidance
         txt_shape = [
             req_bs * cfg_mult,
-            self.service.model_params.max_seq_len,
-            4096,
+            self.service.model_params.t5xxl_max_seq_len,
+            self.service.model_params.t5xxl_out_dim,
         ]
-        print(req_bs * cfg_mult, 768)
         vec_shape = [
             req_bs * cfg_mult,
-            768,
+            self.service.model_params.clip_out_dim,
         ]
         denoise_inputs = {
             "img": sfnp.device_array.for_device(
@@ -633,7 +629,7 @@ class InferenceExecutorProcess(sf.Process):
             ),
             "step": sfnp.device_array.for_device(device, [1], sfnp.int64),
             "timesteps": sfnp.device_array.for_device(
-                device, [100], self.service.model_params.sampler_dtype
+                device, [2 * step_count], self.service.model_params.sampler_dtype
             ),
             "guidance_scale": sfnp.device_array.for_device(
                 device, [req_bs], self.service.model_params.sampler_dtype

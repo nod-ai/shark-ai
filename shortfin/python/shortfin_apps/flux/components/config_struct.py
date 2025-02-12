@@ -49,11 +49,13 @@ class ModelParams:
 
     base_model_name: str = "flux_dev"
     clip_max_seq_len: int = 77
+    clip_out_dim: int = 768
     clip_module_name: str = "compiled_flux_text_encoder"
     clip_fn_name: str = "encode_prompts"
     clip_dtype: sfnp.DType = sfnp.bfloat16
 
-    max_seq_len: int = 512
+    t5xxl_max_seq_len: int = 512
+    t5xxl_out_dim: 4096
     t5xxl_module_name: str = "module"
     t5xxl_fn_name: str = "encode_prompts"
     t5xxl_dtype: sfnp.DType = sfnp.bfloat16
@@ -61,10 +63,8 @@ class ModelParams:
     # Channel dim of latents.
     num_latents_channels: int = 16
 
-    #sampler_module_name: str = "compiled_flux_transformer"
-    #sampler_fn_name: str = "run_forward"
-    sampler_module_name: str = "module"
-    sampler_fn_name: str = "main_graph"
+    sampler_module_name: str = "compiled_flux_transformer"
+    sampler_fn_name: str = "run_forward"
     sampler_dtype: sfnp.DType = sfnp.float32
 
     vae_module_name: str = "compiled_vae"
