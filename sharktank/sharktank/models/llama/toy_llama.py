@@ -14,9 +14,9 @@ import argparse
 import torch
 
 dtype_map = {
-    "float32" : torch.float32,
-    "float16" : torch.float16,
-    "float8" : torch.float8_e4m3fnuz,
+    "float32": torch.float32,
+    "float16": torch.float16,
+    "float8": torch.float8_e4m3fnuz,
 }
 
 parser = argparse.ArgumentParser()
