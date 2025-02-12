@@ -538,7 +538,6 @@ class InferenceExecutorProcess(sf.Process):
             cfg_mult = 1
             requests[i].vec = vec.view(slice(i, (i + 1)))
         
-        await device
         a = vec.for_transfer()
         a.copy_from(vec)
         await device
@@ -646,7 +645,6 @@ class InferenceExecutorProcess(sf.Process):
             device, img_shape, self.service.model_params.sampler_dtype
         )
         guidance_float = sfnp.device_array.for_host(device, [req_bs], sfnp.float32)
-        await device
 
         for i in range(req_bs):
             guidance_float.view(i).items = [requests[i].guidance_scale]
@@ -825,11 +823,9 @@ class InferenceExecutorProcess(sf.Process):
             requests[0].height,
             requests[0].width,
         ]
-        await device
         images_host = sfnp.device_array.for_host(
             device, images_shape, self.service.model_params.vae_dtype
         )
-        await device
         images_host.copy_from(image)
         await device
         for idx, req in enumerate(requests):

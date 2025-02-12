@@ -31,6 +31,8 @@ class FluxPipeline(BaseLayer):
         clip_tokenizer_path: Optional[PathLike] = None,
         device: str = None,
         dtype: torch.dtype = torch.bfloat16,
+        base_model_name: str = "flux_dev",
+        default_num_inference_steps: Optional[int] = None,
     ):
         """Initialize the Flux pipeline."""
         super().__init__()
@@ -39,6 +41,12 @@ class FluxPipeline(BaseLayer):
         else:
             self.device = torch.get_default_device()
         self.dtype = dtype
+        if not default_num_inference_steps:
+            if base_model_name in ["dev", "flux_dev"]:
+                self.default_num_inference_steps = 50
+            else:
+                self.default_num_inference_steps = 4
+
         if t5_tokenizer_path:
             self.t5_tokenizer = T5Tokenizer.from_pretrained(t5_tokenizer_path)
         if clip_tokenizer_path:
@@ -85,7 +93,7 @@ class FluxPipeline(BaseLayer):
         height: int = 1024,
         width: int = 1024,
         latents: Optional[Tensor] = None,
-        num_inference_steps: Optional[int] = 50,
+        num_inference_steps: Optional[int] = None,
         guidance_scale: float = 3.5,
         seed: Optional[int] = None,
     ) -> Tensor:
@@ -140,9 +148,8 @@ class FluxPipeline(BaseLayer):
         guidance_scale: float = 3.5,
         seed: Optional[int] = None,
     ) -> Tensor:
-        # Set default steps # TODO: Check if dev or schnell
         if num_inference_steps is None:
-            num_inference_steps = 50
+            num_inference_steps = self.default_num_inference_steps
             
         # Adjust dimensions to be multiples of 16
         height = 16 * (height // 16)
@@ -399,7 +406,6 @@ def main():
         prompt=args.prompt,
         height=args.height,
         width=args.width,
-        num_inference_steps=args.num_inference_steps,
         guidance_scale=args.guidance_scale,
         seed=args.seed
     )
