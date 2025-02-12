@@ -533,11 +533,11 @@ class InferenceExecutorProcess(sf.Process):
         await device
         (vec,) = await fn(*clip_inputs, fiber=self.fiber)
         await device
-        
+
         for i in range(req_bs):
             cfg_mult = 1
             requests[i].vec = vec.view(slice(i, (i + 1)))
-        
+
         a = vec.for_transfer()
         a.copy_from(vec)
         await device
@@ -676,11 +676,13 @@ class InferenceExecutorProcess(sf.Process):
                     dtype=self.service.model_params.sampler_dtype,
                     out=inter,
                 )
-                denoise_inputs["txt"].view(slice(cfg_dim, cfg_dim + cfg_mult)).copy_from(inter)
+                denoise_inputs["txt"].view(
+                    slice(cfg_dim, cfg_dim + cfg_mult)
+                ).copy_from(inter)
             else:
-                denoise_inputs["txt"].view(slice(cfg_dim, cfg_dim + cfg_mult)).copy_from(
-                    txt
-                )
+                denoise_inputs["txt"].view(
+                    slice(cfg_dim, cfg_dim + cfg_mult)
+                ).copy_from(txt)
 
             # Batch CLIP projections.
             vec = requests[i].vec
@@ -800,7 +802,7 @@ class InferenceExecutorProcess(sf.Process):
         latents = sfnp.device_array.for_device(
             device, latents_shape, self.service.model_params.vae_dtype
         )
-        
+
         for i in range(req_bs):
             latents.view(i).copy_from(requests[i].denoised_latents)
 

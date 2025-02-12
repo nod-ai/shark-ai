@@ -164,7 +164,7 @@ if(SHORTFIN_BUNDLE_DEPS)
     GIT_REPOSITORY https://github.com/gabime/spdlog.git
     GIT_TAG        8e5613379f5140fefb0b60412fbf1f5406e7c7f8 # v1.15.0
   )
-  
+
   ## xsimd: required for bf16
   FetchContent_Declare(
     xsimd

@@ -47,6 +47,7 @@ def needs_file(filename, ctx, namespace=FileNamespace.GEN):
         needed = True
     return needed
 
+
 def needs_file_url(filename, ctx, url=None, namespace=FileNamespace.GEN):
     out_file = ctx.allocate_file(filename, namespace=namespace).get_fs_path()
     needed = True
