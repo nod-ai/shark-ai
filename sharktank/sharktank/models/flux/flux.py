@@ -58,7 +58,7 @@ class FluxParams:
             "num_layers": self.depth,
             "num_single_layers": self.depth_single_blocks,
             "attention_head_dim": sum(self.axes_dim),
-            "guidance_embeds": self.guidance_embed
+            "guidance_embeds": self.guidance_embed,
         }
         return {"hparams": hparams}
 
@@ -188,7 +188,7 @@ class FluxModelV1(ThetaLayer):
                     "Didn't get guidance strength for guidance distilled model."
                 )
             vec = vec + self.guidance_in(timestep_embedding(guidance, 256))
-        
+
         vec = vec + self.vector_in(y)
 
         txt = self.txt_in(txt)

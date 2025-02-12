@@ -29,10 +29,12 @@ def export_flux_transformer_model_mlir(
 
 
 def export_flux_transformer_iree_parameters(
-    model: FluxModelV1, parameters_output_path: PathLike, dtype = None
+    model: FluxModelV1, parameters_output_path: PathLike, dtype=None
 ):
     model.theta.rename_tensors_to_paths()
-    dataset = Dataset(root_theta=model.theta, properties=model.params.to_hugging_face_properties())
+    dataset = Dataset(
+        root_theta=model.theta, properties=model.params.to_hugging_face_properties()
+    )
     if dtype:
         dataset.root_theta = dataset.root_theta.transform(
             functools.partial(set_float_dtype, dtype=dtype)

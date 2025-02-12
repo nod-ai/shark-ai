@@ -18,6 +18,7 @@ from sharktank.pipelines.flux import FluxPipeline
 
 with_flux_data = pytest.mark.skipif("not config.getoption('with_flux_data')")
 
+
 @pytest.mark.usefixtures("get_model_artifacts")
 class FluxPipelineEagerTest(TestCase):
     def setUp(self):
@@ -61,7 +62,9 @@ class FluxPipelineEagerTest(TestCase):
         with open("/data/flux/test_data/flux_1_step_output.pt", "rb") as f:
             reference_output = torch.load(f)
 
-        torch.testing.assert_close(output, reference_output) # TODO: why is this not passing?
+        torch.testing.assert_close(
+            output, reference_output
+        )  # TODO: why is this not passing?
 
     def runTestFluxPipelineAgainstHuggingFace(
         self,
@@ -71,7 +74,9 @@ class FluxPipelineEagerTest(TestCase):
     ):
         """Compare pipeline outputs against a HuggingFace based reference"""
         # Initialize reference model
-        reference_model = ReferenceFluxPipeline.from_pretrained("/data/flux/FLUX.1-dev/")
+        reference_model = ReferenceFluxPipeline.from_pretrained(
+            "/data/flux/FLUX.1-dev/"
+        )
 
         # Initialize target model
         target_model = FluxPipeline(
@@ -98,9 +103,11 @@ class FluxPipelineEagerTest(TestCase):
             width=1024,
             latents=latents,
             num_inference_steps=1,
-            guidance_scale=3.5
+            guidance_scale=3.5,
         ).images[0]
-        reference_output = torch.tensor(numpy.array(reference_image_output)).to(dtype=dtype)
+        reference_output = torch.tensor(numpy.array(reference_image_output)).to(
+            dtype=dtype
+        )
 
         target_output = target_model(
             prompt=prompt,
@@ -108,10 +115,12 @@ class FluxPipelineEagerTest(TestCase):
             width=1024,
             latents=latents,
             num_inference_steps=1,
-            guidance_scale=3.5
+            guidance_scale=3.5,
         )
 
-        torch.testing.assert_close(reference_output, target_output, atol=atol, rtol=rtol)
+        torch.testing.assert_close(
+            reference_output, target_output, atol=atol, rtol=rtol
+        )
 
     @with_flux_data
     def testFluxPipelineF32AgainstHuggingFace(self):
@@ -126,5 +135,3 @@ class FluxPipelineEagerTest(TestCase):
         self.runTestFluxPipelineAgainstHuggingFace(
             dtype=torch.bfloat16,
         )
-
-

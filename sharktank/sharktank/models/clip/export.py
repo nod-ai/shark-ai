@@ -52,7 +52,9 @@ def clip_text_model_to_dataset(model: ClipTextModel) -> Dataset:
     return Dataset(properties=model.config.to_properties(), root_theta=model.theta)
 
 
-def export_clip_text_model_iree_parameters(model: ClipTextModel, output_path: PathLike, dtype: torch.dtype = None):
+def export_clip_text_model_iree_parameters(
+    model: ClipTextModel, output_path: PathLike, dtype: torch.dtype = None
+):
     dataset = clip_text_model_to_dataset(model)
     if dtype:
         dataset.root_theta = dataset.root_theta.transform(

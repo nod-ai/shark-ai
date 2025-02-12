@@ -18,9 +18,10 @@ from sharktank.models.flux.flux import FluxModelV1, FluxParams
 from sharktank.models.vae.model import VaeDecoderModel
 from sharktank.types import Dataset
 
+
 class FluxPipeline(BaseLayer):
     """Pipeline for text-to-image generation using the Flux model."""
-    
+
     def __init__(
         self,
         t5_path: PathLike,
@@ -51,7 +52,7 @@ class FluxPipeline(BaseLayer):
             self.t5_tokenizer = T5Tokenizer.from_pretrained(t5_tokenizer_path)
         if clip_tokenizer_path:
             self.clip_tokenizer = CLIPTokenizer.from_pretrained(clip_tokenizer_path)
-        
+
         # Load T5
         t5_dataset = Dataset.load(t5_path)
         t5_config = T5Config.from_gguf_properties(
@@ -59,34 +60,37 @@ class FluxPipeline(BaseLayer):
             feed_forward_proj="gated-gelu",
         )
         self.t5_model = T5Encoder(theta=t5_dataset.root_theta, config=t5_config)
-        self.add_module('t5_model', self.t5_model)
+        self.add_module("t5_model", self.t5_model)
         self.t5_model.to(device)
 
         # Load CLIP
         clip_dataset = Dataset.load(clip_path)
         clip_config = ClipTextConfig.from_properties(clip_dataset.properties)
-        self.clip_model = ClipTextModel(theta=clip_dataset.root_theta, config=clip_config)
-        self.add_module('clip_model', self.clip_model)
+        self.clip_model = ClipTextModel(
+            theta=clip_dataset.root_theta, config=clip_config
+        )
+        self.add_module("clip_model", self.clip_model)
         self.clip_model.to(device)
-        
+
         # Load Flux Transformer
         transformer_dataset = Dataset.load(transformer_path)
-        transformer_params = FluxParams.from_hugging_face_properties(transformer_dataset.properties)
-        self.transformer_model = FluxModelV1(
-            theta=transformer_dataset.root_theta,
-            params=transformer_params
+        transformer_params = FluxParams.from_hugging_face_properties(
+            transformer_dataset.properties
         )
-        self.add_module('transformer_model', self.transformer_model)
+        self.transformer_model = FluxModelV1(
+            theta=transformer_dataset.root_theta, params=transformer_params
+        )
+        self.add_module("transformer_model", self.transformer_model)
         self.transformer_model.to(device)
 
         # Load VAE
         ae_dataset = Dataset.load(ae_path)
         self.ae_model = VaeDecoderModel.from_dataset(ae_dataset)
-        self.add_module('ae_model', self.ae_model)
+        self.add_module("ae_model", self.ae_model)
         self.ae_model.to(device)
 
         self._rng = torch.Generator(device="cpu")
-    
+
     def __call__(
         self,
         prompt: str,
@@ -98,7 +102,7 @@ class FluxPipeline(BaseLayer):
         seed: Optional[int] = None,
     ) -> Tensor:
         """Generate images from a prompt
-        
+
         Args:
             prompt: Text prompt for image generation
             height: Height of output image
@@ -106,16 +110,16 @@ class FluxPipeline(BaseLayer):
             num_inference_steps: Number of denoising steps
             guidance_scale: Scale for classifier-free guidance
             seed: Random seed for reproducibility
-            
+
         Returns:
             Image tensor
-        
+
         Raises:
             ValueError: If tokenizers are not provided
         """
         if not self.t5_tokenizer or not self.clip_tokenizer:
             raise ValueError("Tokenizers must be provided to use the __call__ method")
-            
+
         t5_prompt_ids, clip_prompt_ids = self.tokenize_prompt(prompt)
         if not latents:
             latents = self.transformer_model._get_noise(
@@ -124,7 +128,7 @@ class FluxPipeline(BaseLayer):
                 width,
                 seed=seed,
             )
-        
+
         return self.forward(
             t5_prompt_ids,
             clip_prompt_ids,
@@ -135,7 +139,6 @@ class FluxPipeline(BaseLayer):
             guidance_scale=guidance_scale,
             seed=seed,
         )
-
 
     def forward(
         self,
@@ -150,25 +153,29 @@ class FluxPipeline(BaseLayer):
     ) -> Tensor:
         if num_inference_steps is None:
             num_inference_steps = self.default_num_inference_steps
-            
+
         # Adjust dimensions to be multiples of 16
         height = 16 * (height // 16)
         width = 16 * (width // 16)
-        
+
         # Generate initial noise
         x = latents
-        
+
         # Prepare inputs
-        inp = self._prepare(self.t5_model, self.clip_model, t5_prompt_ids, clip_prompt_ids, x)
-        timesteps = self._get_schedule(num_inference_steps, inp["img"].shape[1], shift=True)
-        
+        inp = self._prepare(
+            self.t5_model, self.clip_model, t5_prompt_ids, clip_prompt_ids, x
+        )
+        timesteps = self._get_schedule(
+            num_inference_steps, inp["img"].shape[1], shift=True
+        )
+
         # Denoise
         x = self._denoise(
             **inp,
             timesteps=timesteps,
             guidance=guidance_scale,
         )
-        
+
         # Decode latents
         x = self._unpack(x.to(dtype=self.dtype), height, width)
         x = self.ae_model(x)
@@ -179,17 +186,23 @@ class FluxPipeline(BaseLayer):
         x = rearrange(x, "c h w -> h w c")
         return x.float()
 
-
-    def _prepare(self, t5: T5Encoder, clip: ClipTextModel, t5_prompt_ids: Tensor, clip_prompt_ids: Tensor, img: Tensor) -> dict[str, Tensor]:
+    def _prepare(
+        self,
+        t5: T5Encoder,
+        clip: ClipTextModel,
+        t5_prompt_ids: Tensor,
+        clip_prompt_ids: Tensor,
+        img: Tensor,
+    ) -> dict[str, Tensor]:
         """Prepare inputs for the transformer model.
-        
+
         Args:
             t5: T5 model for text encoding
             clip: CLIP model for text encoding
             t5_prompt_ids: Tokenized T5 prompt IDs
             clip_prompt_ids: Tokenized CLIP prompt IDs
             img: Initial noise tensor
-            
+
         Returns:
             Dictionary containing prepared inputs for the transformer
         """
@@ -224,11 +237,7 @@ class FluxPipeline(BaseLayer):
         return math.exp(mu) / (math.exp(mu) + (1 / t - 1) ** sigma)
 
     def _get_lin_function(
-        self,
-        x1: float = 256,
-        y1: float = 0.5,
-        x2: float = 4096,
-        y2: float = 1.15
+        self, x1: float = 256, y1: float = 0.5, x2: float = 4096, y2: float = 1.15
     ) -> Callable[[float], float]:
         """Get linear interpolation function."""
         m = (y2 - y1) / (x2 - x1)
@@ -244,14 +253,14 @@ class FluxPipeline(BaseLayer):
         shift: bool = True,
     ) -> list[float]:
         """Generate sampling schedule.
-        
+
         Args:
             num_steps: Number of diffusion steps
             image_seq_len: Length of the image sequence
             base_shift: Base shift value for schedule adjustment
             max_shift: Maximum shift value for schedule adjustment
             shift: Whether to apply schedule shifting
-            
+
         Returns:
             List of timesteps for the diffusion process
         """
@@ -282,10 +291,16 @@ class FluxPipeline(BaseLayer):
     ) -> Tensor:
         """Denoise the latents through the diffusion process."""
         # this is ignored for schnell
-        guidance_vec = torch.full((img.shape[0],), guidance, device=img.device, dtype=self.dtype)
+        guidance_vec = torch.full(
+            (img.shape[0],), guidance, device=img.device, dtype=self.dtype
+        )
         for t_curr, t_prev in zip(timesteps[:-1], timesteps[1:]):
-            t_curr_vec = torch.full((img.shape[0],), t_curr, dtype=self.dtype, device=img.device)
-            t_prev_vec = torch.full((img.shape[0],), t_prev, dtype=self.dtype, device=img.device)
+            t_curr_vec = torch.full(
+                (img.shape[0],), t_curr, dtype=self.dtype, device=img.device
+            )
+            t_prev_vec = torch.full(
+                (img.shape[0],), t_prev, dtype=self.dtype, device=img.device
+            )
             pred = self.transformer_model(
                 img=torch.cat((img, img_cond), dim=-1) if img_cond is not None else img,
                 img_ids=img_ids,
@@ -309,87 +324,130 @@ class FluxPipeline(BaseLayer):
             ph=2,
             pw=2,
         )
-        
+
     def tokenize_prompt(self, prompt: str) -> tuple[Tensor, Tensor]:
         """Tokenize a prompt using T5 and CLIP tokenizers.
-        
+
         Args:
             prompt: Text prompt to tokenize
-            
+
         Returns:
             Tuple of (t5_prompt_ids, clip_prompt_ids) tensors
         """
         # T5 tokenization
-        t5_prompt_ids = [self.t5_tokenizer(p,
-            truncation=True,
-            max_length=self.max_length,
-            return_length=False,
-            return_overflowing_tokens=False,
-            padding="max_length",
-            return_tensors="pt",).input_ids for p in [prompt]
+        t5_prompt_ids = [
+            self.t5_tokenizer(
+                p,
+                truncation=True,
+                max_length=self.max_length,
+                return_length=False,
+                return_overflowing_tokens=False,
+                padding="max_length",
+                return_tensors="pt",
+            ).input_ids
+            for p in [prompt]
         ]
         t5_prompt_ids = torch.tensor(t5_prompt_ids, dtype=torch.long)
 
         # CLIP tokenization
-        clip_prompt_ids = [self.clip_tokenizer(p,
-            truncation=True,
-            max_length=self.max_length,
-            return_length=False,
-            return_overflowing_tokens=False,
-            padding="max_length",
-            return_tensors="pt",).input_ids for p in [prompt]]
+        clip_prompt_ids = [
+            self.clip_tokenizer(
+                p,
+                truncation=True,
+                max_length=self.max_length,
+                return_length=False,
+                return_overflowing_tokens=False,
+                padding="max_length",
+                return_tensors="pt",
+            ).input_ids
+            for p in [prompt]
+        ]
         clip_prompt_ids = torch.tensor(clip_prompt_ids, dtype=torch.long)
-        
+
         return t5_prompt_ids, clip_prompt_ids
+
 
 def main():
     """Example usage of FluxPipeline."""
-    parser = argparse.ArgumentParser(description="Flux text-to-image generation pipeline")
-    
+    parser = argparse.ArgumentParser(
+        description="Flux text-to-image generation pipeline"
+    )
+
     # Model paths
-    parser.add_argument("--t5-path", default="/data/t5-v1_1-xxl/model.gguf",
-                      help="Path to T5 model")
-    parser.add_argument("--clip-path", default="/data/flux/FLUX.1-dev/text_encoder/model.irpa",
-                      help="Path to CLIP model")
-    parser.add_argument("--transformer-path", default="/data/flux/FLUX.1-dev/transformer/model.irpa",
-                      help="Path to Transformer model")
-    parser.add_argument("--ae-path", default="/data/flux/FLUX.1-dev/vae/model.irpa",
-                      help="Path to VAE model")
-    parser.add_argument("--t5-tokenizer-path", default="/data/flux/FLUX.1-dev/tokenizer_2/",
-                      help="Path to T5 tokenizer")
-    parser.add_argument("--clip-tokenizer-path", default="/data/flux/FLUX.1-dev/tokenizer/",
-                      help="Path to CLIP tokenizer")
-    
+    parser.add_argument(
+        "--t5-path", default="/data/t5-v1_1-xxl/model.gguf", help="Path to T5 model"
+    )
+    parser.add_argument(
+        "--clip-path",
+        default="/data/flux/FLUX.1-dev/text_encoder/model.irpa",
+        help="Path to CLIP model",
+    )
+    parser.add_argument(
+        "--transformer-path",
+        default="/data/flux/FLUX.1-dev/transformer/model.irpa",
+        help="Path to Transformer model",
+    )
+    parser.add_argument(
+        "--ae-path",
+        default="/data/flux/FLUX.1-dev/vae/model.irpa",
+        help="Path to VAE model",
+    )
+    parser.add_argument(
+        "--t5-tokenizer-path",
+        default="/data/flux/FLUX.1-dev/tokenizer_2/",
+        help="Path to T5 tokenizer",
+    )
+    parser.add_argument(
+        "--clip-tokenizer-path",
+        default="/data/flux/FLUX.1-dev/tokenizer/",
+        help="Path to CLIP tokenizer",
+    )
+
     # Generation parameters
-    parser.add_argument("--height", type=int, default=1024,
-                      help="Height of output image")
-    parser.add_argument("--width", type=int, default=1024,
-                      help="Width of output image")
-    parser.add_argument("--num-inference-steps", type=int, default=None,
-                      help="Number of denoising steps")
-    parser.add_argument("--guidance-scale", type=float, default=3.5,
-                      help="Scale for classifier-free guidance")
-    parser.add_argument("--seed", type=int, default=None,
-                      help="Random seed for reproducibility")
+    parser.add_argument(
+        "--height", type=int, default=1024, help="Height of output image"
+    )
+    parser.add_argument("--width", type=int, default=1024, help="Width of output image")
+    parser.add_argument(
+        "--num-inference-steps",
+        type=int,
+        default=None,
+        help="Number of denoising steps",
+    )
+    parser.add_argument(
+        "--guidance-scale",
+        type=float,
+        default=3.5,
+        help="Scale for classifier-free guidance",
+    )
+    parser.add_argument(
+        "--seed", type=int, default=None, help="Random seed for reproducibility"
+    )
 
     # Other parameters
-    parser.add_argument("--prompt", default="a photo of a forest with mist swirling around the tree trunks. "
-                      'The word "FLUX" is painted over it in big, red brush strokes with visible texture',
-                      help="Text prompt for image generation")
-    parser.add_argument("--output", default="output.jpg",
-                      help="Output image path")
-    parser.add_argument("--dtype", default="bfloat16", choices=["float32", "float16", "bfloat16"],
-                      help="Data type for model")
-    
+    parser.add_argument(
+        "--prompt",
+        default="a photo of a forest with mist swirling around the tree trunks. "
+        'The word "FLUX" is painted over it in big, red brush strokes with visible texture',
+        help="Text prompt for image generation",
+    )
+    parser.add_argument("--output", default="output.jpg", help="Output image path")
+    parser.add_argument(
+        "--dtype",
+        default="bfloat16",
+        choices=["float32", "float16", "bfloat16"],
+        help="Data type for model",
+    )
+
     args = parser.parse_args()
 
     # Map dtype string to torch dtype
     dtype_map = {
         "float32": torch.float32,
         "float16": torch.float16,
-        "bfloat16": torch.bfloat16
+        "bfloat16": torch.bfloat16,
     }
-    
+
     # Initialize pipeline
     pipeline = FluxPipeline(
         t5_path=args.t5_path,
@@ -398,18 +456,18 @@ def main():
         ae_path=args.ae_path,
         t5_tokenizer_path=args.t5_tokenizer_path,
         clip_tokenizer_path=args.clip_tokenizer_path,
-        dtype=dtype_map[args.dtype]
+        dtype=dtype_map[args.dtype],
     )
-    
+
     # Generate image
     x = pipeline(
         prompt=args.prompt,
         height=args.height,
         width=args.width,
         guidance_scale=args.guidance_scale,
-        seed=args.seed
+        seed=args.seed,
     )
-    
+
     # Transform and save first image
     image = Image.fromarray((127.5 * (x + 1.0)).cpu().byte().numpy())
     image.save(args.output, quality=95, subsampling=0)
