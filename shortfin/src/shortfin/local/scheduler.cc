@@ -93,8 +93,9 @@ VoidFuture Account::OnSync() {
 // -------------------------------------------------------------------------- //
 
 TimelineResource::TimelineResource(std::shared_ptr<Fiber> fiber,
-                                   size_t semaphore_capacity)
-    : fiber_(std::move(fiber)) {
+                                   size_t semaphore_capacity,
+                                   TimelineResourceDestructor destructor)
+    : fiber_(std::move(fiber)), destructor_(std::move(destructor)) {
   logging::construct("TimelineResource", this);
   SHORTFIN_THROW_IF_ERROR(
       iree_hal_fence_create(semaphore_capacity, fiber_->host_allocator(),
@@ -103,6 +104,33 @@ TimelineResource::TimelineResource(std::shared_ptr<Fiber> fiber,
 
 TimelineResource::~TimelineResource() {
   logging::destruct("TimelineResource", this);
+  if (destructor_) {
+    destructor_(*this);
+  }
+}
+
+TimelineResourceDestructor TimelineResource::CreateAsyncBufferDestructor(
+    ScopedDevice &scoped_device, iree::hal_buffer_ptr buffer) {
+  return [device = iree::hal_device_ptr::borrow_reference(
+              scoped_device.raw_device()->hal_device()),
+          affinity = scoped_device.affinity().queue_affinity(),
+          buffer = std::move(buffer)](TimelineResource &res) {
+    SHORTFIN_TRACE_SCOPE_NAMED("TimelineResource::AsyncBufferDestructor");
+    iree_hal_semaphore_list_t wait_semaphore_list = res.use_barrier();
+    iree_hal_semaphore_list_t signal_semaphore_list =
+        iree_hal_semaphore_list_empty();
+    if (SHORTFIN_SCHED_LOG_ENABLED) {
+      auto wait_sum = iree::DebugPrintSemaphoreList(wait_semaphore_list);
+      auto signal_sum = iree::DebugPrintSemaphoreList(signal_semaphore_list);
+      SHORTFIN_SCHED_LOG(
+          "async dealloca(device={}, affinity={:x}, buffer={}):[Wait:{}, "
+          "Signal:{}]",
+          static_cast<void *>(device.get()), affinity,
+          static_cast<void *>(buffer.get()), wait_sum, signal_sum);
+    }
+    SHORTFIN_THROW_IF_ERROR(iree_hal_device_queue_dealloca(
+        device, affinity, wait_semaphore_list, signal_semaphore_list, buffer));
+  };
 }
 
 void TimelineResource::use_barrier_insert(iree_hal_semaphore_t *sem,
