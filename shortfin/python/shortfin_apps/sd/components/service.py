@@ -155,11 +155,11 @@ class GenerateService:
         for worker_idx, worker in enumerate(self.workers):
             self.inference_functions[worker_idx]["encode"] = {}
             for bs in self.model_params.clip_batch_sizes:
-                self.inference_functions[worker_idx]["encode"][bs] = (
-                    self.inference_programs[worker_idx]["clip"][
-                        f"{self.model_params.clip_module_name}.encode_prompts"
-                    ]
-                )
+                self.inference_functions[worker_idx]["encode"][
+                    bs
+                ] = self.inference_programs[worker_idx]["clip"][
+                    f"{self.model_params.clip_module_name}.encode_prompts"
+                ]
             self.inference_functions[worker_idx]["denoise"] = {}
             for bs in self.model_params.unet_batch_sizes:
                 self.inference_functions[worker_idx]["denoise"][bs] = {
@@ -178,11 +178,11 @@ class GenerateService:
                 }
             self.inference_functions[worker_idx]["decode"] = {}
             for bs in self.model_params.vae_batch_sizes:
-                self.inference_functions[worker_idx]["decode"][bs] = (
-                    self.inference_programs[worker_idx]["vae"][
-                        f"{self.model_params.vae_module_name}.decode"
-                    ]
-                )
+                self.inference_functions[worker_idx]["decode"][
+                    bs
+                ] = self.inference_programs[worker_idx]["vae"][
+                    f"{self.model_params.vae_module_name}.decode"
+                ]
         # self.batcher.launch()
 
     def shutdown(self):

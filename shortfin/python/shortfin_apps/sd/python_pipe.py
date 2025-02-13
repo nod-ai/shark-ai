@@ -40,13 +40,14 @@ logger.propagate = False
 
 THIS_DIR = Path(__file__).parent
 
+
 def get_configs(
-        model_config,
-        flagfile,
-        target,
-        artifacts_dir,
-        use_tuned = True,
-    ):
+    model_config,
+    flagfile,
+    target,
+    artifacts_dir,
+    use_tuned=True,
+):
     # Returns one set of config artifacts.
     modelname = "sdxl"
     tuning_spec = None
@@ -76,14 +77,14 @@ def get_configs(
 
 
 def get_modules(
-        target,
-        device,
-        model_config,
-        flagfile=None,
-        td_spec=None,
-        extra_compile_flags=[],
-        artifacts_dir=None,
-    ):
+    target,
+    device,
+    model_config,
+    flagfile=None,
+    td_spec=None,
+    extra_compile_flags=[],
+    artifacts_dir=None,
+):
     # TODO: Move this out of server entrypoint
     vmfbs = {"clip": [], "unet": [], "vae": [], "scheduler": []}
     params = {"clip": [], "unet": [], "vae": []}
@@ -141,8 +142,8 @@ def get_modules(
                     vmfbs[key].extend([name])
     return vmfbs, params
 
-class MicroSDXLExecutor(sf.Process):
 
+class MicroSDXLExecutor(sf.Process):
     def __init__(self, args, service):
         super().__init__(fiber=service.fibers[0])
         self.service = service
@@ -151,9 +152,7 @@ class MicroSDXLExecutor(sf.Process):
         self.exec = None
         self.imgs = None
 
-    async def run(
-        self
-    ):
+    async def run(self):
         args = self.args
         self.exec = InferenceExecRequest(
             args.prompt,
@@ -173,7 +172,7 @@ class MicroSDXLExecutor(sf.Process):
         worker_idx = self.service.get_worker_index(fiber)
         exec_process = InferenceExecutorProcess(self.service, fiber)
         if self.service.prog_isolation != sf.ProgramIsolation.PER_FIBER:
-                self.service.idle_fibers.add(fiber)
+            self.service.idle_fibers.add(fiber)
         exec_process.exec_requests.append(self.exec)
         exec_process.launch()
         await asyncio.gather(exec_process)
@@ -182,11 +181,12 @@ class MicroSDXLExecutor(sf.Process):
 
         for req in exec_process.exec_requests:
             imgs.append(req.image_array)
-        
+
         self.imgs = imgs
         return
 
-class SDXLSampleProcessor():
+
+class SDXLSampleProcessor:
     def __init__(self, service):
         self.service = service
         self.max_procs = 2
@@ -213,18 +213,18 @@ class SDXLSampleProcessor():
 
 
 def create_service(
-        model_params,
-        device,
-        tokenizers, 
-        vmfbs, 
-        params,
-        device_idx=None,
-        device_ids=[],
-        fibers_per_device=1,
-        isolation="per_call",
-        trace_execution=False,
-        amdgpu_async_allocations=False,
-    ):
+    model_params,
+    device,
+    tokenizers,
+    vmfbs,
+    params,
+    device_idx=None,
+    device_ids=[],
+    fibers_per_device=1,
+    isolation="per_call",
+    trace_execution=False,
+    amdgpu_async_allocations=False,
+):
     if device_idx is not None:
         sysman = SystemManager(device, [device_idx], amdgpu_async_allocations)
     else:
@@ -245,9 +245,12 @@ def create_service(
         for vmfb in vmfblist:
             sdxl_service.load_inference_module(vmfb, component=key)
     for key, datasets in params.items():
-        sdxl_service.load_inference_parameters(*datasets, parameter_scope="model", component=key)
+        sdxl_service.load_inference_parameters(
+            *datasets, parameter_scope="model", component=key
+        )
     sdxl_service.start()
     return sdxl_service
+
 
 def prepare_service(args):
     tokenizers = []
@@ -259,10 +262,17 @@ def prepare_service(args):
         args.flagfile,
         args.target,
         args.artifacts_dir,
-        args.use_tuned
+        args.use_tuned,
     )
     model_params = ModelParams.load_json(model_config)
-    vmfbs, params = get_modules(args.target, args.device, model_config, flagfile, tuning_spec, artifacts_dir=args.artifacts_dir)
+    vmfbs, params = get_modules(
+        args.target,
+        args.device,
+        model_config,
+        flagfile,
+        tuning_spec,
+        artifacts_dir=args.artifacts_dir,
+    )
     return model_params, tokenizers, vmfbs, params
 
 
@@ -270,7 +280,7 @@ class Main:
     def __init__(self, sysman):
         self.sysman = sysman
 
-    def main(self, args): #queue
+    def main(self, args):  # queue
         model_params, tokenizers, vmfbs, params = prepare_service(args)
         shared_service = False
         services = set()
@@ -282,13 +292,24 @@ class Main:
                     tokenizers,
                     vmfbs,
                     params,
-                    trace_execution=args.trace_execution, 
-                    amdgpu_async_allocations=args.amdgpu_async_allocations
+                    trace_execution=args.trace_execution,
+                    amdgpu_async_allocations=args.amdgpu_async_allocations,
                 )
             )
         else:
             for idx, device in enumerate(self.sysman.ls.device_names):
-                services.add(create_service(model_params, args.device, tokenizers, vmfbs, params, device_idx = idx, trace_execution=args.trace_execution, amdgpu_async_allocations=args.amdgpu_async_allocations))
+                services.add(
+                    create_service(
+                        model_params,
+                        args.device,
+                        tokenizers,
+                        vmfbs,
+                        params,
+                        device_idx=idx,
+                        trace_execution=args.trace_execution,
+                        amdgpu_async_allocations=args.amdgpu_async_allocations,
+                    )
+                )
         procs = set()
         procs_per_service = 2
         for service in services:
@@ -327,7 +348,6 @@ class Main:
             this_processor.process(args)
             procs.add(this_processor)
 
-
         # Read responses
         while len(imgs) < samples:
             for proc in procs:
@@ -338,6 +358,7 @@ class Main:
 
         print(f"Completed {samples} samples in {time.time() - start} seconds.")
         return
+
 
 def run_cli(argv):
     parser = argparse.ArgumentParser()
@@ -512,6 +533,7 @@ def run_cli(argv):
     sysman = SystemManager(args.device, args.device_ids, args.amdgpu_async_allocations)
     main = Main(sysman)
     main.main(args)
+
 
 if __name__ == "__main__":
     logging.root.setLevel(logging.INFO)
