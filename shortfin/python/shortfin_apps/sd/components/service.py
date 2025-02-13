@@ -297,7 +297,7 @@ class BatcherProcess(sf.Process):
             if len(self.service.idle_fibers) == 0:
                 return
             fiber = self.service.idle_fibers.pop(0)
-            logger.debug(f"Sending batch to fiber {fiber.idx} (worker {fiber.worker_idx})")
+            logger.info(f"Sending batch to fiber {fiber.idx} (worker {fiber.worker_idx})")
             self.board(batch["reqs"][0], fiber=fiber)
             if self.service.prog_isolation != sf.ProgramIsolation.PER_FIBER:
                 self.service.idle_fibers.append(fiber)
@@ -404,6 +404,10 @@ class InferenceExecutorProcess(sf.Process):
         # Tokenize the prompts if the request does not hold input_ids.
         batch_ids_lists = []
         cb = self.exec_request.command_buffer
+        if isinstance(self.exec_request.prompt, str):
+            self.exec_request.prompt = [self.exec_request.prompt]
+        if isinstance(self.exec_request.neg_prompt, str):
+            self.exec_request.neg_prompt = [self.exec_request.neg_prompt]
         for i in range(self.exec_request.batch_size):
             input_ids_list = []
             neg_ids_list = []
@@ -487,7 +491,6 @@ class InferenceExecutorProcess(sf.Process):
             cb.num_steps,
             fiber=self.fiber
         )
-
         accum_step_duration = 0  # Accumulated duration for all steps
         for i, t in tqdm(
             enumerate(range(self.exec_request.steps)),
@@ -512,7 +515,6 @@ class InferenceExecutorProcess(sf.Process):
                 cb.sigmas,
                 fiber=self.fiber
             )
-
             logger.debug(
                 "INVOKE %r",
                 fns["unet"],
@@ -526,7 +528,6 @@ class InferenceExecutorProcess(sf.Process):
                 cb.guidance_scale, 
                 fiber=self.fiber
             )
-
             logger.debug(
                 "INVOKE %r",
                 fns["step"],
@@ -538,14 +539,13 @@ class InferenceExecutorProcess(sf.Process):
                 cb.next_sigma,
                 fiber=self.fiber
             )
-
+            await device
             duration = time.time() - start
             accum_step_duration += duration
         average_step_duration = accum_step_duration / self.exec_request.steps
         log_duration_str(
             average_step_duration, "denoise (UNet) single step average", req_bs
         )
-        cb.denoised_latents.copy_from(cb.latents)
         return
 
     @measure(type="exec", task="decode (VAE)")
@@ -633,7 +633,8 @@ def initialize_command_buffer(fiber, model_params: ModelParams, batch_size:int=1
         ),
         "num_steps": sfnp.device_array.for_device(device, [1], sfnp.sint64),
         "steps_arr": sfnp.device_array.for_device(device, [100], sfnp.sint64),
-        "timesteps": sfnp.device_array.for_device(device, [100], model_params.unet_dtype),
+        "timesteps": sfnp.device_array.for_device(device, [100], sfnp.float32),
+        "sigmas": sfnp.device_array.for_device(device, [100], sfnp.float32),
         "latent_model_input": sfnp.device_array.for_device(
             device, [bs, c, h//8, w//8], model_params.unet_dtype
         ),
@@ -643,8 +644,6 @@ def initialize_command_buffer(fiber, model_params: ModelParams, batch_size:int=1
         "time_ids": sfnp.device_array.for_device(device, [bs, 6], model_params.unet_dtype),
         "guidance_scale": sfnp.device_array.for_device(device, [bs], model_params.unet_dtype),
         # VAE
-        "denoised_latents": sfnp.device_array.for_device(device, [bs, c, h//8, w//8], model_params.vae_dtype),
-        # POSTPROCESS
         "images": sfnp.device_array.for_device(device, [bs, 3, h, w], model_params.vae_dtype),
         "images_host": sfnp.device_array.for_host(device, [bs, 3, h, w], model_params.vae_dtype),
     }

@@ -108,6 +108,7 @@ class InferenceExecRequest(sf.Message):
         self.post_init()
 
     def set_command_buffer(self, cb):
+        # Input IDs for CLIP if they are used as inputs instead of prompts.
         if self.input_ids:
             # Take a batch of sets of input ids as ndarrays and fill cb.input_ids
             host_arrs = [None] * 4
@@ -121,10 +122,24 @@ class InferenceExecRequest(sf.Message):
 
                         m.fill(np_arr)
                 cb.input_ids[idx].copy_from(host_arrs[idx])
+
+        # Same for noisy latents if they are explicitly provided as a numpy array.
+        if self.sample:
+            sample_host = cb.sample.for_transfer()
+            with sample_host.map(discard=True) as m:
+                m.fill(self.sample.tobytes())
+            cb.sample.copy_from(sample_host)
+
+        # Copy other inference parameters for denoise to device arrays.
         steps_arr = list(range(0, self.steps))
         steps_host = cb.steps_arr.for_transfer()
         steps_host.items = steps_arr
         cb.steps_arr.copy_from(steps_host)
+
+        num_step_host = cb.num_steps.for_transfer()
+        num_step_host.items = [self.steps]
+        cb.num_steps.copy_from(num_step_host)
+
         guidance_host = cb.guidance_scale.for_transfer()
         with guidance_host.map(discard=True) as m:
             # TODO: do this without numpy
@@ -132,11 +147,7 @@ class InferenceExecRequest(sf.Message):
 
             m.fill(np_arr)
         cb.guidance_scale.copy_from(guidance_host)
-        if self.sample:
-            sample_host = cb.sample.for_transfer()
-            with sample_host.map(discard=True) as m:
-                m.fill(self.sample.tobytes())
-            cb.sample.copy_from(sample_host)
+
         self.command_buffer = cb
         return
         
