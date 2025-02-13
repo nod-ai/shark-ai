@@ -112,7 +112,7 @@ class InferenceExecRequest(sf.Message):
 
     def set_command_buffer(self, cb):
         # Input IDs for CLIP if they are used as inputs instead of prompts.
-        if self.input_ids:
+        if self.input_ids is not None:
             # Take a batch of sets of input ids as ndarrays and fill cb.input_ids
             host_arrs = [None] * 4
             for idx, arr in enumerate(cb.input_ids):
@@ -127,7 +127,7 @@ class InferenceExecRequest(sf.Message):
                 cb.input_ids[idx].copy_from(host_arrs[idx])
 
         # Same for noisy latents if they are explicitly provided as a numpy array.
-        if self.sample:
+        if self.sample is not None:
             sample_host = cb.sample.for_transfer()
             with sample_host.map(discard=True) as m:
                 m.fill(self.sample.tobytes())
