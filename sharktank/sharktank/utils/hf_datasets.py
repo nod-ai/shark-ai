@@ -103,7 +103,7 @@ Dataset(
         ),
         RemoteFile(
             "tokenizer_config.json",
-            "NousResearch/Meta-Llama-3-8B",
+            "NousResearch/Meta-Llama-3-8B-Instruct",
             "tokenizer_config.json",
             extra_filenames=["tokenizer.json"],
         ),

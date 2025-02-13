@@ -6,6 +6,7 @@
 
 import asyncio
 import logging
+import time
 import numpy as np
 from tqdm.auto import tqdm
 from pathlib import Path
@@ -19,7 +20,7 @@ from .config_struct import ModelParams
 from .manager import SystemManager
 from .messages import InferenceExecRequest, InferencePhase, StrobeMessage
 from .tokenizer import Tokenizer
-from .metrics import measure
+from .metrics import measure, log_duration_str
 
 logger = logging.getLogger("shortfin-sd.service")
 
@@ -432,6 +433,7 @@ class InferenceExecutorProcess(sf.Process):
             request.sample.copy_from(sample_host)
         return
 
+    @measure(type="exec", task="encode (CLIP)")
     async def _encode(self, device, requests):
         req_bs = len(requests)
         entrypoints = self.service.inference_functions[self.worker_index]["encode"]
@@ -487,6 +489,7 @@ class InferenceExecutorProcess(sf.Process):
 
         return
 
+    @measure(type="exec", task="denoise (UNet)")
     async def _denoise(self, device, requests):
         req_bs = len(requests)
         step_count = requests[0].steps
@@ -580,11 +583,14 @@ class InferenceExecutorProcess(sf.Process):
         (latents, time_ids, timesteps, sigmas) = await fns["init"](
             *init_inputs, fiber=self.fiber
         )
+
+        accum_step_duration = 0  # Accumulated duration for all steps
         for i, t in tqdm(
             enumerate(range(step_count)),
             disable=(not self.service.show_progress),
             desc=f"DENOISE (bs{req_bs})",
         ):
+            start = time.time()
             step = sfnp.device_array.for_device(device, [1], sfnp.sint64)
             s_host = step.for_transfer()
             with s_host.map(write=True) as m:
@@ -622,6 +628,13 @@ class InferenceExecutorProcess(sf.Process):
             (latent_model_output,) = await fns["step"](*step_inputs, fiber=self.fiber)
             latents.copy_from(latent_model_output)
 
+            duration = time.time() - start
+            accum_step_duration += duration
+        average_step_duration = accum_step_duration / step_count
+        log_duration_str(
+            average_step_duration, "denoise (UNet) single step average", req_bs
+        )
+
         for idx, req in enumerate(requests):
             req.denoised_latents = sfnp.device_array.for_device(
                 device, latents_shape, self.service.model_params.vae_dtype
@@ -629,6 +642,7 @@ class InferenceExecutorProcess(sf.Process):
             req.denoised_latents.copy_from(latents.view(idx))
         return
 
+    @measure(type="exec", task="decode (VAE)")
     async def _decode(self, device, requests):
         req_bs = len(requests)
         # Decode latents to images
