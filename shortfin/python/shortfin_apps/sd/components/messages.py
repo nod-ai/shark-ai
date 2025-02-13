@@ -10,6 +10,7 @@ import logging
 
 import shortfin as sf
 import shortfin.array as sfnp
+import numpy as np
 
 from .io_struct import GenerateReqInput
 
@@ -41,14 +42,14 @@ class InferenceExecRequest(sf.Message):
 
     def __init__(
         self,
-        prompt: str | None = None,
-        neg_prompt: str | None = None,
+        prompt: str | list[str] | None = None,
+        neg_prompt: str | list[str] | None = None,
         height: int | None = None,
         width: int | None = None,
         steps: int | None = None,
-        guidance_scale: float | sfnp.device_array | None = None,
-        seed: int | None = None,
-        input_ids: list[list[int]] | None = None,
+        guidance_scale: float | list[float] | sfnp.device_array | None = None,
+        seed: int | list[int] | None = None,
+        input_ids: list[list[int]] | list[list[list[int]]] | list[sfnp.device_array] | None = None,
         sample: sfnp.device_array | None = None,
         prompt_embeds: sfnp.device_array | None = None,
         text_embeds: sfnp.device_array | None = None,
@@ -58,8 +59,9 @@ class InferenceExecRequest(sf.Message):
         image_array: sfnp.device_array | None = None,
     ):
         super().__init__()
+        self.command_buffer = None
         self.print_debug = True
-
+        self.batch_size = 1
         self.phases = {}
         self.phase = None
         self.height = height
@@ -74,7 +76,7 @@ class InferenceExecRequest(sf.Message):
         self.seed = seed
 
         # Encode phase.
-        # This is a list of sequenced positive and negative token ids and pooler token ids.
+        # This is a list of sequenced positive and negative token ids and pooler token ids (tokenizer outputs)
         self.input_ids = input_ids
 
         # Denoise phase.
@@ -82,6 +84,7 @@ class InferenceExecRequest(sf.Message):
         self.text_embeds = text_embeds
         self.sample = sample
         self.steps = steps
+        self.steps_arr = None
         self.timesteps = timesteps
         self.time_ids = time_ids
         self.guidance_scale = guidance_scale
@@ -104,36 +107,39 @@ class InferenceExecRequest(sf.Message):
 
         self.post_init()
 
-    @staticmethod
-    def from_batch(gen_req: GenerateReqInput, index: int) -> "InferenceExecRequest":
-        gen_inputs = [
-            "prompt",
-            "neg_prompt",
-            "height",
-            "width",
-            "steps",
-            "guidance_scale",
-            "seed",
-            "input_ids",
-        ]
-        rec_inputs = {}
-        for item in gen_inputs:
-            received = getattr(gen_req, item, None)
-            if isinstance(received, list):
-                if index >= (len(received)):
-                    if len(received) == 1:
-                        rec_input = received[0]
-                    else:
-                        logging.error(
-                            "Inputs in request must be singular or as many as the list of prompts."
-                        )
-                else:
-                    rec_input = received[index]
-            else:
-                rec_input = received
-            rec_inputs[item] = rec_input
-        return InferenceExecRequest(**rec_inputs)
+    def set_command_buffer(self, cb):
+        if self.input_ids:
+            # Take a batch of sets of input ids as ndarrays and fill cb.input_ids
+            host_arrs = [None] * 4
+            for idx, arr in enumerate(cb.input_ids):
+                host_arrs[idx] = arr.for_transfer()
+                for i in range(cb.sample.shape[0]):
+                    with host_arrs[idx].view(i).map(write=True, discard=True) as m:
 
+                        # TODO: fix this attr redundancy
+                        np_arr = self.input_ids[i][idx]
+
+                        m.fill(np_arr)
+                cb.input_ids[idx].copy_from(host_arrs[idx])
+        steps_arr = list(range(0, self.steps))
+        steps_host = cb.steps_arr.for_transfer()
+        steps_host.items = steps_arr
+        cb.steps_arr.copy_from(steps_host)
+        guidance_host = cb.guidance_scale.for_transfer()
+        with guidance_host.map(discard=True) as m:
+            # TODO: do this without numpy
+            np_arr = np.asarray(self.guidance_scale, dtype="float16")
+
+            m.fill(np_arr)
+        cb.guidance_scale.copy_from(guidance_host)
+        if self.sample:
+            sample_host = cb.sample.for_transfer()
+            with sample_host.map(discard=True) as m:
+                m.fill(self.sample.tobytes())
+            cb.sample.copy_from(sample_host)
+        self.command_buffer = cb
+        return
+        
     def post_init(self):
         """Determines necessary inference phases and tags them with static program parameters."""
         for p in reversed(list(InferencePhase)):
@@ -178,6 +184,37 @@ class InferenceExecRequest(sf.Message):
         self.phases = None
         self.done = sf.VoidFuture()
         self.return_host_array = True
+
+    @staticmethod
+    def from_batch(gen_req: GenerateReqInput, index: int) -> "InferenceExecRequest":
+        gen_inputs = [
+            "prompt",
+            "neg_prompt",
+            "height",
+            "width",
+            "steps",
+            "guidance_scale",
+            "seed",
+            "input_ids",
+        ]
+        rec_inputs = {}
+        for item in gen_inputs:
+            received = getattr(gen_req, item, None)
+            if isinstance(received, list):
+                if index >= (len(received)):
+                    if len(received) == 1:
+                        rec_input = received[0]
+                    else:
+                        logging.error(
+                            "Inputs in request must be singular or as many as the list of prompts."
+                        )
+                else:
+                    rec_input = received[index]
+            else:
+                rec_input = received
+            rec_inputs[item] = rec_input
+        req = InferenceExecRequest(**rec_inputs)
+        return req
 
 
 class StrobeMessage(sf.Message):
