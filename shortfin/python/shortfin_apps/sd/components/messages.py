@@ -49,7 +49,10 @@ class InferenceExecRequest(sf.Message):
         steps: int | None = None,
         guidance_scale: float | list[float] | sfnp.device_array | None = None,
         seed: int | list[int] | None = None,
-        input_ids: list[list[int]] | list[list[list[int]]] | list[sfnp.device_array] | None = None,
+        input_ids: list[list[int]]
+        | list[list[list[int]]]
+        | list[sfnp.device_array]
+        | None = None,
         sample: sfnp.device_array | None = None,
         prompt_embeds: sfnp.device_array | None = None,
         text_embeds: sfnp.device_array | None = None,
@@ -150,7 +153,7 @@ class InferenceExecRequest(sf.Message):
 
         self.command_buffer = cb
         return
-        
+
     def post_init(self):
         """Determines necessary inference phases and tags them with static program parameters."""
         for p in reversed(list(InferencePhase)):

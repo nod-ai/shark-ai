@@ -95,7 +95,9 @@ class ModelParams:
     @property
     def all_batch_sizes(self) -> list:
         intersection = list(
-            set(self.clip_batch_sizes) & set(self.unet_batch_sizes) & set(self.vae_batch_sizes)
+            set(self.clip_batch_sizes)
+            & set(self.unet_batch_sizes)
+            & set(self.vae_batch_sizes)
         )
         return intersection
 
