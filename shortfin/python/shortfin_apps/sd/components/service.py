@@ -402,10 +402,10 @@ class InferenceExecutorProcess(sf.Process):
             logger.exception("Fatal error in image generation")
             # TODO: Cancel and set error correctly
             self.exec_request.done.set_success()
-    
+
         self.meta_fiber.command_buffers.append(self.exec_request.command_buffer)
         if self.service.prog_isolation == sf.ProgramIsolation.PER_FIBER:
-                self.service.idle_meta_fibers.append(self.meta_fiber)
+            self.service.idle_meta_fibers.append(self.meta_fiber)
 
     async def _prepare(self, device):
         # Tokenize prompts and negative prompts. We tokenize in bs1 for now and join later.
