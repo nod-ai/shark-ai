@@ -103,6 +103,23 @@ template <>
 struct is_trivially_copyable<bfloat16_t> : std::true_type {};
 }  // namespace std
 
+// Math functions needed by xtensor for bfloat16_t
+inline constexpr bfloat16_t round(bfloat16_t x) noexcept {
+  return bfloat16_t(std::round(float(x)));
+}
+
+inline constexpr bfloat16_t ceil(bfloat16_t x) noexcept {
+  return bfloat16_t(std::ceil(float(x)));
+}
+
+inline constexpr bfloat16_t floor(bfloat16_t x) noexcept {
+  return bfloat16_t(std::floor(float(x)));
+}
+
+inline constexpr bfloat16_t trunc(bfloat16_t x) noexcept {
+  return bfloat16_t(std::trunc(float(x)));
+}
+
 #endif  // BFLOAT16_HPP
 
 using namespace shortfin::array;
