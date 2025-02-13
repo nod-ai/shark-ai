@@ -295,10 +295,10 @@ class BatcherProcess(sf.Process):
         for batch in batches.values():
             # Assign the batch to the next idle fiber.
             if len(self.service.idle_fibers) == 0:
-                logger.info("Waiting for an idle fiber...")
+                logger.debug("Waiting for an idle fiber...")
                 return
             fiber = self.service.idle_fibers.pop(0)
-            logger.info(f"Sending batch to fiber {fiber.idx} (worker {fiber.worker_idx})")
+            logger.debug(f"Sending batch to fiber {fiber.idx} (worker {fiber.worker_idx})")
             await self.board(batch["reqs"][0], fiber=fiber)
             if self.service.prog_isolation != sf.ProgramIsolation.PER_FIBER:
                 self.service.idle_fibers.append(fiber)
@@ -449,7 +449,6 @@ class InferenceExecutorProcess(sf.Process):
         await device
         return
 
-    @measure(type="exec", task="encode (CLIP)")
     async def _encode(self, device):
         req_bs = self.exec_request.batch_size
         entrypoints = self.service.inference_functions[self.worker_index]["encode"]
@@ -467,7 +466,6 @@ class InferenceExecutorProcess(sf.Process):
         cb.prompt_embeds, cb.text_embeds = await fn(*cb.input_ids, fiber=self.fiber)
         return
 
-    @measure(type="exec", task="denoise (UNet)")
     async def _denoise(self, device):
         req_bs = self.exec_request.batch_size
         entrypoints = self.service.inference_functions[self.worker_index]["denoise"]
@@ -540,7 +538,6 @@ class InferenceExecutorProcess(sf.Process):
                 cb.next_sigma,
                 fiber=self.fiber
             )
-            await device
             duration = time.time() - start
             accum_step_duration += duration
         average_step_duration = accum_step_duration / self.exec_request.steps
@@ -549,7 +546,6 @@ class InferenceExecutorProcess(sf.Process):
         )
         return
 
-    @measure(type="exec", task="decode (VAE)")
     async def _decode(self, device):
         req_bs = self.exec_request.batch_size
         cb = self.exec_request.command_buffer
