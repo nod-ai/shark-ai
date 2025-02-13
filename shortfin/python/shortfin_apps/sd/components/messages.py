@@ -54,11 +54,6 @@ class InferenceExecRequest(sf.Message):
         | list[sfnp.device_array]
         | None = None,
         sample: sfnp.device_array | None = None,
-        prompt_embeds: sfnp.device_array | None = None,
-        text_embeds: sfnp.device_array | None = None,
-        timesteps: sfnp.device_array | None = None,
-        time_ids: sfnp.device_array | None = None,
-        denoised_latents: sfnp.device_array | None = None,
         image_array: sfnp.device_array | None = None,
     ):
         super().__init__()
@@ -83,14 +78,8 @@ class InferenceExecRequest(sf.Message):
         self.input_ids = input_ids
 
         # Denoise phase.
-        self.prompt_embeds = prompt_embeds
-        self.text_embeds = text_embeds
         self.sample = sample
         self.steps = steps
-        self.steps_arr = None
-        self.timesteps = timesteps
-        self.time_ids = time_ids
-        self.guidance_scale = guidance_scale
 
         # Decode phase.
         self.denoised_latents = denoised_latents

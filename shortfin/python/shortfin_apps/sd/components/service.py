@@ -88,9 +88,9 @@ class GenerateService:
                 worker_idx = idx * workers_per_device + i % workers_per_device
                 tgt_worker = self.workers[worker_idx]
                 raw_fiber = sysman.ls.create_fiber(tgt_worker, devices=[device])
-                fiber = self.equip_fiber(raw_fiber, len(self.fibers), worker_idx)
-                self.fibers.append(fiber)
-                self.idle_fibers.append(fiber)
+                meta_fiber = self.equip_fiber(raw_fiber, len(self.fibers), worker_idx)
+                self.meta_fibers.append(meta_fiber)
+                self.idle_meta_fibers.append(meta_fiber)
         for idx in range(len(self.workers)):
             self.inference_programs[idx] = {}
             self.inference_functions[idx] = {}
@@ -99,8 +99,8 @@ class GenerateService:
         self.batcher = BatcherProcess(self)
 
     def equip_fiber(self, fiber, idx, worker_idx):
-        EquippedFiber = namedtuple(
-            "EquippedFiber", ["fiber", "idx", "worker_idx", "device", "command_buffers"]
+        MetaFiber = namedtuple(
+            "MetaFiber", ["fiber", "idx", "worker_idx", "device", "command_buffers"]
         )
         cbs_per_fiber = 1
         cbs = []
@@ -110,7 +110,7 @@ class GenerateService:
                     initialize_command_buffer(fiber, self.model_params, batch_size)
                 )
 
-        return EquippedFiber(fiber, idx, worker_idx, fiber.device(0), cbs)
+        return MetaFiber(fiber, idx, worker_idx, fiber.device(0), cbs)
 
     def get_worker_index(self, fiber):
         if fiber not in self.fibers:
@@ -244,14 +244,14 @@ class BatcherProcess(sf.Process):
     STROBE_LONG_DELAY = 1
 
     def __init__(self, service: GenerateService):
-        super().__init__(fiber=service.fibers[0].fiber)
+        super().__init__(fiber=service.meta_fibers[0].fiber)
         self.service = service
         self.batcher_infeed = self.system.create_queue()
         self.pending_requests: set[InferenceExecRequest] = set()
         self.strobe_enabled = True
         self.strobes: int = 0
         self.ideal_batch_size: int = max(service.model_params.all_batch_sizes)
-        self.num_fibers = len(service.fibers)
+        self.num_fibers = len(service.meta_fibers)
 
     def shutdown(self):
         self.batcher_infeed.close()
@@ -297,16 +297,16 @@ class BatcherProcess(sf.Process):
         batches = self.sort_batches()
         for batch in batches.values():
             # Assign the batch to the next idle fiber.
-            if len(self.service.idle_fibers) == 0:
+            if len(self.service.idle_meta_fibers) == 0:
                 logger.debug("Waiting for an idle fiber...")
                 return
-            fiber = self.service.idle_fibers.pop(0)
+            fiber = self.service.idle_meta_fibers.pop(0)
             logger.debug(
                 f"Sending batch to fiber {fiber.idx} (worker {fiber.worker_idx})"
             )
-            await self.board(batch["reqs"][0], fiber=fiber)
+            await self.board(batch["reqs"][0], meta_fiber=fiber)
             if self.service.prog_isolation != sf.ProgramIsolation.PER_FIBER:
-                self.service.idle_fibers.append(fiber)
+                self.service.idle_meta_fibers.append(fiber)
 
     def sort_batches(self):
         """Files pending requests into sorted batches suitable for program invocations."""
@@ -339,8 +339,8 @@ class BatcherProcess(sf.Process):
                 }
         return batches
 
-    async def board(self, request, fiber):
-        exec_process = InferenceExecutorProcess(self.service, fiber)
+    async def board(self, request, meta_fiber):
+        exec_process = InferenceExecutorProcess(self.service, meta_fiber)
         exec_process.exec_request = request
         self.pending_requests.remove(request)
         exec_process.launch()
@@ -357,12 +357,12 @@ class InferenceExecutorProcess(sf.Process):
     def __init__(
         self,
         service: GenerateService,
-        fiber,
+        meta_fiber,
     ):
-        super().__init__(fiber=fiber.fiber)
+        super().__init__(fiber=meta_fiber.fiber)
         self.service = service
-        self.meta_fiber = fiber
-        self.worker_index = fiber.worker_idx
+        self.meta_fiber = meta_fiber
+        self.worker_index = meta_fiber.worker_idx
         self.exec_request: InferenceExecRequest = None
 
     def assign_command_buffer(self, request: InferenceExecRequest):
@@ -396,16 +396,16 @@ class InferenceExecutorProcess(sf.Process):
                 await self._decode(device=device)
             if phases[InferencePhase.POSTPROCESS]["required"]:
                 await self._postprocess(device=device)
-            await device
             self.exec_request.done.set_success()
-            self.meta_fiber.command_buffers.append(self.exec_request.command_buffer)
-            if self.service.prog_isolation == sf.ProgramIsolation.PER_FIBER:
-                self.service.idle_fibers.append(self.meta_fiber)
 
         except Exception:
             logger.exception("Fatal error in image generation")
             # TODO: Cancel and set error correctly
             self.exec_request.done.set_success()
+    
+        self.meta_fiber.command_buffers.append(self.exec_request.command_buffer)
+        if self.service.prog_isolation == sf.ProgramIsolation.PER_FIBER:
+                self.service.idle_meta_fibers.append(self.meta_fiber)
 
     async def _prepare(self, device):
         # Tokenize prompts and negative prompts. We tokenize in bs1 for now and join later.
