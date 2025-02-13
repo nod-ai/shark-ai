@@ -278,12 +278,12 @@ class BatcherProcess(sf.Process):
             else:
                 logger.error("Illegal message received by batcher: %r", item)
 
-            self.board_flights()
+            await self.board_flights()
 
             self.strobe_enabled = True
         await strober_task
 
-    def board_flights(self):
+    async def board_flights(self):
         waiting_count = len(self.pending_requests)
         if waiting_count == 0:
             return
@@ -295,10 +295,11 @@ class BatcherProcess(sf.Process):
         for batch in batches.values():
             # Assign the batch to the next idle fiber.
             if len(self.service.idle_fibers) == 0:
+                logger.info("Waiting for an idle fiber...")
                 return
             fiber = self.service.idle_fibers.pop(0)
             logger.info(f"Sending batch to fiber {fiber.idx} (worker {fiber.worker_idx})")
-            self.board(batch["reqs"][0], fiber=fiber)
+            await self.board(batch["reqs"][0], fiber=fiber)
             if self.service.prog_isolation != sf.ProgramIsolation.PER_FIBER:
                 self.service.idle_fibers.append(fiber)
 
@@ -333,7 +334,7 @@ class BatcherProcess(sf.Process):
                 }
         return batches
 
-    def board(self, request, fiber):
+    async def board(self, request, fiber):
         exec_process = InferenceExecutorProcess(self.service, fiber)
         exec_process.exec_request = request
         self.pending_requests.remove(request)
@@ -392,7 +393,7 @@ class InferenceExecutorProcess(sf.Process):
             self.exec_request.done.set_success()
             self.meta_fiber.command_buffers.append(self.exec_request.command_buffer)
             if self.service.prog_isolation == sf.ProgramIsolation.PER_FIBER:
-                self.service.idle_fibers.append(self.fiber)
+                self.service.idle_fibers.append(self.meta_fiber)
 
         except Exception:
             logger.exception("Fatal error in image generation")
