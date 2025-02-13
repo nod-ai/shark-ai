@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from .lifecycle_hooks import lifespan
 from .routes import application_router, generation_router
@@ -16,7 +17,18 @@ def add_routes(app: FastAPI):
     return app
 
 
+def add_middleware(app: FastAPI):
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    return app
+
+
 def get_app() -> FastAPI:
     app = FastAPI(lifespan=lifespan)
     app = add_routes(app)
+    app = add_middleware(app)
     return app
