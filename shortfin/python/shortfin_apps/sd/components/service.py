@@ -428,7 +428,7 @@ class InferenceExecutorProcess(sf.Process):
             batch_ids_lists.append(ids_list)
 
         # Prepare tokenized input ids for CLIP inference
-        host_arrs = [None] * 4
+        host_arrs = [None] * len(cb.input_ids)
         for idx, arr in enumerate(cb.input_ids):
             host_arrs[idx] = arr.for_transfer()
             for i in range(self.exec_request.batch_size):

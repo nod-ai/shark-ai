@@ -103,7 +103,7 @@ class InferenceExecRequest(sf.Message):
         # Input IDs for CLIP if they are used as inputs instead of prompts.
         if self.input_ids is not None:
             # Take a batch of sets of input ids as ndarrays and fill cb.input_ids
-            host_arrs = [None] * 4
+            host_arrs = [None] * len(cb.input_ids)
             for idx, arr in enumerate(cb.input_ids):
                 host_arrs[idx] = arr.for_transfer()
                 for i in range(cb.sample.shape[0]):
