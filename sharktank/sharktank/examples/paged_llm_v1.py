@@ -288,7 +288,7 @@ def main():
         block_seq_stride=args.block_seq_stride,
         device=device,
         activation_dtype=args.activation_dtype,
-        attention_dtype=args.activation_dtype,
+        attention_dtype=args.attention_dtype,
         attention_kernel=args.attention_kernel,
         use_hf=args.use_hf,
         tensor_parallelism_size=args.tensor_parallelism_size,
