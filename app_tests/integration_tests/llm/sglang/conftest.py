@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 def register_shortfin_backend(port):
+    print("------HERE------" + str(port))
     backend = sgl.Shortfin(
         chat_template=get_chat_template("llama-3-instruct"),
         base_url=f"http://localhost:{port}",
