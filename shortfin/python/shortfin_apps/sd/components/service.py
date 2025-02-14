@@ -76,8 +76,8 @@ class GenerateService:
         self.fibers_per_worker = int(fibers_per_device / workers_per_device)
 
         self.workers = []
-        self.fibers = []
-        self.idle_fibers = []
+        self.meta_fibers = []
+        self.idle_meta_fibers = []
         # For each worker index we create one on each device, and add their fibers to the idle set.
         # This roughly ensures that the first picked fibers are distributed across available devices.
         for idx, device in enumerate(self.sysman.ls.devices):
