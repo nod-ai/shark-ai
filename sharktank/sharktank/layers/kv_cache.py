@@ -322,6 +322,9 @@ class PagedKVCache:
                 (base_subblock_ids + index) if index > 0 else base_subblock_ids
             ).flatten(0, 1)
 
+            if subblock_table.dtype == torch.float8_e4m3fnuz:
+                # Workaround for Torch not supporting torch.Tensor.index_copy_ for f8.
+                subblock_table = subblock_table.view(dtype=torch.int8)
             subblock_table.index_copy_(
                 0, subblock_ids, ops.to(part_block_view, dtype=subblock_table.dtype)
             )
