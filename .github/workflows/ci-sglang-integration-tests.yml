@@ -72,8 +72,8 @@ jobs:
 
       - name: run rocm tests
         run: |
-        rocminfo
-        rocm-smi
+          rocminfo
+          rocm-smi
 
       - name: Run Integration Tests
         run: |
