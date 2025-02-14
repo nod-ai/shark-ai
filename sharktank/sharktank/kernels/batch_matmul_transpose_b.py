@@ -8,7 +8,7 @@ from sharktank.kernels.base import *
 
 import torch
 
-from iree.compiler.ir import IntegerType
+from iree.compiler.ir import IntegerType, FloatType
 
 __all__ = [
     "batch_matmul_transpose_b",
@@ -59,9 +59,7 @@ class batch_matmul_transpose_b(CustomOp):
             lambda: f"batch_matmul_transpose_b: Batch dims must match ({lhs_desc.t.shape} vs {rhs_desc.t.shape})",
         )
         # Shape batch, m, n
-        c_desc = ksel.return_new_tensor(
-            [lhs_batch, lhs_m, rhs_n], dtype=lhs_desc.t.dtype
-        )
+        c_desc = ksel.return_new_tensor([lhs_batch, lhs_m, rhs_n], dtype=torch.float32)
         specialize_all_known_dims(lhs_desc)
         specialize_all_known_dims(rhs_desc)
         specialize_all_known_dims(c_desc)
@@ -77,8 +75,9 @@ class batch_matmul_transpose_b(CustomOp):
         result_desc = ksel.result_descs[0]
 
         # Generate specialization signature and types.
-        a_asm_type, a_ident, accum_type = unpack_tensor_type(lhs.type)
+        a_asm_type, a_ident, _ = unpack_tensor_type(lhs.type)
         b_asm_type, b_ident, _ = unpack_tensor_type(rhs.type)
+        accum_type = FloatType.parse("f32")
         spec_sig = f"L{a_ident}_R{b_ident}"
         template_file = "batch_matmul_transpose_b.mlir"
         target_function_name = f"sharktank_batch_matmul_transpose_b_{spec_sig}"

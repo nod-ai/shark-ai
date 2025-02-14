@@ -126,6 +126,8 @@ class BaseCausalLMModel(ThetaLayer):
 
         # Combine the causal context mask and input mask.
         dtype = self.attention_dtype
+        print("attention dtype")
+        print(self.attention_dtype)
         _, batch_seq_len = input_mask.shape
         causal_mask = causal_context_mask[:, :, :batch_seq_len, :batch_seq_len]
         boolean_mask = torch.logical_or(causal_mask, input_mask[:, None, None, :])
