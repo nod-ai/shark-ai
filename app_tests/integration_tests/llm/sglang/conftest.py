@@ -55,7 +55,6 @@ def model_artifacts(request, tmp_path_factory):
 
 @pytest.fixture(scope="module")
 def start_server(request, model_artifacts):
-    os.environ["ROCR_VISIBLE_DEVICES"] = "0"
     device_settings = request.param["device_settings"]
 
     server_config = ServerConfig(
