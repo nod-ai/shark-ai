@@ -220,15 +220,16 @@ def main():
                 cache_tensors = cs
 
             attention_mask = None
+            sl = tokens.shape[1]
+            input_mask = model.input_mask(seq_lens, sl)
             if args.use_attention_mask:
-                sl = tokens.shape[1]
-                input_mask = model.input_mask(seq_lens, sl)
                 attention_mask = model.attention_mask(input_mask)
 
             if llama_config.tensor_parallelism_size != 1:
                 shard_count = llama_config.tensor_parallelism_size
 
                 tokens = ops.replicate(tokens, count=shard_count)
+                input_mask = ops.replicate(input_mask, count=shard_count)
                 if attention_mask:
                     attention_mask = ops.replicate(attention_mask, count=shard_count)
                 seq_block_ids = ops.replicate(seq_block_ids, count=shard_count)
@@ -236,6 +237,7 @@ def main():
 
             logits = model.prefill(
                 tokens,
+                input_mask=input_mask,
                 attention_mask=attention_mask,
                 seq_block_ids=seq_block_ids,
                 cache_state=cache_tensors,
@@ -306,15 +308,14 @@ def main():
             seq_block_ids,
             cache_state,
         ):
-            input_mask = model.input_mask(
-                seq_lens, seq_block_ids.shape[1] * model.cache.block_seq_stride
-            )
-            attention_mask = model.decode_attention_mask(input_mask)
+            input_mask = model.input_mask(seq_lens, 1)
+            attention_mask = model.decode_attention_mask(input_mask, seq_block_ids)
 
             if llama_config.tensor_parallelism_size != 1:
                 shard_count = llama_config.tensor_parallelism_size
 
                 tokens = ops.replicate(tokens, count=shard_count)
+                input_mask = ops.replicate(input_mask, count=shard_count)
                 attention_mask = ops.replicate(attention_mask, count=shard_count)
                 start_positions = ops.replicate(start_positions, count=shard_count)
                 seq_block_ids = ops.replicate(seq_block_ids, count=shard_count)
@@ -323,6 +324,7 @@ def main():
 
             logits = model.decode(
                 tokens,
+                input_mask=input_mask,
                 attention_mask=attention_mask,
                 start_positions=start_positions,
                 seq_block_ids=seq_block_ids,
