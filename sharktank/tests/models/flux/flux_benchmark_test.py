@@ -6,9 +6,7 @@
 
 from pathlib import Path
 import json
-import pandas
 import pytest
-import sys
 import torch
 
 from sharktank.models.flux.benchmark import iree_benchmark_flux_dev_transformer

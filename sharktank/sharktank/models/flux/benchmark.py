@@ -17,7 +17,6 @@ from .export import (
 )
 from ...types import Dataset
 from .flux import FluxModelV1, FluxParams
-from ...utils.export_artifacts import ExportArtifacts
 from ...utils.iree import flatten_for_iree_signature
 from ...utils.benchmark import iree_benchmark_module
 

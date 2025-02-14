@@ -8,7 +8,6 @@ import logging
 import functools
 import unittest
 import torch
-import pytest
 import iree.compiler
 import iree.runtime
 from collections import OrderedDict
@@ -22,8 +21,6 @@ from sharktank.models.flux.export import (
 from sharktank.models.flux.testing import (
     convert_flux_transformer_input_for_hugging_face_model,
     export_dev_random_single_layer,
-    make_dev_single_layer_config,
-    make_random_theta,
     with_flux_data,
 )
 from sharktank.models.flux.flux import FluxModelV1, FluxParams

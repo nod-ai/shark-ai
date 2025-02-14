@@ -7,12 +7,9 @@
 from typing import Any
 import iree.runtime
 import subprocess
-import json
 import sys
-import pandas
 from pathlib import Path
 import os
-from os import PathLike
 
 
 def _run_program(
