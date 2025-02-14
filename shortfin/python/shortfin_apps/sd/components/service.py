@@ -386,6 +386,10 @@ class InferenceExecutorProcess(sf.Process):
                 await self._denoise(device=device)
             if phases[InferencePhase.DECODE]["required"]:
                 await self._decode(device=device)
+                # Postprocessing needs the output data to be on the host.  Even
+                # without postprocessing, we're done with the GPU, so we wait for
+                # it to finish here.
+                await device
             if phases[InferencePhase.POSTPROCESS]["required"]:
                 await self._postprocess(device=device)
             self.exec_request.done.set_success()
@@ -445,7 +449,6 @@ class InferenceExecutorProcess(sf.Process):
         sfnp.fill_randn(sample_host, generator=generator)
 
         cb.sample.copy_from(sample_host)
-        await device
         return
 
     async def _encode(self, device):
@@ -543,7 +546,6 @@ class InferenceExecutorProcess(sf.Process):
         )
         (cb.images,) = await fn(cb.latents, fiber=self.fiber)
         cb.images_host.copy_from(cb.images)
-        await device
         image_array = cb.images_host.items
         dtype = image_array.typecode
         if cb.images_host.dtype == sfnp.float16:
