@@ -198,20 +198,23 @@ def all_gather_split(
     input: SplitPrimitiveTensor, *, dim: int | None
 ) -> ReplicatedTensor:
     dim = input.shard_dim if dim is None else dim
-    # For each device move the shards to it and do a concatenation.
-    # If we don't move first, common sub-expression elimination is free to collapse all
-    # concatenations into one and then copy to all devices, which is not what we want.
+
+    gathered = cat(
+        [
+            (
+                transfer_to_logical_device(shard, input.devices[0])
+                if i != 0
+                else barrier_on_logical_device(shard, input.devices[0])
+            )
+            for i, shard in enumerate(input.shards)
+        ],
+        dim=dim,
+    )
     shards = [
-        cat(
-            [
-                (
-                    barrier_on_logical_device(shard, input.devices[i])
-                    if i == j
-                    else transfer_to_logical_device(shard, input.devices[i])
-                )
-                for j, shard in enumerate(input.shards)
-            ],
-            dim=dim,
+        (
+            transfer_to_logical_device(gathered, input.devices[i])
+            if i != 0
+            else barrier_on_logical_device(gathered, input.devices[0])
         )
         for i in range(input.shard_count)
     ]
