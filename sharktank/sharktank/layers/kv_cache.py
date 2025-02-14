@@ -275,7 +275,9 @@ class PagedKVCache:
             partitions = partitions.repeat(bs, 1)
 
             indices = (page_id, transformer_block, partitions, page_offset)
-            page_table.index_put_(indices=indices, values=cache_partition)
+            page_table.index_put_(
+                indices=indices, values=ops.to(cache_partition, dtype=page_table.dtype)
+            )
 
         return
 
@@ -320,4 +322,9 @@ class PagedKVCache:
                 (base_subblock_ids + index) if index > 0 else base_subblock_ids
             ).flatten(0, 1)
 
-            subblock_table.index_copy_(0, subblock_ids, part_block_view)
+            part_block = ops.to(part_block_view, dtype=subblock_table.dtype)
+            if subblock_table.dtype == torch.float8_e4m3fnuz:
+                # Workaround for Torch not supporting torch.Tensor.index_copy_ for f8.
+                subblock_table = subblock_table.view(dtype=torch.int8)
+                part_block = part_block.view(dtype=torch.int8)
+            subblock_table.index_copy_(0, subblock_ids, part_block)
