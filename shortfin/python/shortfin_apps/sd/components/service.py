@@ -293,13 +293,13 @@ class BatcherProcess(sf.Process):
             if len(self.service.idle_meta_fibers) == 0:
                 logger.debug("Waiting for an idle fiber...")
                 return
-            fiber = self.service.idle_meta_fibers.pop(0)
+            meta_fiber = self.service.idle_meta_fibers.pop(0)
             logger.debug(
-                f"Sending batch to fiber {fiber.idx} (worker {fiber.worker_idx})"
+                f"Sending batch to fiber {meta_fiber.idx} (worker {meta_fiber.worker_idx})"
             )
-            await self.board(batch["reqs"][0], meta_fiber=fiber)
+            await self.board(batch["reqs"][0], meta_fiber=meta_fiber)
             if self.service.prog_isolation != sf.ProgramIsolation.PER_FIBER:
-                self.service.idle_meta_fibers.append(fiber)
+                self.service.idle_meta_fibers.append(meta_fiber)
 
     def sort_batches(self):
         """Files pending requests into sorted batches suitable for program invocations."""
