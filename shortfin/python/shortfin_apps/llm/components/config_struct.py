@@ -215,12 +215,6 @@ class ServerParams:
     # KV cache configuration
     prefix_sharing_algorithm: str = "none"  # none or trie
 
-    # Server runtime configuration
-    host: Optional[str] = None
-    port: int = 8000
-    root_path: Optional[str] = None
-    timeout_keep_alive: int = 5
-
     # Program isolation configuration
     program_isolation: str = "per_call"
 

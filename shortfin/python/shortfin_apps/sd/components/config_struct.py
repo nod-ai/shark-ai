@@ -94,7 +94,12 @@ class ModelParams:
 
     @property
     def all_batch_sizes(self) -> list:
-        return [self.clip_batch_sizes, self.unet_batch_sizes, self.vae_batch_sizes]
+        intersection = list(
+            set(self.clip_batch_sizes)
+            & set(self.unet_batch_sizes)
+            & set(self.vae_batch_sizes)
+        )
+        return intersection
 
     @property
     def max_batch_size(self):
