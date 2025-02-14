@@ -105,7 +105,8 @@ def main():
             write_page_ids = replicate(write_page_ids, count=args.sharding)
         cache.write(
             state,
-            cache_partitions=[partition_0, partition_0],
+            partition_0,
+            partition_0,
             transformer_block_index=1,
             page_ids=write_page_ids,
         )
