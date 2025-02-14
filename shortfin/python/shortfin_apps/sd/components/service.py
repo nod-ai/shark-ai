@@ -384,7 +384,6 @@ class InferenceExecutorProcess(sf.Process):
                 self.assign_command_buffer(self.exec_request)
 
             device = self.fiber.device(0)
-            await device
             phases = self.exec_request.phases
             if phases[InferencePhase.PREPARE]["required"]:
                 await self._prepare(device=device)
