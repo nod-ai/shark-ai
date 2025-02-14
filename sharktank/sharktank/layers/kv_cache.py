@@ -275,6 +275,8 @@ class PagedKVCache:
             partitions = partitions.repeat(bs, 1)
 
             indices = (page_id, transformer_block, partitions, page_offset)
+            # Workaround for Torch not supporting torch.Tensor.index_put_ for f8.
+            page_table = page_table.view(dtype=torch.int8)
             page_table.index_put_(
                 indices=indices, values=ops.to(cache_partition, dtype=page_table.dtype)
             )
