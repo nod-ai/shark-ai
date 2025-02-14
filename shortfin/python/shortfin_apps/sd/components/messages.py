@@ -79,12 +79,10 @@ class InferenceExecRequest(sf.Message):
 
         # Denoise phase.
         self.sample = sample
+        self.guidance_scale = guidance_scale
         self.steps = steps
 
         # Decode phase.
-        self.denoised_latents = denoised_latents
-
-        # Postprocess.
         self.image_array = image_array
 
         self.result_image = None
@@ -166,15 +164,11 @@ class InferenceExecRequest(sf.Message):
                 meta = [self.width, self.height]
                 return required, meta
             case InferencePhase.DENOISE:
-                required = not self.denoised_latents
+                required = True
                 meta = [self.width, self.height, self.steps]
                 return required, meta
             case InferencePhase.ENCODE:
-                p_results = [
-                    self.prompt_embeds,
-                    self.text_embeds,
-                ]
-                required = any([inp is None for inp in p_results])
+                required = True
                 return required, None
             case InferencePhase.PREPARE:
                 p_results = [self.sample, self.input_ids]

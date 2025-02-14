@@ -88,7 +88,9 @@ class GenerateService:
                 worker_idx = idx * workers_per_device + i % workers_per_device
                 tgt_worker = self.workers[worker_idx]
                 raw_fiber = sysman.ls.create_fiber(tgt_worker, devices=[device])
-                meta_fiber = self.equip_fiber(raw_fiber, len(self.fibers), worker_idx)
+                meta_fiber = self.equip_fiber(
+                    raw_fiber, len(self.meta_fibers), worker_idx
+                )
                 self.meta_fibers.append(meta_fiber)
                 self.idle_meta_fibers.append(meta_fiber)
         for idx in range(len(self.workers)):
@@ -111,15 +113,6 @@ class GenerateService:
                 )
 
         return MetaFiber(fiber, idx, worker_idx, fiber.device(0), cbs)
-
-    def get_worker_index(self, fiber):
-        if fiber not in self.fibers:
-            raise ValueError("A worker was requested from a rogue fiber.")
-        fiber_idx = self.fibers.index(fiber)
-        worker_idx = int(
-            (fiber_idx - fiber_idx % self.fibers_per_worker) / self.fibers_per_worker
-        )
-        return worker_idx
 
     def load_inference_module(self, vmfb_path: Path, component: str = None):
         if not self.inference_modules.get(component):
@@ -155,7 +148,7 @@ class GenerateService:
             ]
 
             for worker_idx, worker in enumerate(self.workers):
-                worker_devices = self.fibers[
+                worker_devices = self.meta_fibers[
                     worker_idx * (self.fibers_per_worker)
                 ].fiber.raw_devices
                 logger.info(
