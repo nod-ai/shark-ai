@@ -686,6 +686,17 @@ for types in itertools.product([Tensor, ShardedTensor], repeat=2):
 # Sharded matmuls.
 
 
+@matmul.override(ReplicatedTensor, ReplicatedTensor)
+def matmul_replicated_lhs_split_rhs(
+    lhs: ReplicatedTensor, rhs: ReplicatedTensor, *, transpose_rhs: bool
+) -> ReplicatedTensor:
+    shards = [
+        matmul(lhs_shard, rhs_shard)
+        for (lhs_shard, rhs_shard) in zip(lhs.shards, rhs.shards)
+    ]
+    return ReplicatedTensor(ts=shards)
+
+
 @matmul.override(ReplicatedTensor, SplitPrimitiveTensor)
 def matmul_replicated_lhs_split_rhs(
     lhs: ReplicatedTensor, rhs: SplitPrimitiveTensor, *, transpose_rhs: bool
@@ -1172,7 +1183,12 @@ def transpose_split(
 def unflatten_split(
     input: SplitPrimitiveTensor, dim: int, sizes: Tuple[int]
 ) -> SplitPrimitiveTensor:
-    assert dim != input.shard_dim, "Unflattening the split dimension is not supported."
+    if dim == input.shard_dim:
+        if sizes[0] == -1:
+            assert (
+                dim != input.shard_dim
+            ), "Unflattening the split dimension is not supported."
+        sizes = tuple([sizes[0] // input.shard_dim] + [s for s in sizes[1:]])
     shards = [unflatten(shard, dim, sizes) for shard in input.shards]
     shard_dim = input.shard_dim
     if dim < shard_dim:
