@@ -58,6 +58,7 @@ def main():
     parser.add_argument(
         "--use-attention-mask",
         help="Generates attention mask during export",
+        default=True,
         action="store_true",
     )
 
@@ -224,12 +225,14 @@ def main():
                 sl = tokens.shape[1]
                 input_mask = model.input_mask(seq_lens, sl)
                 attention_mask = model.attention_mask(input_mask)
+            else:
+                raise RuntimeError("Non-explicit mask is causing placement errors")
 
             if llama_config.tensor_parallelism_size != 1:
                 shard_count = llama_config.tensor_parallelism_size
 
                 tokens = ops.replicate(tokens, count=shard_count)
-                if attention_mask:
+                if attention_mask is not None:
                     attention_mask = ops.replicate(attention_mask, count=shard_count)
                 seq_block_ids = ops.replicate(seq_block_ids, count=shard_count)
                 cache_tensors = repack_cache(cs, cache_shard_dim)
