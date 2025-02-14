@@ -10,10 +10,10 @@ import iree.runtime
 import os
 from iree.turbine.support.tools import iree_tool_prepare_input_args
 
+from .compile import iree_compile_flags
 from .export import (
     export_flux_transformer_from_hugging_face,
     flux_transformer_default_batch_sizes,
-    iree_compile_flags,
 )
 from ...types import Dataset
 from .flux import FluxModelV1, FluxParams

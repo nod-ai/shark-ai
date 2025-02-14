@@ -13,11 +13,11 @@ import iree.compiler
 import iree.runtime
 from collections import OrderedDict
 from diffusers import FluxTransformer2DModel
+from sharktank.models.flux.compile import iree_compile_flags
 from sharktank.models.flux.export import (
     export_flux_transformer_from_hugging_face,
     export_flux_transformer,
     import_flux_transformer_dataset_from_hugging_face,
-    iree_compile_flags,
 )
 from sharktank.models.flux.testing import (
     convert_flux_transformer_input_for_hugging_face_model,
