@@ -5,16 +5,20 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from typing import Any
+import logging
 import iree.runtime
 import subprocess
 import sys
 from pathlib import Path
 import os
 
+logger = logging.getLogger(__name__)
+
 
 def _run_program(
     args: tuple[str],
 ):
+    logger.info(f"Run command: {args}")
     process_result = subprocess.run(
         args=args,
         stdout=subprocess.PIPE,
@@ -25,10 +29,15 @@ def _run_program(
     err = process_result.stderr.decode()
 
     if process_result.returncode != 0:
-        raise RuntimeError(f"stderr:\n{err}\nstdout:\n{out}")
+        raise RuntimeError(
+            (
+                f"Command {args}\nfailed with return code "
+                f"{process_result.returncode}\nstderr:\n{err}\nstdout:\n{out}"
+            )
+        )
 
     if err != "":
-        print(err, file=sys.stderr)
+        logger.error(err)
 
     return out
 
