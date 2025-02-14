@@ -10,6 +10,7 @@ from typing import List
 import torch
 
 from sharktank.models.llama.testing import *
+from sharktank.utils.testing import make_rand_torch
 from sharktank.layers.rotary_embedding import RotaryEmbeddingLayer
 from sharktank.models.llama.llama import AttentionFFNBlock, PagedKVCache
 from sharktank import ops

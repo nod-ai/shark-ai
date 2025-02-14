@@ -15,6 +15,7 @@ from sharktank.models.llama.llama import (
 from sharktank.models.llama.testing import *
 from sharktank.layers.rotary_embedding import RotaryEmbeddingLayer
 from sharktank.layers import causal_llm
+from sharktank.utils.testing import make_rand_torch
 
 
 class KVCacheTest(unittest.TestCase):

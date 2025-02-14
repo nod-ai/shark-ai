@@ -11,8 +11,8 @@ from collections import OrderedDict
 from .flux import FluxParams, FluxModelV1
 from .export import export_flux_transformer, flux_transformer_default_batch_sizes
 from ...types import DefaultPrimitiveTensor, Theta, save_load_theta
+from ...utils.testing import make_rand_torch
 from ...layers.testing import (
-    make_rand_torch,
     make_mmdit_double_block_random_theta,
     make_mmdit_single_block_random_theta,
 )
