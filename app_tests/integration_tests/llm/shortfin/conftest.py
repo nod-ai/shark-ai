@@ -14,6 +14,13 @@ from ..server_management import ServerInstance, ServerConfig
 
 from ..device_settings import get_device_settings_by_name
 
+import shortfin_apps.llm.server as server_module
+
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 
 def pytest_addoption(parser):
     parser.addoption(
@@ -59,7 +66,7 @@ def model_artifacts(tmp_path_factory, request, test_device):
 
 
 @pytest.fixture(scope="module")
-def server(model_artifacts, request):
+def full_fastapi_server(model_artifacts, request):
     """Starts and manages the test server."""
     model_config = model_artifacts.model_config
 
@@ -70,7 +77,7 @@ def server(model_artifacts, request):
     )
 
     server_instance = ServerInstance(server_config)
-    server_instance.start()
+    server_instance.start_full_fastapi_server()
     process, port = server_instance.process, server_instance.port
     yield process, port
 

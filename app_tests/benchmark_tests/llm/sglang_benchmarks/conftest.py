@@ -80,7 +80,7 @@ def server(model_artifacts, request):
     )
 
     server_instance = ServerInstance(server_config)
-    server_instance.start()
+    server_instance.start_full_fastapi_server()
     process, port = server_instance.process, server_instance.port
     yield process, port
 

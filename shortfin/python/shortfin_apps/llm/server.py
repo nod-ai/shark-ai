@@ -97,7 +97,7 @@ def configure(args) -> SystemManager:
     return sysman
 
 
-def main(argv, log_config=uvicorn.config.LOGGING_CONFIG):
+def parse_args(argv):
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", type=str, default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8000)
@@ -194,6 +194,12 @@ def main(argv, log_config=uvicorn.config.LOGGING_CONFIG):
             args.tokenizer_json.stem + "_config.json"
         )
         args.tokenizer_config_json = inferred_tokenizer_config_path
+
+    return args
+
+
+def main(argv, log_config=uvicorn.config.LOGGING_CONFIG):
+    args = parse_args(argv)
     lifecycle_hooks.sysman = configure(args)
 
     uvicorn.run(
