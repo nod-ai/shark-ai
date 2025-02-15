@@ -69,12 +69,6 @@ jobs:
           pip install sentence_transformers
 
           pip freeze
-
-      - name: run rocm tests
-        run: |
-          rocminfo
-          rocm-smi
-
       - name: Run Integration Tests
         run: |
           source ${VENV_DIR}/bin/activate
