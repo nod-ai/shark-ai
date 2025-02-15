@@ -63,16 +63,17 @@ class VaeModel(torch.nn.Module):
             )
             self.vae.load_state_dict(custom_vae)
 
-    def decode(self, inp):
-        inp = 1 / self.vae.config.scaling_factor * inp
-        x = self.vae.decode(inp, return_dict=False)[0]
+    def decode(self, latents):
+        latents = 1 / self.vae.config.scaling_factor * latents
+        x = self.vae.decode(latents, return_dict=False)[0]
         return (x / 2 + 0.5).clamp(0, 1)
 
-    def encode(self, inp):
-        latents = self.vae.encode(inp).latent_dist.sample()
+    def encode(self, image):
+        latents = self.vae.encode(image).latent_dist.sample()
         return self.vae.config.scaling_factor * latents
 
 
+@torch.no_grad()
 def get_vae_model_and_inputs(
     hf_model_name,
     height,
@@ -89,16 +90,16 @@ def get_vae_model_and_inputs(
     vae_model = VaeModel(hf_model_name, custom_vae=custom_vae).to(dtype=dtype)
     input_image_shape = (batch_size, 3, height, width)
     input_latents_shape = (batch_size, num_channels, height // 8, width // 8)
-    encode_args = [
-        torch.rand(
+    encode_args = {
+        "image": torch.rand(
             input_image_shape,
             dtype=dtype,
         )
-    ]
-    decode_args = [
-        torch.empty(
+    }
+    decode_args = {
+        "latents": torch.empty(
             input_latents_shape,
             dtype=dtype,
-        )
-    ]
+        ),
+    }
     return vae_model, encode_args, decode_args

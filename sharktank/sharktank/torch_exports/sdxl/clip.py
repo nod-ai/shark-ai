@@ -108,6 +108,7 @@ class PromptEncoderModel(torch.nn.Module):
             return prompt_embeds, add_text_embeds
 
 
+@torch.no_grad()
 def get_clip_model_and_inputs(
     hf_model_name,
     max_length=64,

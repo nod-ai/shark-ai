@@ -94,6 +94,7 @@ class ScheduledUnetModel(torch.nn.Module):
         return sample
 
 
+@torch.no_grad()
 def get_scheduled_unet_model_and_inputs(
     hf_model_name,
     height,

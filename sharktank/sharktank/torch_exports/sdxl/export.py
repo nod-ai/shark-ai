@@ -7,42 +7,19 @@
 import os
 import re
 
-from PIL import Image
-
-from collections.abc import Iterable
-
-from iree.compiler.ir import Context
-from iree.turbine.aot import *
-from iree.turbine.dynamo.passes import (
-    DEFAULT_DECOMPOSITIONS,
+from iree.build import entrypoint, iree_build_main, cl_arg
+from iree.turbine.aot import (
+    ExportOutput,
+    FxProgramsBuilder,
+    export,
+    externalize_module_parameters,
+    save_module_parameters,
+    decompositions,
 )
-import torch
-from safetensors import safe_open
+from iree.turbine.aot.build_actions import turbine_generate
 
-from huggingface_hub import hf_hub_download
-
-import numpy as np
-
-from vae import get_vae_model_and_inputs
-from clip import get_clip_model_and_inputs
-from unet import get_scheduled_unet_model_and_inputs
-
-torch_dtypes = {
-    "fp16": torch.float16,
-    "fp32": torch.float32,
-    "bf16": torch.bfloat16,
-    "float16": torch.float16,
-    "float32": torch.float32,
-}
-
-
-def flatten(xs):
-    print("FLATTEN")
-    for x in xs:
-        if isinstance(x, Iterable) and not isinstance(x, (str, bytes, torch.Tensor)):
-            yield from flatten(x)
-        else:
-            yield x
+# USAGE
+# python -m iree.build ./export.py --component=vae/scheduled_unet/clip --batch_size 1 ...
 
 
 def create_safe_name(hf_model_name, model_name_str=""):
@@ -57,7 +34,6 @@ def create_safe_name(hf_model_name, model_name_str=""):
     return safe_name
 
 
-@torch.no_grad()
 def export_sdxl_model(
     hf_model_name,
     component,
@@ -66,14 +42,14 @@ def export_sdxl_model(
     width,
     precision="fp16",
     max_length=64,
-    compile_to="torch",
     external_weights=None,
-    external_weight_path=None,
+    external_weights_path=None,
     decomp_attn=False,
-    save_goldens=True,
+    save_goldens=False,
     quant_paths=None,
-):
-    dtype = torch_dtypes[precision]
+) -> ExportOutput:
+    import torch
+
     decomp_list = [torch.ops.aten.logspace]
     if decomp_attn == True:
         decomp_list = [
@@ -86,6 +62,8 @@ def export_sdxl_model(
         add_ops=decomp_list,
     ):
         if component == "clip":
+            from clip import get_clip_model_and_inputs
+
             model, sample_clip_inputs = get_clip_model_and_inputs(
                 hf_model_name, max_length, precision, batch_size
             )
@@ -100,18 +78,21 @@ def export_sdxl_model(
                     for i in mod_name_list:
                         parent = getattr(parent, i)
                     parent.register_buffer(buffer_id, buffer, persistent=True)
-                externalize_module_parameters(model)
-                save_module_parameters(external_weight_path, model)
-            output = export(
-                model,
-                kwargs=sample_clip_inputs,
-                module_name="compiled_clip",
-                function_name="encode_prompts",
+
+            fxb = FxProgramsBuilder(model)
+
+            @fxb.export_program(
+                args=(sample_clip_inputs,),
             )
-            module = output.mlir_module
-            sample_input_list = [sample_clip_inputs]
-            golden_outputs = [model.forward(**sample_clip_inputs)]
+            def encode_prompts(
+                module,
+                inputs,
+            ):
+                return module.forward(**inputs)
+
         elif component == "scheduled_unet":
+            from unet import get_scheduled_unet_model_and_inputs
+
             (
                 model,
                 sample_init_inputs,
@@ -123,7 +104,7 @@ def export_sdxl_model(
                 max_length,
                 precision,
                 batch_size,
-                external_weight_path,
+                external_weights_path,
                 quant_paths,
             )
             fxb = FxProgramsBuilder(model)
@@ -131,7 +112,7 @@ def export_sdxl_model(
             @fxb.export_program(
                 args=(sample_init_inputs,),
             )
-            def _init(
+            def init(
                 module,
                 inputs,
             ):
@@ -140,146 +121,171 @@ def export_sdxl_model(
             @fxb.export_program(
                 args=(sample_forward_inputs,),
             )
-            def _forward(
+            def run_forward(
                 module,
                 inputs,
             ):
                 return module.forward(*inputs)
 
-            class CompiledScheduledUnet(CompiledModule):
-                init = _init
-                run_forward = _forward
-
-            if external_weights:
-                externalize_module_parameters(model)
-                save_module_parameters(external_weight_path, model)
-
-            inst = CompiledScheduledUnet(context=Context(), import_to="IMPORT")
-
-            module = CompiledModule.get_mlir_module(inst)
-            sample_input_list = [sample_init_inputs, sample_forward_inputs]
-            golden_outputs = []
         elif component == "vae":
+            from vae import get_vae_model_and_inputs
+
             model, encode_args, decode_args = get_vae_model_and_inputs(
                 hf_model_name, height, width, precision=precision, batch_size=batch_size
             )
+
             fxb = FxProgramsBuilder(model)
 
-            # # TODO: fix issues with exporting the encode function.
-            # @fxb.export_program(args=(encode_args,))
-            # def _encode(module, inputs,):
-            #     return module.encode(*inputs)
+            @fxb.export_program(
+                args=(decode_args,),
+            )
+            def decode(
+                module,
+                inputs,
+            ):
+                return module.decode(**inputs)
 
-            @fxb.export_program(args=(decode_args,))
-            def _decode(module, inputs):
-                return module.decode(*inputs)
-
-            class CompiledVae(CompiledModule):
-                decode = _decode
-                # encode = _encode
-
-            if external_weights:
-                externalize_module_parameters(model)
-                save_module_parameters(external_weight_path, model)
-
-            inst = CompiledVae(context=Context(), import_to="IMPORT")
-
-            module = CompiledModule.get_mlir_module(inst)
-            sample_input_list = [encode_args, decode_args]
-            # golden_out_encode = model.encode(*encode_args)
-            golden_out_decode = model.decode(*decode_args)
-            golden_outputs = [golden_out_encode, golden_out_decode]
         else:
             raise ValueError("Unimplemented: ", component)
-    if save_goldens:
-        for idx, i in enumerate(sample_input_list):
-            for num, inp in enumerate(i):
-                np.save(f"{component}_{idx}_input_{num}.npy", inp)
-        for idx, i in enumerate(golden_outputs):
-            for num, out in enumerate(i):
-                np.save(f"{component}_{num}_golden_out_{idx}.npy", np.asarray(out))
-    module_str = str(module)
-    return module_str
+
+    if external_weights:
+        externalize_module_parameters(model)
+        save_module_parameters(external_weights_path, model)
+    module = export(fxb)
+    return module
 
 
-def get_filename(args):
-    match args.component:
+def get_filename(
+    model,
+    component,
+    batch_size,
+    max_length,
+    height,
+    width,
+    precision,
+):
+    match component:
         case "scheduled_unet":
             return create_safe_name(
-                args.model,
-                f"scheduled_unet_bs{args.batch_size}_{args.max_length}_{args.height}x{args.width}_{args.precision}",
+                model,
+                f"scheduled_unet_bs{batch_size}_{max_length}_{height}x{width}_{precision}",
             )
         case "unet":
             return create_safe_name(
-                args.model,
-                f"unet_bs{args.batch_size}_{args.max_length}_{args.height}x{args.width}_{args.precision}",
+                model,
+                f"unet_bs{batch_size}_{max_length}_{height}x{width}_{precision}",
             )
         case "clip":
             return create_safe_name(
-                args.model,
-                f"clip_bs{args.batch_size}_{args.max_length}_{args.precision}",
+                model,
+                f"clip_bs{batch_size}_{max_length}_{precision}",
             )
         case "vae":
             return create_safe_name(
-                args.model,
-                f"vae_bs{args.batch_size}_{args.height}x{args.width}_{args.precision}",
+                model,
+                f"vae_bs{batch_size}_{height}x{width}_{precision}",
             )
         case "scheduler":
             return create_safe_name(
-                args.model,
-                f"scheduler_bs{args.batch_size}_{args.height}x{args.width}_{args.precision}",
+                model,
+                f"scheduler_bs{batch_size}_{height}x{width}_{precision}",
             )
+
+
+@entrypoint(description="Builds artifacts for SDXL inference.")
+def export_pipe(
+    model=cl_arg(
+        "model",
+        default="stabilityai/stable-diffusion-xl-base-1.0",
+        help="HF model ID or path.",
+    ),
+    component=cl_arg(
+        "component",
+        default="scheduled_unet",
+        help="Component to generate IR for. clip, vae, or scheduled_unet",
+    ),
+    batch_size=cl_arg(
+        "batch_size",
+        type=int,
+        default=1,
+        help="Batch size for inference.",
+    ),
+    height=cl_arg(
+        "height",
+        default=1024,
+        help="Height of desired output image.",
+    ),
+    width=cl_arg(
+        "width",
+        default=1024,
+        help="Width of desired output image.",
+    ),
+    precision=cl_arg(
+        "precision",
+        default="fp16",
+        help="Model datatype. fp16, fp32, int8, fp8",
+    ),
+    max_length=cl_arg(
+        "max_length",
+        default=64,
+        help="Max prompt tokens sequence length. Should be 64.",
+    ),
+    external_weights=cl_arg(
+        "external_weights",
+        default="irpa",
+        help="Format for externalized weights. None inlines the weights, use irpa otherwise.",
+    ),
+    external_weights_path=cl_arg(
+        "external_weights_path",
+        default=None,
+        help="Specify a non-default path for saved model parameters",
+    ),
+    decomp_attn=cl_arg(
+        "decomp_attn",
+        default=False,
+        help="Explicitly decompose sdpa ops in the exported module.",
+    ),
+    quant_paths=cl_arg(
+        "quant_paths", default=None, help="Path for quantized punet model artifacts."
+    ),
+):
+    print(f"Export pid: {os.getpid()}")
+    safe_name = get_filename(
+        model,
+        component,
+        batch_size,
+        max_length,
+        height,
+        width,
+        precision,
+    )
+    if external_weights and not external_weights_path:
+        external_weights_path = (
+            create_safe_name(
+                model,
+                component + "_" + precision,
+            )
+            + "."
+            + external_weights
+        )
+
+    module = turbine_generate(
+        export_sdxl_model,
+        hf_model_name=model,
+        component=component,
+        batch_size=batch_size,
+        height=height,
+        width=width,
+        precision=precision,
+        max_length=max_length,
+        external_weights=external_weights,
+        external_weights_path=external_weights_path,
+        decomp_attn=decomp_attn,
+        name=safe_name,
+        out_of_process=False,
+    )
+    return f"{safe_name}.mlir"
 
 
 if __name__ == "__main__":
-    import logging
-    import argparse
-
-    logging.basicConfig(level=logging.DEBUG)
-    p = argparse.ArgumentParser()
-    p.add_argument(
-        "--model",
-        default="stabilityai/stable-diffusion-xl-base-1.0",
-    )
-    p.add_argument(
-        "--component",
-        default="controlled_unet",
-        choices=["unet", "scheduled_unet", "clip", "scheduler", "vae"],
-    )
-    p.add_argument("--batch_size", type=int, default=1)
-    p.add_argument("--height", type=int, default=1024)
-    p.add_argument("--width", type=int, default=1024)
-    p.add_argument("--precision", default="fp16")
-    p.add_argument("--max_length", type=int, default=64)
-    p.add_argument("--external_weights", default="irpa")
-    p.add_argument("--external_weights_path", default=None)
-    p.add_argument("--decomp_attn", action="store_true")
-    args = p.parse_args()
-
-    if args.external_weights and not args.external_weights_path:
-        args.external_weights_path = (
-            create_safe_name(
-                args.model,
-                args.component + "_" + args.precision,
-            )
-            + "."
-            + args.external_weights
-        )
-    safe_name = get_filename(args)
-    mod_str = export_sdxl_model(
-        args.model,
-        args.component,
-        args.batch_size,
-        args.height,
-        args.width,
-        args.precision,
-        args.max_length,
-        "mlir",
-        args.external_weights,
-        args.external_weights_path,
-        args.decomp_attn,
-    )
-
-    with open(f"{safe_name}.mlir", "w+") as f:
-        f.write(mod_str)
-    print("Saved to", safe_name + ".mlir")
+    iree_build_main()
