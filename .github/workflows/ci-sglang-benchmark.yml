@@ -82,7 +82,9 @@ jobs:
 
       - name: Login to huggingface
         continue-on-error: true
-        run: huggingface-cli login --token ${{ secrets.HF_TOKEN }}
+        run: |
+          pip install -U "huggingface_hub[cli]"
+          huggingface-cli login --token ${{ secrets.HF_TOKEN }}
 
       - name: Run Shortfin Benchmark Tests
         run: |
@@ -191,10 +193,6 @@ jobs:
     steps:
       - name: Stop sglang-server
         run: docker stop sglang-server || true # Stop container if it's running
-
-      # Deleting image after run due to large disk space requirement (83 GB)
-      - name: Cleanup SGLang Image
-        run: docker image rm lmsysorg/sglang:v0.3.5.post1-rocm620
 
   merge_and_upload_reports:
     name: "Merge and upload benchmark reports"
