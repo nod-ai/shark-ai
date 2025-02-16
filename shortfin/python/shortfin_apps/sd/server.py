@@ -237,6 +237,7 @@ def get_modules(args, model_config, flagfile, td_spec):
         model_flags["unet"].extend(
             [f"--iree-codegen-transform-dialect-library={td_spec}"]
         )
+    mod_params = ModelParams.load_json(model_config)
 
     filenames = []
     for modelname in vmfbs.keys():
@@ -253,12 +254,13 @@ def get_modules(args, model_config, flagfile, td_spec):
             f"--build-preference={args.build_preference}",
             f"--output-dir={args.artifacts_dir}",
             f"--model={modelname}",
+            f"--force-update=False",
             f"--iree-hal-target-device={args.device}",
             f"--iree-hip-target={args.target}",
             f"--iree-compile-extra-args={ireec_extra_args}",
         ]
         logger.info(f"Preparing runtime artifacts for {modelname}...")
-        logger.debug(
+        logger.info(
             "COMMAND LINE EQUIVALENT: " + " ".join([str(argn) for argn in builder_args])
         )
         output = subprocess.check_output(builder_args).decode()
@@ -361,7 +363,7 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
     parser.add_argument(
         "--build_preference",
         type=str,
-        choices=["compile", "precompiled"],
+        choices=["compile", "precompiled", "export"],
         default="precompiled",
         help="Specify preference for builder artifact generation.",
     )
@@ -401,6 +403,11 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
         type=int,
         default=1,
         help="Use tunings for attention and matmul ops. 0 to disable.",
+    )
+    parser.add_argument(
+        "--force_update",
+        action="store_true",
+        help="Force update model artifacts starting from the specified build preference.",
     )
     args = parser.parse_args(argv)
     if not args.artifacts_dir:

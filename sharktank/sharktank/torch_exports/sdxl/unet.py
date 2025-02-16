@@ -16,7 +16,7 @@ from huggingface_hub import hf_hub_download
 
 import torch
 
-from scheduler import get_scheduler, SchedulingModel
+from .scheduler import get_scheduler, SchedulingModel
 
 
 class ScheduledUnetModel(torch.nn.Module):
@@ -90,8 +90,8 @@ class ScheduledUnetModel(torch.nn.Module):
         noise_pred = noise_pred_uncond + guidance_scale * (
             noise_pred_text - noise_pred_uncond
         )
-        sample = self.scheduler.step(noise_pred, latents, sigma, next_sigma)
-        return sample
+        # sample = self.scheduler.step(noise_pred, latents, sigma, next_sigma)
+        return noise_pred
 
 
 @torch.no_grad()
@@ -154,7 +154,62 @@ def get_scheduled_unet_model_and_inputs(
         torch.rand(100, dtype=torch.float32),
         torch.rand(100, dtype=torch.float32),
     )
-    return model, init_inputs, forward_inputs
+    standalone_unet_inputs = {
+        "sample": torch.rand(sample, dtype=dtype),
+        "timestep": torch.zeros(1, dtype=dtype),
+        "encoder_hidden_states": torch.rand(prompt_embeds_shape, dtype=dtype),
+        "text_embeds": torch.rand(text_embeds_shape, dtype=dtype),
+        "time_ids": torch.zeros(time_ids_shape, dtype=dtype),
+        "guidance_scale": torch.tensor([7.5], dtype=dtype),
+    }
+    return model, init_inputs, forward_inputs, standalone_unet_inputs
+
+
+@torch.no_grad()
+def get_punet_model_and_inputs(
+    hf_model_name,
+    height,
+    width,
+    max_length,
+    precision,
+    batch_size,
+    external_weight_path,
+    quant_paths,
+):
+    from sharktank.models.punet.model import ClassifierFreeGuidanceUnetModel as CFGPunet
+
+    if precision == "fp32":
+        dtype = torch.float32
+    else:
+        dtype = torch.float16
+    mod = get_punet_model(
+        hf_model_name,
+        external_weight_path,
+        quant_paths,
+        precision,
+    )
+    model = CFGPunet(mod)
+
+    init_batch_dim = 2
+    sample = (
+        batch_size,
+        4,
+        height // 8,
+        width // 8,
+    )
+    prompt_embeds_shape = (init_batch_dim * batch_size, max_length, 2048)
+    text_embeds_shape = (init_batch_dim * batch_size, 1280)
+    time_ids_shape = (init_batch_dim * batch_size, 6)
+
+    standalone_unet_inputs = {
+        "sample": torch.rand(sample, dtype=dtype),
+        "timestep": torch.zeros(1, dtype=dtype),
+        "encoder_hidden_states": torch.rand(prompt_embeds_shape, dtype=dtype),
+        "text_embeds": torch.rand(text_embeds_shape, dtype=dtype),
+        "time_ids": torch.zeros(time_ids_shape, dtype=dtype),
+        "guidance_scale": torch.tensor([7.5], dtype=dtype),
+    }
+    return model, None, standalone_unet_inputs
 
 
 def get_punet_model(hf_model_name, external_weight_path, quant_paths, precision="i8"):
@@ -163,14 +218,14 @@ def get_punet_model(hf_model_name, external_weight_path, quant_paths, precision=
     )
     from sharktank.utils import cli
 
-    if precision in ["i8", "fp16"]:
-        repo_id = "amd-shark/sdxl-quant-int8"
-        subfolder = "mi300_all_sym_8_step14_fp32"
-        revision = "efda8afb35fd72c1769e02370b320b1011622958"
-    elif precision in ["fp8"]:
+    if precision in ["fp8"]:
         repo_id = "amd-shark/sdxl-quant-models"
         subfolder = "unet/int8"
         revision = "a31d1b1cba96f0da388da348bcaee197a073d451"
+    else:
+        repo_id = "amd-shark/sdxl-quant-int8"
+        subfolder = "mi300_all_sym_8_step14_fp32"
+        revision = "efda8afb35fd72c1769e02370b320b1011622958"
 
     def download(filename):
         return hf_hub_download(

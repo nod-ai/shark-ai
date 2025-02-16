@@ -14,7 +14,12 @@ import numpy as np
 from iree.turbine.aot import *
 
 import torch
-from transformers import CLIPTextModel, CLIPTextModelWithProjection, CLIPTokenizer
+from transformers import (
+    CLIPTextModel,
+    CLIPTextModelWithProjection,
+    CLIPTokenizer,
+    CLIPTextConfig,
+)
 
 
 class PromptEncoderModel(torch.nn.Module):
@@ -27,12 +32,24 @@ class PromptEncoderModel(torch.nn.Module):
     ):
         super().__init__()
         self.torch_dtype = torch.float16 if precision == "fp16" else torch.float32
+        config_1 = CLIPTextConfig.from_pretrained(
+            hf_model_name,
+            subfolder="text_encoder",
+        )
+        config_1._attn_implementation = "eager"
+        config_2 = CLIPTextConfig.from_pretrained(
+            hf_model_name,
+            subfolder="text_encoder_2",
+        )
+        config_2._attn_implementation = "eager"
         self.text_encoder_model_1 = CLIPTextModel.from_pretrained(
             hf_model_name,
+            config=config_1,
             subfolder="text_encoder",
         )
         self.text_encoder_model_2 = CLIPTextModelWithProjection.from_pretrained(
             hf_model_name,
+            config=config_2,
             subfolder="text_encoder_2",
         )
         self.do_classifier_free_guidance = True
@@ -72,8 +89,8 @@ class PromptEncoderModel(torch.nn.Module):
                 neg_prompt_embeds_2.hidden_states[-2],
             ]
 
-            prompt_embeds = torch.concat(prompt_embeds_list, dim=-1)
-            neg_prompt_embeds = torch.concat(neg_prompt_embeds_list, dim=-1)
+            prompt_embeds = torch.cat(prompt_embeds_list, dim=-1)
+            neg_prompt_embeds = torch.cat(neg_prompt_embeds_list, dim=-1)
 
             bs_embed, seq_len, _ = prompt_embeds.shape
             prompt_embeds = prompt_embeds.repeat(1, 1, 1)

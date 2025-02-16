@@ -57,7 +57,7 @@ class ModelParams:
     # Scheduler id.
     scheduler_id: str = "EulerDiscrete"
 
-    base_model_name: str = "SDXL"
+    base_model_name: str = "stabilityai/stable-diffusion-xl-base-1.0"
     # Name of the IREE module for each submodel.
     clip_module_name: str = "compiled_clip"
     unet_module_name: str = "compiled_unet"
@@ -76,6 +76,7 @@ class ModelParams:
     vae_dtype: sfnp.DType = sfnp.float16
 
     use_i8_punet: bool = False
+    use_scheduled_unet: bool = False
 
     # ABI of the module.
     module_abi_version: int = 1
