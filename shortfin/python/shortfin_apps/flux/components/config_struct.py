@@ -55,7 +55,7 @@ class ModelParams:
     clip_dtype: sfnp.DType = sfnp.bfloat16
 
     t5xxl_max_seq_len: int = 512
-    t5xxl_out_dim: 4096
+    t5xxl_out_dim: int = 4096
     t5xxl_module_name: str = "module"
     t5xxl_fn_name: str = "encode_prompts"
     t5xxl_dtype: sfnp.DType = sfnp.bfloat16

@@ -17,7 +17,7 @@ this_dir = os.path.dirname(os.path.abspath(__file__))
 parent = os.path.dirname(this_dir)
 default_config_json = os.path.join(parent, "examples", "flux_dev_config_mixed.json")
 
-ARTIFACT_VERSION = "02102024"
+ARTIFACT_VERSION = "02102025"
 FLUX_BUCKET = (
     f"https://sharkpublic.blob.core.windows.net/sharkpublic/flux.1/{ARTIFACT_VERSION}/"
 )

@@ -239,6 +239,8 @@ def get_modules(args, model_config, flagfile, td_spec):
     for modelname in vmfbs.keys():
         ireec_args = model_flags["all"] + model_flags[modelname]
         ireec_extra_args = " ".join(ireec_args)
+        if modelname == "t5xxl":
+            ireec_extra_args = ""
         builder_args = [
             sys.executable,
             "-m",

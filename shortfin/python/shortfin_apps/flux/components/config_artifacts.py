@@ -28,7 +28,7 @@ def fluxconfig(
     ),
 ):
     ctx = executor.BuildContext.current()
-    update = needs_update(ctx)
+    update = needs_update(ctx, ARTIFACT_VERSION)
 
     if topology:
         topology_config_filenames = [f"topology_config_{topology}.txt"]
