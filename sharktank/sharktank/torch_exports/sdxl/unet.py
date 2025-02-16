@@ -154,15 +154,7 @@ def get_scheduled_unet_model_and_inputs(
         torch.rand(100, dtype=torch.float32),
         torch.rand(100, dtype=torch.float32),
     )
-    standalone_unet_inputs = {
-        "sample": torch.rand(sample, dtype=dtype),
-        "timestep": torch.zeros(1, dtype=dtype),
-        "encoder_hidden_states": torch.rand(prompt_embeds_shape, dtype=dtype),
-        "text_embeds": torch.rand(text_embeds_shape, dtype=dtype),
-        "time_ids": torch.zeros(time_ids_shape, dtype=dtype),
-        "guidance_scale": torch.tensor([7.5], dtype=dtype),
-    }
-    return model, init_inputs, forward_inputs, standalone_unet_inputs
+    return model, init_inputs, forward_inputs
 
 
 @torch.no_grad()

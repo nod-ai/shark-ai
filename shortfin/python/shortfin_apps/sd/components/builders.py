@@ -7,14 +7,7 @@
 from iree.build import *
 from iree.build.executor import FileNamespace, BuildAction, BuildContext, BuildFile
 from iree.turbine.aot.build_actions import turbine_generate
-from iree.turbine.aot import (
-    ExportOutput,
-    FxProgramsBuilder,
-    export,
-    externalize_module_parameters,
-    save_module_parameters,
-    decompositions,
-)
+
 import itertools
 import os
 import urllib
@@ -23,6 +16,7 @@ import copy
 import re
 
 from shortfin_apps.sd.components.config_struct import ModelParams
+from shortfin_apps.sd.components.exports import export_sdxl_model
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
 parent = os.path.dirname(this_dir)
@@ -44,17 +38,19 @@ SDXL_WEIGHTS_BUCKET = (
 )
 
 
-def filter_by_model(filenames, model):
+def filter_by_model(filenames, model) -> list:
     if not model:
         return filenames
     filtered = []
     for i in filenames:
         if model.lower() in i.lower():
             filtered.extend([i])
+        elif model == "scheduled_unet" and "unet" in i.lower():
+            filtered.extend([i])
     return filtered
 
 
-def get_mlir_filenames(model_params: ModelParams, model=None):
+def get_mlir_filenames(model_params: ModelParams, model=None) -> list:
     mlir_filenames = []
     file_stems = get_file_stems(model_params)
     for stem in file_stems:
@@ -64,7 +60,7 @@ def get_mlir_filenames(model_params: ModelParams, model=None):
 
 def get_vmfb_filenames(
     model_params: ModelParams, model=None, target: str = "amdgpu-gfx942"
-):
+) -> list:
     vmfb_filenames = []
     file_stems = get_file_stems(model_params)
     for stem in file_stems:
@@ -72,7 +68,7 @@ def get_vmfb_filenames(
     return filter_by_model(vmfb_filenames, model)
 
 
-def create_safe_name(hf_model_name, model_name_str=""):
+def create_safe_name(hf_model_name, model_name_str="") -> str:
     if not model_name_str:
         model_name_str = ""
     if model_name_str != "" and (not model_name_str.startswith("_")):
@@ -84,7 +80,7 @@ def create_safe_name(hf_model_name, model_name_str=""):
     return safe_name
 
 
-def get_params_filenames(model_params: ModelParams, model=None, splat: bool = False):
+def get_params_filename(model_params: ModelParams, model=None, splat: bool = False):
     params_filenames = []
     base = (
         "stable_diffusion_xl_base_1_0"
@@ -96,12 +92,10 @@ def get_params_filenames(model_params: ModelParams, model=None, splat: bool = Fa
         dtype_to_filetag[model_params.clip_dtype],
         dtype_to_filetag[model_params.unet_dtype],
     ]
-    if model_params.use_i8_punet:
-        modnames.append("punet")
-        mod_precs.append("i8")
-    else:
-        modnames.append("unet")
-        mod_precs.append(dtype_to_filetag[model_params.unet_dtype])
+    # We're only using the punet i8 dataset in all cases, at the moment.
+    # This is all pretty hokey and could be ModelParams driven.
+    modnames.append("punet")
+    mod_precs.append("i8")
     if splat == "True":
         for idx, mod in enumerate(modnames):
             params_filenames.extend(
@@ -112,10 +106,19 @@ def get_params_filenames(model_params: ModelParams, model=None, splat: bool = Fa
             params_filenames.extend(
                 [base + "_" + mod + "_dataset_" + mod_precs[idx] + ".irpa"]
             )
-    return filter_by_model(params_filenames, model)
+    filenames = filter_by_model(params_filenames, model)
+    match len(filenames):
+        case 0:
+            return None
+        case 1:
+            return filenames[0]
+        case _:
+            raise ValueError(
+                "Produced more than one parameter filename for a model build. This is unexpected and indicates a config parsing issue. Please file an issue at https://github.com/nod-ai/shark-ai/issues"
+            )
 
 
-def get_file_stems(model_params: ModelParams):
+def get_file_stems(model_params: ModelParams) -> list[str]:
     file_stems = []
     base = (
         ["stable_diffusion_xl_base_1_0"]
@@ -147,7 +150,7 @@ def get_file_stems(model_params: ModelParams):
             [modname],
         ]
         bsizes = []
-        for bs in getattr(model_params, f"{mod}_batch_sizes", [1]):
+        for bs in model_params.batch_sizes[modname]:
             bsizes.extend([f"bs{bs}"])
         ord_params.extend([bsizes])
         if mod in ["unet", "clip"]:
@@ -160,7 +163,7 @@ def get_file_stems(model_params: ModelParams):
             ord_params.extend([dims])
         if mod == "scheduler":
             dtype_str = dtype_to_filetag[model_params.unet_dtype]
-        elif mod != "unet":
+        elif "unet" not in modname:
             dtype_str = dtype_to_filetag[
                 getattr(model_params, f"{mod}_dtype", sfnp.float16)
             ]
@@ -176,14 +179,14 @@ def get_file_stems(model_params: ModelParams):
     return file_stems
 
 
-def get_url_map(filenames: list[str], bucket: str):
+def get_url_map(filenames: list[str], bucket: str) -> dict:
     file_map = {}
     for filename in filenames:
         file_map[filename] = f"{bucket}{filename}"
     return file_map
 
 
-def needs_update(ctx):
+def needs_update(ctx) -> bool:
     stamp = ctx.allocate_file("version.txt")
     stamp_path = stamp.get_fs_path()
     if os.path.exists(stamp_path):
@@ -198,14 +201,15 @@ def needs_update(ctx):
     return False
 
 
-def needs_file(filename, ctx, url=None, namespace=FileNamespace.GEN):
+def needs_file(filename, ctx, url=None, namespace=FileNamespace.GEN) -> bool:
+    if not filename:
+        return False
     try:
         out_file = ctx.allocate_file(filename, namespace=namespace).get_fs_path()
         filekey = os.path.join(ctx.path, filename)
         ctx.executor.all[filekey] = None
     except RuntimeError:
         return False
-    needed = True
     if os.path.exists(out_file):
         if url and not is_valid_size(out_file, url):
             return True
@@ -214,22 +218,17 @@ def needs_file(filename, ctx, url=None, namespace=FileNamespace.GEN):
     return True
 
 
-def needs_compile(filename, target, ctx):
+def needs_compile(filename, target, ctx) -> bool:
     vmfb_name = f"{filename}_{target}.vmfb"
     namespace = FileNamespace.BIN
     return needs_file(vmfb_name, ctx, namespace=namespace)
 
 
-def get_cached_vmfb(filename, target, ctx):
-    vmfb_name = f"{filename}_{target}.vmfb"
-    return ctx.allocate_file(vmfb_name, namespace=FileNamespace.BIN)
+def get_cached(filename, ctx, namespace) -> BuildFile:
+    return ctx.allocate_file(filename, namespace=namespace)
 
 
-def get_cached(filename, ctx):
-    return ctx.allocate_file(filename, namespace=FileNamespace.GEN)
-
-
-def is_valid_size(file_path, url):
+def is_valid_size(file_path, url) -> bool:
     if not url:
         return True
     with urllib.request.urlopen(url) as response:
@@ -242,9 +241,8 @@ def is_valid_size(file_path, url):
     return True
 
 
-def get_file_size(file_path):
+def get_file_size(file_path) -> int:
     """Gets the size of a local file in bytes as an integer."""
-
     file_stats = os.stat(file_path)
     return file_stats.st_size
 
@@ -311,152 +309,6 @@ def parse_mlir_name(mlir_path):
     return batch_size, height, width, decomp_attn, precision, max_length
 
 
-def export_sdxl_model(
-    hf_model_name,
-    component,
-    batch_size,
-    height,
-    width,
-    precision="fp16",
-    max_length=64,
-    external_weights=None,
-    external_weights_file=None,
-    decomp_attn=False,
-    quant_paths=None,
-) -> ExportOutput:
-    import torch
-
-    decomp_list = [torch.ops.aten.logspace]
-    if decomp_attn == True:
-        decomp_list = [
-            torch.ops.aten._scaled_dot_product_flash_attention_for_cpu,
-            torch.ops.aten._scaled_dot_product_flash_attention.default,
-            torch.ops.aten.scaled_dot_product_attention.default,
-            torch.ops.aten.scaled_dot_product_attention,
-        ]
-    with decompositions.extend_aot_decompositions(
-        from_current=True,
-        add_ops=decomp_list,
-    ):
-        if isinstance(external_weights_file, BuildFile):
-            external_weights_path = external_weights_file.get_fs_path()
-        elif external_weights_file:
-            external_weights_path = external_weights_file
-        else:
-            external_weights_path = None
-        if component == "clip":
-            from sharktank.torch_exports.sdxl.clip import get_clip_model_and_inputs
-
-            module_name = "compiled_clip"
-            model, sample_clip_inputs = get_clip_model_and_inputs(
-                hf_model_name, max_length, precision, batch_size
-            )
-            if external_weights:
-                # Transformers (model source) registers position ids as non-persistent.
-                # This causes externalization to think it's a user input, and since it's not,
-                # we end up trying to do ops on a !torch.None instead of a tensor.
-                for buffer_name, buffer in model.named_buffers(recurse=True):
-                    mod_name_list = buffer_name.split(".")
-                    buffer_id = mod_name_list.pop()
-                    parent = model
-                    for i in mod_name_list:
-                        parent = getattr(parent, i)
-                    parent.register_buffer(buffer_id, buffer, persistent=True)
-            model.to("cpu")
-            fxb = FxProgramsBuilder(model)
-
-            @fxb.export_program(
-                args=(sample_clip_inputs,),
-            )
-            def encode_prompts(
-                module,
-                inputs,
-            ):
-                return module.forward(**inputs)
-
-        elif component in ["unet", "punet", "scheduled_unet"]:
-            t_ver = torch.__version__
-            if any(key in t_ver for key in ["2.6.", "2.3."]):
-                print(
-                    "You have a torch version that is unstable for this export and may encounter export or compile-time issues: {t_ver}. The reccommended versions are 2.4.1 - 2.5.1"
-                )
-            from sharktank.torch_exports.sdxl.unet import (
-                get_scheduled_unet_model_and_inputs,
-                get_punet_model_and_inputs,
-            )
-
-            if component in ["unet", "punet"]:
-                module_name = "compiled_punet"
-                implementation = get_punet_model_and_inputs
-            else:
-                module_name = "compiled_spunet"
-                implementation = get_scheduled_unet_model_and_inputs
-            (model, sample_init_inputs, sample_forward_inputs,) = implementation(
-                hf_model_name,
-                height,
-                width,
-                max_length,
-                precision,
-                batch_size,
-                external_weights_path,
-                quant_paths,
-            )
-            if component == "scheduled_unet":
-                fxb = FxProgramsBuilder(model)
-
-                @fxb.export_program(
-                    args=(sample_init_inputs,),
-                )
-                def init(
-                    module,
-                    inputs,
-                ):
-                    return module.initialize(*inputs)
-
-                @fxb.export_program(
-                    args=(sample_forward_inputs,),
-                )
-                def run_forward(
-                    module,
-                    inputs,
-                ):
-                    return module.forward(*inputs)
-
-            else:
-                return export(
-                    model, kwargs=sample_forward_inputs, module_name="compiled_punet"
-                )
-
-        elif component == "vae":
-            from sharktank.torch_exports.sdxl.vae import get_vae_model_and_inputs
-
-            module_name = "compiled_vae"
-            model, encode_args, decode_args = get_vae_model_and_inputs(
-                hf_model_name, height, width, precision=precision, batch_size=batch_size
-            )
-            model.to("cpu")
-            fxb = FxProgramsBuilder(model)
-
-            @fxb.export_program(
-                args=(decode_args,),
-            )
-            def decode(
-                module,
-                inputs,
-            ):
-                return module.decode(**inputs)
-
-        else:
-            raise ValueError("Unimplemented: ", component)
-
-        if external_weights:
-            externalize_module_parameters(model)
-        if external_weights_path:
-            save_module_parameters(external_weights_path, model)
-    module = export(fxb, module_name=module_name)
-    return module
-
-
 @entrypoint(description="Retreives a set of SDXL submodels.")
 def sdxl(
     model_json=cl_arg(
@@ -492,13 +344,35 @@ def sdxl(
     if "gfx" in target:
         target = "amdgpu-" + target
 
-    params_filenames = get_params_filenames(model_params, model=model, splat=splat)
+    params_filename = get_params_filename(model_params, model=model, splat=splat)
     mlir_filenames = get_mlir_filenames(model_params, model)
     vmfb_filenames = get_vmfb_filenames(model_params, model=model, target=target)
 
+    if params_filename is not None:
+        params_filepath = ctx.allocate_file(
+            params_filename, FileNamespace.GEN
+        ).get_fs_path()
+    else:
+        params_filepath = None
+
     if build_preference == "export":
-        for mlir_path in mlir_filenames:
-            if needs_file(mlir_path, ctx) or force_update in [True, "True"]:
+        for idx, mlir_path in enumerate(mlir_filenames):
+            # If generating multiple MLIR, we only save the weights the first time.
+            if idx == 0 and not os.path.exists(params_filepath):
+                weights_path = params_filepath
+                safe_params_access = True
+            elif "punet_dataset" in params_filename:
+                # We need the path for punet export.
+                weights_path = params_filepath
+                safe_params_access = False
+            else:
+                weights_path = None
+                safe_params_access = True
+            if (
+                needs_file(mlir_path, ctx)
+                or not os.path.exists(params_filepath)
+                or force_update in [True, "True"]
+            ):
                 (
                     batch_size,
                     height,
@@ -507,7 +381,7 @@ def sdxl(
                     precision,
                     max_length,
                 ) = parse_mlir_name(mlir_path)
-                mod = turbine_generate(
+                turbine_generate(
                     export_sdxl_model,
                     hf_model_name=model_params.base_model_name,
                     component=model,
@@ -517,17 +391,13 @@ def sdxl(
                     precision=precision,
                     max_length=max_length,
                     external_weights="irpa",
-                    external_weights_file=params_filenames[
-                        0
-                    ],  # Should only get one per invocation
+                    external_weights_file=weights_path,
                     decomp_attn=decomp_attn,
                     name=mlir_path.split(".mlir")[0],
                     out_of_process=False,
                 )
             else:
-                get_cached(mlir_path, ctx)
-        for params_path in params_filenames:
-            get_cached(params_path, ctx)
+                get_cached(mlir_path, ctx, FileNamespace.GEN)
 
     else:
         mlir_urls = get_url_map(mlir_filenames, mlir_bucket)
@@ -536,7 +406,7 @@ def sdxl(
                 fetch_http(name=f, url=url)
             else:
                 get_cached(f, ctx)
-        params_urls = get_url_map(params_filenames, SDXL_WEIGHTS_BUCKET)
+        params_urls = get_url_map([params_filename], SDXL_WEIGHTS_BUCKET)
         for f, url in params_urls.items():
             if needs_file(f, ctx, url):
                 fetch_http_check_size(name=f, url=url)
@@ -554,14 +424,18 @@ def sdxl(
                 obj = compile(name=file_stem, source=mlir_source)
                 vmfb_filenames[idx] = obj[0]
             else:
-                vmfb_filenames[idx] = get_cached_vmfb(file_stem, target, ctx)
+                vmfb_filenames[idx] = get_cached(
+                    f"{file_stem}_{target}.vmfb", ctx, FileNamespace.BIN
+                )
     else:
         vmfb_urls = get_url_map(vmfb_filenames, vmfb_bucket)
         for f, url in vmfb_urls.items():
             if update or needs_file(f, ctx, url):
                 fetch_http(name=f, url=url)
+            else:
+                get_cached(f, ctx, FileNamespace.GEN)
 
-    filenames = [*vmfb_filenames, *params_filenames, *mlir_filenames]
+    filenames = [*vmfb_filenames, params_filename, *mlir_filenames]
     return filenames
 
 

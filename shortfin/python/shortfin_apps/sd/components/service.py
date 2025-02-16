@@ -8,11 +8,13 @@ import asyncio
 import logging
 import time
 import numpy as np
+import re
 from tqdm.auto import tqdm
 from pathlib import Path
 from PIL import Image
 from collections import namedtuple
 import base64
+import gc
 
 import shortfin as sf
 import shortfin.array as sfnp
@@ -51,6 +53,7 @@ class GenerateService:
         prog_isolation: str = "per_fiber",
         show_progress: bool = False,
         trace_execution: bool = False,
+        use_batcher: bool = True,
     ):
         self.name = name
 
@@ -59,7 +62,7 @@ class GenerateService:
         self.tokenizers = tokenizers
         self.model_params = model_params
         self.inference_parameters: dict[str, list[sf.BaseProgramParameters]] = {}
-        self.inference_modules: dict[str, sf.ProgramModule] = {}
+        self.inference_modules: dict[str, dict[int, sf.ProgramModule]] = {}
         self.inference_functions: dict[str, dict[str, sf.ProgramFunction]] = {}
         self.inference_programs: dict[int, dict[str, sf.Program]] = {}
         self.trace_execution = trace_execution
@@ -98,7 +101,9 @@ class GenerateService:
             self.inference_functions[idx] = {}
 
         # Scope dependent objects.
-        self.batcher = BatcherProcess(self)
+        self.use_batcher = use_batcher
+        if self.use_batcher:
+            self.batcher = BatcherProcess(self)
 
     def equip_fiber(self, fiber, idx, worker_idx):
         MetaFiber = namedtuple(
@@ -114,10 +119,24 @@ class GenerateService:
 
         return MetaFiber(fiber, idx, worker_idx, fiber.device(0), cbs)
 
-    def load_inference_module(self, vmfb_path: Path, component: str = None):
+    def load_inference_module(
+        self, vmfb_path: Path, component: str = None, batch_size: int = None
+    ):
         if not self.inference_modules.get(component):
-            self.inference_modules[component] = []
-        self.inference_modules[component].append(
+            self.inference_modules[component] = {}
+        if batch_size:
+            bs = batch_size
+        else:
+            match = re.search(r"_bs(\d+)_", str(vmfb_path))
+            if match:
+                bs = int(match.group(1))
+            else:
+                raise ValueError(
+                    "Batch size not found in filename or provided to load function."
+                )
+        if not self.inference_modules[component].get(bs):
+            self.inference_modules[component][bs] = []
+        self.inference_modules[component][bs].append(
             sf.ProgramModule.load(self.sysman.ls, vmfb_path)
         )
 
@@ -138,64 +157,66 @@ class GenerateService:
 
     def start(self):
         # Initialize programs.
-        for component in self.inference_modules:
-            logger.info(f"Loading component: {component}")
-            component_modules = [
-                sf.ProgramModule.parameter_provider(
-                    self.sysman.ls, *self.inference_parameters.get(component, [])
-                ),
-                *self.inference_modules[component],
-            ]
-
+        for component in self.inference_modules.keys():
             for worker_idx, worker in enumerate(self.workers):
-                worker_devices = self.meta_fibers[
-                    worker_idx * (self.fibers_per_worker)
-                ].fiber.raw_devices
-                logger.info(
-                    f"Loading inference program: {component}, worker index: {worker_idx}, device: {worker_devices}"
-                )
-                self.inference_programs[worker_idx][component] = sf.Program(
-                    modules=component_modules,
-                    devices=worker_devices,
-                    isolation=self.prog_isolation,
-                    trace_execution=self.trace_execution,
-                )
+                self.inference_programs[worker_idx][component] = {}
+            for batch_size in self.inference_modules[component]:
+                component_modules = [
+                    sf.ProgramModule.parameter_provider(
+                        self.sysman.ls, *self.inference_parameters.get(component, [])
+                    ),
+                    *self.inference_modules[component][batch_size],
+                ]
+
+                for worker_idx, worker in enumerate(self.workers):
+                    worker_devices = self.meta_fibers[
+                        worker_idx * (self.fibers_per_worker)
+                    ].fiber.raw_devices
+                    logger.info(
+                        f"Loading inference program: {component}, batch size {batch_size}, worker index: {worker_idx}, device: {worker_devices}"
+                    )
+                    self.inference_programs[worker_idx][component][
+                        batch_size
+                    ] = sf.Program(
+                        modules=component_modules,
+                        devices=worker_devices,
+                        isolation=self.prog_isolation,
+                        trace_execution=self.trace_execution,
+                    )
 
         for worker_idx, worker in enumerate(self.workers):
             self.inference_functions[worker_idx]["encode"] = {}
-            for bs in self.model_params.clip_batch_sizes:
-                self.inference_functions[worker_idx]["encode"][
-                    bs
-                ] = self.inference_programs[worker_idx]["clip"][
-                    f"{self.model_params.clip_module_name}.encode_prompts"
-                ]
             self.inference_functions[worker_idx]["denoise"] = {}
-            for bs in self.model_params.unet_batch_sizes:
-                self.inference_functions[worker_idx]["denoise"][bs] = {
-                    "unet": self.inference_programs[worker_idx]["unet"][
-                        f"{self.model_params.unet_module_name}.{self.model_params.unet_fn_name}"
-                    ],
-                    "init": self.inference_programs[worker_idx]["scheduler"][
-                        f"{self.model_params.scheduler_module_name}.run_initialize"
-                    ],
-                    "scale": self.inference_programs[worker_idx]["scheduler"][
-                        f"{self.model_params.scheduler_module_name}.run_scale"
-                    ],
-                    "step": self.inference_programs[worker_idx]["scheduler"][
-                        f"{self.model_params.scheduler_module_name}.run_step"
-                    ],
-                }
             self.inference_functions[worker_idx]["decode"] = {}
-            for bs in self.model_params.vae_batch_sizes:
-                self.inference_functions[worker_idx]["decode"][
-                    bs
-                ] = self.inference_programs[worker_idx]["vae"][
-                    f"{self.model_params.vae_module_name}.decode"
-                ]
-        self.batcher.launch()
+
+            for submodel, module_name in self.model_params.module_names.items():
+                for bs in self.model_params.batch_sizes[submodel]:
+                    if submodel == "clip":
+                        self.inference_functions[worker_idx]["encode"][bs] = {}
+                        fn_dest = self.inference_functions[worker_idx]["encode"][bs]
+                    elif submodel in ["unet", "scheduled_unet", "scheduler"]:
+                        self.inference_functions[worker_idx]["denoise"][bs] = {}
+                        fn_dest = self.inference_functions[worker_idx]["denoise"][bs]
+                    elif submodel == "vae":
+                        self.inference_functions[worker_idx]["decode"][bs] = {}
+                        fn_dest = self.inference_functions[worker_idx]["decode"][bs]
+                    else:
+                        raise ValueError("Received an unsupported submodel name.")
+                    for fn in self.model_params.function_names[submodel]:
+                        fn_dest[fn] = self.inference_programs[worker_idx][submodel][bs][
+                            ".".join([module_name, fn])
+                        ]
+        if self.use_batcher:
+            self.batcher.launch()
 
     def shutdown(self):
-        self.batcher.shutdown()
+        if self.use_batcher:
+            self.batcher.shutdown()
+            del self.batcher
+        del self.idle_fibers
+        del self.fibers
+        del self.workers
+        gc.collect()
 
     def __repr__(self):
         modules = [
@@ -243,7 +264,7 @@ class BatcherProcess(sf.Process):
         self.pending_requests: set[InferenceExecRequest] = set()
         self.strobe_enabled = True
         self.strobes: int = 0
-        self.ideal_batch_size: int = max(service.model_params.all_batch_sizes)
+        self.ideal_batch_size: int = max(service.model_params.batch_sizes["clip"])
         self.num_fibers = len(service.meta_fibers)
 
     def shutdown(self):
@@ -502,7 +523,7 @@ class InferenceExecutorProcess(sf.Process):
             ](cb.latents, step, cb.timesteps, cb.sigmas, fiber=self.fiber)
             logger.debug(
                 "INVOKE %r",
-                fns["unet"],
+                fns[self.denoise_mod],
             )
             (cb.noise_pred,) = await fns["unet"](
                 cb.latent_model_input,

@@ -1,0 +1,151 @@
+from iree.turbine.aot import (
+    ExportOutput,
+    FxProgramsBuilder,
+    export,
+    externalize_module_parameters,
+    save_module_parameters,
+    decompositions,
+)
+
+
+def export_sdxl_model(
+    hf_model_name,
+    component,
+    batch_size,
+    height,
+    width,
+    precision="fp16",
+    max_length=64,
+    external_weights=None,
+    external_weights_file=None,
+    decomp_attn=False,
+    quant_paths=None,
+) -> ExportOutput:
+    import torch
+
+    decomp_list = [torch.ops.aten.logspace]
+    if decomp_attn == True:
+        decomp_list = [
+            torch.ops.aten._scaled_dot_product_flash_attention_for_cpu,
+            torch.ops.aten._scaled_dot_product_flash_attention.default,
+            torch.ops.aten.scaled_dot_product_attention.default,
+            torch.ops.aten.scaled_dot_product_attention,
+        ]
+    with decompositions.extend_aot_decompositions(
+        from_current=True,
+        add_ops=decomp_list,
+    ):
+        if component == "clip":
+            from sharktank.torch_exports.sdxl.clip import get_clip_model_and_inputs
+
+            module_name = "compiled_clip"
+            model, sample_clip_inputs = get_clip_model_and_inputs(
+                hf_model_name, max_length, precision, batch_size
+            )
+            if external_weights:
+                # Transformers (model source) registers position ids as non-persistent.
+                # This causes externalization to think it's a user input, and since it's not,
+                # we end up trying to do ops on a !torch.None instead of a tensor.
+                for buffer_name, buffer in model.named_buffers(recurse=True):
+                    mod_name_list = buffer_name.split(".")
+                    buffer_id = mod_name_list.pop()
+                    parent = model
+                    for i in mod_name_list:
+                        parent = getattr(parent, i)
+                    parent.register_buffer(buffer_id, buffer, persistent=True)
+            model.to("cpu")
+            fxb = FxProgramsBuilder(model)
+
+            @fxb.export_program(
+                args=(sample_clip_inputs,),
+            )
+            def encode_prompts(
+                module,
+                inputs,
+            ):
+                return module.forward(**inputs)
+
+        elif component in ["unet", "punet", "scheduled_unet"]:
+            t_ver = torch.__version__
+            if any(key in t_ver for key in ["2.6.", "2.3."]):
+                print(
+                    "You have a torch version that is unstable for this export and may encounter export or compile-time issues: {t_ver}. The reccommended versions are 2.4.1 - 2.5.1"
+                )
+            from sharktank.torch_exports.sdxl.unet import (
+                get_scheduled_unet_model_and_inputs,
+                get_punet_model_and_inputs,
+            )
+
+            if component in ["unet", "punet"]:
+                module_name = "compiled_punet"
+                implementation = get_punet_model_and_inputs
+            else:
+                module_name = "compiled_spunet"
+                implementation = get_scheduled_unet_model_and_inputs
+            (model, sample_init_inputs, sample_forward_inputs,) = implementation(
+                hf_model_name,
+                height,
+                width,
+                max_length,
+                precision,
+                batch_size,
+                external_weights_file,
+                quant_paths,
+            )
+            if external_weights:
+                externalize_module_parameters(model)
+            if component == "scheduled_unet":
+                fxb = FxProgramsBuilder(model)
+
+                @fxb.export_program(
+                    args=(sample_init_inputs,),
+                )
+                def init(
+                    module,
+                    inputs,
+                ):
+                    return module.initialize(*inputs)
+
+                @fxb.export_program(
+                    args=(sample_forward_inputs,),
+                )
+                def run_forward(
+                    module,
+                    inputs,
+                ):
+                    return module.forward(*inputs)
+
+                return export(fxb)
+            else:
+                return export(
+                    model, kwargs=sample_forward_inputs, module_name="compiled_punet"
+                )
+
+        elif component == "vae":
+            from sharktank.torch_exports.sdxl.vae import get_vae_model_and_inputs
+
+            module_name = "compiled_vae"
+            model, encode_args, decode_args = get_vae_model_and_inputs(
+                hf_model_name, height, width, precision=precision, batch_size=batch_size
+            )
+            model.to("cpu")
+            fxb = FxProgramsBuilder(model)
+
+            @fxb.export_program(
+                args=(decode_args,),
+            )
+            def decode(
+                module,
+                inputs,
+            ):
+                return module.decode(**inputs)
+
+        else:
+            raise ValueError("Unimplemented: ", component)
+
+    if external_weights:
+        externalize_module_parameters(model)
+    if external_weights_file:
+        save_module_parameters(external_weights_file, model)
+    module = export(fxb, module_name=module_name)
+    return module

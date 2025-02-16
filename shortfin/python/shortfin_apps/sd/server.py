@@ -143,9 +143,10 @@ def configure_service(args, sysman, model_config, flagfile, tuning_spec):
         show_progress=args.show_progress,
         trace_execution=args.trace_execution,
     )
-    for key, vmfblist in vmfbs.items():
-        for vmfb in vmfblist:
-            sm.load_inference_module(vmfb, component=key)
+    for key, vmfb_dict in vmfbs.items():
+        for bs in vmfb_dict.keys():
+            for vmfb in vmfb_dict[bs]:
+                sm.load_inference_module(vmfb, component=key, batch_size=bs)
     for key, datasets in params.items():
         sm.load_inference_parameters(*datasets, parameter_scope="model", component=key)
     services[sm.name] = sm
@@ -218,9 +219,18 @@ def get_configs(args):
 
 def get_modules(args, model_config, flagfile, td_spec):
     # TODO: Move this out of server entrypoint
-    vmfbs = {"clip": [], "unet": [], "vae": [], "scheduler": []}
-    params = {"clip": [], "unet": [], "vae": []}
-    model_flags = copy.deepcopy(vmfbs)
+    mod_params = ModelParams.load_json(model_config)
+
+    vmfbs = {}
+    params = {}
+    model_flags = {}
+    for submodel in mod_params.module_names.keys():
+        vmfbs[submodel] = {}
+        model_flags[submodel] = []
+        for bs in mod_params.batch_sizes[submodel]:
+            vmfbs[submodel][bs] = []
+        if submodel != "scheduler":
+            params[submodel] = []
     model_flags["all"] = args.compile_flags
 
     if flagfile:
@@ -229,16 +239,16 @@ def get_modules(args, model_config, flagfile, td_spec):
         flagged_model = "all"
         for elem in contents:
             match = [keyw in elem for keyw in model_flags.keys()]
-            if any(match):
+            if any(match) or "--" not in elem:
                 flagged_model = elem
-            else:
+            elif flagged_model in model_flags:
                 model_flags[flagged_model].extend([elem])
     if td_spec:
-        model_flags["unet"].extend(
-            [f"--iree-codegen-transform-dialect-library={td_spec}"]
-        )
-    mod_params = ModelParams.load_json(model_config)
-
+        for key in model_flags.keys():
+            if key in ["unet", "punet", "scheduled_unet", "vae"]:
+                model_flags[key].extend(
+                    [f"--iree-codegen-transform-dialect-library={td_spec}"]
+                )
     filenames = []
     for modelname in vmfbs.keys():
         ireec_args = model_flags["all"] + model_flags[modelname]
@@ -266,14 +276,17 @@ def get_modules(args, model_config, flagfile, td_spec):
         output = subprocess.check_output(builder_args).decode()
 
         output_paths = output.splitlines()
+        for path in output_paths:
+            if "irpa" in path:
+                params[modelname].append(path)
+                output_paths.remove(path)
         filenames.extend(output_paths)
     for name in filenames:
         for key in vmfbs.keys():
-            if key in name.lower():
-                if any(x in name for x in [".irpa", ".safetensors", ".gguf"]):
-                    params[key].extend([name])
-                elif "vmfb" in name:
-                    vmfbs[key].extend([name])
+            for bs in vmfbs[key].keys():
+                if key in name.lower() and f"_bs{bs}_" in name.lower():
+                    if "vmfb" in name:
+                        vmfbs[key][bs].extend([name])
     return vmfbs, params
 
 
