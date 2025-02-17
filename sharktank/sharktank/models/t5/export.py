@@ -27,6 +27,7 @@ def export_encoder_mlir(
     model: Union[T5Encoder, Path, str],
     batch_sizes: list[int],
     mlir_output_path: str,
+    dynamic_context_length: bool = True,
 ):
     """
     Args:
@@ -44,23 +45,26 @@ def export_encoder_mlir(
     for batch_size in batch_sizes:
         sample_inputs = model.sample_inputs(batch_size)
 
-        context_length_dim_idx = 1
-        assert (
-            sample_inputs["input_ids"].shape[context_length_dim_idx]
-            % config.context_length_padding_block_size
-            == 0
-        )
-        context_length_block_dim_max = (
-            sample_inputs["input_ids"].shape[context_length_dim_idx]
-            // config.context_length_padding_block_size
-        )
-        context_length_block_dim = torch.export.Dim(
-            "block", max=context_length_block_dim_max
-        )
-        context_length_dim = (
-            config.context_length_padding_block_size * context_length_block_dim
-        )
-        dynamic_shapes = {"input_ids": {context_length_dim_idx: context_length_dim}}
+        if dynamic_context_length:
+            context_length_dim_idx = 1
+            assert (
+                sample_inputs["input_ids"].shape[context_length_dim_idx]
+                % config.context_length_padding_block_size
+                == 0
+            )
+            context_length_block_dim_max = (
+                sample_inputs["input_ids"].shape[context_length_dim_idx]
+                // config.context_length_padding_block_size
+            )
+            context_length_block_dim = torch.export.Dim(
+                "block", max=context_length_block_dim_max
+            )
+            context_length_dim = (
+                config.context_length_padding_block_size * context_length_block_dim
+            )
+            dynamic_shapes = {"input_ids": {context_length_dim_idx: context_length_dim}}
+        else:
+            dynamic_shapes = None
 
         @fxb.export_program(
             name=f"forward_bs{batch_size}",
