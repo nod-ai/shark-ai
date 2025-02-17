@@ -12,7 +12,7 @@ Typically represented in something like a Huggingface config.json,
 we extend the configuration to enumerate inference boundaries of some given set of compiled modules.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from dataclasses_json import dataclass_json, Undefined
@@ -37,73 +37,42 @@ class ModelParams:
     # Channel dim of latents.
     num_latents_channels: int
 
-    # Batch sizes that each stage is compiled for. These are expected to be
-    # functions exported from the model with suffixes of "_bs{batch_size}". Must
-    # be in ascending order.
-    clip_batch_sizes: list[int]
-
-    # Similarly, batch sizes that the decode stage is compiled for.
-    unet_batch_sizes: list[int]
-
-    # Same for VAE.
-    vae_batch_sizes: list[int]
-
-    # Same for scheduler.
-    scheduler_batch_sizes: list[int]
-
     # Height and Width, respectively, for which Unet and VAE are compiled. e.g. [[512, 512], [1024, 1024]]
     dims: list[list[int]]
 
     # Scheduler id.
     scheduler_id: str = "EulerDiscrete"
 
-    base_model_name: str = "SDXL"
-    # Name of the IREE module for each submodel.
-    clip_module_name: str = "compiled_clip"
-    unet_module_name: str = "compiled_unet"
-    vae_module_name: str = "compiled_vae"
-    scheduler_module_name: str = "compiled_scheduler"
+    base_model_name: str = "stabilityai/stable-diffusion-xl-base-1.0"
 
-    # some unet vmfbs have "main" as entrypoint.
-    unet_fn_name: str = "run_forward"
+    # Batch sizes by submodel. Should be a dict of component string ids as keys and list(int) of their batch sizes.
+    batch_sizes: dict = field(default_factory=dict)
+
+    # Module names of exported components.
+    module_names: dict = field(default_factory=dict)
+
+    # Function names of exported components.
+    function_names: dict = field(default_factory=dict)
 
     # Classifer free guidance mode. If set to false, only positive prompts will matter.
     cfg_mode = True
 
-    # DTypes (not necessarily weights precision):
+    # DTypes (not necessarily weights precision, just I/O of the program):
     clip_dtype: sfnp.DType = sfnp.float16
     unet_dtype: sfnp.DType = sfnp.float16
     vae_dtype: sfnp.DType = sfnp.float16
 
     use_i8_punet: bool = False
+    use_scheduled_unet: bool = False
 
     # ABI of the module.
     module_abi_version: int = 1
 
     @property
-    def max_clip_batch_size(self) -> int:
-        return self.clip_batch_sizes[-1]
-
-    @property
-    def max_unet_batch_size(self) -> int:
-        return self.unet_batch_sizes[-1]
-
-    @property
-    def max_vae_batch_size(self) -> int:
-        return self.vae_batch_sizes[-1]
-
-    @property
     def all_batch_sizes(self) -> list:
-        intersection = list(
-            set(self.clip_batch_sizes)
-            & set(self.unet_batch_sizes)
-            & set(self.vae_batch_sizes)
-        )
-        return intersection
-
-    @property
-    def max_batch_size(self):
-        return max(self.all_batch_sizes)
+        bs_lists = list(self.batch_sizes.values())
+        union = set.union(*[set(list) for list in bs_lists])
+        return union
 
     @staticmethod
     def load_json(path: Path | str):

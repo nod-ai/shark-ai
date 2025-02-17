@@ -147,7 +147,7 @@ class Unet2DConditionModel(ThetaLayer):
         # 1b. Aug embedding of text_embeds, time_ids
         time_embeds = self.add_time_proj(time_ids.flatten())
         time_embeds = time_embeds.reshape((text_embeds.shape[0], -1))
-        add_embeds = torch.concat([text_embeds, time_embeds], dim=-1).to(emb.dtype)
+        add_embeds = torch.cat([text_embeds, time_embeds], dim=-1).to(emb.dtype)
         aug_embed = self.add_embedding(add_embeds)
         emb = emb + aug_embed
         self.trace_tensor("emb", emb)
