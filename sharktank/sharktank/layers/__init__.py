@@ -6,7 +6,7 @@
 
 from .base import BaseLayer, ThetaLayer
 from .conv import Conv2DLayer
-from .kv_cache import BaseKVCache, DirectKVCache, PagedKVCache
+from .kv_cache import PagedKVCache
 from .causal_llm import BaseCausalLMModel
 from .linear import LinearLayer
 from .norm import RMSNormLayer, LayerNorm

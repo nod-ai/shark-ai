@@ -40,7 +40,7 @@ jobs:
       matrix:
         version: [3.11]
       fail-fast: false
-    runs-on: mi300x-4
+    runs-on: mi300x-3
     defaults:
       run:
         shell: bash
@@ -51,7 +51,7 @@ jobs:
 
       - name: "Setting up Python"
         id: setup_python
-        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         with:
           python-version: ${{matrix.version}}
       - name: Create Python venv
@@ -80,6 +80,10 @@ jobs:
 
           pip freeze
 
+      - name: Login to huggingface
+        continue-on-error: true
+        run: huggingface-cli login --token ${{ secrets.HF_TOKEN }}
+
       - name: Run Shortfin Benchmark Tests
         run: |
           source ${VENV_DIR}/bin/activate
@@ -97,7 +101,7 @@ jobs:
       matrix:
         version: [3.11]
       fail-fast: false
-    runs-on: mi300x-4
+    runs-on: mi300x-3
     defaults:
       run:
         shell: bash
@@ -106,14 +110,28 @@ jobs:
 
       - name: "Setting up Python"
         id: setup_python
-        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         with:
           python-version: ${{matrix.version}}
 
-      - name: Install SGLang
+      - name: Install deps
         run: |
           python -m pip install --no-compile --upgrade pip
+
           pip install "git+https://github.com/nod-ai/sglang.git#subdirectory=python"
+
+          pip install pytest
+
+          # Use newest possible releases to be able to track commits that may
+          # cause errors or performance changes.
+          pip install -r requirements-iree-unpinned.txt
+
+          pip install --no-compile \
+            -r sharktank/requirements-tests.txt \
+            -r shortfin/requirements-tests.txt \
+            -e sharktank/ shortfin/
+
+          pip freeze
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -158,18 +176,25 @@ jobs:
         run: |
           pytest -v app_tests/benchmark_tests/llm/sglang_benchmarks/sglang_benchmark_test.py --port 30000 --log-cli-level=INFO --html=sglang_index.html --self-contained-html
 
+      - name: Upload pytest report
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
+        with:
+          name: sglang_benchmark
+          path: sglang_index.html
+
+  # Ensure that the container is always cleaned up after job
+  container_cleanup:
+    needs: benchmark_sglang
+    name: "Docker Cleanup"
+    if: always()
+    runs-on: mi300x-3
+    steps:
       - name: Stop sglang-server
         run: docker stop sglang-server || true # Stop container if it's running
 
       # Deleting image after run due to large disk space requirement (83 GB)
       - name: Cleanup SGLang Image
         run: docker image rm lmsysorg/sglang:v0.3.5.post1-rocm620
-
-      - name: Upload pytest report
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
-        with:
-          name: sglang_benchmark
-          path: sglang_index.html
 
   merge_and_upload_reports:
     name: "Merge and upload benchmark reports"
@@ -182,7 +207,7 @@ jobs:
     steps:
       - name: "Setting up Python"
         id: setup_python
-        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         with:
           python-version: 3.11
 

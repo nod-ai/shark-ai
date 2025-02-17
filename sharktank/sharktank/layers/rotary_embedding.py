@@ -28,6 +28,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         use_hf: bool = False,
         use_table: bool = True,
         tensor_parallelism_size: int = 1,
+        dtype: torch.dtype = torch.float32,
     ):
         super().__init__()
         self.device = device
@@ -35,7 +36,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         self.max_seqlen = max_seqlen
         self.use_hf = use_hf
         self.use_table = use_table
-
+        self.dtype = dtype
         self.rope_freq_base = rope_freq_base if rope_freq_base is not None else 10000.0
         self.tensor_parallelism_size = tensor_parallelism_size
 
@@ -110,6 +111,13 @@ class RotaryEmbeddingLayer(BaseLayer):
         order_tensor[dim // 2 :] = torch.arange(1, dim, 2)
         return order_tensor
 
+    @staticmethod
+    def rotate_half(x):
+        """Rotates half the hidden dims of the input."""
+        x1 = x[..., : x.shape[-1] // 2]
+        x2 = x[..., x.shape[-1] // 2 :]
+        return torch.cat((-x2, x1), dim=-1)
+
     def forward_unsharded(
         self,
         *,
@@ -117,12 +125,21 @@ class RotaryEmbeddingLayer(BaseLayer):
         start_index: int,
         rotary_embed_table: Optional[torch.Tensor],
     ):
-        # xq_, xk_ shape: bs, sl, _, dim
         # freqs_cis shape: max_sl, dim
-        if self.use_hf:
-            xt = xt[..., self._create_interleaved_tensor(xt.shape[-1])]
+        # xq_, xk_ shape: bs, sl, _, dim
         xt_ = xt
         _, sl, _, _ = xt_.shape
+
+        if self.use_hf:
+            freqs_cis = rotary_embed_table
+            # Slice from max to current sequence length
+            cos, sin = [x[start_index : start_index + sl, :] for x in freqs_cis]
+            # expand to 1, sl, 1, dim and repeat per bs
+            cos = cos[None, :, None, :].repeat(xt.shape[0], 1, 1, 1)
+            sin = sin[None, :, None, :].repeat(xt.shape[0], 1, 1, 1)
+            xt = xt.transpose(1, 2)
+            xt_out = (xt_ * cos) + (self.rotate_half(xt_) * sin)
+            return xt_out
 
         # Offset the table based on starting position.
         if self.use_table:
@@ -139,14 +156,12 @@ class RotaryEmbeddingLayer(BaseLayer):
         freqs_cis = ops.repeat(freqs_cis[None, :, :], (xt_.shape[0], 1, 1))
         xt_out = kernels.apply_rotary_embedding(xt_.to(freqs_cis.dtype), freqs_cis)
 
-        if self.use_hf:
-            xt_out = xt_out[..., self._create_ordering_tensor(xt_out.shape[-1])]
-
         return ops.to(xt_out, xt.dtype)
 
     def compute_batch_mask(
         self, start_positions: Union[torch.Tensor, ReplicatedTensor], batch_seq_len: int
     ) -> torch.Tensor:
+        # TODO: I'm pretty sure this function is only correct because batch_seq_len is always 1
         """Computes a mask for a batch that can be repeatedly applied.
 
         Args:
@@ -162,6 +177,12 @@ class RotaryEmbeddingLayer(BaseLayer):
         ) + start_positions.unsqueeze(1)
         # Broadcast lookup to [b, ...].
         self.trace_tensor("rope.positions_seq", positions_seq)
+        if self.use_hf:
+            assert self.use_table, "use_hf requires use_table"
+            freqs_cis = self.rotary_embed_table
+            cos, sin = [x[positions_seq.flatten(), :] for x in freqs_cis]
+            freqs_cis = (cos[:, None, None, :], sin[:, None, None, :])
+            return freqs_cis
 
         if self.use_table:
             freqs_cis = self.rotary_embed_table[positions_seq.flatten()]
@@ -210,17 +231,56 @@ class RotaryEmbeddingLayer(BaseLayer):
         # freqs_cis shape: max_sl, dim
 
         if self.use_hf:
-            xt = xt[..., self._create_interleaved_tensor(xt.shape[-1])]
+            cos, sin = mask
+            xt = xt.transpose(1, 2)
+            xt_out = (xt * cos) + (self.rotate_half(xt) * sin)
+            return xt_out.transpose(1, 2)
 
         xt_out = kernels.apply_rotary_embedding(xt.to(mask.dtype), mask)
-
-        if self.use_hf:
-            xt_out = xt_out[..., self._create_ordering_tensor(xt_out.shape[-1])]
 
         return xt_out.type_as(xt)
 
     def _compute_rotary_embed_table(self, t):
         dim = self.rope_dimension_count
+        if self.use_hf:
+
+            freqs = 1.0 / (
+                self.rope_freq_base
+                ** (torch.arange(0, dim, 2, dtype=torch.int64).float() / dim)
+            )
+            ### from llama3 embedding changes
+            # TODO: get these values from Dataset
+            factor = 8  # in the original implementation
+            low_freq_factor = 1  # in the original implementation
+            high_freq_factor = 4
+            old_context_len = 8192
+
+            low_freq_wavelen = old_context_len / low_freq_factor
+            high_freq_wavelen = old_context_len / high_freq_factor
+
+            inv_freq = freqs
+            wavelen = 2 * torch.pi / inv_freq
+            inv_freq_llama = torch.where(
+                wavelen > low_freq_wavelen, inv_freq / factor, inv_freq
+            )
+
+            smooth_factor = (old_context_len / wavelen - low_freq_factor) / (
+                high_freq_factor - low_freq_factor
+            )
+            smoothed_inv_freq = (
+                1 - smooth_factor
+            ) * inv_freq_llama / factor + smooth_factor * inv_freq_llama
+            is_medium_freq = ~(wavelen < high_freq_wavelen) * ~(
+                wavelen > low_freq_wavelen
+            )
+            freqs = torch.where(is_medium_freq, smoothed_inv_freq, inv_freq_llama)
+
+            freqs = torch.cat((freqs, freqs), dim=-1)
+            emb = torch.outer(t.float(), freqs.float())
+            cos = torch.cos(emb).to(self.dtype)
+            sin = torch.sin(emb).to(self.dtype)
+            return (cos, sin)
+
         freqs = 1.0 / (
             self.rope_freq_base ** ((torch.arange(0, dim) // 2).float() / dim * 2.0)
         )

@@ -98,19 +98,18 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         attention_mask: Optional[torch.Tensor] = None,
         embedding_batch_mask: Optional[torch.Tensor] = None,
         cache_state: list[torch.Tensor] = None,
-        xk_temp: Optional[torch.Tensor] = None,
-        xv_temp: Optional[torch.Tensor] = None,
     ):
         assert bool(start_index is not None) ^ bool(embedding_batch_mask is not None)
-
         x = self.attn_norm(h)
-
-        bs, batch_seq_len, feature_dim = x.shape
-        assert feature_dim == self.head_count * self.head_dim
+        bs, batch_seq_len, _ = x.shape
 
         xq = self.attn_q(x)
         xk = self.attn_k(x)
         xv = self.attn_v(x)
+
+        assert xq.shape[-1] == self.head_count * self.head_dim
+        assert xk.shape[-1] == self.head_count_kv * self.head_dim
+        assert xv.shape[-1] == self.head_count_kv * self.head_dim
 
         xq = xq.view(bs, batch_seq_len, self.head_count, self.head_dim)
         xk = xk.view(bs, batch_seq_len, self.head_count_kv, self.head_dim)
@@ -130,22 +129,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
 
         # Used by fp8_e4m3fnuz model
         if self.cache_quantizer is not None:
-            # For fake quant, store the fp16 qdq value in the cache
-            if self.fake_quant:
-                xk = (
-                    self.cache_quantizer.quantize(xk)
-                    .unpack()
-                    .dequant()
-                    .to(torch.float16)
-                )
-                xv = (
-                    self.cache_quantizer.quantize(xv)
-                    .unpack()
-                    .dequant()
-                    .to(torch.float16)
-                )
-            # For real quant, store the quantized fp8 value in the cache
-            else:
+            if not self.fake_quant:
                 # TODO: this seems like a bastardization of our quantized tensor api
                 # Probably want to add support for using quantized tensors more directly
                 xk = self.cache_quantizer.quantize(xk).unpack().qs
@@ -158,8 +142,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             kv_seq_len=kv_seq_len,
             start_positions=start_positions,
             cache_state=cache_state,
-            xk_temp=xk_temp,
-            xv_temp=xv_temp,
         )
 
         # Expand kv heads for GQA.
@@ -179,11 +161,14 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         # Fake quant is already dequantized when stored in the cache.
         if self.cache_quantizer and not self.fake_quant:
             xk = self.cache_quantizer.dequantize_raw_tensor(
-                xk, torch.float16, name="xk_deq"
+                xk, torch.bfloat16, name="xk_deq"
             )
             xv = self.cache_quantizer.dequantize_raw_tensor(
-                xv, torch.float16, name="xv_deq"
+                xv, torch.bfloat16, name="xv_deq"
             )
+            if attention_mask is not None:
+                attention_mask = attention_mask.to(torch.bfloat16)
+
         # Transpose into [bs, heads, sl, dim]
         xq = xq.transpose(1, 2)
         keys = xk.transpose(1, 2)
@@ -203,7 +188,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             self.assert_not_nan(attn_weights)
 
             # Apply attention mask.
-            self.trace_tensor("attn_weights", attn_weights, values=False)
+            self.trace_tensor("attn_weights", attn_weights)
             if attention_mask is not None:
                 # self.trace_tensor("attn_mask", attention_mask)
                 attn_weights = attn_weights + attention_mask
@@ -227,7 +212,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
 
         attn_output = attn_output.transpose(1, 2)
         attn_output = attn_output.flatten(2, 3)
-
         # Project.
         attn_output = self.attn_output(attn_output)
         attn_output = self.attn_output_norm(attn_output)
@@ -245,8 +229,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         seq_block_ids: Optional[torch.Tensor],
         kv_seq_len: int,
         start_positions: Optional[torch.Tensor] = None,
-        xk_temp: Optional[torch.Tensor] = None,
-        xv_temp: Optional[torch.Tensor] = None,
     ):
         cache = self.cache
         # Manage the cache.
@@ -266,7 +248,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         # use a memory efficient attention kernel that can do indirect
         # reads, skipping this materialization. This path is taken for
         # a decode step.
-        assert xk_temp is not None and xv_temp is not None
         assert xk_cache_update.shape[1] == 1
         assert xv_cache_update.shape[1] == 1
         assert kv_seq_len == seq_block_ids.shape[1] * cache.block_seq_stride
@@ -286,10 +267,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         # Restore from the cache.
         xk, xv = cache.read(
             cache_state,
-            read_into_partitions=[
-                xk_temp[:, 0:kv_seq_len, ...],
-                xv_temp[:, 0:kv_seq_len, ...],
-            ],
             transformer_block_index=self.block_index,
             page_ids=seq_block_ids,
             seq_len=kv_seq_len,

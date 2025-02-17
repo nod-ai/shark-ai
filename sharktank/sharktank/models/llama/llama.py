@@ -18,6 +18,10 @@ from ...types import *
 from ...utils.create_cache import *
 from ... import ops
 
+
+from transformers.models.llama.configuration_llama import LlamaConfig
+from transformers.models.llama.modeling_llama import LlamaRotaryEmbedding
+
 __all__ = [
     "PagedLlamaModelV1",
 ]
@@ -71,17 +75,18 @@ class PagedLlamaModelV1(BaseCausalLMModel):
             activation_dtype=config.activation_dtype,
             attention_dtype=config.attention_dtype,
             fake_quant=config.fake_quant,
+            static_tables=config.static_tables,
         )
         self.config = config
         self.hp = hp
-        self.cache = create_kv_cache(self.config)
+        self.cache = create_paged_kv_cache(self.config)
         self.activation_dtype = config.activation_dtype
         self.use_hf = config.use_hf
         self.attention_kernel = config.attention_kernel
 
         self.add_module(
             "token_embedding",
-            TokenEmbeddingLayer(theta("token_embd"), dtype=config.activation_dtype),
+            TokenEmbeddingLayer(theta("token_embd"), dtype=self.activation_dtype),
         )
         self.add_module(
             "attention_embedding",
@@ -92,6 +97,7 @@ class PagedLlamaModelV1(BaseCausalLMModel):
                 device=self.device,
                 use_hf=self.use_hf,
                 tensor_parallelism_size=config.tensor_parallelism_size,
+                dtype=config.activation_dtype,
             ),
         )
         self.add_module(
@@ -186,58 +192,12 @@ class PagedLlamaModelV1(BaseCausalLMModel):
         self._assert_device(start_positions)
         self._assert_device(*cache_state, dtype=self.activation_dtype)
 
-        bs, _ = tokens.shape
         # Precompute a position based mask for computing rope embeddings
         # as it is the same for all blocks.
         embedding_batch_mask = self.attention_embedding.compute_batch_mask(
             start_positions, batch_seq_len=1
         )
         self.trace_tensor("llama.embedding_batch_mask", embedding_batch_mask)
-
-        # Allocate per-block temporary K/V tensors. These temporaries hold
-        # one block's K/V state for the maximum context length.
-        if self.config.tensor_parallelism_size == 1:
-            xk_temp = torch.empty(
-                [
-                    bs,
-                    self.context_length,
-                    self.hp.attention_head_count_kv,
-                    self.hp.attn_head_dim,
-                ],
-                dtype=self.config.activation_dtype,
-                device=self.device,
-            )
-            xv_temp = torch.empty(
-                [
-                    bs,
-                    self.context_length,
-                    self.hp.attention_head_count_kv,
-                    self.hp.attn_head_dim,
-                ],
-                dtype=self.config.activation_dtype,
-                device=self.device,
-            )
-        else:
-            shard_size = [
-                bs,
-                self.context_length,
-                self.hp.attention_head_count_kv // self.config.tensor_parallelism_size,
-                self.hp.attn_head_dim,
-            ]
-            xk_temp_shard = [
-                torch.empty(
-                    shard_size, dtype=self.config.activation_dtype, device=self.device
-                )
-                for _ in range(self.config.tensor_parallelism_size)
-            ]
-            xv_temp_shard = [
-                torch.empty(
-                    shard_size, dtype=self.config.activation_dtype, device=self.device
-                )
-                for _ in range(self.config.tensor_parallelism_size)
-            ]
-            xk_temp = SplitPrimitiveTensor(ts=xk_temp_shard, shard_dim=2)
-            xv_temp = SplitPrimitiveTensor(ts=xv_temp_shard, shard_dim=2)
 
         h = self.token_embedding(tokens)
         self.trace_tensor("llama.token_embedding", h)
@@ -254,8 +214,6 @@ class PagedLlamaModelV1(BaseCausalLMModel):
                 attention_mask=attention_mask,
                 cache_state=cache_state,
                 seq_block_ids=seq_block_ids,
-                xk_temp=xk_temp,
-                xv_temp=xv_temp,
             )
             self.trace_tensor(f"llama.attn_block.{block_idx}.output", h)
 
@@ -305,6 +263,7 @@ class AttentionFFNBlock(ThetaLayer):
             "ffn",
             FFN(
                 theta=theta,
+                fake_quant=fake_quant,
             ),
         )
         self.add_module(
@@ -323,8 +282,6 @@ class AttentionFFNBlock(ThetaLayer):
         attention_mask: Optional[torch.Tensor] = None,
         embedding_batch_mask: Optional[torch.Tensor] = None,
         cache_state: list[torch.Tensor] = None,
-        xk_temp: Optional[torch.Tensor] = None,
-        xv_temp: Optional[torch.Tensor] = None,
     ):
         h = self.attn(
             h,
@@ -335,8 +292,6 @@ class AttentionFFNBlock(ThetaLayer):
             attention_mask=attention_mask,
             embedding_batch_mask=embedding_batch_mask,
             cache_state=cache_state,
-            xk_temp=xk_temp,
-            xv_temp=xv_temp,
         )
 
         # Feed forward network.

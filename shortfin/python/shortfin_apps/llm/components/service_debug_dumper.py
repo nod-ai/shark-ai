@@ -57,6 +57,7 @@ class ServiceDebugDumper:
             phase = executor.phase
             exec_requests = executor.exec_requests
             model_params = executor.service.model_params
+            server_params = executor.service.server_params
 
             dump_path = self.dump_dir / f"{self.dump_id}"
             dump_path.mkdir(parents=True, exist_ok=True)
@@ -124,7 +125,7 @@ class ServiceDebugDumper:
                     "paged_kv_cache": {
                         "device_block_count": model_params.paged_kv_cache.device_block_count,
                         "block_seq_stride": model_params.paged_kv_cache.block_seq_stride,
-                        "prefix_sharing_algorithm": model_params.paged_kv_cache.prefix_sharing_algorithm,
+                        "prefix_sharing_algorithm": server_params.prefix_sharing_algorithm,
                     },
                 },
             }

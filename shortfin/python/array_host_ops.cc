@@ -20,17 +20,14 @@
 #include <limits>
 #include <type_traits>
 
-// A minimal bfloat16 type as a trivial wrapper over a 16-bit value.
+
 struct bfloat16_t {
   uint16_t value;
 
-  // Default constructor: zero.
   constexpr bfloat16_t() noexcept : value(0) {}
 
   explicit constexpr bfloat16_t(float f) noexcept {
-    // reinterpret f as uint32_t
     uint32_t temp = std::bit_cast<uint32_t>(f);
-    // drop the lower 16 bits
     value = static_cast<uint16_t>(temp >> 16);
   }
 
@@ -40,7 +37,6 @@ struct bfloat16_t {
       : bfloat16_t(static_cast<float>(value)) {}
 
   constexpr operator float() const noexcept {
-    // shift stored bits to the high half of a 32-bit word
     uint32_t temp = static_cast<uint32_t>(value) << 16;
     return std::bit_cast<float>(temp);
   }
@@ -107,6 +103,23 @@ struct is_standard_layout<bfloat16_t> : std::true_type {};
 template <>
 struct is_trivially_copyable<bfloat16_t> : std::true_type {};
 }  // namespace std
+
+// Math functions needed by xtensor for bfloat16_t
+inline constexpr bfloat16_t round(bfloat16_t x) noexcept {
+  return bfloat16_t(std::round(float(x)));
+}
+
+inline constexpr bfloat16_t ceil(bfloat16_t x) noexcept {
+  return bfloat16_t(std::ceil(float(x)));
+}
+
+inline constexpr bfloat16_t floor(bfloat16_t x) noexcept {
+  return bfloat16_t(std::floor(float(x)));
+}
+
+inline constexpr bfloat16_t trunc(bfloat16_t x) noexcept {
+  return bfloat16_t(std::trunc(float(x)));
+}
 
 #endif  // BFLOAT16_HPP
 

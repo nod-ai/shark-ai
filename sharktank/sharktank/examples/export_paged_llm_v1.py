@@ -46,12 +46,6 @@ def main():
         default="4",
     )
     parser.add_argument(
-        "--block-seq-stride",
-        help="Block sequence stride for paged KV cache, must divide evenly into the context length",
-        type=int,
-        default=32,
-    )
-    parser.add_argument(
         "--verbose",
         help="Include verbose logging",
         action="store_true",
@@ -59,6 +53,11 @@ def main():
     parser.add_argument(
         "--strict",
         help="Enables strictness during export",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--use-attention-mask",
+        help="Generates attention mask during export",
         action="store_true",
     )
 
@@ -72,17 +71,18 @@ def main():
     tensor_parallelism_size = (
         dataset.properties["tensor_parallelism_size"]
         if "tensor_parallelism_size" in dataset.properties
-        else 1
+        else args.tensor_parallelism_size
     )
 
     llama_config = LlamaModelConfig(
         hp,
         tensor_parallelism_size=tensor_parallelism_size,
-        use_hf=False,
+        use_hf=args.use_hf,
         static_tables=False,  # Rely on the compiler for hoisting tables.
-        kv_cache_type="paged",
         attention_kernel=args.attention_kernel,
         block_seq_stride=args.block_seq_stride,
+        activation_dtype=args.activation_dtype,
+        attention_dtype=args.attention_dtype,
     )
     llama_config.fake_quant = args.fake_quant
 
@@ -115,7 +115,7 @@ def main():
             "paged_kv_cache": {
                 "attention_head_count_kv": hp.attention_head_count_kv,
                 "block_seq_stride": llama_config.block_seq_stride,
-                "device_block_count": 256,  # so that this makes its way into the config file & can be edited.
+                "device_block_count": args.device_block_count,  # so that this makes its way into the config file & can be edited.
             },
         }
 
@@ -219,16 +219,24 @@ def main():
             else:
                 cache_tensors = cs
 
+            attention_mask = None
+            if args.use_attention_mask:
+                sl = tokens.shape[1]
+                input_mask = model.input_mask(seq_lens, sl)
+                attention_mask = model.attention_mask(input_mask)
+
             if llama_config.tensor_parallelism_size != 1:
                 shard_count = llama_config.tensor_parallelism_size
 
                 tokens = ops.replicate(tokens, count=shard_count)
+                if attention_mask:
+                    attention_mask = ops.replicate(attention_mask, count=shard_count)
                 seq_block_ids = ops.replicate(seq_block_ids, count=shard_count)
                 cache_tensors = repack_cache(cs, cache_shard_dim)
 
             logits = model.prefill(
                 tokens,
-                attention_mask=None,  # We rely on causal attention
+                attention_mask=attention_mask,
                 seq_block_ids=seq_block_ids,
                 cache_state=cache_tensors,
             )

@@ -1,55 +1,43 @@
 """Test fixtures and configurations."""
+
+import hashlib
 import pytest
 from pathlib import Path
-import hashlib
+from tokenizers import Tokenizer, Encoding
 
 from ..model_management import (
     ModelProcessor,
-    ModelConfig,
-    ModelSource,
-    AzureConfig,
     ModelArtifacts,
+    TEST_MODELS,
 )
 from ..server_management import ServerInstance, ServerConfig
-from .. import device_settings
 
-# Example model configurations
-TEST_MODELS = {
-    "open_llama_3b": ModelConfig(
-        source=ModelSource.HUGGINGFACE,
-        repo_id="SlyEcho/open_llama_3b_v2_gguf",
-        model_file="open-llama-3b-v2-f16.gguf",
-        tokenizer_id="openlm-research/open_llama_3b_v2",
-        batch_sizes=(1, 4),
-        device_settings=device_settings.CPU,
-    ),
-    "llama3.1_8b": ModelConfig(
-        source=ModelSource.LOCAL,
-        local_path=Path("/data/llama3.1/8b/llama8b_f16.irpa"),
-        model_file="llama8b_f16.irpa",
-        tokenizer_id="NousResearch/Meta-Llama-3.1-8B",
-        batch_sizes=(1, 4),
-        device_settings=device_settings.CPU,
-    ),
-    "azure_llama": ModelConfig(
-        source=ModelSource.AZURE,
-        azure_config=AzureConfig(
-            account_name="sharkblobs",
-            container_name="halo-models",
-            blob_path="llm-dev/llama3_8b/8b_f16.irpa",
-        ),
-        model_file="azure-llama.irpa",
-        tokenizer_id="openlm-research/open_llama_3b_v2",
-        batch_sizes=(1, 4),
-        device_settings=device_settings.CPU,
-    ),
-}
+from ..device_settings import get_device_settings_by_name
 
 
-@pytest.fixture(scope="module")
-def model_artifacts(tmp_path_factory, request):
+def pytest_addoption(parser):
+    parser.addoption(
+        "--test_device",
+        action="store",
+        metavar="NAME",
+        default=None,  # you must specify a device to test on
+        help="Select device name to compile models to and run tests on ('cpu', 'gfx90a', 'gfx942', ...); see app_tests/integration_tests/llm/device_settings.py for full list of options.",
+    )
+
+
+@pytest.fixture(scope="session")
+def test_device(request):
+    ret = request.config.option.test_device
+    if ret is None:
+        raise ValueError("--test_device not specified")
+    return ret
+
+
+@pytest.fixture(scope="session")
+def model_artifacts(tmp_path_factory, request, test_device):
     """Prepares model artifacts in a cached directory."""
     model_config = TEST_MODELS[request.param]
+    model_config.device_settings = get_device_settings_by_name(test_device)
     cache_key = hashlib.md5(str(model_config).encode()).hexdigest()
 
     cache_dir = tmp_path_factory.mktemp("model_cache")
@@ -73,8 +61,7 @@ def model_artifacts(tmp_path_factory, request):
 @pytest.fixture(scope="module")
 def server(model_artifacts, request):
     """Starts and manages the test server."""
-    model_id = request.param["model"]
-    model_config = TEST_MODELS[model_id]
+    model_config = model_artifacts.model_config
 
     server_config = ServerConfig(
         artifacts=model_artifacts,
@@ -89,3 +76,9 @@ def server(model_artifacts, request):
 
     process.terminate()
     process.wait()
+
+
+@pytest.fixture(scope="module")
+def encoded_prompt(model_artifacts: ModelArtifacts, request) -> list[int]:
+    tokenizer = Tokenizer.from_file(str(model_artifacts.tokenizer_path))
+    return tokenizer.encode(request.param).ids

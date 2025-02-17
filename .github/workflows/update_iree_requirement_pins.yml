@@ -8,6 +8,11 @@ name: Update IREE requirement pins
 
 on:
   workflow_dispatch:
+    inputs:
+      branch-name:
+        default: "integrates/iree"
+        type: string
+        description: The branch name to put updates on
   schedule:
     # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
     - cron: "0 11 * * 1-5"
@@ -16,28 +21,72 @@ permissions:
   contents: write
   pull-requests: write
 
+env:
+  GIT_BRANCH_NAME: ${{ inputs.branch-name || 'integrates/iree' }}
+
 jobs:
-  update-iree:
+  determine-duty-engineer:
+    runs-on: ubuntu-24.04
+    outputs:
+      duty-engineer: ${{ steps.set-duty.outputs.engineer }}
+    steps:
+      - name: Determine IREE bump duty engineer
+        id: set-duty
+        run: |
+          # rotation schedule (GitHub usernames); add yourself into this schedule to get notified when it's your turn.
+          ENGINEERS=('renxida')
+
+          # current week number (1-53)
+          WEEK=$(date +%V)
+
+          INDEX=$(( WEEK % ${#ENGINEERS[@]} ))
+          DUTY_ENGINEER=${ENGINEERS[$INDEX]}
+          echo "engineer=$DUTY_ENGINEER" >> $GITHUB_OUTPUT
+          echo "This week's IREE bump duty engineer: $DUTY_ENGINEER"
+
+  check-for-existing-branch:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
     runs-on: ubuntu-24.04
+    outputs:
+      branch-exists: ${{ steps.check-exists.outputs.branch-exists }}
 
     steps:
-      - uses: actions/create-github-app-token@c1a285145b9d317df6ced56c09f525b5c2b6f755 # v1.11.1
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Check for existing integrate branch
+        id: check-exists
+        run: |
+          BRANCH_EXISTS=$(git ls-remote --exit-code --heads origin ${{ env.GIT_BRANCH_NAME }} | wc -l)
+          echo branch-exists=${BRANCH_EXISTS} >> "${GITHUB_OUTPUT}"
+          if [[ ${BRANCH_EXISTS} == 1 ]]; then
+            echo "Skipping update PR creation since the `${{ env.GIT_BRANCH_NAME }}` branch already exists." >> ${GITHUB_STEP_SUMMARY}
+          fi
+
+  update-iree:
+    needs: [check-for-existing-branch, determine-duty-engineer]
+    runs-on: ubuntu-24.04
+    if: ${{ needs.check-for-existing-branch.outputs.branch-exists == 0 }}
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: "Setting up Python"
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: 3.11
+
+      # This sets a few environment variables via GITHUB_ENV.
+      - name: Update IREE requirement pins
+        run: build_tools/update_iree_requirement_pins.py
+
+      - uses: actions/create-github-app-token@136412a57a7081aa63c935a2cc2918f76c34f514 # v1.11.2
+        if: ${{ env.CREATE_PULL_REQUEST_TOKEN_APP_ID != '' && env.CREATE_PULL_REQUEST_TOKEN_APP_PRIVATE_KEY != '' }}
         id: generate-token
         with:
           app-id: ${{ secrets.CREATE_PULL_REQUEST_TOKEN_APP_ID }}
           private-key: ${{ secrets.CREATE_PULL_REQUEST_TOKEN_APP_PRIVATE_KEY }}
-
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: "Setting up Python"
-        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
-        with:
-          python-version: 3.11
-
-      # This sets a few environment variables used below.
-      - name: Update IREE requirement pins
-        run: build_tools/update_iree_requirement_pins.py
+        env:
+          CREATE_PULL_REQUEST_TOKEN_APP_ID: ${{ secrets.CREATE_PULL_REQUEST_TOKEN_APP_ID }}
+          CREATE_PULL_REQUEST_TOKEN_APP_PRIVATE_KEY: ${{ secrets.CREATE_PULL_REQUEST_TOKEN_APP_PRIVATE_KEY }}
 
       - name: Create or update pull request
         if: |
@@ -45,16 +94,26 @@ jobs:
           ${{ env.CURRENT_IREE_BASE_RUNTIME_VERSION }} != ${{ env.LATEST_IREE_BASE_RUNTIME_VERSION }} || \
           ${{ env.CURRENT_IREE_TURBINE_VERSION }} != ${{ env.LATEST_IREE_TURBINE_VERSION }}
           ${{ env.CURRENT_SHORTFIN_IREE_GIT_TAG }} != ${{ env.LATEST_SHORTFIN_IREE_GIT_TAG }}
+        id: cpr
         uses: peter-evans/create-pull-request@67ccf781d68cd99b580ae25a5c18a1cc84ffff1f # v7.0.6
         with:
-          token: ${{ steps.generate-token.outputs.token }}
+          token: ${{ steps.generate-token.outputs.token || secrets.GITHUB_TOKEN }}
           base: main
-          branch: integrates/iree
-          delete-branch: true
+          branch: ${{ env.GIT_BRANCH_NAME }}
+          author: shark-pr-automator[bot] <41898282+github-actions[bot]@users.noreply.github.com>
           signoff: true
           title: "Bump IREE requirement pins to their latest versions."
           body: |
             Diff: https://github.com/iree-org/iree/compare/iree-${{ env.CURRENT_IREE_BASE_COMPILER_VERSION }}...iree-${{ env.LATEST_IREE_BASE_COMPILER_VERSION }}
 
+            IREE bump duty engineer this week: @${{ needs.determine-duty-engineer.outputs.duty-engineer }}
+
             Auto-generated by GitHub Actions using [`.github/workflows/update_iree_requirement_pins.yml`](https://github.com/${{ github.repository }}/blob/main/.github/workflows/update_iree_requirement_pins.yml).
           commit-message: "Bump IREE to ${{ env.LATEST_IREE_BASE_COMPILER_VERSION }}."
+          assignees: ${{ needs.determine-duty-engineer.outputs.duty-engineer }}
+
+      - name: Write summary
+        if: ${{ steps.cpr.outputs.pull-request-number }}
+        run: |
+          echo "Pull Request URL: ${{ steps.cpr.outputs.pull-request-url }}" >> ${GITHUB_STEP_SUMMARY}
+          echo "IREE bump duty engineer: @${{ needs.determine-duty-engineer.outputs.duty-engineer }}" >> ${GITHUB_STEP_SUMMARY}

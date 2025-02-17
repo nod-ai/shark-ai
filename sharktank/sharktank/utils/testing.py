@@ -7,6 +7,7 @@
 from typing import Optional
 import contextlib
 from pathlib import Path
+from os import PathLike
 import os
 import shutil
 import tempfile
@@ -136,12 +137,56 @@ def assert_equal(
     assert equal(a, b), f"{a} and {b} are not equal"
 
 
-def assert_golden_safetensors(actual_path, ref_path):
-    """Asserts that actual and reference safetensors files are within tolerances."""
+def assert_close_safetensors(
+    actual_path: PathLike,
+    ref_path: PathLike,
+    rtol: Optional[float] = None,
+    atol: Optional[float] = None,
+    fail_fast: bool = True,
+):
+    """Asserts that actual and reference safetensors files are within tolerances.
+
+    actual_path and ref_path can be directories. In that case files with matching
+    sub-paths will be compared."""
     from safetensors import safe_open
     import torch
 
-    print(f"Asserting goldens: actual={actual_path}, ref={ref_path}")
+    print(f"Asserting tensors close: actual={actual_path}, ref={ref_path}")
+
+    not_close_list: list[tuple[str, str]] = []
+
+    if os.path.isdir(ref_path):
+        assert os.path.isdir(actual_path)
+        actual_path = os.path.abspath(actual_path)
+        ref_path = os.path.abspath(ref_path)
+        ref_paths = [
+            Path(root) / file
+            for root, dirs, files in os.walk(ref_path)
+            for file in files
+        ]
+        for ref_file_path in ref_paths:
+            actual_file_path = Path(
+                f"{actual_path}{str(ref_file_path).removeprefix(ref_path)}"
+            )
+            try:
+                assert os.path.isfile(actual_file_path)
+                assert_close_safetensors(
+                    actual_file_path,
+                    ref_file_path,
+                    rtol=rtol,
+                    atol=atol,
+                    fail_fast=fail_fast,
+                )
+            except Exception as ex:
+                if fail_fast:
+                    raise
+                not_close_list.append((actual_file_path, ref_file_path))
+                print(ex)
+        if len(not_close_list) > 0:
+            print("Not close:")
+            for actual, ref in not_close_list:
+                print(f"{actual} != {ref}")
+            assert False, "Tensors are not close."
 
     def print_stats(label, t):
         t = t.to(dtype=torch.float32)
@@ -156,6 +201,7 @@ def assert_golden_safetensors(actual_path, ref_path):
     with safe_open(actual_path, framework="pt") as actual_f, safe_open(
         ref_path, framework="pt"
     ) as ref_f:
+        is_close = True
         # Print all first.
         for name in ref_f.keys():
             actual = actual_f.get_tensor(name)
@@ -169,7 +215,15 @@ def assert_golden_safetensors(actual_path, ref_path):
         for name in ref_f.keys():
             actual = actual_f.get_tensor(name)
             ref = ref_f.get_tensor(name)
-            torch.testing.assert_close(actual, ref, msg=name)
+            try:
+                torch.testing.assert_close(actual, ref, rtol=rtol, atol=atol)
+            except Exception as ex:
+                if fail_fast:
+                    raise
+                is_close = False
+                print(ex)
+
+        assert is_close, "Tensors are not close."
 
 
 def assert_iterables_equal(
@@ -185,8 +239,56 @@ def assert_iterables_equal(
         ), f"Iterables not equal at index {i} for elements {v1} and {v2}"
 
 
+def assert_tensor_close(
+    actual: torch.Tensor,
+    expected: torch.Tensor,
+    atol: float,
+    max_outliers_fraction: Optional[float] = None,
+    inlier_atol: Optional[float] = None,
+):
+    if (max_outliers_fraction is None and inlier_atol is not None) or (
+        max_outliers_fraction is not None and inlier_atol is None
+    ):
+        raise ValueError(
+            "max_outliers_fraction and inlier_atol must be provided or not together."
+        )
+
+    try:
+        torch.testing.assert_close(
+            actual,
+            expected,
+            atol=atol,
+            rtol=0,
+        )
+
+        if inlier_atol is not None:
+            outliers = (actual - expected).abs() > inlier_atol
+            outliers_fraction = outliers.count_nonzero() / outliers.numel()
+            if outliers_fraction > max_outliers_fraction:
+                raise AssertionError(
+                    f"The fraction of outliers {outliers_fraction:%} is above the allowed "
+                    f"{max_outliers_fraction:%}. Inlier atol={inlier_atol}."
+                )
+    except AssertionError as ex:
+        diff = actual - expected
+        std, mean = torch.std_mean(diff)
+        msg = (
+            "Difference (actual - expected):\n"
+            f"mean = {mean}\n"
+            f"median = {diff.median()}\n"
+            f"std dev = {std}\n"
+            f"min = {diff.min()}\n"
+            f"max = {diff.max()}\n"
+        )
+        raise AssertionError(msg) from ex
+
+
 def assert_text_encoder_state_close(
-    actual: torch.Tensor, expected: torch.Tensor, atol: float
+    actual: torch.Tensor,
+    expected: torch.Tensor,
+    atol: float,
+    max_outliers_fraction: Optional[float] = None,
+    inlier_atol: Optional[float] = None,
 ):
     """The cosine similarity has been suggested to compare encoder states.
 
@@ -207,11 +309,13 @@ def assert_text_encoder_state_close(
         expected,
         dim=-1,
     )
-    torch.testing.assert_close(
-        cosine_similarity_per_token,
-        torch.ones_like(cosine_similarity_per_token),
+
+    assert_tensor_close(
+        actual=cosine_similarity_per_token,
+        expected=torch.ones_like(cosine_similarity_per_token),
         atol=atol,
-        rtol=0,
+        max_outliers_fraction=max_outliers_fraction,
+        inlier_atol=inlier_atol,
     )
 
 

@@ -44,12 +44,21 @@ class LlamaHParams:
     expert_count: Optional[int] = None
     expert_used_count: Optional[int] = None
 
+    # Latent Attention Config - Deepseek specific
+    nope_dim: Optional[int] = None
+    kv_latent_dim: Optional[int] = None
+    v_head_dim: Optional[int] = None
+
+    # Expert cnofigs - Deep seek Specific
+    expert_score_func: Optional[str] = None
+    route_scale: Optional[float] = None
+
     @staticmethod
     def from_gguf_props(p: dict[str, Any]):
         name_prefix = p.get("general.architecture", "llama")
         default_expert_count = 0
         default_expert_used_count = 0
-        default_rope_freq_base = 10000.0
+        default_rope_freq_base = 500000.0
         default_rope_dimension_count = 128
         attention_head_count = _int_prop(p, f"{name_prefix}.attention.head_count")
         rope_dimension_count = _optional_int_prop(

@@ -59,7 +59,7 @@ class PagedGrokModelV1(BaseCausalLMModel):
         )
         self.config = config
         self.hp = hp
-        self.cache = create_kv_cache(self.config)
+        self.cache = create_paged_kv_cache(self.config)
         self.activation_dtype = config.activation_dtype
         self.add_module(
             "token_embedding",
@@ -102,7 +102,6 @@ class PagedGrokModelV1(BaseCausalLMModel):
             self.moe_blocks.append(
                 MoeBlock(
                     theta("blk", n),
-                    expert_count=hp.expert_count,
                     expert_used_count=hp.expert_used_count,
                     rms_epsilon=hp.attention_layer_norm_rms_epsilon,
                     moe_activation=F.gelu,
@@ -170,36 +169,12 @@ class PagedGrokModelV1(BaseCausalLMModel):
         self._assert_device(attention_mask, dtype=self.activation_dtype)
         self._assert_device(start_positions)
         self._assert_device(*cache_state, dtype=self.activation_dtype)
-        bs, _ = tokens.shape
         # Precompute a position based mask for computing rope embeddings
         # as it is the same for all blocks.
         embedding_batch_mask = self.attention_embedding.compute_batch_mask(
             start_positions, batch_seq_len=1
         )
         self.trace_tensor("grok.embedding_batch_mask", embedding_batch_mask)
-
-        # Allocate per-block temporary K/V tensors. These temporaries hold
-        # one block's K/V state for the maximum context length.
-        xk_temp = torch.empty(
-            [
-                bs,
-                self.context_length,
-                self.hp.attention_head_count_kv,
-                self.hp.attn_head_dim,
-            ],
-            dtype=self.config.activation_dtype,
-            device=self.device,
-        )
-        xv_temp = torch.empty(
-            [
-                bs,
-                self.context_length,
-                self.hp.attention_head_count_kv,
-                self.hp.attn_head_dim,
-            ],
-            dtype=self.config.activation_dtype,
-            device=self.device,
-        )
 
         h = self.token_embedding(tokens)
         h *= math.sqrt(h.shape[-1])
@@ -220,8 +195,6 @@ class PagedGrokModelV1(BaseCausalLMModel):
                 attention_mask=attention_mask,
                 cache_state=cache_state,
                 seq_block_ids=seq_block_ids,
-                xk_temp=xk_temp,
-                xv_temp=xv_temp,
             )
             self.trace_tensor(f"grok.attn_block.{block_idx}.output", h)
 

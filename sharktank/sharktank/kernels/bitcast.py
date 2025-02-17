@@ -31,6 +31,7 @@ __all__ = [
 ]
 
 _ftype_to_ctype_table = {
+    torch.bfloat16: torch.complex32,
     torch.float16: torch.complex32,
     torch.float32: torch.complex64,
 }

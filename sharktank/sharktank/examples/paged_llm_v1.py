@@ -6,15 +6,11 @@
 
 """Inference support for the PagedLLMV1 protocol of models."""
 
-from typing import Optional
-
-from safetensors import safe_open
 
 import math
-import sys
-
+from ..models.llama.tools.data_utils import write_ndarray_to_bin
 import torch
-
+import numpy as np
 from ..layers import *
 from ..types import *
 
@@ -39,15 +35,14 @@ class TorchGenerator:
         page_cache_size: int = 128,
         # Need to look at the model more for this.
         end_token: int = 2,
+        dump_bins: bool = False,
     ):
         self.model = model
         self.tokenizer = tokenizer
-        if model.cache.is_paged:
-            self.shared_cache_state = model.cache.paged.allocate(page_cache_size)
-            self.free_pages = list(range(1, page_cache_size))
-        else:
-            self.shared_cache_state = None
+        self.shared_cache_state = model.cache.allocate(page_cache_size)
+        self.free_pages = list(range(1, page_cache_size))
         self.end_token = end_token
+        self.dump_bins = dump_bins
 
     @property
     def block_seq_stride(self) -> int:
@@ -63,18 +58,14 @@ class TorchGenerator:
         if self.shared_cache_state is not None:
             cache_state = self.shared_cache_state
         else:
-            cache_state = self.model.cache.direct.allocate(bs=len(prompts))
-        return Batch(self, token_ids, seq_lens, cache_state)
+            cache_state = self.model.cache.allocate(bs=len(prompts))
+        return Batch(self, token_ids, seq_lens, cache_state, dump_bins=self.dump_bins)
 
     def alloc_page(self) -> int:
-        if self.model.cache.is_direct:
-            # We don't allocate block ids for the direct cache.
-            return 0
-
         return self.free_pages.pop()
 
     def release_page(self, index: int):
-        if self.model.cache.is_direct:
+        if self.model.config.kv_cache_type == "direct":
             return
         self.free_pages.append(index)
 
@@ -86,6 +77,7 @@ class Batch:
         token_ids: torch.Tensor,
         seq_lens: torch.Tensor,
         cache_state: list[torch.Tensor],
+        dump_bins: bool = False,
     ):
         self.bs = token_ids.shape[0]
         assert seq_lens.shape[0] == self.bs
@@ -95,6 +87,7 @@ class Batch:
         self.cache_state = cache_state
         self.results: list[list[int]] = [[] for _ in range(self.bs)]
         self.done_result_indices: set[int] = set()
+        self.dump_bins = dump_bins
 
         # Assemble the batch.
         seq_stride = self.parent.block_seq_stride
@@ -160,6 +153,23 @@ class Batch:
             attention_mask = replicate(attention_mask, tp)
             seq_block_ids_tensor = replicate(seq_block_ids_tensor, tp)
 
+        if self.dump_bins:
+            write_ndarray_to_bin(
+                token_ids.numpy(),
+                f"prefill_token_ids_{'x'.join([str(x) for x in token_ids.shape])}xi64.bin",
+            )
+            write_ndarray_to_bin(
+                np.array(token_ids.shape[0], dtype=np.int64),
+                f"prefill_seq_lens_1xi64.bin",
+            )
+            write_ndarray_to_bin(
+                seq_block_ids_tensor.numpy(),
+                f"prefill_seq_block_ids_{'x'.join([str(x) for x in seq_block_ids_tensor.shape])}xi64.bin",
+            )
+            write_ndarray_to_bin(
+                self.cache_state[0].to(torch.float8_e4m3fnuz).to(torch.uint8).numpy(),
+                f"prefill_cache_state_{'x'.join([str(x) for x in self.cache_state[0].shape])}xf8E4M3FNUZ.bin",
+            )
         logits = model.prefill(
             token_ids,
             attention_mask=attention_mask,
@@ -204,6 +214,27 @@ class Batch:
             seq_block_ids_tensor = replicate(seq_block_ids_tensor, tp)
             decode_attention_mask = replicate(decode_attention_mask, tp)
 
+        if self.dump_bins:
+            write_ndarray_to_bin(
+                self.next_tokens.numpy(),
+                f"decode_next_tokens_{'x'.join([str(x)for x in self.next_tokens.shape])}xi64.bin",
+            )
+            write_ndarray_to_bin(
+                start_positions.numpy(),
+                f"decode_start_positions_{'x'.join([str(x)for x in start_positions.shape])}xi64.bin",
+            )
+            write_ndarray_to_bin(
+                seq_block_ids_tensor.numpy(),
+                f"decode_seq_block_ids_tensor_{'x'.join([str(x)for x in seq_block_ids_tensor.shape])}xi64.bin",
+            )
+            write_ndarray_to_bin(
+                torch.tensor(self.next_tokens.shape[0]).to(torch.int64).numpy(),
+                f"decode_seq_lens_1xi64.bin",
+            )
+            write_ndarray_to_bin(
+                self.cache_state[0].to(torch.float8_e4m3fnuz).to(torch.uint8).numpy(),
+                f"decode_cache_state_{'x'.join([str(x) for x in self.cache_state[0].shape])}xf8E4M3FNUZ.bin",
+            )
         logits = model.decode(
             self.next_tokens,
             attention_mask=decode_attention_mask,
@@ -234,27 +265,14 @@ def main():
 
     parser = cli.create_parser()
     parser.add_argument("prompt", nargs="+", help="Prompt strings")
-    parser.add_argument("--kv-cache-type", default="paged", help="KV cache type")
-    parser.add_argument("--device", help="Torch device (or default)")
     parser.add_argument(
         "--save_intermediates_path",
         help="save module forward outputs to safetensors, ex: run_0 will save to run_0_prefill.savetensors",
     )
     parser.add_argument(
-        "--activation-dtype",
-        help="DType to use for activations in the model",
-        default="float32",
-    )
-    parser.add_argument(
-        "--use-hf",
+        "--dump-bins",
+        help="dump input tensors to bin files",
         action="store_true",
-        default=False,
-    )
-    parser.add_argument(
-        "--tensor-parallelism-size",
-        type=int,
-        default=1,
-        help="How many devices are involved for tensor parallel sharding.",
     )
     cli.add_input_dataset_options(parser)
     cli.add_tokenizer_options(parser)
@@ -262,18 +280,15 @@ def main():
     cli.add_model_options(parser)
     args = cli.parse(parser)
     device = torch.device(args.device) if args.device else None
-    activation_dtype = getattr(torch, args.activation_dtype)
-    assert isinstance(activation_dtype, torch.dtype)
     dataset = cli.get_input_dataset(args)
     tokenizer = cli.get_tokenizer(args)
     prompts = args.prompt
     config = LlamaModelConfig(
         hp=configs.LlamaHParams.from_gguf_props(dataset.properties),
-        block_seq_stride=16,
-        kv_cache_type=args.kv_cache_type,
+        block_seq_stride=args.block_seq_stride,
         device=device,
-        activation_dtype=activation_dtype,
-        attention_dtype=activation_dtype,
+        activation_dtype=args.activation_dtype,
+        attention_dtype=args.activation_dtype,
         attention_kernel=args.attention_kernel,
         use_hf=args.use_hf,
         tensor_parallelism_size=args.tensor_parallelism_size,
@@ -295,7 +310,7 @@ def main():
 
         intermediates_saver = SaveModuleResultTensorsPatch()
         intermediates_saver.patch_child_modules(model)
-    generator = TorchGenerator(model, tokenizer)
+    generator = TorchGenerator(model, tokenizer, dump_bins=args.dump_bins)
 
     print(f":: Prompting:")
     for prompt in prompts:
@@ -310,16 +325,17 @@ def main():
         intermediates_saver.save_file(
             args.save_intermediates_path + "_prefill.safetensors"
         )
-    counter = 0
-    while not batch.done:
-        batch.decode()
-        if args.save_intermediates_path:
-            intermediates_saver.save_file(
-                args.save_intermediates_path + f"_step_{counter}.safetensors"
-            )
-        print(f":: Result tokens: {batch.results}")
-        batch.print_current_results()
-        counter += 1
+    if not args.skip_decode:
+        counter = 0
+        while not batch.done:
+            batch.decode()
+            if args.save_intermediates_path:
+                intermediates_saver.save_file(
+                    args.save_intermediates_path + f"_step_{counter}.safetensors"
+                )
+            print(f":: Result tokens: {batch.results}")
+            batch.print_current_results()
+            counter += 1
 
 
 if __name__ == "__main__":

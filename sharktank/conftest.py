@@ -125,6 +125,15 @@ def pytest_addoption(parser):
         ),
     )
 
+    parser.addoption(
+        "--with-quark-data",
+        action="store_true",
+        default=False,
+        help=(
+            "Enable tests that use vae data such as models not part of the source code."
+        ),
+    )
+
     # TODO: Remove all hardcoded paths in CI tests
     parser.addoption(
         "--llama3-8b-tokenizer-path",

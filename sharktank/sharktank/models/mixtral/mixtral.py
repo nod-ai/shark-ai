@@ -61,7 +61,7 @@ class PagedMixtralModelV1(BaseCausalLMModel):
         )
         self.config = config
         self.hp = hp
-        self.cache = create_kv_cache(self.config)
+        self.cache = create_paged_kv_cache(self.config)
         self.activation_dtype = config.activation_dtype
         self.add_module(
             "token_embedding",
@@ -102,7 +102,6 @@ class PagedMixtralModelV1(BaseCausalLMModel):
             self.moe_blocks.append(
                 MoeBlock(
                     theta("blk", n),
-                    expert_count=hp.expert_count,
                     expert_used_count=hp.expert_used_count,
                     rms_epsilon=hp.attention_layer_norm_rms_epsilon,
                 )
@@ -177,29 +176,6 @@ class PagedMixtralModelV1(BaseCausalLMModel):
         )
         self.trace_tensor("mixtral.embedding_batch_mask", embedding_batch_mask)
 
-        # Allocate per-block temporary K/V tensors. These temporaries hold
-        # one block's K/V state for the maximum context length.
-        xk_temp = torch.empty(
-            [
-                bs,
-                self.context_length,
-                self.hp.attention_head_count_kv,
-                self.hp.attn_head_dim,
-            ],
-            dtype=self.config.activation_dtype,
-            device=self.device,
-        )
-        xv_temp = torch.empty(
-            [
-                bs,
-                self.context_length,
-                self.hp.attention_head_count_kv,
-                self.hp.attn_head_dim,
-            ],
-            dtype=self.config.activation_dtype,
-            device=self.device,
-        )
-
         h = self.token_embedding(tokens)
         self.trace_tensor("mixtral.token_embedding", h)
 
@@ -218,8 +194,6 @@ class PagedMixtralModelV1(BaseCausalLMModel):
                 attention_mask=attention_mask,
                 cache_state=cache_state,
                 seq_block_ids=seq_block_ids,
-                xk_temp=xk_temp,
-                xv_temp=xv_temp,
             )
             self.trace_tensor(f"mixtral.attn_block.{block_idx}.output", h)
 

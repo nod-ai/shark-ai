@@ -37,8 +37,6 @@ def paged_attention(
     start_positions: Optional[torch.Tensor] = None,
     attention_mask: Optional[torch.Tensor] = None,
     cache_state: list[torch.Tensor] = None,
-    xk_temp: Optional[torch.Tensor] = None,
-    xv_temp: Optional[torch.Tensor] = None,
 ):
 
     bs, batch_seq_len, _, _ = xq.shape
@@ -46,27 +44,14 @@ def paged_attention(
     # Full sequence length.
     kv_seq_len = seq_block_ids.shape[1] * attention_block.cache.block_seq_stride
 
-    if attention_block.cache.is_paged:
-        xk, xv = attention_block.transact_cache_paged(
-            xk_cache_update=xk,
-            xv_cache_update=xv,
-            seq_block_ids=seq_block_ids,
-            kv_seq_len=kv_seq_len,
-            start_positions=start_positions,
-            cache_state=cache_state,
-            xk_temp=xk_temp,
-            xv_temp=xv_temp,
-        )
-    elif attention_block.cache.is_direct:
-        xk, xv = attention_block.transact_cache_direct(
-            xk_cache_update=xk,
-            xv_cache_update=xv,
-            start_positions=start_positions,
-            kv_seq_len=kv_seq_len,
-            cache_state=cache_state,
-        )
-    else:
-        raise NotImplementedError(f"Unsupported KV cache type: {type(cache)}")
+    xk, xv = attention_block.transact_cache(
+        xk_cache_update=xk,
+        xv_cache_update=xv,
+        seq_block_ids=seq_block_ids,
+        kv_seq_len=kv_seq_len,
+        start_positions=start_positions,
+        cache_state=cache_state,
+    )
 
     # Expand kv heads for GQA.
     gqa_n_rep = attention_block.head_count // attention_block.head_count_kv
@@ -112,35 +97,7 @@ def run_llama(
     start_positions: Optional[torch.Tensor] = None,
 ):
 
-    if phase == "decode":
-        bs, _, _, _ = xq.shape
-
-        # Allocate per-block temporary K/V tensors. These temporaries hold
-        # one block's K/V state for the maximum context length.
-        xk_temp = torch.empty(
-            [
-                bs,
-                config.hp.context_length,
-                config.hp.attention_head_count_kv,
-                config.hp.attn_head_dim,
-            ],
-            dtype=config.activation_dtype,
-            device=config.device,
-        )
-        xv_temp = torch.empty(
-            [
-                bs,
-                config.hp.context_length,
-                config.hp.attention_head_count_kv,
-                config.hp.attn_head_dim,
-            ],
-            dtype=config.activation_dtype,
-            device=config.device,
-        )
-    elif phase == "prefill":
-        xk_temp = None
-        xv_temp = None
-    else:
+    if phase not in ["prefill", "decode"]:
         raise ValueError("'phase' argument needs to be either 'prefill' or 'decode'")
 
     h = paged_attention(
@@ -153,8 +110,6 @@ def run_llama(
         attention_mask=attention_mask,
         cache_state=cache_state,
         seq_block_ids=seq_block_ids,
-        xk_temp=xk_temp,
-        xv_temp=xv_temp,
     )
 
     return h
@@ -236,7 +191,7 @@ def main():
     model = PagedLlamaAttentionBlock(
         theta=attention_block_theta,
         block_index=0,
-        cache=create_kv_cache(llama_config),
+        cache=create_paged_kv_cache(llama_config),
         head_count=llama_config.hp.attention_head_count,
         head_dim=llama_config.hp.attn_head_dim,
         head_count_kv=llama_config.hp.attention_head_count_kv,

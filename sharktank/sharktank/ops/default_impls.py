@@ -68,6 +68,7 @@ def conv2d_default(
 conv2d.override(Tensor, Tensor, Tensor, auto_dequant=True)(conv2d_default)
 conv2d.override(Tensor, Tensor, auto_dequant=True)(conv2d_default)
 
+
 # Einsum
 def mk_menk_men(inputs, weights):
     # batch dims: m, lhs pdims: none, lhs rdims: k, rhs pdims: en, rhs rdims: k
@@ -399,11 +400,14 @@ def reshape_default(input: Union[PrimitiveTensor, Tensor], shape: List[int]) -> 
 
 # RMS norm
 @rms_norm.override(AllOfType(Tensor, InferenceTensor))
-def rms_norm_default(x, weight, *, epsilon: float) -> Tensor:
+def rms_norm_default(
+    x, weight, *, epsilon: float, orig_dtype: Union[None, torch.dtype]
+) -> Tensor:
+    if orig_dtype is None:
+        orig_dtype = x.dtype
     variance = x.pow(2).mean(-1, keepdim=True)
     output = x * elementwise(torch.rsqrt, variance + epsilon)
-    # The cast here is to match the hf implementation, affects numerics
-    output = elementwise(torch.mul, weight, to(output, weight.dtype))
+    output = elementwise(torch.mul, weight, to(output, orig_dtype))
     return output
 
 
@@ -436,9 +440,23 @@ def to_default(tensor: Tensor, *args, **kwargs):
     return unbox_tensor(tensor).to(*args, **kwargs)
 
 
+@trace_tensor.override(AllOfExprsVariadic(IsOfType(Tensor, InferenceTensor)))
+def trace_tensor(key: str, *tensors: tuple[AnyTensor]):
+    if len(tensors) != 1:
+        raise ValueError("Tracing more than one tensor at a time is not supported.")
+    iree.turbine.ops.iree.trace_tensor(key, unshard(tensors[0]))
+
+
 @transfer_to_logical_device.override(Tensor)
 def transfer_to_logical_device_default(tensor: Tensor, ordinal: int):
     return iree.turbine.ops.iree.transfer_to_logical_device(
+        f"{ordinal}", unbox_tensor(tensor)
+    )
+
+
+@barrier_on_logical_device.override(Tensor)
+def barrier_on_device_default(tensor: Tensor, ordinal: int):
+    return iree.turbine.ops.iree.barrier_on_logical_device(
         f"{ordinal}", unbox_tensor(tensor)
     )
 
@@ -481,6 +499,11 @@ def squeeze_default(tensor, dim: Optional[int] = None) -> AnyTensor:
         return torch.squeeze(unbox_tensor(tensor))
     else:
         return torch.squeeze(unbox_tensor(tensor), dim)
+
+
+@topk.override(AllOfType(AnyTensor, PrimitiveTensor))
+def topk_default(tensor, k: int, dim: int) -> AnyTensor:
+    return torch.topk(tensor, k=k, dim=dim)
 
 
 @view.override(Tensor)
