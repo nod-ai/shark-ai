@@ -4,31 +4,10 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import os
-from typing import List
-
 import torch
 from iree.turbine.aot import *
-import iree.turbine.ops.iree as ops
-from iree.compiler.ir import Context
-import iree.runtime as ireert
-import numpy as np
-
 from diffusers import (
-    LCMScheduler,
-    LMSDiscreteScheduler,
-    PNDMScheduler,
-    DDPMScheduler,
-    DPMSolverSDEScheduler,
-    DDIMScheduler,
-    DPMSolverMultistepScheduler,
-    KDPM2DiscreteScheduler,
     EulerDiscreteScheduler,
-    EulerAncestralDiscreteScheduler,
-    DEISMultistepScheduler,
-    DPMSolverSinglestepScheduler,
-    KDPM2AncestralDiscreteScheduler,
-    HeunDiscreteScheduler,
 )
 
 
@@ -117,7 +96,6 @@ class SchedulingModel(torch.nn.Module):
 
 
 def get_scheduler(model_id, scheduler_id):
-    print(f"\n[LOG] Initializing schedulers from model id: {model_id}")
     if scheduler_id in SCHEDULER_MAP.keys():
         scheduler = SCHEDULER_MAP[scheduler_id].from_pretrained(
             model_id, subfolder="scheduler"
@@ -135,22 +113,7 @@ def get_scheduler(model_id, scheduler_id):
 
 
 SCHEDULER_MAP = {
-    "PNDM": PNDMScheduler,
-    "DDPM": DDPMScheduler,
-    "KDPM2Discrete": KDPM2DiscreteScheduler,
-    "LMSDiscrete": LMSDiscreteScheduler,
-    "DDIM": DDIMScheduler,
-    "LCMScheduler": LCMScheduler,
     "EulerDiscrete": EulerDiscreteScheduler,
-    "EulerAncestralDiscrete": EulerAncestralDiscreteScheduler,
-    "DEISMultistep": DEISMultistepScheduler,
-    "DPMSolverSinglestep": DPMSolverSinglestepScheduler,
-    "KDPM2AncestralDiscrete": KDPM2AncestralDiscreteScheduler,
-    "HeunDiscrete": HeunDiscreteScheduler,
-    "DPMSolverMultistepKarras": DPMSolverMultistepScheduler,
-    "DPMSolverMultistep": DPMSolverMultistepScheduler,
-    "DPMSolverSDE": DPMSolverSDEScheduler,
-    "DPMSolverSDEKarras": DPMSolverSDEScheduler,
 }
 
 torch_dtypes = {

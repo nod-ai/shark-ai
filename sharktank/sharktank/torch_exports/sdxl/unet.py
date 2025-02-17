@@ -90,7 +90,7 @@ class ScheduledUnetModel(torch.nn.Module):
         noise_pred = noise_pred_uncond + guidance_scale * (
             noise_pred_text - noise_pred_uncond
         )
-        # sample = self.scheduler.step(noise_pred, latents, sigma, next_sigma)
+        sample = self.scheduler.step(noise_pred, latents, sigma, next_sigma)
         return noise_pred
 
 

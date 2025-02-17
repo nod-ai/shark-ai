@@ -516,40 +516,55 @@ class InferenceExecutorProcess(sf.Process):
         ):
             start = time.time()
             step = cb.steps_arr.view(i)
-            logger.debug(
-                "INVOKE %r",
-                fns["run_scale"],
-            )
-            (cb.latent_model_input, cb.t, cb.sigma, cb.next_sigma,) = await fns[
-                "run_scale"
-            ](cb.latents, step, cb.timesteps, cb.sigmas, fiber=self.fiber)
-            logger.debug(
-                "INVOKE %r",
-                fns["main"],
-            )
-            (cb.noise_pred,) = await fns["main"](
-                cb.latent_model_input,
-                cb.t,
-                cb.prompt_embeds,
-                cb.text_embeds,
-                cb.time_ids,
-                cb.guidance_scale,
-                fiber=self.fiber,
-            )
-            logger.debug(
-                "INVOKE %r",
-                fns["run_step"],
-            )
-            (cb.latents,) = await fns["run_step"](
-                cb.noise_pred, cb.latents, cb.sigma, cb.next_sigma, fiber=self.fiber
-            )
+            if self.model_params.use_scheduled_unet:
+                logger.debug(
+                    "INVOKE %r",
+                    fns["run_forward"],
+                )
+                (cb.latents,) = await fns["run_forward"](
+                    cb.latents,
+                    cb.prompt_embeds,
+                    cb.text_embeds,
+                    cb.time_ids,
+                    step,
+                    cb.guidance_scale,
+                    cb.timesteps,
+                    cb.sigmas,
+                )
+            else:
+                logger.debug(
+                    "INVOKE %r",
+                    fns["run_scale"],
+                )
+                (cb.latent_model_input, cb.t, cb.sigma, cb.next_sigma,) = await fns[
+                    "run_scale"
+                ](cb.latents, step, cb.timesteps, cb.sigmas, fiber=self.fiber)
+                logger.debug(
+                    "INVOKE %r",
+                    fns["main"],
+                )
+                (cb.noise_pred,) = await fns["main"](
+                    cb.latent_model_input,
+                    cb.t,
+                    cb.prompt_embeds,
+                    cb.text_embeds,
+                    cb.time_ids,
+                    cb.guidance_scale,
+                    fiber=self.fiber,
+                )
+                logger.debug(
+                    "INVOKE %r",
+                    fns["run_step"],
+                )
+                (cb.latents,) = await fns["run_step"](
+                    cb.noise_pred, cb.latents, cb.sigma, cb.next_sigma, fiber=self.fiber
+                )
             duration = time.time() - start
             accum_step_duration += duration
         average_step_duration = accum_step_duration / self.exec_request.steps
         log_duration_str(
             average_step_duration, "denoise (UNet) single step average", req_bs
         )
-
         return
 
     async def _decode(self, device):

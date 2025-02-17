@@ -104,7 +104,7 @@ def export_sdxl_model(
                 @fxb.export_program(
                     args=(sample_init_inputs,),
                 )
-                def init(
+                def run_initialize(
                     module,
                     inputs,
                 ):
@@ -119,7 +119,7 @@ def export_sdxl_model(
                 ):
                     return module.forward(*inputs)
 
-                return export(fxb)
+                return export(fxb, module_name=module_name)
             else:
                 return export(
                     model, kwargs=sample_forward_inputs, module_name="compiled_punet"
