@@ -28,7 +28,7 @@ def sdxlconfig(
     ),
 ):
     ctx = executor.BuildContext.current()
-    update = needs_update(ctx)
+    update = needs_update(ctx, ARTIFACT_VERSION)
 
     model_config_filenames = [f"{model}_config_i8.json"]
     model_config_urls = get_url_map(model_config_filenames, SDXL_CONFIG_BUCKET)
