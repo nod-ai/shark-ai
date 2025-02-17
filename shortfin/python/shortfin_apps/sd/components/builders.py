@@ -188,13 +188,13 @@ def sdxl(
                 vmfb_filenames[idx] = get_cached_vmfb(file_stem, target, ctx)
     else:
         for f, url in vmfb_urls.items():
-            if update or needs_file(f, ctx, url):
+            if update or needs_file_url(f, ctx, url):
                 fetch_http(name=f, url=url)
 
     params_filenames = get_params_filenames(model_params, model=model, splat=splat)
     params_urls = get_url_map(params_filenames, SDXL_WEIGHTS_BUCKET)
     for f, url in params_urls.items():
-        if needs_file(f, ctx, url):
+        if needs_file_url(f, ctx, url):
             fetch_http_check_size(name=f, url=url)
     filenames = [*vmfb_filenames, *params_filenames, *mlir_filenames]
     return filenames
