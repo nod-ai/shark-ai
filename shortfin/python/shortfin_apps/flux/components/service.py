@@ -588,6 +588,7 @@ class InferenceExecutorProcess(sf.Process):
     async def _denoise(self, device, requests):
         req_bs = len(requests)
         step_count = requests[0].steps
+        print(step_count)
         cfg_mult = requests[0].cfg_mult
 
         # Produce denoised latents
@@ -629,7 +630,7 @@ class InferenceExecutorProcess(sf.Process):
             ),
             "step": sfnp.device_array.for_device(device, [1], sfnp.int64),
             "timesteps": sfnp.device_array.for_device(
-                device, [2 * step_count], self.service.model_params.sampler_dtype
+                device, [100], self.service.model_params.sampler_dtype
             ),
             "guidance_scale": sfnp.device_array.for_device(
                 device, [req_bs], self.service.model_params.sampler_dtype

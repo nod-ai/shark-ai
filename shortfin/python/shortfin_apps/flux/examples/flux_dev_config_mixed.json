@@ -2,7 +2,6 @@
   "base_model_name": "flux_dev",
   "is_schnell": false,
   "num_latents_channels": 16,
-  "max_seq_len": 512,
   "cfg_mult": 1,
   "clip_max_seq_len": 77,
   "clip_batch_sizes": [
@@ -10,11 +9,12 @@
   ],
   "clip_dtype": "bfloat16",
   "clip_module_name": "compiled_flux_text_encoder",
+  "t5xxl_max_seq_len": 512,
   "t5xxl_batch_sizes": [
     1
   ],
-  "t5xxl_dtype": "float32",
-  "t5xxl_module_name": "compiled_flux_text_encoder_2",
+  "t5xxl_dtype": "bfloat16",
+  "t5xxl_module_name": "compiled_flux_text_encoder2",
   "t5xxl_fn_name": "encode_prompts",
   "sampler_batch_sizes": [
     1

@@ -22,7 +22,7 @@ FLUX_BUCKET = (
     f"https://sharkpublic.blob.core.windows.net/sharkpublic/flux.1/{ARTIFACT_VERSION}/"
 )
 FLUX_WEIGHTS_BUCKET = (
-    "https://sharkpublic.blob.core.windows.net/sharkpublic/flux.1/weights/"
+    "https://sharkpublic.blob.core.windows.net/sharkpublic/flux.1/weights/exported_parameters_bf16/"
 )
 
 
@@ -31,8 +31,6 @@ def filter_by_model(filenames, model):
         return filenames
     filtered = []
     for i in filenames:
-        if model == "t5xxl" and i == "google__t5_v1_1_xxl_encoder_fp32.irpa":
-            filtered.extend([i])
         if model.lower() in i.lower():
             filtered.extend([i])
     return filtered
@@ -59,10 +57,11 @@ def get_vmfb_filenames(
 def get_params_filenames(model_params: ModelParams, model=None, splat: bool = False):
     params_filenames = []
     base = "flux_dev" if not model_params.is_schnell else model_params.base_model_name
-    modnames = ["clip", "sampler", "vae"]
+    modnames = ["clip", "sampler", "t5xxl", "vae"]
     mod_precs = [
         dtype_to_filetag[model_params.clip_dtype],
         dtype_to_filetag[model_params.sampler_dtype],
+        dtype_to_filetag[model_params.t5xxl_dtype],
         dtype_to_filetag[model_params.vae_dtype],
     ]
     if splat == "True":
@@ -73,9 +72,6 @@ def get_params_filenames(model_params: ModelParams, model=None, splat: bool = Fa
     else:
         for idx, mod in enumerate(modnames):
             params_filenames.extend([base + "_" + mod + "_" + mod_precs[idx] + ".irpa"])
-
-    # this is a hack
-    params_filenames.extend(["google__t5_v1_1_xxl_encoder_fp32.irpa"])
 
     return filter_by_model(params_filenames, model)
 
@@ -99,7 +95,7 @@ def get_file_stems(model_params: ModelParams):
             bsizes.extend([f"bs{bs}"])
         ord_params.extend([bsizes])
         if mod in ["sampler"]:
-            ord_params.extend([[str(model_params.max_seq_len)]])
+            ord_params.extend([[str(model_params.t5xxl_max_seq_len)]])
         elif mod == "clip":
             ord_params.extend([[str(model_params.clip_max_seq_len)]])
         if mod in ["sampler", "vae"]:
@@ -142,17 +138,17 @@ def flux(
 ):
     model_params = ModelParams.load_json(model_json)
     ctx = executor.BuildContext.current()
-    update = needs_update(ctx)
+    update = needs_update(ctx, ARTIFACT_VERSION)
 
     mlir_bucket = FLUX_BUCKET + "mlir/"
-    vmfb_bucket = FLUX_BUCKET + "vmfbs/"
+    vmfb_bucket = FLUX_BUCKET + "vmfb/"
     if "gfx" in target:
         target = "amdgpu-" + target
 
     mlir_filenames = get_mlir_filenames(model_params, model)
     mlir_urls = get_url_map(mlir_filenames, mlir_bucket)
     for f, url in mlir_urls.items():
-        if update or needs_file(f, ctx, url):
+        if update or needs_file_url(f, ctx, url):
             fetch_http(name=f, url=url)
 
     vmfb_filenames = get_vmfb_filenames(model_params, model=model, target=target)
@@ -172,13 +168,13 @@ def flux(
                 vmfb_filenames[idx] = get_cached_vmfb(file_stem, target, ctx)
     else:
         for f, url in vmfb_urls.items():
-            if update or needs_file(f, ctx, url):
+            if update or needs_file_url(f, ctx, url):
                 fetch_http(name=f, url=url)
 
     params_filenames = get_params_filenames(model_params, model=model, splat=splat)
     params_urls = get_url_map(params_filenames, FLUX_WEIGHTS_BUCKET)
     for f, url in params_urls.items():
-        if needs_file(f, ctx, url):
+        if needs_file_url(f, ctx, url):
             fetch_http_check_size(name=f, url=url)
     filenames = [*vmfb_filenames, *params_filenames, *mlir_filenames]
     return filenames
