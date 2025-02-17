@@ -9,7 +9,9 @@ dtype_to_filetag = {
     "bfloat16": "bf16",
     "float32": "f32",
     "float16": "f16",
+    sfnp.int8: "i8",
     sfnp.float32: "f32",
+    sfnp.float16: "fp16",
     sfnp.bfloat16: "bf16",
 }
 
