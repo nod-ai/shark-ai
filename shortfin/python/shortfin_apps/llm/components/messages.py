@@ -71,6 +71,27 @@ class InferenceExecRequest(sf.Message):
             self.allocation.release_pages()
             self.allocation = None
 
+    def __repr__(self) -> str:
+        """
+        String representation for logging purposes. It looks like this:
+
+        InferenceExecRequest[phase=P,pos=0,rid=test123,flags=host,input_token_ids=[1, 2, 3, 4]]
+
+        Use
+        `logging.debug("Request: %r", request)`
+        and not
+        `logging.debug(f"Request: {request}")
+        to avoid running through this method all the time.
+        """
+        phase_char = "D" if self.phase == InferencePhase.DECODE else "P"
+        flags = []
+        if self.return_all_logits:
+            flags.append("all")
+        if self.return_host_array:
+            flags.append("host")
+        flags_str = ",".join(flags)
+        return f"InferenceExecRequest[phase={phase_char},pos={self.start_position},rid={self.rid},flags={flags_str},input_token_ids={self.input_token_ids}]"
+
 
 class StrobeMessage(sf.Message):
     """Sent to strobe a queue with fake activity (generate a wakeup)."""

@@ -10,6 +10,7 @@ import logging
 
 import shortfin as sf
 import shortfin.array as sfnp
+import numpy as np
 
 from .io_struct import GenerateReqInput
 
@@ -41,25 +42,24 @@ class InferenceExecRequest(sf.Message):
 
     def __init__(
         self,
-        prompt: str | None = None,
-        neg_prompt: str | None = None,
+        prompt: str | list[str] | None = None,
+        neg_prompt: str | list[str] | None = None,
         height: int | None = None,
         width: int | None = None,
         steps: int | None = None,
-        guidance_scale: float | sfnp.device_array | None = None,
-        seed: int | None = None,
-        input_ids: list[list[int]] | None = None,
+        guidance_scale: float | list[float] | sfnp.device_array | None = None,
+        seed: int | list[int] | None = None,
+        input_ids: list[list[int]]
+        | list[list[list[int]]]
+        | list[sfnp.device_array]
+        | None = None,
         sample: sfnp.device_array | None = None,
-        prompt_embeds: sfnp.device_array | None = None,
-        text_embeds: sfnp.device_array | None = None,
-        timesteps: sfnp.device_array | None = None,
-        time_ids: sfnp.device_array | None = None,
-        denoised_latents: sfnp.device_array | None = None,
         image_array: sfnp.device_array | None = None,
     ):
         super().__init__()
+        self.command_buffer = None
         self.print_debug = True
-
+        self.batch_size = 1
         self.phases = {}
         self.phase = None
         self.height = height
@@ -74,22 +74,15 @@ class InferenceExecRequest(sf.Message):
         self.seed = seed
 
         # Encode phase.
-        # This is a list of sequenced positive and negative token ids and pooler token ids.
+        # This is a list of sequenced positive and negative token ids and pooler token ids (tokenizer outputs)
         self.input_ids = input_ids
 
         # Denoise phase.
-        self.prompt_embeds = prompt_embeds
-        self.text_embeds = text_embeds
         self.sample = sample
-        self.steps = steps
-        self.timesteps = timesteps
-        self.time_ids = time_ids
         self.guidance_scale = guidance_scale
+        self.steps = steps
 
         # Decode phase.
-        self.denoised_latents = denoised_latents
-
-        # Postprocess.
         self.image_array = image_array
 
         self.result_image = None
@@ -103,6 +96,91 @@ class InferenceExecRequest(sf.Message):
         self.return_host_array: bool = True
 
         self.post_init()
+
+    def set_command_buffer(self, cb):
+        # Input IDs for CLIP if they are used as inputs instead of prompts.
+        if self.input_ids is not None:
+            # Take a batch of sets of input ids as ndarrays and fill cb.input_ids
+            host_arrs = [None] * len(cb.input_ids)
+            for idx, arr in enumerate(cb.input_ids):
+                host_arrs[idx] = arr.for_transfer()
+                for i in range(cb.sample.shape[0]):
+                    with host_arrs[idx].view(i).map(write=True, discard=True) as m:
+
+                        # TODO: fix this attr redundancy
+                        np_arr = self.input_ids[i][idx]
+
+                        m.fill(np_arr)
+                cb.input_ids[idx].copy_from(host_arrs[idx])
+
+        # Same for noisy latents if they are explicitly provided as a numpy array.
+        if self.sample is not None:
+            sample_host = cb.sample.for_transfer()
+            with sample_host.map(discard=True) as m:
+                m.fill(self.sample.tobytes())
+            cb.sample.copy_from(sample_host)
+
+        # Copy other inference parameters for denoise to device arrays.
+        steps_arr = list(range(0, self.steps))
+        steps_host = cb.steps_arr.for_transfer()
+        steps_host.items = steps_arr
+        cb.steps_arr.copy_from(steps_host)
+
+        num_step_host = cb.num_steps.for_transfer()
+        num_step_host.items = [self.steps]
+        cb.num_steps.copy_from(num_step_host)
+
+        guidance_host = cb.guidance_scale.for_transfer()
+        with guidance_host.map(discard=True) as m:
+            # TODO: do this without numpy
+            np_arr = np.asarray(self.guidance_scale, dtype="float16")
+
+            m.fill(np_arr)
+        cb.guidance_scale.copy_from(guidance_host)
+
+        self.command_buffer = cb
+        return
+
+    def post_init(self):
+        """Determines necessary inference phases and tags them with static program parameters."""
+        for p in reversed(list(InferencePhase)):
+            required, metadata = self.check_phase(p)
+            p_data = {"required": required, "metadata": metadata}
+            self.phases[p] = p_data
+            if not required:
+                if p not in [
+                    InferencePhase.ENCODE,
+                    InferencePhase.PREPARE,
+                ]:
+                    break
+            self.phase = p
+
+    def check_phase(self, phase: InferencePhase):
+        match phase:
+            case InferencePhase.POSTPROCESS:
+                return True, None
+            case InferencePhase.DECODE:
+                required = not self.image_array
+                meta = [self.width, self.height]
+                return required, meta
+            case InferencePhase.DENOISE:
+                required = True
+                meta = [self.width, self.height, self.steps]
+                return required, meta
+            case InferencePhase.ENCODE:
+                required = True
+                return required, None
+            case InferencePhase.PREPARE:
+                p_results = [self.sample, self.input_ids]
+                required = any([inp is None for inp in p_results])
+                return required, None
+
+    def reset(self, phase: InferencePhase):
+        """Resets all per request state in preparation for an subsequent execution."""
+        self.phase = None
+        self.phases = None
+        self.done = sf.VoidFuture()
+        self.return_host_array = True
 
     @staticmethod
     def from_batch(gen_req: GenerateReqInput, index: int) -> "InferenceExecRequest":
@@ -132,52 +210,8 @@ class InferenceExecRequest(sf.Message):
             else:
                 rec_input = received
             rec_inputs[item] = rec_input
-        return InferenceExecRequest(**rec_inputs)
-
-    def post_init(self):
-        """Determines necessary inference phases and tags them with static program parameters."""
-        for p in reversed(list(InferencePhase)):
-            required, metadata = self.check_phase(p)
-            p_data = {"required": required, "metadata": metadata}
-            self.phases[p] = p_data
-            if not required:
-                if p not in [
-                    InferencePhase.ENCODE,
-                    InferencePhase.PREPARE,
-                ]:
-                    break
-            self.phase = p
-
-    def check_phase(self, phase: InferencePhase):
-        match phase:
-            case InferencePhase.POSTPROCESS:
-                return True, None
-            case InferencePhase.DECODE:
-                required = not self.image_array
-                meta = [self.width, self.height]
-                return required, meta
-            case InferencePhase.DENOISE:
-                required = not self.denoised_latents
-                meta = [self.width, self.height, self.steps]
-                return required, meta
-            case InferencePhase.ENCODE:
-                p_results = [
-                    self.prompt_embeds,
-                    self.text_embeds,
-                ]
-                required = any([inp is None for inp in p_results])
-                return required, None
-            case InferencePhase.PREPARE:
-                p_results = [self.sample, self.input_ids]
-                required = any([inp is None for inp in p_results])
-                return required, None
-
-    def reset(self, phase: InferencePhase):
-        """Resets all per request state in preparation for an subsequent execution."""
-        self.phase = None
-        self.phases = None
-        self.done = sf.VoidFuture()
-        self.return_host_array = True
+        req = InferenceExecRequest(**rec_inputs)
+        return req
 
 
 class StrobeMessage(sf.Message):
