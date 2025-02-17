@@ -549,8 +549,8 @@ class InferenceExecutorProcess(sf.Process):
         (cb.images,) = await fn(cb.latents, fiber=self.fiber)
         cb.images_host.copy_from(cb.images)
 
-        # The device wait needs to happen here.  Any later and image_array
-        # ends up with all 0's.
+        # Wait for the device-to-host transfer, so that we can read the
+        # data with .items.
         await device
 
         image_array = cb.images_host.items
