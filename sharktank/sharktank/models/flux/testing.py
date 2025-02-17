@@ -7,6 +7,7 @@
 import torch
 from os import PathLike
 from collections import OrderedDict
+import pytest
 
 from .flux import FluxParams, FluxModelV1
 from .export import export_flux_transformer, flux_transformer_default_batch_sizes
@@ -16,6 +17,8 @@ from ...layers.testing import (
     make_mmdit_double_block_random_theta,
     make_mmdit_single_block_random_theta,
 )
+
+with_flux_data = pytest.mark.skipif("not config.getoption('with_flux_data')")
 
 
 def convert_flux_transformer_input_for_hugging_face_model(
