@@ -36,7 +36,7 @@ def needs_update(ctx, current_version: str):
     return False
 
 
-# TODO: DO NOT SUBMIT: unify needs_file
+# TODO: unify needs_file with needs_file_url
 def needs_file(filename, ctx, namespace=FileNamespace.GEN):
     out_file = ctx.allocate_file(filename, namespace=namespace).get_fs_path()
     if os.path.exists(out_file):

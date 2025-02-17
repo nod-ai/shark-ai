@@ -20,7 +20,6 @@
 #include <limits>
 #include <type_traits>
 
-
 struct bfloat16_t {
   uint16_t value;
 

@@ -168,7 +168,7 @@ def sdxl(
     mlir_filenames = get_mlir_filenames(model_params, model)
     mlir_urls = get_url_map(mlir_filenames, mlir_bucket)
     for f, url in mlir_urls.items():
-        if update or needs_file(f, ctx, url):
+        if update or needs_file_url(f, ctx, url):
             fetch_http(name=f, url=url)
 
     vmfb_filenames = get_vmfb_filenames(model_params, model=model, target=target)

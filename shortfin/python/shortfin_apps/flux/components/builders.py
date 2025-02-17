@@ -21,9 +21,7 @@ ARTIFACT_VERSION = "02102025"
 FLUX_BUCKET = (
     f"https://sharkpublic.blob.core.windows.net/sharkpublic/flux.1/{ARTIFACT_VERSION}/"
 )
-FLUX_WEIGHTS_BUCKET = (
-    "https://sharkpublic.blob.core.windows.net/sharkpublic/flux.1/weights/exported_parameters_bf16/"
-)
+FLUX_WEIGHTS_BUCKET = "https://sharkpublic.blob.core.windows.net/sharkpublic/flux.1/weights/exported_parameters_bf16/"
 
 
 def filter_by_model(filenames, model):
