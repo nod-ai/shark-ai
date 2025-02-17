@@ -150,7 +150,7 @@ def get_file_stems(model_params: ModelParams) -> list[str]:
             [modname],
         ]
         bsizes = []
-        for bs in model_params.batch_sizes[modname]:
+        for bs in model_params.batch_sizes[mod]:
             bsizes.extend([f"bs{bs}"])
         ord_params.extend([bsizes])
         if mod in ["unet", "clip"]:
@@ -225,7 +225,13 @@ def needs_compile(filename, target, ctx) -> bool:
 
 
 def get_cached(filename, ctx, namespace) -> BuildFile:
-    return ctx.allocate_file(filename, namespace=namespace)
+    if filename is None:
+        return None
+    try:
+        cached_file = ctx.allocate_file(filename, namespace=namespace)
+    except RuntimeError:
+        cached_file = ctx.file(filename)
+    return cached_file
 
 
 def is_valid_size(file_path, url) -> bool:
@@ -299,7 +305,7 @@ def parse_mlir_name(mlir_path):
     if dims_match:
         height = int(dims_match.group(1))
         width = int(dims_match.group(2))
-        decomp_attn = False
+        decomp_attn = False if "unet" in mlir_path else True
     else:
         height = None
         width = None
@@ -358,19 +364,21 @@ def sdxl(
     if build_preference == "export":
         for idx, mlir_path in enumerate(mlir_filenames):
             # If generating multiple MLIR, we only save the weights the first time.
-            if idx == 0 and not os.path.exists(params_filepath):
+            needs_gen_params = False
+            if not params_filepath:
+                weights_path = None
+            elif idx == 0 and not os.path.exists(params_filepath):
                 weights_path = params_filepath
-                safe_params_access = True
+                needs_gen_params = True
             elif "punet_dataset" in params_filename:
                 # We need the path for punet export.
                 weights_path = params_filepath
-                safe_params_access = False
             else:
                 weights_path = None
-                safe_params_access = True
+
             if (
                 needs_file(mlir_path, ctx)
-                or not os.path.exists(params_filepath)
+                or needs_gen_params
                 or force_update in [True, "True"]
             ):
                 (
@@ -394,7 +402,7 @@ def sdxl(
                     external_weights_file=weights_path,
                     decomp_attn=decomp_attn,
                     name=mlir_path.split(".mlir")[0],
-                    out_of_process=False,
+                    out_of_process=True,
                 )
             else:
                 get_cached(mlir_path, ctx, FileNamespace.GEN)
@@ -405,13 +413,13 @@ def sdxl(
             if update or needs_file(f, ctx, url):
                 fetch_http(name=f, url=url)
             else:
-                get_cached(f, ctx)
+                get_cached(f, ctx, FileNamespace.GEN)
         params_urls = get_url_map([params_filename], SDXL_WEIGHTS_BUCKET)
         for f, url in params_urls.items():
             if needs_file(f, ctx, url):
                 fetch_http_check_size(name=f, url=url)
             else:
-                get_cached(f, ctx)
+                get_cached(f, ctx, FileNamespace.GEN)
     if build_preference != "precompiled":
         for idx, f in enumerate(copy.deepcopy(vmfb_filenames)):
             # We return .vmfb file stems for the compile builder.
@@ -435,7 +443,9 @@ def sdxl(
             else:
                 get_cached(f, ctx, FileNamespace.GEN)
 
-    filenames = [*vmfb_filenames, params_filename, *mlir_filenames]
+    filenames = [*vmfb_filenames, *mlir_filenames]
+    if params_filename:
+        filenames.append(params_filename)
     return filenames
 
 

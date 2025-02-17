@@ -245,7 +245,7 @@ def get_modules(args, model_config, flagfile, td_spec):
                 model_flags[flagged_model].extend([elem])
     if td_spec:
         for key in model_flags.keys():
-            if key in ["unet", "punet", "scheduled_unet", "vae"]:
+            if key in ["unet", "punet", "scheduled_unet"]:
                 model_flags[key].extend(
                     [f"--iree-codegen-transform-dialect-library={td_spec}"]
                 )

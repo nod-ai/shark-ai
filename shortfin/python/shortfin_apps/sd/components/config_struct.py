@@ -68,6 +68,12 @@ class ModelParams:
     # ABI of the module.
     module_abi_version: int = 1
 
+    @property
+    def all_batch_sizes(self) -> list:
+        bs_lists = list(self.batch_sizes.values())
+        union = set.union(*[set(list) for list in bs_lists])
+        return union
+
     @staticmethod
     def load_json(path: Path | str):
         with open(path, "rt") as f:

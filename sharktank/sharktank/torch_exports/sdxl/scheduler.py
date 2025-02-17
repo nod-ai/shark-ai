@@ -153,6 +153,33 @@ SCHEDULER_MAP = {
     "DPMSolverSDEKarras": DPMSolverSDEScheduler,
 }
 
+torch_dtypes = {
+    "fp16": torch.float16,
+    "fp32": torch.float32,
+    "bf16": torch.bfloat16,
+    "float16": torch.float16,
+    "float32": torch.float32,
+}
+
+
+def get_scheduler_model_and_inputs(
+    hf_model_name,
+    batch_size,
+    height,
+    width,
+    precision,
+    scheduler_id="EulerDiscrete",
+):
+    dtype = torch_dtypes[precision]
+    raw_scheduler = get_scheduler(hf_model_name, scheduler_id)
+    scheduler = SchedulingModel(
+        hf_model_name, raw_scheduler, height, width, batch_size, dtype
+    )
+    init_in, prep_in, step_in = get_sample_sched_inputs(
+        batch_size, height, width, dtype
+    )
+    return scheduler, init_in, prep_in, step_in
+
 
 def get_sample_sched_inputs(batch_size, height, width, dtype):
     sample = (

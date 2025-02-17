@@ -109,13 +109,11 @@ class GenerateService:
         MetaFiber = namedtuple(
             "MetaFiber", ["fiber", "idx", "worker_idx", "device", "command_buffers"]
         )
-        cbs_per_fiber = 1
+        cb_sets_per_fiber = 1
         cbs = []
-        for _ in range(cbs_per_fiber):
-            for batch_size in self.model_params.all_batch_sizes:
-                cbs.append(
-                    initialize_command_buffer(fiber, self.model_params, batch_size)
-                )
+        for _ in range(cb_sets_per_fiber):
+            for bs in self.model_params.all_batch_sizes:
+                cbs.append(initialize_command_buffer(fiber, self.model_params, bs=bs))
 
         return MetaFiber(fiber, idx, worker_idx, fiber.device(0), cbs)
 
@@ -195,7 +193,8 @@ class GenerateService:
                         self.inference_functions[worker_idx]["encode"][bs] = {}
                         fn_dest = self.inference_functions[worker_idx]["encode"][bs]
                     elif submodel in ["unet", "scheduled_unet", "scheduler"]:
-                        self.inference_functions[worker_idx]["denoise"][bs] = {}
+                        if not self.inference_functions[worker_idx]["denoise"].get(bs):
+                            self.inference_functions[worker_idx]["denoise"][bs] = {}
                         fn_dest = self.inference_functions[worker_idx]["denoise"][bs]
                     elif submodel == "vae":
                         self.inference_functions[worker_idx]["decode"][bs] = {}
@@ -213,8 +212,8 @@ class GenerateService:
         if self.use_batcher:
             self.batcher.shutdown()
             del self.batcher
-        del self.idle_fibers
-        del self.fibers
+        del self.idle_meta_fibers
+        del self.meta_fibers
         del self.workers
         gc.collect()
 
@@ -381,7 +380,7 @@ class InferenceExecutorProcess(sf.Process):
 
     def assign_command_buffer(self, request: InferenceExecRequest):
         for cb in self.meta_fiber.command_buffers:
-            if cb.sample.shape[0] == self.exec_request.batch_size:
+            if cb.batch_size == self.exec_request.batch_size:
                 self.exec_request.set_command_buffer(cb)
                 self.meta_fiber.command_buffers.remove(cb)
                 return
@@ -476,17 +475,19 @@ class InferenceExecutorProcess(sf.Process):
         req_bs = self.exec_request.batch_size
         entrypoints = self.service.inference_functions[self.worker_index]["encode"]
         assert req_bs in list(entrypoints.keys())
-        for bs, fn in entrypoints.items():
+        for bs, fns in entrypoints.items():
             if bs == req_bs:
                 break
         cb = self.exec_request.command_buffer
         # Encode tokenized inputs.
         logger.debug(
             "INVOKE %r: %s",
-            fn,
+            fns["encode_prompts"],
             "".join([f"\n  {i}: {ary.shape}" for i, ary in enumerate(cb.input_ids)]),
         )
-        cb.prompt_embeds, cb.text_embeds = await fn(*cb.input_ids, fiber=self.fiber)
+        cb.prompt_embeds, cb.text_embeds = await fns["encode_prompts"](
+            *cb.input_ids, fiber=self.fiber
+        )
         return
 
     async def _denoise(self, device):
@@ -501,12 +502,13 @@ class InferenceExecutorProcess(sf.Process):
 
         logger.debug(
             "INVOKE %r",
-            fns["init"],
+            fns["run_initialize"],
         )
         (cb.latents, cb.time_ids, cb.timesteps, cb.sigmas,) = await fns[
-            "init"
+            "run_initialize"
         ](cb.sample, cb.num_steps, fiber=self.fiber)
         accum_step_duration = 0  # Accumulated duration for all steps
+
         for i, t in tqdm(
             enumerate(range(self.exec_request.steps)),
             disable=(not self.service.show_progress),
@@ -516,16 +518,16 @@ class InferenceExecutorProcess(sf.Process):
             step = cb.steps_arr.view(i)
             logger.debug(
                 "INVOKE %r",
-                fns["scale"],
+                fns["run_scale"],
             )
             (cb.latent_model_input, cb.t, cb.sigma, cb.next_sigma,) = await fns[
-                "scale"
+                "run_scale"
             ](cb.latents, step, cb.timesteps, cb.sigmas, fiber=self.fiber)
             logger.debug(
                 "INVOKE %r",
-                fns[self.denoise_mod],
+                fns["main"],
             )
-            (cb.noise_pred,) = await fns["unet"](
+            (cb.noise_pred,) = await fns["main"](
                 cb.latent_model_input,
                 cb.t,
                 cb.prompt_embeds,
@@ -536,9 +538,9 @@ class InferenceExecutorProcess(sf.Process):
             )
             logger.debug(
                 "INVOKE %r",
-                fns["step"],
+                fns["run_step"],
             )
-            (cb.latents,) = await fns["step"](
+            (cb.latents,) = await fns["run_step"](
                 cb.noise_pred, cb.latents, cb.sigma, cb.next_sigma, fiber=self.fiber
             )
             duration = time.time() - start
@@ -547,6 +549,7 @@ class InferenceExecutorProcess(sf.Process):
         log_duration_str(
             average_step_duration, "denoise (UNet) single step average", req_bs
         )
+
         return
 
     async def _decode(self, device):
@@ -555,17 +558,17 @@ class InferenceExecutorProcess(sf.Process):
         # Decode latents to images
         entrypoints = self.service.inference_functions[self.worker_index]["decode"]
         assert req_bs in list(entrypoints.keys())
-        for bs, fn in entrypoints.items():
+        for bs, fns in entrypoints.items():
             if bs == req_bs:
                 break
 
         # Decode the denoised latents.
         logger.debug(
             "INVOKE %r: %s",
-            fn,
+            fns["decode"],
             "".join([f"\n  0: {cb.latents.shape}"]),
         )
-        (cb.images,) = await fn(cb.latents, fiber=self.fiber)
+        (cb.images,) = await fns["decode"](cb.latents, fiber=self.fiber)
         cb.images_host.copy_from(cb.images)
         image_array = cb.images_host.items
         dtype = image_array.typecode
@@ -591,14 +594,12 @@ class InferenceExecutorProcess(sf.Process):
         return
 
 
-def initialize_command_buffer(fiber, model_params: ModelParams, batch_size: int = 1):
-    bs = batch_size
-    cfg_bs = batch_size * 2
+def initialize_command_buffer(fiber, model_params: ModelParams, bs: int = 1):
+    device = fiber.device(0)
     h = model_params.dims[0][0]
     w = model_params.dims[0][1]
     c = model_params.num_latents_channels
-    device = fiber.device(0)
-
+    cfg_bs = bs * 2
     datas = {
         # CLIP
         "input_ids": [
@@ -661,6 +662,7 @@ def initialize_command_buffer(fiber, model_params: ModelParams, batch_size: int 
     class ServiceCmdBuffer:
         def __init__(self, d):
             self.__dict__ = d
+            self.batch_size = bs
 
     cb = ServiceCmdBuffer(datas)
     return cb

@@ -120,6 +120,38 @@ def export_sdxl_model(
                 return export(
                     model, kwargs=sample_forward_inputs, module_name="compiled_punet"
                 )
+        elif component == "scheduler":
+            module_name = "compiled_scheduler"
+            from sharktank.torch_exports.sdxl.scheduler import (
+                get_scheduler_model_and_inputs,
+            )
+
+            model, init_args, prep_args, step_args = get_scheduler_model_and_inputs(
+                hf_model_name,
+                batch_size,
+                height,
+                width,
+                precision,
+            )
+            fxb = FxProgramsBuilder(model)
+
+            @fxb.export_program(
+                args=(init_args,),
+            )
+            def run_initialize(module, sample):
+                return module.initialize(*sample)
+
+            @fxb.export_program(
+                args=(prep_args,),
+            )
+            def run_scale(module, inputs):
+                return module.scale_model_input(*inputs)
+
+            @fxb.export_program(
+                args=(step_args,),
+            )
+            def run_step(module, inputs):
+                return module.step(*inputs)
 
         elif component == "vae":
             from sharktank.torch_exports.sdxl.vae import get_vae_model_and_inputs
@@ -128,7 +160,6 @@ def export_sdxl_model(
             model, encode_args, decode_args = get_vae_model_and_inputs(
                 hf_model_name, height, width, precision=precision, batch_size=batch_size
             )
-            model.to("cpu")
             fxb = FxProgramsBuilder(model)
 
             @fxb.export_program(
@@ -138,7 +169,7 @@ def export_sdxl_model(
                 module,
                 inputs,
             ):
-                return module.decode(**inputs)
+                return module.decode(*inputs)
 
         else:
             raise ValueError("Unimplemented: ", component)

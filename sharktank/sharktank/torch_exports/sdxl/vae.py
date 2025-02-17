@@ -90,16 +90,16 @@ def get_vae_model_and_inputs(
     vae_model = VaeModel(hf_model_name, custom_vae=custom_vae).to(dtype=dtype)
     input_image_shape = (batch_size, 3, height, width)
     input_latents_shape = (batch_size, num_channels, height // 8, width // 8)
-    encode_args = {
-        "image": torch.rand(
+    encode_args = [
+        torch.rand(
             input_image_shape,
             dtype=dtype,
         )
-    }
-    decode_args = {
-        "latents": torch.empty(
+    ]
+    decode_args = [
+        torch.rand(
             input_latents_shape,
             dtype=dtype,
         ),
-    }
+    ]
     return vae_model, encode_args, decode_args
