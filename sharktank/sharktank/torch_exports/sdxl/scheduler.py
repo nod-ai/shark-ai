@@ -48,7 +48,6 @@ class SchedulingModel(torch.nn.Module):
         self.model.is_scale_input_called = True
         self.dtype = dtype
 
-    # TODO: Make steps dynamic here
     def initialize(self, sample, num_inference_steps):
         height = self.height
         width = self.width

@@ -38,6 +38,21 @@ class ScheduledUnetModel(torch.nn.Module):
         self.width = width
         self.batch_size = batch_size
         self.do_classifier_free_guidance = True
+        timesteps = [torch.empty((100), dtype=dtype, requires_grad=False)] * 100
+        sigmas = [torch.empty((100), dtype=torch.float32, requires_grad=False)] * 100
+        for i in range(1, 100):
+            self.scheduler.set_timesteps(i)
+            timesteps[i] = torch.nn.functional.pad(
+                self.scheduler.timesteps.clone().detach(), (0, 100 - i), "constant", 0
+            )
+            sigmas[i] = torch.nn.functional.pad(
+                self.scheduler.sigmas.clone().detach(),
+                (0, 100 - (i + 1)),
+                "constant",
+                0,
+            )
+        self.timesteps = torch.stack(timesteps, dim=0).clone().detach()
+        self.sigmas = torch.stack(sigmas, dim=0).clone().detach()
 
     def initialize(self, sample, num_inference_steps):
         height = self.height
@@ -50,15 +65,38 @@ class ScheduledUnetModel(torch.nn.Module):
         if self.do_classifier_free_guidance:
             add_time_ids = torch.cat([add_time_ids] * 2, dim=0)
             add_time_ids = add_time_ids.repeat(self.batch_size, 1).type(self.dtype)
-        max_sigma = self.scheduler.sigmas[num_inference_steps].max()
+        max_sigma = self.sigmas[num_inference_steps].max()
         init_noise_sigma = (max_sigma**2 + 1) ** 0.5
         sample = sample * init_noise_sigma
         return (
             sample.type(self.dtype),
             add_time_ids,
-            self.scheduler.timesteps[num_inference_steps].squeeze(0),
-            self.scheduler.sigmas[num_inference_steps].squeeze(0),
+            self.timesteps[num_inference_steps].squeeze(0),
+            self.sigmas[num_inference_steps].squeeze(0),
         )
+
+    def scale_model_input(self, sample, i, timesteps, sigmas):
+        sigma = sigmas[i]
+        next_sigma = sigmas[i + 1]
+        t = timesteps[i]
+        latent_model_input = sample / ((sigma**2 + 1) ** 0.5)
+        return (
+            latent_model_input.type(self.dtype),
+            t.type(self.dtype),
+            sigma.type(self.dtype),
+            next_sigma.type(self.dtype),
+        )
+
+    def step(self, noise_pred, sample, sigma, next_sigma):
+        sample = sample.to(torch.float32)
+        gamma = 0.0
+        noise_pred = noise_pred.to(torch.float32)
+        sigma_hat = sigma * (gamma + 1)
+        pred_original_sample = sample - sigma_hat * noise_pred
+        deriv = (sample - pred_original_sample) / sigma_hat
+        dt = next_sigma - sigma_hat
+        prev_sample = sample + deriv * dt
+        return prev_sample.type(self.dtype)
 
     def forward(
         self,
@@ -74,7 +112,7 @@ class ScheduledUnetModel(torch.nn.Module):
 
         latent_model_input = torch.cat([latents] * 2)
 
-        latent_model_input, t, sigma, next_sigma = self.scheduler.scale_model_input(
+        latent_model_input, t, sigma, next_sigma = self.scale_model_input(
             latent_model_input, step_index, timesteps, sigmas
         )
 
@@ -90,8 +128,8 @@ class ScheduledUnetModel(torch.nn.Module):
         noise_pred = noise_pred_uncond + guidance_scale * (
             noise_pred_text - noise_pred_uncond
         )
-        sample = self.scheduler.step(noise_pred, latents, sigma, next_sigma)
-        return noise_pred
+        sample = self.step(noise_pred, latents, sigma, next_sigma)
+        return sample
 
 
 @torch.no_grad()
@@ -116,13 +154,10 @@ def get_scheduled_unet_model_and_inputs(
         precision,
     )
     raw_scheduler = get_scheduler(hf_model_name, "EulerDiscrete")
-    scheduler = SchedulingModel(
-        hf_model_name, raw_scheduler, height, width, batch_size, dtype
-    )
     model = ScheduledUnetModel(
         hf_model_name,
         unet,
-        scheduler,
+        raw_scheduler,
         height,
         width,
         batch_size,
