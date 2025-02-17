@@ -168,14 +168,17 @@ def get_flux_transformer_model(
     # DNS: refactor file to select datatype
     dtype = torch_dtypes[precision]
     transformer_dataset = Dataset.load(weight_file)
-    model = FluxDenoiseStepModel(theta=transformer_dataset.root_theta, params=FluxParams.from_hugging_face_properties(transformer_dataset.properties))
+    model = FluxDenoiseStepModel(
+        theta=transformer_dataset.root_theta,
+        params=FluxParams.from_hugging_face_properties(transformer_dataset.properties),
+    )
     sample_args, sample_kwargs = model.mmdit.sample_inputs()
     sample_inputs = (
         sample_kwargs["img"],
         sample_kwargs["txt"],
         sample_kwargs["y"],
         torch.full((bs,), 1, dtype=torch.int64),
-        torch.full((100,), 1, dtype=dtype), # TODO: non-dev timestep sizes
+        torch.full((100,), 1, dtype=dtype),  # TODO: non-dev timestep sizes
         sample_kwargs["guidance"],
     )
     return model, sample_inputs
@@ -187,6 +190,7 @@ def get_flux_model_and_inputs(
     return get_flux_transformer_model(
         weight_file, height, width, 8, max_length, precision, batch_size
     )
+
 
 # Copied from https://github.com/black-forest-labs/flux
 class HFEmbedder(torch.nn.Module):
@@ -217,6 +221,7 @@ class HFEmbedder(torch.nn.Module):
             output_hidden_states=False,
         )
         return outputs[self.output_key]
+
 
 def get_te_model_and_inputs(
     hf_model_name, component, weight_file, batch_size, max_length
@@ -273,7 +278,9 @@ class FluxAEWrapper(torch.nn.Module):
         return self.ae.forward(d_in)
 
 
-def get_ae_model_and_inputs(hf_model_name, weight_file, precision, batch_size, height, width):
+def get_ae_model_and_inputs(
+    hf_model_name, weight_file, precision, batch_size, height, width
+):
     dtype = torch_dtypes[precision]
     aeparams = fluxconfigs[hf_model_name].ae_params
     aeparams.height = height
@@ -345,6 +352,7 @@ class FluxScheduler(torch.nn.Module):
         timesteps = self.timesteps[num_steps]
         return timesteps
 
+
 def get_scheduler_model_and_inputs(hf_model_name, max_length, precision):
     is_schnell = "schnell" in hf_model_name
     mod = FluxScheduler(
@@ -386,7 +394,12 @@ def export_flux_model(
     ):
         if component == "mmdit":
             model, sample_inputs = get_flux_model_and_inputs(
-               weights_path / f"transformer.{external_weights}", precision, batch_size, max_length, height, width
+                weights_path / f"transformer.{external_weights}",
+                precision,
+                batch_size,
+                max_length,
+                height,
+                width,
             )
 
             fxb = FxProgramsBuilder(model)
@@ -409,7 +422,11 @@ def export_flux_model(
 
         elif component == "clip":
             model, sample_inputs = get_te_model_and_inputs(
-                hf_model_name, component, weights_path / f"clip.{external_weights}", batch_size, max_length
+                hf_model_name,
+                component,
+                weights_path / f"clip.{external_weights}",
+                batch_size,
+                max_length,
             )
 
             fxb = FxProgramsBuilder(model)
@@ -431,7 +448,11 @@ def export_flux_model(
             module = CompiledModule.get_mlir_module(inst)
         elif component == "t5xxl":
             model, sample_inputs = get_te_model_and_inputs(
-                hf_model_name, component, weights_path / f"t5.{external_weights}", batch_size, max_length
+                hf_model_name,
+                component,
+                weights_path / f"t5.{external_weights}",
+                batch_size,
+                max_length,
             )
 
             fxb = FxProgramsBuilder(model)
@@ -453,7 +474,12 @@ def export_flux_model(
             module = CompiledModule.get_mlir_module(inst)
         elif component == "vae":
             model, encode_inputs, decode_inputs = get_ae_model_and_inputs(
-                hf_model_name, weights_path / f"vae.{external_weights}", precision, batch_size, height, width
+                hf_model_name,
+                weights_path / f"vae.{external_weights}",
+                precision,
+                batch_size,
+                height,
+                width,
             )
 
             fxb = FxProgramsBuilder(model)

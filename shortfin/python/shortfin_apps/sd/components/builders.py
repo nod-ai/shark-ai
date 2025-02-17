@@ -158,7 +158,7 @@ def sdxl(
 ):
     model_params = ModelParams.load_json(model_json)
     ctx = executor.BuildContext.current()
-    update = needs_update(ctx)
+    update = needs_update(ctx, ARTIFACT_VERSION)
 
     mlir_bucket = SDXL_BUCKET + "mlir/"
     vmfb_bucket = SDXL_BUCKET + "vmfbs/"
