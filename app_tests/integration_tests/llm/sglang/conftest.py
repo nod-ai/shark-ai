@@ -40,7 +40,7 @@ def model_artifacts(request, tmp_path_factory):
     tmp_dir = tmp_path_factory.mktemp("sglang_integration_tests")
 
     model_config = ModelConfig(
-        source=ModelSource.HUGGINGFACE,
+        source=ModelSource.HUGGINGFACE_FROM_GGUF,
         repo_id="SanctumAI/Meta-Llama-3.1-8B-Instruct-GGUF",
         model_file="meta-llama-3.1-8b-instruct.f16.gguf",
         tokenizer_id="NousResearch/Meta-Llama-3.1-8B",

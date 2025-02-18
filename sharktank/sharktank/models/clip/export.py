@@ -4,6 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import functools
 from typing import Optional, Union
 import transformers
 from transformers.models.clip.modeling_clip import (
@@ -18,6 +19,7 @@ from ...types.theta import Theta, Dataset, torch_module_to_theta
 from ...layers.configs import ClipTextConfig
 from .clip import ClipTextModel
 from iree.turbine.aot import FxProgramsBuilder, export
+from sharktank.transforms.dataset import set_float_dtype
 
 
 def hugging_face_clip_attention_to_theta(model: HfCLIPAttention) -> Theta:
@@ -50,8 +52,14 @@ def clip_text_model_to_dataset(model: ClipTextModel) -> Dataset:
     return Dataset(properties=model.config.to_properties(), root_theta=model.theta)
 
 
-def export_clip_text_model_iree_parameters(model: ClipTextModel, output_path: PathLike):
+def export_clip_text_model_iree_parameters(
+    model: ClipTextModel, output_path: PathLike, dtype: torch.dtype = None
+):
     dataset = clip_text_model_to_dataset(model)
+    if dtype:
+        dataset.root_theta = dataset.root_theta.transform(
+            functools.partial(set_float_dtype, dtype=dtype)
+        )
     dataset.save(output_path)
 
 

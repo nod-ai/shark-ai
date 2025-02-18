@@ -88,6 +88,11 @@ jobs:
           source ${VENV_DIR}/bin/activate
           uv pip install -r requirements-iree-pinned.txt
 
+      - name: Run LLM Smoke Test
+        run: |
+          source ${VENV_DIR}/bin/activate
+          pytest -v -s --test_device=${{ matrix.test_device }} app_tests/integration_tests/llm/shortfin/tinystories_llama2_25m_test.py --log-cli-level=INFO
+
       - name: Run LLM Integration Tests
         run: |
           source ${VENV_DIR}/bin/activate

@@ -4,6 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import functools
 from os import PathLike
 import os
 from pathlib import Path
@@ -14,6 +15,7 @@ from ...tools.import_hf_dataset import import_hf_dataset
 from .flux import FluxModelV1, FluxParams
 from ...types import Dataset
 from ...utils.hf_datasets import get_dataset
+from sharktank.transforms.dataset import set_float_dtype
 
 flux_transformer_default_batch_sizes = [1]
 
@@ -27,11 +29,16 @@ def export_flux_transformer_model_mlir(
 
 
 def export_flux_transformer_iree_parameters(
-    model: FluxModelV1, parameters_output_path: PathLike
+    model: FluxModelV1, parameters_output_path: PathLike, dtype=None
 ):
     model.theta.rename_tensors_to_paths()
-    # TODO: export properties
-    dataset = Dataset(root_theta=model.theta, properties={})
+    dataset = Dataset(
+        root_theta=model.theta, properties=model.params.to_hugging_face_properties()
+    )
+    if dtype:
+        dataset.root_theta = dataset.root_theta.transform(
+            functools.partial(set_float_dtype, dtype=dtype)
+        )
     dataset.save(parameters_output_path)
 
 

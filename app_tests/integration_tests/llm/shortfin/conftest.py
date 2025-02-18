@@ -33,7 +33,7 @@ def test_device(request):
     return ret
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def model_artifacts(tmp_path_factory, request, test_device):
     """Prepares model artifacts in a cached directory."""
     model_config = TEST_MODELS[request.param]
