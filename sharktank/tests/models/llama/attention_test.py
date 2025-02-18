@@ -46,7 +46,6 @@ class AttentionBlockTest(unittest.TestCase):
             transformer_block_count=head_count,
             attn_head_count=head_count,
             attn_head_dim=head_dim,
-            cache_partition_count=2,  # One for each of K/V.
             block_seq_stride=block_seq_stride,
             device="cpu",
             dtype=torch.float32,
