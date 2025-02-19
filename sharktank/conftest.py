@@ -191,25 +191,25 @@ def pytest_addoption(parser):
     parser.addoption(
         "--google-t5-v1-1-small-f32-model-path",
         type=Path,
-        default="/data/t5/small/google__t5-v1_1-small_f32.gguf",
+        default="/shark-dev/data/t5/small/google__t5-v1_1-small_f32.gguf",
         help="Google T5 v1.1 small float32 model path",
     )
     parser.addoption(
         "--google-t5-v1-1-small-bf16-model-path",
         type=Path,
-        default="/data/t5/small/google__t5-v1_1-small_bf16.gguf",
+        default="/shark-dev/data/t5/small/google__t5-v1_1-small_bf16.gguf",
         help="Google T5 v1.1 small bfloat16 model path",
     )
     parser.addoption(
         "--google-t5-v1-1-xxl-f32-model-path",
         type=Path,
-        default="/data/t5/xxl/google__t5-v1_1-xxl_f32.gguf",
+        default="shark-dev/data/t5/xxl/google__t5-v1_1-xxl_f32.gguf",
         help="Google T5 v1.1 XXL float32 model path",
     )
     parser.addoption(
         "--google-t5-v1-1-xxl-bf16-model-path",
         type=Path,
-        default="/data/t5/xxl/google__t5-v1_1-xxl_bf16.gguf",
+        default="/shark-dev/data/t5/xxl/google__t5-v1_1-xxl_bf16.gguf",
         help="Google T5 v1.1 XXL bfloat16 model path",
     )
 
