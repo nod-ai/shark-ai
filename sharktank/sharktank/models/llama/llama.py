@@ -129,6 +129,8 @@ class PagedLlamaModelV1(BaseCausalLMModel):
         # [bs, batch_seq_len]
         tokens: Union[torch.Tensor, ReplicatedTensor],
         *,
+        # [bs, batch_seq_len]
+        input_mask: Union[torch.Tensor, ReplicatedTensor],
         # [1, 1, batch_seq_len, batch_seq_len]
         attention_mask: Optional[Union[torch.Tensor, ReplicatedTensor]],
         # [bs, batch_seq_len // block_seq_stride]
@@ -136,12 +138,15 @@ class PagedLlamaModelV1(BaseCausalLMModel):
         cache_state: list[Union[torch.Tensor, SplitPrimitiveTensor]],
     ):
         self._assert_device(tokens)
+        self._assert_device(input_mask)
         self._assert_device(attention_mask, dtype=self.activation_dtype)
         self._assert_device(seq_block_ids)
         self._assert_device(*cache_state, dtype=self.activation_dtype)
 
         h = self.token_embedding(tokens)
         self.trace_tensor("llama.token_embedding", h)
+
+        h *= input_mask.unsqueeze(-1)
 
         # Iterate over attention blocks.
         for block_idx, block in enumerate(self.attn_blocks):
@@ -166,6 +171,8 @@ class PagedLlamaModelV1(BaseCausalLMModel):
         # [bs, 1]
         tokens: Union[torch.Tensor, ReplicatedTensor],
         *,
+        # [bs, 1]
+        input_mask: Union[torch.Tensor, ReplicatedTensor],
         # [bs, 1, 1, batch_seq_len]
         attention_mask: Union[torch.Tensor, ReplicatedTensor],
         # [bs] of starting positions
@@ -188,6 +195,7 @@ class PagedLlamaModelV1(BaseCausalLMModel):
             == seq_block_ids.shape[1] * self.config.block_seq_stride
         )
         self._assert_device(tokens)
+        self._assert_device(input_mask)
         self._assert_device(attention_mask, dtype=self.activation_dtype)
         self._assert_device(start_positions)
         self._assert_device(*cache_state, dtype=self.activation_dtype)
@@ -201,6 +209,8 @@ class PagedLlamaModelV1(BaseCausalLMModel):
 
         h = self.token_embedding(tokens)
         self.trace_tensor("llama.token_embedding", h)
+
+        h *= input_mask.unsqueeze(-1)
 
         # Iterate over attention blocks.
         for block_idx, block in enumerate(self.attn_blocks):
