@@ -17,6 +17,7 @@ from .norm import RMSNormLayer
 from .rotary_embedding import RotaryEmbeddingLayer
 from .kv_cache import PagedKVCache
 from .. import ops
+from .. import kernels
 
 __all__ = [
     "PagedLlamaAttentionBlock",
@@ -74,6 +75,9 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             self.cache_quantizer: Optional[QuantizerTensor] = theta.optional_tensor(
                 "kv_cache.quantizer"
             )
+        self.attention_scale = None
+        if "attn_scale" in theta.keys:
+            self.attention_scale = theta("attn_scale").as_torch()
 
         if theta.optional_tensor("attn_output_norm") is None:
             self.add_module(
@@ -200,6 +204,18 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             attn_output = ops.matmul(
                 attn_weights, values
             )  # (bs, heads, slen, head_dim)
+        elif self.attention_kernel == "sharktank":
+            assert self.attention_scale is not None
+            if attention_mask is not None:
+                attn_output = kernels.masked_flash_attention(
+                    xq,
+                    keys,
+                    values,
+                    attention_mask.squeeze(0).squeeze(0),
+                    self.attention_scale,
+                )
+            else:
+                attn_output = kernels.flash_attention(xq, keys, values)
         else:
             attn_output = ops.scaled_dot_product_attention(
                 q=xq,  # [bs, ..., sl, dim]
