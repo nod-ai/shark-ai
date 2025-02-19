@@ -47,7 +47,7 @@ class custom_attention(unittest.TestCase):
         mask = None
         scale = torch.tensor(1.0, dtype=dtype)
         if use_mask:
-            mask = torch.rand([N, H, L, S], dtype=dtype)
+            mask = torch.rand([L, S], dtype=dtype)
 
             res2 = kernels.masked_flash_attention(q, k, v, mask, scale=scale)
 
@@ -88,7 +88,7 @@ class custom_attention(unittest.TestCase):
         v = torch.rand([N, H, S, Ev], dtype=dtype)
         if use_mask:
             # mask is same type as inputs, therefore its added to score
-            mask = torch.rand([N, H, L, S], dtype=dtype)
+            mask = torch.rand([L, S], dtype=dtype)
         if cast:
             q = q.to(torch.float8_e4m3fnuz)
             k = q.to(torch.float8_e4m3fnuz)
@@ -108,7 +108,7 @@ class custom_attention(unittest.TestCase):
                 "scale": {},
             }
             if use_mask:
-                dynamic_shapes["mask"] = {2: L_dim, 3: S_dim}
+                dynamic_shapes["mask"] = {0: L_dim, 1: S_dim}
 
         class MyModule(torch.nn.Module):
             def forward(self, q, k, v, mask, scale):

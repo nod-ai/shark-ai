@@ -63,7 +63,7 @@ class masked_flash_attention(CustomOp):
         v_desc.specialize_dims(0, 1, -1)
 
         # Result 0: Shape batch..., m, n
-        ksel.return_new_tensor((*q_bs, q_l, v_e), dtype=torch.float16).specialize_dims(
+        ksel.return_new_tensor((*q_bs, q_l, v_e), dtype=torch.float32).specialize_dims(
             0, 1, -1
         )
 
