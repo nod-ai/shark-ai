@@ -20,8 +20,8 @@ on:
         default: ""
 
 jobs:
-  test_shortfin_llm_server:
-    name: "Integration Tests - Shortfin LLM Server"
+  smoke_test:
+    name: "Smoke Test (${{ matrix.name }})"
     runs-on: ${{ matrix.runs-on }}
     strategy:
       fail-fast: false
@@ -35,11 +35,6 @@ jobs:
             runs-on: linux-mi300-1gpu-ossci
             test_device: gfx942
             python-version: 3.11
-          # temporarily disable mi250 because the cluster is unsable & slow
-          # - name: amdgpu_rocm_mi250_gfx90a
-          #   runs-on: nodai-amdgpu-mi250-x86-64
-          #   test_device: gfx90a
-
     defaults:
       run:
         shell: bash
@@ -52,48 +47,85 @@ jobs:
         run: rocminfo
       - name: "Checkout Code"
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - name: "Setting up Python"
-        id: setup_python
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+      - name: "Set up environment and install PkgCI Artifacts"
+        uses: ./.github/actions/pkgci-setup
         with:
           python-version: ${{matrix.python-version}}
-
-      - name: Setup UV caching
-        run: |
-          CACHE_DIR="${GITHUB_WORKSPACE}/.uv-cache"
-          echo "UV_CACHE_DIR=${CACHE_DIR}" >> $GITHUB_ENV
-          mkdir -p "${CACHE_DIR}"
-
-      - name: Cache UV packages
-        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
-        with:
-          path: .uv-cache
-          key: ${{ runner.os }}-uv-py${{ matrix.python-version }}-${{ hashFiles('requirements-iree-pinned.txt', 'pytorch-cpu-requirements.txt', 'sharktank/requirements.txt', 'sharktank/requirements-tests.txt', 'shortfin/requirements-tests.txt') }}
-
-      - name: Download package artifacts
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
-        with:
-          pattern: snapshot-*-linux-x86_64-*
-          path: ${{ env.PACKAGE_DOWNLOAD_DIR }}
-          merge-multiple: true
-
-      - name: Setup venv
-        run: |
-          ./build_tools/pkgci/setup_venv.py ${VENV_DIR} \
-            --artifact-path=${PACKAGE_DOWNLOAD_DIR} \
-            --fetch-gh-workflow=${{ inputs.artifact_run_id }}
-
-      - name: Install pinned IREE packages
-        run: |
-          source ${VENV_DIR}/bin/activate
-          uv pip install -r requirements-iree-pinned.txt
-
+          artifact-run-id: ${{ inputs.artifact_run_id }}
       - name: Run LLM Smoke Test
         run: |
           source ${VENV_DIR}/bin/activate
-          pytest -v -s --test_device=${{ matrix.test_device }} app_tests/integration_tests/llm/shortfin/tinystories_llama2_25m_test.py --log-cli-level=INFO
+          pytest -v --test_device=${{ matrix.test_device }} \
+            --junitxml=smoke-test-${{ matrix.name }}.xml \
+            app_tests/integration_tests/llm/shortfin/tinystories_llama2_25m_test.py \
+            --log-cli-level=INFO
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-${{ matrix.name }}
+          path: smoke-test-${{ matrix.name }}.xml
 
+  integration_test:
+    name: "Integration Test (${{ matrix.name }})"
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: cpu
+            runs-on: azure-cpubuilder-linux-scale
+            test_device: cpu
+            python-version: 3.11
+          - name: amdgpu_rocm_mi300_gfx942
+            runs-on: linux-mi300-1gpu-ossci
+            test_device: gfx942
+            python-version: 3.11
+    defaults:
+      run:
+        shell: bash
+    env:
+      PACKAGE_DOWNLOAD_DIR: ${{ github.workspace }}/.packages
+      VENV_DIR: ${{ github.workspace }}/.venv
+    steps:
+      - name: Run rocminfo
+        if: contains(matrix.test_device, 'gfx')
+        run: rocminfo
+      - name: "Checkout Code"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: "Set up environment and install PkgCI Artifacts"
+        uses: ./.github/actions/pkgci-setup
+        with:
+          python-version: ${{matrix.python-version}}
+          artifact-run-id: ${{ inputs.artifact_run_id }}
       - name: Run LLM Integration Tests
         run: |
           source ${VENV_DIR}/bin/activate
-          pytest -v -s --test_device=${{ matrix.test_device }} app_tests/integration_tests/llm/shortfin/open_llama_3b_llm_server_test.py --log-cli-level=INFO
+          pytest -v --test_device=${{ matrix.test_device }} \
+            --junitxml=integration-test-${{ matrix.name }}.xml \
+            app_tests/integration_tests/llm/shortfin/open_llama_3b_llm_server_test.py \
+            --log-cli-level=INFO
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-${{ matrix.name }}
+          path: integration-test-${{ matrix.name }}.xml
+
+  # TODO: Figure out how to publish one summary over many pytest runs. This current test summary action doesn't work due to perms problems.
+  # test_summary:
+  #   name: "Test Summary"
+  #   needs: [smoke_test, integration_test]
+  #   runs-on: ubuntu-latest
+  #   if: always()
+  #   steps:
+  #     - name: Download Test Results
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         pattern: "*-test-*"
+  #         merge-multiple: true
+  #     - name: Publish Test Results
+  #       uses: EnricoMi/publish-unit-test-result-action@v2
+  #       with:
+  #         junit_files: "*-test-*.xml"
+  #         comment_mode: off
