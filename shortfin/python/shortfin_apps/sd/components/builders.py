@@ -15,6 +15,7 @@ import copy
 import re
 import gc
 import logging
+import urllib
 
 from shortfin_apps.sd.components.config_struct import ModelParams
 
