@@ -94,13 +94,13 @@ mkdir -p $EXPORT_DIR
 
 ## 2. Download and compile the model
 
-### Download `llama3_8b_fp16.gguf`
+### Download `llama3_8B_f16.gguf`
 
 We will use the `hf_datasets` module in `sharktank` to download a
 LLama3.1 8b f16 model.
 
 ```bash
-python -m sharktank.utils.hf_datasets llama3_8B_fp16 --local-dir $EXPORT_DIR
+python -m sharktank.utils.hf_datasets llama3_8B_f16 --local-dir $EXPORT_DIR
 ```
 
 > [!NOTE]
