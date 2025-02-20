@@ -94,7 +94,8 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             tensor_parallelism_size=self.tensor_parallelism_size,
             block_seq_stride=32,
             activation_dtype="bfloat16",
-            attention_dtype="float8_e4m3fnuz",
+            attention_dtype="bfloat16",
+            kv_cache_dtype="float8_e4m3fnuz",
         )
         self.prefill_args_bs4_128_stride_32_f16 = (
             self.artifacts_dir / "prefill_args_bs4_128_stride_32_tp1"
