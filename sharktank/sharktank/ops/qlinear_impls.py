@@ -44,7 +44,7 @@ def qlinear_tensor_scaled(
     # Now we know that both the x/weight are TensorScaledLayout. There are still
     # degrees of freedom:
     #  * Either/both can be per-tensor or per-axis scaled (d is 0D or d is nd>0).
-    #  * Either/both can have offsets of not (m is not None).
+    #  * Either/both can have offsets or not (m is not None).
     x_layout: TensorScaledLayout = x.unpack()
     weight_layout: TensorScaledLayout = weight.unpack()
 
@@ -206,10 +206,6 @@ def _invoke_mmt_kernel(
             )
         else:
             y_qs = kernels.batch_matmul_transpose_b(lhs, rhs, accum_dtype=accum_dtype)
-        # Squeeze the batch dimension to maintain shape parity with other
-        # layers.
-        if len(y_qs.shape) > 2:
-            y_qs = y_qs.squeeze(0)
     else:
         # FP emulation.
         y_qs = torch.matmul(
