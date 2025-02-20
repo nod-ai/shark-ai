@@ -158,6 +158,9 @@ class LlamaModelConfig:
     # Either "paged" or "direct".
     kv_cache_type: str = "paged"
 
+    # If None will use attention_dtype.
+    kv_cache_dtype: Optional[torch.dtype] = None
+
     # The device on which to place intermediate state.
     device: Optional[torch.device] = None
 

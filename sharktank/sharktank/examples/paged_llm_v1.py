@@ -290,6 +290,7 @@ def main():
         activation_dtype=args.activation_dtype,
         attention_dtype=args.attention_dtype,
         attention_kernel=args.attention_kernel,
+        kv_cache_dtype=args.kv_cache_dtype,
         use_hf=args.use_hf,
         tensor_parallelism_size=args.tensor_parallelism_size,
         fake_quant=args.fake_quant,
