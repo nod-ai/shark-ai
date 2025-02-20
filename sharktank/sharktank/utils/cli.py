@@ -34,8 +34,10 @@ def parse(parser: argparse.ArgumentParser, *, args: Sequence[str] | None = None)
     # Set torch dtypes
     for attr in ["activation_dtype", "attention_dtype", "kv_cache_dtype"]:
         if hasattr(parsed_args, attr):
-            dtype = getattr(torch, getattr(parsed_args, attr))
-            assert isinstance(dtype, torch.dtype)
+            dtype = getattr(parsed_args, attr)
+            if dtype is not None:
+                dtype = getattr(torch, dtype)
+                assert isinstance(dtype, torch.dtype)
             setattr(parsed_args, attr, dtype)
     return parsed_args
 
