@@ -18,7 +18,7 @@ with_quark_data = pytest.mark.skipif("not config.getoption('with_quark_data')")
 class QuarkParityTest(unittest.TestCase):
     def setUp(self):
         super().setUp()
-        self.path_prefix = Path("/shark-dev/quark_test")
+        self.path_prefix = Path("/shark-cache/quark_test")
 
     @with_quark_data
     def test_compare_against_quark(self):
