@@ -23,7 +23,7 @@ from collections import OrderedDict
 import logging
 import pytest
 import torch
-from torch.utils._pytree import tree_map, tree_unflatten, tree_flatten_with_path
+from torch.utils._pytree import tree_map
 from unittest import TestCase
 from parameterized import parameterized
 from sharktank.types import (
@@ -31,7 +31,6 @@ from sharktank.types import (
     DefaultPrimitiveTensor,
     unbox_tensor,
     Dataset,
-    dtype_to_serialized_short_name,
 )
 from sharktank.models.t5 import (
     T5Attention,
@@ -40,7 +39,6 @@ from sharktank.models.t5 import (
     T5Encoder,
     T5LayerFF,
     export_encoder_mlir,
-    export_encoder_iree_parameters,
     import_encoder_dataset_from_hugging_face,
 )
 from sharktank.utils.testing import (

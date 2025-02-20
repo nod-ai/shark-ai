@@ -14,7 +14,7 @@ When in question, we draw from the vocabulary and normalization they have done
 (and indeed, can bootstrap these off of GGUF files).
 """
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from typing import Any, Optional
 import torch
 from transformers import T5Config as T5ConfigHf
@@ -236,29 +236,13 @@ class T5Config:
     def from_hugging_face_config(
         config: T5ConfigHf, tokenizer_config: dict[str, Any], **kwargs
     ) -> "T5Config":
-        all_kwargs = {
-            "return_dict": config.return_dict,
-            "output_hidden_states": config.output_hidden_states,
-            "output_attentions": config.output_attentions,
-            "is_encoder_decoder": config.is_encoder_decoder,
-            "is_decoder": config.is_decoder,
-            "vocab_size": config.vocab_size,
-            "context_length": tokenizer_config["model_max_length"],
-            "d_model": config.d_model,
-            "d_kv": config.d_kv,
-            "d_ff": config.d_ff,
-            "num_layers": config.num_layers,
-            "num_decoder_layers": config.num_decoder_layers,
-            "num_heads": config.num_heads,
-            "relative_attention_num_buckets": config.relative_attention_num_buckets,
-            "relative_attention_max_distance": config.relative_attention_max_distance,
-            "layer_norm_epsilon": config.layer_norm_epsilon,
-            "feed_forward_proj": config.feed_forward_proj,
-            "use_cache": config.use_cache,
-            "pad_token_id": config.pad_token_id,
-            "eos_token_id": config.eos_token_id,
-            "decoder_start_token_id": config.decoder_start_token_id,
-        }
+        all_kwargs = {}
+        for filed in fields(T5Config):
+            if hasattr(config, filed.name):
+                all_kwargs[filed.name] = getattr(config, filed.name)
+        all_kwargs["context_length"] = tokenizer_config["model_max_length"]
+        del all_kwargs["is_gated_act"]
+        del all_kwargs["dense_act_fn"]
         all_kwargs.update(kwargs)
         return T5Config(**all_kwargs)
 
