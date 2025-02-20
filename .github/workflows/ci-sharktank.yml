@@ -136,7 +136,7 @@ jobs:
       # We would still want the separate flags as we may endup with data being
       # scattered on different CI machines.
         run: |
-          chmod -R 777 /shark-cache  # Ensure full access
+          sudo chmod -R 777 /shark-cache  # Ensure full access
           source ${VENV_DIR}/bin/activate
           pytest \
             -v \
