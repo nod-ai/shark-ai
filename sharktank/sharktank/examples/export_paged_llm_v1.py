@@ -230,7 +230,7 @@ def main():
                 shard_count = llama_config.tensor_parallelism_size
 
                 tokens = ops.replicate(tokens, count=shard_count)
-                if attention_mask:
+                if attention_mask is not None:
                     attention_mask = ops.replicate(attention_mask, count=shard_count)
                 seq_block_ids = ops.replicate(seq_block_ids, count=shard_count)
                 cache_tensors = repack_cache(cs, cache_shard_dim)

@@ -4,11 +4,13 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+"""
+Uses shortfin_apps.llm.components.lifecycle to configure a FastAPI application.
+"""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-from .lifecycle_hooks import lifespan
 from .routes import application_router, generation_router
+from fastapi import FastAPI
 
 
 def add_routes(app: FastAPI):
@@ -27,7 +29,7 @@ def add_middleware(app: FastAPI):
     return app
 
 
-def get_app() -> FastAPI:
+def get_app(lifespan) -> FastAPI:
     app = FastAPI(lifespan=lifespan)
     app = add_routes(app)
     app = add_middleware(app)

@@ -305,7 +305,7 @@ class ClipTextConfig:
 
     @staticmethod
     def from_hugging_face_clip_text_model_config(
-        config: "transformers.CLIPTextConfig",
+        config: "transformers.CLIPTextConfig",  # type: ignore
     ) -> "ClipTextConfig":
         return ClipTextConfig(
             vocab_size=config.vocab_size,
@@ -326,7 +326,7 @@ class ClipTextConfig:
             dtype=config.torch_dtype or torch.float32,
         )
 
-    def to_hugging_face_clip_text_model_config(self) -> "transformers.CLIPTextConfig":
+    def to_hugging_face_clip_text_model_config(self) -> "transformers.CLIPTextConfig":  # type: ignore
         kwargs = self.to_properties()
         kwargs["torch_dtype"] = kwargs["dtype"]
         del kwargs["dtype"]
