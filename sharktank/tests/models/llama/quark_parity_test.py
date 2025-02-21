@@ -25,7 +25,7 @@ class QuarkParityTest(unittest.TestCase):
         sharktank_dir = str(
             Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent.parent
         )
-        our_path = self.path_prefix / "ours_prefill.safetensors"
+        our_path = "ours_prefill.safetensors"
         if os.path.exists(our_path):
             os.remove(our_path)
 
@@ -58,7 +58,7 @@ class QuarkParityTest(unittest.TestCase):
             "--fake-quant",
             "--attention-kernel=torch",
             "--activation-dtype=bfloat16",
-            f"--save_intermediates_path={self.path_prefix}/ours",
+            f"--save_intermediates_path=ours",
             "--use-hf",
             "--attention-dtype=bfloat16",
             "--skip-decode",
