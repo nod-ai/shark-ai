@@ -62,6 +62,7 @@ class QuarkParityTest(TempDirTestBase):
             f"--save_intermediates_path={self._temp_dir / 'ours'}",
             "--use-hf",
             "--attention-dtype=bfloat16",
+            "--kv-cache-dtype=float8_e4m3fnuz",
             "--skip-decode",
             "--block-seq-stride=16",
         ]
