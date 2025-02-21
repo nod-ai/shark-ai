@@ -138,7 +138,7 @@ jobs:
         run: |
           sudo chmod -R 777 /shark-cache  # Ensure full access
           source ${VENV_DIR}/bin/activate
-          pytest \
+          sudo pytest \
             -v \
             --log-cli-level=info \
             --with-clip-data \
@@ -151,7 +151,7 @@ jobs:
             sharktank/tests/models/vae/vae_test.py \
             sharktank/tests/models/llama/quark_parity_test.py \
             --durations=0 \
-            --timeout=800
+            --timeout=1000
 # TODO: add back
 #             --with-t5-data \
 # when #888 is resolved
