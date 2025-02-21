@@ -81,10 +81,6 @@ class LinearLayer(ThetaLayer):
         # Unconditionally dequantize.
         if isinstance(y, QuantizedTensor):
             y = y.unpack().dequant()
-        # Note that f8_e4m3fnuz types on AMD GPUs accumulate to fp32.
-        # We can truncate to fp16 in iree, so we do a cast here
-        # to account for this in the IR. This is may not be the right
-        # level to do this, but for now its here.
         if qdq_output is not None:
             y = qdq_output.quantize(y).unpack().dequant()
         return y
