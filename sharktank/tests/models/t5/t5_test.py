@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import functools
+from copy import copy
 from transformers.models.t5.modeling_t5 import (
     T5Attention as ReferenceT5Attention,
     T5LayerSelfAttention as ReferenceT5LayerSelfAttention,
@@ -15,13 +16,14 @@ from transformers import (
     T5EncoderModel as ReferenceT5EncoderModel,
     T5Config as ReferenceT5Config,
 )
+from transformers.models.auto.tokenization_auto import get_tokenizer_config
 from typing import Optional
 import os
 from collections import OrderedDict
 import logging
 import pytest
 import torch
-from torch.utils._pytree import tree_map, tree_unflatten, tree_flatten_with_path
+from torch.utils._pytree import tree_map
 from unittest import TestCase
 from parameterized import parameterized
 from sharktank.types import (
@@ -29,7 +31,6 @@ from sharktank.types import (
     DefaultPrimitiveTensor,
     unbox_tensor,
     Dataset,
-    dtype_to_serialized_short_name,
 )
 from sharktank.models.t5 import (
     T5Attention,
@@ -38,7 +39,7 @@ from sharktank.models.t5 import (
     T5Encoder,
     T5LayerFF,
     export_encoder_mlir,
-    export_encoder_iree_parameters,
+    import_encoder_dataset_from_hugging_face,
 )
 from sharktank.utils.testing import (
     assert_text_encoder_state_close,
@@ -168,17 +169,12 @@ class T5EncoderEagerTest(TestCase):
         )
         reference_model.eval()
 
-        target_model_name = (
-            f"{huggingface_repo_id.replace('/', '__').replace('-', '_')}_f32_model"
-        )
-        target_model_path = getattr(self, target_model_name)
-        dataset = Dataset.load(target_model_path)
+        dataset = import_encoder_dataset_from_hugging_face(huggingface_repo_id)
         dataset.root_theta = dataset.root_theta.transform(
             functools.partial(set_float_dtype, dtype=target_dtype)
         )
-        config = T5Config.from_gguf_properties(
+        config = T5Config.from_properties(
             dataset.properties,
-            feed_forward_proj="gated-gelu",
         )
 
         input_ids = tokenizer(
@@ -258,6 +254,7 @@ class T5EncoderEagerTest(TestCase):
             "google/t5-v1_1-small",
             reference_dtype=torch.float32,
             target_dtype=torch.bfloat16,
+            # The observed error is 0.055.
             atol=1e-1,
         )
 
@@ -285,6 +282,7 @@ class T5EncoderEagerTest(TestCase):
             "google/t5-v1_1-xxl",
             reference_dtype=torch.float32,
             target_dtype=torch.bfloat16,
+            # The observed error is 0.026.
             atol=5e-2,
         )
 
@@ -310,19 +308,20 @@ class T5EncoderIreeTest(TempDirTestBase):
         ).download()
         tokenizer = AutoTokenizer.from_pretrained(huggingface_repo_id)
 
-        huggingface_repo_id_as_path = (
-            f"{huggingface_repo_id.replace('/', '__').replace('-', '_')}"
+        reference_dataset = import_encoder_dataset_from_hugging_face(
+            huggingface_repo_id
         )
-        source_model_name = f"{huggingface_repo_id_as_path}_f32_model"
-        source_model_path = getattr(self, source_model_name)
+        target_dataset = copy(reference_dataset)
 
-        reference_dataset = Dataset.load(source_model_path)
         reference_dataset.root_theta = reference_dataset.root_theta.transform(
             functools.partial(set_float_dtype, dtype=reference_dtype)
         )
-        config = T5Config.from_gguf_properties(
+        config = T5Config.from_properties(
             reference_dataset.properties,
-            feed_forward_proj="gated-gelu",
+        )
+
+        target_dataset.root_theta = target_dataset.root_theta.transform(
+            functools.partial(set_float_dtype, dtype=target_dtype)
         )
 
         input_ids = tokenizer(
@@ -334,32 +333,26 @@ class T5EncoderIreeTest(TempDirTestBase):
         input_args = OrderedDict([("input_ids", input_ids)])
         batch_size = input_ids.shape[0]
 
-        reference_dtype_name = dtype_to_serialized_short_name(reference_dtype)
-        target_dtype_name = dtype_to_serialized_short_name(target_dtype)
-        target_model_path_prefix = f"{self.path_prefix}{huggingface_repo_id_as_path}_encoder_{target_dtype_name}"
-
         reference_model = T5Encoder(theta=reference_dataset.root_theta, config=config)
         reference_result_dict = call_torch_module_function(
             module=reference_model,
             function_name="forward",
             kwargs=input_args,
-            trace_path_prefix=f"{self.path_prefix}{huggingface_repo_id_as_path}_encoder_{reference_dtype_name}_torch_",
+            trace_path_prefix=f"{self.path_prefix}torch_",
         )
         reference_result = flatten_for_iree_signature(reference_result_dict)
 
-        parameters_path = f"{target_model_path_prefix}.irpa"
+        parameters_path = f"{self.path_prefix}parameters.irpa"
         if not self.caching or not os.path.exists(parameters_path):
-            export_encoder_iree_parameters(
-                source_model_path, parameters_path, dtype=target_dtype
-            )
+            target_dataset.save(parameters_path)
 
-        mlir_path = f"{target_model_path_prefix}.mlir"
+        mlir_path = f"{self.path_prefix}model.mlir"
         if not self.caching or not os.path.exists(mlir_path):
             logger.info("Exporting T5 encoder model to MLIR...")
             export_encoder_mlir(
                 parameters_path, batch_sizes=[batch_size], mlir_output_path=mlir_path
             )
-        iree_module_path = f"{target_model_path_prefix}.vmfb"
+        iree_module_path = f"{self.path_prefix}model.vmfb"
         if not self.caching or not os.path.exists(iree_module_path):
             logger.info("Compiling MLIR file...")
             iree.compiler.compile_file(
@@ -386,7 +379,7 @@ class T5EncoderIreeTest(TempDirTestBase):
                 args=iree_args,
                 device=iree_devices[0],
                 function_name=f"forward_bs{batch_size}",
-                trace_path_prefix=f"{target_model_path_prefix}_iree_",
+                trace_path_prefix=f"{self.path_prefix}iree_",
             )
         )
         iree_result = [
@@ -498,19 +491,19 @@ class T5AttentionTest(TestCase):
 
         theta = Theta(
             {
-                "attn_q.weight": DefaultPrimitiveTensor(
+                "q.weight": DefaultPrimitiveTensor(
                     data=reference_model.q.weight.to(dtype=target_dtype)
                 ),
-                "attn_k.weight": DefaultPrimitiveTensor(
+                "k.weight": DefaultPrimitiveTensor(
                     data=reference_model.k.weight.to(dtype=target_dtype)
                 ),
-                "attn_v.weight": DefaultPrimitiveTensor(
+                "v.weight": DefaultPrimitiveTensor(
                     data=reference_model.v.weight.to(dtype=target_dtype)
                 ),
-                "attn_o.weight": DefaultPrimitiveTensor(
+                "o.weight": DefaultPrimitiveTensor(
                     data=reference_model.o.weight.to(dtype=target_dtype)
                 ),
-                "attn_rel_b.weight": DefaultPrimitiveTensor(
+                "relative_attention_bias.weight": DefaultPrimitiveTensor(
                     data=reference_model.relative_attention_bias.weight.to(
                         dtype=target_dtype
                     )
@@ -593,24 +586,24 @@ class T5AttentionTest(TestCase):
 
         theta = Theta(
             {
-                "attn_q.weight": DefaultPrimitiveTensor(
+                "SelfAttention.q.weight": DefaultPrimitiveTensor(
                     data=reference_model.SelfAttention.q.weight.to(dtype=target_dtype)
                 ),
-                "attn_k.weight": DefaultPrimitiveTensor(
+                "SelfAttention.k.weight": DefaultPrimitiveTensor(
                     data=reference_model.SelfAttention.k.weight.to(dtype=target_dtype)
                 ),
-                "attn_v.weight": DefaultPrimitiveTensor(
+                "SelfAttention.v.weight": DefaultPrimitiveTensor(
                     data=reference_model.SelfAttention.v.weight.to(dtype=target_dtype)
                 ),
-                "attn_o.weight": DefaultPrimitiveTensor(
+                "SelfAttention.o.weight": DefaultPrimitiveTensor(
                     data=reference_model.SelfAttention.o.weight.to(dtype=target_dtype)
                 ),
-                "attn_rel_b.weight": DefaultPrimitiveTensor(
+                "SelfAttention.relative_attention_bias.weight": DefaultPrimitiveTensor(
                     data=reference_model.SelfAttention.relative_attention_bias.weight.to(
                         dtype=target_dtype
                     )
                 ),
-                "attn_norm.weight": DefaultPrimitiveTensor(
+                "layer_norm.weight": DefaultPrimitiveTensor(
                     data=reference_model.layer_norm.weight.to(dtype=target_dtype)
                 ),
             }
@@ -708,20 +701,20 @@ class T5LayerFFTest(TestCase):
 
         theta = Theta(
             {
-                "ffn_gate.weight": DefaultPrimitiveTensor(
+                "DenseReluDense.wi_0.weight": DefaultPrimitiveTensor(
                     data=reference_model.DenseReluDense.wi_0.weight.to(
                         dtype=target_dtype
                     )
                 ),
-                "ffn_up.weight": DefaultPrimitiveTensor(
+                "DenseReluDense.wi_1.weight": DefaultPrimitiveTensor(
                     data=reference_model.DenseReluDense.wi_1.weight.to(
                         dtype=target_dtype
                     )
                 ),
-                "ffn_down.weight": DefaultPrimitiveTensor(
+                "DenseReluDense.wo.weight": DefaultPrimitiveTensor(
                     data=reference_model.DenseReluDense.wo.weight.to(dtype=target_dtype)
                 ),
-                "ffn_norm.weight": DefaultPrimitiveTensor(
+                "layer_norm.weight": DefaultPrimitiveTensor(
                     data=reference_model.layer_norm.weight.to(dtype=target_dtype)
                 ),
             }

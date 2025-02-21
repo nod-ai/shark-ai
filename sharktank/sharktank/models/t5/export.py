@@ -5,20 +5,21 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import functools
-from typing import Optional, Union
+from typing import Any, Optional, Union
 from pathlib import Path
 import torch
 from copy import copy
+import transformers
 
 from .t5 import T5Config, T5Encoder
-from ...types import Dataset
+from ...types import Dataset, Theta, DefaultPrimitiveTensor
 from ...transforms.dataset import set_float_dtype
 from iree.turbine.aot import FxProgramsBuilder, export
 
 __all__ = [
     "export_encoder_mlir",
     "export_encoder_iree_parameters",
-    "prune_decoder_parameters",
+    "import_encoder_dataset_from_hugging_face",
 ]
 
 
@@ -33,13 +34,8 @@ def export_encoder_mlir(
     """
     if isinstance(model, (Path, str)):
         dataset = Dataset.load(model)
-        config = T5Config.from_gguf_properties(
+        config = T5Config.from_properties(
             dataset.properties,
-            # TODO: add this property to our HuggingFace-to-GGUF conversion script.
-            # We currently use llama.cpp's converter and it can not make a distinction
-            # between T5 V1 and V1.1.
-            # V1 uses ReLU and V1.1 uses gated GeLU.
-            feed_forward_proj="gated-gelu",
         )
         model = T5Encoder(theta=dataset.root_theta, config=config)
 
@@ -82,18 +78,6 @@ def export_encoder_mlir(
     output.save_mlir(mlir_output_path)
 
 
-def prune_decoder_parameters(dataset: Dataset):
-    # Remove decoder tensors/parameters if present.
-    try:
-        del dataset.root_theta.tree["dec"]
-    except KeyError:
-        pass
-    try:
-        del dataset.properties["t5.decoder_start_token_id"]
-    except KeyError:
-        pass
-
-
 def export_encoder_iree_parameters(
     model_path_or_dataset: str | Dataset,
     output_path: str,
@@ -107,5 +91,35 @@ def export_encoder_iree_parameters(
         dataset.root_theta = dataset.root_theta.transform(
             functools.partial(set_float_dtype, dtype=dtype)
         )
-    prune_decoder_parameters(dataset)
     dataset.save(output_path)
+
+
+def import_encoder_dataset_from_hugging_face(
+    repo_id_or_model: transformers.T5EncoderModel | str,
+    /,
+    *,
+    tokenizer_config: dict[str, Any] | None = None,
+) -> Dataset:
+    model = repo_id_or_model
+    if not isinstance(repo_id_or_model, transformers.T5EncoderModel):
+        model = transformers.T5EncoderModel.from_pretrained(repo_id_or_model)
+        from transformers.models.auto.tokenization_auto import get_tokenizer_config
+
+        if tokenizer_config is None:
+            tokenizer_config = get_tokenizer_config(repo_id_or_model)
+    else:
+        if tokenizer_config is None:
+            raise ValueError(
+                "When providing a model directly tokenizer_config must also be provided."
+            )
+
+    theta = Theta(
+        {
+            name: DefaultPrimitiveTensor(data=param, name=name)
+            for name, param in model.named_parameters()
+        }
+    )
+    config = T5Config.from_hugging_face_config(
+        model.config, tokenizer_config=tokenizer_config
+    )
+    return Dataset(properties=config.to_properties(), root_theta=theta)
