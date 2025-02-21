@@ -73,7 +73,6 @@ class QuarkParityTest(unittest.TestCase):
         f_.write(str(proc))
         f_.close()
 
-
         ours = dict()
         with safe_open(our_path, "pytorch") as st:
             for key in st.keys():

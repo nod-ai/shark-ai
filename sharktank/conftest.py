@@ -203,7 +203,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--google-t5-v1-1-xxl-f32-model-path",
         type=Path,
-        default="shark-dev/data/t5/xxl/google__t5-v1_1-xxl_f32.gguf",
+        default="/shark-dev/data/t5/xxl/google__t5-v1_1-xxl_f32.gguf",
         help="Google T5 v1.1 XXL float32 model path",
     )
     parser.addoption(
