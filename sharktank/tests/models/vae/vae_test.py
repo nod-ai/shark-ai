@@ -317,7 +317,7 @@ class VaeFluxDecoderTest(TempDirTestBase):
             parameters_path="{self._temp_dir}/flux_vae_bf16.irpa",
         )
 
-        input_args = OrderedDict([("inputs", inputs)])
+        input_args = OrderedDict([("inputs", inputs.to(dtype=dtype))])
         iree_args = flatten_for_iree_signature(input_args)
 
         iree_args = prepare_iree_module_function_args(
