@@ -137,8 +137,9 @@ jobs:
       # scattered on different CI machines.
         run: |
           sudo chmod -R 777 /shark-cache  # Ensure full access
+          lsattr -d /shark-cache
           source ${VENV_DIR}/bin/activate
-          sudo pytest \
+          pytest \
             -v \
             --log-cli-level=info \
             --with-clip-data \
