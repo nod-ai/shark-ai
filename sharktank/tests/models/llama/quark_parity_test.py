@@ -26,8 +26,8 @@ class QuarkParityTest(unittest.TestCase):
             Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent.parent
         )
         our_path = self.path_prefix / "ours_prefill.safetensors"
-        if os.path.exists(our_path):
-            os.remove(our_path)
+        #if os.path.exists(our_path):
+        #    os.remove(our_path)
 
         mapping = dict()
         for i in range(32):
