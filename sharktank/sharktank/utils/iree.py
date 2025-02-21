@@ -26,6 +26,18 @@ from .tree import Tree
 def get_iree_devices(
     *, driver: str | None = None, device_count: int = 1
 ) -> List[iree.runtime.HalDevice]:
+    """Gets a list of IREE HAL devices for the given driver.
+
+    The first available device_count devices will be created,
+    unless the IREE_DEVICE environment variable is set to an
+    explicit list of device URIs.
+
+    For example, to select HIP devices 5 and 3:
+    ```
+    export IREE_DEVICE=hip://5,hip://3
+    python ...
+    ```
+    """
     if "IREE_DEVICE" in os.environ:
         device_uris = [d.strip() for d in os.environ["IREE_DEVICE"].split(",")]
         driver_names = [n.split("://")[0] for n in device_uris]
