@@ -267,15 +267,7 @@ class FluxAEWrapper(torch.nn.Module):
         self.width = width
 
     def forward(self, z):
-        d_in = rearrange(
-            z,
-            "b (h w) (c ph pw) -> b c (h ph) (w pw)",
-            h=math.ceil(self.height / 16),
-            w=math.ceil(self.width / 16),
-            ph=2,
-            pw=2,
-        )
-        return self.ae.forward(d_in)
+        return self.ae.forward(z)
 
 
 def get_ae_model_and_inputs(
