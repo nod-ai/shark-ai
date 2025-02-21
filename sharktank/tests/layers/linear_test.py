@@ -4,6 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import logging
 import unittest
 import torch
 from parameterized import parameterized
@@ -11,6 +12,8 @@ from parameterized import parameterized
 from sharktank.layers import *
 from sharktank.types import *
 from sharktank.utils.testing import make_rand_torch
+
+logger = logging.getLogger(__name__)
 
 
 def _randomize_per_axis(t: torch.Tensor, axis: int, offset_range: float = 0.0):
@@ -94,6 +97,8 @@ class LinearQuantTest(unittest.TestCase):
 
     @parameterized.expand(
         [
+            (torch.bfloat16, torch.float32, torch.float8_e4m3fnuz, False, False, 1e-2),
+            (torch.bfloat16, torch.float32, torch.float8_e4m3fnuz, False, True, 1e-2),
             (torch.float32, torch.float32, torch.float8_e4m3fnuz, False, False, 1e-6),
             (torch.float32, torch.float32, torch.float8_e4m3fnuz, False, True, 1e-6),
             (torch.float32, torch.float32, torch.float16, True, False, 1e-6),
@@ -113,7 +118,9 @@ class LinearQuantTest(unittest.TestCase):
     ):
         """Test a linear layer where each tensor being quantized with a single
         different scale."""
-        x = make_rand_torch([10, 8, 2], dtype=dequantized_dtype)
+        ref_dtype = torch.float64
+
+        x = make_rand_torch([10, 8, 8], dtype=dequantized_dtype)
         input_scale = torch.tensor(0.5, dtype=quantized_scale_dtype)
         input_quantizer = StaticScaledQuantizer(
             name="q_input", scale=input_scale, dtype=quantized_dtype
@@ -160,9 +167,11 @@ class LinearQuantTest(unittest.TestCase):
                 rtol=0,
             )
 
-        expected = torch.matmul(x_dequantized, weight_dequantized.T)
+        expected = torch.matmul(
+            x_dequantized.to(ref_dtype), weight_dequantized.T.to(ref_dtype)
+        )
         if with_bias:
-            expected += bias_dequantized
+            expected += bias_dequantized.to(ref_dtype)
 
         theta_tensors = [
             input_quantizer,
@@ -173,10 +182,14 @@ class LinearQuantTest(unittest.TestCase):
         theta = Theta(theta_tensors)
         linear = LinearLayer(theta, fake_quant=fake_quant)
         actual = linear(x_dequantized)
+        actual = actual.to(dtype=expected.dtype)
 
-        torch.testing.assert_close(
-            actual.to(dtype=expected.dtype), expected, atol=atol, rtol=0
+        abs_diff = (expected - actual).abs()
+        logger.info(
+            f"abs diff from expected (std, mean, median) = {[float(abs_diff.std()), float(abs_diff.mean()), float(abs_diff.median())]}"
         )
+
+        torch.testing.assert_close(actual, expected, atol=atol, rtol=0)
 
 
 if __name__ == "__main__":
