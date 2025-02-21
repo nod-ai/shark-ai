@@ -322,6 +322,9 @@ def main():
     print(batch.detokenize())
 
     if args.save_intermediates_path:
+        f_ = open("/shark-cache/quark_test/test2.txt", "w+")
+        f_.write(args.save_intermediates_path + "_prefill.safetensors")
+        f_.close()
         intermediates_saver.save_file(
             args.save_intermediates_path + "_prefill.safetensors"
         )

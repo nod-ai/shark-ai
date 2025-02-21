@@ -64,7 +64,6 @@ class QuarkParityTest(unittest.TestCase):
             "--skip-decode",
             "--block-seq-stride=16",
         ]
-        f = open("/shark-cache/quark_test/test.txt", "w+")
         command = subprocess.list2cmdline(command)
         proc = subprocess.run(
             command, shell=True, capture_output=True, cwd=sharktank_dir
