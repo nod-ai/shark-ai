@@ -263,6 +263,10 @@ class Batch:
 def main():
     from ..utils import cli
 
+    f_ = open("/shark-cache/quark_test/test0.txt", "w+")
+    f_.write("HERE")
+    f_.close()
+
     parser = cli.create_parser()
     parser.add_argument("prompt", nargs="+", help="Prompt strings")
     parser.add_argument(
@@ -320,6 +324,10 @@ def main():
     print(f":: Prompt tokens: {batch.token_ids}")
     batch.prefill()
     print(batch.detokenize())
+
+    f_ = open("/shark-cache/quark_test/test1.txt", "w+")
+    f_.write(args.save_intermediates_path + "_prefill.safetensors")
+    f_.close()
 
     if args.save_intermediates_path:
         f_ = open("/shark-cache/quark_test/test2.txt", "w+")
