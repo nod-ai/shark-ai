@@ -94,6 +94,23 @@ def alias_dataset(from_name: str, to_name: str):
 ################################################################################
 
 Dataset(
+    "SanctumAI/Meta-Llama-3.1-8B-Instruct-GGUF",
+    (
+        RemoteFile(
+            "gguf",
+            "SanctumAI/Meta-Llama-3.1-8B-Instruct-GGUF",
+            "meta-llama-3.1-8b-instruct.f16.gguf",
+        ),
+        RemoteFile(
+            "tokenizer_config.json",
+            "NousResearch/Meta-Llama-3-8B-Instruct",
+            "tokenizer_config.json",
+            extra_filenames=["tokenizer.json"],
+        ),
+    ),
+).alias_to("llama3_8B_fp16")
+
+Dataset(
     "QuantFactory/Llama-3-8B_q4_1_gguf",
     (
         RemoteFile(
