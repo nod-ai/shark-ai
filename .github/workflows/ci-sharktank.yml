@@ -137,7 +137,8 @@ jobs:
       # scattered on different CI machines.
         run: |
           sudo chmod -R 777 /shark-cache  # Ensure full access
-          lsattr -d /shark-cache
+          ls -ld /shark-cache
+          sudo chown -R $USER:$USER /shark-cache
           source ${VENV_DIR}/bin/activate
           pytest \
             -v \
