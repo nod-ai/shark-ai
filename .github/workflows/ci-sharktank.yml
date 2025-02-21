@@ -153,7 +153,7 @@ jobs:
             sharktank/tests/models/vae/vae_test.py \
             sharktank/tests/models/llama/quark_parity_test.py \
             --durations=0 \
-            --timeout=1000
+            --timeout=300
 # TODO: add back
 #             --with-t5-data \
 # when #888 is resolved
@@ -197,7 +197,7 @@ jobs:
         run: |
           pytest -v sharktank/ -m punet_quick \
             --durations=0 \
-            --timeout=600
+            --timeout=900
 
   # Depends on other jobs to provide an aggregate job status.
   # TODO(#584): move test_with_data and test_integration to a pkgci integration test workflow?
