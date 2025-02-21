@@ -147,9 +147,13 @@ jobs:
             --with-flux-data \
             --with-vae-data \
             --with-quark-data \
+            sharktank/tests/models/clip/clip_test.py \
+            sharktank/tests/models/t5/t5_test.py \
+            sharktank/tests/models/flux/flux_test.py \
+            sharktank/tests/models/vae/vae_test.py \
             sharktank/tests/models/llama/quark_parity_test.py \
             --durations=0 \
-            --timeout=300
+            --timeout=10000
 # TODO: add back
 #             --with-t5-data \
 # when #888 is resolved
