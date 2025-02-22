@@ -518,6 +518,17 @@ class InferenceExecutorProcess(sf.Process):
         self.exec_request.response_image = processed_image
         return
 
+async def check_host_array(host_array):
+    waiting = True
+    while waiting:
+        array = host_array.items
+        if host_array.dtype == sfnp.float16:
+            dtype = np.float16
+        arr = np.frombuffer(array, dtype=dtype)
+        if not np.all(arr == 0):
+            break
+    return
+
 
 def check_host_array(host_array):
     waiting = True
