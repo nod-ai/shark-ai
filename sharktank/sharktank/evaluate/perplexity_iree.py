@@ -34,6 +34,7 @@ from sharktank.utils.vmfb_runner import *
 from sharktank.utils.load_llm import *
 from sharktank.utils.create_cache import *
 from sharktank.utils.export_artifacts import *
+from sharktank.utils.iree import iree_to_torch
 
 log_levels = {
     "info": logging.INFO,
@@ -69,8 +70,10 @@ class Perplexity:
         attention_kernel,
         block_seq_stride,
         use_attention_mask,
-        activation_dtype=torch.float16,
-        attention_dtype=torch.float16,
+        activation_dtype,
+        attention_dtype,
+        kv_cache_dtype,
+        use_hf,
     ):
         self.torch_device = torch_device
         self.iree_device = iree_device
@@ -79,9 +82,15 @@ class Perplexity:
         self.block_seq_stride = block_seq_stride
         self.activation_dtype = activation_dtype
         self.attention_dtype = attention_dtype
+        self.kv_cache_dtype = kv_cache_dtype
         self.tensor_parallelism_size = tensor_parallelism_size
         self.attention_kernel = attention_kernel
         self.use_attention_mask = use_attention_mask
+        self.use_hf = use_hf
+        self.halelementtype_map = {
+            torch.float8_e4m3fnuz: ireert.HalElementType.FLOAT_8_E4M3_FNUZ, 
+            torch.bfloat16: ireert.HalElementType.BFLOAT_16,
+        }
 
     def timeit(func):
         def wrapper(*args, **kwargs):
@@ -142,7 +151,12 @@ class Perplexity:
             tensor_parallelism_size=self.tensor_parallelism_size,
             block_seq_stride=self.block_seq_stride,
             use_attention_mask=self.use_attention_mask,
+            activation_dtype=str(self.activation_dtype).split('.')[-1],
+            attention_dtype=str(self.attention_dtype).split('.')[-1],
+            kv_cache_dtype=str(self.kv_cache_dtype).split('.')[-1],
+            use_hf=self.use_hf,
         )
+        
         vmfb_path = export_artifacts.get_artifacts()
         return vmfb_path
 
@@ -155,7 +169,9 @@ class Perplexity:
             device=self.torch_device,
             activation_dtype=self.activation_dtype,
             attention_dtype=self.attention_dtype,
+            kv_cache_dtype=self.kv_cache_dtype,
             tensor_parallelism_size=self.tensor_parallelism_size,
+            use_hf=self.use_hf,
         )
 
         if self.config.tensor_parallelism_size > 1:
@@ -214,7 +230,7 @@ class Perplexity:
             seq_block_ids,
             self.cache_state,
         )
-
+        prefill_logits = iree_to_torch(prefill_logits)[0]        
         prefill_logits = torch.tensor(prefill_logits[:, :, :])
 
         tokens = torch.tensor(
@@ -246,6 +262,7 @@ class Perplexity:
             seq_block_ids,
             self.cache_state,
         )
+        decode_logits = iree_to_torch(decode_logits)[0]
 
         decode_logits = torch.tensor(decode_logits[:, :, :])
 
@@ -298,11 +315,29 @@ class Perplexity:
                     bs=self.bs,
                     page_cache_size=page_cache_size,
                 )
+ 
+                if self.attention_dtype in self.halelementtype_map.keys():
+                    
+                    cache_state = self.batch.cache_state[0]
 
-                self.cache_state = ireert.asdevicearray(
-                    self.haldevice, self.batch.cache_state[0].to("cpu").numpy()
-                )
-
+                    cache_as_int16 = cache_state.to(dtype=torch.int16)
+                    
+                    device_array_as_int16 = ireert.asdevicearray(
+                        self.haldevice, unbox_tensor(cache_as_int16).to("cpu").numpy()
+                    )
+                                        
+                    buffer_view = ireert.HalBufferView(
+                        buffer=device_array_as_int16._buffer_view.get_buffer(),
+                        shape=device_array_as_int16._buffer_view.shape,
+                        element_type=self.halelementtype_map[self.attention_dtype],
+                    )                    
+                    self.cache_state = ireert.DeviceArray(self.haldevice, buffer_view)                
+                    
+                else:
+                    self.cache_state = ireert.asdevicearray(
+                        self.haldevice, self.batch.cache_state[0].to("cpu").numpy()
+                    )
+                
                 prefill_logits = self.prefill_vmfb(token_batch, i)
                 self.out_logits = prefill_logits[:, -1:, :]
 
@@ -400,6 +435,10 @@ def run_perplexity(
     num_prompts,
     block_seq_stride,
     use_attention_mask,
+    activation_dtype,
+    attention_dtype,
+    kv_cache_dtype,
+    use_hf,
 ):
     start = time.time()
     perplexity = Perplexity(
@@ -411,6 +450,10 @@ def run_perplexity(
         attention_kernel=attention_kernel,
         block_seq_stride=block_seq_stride,
         use_attention_mask=use_attention_mask,
+        activation_dtype=activation_dtype,
+        attention_dtype=attention_dtype,
+        kv_cache_dtype=kv_cache_dtype,
+        use_hf=use_hf,
     )
 
     perplexity.get_prompts(num_prompts=num_prompts)
@@ -453,15 +496,16 @@ def main(argv):
     )
 
     cli.add_model_options(parser)
-    cli.add_tokenizer_options(parser)
     cli.add_input_dataset_options(parser)
+    cli.add_tokenizer_options(parser)
+    
     args = cli.parse(parser, args=argv)
 
     torch_device = torch.device(args.device) if args.device else None
     weight_path = cli.get_input_dataset(args)
     tokenizer = cli.get_tokenizer(args)
 
-    use_attention_mask = True
+    use_attention_mask = False
 
     # Override flag if dataset disagrees
     tensor_parallelism_size = (
@@ -483,6 +527,10 @@ def main(argv):
         num_prompts=args.num_prompts,
         block_seq_stride=args.block_seq_stride,
         use_attention_mask=use_attention_mask,
+        attention_dtype=args.attention_dtype,
+        activation_dtype=args.activation_dtype,
+        kv_cache_dtype=args.kv_cache_dtype, 
+        use_hf=args.use_hf,
     )
 
     logger.info(f"\n{json.dumps(ppl, indent=2)}")

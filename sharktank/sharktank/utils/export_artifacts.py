@@ -96,6 +96,7 @@ class ExportArtifacts:
         activation_dtype: str = "float16",
         attention_dtype: str = "float16",
         kv_cache_dtype: Optional[str] = None,
+        use_hf: bool = False,
     ):
         self.sharktank_dir = str(
             Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent
@@ -111,6 +112,7 @@ class ExportArtifacts:
         self.activation_dtype = activation_dtype
         self.attention_dtype = attention_dtype
         self.kv_cache_dtype = kv_cache_dtype
+        self.use_hf = use_hf
 
     def timeit(func):
         def wrapper(*args, **kwargs):
@@ -191,15 +193,17 @@ class ExportArtifacts:
             f"--attention-dtype={self.attention_dtype}",
             f"--activation-dtype={self.activation_dtype}",
         ]
+        
         if self.kv_cache_dtype is not None:
             export_args.append(f"--kv-cache-dtype={self.kv_cache_dtype}")
         if skip_decode:
             export_args.append("--skip-decode")
         if self.attention_kernel in ["decomposed", "torch"]:
-            export_args.append("--attention-kernel")
-            export_args.append(self.attention_kernel)
+            export_args.append(f"--attention-kernel={self.attention_kernel}")
         if self.use_attention_mask:
             export_args.append("--use-attention-mask")
+        if self.use_hf:
+            export_args.append("--use-hf")
 
         cwd = self.sharktank_dir
         cmd = subprocess.list2cmdline(export_args)
@@ -224,6 +228,18 @@ class ExportArtifacts:
         hal_dump_path: Optional[Path] = None,
         args: Optional[List[str]] = None,
     ):
+        # args = [
+        #     "--iree-dispatch-creation-enable-aggressive-fusion=true",
+        #     "--iree-global-opt-propagate-transposes=true",
+        #     "--iree-opt-aggressively-propagate-transposes=true",
+        #     "--iree-opt-data-tiling=false",
+        #     "--iree-preprocessing-pass-pipeline='builtin.module(util.func(iree-preprocessing-generalize-linalg-matmul-experimental))'",
+        #     "--iree-stream-resource-memory-model=discrete",
+        #     "--iree-hal-indirect-command-buffers=true",
+        #     "--iree-hal-memoization=true",
+        #     "--iree-opt-strip-assertions",
+        # ]
+
         # TODO: Control flag to enable multiple backends
         compile_args = [
             f"iree-compile",
@@ -337,7 +353,7 @@ class ExportArtifacts:
             self.create_file(suffix=".vmfb", prefix=self.dir_path + model_name)
         )
 
-        if self.attention_kernel == "decomposed":
+        if self.attention_kernel in ["decomposed", "torch"]:
             returncode = self.export_to_mlir(
                 mlir_path=mlir_path,
                 json_path=json_path,
