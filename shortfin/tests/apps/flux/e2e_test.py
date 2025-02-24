@@ -51,7 +51,7 @@ def start_server(fibers_per_device=1, isolation="per_fiber"):
             "https://sharkpublic.blob.core.windows.net/sharkpublic/flux.1/configs/flux_config_bf16.json",
             allow_redirects=True,
         )
-        f.write(r.content.decode('utf-8'))
+        f.write(r.content.decode("utf-8"))
     srv_args.extend(
         [
             "--model_config=flux_config_bf16.json",
