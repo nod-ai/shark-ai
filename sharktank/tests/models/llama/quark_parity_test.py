@@ -83,12 +83,6 @@ class QuarkParityTest(unittest.TestCase):
 
         test_layers = [v for k, v in mapping.items()]
 
-        f_ = open("/shark-cache/quark_test/test123.txt", "w+")
-        f_.write(str(golden))
-        f_.write("\n\n")
-        f_.write(str(ours))
-
-
         def both(key, index=None):
             o = ours[key]
             t = golden[key]
