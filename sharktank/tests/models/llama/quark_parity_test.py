@@ -69,10 +69,6 @@ class QuarkParityTest(unittest.TestCase):
             command, shell=True, capture_output=True, cwd=sharktank_dir
         )
 
-        f_ = open("/shark-cache/quark_test/test0.txt", "w+")
-        f_.write(str(proc))
-        f_.close()
-
         ours = dict()
         with safe_open(our_path, "pytorch") as st:
             for key in st.keys():
