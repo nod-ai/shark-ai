@@ -13,7 +13,7 @@ import logging
 from pathlib import Path
 import torch
 from ..types import Dataset
-
+from ..types import serialized_name_to_dtype
 from . import hf_datasets
 from . import tokenizer
 
@@ -36,7 +36,7 @@ def parse(parser: argparse.ArgumentParser, *, args: Sequence[str] | None = None)
         if hasattr(parsed_args, attr):
             dtype = getattr(parsed_args, attr)
             if dtype is not None:
-                dtype = getattr(torch, dtype)
+                dtype = serialized_name_to_dtype(dtype)
                 assert isinstance(dtype, torch.dtype)
             setattr(parsed_args, attr, dtype)
     return parsed_args

@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 import torch
 
-from ...export import export_static_model_mlir
+from ...export import export_model_mlir
 from ...tools.import_hf_dataset import import_hf_dataset
 from .flux import FluxModelV1, FluxParams
 from ...types import Dataset
@@ -40,7 +40,7 @@ def export_flux_transformer_model_mlir(
 
     for t in model.theta.flatten().values():
         ExternalTensorTrait(external_name=t.name, external_scope="").set(t.as_torch())
-    export_static_model_mlir(model, output_path=output_path, batch_sizes=batch_sizes)
+    export_model_mlir(model, output_path=output_path, batch_sizes=batch_sizes)
 
 
 def export_flux_transformer_iree_parameters(
