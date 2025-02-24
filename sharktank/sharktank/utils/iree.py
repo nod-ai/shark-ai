@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import iree.runtime
-from typing import Any, Callable, Generator, List, Tuple, Optional, Union
+from typing import Any, Callable, List, Tuple, Optional, Union, overload
 from pathlib import Path
 import torch
 import os
@@ -64,9 +64,8 @@ def with_iree_device_context(
     return res
 
 
-def get_iree_devices(
-    *, driver: str | None = None, device_count: int = 1
-) -> List[iree.runtime.HalDevice]:
+@overload
+def get_iree_devices(*, driver: str, device_count: int) -> List[iree.runtime.HalDevice]:
     """Gets a list of IREE HAL devices for the given driver.
 
     The first available device_count devices will be created,
@@ -79,6 +78,37 @@ def get_iree_devices(
     python ...
     ```
     """
+    ...
+
+
+@overload
+def get_iree_devices(*, device: str) -> List[iree.runtime.HalDevice]:
+    ...
+
+
+def get_iree_devices(
+    *,
+    device: str | None = None,
+    driver: str | None = None,
+    device_count: int | None = None,
+) -> List[iree.runtime.HalDevice]:
+    has_device_arg = device is not None
+    has_driver_arg = driver is not None
+    has_device_count_arg = device_count is not None
+    if not (has_device_arg or has_driver_arg or has_device_count_arg):
+        raise ValueError(
+            "Could not select overload. Please, provide at least one argument"
+        )
+    if has_driver_arg != has_device_count_arg:
+        raise ValueError("driver and device_count args must be provided simultaneously")
+    if has_device_arg and (has_driver_arg or has_device_count_arg):
+        raise ValueError(
+            "device arg is mutually exclusive with driver and device_count args"
+        )
+
+    if has_device_arg:
+        return [iree.runtime.get_device(device, cache=False)]
+
     if "IREE_DEVICE" in os.environ:
         device_uris = [d.strip() for d in os.environ["IREE_DEVICE"].split(",")]
         driver_names = [n.split("://")[0] for n in device_uris]
