@@ -15,12 +15,8 @@ import uvicorn.logging
 from shortfin import ProgramIsolation
 import uvicorn
 
-from . import lifecycle_hooks
 from .application import get_app
-from .components.config_struct import ModelParams, ServerParams
-from .components.manager import SystemManager
-from .components.service import GenerateService
-from .components.tokenizer import Tokenizer
+from .components.lifecycle import ShortfinLlmLifecycleManager
 
 
 logger = logging.getLogger(__name__)
@@ -51,50 +47,6 @@ UVICORN_LOG_CONFIG = {
         },
     },
 }
-
-
-def get_eos_from_tokenizer_config(json_path):
-    import json
-
-    with open(json_path, "rt") as f:
-        json_text = f.read()
-    config = json.loads(json_text)
-    return config["eos_token"]
-
-
-def configure(args) -> SystemManager:
-    # Load server configuration with priority: command line > config file > defaults
-    server_params = ServerParams.load(
-        args.server_config if hasattr(args, "server_config") else None
-    )
-    server_params.update_from_args(args)
-
-    # Setup system (configure devices, etc).
-    sysman = SystemManager(
-        device=args.device,
-        device_ids=server_params.device_ids,
-        async_allocs=server_params.amdgpu_async_allocations,
-        amdgpu_allocators=server_params.amdgpu_allocators,
-    )
-
-    # Setup each service we are hosting.
-    eos_token = get_eos_from_tokenizer_config(args.tokenizer_config_json)
-    tokenizer = Tokenizer.from_tokenizer_json_file(
-        args.tokenizer_json, eos_token=eos_token
-    )
-    model_params = ModelParams.load_json(args.model_config)
-    sm = GenerateService(
-        name="default",
-        sysman=sysman,
-        tokenizer=tokenizer,
-        model_params=model_params,
-        server_params=server_params,
-        program_isolation=server_params.program_isolation,
-    )
-    sm.load_inference_module(args.vmfb)
-    sm.load_inference_parameters(*args.parameters, parameter_scope="model")
-    lifecycle_hooks.services[sm.name] = sm
-    return sysman
 
 
 def main(argv, log_config=uvicorn.config.LOGGING_CONFIG):
@@ -194,10 +146,11 @@ def main(argv, log_config=uvicorn.config.LOGGING_CONFIG):
             args.tokenizer_json.stem + "_config.json"
         )
         args.tokenizer_config_json = inferred_tokenizer_config_path
-    lifecycle_hooks.sysman = configure(args)
+
+    lifecycle_manager = ShortfinLlmLifecycleManager(args)
 
     uvicorn.run(
-        get_app(),
+        get_app(lifecycle_manager.fastapi_lifespan),
         host=args.host,
         port=args.port,
         log_config=log_config,

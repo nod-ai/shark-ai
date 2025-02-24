@@ -16,6 +16,7 @@
 #include "shortfin/local/async.h"
 #include "shortfin/local/device.h"
 #include "shortfin/local/program_interfaces.h"
+#include "shortfin/local/scheduler.h"
 #include "shortfin/local/worker.h"
 #include "shortfin/support/api.h"
 #include "shortfin/support/iree_helpers.h"
@@ -110,14 +111,12 @@ class SHORTFIN_API ProgramInvocation {
   // thusly are satisfied.
   void wait_insert(iree_hal_semaphore_list_t sem_list);
 
-  // Adds a marshalable argument with a configurable concurrency barrier.
-  void AddArg(ProgramInvocationMarshalable &marshalable,
-              ProgramResourceBarrier barrier = ProgramResourceBarrier::READ);
-
   // Adds a ref object argument. This low level interface directly adds a
   // reference object and does not manipulate any execution barriers.
-  void AddArg(iree::vm_opaque_ref ref);  // Moves a reference in.
-  void AddArg(iree_vm_ref_t *ref);       // Borrows the reference.
+  void AddArg(iree::vm_opaque_ref ref,
+              detail::TimelineResource *resource);  // Moves a reference in.
+  void AddArg(iree_vm_ref_t *ref,
+              detail::TimelineResource *resource);  // Borrows the reference.
 
   // Transfers ownership of an invocation and schedules it on worker, returning
   // a future that will resolve to the owned invocation upon completion.
@@ -198,6 +197,7 @@ class SHORTFIN_API ProgramInvocation {
   iree::vm_context_ptr vm_context_;
   detail::ProgramIsolate *isolate_;
   iree_vm_list_t *result_list_ = nullptr;
+  detail::TimelineResource **arg_resources_ = nullptr;
   std::optional<Future> future_;
   iree::hal_fence_ptr wait_fence_;
   iree_hal_semaphore_t *signal_sem_ = nullptr;
@@ -398,6 +398,59 @@ class SHORTFIN_API StaticProgramParameters : public BaseProgramParameters {
   iree::io_parameter_index_ptr index_;
 
   void LoadMmap(std::filesystem::path file_path, LoadOptions options);
+};
+
+// Handles importing a batch of VM reference types and creating a
+// TimelineResource that can be used to anchor their use and deallocation.
+// This is intended to be a stack allocated instance used as part of a loop for
+// transforming things like a list of function results.
+//
+// The transformation must be performed in two steps, first by visiting every
+// ref and unwinding it to its root iree_hal_buffer_t allocation. Then every
+// direct child allocation of this buffer is counted. If the reference count
+// of the root buffer == the ref count of all children we can observe, then
+// we can claim that the root allocation is uniquely owned by us (the receiver).
+// This allows us to make certain claims/optimizations against its timeline.
+// Otherwise, if the providence cannot be established, we must treat its
+// lifetime conservatively.
+//
+// Every uniquely owned root buffer will have a new timeline resource created
+// for it created with an async destructor, and all of its child buffers will
+// share this resource.
+//
+// Note that this class could be optimized with a small object optimization and
+// avoid accounting allocations, but this is left for a future upgrade.
+class SHORTFIN_API CoarseInvocationTimelineImporter {
+ public:
+  struct Options {
+    // Assumes that the invocation results cannot alias buffers that are
+    // otherwise owned and can be assumed to be uniquely allocated for the
+    // caller. It is possible to compile programs that violate this, and this
+    // makes certain runtime optimizations impossible. We will restrict this
+    // in the compiler's calling convention at a certain point so that someone
+    // cannot accidentally do this.
+    bool assume_no_alias = true;
+  };
+  CoarseInvocationTimelineImporter(ProgramInvocation *inv, Options &options);
+
+  // Access timeline resources for a buffer.
+  detail::TimelineResource::Ref ImportTimelineResource(
+      iree_hal_buffer_t *user_buffer);
+
+ private:
+  void CatalogInternal(iree_hal_buffer_t *user_buffer, bool from_buffer_view);
+  void FinalizeCatalog();
+  struct allocated_buffer_record {
+    size_t primordial_ref_count = 0;
+    size_t observed_ref_count = 0;
+    // For root buffers, the timeline resource.
+    detail::TimelineResource::Ref timeline_resource;
+  };
+
+  ProgramInvocation *inv_;
+  Options options_;
+  std::unordered_map<iree_hal_buffer_t *, allocated_buffer_record>
+      allocated_buffers_;
 };
 
 namespace detail {

@@ -1,0 +1,59 @@
+# Copyright 2025 Advanced Micro Devices, Inc.
+#
+# Licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+name: 'Package CI Setup'
+description: 'Sets up Python environment, install dependencies, and install pkgci artifacts'
+
+inputs:
+  python-version:
+    description: 'Python version to use'
+    required: true
+  artifact-run-id:
+    description: 'Id for a workflow run that produced dev packages'
+    required: false
+    default: ''
+
+runs:
+  using: "composite"
+  steps:
+    - name: "Setting up Python"
+      id: setup_python
+      uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Setup UV caching
+      shell: bash
+      run: |
+        CACHE_DIR="${GITHUB_WORKSPACE}/.uv-cache"
+        echo "UV_CACHE_DIR=${CACHE_DIR}" >> $GITHUB_ENV
+        mkdir -p "${CACHE_DIR}"
+
+    - name: Cache UV packages
+      uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+      with:
+        path: .uv-cache
+        key: ${{ runner.os }}-uv-py${{ inputs.python-version }}-${{ hashFiles('requirements-iree-pinned.txt', 'pytorch-cpu-requirements.txt', 'sharktank/requirements.txt', 'sharktank/requirements-tests.txt', 'shortfin/requirements-tests.txt') }}
+
+    - name: Download package artifacts
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+      with:
+        pattern: snapshot-*-linux-x86_64-*
+        path: ${{ github.workspace }}/.packages
+        merge-multiple: true
+
+    - name: Setup venv
+      shell: bash
+      run: |
+        ./build_tools/pkgci/setup_venv.py ${GITHUB_WORKSPACE}/.venv \
+          --artifact-path=${GITHUB_WORKSPACE}/.packages \
+          --fetch-gh-workflow=${{ inputs.artifact-run-id }}
+
+    - name: Install pinned IREE packages
+      shell: bash
+      run: |
+        source ${GITHUB_WORKSPACE}/.venv/bin/activate
+        uv pip install -r requirements-iree-pinned.txt

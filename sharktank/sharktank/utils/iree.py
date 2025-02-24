@@ -128,7 +128,7 @@ def torch_tensor_to_device_array(
     if tensor.dtype == torch.bfloat16:
         tensor_as_int16 = tensor.view(dtype=torch.int16)
         device_array_as_int16 = iree.runtime.asdevicearray(
-            device, unbox_tensor(tensor_as_int16).to("cpu").numpy()
+            device, unbox_tensor(tensor_as_int16).to("cpu").detach().numpy()
         )
         buffer_view = iree.runtime.HalBufferView(
             buffer=device_array_as_int16._buffer_view.get_buffer(),
@@ -137,7 +137,9 @@ def torch_tensor_to_device_array(
         )
         return iree.runtime.DeviceArray(device, buffer_view)
 
-    return iree.runtime.asdevicearray(device, unbox_tensor(tensor).to("cpu").numpy())
+    return iree.runtime.asdevicearray(
+        device, unbox_tensor(tensor).to("cpu").detach().numpy()
+    )
 
 
 def run_iree_module_function(
@@ -162,7 +164,7 @@ def run_iree_module_function(
         for i, arg in enumerate(args):
             np.save(
                 f"{trace_path_prefix}{function_name}_arg{i}.npy",
-                promote_bfloat16_to_float32(device_array_to_host(arg)).numpy(),
+                promote_bfloat16_to_float32(device_array_to_host(arg)).detach().numpy(),
             )
     results = invoker(*args)
     if isinstance(results, iree.runtime.DeviceArray):
@@ -172,12 +174,12 @@ def run_iree_module_function(
         for i, arg in enumerate(args):
             np.save(
                 f"{trace_path_prefix}{function_name}_arg{i}_post_call.npy",
-                device_array_to_host(arg).numpy(),
+                device_array_to_host(arg).detach().numpy(),
             )
         for i, arg in enumerate(results):
             np.save(
                 f"{trace_path_prefix}{function_name}_result{i}.npy",
-                promote_bfloat16_to_float32(device_array_to_host(arg)).numpy(),
+                promote_bfloat16_to_float32(device_array_to_host(arg)).detach().numpy(),
             )
     return results
 
@@ -233,7 +235,7 @@ def call_torch_module_function(
         for i, arg in enumerate(flat_args):
             np.save(
                 f"{trace_path_prefix}{function_name}_arg{i}.npy",
-                promote_bfloat16_to_float32(arg.to("cpu")).numpy(),
+                promote_bfloat16_to_float32(arg.to("cpu")).detach().numpy(),
             )
     res = getattr(module, function_name)(*args, **kwargs)
     if trace_path_prefix is not None:
@@ -241,7 +243,7 @@ def call_torch_module_function(
         for i, arg in enumerate(flat_args):
             np.save(
                 f"{trace_path_prefix}{function_name}_arg{i}.npy",
-                promote_bfloat16_to_float32(arg.to("cpu")).numpy(),
+                promote_bfloat16_to_float32(arg.to("cpu")).detach().numpy(),
             )
         results = (
             (res,)
@@ -258,7 +260,7 @@ def call_torch_module_function(
         for i, result in enumerate(flat_results):
             np.save(
                 f"{trace_path_prefix}{function_name}_result{i}.npy",
-                result.to("cpu").numpy(),
+                result.to("cpu").detach().numpy(),
             )
     return res
 

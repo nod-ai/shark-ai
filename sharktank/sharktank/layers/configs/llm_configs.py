@@ -14,11 +14,13 @@ When in question, we draw from the vocabulary and normalization they have done
 (and indeed, can bootstrap these off of GGUF files).
 """
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from typing import Any, Optional
 import torch
+from transformers import T5Config as T5ConfigHf
 
 from ...types.tensors import serialized_name_to_dtype, dtype_to_serialized_name
+
 
 __all__ = ["ClipTextConfig", "LlamaHParams", "LlamaModelConfig", "T5Config"]
 
@@ -158,6 +160,9 @@ class LlamaModelConfig:
     # Either "paged" or "direct".
     kv_cache_type: str = "paged"
 
+    # If None will use attention_dtype.
+    kv_cache_dtype: Optional[torch.dtype] = None
+
     # The device on which to place intermediate state.
     device: Optional[torch.device] = None
 
@@ -231,52 +236,40 @@ class T5Config:
             self.dense_act_fn = "gelu_new"
 
     @staticmethod
-    def from_gguf_properties(properties: dict[str, Any], **kwargs):
-        assert properties["general.architecture"] == "t5"
-        assert (
-            properties["t5.attention.layer_norm_epsilon"]
-            == properties["t5.attention.layer_norm_rms_epsilon"]
-        )
-
-        all_kwargs = {"vocab_size": None, "feed_forward_proj": None}
-
-        gguf_to_config_names_map = {
-            "t5.context_length": ["context_length"],
-            "t5.embedding_length": ["d_model"],
-            "t5.feed_forward_length": ["d_ff"],
-            "t5.block_count": ["num_layers", "num_decoder_layers"],
-            "t5.attention.head_count": ["num_heads"],
-            "t5.attention.key_length": ["d_kv"],
-            "t5.attention.layer_norm_epsilon": ["layer_norm_epsilon"],
-            "t5.attention.relative_buckets_count": ["relative_attention_num_buckets"],
-            "tokenizer.ggml.eos_token_id": ["eos_token_id"],
-            "tokenizer.ggml.padding_token_id": ["pad_token_id"],
-        }
-        all_kwargs.update(
-            {
-                config_name: properties[gguf_name]
-                for gguf_name, config_names in gguf_to_config_names_map.items()
-                for config_name in config_names
-            }
-        )
-
-        gguf_to_optional_config_names_map = {
-            "t5.decoder_start_token_id": ["decoder_start_token_id"],
-        }
-        all_kwargs.update(
-            {
-                config_name: properties[gguf_name]
-                for gguf_name, config_names in gguf_to_optional_config_names_map.items()
-                for config_name in config_names
-                if gguf_name in properties
-            }
-        )
-
-        if "tokenizer.ggml.tokens" in properties:
-            all_kwargs["vocab_size"] = len(properties["tokenizer.ggml.tokens"])
+    def from_hugging_face_config(
+        config: T5ConfigHf, tokenizer_config: dict[str, Any], **kwargs
+    ) -> "T5Config":
+        all_kwargs = {}
+        for filed in fields(T5Config):
+            if hasattr(config, filed.name):
+                all_kwargs[filed.name] = getattr(config, filed.name)
+        all_kwargs["context_length"] = tokenizer_config["model_max_length"]
+        del all_kwargs["is_gated_act"]
+        del all_kwargs["dense_act_fn"]
         all_kwargs.update(kwargs)
-
         return T5Config(**all_kwargs)
+
+    @staticmethod
+    def from_properties(properties: dict[str, Any]) -> "T5Config":
+        kwargs = dict(properties)
+        if "SHARK_DATASET_VERSION" in kwargs:
+            kwargs.pop("SHARK_DATASET_VERSION")
+        if "activation_dtype" in kwargs and kwargs["activation_dtype"] is not None:
+            kwargs["activation_dtype"] = serialized_name_to_dtype(
+                kwargs["activation_dtype"]
+            )
+        if "is_gated_act" in kwargs:
+            kwargs.pop("is_gated_act")
+        if "dense_act_fn" in kwargs:
+            kwargs.pop("dense_act_fn")
+
+        return T5Config(**kwargs)
+
+    def to_properties(self) -> dict[str, Any]:
+        res = asdict(self)
+        if self.activation_dtype is not None:
+            res["activation_dtype"] = dtype_to_serialized_name(self.activation_dtype)
+        return res
 
 
 @dataclass
@@ -336,7 +329,8 @@ class ClipTextConfig:
     @staticmethod
     def from_properties(properties: dict[str, Any]) -> "ClipTextConfig":
         kwargs = dict(properties)
-        kwargs.pop("SHARK_DATASET_VERSION")
+        if "SHARK_DATASET_VERSION" in kwargs:
+            kwargs.pop("SHARK_DATASET_VERSION")
         if "dtype" in kwargs and kwargs["dtype"] is not None:
             kwargs["dtype"] = serialized_name_to_dtype(kwargs["dtype"])
 

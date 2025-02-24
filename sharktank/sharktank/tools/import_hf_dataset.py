@@ -52,7 +52,9 @@ def import_hf_dataset(
     for params_path in param_paths:
         with safetensors.safe_open(params_path, framework="pt", device="cpu") as st:
             tensors += [
-                DefaultPrimitiveTensor(name=name, data=st.get_tensor(name))
+                DefaultPrimitiveTensor(
+                    name=name, data=st.get_tensor(name).to(target_dtype)
+                )
                 for name in st.keys()
             ]
 

@@ -277,7 +277,7 @@ class VaeFluxDecoderTest(TempDirTestBase):
         model_f32 = VaeDecoderModel.from_dataset(ds_f32).to(device="cpu")
 
         # TODO: Decomposing attention due to https://github.com/iree-org/iree/issues/19286, remove once issue is resolved
-        module = export_vae(model, inputs, True)
+        module = export_vae(model, inputs.to(dtype=dtype), True)
         module_f32 = export_vae(model_f32, inputs, True)
 
         module.save_mlir("{self._temp_dir}/flux_vae_bf16.mlir")
@@ -317,7 +317,7 @@ class VaeFluxDecoderTest(TempDirTestBase):
             parameters_path="{self._temp_dir}/flux_vae_bf16.irpa",
         )
 
-        input_args = OrderedDict([("inputs", inputs)])
+        input_args = OrderedDict([("inputs", inputs.to(dtype=dtype))])
         iree_args = flatten_for_iree_signature(input_args)
 
         iree_args = prepare_iree_module_function_args(

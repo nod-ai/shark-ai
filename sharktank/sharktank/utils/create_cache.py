@@ -12,6 +12,7 @@ def create_paged_kv_cache(config: LlamaModelConfig) -> PagedKVCache:
         raise ValueError("Model does not use paged kv cache, cannot create kv cache")
 
     hp = config.hp
+    dtype = config.kv_cache_dtype or config.attention_dtype
     return PagedKVCache(
         transformer_block_count=hp.block_count,
         attn_head_count=hp.attention_head_count_kv,
@@ -19,6 +20,6 @@ def create_paged_kv_cache(config: LlamaModelConfig) -> PagedKVCache:
         cache_partition_count=2,  # One for each of K/V.
         block_seq_stride=config.block_seq_stride,
         device=config.device,
-        dtype=config.attention_dtype,
+        dtype=dtype,
         shard_count=config.tensor_parallelism_size,
     )
