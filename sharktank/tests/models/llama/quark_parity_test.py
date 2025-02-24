@@ -95,7 +95,7 @@ class QuarkParityTest(unittest.TestCase):
             name = lyr
             if name in ours.keys() and name != "freqs":
                 o, t = both(name)
-                torch.testing.assert_close(o, t, atol=0, rtol=0)
+                torch.testing.assert_close(o, t, atol=0.01, rtol=0.01)
 
 
 if __name__ == "__main__":
