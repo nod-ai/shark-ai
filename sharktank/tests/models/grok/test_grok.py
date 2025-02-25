@@ -48,4 +48,4 @@ def test_grok():
     logits = logits[0, :-1].to(torch.float32).cpu()
     cross_entropy = torch.nn.functional.cross_entropy(logits, ids)
     # Unknown why but this does not reproduce on the buildbots
-    # assert pytest.approx(1.8994, 1e-2) == cross_entropy
+    # assert pytest.approx(2.0267, 1e-2) == cross_entropy
