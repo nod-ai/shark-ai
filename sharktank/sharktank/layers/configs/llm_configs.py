@@ -70,7 +70,7 @@ class LlamaHParams:
             p, f"{name_prefix}.rope.dimension_count", default_rope_dimension_count
         )
 
-        attention_softcap = 30.0 if self.model_arch == "grok" else None
+        attention_softcap = 30.0 if name_prefix == "grok" else None
 
         return LlamaHParams(
             model_arch=name_prefix,
