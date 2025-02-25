@@ -126,7 +126,7 @@ class Perplexity_torch:
             use_hf=self.use_hf,
             fake_quant=self.fake_quant,
         )
-        
+
         if self.config.tensor_parallelism_size > 1:
             dataset.root_theta = shard_theta(dataset.root_theta, self.config)
 
@@ -322,7 +322,7 @@ def run_perplexity_torch(
         fake_quant=fake_quant,
         use_hf=use_hf,
     )
-    
+
     perplexity.get_prompts(num_prompts=num_prompts)
     perplexity.load_model(dataset, tokenizer, tensor_parallelism_size, attention_kernel)
     ppl = perplexity.get_perplexity()
@@ -352,13 +352,13 @@ def main(argv):
     cli.add_input_dataset_options(parser)
     cli.add_tokenizer_options(parser)
     cli.add_quantization_options(parser)
-    
+
     args = cli.parse(parser, args=argv)
 
     device = torch.device(args.device) if args.device else None
     dataset = cli.get_input_dataset(args)
     tokenizer = cli.get_tokenizer(args)
-    
+
     # Override flag if dataset disagrees
     tensor_parallelism_size = (
         dataset.properties["tensor_parallelism_size"]
@@ -375,7 +375,7 @@ def main(argv):
         num_prompts=args.num_prompts,
         attention_dtype=args.attention_dtype,
         activation_dtype=args.activation_dtype,
-        kv_cache_dtype=args.kv_cache_dtype, 
+        kv_cache_dtype=args.kv_cache_dtype,
         use_hf=args.use_hf,
         fake_quant=args.fake_quant,
     )

@@ -193,7 +193,7 @@ class ExportArtifacts:
             f"--attention-dtype={self.attention_dtype}",
             f"--activation-dtype={self.activation_dtype}",
         ]
-        
+
         if self.kv_cache_dtype is not None:
             export_args.append(f"--kv-cache-dtype={self.kv_cache_dtype}")
         if skip_decode:
@@ -333,8 +333,11 @@ class ExportArtifacts:
         return file_path
 
     def get_artifacts(self):
-        
-        assert self.attention_kernel in ["decomposed", "torch"], "Only torch or decomposed attention_kernel types are supported"
+
+        assert self.attention_kernel in [
+            "decomposed",
+            "torch",
+        ], "Only torch or decomposed attention_kernel types are supported"
 
         self.dir_path = self.sharktank_dir + "/" + "perplexity_ci_artifacts/"
         temp_dir = Path(self.dir_path)
@@ -365,5 +368,5 @@ class ExportArtifacts:
             vmfb_path=vmfb_path,
             cwd=self.sharktank_dir,
         )
-        
+
         return vmfb_path
