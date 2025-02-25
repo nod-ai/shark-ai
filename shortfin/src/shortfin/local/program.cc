@@ -314,9 +314,17 @@ void ProgramInvocation::Deleter::operator()(ProgramInvocation *inst) {
   // Trailing arg list and result list. The arg list pointer is only available
   // at construction, so we use the knowledge that it is stored right after
   // the object. The result_list_ is available for the life of the invocation.
-  iree_vm_list_deinitialize(static_cast<iree_vm_list_t *>(
-      static_cast<void *>(memory + sizeof(ProgramInvocation))));
+  auto *arg_list = static_cast<iree_vm_list_t *>(
+      static_cast<void *>(memory + sizeof(ProgramInvocation)));
+  iree_host_size_t arg_size = iree_vm_list_size(arg_list);
+
+  iree_vm_list_deinitialize(arg_list);
   iree_vm_list_deinitialize(inst->result_list_);
+
+  // Release any arg resource references.
+  for (iree_host_size_t i = 0; i < arg_size; ++i) {
+    if (inst->arg_resources_[i]) inst->arg_resources_[i]->Release();
+  }
 
   // Was allocated in New as a uint8_t[] so delete it by whence it came.
   delete[] memory;
@@ -352,14 +360,15 @@ ProgramInvocation::Ptr ProgramInvocation::New(
       iree_vm_list_storage_size(&variant_type_def, arg_count);
   iree_host_size_t result_storage_size =
       iree_vm_list_storage_size(&variant_type_def, result_count);
+  iree_host_size_t arg_resource_size =
+      sizeof(detail::TimelineResource *) * arg_count;
 
   // Allocate storage for the ProgramInvocation, arg, result list and placement
   // new the ProgramInvocation into the storage area.
   std::unique_ptr<uint8_t[]> inst_storage(
       new uint8_t[sizeof(ProgramInvocation) + arg_storage_size +
-                  result_storage_size]);
+                  result_storage_size + arg_resource_size]);
   new (inst_storage.get()) ProgramInvocation();
-
   // Initialize trailing lists. Abort on failure since this is a bug and we
   // would otherwise leak.
   iree_vm_list_t *arg_list;
@@ -374,6 +383,10 @@ ProgramInvocation::Ptr ProgramInvocation::New(
        .data_length = result_storage_size},
       &variant_type_def, result_count, &result_list));
 
+  uint8_t *arg_resource_ptr = inst_storage.get() + sizeof(ProgramInvocation) +
+                              arg_storage_size + result_storage_size;
+  std::memset(arg_resource_ptr, 0, arg_resource_size);
+
   Ptr inst(static_cast<ProgramInvocation *>(
                static_cast<void *>(inst_storage.release())),
            Deleter());
@@ -383,6 +396,8 @@ ProgramInvocation::Ptr ProgramInvocation::New(
   inst->state.params.function = vm_function;
   inst->state.params.invocation_model = invocation_model;
   inst->result_list_ = result_list;
+  inst->arg_resources_ = static_cast<detail::TimelineResource **>(
+      static_cast<void *>(arg_resource_ptr));
   return inst;
 }
 
@@ -392,14 +407,26 @@ void ProgramInvocation::CheckNotScheduled() {
   }
 }
 
-void ProgramInvocation::AddArg(iree::vm_opaque_ref ref) {
+void ProgramInvocation::AddArg(iree::vm_opaque_ref ref,
+                               detail::TimelineResource *resource) {
   CheckNotScheduled();
+  iree_host_size_t arg_index = iree_vm_list_size(arg_list());
   SHORTFIN_THROW_IF_ERROR(iree_vm_list_push_ref_move(arg_list(), &ref));
+  if (resource) {
+    arg_resources_[arg_index] = resource;
+    resource->Retain();
+  }
 }
 
-void ProgramInvocation::AddArg(iree_vm_ref_t *ref) {
+void ProgramInvocation::AddArg(iree_vm_ref_t *ref,
+                               detail::TimelineResource *resource) {
   CheckNotScheduled();
+  iree_host_size_t arg_index = iree_vm_list_size(arg_list());
   SHORTFIN_THROW_IF_ERROR(iree_vm_list_push_ref_retain(arg_list(), ref));
+  if (resource) {
+    arg_resources_[arg_index] = resource;
+    resource->Retain();
+  }
 }
 
 iree_status_t ProgramInvocation::FinalizeCallingConvention(
@@ -423,6 +450,15 @@ iree_status_t ProgramInvocation::FinalizeCallingConvention(
           iree_hal_fence_insert(maybe_wait_fence, timeline_sem, timeline_now));
       signal_sem_ = sched_account.timeline_sem();
       signal_timepoint_ = sched_account.timeline_acquire_timepoint();
+
+      // Extend any arg resources to our signal timepoint.
+      iree_host_size_t arg_count = iree_vm_list_size(arg_list);
+      for (iree_host_size_t i = 0; i < arg_count; ++i) {
+        detail::TimelineResource *resource = arg_resources_[i];
+        if (resource) {
+          resource->use_barrier_insert(signal_sem_, signal_timepoint_);
+        }
+      }
     }
 
     // Push wait fence (or null if no wait needed).
@@ -681,6 +717,148 @@ void StaticProgramParameters::LoadMmap(std::filesystem::path file_path,
   SHORTFIN_THROW_IF_ERROR(iree_io_parse_file_index(
       to_iree_string_view(options.format), file_handle.get(), index_.get(),
       host_allocator_));
+}
+
+// -------------------------------------------------------------------------- //
+// CoarseInvocationTimelineImporter
+// -------------------------------------------------------------------------- //
+
+CoarseInvocationTimelineImporter::CoarseInvocationTimelineImporter(
+    ProgramInvocation *inv, Options &options)
+    : inv_(inv), options_(options) {
+  SHORTFIN_TRACE_SCOPE_NAMED("CoarseInvocationTimelineImporter");
+  auto buffer_type = iree_hal_buffer_type();
+  auto buffer_view_type = iree_hal_buffer_view_type();
+  for (iree_host_size_t i = 0; i < inv->results_size(); ++i) {
+    auto ref = inv->result_ref(i);
+    auto type = ref.get()->type;
+    if (type == buffer_type) {
+      iree_hal_buffer_t *buffer = iree_hal_buffer_deref(*ref.get());
+      CatalogInternal(buffer, false);
+    } else if (type == buffer_view_type) {
+      iree_hal_buffer_view_t *bv = iree_hal_buffer_view_deref(*ref.get());
+      iree_hal_buffer_t *buffer = iree_hal_buffer_view_buffer(bv);
+      CatalogInternal(buffer, true);
+    }
+  }
+  FinalizeCatalog();
+}
+
+void CoarseInvocationTimelineImporter::CatalogInternal(
+    iree_hal_buffer_t *user_buffer, bool from_buffer_view) {
+  SHORTFIN_TRACE_SCOPE_NAMED("CoarseInvocationTimelineImporter::Catalog");
+  iree_hal_buffer_t *allocated_buffer =
+      iree_hal_buffer_allocated_buffer(user_buffer);
+  allocated_buffer_record &record = allocated_buffers_[allocated_buffer];
+  // NOTE: Refcnt snooping is a sordid affair, but we believe is ok in this
+  // very specific case. This is because we are holding the DAG of live uses
+  // that we care about and this entire mechanism activates an optimization if
+  // the number of references in our DAG accounts for *all* outstanding
+  // references to the backing allocation. If this allocation was off somewhere
+  // else having its reference count bumped, that could only invalidate the
+  // optimization vs cause a logic issue.
+  if (record.primordial_ref_count == 0) {
+    // Only do the atomic read if not yet initialized.
+    record.primordial_ref_count =
+        iree_atomic_ref_count_load(&allocated_buffer->resource.ref_count);
+    // The reference we are holding.
+    record.observed_ref_count = 1;
+  }
+  if (allocated_buffer != user_buffer) {
+    // It is a child buffer that contributes to the observed number of
+    // references.
+    record.observed_ref_count += from_buffer_view ? 2 : 1;
+  } else if (from_buffer_view) {
+    // It is a reference to the root allocation, which is from a buffer view.
+    record.observed_ref_count += 1;
+  }
+}
+
+void CoarseInvocationTimelineImporter::FinalizeCatalog() {
+  for (auto &it : allocated_buffers_) {
+    iree_hal_buffer_t *allocated_buffer = it.first;
+    allocated_buffer_record &record = it.second;
+
+    // We can only track for asynchronous dealloc if uniquely owned and
+    // transferred to us.
+    if (record.primordial_ref_count != record.observed_ref_count) {
+      if (options_.assume_no_alias) {
+        SHORTFIN_SCHED_LOG(
+            "  : Async dealloc override: not unique but assume_no_alias ({} vs "
+            "{})",
+            record.primordial_ref_count, record.observed_ref_count);
+      } else {
+        SHORTFIN_SCHED_LOG(
+            "  : Synchronous dealloc: Not uniquely owned ({} vs {})",
+            record.primordial_ref_count, record.observed_ref_count);
+        continue;
+      }
+    }
+
+    // See iree_hal_buffer_placement_t documentation for criteria to satisfy
+    // tracking for async deallocation.
+    auto placement = iree_hal_buffer_allocation_placement(allocated_buffer);
+    iree_hal_device_t *schedule_device =
+        inv_->device_selection().device()->hal_device();
+    auto schedule_affinity = inv_->device_selection().queue_affinity();
+    if (!(placement.flags & IREE_HAL_BUFFER_PLACEMENT_FLAG_ASYNCHRONOUS)) {
+      // Not an async allocation: disable optimization by ignoring this
+      // entirely.
+      SHORTFIN_SCHED_LOG(
+          "  : Synchronous dealloc: Buffer not async allocated ({:x})",
+          placement.flags);
+      continue;
+    }
+    if (placement.device != schedule_device) {
+      // Placed on a device other than our scheduling timeline.
+      SHORTFIN_SCHED_LOG(
+          "  : Synchronous dealloc: Schedule vs placement device mismatch ({} "
+          "vs "
+          "{})",
+          static_cast<void *>(placement.device),
+          static_cast<void *>(schedule_device));
+      continue;
+    }
+    if ((placement.queue_affinity & schedule_affinity) != schedule_affinity) {
+      SHORTFIN_SCHED_LOG(
+          "  : Synchronous dealloc: Schedule affinity not a subset of "
+          "placement "
+          "affinity ({:x} vs {:x})",
+          placement.queue_affinity, schedule_affinity);
+      continue;
+    }
+
+    // All checks passed: Set it up for async deallocation.
+    SHORTFIN_SCHED_LOG(
+        "  : Asynchronous dealloc: Unique, compatible placement");
+    ScopedDevice scoped_device(*inv_->fiber(), inv_->device_selection());
+    auto dtor = detail::TimelineResource::CreateAsyncBufferDestructor(
+        scoped_device,
+        iree::hal_buffer_ptr::borrow_reference(allocated_buffer));
+    record.timeline_resource =
+        inv_->fiber()->NewTimelineResource(std::move(dtor));
+  }
+}
+
+detail::TimelineResource::Ref
+CoarseInvocationTimelineImporter::ImportTimelineResource(
+    iree_hal_buffer_t *user_buffer) {
+  iree_hal_buffer_t *allocated_buffer =
+      iree_hal_buffer_allocated_buffer(user_buffer);
+  auto found_it = allocated_buffers_.find(allocated_buffer);
+  // Fork sync/async to different functions so that the distinction shows up
+  // vividly in traces.
+  if (found_it != allocated_buffers_.end() &&
+      found_it->second.timeline_resource) {
+    SHORTFIN_SCHED_LOG("  : Import async TimelineResource for buffer {}",
+                       static_cast<void *>(user_buffer));
+    return found_it->second.timeline_resource;
+  } else {
+    SHORTFIN_TRACE_SCOPE_NAMED("SyncImportTimelineResource");
+    SHORTFIN_SCHED_LOG("  : Import default/sync TimelineResource for buffer {}",
+                       static_cast<void *>(user_buffer));
+    return inv_->fiber()->NewTimelineResource();
+  }
 }
 
 // -------------------------------------------------------------------------- //

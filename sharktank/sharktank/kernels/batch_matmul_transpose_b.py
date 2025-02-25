@@ -7,16 +7,36 @@
 from sharktank.kernels.base import *
 
 import torch
+from typing import cast, Optional
 
-from iree.compiler.ir import IntegerType
+from iree.compiler.ir import IntegerType, Type
+from iree.turbine.support.conversions import (
+    TORCH_DTYPE_TO_IREE_TYPE_ASM,
+    IREE_TYPE_ASM_TO_TORCH_DTYPE,
+)
+from iree.turbine.runtime.op_reg import AttrArg
 
 __all__ = [
     "batch_matmul_transpose_b",
 ]
 
 
+def batch_matmul_transpose_b(
+    lhs: torch.Tensor,
+    rhs: torch.Tensor,
+    /,
+    *,
+    accum_dtype: Optional[torch.dtype] = None,
+) -> torch.Tensor:
+    if accum_dtype is None:
+        accum_dtype = lhs.dtype
+    return _batch_matmul_transpose_b(
+        lhs, rhs, accum_dtype=TORCH_DTYPE_TO_IREE_TYPE_ASM[accum_dtype]
+    )
+
+
 @CustomOp.register(library=LIBRARY)
-class batch_matmul_transpose_b(CustomOp):
+class _batch_matmul_transpose_b(CustomOp):
     """Generic block scaled matmul with transposed RHS.
 
     The LHS is expected to be a 3d tensor of shape [B, M, K]. RHS must be
@@ -25,11 +45,18 @@ class batch_matmul_transpose_b(CustomOp):
     The kernel will be specialized for all values of N, K and LHS dtype.
     """
 
-    signature = "batch_matmul_transpose_b(Tensor lhs, Tensor rhs) -> (Tensor)"
+    signature = (
+        "batch_matmul_transpose_b(Tensor lhs, Tensor rhs, str accum_dtype) -> (Tensor)"
+    )
+
+    def eager_execute(self, lhs: torch.Tensor, rhs: torch.Tensor, accum_dtype: str):
+        dtype = IREE_TYPE_ASM_TO_TORCH_DTYPE[accum_dtype]
+        return torch.matmul(lhs.to(dtype=dtype), rhs.transpose(-1, -2).to(dtype=dtype))
 
     def select(self, ksel: KernelSelection):
         lhs_desc = ksel.arg_tensor(0)  # Shape [B, M, K]
         rhs_desc = ksel.arg_tensor(1)  # Shape [B, N, K]
+        accum_type_attr = ksel.attr_str(2)
 
         # Rank check.
         torch._check(
@@ -60,7 +87,8 @@ class batch_matmul_transpose_b(CustomOp):
         )
         # Shape batch, m, n
         c_desc = ksel.return_new_tensor(
-            [lhs_batch, lhs_m, rhs_n], dtype=lhs_desc.t.dtype
+            [lhs_batch, lhs_m, rhs_n],
+            dtype=IREE_TYPE_ASM_TO_TORCH_DTYPE[accum_type_attr.v],
         )
         specialize_all_known_dims(lhs_desc)
         specialize_all_known_dims(rhs_desc)
@@ -74,12 +102,14 @@ class batch_matmul_transpose_b(CustomOp):
     def generate(self, ksel: KernelSelection, kb: KernelBuilder):
         lhs = kb.arg_value(0)
         rhs = kb.arg_value(1)
+        accum_type_str = cast(AttrArg, ksel.arg_descs[2]).v
         result_desc = ksel.result_descs[0]
 
         # Generate specialization signature and types.
-        a_asm_type, a_ident, accum_type = unpack_tensor_type(lhs.type)
+        a_asm_type, a_ident, _ = unpack_tensor_type(lhs.type)
         b_asm_type, b_ident, _ = unpack_tensor_type(rhs.type)
-        spec_sig = f"L{a_ident}_R{b_ident}"
+        accum_type = Type.parse(accum_type_str)
+        spec_sig = f"L{a_ident}_R{b_ident}_{accum_type_str}"
         template_file = "batch_matmul_transpose_b.mlir"
         target_function_name = f"sharktank_batch_matmul_transpose_b_{spec_sig}"
         cst_zero = "0" if IntegerType.isinstance(accum_type) else "0."

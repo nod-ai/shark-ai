@@ -44,16 +44,16 @@ def qlinear_tensor_scaled(
     # Now we know that both the x/weight are TensorScaledLayout. There are still
     # degrees of freedom:
     #  * Either/both can be per-tensor or per-axis scaled (d is 0D or d is nd>0).
-    #  * Either/both can have offsets of not (m is not None).
+    #  * Either/both can have offsets or not (m is not None).
     x_layout: TensorScaledLayout = x.unpack()
     weight_layout: TensorScaledLayout = weight.unpack()
 
     # Handle only integer and fp8 quantizations.
     if x_layout.qs.dtype.is_floating_point or weight_layout.qs.dtype.is_floating_point:
-        if x_layout.qs.dtype == torch.float8_e4m3fnuz:
-            # assume quark
-            return matmul(x_layout.qs, weight_layout.qs, transpose_rhs=True)
-        else:
+        if (
+            x_layout.qs.dtype != torch.float8_e4m3fnuz
+            or weight_layout.qs.dtype != torch.float8_e4m3fnuz
+        ):
             return NotImplemented
 
     # Bias.
@@ -160,6 +160,8 @@ def linear_quantized_weight(
     *,
     accum_dtype: Optional[torch.dtype],
 ) -> AnyTensor:
+    if accum_dtype is not None:
+        raise NotImplementedError("TODO: implement when accum_dtype is passed")
     res = matmul(x, weight, transpose_rhs=True)
     if bias is not None:
         res = res + bias
@@ -170,7 +172,13 @@ linear.override(Tensor, QuantizedTensor)(linear_quantized_weight)
 linear.override(Tensor, QuantizedTensor, AnyTensor)(linear_quantized_weight)
 
 
-def _invoke_mmt_kernel(lhs, rhs, *, accum_dtype):
+def _is_dtype_unsigned_integer(dtype: torch.dtype):
+    return not dtype.is_complex and not dtype.is_floating_point and not dtype.is_signed
+
+
+def _invoke_mmt_kernel(
+    lhs: torch.Tensor, rhs: torch.Tensor, *, accum_dtype: torch.dtype
+):
     if debugging.flags.use_custom_iree_kernels:
         # The custom kernel requires that the lhs and rhs be the same
         # rank. Broadcast the rhs to match.
@@ -187,13 +195,17 @@ def _invoke_mmt_kernel(lhs, rhs, *, accum_dtype):
             rhs_size = [lhs.shape[0]] + list(rhs.shape)
             rhs = rhs.unsqueeze(0).expand(rhs_size)
             rhs_rank = len(rhs.shape)
-        y_qs = kernels.batch_matmul_transpose_b(
-            lhs.to(accum_dtype), rhs.to(accum_dtype)
-        )
-        # Squeeze the batch dimension to maintain shape parity with other
-        # layers.
-        if len(y_qs.shape) > 2:
-            y_qs = y_qs.squeeze(0)
+        if (
+            _is_dtype_unsigned_integer(lhs.dtype)
+            or _is_dtype_unsigned_integer(rhs.dtype)
+            or _is_dtype_unsigned_integer(accum_dtype)
+        ):
+            # TODO: make the kernel work with unsigned types.
+            y_qs = kernels.batch_matmul_transpose_b(
+                lhs.to(dtype=accum_dtype), rhs.to(dtype=accum_dtype)
+            )
+        else:
+            y_qs = kernels.batch_matmul_transpose_b(lhs, rhs, accum_dtype=accum_dtype)
     else:
         # FP emulation.
         y_qs = torch.matmul(

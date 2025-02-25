@@ -83,6 +83,7 @@ def main():
         block_seq_stride=args.block_seq_stride,
         activation_dtype=args.activation_dtype,
         attention_dtype=args.attention_dtype,
+        kv_cache_dtype=args.kv_cache_dtype,
     )
     llama_config.fake_quant = args.fake_quant
 
@@ -229,7 +230,7 @@ def main():
                 shard_count = llama_config.tensor_parallelism_size
 
                 tokens = ops.replicate(tokens, count=shard_count)
-                if attention_mask:
+                if attention_mask is not None:
                     attention_mask = ops.replicate(attention_mask, count=shard_count)
                 seq_block_ids = ops.replicate(seq_block_ids, count=shard_count)
                 cache_tensors = repack_cache(cs, cache_shard_dim)

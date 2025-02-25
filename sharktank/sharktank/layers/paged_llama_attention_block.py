@@ -37,6 +37,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         head_dim: int,
         head_count_kv: int,
         rms_epsilon: float,
+        attention_dtype: Optional[torch.dtype] = None,
         attention_kernel: str = "decomposed",
         attention_scale: Optional[float] = None,
         softcap: Optional[float] = None,
@@ -49,6 +50,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self.head_count = head_count
         self.head_dim = head_dim
         self.head_count_kv = head_count_kv
+        self.attention_dtype = attention_dtype
         self.attention_kernel = attention_kernel
         self.attention_scale = attention_scale
         self.softcap = softcap
@@ -161,13 +163,13 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         # Fake quant is already dequantized when stored in the cache.
         if self.cache_quantizer and not self.fake_quant:
             xk = self.cache_quantizer.dequantize_raw_tensor(
-                xk, torch.bfloat16, name="xk_deq"
+                xk, self.attention_dtype, name="xk_deq"
             )
             xv = self.cache_quantizer.dequantize_raw_tensor(
-                xv, torch.bfloat16, name="xv_deq"
+                xv, self.attention_dtype, name="xv_deq"
             )
             if attention_mask is not None:
-                attention_mask = attention_mask.to(torch.bfloat16)
+                attention_mask = attention_mask.to(self.attention_dtype)
 
         # Transpose into [bs, heads, sl, dim]
         xq = xq.transpose(1, 2)

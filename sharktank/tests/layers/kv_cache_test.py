@@ -4,8 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import unittest
-
+import pytest
 import torch
 
 from sharktank.ops import replicate, reshard_split, unshard
@@ -13,7 +12,16 @@ from sharktank.layers import *
 from sharktank.types import *
 
 
-def test_paged():
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        torch.float8_e4m3fnuz,
+        torch.bfloat16,
+        torch.float16,
+        torch.float32,
+    ],
+)
+def test_paged(dtype: torch.dtype):
     bs = 4
     seq_length = 24
     attn_head_count = 4
@@ -25,7 +33,7 @@ def test_paged():
         transformer_block_count=transformer_block_count,
         attn_head_count=attn_head_count,
         attn_head_dim=attn_head_dim,
-        dtype=torch.float32,
+        dtype=dtype,
         device=None,
     )
 
@@ -36,15 +44,18 @@ def test_paged():
     write_page_ids = page_ids[:, : write_seq_length // block_seq_stride]
 
     allocation = cache.allocate(page_count=page_count)
-    allocation = [torch.full(t.shape, 0.0, out=t) for t in allocation]
+    for t in allocation:
+        t[...] = torch.full(t.shape, 0.0).to(dtype=dtype)
 
     # Write a prefill in:
     write_ones = torch.full(
-        (bs, write_seq_length, attn_head_count, attn_head_dim), 1.0, dtype=torch.float32
-    )
+        (bs, write_seq_length, attn_head_count, attn_head_dim),
+        1.0,
+    ).to(dtype=dtype)
     write_twos = torch.full(
-        (bs, write_seq_length, attn_head_count, attn_head_dim), 2.0, dtype=torch.float32
-    )
+        (bs, write_seq_length, attn_head_count, attn_head_dim),
+        2.0,
+    ).to(dtype=dtype)
 
     cache.write(
         allocation,
@@ -72,15 +83,19 @@ def test_paged():
             seq_len=write_seq_length,
             page_ids=write_page_ids,
         )
-        torch.testing.assert_close(read_ones[0], torch.full(read_ones[0].shape, 0.0))
-        torch.testing.assert_close(read_ones[1], torch.full(read_ones[0].shape, 0.0))
+        torch.testing.assert_close(
+            read_ones[0], torch.full(read_ones[0].shape, 0.0).to(dtype=dtype)
+        )
+        torch.testing.assert_close(
+            read_ones[1], torch.full(read_ones[0].shape, 0.0).to(dtype=dtype)
+        )
 
     # Write timestep
-    write_threes = torch.full(
-        (bs, 1, attn_head_count, attn_head_dim), 3.0, dtype=torch.float32
+    write_threes = torch.full((bs, 1, attn_head_count, attn_head_dim), 3.0).to(
+        dtype=dtype
     )
-    write_fours = torch.full(
-        (bs, 1, attn_head_count, attn_head_dim), 4.0, dtype=torch.float32
+    write_fours = torch.full((bs, 1, attn_head_count, attn_head_dim), 4.0).to(
+        dtype=dtype
     )
     write_pos = torch.full((bs,), write_seq_length, dtype=torch.int64)
     cache.write_timestep(
@@ -98,8 +113,16 @@ def test_paged():
         page_ids=page_ids,
     )
 
-    check_concat_0 = torch.concat([write_ones, write_threes], dim=1)
-    check_concat_1 = torch.concat([write_twos, write_fours], dim=1)
+    if dtype == torch.float8_e4m3fnuz:
+        check_concat_0 = torch.concat(
+            [write_ones.view(torch.int8), write_threes.view(torch.int8)], dim=1
+        ).view(torch.float8_e4m3fnuz)
+        check_concat_1 = torch.concat(
+            [write_twos.view(torch.int8), write_fours.view(torch.int8)], dim=1
+        ).view(torch.float8_e4m3fnuz)
+    else:
+        check_concat_0 = torch.concat([write_ones, write_threes], dim=1)
+        check_concat_1 = torch.concat([write_twos, write_fours], dim=1)
 
     torch.testing.assert_close(check_concat_0, read_back[0])
     torch.testing.assert_close(check_concat_1, read_back[1])

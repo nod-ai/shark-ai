@@ -109,7 +109,7 @@ void device_array::AddAsInvocationArgument(
 
   iree::vm_opaque_ref ref;
   *(&ref) = iree_hal_buffer_view_move_ref(buffer_view);
-  inv->AddArg(std::move(ref));
+  inv->AddArg(std::move(ref), storage().timeline_resource_.get());
 
   storage().AddInvocationArgBarrier(inv, barrier);
 }
@@ -119,7 +119,9 @@ iree_vm_ref_type_t device_array::invocation_marshalable_type() {
 }
 
 device_array device_array::CreateFromInvocationResultRef(
-    local::ProgramInvocation *inv, iree::vm_opaque_ref ref) {
+    local::ProgramInvocation *inv,
+    local::CoarseInvocationTimelineImporter *timeline_importer,
+    iree::vm_opaque_ref ref) {
   SHORTFIN_TRACE_SCOPE_NAMED("PyDeviceArray::CreateFromInvocationResultRef");
   // We don't retain the buffer view in the device array, so just deref it
   // vs stealing the ref.
@@ -127,8 +129,8 @@ device_array device_array::CreateFromInvocationResultRef(
   iree::hal_buffer_ptr buffer =
       iree::hal_buffer_ptr::borrow_reference(iree_hal_buffer_view_buffer(bv));
 
-  auto imported_storage =
-      storage::ImportInvocationResultStorage(inv, std::move(buffer));
+  auto imported_storage = storage::ImportInvocationResultStorage(
+      inv, timeline_importer, std::move(buffer));
   std::span<const iree_hal_dim_t> shape(iree_hal_buffer_view_shape_dims(bv),
                                         iree_hal_buffer_view_shape_rank(bv));
   return device_array(

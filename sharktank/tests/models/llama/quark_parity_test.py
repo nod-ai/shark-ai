@@ -11,11 +11,12 @@ import unittest
 import pytest
 from pathlib import Path
 import subprocess
+from sharktank.utils.testing import TempDirTestBase
 
 with_quark_data = pytest.mark.skipif("not config.getoption('with_quark_data')")
 
 
-class QuarkParityTest(unittest.TestCase):
+class QuarkParityTest(TempDirTestBase):
     def setUp(self):
         super().setUp()
         self.path_prefix = Path("/shark-dev/quark_test")
@@ -25,7 +26,7 @@ class QuarkParityTest(unittest.TestCase):
         sharktank_dir = str(
             Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent.parent
         )
-        our_path = self.path_prefix / "ours_prefill.safetensors"
+        our_path = self._temp_dir / "ours_prefill.safetensors"
         if os.path.exists(our_path):
             os.remove(our_path)
 
@@ -58,16 +59,15 @@ class QuarkParityTest(unittest.TestCase):
             "--fake-quant",
             "--attention-kernel=torch",
             "--activation-dtype=bfloat16",
-            f"--save_intermediates_path={self.path_prefix}/ours",
+            f"--save_intermediates_path={self._temp_dir / 'ours'}",
             "--use-hf",
             "--attention-dtype=bfloat16",
+            "--kv-cache-dtype=float8_e4m3fnuz",
             "--skip-decode",
             "--block-seq-stride=16",
         ]
         command = subprocess.list2cmdline(command)
-        proc = subprocess.run(
-            command, shell=True, capture_output=True, cwd=sharktank_dir
-        )
+        subprocess.check_call(command, shell=True, cwd=sharktank_dir)
 
         ours = dict()
         with safe_open(our_path, "pytorch") as st:
