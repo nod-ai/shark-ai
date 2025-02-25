@@ -13,10 +13,9 @@ Perplexity score measures the ability of a language model to predict the next to
 
 In SHARK-Platform, we use perplexity to track code regressions and quality loss across quantized models (with FP16 as baseline). We use 100 prompts randomly selected from the Wikitext-2 test set and calculate the mean perplexities shown below. These numbers are neither comparable between models with different tokenizers nor with other projects due to varying implementations.
 
-* Test perplexity for Llama3.1 8B (FP16) model on a MI300 server:
-
-#### Torch/eager mode
-
+#### Run perplexity 
+For Llama3.1 8B (FP16) model on a MI300 server:
+##### Torch mode
 ```bash
 pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_torch_test.py -k test_llama3_8B_f16 \
   --llama3-8b-f16-model-path=llama3.1_8b_instruct_fp16.irpa \
@@ -24,8 +23,7 @@ pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_torch_test.py -k test_llam
   --bs=4
 ```
 
-#### IREE mode
-
+##### IREE mode
 ```bash
 pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_iree_test.py -k test_llama3_8B_f16 \
   --llama3-8b-f16-model-path=llama3.1_8b_instruct_fp16.irpa  \
@@ -34,51 +32,41 @@ pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_iree_test.py -k test_llama
   --iree-device=hip://1 \
   --iree-hip-target=gfx942 \
   --iree-hal-target-device=hip
-
 ```
 
-* Calculate perplexity for a new model:
+For a new model:
 
-Replace `irpa` with `gguf` files if necessary (eg: `--gguf-file=llama3_70b_instruct_fp16.gguf`)
+Replace `--irpa-file` with `--gguf-file` flag if necessary (eg: `--gguf-file=llama3_70b_instruct_fp16.gguf`)
 
-#### Torch/eager mode Perplexity:
-
+##### Torch mode
 ```bash
 python -m  sharktank.evaluate.perplexity_torch \
   --irpa-file=llama3_70b_instruct_fp16.irpa \
   --tokenizer-config-json=tokenizer_config.json \
-  --num-prompts=10
+  --num-prompts=4
 ```
 
-For additional options:
-
-```bash
-python -m sharktank.evaluate.perplexity_torch  -h
-```
-
-#### IREE Perplexity:
+##### IREE mode
 
 To run on MI300:
-
 ```bash
 python -m sharktank.evaluate.perplexity_iree \
   --irpa-file=llama3_70b_instruct_fp16.irpa \
   --tokenizer-config-json=tokenizer_config.json \
-  --num-prompts=10 \
+  --num-prompts=4 \
   --iree-device='hip://0' \
   --iree-hal-target-device=hip \
   --iree-hip-target=gfx942
 ```
 
 To run on CPU, replace the above --iree-* flags with:
-
 ```bash
   --iree-device='local-task' --iree-hal-target-device=llvm-cpu
 ```
 
 For additional options:
-
 ```bash
+python -m sharktank.evaluate.perplexity_torch  -h
 python -m sharktank.evaluate.perplexity_iree  -h
 ```
 
