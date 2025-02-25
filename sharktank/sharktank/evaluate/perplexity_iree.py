@@ -144,7 +144,7 @@ class Perplexity:
 
         if self.kv_cache_dtype is None:
             self.kv_cache_dtype = self.attention_dtype
-            
+
         export_artifacts = ExportArtifacts(
             irpa_path=self.weight_path_str,
             batch_size=self.bs,
