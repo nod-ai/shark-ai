@@ -142,10 +142,8 @@ class Perplexity:
 
         logger.info(f" Compiling: {self.weight_path_str}")
 
-        if self.kv_cache_dtype is not None:
-            kv_cache_dtype = str(self.kv_cache_dtype).split(".")[-1]
-        else:
-            kv_cache_dtype = self.kv_cache_dtype
+        if self.kv_cache_dtype is None:
+            self.kv_cache_dtype = self.attention_dtype
             
         export_artifacts = ExportArtifacts(
             irpa_path=self.weight_path_str,
@@ -158,7 +156,7 @@ class Perplexity:
             use_attention_mask=self.use_attention_mask,
             activation_dtype=str(self.activation_dtype).split(".")[-1],
             attention_dtype=str(self.attention_dtype).split(".")[-1],
-            kv_cache_dtype=kv_cache_dtype,
+            kv_cache_dtype = str(self.kv_cache_dtype).split(".")[-1],
             use_hf=self.use_hf,
         )
 
@@ -499,6 +497,11 @@ def main(argv):
         default=100,
         help="Number of prompts for perplexity test (1 to 100)",
     )
+    parser.add_argument(
+        "--use-attention-mask",
+        help="Generates attention mask during export",
+        action="store_true",
+    )
 
     cli.add_model_options(parser)
     cli.add_input_dataset_options(parser)
@@ -509,8 +512,6 @@ def main(argv):
     torch_device = torch.device(args.device) if args.device else None
     weight_path = cli.get_input_dataset(args)
     tokenizer = cli.get_tokenizer(args)
-
-    use_attention_mask = False
 
     # Override flag if dataset disagrees
     tensor_parallelism_size = (
@@ -531,7 +532,7 @@ def main(argv):
         attention_kernel=args.attention_kernel,
         num_prompts=args.num_prompts,
         block_seq_stride=args.block_seq_stride,
-        use_attention_mask=use_attention_mask,
+        use_attention_mask=args.use_attention_mask,
         attention_dtype=args.attention_dtype,
         activation_dtype=args.activation_dtype,
         kv_cache_dtype=args.kv_cache_dtype,
