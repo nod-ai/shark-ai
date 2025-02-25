@@ -228,17 +228,6 @@ class ExportArtifacts:
         hal_dump_path: Optional[Path] = None,
         args: Optional[List[str]] = None,
     ):
-        args = [
-            "--iree-dispatch-creation-enable-aggressive-fusion=true",
-            "--iree-global-opt-propagate-transposes=true",
-            "--iree-opt-aggressively-propagate-transposes=true",
-            "--iree-opt-data-tiling=false",
-            "--iree-preprocessing-pass-pipeline='builtin.module(util.func(iree-preprocessing-generalize-linalg-matmul-experimental))'",
-            "--iree-stream-resource-memory-model=discrete",
-            "--iree-hal-indirect-command-buffers=true",
-            "--iree-hal-memoization=true",
-            "--iree-opt-strip-assertions",
-        ]
 
         # TODO: Control flag to enable multiple backends
         compile_args = [
@@ -264,6 +253,19 @@ class ExportArtifacts:
         # Append optional arguments if provided
         if args:
             compile_args += args
+        else:
+            compile_args += [
+                "--iree-dispatch-creation-enable-aggressive-fusion=true",
+                "--iree-global-opt-propagate-transposes=true",
+                "--iree-opt-aggressively-propagate-transposes=true",
+                "--iree-opt-data-tiling=false",
+                "--iree-preprocessing-pass-pipeline='builtin.module(util.func(iree-preprocessing-generalize-linalg-matmul-experimental))'",
+                "--iree-stream-resource-memory-model=discrete",
+                "--iree-hal-indirect-command-buffers=true",
+                "--iree-hal-memoization=true",
+                "--iree-opt-strip-assertions",
+            ]
+
         cmd = subprocess.list2cmdline(compile_args)
 
         logger.info(f" Launching compile command:\n" f"cd {cwd} && {cmd}")

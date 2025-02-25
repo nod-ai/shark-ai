@@ -122,6 +122,10 @@ class PerplexityTest(unittest.TestCase):
                 f"--tensor-parallelism-size=1",
                 f"--attention-kernel=torch",
                 f"--num-prompts={self.batch_size}",
+                f"--attention-dtype=bfloat16",
+                f"--activation-dtype=bfloat16",
+                f"--kv-cache-dtype=float8_e4m3fnuz",
+                "--use-hf",
             ]
         )
 
