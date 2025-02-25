@@ -54,7 +54,7 @@ class QuarkParityTest(unittest.TestCase):
             "sharktank.examples.paged_llm_v1",
             "The capitol of Texas is",
             f"--irpa-file={self.path_prefix}/fp8_bf16_weight.irpa",
-            f"--tokenizer-config-json=/shark-dev/data/llama3.1/weights/8b/tokenizer.json",
+            f"--tokenizer-config-json=/data/llama3.1/8b/tokenizer.json",
             "--fake-quant",
             "--attention-kernel=torch",
             "--activation-dtype=bfloat16",
