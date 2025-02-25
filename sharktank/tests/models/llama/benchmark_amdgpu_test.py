@@ -147,19 +147,19 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         ]
         self.iree_run_prefill_args_fp8 = [
             "--function=prefill_bs4",
-            f"--input=@{self.prefill_args_fp8}/tokens.bin",
-            f"--input=@{self.prefill_args_fp8}/seq_lens.bin",
-            f"--input=@{self.prefill_args_fp8}/seq_block_ids.bin",
-            f"--input=@{self.prefill_args_fp8}/cs_f8E4M3FNUZ.bin",
+            f"--input=4x128xi64=@{self.prefill_args_fp8}/tokens.bin",
+            f"--input=4xi64=@{self.prefill_args_fp8}/seq_lens.bin",
+            f"--input=4x4xi64=@{self.prefill_args_fp8}/seq_block_ids.bin",
+            f"--input=261x2097152xf8E4M3FNUZ=@{self.prefill_args_fp8}/cs_f8E4M3FNUZ.bin",
             "--benchmark_repetitions=3",
         ]
         self.iree_run_decode_args_fp8 = [
             "--function=decode_bs4",
-            f"--input=@{self.decode_args_fp8}/next_tokens.bin",
-            f"--input=@{self.decode_args_fp8}/seq_lens.bin",
-            f"--input=@{self.decode_args_fp8}/start_positions.bin",
-            f"--input=@{self.decode_args_fp8}/seq_block_ids.bin",
-            f"--input=@{self.decode_args_fp8}/cs_f8E4M3FNUZ.bin",
+            f"--input=4x1xi64=@{self.decode_args_fp8}/next_tokens.bin",
+            f"--input=4xi64=@{self.decode_args_fp8}/seq_lens.bin",
+            f"--input=4xi64=@{self.decode_args_fp8}/start_positions.bin",
+            f"--input=4x5xi64=@{self.decode_args_fp8}/seq_block_ids.bin",
+            f"--input=261x2097152xf8E4M3FNUZ=@{self.decode_args_fp8}/cs_f8E4M3FNUZ.bin",
             "--benchmark_repetitions=3",
         ]
 
@@ -242,6 +242,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
 
+    @skipif_run_quick_llama_test
     def testBenchmark8B_fp8_Non_Decomposed(self):
         output_file_name = self.dir_path_8b / "fp8_torch"
         output_mlir = self.llama8b_fp8_torch_sdpa_artifacts.create_file(
