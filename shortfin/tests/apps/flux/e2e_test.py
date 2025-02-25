@@ -46,12 +46,12 @@ def start_server(fibers_per_device=1, isolation="per_fiber"):
         "-m",
         "shortfin_apps.flux.server",
     ]
-    with open("flux_config_bf16.json", "w") as f:
-        r = requests.get(
-            "https://sharkpublic.blob.core.windows.net/sharkpublic/flux.1/configs/flux_config_bf16.json",
-            allow_redirects=True,
-        )
-        f.write(r.content.decode("utf-8"))
+    with open("flux_config_bf16.json", "wb") as f:
+       r = requests.get(
+           "https://sharkpublic.blob.core.windows.net/sharkpublic/flux.1/configs/flux_config_bf16.json",
+           allow_redirects=True,
+       )
+       f.write(r.content)
     srv_args.extend(
         [
             "--model_config=flux_config_bf16.json",
