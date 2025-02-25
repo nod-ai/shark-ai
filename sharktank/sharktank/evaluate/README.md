@@ -13,6 +13,8 @@ Perplexity score measures the ability of a language model to predict the next to
 
 In SHARK-Platform, we use perplexity to track code regressions and quality loss across quantized models (with FP16 as baseline). We use 100 prompts randomly selected from the Wikitext-2 test set and calculate the mean perplexities shown below. These numbers are neither comparable between models with different tokenizers nor with other projects due to varying implementations.
 
+Perplexity script takes a given `--irpa-file` or `--gguf-file`, exports and compiles it in order to calculate the perplexity. There are options to pass a custom `--mlir-path` or `--vmfb-path` too.
+
 #### Run perplexity
 For Llama3.1 8B (FP16) model on a MI300 server:
 ##### Torch mode
