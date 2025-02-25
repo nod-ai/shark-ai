@@ -33,7 +33,7 @@ pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_iree_test.py -k test_llama
   --bs=4 \
   --iree-device=hip://1 \
   --iree-hip-target=gfx942 \
-  --iree-hal-target-device=hip \
+  --iree-hal-target-device=hip
 
 ```
 
@@ -73,8 +73,7 @@ python -m sharktank.evaluate.perplexity_iree \
 To run on CPU, replace the above --iree-* flags with:
 
 ```bash
-  --iree-device='local-task' \
-  --iree-hal-target-device=llvm-cpu
+  --iree-device='local-task' --iree-hal-target-device=llvm-cpu
 ```
 
 For additional options:
