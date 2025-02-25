@@ -242,11 +242,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
 
-    @pytest.mark.xfail(
-        reason="Fails due to bin files not existing in CI machine.",
-        strict=True,
-        raises=IreeBenchmarkException,
-    )
+    @skipif_run_quick_llama_test
     def testBenchmark8B_fp8_Non_Decomposed(self):
         output_file_name = self.dir_path_8b / "fp8_torch"
         output_mlir = self.llama8b_fp8_torch_sdpa_artifacts.create_file(
