@@ -82,41 +82,8 @@ class PerplexityTest(unittest.TestCase):
             msg=f"Current perplexity deviates baseline by {perplexity_difference}",
         )
 
-    @pytest.mark.xfail(
-        reason="FP8 model is unsupported",
-    )
     @longrun
-    def test_llama3_8B_fp8_decomposed(self):
-
-        # Llama 3.1 8B decomposed
-
-        model_name = "llama3_8B_fp8_decomposed"
-        baseline_perplexity = self.baseline_perplexity[model_name]
-
-        current_perplexity = perplexity_torch.main(
-            [
-                f"--irpa-file={self.llama3_8b_fp8_model}",
-                f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
-            ]
-        )
-
-        perplexity_difference = (
-            current_perplexity["mean_perplexity"]
-            - baseline_perplexity["mean_perplexity"]
-        )
-
-        self.assertAlmostEqual(
-            baseline_perplexity["mean_perplexity"],
-            current_perplexity["mean_perplexity"],
-            delta=self.delta,
-            msg=f"Current perplexity deviates baseline by {perplexity_difference}",
-        )
-
-    @pytest.mark.xfail(
-        reason="Non-decomposed attention is not supported yet",
-    )
-    @longrun
-    def test_llama3_8B_fp8(self):
+    def test_llama3_8B_f8(self):
 
         # Llama 3.1 8B non-decomposed
 
@@ -125,7 +92,7 @@ class PerplexityTest(unittest.TestCase):
 
         current_perplexity = perplexity_torch.main(
             [
-                f"--irpa-file={self.llama3_8b_fp8_model}",
+                f"--irpa-file={self.llama3_8b_f8_model}",
                 f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
                 f"--attention-kernel=torch_sdpa",
             ]
@@ -207,50 +174,19 @@ class PerplexityTest(unittest.TestCase):
         )
 
     @pytest.mark.xfail(
-        reason="FP8 model is unsupported",
-    )
-    @longrun
-    def test_llama3_405B_fp8_decomposed(self):
-
-        # Llama 3.1 405B decomposed
-
-        model_name = "llama3_405B_fp8_decomposed"
-        baseline_perplexity = self.baseline_perplexity[model_name]
-
-        current_perplexity = perplexity_torch.main(
-            [
-                f"--irpa-file={self.llama3_405b_fp8_model}",
-                f"--tokenizer-config-json={self.llama3_405b_tokenizer}",
-                f"--tensor-parallelism-size={self.tensor_parallelism_size}",
-            ]
-        )
-
-        perplexity_difference = (
-            current_perplexity["mean_perplexity"]
-            - baseline_perplexity["mean_perplexity"]
-        )
-
-        self.assertAlmostEqual(
-            baseline_perplexity["mean_perplexity"],
-            current_perplexity["mean_perplexity"],
-            delta=self.delta,
-            msg=f"Current perplexity deviates baseline by {perplexity_difference}",
-        )
-
-    @pytest.mark.xfail(
         reason="Non-decomposed attention is not supported yet",
     )
     @longrun
-    def test_llama3_405B_fp8(self):
+    def test_llama3_405B_f8(self):
 
         # Llama 3.1 405B non-decomposed
 
-        model_name = "llama3_405B_fp8"
+        model_name = "llama3_405B_f8"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
         current_perplexity = perplexity_torch.main(
             [
-                f"--irpa-file={self.llama3_405b_fp8_model}",
+                f"--irpa-file={self.llama3_405b_f8_model}",
                 f"--tokenizer-config-json={self.llama3_405b_tokenizer}",
                 f"--tensor-parallelism-size={self.tensor_parallelism_size}",
                 f"--attention-kernel=torch_sdpa",
