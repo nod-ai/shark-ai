@@ -12,6 +12,7 @@ import shortfin as sf
 import shortfin.array as sfnp
 
 from .io_struct import GenerateReqInput
+from ...utils import InferenceExecRequest
 
 logger = logging.getLogger("shortfin-sd.messages")
 
@@ -29,7 +30,7 @@ class InferencePhase(Enum):
     POSTPROCESS = 5
 
 
-class InferenceExecRequest(sf.Message):
+class FluxInferenceExecRequest(InferenceExecRequest):
     """
     Generalized request passed for an individual phase of image generation.
 
@@ -184,9 +185,3 @@ class InferenceExecRequest(sf.Message):
         self.phases = None
         self.done = sf.VoidFuture()
         self.return_host_array = True
-
-
-class StrobeMessage(sf.Message):
-    """Sent to strobe a queue with fake activity (generate a wakeup)."""
-
-    ...
