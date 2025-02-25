@@ -316,7 +316,7 @@ class Perplexity:
                     page_cache_size=page_cache_size,
                 )
  
-                if self.attention_dtype in self.halelementtype_map.keys():
+                if self.kv_cache_dtype in self.halelementtype_map.keys():
                     
                     cache_state = self.batch.cache_state[0]
 
@@ -329,7 +329,7 @@ class Perplexity:
                     buffer_view = ireert.HalBufferView(
                         buffer=device_array_as_int16._buffer_view.get_buffer(),
                         shape=device_array_as_int16._buffer_view.shape,
-                        element_type=self.halelementtype_map[self.attention_dtype],
+                        element_type=self.halelementtype_map[self.kv_cache_dtype],
                     )                    
                     self.cache_state = ireert.DeviceArray(self.haldevice, buffer_view)                
                     

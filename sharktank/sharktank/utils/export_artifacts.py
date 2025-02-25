@@ -228,17 +228,17 @@ class ExportArtifacts:
         hal_dump_path: Optional[Path] = None,
         args: Optional[List[str]] = None,
     ):
-        # args = [
-        #     "--iree-dispatch-creation-enable-aggressive-fusion=true",
-        #     "--iree-global-opt-propagate-transposes=true",
-        #     "--iree-opt-aggressively-propagate-transposes=true",
-        #     "--iree-opt-data-tiling=false",
-        #     "--iree-preprocessing-pass-pipeline='builtin.module(util.func(iree-preprocessing-generalize-linalg-matmul-experimental))'",
-        #     "--iree-stream-resource-memory-model=discrete",
-        #     "--iree-hal-indirect-command-buffers=true",
-        #     "--iree-hal-memoization=true",
-        #     "--iree-opt-strip-assertions",
-        # ]
+        args = [
+            "--iree-dispatch-creation-enable-aggressive-fusion=true",
+            "--iree-global-opt-propagate-transposes=true",
+            "--iree-opt-aggressively-propagate-transposes=true",
+            "--iree-opt-data-tiling=false",
+            "--iree-preprocessing-pass-pipeline='builtin.module(util.func(iree-preprocessing-generalize-linalg-matmul-experimental))'",
+            "--iree-stream-resource-memory-model=discrete",
+            "--iree-hal-indirect-command-buffers=true",
+            "--iree-hal-memoization=true",
+            "--iree-opt-strip-assertions",
+        ]
 
         # TODO: Control flag to enable multiple backends
         compile_args = [
@@ -333,6 +333,8 @@ class ExportArtifacts:
         return file_path
 
     def get_artifacts(self):
+        
+        assert self.attention_kernel in ["decomposed", "torch"], "Only torch or decomposed attention_kernel types are supported"
 
         self.dir_path = self.sharktank_dir + "/" + "perplexity_ci_artifacts/"
         temp_dir = Path(self.dir_path)
@@ -353,17 +355,15 @@ class ExportArtifacts:
             self.create_file(suffix=".vmfb", prefix=self.dir_path + model_name)
         )
 
-        if self.attention_kernel in ["decomposed", "torch"]:
-            returncode = self.export_to_mlir(
-                mlir_path=mlir_path,
-                json_path=json_path,
-            )
+        self.export_to_mlir(
+            mlir_path=mlir_path,
+            json_path=json_path,
+        )
 
-            if returncode == 0:
-                self.compile_to_vmfb(
-                    mlir_path=mlir_path,
-                    vmfb_path=vmfb_path,
-                    cwd=self.sharktank_dir,
-                )
-
+        self.compile_to_vmfb(
+            mlir_path=mlir_path,
+            vmfb_path=vmfb_path,
+            cwd=self.sharktank_dir,
+        )
+        
         return vmfb_path

@@ -120,7 +120,7 @@ class PerplexityTest(unittest.TestCase):
 
         # Llama 3.1 8B non-decomposed
 
-        model_name = "llama3_8B_fp8"
+        model_name = "llama3_8B_f8_torch"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
         current_perplexity = perplexity_torch.main(
