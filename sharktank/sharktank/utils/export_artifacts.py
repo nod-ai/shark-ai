@@ -314,6 +314,11 @@ class ExportArtifacts:
 
     def get_artifacts(self):
 
+        assert self.attention_kernel in [
+            "decomposed",
+            "torch",
+        ], "Only torch or decomposed attention_kernel types are supported"
+
         self.dir_path = self.sharktank_dir + "/" + "perplexity_ci_artifacts/"
         temp_dir = Path(self.dir_path)
         temp_dir.mkdir(parents=True, exist_ok=True)
@@ -333,17 +338,15 @@ class ExportArtifacts:
             self.create_file(suffix=".vmfb", prefix=self.dir_path + model_name)
         )
 
-        if self.attention_kernel == "decomposed":
-            returncode = self.export_to_mlir(
-                mlir_path=mlir_path,
-                json_path=json_path,
-            )
+        self.export_to_mlir(
+            mlir_path=mlir_path,
+            json_path=json_path,
+        )
 
-            if returncode == 0:
-                self.compile_to_vmfb(
-                    mlir_path=mlir_path,
-                    vmfb_path=vmfb_path,
-                    cwd=self.sharktank_dir,
-                )
+        self.compile_to_vmfb(
+            mlir_path=mlir_path,
+            vmfb_path=vmfb_path,
+            cwd=self.sharktank_dir,
+        )
 
         return vmfb_path

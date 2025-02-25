@@ -25,48 +25,18 @@ class PerplexityTest(unittest.TestCase):
             self.baseline_perplexity = json.load(f)
 
     @longrun
-    def test_llama3_8B_f16_decomposed(self):
-
-        # Llama 3.1 8B decomposed
-
-        model_name = "llama3_8B_f16_decomposed"
-        baseline_perplexity = self.baseline_perplexity[model_name]
-
-        current_perplexity = perplexity_torch.main(
-            [
-                f"--irpa-file={self.llama3_8b_f16_model}",
-                f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
-            ]
-        )
-
-        perplexity_difference = (
-            current_perplexity["mean_perplexity"]
-            - baseline_perplexity["mean_perplexity"]
-        )
-
-        self.assertAlmostEqual(
-            baseline_perplexity["mean_perplexity"],
-            current_perplexity["mean_perplexity"],
-            delta=self.delta,
-            msg=f"Current perplexity deviates baseline by {perplexity_difference}",
-        )
-
-    @pytest.mark.xfail(
-        reason="Non-decomposed attention is not supported yet",
-    )
-    @longrun
     def test_llama3_8B_f16(self):
 
         # Llama 3.1 8B non-decomposed
 
-        model_name = "llama3_8B_f16"
+        model_name = "llama3_8B_f16_torch"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
         current_perplexity = perplexity_torch.main(
             [
                 f"--irpa-file={self.llama3_8b_f16_model}",
                 f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
-                f"--attention-kernel=torch_sdpa",
+                f"--attention-kernel=torch",
             ]
         )
 
@@ -90,7 +60,7 @@ class PerplexityTest(unittest.TestCase):
 
         # Llama 3.1 8B decomposed
 
-        model_name = "llama3_8B_fp8_decomposed"
+        model_name = "llama3_8B_fp8_torch"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
         current_perplexity = perplexity_torch.main(
@@ -120,45 +90,14 @@ class PerplexityTest(unittest.TestCase):
 
         # Llama 3.1 8B non-decomposed
 
-        model_name = "llama3_8B_fp8"
+        model_name = "llama3_8B_fp8_torch"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
         current_perplexity = perplexity_torch.main(
             [
                 f"--irpa-file={self.llama3_8b_fp8_model}",
                 f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
-                f"--attention-kernel=torch_sdpa",
-            ]
-        )
-
-        perplexity_difference = (
-            current_perplexity["mean_perplexity"]
-            - baseline_perplexity["mean_perplexity"]
-        )
-
-        self.assertAlmostEqual(
-            baseline_perplexity["mean_perplexity"],
-            current_perplexity["mean_perplexity"],
-            delta=self.delta,
-            msg=f"Current perplexity deviates baseline by {perplexity_difference}",
-        )
-
-    @pytest.mark.xfail(
-        reason="Sharding needs to be fixed",
-    )
-    @longrun
-    def test_llama3_405B_f16_decomposed(self):
-
-        # Llama 3.1 405B decomposed
-
-        model_name = "llama3_405B_f16_decomposed"
-        baseline_perplexity = self.baseline_perplexity[model_name]
-
-        current_perplexity = perplexity_torch.main(
-            [
-                f"--irpa-file={self.llama3_405b_f16_model}",
-                f"--tokenizer-config-json={self.llama3_405b_tokenizer}",
-                f"--tensor-parallelism-size={self.tensor_parallelism_size}",
+                f"--attention-kernel=torch",
             ]
         )
 
@@ -182,7 +121,7 @@ class PerplexityTest(unittest.TestCase):
 
         # Llama 3.1 405B non-decomposed
 
-        model_name = "llama3_405B_f16"
+        model_name = "llama3_405B_f16_torch"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
         current_perplexity = perplexity_torch.main(
@@ -190,7 +129,7 @@ class PerplexityTest(unittest.TestCase):
                 f"--irpa-file={self.llama3_405b_f16_model}",
                 f"--tokenizer-config-json={self.llama3_405b_tokenizer}",
                 f"--tensor-parallelism-size={self.tensor_parallelism_size}",
-                f"--attention-kernel=torch_sdpa",
+                f"--attention-kernel=torch",
             ]
         )
 
@@ -214,7 +153,7 @@ class PerplexityTest(unittest.TestCase):
 
         # Llama 3.1 405B decomposed
 
-        model_name = "llama3_405B_fp8_decomposed"
+        model_name = "llama3_405B_fp8_torch"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
         current_perplexity = perplexity_torch.main(
@@ -245,7 +184,7 @@ class PerplexityTest(unittest.TestCase):
 
         # Llama 3.1 405B non-decomposed
 
-        model_name = "llama3_405B_fp8"
+        model_name = "llama3_405B_fp8_torch"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
         current_perplexity = perplexity_torch.main(
@@ -253,7 +192,7 @@ class PerplexityTest(unittest.TestCase):
                 f"--irpa-file={self.llama3_405b_fp8_model}",
                 f"--tokenizer-config-json={self.llama3_405b_tokenizer}",
                 f"--tensor-parallelism-size={self.tensor_parallelism_size}",
-                f"--attention-kernel=torch_sdpa",
+                f"--attention-kernel=torch",
             ]
         )
 

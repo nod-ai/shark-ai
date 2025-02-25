@@ -82,7 +82,7 @@ def add_model_options(parser: argparse.ArgumentParser):
     )
     parser.add_argument(
         "--skip-decode",
-        help="Skips export decode",
+        help="Skips exporting decode",
         action="store_true",
     )
     parser.add_argument(
@@ -97,7 +97,7 @@ def add_model_options(parser: argparse.ArgumentParser):
     )
     parser.add_argument(
         "--attention-dtype",
-        help="DType to use for activations in the model",
+        help="DType to use for attention in the model",
         default="float16",
     )
     parser.add_argument("--device", help="Torch device (or default)")
