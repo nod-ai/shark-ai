@@ -142,6 +142,11 @@ class Perplexity:
 
         logger.info(f" Compiling: {self.weight_path_str}")
 
+        if self.kv_cache_dtype is not None:
+            kv_cache_dtype = str(self.kv_cache_dtype).split(".")[-1]
+        else:
+            kv_cache_dtype = self.kv_cache_dtype
+            
         export_artifacts = ExportArtifacts(
             irpa_path=self.weight_path_str,
             batch_size=self.bs,
@@ -153,7 +158,7 @@ class Perplexity:
             use_attention_mask=self.use_attention_mask,
             activation_dtype=str(self.activation_dtype).split(".")[-1],
             attention_dtype=str(self.attention_dtype).split(".")[-1],
-            kv_cache_dtype=str(self.kv_cache_dtype).split(".")[-1],
+            kv_cache_dtype=kv_cache_dtype,
             use_hf=self.use_hf,
         )
 
