@@ -155,11 +155,6 @@ class LlmBatcherProcess(BatcherProcessBase):
         self.ideal_batch_size: int = max(service.model_params.prefill_batch_sizes)
         self.page_seq_stride = service.model_params.paged_kv_cache.block_seq_stride
 
-    async def _background_strober(self):
-        return await super()._background_strober(
-            lambda: len(self.pending_prefills) + len(self.pending_decodes)
-        )
-
     def handle_inference_request(self, request):
         """Handle an inference request."""
         phase = request.phase

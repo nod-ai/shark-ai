@@ -217,9 +217,6 @@ class SDXLBatcherProcess(BatcherProcessBase):
         self.ideal_batch_size: int = max(service.model_params.all_batch_sizes)
         self.num_fibers = len(service.meta_fibers)
 
-    async def _background_strober(self):
-        return await super()._background_strober(lambda: len(self.pending_requests))
-
     def handle_inference_request(self, request):
         self.pending_requests.add(request)
 
