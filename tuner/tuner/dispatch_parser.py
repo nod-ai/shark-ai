@@ -93,13 +93,16 @@ class ContractionOpInterfaceParser(DispatchParser):
             res_type=ShapedType(res_type.shape, res_type.element_type),
             dispatch_kind=DispatchKind.contraction,
             contraction_dims=contraction_dims,
+            lhs_expr_dims=[[d] for d in matcher.lhs_dims],
+            rhs_expr_dims=[[d] for d in matcher.rhs_dims],
+            res_expr_dims=[[d] for d in matcher.res_dims],
         )
 
 
 # TODO(Max191): Support more convolution types. Only NHWC convs are supported.
 class ConvolutionOpInterfaceParser(DispatchParser):
     def __init__(self):
-        self.supported_ops = ["linalg.conv_2d_nhwc_hwcf"]
+        self.supported_ops = ["conv"]
 
     def supports(self, op_name: str) -> bool:
         for supported_op_name in self.supported_ops:
@@ -111,13 +114,17 @@ class ConvolutionOpInterfaceParser(DispatchParser):
         self,
         ir_module: ir.Module,
     ) -> Optional[ir.Operation]:
-        return match_root_op(ir_module, NamedOpMatcher(self.supported_ops))
+        return match_root_op(ir_module, ConvolutionOpInterfaceMatcher())
 
     # TODO(Max191): Pass the ir_module directly instead of the template str.
     def get_shapes(self, template: list[str]) -> ProblemSize:
         ir_module = ir.Module.parse("\n".join(template))
-        conv_op = match_root_op(ir_module, NamedOpMatcher(self.supported_ops))
+        matcher = ConvolutionOpInterfaceMatcher()
+        conv_op = match_root_op(ir_module, matcher)
+        conv_dims = matcher.convolution_dimensions
+
         assert conv_op is not None, f"convolution op not found"
+
         lhs_type = ir.RankedTensorType(conv_op.operands[0].type)
         rhs_type = ir.RankedTensorType(conv_op.operands[1].type)
         res_type = ir.RankedTensorType(conv_op.operands[2].type)
@@ -137,4 +144,8 @@ class ConvolutionOpInterfaceParser(DispatchParser):
                 n=[3],
                 k=[4, 5, 6],
             ),
+            lhs_expr_dims=matcher.lhs_expr_dims,
+            rhs_expr_dims=matcher.rhs_expr_dims,
+            res_expr_dims=matcher.res_expr_dims,
+            conv_dims=conv_dims,
         )
