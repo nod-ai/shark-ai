@@ -119,10 +119,12 @@ class TransferIfNeededTest(unittest.TestCase):
             SplitPrimitiveTensor(shard_dim=1, ts=shards, devices=tuple(shard_count*i + d for d in range(shard_count)), devices_pinned=False)
             for i in range(tensor_count)
         ]
-        t_post = ops.transfer_if_needed(*t_pre)
-
-        for i in range(tensor_count):
-            assert all(d_pre == d_post for d_pre, d_post in zip(t_pre[i].devices, t_post[i].devices))
+        
+        try:
+            ops.transfer_if_needed(*t_pre)
+        except ValueError:
+            return
+        assert False # Should have thrown a ValueError since no devices are different but none are pinned
 
     def testMultiTensorsOnePinned(self):
         tensor_count = 5
