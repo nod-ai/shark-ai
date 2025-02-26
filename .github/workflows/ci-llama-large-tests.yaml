@@ -30,7 +30,6 @@ jobs:
         version: [3.11]
       fail-fast: false
     runs-on: linux-mi300-1gpu-ossci
-    timeout-minutes: 240
     defaults:
       run:
         shell: bash
