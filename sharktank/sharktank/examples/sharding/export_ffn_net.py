@@ -30,16 +30,16 @@ def create_theta(
     gate_weight = torch.rand(hidden_dim, primary_dim, dtype=torch.float16)
     up_weight = torch.rand(hidden_dim, primary_dim, dtype=torch.float16)
     sharded_gate_weight = SplitPrimitiveTensor(
-        name="ffn_gate.weight", shard_dim=0, ts=gate_weight.split(split_size, dim=0), devices=tuple(range(shard_count)), devices_pinned=True
+        name="ffn_gate.weight", shard_dim=0, ts=gate_weight.split(split_size, dim=0)
     )
     sharded_up_weight = SplitPrimitiveTensor(
-        name="ffn_up.weight", shard_dim=0, ts=up_weight.split(split_size, dim=0), devices=tuple(range(shard_count)), devices_pinned=True
+        name="ffn_up.weight", shard_dim=0, ts=up_weight.split(split_size, dim=0)
     )
 
     # Rowwise (transposed) sharding of down weight.
     down_weight = torch.rand(primary_dim, hidden_dim, dtype=torch.float16)
     sharded_down_weight = SplitPrimitiveTensor(
-        name="ffn_down.weight", shard_dim=1, ts=down_weight.split(split_size, dim=1), devices=tuple(range(shard_count)), devices_pinned=True
+        name="ffn_down.weight", shard_dim=1, ts=down_weight.split(split_size, dim=1)
     )
 
     return Theta([sharded_gate_weight, sharded_up_weight, sharded_down_weight])
