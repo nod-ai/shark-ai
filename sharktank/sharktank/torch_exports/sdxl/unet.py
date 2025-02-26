@@ -7,6 +7,11 @@
 import os
 import sys
 
+from iree import runtime as ireert
+import iree.compiler as ireec
+from iree.compiler.ir import Context
+import numpy as np
+from iree.turbine.aot import *
 from huggingface_hub import hf_hub_download
 
 import torch

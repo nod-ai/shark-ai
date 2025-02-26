@@ -7,6 +7,12 @@
 import os
 import sys
 
+from iree import runtime as ireert
+import iree.compiler as ireec
+from iree.compiler.ir import Context
+import numpy as np
+from iree.turbine.aot import *
+
 from diffusers.models import AutoencoderKL
 
 import torch

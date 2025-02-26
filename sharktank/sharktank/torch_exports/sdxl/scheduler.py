@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import torch
+from iree.turbine.aot import *
 from diffusers import (
     EulerDiscreteScheduler,
 )
