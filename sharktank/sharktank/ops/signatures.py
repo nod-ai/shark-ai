@@ -815,7 +815,7 @@ def _repeat_trampoline(
 
 
 @overridable
-def replicate(input: AnyTensor, count: int, devices: Tuple[int] | None, devices_pinned: bool | None) -> ShardedTensor:
+def replicate(input: AnyTensor, count: int, devices: Tuple[int] | None, pinned: bool | None) -> ShardedTensor:
     """Replicate across devices.
 
     Possibly reshards if required."""
@@ -824,19 +824,19 @@ def replicate(input: AnyTensor, count: int, devices: Tuple[int] | None, devices_
 
 @replicate.trampoline
 def _replicate_trampoline(
-    d: SignatureDispatcher, input: AnyTensor, count: int, devices: Tuple[int] | None = None, devices_pinned: bool | None = None
+    d: SignatureDispatcher, input: AnyTensor, count: int, devices: Tuple[int] | None = None, pinned: bool | None = None
 ) -> ShardedTensor:
     tensors = (input,)
     if isinstance(input, torch.Tensor):
         devices = devices if devices is not None else tuple(range(count))
-        devices_pinned = devices_pinned if devices_pinned is not None else False
+        pinned = pinned if pinned is not None else False
     else:
         # TODO: Is this correct? Will use data on `input`.
         assert devices is None
-        assert devices_pinned is None
+        assert pinned is None
     
     for override in d.find_overrides(tensors):
-        result = override(input, count=count, devices=devices, devices_pinned=devices_pinned)
+        result = override(input, count=count, devices=devices, pinned=pinned)
         if result is not NotImplemented:
             return override, result
     else:
