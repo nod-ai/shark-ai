@@ -213,7 +213,6 @@ class SDXLBatcherProcess(BatcherProcessBase):
     def __init__(self, service: GenerateService):
         super().__init__(fiber=service.meta_fibers[0].fiber)
         self.service = service
-        self.pending_requests: set[InferenceExecRequest] = set()
         self.ideal_batch_size: int = max(service.model_params.all_batch_sizes)
         self.num_fibers = len(service.meta_fibers)
 

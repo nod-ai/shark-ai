@@ -86,7 +86,7 @@ class GenerateService(ServiceBase):
                 f"Unknown prefix_sharing_algorithm {server_params.prefix_sharing_algorithm}. Currently only supporting 'trie' and 'none'."
             )
 
-        self.program_isolation = PROG_ISOLATIONS[program_isolation]
+        self.program_isolation = prog_isolations[program_isolation]
 
     def start(self):
         self.inference_program = sf.Program(

@@ -19,7 +19,7 @@ class InferencePhase(Enum):
     DECODE = 2
 
 
-class LlmInferenceExecRequest(InferenceExecRequest):
+class LlmInferenceExecRequest(Inferen):
     """Performs a prefill operation."""
 
     def __init__(self, phase: InferencePhase, input_token_ids: list[int], rid=None):
