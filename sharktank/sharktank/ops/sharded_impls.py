@@ -103,17 +103,18 @@ def transfer_if_needed(*tensors: Tuple[ShardedTensor, ...]) -> Tuple[ShardedTens
     return tuple(new_tensors)
 
 
-def override_w_tranfer(operation, *override_args):
+def override_w_tranfer(operation, *override_args, **override_kwargs):
     def decorator(f):
-        @operation.override(*override_args)
+        @operation.override(*override_args, **override_kwargs)
         def wrapper(*args: Tuple, **kwargs: Dict[str, Any]):
-            args = list(args)
             t_i = [i for i, arg in enumerate(args) if isinstance(arg, ShardedTensor)]
-            if len(t_i) > 0:
-                t_vals = transfer_if_needed(*(args[i] for i in t_i))
-                for i, t in zip(t_i, t_vals):
-                    args[i] = t
-            return f(*args, **kwargs)  # TODO: Should I convert func_args back to tuple after modifying it?
+            t_vals = transfer_if_needed(*(args[i] for i in t_i))
+
+            args = list(args)
+            for i, t in zip(t_i, t_vals):
+                args[i] = t
+            args = tuple(args)
+            return f(*args, **kwargs)
         return wrapper
     return decorator
 
