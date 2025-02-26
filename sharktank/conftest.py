@@ -65,19 +65,11 @@ def pytest_addoption(parser):
     )
 
     parser.addoption(
-        "--longrun",
-        action="store_true",
-        dest="longrun",
-        default=False,
-        help="Enable long tests",
-    )
-
-    parser.addoption(
         "--run-quick-llama-test",
         action="store_true",
         dest="run-quick-llama-test",
         default=False,
-        help="Enable llama 8b f16 decomposed benchmarking test",
+        help="Run large llama tests if passed",
     )
 
     parser.addoption(

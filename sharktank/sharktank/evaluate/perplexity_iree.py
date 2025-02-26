@@ -128,26 +128,31 @@ class Perplexity:
             logger.debug(f"{expected_token_id}")
 
     @timeit
-    def compile_model(self, weight_path_str):
+    def compile_model(self, weight_path_str, mlir_path, json_path, vmfb_path):
         self.weight_path_str = weight_path_str
 
-        logger.info(f" Compiling: {self.weight_path_str}")
+        logger.info(f" Model: {self.weight_path_str}")
 
-        export_artifacts = ExportArtifacts(
-            irpa_path=self.weight_path_str,
-            batch_size=self.bs,
-            iree_hip_target=self.iree_hip_target,
-            iree_hal_target_device=self.iree_hal_target_device,
-            attention_kernel=self.attention_kernel,
-            tensor_parallelism_size=self.tensor_parallelism_size,
-            block_seq_stride=self.block_seq_stride,
-            use_attention_mask=self.use_attention_mask,
-        )
-        vmfb_path = export_artifacts.get_artifacts()
-        return vmfb_path
+        if vmfb_path:
+            self.vmfb_path = vmfb_path
+            logger.info(f" Using pre-compiled vmfb: {self.vmfb_path}")
+        else:
+            export_artifacts = ExportArtifacts(
+                irpa_path=self.weight_path_str,
+                batch_size=self.bs,
+                iree_hip_target=self.iree_hip_target,
+                iree_hal_target_device=self.iree_hal_target_device,
+                attention_kernel=self.attention_kernel,
+                tensor_parallelism_size=self.tensor_parallelism_size,
+                block_seq_stride=self.block_seq_stride,
+                use_attention_mask=self.use_attention_mask,
+                mlir_path=mlir_path,
+                json_path=json_path,
+            )
+            self.vmfb_path = export_artifacts.get_artifacts()
 
     @timeit
-    def load_model(self, weight_path, tokenizer, vmfb_path):
+    def load_model(self, weight_path, tokenizer):
 
         self.config = LlamaModelConfig(
             hp=configs.LlamaHParams.from_gguf_props(weight_path.properties),
@@ -175,7 +180,7 @@ class Perplexity:
 
         self.runner = vmfbRunner(
             device=self.iree_device,
-            vmfb_path=vmfb_path,
+            vmfb_path=self.vmfb_path,
             external_weight_path=self.weight_path_str,
         )
 
@@ -400,6 +405,9 @@ def run_perplexity(
     num_prompts,
     block_seq_stride,
     use_attention_mask,
+    mlir_path,
+    json_path,
+    vmfb_path,
 ):
     start = time.time()
     perplexity = Perplexity(
@@ -415,8 +423,8 @@ def run_perplexity(
 
     perplexity.get_prompts(num_prompts=num_prompts)
 
-    vmfb_path = perplexity.compile_model(weight_path_str)
-    perplexity.load_model(weight_path, tokenizer, vmfb_path)
+    perplexity.compile_model(weight_path_str, mlir_path, json_path, vmfb_path)
+    perplexity.load_model(weight_path, tokenizer)
     ppl = perplexity.get_perplexity()
 
     end = time.time()
@@ -451,6 +459,21 @@ def main(argv):
         default=100,
         help="Number of prompts for perplexity test (1 to 100)",
     )
+    parser.add_argument(
+        "--mlir-path",
+        type=str,
+        help="Path to exported mlir file",
+    )
+    parser.add_argument(
+        "--json-path",
+        type=str,
+        help="Path to exported config json file",
+    )
+    parser.add_argument(
+        "--vmfb-path",
+        type=str,
+        help="Path to compiled vmfb file",
+    )
 
     cli.add_model_options(parser)
     cli.add_tokenizer_options(parser)
@@ -462,6 +485,11 @@ def main(argv):
     tokenizer = cli.get_tokenizer(args)
 
     use_attention_mask = True
+
+    if args.mlir_path or args.json_path:
+        assert (
+            args.json_path is not None and args.mlir_path is not None
+        ), "If using pre-exported mlir, both --mlir-path and --json-path must be passed"
 
     # Override flag if dataset disagrees
     tensor_parallelism_size = (
@@ -483,6 +511,9 @@ def main(argv):
         num_prompts=args.num_prompts,
         block_seq_stride=args.block_seq_stride,
         use_attention_mask=use_attention_mask,
+        mlir_path=args.mlir_path,
+        json_path=args.json_path,
+        vmfb_path=args.vmfb_path,
     )
 
     logger.info(f"\n{json.dumps(ppl, indent=2)}")
