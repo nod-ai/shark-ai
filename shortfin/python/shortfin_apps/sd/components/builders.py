@@ -426,8 +426,9 @@ def sdxl(
                     quant_path=quant_path,
                     scheduler_config_path=scheduler_config_path,
                     name=mlir_path.split(".mlir")[0],
-                    out_of_process=True,
-                )
+                    out_of_process=False,
+                )[0]
+                mlir_files.append(mod)
             else:
                 get_cached(mlir_path, ctx, FileNamespace.GEN)
 
@@ -466,8 +467,10 @@ def sdxl(
                 fetch_http(name=f, url=url)
             else:
                 get_cached(f, ctx, FileNamespace.GEN)
-
-    filenames = [*vmfb_filenames, *mlir_filenames]
+    if mlir_files:
+        filenames = [*vmfb_filenames, *mlir_files]
+    else:
+        filenames = [*vmfb_filenames, *mlir_filenames]
     if params_filename:
         filenames.append(params_filename)
     return filenames
