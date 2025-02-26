@@ -518,6 +518,7 @@ class InferenceExecutorProcess(sf.Process):
         self.exec_request.response_image = processed_image
         return
 
+
 async def check_host_array(host_array):
     waiting = True
     while waiting:

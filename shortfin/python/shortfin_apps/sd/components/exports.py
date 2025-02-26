@@ -29,6 +29,7 @@ def export_sdxl_model(
 
     def check_torch_version(begin: tuple, end: tuple):
         pass
+
     ret = None
 
     decomp_list = [torch.ops.aten.logspace]
