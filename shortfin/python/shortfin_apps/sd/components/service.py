@@ -21,7 +21,7 @@ from ...utils import ServiceBase, BatcherProcessBase, prog_isolations
 
 from .config_struct import ModelParams
 from .manager import SystemManager
-from .messages import InferenceExecRequest, InferencePhase, StrobeMessage
+from .messages import InferenceExecRequest, InferencePhase
 from .tokenizer import Tokenizer
 from .metrics import measure, log_duration_str
 
@@ -48,10 +48,10 @@ class GenerateService(ServiceBase):
         show_progress: bool = False,
         trace_execution: bool = False,
     ):
+        super().__init__(sysman)
         self.name = name
 
         # Application objects.
-        self.sysman = sysman
         self.tokenizers = tokenizers
         self.model_params = model_params
         self.inference_parameters: dict[str, list[sf.BaseProgramParameters]] = {}
@@ -219,10 +219,10 @@ class SDXLBatcherProcess(BatcherProcessBase):
 
     async def _background_strober(self):
         return await super()._background_strober(lambda: len(self.pending_requests))
-        
+
     def handle_inference_request(self, request):
         self.pending_requests.add(request)
-        
+
     async def process_batches(self):
         await self.board_flights()
 

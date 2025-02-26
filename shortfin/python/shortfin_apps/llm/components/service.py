@@ -24,7 +24,7 @@ from .kvcache.trie_attention_cache import TriePagedAttentionCache
 from .kvcache.page_pool import PagePoolConfig, PagePool, PageInfo
 from .config_struct import ModelParams, ServerParams
 from .manager import SystemManager
-from .messages import InferenceExecRequest, InferencePhase, StrobeMessage
+from .messages import InferenceExecRequest, InferencePhase
 from .tokenizer import Tokenizer
 from .service_debug_dumper import SERVICE_DEBUG_DUMPER
 
@@ -48,11 +48,10 @@ class GenerateService(ServiceBase):
         server_params: "ServerParams",
         program_isolation: str = "per_call",
     ):
-        super().__init__()
+        super().__init__(sysman)
         self.name = name
 
         # Application objects.
-        self.sysman = sysman
         self.tokenizer = tokenizer
         self.model_params = model_params
         self.server_params = server_params
@@ -160,7 +159,7 @@ class LlmBatcherProcess(BatcherProcessBase):
         return await super()._background_strober(
             lambda: len(self.pending_prefills) + len(self.pending_decodes)
         )
-        
+
     def handle_inference_request(self, request):
         """Handle an inference request."""
         phase = request.phase
@@ -170,7 +169,7 @@ class LlmBatcherProcess(BatcherProcessBase):
             self.pending_decodes.add(request)
         else:
             logger.error("Illegal InferenceExecRequest phase: %r", phase)
-            
+
     async def process_batches(self):
         """Process batches of requests."""
         await self.board_flights()

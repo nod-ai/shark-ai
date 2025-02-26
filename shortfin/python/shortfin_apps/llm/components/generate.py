@@ -16,7 +16,7 @@ import shortfin.array as sfnp
 from shortfin.interop.fastapi import FastAPIResponder
 
 from .io_struct import GenerateReqInput
-from .messages import InferenceExecRequest, InferencePhase
+from .messages import LlmInferenceExecRequest, InferencePhase
 from .service import GenerateService
 from .tokenizer import Encoding
 
@@ -52,7 +52,7 @@ class GenerateItemProcess(sf.Process):
         self.streamed_tokens_index = 0
 
     async def run(self):
-        exec = InferenceExecRequest(
+        exec = LlmInferenceExecRequest(
             phase=InferencePhase.PREFILL,
             input_token_ids=self.input_token_ids,
             rid=self.gen_req.rid,

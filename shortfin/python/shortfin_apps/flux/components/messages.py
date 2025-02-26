@@ -113,7 +113,7 @@ class FluxInferenceExecRequest(InferenceExecRequest):
         self.post_init()
 
     @staticmethod
-    def from_batch(gen_req: GenerateReqInput, index: int) -> "InferenceExecRequest":
+    def from_batch(gen_req: GenerateReqInput, index: int) -> "FluxInferenceExecRequest":
         gen_inputs = [
             "prompt",
             "neg_prompt",
@@ -139,7 +139,7 @@ class FluxInferenceExecRequest(InferenceExecRequest):
             else:
                 rec_input = received
             rec_inputs[item] = rec_input
-        return InferenceExecRequest(**rec_inputs)
+        return FluxInferenceExecRequest(**rec_inputs)
 
     def post_init(self):
         """Determines necessary inference phases and tags them with static program parameters."""

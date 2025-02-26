@@ -156,7 +156,7 @@ prog_isolations = {
 
 
 class InferenceExecRequest(sf.Message):
-    def __init__():
+    def __init__(self):
         super().__init__()
 
 
@@ -168,23 +168,23 @@ class StrobeMessage(sf.Message):
 
 class ServiceBase:
     """Base class for shortfin service implementations."""
-    
+
     def __init__(self, sysman: SystemManager):
         """Initialize base service attributes."""
         self.sysman = sysman
         self.inference_parameters: dict[str, list[sf.BaseProgramParameters]] = {}
         self.inference_modules: dict[str, list[sf.ProgramModule]] = {}
-        
+
     def load_inference_module(self, vmfb_path: Path, component: str = None):
         """Load an inference module from a VMFB file.
-        
+
         Args:
             vmfb_path: Path to the VMFB file
             component: Optional component name for organizing modules
         """
-        if not hasattr(self, 'inference_modules'):
+        if not hasattr(self, "inference_modules"):
             self.inference_modules = {}
-            
+
         if component is not None:
             if not self.inference_modules.get(component):
                 self.inference_modules[component] = []
@@ -192,12 +192,12 @@ class ServiceBase:
                 sf.ProgramModule.load(self.sysman.ls, vmfb_path)
             )
         else:
-            if not hasattr(self, 'inference_modules_list'):
+            if not hasattr(self, "inference_modules_list"):
                 self.inference_modules_list = []
             self.inference_modules_list.append(
                 sf.ProgramModule.load(self.sysman.ls, vmfb_path)
             )
-    
+
     def load_inference_parameters(
         self,
         *paths: Path,
@@ -206,7 +206,7 @@ class ServiceBase:
         component: str = None,
     ):
         """Load inference parameters from files.
-        
+
         Args:
             *paths: Paths to parameter files
             parameter_scope: Parameter scope name
@@ -217,15 +217,15 @@ class ServiceBase:
         for path in paths:
             logging.info("Loading parameter fiber '%s' from: %s", parameter_scope, path)
             p.load(path, format=format)
-            
+
         if component is not None:
-            if not hasattr(self, 'inference_parameters'):
+            if not hasattr(self, "inference_parameters"):
                 self.inference_parameters = {}
             if not self.inference_parameters.get(component):
                 self.inference_parameters[component] = []
             self.inference_parameters[component].append(p)
         else:
-            if not hasattr(self, 'inference_parameters_list'):
+            if not hasattr(self, "inference_parameters_list"):
                 self.inference_parameters_list = []
             self.inference_parameters_list.append(p)
 
@@ -233,25 +233,25 @@ class ServiceBase:
 class BatcherProcessBase(sf.Process):
     """The batcher is a persistent process responsible for flighting incoming work
     into batches."""
-    
+
     STROBE_SHORT_DELAY = 0.5
     STROBE_LONG_DELAY = 1.0
-    
+
     def __init__(self, fiber, name="batcher"):
         super().__init__(fiber=fiber)
         self.batcher_infeed = self.system.create_queue()
         self.strobe_enabled = True
         self.strobes = 0
         self.pending_requests = set()
-        
+
     def shutdown(self):
         """Shutdown the batcher process."""
         self.batcher_infeed.close()
-        
+
     def submit(self, request):
         """Submit a request to the batcher."""
         self.batcher_infeed.write_nodelay(request)
-        
+
     async def _background_strober(self):
         """Background strober task that monitors pending requests."""
         while not self.batcher_infeed.closed:
@@ -262,7 +262,7 @@ class BatcherProcessBase(sf.Process):
             )
             if self.strobe_enabled:
                 self.submit(StrobeMessage())
-                
+
     async def run(self):
         """Main run loop for the batcher process."""
         strober_task = asyncio.create_task(self._background_strober())
@@ -278,26 +278,26 @@ class BatcherProcessBase(sf.Process):
                 exit(1)
 
             await self.process_batches()
-            
+
             self.strobe_enabled = True
         await strober_task
-        
+
     def handle_inference_request(self, request):
         """Handle an inference request. To be implemented by subclasses."""
         pass
-        
+
     async def process_batches(self):
         """Process batches of requests. To be implemented by subclasses."""
         pass
-        
+
     def sort_batches(self):
         """Files pending requests into sorted batches suitable for program invocations.
-        
+
         This is a common implementation used by SDXLBatcherProcess and FluxBatcherProcess.
         """
-        if not hasattr(self, 'pending_requests'):
+        if not hasattr(self, "pending_requests"):
             return {}
-            
+
         reqs = self.pending_requests
         next_key = 0
         batches = {}

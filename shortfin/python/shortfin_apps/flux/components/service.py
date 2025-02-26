@@ -240,7 +240,7 @@ class FluxBatcherProcess(BatcherProcessBase):
 
     def handle_inference_request(self, request):
         self.pending_requests.add(request)
-        
+
     async def process_batches(self):
         await self.board_flights()
 
