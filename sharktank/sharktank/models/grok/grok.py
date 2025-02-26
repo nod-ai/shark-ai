@@ -73,6 +73,7 @@ class PagedGrokModelV1(BaseCausalLMModel):
                 max_seqlen=hp.context_length,
                 device=self.device,
                 use_hf=True,
+                dtype=config.activation_dtype,
             ),
         )
         self.add_module(
@@ -94,9 +95,10 @@ class PagedGrokModelV1(BaseCausalLMModel):
                     cache=self.cache,
                     head_count=hp.attention_head_count,
                     head_dim=hp.attn_head_dim,
+                    attention_kernel=config.attention_kernel,
                     head_count_kv=hp.attention_head_count_kv,
                     rms_epsilon=hp.attention_layer_norm_rms_epsilon,
-                    softcap=30.0,  # https://github.com/xai-org/grok-1/blob/7050ed204b8206bb8645c7b7bbef7252f79561b0/model.py#L864
+                    softcap=hp.attention_softcap,
                 )
             )
             self.moe_blocks.append(

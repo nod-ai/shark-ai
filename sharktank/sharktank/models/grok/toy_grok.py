@@ -18,11 +18,8 @@ parser.add_argument("-s", "--seed", default=12345)
 parser.add_argument("-o", "--output", default="/tmp/toy_grok.irpa")
 
 
-def main():
-    args = parser.parse_args()
-    torch.manual_seed(args.seed)
-
-    dtype = torch.float32
+def generate(seed):
+    dtype = torch.float16
     block_seq_stride = 16
     max_blocks = 8
     attention_head_count = 8
@@ -48,19 +45,28 @@ def main():
             expert_count=expert_count,
             expert_used_count=used_experts,
             model_arch="grok",
+            attention_softcap=15.0,
         ),
         block_seq_stride=block_seq_stride,
         activation_dtype=dtype,
         attention_dtype=dtype,
+        attention_kernel="decomposed",
     )
 
+    torch.manual_seed(seed)
     theta = make_random_grok_theta(
         config=config,
         vocab_size=vocabulary_size,
     )
 
-    config_dict = config.hp.to_gguf_props()
+    return theta, config
 
+
+def main():
+    args = parser.parse_args()
+    theta, config = generate(args.seed)
+
+    config_dict = config.hp.to_gguf_props()
     dataset = Dataset(config_dict, theta)
     dataset.save(args.output)
 

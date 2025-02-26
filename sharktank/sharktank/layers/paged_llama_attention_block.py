@@ -196,8 +196,15 @@ class PagedLlamaAttentionBlock(ThetaLayer):
 
             # Apply attention mask.
             self.trace_tensor("attn_weights", attn_weights)
-            if attention_mask is not None:
-                # self.trace_tensor("attn_mask", attention_mask)
+            if attention_mask is None:
+                attention_mask = torch.full(
+                    (attn_weights.shape[2], attn_weights.shape[3]), float("-inf")
+                )
+                attention_mask = torch.triu(attention_mask, diagonal=1)[
+                    None, None, :, :
+                ]
+                attn_weights = attn_weights + attention_mask
+            else:
                 attn_weights = attn_weights + attention_mask
 
             attn_weights = ops.softmax(
@@ -208,6 +215,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 attn_weights, values
             )  # (bs, heads, slen, head_dim)
         else:
+            if self.softcap is not None:
+                raise ValueError("softcap not supported yet")
             attn_output = ops.scaled_dot_product_attention(
                 q=xq,  # [bs, ..., sl, dim]
                 k=keys,  # [bs, ..., sl, dim]
