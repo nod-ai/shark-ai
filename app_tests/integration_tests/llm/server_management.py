@@ -11,6 +11,10 @@ from typing import Optional
 from .device_settings import DeviceSettings
 from .model_management import ModelArtifacts
 
+from logging import getLogger
+
+logger = getLogger(__name__)
+
 
 @dataclass
 class ServerConfig:
@@ -72,16 +76,20 @@ class ServerInstance:
             f"--tokenizer_json={self.config.artifacts.tokenizer_path}",
             f"--model_config={self.config.artifacts.config_path}",
             f"--vmfb={self.config.artifacts.vmfb_path}",
-            f"--parameters={self.config.artifacts.weights_path}",
+            f"--parameters",
+            str(self.config.artifacts.weights_path),
+            *(str(path) for path in (self.config.artifacts.shard_paths or [])),
             f"--port={self.port}",
             f"--prefix_sharing_algorithm={self.config.prefix_sharing_algorithm}",
         ]
         cmd.extend(self.config.device_settings.server_flags)
 
+        logger.info("Starting server with command: %s", " ".join(cmd))
+
         self.process = subprocess.Popen(cmd)
         self.wait_for_ready()
 
-    def wait_for_ready(self, timeout: int = 30) -> None:
+    def wait_for_ready(self, timeout: int = 180) -> None:
         """Waits for server to be ready and responding to health checks."""
         if self.port is None:
             raise RuntimeError("Server hasn't been started")
@@ -91,7 +99,9 @@ class ServerInstance:
             try:
                 requests.get(f"http://localhost:{self.port}/health")
                 return
-            except requests.exceptions.ConnectionError:
+            except requests.exceptions.ConnectionError as e:
+                logger.info("While attempting to server,")
+                logger.info("Encountered connection error %s", e)
                 time.sleep(1)
         raise TimeoutError(f"Server failed to start within {timeout} seconds")
 
