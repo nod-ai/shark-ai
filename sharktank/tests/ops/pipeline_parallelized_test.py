@@ -109,3 +109,20 @@ class TransferIfNeededTest(unittest.TestCase):
         except ValueError:
             return
         assert False  # Should have thrown a ValueError since both tensors are pinned, but devices are not the same
+
+class MatmulTest(unittest.TestCase):
+    def testShardedParallelAxesInLhsAndRhs(self):  # matmul_split
+        a = torch.rand(2, 12, 5, dtype=torch.float32)
+        b = torch.rand(5, 9, dtype=torch.float32)
+        expected_result = torch.matmul(a, b)
+        shard_count = 3
+        a_sharded = SplitPrimitiveTensor(ts=a, shard_dim=1, shard_count=shard_count, devices=tuple(range(shard_count)), devices_pinned=True)
+        b_sharded = SplitPrimitiveTensor(ts=b, shard_dim=1, shard_count=shard_count, devices=tuple(1 + i for i in range(shard_count)), devices_pinned=False)
+        res_sharded = ops.matmul(a_sharded, b_sharded)
+        assert isinstance(res_sharded, SplitPrimitiveTensor)
+        assert res_sharded.shard_dim == 1
+        assert res_sharded.shard_count == shard_count
+        for i in range(shard_count):
+            assert res_sharded.devices[i] == a_sharded.devices[i]  # A is pinned, result should be on its device
+        actual_result = ops.sharded_cat(res_sharded)
+        torch.testing.assert_close(actual_result, expected_result)
