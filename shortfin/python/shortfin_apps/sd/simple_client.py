@@ -35,16 +35,6 @@ sample_request = {
 }
 
 
-def bytes_to_img(in_bytes, outputdir, idx=0, width=1024, height=1024):
-    timestamp = dt.now().strftime("%Y-%m-%d_%H-%M-%S")
-    image = Image.frombytes(
-        mode="RGB", size=(width, height), data=base64.b64decode(in_bytes)
-    )
-    file_name = f"shortfin_sd_output_{timestamp}_{idx}.png"
-    new_file_path = save_to_file(image, outputdir, file_name)
-    print(f"Saved to {new_file_path}")
-
-
 def get_batched(request, arg, idx):
     if isinstance(request[arg], list):
         # some args are broadcasted to each prompt, hence overriding idx for single-item entries
@@ -72,9 +62,21 @@ async def send_request(session: aiohttp.ClientSession, rep, args, data):
                     width = get_batched(data, "width", idx)
                     height = get_batched(data, "height", idx)
                     print("Saving response as image...")
-                    bytes_to_img(
-                        item.encode("utf-8"), args.outputdir, idx, width, height
+
+                    each_image = Image.frombytes(
+                        mode="RGB",
+                        size=(width, height),
+                        data=base64.b64decode(item.encode("utf-8")),
                     )
+
+                    timestamp = dt.now().strftime("%Y-%m-%d_%H-%M-%S")
+                    each_file_name = f"shortfin_sd_output_{timestamp}_{idx}.png"
+
+                    each_file_path = save_to_file(
+                        each_image, args.outputdir, each_file_name
+                    )
+
+                    print(f"Saved to {each_file_path}")
             latency = end - start
             print("Responses processed.")
             return latency, len(data["prompt"])
