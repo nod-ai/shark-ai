@@ -85,7 +85,7 @@ def test_get_td_spec_contraction(tuner_ctx: common.TunerContext) -> None:
     ir_module = ir.Module.parse(module_str, context)
 
     tuner = candidate_gen.ContractionOpInterfaceTuner()
-    td_spec_module = tuner.get_td_spec(ir_module, compilation_info)
+    td_spec_module = tuner.get_td_spec(ir_module, compilation_info, None)
     assert td_spec_module
 
     named_sequence_ops: list[
@@ -167,7 +167,8 @@ def test_get_td_spec_convolution(tuner_ctx: common.TunerContext) -> None:
     ir_module = ir.Module.parse(module_str, context)
 
     tuner = candidate_gen.ConvolutionOpInterfaceTuner()
-    td_spec_module = tuner.get_td_spec(ir_module, compilation_info)
+    problem_size = tuner.get_shapes(str(ir_module).splitlines())
+    td_spec_module = tuner.get_td_spec(ir_module, compilation_info, problem_size)
     assert td_spec_module
 
     named_sequence_ops: list[
