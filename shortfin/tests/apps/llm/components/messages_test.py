@@ -24,7 +24,7 @@ def test_inference_exec_request_repr(mock_void_future):
     req = LlmInferenceExecRequest(InferencePhase.PREFILL, [1, 2, 3, 4], rid="test123")
     assert (
         str(req)
-        == "InferenceExecRequest[phase=P,pos=0,rid=test123,flags=host,input_token_ids=[1, 2, 3, 4]]"
+        == "LlmInferenceExecRequest[phase=P,pos=0,rid=test123,flags=host,input_token_ids=[1, 2, 3, 4]]"
     )
 
     req = LlmInferenceExecRequest(InferencePhase.DECODE, [], rid="test123")
@@ -33,5 +33,5 @@ def test_inference_exec_request_repr(mock_void_future):
     req.rid = None
     assert (
         str(req)
-        == "InferenceExecRequest[phase=D,pos=0,rid=None,flags=,input_token_ids=[]]"
+        == "LlmInferenceExecRequest[phase=D,pos=0,rid=None,flags=,input_token_ids=[]]"
     )
