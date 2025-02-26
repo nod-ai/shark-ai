@@ -92,12 +92,12 @@ class ExportArtifacts:
         tensor_parallelism_size: int,
         block_seq_stride: int,
         iree_hal_target_device: str,
-        mlir_path: str,
-        json_path: str,
         use_attention_mask: bool = False,
         activation_dtype: str = "float16",
         attention_dtype: str = "float16",
         kv_cache_dtype: Optional[str] = None,
+        mlir_path: Optional[str] = None,
+        json_path: Optional[str] = None,
     ):
         self.sharktank_dir = str(
             Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent
