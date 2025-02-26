@@ -16,6 +16,10 @@ import requests
 
 from PIL import Image
 
+from shortfin_apps.utilities.image import (
+    save_to_file,
+)
+
 sample_request = {
     "prompt": [
         " a cat under the snow with blue eyes, covered by snow, cinematic style, medium shot, professional photo, animal",
@@ -36,11 +40,9 @@ def bytes_to_img(in_bytes, outputdir, idx=0, width=1024, height=1024):
     image = Image.frombytes(
         mode="RGB", size=(width, height), data=base64.b64decode(in_bytes)
     )
-    if not os.path.isdir(outputdir):
-        os.mkdir(outputdir)
-    im_path = os.path.join(outputdir, f"shortfin_sd_output_{timestamp}_{idx}.png")
-    image.save(im_path)
-    print(f"Saved to {im_path}")
+    file_name = f"shortfin_sd_output_{timestamp}_{idx}.png"
+    new_file_path = save_to_file(image, outputdir, file_name)
+    print(f"Saved to {new_file_path}")
 
 
 def get_batched(request, arg, idx):
