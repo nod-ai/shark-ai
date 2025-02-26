@@ -147,7 +147,7 @@ class PerplexityTest(unittest.TestCase):
     @skipif_run_quick_llama_test
     @pytest.mark.xfail(reason="Compile Error")
     def test_llama3_405B_f8(self):
-      
+
         # Llama 3.1 405B non-decomposed
 
         model_name = "llama3_405B_f8_iree"
