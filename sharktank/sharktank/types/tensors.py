@@ -845,10 +845,6 @@ class ShardedTensorBase(ShardedTensor):
     def shards(self) -> tuple[InferenceTensor]:
         return self._shards
 
-    @shards.setter
-    def shards(self, shards: tuple[InferenceTensor]) -> tuple[InferenceTensor]:
-        self._shards = shards
-
     @property
     def is_replicated(self) -> bool:
         return False
@@ -1187,10 +1183,6 @@ class ReplicatedTensor(ShardedTensor):
     @property
     def shards(self) -> tuple[InferenceTensor]:
         return self._shards
-
-    @shards.setter
-    def shards(self, shards: tuple[InferenceTensor]) -> tuple[InferenceTensor]:
-        self._shards = shards
 
     @property
     def is_replicated(self) -> bool:
