@@ -22,7 +22,8 @@ For Llama3.1 8B (FP16) model on a MI300 server:
 pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_torch_test.py -k test_llama3_8B_f16 \
   --llama3-8b-f16-model-path=llama3.1_8b_instruct_fp16.irpa \
   --llama3-8b-tokenizer-path=tokenizer_config.json \
-  --bs=4
+  --bs=4 \
+  --run-nightly-llama-tests
 ```
 
 ##### IREE mode
