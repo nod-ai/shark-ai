@@ -24,7 +24,7 @@ from .kvcache.trie_attention_cache import TriePagedAttentionCache
 from .kvcache.page_pool import PagePoolConfig, PagePool, PageInfo
 from .config_struct import ModelParams, ServerParams
 from .manager import SystemManager
-from .messages import InferenceExecRequest, InferencePhase
+from .messages import LlmInferenceExecRequest, InferencePhase
 from .tokenizer import Tokenizer
 from .service_debug_dumper import SERVICE_DEBUG_DUMPER
 
@@ -148,8 +148,8 @@ class LlmBatcherProcess(BatcherProcessBase):
     def __init__(self, service: GenerateService):
         super().__init__(fiber=service.main_fiber)
         self.service = service
-        self.pending_prefills: set[InferenceExecRequest] = set()
-        self.pending_decodes: set[InferenceExecRequest] = set()
+        self.pending_prefills: set[LlmInferenceExecRequest] = set()
+        self.pending_decodes: set[LlmInferenceExecRequest] = set()
         # TODO: There is no "ideal" batch size. Use prefill/decode dynamic
         # batching in the scheduling algo.
         self.ideal_batch_size: int = max(service.model_params.prefill_batch_sizes)
@@ -163,7 +163,7 @@ class LlmBatcherProcess(BatcherProcessBase):
         elif phase == InferencePhase.DECODE:
             self.pending_decodes.add(request)
         else:
-            logger.error("Illegal InferenceExecRequest phase: %r", phase)
+            logger.error("Illegal LlmInferenceExecRequest phase: %r", phase)
 
     async def process_batches(self):
         """Process batches of requests."""
@@ -280,7 +280,7 @@ class InferenceExecutorProcess(sf.Process):
         self.service = service
         self.phase = phase
         self.seq_stride = seq_stride
-        self.exec_requests: list[InferenceExecRequest] = []
+        self.exec_requests: list[LlmInferenceExecRequest] = []
         self.page_tables = page_tables
 
     async def run(self):
