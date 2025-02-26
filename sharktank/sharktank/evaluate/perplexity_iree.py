@@ -137,34 +137,38 @@ class Perplexity:
             logger.debug(f"{expected_token_id}")
 
     @timeit
-    def compile_model(self, weight_path_str):
+    def compile_model(self, weight_path_str, mlir_path, json_path, vmfb_path):
         self.weight_path_str = weight_path_str
 
-        logger.info(f" Compiling: {self.weight_path_str}")
+        logger.info(f" Model: {self.weight_path_str}")
 
         if self.kv_cache_dtype is None:
             self.kv_cache_dtype = self.attention_dtype
 
-        export_artifacts = ExportArtifacts(
-            irpa_path=self.weight_path_str,
-            batch_size=self.bs,
-            iree_hip_target=self.iree_hip_target,
-            iree_hal_target_device=self.iree_hal_target_device,
-            attention_kernel=self.attention_kernel,
-            tensor_parallelism_size=self.tensor_parallelism_size,
-            block_seq_stride=self.block_seq_stride,
-            use_attention_mask=self.use_attention_mask,
-            activation_dtype=str(self.activation_dtype).split(".")[-1],
-            attention_dtype=str(self.attention_dtype).split(".")[-1],
-            kv_cache_dtype=str(self.kv_cache_dtype).split(".")[-1],
-            use_hf=self.use_hf,
-        )
-
-        vmfb_path = export_artifacts.get_artifacts()
-        return vmfb_path
+        if vmfb_path:
+            self.vmfb_path = vmfb_path
+            logger.info(f" Using pre-compiled vmfb: {self.vmfb_path}")
+        else:
+            export_artifacts = ExportArtifacts(
+                irpa_path=self.weight_path_str,
+                batch_size=self.bs,
+                iree_hip_target=self.iree_hip_target,
+                iree_hal_target_device=self.iree_hal_target_device,
+                attention_kernel=self.attention_kernel,
+                tensor_parallelism_size=self.tensor_parallelism_size,
+                block_seq_stride=self.block_seq_stride,
+                use_attention_mask=self.use_attention_mask,
+                activation_dtype=str(self.activation_dtype).split(".")[-1],
+                attention_dtype=str(self.attention_dtype).split(".")[-1],
+                kv_cache_dtype=str(self.kv_cache_dtype).split(".")[-1],
+                use_hf=self.use_hf,
+                mlir_path=mlir_path,
+                json_path=json_path,
+            )
+            self.vmfb_path = export_artifacts.get_artifacts()
 
     @timeit
-    def load_model(self, weight_path, tokenizer, vmfb_path):
+    def load_model(self, weight_path, tokenizer):
 
         self.config = LlamaModelConfig(
             hp=configs.LlamaHParams.from_gguf_props(weight_path.properties),
@@ -194,7 +198,7 @@ class Perplexity:
 
         self.runner = vmfbRunner(
             device=self.iree_device,
-            vmfb_path=vmfb_path,
+            vmfb_path=self.vmfb_path,
             external_weight_path=self.weight_path_str,
         )
 
@@ -442,6 +446,9 @@ def run_perplexity(
     attention_dtype,
     kv_cache_dtype,
     use_hf,
+    mlir_path,
+    json_path,
+    vmfb_path,
 ):
     start = time.time()
     perplexity = Perplexity(
@@ -461,8 +468,8 @@ def run_perplexity(
 
     perplexity.get_prompts(num_prompts=num_prompts)
 
-    vmfb_path = perplexity.compile_model(weight_path_str)
-    perplexity.load_model(weight_path, tokenizer, vmfb_path)
+    perplexity.compile_model(weight_path_str, mlir_path, json_path, vmfb_path)
+    perplexity.load_model(weight_path, tokenizer)
     ppl = perplexity.get_perplexity()
 
     end = time.time()
@@ -502,6 +509,21 @@ def main(argv):
         help="Generates attention mask during export",
         action="store_true",
     )
+    parser.add_argument(
+        "--mlir-path",
+        type=str,
+        help="Path to exported mlir file",
+    )
+    parser.add_argument(
+        "--json-path",
+        type=str,
+        help="Path to exported config json file",
+    )
+    parser.add_argument(
+        "--vmfb-path",
+        type=str,
+        help="Path to compiled vmfb file",
+    )
 
     cli.add_model_options(parser)
     cli.add_input_dataset_options(parser)
@@ -512,6 +534,11 @@ def main(argv):
     torch_device = torch.device(args.device) if args.device else None
     weight_path = cli.get_input_dataset(args)
     tokenizer = cli.get_tokenizer(args)
+
+    if args.mlir_path or args.json_path:
+        assert (
+            args.json_path is not None and args.mlir_path is not None
+        ), "If using pre-exported mlir, both --mlir-path and --json-path must be passed"
 
     # Override flag if dataset disagrees
     tensor_parallelism_size = (
@@ -537,6 +564,9 @@ def main(argv):
         activation_dtype=args.activation_dtype,
         kv_cache_dtype=args.kv_cache_dtype,
         use_hf=args.use_hf,
+        mlir_path=args.mlir_path,
+        json_path=args.json_path,
+        vmfb_path=args.vmfb_path,
     )
 
     logger.info(f"\n{json.dumps(ppl, indent=2)}")

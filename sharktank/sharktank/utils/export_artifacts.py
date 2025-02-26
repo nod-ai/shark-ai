@@ -93,15 +93,19 @@ class ExportArtifacts:
         block_seq_stride: int,
         iree_hal_target_device: str,
         use_attention_mask: bool = False,
+        use_hf: bool = False,
         activation_dtype: str = "float16",
         attention_dtype: str = "float16",
         kv_cache_dtype: Optional[str] = None,
-        use_hf: bool = False,
+        mlir_path: Optional[str] = None,
+        json_path: Optional[str] = None,
     ):
         self.sharktank_dir = str(
             Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent
         )
         self.irpa_path = irpa_path
+        self.mlir_path = mlir_path
+        self.json_path = json_path
         self.batch_size = batch_size
         self.iree_hip_target = iree_hip_target
         self.iree_hal_target_device = iree_hal_target_device
@@ -350,23 +354,29 @@ class ExportArtifacts:
             + "_"
             + self.attention_kernel
         )
-        mlir_path = str(
-            self.create_file(suffix=".mlir", prefix=self.dir_path + model_name)
-        )
-        json_path = str(
-            self.create_file(suffix=".json", prefix=self.dir_path + model_name)
-        )
+
+        if self.mlir_path is None:
+            self.mlir_path = str(
+                self.create_file(suffix=".mlir", prefix=self.dir_path + model_name)
+            )
+            self.json_path = str(
+                self.create_file(suffix=".json", prefix=self.dir_path + model_name)
+            )
+
+            self.export_to_mlir(
+                mlir_path=self.mlir_path,
+                json_path=self.json_path,
+            )
+        else:
+            logger.info(f" Using pre-exported mlir: {self.mlir_path}")
+            logger.info(f" Using pre-exported config json: {self.json_path}")
+
         vmfb_path = str(
             self.create_file(suffix=".vmfb", prefix=self.dir_path + model_name)
         )
 
-        self.export_to_mlir(
-            mlir_path=mlir_path,
-            json_path=json_path,
-        )
-
         self.compile_to_vmfb(
-            mlir_path=mlir_path,
+            mlir_path=self.mlir_path,
             vmfb_path=vmfb_path,
             cwd=self.sharktank_dir,
         )
