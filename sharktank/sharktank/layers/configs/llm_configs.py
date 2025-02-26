@@ -51,9 +51,12 @@ class LlamaHParams:
     kv_latent_dim: Optional[int] = None
     v_head_dim: Optional[int] = None
 
-    # Expert cnofigs - Deep seek Specific
+    # Expert configs - Deep seek Specific
     expert_score_func: Optional[str] = None
     route_scale: Optional[float] = None
+
+    # Grok configurations
+    attention_softcap: Optional[float] = None
 
     @staticmethod
     def from_gguf_props(p: dict[str, Any]):
@@ -66,6 +69,8 @@ class LlamaHParams:
         rope_dimension_count = _optional_int_prop(
             p, f"{name_prefix}.rope.dimension_count", default_rope_dimension_count
         )
+
+        attention_softcap = 30.0 if name_prefix == "grok" else None
 
         return LlamaHParams(
             model_arch=name_prefix,
@@ -91,6 +96,7 @@ class LlamaHParams:
             expert_used_count=_optional_int_prop(
                 p, f"{name_prefix}.expert_used_count", default_expert_used_count
             ),
+            attention_softcap=attention_softcap,
         )
 
     def to_gguf_props(self) -> dict[str, Any]:
