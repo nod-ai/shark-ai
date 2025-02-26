@@ -51,6 +51,7 @@ class PerplexityTest(unittest.TestCase):
                 f"--tensor-parallelism-size=1",
                 f"--attention-kernel=decomposed",
                 f"--num-prompts={self.batch_size}",
+                f"--use-attention-mask",
             ]
         )
 
@@ -87,6 +88,7 @@ class PerplexityTest(unittest.TestCase):
                 f"--tensor-parallelism-size=1",
                 f"--attention-kernel=torch",
                 f"--num-prompts={self.batch_size}",
+                f"--use-attention-mask",
             ]
         )
 
