@@ -3,11 +3,69 @@ import os
 import urllib
 import logging
 import asyncio
+import threading
 from pathlib import Path
 
 import shortfin.array as sfnp
 import shortfin as sf
-from shortfin_apps.flux.components.manager import SystemManager
+from shortfin.interop.support.device_setup import get_selected_devices
+
+
+class SystemManager:
+    def __init__(
+        self,
+        device="local-task",
+        device_ids=None,
+        async_allocs=True,
+        amdgpu_allocators=None,
+        logger_name=__name__,
+        shutdown_system=True,
+    ):
+        self.logger = logging.getLogger(logger_name)
+
+        self.shutdown_system = shutdown_system
+
+        if any(x in device for x in ["local-task", "cpu"]):
+            self.ls = sf.host.CPUSystemBuilder().create_system()
+        elif any(x in device for x in ["hip", "amdgpu"]):
+            if amdgpu_allocators is None:
+                sb = sf.SystemBuilder(
+                    system_type="amdgpu",
+                    amdgpu_async_allocations=async_allocs,
+                )
+            else:
+                sb = sf.SystemBuilder(
+                    system_type="amdgpu",
+                    amdgpu_async_allocations=async_allocs,
+                    amdgpu_allocators=amdgpu_allocators,
+                )
+            if device_ids:
+                sb.visible_devices = sb.available_devices
+                sb.visible_devices = get_selected_devices(sb, device_ids)
+            self.ls = sb.create_system()
+
+        self.logger.info(f"Created local system with {self.ls.device_names} devices")
+        # TODO: Come up with an easier bootstrap thing than manually
+        # running a thread.
+        self.t = threading.Thread(target=lambda: self.ls.run(self.run()))
+        self.command_queue = self.ls.create_queue("command")
+        self.command_writer = self.command_queue.writer()
+
+    def start(self):
+        self.logger.info("Starting system manager")
+        self.t.start()
+
+    def shutdown(self):
+        self.logger.info("Shutting down system manager")
+        self.command_queue.close()
+        if self.shutdown_system:
+            self.ls.shutdown()
+
+    async def run(self):
+        reader = self.command_queue.reader()
+        while command := await reader():
+            ...
+        self.logger.info("System manager command processor stopped")
 
 
 dtype_to_filetag = {
