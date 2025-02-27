@@ -70,7 +70,7 @@ class PerplexityTest(unittest.TestCase):
         )
 
     @skipif_run_quick_llama_test
-    def test_llama3_8B_fp8(self):
+    def test_llama3_8B_f8(self):
 
         # Llama 3.1 8B non-decomposed
 
