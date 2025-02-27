@@ -166,7 +166,7 @@ class StrobeMessage(sf.Message):
     ...
 
 
-class ServiceBase:
+class GenerateService:
     """Base class for shortfin service implementations."""
 
     def __init__(self, sysman: SystemManager):
@@ -174,6 +174,35 @@ class ServiceBase:
         self.sysman = sysman
         self.inference_parameters: dict[str, list[sf.BaseProgramParameters]] = {}
         self.inference_modules: dict[str, list[sf.ProgramModule]] = {}
+        self.name = None
+        self.model_params = None
+        self.prog_isolation = None
+        self.inference_programs = {}
+        self.inference_functions = {}
+        self.trace_execution = False
+        self.show_progress = False
+
+        # Worker and fiber configuration
+        self.workers = []
+        self.workers_per_device = 1
+        self.fibers_per_device = 1
+        self.fibers_per_worker = 1
+
+    def set_isolation(self, isolation_str: str = "per_call"):
+        """Set the program isolation mode from a string.
+
+        Args:
+            isolation_str: Program isolation mode string
+        """
+        self.prog_isolation = prog_isolations[isolation_str]
+
+    def validate_fiber_configuration(self):
+        """Validate fiber configuration."""
+        if self.fibers_per_device % self.workers_per_device != 0:
+            raise ValueError(
+                "Currently, fibers_per_device must be divisible by workers_per_device"
+            )
+        self.fibers_per_worker = int(self.fibers_per_device / self.workers_per_device)
 
     def load_inference_module(self, vmfb_path: Path, component: str = "main"):
         """Load an inference module from a VMFB file.
@@ -217,8 +246,102 @@ class ServiceBase:
             self.inference_parameters[component] = []
         self.inference_parameters[component].append(p)
 
+    def initialize_program_modules(self, component: str):
+        """Initialize program modules for a component.
 
-class BatcherProcessBase(sf.Process):
+        Args:
+            component: Component name
+
+        Returns:
+            List of program modules
+        """
+        if component not in self.inference_modules:
+            return []
+
+        return [
+            sf.ProgramModule.parameter_provider(
+                self.sysman.ls, *self.inference_parameters.get(component, [])
+            ),
+            *self.inference_modules[component],
+        ]
+
+    def create_program(self, modules, devices, isolation=None, trace_execution=None):
+        """Create a program with the given modules and devices.
+
+        Args:
+            modules: List of program modules
+            devices: List of devices
+            isolation: Program isolation mode (defaults to self.prog_isolation)
+            trace_execution: Whether to trace execution (defaults to self.trace_execution)
+
+        Returns:
+            Program instance
+        """
+        if isolation is None:
+            isolation = self.prog_isolation
+
+        if trace_execution is None:
+            trace_execution = self.trace_execution
+
+        return sf.Program(
+            modules=modules,
+            devices=devices,
+            isolation=isolation,
+            trace_execution=trace_execution,
+        )
+
+    def create_worker(self, device, index):
+        """Create a worker for a device.
+
+        Args:
+            device: Device to create worker for
+            index: Worker index
+
+        Returns:
+            Worker instance
+        """
+        return self.sysman.ls.create_worker(
+            f"{self.name}-inference-{device.name}-{index}"
+        )
+
+    def start(self):
+        """Start the service by loading program modules and launching the batcher."""
+        # Override in derived classes
+        pass
+
+    def shutdown(self):
+        """Shutdown the service."""
+        if hasattr(self, "batcher"):
+            self.batcher.shutdown()
+
+    def __repr__(self):
+        """Default string representation for service instances."""
+        modules = [
+            f"     {key} : {value}" for key, value in self.inference_modules.items()
+        ]
+        params = [
+            f"     {key} : {value}" for key, value in self.inference_parameters.items()
+        ]
+        # For python 3.11 since we can't have \ in the f"" expression.
+        new_line = "\n"
+        return (
+            f"ServiceManager("
+            f"\n  INFERENCE DEVICES : \n"
+            f"     {self.sysman.ls.devices}\n"
+            f"\n  MODEL PARAMS : \n"
+            f"{self.model_params}"
+            f"\n  SERVICE PARAMS : \n"
+            f"     fibers per device : {self.fibers_per_device}\n"
+            f"     program isolation mode : {self.prog_isolation}\n"
+            f"\n  INFERENCE MODULES : \n"
+            f"{new_line.join(modules)}\n"
+            f"\n  INFERENCE PARAMETERS : \n"
+            f"{new_line.join(params)}\n"
+            f")"
+        )
+
+
+class BatcherProcess(sf.Process):
     """The batcher is a persistent process responsible for flighting incoming work
     into batches."""
 

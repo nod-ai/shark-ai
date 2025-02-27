@@ -17,7 +17,7 @@ from shortfin.interop.fastapi import FastAPIResponder
 
 from .io_struct import GenerateReqInput
 from .messages import LlmInferenceExecRequest, InferencePhase
-from .service import GenerateService
+from .service import LlmGenerateService
 from .tokenizer import Encoding
 
 logger = logging.getLogger(__name__)
@@ -108,7 +108,7 @@ class ClientGenerateBatchProcess(sf.Process):
 
     def __init__(
         self,
-        service: GenerateService,
+        service: LlmGenerateService,
         gen_req: GenerateReqInput,
         responder: FastAPIResponder,
     ):
