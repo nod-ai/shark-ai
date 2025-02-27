@@ -15,7 +15,7 @@ from shortfin.interop.fastapi import FastAPIResponder
 
 from .io_struct import GenerateReqInput
 from .messages import SDXLInferenceExecRequest
-from .service import GenerateService
+from .service import SDXLGenerateService
 from .metrics import measure
 
 logger = logging.getLogger("shortfin-sd.generate")
@@ -71,7 +71,7 @@ class ClientGenerateBatchProcess(sf.Process):
 
     def __init__(
         self,
-        service: GenerateService,
+        service: SDXLGenerateService,
         gen_req: GenerateReqInput,
         responder: FastAPIResponder,
     ):

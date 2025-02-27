@@ -26,7 +26,7 @@ from .components.generate import ClientGenerateBatchProcess
 from .components.config_struct import ModelParams
 from .components.io_struct import GenerateReqInput
 from .components.manager import SystemManager
-from .components.service import GenerateService
+from .components.service import SDXLGenerateService
 from .components.tokenizer import Tokenizer
 
 
@@ -132,7 +132,7 @@ def configure_service(args, sysman, model_config, flagfile, tuning_spec):
     model_params = ModelParams.load_json(model_config)
     vmfbs, params = get_modules(args, model_config, flagfile, tuning_spec)
 
-    sm = GenerateService(
+    sm = SDXLGenerateService(
         name="sd",
         sysman=sysman,
         tokenizers=tokenizers,

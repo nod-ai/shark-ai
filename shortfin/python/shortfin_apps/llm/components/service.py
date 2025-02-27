@@ -13,7 +13,7 @@ from pathlib import Path
 import shortfin as sf
 import shortfin.array as sfnp
 
-from ...utils import ServiceBase, BatcherProcessBase, prog_isolations
+from ...utils import GenerateService, BatcherProcess
 
 from .kvcache.base_attention_cache import (
     BasePagedAttentionCache,
@@ -31,7 +31,7 @@ from .service_debug_dumper import SERVICE_DEBUG_DUMPER
 logger = logging.getLogger(__name__)
 
 
-class GenerateService(ServiceBase):
+class LlmGenerateService(GenerateService):
     """Top level service interface for generating text against a model."""
 
     inference_program: sf.Program
@@ -50,54 +50,54 @@ class GenerateService(ServiceBase):
     ):
         super().__init__(sysman)
         self.name = name
-
-        # Application objects.
         self.tokenizer = tokenizer
         self.model_params = model_params
         self.server_params = server_params
-        self.main_worker = sysman.ls.create_worker(f"{name}-inference")
-        self.main_fiber = sysman.ls.create_fiber(self.main_worker)
 
-        # Scope dependent objects.
+        self.set_isolation(program_isolation)
+        self.initialize_worker_and_fiber()
+        self.initialize_page_cache()
         self.batcher = LlmBatcherProcess(self)
+
+    def initialize_worker_and_fiber(self):
+        self.main_worker = self.sysman.ls.create_worker(f"{self.name}-inference")
+        self.main_fiber = self.sysman.ls.create_fiber(self.main_worker)
+
+    def initialize_page_cache(self):
+        """Initialize page pool and attention cache."""
         page_pool_config = PagePoolConfig(
-            dtype=model_params.attn_dtype,
-            alloc_page_count=model_params.paged_kv_cache.device_block_count,
-            paged_kv_block_size_elements=model_params.paged_kv_block_size_elements,
+            dtype=self.model_params.attn_dtype,
+            alloc_page_count=self.model_params.paged_kv_cache.device_block_count,
+            paged_kv_block_size_elements=self.model_params.paged_kv_block_size_elements,
         )
         page_pool = PagePool(
             devices=self.main_fiber.devices_dict.values(), config=page_pool_config
         )
-        if server_params.prefix_sharing_algorithm == "trie":
+
+        if self.server_params.prefix_sharing_algorithm == "trie":
             self.page_cache = TriePagedAttentionCache(
                 page_pool=page_pool,
-                tokens_per_page=model_params.paged_kv_cache.block_seq_stride,
+                tokens_per_page=self.model_params.paged_kv_cache.block_seq_stride,
             )
-        elif server_params.prefix_sharing_algorithm == "none":
+        elif self.server_params.prefix_sharing_algorithm == "none":
             self.page_cache = BasePagedAttentionCache(
                 page_pool=page_pool,
-                tokens_per_page=model_params.paged_kv_cache.block_seq_stride,
+                tokens_per_page=self.model_params.paged_kv_cache.block_seq_stride,
             )
         else:
             raise ValueError(
-                f"Unknown prefix_sharing_algorithm {server_params.prefix_sharing_algorithm}. Currently only supporting 'trie' and 'none'."
+                f"Unknown prefix_sharing_algorithm {self.server_params.prefix_sharing_algorithm}. Currently only supporting 'trie' and 'none'."
             )
 
-        self.program_isolation = prog_isolations[program_isolation]
-
     def start(self):
-        self.inference_program = sf.Program(
-            modules=[
-                sf.ProgramModule.parameter_provider(
-                    self.sysman.ls, *self.inference_parameters["main"]
-                )
-            ]
-            + self.inference_modules["main"],
-            devices=self.sysman.ls.devices,
-            trace_execution=False,
-            isolation=self.program_isolation,
+        component_modules = self.initialize_program_modules("main")
+        self.inference_program = self.create_program(
+            modules=component_modules, devices=self.sysman.ls.devices
         )
-        # Resolve prefill entrypoints.
+        self.initialize_function_references()
+        self.batcher.launch()
+
+    def initialize_function_references(self):
         self.prefill_functions = {}
         for bs in self.model_params.prefill_batch_sizes:
             self.prefill_functions[bs] = self.inference_program[
@@ -109,12 +109,6 @@ class GenerateService(ServiceBase):
             self.decode_functions[bs] = self.inference_program[
                 f"{self.model_params.module_name}.decode_bs{bs}"
             ]
-
-        # Start persistent processes.
-        self.batcher.launch()
-
-    def shutdown(self):
-        self.batcher.shutdown()
 
     def __repr__(self):
         return (
@@ -133,7 +127,7 @@ class GenerateService(ServiceBase):
 import math
 
 
-class LlmBatcherProcess(BatcherProcessBase):
+class LlmBatcherProcess(BatcherProcess):
     """The batcher is a persistent process responsible for flighting incoming work
     into batches and handling the requisite cache allocations (since every batch needs
     committed cache state).
@@ -142,7 +136,7 @@ class LlmBatcherProcess(BatcherProcessBase):
     STROBE_SHORT_DELAY = 0.1
     STROBE_LONG_DELAY = 0.25
 
-    def __init__(self, service: GenerateService):
+    def __init__(self, service: LlmGenerateService):
         super().__init__(fiber=service.main_fiber)
         self.service = service
         self.pending_prefills: set[LlmInferenceExecRequest] = set()
@@ -268,7 +262,7 @@ class InferenceExecutorProcess(sf.Process):
 
     def __init__(
         self,
-        service: GenerateService,
+        service: LlmGenerateService,
         phase: InferencePhase,
         seq_stride: int,
         page_tables,
