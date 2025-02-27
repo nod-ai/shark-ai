@@ -196,7 +196,7 @@ class ServiceBase:
         *paths: Path,
         parameter_scope: str,
         format: str = "",
-        component: str = "main"",
+        component: str = "main",
     ):
         """Load inference parameters from files.
 
