@@ -120,7 +120,7 @@ class GenerateService(ServiceBase):
         return (
             f"ServiceManager(\n"
             f"  model_params={self.model_params}\n"
-            f"  inference_modules={self.inference_modules["main"]}\n"
+            f"  inference_modules={self.inference_modules}\n"
             f"  page_cache={self.page_cache}\n"
             f")"
         )
