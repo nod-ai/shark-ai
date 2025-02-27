@@ -8,6 +8,10 @@ import asyncio
 import logging
 import json
 
+from typing import (
+    Union,
+)
+
 import shortfin as sf
 
 # TODO: Have a generic "Responder" interface vs just the concrete impl.
@@ -41,7 +45,7 @@ class GenerateImageProcess(sf.Process):
         self.client = client
         self.gen_req = gen_req
         self.index = index
-        self.result_image = None
+        self.result_image: Union[str, None] = None
 
     async def run(self):
         exec = SDXLInferenceExecRequest.from_batch(self.gen_req, self.index)
