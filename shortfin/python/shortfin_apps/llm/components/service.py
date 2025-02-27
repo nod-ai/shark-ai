@@ -23,7 +23,7 @@ from .kvcache.base_attention_cache import (
 from .kvcache.trie_attention_cache import TriePagedAttentionCache
 from .kvcache.page_pool import PagePoolConfig, PagePool, PageInfo
 from .config_struct import ModelParams, ServerParams
-from .manager import SystemManager
+from .manager import LlmSystemManager
 from .messages import LlmInferenceExecRequest, InferencePhase
 from .tokenizer import Tokenizer
 from .service_debug_dumper import SERVICE_DEBUG_DUMPER
@@ -42,7 +42,7 @@ class LlmGenerateService(GenerateService):
         self,
         *,
         name: str,
-        sysman: SystemManager,
+        sysman: LlmSystemManager,
         tokenizer: Tokenizer,
         model_params: ModelParams,
         server_params: "ServerParams",
