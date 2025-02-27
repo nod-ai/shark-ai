@@ -168,13 +168,18 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             xv = self.cache_quantizer.dequantize_raw_tensor(
                 xv, self.attention_dtype, name="xv_deq"
             )
-            if attention_mask is not None:
-                attention_mask = attention_mask.to(self.attention_dtype)
 
         # Transpose into [bs, heads, sl, dim]
         xq = xq.transpose(1, 2)
         keys = xk.transpose(1, 2)
         values = xv.transpose(1, 2)
+
+        # Coerce to the attention dtype.
+        xq = ops.to(xq, dtype=self.attention_dtype)
+        keys = ops.to(keys, dtype=self.attention_dtype)
+        values = ops.to(values, dtype=self.attention_dtype)
+        if attention_mask is not None:
+            attention_mask = ops.to(attention_mask, dtype=self.attention_dtype)
 
         if self.attention_kernel == "decomposed":
             attn_weights = ops.matmul(xq, keys.transpose(2, 3))
@@ -191,8 +196,15 @@ class PagedLlamaAttentionBlock(ThetaLayer):
 
             # Apply attention mask.
             self.trace_tensor("attn_weights", attn_weights)
-            if attention_mask is not None:
-                # self.trace_tensor("attn_mask", attention_mask)
+            if attention_mask is None:
+                attention_mask = torch.full(
+                    (attn_weights.shape[2], attn_weights.shape[3]), float("-inf")
+                )
+                attention_mask = torch.triu(attention_mask, diagonal=1)[
+                    None, None, :, :
+                ]
+                attn_weights = attn_weights + attention_mask
+            else:
                 attn_weights = attn_weights + attention_mask
 
             attn_weights = ops.softmax(
@@ -203,6 +215,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 attn_weights, values
             )  # (bs, heads, slen, head_dim)
         else:
+            if self.softcap is not None:
+                raise ValueError("softcap not supported yet")
             attn_output = ops.scaled_dot_product_attention(
                 q=xq,  # [bs, ..., sl, dim]
                 k=keys,  # [bs, ..., sl, dim]

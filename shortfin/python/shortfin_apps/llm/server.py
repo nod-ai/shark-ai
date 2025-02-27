@@ -49,7 +49,7 @@ UVICORN_LOG_CONFIG = {
 }
 
 
-def main(argv, log_config=uvicorn.config.LOGGING_CONFIG):
+def parse_args(argv):
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", type=str, default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8000)
@@ -136,8 +136,11 @@ def main(argv, log_config=uvicorn.config.LOGGING_CONFIG):
         choices=["none", "trie"],
         help="Algorithm to use for prefix sharing in KV cache",
     )
-    args = parser.parse_args(argv)
+    return parser.parse_args(argv)
 
+
+def main(argv, log_config=uvicorn.config.LOGGING_CONFIG):
+    args = parse_args(argv)
     if args.tokenizer_config_json is None:
         # this is only used for the EOS token
         logging.info("Argument `--tokenizer_config_json` is not provided")

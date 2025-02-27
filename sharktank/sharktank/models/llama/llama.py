@@ -16,11 +16,6 @@ import torch.nn.functional as F
 from ...layers import *
 from ...types import *
 from ...utils.create_cache import *
-from ... import ops
-
-
-from transformers.models.llama.configuration_llama import LlamaConfig
-from transformers.models.llama.modeling_llama import LlamaRotaryEmbedding
 
 __all__ = [
     "PagedLlamaModelV1",
