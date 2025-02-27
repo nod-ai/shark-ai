@@ -775,6 +775,7 @@ class ShardedTensor(InferenceTensor):
     @devices.setter
     def devices(self, devices: Tuple[int]):
         self._devices = devices
+        self._pinned = True  # TODO: Would we ever use this setter and NOT want the devices pinned?
 
     @property
     @abstractmethod
@@ -824,9 +825,12 @@ class ShardedTensorBase(ShardedTensor):
         pinned: bool | None
     ):
         assert len(ts) > 0
-        assert len(ts) == len(devices)
         assert shard_dim is None or (shard_dim >= 0 and len(ts[0].shape) > shard_dim)
-        # TODO: Infer pinned here
+        if devices is None:
+            devices = tuple(range(len(ts)))
+        assert len(ts) == len(devices)
+        if pinned is None:
+            pinned = not isinstance(ts[0], torch._subclasses.fake_tensor.FakeTensor)
         super().__init__(name=name, shape=shape, shard_dim=shard_dim, devices=devices, pinned=pinned)
         self._shards: tuple[DefaultPrimitiveTensor] = tuple(
             DefaultPrimitiveTensor(
@@ -1301,8 +1305,6 @@ class UnreducedTensor(ShardedTensorBase):
         assert len(ts) > 0
         shape = list(ts[0].shape if shape is None else shape)
         assert all(shape == list(t.shape) for t in ts)
-        if devices is None:
-            devices = tuple(range(len(ts)))
         super().__init__(name=name, ts=ts, shape=shape, shard_dim=None, devices=devices, pinned=pinned)
 
 
