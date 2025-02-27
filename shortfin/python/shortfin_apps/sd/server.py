@@ -118,7 +118,9 @@ app.add_middleware(
 def configure_sys(args) -> SDXLSystemManager:
     # Setup system (configure devices, etc).
     model_config, topology_config, flagfile, tuning_spec, args = get_configs(args)
-    sysman = SDXLSystemManager(args.device, args.device_ids, args.amdgpu_async_allocations)
+    sysman = SDXLSystemManager(
+        args.device, args.device_ids, args.amdgpu_async_allocations
+    )
     return sysman, model_config, flagfile, tuning_spec
 
 
