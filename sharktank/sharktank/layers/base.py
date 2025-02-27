@@ -250,8 +250,8 @@ class BaseLayer(nn.Module, metaclass=BaseLayerMetaClass):
         from iree.compiler import compile_file
 
         compile_file(
-            self.config.mlir_path,
-            output_file=output_path,
+            str(self.config.mlir_path),
+            output_file=str(output_path),
             extra_args=self.config.get_compile_args(),
         )
 
