@@ -55,9 +55,6 @@ class GenerateService(ServiceBase):
         self.tokenizer = tokenizer
         self.model_params = model_params
         self.server_params = server_params
-        self.inference_parameters: list[sf.BaseProgramParameters] = []
-        self.inference_modules: list[sf.ProgramModule] = []
-
         self.main_worker = sysman.ls.create_worker(f"{name}-inference")
         self.main_fiber = sysman.ls.create_fiber(self.main_worker)
 
@@ -92,10 +89,10 @@ class GenerateService(ServiceBase):
         self.inference_program = sf.Program(
             modules=[
                 sf.ProgramModule.parameter_provider(
-                    self.sysman.ls, *self.inference_parameters
+                    self.sysman.ls, *self.inference_parameters["main"]
                 )
             ]
-            + self.inference_modules,
+            + self.inference_modules["main"],
             devices=self.sysman.ls.devices,
             trace_execution=False,
             isolation=self.program_isolation,
@@ -123,7 +120,7 @@ class GenerateService(ServiceBase):
         return (
             f"ServiceManager(\n"
             f"  model_params={self.model_params}\n"
-            f"  inference_modules={self.inference_modules}\n"
+            f"  inference_modules={self.inference_modules["main"]}\n"
             f"  page_cache={self.page_cache}\n"
             f")"
         )

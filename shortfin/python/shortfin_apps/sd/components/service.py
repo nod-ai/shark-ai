@@ -54,8 +54,6 @@ class GenerateService(ServiceBase):
         # Application objects.
         self.tokenizers = tokenizers
         self.model_params = model_params
-        self.inference_parameters: dict[str, list[sf.BaseProgramParameters]] = {}
-        self.inference_modules: dict[str, sf.ProgramModule] = {}
         self.inference_functions: dict[str, dict[str, sf.ProgramFunction]] = {}
         self.inference_programs: dict[int, dict[str, sf.Program]] = {}
         self.trace_execution = trace_execution

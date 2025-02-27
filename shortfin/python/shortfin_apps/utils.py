@@ -175,7 +175,7 @@ class ServiceBase:
         self.inference_parameters: dict[str, list[sf.BaseProgramParameters]] = {}
         self.inference_modules: dict[str, list[sf.ProgramModule]] = {}
 
-    def load_inference_module(self, vmfb_path: Path, component: str = None):
+    def load_inference_module(self, vmfb_path: Path, component: str = "main"):
         """Load an inference module from a VMFB file.
 
         Args:
@@ -185,25 +185,18 @@ class ServiceBase:
         if not hasattr(self, "inference_modules"):
             self.inference_modules = {}
 
-        if component is not None:
-            if not self.inference_modules.get(component):
-                self.inference_modules[component] = []
-            self.inference_modules[component].append(
-                sf.ProgramModule.load(self.sysman.ls, vmfb_path)
-            )
-        else:
-            if not hasattr(self, "inference_modules_list"):
-                self.inference_modules_list = []
-            self.inference_modules_list.append(
-                sf.ProgramModule.load(self.sysman.ls, vmfb_path)
-            )
+        if not self.inference_modules.get(component):
+            self.inference_modules[component] = []
+        self.inference_modules[component].append(
+            sf.ProgramModule.load(self.sysman.ls, vmfb_path)
+        )
 
     def load_inference_parameters(
         self,
         *paths: Path,
         parameter_scope: str,
         format: str = "",
-        component: str = None,
+        component: str = "main"",
     ):
         """Load inference parameters from files.
 
@@ -218,16 +211,11 @@ class ServiceBase:
             logging.info("Loading parameter fiber '%s' from: %s", parameter_scope, path)
             p.load(path, format=format)
 
-        if component is not None:
-            if not hasattr(self, "inference_parameters"):
-                self.inference_parameters = {}
-            if not self.inference_parameters.get(component):
-                self.inference_parameters[component] = []
-            self.inference_parameters[component].append(p)
-        else:
-            if not hasattr(self, "inference_parameters_list"):
-                self.inference_parameters_list = []
-            self.inference_parameters_list.append(p)
+        if not hasattr(self, "inference_parameters"):
+            self.inference_parameters = {}
+        if not self.inference_parameters.get(component):
+            self.inference_parameters[component] = []
+        self.inference_parameters[component].append(p)
 
 
 class BatcherProcessBase(sf.Process):
