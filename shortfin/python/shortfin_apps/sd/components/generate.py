@@ -85,7 +85,7 @@ class ClientGenerateBatchProcess(sf.Process):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
         try:
             # Launch all individual generate processes and wait for them to finish.
-            gen_processes = []
+            gen_processes: list[GenerateImageProcess] = []
             for index in range(self.gen_req.num_output_images):
                 gen_process = GenerateImageProcess(self, self.gen_req, index)
                 gen_processes.append(gen_process)
