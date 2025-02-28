@@ -118,6 +118,7 @@ def main():
                 "block_seq_stride": llama_config.block_seq_stride,
                 "device_block_count": args.device_block_count,  # so that this makes its way into the config file & can be edited.
             },
+            "n_beams": llama_config.n_beams,
         }
 
     # Unrolling cache updates by batch row makes dynamo sad without an

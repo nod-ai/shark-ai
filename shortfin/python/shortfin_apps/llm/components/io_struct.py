@@ -41,6 +41,8 @@ class GenerateReqInput:
     top_logprobs_num: Optional[Union[List[int], int]] = None
     # Whether to detokenize tokens in text in the returned logprobs.
     return_text_in_logprobs: bool = False
+    # Whether to return multiple beams from server when using `beam_search`
+    return_top_k: bool = False
     # Whether to stream output.
     stream: bool = False
     # The modalities of the image data [image, multi-images, video]

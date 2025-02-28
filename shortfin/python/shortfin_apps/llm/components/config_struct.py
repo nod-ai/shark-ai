@@ -141,6 +141,9 @@ class ModelParams:
     # Cache parameters.
     paged_kv_cache: PagedKVCacheParams | None = None
 
+    # Number of beams to use during token generation.
+    n_beams: int = 1
+
     # Size in bytes of the KV cache dtype.
     @property
     def attn_dtype_size(self) -> int:

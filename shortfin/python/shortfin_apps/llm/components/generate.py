@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import asyncio
+import copy
 import io
 import json
 import logging
@@ -15,6 +16,7 @@ import shortfin.array as sfnp
 # TODO: Have a generic "Responder" interface vs just the concrete impl.
 from shortfin.interop.fastapi import FastAPIResponder
 
+from .beam_manager import BeamManager
 from .io_struct import GenerateReqInput
 from .messages import InferenceExecRequest, InferencePhase
 from .service import GenerateService
@@ -39,6 +41,7 @@ class GenerateItemProcess(sf.Process):
         input_token_ids: list[int],
         max_completion_tokens: int,
         eos_token_id: int,
+        n_beams: int,
     ):
         super().__init__(fiber=client.fiber)
         self.client = client
@@ -48,6 +51,8 @@ class GenerateItemProcess(sf.Process):
         self.result_token_ids: list[int] = []
         self.max_completion_tokens = max_completion_tokens
         self.eos_token_id = eos_token_id
+        self.n_beams = n_beams
+        self.beam_manager = BeamManager(n_beams)
 
         self.streamed_tokens_index = 0
 
@@ -68,19 +73,69 @@ class GenerateItemProcess(sf.Process):
             self.append_token(token_int)
             # Decode loop.
             exec.start_position = len(self.input_token_ids) - 1
-            for i in range(self.max_completion_tokens):
-                exec.reset(InferencePhase.DECODE)
-                exec.input_token_ids.append(token_int)
-                exec.start_position += 1
-                self.client.batcher.submit(exec)
-                await exec.done
-                token = sfnp.argmax(exec.result_logits)
-                token_int = token.items[0]
-                self.append_token(token_int)
-                if token_int == self.eos_token_id:
-                    break
+            exec.input_token_ids.append(token_int)
+            if self.n_beams > 1:
+                await self.beam_search_decode_loop(exec)
+            else:
+                await self.greedy_decode_loop(exec)
         finally:
+            logger.info(f"Freeing cache pages: {exec.rid}")
             exec.free_cache_pages()
+
+    async def greedy_decode_loop(self, exec_req: InferenceExecRequest):
+        for _ in range(self.max_completion_tokens):
+            exec_req.reset(InferencePhase.DECODE)
+            self.client.batcher.submit(exec_req)
+            await exec_req.done
+            token = sfnp.argmax(exec_req.result_logits)
+            token_int = token.items[0]
+            self.append_token(token_int)
+            if token_int == self.eos_token_id:
+                break
+            exec_req.input_token_ids.append(token_int)
+            exec_req.start_position += 1
+
+    async def beam_search_decode_loop(self, exec_req: InferenceExecRequest):
+        n_beams = self.n_beams
+        decode_reqs = [exec_req]
+        # First, we need to replicate our exec_req,
+        # such that len(decode_reqs) == self.n_beams
+        for _ in range(n_beams - 1):
+            decode_req = exec_req.replicate_self()
+            decode_reqs.append(decode_req)
+
+        self.beam_manager.create_beam(decode_reqs)
+        beam_group_id = exec_req.beam_group_id
+        beam_group = self.beam_manager.beam_map[beam_group_id]
+        for _ in range(self.max_completion_tokens):
+            if len(beam_group.completed_reqs) == self.n_beams:
+                break
+
+            # Submit all decode requests to the batcher from this beam
+            for exec in beam_group.exec_reqs:
+                if exec in beam_group.completed_reqs:
+                    continue
+                exec.reset(InferencePhase.DECODE)
+                self.client.batcher.submit(exec)
+
+            # Wait for all beams to finish
+            await beam_group.wait()
+            beam_group.process_beams(self.eos_token_id)
+
+        if self.gen_req.return_top_k:
+            reqs = beam_group.completed_reqs
+            for req in beam_group.exec_reqs:
+                reqs.add(req)
+            results = [req.input_token_ids for req in reqs]
+            self.result_token_ids = results
+            self.client.stream_results(self)
+            self.beam_manager.delete_beam(beam_group_id)
+            return
+
+        selected_req = beam_group.find_top_beam()
+        self.result_token_ids = selected_req.input_token_ids
+        self.client.stream_results(self)
+        self.beam_manager.delete_beam(beam_group_id)
 
     def append_token(self, token: int):
         self.result_token_ids.append(token)
@@ -104,6 +159,7 @@ class ClientGenerateBatchProcess(sf.Process):
         "gen_req",
         "responder",
         "tokenizer",
+        "n_beams",
     ]
 
     def __init__(
@@ -118,6 +174,7 @@ class ClientGenerateBatchProcess(sf.Process):
         self.tokenizer = service.tokenizer
         self.batcher = service.batcher
         self.complete_infeed = self.system.create_queue()
+        self.n_beams = service.model_params.n_beams
 
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
@@ -148,6 +205,7 @@ class ClientGenerateBatchProcess(sf.Process):
                     input_tokens if is_pretokenized else input_tokens.ids,
                     max_completion_tokens=max_completion_tokens,
                     eos_token_id=self.tokenizer.eos_token_id,
+                    n_beams=self.n_beams,
                 )
                 gen_processes.append(gen_process)
                 gen_process.launch()
@@ -167,12 +225,22 @@ class ClientGenerateBatchProcess(sf.Process):
                         result_tokens = result_tokens[0]
                     out.write(bytes(json.dumps(result_tokens), "utf-8"))
                 else:
-                    result_texts = self.tokenizer.decode(result_tokens)
-                    for result_text in result_texts:
-                        out.write(b"data: ")
-                        out.write(result_text.encode())
-                        out.write(b"\n\n")
+                    if self.gen_req.return_top_k:
+                        for batch in result_tokens:
+                            result_texts = self.tokenizer.decode(batch)
+                            for result_text in result_texts:
+                                out.write(b"data: ")
+                                out.write(result_text.encode())
+                                out.write(b"\n\n")
+                    else:
+                        result_texts = self.tokenizer.decode(result_tokens)
+                        for result_text in result_texts:
+                            out.write(b"data: ")
+                            out.write(result_text.encode())
+                            out.write(b"\n\n")
                 self.responder.send_response(out.getvalue())
+        except Exception as e:
+            logger.error(e)
         finally:
             self.responder.ensure_response()
 

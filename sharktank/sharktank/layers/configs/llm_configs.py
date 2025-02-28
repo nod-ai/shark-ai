@@ -202,6 +202,11 @@ class LlamaModelConfig:
     # the program and not.
     static_tables: bool = True
 
+    # The number of beams to use when generating tokens for a given prompt.
+    # When n_beams == 1, `greedy` selection is used,
+    # when n_beams > 1, `beam search` is used.
+    n_beams: int = 1
+
 
 @dataclass
 class T5Config:
