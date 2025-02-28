@@ -58,13 +58,12 @@ def import_and_wrap_signatures():
                 assert not isinstance(val, ShardedTensor), "ShardedTensors in keyword arguments are not yet supported."
 
             res = f(*args, **kwargs)
-            if (
+            pinned = res.pinned or (
                 len(t_vals) == 1
                 and t_vals[0].pinned
                 and isinstance(res, ShardedTensor)
-            ):
-                res = res.clone(pinned=True)
-            return res
+            )
+            return res.clone(devices=t_vals[0].devices, pinned=pinned)
         
         if hasattr(f, "override"):  # Needed for ops like .gelu_tanh_approximation
             wrapper.override = f.override
