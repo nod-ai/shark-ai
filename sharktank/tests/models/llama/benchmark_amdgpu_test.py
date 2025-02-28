@@ -290,7 +290,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         super().setUp()
         # TODO: add numpy files to Azure and download from it
         self.artifacts_dir = Path("/shark-dev/70b")
-        self.weights_dir = self.artifacts_dir + "instruct/weights"
+        self.weights_dir = self.artifacts_dir / "instruct/weights"
         self.irpa_path = self.weights_dir / "llama3.1_70b_instruct_fp16.irpa"
         self.irpa_path_fp8 = self.artifacts_dir / "f8/llama70b_fp8.irpa"
         self.tensor_parallelism_size = 8
