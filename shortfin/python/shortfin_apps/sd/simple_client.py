@@ -5,19 +5,20 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from datetime import datetime as dt
-import os
 import time
 import json
 import argparse
-import base64
 import asyncio
 import aiohttp
 import requests
 
-from PIL import Image
+from shortfin_apps.types.Base64CharacterEncodedByteSequence import (
+    Base64CharacterEncodedByteSequence,
+)
 
 from shortfin_apps.utilities.image import (
     save_to_file,
+    image_from,
 )
 
 sample_request = {
@@ -35,18 +36,6 @@ sample_request = {
 }
 
 
-def get_batched(request, arg, idx):
-    if isinstance(request[arg], list):
-        # some args are broadcasted to each prompt, hence overriding idx for single-item entries
-        if len(request[arg]) == 1:
-            indexed = request[arg][0]
-        else:
-            indexed = request[arg][idx]
-    else:
-        indexed = request[arg]
-    return indexed
-
-
 async def send_request(session: aiohttp.ClientSession, rep, args, data):
     print("Sending request batch #", rep)
     url = f"{args.host}:{args.port}/generate"
@@ -58,15 +47,12 @@ async def send_request(session: aiohttp.ClientSession, rep, args, data):
             response.raise_for_status()  # Raise an error for bad responses
             res_json = await response.json(content_type=None)
             if args.save:
-                for idx, item in enumerate(res_json["images"]):
-                    width = get_batched(data, "width", idx)
-                    height = get_batched(data, "height", idx)
-                    print("Saving response as image...")
+                for idx, each_png in enumerate(res_json["images"]):
+                    if not isinstance(each_png, str):
+                        raise ValueError(f"png was not string at index {idx}")
 
-                    each_image = Image.frombytes(
-                        mode="RGB",
-                        size=(width, height),
-                        data=base64.b64decode(item.encode("utf-8")),
+                    each_image = image_from(
+                        Base64CharacterEncodedByteSequence(each_png)
                     )
 
                     timestamp = dt.now().strftime("%Y-%m-%d_%H-%M-%S")
