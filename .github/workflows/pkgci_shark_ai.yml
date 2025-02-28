@@ -66,6 +66,54 @@ jobs:
           name: smoke-test-${{ matrix.name }}
           path: smoke-test-${{ matrix.name }}.xml
 
+
+  direct_to_batcher_test:
+    name: "Direct to Batcher Test (${{ matrix.name }})"
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: cpu
+            runs-on: azure-cpubuilder-linux-scale
+            test_device: cpu
+            python-version: 3.11
+          - name: amdgpu_rocm_mi300_gfx942
+            runs-on: linux-mi300-1gpu-ossci
+            test_device: gfx942
+            python-version: 3.11
+    defaults:
+      run:
+        shell: bash
+    env:
+      PACKAGE_DOWNLOAD_DIR: ${{ github.workspace }}/.packages
+      VENV_DIR: ${{ github.workspace }}/.venv
+    steps:
+      - name: Run rocminfo
+        if: contains(matrix.test_device, 'gfx')
+        run: rocminfo
+      - name: "Checkout Code"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: "Set up environment and install PkgCI Artifacts"
+        uses: ./.github/actions/pkgci-setup
+        with:
+          python-version: ${{matrix.python-version}}
+          artifact-run-id: ${{ inputs.artifact_run_id }}
+      - name: Run Direct-to-batcher Test
+        run: |
+          source ${VENV_DIR}/bin/activate
+          pytest -v -s --test_device=${{ matrix.test_device }} \
+            --junitxml=direct-to-batcher-test-${{ matrix.name }}.xml \
+            app_tests/integration_tests/llm/shortfin/direct_to_batcher_test.py \
+            --log-cli-level=INFO
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: direct-to-batcher-test-${{ matrix.name }}
+          path: direct-to-batcher-test-${{ matrix.name }}.xml
+
+
   integration_test:
     name: "Integration Test (${{ matrix.name }})"
     runs-on: ${{ matrix.runs-on }}

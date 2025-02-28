@@ -65,19 +65,11 @@ def pytest_addoption(parser):
     )
 
     parser.addoption(
-        "--longrun",
-        action="store_true",
-        dest="longrun",
-        default=False,
-        help="Enable long tests",
-    )
-
-    parser.addoption(
         "--run-quick-llama-test",
         action="store_true",
         dest="run-quick-llama-test",
         default=False,
-        help="Enable llama 8b f16 decomposed benchmarking test",
+        help="Run large llama tests if passed",
     )
 
     parser.addoption(
@@ -150,11 +142,11 @@ def pytest_addoption(parser):
     )
 
     parser.addoption(
-        "--llama3-8b-fp8-model-path",
+        "--llama3-8b-f8-model-path",
         type=Path,
         action="store",
         default=None,
-        help="Llama3.1 8b fp8 model path",
+        help="Llama3.1 8b f8 model path",
     )
 
     parser.addoption(
@@ -172,11 +164,11 @@ def pytest_addoption(parser):
     )
 
     parser.addoption(
-        "--llama3-405b-fp8-model-path",
+        "--llama3-405b-f8-model-path",
         type=Path,
         action="store",
         default=None,
-        help="Llama3.1 405b fp8 model path",
+        help="Llama3.1 405b f8 model path",
     )
 
     # To obtain a T5 GGUF file you can use llama.cpp's convert_hf_to_gguf.py.
@@ -324,8 +316,8 @@ def get_model_artifacts(request: FixtureRequest):
     model_path["llama3_8b_f16_model_path"] = set_fixture_from_cli_option(
         request, "--llama3-8b-f16-model-path", "llama3_8b_f16_model"
     )
-    model_path["llama3_8b_fp8_model_path"] = set_fixture_from_cli_option(
-        request, "--llama3-8b-fp8-model-path", "llama3_8b_fp8_model"
+    model_path["llama3_8b_f8_model_path"] = set_fixture_from_cli_option(
+        request, "--llama3-8b-f8-model-path", "llama3_8b_f8_model"
     )
     model_path["llama3_405b_tokenizer_path"] = set_fixture_from_cli_option(
         request, "--llama3-405b-tokenizer-path", "llama3_405b_tokenizer"
@@ -333,8 +325,8 @@ def get_model_artifacts(request: FixtureRequest):
     model_path["llama3_405b_f16_model_path"] = set_fixture_from_cli_option(
         request, "--llama3-405b-f16-model-path", "llama3_405b_f16_model"
     )
-    model_path["llama3_405b_fp8_model_path"] = set_fixture_from_cli_option(
-        request, "--llama3-405b-fp8-model-path", "llama3_405b_fp8_model"
+    model_path["llama3_405b_f8_model_path"] = set_fixture_from_cli_option(
+        request, "--llama3-405b-f8-model-path", "llama3_405b_f8_model"
     )
     model_path["google__t5_v1_1_small_f32_model_path"] = set_fixture_from_cli_option(
         request,

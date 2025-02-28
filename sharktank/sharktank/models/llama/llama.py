@@ -16,11 +16,6 @@ import torch.nn.functional as F
 from ...layers import *
 from ...types import *
 from ...utils.create_cache import *
-from ... import ops
-
-
-from transformers.models.llama.configuration_llama import LlamaConfig
-from transformers.models.llama.modeling_llama import LlamaRotaryEmbedding
 
 __all__ = [
     "PagedLlamaModelV1",
@@ -117,6 +112,7 @@ class PagedLlamaModelV1(BaseCausalLMModel):
                     head_dim=hp.attn_head_dim,
                     head_count_kv=hp.attention_head_count_kv,
                     rms_epsilon=hp.attention_layer_norm_rms_epsilon,
+                    attention_dtype=config.attention_dtype,
                     attention_kernel=self.attention_kernel,
                     fake_quant=self.fake_quant,
                 )
@@ -241,6 +237,7 @@ class AttentionFFNBlock(ThetaLayer):
         head_dim: int,
         head_count_kv: int,
         rms_epsilon: float,
+        attention_dtype: Optional[torch.dtype] = None,
         attention_kernel: str = "decomposed",
         fake_quant: bool = True,
     ):
@@ -255,6 +252,7 @@ class AttentionFFNBlock(ThetaLayer):
                 head_dim=head_dim,
                 head_count_kv=head_count_kv,
                 rms_epsilon=rms_epsilon,
+                attention_dtype=attention_dtype,
                 attention_kernel=attention_kernel,
                 fake_quant=fake_quant,
             ),

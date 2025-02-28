@@ -83,6 +83,7 @@ def main():
         block_seq_stride=args.block_seq_stride,
         activation_dtype=args.activation_dtype,
         attention_dtype=args.attention_dtype,
+        kv_cache_dtype=args.kv_cache_dtype,
     )
     llama_config.fake_quant = args.fake_quant
 

@@ -79,6 +79,23 @@ def server(model_artifacts, request):
 
 
 @pytest.fixture(scope="module")
+def generate_service(model_artifacts, request):
+    """Starts and manages the test server."""
+    model_config = model_artifacts.model_config
+
+    server_config = ServerConfig(
+        artifacts=model_artifacts,
+        device_settings=model_config.device_settings,
+        prefix_sharing_algorithm=request.param.get("prefix_sharing", "none"),
+    )
+
+    server_instance = ServerInstance(server_config)
+    server_instance.port = 0
+    with server_instance.start_service_only() as gs:
+        yield gs
+
+
+@pytest.fixture(scope="module")
 def encoded_prompt(model_artifacts: ModelArtifacts, request) -> list[int]:
     tokenizer = Tokenizer.from_file(str(model_artifacts.tokenizer_path))
     return tokenizer.encode(request.param).ids

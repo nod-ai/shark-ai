@@ -65,7 +65,7 @@ jobs:
       - name: Run perplexity test with IREE
         run: |
           source ${VENV_DIR}/bin/activate
-          pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_iree_test.py --run-nightly-llama-tests --bs=100 --iree-device=hip://0 --iree-hip-target=gfx942 --iree-hal-target-device=hip --llama3-8b-f16-model-path=/shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa --llama3-8b-tokenizer-path=/shark-dev/data/llama3.1/weights/8b/fp16/tokenizer_config.json --html=out/llm/llama/perplexity/iree_perplexity/index.html --log-cli-level=INFO
+          pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_iree_test.py --run-nightly-llama-tests --bs=100 --iree-device=hip://0 --iree-hip-target=gfx942 --iree-hal-target-device=hip --llama3-8b-f16-model-path=/shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa --llama3-8b-tokenizer-path=/shark-dev/data/llama3.1/weights/8b/fp16/tokenizer_config.json --llama3-8b-f8-model-path=/shark-dev/8b/fp8/native_fp8_e4m3fnuz_llama3_8b.irpa --html=out/llm/llama/perplexity/iree_perplexity/index.html --log-cli-level=INFO
           ls -lha ${{ github.workspace }}/perplexity_ci_artifacts
 
 
@@ -121,7 +121,7 @@ jobs:
       - name: Run perplexity test with Torch
         run: |
           source ${VENV_DIR}/bin/activate
-          pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_torch_test.py --longrun --llama3-8b-f16-model-path=/shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa --llama3-8b-tokenizer-path=/shark-dev/data/llama3.1/weights/8b/fp16/tokenizer_config.json --html=out/llm/llama/perplexity/torch_perplexity/index.html
+          pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_torch_test.py --run-nightly-llama-tests --bs=100 --llama3-8b-f16-model-path=/shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa --llama3-8b-tokenizer-path=/shark-dev/data/llama3.1/weights/8b/fp16/tokenizer_config.json --html=out/llm/llama/perplexity/torch_perplexity/index.html
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4.0.0

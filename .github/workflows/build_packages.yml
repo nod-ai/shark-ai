@@ -148,7 +148,7 @@ jobs:
         echo "SHORTFIN_ENABLE_TRACING=OFF" >> $GITHUB_ENV
     - name: Setup cache
       if: ${{ inputs.build_type == 'dev' }}
-      uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+      uses: actions/cache@0c907a75c2c80ebcb7f088228285e798b750cf8f # v4.2.1
       with:
         path: ${{ env.CACHE_DIR }}
         key: build-packages-${{ matrix.package }}-${{ matrix.platform }}-${{ matrix.python-version }}-v1-${{ github.sha }}
@@ -185,7 +185,7 @@ jobs:
     # Upload release candidate versions to a 'dev-wheels' GitHub release.
     - name: Release rc python wheels
       if: ${{ inputs.build_type == 'rc' || inputs.build_type == '' }}
-      uses: ncipollo/release-action@cdcc88a9acf3ca41c16c37bb7d21b9ad48560d87 # v1.15.0
+      uses: ncipollo/release-action@440c8c1cb0ed28b9f43e4d1d670870f059653174 # v1.16.0
       with:
         artifacts: bindist/*.whl
         tag: "dev-wheels"
