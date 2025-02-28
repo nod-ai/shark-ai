@@ -5,12 +5,22 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import asyncio
+import base64
 import logging
 import json
 
 from typing import (
+    TypeVar,
     Union,
 )
+
+from PIL import Image
+
+from shortfin_apps.types.Base64CharacterEncodedByteSequence import (
+    Base64CharacterEncodedByteSequence,
+)
+
+from shortfin_apps.utilities.image import png_from
 
 import shortfin as sf
 
@@ -52,6 +62,26 @@ class GenerateImageProcess(sf.Process):
         self.client.batcher.submit(exec)
         await exec.done
         self.result_image = exec.result_image
+
+
+Item = TypeVar("Item")
+
+
+def from_batch(
+    given_subject: list[Item] | Item | None,
+    given_batch_index,
+) -> Item:
+    if given_subject is None:
+        raise Exception("Expected an item or batch of items but got `None`")
+
+    if not isinstance(given_subject, list):
+        return given_subject
+
+    # some args are broadcasted to each prompt, hence overriding index for single-item entries
+    if len(given_subject) == 1:
+        return given_subject[0]
+
+    return given_subject[given_batch_index]
 
 
 class ClientGenerateBatchProcess(sf.Process):
@@ -99,8 +129,34 @@ class ClientGenerateBatchProcess(sf.Process):
 
             # TODO: stream image outputs
             logging.debug("Responding to one shot batch")
-            response_data = {"images": [p.result_image for p in gen_processes]}
-            json_str = json.dumps(response_data)
-            self.responder.send_response(json_str)
+
+            png_images: list[Base64CharacterEncodedByteSequence] = []
+
+            for index_of_each_process, each_process in enumerate(gen_processes):
+                if each_process.result_image is None:
+                    raise Exception(
+                        f"Expected image result for batch {index_of_each_process} but got `None`"
+                    )
+
+                size_of_each_image = (
+                    from_batch(self.gen_req.width, index_of_each_process),
+                    from_batch(self.gen_req.height, index_of_each_process),
+                )
+
+                rgb_sequence_of_each_image = Base64CharacterEncodedByteSequence(
+                    each_process.result_image
+                )
+
+                each_image = Image.frombytes(
+                    mode="RGB",
+                    size=size_of_each_image,
+                    data=rgb_sequence_of_each_image.as_bytes,
+                )
+
+                png_images.append(png_from(each_image))
+
+            response_body = {"images": png_images}
+            response_body_in_json = json.dumps(response_body)
+            self.responder.send_response(response_body_in_json)
         finally:
             self.responder.ensure_response()
