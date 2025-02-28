@@ -303,12 +303,12 @@ class VaeFluxDecoderTest(TempDirTestBase):
 
         iree.compiler.compile_file(
             f"{self._temp_dir}/flux_vae_bf16.mlir",
-            output_file="{self._temp_dir}/flux_vae_bf16.vmfb",
+            output_file=f"{self._temp_dir}/flux_vae_bf16.vmfb",
             extra_args=extra_args,
         )
         iree.compiler.compile_file(
             f"{self._temp_dir}/flux_vae_f32.mlir",
-            output_file="{self._temp_dir}/flux_vae_f32.vmfb",
+            output_file=f"{self._temp_dir}/flux_vae_f32.vmfb",
             extra_args=extra_args,
         )
 
