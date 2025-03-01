@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 import torch
 
-from ...export import export_static_model_mlir
+from ...export import export_model_mlir
 from ...tools.import_hf_dataset import import_hf_dataset
 from .flux import FluxModelV1, FluxParams
 from ...types import Dataset
@@ -25,7 +25,7 @@ def export_flux_transformer_model_mlir(
     output_path: PathLike,
     batch_sizes: list[int] = flux_transformer_default_batch_sizes,
 ):
-    export_static_model_mlir(model, output_path=output_path, batch_sizes=batch_sizes)
+    export_model_mlir(model, output_path=output_path, batch_sizes=batch_sizes)
 
 
 def export_flux_transformer_iree_parameters(

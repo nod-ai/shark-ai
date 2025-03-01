@@ -5,12 +5,14 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from typing import Any, Callable, Optional, Union, Collection, Sequence, List
+from typing_extensions import deprecated
 from tempfile import TemporaryFile
 import json
 from pathlib import Path
 from types import NotImplementedType
 from dataclasses import dataclass
 import warnings
+from os import PathLike
 
 import torch
 import torch.nn.functional as F
@@ -30,13 +32,16 @@ from .tensors import (
     InferenceTensorMetadata,
     DefaultPrimitiveTensor,
     REGISTERED_INFERENCE_TENSOR_CLASSES,
+    unbox_tensor,
 )
 
 __all__ = [
     "Dataset",
     "flat_to_nested_dict",
+    "load_properties",
     "Theta",
     "torch_module_to_theta",
+    "mark_export_external_theta",
     "save_load_theta",
 ]
 
@@ -222,12 +227,22 @@ class Theta:
 def torch_module_to_theta(module: torch.nn.Module) -> Theta:
     res = Theta(
         {
-            name: DefaultPrimitiveTensor(data=param)
+            name: DefaultPrimitiveTensor(data=param, name=name)
             for name, param in module.named_parameters()
         }
     )
-    res.rename_tensors_to_paths()
+    mark_export_external_theta(res)
     return res
+
+
+def mark_export_external_theta(theta: Theta):
+    """Mark all tensors as external.
+    This will cause during export these tensors to not be embedded into the MLIR."""
+    for _, tensor in theta.flatten().items():
+        ExternalTensorTrait(external_name=tensor.name, external_scope="").set(
+            unbox_tensor(tensor)
+        )
+    return theta
 
 
 def flat_to_nested_dict(flat: dict[str, Any]) -> dict[str, Any]:
@@ -303,6 +318,7 @@ def _norm_name_path(name_parts) -> list[str]:
     return accum
 
 
+@deprecated("Use mark_export_external_theta instead.")
 def save_load_theta(theta: Theta) -> Theta:
     """Roundtrip to disk to avoid treating parameters as constants that would appear
     in the MLIR."""
@@ -585,3 +601,27 @@ def _dataset_load_irpa(path: Path, mmap: bool) -> Dataset:
     # Note that there may be duplicates. Last wins.
     dataset = Dataset(meta.properties, Theta(meta.inference_tensors))
     return dataset
+
+
+def load_irpa_properties(path: PathLike, /) -> dict[str, PropertyValueType]:
+    meta = DatasetMetadata(properties={}, inference_tensors={})
+    archive = ParameterArchive(path)
+    entries = {k: v for k, v in archive.items()}
+    meta.load_metadata(entries)
+    return meta.properties
+
+
+def load_properties(path: PathLike, /) -> dict[str, Any]:
+    path = Path(path)
+    suffixes = path.suffixes
+    if suffixes[-1] == ".gguf":
+        from . import gguf_interop
+
+        return gguf_interop.load_properties(path)
+    elif suffixes[-1] == ".irpa":
+        return load_irpa_properties(path)
+    else:
+        # TODO: implement detection of file type from magic number.
+        raise ValueError(
+            f"Could not load properties form file {path}, unknown file type"
+        )

@@ -11,7 +11,8 @@ import iree.turbine.aot as aot
 from iree.turbine.aot import DeviceAffinity, FxProgramsBuilder
 from torch.utils._pytree import tree_structure, tree_unflatten, tree_flatten
 from .types.tensors import ShardedTensor
-from .layers import BaseLayer
+from .layers import BaseLayer, ThetaLayer
+from .types.theta import mark_export_external_theta
 from torch.utils._pytree import PyTree, _is_leaf
 import functools
 
@@ -177,9 +178,10 @@ def export(
     assert False, "TODO: implement the case when not using an FxProgramsBuilder"
 
 
-def export_static_model_mlir(
+def export_model_mlir(
     model: BaseLayer,
     output_path: PathLike,
+    *,
     function_batch_size_pairs: Optional[dict[Optional[str], list[int]]] = None,
     batch_sizes: Optional[list[int]] = None,
 ):
@@ -199,6 +201,9 @@ def export_static_model_mlir(
 
     assert not (function_batch_size_pairs is not None and batch_sizes is not None)
 
+    if isinstance(model, ThetaLayer):
+        mark_export_external_theta(model.theta)
+
     if batch_sizes is not None:
         function_batch_size_pairs = {None: batch_sizes}
 
@@ -210,12 +215,15 @@ def export_static_model_mlir(
     for function, batch_sizes in function_batch_size_pairs.items():
         for batch_size in batch_sizes:
             args, kwargs = model.sample_inputs(batch_size, function)
+            dynamic_shapes = model.dynamic_shapes_for_export(
+                batch_size=batch_size, function=function
+            )
 
             @fxb.export_program(
                 name=f"{function or 'forward'}_bs{batch_size}",
                 args=args,
                 kwargs=kwargs,
-                dynamic_shapes=None,
+                dynamic_shapes=dynamic_shapes,
                 strict=False,
             )
             def _(model, **kwargs):
