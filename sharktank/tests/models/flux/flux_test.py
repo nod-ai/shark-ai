@@ -8,11 +8,11 @@ import logging
 import functools
 import unittest
 import torch
-import pytest
 import iree.compiler
 import iree.runtime
 from collections import OrderedDict
 from diffusers import FluxTransformer2DModel
+from sharktank.models.flux.compile import iree_compile_flags
 from sharktank.models.flux.export import (
     export_flux_transformer_from_hugging_face,
     export_flux_transformer,
@@ -21,8 +21,7 @@ from sharktank.models.flux.export import (
 from sharktank.models.flux.testing import (
     convert_flux_transformer_input_for_hugging_face_model,
     export_dev_random_single_layer,
-    make_dev_single_layer_config,
-    make_random_theta,
+    with_flux_data,
 )
 from sharktank.models.flux.flux import FluxModelV1, FluxParams
 from sharktank.utils.testing import TempDirTestBase
@@ -41,27 +40,6 @@ from sharktank.types import Dataset, Theta
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
-with_flux_data = pytest.mark.skipif("not config.getoption('with_flux_data')")
-
-iree_compile_flags = [
-    "--iree-hal-target-device=hip",
-    "--iree-hip-target=gfx942",
-    "--iree-opt-const-eval=false",
-    "--iree-opt-strip-assertions=true",
-    "--iree-global-opt-propagate-transposes=true",
-    "--iree-dispatch-creation-enable-fuse-horizontal-contractions=true",
-    "--iree-dispatch-creation-enable-aggressive-fusion=true",
-    "--iree-opt-aggressively-propagate-transposes=true",
-    "--iree-opt-outer-dim-concat=true",
-    "--iree-vm-target-truncate-unsupported-floats",
-    "--iree-llvmgpu-enable-prefetch=true",
-    "--iree-opt-data-tiling=false",
-    "--iree-codegen-gpu-native-math-precision=true",
-    "--iree-codegen-llvmgpu-use-vector-distribution",
-    "--iree-hip-waves-per-eu=2",
-    "--iree-execution-model=async-external",
-    "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline,iree-preprocessing-pad-to-intrinsics)",
-]
 
 
 def convert_dtype_if_dtype(
