@@ -358,6 +358,8 @@ def sdxl(
         default=None,
         help="Path to folder with scheduler .config.",
     ),
+    scheduler_config_path=cl_arg("scheduler-config-path", default=None, help="Path to folder with scheduler .config."
+    ),
     force_update=cl_arg("force-update", default=False, help="Force update artifacts."),
 ):
     force_update = False if force_update not in ["True", True] else True
