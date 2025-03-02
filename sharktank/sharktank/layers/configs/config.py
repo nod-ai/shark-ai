@@ -30,10 +30,8 @@ def _make_optional_path(path: PathLike | None = None) -> Path | None:
 
 
 def _get_model_type(
-    model_type: str | type["BaseLayer"] | None,
-) -> type["BaseLayer"] | None:
-    if model_type is None:
-        return None
+    model_type: str | type["BaseLayer"],
+) -> type["BaseLayer"]:
     if not isinstance(model_type, str):
         return model_type
     from ..base import model_registry
@@ -53,7 +51,7 @@ class ExportFunctionConfig:
     The model drives what is the meaning of default values."""
 
 
-@dataclass
+@dataclass(kw_only=True)
 class ModelConfig:
     """Base config for common model parameters.
     Specific model configs are meant to inherit this.
@@ -75,9 +73,13 @@ class ModelConfig:
 
     config_path: Path | None = None
     mlir_path: Path | None = None
-    parameters_path: Path | None = None
-    """IRPA or GGUF."""
+    """Export MLIR to this path."""
     iree_module_path: Path | None = None
+
+    parameters_path: Path | None = None
+    """Load parameters from this path. IRPA, GGUF, etc."""
+    export_parameters_path: Path | None = None
+    """Location of parameters when exporting. IRPA, GGUF, etc."""
 
     hugging_face_repo_id: str | None = None
     hugging_face_revision: str | None = None
@@ -94,6 +96,7 @@ class ModelConfig:
     """Generation of random model weights would use this seed."""
 
     def __post_init__(self):
+        assert self.model_type is not None
         self.model_type = _get_model_type(self.model_type)
         self.config_path = _make_optional_path(self.config_path)
         self.mlir_path = self._config_relative_to_cwd_relative_path(self.mlir_path)
@@ -111,10 +114,11 @@ class ModelConfig:
                 for export_function in self.export_functions
             ]
 
-    def get_compile_args(self) -> list[str]:
-        if self.compile_args is None:
-            return []
-        return self.compile_args
+    @classmethod
+    def create(cls, model_type: type["BaseLayer"] | str, **kwargs) -> "ModelConfig":
+        """Crate a config with type associated with the model_type."""
+        model_type = _get_model_type(model_type)
+        return model_type.config_type()(model_type=model_type, **kwargs)
 
     @classmethod
     def load(cls, config_path: PathLike, /, **kwargs) -> "ModelConfig":
@@ -131,7 +135,7 @@ class ModelConfig:
                 f"Config values parameters_path and hugging_face_repo_id are mutually exclusive"
             )
 
-        if parameters_path is not None and os.path.exists(parameters_path):
+        if parameters_path is not None:
             config_dict_from_parameters_file = load_properties(
                 Path(config_path) / config_dict["parameters_path"]
             )
@@ -152,7 +156,7 @@ class ModelConfig:
 
         model_type = _get_model_type(config_dict["model_type"])
         config_dict.update(kwargs)
-        return model_type.config_type()(**config_dict)
+        return cls.create(model_type, **config_dict)
 
     def save(self, config_path: PathLike | None = None, /):
         config_path = config_path or self.config_path
@@ -206,6 +210,11 @@ class ModelConfig:
     def asdict(self) -> dict[str, Any]:
         """This will recurse any fields that are dataclasses and convert them."""
         return asdict(self)
+
+    def get_compile_args(self) -> list[str]:
+        if self.compile_args is None:
+            return []
+        return self.compile_args
 
     @classmethod
     def translate_hugging_face_config_into_init_kwargs(

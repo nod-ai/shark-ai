@@ -283,7 +283,7 @@ class T5Config:
         return res
 
 
-@dataclass
+@dataclass(kw_only=True)
 class ClipTextConfig(ModelConfig):
     vocab_size: int = 49408
     hidden_size: int = 512
@@ -307,8 +307,9 @@ class ClipTextConfig(ModelConfig):
     def __post_init__(self):
         from ...models.clip import ClipTextModel
 
-        super().__post_init__()
         self.model_type = ClipTextModel
+        super().__post_init__()
+
         self.layer_norm_eps = float(self.layer_norm_eps)
         if isinstance(self.dtype, str):
             self.dtype = serialized_name_to_dtype(self.dtype)

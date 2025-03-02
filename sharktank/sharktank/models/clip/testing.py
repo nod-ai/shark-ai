@@ -150,7 +150,7 @@ def export_clip_text_model_iree_test_data(
         extra_config_kwargs={
             "config_path": None,
             "mlir_path": target_mlir_output_path,
-            "parameters_path": target_iree_parameters_output_path,
+            "export_parameters_path": target_iree_parameters_output_path,
             "export_functions": export_functions,
         },
     )

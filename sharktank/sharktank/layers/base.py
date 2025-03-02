@@ -6,10 +6,12 @@
 
 from typing import Any, Dict, Optional
 from collections import OrderedDict
+from collections.abc import Mapping
 from abc import ABCMeta
 import torch
 import torch.nn as nn
 from os import PathLike
+import logging
 
 from ..types import InferenceTensor, Theta, AnyTensor, Dataset
 from ..utils import debugging
@@ -22,6 +24,8 @@ __all__ = [
     "get_model_type_id",
     "model_registry",
 ]
+
+logger = logging.getLogger(__name__)
 
 
 def _set_recursively_submodules_default_trace_tensor_key_prefix(
@@ -42,7 +46,7 @@ def get_model_type_id(model_type: type["BaseLayer"]) -> str:
     return f"{model_type.__module__}.{model_type.__name__}"
 
 
-def create_model(config: PathLike | ModelConfig, /) -> "BaseLayer":
+def create_model(config: PathLike | ModelConfig | Mapping[str, Any], /) -> "BaseLayer":
     """
     Create model from a configuration.
     Example
@@ -52,7 +56,7 @@ def create_model(config: PathLike | ModelConfig, /) -> "BaseLayer":
     {
         "model_type": "MyModel",
         "mlir_path": "model.mlir",
-        "parameters_path": "model.irpa",
+        "export_parameters_path": "model.irpa",
         "iree_module_path": "model.vmfb",
         "compile_args": ["--iree-hal-target-device=local"],
         "export_functions": [
@@ -72,7 +76,9 @@ def create_model(config: PathLike | ModelConfig, /) -> "BaseLayer":
     model.compile()
     ```
     """
-    if not isinstance(config, ModelConfig):
+    if isinstance(config, Mapping):
+        config = ModelConfig.create(**config)
+    elif not isinstance(config, ModelConfig):
         config = ModelConfig.load(config)
 
     return config.model_type.from_config(config)
@@ -293,7 +299,7 @@ class ThetaLayer(BaseLayer):
         needs_sharding = True
 
         parameters_path = self.config.parameters_path
-        if parameters_path is not None:
+        if parameters_path is not None and parameters_path.exists():
             dataset = Dataset.load(parameters_path)
             theta = dataset.root_theta
             tensor_parallelism = dataset.properties.get("tensor_parallelism", 1)
@@ -331,7 +337,7 @@ class ThetaLayer(BaseLayer):
     def export_parameters(self, path: PathLike | None = None, /):
         "Export model parameters (includes the theta) into an IRPA/GGUF file."
         if path is None:
-            path = self.config.parameters_path
+            path = self.config.export_parameters_path
         if path is None:
             raise ValueError("Missing model parameters export path.")
 

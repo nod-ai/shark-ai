@@ -172,7 +172,7 @@ class ClipTextIreeTest(TempDirTestBase):
                 "config_path": None,
                 "export_functions": export_functions,
                 "mlir_path": mlir_path,
-                "parameters_path": parameters_path,
+                "export_parameters_path": parameters_path,
                 "iree_module_path": iree_module_path,
                 "compile_args": [
                     "--iree-hal-target-device=hip",
