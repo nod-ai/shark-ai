@@ -66,6 +66,7 @@ def pipe():
             out_size=4,
         ).asdict_for_saving(),
     ),
+    # TODO: add compile action that consumes a config.
     return compile(
         name=f"model",
         source=os.path.abspath("model.mlir"),
