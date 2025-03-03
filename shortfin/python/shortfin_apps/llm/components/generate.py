@@ -17,7 +17,7 @@ from shortfin.interop.fastapi import FastAPIResponder
 
 from .io_struct import GenerateReqInput
 from .messages import LlmInferenceExecRequest, InferencePhase
-from .service import LlmGenerateService
+from .service import GenerateService
 from .tokenizer import Encoding
 
 logger = logging.getLogger(__name__)

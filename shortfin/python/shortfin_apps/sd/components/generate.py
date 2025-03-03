@@ -26,7 +26,7 @@ from shortfin.interop.fastapi import FastAPIResponder
 
 from .io_struct import GenerateReqInput
 from .messages import SDXLInferenceExecRequest
-from .service import SDXLGenerateService
+from .service import GenerateService
 from .metrics import measure
 from .TextToImageInferenceOutput import TextToImageInferenceOutput
 

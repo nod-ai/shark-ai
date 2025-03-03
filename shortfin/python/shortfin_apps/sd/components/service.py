@@ -19,18 +19,18 @@ import gc
 import shortfin as sf
 import shortfin.array as sfnp
 
-from ...utils import GenerateService, BatcherProcess
+from ...utils import ServiceBase, BatcherProcessBase, prog_isolations
 
 from .config_struct import ModelParams
-from .manager import SDXLSystemManager
-from .messages import SDXLInferenceExecRequest, InferencePhase
+from .manager import SystemManager
+from .messages import InferenceExecRequest, InferencePhase
 from .tokenizer import Tokenizer
 from .metrics import measure, log_duration_str
 
 logger = logging.getLogger("shortfin-sd.service")
 
 
-class SDXLGenerateService(GenerateService):
+class GenerateService(ServiceBase):
     """Top level service interface for image generation."""
 
     def __init__(
@@ -48,12 +48,12 @@ class SDXLGenerateService(GenerateService):
         use_batcher: bool = True,
         splat: bool = False,
     ):
-        super().__init__(sysman, fibers_per_device, workers_per_device)
+        super().__init__(sysman)
         self.name = name
+
+        # Application objects.
         self.tokenizers = tokenizers
         self.model_params = model_params
-        self.inference_parameters: dict[str, list[sf.BaseProgramParameters]] = {}
-        self.inference_modules: dict[str, dict[int, sf.ProgramModule]] = {}
         self.inference_functions: dict[str, dict[str, sf.ProgramFunction]] = {}
         self.inference_programs: dict[int, dict[str, sf.Program]] = {}
         self.trace_execution = trace_execution
@@ -92,8 +92,10 @@ class SDXLGenerateService(GenerateService):
             self.inference_programs[idx] = {}
             self.inference_functions[idx] = {}
 
-    def equip_fiber(self, fiber, idx: int, worker_idx: int):
-        """Equip a fiber with additional metadata and command buffers."""
+        # Scope dependent objects.
+        self.batcher = SDXLBatcherProcess(self)
+
+    def equip_fiber(self, fiber, idx, worker_idx):
         MetaFiber = namedtuple(
             "MetaFiber", ["fiber", "idx", "worker_idx", "device", "command_buffers"]
         )
@@ -106,42 +108,6 @@ class SDXLGenerateService(GenerateService):
                 )
 
         return MetaFiber(fiber, idx, worker_idx, fiber.device(0), cbs)
-
-    def load_inference_module(
-        self, vmfb_path: Path, component: str = None, batch_size: int = None
-    ):
-        if not self.inference_modules.get(component):
-            self.inference_modules[component] = {}
-        if batch_size:
-            bs = batch_size
-        else:
-            match = re.search(r"_bs(\d+)_", str(vmfb_path))
-            if match:
-                bs = int(match.group(1))
-            else:
-                raise ValueError(
-                    "Batch size not found in filename or provided to load function."
-                )
-        if not self.inference_modules[component].get(bs):
-            self.inference_modules[component][bs] = []
-        self.inference_modules[component][bs].append(
-            sf.ProgramModule.load(self.sysman.ls, vmfb_path)
-        )
-
-    def load_inference_parameters(
-        self,
-        *paths: Path,
-        parameter_scope: str,
-        format: str = "",
-        component: str = None,
-    ):
-        p = sf.StaticProgramParameters(self.sysman.ls, parameter_scope=parameter_scope)
-        for path in paths:
-            logger.info("Loading parameter fiber '%s' from: %s", parameter_scope, path)
-            p.load(path, format=format)
-        if not self.inference_parameters.get(component):
-            self.inference_parameters[component] = []
-        self.inference_parameters[component].append(p)
 
     def start(self):
         # Initialize programs.
@@ -205,7 +171,7 @@ class SDXLGenerateService(GenerateService):
 ########################################################################################
 
 
-class SDXLBatcherProcess(BatcherProcess):
+class SDXLBatcherProcess(BatcherProcessBase):
     """The batcher is a persistent process responsible for flighting incoming work
     into batches.
     """
@@ -216,11 +182,7 @@ class SDXLBatcherProcess(BatcherProcess):
     def __init__(self, service: SDXLGenerateService):
         super().__init__(fiber=service.meta_fibers[0].fiber)
         self.service = service
-        self.batcher_infeed = self.system.create_queue()
-        self.pending_requests: set[InferenceExecRequest] = set()
-        self.strobe_enabled = True
-        self.strobes: int = 0
-        self.ideal_batch_size: int = max(service.model_params.batch_sizes["clip"])
+        self.ideal_batch_size: int = max(service.model_params.all_batch_sizes)
         self.num_fibers = len(service.meta_fibers)
 
     def handle_inference_request(self, request):
