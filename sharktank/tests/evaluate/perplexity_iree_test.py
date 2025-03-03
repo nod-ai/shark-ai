@@ -51,6 +51,7 @@ class PerplexityTest(unittest.TestCase):
                 f"--tensor-parallelism-size=1",
                 f"--attention-kernel=torch",
                 f"--num-prompts={self.batch_size}",
+                f"--use-attention-mask",
             ]
         )
 
@@ -69,53 +70,16 @@ class PerplexityTest(unittest.TestCase):
         )
 
     @skipif_run_quick_llama_test
-    @pytest.mark.xfail(reason="Compile Error")
-    def test_llama3_8B_fp8_decomposed(self):
-
-        # Llama 3.1 8B decomposed
-
-        model_name = "llama3_8B_fp8_iree"
-        baseline_perplexity = self.baseline_perplexity[model_name]
-
-        current_perplexity = perplexity_iree.main(
-            [
-                f"--irpa-file={self.llama3_8b_fp8_model}",
-                f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
-                f"--iree-device={self.iree_device}",
-                f"--iree-hal-target-device={self.iree_hal_target_device}",
-                f"--iree-hip-target={self.iree_hip_target}",
-                f"--tensor-parallelism-size=1",
-                f"--attention-kernel=decomposed",
-                f"--num-prompts={self.batch_size}",
-            ]
-        )
-
-        baseline_mean_perplexity = round(
-            np.mean(baseline_perplexity["perplexities"][0 : self.batch_size]), 6
-        )
-        current_mean_perplexity = round(current_perplexity["mean_perplexity"], 6)
-
-        perplexity_difference = current_mean_perplexity - baseline_mean_perplexity
-
-        self.assertAlmostEqual(
-            baseline_mean_perplexity,
-            current_mean_perplexity,
-            delta=self.delta,
-            msg=f"Current perplexity deviates baseline by {perplexity_difference}",
-        )
-
-    @skipif_run_quick_llama_test
-    @pytest.mark.xfail(reason="Compile Error")
-    def test_llama3_8B_fp8(self):
+    def test_llama3_8B_f8(self):
 
         # Llama 3.1 8B non-decomposed
 
-        model_name = "llama3_8B_fp8_iree"
+        model_name = "llama3_8B_f8_iree"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
         current_perplexity = perplexity_iree.main(
             [
-                f"--irpa-file={self.llama3_8b_fp8_model}",
+                f"--irpa-file={self.llama3_8b_f8_model}",
                 f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
                 f"--iree-device={self.iree_device}",
                 f"--iree-hal-target-device={self.iree_hal_target_device}",
@@ -123,6 +87,10 @@ class PerplexityTest(unittest.TestCase):
                 f"--tensor-parallelism-size=1",
                 f"--attention-kernel=torch",
                 f"--num-prompts={self.batch_size}",
+                f"--attention-dtype=bfloat16",
+                f"--activation-dtype=bfloat16",
+                f"--kv-cache-dtype=float8_e4m3fnuz",
+                "--use-hf",
             ]
         )
 
@@ -178,52 +146,16 @@ class PerplexityTest(unittest.TestCase):
 
     @skipif_run_quick_llama_test
     @pytest.mark.xfail(reason="Compile Error")
-    def test_llama3_405B_fp8_decomposed(self):
-
-        # Llama 3.1 405B decomposed
-
-        model_name = "llama3_405B_fp8_iree"
-        baseline_perplexity = self.baseline_perplexity[model_name]
-
-        current_perplexity = perplexity_iree.main(
-            [
-                f"--irpa-file={self.llama3_405b_fp8_model}",
-                f"--tokenizer-config-json={self.llama3_405b_tokenizer}",
-                f"--iree-device={self.iree_device}",
-                f"--iree-hal-target-device={self.iree_hal_target_device}",
-                f"--iree-hip-target={self.iree_hip_target}",
-                f"--tensor-parallelism-size={self.tensor_parallelism_size}",
-                f"--attention-kernel=decomposed",
-                f"--num-prompts={self.batch_size}",
-            ]
-        )
-
-        baseline_mean_perplexity = round(
-            np.mean(baseline_perplexity["perplexities"][0 : self.batch_size]), 6
-        )
-        current_mean_perplexity = round(current_perplexity["mean_perplexity"], 6)
-
-        perplexity_difference = current_mean_perplexity - baseline_mean_perplexity
-
-        self.assertAlmostEqual(
-            baseline_mean_perplexity,
-            current_mean_perplexity,
-            delta=self.delta,
-            msg=f"Current perplexity deviates baseline by {perplexity_difference}",
-        )
-
-    @skipif_run_quick_llama_test
-    @pytest.mark.xfail(reason="Compile Error")
-    def test_llama3_405B_fp8(self):
+    def test_llama3_405B_f8(self):
 
         # Llama 3.1 405B non-decomposed
 
-        model_name = "llama3_405B_fp8_iree"
+        model_name = "llama3_405B_f8_iree"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
         current_perplexity = perplexity_iree.main(
             [
-                f"--irpa-file={self.llama3_405b_fp8_model}",
+                f"--irpa-file={self.llama3_405b_f8_model}",
                 f"--tokenizer-config-json={self.llama3_405b_tokenizer}",
                 f"--iree-device={self.iree_device}",
                 f"--iree-hal-target-device={self.iree_hal_target_device}",
