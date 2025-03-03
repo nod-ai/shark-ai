@@ -154,9 +154,8 @@ class ModelConfig:
             config_form_hf.update(config_dict)
             config_dict = config_form_hf
 
-        model_type = _get_model_type(config_dict["model_type"])
         config_dict.update(kwargs)
-        return cls.create(model_type, **config_dict)
+        return cls.create(**config_dict)
 
     def save(self, config_path: PathLike | None = None, /):
         config_path = config_path or self.config_path
