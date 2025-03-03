@@ -13,6 +13,7 @@ import shortfin.array as sfnp
 import numpy as np
 
 from .io_struct import GenerateReqInput
+from ...utils import InferenceExecRequest
 
 logger = logging.getLogger("shortfin-sd.messages")
 
@@ -30,7 +31,7 @@ class InferencePhase(Enum):
     POSTPROCESS = 5
 
 
-class InferenceExecRequest(sf.Message):
+class SDXLInferenceExecRequest(InferenceExecRequest):
     """
     Generalized request passed for an individual phase of image generation.
 
@@ -195,7 +196,7 @@ class InferenceExecRequest(sf.Message):
         self.return_host_array = True
 
     @staticmethod
-    def from_batch(gen_req: GenerateReqInput, index: int) -> "InferenceExecRequest":
+    def from_batch(gen_req: GenerateReqInput, index: int) -> "SDXLInferenceExecRequest":
         gen_inputs = [
             "prompt",
             "neg_prompt",
@@ -222,11 +223,5 @@ class InferenceExecRequest(sf.Message):
             else:
                 rec_input = received
             rec_inputs[item] = rec_input
-        req = InferenceExecRequest(**rec_inputs)
+        req = SDXLInferenceExecRequest(**rec_inputs)
         return req
-
-
-class StrobeMessage(sf.Message):
-    """Sent to strobe a queue with fake activity (generate a wakeup)."""
-
-    ...
