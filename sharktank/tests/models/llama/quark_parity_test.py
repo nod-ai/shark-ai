@@ -19,7 +19,7 @@ with_quark_data = pytest.mark.skipif("not config.getoption('with_quark_data')")
 class QuarkParityTest(TempDirTestBase):
     def setUp(self):
         super().setUp()
-        self.path_prefix = Path("/shark-dev/quark_test")
+        self.path_prefix = Path("/shark-cache/quark_test")
 
     @with_quark_data
     def test_compare_against_quark(self):
@@ -55,7 +55,7 @@ class QuarkParityTest(TempDirTestBase):
             "sharktank.examples.paged_llm_v1",
             "The capitol of Texas is",
             f"--irpa-file={self.path_prefix}/fp8_bf16_weight.irpa",
-            f"--tokenizer-config-json=/data/llama3.1/8b/tokenizer.json",
+            f"--tokenizer-config-json=/shark-dev/data/llama3.1/8b/tokenizer.json",
             "--fake-quant",
             "--attention-kernel=torch",
             "--activation-dtype=bfloat16",
