@@ -133,7 +133,7 @@ jobs:
         submodules: false
 
     - name: Download version_local.json files
-      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+      uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.9
       with:
         name: version_local_files
         path: ./c/
@@ -148,7 +148,7 @@ jobs:
         echo "SHORTFIN_ENABLE_TRACING=OFF" >> $GITHUB_ENV
     - name: Setup cache
       if: ${{ inputs.build_type == 'dev' }}
-      uses: actions/cache@0c907a75c2c80ebcb7f088228285e798b750cf8f # v4.2.1
+      uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
       with:
         path: ${{ env.CACHE_DIR }}
         key: build-packages-${{ matrix.package }}-${{ matrix.platform }}-${{ matrix.python-version }}-v1-${{ github.sha }}
