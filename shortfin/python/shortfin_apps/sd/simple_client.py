@@ -177,7 +177,15 @@ async def async_range(count):
         await asyncio.sleep(0.0)
 
 
-def check_health(url):
+def is_connected(host, port):
+    max_port = 65535
+    if port < 1 or port > max_port:
+        print(
+            f"Error: Invalid port specified ({port}), expected a value between 1 and {max_port}"
+        )
+        return False
+
+    url = f"{host}:{port}"
     ready = False
     print("Waiting for server.", end=None)
     while not ready:
@@ -191,6 +199,8 @@ def check_health(url):
         except:
             time.sleep(2)
             print(".", end=None)
+
+    return True
 
 
 def main():
@@ -222,7 +232,7 @@ def main():
     p.add_argument(
         "--host", type=str, default="http://0.0.0.0", help="Server host address."
     )
-    p.add_argument("--port", type=str, default="8000", help="Server port")
+    p.add_argument("--port", type=int, default=8000, help="Server port")
     p.add_argument(
         "--steps",
         type=int,
@@ -235,7 +245,10 @@ def main():
         help="Start as an example CLI client instead of sending static requests.",
     )
     args = p.parse_args()
-    check_health(f"{args.host}:{args.port}")
+
+    if not is_connected(args.host, args.port):
+        exit(3)
+
     if args.interactive:
         asyncio.run(interactive(args))
     else:

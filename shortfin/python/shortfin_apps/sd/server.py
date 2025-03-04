@@ -275,6 +275,16 @@ def get_modules(args, model_config, flagfile, td_spec):
     return vmfbs, params
 
 
+def is_port_valid(port):
+    max_port = 65535
+    if port < 1 or port > max_port:
+        print(
+            f"Error: Invalid port specified ({port}), expected a value between 1 and {max_port}"
+        )
+        return False
+    return True
+
+
 def main(argv, log_config=UVICORN_LOG_CONFIG):
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", type=str, default=None)
@@ -403,6 +413,9 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
         help="Use tunings for attention and matmul ops. 0 to disable.",
     )
     args = parser.parse_args(argv)
+    if not is_port_valid(args.port):
+        exit(3)
+
     if not args.artifacts_dir:
         home = Path.home()
         artdir = home / ".cache" / "shark"
