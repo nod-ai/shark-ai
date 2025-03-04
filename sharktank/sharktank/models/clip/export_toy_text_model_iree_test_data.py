@@ -15,7 +15,7 @@ def main(args: Optional[list[str]] = None):
     parser = ArgumentParser(
         description=(
             "Export test data for toy-sized CLIP text model."
-            " This is program MLIR, parameters sample input and expected output."
+            " This includes the program MLIR, parameters, sample input and expected output."
             " Exports float32 and bfloat16 model variants."
             " The expected output is always in float32 precision."
         )
