@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v4.2.2
 
       - name: Setup Python and Install Dependencies
-        uses: ./.github/actions/setup-python-venv
+        uses: ./.github/actions/test-setup
         with:
           python-version: ${{ matrix.version }}
 
@@ -53,7 +53,7 @@ jobs:
       - uses: actions/checkout@v4.2.2
 
       - name: Setup Python and Install Dependencies
-        uses: ./.github/actions/setup-python-venv
+        uses: ./.github/actions/test-setup
         with:
           python-version: ${{ matrix.version }}
 
