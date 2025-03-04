@@ -23,9 +23,9 @@ as is from huggingface:
 model_dir=$(huggingface-cli download \
     stabilityai/stable-diffusion-xl-base-1.0 \
     unet/config.json unet/diffusion_pytorch_model.fp16.safetensors)
-python -m sharktank.models.punet.tools.import_hf_dataset \
+python -m sharktank.sharktank.tools.import_hf_dataset \
     --config-json $model_dir/unet/config.json \
-    --output-irpa-file ~/models/punet_fp16.irpa
+    --output-irpa-file ~/models/punet_fp16.irpa \
     --params $model_dir/unet/diffusion_pytorch_model.fp16.safetensors
 ```
 
