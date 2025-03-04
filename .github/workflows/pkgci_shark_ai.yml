@@ -66,6 +66,47 @@ jobs:
           name: smoke-test-${{ matrix.name }}
           path: smoke-test-${{ matrix.name }}.xml
 
+  sharded_tests:
+    name: "Sharded smoke tests (${{ matrix.name }})"
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: amdgpu_mi300_gfx942_tp4
+            runs-on: linux-mi300-4gpu-ossci-nod-ai
+            test_device: gfx942_tp4
+            python-version: 3.11
+    defaults:
+      run:
+        shell: bash
+    env:
+      PACKAGE_DOWNLOAD_DIR: ${{ github.workspace }}/.packages
+      VENV_DIR: ${{ github.workspace }}/.venv
+    steps:
+      - name: Run rocminfo
+        if: contains(matrix.test_device, 'gfx')
+        run: rocminfo
+      - name: "Checkout Code"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: "Set up environment and install PkgCI Artifacts"
+        uses: ./.github/actions/pkgci-setup
+        with:
+          python-version: ${{matrix.python-version}}
+          artifact-run-id: ${{ inputs.artifact_run_id }}
+      - name: Run LLM Sharded Smoke Test
+        run: |
+          source ${VENV_DIR}/bin/activate
+          pytest -v --test_device=${{ matrix.test_device }} \
+            --junitxml=sharded-smoke-test-${{ matrix.name }}.xml \
+            app_tests/integration_tests/llm/shortfin/sharded_model_test.py \
+            --log-cli-level=INFO
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sharded-smoke-test-${{ matrix.name }}
+          path: sharded-smoke-test-${{ matrix.name }}.xml
 
   direct_to_batcher_test:
     name: "Direct to Batcher Test (${{ matrix.name }})"
