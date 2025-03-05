@@ -64,13 +64,13 @@ jobs:
             --run-nightly-llama-tests --iree-hip-target=gfx942 --iree-device=hip://0 \
             --html=out/llm/llama/benchmark/index.html
 
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4.0.0
-        with:
-          github_token: ${{ secrets.SHARK_PLATFORM_GH_TOKEN }}
-          publish_dir: ./out/llm/llama/benchmark
-          destination_dir: ./llm/llama/benchmark
-          keep_files: true
+      # - name: Deploy to GitHub Pages
+      #   uses: peaceiris/actions-gh-pages@v4.0.0
+      #   with:
+      #     github_token: ${{ secrets.SHARK_PLATFORM_GH_TOKEN }}
+      #     publish_dir: ./out/llm/llama/benchmark
+      #     destination_dir: ./llm/llama/benchmark
+      #     keep_files: true
 
       - name: Upload Llama Executable Files
         uses: actions/upload-artifact@v4.6.0
