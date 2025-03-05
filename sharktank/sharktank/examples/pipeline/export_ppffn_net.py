@@ -30,7 +30,6 @@ def create_theta(
     dim: int, shard_count: int, num_layers: int, save_path
 ):
     split_size = dim // shard_count
-    
     weights = []
     for layer in range(num_layers):
         _weight = torch.rand(dim, dim, dtype=torch.float16) / math.sqrt(dim)
@@ -41,8 +40,6 @@ def create_theta(
                 ts=_weight.split(split_size, dim=1)
             )
         )
-
-
     ds = Dataset({}, Theta(weights))
     ds.save(save_path)
 
@@ -53,14 +50,22 @@ def pipeline_parallelize_theta(
 ) -> Theta:
     num_layers = len(theta.tensor("w"))
     shard_count = theta.tensor("w", '0').shard_count
-    
-    for layer, weight in ((int(l), w) for l, w in theta.tensor("w").items()):
-        pp_group =  int(layer * pp_count / num_layers)
+    for layer in list(theta.tensor("w").keys()):
+        weight = theta.tensor("w", layer)
+        pp_group =  int(int(layer) * pp_count / num_layers)
         zero_4_group = shard_count * pp_group
-        weight.devices = tuple(i + zero_4_group for i in range(shard_count))
-        for i, shard in enumerate(weight.shards):
-            DeviceTensorTrait(weight.devices[i]).set(shard._data)
-
+        devices = tuple(i + zero_4_group for i in range(shard_count))
+        shards = weight.shards
+        for i, shard in enumerate(shards):
+            DeviceTensorTrait(devices[i]).set(shard._data)
+        new_weight = SplitPrimitiveTensor(
+            shard_dim=weight.shard_dim,
+            ts=shards,
+            name=weight.name,
+            devices=devices,
+            pinned=True
+        )
+        theta.tensor("w")[layer] = new_weight
     return theta
 
 
