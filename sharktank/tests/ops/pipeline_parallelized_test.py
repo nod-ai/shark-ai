@@ -16,44 +16,6 @@ from sharktank.types import sharding
 from sharktank.layers import Conv2DLayer
 
 
-class AllGatherTest(unittest.TestCase):
-    def testAllGather(self):
-        shard_count = 3
-        shard_shape = [3, 4]
-        shard_dim = 1
-        shards = [
-            torch.rand(shard_shape, dtype=torch.float32)
-            for _ in range(shard_count)
-        ]
-        expected_result = torch.cat(shards, dim=shard_dim)
-
-        devices = (0, 6, 1)
-        sharded = SplitPrimitiveTensor(shard_dim=shard_dim, ts=shards, devices=devices)
-        actual_result = ops.all_gather(sharded)
-
-        for i in range(shard_count):
-            torch.testing.assert_close(actual_result.shards[i].as_torch(), expected_result)
-            assert actual_result.devices[i] == devices[i]
-
-class AllReduceTest(unittest.TestCase):
-    def testAllReduce(self):
-        shard_count = 3
-        shard_shape = [3, 4]
-        shard_dim = 1
-        shards = [
-            torch.rand(shard_shape, dtype=torch.float32)
-            for _ in range(shard_count)
-        ]
-        expected_result = torch.add(torch.add(shards[0], shards[1]), shards[2])
-
-        devices = (0, 6, 1)
-        sharded = SplitPrimitiveTensor(shard_dim=shard_dim, ts=shards, devices=devices)
-        actual_result = ops.all_reduce(sharded)
-
-        for i in range(shard_count):
-            torch.testing.assert_close(actual_result.shards[i].as_torch(), expected_result)
-            assert actual_result.devices[i] == devices[i]
-
 class TransferIfNeededTest(unittest.TestCase):
     def testTransferOnSameDevice(self):
         shard_count = 4
@@ -109,8 +71,24 @@ class TransferIfNeededTest(unittest.TestCase):
         except ValueError:
             return
         assert False  # Should have thrown a ValueError since both tensors are pinned, but devices are not the same
-    
-    def testMultiTensorsNoPinned(self):
+
+    def testMultiTensorsNoPinnedSameDevice(self):
+        tensor_count = 5
+        shard_count = 4
+        shard_shape = [3, 4]
+        shards = [torch.rand(shard_shape, dtype=torch.float32) for _ in range(shard_count)]
+        ts_pre = [
+            SplitPrimitiveTensor(shard_dim=1, ts=shards, devices=tuple(shard_count + d for d in range(shard_count)), pinned=False)
+            for _ in range(tensor_count)
+        ]
+        
+        ts_post = ops.transfer_if_needed(*ts_pre)
+
+        for t_pre, t_post in zip(ts_pre, ts_post):
+            assert all(d_pre == d_post for d_pre, d_post in zip(t_pre.devices, t_post.devices))
+            assert t_pre.pinned == t_post.pinned
+
+    def testMultiTensorsNoPinnedMultiDevice(self):
         tensor_count = 5
         shard_count = 4
         shard_shape = [3, 4]
@@ -170,6 +148,106 @@ class TransferIfNeededTest(unittest.TestCase):
 
         assert False  # Should throw and error since the first two tensors are pinned to different devices
 
+class AllGatherTest(unittest.TestCase):
+    def testAllGather(self):
+        shard_count = 3
+        shard_shape = [3, 4]
+        shard_dim = 1
+        shards = [
+            torch.rand(shard_shape, dtype=torch.float32)
+            for _ in range(shard_count)
+        ]
+        expected_result = torch.cat(shards, dim=shard_dim)
+
+        devices = (0, 6, 1)
+        sharded = SplitPrimitiveTensor(shard_dim=shard_dim, ts=shards, devices=devices)
+        actual_result = ops.all_gather(sharded)
+
+        for i in range(shard_count):
+            torch.testing.assert_close(actual_result.shards[i].as_torch(), expected_result)
+            assert actual_result.devices[i] == devices[i]
+
+class AllReduceTest(unittest.TestCase):
+    def testAllReduce(self):
+        shard_count = 3
+        shard_shape = [3, 4]
+        shard_dim = 1
+        shards = [
+            torch.rand(shard_shape, dtype=torch.float32)
+            for _ in range(shard_count)
+        ]
+        expected_result = torch.add(torch.add(shards[0], shards[1]), shards[2])
+
+        devices = (0, 6, 1)
+        sharded = SplitPrimitiveTensor(shard_dim=shard_dim, ts=shards, devices=devices)
+        actual_result = ops.all_reduce(sharded)
+
+        for i in range(shard_count):
+            torch.testing.assert_close(actual_result.shards[i].as_torch(), expected_result)
+            assert actual_result.devices[i] == devices[i]
+
+class CatTest(unittest.TestCase):
+    def testCatSplitDimPinned(self):
+        """Concatenation along the sharded split dimension."""
+        shard_dim = 1
+        shard_count = 2
+        cat_dim = 1
+        a = torch.rand(3, 6, dtype=torch.float32)
+        b = torch.rand(3, 4, dtype=torch.float32)
+        unsharded_result = torch.cat([a, b], dim=cat_dim)
+        expected_result = ops.reshard_split(
+            unsharded_result, count=shard_count, dim=shard_dim
+        )
+        expected_result = expected_result.clone(devices=tuple(4+i for i in range(shard_count)), pinned=True)
+
+        sharded_a = ops.reshard_split(a, count=shard_count, dim=shard_dim)
+        sharded_a = sharded_a.clone(devices=tuple(4+i for i in range(shard_count)), pinned=True)
+
+        sharded_b = ops.reshard_split(b, count=shard_count, dim=shard_dim)
+        sharded_b = sharded_b.clone(devices=tuple(4+i for i in range(shard_count)), pinned=True)
+        actual_result = ops.cat([sharded_a, sharded_b], dim=cat_dim)
+        assert ops.equal(expected_result, actual_result)
+        assert all(d_e == d_a for d_e, d_a in zip(expected_result.devices, actual_result.devices))
+        assert expected_result.pinned == actual_result.pinned
+   
+    def testCatNonSplitDimPinned(self):
+        """Concatenation along a non-split dimension."""
+        shard_dim = 1
+        shard_count = 2
+        cat_dim = 0
+        a = torch.rand(5, 4, dtype=torch.float32)
+        b = torch.rand(3, 4, dtype=torch.float32)
+        unsharded_result = torch.cat([a, b], dim=cat_dim)
+        expected_result = ops.reshard_split(
+            unsharded_result, count=shard_count, dim=shard_dim
+        )
+        expected_result = expected_result.clone(devices=tuple(4+i for i in range(shard_count)), pinned=True)
+
+        sharded_a = ops.reshard_split(a, count=shard_count, dim=shard_dim)
+        sharded_a = sharded_a.clone(devices=tuple(4+i for i in range(shard_count)), pinned=True)
+
+        sharded_b = ops.reshard_split(b, count=shard_count, dim=shard_dim)
+        sharded_b = sharded_b.clone(devices=tuple(4+i for i in range(shard_count)), pinned=True)
+        actual_result = ops.cat([sharded_a, sharded_b], dim=cat_dim)
+        assert ops.equal(expected_result, actual_result)
+        assert all(d_e == d_a for d_e, d_a in zip(expected_result.devices, actual_result.devices))
+        assert expected_result.pinned == actual_result.pinned
+
+@pytest.mark.skip(reason="Not implemented")
+class GatherTest(unittest.TestCase):
+    pass # TODO: gather_replicated
+
+@pytest.mark.skip(reason="Not implemented")
+class IndexCopyTest(unittest.TestCase):
+    pass  # TODO: index_copy__split_replicated_split
+
+@pytest.mark.skip(reason="Not implemented")
+class IndexPutTest(unittest.TestCase):
+    pass  # TODO: index_put__
+
+@pytest.mark.skip(reason="Not implemented")
+class IndexSelectTest(unittest.TestCase):
+    pass  # TODO: index_select
 
 class MatmulTest(unittest.TestCase):
     def testShardedParallelAxesInLhsAndRhs(self):  # matmul_split
@@ -188,6 +266,37 @@ class MatmulTest(unittest.TestCase):
         actual_result = ops.sharded_cat(res_sharded)
         torch.testing.assert_close(actual_result, expected_result)
 
+@pytest.mark.skip(reason="Not implemented")
+class ReshardLikeTest(unittest.TestCase):
+    pass  # TODO: kwargs
+
+class TransposeTest(unittest.TestCase):
+    def testUnpinnedTranspose(self):
+        shard_count = 4
+        shard_shape = [3, 4]
+        devices = tuple(2+i for i in range(shard_count))
+        shards = [torch.rand(shard_shape, dtype=torch.float32) for _ in range(shard_count)]
+        pre = SplitPrimitiveTensor(shard_dim=1, ts=shards, devices=devices, pinned=False)
+
+        post = pre.T
+
+        assert all(d_pre == d_post for d_pre, d_post in zip(pre.devices, post.devices))
+        # TODO: post gets pinned since resulting ShardedTensor is made with torch.Tensor shards which are assumed to always be pinned
+        # assert post.pinned == pre.pinned
+
+    def testPinnedTranspose(self):
+        shard_count = 4
+        shard_shape = [3, 4]
+        devices = tuple(2+i for i in range(shard_count))
+        shards = [torch.rand(shard_shape, dtype=torch.float32) for _ in range(shard_count)]
+        pre = SplitPrimitiveTensor(shard_dim=1, ts=shards, devices=devices, pinned=True)
+
+        post = pre.T
+
+        assert all(d_pre == d_post for d_pre, d_post in zip(pre.devices, post.devices))
+        assert post.pinned == pre.pinned
+
+
 # TODO: Tests needed
-# 1. Pinned input for unary ops should return a pinned result.
-# 2. transform_globals test.
+# transform_globals behavior
+# DeviceTensorTrait?
