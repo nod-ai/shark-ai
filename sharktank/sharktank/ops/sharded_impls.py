@@ -73,7 +73,7 @@ def transfer_if_needed(*tensors: Tuple[ShardedTensor, ...]) -> Tuple[ShardedTens
 
     i_pinned = tuple(i for i, t in enumerate(tensors) if t.devices_pinned)
     if len(i_pinned) == 0:
-        return tensors  # TODO: If different devices and none are pinned, shouldn't we need to transfer something?
+        raise ValueError("No tensors are pinned but some are on different devices, don't know where to transfer.")
     
     d_pinned = tensors[i_pinned[0]].devices
     for i in i_pinned[1:]:
