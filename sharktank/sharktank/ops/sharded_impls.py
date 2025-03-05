@@ -30,52 +30,25 @@ from .signatures import *
 from .shape import broadcast_dims, broadcast_dim, unbroadcast_dim
 from ..utils import longest_equal_range
 
-def tensor_w_shards_moved(tensor: ShardedTensor, new_devices: Tuple[int]) -> ShardedTensor:
-    """
-    Create a copy of the passed in tensor, but with shards now placed on the new devices.
-    """
-    # TODO: What does transfrom_globals need from this function?
-
-    new_shards = tuple(
-        (
-            transfer_to_logical_device(shard, new_devices[j])
-            if new_devices[j] != tensor.devices[j]
-            else barrier_on_logical_device(shard, new_devices[j])
-        )
-        for j, shard in enumerate(tensor.shards)
-    )
-
-    if isinstance(tensor, SplitPrimitiveTensor ):
-        return SplitPrimitiveTensor(
-            shard_dim=tensor.shard_dim,
-            ts=new_shards,
-            name=tensor.name,
-            shape=tensor.shape,
-            devices=new_devices,
-            pinned=False
-        )
-    elif isinstance(tensor, ReplicatedTensor):
-        return ReplicatedTensor(
-            ts=new_shards,
-            name=tensor.name,
-            devices=new_devices,
-            pinned=False
-        )
-    elif isinstance(tensor, UnreducedTensor):
-        return UnreducedTensor(
-            ts=new_shards,
-            name=tensor.name,
-            shape=tensor.shape,
-            devices=new_devices,
-            pinned=False
-        )
-    else:
-        raise NotImplementedError(f"Not implemented for {type(tensor)}")
 
 def transfer_if_needed(*tensors: Tuple[ShardedTensor, ...]) -> Tuple[ShardedTensor, ...]:
     """
     If at least 2 tensors are panned in, the shards of all unpinned tensors are transfered to be on the same devices as those of the pinned tensors.
     """
+    def tensor_w_shards_moved(tensor: ShardedTensor, new_devices: Tuple[int]) -> ShardedTensor:
+        """
+        Create a copy of the passed in tensor, but with shards now placed on the new devices.
+        """
+        new_shards = tuple(
+            (
+                transfer_to_logical_device(shard, new_devices[j])
+                if new_devices[j] != tensor.devices[j]
+                else barrier_on_logical_device(shard, new_devices[j])
+            )
+            for j, shard in enumerate(tensor.shards)
+        )
+        return tensor.clone(ts=new_shards, devices=new_devices)
+
     if len(tensors) <= 1:
         return tensors
     assert all(isinstance(tensor, ShardedTensor) for tensor in tensors)
@@ -99,7 +72,7 @@ def transfer_if_needed(*tensors: Tuple[ShardedTensor, ...]) -> Tuple[ShardedTens
             raise ValueError("All pinned tensors must be on the same devices.")
 
     # Move all non-pinned tensors to the same devices as the pinned ones.
-    return tuple(
+    new_tensors =  tuple(
         (
             tensor
             if tensor.pinned
@@ -107,6 +80,7 @@ def transfer_if_needed(*tensors: Tuple[ShardedTensor, ...]) -> Tuple[ShardedTens
         )
         for tensor in tensors
     )
+    return new_tensors
 
 
 def override_w_tranfer_n_pin(operation, *override_args, **override_kwargs):

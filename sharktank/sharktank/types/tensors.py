@@ -764,6 +764,11 @@ class ShardedTensor(InferenceTensor):
         self._devices = devices
         self._pinned = pinned
 
+    @abstractmethod
+    def clone(self, **kwargs) -> "ShardedTensor":
+        """Create a clone of this tensor with the given properties overridden."""
+        ...  # TODO: transform_globals, DeviceTensorTrait, etc. What else needs to be copied?
+
     @property
     def pinned(self) -> bool:
         return self._pinned
@@ -1046,6 +1051,17 @@ class SplitPrimitiveTensor(ShardedTensorBase):
 
         super().__init__(name=name, ts=ts, shape=shape, shard_dim=shard_dim, devices=devices, pinned=pinned)
 
+    def clone(self, **kwargs) -> "SplitPrimitiveTensor":
+        new_kwargs = {
+            "shard_dim": kwargs.get("shard_dim", self.shard_dim),
+            "ts": kwargs.get("ts", self.shards),
+            "name": kwargs.get("name", self.name),
+            "shape": kwargs.get("shape", self.shape),
+            "devices": kwargs.get("devices", self.devices),
+            "pinned": kwargs.get("pinned", self.pinned),
+        }
+        return self.__class__(**new_kwargs)
+
     def _is_slicing_split_dim(self, key):
         if isinstance(
             key,
@@ -1181,6 +1197,18 @@ class ReplicatedTensor(ShardedTensor):
             for i, t in enumerate(ts)
         )
 
+    def clone(self, **kwargs) -> "ReplicatedTensor":
+        new_kwargs = {
+            "ts": kwargs.get("ts", self.shards),
+            "name": kwargs.get("name", self.name),
+            "devices": kwargs.get("devices", self.devices),
+            "pinned": kwargs.get("pinned", self.pinned),
+        }
+        if "shard_count" in kwargs:
+            assert isinstance(new_kwargs["ts"], torch.Tensor)
+            new_kwargs["shard_count"] = kwargs["shard_count"]
+        return self.__class__(**new_kwargs)
+
     @property
     def shard_count(self) -> int:
         return len(self._shards)
@@ -1302,6 +1330,15 @@ class UnreducedTensor(ShardedTensorBase):
         assert all(shape == list(t.shape) for t in ts)
         super().__init__(name=name, ts=ts, shape=shape, shard_dim=None, devices=devices, pinned=pinned)
 
+    def clone(self, **kwargs) -> "UnreducedTensor":
+        new_kwargs = {
+            "ts": kwargs.get("ts", self.shards),
+            "name": kwargs.get("name", self.name),
+            "shape": kwargs.get("shape", self.shape),
+            "devices": kwargs.get("devices", self.devices),
+            "pinned": kwargs.get("pinned", self.pinned),
+        }
+        return self.__class__(**new_kwargs)
 
 def flatten_tensor_tree(
     tree: tree_utils.Tree,
