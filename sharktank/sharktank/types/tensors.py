@@ -790,13 +790,6 @@ class ShardedTensor(InferenceTensor):
         """Accesses the underlying shards"""
         ...
 
-    @shards.setter
-    @abstractmethod
-    def shards(self) -> tuple[InferenceTensor]:
-        """Move the underlying shards.
-        Needed to make pipeline parallelism work seamlessly without needing other interface changes."""
-        ...
-
     @property
     @abstractmethod
     def is_replicated(self) -> bool:
@@ -1307,7 +1300,7 @@ class UnreducedTensor(ShardedTensorBase):
         assert len(ts) > 0
         shape = list(ts[0].shape if shape is None else shape)
         assert all(shape == list(t.shape) for t in ts)
-        # TODO: Don't think this needs devices_pinned
+
         super().__init__(name=name, ts=ts, shape=shape, shard_dim=None, devices=devices, devices_pinned=False)
 
 
