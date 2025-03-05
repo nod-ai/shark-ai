@@ -6,15 +6,15 @@
 
 import unittest
 import pytest
-from parameterized import parameterized
 
 import torch
 
 from sharktank import ops
 from sharktank.types import *
-from sharktank.types import sharding
-from sharktank.layers import Conv2DLayer
 
+# TODO: Tests needed
+# transform_globals behavior
+# DeviceTensorTrait?
 
 class TransferIfNeededTest(unittest.TestCase):
     def testTransferOnSameDevice(self):
@@ -233,13 +233,23 @@ class CatTest(unittest.TestCase):
         assert all(d_e == d_a for d_e, d_a in zip(expected_result.devices, actual_result.devices))
         assert expected_result.pinned == actual_result.pinned
 
-@pytest.mark.skip(reason="Not implemented")
-class GatherTest(unittest.TestCase):
-    pass # TODO: gather_replicated
-
-@pytest.mark.skip(reason="Not implemented")
 class IndexSelectTest(unittest.TestCase):
-    pass  # TODO: index_select
+    def testIndexReplicatedPinned(self):
+        shard_count = 5
+        shards = [torch.rand(5, 4, dtype=torch.float32) for _ in range(shard_count)]
+        devices = tuple(5 + i for i in range(shard_count))
+        base = ReplicatedTensor(ts=shards, devices=devices, pinned=True)
+        indices = torch.tensor([0, 3, 1, 4], dtype=torch.int64)
+        # TODO: Manually overriding pinned=False may not reflect real usage when running with a parallelized model
+        indices_t = ReplicatedTensor(ts=indices, shard_count=shard_count, pinned=False)
+
+        expected_results = [torch.index_select(shard, 0, indices) for shard in shards]
+
+        actual_result = ops.index_select(base, 0, indices_t)
+        assert all(d_e == d_a for d_e, d_a in zip(devices, actual_result.devices))
+        # assert actual_result.pinned  # TODO: Should these be pinned?
+        for expected_shard, actual_shards in zip(expected_results, actual_result.shards):
+            assert expected_shard.equal(actual_shards.as_torch())
 
 class MatmulTest(unittest.TestCase):
     def testShardedParallelAxesInLhsAndRhs(self):  # matmul_split
@@ -258,9 +268,62 @@ class MatmulTest(unittest.TestCase):
         actual_result = ops.sharded_cat(res_sharded)
         torch.testing.assert_close(actual_result, expected_result)
 
-@pytest.mark.skip(reason="Not implemented")
-class ReshardLikeTest(unittest.TestCase):
-    pass  # TODO: kwargs
+class ShardLikeTest(unittest.TestCase):
+    def testReshardLikeUnshardedToReplicated(self):
+        tensor = torch.rand(4, 5, dtype=torch.float32)
+        shard_count = 3
+        expected_result = ops.replicate(tensor, count=shard_count).clone(devices=tuple(2*i for i in range(shard_count)), pinned=True)
+        
+        actual_result = ops.reshard_like(tensor, expected_result)
+        assert expected_result.is_deep_equal(actual_result)
+        assert actual_result.pinned == expected_result.pinned
+        assert all(d_act == d_exp for d_act, d_exp in zip(actual_result.devices, expected_result.devices))
+
+    def testReshardLikeUnshardedToSharded(self):
+        tensor = torch.rand(4, 5, 6, dtype=torch.float32)
+        shard_dim = 2
+        shard_count = 3
+        expected_result = ops.reshard_split(tensor, dim=shard_dim, count=shard_count).clone(devices=tuple(2*i for i in range(shard_count)), pinned=True)
+        
+        actual_result = ops.reshard_like(tensor, expected_result)
+        assert expected_result.is_deep_equal(actual_result)
+        assert actual_result.pinned == expected_result.pinned
+        assert all(d_act == d_exp for d_act, d_exp in zip(actual_result.devices, expected_result.devices))
+
+    def testReshardLikeShardedToShared(self):
+        tensor = torch.rand(5, 6, dtype=torch.float32)
+        shard_dim = 1
+        shard_count = 3
+        expected_result = ops.reshard_split(tensor, dim=shard_dim, count=shard_count).clone(pinned=False)
+        target = ops.reshard_split(tensor, dim=shard_dim, count=shard_count).clone(devices=tuple(2*i for i in range(shard_count)), pinned=True)
+
+        actual_result = ops.reshard_like(expected_result, target)
+        assert expected_result.is_deep_equal(actual_result)
+        assert actual_result.pinned == target.pinned
+        assert all(d_act == d_targ for d_act, d_targ in zip(actual_result.devices, target.devices))
+
+    def testReshardLikeReplicatedToReplicated(self):
+        tensor = torch.rand(4, 5, 6, dtype=torch.float32)
+        shard_count = 2
+        input_tensor = ops.replicate(tensor, count=shard_count).clone(devices=tuple(range(shard_count)), pinned=False)
+        target = ops.replicate(tensor, count=shard_count).clone(devices=tuple(2*i for i in range(shard_count)), pinned=True)
+        
+        actual_result = ops.reshard_like(input_tensor, target)
+        assert input_tensor.is_deep_equal(actual_result)
+        assert actual_result.pinned == target.pinned
+        assert all(d_act == d_targ for d_act, d_targ in zip(actual_result.devices, target.devices))
+
+    def testReshardLikeReplicatedToSharded(self):
+        tensor = torch.rand(4, 5, 6, dtype=torch.float32)
+        shard_dim = 2
+        shard_count = 3
+        expected_result = ops.reshard_split(tensor, dim=shard_dim, count=shard_count).clone(devices=tuple(2*i for i in range(shard_count)), pinned=True)
+        replicated_tensor = ops.replicate(tensor, count=shard_count).clone(devices=tuple(range(shard_count)), pinned=False)
+        
+        actual_result = ops.reshard_like(replicated_tensor, expected_result)
+        assert expected_result.is_deep_equal(actual_result)
+        assert actual_result.pinned == expected_result.pinned
+        assert all(d_act == d_exp for d_act, d_exp in zip(actual_result.devices, expected_result.devices))
 
 class TransposeTest(unittest.TestCase):
     def testUnpinnedTranspose(self):
@@ -271,7 +334,6 @@ class TransposeTest(unittest.TestCase):
         pre = SplitPrimitiveTensor(shard_dim=1, ts=shards, devices=devices, pinned=False)
 
         post = pre.T
-
         assert all(d_pre == d_post for d_pre, d_post in zip(pre.devices, post.devices))
         # TODO: post gets pinned since resulting ShardedTensor is made with torch.Tensor shards which are assumed to always be pinned
         # assert post.pinned == pre.pinned
@@ -284,11 +346,5 @@ class TransposeTest(unittest.TestCase):
         pre = SplitPrimitiveTensor(shard_dim=1, ts=shards, devices=devices, pinned=True)
 
         post = pre.T
-
         assert all(d_pre == d_post for d_pre, d_post in zip(pre.devices, post.devices))
         assert post.pinned == pre.pinned
-
-
-# TODO: Tests needed
-# transform_globals behavior
-# DeviceTensorTrait?
