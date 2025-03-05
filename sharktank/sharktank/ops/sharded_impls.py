@@ -685,17 +685,45 @@ for types in itertools.product([Tensor, ShardedTensor], repeat=2):
 
 # Sharded matmuls.
 
-def transfer_if_needed(lhs: ShardedTensor, rhs: ShardedTensor):
+def copy_w_new_shards_and_devices(tensor: ShardedTensor, new_shards: List[torch.Tensor], new_devices: Tuple[int]) -> ShardedTensor:
+    # TODO: What does transfrom_globals need from this function?
+    if isinstance(tensor, SplitPrimitiveTensor ):
+        return SplitPrimitiveTensor(
+            shard_dim=tensor.shard_dim,
+            ts=new_shards,
+            name=tensor.name,
+            shape=tensor.shape,
+            devices=new_devices,
+            devices_pinned=tensor.devices_pinned
+        )
+    elif isinstance(tensor, ReplicatedTensor):
+        return ReplicatedTensor(
+            ts=new_shards,
+            name=tensor.name,
+            devices=new_devices,
+            devices_pinned=tensor.devices
+        )
+    elif isinstance(tensor, UnreducedTensor):
+        return UnreducedTensor(
+            ts=new_shards,
+            name=tensor.name,
+            shape=tensor.shape,
+            devices=new_devices
+        )
+    else:
+        raise NotImplementedError(f"copy_with_new_shards not implemented for {type(tensor)}")
+
+def transfer_if_needed(lhs: ShardedTensor, rhs: ShardedTensor) -> Tuple[ShardedTensor, ShardedTensor]:
     if all(l_dev == r_dev for l_dev, r_dev in zip(lhs.devices, rhs.devices)):
-        return  # All corresponding shards are on the same devices, no need to transfer
+        return lhs, rhs # All corresponding shards are on the same devices, no need to transfer
         
     if lhs.devices_pinned and rhs.devices_pinned:
         raise ValueError(f"Both tensors have their devices pinned, but they are pinned to different devices, or in different orders: {lhs.devices} vs {rhs.devices}.")
     elif not lhs.devices_pinned and not rhs.devices_pinned:
-        return  # Both unpinned and don't need to be fixed
+        return  lhs, rhs
     else:
         to_move, pinned = (lhs, rhs) if rhs.devices_pinned else (rhs, lhs)
-        to_move.shards = tuple(
+        shards = tuple(
             (
                 transfer_to_logical_device(shard, pinned.devices[i]) 
                 if pinned.devices[i] != to_move.devices[i]
@@ -703,7 +731,8 @@ def transfer_if_needed(lhs: ShardedTensor, rhs: ShardedTensor):
             )
             for i, shard in enumerate(to_move.shards)
         )
-        to_move.devices = pinned.devices
+        moved = copy_w_new_shards_and_devices(to_move, shards, pinned.devices)
+        return (moved, pinned) if rhs.devices_pinned else (pinned, moved)
 
 
 @matmul.override(ReplicatedTensor, SplitPrimitiveTensor)
@@ -713,10 +742,10 @@ def matmul_replicated_lhs_split_rhs(
     assert lhs.shard_count == rhs.shard_count
     assert len(rhs.shape) == 2
 
+    lhs, rhs = transfer_if_needed(lhs, rhs)
+
     if transpose_rhs:
         return matmul(lhs, rhs.T)
-
-    transfer_if_needed(lhs, rhs)
 
     rhs_reduction_dim = 1
     if rhs_reduction_dim != rhs.shard_dim:
@@ -795,7 +824,7 @@ def matmul_split(
             f"({lhs.shard_count} vs {rhs.shard_count})"
         )
     
-    transfer_if_needed(lhs, rhs)
+    lhs, rhs = transfer_if_needed(lhs, rhs)
 
     if transpose_rhs:
         return matmul(lhs, rhs.T)
@@ -1019,7 +1048,7 @@ def reshard_all_to_replicated(
 @reshard_split.override(Tensor)
 def reshard_split_unsharded(input, *, dim: int, count: int) -> SplitPrimitiveTensor:
     torch_input = unbox_tensor(input)
-    return SplitPrimitiveTensor(ts=torch_input, shard_dim=dim, shard_count=count, pp_group=input.pp_group)
+    return SplitPrimitiveTensor(ts=torch_input, shard_dim=dim, shard_count=count)
 
 
 @reshard_split.override(SplitPrimitiveTensor)
