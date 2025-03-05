@@ -686,25 +686,24 @@ for types in itertools.product([Tensor, ShardedTensor], repeat=2):
 # Sharded matmuls.
 
 def transfer_if_needed(lhs: ShardedTensor, rhs: ShardedTensor):
-    all_devices_same = all(l_dev == r_dev for l_dev, r_dev in zip(lhs.devices, rhs.devices))
-    if all_devices_same:
-        return  # No need to transfer
-    
+    if all(l_dev == r_dev for l_dev, r_dev in zip(lhs.devices, rhs.devices)):
+        return  # All corresponding shards are on the same devices, no need to transfer
+        
     if lhs.devices_pinned and rhs.devices_pinned:
         raise ValueError(f"Both tensors have their devices pinned, but they are pinned to different devices, or in different orders: {lhs.devices} vs {rhs.devices}.")
     elif not lhs.devices_pinned and not rhs.devices_pinned:
-        return  # Both free and don't need to be fixed
+        return  # Both unpinned and don't need to be fixed
     else:
-        to_move, fixed = (lhs, rhs) if rhs.devices_pinned else (rhs, lhs)
+        to_move, pinned = (lhs, rhs) if rhs.devices_pinned else (rhs, lhs)
         to_move.shards = tuple(
             (
-                transfer_to_logical_device(shard, fixed.devices[i]) 
-                if fixed.devices[i] != to_move.devices[i]
-                else barrier_on_logical_device(shard, fixed.devices[i])
+                transfer_to_logical_device(shard, pinned.devices[i]) 
+                if pinned.devices[i] != to_move.devices[i]
+                else barrier_on_logical_device(shard, pinned.devices[i])
             )
             for i, shard in enumerate(to_move.shards)
         )
-        to_move.devices = fixed.devices
+        to_move.devices = pinned.devices
 
 
 @matmul.override(ReplicatedTensor, SplitPrimitiveTensor)
