@@ -26,6 +26,7 @@ from dataclasses import dataclass
 
 import torch
 from torch import Tensor
+import torch._subclasses.functional_tensor
 from torch.utils._pytree import register_pytree_node, SequenceKey
 import torch.utils._pytree
 from ..utils.math import ceildiv
@@ -805,6 +806,11 @@ class ShardedTensor(InferenceTensor):
     @property
     def dtype(self) -> torch.dtype:
         return self.shards[0].dtype
+    
+    def pinned_calc_default(self, t: Tensor) -> bool:
+        fake_tensor = isinstance(t, torch._subclasses.fake_tensor.FakeTensor)
+        fake_functional_tensor = isinstance(t, torch._subclasses.functional_tensor.FunctionalTensor) and "FakeTensor" in str(t)
+        return not (fake_tensor or fake_functional_tensor)
 
 
 @register_inference_tensor
@@ -831,7 +837,7 @@ class ShardedTensorBase(ShardedTensor):
             devices = tuple(range(len(ts)))
         assert len(ts) == len(devices)
         if pinned is None:
-            pinned = not isinstance(ts[0], torch._subclasses.fake_tensor.FakeTensor)
+            pinned = self.pinned_calc_default(ts[0])
         super().__init__(
             name=name, shape=shape, shard_dim=shard_dim, devices=devices, pinned=pinned
         )
@@ -1197,7 +1203,7 @@ class ReplicatedTensor(ShardedTensor):
             shard_count = None
 
         if pinned is None:
-            pinned = not isinstance(ts[0], torch._subclasses.fake_tensor.FakeTensor)
+            pinned = self.pinned_calc_default(ts[0])
 
         assert shard_count is None
         assert len(ts) > 0
