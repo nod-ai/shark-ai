@@ -54,6 +54,7 @@ def filter_by_model(filenames, model) -> list:
 def get_mlir_filenames(model_params: ModelParams, model=None) -> list:
     mlir_filenames = []
     file_stems = get_file_stems(model_params)
+    print(file_stems)
     for stem in file_stems:
         mlir_filenames.extend([stem + ".mlir"])
     return filter_by_model(mlir_filenames, model)
@@ -93,7 +94,6 @@ def get_params_filename(model_params: ModelParams, model=None, splat: bool = Fal
         dtype_to_filetag[model_params.clip_dtype],
         dtype_to_filetag[model_params.unet_dtype],
     ]
-    logging.info(f"model_params: {model_params}")
     if model_params.use_punet:
         modnames.append("punet")
         mod_precs.append(model_params.unet_quant_dtype)
