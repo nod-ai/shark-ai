@@ -177,7 +177,7 @@ async def async_range(count):
         await asyncio.sleep(0.0)
 
 
-def is_connected(host, port):
+def is_connected(host: str, port: int) -> bool:
     max_port = 65535
     if port < 1 or port > max_port:
         print(
@@ -193,7 +193,7 @@ def is_connected(host, port):
             if requests.get(f"{url}/health", timeout=20).status_code == 200:
                 print("Successfully connected to server.")
                 ready = True
-                return
+                break
             time.sleep(2)
             print(".", end=None)
         except:
