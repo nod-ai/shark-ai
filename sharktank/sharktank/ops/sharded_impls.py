@@ -66,36 +66,39 @@ def transfer_if_needed(*tensors: Tuple[ShardedTensor, ...]) -> Tuple[ShardedTens
     
     # Check if all tensors are on the same devices.
     devices_0 = tensors[0].devices
+    all_on_same_devices = True
     for tensor in tensors[1:]:
-        if not all(devices_0[j] == tensor.devices[j] for j in range(len(devices_0))):
+        if any(d0 != d for d0, d in zip(devices_0, tensor.devices)):
+            all_on_same_devices = False
             break
-    else:
+    if all_on_same_devices:
         return tensors  # All tensors already on same device
 
-    i_pinned = tuple(i for i, t in enumerate(tensors) if t.devices_pinned)
-    if len(i_pinned) == 0:
+    pinned_tensors = [tensor for tensor in tensors if tensor.devices_pinned]
+    if len(pinned_tensors) == 0:
         raise ValueError("No tensors are pinned but some are on different devices, don't know where to transfer.")
     
-    d_pinned = tensors[i_pinned[0]].devices
-    for i in i_pinned[1:]:
-        if not all(d_pinned[j] == tensors[i].devices[j] for j in range(len(d_pinned))):
+    pinned_devices = pinned_tensors[0].devices
+    for pinned_tensor in pinned_tensors[1:]:
+        if any(d0 != d for d0, d in zip(pinned_devices, pinned_tensor.devices)):
             raise ValueError("All pinned tensors must be on the same devices.")
 
     # Move all non-pinned tensors to the same devices as the pinned ones.
     new_tensors = []
-    for i, tensor in enumerate(tensors):
+    for tensor in tensors:
         if tensor.devices_pinned:
             new_tensors.append(tensor)
-        else:
-            shards = tuple(
-                (
-                    transfer_to_logical_device(shard, d_pinned[j])
-                    if d_pinned[j] != tensor.devices[j]
-                    else barrier_on_logical_device(shard, d_pinned[j])
-                )
-                for j, shard in enumerate(tensor.shards)
+            continue
+
+        shards = tuple(
+            (
+                transfer_to_logical_device(shard, pinned_devices[j])
+                if pinned_devices[j] != tensor.devices[j]
+                else barrier_on_logical_device(shard, pinned_devices[j])
             )
-            new_tensors.append(copy_w_new_shards_and_devices(tensor, shards, d_pinned))
+            for j, shard in enumerate(tensor.shards)
+        )
+        new_tensors.append(copy_w_new_shards_and_devices(tensor, shards, pinned_devices))
 
     return tuple(new_tensors)
 
