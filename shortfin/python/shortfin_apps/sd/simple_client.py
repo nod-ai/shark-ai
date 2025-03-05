@@ -247,7 +247,7 @@ def main():
     args = p.parse_args()
 
     if not is_connected(args.host, args.port):
-        exit(3)
+        ... # exit(3)
 
     if args.interactive:
         asyncio.run(interactive(args))

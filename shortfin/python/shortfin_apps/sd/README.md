@@ -47,7 +47,7 @@ Please see --help for both the server and client for usage instructions. Here's 
 |--root-path ROOT_PATH |
 |--timeout-keep-alive |
 |--device | local-task,hip,amdgpu | amdgpu only supported in this release
-|--target | gfx942,gfx1100 | gfx942 only supported in this release
+|--target | gfx942, gfx1100, gfx1201 | gfx942 only supported in this release
 |--device_ids |
 |--tokenizers |
 |--model_config |

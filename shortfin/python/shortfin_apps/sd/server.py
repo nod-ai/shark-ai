@@ -130,7 +130,10 @@ def configure_service(args, sysman, model_config, flagfile, tuning_spec):
         tokenizers.append(Tokenizer.from_pretrained(tok_name, subfolder))
 
     model_params = ModelParams.load_json(model_config)
+    print(model_params)
     vmfbs, params = get_modules(args, model_config, flagfile, tuning_spec)
+    print(vmfbs)
+    print(params)
 
     sm = GenerateService(
         name="sd",
@@ -272,7 +275,8 @@ def get_modules(args, model_config, flagfile, td_spec):
             f"--iree-compile-extra-args={ireec_extra_args}",
         ]
         logger.info(f"Preparing runtime artifacts for {modelname}...")
-        logger.info(
+        logger.info(f"Builder args: {' '.join(builder_args)}")
+        logger.debug(
             "COMMAND LINE EQUIVALENT: " + " ".join([str(argn) for argn in builder_args])
         )
         output = subprocess.check_output(builder_args, env=builder_env).decode()
@@ -321,7 +325,7 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
         type=str,
         required=False,
         default="gfx942",
-        choices=["gfx942", "gfx1100", "gfx90a"],
+        choices=["gfx90a", "gfx942", "gfx1100", "gfx1201"],
         help="Primary inferencing device LLVM target arch.",
     )
     parser.add_argument(

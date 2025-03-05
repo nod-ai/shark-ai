@@ -30,7 +30,7 @@ dtype_to_filetag = {
     sfnp.bfloat16: "bf16",
 }
 
-ARTIFACT_VERSION = "11182024"
+ARTIFACT_VERSION = "03042025"
 SDXL_BUCKET = (
     f"https://sharkpublic.blob.core.windows.net/sharkpublic/sdxl/{ARTIFACT_VERSION}/"
 )
@@ -54,6 +54,7 @@ def filter_by_model(filenames, model) -> list:
 def get_mlir_filenames(model_params: ModelParams, model=None) -> list:
     mlir_filenames = []
     file_stems = get_file_stems(model_params)
+    print(file_stems)
     for stem in file_stems:
         mlir_filenames.extend([stem + ".mlir"])
     return filter_by_model(mlir_filenames, model)
@@ -93,10 +94,12 @@ def get_params_filename(model_params: ModelParams, model=None, splat: bool = Fal
         dtype_to_filetag[model_params.clip_dtype],
         dtype_to_filetag[model_params.unet_dtype],
     ]
-    # We're only using the punet i8 dataset in all cases, at the moment.
-    # This is all pretty hokey and could be ModelParams driven.
-    modnames.append("punet")
-    mod_precs.append("i8")
+    if model_params.use_i8_punet:
+        modnames.append("punet")
+        mod_precs.append("fp8_ocp")
+    else:
+        modnames.append("unet")
+        mod_precs.append(dtype_to_filetag[model_params.unet_dtype])
     if splat == "True":
         for idx, mod in enumerate(modnames):
             params_filenames.extend(

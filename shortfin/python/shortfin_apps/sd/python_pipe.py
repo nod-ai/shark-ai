@@ -421,7 +421,7 @@ def run_cli(argv):
         type=str,
         required=False,
         default="gfx942",
-        choices=["gfx942", "gfx1100", "gfx90a"],
+        choices=["gfx90a", "gfx942","gfx1100", "gfx1201"],
         help="Primary inferencing device LLVM target arch.",
     )
     parser.add_argument(
