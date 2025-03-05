@@ -31,6 +31,55 @@ from .shape import broadcast_dims, broadcast_dim, unbroadcast_dim
 from ..utils import longest_equal_range
 
 
+def import_and_wrap_signatures():
+    """
+    Import the signatures from .signatures and wrap then so the shards of their inputs tensors are on the same devices.
+    For unary ops, also pins the result if the input is pinned (e.g. for transpose).
+    """
+    def transfer_n_pin(f):
+        """
+        Create a wrapper for each operation.
+        """
+        def wrapper(*args: Tuple, **kwargs: Dict[str, Any]):
+            for _arg in args:   # TODO: Need to handle cat and functions with collections of tensors as an input
+                if isinstance(_arg, (tuple, list)):
+                    for entry in _arg:
+                        assert not isinstance(entry, ShardedTensor), "ShardedTensors in collections are not yet supported."
+            
+            t_i = [i for i, arg in enumerate(args) if isinstance(arg, ShardedTensor)]
+            t_vals = transfer_if_needed(*(args[i] for i in t_i))
+           
+            args = list(args)
+            for i, t in zip(t_i, t_vals):
+                args[i] = t
+            args = tuple(args)
+
+            for val in kwargs.values():  # TODO: Needed to handle sharded_like
+                assert not isinstance(val, ShardedTensor), "ShardedTensors in keyword arguments are not yet supported."
+
+            res = f(*args, **kwargs)
+            if (
+                len(t_vals) == 1
+                and t_vals[0].pinned
+                and isinstance(res, ShardedTensor)
+            ):
+                res = res.clone(pinned=True)
+            return res
+        
+        if hasattr(f, "override"):  # Needed for ops like .gelu_tanh_approximation
+            wrapper.override = f.override
+        return wrapper
+
+    do_not_wrap = {'all_gather', 'all_reduce', 'replicate'}
+
+    from . import signatures
+    for func_name in signatures.__all__:
+        func = getattr(signatures, func_name)
+        if func_name not in do_not_wrap:
+            func = transfer_n_pin(func)
+        globals()[func_name] = func
+import_and_wrap_signatures()
+
 def transfer_if_needed(*tensors: Tuple[ShardedTensor, ...]) -> Tuple[ShardedTensor, ...]:
     """
     If at least 2 tensors are panned in, the shards of all unpinned tensors are transfered to be on the same devices as those of the pinned tensors.
@@ -81,33 +130,6 @@ def transfer_if_needed(*tensors: Tuple[ShardedTensor, ...]) -> Tuple[ShardedTens
         for tensor in tensors
     )
     return new_tensors
-
-
-def override_w_tranfer_n_pin(operation, *override_args, **override_kwargs):
-    """
-    Wrapper for operation.override that transfers tensors to the same devices if needed.
-    Also, for uniary operations, it will pin the output tensor if the input tensor is pinned.
-    """
-    def decorator(f):
-        @operation.override(*override_args, **override_kwargs)
-        def wrapper(*args: Tuple, **kwargs: Dict[str, Any]):
-            t_i = [i for i, arg in enumerate(args) if isinstance(arg, ShardedTensor)]
-            t_vals = transfer_if_needed(*(args[i] for i in t_i))
-
-            args = list(args)
-            for i, t in zip(t_i, t_vals):
-                args[i] = t
-            args = tuple(args)
-            res = f(*args, **kwargs)
-            if (
-                len(t_i) == 1
-                and t_i[0].pinned
-                and isinstance(res, ShardedTensor)
-            ):
-                res.pinned = True
-            return res
-        return wrapper
-    return decorator
 
 @all_gather.override(SplitPrimitiveTensor)
 def all_gather_split(
@@ -848,7 +870,7 @@ def matmul_split_lhs_replicated_rhs(
     ]
     return SplitPrimitiveTensor(ts=shards, shard_dim=lhs.shard_dim, devices=rhs.devices, pinned=False)
 
-@override_w_tranfer_n_pin(matmul, SplitPrimitiveTensor, SplitPrimitiveTensor)
+@matmul.override(SplitPrimitiveTensor, SplitPrimitiveTensor)
 def matmul_split(
     lhs: SplitPrimitiveTensor, rhs: SplitPrimitiveTensor, *, transpose_rhs: bool
 ) -> UnreducedTensor | SplitPrimitiveTensor:
