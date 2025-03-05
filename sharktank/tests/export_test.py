@@ -31,7 +31,7 @@ import torch
 
 class ExportTest(TestCase):
     def testFlattenSignature(self):
-        expected_a = [SplitPrimitiveTensor(ts=[torch.tensor([1])], shard_dim=0, devices=(0,), devices_pinned=True)]
+        expected_a = [SplitPrimitiveTensor(ts=[torch.tensor([1])], shard_dim=0)]
         expected_b = {"element": DefaultPrimitiveTensor(data=torch.tensor([2]))}
         expected_c = torch.tensor([3])
 
@@ -56,12 +56,12 @@ class ExportTest(TestCase):
             {
                 "a": [
                     SplitPrimitiveTensor(
-                        ts=[torch.tensor([1]), torch.tensor([2])], shard_dim=0, devices=tuple(range(2)), devices_pinned=True
+                        ts=[torch.tensor([1]), torch.tensor([2])], shard_dim=0
                     )
                 ]
             },
             torch.tensor([3]),
-            ReplicatedTensor(ts=[torch.tensor([4]), torch.tensor([5])], devices=tuple(range(2)), devices_pinned=True),
+            ReplicatedTensor(ts=[torch.tensor([4]), torch.tensor([5])]),
         ]
         affinities = get_argument_flat_device_affinities(*args)
         expected_affinities = {
@@ -95,7 +95,7 @@ class ExportTest(TestCase):
             fxb,
         )
         asm = str(export_output.mlir_module)
-        print(asm) 
+        print(asm)
         self.assertRegex(
             asm,
             expected_regex=(
