@@ -761,9 +761,6 @@ class ShardedTensor(InferenceTensor):
     ):
         super().__init__(name=name, shape=shape)
         self.shard_dim = shard_dim
-        # TODO: Needed in order to know what device to place the shards on.
-        #       With pipeline parallelism > 1, index of the shard is index into
-        #       the parallelism group, not index into the device list.
         self._devices = devices
         self._devices_pinned = devices_pinned
 
