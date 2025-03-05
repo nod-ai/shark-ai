@@ -114,7 +114,14 @@ def override_w_tranfer(operation, *override_args, **override_kwargs):
             for i, t in zip(t_i, t_vals):
                 args[i] = t
             args = tuple(args)
-            return f(*args, **kwargs)
+            res = f(*args, **kwargs)
+            if (
+                len(t_i) == 1
+                and t_i[0].devices_pinned
+                and isinstance(res, ShardedTensor)
+            ):
+                res.pinned = True
+            return res
         return wrapper
     return decorator
 
