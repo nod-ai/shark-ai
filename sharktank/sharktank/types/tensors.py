@@ -768,7 +768,7 @@ class ShardedTensor(InferenceTensor):
     @abstractmethod
     def clone(self, **kwargs) -> "ShardedTensor":
         """Create a clone of this tensor with the given properties overridden."""
-        ...  # TODO: transform_globals, DeviceTensorTrait, etc. What else needs to be copied?
+        ...
 
     @property
     def pinned(self) -> bool:

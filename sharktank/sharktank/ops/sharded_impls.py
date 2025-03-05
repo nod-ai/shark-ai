@@ -102,7 +102,7 @@ def sharded_wrap_override():
                     res.pinned
                     or (len(t_vals) == 1 and t_vals[0].pinned)
                     or "_like_" in f.__name__
-                )  # TODO: How to handle reshard_like (and future similar ones properly)
+                )
                 res = res.clone(devices=t_vals[0].devices, pinned=pinned)
             return res
 
