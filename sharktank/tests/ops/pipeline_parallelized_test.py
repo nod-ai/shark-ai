@@ -13,10 +13,6 @@ from sharktank.ops.sharded_impls import transfer_if_needed
 from sharktank import ops
 from sharktank.types import *
 
-# TODO: Tests needed
-# transform_globals behavior
-# DeviceTensorTrait?
-
 
 class TransferIfNeededTest(unittest.TestCase):
     def testTransferOnSameDevice(self):
