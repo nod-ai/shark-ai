@@ -955,21 +955,21 @@ def repeat_replicated(input: ReplicatedTensor, *sizes: List[int]) -> ReplicatedT
 
 
 @replicate.override(ReplicatedTensor)
-def replicate_replicated(input: ReplicatedTensor, *, count: int, devices: Tuple[int], devices_pinned: bool) -> ReplicatedTensor:
+def replicate_replicated(input: ReplicatedTensor, *, count: int, devices: None, devices_pinned: None) -> ReplicatedTensor:
     if input.shard_count != count:
         raise ValueError(f"Number of shards not equal ({input.shard_count} != {count})")
     return input
 
 
 @replicate.override(SplitPrimitiveTensor)
-def replicate_split(input: SplitPrimitiveTensor, *, count: int, devices: Tuple[int], devices_pinned: bool) -> ReplicatedTensor:
+def replicate_split(input: SplitPrimitiveTensor, *, count: int, devices: None, devices_pinned: None) -> ReplicatedTensor:
     if input.shard_count != count:
         raise ValueError(f"Number of shards not equal ({input.shard_count} != {count})")
-    return all_gather(input)  # TODO: What to do if input.devices and input.devices_pinned are different than the planend in values?
+    return all_gather(input)
 
 
 @replicate.override(UnreducedTensor)
-def replicate_unreduced(input: UnreducedTensor, *, count: int, devices: Tuple[int], devices_pinned: bool) -> ReplicatedTensor:
+def replicate_unreduced(input: UnreducedTensor, *, count: int, devices: None, devices_pinned: None) -> ReplicatedTensor:
     if input.shard_count != count:
         raise ValueError(f"Number of shards not equal ({input.shard_count} != {count})")
     return all_reduce(input)
