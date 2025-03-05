@@ -284,7 +284,7 @@ class ExportArtifacts:
         hip_device_id: str,
         vmfb_name: str,
         irpa_path: str,
-        benchmark_filename: Path,
+        benchmark_filename: Optional[Path] = None,
         args: List[str],
         cwd: str | Path,
     ):
