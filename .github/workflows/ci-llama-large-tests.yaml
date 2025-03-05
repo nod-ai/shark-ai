@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
   schedule:
     # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
-    - cron: "0 11 * * 1-5"
+    - cron: "0 11 * * 0-6"
 
 concurrency:
   # A PR number if a pull request and otherwise the commit hash. This cancels
@@ -23,6 +23,7 @@ concurrency:
 jobs:
   test_llama_large:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
+    timeout-minutes: 240
     name: "Llama Benchmarking Tests"
     strategy:
       matrix:
