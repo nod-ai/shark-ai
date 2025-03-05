@@ -931,8 +931,8 @@ class ShardedTensorBase(ShardedTensor):
             or self.shard_dim != other.shard_dim
             or self.name != other.name
             or self.shape != other.shape
-            or self.pinned != other.pinned
-            or any(d_self != d_other for d_self, d_other in zip(self.devices, other.devices))
+            # or self.pinned != other.pinned
+            # or any(d_self != d_other for d_self, d_other in zip(self.devices, other.devices))
         ):
             return False
         return all(a.is_deep_equal(b) for a, b in zip(self.shards, other.shards))
@@ -1274,8 +1274,8 @@ class ReplicatedTensor(ShardedTensor):
             self.shard_count != other.shard_count
             or self.name != other.name
             or self.shape != other.shape
-            or self.pinned != other.pinned
-            or any(d_self != d_other for d_self, d_other in zip(self.devices, other.devices))
+            # or self.pinned != other.pinned
+            # or any(d_self != d_other for d_self, d_other in zip(self.devices, other.devices))
         ):
             return False
         if self.shard_count == 0:
