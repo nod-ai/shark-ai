@@ -190,3 +190,4 @@ class MatmulTest(unittest.TestCase):
 
 # TODO: Tests needed
 # 1. Pinned input for unary ops should return a pinned result.
+# 2. transform_globals test.
