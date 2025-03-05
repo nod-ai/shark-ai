@@ -1,8 +1,13 @@
 from iree.build.executor import FileNamespace, BuildAction, BuildContext, BuildFile
 import os
 import urllib
+import logging
+import asyncio
+from pathlib import Path
 
 import shortfin.array as sfnp
+import shortfin as sf
+from shortfin_apps.flux.components.manager import SystemManager
 
 
 dtype_to_filetag = {
@@ -136,3 +141,176 @@ class FetchHttpWithCheckAction(BuildAction):
             if retries > 0:
                 retries -= 1
                 self._invoke(retries=retries)
+
+
+# Common mapping for program isolation modes
+PROG_ISOLATIONS = {
+    isolation.name.lower(): isolation for isolation in sf.ProgramIsolation
+}
+# For backward compatibility
+prog_isolations = {
+    "none": sf.ProgramIsolation.NONE,
+    "per_fiber": sf.ProgramIsolation.PER_FIBER,
+    "per_call": sf.ProgramIsolation.PER_CALL,
+}
+
+
+class InferenceExecRequest(sf.Message):
+    def __init__(self):
+        super().__init__()
+
+
+class StrobeMessage(sf.Message):
+    """Sent to strobe a queue with fake activity (generate a wakeup)."""
+
+    ...
+
+
+class ServiceBase:
+    """Base class for shortfin service implementations."""
+
+    def __init__(self, sysman: SystemManager):
+        """Initialize base service attributes."""
+        self.sysman = sysman
+        self.inference_parameters: dict[str, list[sf.BaseProgramParameters]] = {}
+        self.inference_modules: dict[str, list[sf.ProgramModule]] = {}
+
+    def load_inference_module(self, vmfb_path: Path, component: str = "main"):
+        """Load an inference module from a VMFB file.
+
+        Args:
+            vmfb_path: Path to the VMFB file
+            component: Optional component name for organizing modules
+        """
+        if not hasattr(self, "inference_modules"):
+            self.inference_modules = {}
+
+        if not self.inference_modules.get(component):
+            self.inference_modules[component] = []
+        self.inference_modules[component].append(
+            sf.ProgramModule.load(self.sysman.ls, vmfb_path)
+        )
+
+    def load_inference_parameters(
+        self,
+        *paths: Path,
+        parameter_scope: str,
+        format: str = "",
+        component: str = "main",
+    ):
+        """Load inference parameters from files.
+
+        Args:
+            *paths: Paths to parameter files
+            parameter_scope: Parameter scope name
+            format: Optional format string
+            component: Optional component name for organizing parameters
+        """
+        p = sf.StaticProgramParameters(self.sysman.ls, parameter_scope=parameter_scope)
+        for path in paths:
+            logging.info("Loading parameter fiber '%s' from: %s", parameter_scope, path)
+            p.load(path, format=format)
+
+        if not hasattr(self, "inference_parameters"):
+            self.inference_parameters = {}
+        if not self.inference_parameters.get(component):
+            self.inference_parameters[component] = []
+        self.inference_parameters[component].append(p)
+
+
+class BatcherProcessBase(sf.Process):
+    """The batcher is a persistent process responsible for flighting incoming work
+    into batches."""
+
+    STROBE_SHORT_DELAY = 0.5
+    STROBE_LONG_DELAY = 1.0
+
+    def __init__(self, fiber, name="batcher"):
+        super().__init__(fiber=fiber)
+        self.batcher_infeed = self.system.create_queue()
+        self.strobe_enabled = True
+        self.strobes = 0
+        self.pending_requests = set()
+
+    def shutdown(self):
+        """Shutdown the batcher process."""
+        self.batcher_infeed.close()
+
+    def submit(self, request):
+        """Submit a request to the batcher."""
+        self.batcher_infeed.write_nodelay(request)
+
+    async def _background_strober(self):
+        """Background strober task that monitors pending requests."""
+        while not self.batcher_infeed.closed:
+            await asyncio.sleep(
+                self.STROBE_SHORT_DELAY
+                if len(self.pending_requests) > 0
+                else self.STROBE_LONG_DELAY
+            )
+            if self.strobe_enabled:
+                self.submit(StrobeMessage())
+
+    async def run(self):
+        """Main run loop for the batcher process."""
+        strober_task = asyncio.create_task(self._background_strober())
+        reader = self.batcher_infeed.reader()
+        while item := await reader():
+            self.strobe_enabled = False
+            if isinstance(item, InferenceExecRequest):
+                self.handle_inference_request(item)
+            elif isinstance(item, StrobeMessage):
+                self.strobes += 1
+            else:
+                logger.error("Illegal message received by batcher: %r", item)
+                exit(1)
+
+            await self.process_batches()
+
+            self.strobe_enabled = True
+        await strober_task
+
+    def handle_inference_request(self, request):
+        """Handle an inference request. To be implemented by subclasses."""
+        pass
+
+    async def process_batches(self):
+        """Process batches of requests. To be implemented by subclasses."""
+        pass
+
+    def sort_batches(self):
+        """Files pending requests into sorted batches suitable for program invocations.
+
+        This is a common implementation used by SDXLBatcherProcess and FluxBatcherProcess.
+        """
+        if not hasattr(self, "pending_requests"):
+            return {}
+
+        reqs = self.pending_requests
+        next_key = 0
+        batches = {}
+        for req in reqs:
+            is_sorted = False
+            req_metas = [req.phases[phase]["metadata"] for phase in req.phases.keys()]
+
+            for idx_key, data in batches.items():
+                if not isinstance(data, dict):
+                    logger.error(
+                        "Expected to find a dictionary containing a list of requests and their shared metadatas."
+                    )
+                if len(batches[idx_key]["reqs"]) >= self.ideal_batch_size:
+                    # Batch is full
+                    next_key = idx_key + 1
+                    continue
+                elif data["meta"] == req_metas:
+                    batches[idx_key]["reqs"].extend([req])
+                    is_sorted = True
+                    break
+                else:
+                    next_key = idx_key + 1
+            if not is_sorted:
+                batches[next_key] = {
+                    "reqs": [req],
+                    "meta": req_metas,
+                }
+        return batches

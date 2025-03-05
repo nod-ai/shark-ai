@@ -18,19 +18,15 @@ import base64
 import shortfin as sf
 import shortfin.array as sfnp
 
+from ...utils import ServiceBase, BatcherProcessBase, prog_isolations
+
 from .config_struct import ModelParams
 from .manager import SystemManager
-from .messages import InferenceExecRequest, InferencePhase, StrobeMessage
+from .messages import FluxInferenceExecRequest, InferencePhase
 from .tokenizer import Tokenizer
 from .metrics import measure
 
 logger = logging.getLogger("shortfin-flux.service")
-
-prog_isolations = {
-    "none": sf.ProgramIsolation.NONE,
-    "per_fiber": sf.ProgramIsolation.PER_FIBER,
-    "per_call": sf.ProgramIsolation.PER_CALL,
-}
 
 
 def time_shift(mu: float, sigma: float, t: torch.Tensor):
@@ -64,7 +60,7 @@ def get_schedule(
     return timesteps.tolist()
 
 
-class GenerateService:
+class GenerateService(ServiceBase):
     """Top level service interface for image generation."""
 
     inference_programs: dict[str, sf.Program]
@@ -85,15 +81,13 @@ class GenerateService:
         show_progress: bool = False,
         trace_execution: bool = False,
     ):
+        super().__init__(sysman)
         self.name = name
 
         # Application objects.
-        self.sysman = sysman
         self.clip_tokenizers = clip_tokenizers
         self.t5xxl_tokenizers = t5xxl_tokenizers
         self.model_params = model_params
-        self.inference_parameters: dict[str, list[sf.BaseProgramParameters]] = {}
-        self.inference_modules: dict[str, sf.ProgramModule] = {}
         self.inference_functions: dict[str, dict[str, sf.ProgramFunction]] = {}
         self.inference_programs: dict[int, dict[str, sf.Program]] = {}
         self.trace_execution = trace_execution
@@ -133,7 +127,7 @@ class GenerateService:
                 "decode": {},
             }
         # Scope dependent objects.
-        self.batcher = BatcherProcess(self)
+        self.batcher = FluxBatcherProcess(self)
 
     def get_worker_index(self, fiber):
         if fiber not in self.fibers:
@@ -143,28 +137,6 @@ class GenerateService:
             (fiber_idx - fiber_idx % self.fibers_per_worker) / self.fibers_per_worker
         )
         return worker_idx
-
-    def load_inference_module(self, vmfb_path: Path, component: str = None):
-        if not self.inference_modules.get(component):
-            self.inference_modules[component] = []
-        self.inference_modules[component].append(
-            sf.ProgramModule.load(self.sysman.ls, vmfb_path)
-        )
-
-    def load_inference_parameters(
-        self,
-        *paths: Path,
-        parameter_scope: str,
-        format: str = "",
-        component: str = None,
-    ):
-        p = sf.StaticProgramParameters(self.sysman.ls, parameter_scope=parameter_scope)
-        for path in paths:
-            logger.info("Loading parameter fiber '%s' from: %s", parameter_scope, path)
-            p.load(path, format=format)
-        if not self.inference_parameters.get(component):
-            self.inference_parameters[component] = []
-        self.inference_parameters[component].append(p)
 
     def start(self):
         # Initialize programs.
@@ -254,58 +226,23 @@ class GenerateService:
 ########################################################################################
 
 
-class BatcherProcess(sf.Process):
-    """The batcher is a persistent process responsible for flighting incoming work
-    into batches.
-    """
-
+class FluxBatcherProcess(BatcherProcessBase):
     STROBE_SHORT_DELAY = 0.5
     STROBE_LONG_DELAY = 1
 
     def __init__(self, service: GenerateService):
         super().__init__(fiber=service.fibers[0])
         self.service = service
-        self.batcher_infeed = self.system.create_queue()
-        self.pending_requests: set[InferenceExecRequest] = set()
-        self.strobe_enabled = True
-        self.strobes: int = 0
         self.ideal_batch_size: int = max(service.model_params.max_batch_size)
         self.num_fibers = len(service.fibers)
 
-    def shutdown(self):
-        self.batcher_infeed.close()
+    def handle_inference_request(self, request):
+        self.pending_requests.add(request)
 
-    def submit(self, request: StrobeMessage | InferenceExecRequest):
-        self.batcher_infeed.write_nodelay(request)
+    async def process_batches(self):
+        await self.board_flights()
 
-    async def _background_strober(self):
-        while not self.batcher_infeed.closed:
-            await asyncio.sleep(
-                BatcherProcess.STROBE_SHORT_DELAY
-                if len(self.pending_requests) > 0
-                else BatcherProcess.STROBE_LONG_DELAY
-            )
-            if self.strobe_enabled:
-                self.submit(StrobeMessage())
-
-    async def run(self):
-        strober_task = asyncio.create_task(self._background_strober())
-        reader = self.batcher_infeed.reader()
-        while item := await reader():
-            self.strobe_enabled = False
-            if isinstance(item, InferenceExecRequest):
-                self.pending_requests.add(item)
-            elif isinstance(item, StrobeMessage):
-                self.strobes += 1
-            else:
-                logger.error("Illegal message received by batcher: %r", item)
-
-            self.board_flights()
-
-            self.strobe_enabled = True
-        await strober_task
-
-    def board_flights(self):
+    async def board_flights(self):
         waiting_count = len(self.pending_requests)
         if waiting_count == 0:
             return
@@ -325,37 +262,6 @@ class BatcherProcess(sf.Process):
             self.board(batch["reqs"], fiber=fiber)
             if self.service.prog_isolation != sf.ProgramIsolation.PER_FIBER:
                 self.service.idle_fibers.add(fiber)
-
-    def sort_batches(self):
-        """Files pending requests into sorted batches suitable for program invocations."""
-        reqs = self.pending_requests
-        next_key = 0
-        batches = {}
-        for req in reqs:
-            is_sorted = False
-            req_metas = [req.phases[phase]["metadata"] for phase in req.phases.keys()]
-
-            for idx_key, data in batches.items():
-                if not isinstance(data, dict):
-                    logger.error(
-                        "Expected to find a dictionary containing a list of requests and their shared metadatas."
-                    )
-                if len(batches[idx_key]["reqs"]) >= self.ideal_batch_size:
-                    # Batch is full
-                    next_key = idx_key + 1
-                    continue
-                elif data["meta"] == req_metas:
-                    batches[idx_key]["reqs"].extend([req])
-                    is_sorted = True
-                    break
-                else:
-                    next_key = idx_key + 1
-            if not is_sorted:
-                batches[next_key] = {
-                    "reqs": [req],
-                    "meta": req_metas,
-                }
-        return batches
 
     def board(self, request_bundle, fiber):
         pending = request_bundle
@@ -388,7 +294,7 @@ class InferenceExecutorProcess(sf.Process):
         super().__init__(fiber=fiber)
         self.service = service
         self.worker_index = self.service.get_worker_index(fiber)
-        self.exec_requests: list[InferenceExecRequest] = []
+        self.exec_requests: list[FluxInferenceExecRequest] = []
 
     @measure(type="exec", task="inference process")
     async def run(self):

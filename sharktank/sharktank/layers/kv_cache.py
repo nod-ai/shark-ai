@@ -182,45 +182,28 @@ class PagedKVCache:
         blocked_shape = [
             bs,
             block_seq_len,
+            self.cache_partition_count,
             self.block_seq_stride,
             self.attn_head_count // self.shard_count,
             self.attn_head_dim,
         ]
 
-        # Reshape the page cache into sub-blocks so that we can index at the
-        # granularity of the transformer_block and cache partition.
-        # This requires us to recompute indices to the sub-block reference
-        # frame.
-        # The subblock slab is organized as:
-        #   [page, attn_layer, cache_partition]
-        # Where the cache line can be 0 (k) or 1 (v).
-        subblock_table = page_table.flatten(start_dim=0, end_dim=2)
-        page_stride = self.transformer_block_count * self.cache_partition_count
-        transformer_block_stride = self.cache_partition_count
-        base_subblock_ids = page_ids * page_stride + (
-            transformer_block_index * transformer_block_stride
+        # Gather both partitions and split post gather. This is more
+        # computationally efficient without gather fusion:
+        subblock_table = page_table.flatten(start_dim=0, end_dim=1)
+        page_stride = self.transformer_block_count
+
+        transformer_block_index = torch.full(
+            (bs, block_seq_len), transformer_block_index
         )
+        subblock_ids = page_ids * page_stride + transformer_block_index
+        selected = ops.index_select(subblock_table, 0, subblock_ids.flatten(0, 1))
 
-        def read_cache_partition(index: int):
-            subblock_ids = base_subblock_ids + index
-            # TODO: Potentially clamp all page 0 indices to the mask value.
-            # Or even better, require that the ids are replicated such that access is
-            # legal.
-            # Now for each of the k/v attn_block_ids, which have been adjusted to
-            # index into the sub-pages, we flatten to do a linear index_select
-            # copy of the sub-blocks by collapsing the first two dims so we have
-            # a linear list.
-            selected = (
-                ops.index_select(subblock_table, 0, subblock_ids.flatten(0, 1))
-                .unflatten(0, blocked_shape[0:2])
-                .flatten(1, 2)
-            )
-            return selected
+        selected = selected.unflatten(0, blocked_shape[:2])
+        key = selected[:, :, 0, :seq_len].flatten(1, 2)[:, :seq_len]
+        value = selected[:, :, 1, :seq_len].flatten(1, 2)[:, :seq_len]
 
-        key = read_cache_partition(0)
-        value = read_cache_partition(1)
-
-        return key[:, :seq_len], value[:, :seq_len]
+        return key, value
 
     def write_timestep(
         self,
@@ -241,6 +224,7 @@ class PagedKVCache:
         """
         device = self.device
         page_table = self.unflatten_page_table(state)  # 6D
+        page_table = page_table.flatten(0, 3)
         bs, *_ = seq_positions.shape
         assert len(cache_partitions) == self.cache_partition_count
 
@@ -274,15 +258,18 @@ class PagedKVCache:
 
             partitions = partitions.repeat(bs, 1)
 
-            indices = (page_id, transformer_block, partitions, page_offset)
+            index = page_id
+            index = index * self.transformer_block_count + transformer_block
+            index = index * self.cache_partition_count + partitions
+            index = index * self.block_seq_stride + page_offset
             values = ops.to(cache_partition, dtype=page_table.dtype)
             if page_table.dtype == torch.float8_e4m3fnuz:
                 # Workaround for Torch not supporting torch.Tensor.index_copy_ for f8.
                 page_table_as_int8 = page_table.view(dtype=torch.int8)
                 values_int8 = values.view(dtype=torch.int8)
-                page_table_as_int8.index_put_(indices=indices, values=values_int8)
+                page_table_as_int8.index_put_(indices=(index,), values=values_int8)
             else:
-                page_table.index_put_(indices=indices, values=values)
+                page_table.index_put_(indices=(index,), values=values)
 
         return
 
