@@ -28,24 +28,21 @@ from ..types.tensors import unbox_tensor
 from ._registry import AllOfType, AllOfExprsVariadic, IsOfType
 from .shape import broadcast_dims, broadcast_dim, unbroadcast_dim
 from ..utils import longest_equal_range
+from .signatures import *
 
 
-def import_and_wrap_signatures():
-    """
-    Import the signatures from .signatures and wrap then so the shards of their inputs tensors are on the same devices.
-    For unary ops, also pins the result if the input is pinned (e.g. for transpose).
-    """
-
+def wrap_override_decorator():
     def transfer_n_pin(f):
         """
-        Create a wrapper for each operation.
+        Wrapper for each op defined in this file.
         """
-        from ..types import ShardedTensor
-        from typing import List, Tuple, Dict, Any
 
-        def unwrap_args(
+        def flatten_args(
             items: Tuple | Dict[str, Any]
         ) -> Tuple[List[int | List[int]], List[ShardedTensor]]:
+            """
+            Takes the args/kwargs.values() and flattens them into a flat representation of (any) ShardedTensors and their indices.
+            """
             t_i, t_vals = [], []
             for i, arg in enumerate(items):
                 if isinstance(arg, ShardedTensor):
@@ -58,9 +55,12 @@ def import_and_wrap_signatures():
                     t_vals.extend(arg)
             return t_i, t_vals
 
-        def rewrap_args(
+        def unflatten_args(
             items: Tuple | Dict, t_i: List[int | List[int]], t_vals: List[ShardedTensor]
         ) -> Tuple[Tuple, Dict[str, Any]]:
+            """
+            Converts the flattened and (potentially) modified args or kwargs.values() back into the original structure.
+            """
             i_lookup = (
                 list(range(len(items)))
                 if isinstance(items, tuple)
@@ -82,27 +82,45 @@ def import_and_wrap_signatures():
             return new_items
 
         def func_wrapper(*args: Tuple, **kwargs: Dict[str, Any]):
-            t_i_args, t_vals_args = unwrap_args(args)
-            t_i_kwargs, t_vals_kwargs = unwrap_args(list(kwargs.values()))
+            """
+            Wraps each operation, f, in order to transfer all unpinned ShardedTensors in its input args/kwargs onto the same device,
+            then calls f with the modified args/kwargs, finally it will ensure the result is on the same devices as the input tensors.
+
+            If no ShardedTensors are present in the input, then no changes are made to input/output.
+            """
+            t_i_args, t_vals_args = flatten_args(args)
+            t_i_kwargs, t_vals_kwargs = flatten_args(list(kwargs.values()))
             t_vals = t_vals_args + t_vals_kwargs
 
             t_vals = transfer_if_needed(*t_vals)
 
-            args = rewrap_args(args, t_i_args, t_vals[: len(t_vals_args)])
-            kwargs = rewrap_args(kwargs, t_i_kwargs, t_vals[len(t_vals_args) :])
+            args = unflatten_args(args, t_i_args, t_vals[: len(t_vals_args)])
+            kwargs = unflatten_args(kwargs, t_i_kwargs, t_vals[len(t_vals_args) :])
             res = f(*args, **kwargs)
             if isinstance(res, ShardedTensor) and len(t_vals) > 0:
                 pinned = (
                     res.pinned
                     or (len(t_vals) == 1 and t_vals[0].pinned)
-                    or f.__name__ == "reshard_like"
-                )  # TODO: How to handle this case properly
+                    or "_like_" in f.__name__
+                )  # TODO: How to handle reshard_like (and future similar ones properly)
                 res = res.clone(devices=t_vals[0].devices, pinned=pinned)
             return res
 
-        if hasattr(f, "override"):  # Needed for ops like gelu_tanh_approximation
-            func_wrapper.override = f.override
         return func_wrapper
+
+    def wrap_override(signature_dispatcher_override):
+        """
+        Wrap [op].override's result so that the transfer_n_pin(f) becomes the target in _TargetOverride rather than f itself.
+        """
+
+        def override_return_wrapper(*override_args, **override_kwargs):
+            orig_decorator = signature_dispatcher_override(
+                *override_args, **override_kwargs
+            )
+            new_decorator = lambda f: orig_decorator(transfer_n_pin(f))
+            return new_decorator
+
+        return override_return_wrapper
 
     do_not_wrap = {
         "all_gather",
@@ -116,13 +134,28 @@ def import_and_wrap_signatures():
     from . import signatures
 
     for func_name in signatures.__all__:
-        func = getattr(signatures, func_name)
-        if func_name not in do_not_wrap:
-            func = transfer_n_pin(func)
-        globals()[func_name] = func
+        func = globals()[func_name]
+        if (func_name not in do_not_wrap) and (hasattr(func, "override")):
+            func.override_orig = func.override
+            func.override = wrap_override(func.override_orig)
 
 
-import_and_wrap_signatures()
+def unwrap_override_decorator():
+    """
+    Unwraps [op].override to restore the original function.
+    Must be called at the end of this file.
+    """
+    from . import signatures
+
+    for func_name in signatures.__all__:
+        func = globals()[func_name]
+        if hasattr(func, "override_orig"):
+            func.override = func.override_orig
+            del func.override_orig
+
+
+wrap_override_decorator()
+
 
 def transfer_if_needed(*tensors: Tuple[ShardedTensor]) -> List[ShardedTensor]:
     """
@@ -1504,3 +1537,7 @@ def view_as_real_split(tensor: SplitPrimitiveTensor) -> SplitPrimitiveTensor:
 def view_as_real_rep(tensor: ReplicatedTensor) -> ReplicatedTensor:
     shards = [view_as_real(shard) for shard in tensor.shards]
     return ReplicatedTensor(ts=shards)
+
+
+# Note: Must be last thing in file
+unwrap_override_decorator()
