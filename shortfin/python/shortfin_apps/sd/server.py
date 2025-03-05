@@ -129,11 +129,12 @@ def configure_service(args, sysman, model_config, flagfile, tuning_spec):
         subfolder = f"tokenizer_{idx + 1}" if idx > 0 else "tokenizer"
         tokenizers.append(Tokenizer.from_pretrained(tok_name, subfolder))
 
+    logger.info(f"model config: {model_config}")
     model_params = ModelParams.load_json(model_config)
-    print(model_params)
+    logger.info(f"model params: {model_params}")
     vmfbs, params = get_modules(args, model_config, flagfile, tuning_spec)
-    print(vmfbs)
-    print(params)
+    logger.info(f"vmfbs: {vmfbs}")
+    logger.info(f"params: {params}")
 
     sm = GenerateService(
         name="sd",
@@ -160,6 +161,7 @@ def get_configs(args):
     # Returns one set of config artifacts.
     modelname = "sdxl"
     model_config = args.model_config if args.model_config else None
+    print(model_config)
     topology_config = None
     tuning_spec = None
     flagfile = args.flagfile if args.flagfile else None
@@ -177,7 +179,7 @@ def get_configs(args):
     outs = subprocess.check_output(cfg_builder_args).decode()
     outs_paths = outs.splitlines()
     for i in outs_paths:
-        if "sdxl_config" in i and not args.model_config:
+        if "sdxl_config" in i and not model_config:
             model_config = i
         elif "topology" in i and args.topology:
             topology_config = i
