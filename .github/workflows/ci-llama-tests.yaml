@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   test_llama_quick:
-    name: "Llama Benchmarking 8B Quick Tests"
+    name: "Llama Benchmarking 8B Quick Tests - EG"
     strategy:
       matrix:
         version: [3.11]
@@ -57,7 +57,7 @@ jobs:
         with:
           python-version: ${{ matrix.version }}
 
-      - name: Run Full Llama Benchmarking Tests
+      - name: "Run Full Llama Benchmarking Tests - EG"
         run: |
           source ${{ github.workspace }}/.venv/bin/activate
           pytest sharktank/tests/models/llama/benchmark_amdgpu_test.py -v -s \
