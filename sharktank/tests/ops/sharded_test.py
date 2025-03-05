@@ -667,10 +667,10 @@ class MatmulTest(unittest.TestCase):
         b = torch.rand(3, 6, dtype=torch.float32)
         shard_count = 3
         unsharded_result = torch.matmul(a, b)
-        expected_result = ops.reshard_split(unsharded_result, dim=2, count=shard_count)
+        expected_result = ops.reshard_split(unsharded_result, dim=2, count=shard_count)  # TODO: How to know this should also not be pinned
         b_sharded = ops.reshard_split(b, dim=1, count=shard_count)
         a_sharded = ops.replicate(a, count=shard_count)
-        actual_result = ops.matmul(a_sharded, b_sharded)
+        actual_result = ops.matmul(a_sharded, b_sharded)  # GOOD: Should NOT be pinned
         assert ops.equal(expected_result, actual_result)
 
     def testShardedChainMatmulX2Transposed(self):
