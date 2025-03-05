@@ -139,7 +139,7 @@ def all_gather_split(
         )
         for i in range(input.shard_count)
     ]
-    return ReplicatedTensor(ts=shards, devices=input.devices, devices_pinned=input.devices_pinned)
+    return ReplicatedTensor(ts=shards, devices=input.devices, devices_pinned=False)
 
 
 @all_reduce.override(AllOfType(SplitPrimitiveTensor, UnreducedTensor))
@@ -163,7 +163,7 @@ def all_reduce_split_or_unreduced(
         )
         for i in range(input.shard_count)
     ]
-    return ReplicatedTensor(ts=shards, devices=input.devices, devices_pinned=input.devices_pinned)
+    return ReplicatedTensor(ts=shards, devices=input.devices, devices_pinned=False)
 
 
 @cat.override(AllOfType(ReplicatedTensor))
