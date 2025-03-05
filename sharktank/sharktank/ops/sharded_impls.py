@@ -955,32 +955,32 @@ def repeat_replicated(input: ReplicatedTensor, *sizes: List[int]) -> ReplicatedT
 
 
 @replicate.override(ReplicatedTensor)
-def replicate_replicated(input: ReplicatedTensor, *, count: int) -> ReplicatedTensor:
+def replicate_replicated(input: ReplicatedTensor, *, count: int, devices: Tuple[int], devices_pinned: bool) -> ReplicatedTensor:
     if input.shard_count != count:
         raise ValueError(f"Number of shards not equal ({input.shard_count} != {count})")
     return input
 
 
 @replicate.override(SplitPrimitiveTensor)
-def replicate_split(input: SplitPrimitiveTensor, *, count: int) -> ReplicatedTensor:
+def replicate_split(input: SplitPrimitiveTensor, *, count: int, devices: Tuple[int], devices_pinned: bool) -> ReplicatedTensor:
     if input.shard_count != count:
         raise ValueError(f"Number of shards not equal ({input.shard_count} != {count})")
-    return all_gather(input)
+    return all_gather(input)  # TODO: What to do if input.devices and input.devices_pinned are different than the planend in values?
 
 
 @replicate.override(UnreducedTensor)
-def replicate_unreduced(input: UnreducedTensor, *, count: int) -> ReplicatedTensor:
+def replicate_unreduced(input: UnreducedTensor, *, count: int, devices: Tuple[int], devices_pinned: bool) -> ReplicatedTensor:
     if input.shard_count != count:
         raise ValueError(f"Number of shards not equal ({input.shard_count} != {count})")
     return all_reduce(input)
 
 
 @replicate.override(Tensor)
-def replicate_unsharded(input, *, count: int) -> ReplicatedTensor:
+def replicate_unsharded(input, *, count: int, devices: Tuple[int], devices_pinned: bool) -> ReplicatedTensor:
     torch_input = unbox_tensor(input)
     # If we have a torch input replicating we can assume we need to transfer:
     torch_inputs = [transfer_to_logical_device(torch_input, i) for i in range(count)]
-    return ReplicatedTensor(ts=torch_inputs, devices=tuple(range(count)), devices_pinned=False)
+    return ReplicatedTensor(ts=torch_inputs, devices=devices, devices_pinned=devices_pinned)
 
 
 @reshape.override(SplitPrimitiveTensor)
