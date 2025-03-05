@@ -96,10 +96,10 @@ def main(raw_args=None):
     sl = 128
     primary_dim = 128 * 2**5
     shard_count = 2
-    num_layers  = 10
+    num_layers  = 40
     create_theta(primary_dim, shard_count, num_layers, save_path=args.output_irpa_file)
     
-    pp_count = 3
+    pp_count = 4
     ds = Dataset.load(args.output_irpa_file)
     root_theta = pipeline_parallelize_theta(ds.root_theta, pp_count)
 
