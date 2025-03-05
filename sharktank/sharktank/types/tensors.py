@@ -820,12 +820,13 @@ class ShardedTensorBase(ShardedTensor):
         ts: list[torch.Tensor],
         name: str = UnnamedTensorName,
         shape: Optional[list[int]],
-        devices: Tuple[int],
-        devices_pinned: bool
+        devices: Tuple[int] | None,
+        devices_pinned: bool | None
     ):
         assert len(ts) > 0
         assert len(ts) == len(devices)
         assert shard_dim is None or (shard_dim >= 0 and len(ts[0].shape) > shard_dim)
+        # TODO: Infer devices_pinned here
         super().__init__(name=name, shape=shape, shard_dim=shard_dim, devices=devices, devices_pinned=devices_pinned)
         self._shards: tuple[DefaultPrimitiveTensor] = tuple(
             DefaultPrimitiveTensor(
@@ -1002,8 +1003,8 @@ class SplitPrimitiveTensor(ShardedTensorBase):
         shard_count: None | int = None,
         name: str = UnnamedTensorName,
         shape: Optional[list[int]] = None,
-        devices: Tuple[int],
-        devices_pinned: bool,
+        devices: Tuple[int] | None = None,
+        devices_pinned: bool | None = None,
     ):
         """
         If `ts` is a list of tensors, it is interpreted as the shards.
@@ -1012,6 +1013,10 @@ class SplitPrimitiveTensor(ShardedTensorBase):
         will be split along dimension `shard_dim` into `shard_count`
         number of pieces.
         """
+        if devices is None:
+            num_shards = shard_count if isinstance(ts, torch.Tensor) else len(ts)
+            devices = tuple(range(num_shards))
+
         if isinstance(ts, torch.Tensor):
             from ..ops import transfer_to_logical_device
 
@@ -1140,8 +1145,8 @@ class ReplicatedTensor(ShardedTensor):
         ts: list[torch.Tensor] | torch.Tensor,
         shard_count: None | int = None,
         name: str = UnnamedTensorName,
-        devices: Tuple[int],
-        devices_pinned: bool
+        devices: Tuple[int] | None = None,
+        devices_pinned: bool | None = None
     ):
         """
         If `ts` is a list of tensors, it is interpreted as the shards.
@@ -1149,6 +1154,10 @@ class ReplicatedTensor(ShardedTensor):
         If `ts` is a tensor then `shard_count` must be provided and it,
         will be replicated that many times.
         """
+        if devices is None:
+            num_shards = shard_count if isinstance(ts, torch.Tensor) else len(ts)
+            devices = tuple(range(num_shards))
+
         if isinstance(ts, torch.Tensor):
             assert shard_count is not None
             from ..ops import transfer_to_logical_device
@@ -1239,7 +1248,7 @@ class ReplicatedTensor(ShardedTensor):
 
         except KeyError as e:
             raise IOError(f"Missing component tensor '' in {raw_tensors.keys()}") from e
-        return cls(name=name, ts=ts, devices=devices, devices_pinned=devices_pinned)
+        return cls(name=name, ts=ts)
 
     def __getitem__(self, key):
         keys = [key]
@@ -1292,13 +1301,14 @@ class UnreducedTensor(ShardedTensorBase):
         ts: list[torch.Tensor],
         name: str = UnnamedTensorName,
         shape: Optional[list[int]] = None,
-        devices: List[int],
-        devices_pinned: bool
+        devices: Tuple[int] | None = None,
+        devices_pinned: bool | None = None
     ):
         assert len(ts) > 0
         shape = list(ts[0].shape if shape is None else shape)
         assert all(shape == list(t.shape) for t in ts)
-
+        if devices is None:
+            devices = tuple(range(len(ts)))
         super().__init__(name=name, ts=ts, shape=shape, shard_dim=None, devices=devices, devices_pinned=devices_pinned)
 
 
