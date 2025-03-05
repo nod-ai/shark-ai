@@ -26,33 +26,27 @@ from ...types import *
 
 from iree.turbine.aot import DeviceAffinity, DeviceTensorTrait, export
 
-def create_theta(
-    dim: int, shard_count: int, num_layers: int, save_path
-):
+
+def create_theta(dim: int, shard_count: int, num_layers: int, save_path):
     split_size = dim // shard_count
     weights = []
     for layer in range(num_layers):
         _weight = torch.rand(dim, dim, dtype=torch.float16) / math.sqrt(dim)
         weights.append(
             SplitPrimitiveTensor(
-                name=f"w.{layer}", 
-                shard_dim=1,
-                ts=_weight.split(split_size, dim=1)
+                name=f"w.{layer}", shard_dim=1, ts=_weight.split(split_size, dim=1)
             )
         )
     ds = Dataset({}, Theta(weights))
     ds.save(save_path)
 
 
-def pipeline_parallelize_theta(
-        theta: Theta,
-        pp_count: int
-) -> Theta:
+def pipeline_parallelize_theta(theta: Theta, pp_count: int) -> Theta:
     num_layers = len(theta.tensor("w"))
-    shard_count = theta.tensor("w", '0').shard_count
+    shard_count = theta.tensor("w", "0").shard_count
     for layer in list(theta.tensor("w").keys()):
         weight = theta.tensor("w", layer)
-        pp_group =  int(int(layer) * pp_count / num_layers)
+        pp_group = int(int(layer) * pp_count / num_layers)
         zero_4_group = shard_count * pp_group
         devices = tuple(i + zero_4_group for i in range(shard_count))
         shards = weight.shards
@@ -63,7 +57,7 @@ def pipeline_parallelize_theta(
             ts=shards,
             name=weight.name,
             devices=devices,
-            pinned=True
+            pinned=True,
         )
         theta.tensor("w")[layer] = new_weight
     return theta
@@ -71,14 +65,14 @@ def pipeline_parallelize_theta(
 
 class PPFFN(ThetaLayer):
     def forward(self, x: torch.Tensor):
-        num_layers  = len(self.theta.tensor("w"))
-        shard_count = self.theta.tensor("w", '0').shard_count
+        num_layers = len(self.theta.tensor("w"))
+        shard_count = self.theta.tensor("w", "0").shard_count
 
         x = ReplicatedTensor(ts=x, shard_count=shard_count)
         for layer in range(num_layers):
             weight: SplitPrimitiveTensor = self.theta.tensor("w", str(layer))
-            x:      ReplicatedTensor     = ops.all_reduce(ops.linear(x, weight))
-                
+            x: ReplicatedTensor = ops.all_reduce(ops.linear(x, weight))
+
         return x
 
 
@@ -100,9 +94,9 @@ def main(raw_args=None):
     sl = 128
     primary_dim = 128 * 2**5
     shard_count = 2
-    num_layers  = 40
+    num_layers = 40
     create_theta(primary_dim, shard_count, num_layers, save_path=args.output_irpa_file)
-    
+
     pp_count = 4
     ds = Dataset.load(args.output_irpa_file)
     root_theta = pipeline_parallelize_theta(ds.root_theta, pp_count)
@@ -110,7 +104,7 @@ def main(raw_args=None):
     mdl = PPFFN(root_theta)
 
     example_arg = torch.empty(bs, sl, primary_dim, dtype=torch.float16)
-    ep = torch.export.export(mdl, (example_arg,))#, strict=False)
+    ep = torch.export.export(mdl, (example_arg,))  # , strict=False)
     cm = export(ep, arg_device={0: DeviceAffinity(0)})
 
     if args.output_file == "-":

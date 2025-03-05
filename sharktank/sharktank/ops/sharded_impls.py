@@ -35,7 +35,10 @@ def transfer_if_needed(*tensors: Tuple[ShardedTensor]) -> List[ShardedTensor]:
     """
     If at least 2 tensors are panned in, the shards of all unpinned tensors are transfered to be on the same devices as those of the pinned tensors.
     """
-    def tensor_w_shards_moved(tensor: ShardedTensor, new_devices: Tuple[int]) -> ShardedTensor:
+
+    def tensor_w_shards_moved(
+        tensor: ShardedTensor, new_devices: Tuple[int]
+    ) -> ShardedTensor:
         """
         Create a copy of the passed in tensor, but with shards now placed on the new devices.
         """
@@ -52,7 +55,7 @@ def transfer_if_needed(*tensors: Tuple[ShardedTensor]) -> List[ShardedTensor]:
     if len(tensors) <= 1:
         return list(tensors)
     assert all(isinstance(tensor, ShardedTensor) for tensor in tensors)
-    
+
     # Check if all tensors are on the same devices.
     all_on_same_devices = True
     for tensor in tensors[1:]:
@@ -64,23 +67,22 @@ def transfer_if_needed(*tensors: Tuple[ShardedTensor]) -> List[ShardedTensor]:
 
     pinned_tensors = [tensor for tensor in tensors if tensor.pinned]
     if len(pinned_tensors) == 0:
-        raise ValueError("Tensors are on different devices, but none are pinned. Don't know which devices to transfer to.")
-    
+        raise ValueError(
+            "Tensors are on different devices, but none are pinned. Don't know which devices to transfer to."
+        )
+
     pinned_devices = pinned_tensors[0].devices
     for pinned_tensor in pinned_tensors[1:]:
         if any(d0 != d for d0, d in zip(pinned_devices, pinned_tensor.devices)):
             raise ValueError("All pinned tensors must be on the same devices.")
 
     # Move all non-pinned tensors to the same devices as the pinned ones.
-    new_tensors =  [
-        (
-            tensor
-            if tensor.pinned
-            else tensor_w_shards_moved(tensor, pinned_devices)
-        )
+    new_tensors = [
+        (tensor if tensor.pinned else tensor_w_shards_moved(tensor, pinned_devices))
         for tensor in tensors
     ]
     return new_tensors
+
 
 @all_gather.override(SplitPrimitiveTensor)
 def all_gather_split(
@@ -944,28 +946,36 @@ def repeat_replicated(input: ReplicatedTensor, *sizes: List[int]) -> ReplicatedT
 
 
 @replicate.override(ReplicatedTensor)
-def replicate_replicated(input: ReplicatedTensor, *, count: int, devices: None, pinned: None) -> ReplicatedTensor:
+def replicate_replicated(
+    input: ReplicatedTensor, *, count: int, devices: None, pinned: None
+) -> ReplicatedTensor:
     if input.shard_count != count:
         raise ValueError(f"Number of shards not equal ({input.shard_count} != {count})")
     return input
 
 
 @replicate.override(SplitPrimitiveTensor)
-def replicate_split(input: SplitPrimitiveTensor, *, count: int, devices: None, pinned: None) -> ReplicatedTensor:
+def replicate_split(
+    input: SplitPrimitiveTensor, *, count: int, devices: None, pinned: None
+) -> ReplicatedTensor:
     if input.shard_count != count:
         raise ValueError(f"Number of shards not equal ({input.shard_count} != {count})")
     return all_gather(input)
 
 
 @replicate.override(UnreducedTensor)
-def replicate_unreduced(input: UnreducedTensor, *, count: int, devices: None, pinned: None) -> ReplicatedTensor:
+def replicate_unreduced(
+    input: UnreducedTensor, *, count: int, devices: None, pinned: None
+) -> ReplicatedTensor:
     if input.shard_count != count:
         raise ValueError(f"Number of shards not equal ({input.shard_count} != {count})")
     return all_reduce(input)
 
 
 @replicate.override(Tensor)
-def replicate_unsharded(input, *, count: int, devices: Tuple[int], pinned: bool) -> ReplicatedTensor:
+def replicate_unsharded(
+    input, *, count: int, devices: Tuple[int], pinned: bool
+) -> ReplicatedTensor:
     torch_input = unbox_tensor(input)
     # If we have a torch input replicating we can assume we need to transfer:
     torch_inputs = [transfer_to_logical_device(torch_input, i) for i in range(count)]
@@ -1188,7 +1198,9 @@ def softmax_split(
         dim is not None and dim != tensor.shard_dim
     ), "Softmax along split dimension is not supported."
     shards = [softmax(shard, dim=dim, dtype=dtype) for shard in tensor.shards]
-    return SplitPrimitiveTensor(ts=shards, shard_dim=tensor.shard_dim, shape=tensor.shape)
+    return SplitPrimitiveTensor(
+        ts=shards, shard_dim=tensor.shard_dim, shape=tensor.shape
+    )
 
 
 @to.override(ReplicatedTensor)
