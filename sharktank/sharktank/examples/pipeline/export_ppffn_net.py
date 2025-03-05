@@ -15,10 +15,8 @@ Generate MLIR and a random inited IRPA file with:
 """
 
 import math
-from typing import Tuple
 
 import torch
-import torch.nn as nn
 
 from ...layers import *
 from ... import ops
@@ -45,21 +43,15 @@ def pipeline_parallelize_theta(theta: Theta, pp_count: int) -> Theta:
     num_layers = len(theta.tensor("w"))
     shard_count = theta.tensor("w", "0").shard_count
     for layer in list(theta.tensor("w").keys()):
-        weight = theta.tensor("w", layer)
+        weight: ShardedTensor = theta.tensor("w", layer)
         pp_group = int(int(layer) * pp_count / num_layers)
         zero_4_group = shard_count * pp_group
         devices = tuple(i + zero_4_group for i in range(shard_count))
+
         shards = weight.shards
         for i, shard in enumerate(shards):
             DeviceTensorTrait(devices[i]).set(shard._data)
-        new_weight = SplitPrimitiveTensor(
-            shard_dim=weight.shard_dim,
-            ts=shards,
-            name=weight.name,
-            devices=devices,
-            pinned=True,
-        )
-        theta.tensor("w")[layer] = new_weight
+        theta.tensor("w")[layer] = weight.clone(ts=shards, devices=devices, pinned=True)
     return theta
 
 
