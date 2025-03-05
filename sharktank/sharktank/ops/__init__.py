@@ -35,7 +35,3 @@ from . import attention_impls
 # Comment this out to completely disable optimized quantized implementations.
 from . import qconv_impls
 from . import qlinear_impls
-
-from .sharded_impls import (
-    transfer_if_needed,
-)  # TODO: Hack just to get tests running, figure out properly later

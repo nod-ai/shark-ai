@@ -9,6 +9,7 @@ import pytest
 
 import torch
 
+from sharktank.ops.sharded_impls import transfer_if_needed
 from sharktank import ops
 from sharktank.types import *
 
@@ -32,7 +33,7 @@ class TransferIfNeededTest(unittest.TestCase):
             shard_dim=1, ts=shards, devices=devices, pinned=False
         )
 
-        post_1, post_2 = ops.transfer_if_needed(pre_1, pre_2)
+        post_1, post_2 = transfer_if_needed(pre_1, pre_2)
         for i, device in enumerate(devices):
             assert device == post_1.devices[i]
             assert device == post_2.devices[i]
@@ -52,7 +53,7 @@ class TransferIfNeededTest(unittest.TestCase):
             shard_dim=1, ts=shards, devices=devices_free, pinned=False
         )
 
-        post_1, post_2 = ops.transfer_if_needed(pre_1, pre_2)
+        post_1, post_2 = transfer_if_needed(pre_1, pre_2)
         for i, device in enumerate(devices_pinned):
             assert device == post_1.devices[i]
             assert device == post_2.devices[i]
@@ -71,7 +72,7 @@ class TransferIfNeededTest(unittest.TestCase):
             shard_dim=1, ts=shards, devices=devices, pinned=True
         )
 
-        post_1, post_2 = ops.transfer_if_needed(pre_1, pre_2)
+        post_1, post_2 = transfer_if_needed(pre_1, pre_2)
         for i, device in enumerate(devices):
             assert device == post_1.devices[i]
             assert device == post_2.devices[i]
@@ -92,7 +93,7 @@ class TransferIfNeededTest(unittest.TestCase):
         )
 
         try:
-            ops.transfer_if_needed(pre_1, pre_2)
+            transfer_if_needed(pre_1, pre_2)
         except ValueError:
             return
         assert False  # Should have thrown a ValueError since both tensors are pinned, but devices are not the same
@@ -114,7 +115,7 @@ class TransferIfNeededTest(unittest.TestCase):
             for _ in range(tensor_count)
         ]
 
-        ts_post = ops.transfer_if_needed(*ts_pre)
+        ts_post = transfer_if_needed(*ts_pre)
 
         for t_pre, t_post in zip(ts_pre, ts_post):
             assert all(
@@ -140,7 +141,7 @@ class TransferIfNeededTest(unittest.TestCase):
         ]
 
         try:
-            ops.transfer_if_needed(*t_pre)
+            transfer_if_needed(*t_pre)
         except ValueError:
             return
         assert False  # Should have thrown a ValueError since no devices are different but none are pinned
@@ -161,7 +162,7 @@ class TransferIfNeededTest(unittest.TestCase):
             )
             for i in range(tensor_count)
         ]
-        t_post = ops.transfer_if_needed(*t_pre)
+        t_post = transfer_if_needed(*t_pre)
 
         for i in range(tensor_count):
             assert all(
@@ -187,7 +188,7 @@ class TransferIfNeededTest(unittest.TestCase):
             )
             for i in range(tensor_count)
         ]
-        t_post = ops.transfer_if_needed(*t_pre)
+        t_post = transfer_if_needed(*t_pre)
 
         for i in range(tensor_count):
             assert all(
@@ -212,7 +213,7 @@ class TransferIfNeededTest(unittest.TestCase):
             for i in range(tensor_count)
         ]
         try:
-            ops.transfer_if_needed(*t_pre)
+            transfer_if_needed(*t_pre)
         except ValueError:
             return
 
