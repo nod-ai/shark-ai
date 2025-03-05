@@ -58,26 +58,46 @@ def copy_w_new_shards_and_devices(tensor: ShardedTensor, new_shards: List[torch.
     else:
         raise NotImplementedError(f"copy_with_new_shards not implemented for {type(tensor)}")
 
-def transfer_if_needed(lhs: ShardedTensor, rhs: ShardedTensor) -> Tuple[ShardedTensor, ShardedTensor]:
-    if all(l_dev == r_dev for l_dev, r_dev in zip(lhs.devices, rhs.devices)):
-        return lhs, rhs # All corresponding shards are on the same devices, no need to transfer
-        
-    if lhs.devices_pinned and rhs.devices_pinned:
-        raise ValueError(f"Both tensors have their devices pinned, but they are pinned to different devices, or in different orders: {lhs.devices} vs {rhs.devices}.")
-    elif not lhs.devices_pinned and not rhs.devices_pinned:
-        return lhs, rhs  # TODO: If different devices and neither are pinned, shouldn't we need to transfer something?
+def transfer_if_needed(*tensors: Tuple[ShardedTensor, ...]) -> Tuple[ShardedTensor, ...]:
+    if len(tensors) <= 1:
+        return
+    assert all(isinstance(tensor, ShardedTensor) for tensor in tensors)
+    
+    # Check if all tensors are on the same devices.
+    devices_0 = tensors[0].devices
+    for tensor in tensors[1:]:
+        if not all(devices_0[j] == tensor.devices[j] for j in range(len(devices_0))):
+            break
     else:
-        to_move, pinned = (lhs, rhs) if rhs.devices_pinned else (rhs, lhs)
-        shards = tuple(
-            (
-                transfer_to_logical_device(shard, pinned.devices[i]) 
-                if pinned.devices[i] != to_move.devices[i]
-                else barrier_on_logical_device(shard, pinned.devices[i])
+        return tensors  # All tensors already on same device
+
+    i_pinned = tuple(i for i, t in enumerate(tensors) if t.devices_pinned)
+    if len(i_pinned) == 0:
+        return tensors  # TODO: If different devices and none are pinned, shouldn't we need to transfer something?
+    
+    d_pinned = tensors[i_pinned[0]].devices
+    for i in i_pinned[1:]:
+        if not all(d_pinned[j] == tensors[i].devices[j] for j in range(len(d_pinned))):
+            raise ValueError("All pinned tensors must be on the same devices.")
+
+    # Move all non-pinned tensors to the same devices as the pinned ones.
+    new_tensors = []
+    for i, tensor in enumerate(tensors):
+        if tensor.devices_pinned:
+            new_tensors.append(tensor)
+        else:
+            shards = tuple(
+                (
+                    transfer_to_logical_device(shard, d_pinned[j])
+                    if d_pinned[j] != tensor.devices[j]
+                    else barrier_on_logical_device(shard, d_pinned[j])
+                )
+                for j, shard in enumerate(tensor.shards)
             )
-            for i, shard in enumerate(to_move.shards)
-        )
-        moved = copy_w_new_shards_and_devices(to_move, shards, pinned.devices)
-        return (moved, pinned) if rhs.devices_pinned else (pinned, moved)
+            new_tensors.append(copy_w_new_shards_and_devices(tensor, shards, d_pinned))
+
+    return tuple(new_tensors)
+
 
 def override_w_tranfer(operation, *override_args):
     def decorator(f):

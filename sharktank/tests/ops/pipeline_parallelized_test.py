@@ -109,6 +109,65 @@ class TransferIfNeededTest(unittest.TestCase):
         except ValueError:
             return
         assert False  # Should have thrown a ValueError since both tensors are pinned, but devices are not the same
+    
+    def testMultiTensorsNoPinned(self):
+        tensor_count = 5
+        shard_count = 4
+        shard_shape = [3, 4]
+        shards = [torch.rand(shard_shape, dtype=torch.float32) for _ in range(shard_count)]
+        t_pre = [
+            SplitPrimitiveTensor(shard_dim=1, ts=shards, devices=tuple(shard_count*i + d for d in range(shard_count)), devices_pinned=False)
+            for i in range(tensor_count)
+        ]
+        t_post = ops.transfer_if_needed(*t_pre)
+
+        for i in range(tensor_count):
+            assert all(d_pre == d_post for d_pre, d_post in zip(t_pre[i].devices, t_post[i].devices))
+
+    def testMultiTensorsOnePinned(self):
+        tensor_count = 5
+        shard_count = 4
+        shard_shape = [3, 4]
+        shards = [torch.rand(shard_shape, dtype=torch.float32) for _ in range(shard_count)]
+        t_pre = [
+            SplitPrimitiveTensor(shard_dim=1, ts=shards, devices=tuple(shard_count*i + d for d in range(shard_count)), devices_pinned=(i==0))
+            for i in range(tensor_count)
+        ]
+        t_post = ops.transfer_if_needed(*t_pre)
+
+        for i in range(tensor_count):
+            assert all(d_pre == d_post for d_pre, d_post in zip(t_pre[0].devices, t_post[i].devices))
+
+    def testMultiTensorsMultiPinnedNoConflict(self):
+        tensor_count = 5
+        shard_count = 4
+        shard_shape = [3, 4]
+        shards = [torch.rand(shard_shape, dtype=torch.float32) for _ in range(shard_count)]
+        t_pre = [
+            SplitPrimitiveTensor(shard_dim=1, ts=shards, devices=tuple(shard_count*i*(i % 2 != 0) + d for d in range(shard_count)), devices_pinned=(i % 2 == 0))
+            for i in range(tensor_count)
+        ]
+        t_post = ops.transfer_if_needed(*t_pre)
+
+        for i in range(tensor_count):
+            assert all(d_pre == d_post for d_pre, d_post in zip(t_pre[0].devices, t_post[i].devices))
+
+    def testMultiTensorsMultiPinnedWithConflict(self):
+        tensor_count = 5
+        shard_count = 4
+        shard_shape = [3, 4]
+        shards = [torch.rand(shard_shape, dtype=torch.float32) for _ in range(shard_count)]
+        t_pre = [
+            SplitPrimitiveTensor(shard_dim=1, ts=shards, devices=tuple(shard_count*i + d for d in range(shard_count)), devices_pinned=(i < 2))
+            for i in range(tensor_count)
+        ]
+        try:
+            ops.transfer_if_needed(*t_pre)
+        except ValueError:
+            return
+
+        assert False  # Should throw and error since the first two tensors are pinned to different devices
+
 
 class MatmulTest(unittest.TestCase):
     def testShardedParallelAxesInLhsAndRhs(self):  # matmul_split
