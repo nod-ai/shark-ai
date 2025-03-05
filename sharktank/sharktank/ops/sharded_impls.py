@@ -157,27 +157,26 @@ def sharded_unwrap_override():
 sharded_wrap_override()
 
 
+def clone_tensor_w_shards_moved(
+    tensor: ShardedTensor, new_devices: Tuple[int]
+) -> ShardedTensor:
+    """
+    Create a copy of the passed in tensor, but with shards now placed on the new devices.
+    """
+    new_shards = tuple(
+        (
+            transfer_to_logical_device(shard, new_devices[j])
+            if new_devices[j] != tensor.devices[j]
+            else barrier_on_logical_device(shard, new_devices[j])
+        )
+        for j, shard in enumerate(tensor.shards)
+    )
+    return tensor.clone(ts=new_shards, devices=new_devices)
+
 def transfer_if_needed(*tensors: Tuple[ShardedTensor]) -> List[ShardedTensor]:
     """
     If at least 2 tensors are panned in, the shards of all unpinned tensors are transfered to be on the same devices as those of the pinned tensors.
     """
-
-    def tensor_w_shards_moved(
-        tensor: ShardedTensor, new_devices: Tuple[int]
-    ) -> ShardedTensor:
-        """
-        Create a copy of the passed in tensor, but with shards now placed on the new devices.
-        """
-        new_shards = tuple(
-            (
-                transfer_to_logical_device(shard, new_devices[j])
-                if new_devices[j] != tensor.devices[j]
-                else barrier_on_logical_device(shard, new_devices[j])
-            )
-            for j, shard in enumerate(tensor.shards)
-        )
-        return tensor.clone(ts=new_shards, devices=new_devices)
-
     if len(tensors) <= 1:
         return list(tensors)
     assert all(isinstance(tensor, ShardedTensor) for tensor in tensors)
@@ -204,7 +203,7 @@ def transfer_if_needed(*tensors: Tuple[ShardedTensor]) -> List[ShardedTensor]:
 
     # Move all non-pinned tensors to the same devices as the pinned ones.
     new_tensors = [
-        (tensor if tensor.pinned else tensor_w_shards_moved(tensor, pinned_devices))
+        (tensor if tensor.pinned else clone_tensor_w_shards_moved(tensor, pinned_devices))
         for tensor in tensors
     ]
     return new_tensors
