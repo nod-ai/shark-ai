@@ -59,7 +59,6 @@ def pipeline_parallelize_theta(
         pp_group =  int(layer * pp_count / num_layers)
         zero_4_group = shard_count * pp_group
         weight.devices = tuple(i + zero_4_group for i in range(shard_count))
-        weight.devices_pinned = True
         for i, shard in enumerate(weight.shards):
             DeviceTensorTrait(weight.devices[i]).set(shard._data)
 
@@ -71,7 +70,7 @@ class PPFFN(ThetaLayer):
         num_layers  = len(self.theta.tensor("w"))
         shard_count = self.theta.tensor("w", '0').shard_count
 
-        x = ReplicatedTensor(ts=x, shard_count=shard_count, devices=tuple(_d for _d in range(shard_count)))
+        x = ReplicatedTensor(ts=x, shard_count=shard_count, devices=[_d for _d in range(shard_count)])
         for layer in range(num_layers):
             weight: SplitPrimitiveTensor = self.theta.tensor("w", str(layer))
             x:      ReplicatedTensor     = ops.all_reduce(ops.linear(x, weight))

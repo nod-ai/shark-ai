@@ -25,7 +25,7 @@ class AllGatherTest(unittest.TestCase):
         ]
         expected_result = torch.cat(shards, dim=shard_dim)
 
-        sharded = SplitPrimitiveTensor(shard_dim=shard_dim, ts=shards, devices=tuple(range(shard_count)), devices_pinned=False)
+        sharded = SplitPrimitiveTensor(shard_dim=shard_dim, ts=shards)
         actual_result = ops.all_gather(sharded)
 
         for shard in actual_result.shards:
@@ -42,7 +42,7 @@ class AllReduceTest(unittest.TestCase):
         ]
         expected_result = torch.add(torch.add(shards[0], shards[1]), shards[2])
 
-        sharded = SplitPrimitiveTensor(shard_dim=shard_dim, ts=shards, devices=tuple(range(shard_count)), devices_pinned=False)
+        sharded = SplitPrimitiveTensor(shard_dim=shard_dim, ts=shards)
         actual_result = ops.all_reduce(sharded)
 
         for shard in actual_result.shards:
@@ -117,14 +117,12 @@ class ConvTest(unittest.TestCase):
         )
 
         shard_count = 2
-        x_sharded = SplitPrimitiveTensor(
-            shard_dim=1, ts=x, shard_count=shard_count, devices=tuple(range(shard_count)), devices_pinned=False
-        )
+        x_sharded = SplitPrimitiveTensor(shard_dim=1, ts=x, shard_count=shard_count)
         weight_sharded = SplitPrimitiveTensor(
-            shard_dim=0, ts=weight, shard_count=shard_count, devices=tuple(range(shard_count)), devices_pinned=False
+            shard_dim=0, ts=weight, shard_count=shard_count
         )
         bias_sharded = SplitPrimitiveTensor(
-            shard_dim=0, ts=bias, shard_count=shard_count, devices=tuple(range(shard_count)), devices_pinned=False
+            shard_dim=0, ts=bias, shard_count=shard_count
         )
         sharded_result = ops.conv2d(
             x_sharded,
@@ -173,10 +171,10 @@ class ConvTest(unittest.TestCase):
 
         shard_count = 2
         weight_sharded = SplitPrimitiveTensor(
-            shard_dim=0, ts=weight, shard_count=shard_count, devices=tuple(range(shard_count)), devices_pinned=False
+            shard_dim=0, ts=weight, shard_count=shard_count
         )
         bias_sharded = SplitPrimitiveTensor(
-            shard_dim=0, ts=bias, shard_count=shard_count, devices=tuple(range(shard_count)), devices_pinned=False
+            shard_dim=0, ts=bias, shard_count=shard_count
         )
         sharded_result = ops.conv2d(
             x,
@@ -534,12 +532,12 @@ class NormalizationTest(unittest.TestCase):
         )
 
         shard_count = 3
-        x_sharded = SplitPrimitiveTensor(shard_dim=1, ts=x, shard_count=shard_count, devices=tuple(range(shard_count)), devices_pinned=False)
+        x_sharded = SplitPrimitiveTensor(shard_dim=1, ts=x, shard_count=shard_count)
         weight_sharded = SplitPrimitiveTensor(
-            shard_dim=0, ts=weight, shard_count=shard_count, devices=tuple(range(shard_count)), devices_pinned=True
+            shard_dim=0, ts=weight, shard_count=shard_count
         )
         bias_sharded = SplitPrimitiveTensor(
-            shard_dim=0, ts=bias, shard_count=shard_count, devices=tuple(range(shard_count)), devices_pinned=True
+            shard_dim=0, ts=bias, shard_count=shard_count
         )
         sharded_result = ops.group_norm_affine(
             x_sharded,
@@ -563,7 +561,7 @@ class NormalizationTest(unittest.TestCase):
 
         expected_result = ops.layer_norm(x, weight=weight, bias=bias, eps=eps)
 
-        x_sharded = SplitPrimitiveTensor(shard_dim=2, ts=x, shard_count=3, devices=tuple(range(3)), devices_pinned=False)
+        x_sharded = SplitPrimitiveTensor(shard_dim=2, ts=x, shard_count=3)
         sharded_result = ops.layer_norm(
             x_sharded,
             weight=weight,
@@ -580,7 +578,7 @@ class PermuteTest(unittest.TestCase):
         torch_tensor = torch.rand(3, 8, 5, dtype=torch.float32)
         permutation = [1, 0, 2]
         sharded_tensor = SplitPrimitiveTensor(
-            ts=torch_tensor, shard_dim=1, shard_count=4, devices=tuple(range(4)), devices_pinned=False
+            ts=torch_tensor, shard_dim=1, shard_count=4
         )
         expected_result = torch.permute(torch_tensor, permutation)
 
@@ -596,9 +594,9 @@ class AttentionTest(unittest.TestCase):
         k = torch.rand(4, 32, 16, dtype=torch.float32)
         v = torch.rand(4, 32, 16, dtype=torch.float32)
 
-        qs = SplitPrimitiveTensor(shard_dim=0, ts=q.split(4, dim=0), devices=tuple(range(1)), devices_pinned=False)
-        ks = SplitPrimitiveTensor(shard_dim=0, ts=k.split(4, dim=0), devices=tuple(range(1)), devices_pinned=False)
-        vs = SplitPrimitiveTensor(shard_dim=0, ts=v.split(4, dim=0), devices=tuple(range(1)), devices_pinned=False)
+        qs = SplitPrimitiveTensor(shard_dim=0, ts=q.split(4, dim=0))
+        ks = SplitPrimitiveTensor(shard_dim=0, ts=k.split(4, dim=0))
+        vs = SplitPrimitiveTensor(shard_dim=0, ts=v.split(4, dim=0))
 
         expected_result = ops.scaled_dot_product_attention(q, k, v, a=None)
         sharded_result = ops.scaled_dot_product_attention(qs, ks, vs, a=None)
@@ -610,9 +608,9 @@ class AttentionTest(unittest.TestCase):
         k = torch.rand(4, 32, 16, dtype=torch.float32)
         v = torch.rand(4, 32, 16, dtype=torch.float32)
 
-        qs = SplitPrimitiveTensor(shard_dim=0, ts=q.split(4, dim=0), devices=tuple(range(1)), devices_pinned=False)
-        ks = SplitPrimitiveTensor(shard_dim=0, ts=k.split(4, dim=0), devices=tuple(range(1)), devices_pinned=False)
-        vs = SplitPrimitiveTensor(shard_dim=0, ts=v.split(4, dim=0), devices=tuple(range(1)), devices_pinned=False)
+        qs = SplitPrimitiveTensor(shard_dim=0, ts=q.split(4, dim=0))
+        ks = SplitPrimitiveTensor(shard_dim=0, ts=k.split(4, dim=0))
+        vs = SplitPrimitiveTensor(shard_dim=0, ts=v.split(4, dim=0))
 
         expected_result = ops.scaled_dot_product_attention(
             q, k, v, a=None, is_causal=True
@@ -629,10 +627,10 @@ class AttentionTest(unittest.TestCase):
         v = torch.rand(4, 32, 16, dtype=torch.float32)
         a = torch.rand(1, 32, 32, dtype=torch.float32) > 0.5
 
-        q_s = SplitPrimitiveTensor(shard_dim=0, ts=q.split(1, dim=0), devices=tuple(range(4)), devices_pinned=False)
-        k_s = SplitPrimitiveTensor(shard_dim=0, ts=k.split(1, dim=0), devices=tuple(range(4)), devices_pinned=False)
-        v_s = SplitPrimitiveTensor(shard_dim=0, ts=v.split(1, dim=0), devices=tuple(range(4)), devices_pinned=False)
-        a_s = ReplicatedTensor(ts=a, shard_count=4, devices=tuple(range(4)), devices_pinned=False)
+        q_s = SplitPrimitiveTensor(shard_dim=0, ts=q.split(1, dim=0))
+        k_s = SplitPrimitiveTensor(shard_dim=0, ts=k.split(1, dim=0))
+        v_s = SplitPrimitiveTensor(shard_dim=0, ts=v.split(1, dim=0))
+        a_s = ReplicatedTensor(ts=a, shard_count=4)
 
         expected_result = ops.scaled_dot_product_attention(
             q, k, v, a=a, is_causal=False
@@ -649,7 +647,7 @@ class MatmulTest(unittest.TestCase):
         t1 = torch.rand(4, 32, 16, dtype=torch.float32)
         t2 = torch.rand(48, 16, dtype=torch.float16)
         # RHS is transposed, so dim0 is the "column". Shard into 12.
-        t2_sharded = SplitPrimitiveTensor(shard_dim=0, ts=t2.split(4, dim=0), devices=tuple(range(12)), devices_pinned=False)
+        t2_sharded = SplitPrimitiveTensor(shard_dim=0, ts=t2.split(4, dim=0))
         sharded_result = ops.matmul(t1, t2_sharded.T)
         expected_result = ops.matmul(t1, t2.T)
         unsharded_result = ops.sharded_cat(sharded_result)
@@ -658,7 +656,7 @@ class MatmulTest(unittest.TestCase):
     def testTorchRHSColumnSharded(self):
         t1 = torch.rand(4, 32, 16, dtype=torch.float32)
         t2 = torch.rand(16, 48, dtype=torch.float16)
-        t2_sharded = SplitPrimitiveTensor(shard_dim=1, ts=t2.split(4, dim=1), devices=tuple(range(12)), devices_pinned=False)
+        t2_sharded = SplitPrimitiveTensor(shard_dim=1, ts=t2.split(4, dim=1))
         sharded_result = ops.matmul(t1, t2_sharded)
         expected_result = ops.matmul(t1, t2)
         unsharded_result = ops.sharded_cat(sharded_result)
@@ -684,10 +682,10 @@ class MatmulTest(unittest.TestCase):
         Z = ops.matmul(XA, B.T)
 
         # Columnwise sharding of A matrix (transposed).
-        A_sharded = SplitPrimitiveTensor(shard_dim=0, ts=A.split(6, dim=0), devices=tuple(range(8)), devices_pinned=False)
+        A_sharded = SplitPrimitiveTensor(shard_dim=0, ts=A.split(6, dim=0))
         assert A_sharded.shard_count == 8
         # Rowwise sharding of B matrix (transposed).
-        B_sharded = SplitPrimitiveTensor(shard_dim=1, ts=B.split(6, dim=1), devices=tuple(range(8)), devices_pinned=False)
+        B_sharded = SplitPrimitiveTensor(shard_dim=1, ts=B.split(6, dim=1))
         assert B_sharded.shard_count == 8
 
         XA_sharded = ops.matmul(X, A_sharded.T)
@@ -700,7 +698,7 @@ class MatmulTest(unittest.TestCase):
         b = torch.rand(5, 9, dtype=torch.float32)
         expected_result = torch.matmul(a, b)
         shard_count = 3
-        a_sharded = SplitPrimitiveTensor(ts=a, shard_dim=1, shard_count=shard_count, devices=tuple(range(shard_count)), devices_pinned=False)
+        a_sharded = SplitPrimitiveTensor(ts=a, shard_dim=1, shard_count=shard_count)
         res_sharded = ops.matmul(a_sharded, b)
         assert isinstance(res_sharded, SplitPrimitiveTensor)
         assert res_sharded.shard_dim == 1
@@ -713,8 +711,8 @@ class MatmulTest(unittest.TestCase):
         b = torch.rand(5, 9, dtype=torch.float32)
         expected_result = torch.matmul(a, b)
         shard_count = 3
-        a_sharded = SplitPrimitiveTensor(ts=a, shard_dim=1, shard_count=shard_count, devices=tuple(range(shard_count)), devices_pinned=False)
-        b_sharded = SplitPrimitiveTensor(ts=b, shard_dim=1, shard_count=shard_count, devices=tuple(range(shard_count)), devices_pinned=False)
+        a_sharded = SplitPrimitiveTensor(ts=a, shard_dim=1, shard_count=shard_count)
+        b_sharded = SplitPrimitiveTensor(ts=b, shard_dim=1, shard_count=shard_count)
         res_sharded = ops.matmul(a_sharded, b_sharded)
         assert isinstance(res_sharded, SplitPrimitiveTensor)
         assert res_sharded.shard_dim == 1
@@ -727,8 +725,8 @@ class MatmulTest(unittest.TestCase):
         b = torch.rand(9, 5, dtype=torch.float32)
         expected_result = torch.matmul(a, b.T)
         shard_count = 3
-        a_sharded = SplitPrimitiveTensor(ts=a, shard_dim=1, shard_count=shard_count, devices=tuple(range(shard_count)), devices_pinned=False)
-        b_sharded = SplitPrimitiveTensor(ts=b, shard_dim=0, shard_count=shard_count, devices=tuple(range(shard_count)), devices_pinned=False)
+        a_sharded = SplitPrimitiveTensor(ts=a, shard_dim=1, shard_count=shard_count)
+        b_sharded = SplitPrimitiveTensor(ts=b, shard_dim=0, shard_count=shard_count)
         res_sharded = ops.matmul(a_sharded, b_sharded, transpose_rhs=True)
         assert isinstance(res_sharded, SplitPrimitiveTensor)
         assert res_sharded.shard_dim == 1
@@ -741,8 +739,8 @@ class MatmulTest(unittest.TestCase):
         b = torch.rand(5, 9, dtype=torch.float32)
         expected_result = torch.matmul(a, b)
         shard_count = 3
-        a_sharded = SplitPrimitiveTensor(ts=a, shard_dim=0, shard_count=shard_count, devices=tuple(range(shard_count)), devices_pinned=False)
-        b_sharded = SplitPrimitiveTensor(ts=b, shard_dim=1, shard_count=shard_count, devices=tuple(range(shard_count)), devices_pinned=False)
+        a_sharded = SplitPrimitiveTensor(ts=a, shard_dim=0, shard_count=shard_count)
+        b_sharded = SplitPrimitiveTensor(ts=b, shard_dim=1, shard_count=shard_count)
         res_sharded = ops.matmul(a_sharded, b_sharded)
         assert isinstance(res_sharded, SplitPrimitiveTensor)
         assert res_sharded.shard_dim == 0
@@ -755,8 +753,8 @@ class MatmulTest(unittest.TestCase):
         b = torch.rand(5, 9, dtype=torch.float32)
         expected_result = torch.matmul(a, b)
         shard_count = 3
-        a_sharded = SplitPrimitiveTensor(ts=a, shard_dim=1, shard_count=shard_count, devices=tuple(range(shard_count)), devices_pinned=False)
-        b_sharded = ReplicatedTensor(ts=b, shard_count=shard_count, devices=tuple(range(shard_count)), devices_pinned=False)
+        a_sharded = SplitPrimitiveTensor(ts=a, shard_dim=1, shard_count=shard_count)
+        b_sharded = ReplicatedTensor(ts=b, shard_count=shard_count)
         res_sharded = ops.matmul(a_sharded, b_sharded)
         assert isinstance(res_sharded, SplitPrimitiveTensor)
         assert res_sharded.shard_dim == 1
@@ -790,17 +788,17 @@ class MatmulTest(unittest.TestCase):
 
         # Columnwise sharding of gate and up weight (transposed).
         sharded_ffn_gate_weight = SplitPrimitiveTensor(
-            shard_dim=0, ts=unsharded_ffn_gate_weight.split(16, dim=0), devices=tuple(range(8)), devices_pinned=True
+            shard_dim=0, ts=unsharded_ffn_gate_weight.split(16, dim=0)
         )
         sharded_ffn_up_weight = SplitPrimitiveTensor(
-            shard_dim=0, ts=unsharded_ffn_up_weight.split(16, dim=0), devices=tuple(range(8)), devices_pinned=True
+            shard_dim=0, ts=unsharded_ffn_up_weight.split(16, dim=0)
         )
         assert sharded_ffn_gate_weight.shard_count == 8
         assert sharded_ffn_up_weight.shard_count == 8
 
         # Rowwise sharding of down weight (transposed).
         sharded_ffn_down_weight = SplitPrimitiveTensor(
-            shard_dim=1, ts=unsharded_ffn_down_weight.split(16, dim=1), devices=tuple(range(8)), devices_pinned=True
+            shard_dim=1, ts=unsharded_ffn_down_weight.split(16, dim=1)
         )
         assert sharded_ffn_down_weight.shard_count == 8
         Z_sharded = compute(
@@ -839,7 +837,7 @@ class ReplicateTest(unittest.TestCase):
         tensor = torch.rand(4, 5, dtype=torch.float32)
         shard_count = 3
         actual_result = ops.replicate(tensor, count=shard_count)
-        expected_result = ReplicatedTensor(ts=tensor, shard_count=shard_count, devices=tuple(range(shard_count)), devices_pinned=False)
+        expected_result = ReplicatedTensor(ts=tensor, shard_count=shard_count)
         assert expected_result.is_deep_equal(actual_result)
 
         # Test that is a copy.
@@ -957,7 +955,7 @@ class ReshardSplitTest(unittest.TestCase):
         shard_count = 3
         actual_result = ops.reshard_split(tensor, dim=shard_dim, count=shard_count)
         expected_result = SplitPrimitiveTensor(
-            ts=tensor, shard_count=shard_count, shard_dim=shard_dim, devices=tuple(range(shard_count)), devices_pinned=False
+            ts=tensor, shard_count=shard_count, shard_dim=shard_dim
         )
         assert expected_result.is_deep_equal(actual_result)
 
@@ -971,7 +969,7 @@ class ReshardSplitTest(unittest.TestCase):
         shard_dim = 2
         shard_count = 3
         expected_result = SplitPrimitiveTensor(
-            ts=tensor, shard_count=shard_count, shard_dim=shard_dim, devices=tuple(range(shard_count)), devices_pinned=False
+            ts=tensor, shard_count=shard_count, shard_dim=shard_dim
         )
         actual_result = ops.reshard_split(
             expected_result, dim=shard_dim, count=shard_count

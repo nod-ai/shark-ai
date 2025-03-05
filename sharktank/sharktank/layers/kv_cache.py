@@ -98,7 +98,7 @@ class PagedKVCache:
             shards = [
                 shard.unflatten(1, self.sub_page_dims) for shard in page_slab.shards
             ]
-            return SplitPrimitiveTensor(ts=shards, shard_dim=4, devices=tuple(range(self.shard_count)), devices_pinned=True)  # TODO
+            return SplitPrimitiveTensor(ts=shards, shard_dim=4)
 
     def shard_state(
         self, state: List[torch.Tensor]
@@ -127,7 +127,7 @@ class PagedKVCache:
         shards = [
             ops.flatten(shard, start_dim=1) for shard in sharded_page_table.shards
         ]
-        flat_sharded_page_table = SplitPrimitiveTensor(ts=shards, shard_dim=1, devices=tuple(range(self.shard_count)), devices_pinned=True)
+        flat_sharded_page_table = SplitPrimitiveTensor(ts=shards, shard_dim=1)
         return [flat_sharded_page_table]
 
     @property
@@ -152,7 +152,7 @@ class PagedKVCache:
         if self.shard_count == 1:
             return shards
 
-        return [SplitPrimitiveTensor(ts=shards, shard_dim=1, devices=tuple(range(self.shard_count)), devices_pinned=True)]
+        return [SplitPrimitiveTensor(ts=shards, shard_dim=1)]
 
     def read(
         self,
@@ -248,8 +248,8 @@ class PagedKVCache:
                     for _ in range(seq_positions.shard_count)
                 ]
 
-                partitions = ReplicatedTensor(ts=partitions, devices=tuple(range(self.shard_count)), devices_pinned=True)  # TODO: Should these be pinned?
-                transformer_block = ReplicatedTensor(ts=transformer_block, devices=tuple(range(self.shard_count)), devices_pinned=True)
+                partitions = ReplicatedTensor(ts=partitions)
+                transformer_block = ReplicatedTensor(ts=transformer_block)
             else:
                 partitions = torch.tensor(idx).unsqueeze(0)
                 transformer_block = torch.full(

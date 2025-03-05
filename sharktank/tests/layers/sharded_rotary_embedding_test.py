@@ -39,8 +39,8 @@ def test_sharded_rotary_table():
     ok = default_layer(xt=xk, start_index=0)
 
     # Then we can shard the same inputs and layer
-    xq = SplitPrimitiveTensor(ts=xq, shard_dim=2, shard_count=4, devices=tuple(range(4)), devices_pinned=True)
-    xk = SplitPrimitiveTensor(ts=xk, shard_dim=2, shard_count=4, devices=tuple(range(4)), devices_pinned=False)
+    xq = SplitPrimitiveTensor(ts=xq, shard_dim=2, shard_count=4)
+    xk = SplitPrimitiveTensor(ts=xk, shard_dim=2, shard_count=4)
     shard_layer = RotaryEmbeddingLayer(
         rope_dimension_count=rope_dims,
         max_seqlen=max_seqlen,
