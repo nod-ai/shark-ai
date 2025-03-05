@@ -38,8 +38,7 @@ def create_theta(
             SplitPrimitiveTensor(
                 name=f"w.{layer}", 
                 shard_dim=1,
-                ts=_weight.split(split_size, dim=1),
-                devices = [_d for _d in range(shard_count)]
+                ts=_weight.split(split_size, dim=1)
             )
         )
 
@@ -70,7 +69,7 @@ class PPFFN(ThetaLayer):
         num_layers  = len(self.theta.tensor("w"))
         shard_count = self.theta.tensor("w", '0').shard_count
 
-        x = ReplicatedTensor(ts=x, shard_count=shard_count, devices=[_d for _d in range(shard_count)])
+        x = ReplicatedTensor(ts=x, shard_count=shard_count)
         for layer in range(num_layers):
             weight: SplitPrimitiveTensor = self.theta.tensor("w", str(layer))
             x:      ReplicatedTensor     = ops.all_reduce(ops.linear(x, weight))
