@@ -1532,13 +1532,13 @@ register_pytree_node(
 def flatten_unreduced_tensor(
     t: UnreducedTensor,
 ) -> Tuple[List[Any], torch.utils._pytree.Context]:
-    return list(t.shards), {"name": t.name}
+    return list(t.shards), {"name": t.name, "devices": t.devices, "pinned": t.pinned}
 
 
 def unflatten_unreduced_tensor(
     values: Iterable[Any], ctx: torch.utils._pytree.Context
 ) -> UnreducedTensor:
-    return UnreducedTensor(ts=list(values), name=ctx["name"])
+    return UnreducedTensor(ts=list(values), name=ctx["name"], devices=ctx["devices"], pinned=ctx["pinned"])
 
 
 def flatten_with_keys_unreduced_tensor(t: UnreducedTensor):
