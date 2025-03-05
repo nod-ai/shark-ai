@@ -881,7 +881,7 @@ class ShardedTensorBase(ShardedTensor):
         for k in self.globals.keys():
             ts.append(new_globals[ts[k]])
         return self.__class__(
-            name=self.name, shape=self.shape, shard_dim=self.shard_dim, ts=ts
+            name=self.name, shape=self.shape, shard_dim=self.shard_dim, ts=ts, devices=self.devices, pinned=self.pinned
         )
 
     @classmethod
@@ -1218,7 +1218,7 @@ class ReplicatedTensor(ShardedTensor):
         ts = []
         for k in self.globals.keys():
             ts.append(new_globals[ts[k]])
-        return ReplicatedTensor(name=self.name, shape=self.shape, ts=ts)
+        return ReplicatedTensor(name=self.name, shape=self.shape, ts=ts, devices=self.devices, pinned=self.pinned)
 
     @classmethod
     def create(
