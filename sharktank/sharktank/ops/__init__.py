@@ -67,7 +67,9 @@ def import_and_wrap_signatures():
             kwargs = rewrap_args(kwargs, t_i_kwargs, t_vals[len(t_vals_args):])
             res = f(*args, **kwargs)
             if isinstance(res, ShardedTensor) and len(t_vals) > 0:
-                pinned = res.pinned or (len(t_vals) == 1 and t_vals[0].pinned)
+                pinned = (res.pinned 
+                          or (len(t_vals) == 1 and t_vals[0].pinned)
+                          or f.__name__ == 'reshard_like')  # TODO: How to handle this case properly
                 res = res.clone(devices=t_vals[0].devices, pinned=pinned)
             return res
         
