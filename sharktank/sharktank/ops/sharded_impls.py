@@ -40,32 +40,50 @@ def import_and_wrap_signatures():
         """
         Create a wrapper for each operation.
         """
-        def wrapper(*args: Tuple, **kwargs: Dict[str, Any]):
-            for _arg in args:   # TODO: Need to handle cat and functions with collections of tensors as an input
-                if isinstance(_arg, (tuple, list)):
-                    for entry in _arg:
-                        assert not isinstance(entry, ShardedTensor), "ShardedTensors in collections are not yet supported."
-            
-            t_i = [i for i, arg in enumerate(args) if isinstance(arg, ShardedTensor)]
-            t_vals = transfer_if_needed(*(args[i] for i in t_i))
-           
-            args = list(args)
-            for i, t in zip(t_i, t_vals):
-                args[i] = t
-            args = tuple(args)
+        def unwrap_args(items: Tuple | Dict[str, Any]) -> Tuple[List[int | List[int]], List[ShardedTensor]]:
+            t_i, t_vals = [], []
+            for i, arg in enumerate(items):
+                if isinstance(arg, ShardedTensor):
+                    t_i.append(i)
+                    t_vals.append(arg)
+                elif isinstance(arg, list) and all(isinstance(val, ShardedTensor) for val in arg):
+                    t_i.append([i] * len(arg))
+                    t_vals.extend(arg)
+            return t_i, t_vals
 
-            for val in kwargs.values():  # TODO: Needed to handle sharded_like
-                assert not isinstance(val, ShardedTensor), "ShardedTensors in keyword arguments are not yet supported."
+        def rewrap_args(items: Tuple | Dict, t_i: List[int | List[int]], t_vals: List[ShardedTensor]) -> Tuple[Tuple, Dict[str, Any]]:
+            i_lookup = list(range(len(items))) if isinstance(items, tuple) else list(items.keys())
+            new_items = list(items) if isinstance(items, tuple) else dict(items)
 
+            for i in t_i:
+                if isinstance(i, int):
+                    new_items[i_lookup[i]] = t_vals.pop(0)
+                else:  # List[int]
+                    for _ in range(len(i)):
+                        new_items[i_lookup[i[0]]] = t_vals.pop(0)
+
+            if isinstance(new_items, list):
+                new_items = tuple(new_items)
+            return new_items
+
+        def func_wrapper(*args: Tuple, **kwargs: Dict[str, Any]):
+            t_i_args, t_vals_args = unwrap_args(args)
+            t_i_kwargs, t_vals_kwargs = unwrap_args(list(kwargs.values()))
+            t_vals = t_vals_args + t_vals_kwargs
+
+            t_vals = transfer_if_needed(*t_vals)
+
+            args = rewrap_args(args, t_i_args, t_vals[:len(t_vals_args)])
+            kwargs = rewrap_args(kwargs, t_i_kwargs, t_vals[len(t_vals_args):])
             res = f(*args, **kwargs)
             if isinstance(res, ShardedTensor) and len(t_vals) > 0:
                 pinned = res.pinned or (len(t_vals) == 1 and t_vals[0].pinned)
                 res = res.clone(devices=t_vals[0].devices, pinned=pinned)
             return res
         
-        if hasattr(f, "override"):  # Needed for ops like .gelu_tanh_approximation
-            wrapper.override = f.override
-        return wrapper
+        if hasattr(f, "override"):  # Needed for ops like gelu_tanh_approximation
+            func_wrapper.override = f.override
+        return func_wrapper
 
     do_not_wrap = {'all_gather', 'all_reduce', 'replicate'}
 
@@ -77,7 +95,7 @@ def import_and_wrap_signatures():
         globals()[func_name] = func
 import_and_wrap_signatures()
 
-def transfer_if_needed(*tensors: Tuple[ShardedTensor, ...]) -> Tuple[ShardedTensor, ...]:
+def transfer_if_needed(*tensors: Tuple[ShardedTensor]) -> List[ShardedTensor]:
     """
     If at least 2 tensors are panned in, the shards of all unpinned tensors are transfered to be on the same devices as those of the pinned tensors.
     """
@@ -96,7 +114,7 @@ def transfer_if_needed(*tensors: Tuple[ShardedTensor, ...]) -> Tuple[ShardedTens
         return tensor.clone(ts=new_shards, devices=new_devices)
 
     if len(tensors) <= 1:
-        return tensors
+        return list(tensors)
     assert all(isinstance(tensor, ShardedTensor) for tensor in tensors)
     
     # Check if all tensors are on the same devices.
@@ -106,7 +124,7 @@ def transfer_if_needed(*tensors: Tuple[ShardedTensor, ...]) -> Tuple[ShardedTens
             all_on_same_devices = False
             break
     if all_on_same_devices:
-        return tensors
+        return list(tensors)
 
     pinned_tensors = [tensor for tensor in tensors if tensor.pinned]
     if len(pinned_tensors) == 0:
@@ -118,14 +136,14 @@ def transfer_if_needed(*tensors: Tuple[ShardedTensor, ...]) -> Tuple[ShardedTens
             raise ValueError("All pinned tensors must be on the same devices.")
 
     # Move all non-pinned tensors to the same devices as the pinned ones.
-    new_tensors =  tuple(
+    new_tensors =  [
         (
             tensor
             if tensor.pinned
             else tensor_w_shards_moved(tensor, pinned_devices)
         )
         for tensor in tensors
-    )
+    ]
     return new_tensors
 
 @all_gather.override(SplitPrimitiveTensor)
