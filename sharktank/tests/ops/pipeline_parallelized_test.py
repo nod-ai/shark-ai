@@ -238,14 +238,6 @@ class GatherTest(unittest.TestCase):
     pass # TODO: gather_replicated
 
 @pytest.mark.skip(reason="Not implemented")
-class IndexCopyTest(unittest.TestCase):
-    pass  # TODO: index_copy__split_replicated_split
-
-@pytest.mark.skip(reason="Not implemented")
-class IndexPutTest(unittest.TestCase):
-    pass  # TODO: index_put__
-
-@pytest.mark.skip(reason="Not implemented")
 class IndexSelectTest(unittest.TestCase):
     pass  # TODO: index_select
 
