@@ -31,7 +31,7 @@ from ..utils import longest_equal_range
 from .signatures import *
 
 
-def wrap_override_decorator():
+def sharded_wrap_override():
     def transfer_n_pin(f):
         """
         Wrapper for each op defined in this file.
@@ -140,7 +140,7 @@ def wrap_override_decorator():
             func.override = wrap_override(func.override_orig)
 
 
-def unwrap_override_decorator():
+def sharded_unwrap_override():
     """
     Unwraps [op].override to restore the original function.
     Must be called at the end of this file.
@@ -154,7 +154,7 @@ def unwrap_override_decorator():
             del func.override_orig
 
 
-wrap_override_decorator()
+sharded_wrap_override()
 
 
 def transfer_if_needed(*tensors: Tuple[ShardedTensor]) -> List[ShardedTensor]:
@@ -1540,4 +1540,4 @@ def view_as_real_rep(tensor: ReplicatedTensor) -> ReplicatedTensor:
 
 
 # Note: Must be last thing in file
-unwrap_override_decorator()
+sharded_unwrap_override()
