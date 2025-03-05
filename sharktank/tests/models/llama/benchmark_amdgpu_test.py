@@ -60,7 +60,14 @@ class BaseBenchmarkTest(unittest.TestCase):
             "--iree-opt-strip-assertions",
         ]
 
-    def save_benchmarks(self, *, benchmark_fn: str, input_path: Path, tensor_parallelism_size=1, benchmark_repetitions=3):
+    def save_benchmarks(
+        self,
+        *,
+        benchmark_fn: str,
+        input_path: Path,
+        tensor_parallelism_size=1,
+        benchmark_repetitions=3,
+    ):
         benchmark_args = [
             f"--function={benchmark_fn}",
         ]
@@ -77,9 +84,7 @@ class BaseBenchmarkTest(unittest.TestCase):
                 f"--input=@{input_path}/start_positions.npy",
             ]
 
-        benchmark_args += [
-            f"--input=@{input_path}/seq_block_ids.npy"
-        ]
+        benchmark_args += [f"--input=@{input_path}/seq_block_ids.npy"]
 
         if tensor_parallelism_size == 1:
             benchmark_args += [
@@ -172,7 +177,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             f"--input=4x4xi64=@{self.prefill_args_fp8}/seq_block_ids.bin",
             f"--input=261x2097152xf8E4M3FNUZ=@{self.prefill_args_fp8}/cs_f8E4M3FNUZ.bin",
             "--benchmark_repetitions=3",
-            ">>"
+            ">>",
         ]
         self.iree_run_decode_args_fp8 = [
             "--function=decode_bs4",
@@ -182,7 +187,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             f"--input=4x5xi64=@{self.decode_args_fp8}/seq_block_ids.bin",
             f"--input=261x2097152xf8E4M3FNUZ=@{self.decode_args_fp8}/cs_f8E4M3FNUZ.bin",
             "--benchmark_repetitions=3",
-            ">>"
+            ">>",
         ]
 
     def testBenchmark8B_f16_TP1_Non_Decomposed_Input_Len_128(self):
@@ -409,22 +414,22 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         self.iree_run_prefill_nondecomposed_args_128_tp8_fp16 = self.save_benchmarks(
             benchmark_fn="prefill_bs4",
             input_path=self.prefill_args_bs4_128_stride_32_tp8_f16,
-            tensor_parallelism_size=self.tensor_parallelism_size
+            tensor_parallelism_size=self.tensor_parallelism_size,
         )
         self.iree_run_decode_nondecomposed_args_128_tp8_fp16 = self.save_benchmarks(
             benchmark_fn="decode_bs4",
             input_path=self.decode_args_bs4_128_stride_32_tp8_f16,
-            tensor_parallelism_size=self.tensor_parallelism_size
+            tensor_parallelism_size=self.tensor_parallelism_size,
         )
         self.iree_run_prefill_nondecomposed_args_2048_tp8_fp16 = self.save_benchmarks(
             benchmark_fn="prefill_bs4",
             input_path=self.prefill_args_bs4_2048_stride_32_tp8_f16,
-            tensor_parallelism_size=self.tensor_parallelism_size
+            tensor_parallelism_size=self.tensor_parallelism_size,
         )
         self.iree_run_decode_nondecomposed_args_2048_tp8_fp16 = self.save_benchmarks(
             benchmark_fn="decode_bs4",
             input_path=self.decode_args_bs4_2048_stride_32_tp8_f16,
-            tensor_parallelism_size=self.tensor_parallelism_size
+            tensor_parallelism_size=self.tensor_parallelism_size,
         )
         self.iree_run_prefill_args_fp8 = [
             "--function=prefill_bs4",
@@ -729,22 +734,22 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         self.iree_run_prefill_nondecomposed_args_128_tp8_fp16 = self.save_benchmarks(
             benchmark_fn="prefill_bs4",
             input_path=self.prefill_args_bs4_128_stride_32_tp8_f16,
-            tensor_parallelism_size=self.tensor_parallelism_size
+            tensor_parallelism_size=self.tensor_parallelism_size,
         )
         self.iree_run_decode_nondecomposed_args_128_tp8_fp16 = self.save_benchmarks(
             benchmark_fn="decode_bs4",
             input_path=self.decode_args_bs4_128_stride_32_tp8_f16,
-            tensor_parallelism_size=self.tensor_parallelism_size
+            tensor_parallelism_size=self.tensor_parallelism_size,
         )
         self.iree_run_prefill_nondecomposed_args_2048_tp8_fp16 = self.save_benchmarks(
             benchmark_fn="prefill_bs4",
             input_path=self.prefill_args_bs4_2048_stride_32_tp8_f16,
-            tensor_parallelism_size=self.tensor_parallelism_size
+            tensor_parallelism_size=self.tensor_parallelism_size,
         )
         self.iree_run_decode_nondecomposed_args_2048_tp8_fp16 = self.save_benchmarks(
             benchmark_fn="decode_bs4",
             input_path=self.decode_args_bs4_2048_stride_32_tp8_f16,
-            tensor_parallelism_size=self.tensor_parallelism_size
+            tensor_parallelism_size=self.tensor_parallelism_size,
         )
         self.iree_run_prefill_args_fp8 = [
             "--function=prefill_bs4",
