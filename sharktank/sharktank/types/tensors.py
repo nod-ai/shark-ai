@@ -1196,6 +1196,9 @@ class ReplicatedTensor(ShardedTensor):
             ]
             shard_count = None
 
+        if pinned is None:
+            pinned = not isinstance(ts[0], torch._subclasses.fake_tensor.FakeTensor)
+
         assert shard_count is None
         assert len(ts) > 0
         assert len(ts) == len(devices)
