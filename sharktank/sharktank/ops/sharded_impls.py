@@ -199,7 +199,6 @@ def cat_split(
             for t in tensors
         ]
     )
-    # TODO: Need to transfer tensors to same devices
     shard_dim = tensors[0].shard_dim
     shard_count = tensors[0].shard_count
     if dim != shard_dim:
@@ -678,7 +677,6 @@ def index_select_split_replicated(
     dim: int,
     index: ReplicatedTensor,
 ) -> ReplicatedTensor:
-    # TODO: Need to transfer?
     assert tensor.shard_count == index.shard_count
     assert (
         dim != tensor.shard_dim
@@ -783,6 +781,7 @@ for types in itertools.product([Tensor, ShardedTensor], repeat=2):
 
 # Sharded matmuls.
 
+
 @matmul.override(ReplicatedTensor, SplitPrimitiveTensor)
 def matmul_replicated_lhs_split_rhs(
     lhs: ReplicatedTensor, rhs: SplitPrimitiveTensor, *, transpose_rhs: bool
@@ -858,6 +857,7 @@ def matmul_split_lhs_replicated_rhs(
         for (lhs_shard, rhs_shard) in zip(lhs.shards, rhs.shards)
     ]
     return SplitPrimitiveTensor(ts=shards, shard_dim=lhs.shard_dim)
+
 
 @matmul.override(SplitPrimitiveTensor, SplitPrimitiveTensor)
 def matmul_split(
