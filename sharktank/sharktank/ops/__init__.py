@@ -77,7 +77,7 @@ def import_and_wrap_signatures():
             func_wrapper.override = f.override
         return func_wrapper
 
-    do_not_wrap = {'all_gather', 'all_reduce', 'replicate', 'index_copy_', 'index_put_'}
+    do_not_wrap = {'all_gather', 'all_reduce', 'replicate', 'index_copy_', 'index_put_', 'transfer_to_logical_device'}
 
     from . import signatures
     for func_name in signatures.__all__:
