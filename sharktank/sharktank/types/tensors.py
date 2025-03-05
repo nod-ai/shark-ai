@@ -772,11 +772,6 @@ class ShardedTensor(InferenceTensor):
     def devices(self) -> Tuple[int]:
         return self._devices
 
-    @devices.setter
-    def devices(self, devices: Tuple[int]):
-        self._devices = devices
-        self._pinned = True  # TODO: Would we ever use this setter and NOT want the devices pinned?
-
     @property
     @abstractmethod
     def shard_count(self) -> int:
