@@ -53,7 +53,8 @@ def copy_w_new_shards_and_devices(tensor: ShardedTensor, new_shards: List[torch.
             ts=new_shards,
             name=tensor.name,
             shape=tensor.shape,
-            devices=new_devices
+            devices=new_devices,
+            devices_pinned=tensor.devices
         )
     else:
         raise NotImplementedError(f"copy_with_new_shards not implemented for {type(tensor)}")
