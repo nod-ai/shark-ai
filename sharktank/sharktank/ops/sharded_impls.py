@@ -6,7 +6,7 @@
 
 import torch
 from torch import Tensor
-from typing import List, Optional, Sequence, Union, Any, Tuple
+from typing import List, Optional, Sequence, Union, Any, Tuple, Dict
 import itertools
 from numbers import Number
 import math
@@ -30,6 +30,68 @@ from .signatures import *
 from .shape import broadcast_dims, broadcast_dim, unbroadcast_dim
 from ..utils import longest_equal_range
 
+def copy_w_new_shards_and_devices(tensor: ShardedTensor, new_shards: List[torch.Tensor], new_devices: Tuple[int]) -> ShardedTensor:
+    # TODO: What does transfrom_globals need from this function?
+    if isinstance(tensor, SplitPrimitiveTensor ):
+        return SplitPrimitiveTensor(
+            shard_dim=tensor.shard_dim,
+            ts=new_shards,
+            name=tensor.name,
+            shape=tensor.shape,
+            devices=new_devices,
+            devices_pinned=tensor.devices_pinned
+        )
+    elif isinstance(tensor, ReplicatedTensor):
+        return ReplicatedTensor(
+            ts=new_shards,
+            name=tensor.name,
+            devices=new_devices,
+            devices_pinned=tensor.devices
+        )
+    elif isinstance(tensor, UnreducedTensor):
+        return UnreducedTensor(
+            ts=new_shards,
+            name=tensor.name,
+            shape=tensor.shape,
+            devices=new_devices
+        )
+    else:
+        raise NotImplementedError(f"copy_with_new_shards not implemented for {type(tensor)}")
+
+def transfer_if_needed(lhs: ShardedTensor, rhs: ShardedTensor) -> Tuple[ShardedTensor, ShardedTensor]:
+    if all(l_dev == r_dev for l_dev, r_dev in zip(lhs.devices, rhs.devices)):
+        return lhs, rhs # All corresponding shards are on the same devices, no need to transfer
+        
+    if lhs.devices_pinned and rhs.devices_pinned:
+        raise ValueError(f"Both tensors have their devices pinned, but they are pinned to different devices, or in different orders: {lhs.devices} vs {rhs.devices}.")
+    elif not lhs.devices_pinned and not rhs.devices_pinned:
+        return lhs, rhs  # TODO: If different devices and neither are pinned, shouldn't we need to transfer something?
+    else:
+        to_move, pinned = (lhs, rhs) if rhs.devices_pinned else (rhs, lhs)
+        shards = tuple(
+            (
+                transfer_to_logical_device(shard, pinned.devices[i]) 
+                if pinned.devices[i] != to_move.devices[i]
+                else barrier_on_logical_device(shard, pinned.devices[i])
+            )
+            for i, shard in enumerate(to_move.shards)
+        )
+        moved = copy_w_new_shards_and_devices(to_move, shards, pinned.devices)
+        return (moved, pinned) if rhs.devices_pinned else (pinned, moved)
+
+def override_w_tranfer(operation, *override_args):
+    def decorator(f):
+        @operation.override(*override_args)
+        def wrapper(*args: Tuple, **kwargs: Dict[str, Any]):
+            args = list(args)
+            t_i = [i for i, arg in enumerate(args) if isinstance(arg, ShardedTensor)]
+            if len(t_i) > 0:
+                t_vals = transfer_if_needed(*(args[i] for i in t_i))
+                for i, t in zip(t_i, t_vals):
+                    args[i] = t
+            return f(*args, **kwargs)  # TODO: Should I convert func_args back to tuple after modifying it?
+        return wrapper
+    return decorator
 
 @all_gather.override(SplitPrimitiveTensor)
 def all_gather_split(
@@ -691,56 +753,6 @@ for types in itertools.product([Tensor, ShardedTensor], repeat=2):
 
 # Sharded matmuls.
 
-def copy_w_new_shards_and_devices(tensor: ShardedTensor, new_shards: List[torch.Tensor], new_devices: Tuple[int]) -> ShardedTensor:
-    # TODO: What does transfrom_globals need from this function?
-    if isinstance(tensor, SplitPrimitiveTensor ):
-        return SplitPrimitiveTensor(
-            shard_dim=tensor.shard_dim,
-            ts=new_shards,
-            name=tensor.name,
-            shape=tensor.shape,
-            devices=new_devices,
-            devices_pinned=tensor.devices_pinned
-        )
-    elif isinstance(tensor, ReplicatedTensor):
-        return ReplicatedTensor(
-            ts=new_shards,
-            name=tensor.name,
-            devices=new_devices,
-            devices_pinned=tensor.devices
-        )
-    elif isinstance(tensor, UnreducedTensor):
-        return UnreducedTensor(
-            ts=new_shards,
-            name=tensor.name,
-            shape=tensor.shape,
-            devices=new_devices
-        )
-    else:
-        raise NotImplementedError(f"copy_with_new_shards not implemented for {type(tensor)}")
-
-def transfer_if_needed(lhs: ShardedTensor, rhs: ShardedTensor) -> Tuple[ShardedTensor, ShardedTensor]:
-    if all(l_dev == r_dev for l_dev, r_dev in zip(lhs.devices, rhs.devices)):
-        return lhs, rhs # All corresponding shards are on the same devices, no need to transfer
-        
-    if lhs.devices_pinned and rhs.devices_pinned:
-        raise ValueError(f"Both tensors have their devices pinned, but they are pinned to different devices, or in different orders: {lhs.devices} vs {rhs.devices}.")
-    elif not lhs.devices_pinned and not rhs.devices_pinned:
-        return lhs, rhs  # TODO: If different devices and neither are pinned, shouldn't we need to transfer something?
-    else:
-        to_move, pinned = (lhs, rhs) if rhs.devices_pinned else (rhs, lhs)
-        shards = tuple(
-            (
-                transfer_to_logical_device(shard, pinned.devices[i]) 
-                if pinned.devices[i] != to_move.devices[i]
-                else barrier_on_logical_device(shard, pinned.devices[i])
-            )
-            for i, shard in enumerate(to_move.shards)
-        )
-        moved = copy_w_new_shards_and_devices(to_move, shards, pinned.devices)
-        return (moved, pinned) if rhs.devices_pinned else (pinned, moved)
-
-
 @matmul.override(ReplicatedTensor, SplitPrimitiveTensor)
 def matmul_replicated_lhs_split_rhs(
     lhs: ReplicatedTensor, rhs: SplitPrimitiveTensor, *, transpose_rhs: bool
@@ -820,8 +832,7 @@ def matmul_split_lhs_replicated_rhs(
     ]
     return SplitPrimitiveTensor(ts=shards, shard_dim=lhs.shard_dim, devices=rhs.devices, devices_pinned=False)
 
-
-@matmul.override(SplitPrimitiveTensor, SplitPrimitiveTensor)
+@override_w_tranfer(matmul, SplitPrimitiveTensor, SplitPrimitiveTensor)
 def matmul_split(
     lhs: SplitPrimitiveTensor, rhs: SplitPrimitiveTensor, *, transpose_rhs: bool
 ) -> UnreducedTensor | SplitPrimitiveTensor:
@@ -830,9 +841,6 @@ def matmul_split(
             f"Cannot matmul split tensors of different shard_count: "
             f"({lhs.shard_count} vs {rhs.shard_count})"
         )
-    
-    lhs, rhs = transfer_if_needed(lhs, rhs)
-
     if transpose_rhs:
         return matmul(lhs, rhs.T)
 
