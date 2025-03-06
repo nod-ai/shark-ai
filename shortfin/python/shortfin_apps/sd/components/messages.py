@@ -91,7 +91,6 @@ class SDXLInferenceExecRequest(InferenceExecRequest):
         self.image_array = image_array
 
         self.result_image: Union[str, None] = None
-        self.img_metadata = None
 
         self.done = sf.VoidFuture()
 
