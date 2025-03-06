@@ -1086,9 +1086,10 @@ def replicate_unsharded(
     input, *, count: int, devices: Tuple[int], pinned: bool
 ) -> ReplicatedTensor:
     torch_input = unbox_tensor(input)
+    assert count == len(devices)
     # If we have a torch input replicating we can assume we need to transfer:
-    torch_inputs = [transfer_to_logical_device(torch_input, i) for i in range(count)]
-    return ReplicatedTensor(ts=torch_inputs)
+    torch_inputs = [transfer_to_logical_device(torch_input, devices[i]) for i in range(count)]
+    return ReplicatedTensor(ts=torch_inputs, devices=devices, pinned=pinned)
 
 
 @reshape.override(SplitPrimitiveTensor)
@@ -1268,9 +1269,9 @@ def reshard_like_unreduced_to_replicated(
 def sharded_cat_unsharded(tensor: SplitPrimitiveTensor):
     shard_ts = [
         (
-            transfer_to_logical_device(shard.as_torch(), 0)
+            transfer_to_logical_device(shard.as_torch(), tensor.devices[0])
             if i != 0
-            else barrier_on_logical_device(shard.as_torch(), 0)
+            else barrier_on_logical_device(shard.as_torch(), tensor.devices[0])
         )
         for i, shard in enumerate(tensor.shards)
     ]
@@ -1364,9 +1365,9 @@ def unshard_unreduced(input: UnreducedTensor) -> Tensor:
     shards = input.shards
     shards = [
         (
-            barrier_on_logical_device(shard, i)
+            barrier_on_logical_device(shard, input.devices[0])
             if i == 0
-            else transfer_to_logical_device(shard, 0)
+            else transfer_to_logical_device(shard, input.devices[0])
         )
         for i, shard in enumerate(shards)
     ]
