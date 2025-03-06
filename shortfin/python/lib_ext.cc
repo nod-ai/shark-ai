@@ -1384,7 +1384,7 @@ static const char
         R"(Number of logical devices to open per physical, visible device.
 
 This option can be set as an option keyword with the name
-"amgdpu_logical_devices_per_physical_device" or the environment variable
+"amdgpu_logical_devices_per_physical_device" or the environment variable
 "SHORTFIN_AMDGPU_LOGICAL_DEVICES_PER_PHYSICAL_DEVICE" (if `env_prefix` was not
 changed at construction).
 )";
