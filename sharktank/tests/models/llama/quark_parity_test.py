@@ -26,7 +26,7 @@ class QuarkParityTest(TempDirTestBase):
     # Mismatched elements: 1 / 16384 (0.0%)
     # Greatest absolute difference: 0.00390625 at index (0, 1, 713)
     # Greatest relative difference: 0.004730224609375 at index (0, 1, 713)
-    @pytest.mark.xfail("Known accuracy validation issues with quark parity")
+    @pytest.mark.xfail(reason="Known accuracy validation issues with quark parity")
     @with_quark_data
     def test_compare_against_quark(self):
         sharktank_dir = str(
