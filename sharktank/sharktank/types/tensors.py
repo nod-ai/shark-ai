@@ -766,10 +766,11 @@ class ShardedTensor(InferenceTensor):
         self._devices = devices
         self._pinned = pinned
 
-    @abstractmethod
     def clone(self, **kwargs) -> "ShardedTensor":
         """Create a clone of this tensor with the given properties overridden."""
-        ...
+        if any(d_new != d_old for d_new, d_old in zip(kwargs['devices'], self.devices)):
+            kwargs['ts'] = self.move_shards_to_new_devices(kwargs['ts'], kwargs['devices'])
+        return self.__class__(**kwargs)
 
     @property
     def pinned(self) -> bool:
@@ -1093,11 +1094,7 @@ class SplitPrimitiveTensor(ShardedTensorBase):
             "devices": kwargs.get("devices", self.devices),
             "pinned": kwargs.get("pinned", self.pinned),
         }
-
-        if any(d_new != d_old for d_new, d_old in zip(new_kwargs['devices'], self.devices)):
-            new_kwargs['ts'] = self.move_shards_to_new_devices(new_kwargs['ts'], new_kwargs['devices'])
-
-        return self.__class__(**new_kwargs)
+        return super(SplitPrimitiveTensor, self).clone(**new_kwargs)
 
     def _is_slicing_split_dim(self, key):
         if isinstance(
@@ -1255,9 +1252,7 @@ class ReplicatedTensor(ShardedTensor):
             new_kwargs["shard_count"] = kwargs["shard_count"]
         else:
             assert not isinstance(new_kwargs["ts"], torch.Tensor)
-            if any(d_new != d_old for d_new, d_old in zip(new_kwargs['devices'], self.devices)):
-                new_kwargs['ts'] = self.move_shards_to_new_devices(new_kwargs['ts'], new_kwargs['devices'])
-        return self.__class__(**new_kwargs)
+        return super(ReplicatedTensor, self).clone(**new_kwargs)
 
     @property
     def shard_count(self) -> int:
@@ -1401,10 +1396,7 @@ class UnreducedTensor(ShardedTensorBase):
             "devices": kwargs.get("devices", self.devices),
             "pinned": kwargs.get("pinned", self.pinned),
         }
-
-        if any(d_new != d_old for d_new, d_old in zip(new_kwargs['devices'], self.devices)):
-            new_kwargs['ts'] = self.move_shards_to_new_devices(new_kwargs['ts'], new_kwargs['devices'])
-        return self.__class__(**new_kwargs)
+        return super(UnreducedTensor, self).clone(**new_kwargs)
 
 
 def flatten_tensor_tree(
