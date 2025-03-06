@@ -47,8 +47,8 @@ Simply download the matching tarball, extract it, and add it to your environment
 mkdir rocm
 cd rocm
 # Check GitHub releases for other distributions.
-wget https://therock-artifacts.s3.us-east-2.amazonaws.com/therock-dist-gfx1201-20250225.tar.gz
-tar -xzf tar -xzf therock-dist-gfx1201-20250225.tar.gz
+wget https://therock-artifacts.s3.us-east-2.amazonaws.com/therock-dist-gfx1201-20250305.tar.gz
+tar -xzf tar -xzf therock-dist-gfx1201-20250305.tar.gz
 export PATH="$PWD/bin:$PATH"
 export LD_LIBRARY_PATH="$PWD/lib:$LD_LIBRARY_PATH"
 cd ..
