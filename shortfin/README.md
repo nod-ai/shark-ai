@@ -153,7 +153,6 @@ While the server will print the total inference time to generate the image:
 
 ```console
 [2025-03-05 21:14:08] 127.0.0.1:40956 - "GET /health HTTP/1.1" 200
-[2025-03-05 21:14:19.545] [info] [metrics.py:51] Completed denoise (UNet) single step average (batch size 1) in 0ms
 [2025-03-05 21:14:23.752] [info] [metrics.py:51] Completed inference process in 4209ms
 [2025-03-05 21:14:23] 127.0.0.1:57240 - "POST /generate HTTP/1.1" 200
 ```
