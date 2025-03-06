@@ -11,7 +11,8 @@ from typing import Optional, Sequence, Union, List, Tuple
 import torch
 import numbers
 from torch import Tensor, dtype
-from ..types import AnyTensor, ShardedTensor, Theta, sharding, InferenceTensor
+
+from ..types import AnyTensor, ShardedTensor, Theta, sharding, InferenceTensor, PrimitiveTensor
 from numbers import Number
 import math
 
@@ -833,7 +834,7 @@ def _replicate_trampoline(
     pinned: bool | None = None,
 ) -> ShardedTensor:
     tensors = (input,)
-    if isinstance(input, torch.Tensor):
+    if isinstance(input, (torch.Tensor, PrimitiveTensor)):
         devices = devices if devices is not None else tuple(range(count))
         pinned = pinned if pinned is not None else False
     else:
