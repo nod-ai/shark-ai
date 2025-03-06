@@ -449,7 +449,6 @@ def sdxl(
         params_urls = get_url_map([params_filename], SDXL_WEIGHTS_BUCKET)
         for f, url in params_urls.items():
             if needs_file(f, ctx, url):
-                breakpoint()
                 fetch_http_check_size(name=f, url=url)
             else:
                 get_cached(f, ctx, FileNamespace.GEN)
