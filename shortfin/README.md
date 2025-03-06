@@ -108,8 +108,6 @@ You can override the network port used using the `--port <PORT-NUM>` flag.
 
 #### FP8: RDNA4 only
 
-
-
 Note that the first run will download all the artifacts necessary (the model code and the weights).
 This may take a while. The subsequent runs will use the artifacts cached in `~/.cache/shark/genfiles/sdxl`.
 
@@ -176,12 +174,26 @@ Use `--target=gfx1100` when running on RDNA3.
 
 Open a new terminal and follow the steps from the section above to run the client.
 
-### Performance results
+### Preliminary performance results
 
 We benchamrked a portion of the SDXL model called 'UNet', comparing the fp16 and fp8 implementation across
-RDNA3 and RDNA4. 'UNet' is typically executed 20 times when generating an image with SDXL.
+RDNA3 and RDNA4. 'UNet' is typically executed 20 times when generating an image with SDXL. This was done using
+the [sdxl-scripts repository](https://github.com/nod-ai/sdxl-scripts/tree/shared/rdna4).
 
-TODO
+GPU Name | fp16 time [ms] | fp8 time [ms]
+-- | -- | --
+RX 9070 XT | 217 | 140
+RX 9070 | 263 | 151
+RX 7900 XTX | 292 |  N/A
+Pro W7900 | 318 |  N/A
+
+> [!NOTE]
+> Disclaimer: The results above are for information purpose only. The evaluation was performed
+> on engineering sample hardware and may differ from retail parts.
+
+On RDNA4, UNet compiled with fp8 data types is about 50-75% faster than fp16. Despite having fewer
+Compute Units than 7900-series RDNA3 cards, 9070 and 9070 XT are noticeably faster with fp16, and
+almost twice as fast with fp8.
 
 ## Simple user installation
 
