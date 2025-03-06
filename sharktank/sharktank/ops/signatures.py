@@ -12,7 +12,14 @@ import torch
 import numbers
 from torch import Tensor, dtype
 
-from ..types import AnyTensor, ShardedTensor, Theta, sharding, InferenceTensor, PrimitiveTensor
+from ..types import (
+    AnyTensor,
+    ShardedTensor,
+    Theta,
+    sharding,
+    InferenceTensor,
+    PrimitiveTensor,
+)
 from numbers import Number
 import math
 

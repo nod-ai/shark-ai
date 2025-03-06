@@ -768,8 +768,10 @@ class ShardedTensor(InferenceTensor):
 
     def clone(self, **kwargs) -> "ShardedTensor":
         """Create a clone of this tensor with the given properties overridden."""
-        if any(d_new != d_old for d_new, d_old in zip(kwargs['devices'], self.devices)):
-            kwargs['ts'] = self.move_shards_to_new_devices(kwargs['ts'], kwargs['devices'])
+        if any(d_new != d_old for d_new, d_old in zip(kwargs["devices"], self.devices)):
+            kwargs["ts"] = self.move_shards_to_new_devices(
+                kwargs["ts"], kwargs["devices"]
+            )
         return self.__class__(**kwargs)
 
     @property
@@ -807,14 +809,19 @@ class ShardedTensor(InferenceTensor):
     @property
     def dtype(self) -> torch.dtype:
         return self.shards[0].dtype
-    
+
     def pinned_calc_default(self, t: Tensor) -> bool:
         fake_tensor = isinstance(t, torch._subclasses.fake_tensor.FakeTensor)
-        fake_functional_tensor = isinstance(t, torch._subclasses.functional_tensor.FunctionalTensor) and "FakeTensor" in str(t)
+        fake_functional_tensor = isinstance(
+            t, torch._subclasses.functional_tensor.FunctionalTensor
+        ) and "FakeTensor" in str(t)
         return not (fake_tensor or fake_functional_tensor)
 
-    def move_shards_to_new_devices(self, shards: Tuple[torch.Tensor, ...], new_devices: Tuple[int, ...]) -> Tuple[torch.Tensor, ...]:
+    def move_shards_to_new_devices(
+        self, shards: Tuple[torch.Tensor, ...], new_devices: Tuple[int, ...]
+    ) -> Tuple[torch.Tensor, ...]:
         from ..ops import transfer_to_logical_device, barrier_on_logical_device
+
         new_shards = tuple(
             (
                 transfer_to_logical_device(shard, new_devices[j])

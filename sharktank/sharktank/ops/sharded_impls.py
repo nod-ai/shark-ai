@@ -1088,7 +1088,9 @@ def replicate_unsharded(
     torch_input = unbox_tensor(input)
     assert count == len(devices)
     # If we have a torch input replicating we can assume we need to transfer:
-    torch_inputs = [transfer_to_logical_device(torch_input, devices[i]) for i in range(count)]
+    torch_inputs = [
+        transfer_to_logical_device(torch_input, devices[i]) for i in range(count)
+    ]
     return ReplicatedTensor(ts=torch_inputs, devices=devices, pinned=pinned)
 
 
