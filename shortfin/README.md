@@ -160,29 +160,36 @@ While the server will print the total inference time to generate the image:
 
 ![The generated image of a shark](./sample_image_shark.png)
 
-The e2e image generation time is around 3.9 seconds on RX 9070 XT and 4.2 seconds on RX 9070.
+The end-to-end image generation time is around 3.4 seconds on RX 9070 XT and 3.7 seconds on RX 9070.
 
 You can exit the server and the client by pressing `Ctrl + C`.
 
 
-#### FP16: Both RDNA3 and RDNA4
+#### Int8: Both RDNA3 and RDNA4
 
 Use the following command to start the server:
 
 ```shell
 python -m python.shortfin_apps.sd.server --device=amdgpu --target=gfx1201 --build_preference=precompiled \
-  --device=hip --device_ids 0 --model_config=sdxl_config_fp16.json
+  --device=hip --device_ids 0 --model_config=sdxl_config_i8.json
 ```
 
 Use `--target=gfx1100` when running on RDNA3.
-
 Open a new terminal and follow the steps from the section above to run the client.
+
+End-to-end generation time:
+* On RDNA4: around 3.9 seconds on RX 9070 XT and 4.2 seconds on RX 9070.
+* On RDNA3: around 8.1 seconds on RX 7900 XTX and 8.9 seconds on Pro W9700.
+
+The RX 9070 XT card about twice as fast as RX 7900 XTX while RX 9070 is about twice as fast as Pro W7900!
 
 ### Preliminary performance results
 
-We benchamrked a portion of the SDXL model called 'UNet', comparing the fp16 and fp8 implementation across
-RDNA3 and RDNA4. 'UNet' is typically executed 20 times when generating an image with SDXL. This was done using
-the [sdxl-scripts repository](https://github.com/nod-ai/sdxl-scripts/tree/shared/rdna4).
+In addition to the total image generation time from the section above, we benchamrked a
+portion of the SDXL model called 'UNet', comparing the fp16 and fp8 implementation across
+RDNA3 and RDNA4. 'UNet' is typically executed 20 times when generating an image with SDXL.
+This was done using the
+[sdxl-scripts repository](https://github.com/nod-ai/sdxl-scripts/tree/shared/rdna4).
 
 GPU Name | fp16 time [ms] | fp8 time [ms]
 -- | -- | --
