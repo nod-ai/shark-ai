@@ -159,8 +159,6 @@ While the server will print the total inference time to generate the image:
 
 ![The generated image of a shark](./sample_image_shark.png)
 
-The end-to-end image generation time is around 3.4 seconds on RX 9070 XT and 3.7 seconds on RX 9070.
-
 You can exit the server and the client by pressing `Ctrl + C`.
 
 
@@ -176,13 +174,26 @@ python -m python.shortfin_apps.sd.server --device=amdgpu --target=gfx1201 --buil
 Use `--target=gfx1100` when running on RDNA3.
 Open a new terminal and follow the steps from the section above to run the client.
 
-End-to-end generation time:
-* On RDNA4: around 3.9 seconds on RX 9070 XT and 4.2 seconds on RX 9070.
-* On RDNA3: around 8.1 seconds on RX 7900 XTX and 8.9 seconds on Pro W9700.
-
-The RX 9070 XT card about twice as fast as RX 7900 XTX while RX 9070 is about twice as fast as Pro W7900!
-
 ### Preliminary performance results
+
+> [!NOTE]
+> Disclaimer: The results above are for information purpose only. The evaluation was performed
+> on engineering sample hardware and may differ from retail parts.
+
+#### End-to-end image generation (fp8 and int8)
+
+GPU Name | int8 time [s] | fp8 time [s]
+-- | -- | --
+RX 9070 XT | 3.9 | 3.4
+RX 9070 | 4.2 | 3.7
+RX 7900 XTX | 8.1 | N/A
+Pro W7900 | 8.9 | N/A
+
+Fp8 brings noticeable performance benefits compared to int8 in the SDXL model.
+With int8 data types, supported both on RDNA3 and RDNA4, the RX 9070 XT card about twice
+as fast as RX 7900 XTX while RX 9070 is about twice as fast as Pro W7900!
+
+#### UNet isolated benchmarks (fp8 and fp16)
 
 In addition to the total image generation time from the section above, we benchamrked a
 portion of the SDXL model called 'UNet', comparing the fp16 and fp8 implementation across
@@ -196,10 +207,6 @@ RX 9070 XT | 217 | 140
 RX 9070 | 263 | 151
 RX 7900 XTX | 292 |  N/A
 Pro W7900 | 318 |  N/A
-
-> [!NOTE]
-> Disclaimer: The results above are for information purpose only. The evaluation was performed
-> on engineering sample hardware and may differ from retail parts.
 
 On RDNA4, UNet compiled with fp8 data types is about 50-75% faster than fp16. Despite having fewer
 Compute Units than 7900-series RDNA3 cards, 9070 and 9070 XT are noticeably faster with fp16, and
