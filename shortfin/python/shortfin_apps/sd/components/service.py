@@ -94,6 +94,7 @@ class GenerateService(ServiceBase):
 
         # Scope dependent objects.
         self.batcher = SDXLBatcherProcess(self)
+        self.use_batcher = use_batcher
 
     def equip_fiber(self, fiber, idx, worker_idx):
         MetaFiber = namedtuple(

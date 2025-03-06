@@ -285,7 +285,7 @@ class ServiceBase:
 =======
 >>>>>>> 174fc17 (Refactor BatcherProcess and GenerateService between shortfin apps (#1009))
 
-    def load_inference_module(self, vmfb_path: Path, component: str = "main"):
+    def load_inference_module(self, vmfb_path: Path, component: str = "main", batch_size: int = None):
         """Load an inference module from a VMFB file.
 
         Args:
@@ -294,10 +294,22 @@ class ServiceBase:
         """
         if not hasattr(self, "inference_modules"):
             self.inference_modules = {}
-
         if not self.inference_modules.get(component):
-            self.inference_modules[component] = []
-        self.inference_modules[component].append(
+            self.inference_modules[component] = {}
+
+        if batch_size:
+            bs = batch_size
+        else:
+            match = re.search(r"_bs(\d+)_", str(vmfb_path))
+            if match:
+                bs = int(match.group(1))
+            else:
+                raise ValueError(
+                    "Batch size not found in filename or provided to load function."
+                )
+        if not self.inference_modules[component].get(bs):
+            self.inference_modules[component][bs] = []
+        self.inference_modules[component][bs].append(
             sf.ProgramModule.load(self.sysman.ls, vmfb_path)
         )
 
