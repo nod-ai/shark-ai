@@ -177,7 +177,7 @@ Open a new terminal and follow the steps from the section above to run the clien
 ### Preliminary performance results
 
 > [!NOTE]
-> Disclaimer: The results above are for information purpose only. The evaluation was performed
+> Disclaimer: The results below are for information purpose only. The evaluation was performed
 > on engineering sample hardware and may differ from retail parts.
 
 #### End-to-end image generation (fp8 and int8)
