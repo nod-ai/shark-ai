@@ -179,7 +179,7 @@ def get_configs(args):
     outs = subprocess.check_output(cfg_builder_args).decode()
     outs_paths = outs.splitlines()
     for i in outs_paths:
-        if "sdxl_config" in i and not model_config:
+        if "sdxl_config" in i and not os.path.exists(model_config):
             model_config = i
         elif "topology" in i and args.topology:
             topology_config = i
