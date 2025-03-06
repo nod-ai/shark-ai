@@ -15,6 +15,7 @@ import shortfin.array as sfnp
 import copy
 import re
 import gc
+import logging
 
 from shortfin_apps.sd.components.config_struct import ModelParams
 from shortfin_apps.sd.components.exports import export_sdxl_model

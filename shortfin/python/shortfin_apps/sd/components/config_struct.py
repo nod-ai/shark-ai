@@ -83,7 +83,6 @@ class ModelParams:
             json_text = f.read()
         json_obj = json.loads(json_text)
         raw_params = ModelParams.from_json(json_text)
-        raw_params.use_i8_punet = json_obj["use_i8_punet"]
         if isinstance(raw_params.unet_dtype, str):
             raw_params.unet_dtype = str_to_dtype[raw_params.unet_dtype]
         return raw_params
