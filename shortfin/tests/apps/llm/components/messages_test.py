@@ -22,16 +22,18 @@ def test_inference_exec_request_repr(mock_void_future):
     Patches shortfin.VoidFuture with a mock because we're not running this testcase on a worker thread.
     """
     req = LlmInferenceExecRequest(InferencePhase.PREFILL, [1, 2, 3, 4], rid="test123")
+    instance_id = req.instance_id
     assert (
         str(req)
-        == "LlmInferenceExecRequest[phase=P,pos=0,rid=test123,flags=host,input_token_ids=[1, 2, 3, 4]]"
+        == f"LlmInferenceExecRequest[phase=P,pos=0,rid=test123,instance_id={instance_id},flags=host,input_token_ids=[1, 2, 3, 4]]"
     )
 
     req = LlmInferenceExecRequest(InferencePhase.DECODE, [], rid="test123")
     req.return_host_array = False
     req.return_all_logits = False
     req.rid = None
+    req.instance_id = None
     assert (
         str(req)
-        == "LlmInferenceExecRequest[phase=D,pos=0,rid=None,flags=,input_token_ids=[]]"
+        == "LlmInferenceExecRequest[phase=D,pos=0,rid=None,instance_id=None,flags=,input_token_ids=[]]"
     )
