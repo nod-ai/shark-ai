@@ -180,7 +180,7 @@ def generate_request(prompt: str | list[int], port: int, input_ids=False) -> str
     return logits
 
 
-def test_batch_and_nobatch_consistency(model_artifacts, server):
+def test_prefill_logits_from_server(model_artifacts, server):
     """
     Test that requests produce identical results regardless of batch size.
     If this test fails, it means that changing the batch size changes the generation results.
