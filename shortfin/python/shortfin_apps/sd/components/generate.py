@@ -14,8 +14,6 @@ from typing import (
     Union,
 )
 
-from PIL import Image
-
 from shortfin_apps.types.Base64CharacterEncodedByteSequence import (
     Base64CharacterEncodedByteSequence,
 )
@@ -31,6 +29,7 @@ from .io_struct import GenerateReqInput
 from .messages import SDXLInferenceExecRequest
 from .service import SDXLGenerateService
 from .metrics import measure
+from .TextToImageInferenceOutput import TextToImageInferenceOutput
 
 logger = logging.getLogger("shortfin-sd.generate")
 
@@ -55,13 +54,18 @@ class GenerateImageProcess(sf.Process):
         self.client = client
         self.gen_req = gen_req
         self.index = index
-        self.result_image: Union[str, None] = None
+        self.output: Union[TextToImageInferenceOutput, None] = None
 
     async def run(self):
         exec = SDXLInferenceExecRequest.from_batch(self.gen_req, self.index)
         self.client.batcher.submit(exec)
         await exec.done
-        self.result_image = exec.result_image
+
+        self.output = (
+            TextToImageInferenceOutput(exec.response_image)
+            if exec.response_image
+            else None
+        )
 
 
 Item = TypeVar("Item")
@@ -133,27 +137,13 @@ class ClientGenerateBatchProcess(sf.Process):
             png_images: list[Base64CharacterEncodedByteSequence] = []
 
             for index_of_each_process, each_process in enumerate(gen_processes):
-                if each_process.result_image is None:
+                if each_process.output is None:
                     raise Exception(
-                        f"Expected image result for batch {index_of_each_process} but got `None`"
+                        f"Expected output for process {index_of_each_process} but got `None`"
                     )
 
-                size_of_each_image = (
-                    from_batch(self.gen_req.width, index_of_each_process),
-                    from_batch(self.gen_req.height, index_of_each_process),
-                )
-
-                rgb_sequence_of_each_image = Base64CharacterEncodedByteSequence(
-                    each_process.result_image
-                )
-
-                each_image = Image.frombytes(
-                    mode="RGB",
-                    size=size_of_each_image,
-                    data=rgb_sequence_of_each_image.as_bytes,
-                )
-
-                png_images.append(png_from(each_image))
+                each_png_image = png_from(each_process.output.image)
+                png_images.append(each_png_image)
 
             response_body = {"images": png_images}
             response_body_in_json = json.dumps(response_body)
