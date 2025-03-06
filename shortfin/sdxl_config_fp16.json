@@ -1,0 +1,40 @@
+{
+  "max_seq_len": 64,
+  "num_latents_channels": 4,
+  "batch_sizes": {
+    "clip": [
+      1
+    ],
+    "scheduled_unet": [
+      1
+    ],
+    "vae": [
+      1
+    ]
+  },
+  "module_names": {
+    "clip": "compiled_clip",
+    "scheduled_unet": "compiled_spunet",
+    "vae": "compiled_vae"
+  },
+  "function_names": {
+    "clip": [
+      "encode_prompts"
+    ],
+    "scheduled_unet": [
+      "run_initialize",
+      "run_forward"
+    ],
+    "vae": [
+      "decode"
+    ]
+  },
+  "unet_dtype": "float16",
+  "use_scheduled_unet": true,
+  "dims": [
+    [
+      1024,
+      1024
+    ]
+  ]
+}
