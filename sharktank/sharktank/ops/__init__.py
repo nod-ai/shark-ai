@@ -33,5 +33,3 @@ from . import attention_impls
 # Comment this out to completely disable optimized quantized implementations.
 from . import qconv_impls
 from . import qlinear_impls
-
-from .sharded_impls import clone_tensor_w_shards_moved
