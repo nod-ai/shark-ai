@@ -186,20 +186,18 @@ GPU Name | int8 time [s] | fp8 time [s]
 -- | -- | --
 RX 9070 XT | 3.9 | 3.4
 RX 9070 | 4.2 | 3.7
-RX 7900 XTX | 8.1 | N/A
-Pro W7900 | 8.9 | N/A
+RX 7900 XTX | 6.3 | N/A
+Pro W7900 | 6.9 | N/A
 
 Fp8 brings noticeable performance benefits compared to int8 in the SDXL model.
-With int8 data types, supported both on RDNA3 and RDNA4, the RX 9070 XT card about twice
-as fast as RX 7900 XTX while RX 9070 is about twice as fast as Pro W7900!
+With int8 data types, supported both on RDNA3 and RDNA4, the RX 9070 XT card about 61%
+faster than RX 7900 XTX while RX 9070 is about 64% faster than Pro W7900!
 
 #### UNet isolated benchmarks (fp8 and fp16)
 
 In addition to the total image generation time from the section above, we benchamrked a
 portion of the SDXL model called 'UNet', comparing the fp16 and fp8 implementation across
 RDNA3 and RDNA4. 'UNet' is typically executed 20 times when generating an image with SDXL.
-This was done using the
-[sdxl-scripts repository](https://github.com/nod-ai/sdxl-scripts/tree/shared/rdna4).
 
 GPU Name | fp16 time [ms] | fp8 time [ms]
 -- | -- | --
