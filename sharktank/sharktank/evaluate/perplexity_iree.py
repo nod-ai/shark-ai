@@ -209,7 +209,7 @@ class Perplexity:
         test_prompts = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")[
             "text"
         ]
-        num_test_prompts = 219
+        num_test_prompts = 300
 
         random.seed(0)
         test_prompts = random.sample(test_prompts, num_test_prompts)
