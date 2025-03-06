@@ -50,7 +50,7 @@ cd rocm
 wget https://github.com/ROCm/TheRock/releases/download/mainline-snapshot/therock-dist-gfx1201.tar.gz
 tar -xzf tar -xzf therock-dist-gfx1201.tar.gz
 export PATH="$PWD/bin:$PATH"
-export LD_LIBRARY_PATH="$PWD/bin:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="$PWD/lib:$LD_LIBRARY_PATH"
 cd ..
 ```
 
