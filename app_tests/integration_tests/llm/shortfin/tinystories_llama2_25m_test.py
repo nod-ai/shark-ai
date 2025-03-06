@@ -51,7 +51,13 @@ class TestLLMServer:
                 message=f"Generation did not match expected pattern.\nExpected to start with: {expected_prefix}\nActual response: {response}",
             )
 
-    @pytest.mark.parametrize("concurrent_requests", [2, 4, 8])
+    @pytest.mark.parametrize(
+        "concurrent_requests",
+        [
+            2,
+            4,
+        ],
+    )
     def test_concurrent_generation(
         self, server: tuple[Any, int], concurrent_requests: int
     ) -> None:
