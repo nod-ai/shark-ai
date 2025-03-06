@@ -158,6 +158,8 @@ While the server will print the total inference time to generate the image:
 
 ![The generated image of a shark](./sample_image_shark.png)
 
+The e2e image generation time is around 3.9 seconds on RX 9070 XT and 4.2 seconds on RX 9070.
+
 You can exit the server and the client by pressing `Ctrl + C`.
 
 
