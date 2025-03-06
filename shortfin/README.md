@@ -191,7 +191,7 @@ Pro W7900 | 6.9 | N/A
 
 Fp8 brings noticeable performance benefits compared to int8 in the SDXL model.
 With int8 data types, supported both on RDNA3 and RDNA4, the RX 9070 XT card about 61%
-faster than RX 7900 XTX while RX 9070 is about 64% faster than Pro W7900!
+faster than RX 7900 XTX while RX 9070 is 64% faster than Pro W7900!
 
 #### UNet isolated benchmarks (fp8 and fp16)
 
@@ -209,6 +209,11 @@ Pro W7900 | 318 |  N/A
 On RDNA4, UNet compiled with fp8 data types is about 50-75% faster than fp16. Despite having fewer
 Compute Units than 7900-series RDNA3 cards, 9070 and 9070 XT are noticeably faster with fp16, and
 almost twice as fast with fp8.
+
+<sup>
+This comparison was performed using the
+[sdxl-scripts repository](https://github.com/nod-ai/sdxl-scripts/tree/shared/rdna4)
+</sup>
 
 ## Simple user installation
 
