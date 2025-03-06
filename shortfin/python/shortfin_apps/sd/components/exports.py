@@ -95,7 +95,7 @@ def export_sdxl_model(
                 scheduler_config_path,
             )
             if external_weights:
-                externalize_module_parameters(model)
+                externalize_module_parameters(model.cond_model)
             if component == "scheduled_unet":
                 fxb = FxProgramsBuilder(model)
 

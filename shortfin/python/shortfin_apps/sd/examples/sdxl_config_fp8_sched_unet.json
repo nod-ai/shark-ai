@@ -3,10 +3,10 @@
   "num_latents_channels": 4,
   "batch_sizes": {
     "clip": [
-      8
+      1
     ],
     "scheduled_unet": [
-      8
+      1
     ],
     "vae": [
       1
@@ -30,7 +30,7 @@
     ]
   },
   "unet_dtype": "float16",
-  "use_fp8_punet": true,
+  "unet_attn_dtype": "fp8",
   "use_scheduled_unet": true,
   "dims": [
     [

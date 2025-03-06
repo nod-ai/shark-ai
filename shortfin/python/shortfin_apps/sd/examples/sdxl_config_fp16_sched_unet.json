@@ -5,39 +5,33 @@
     "clip": [
       1
     ],
-    "unet": [
+    "scheduled_unet": [
       1
     ],
     "vae": [
-      1
-    ],
-    "scheduler": [
       1
     ]
   },
   "module_names": {
     "clip": "compiled_clip",
-    "unet": "compiled_punet",
-    "vae": "compiled_vae",
-    "scheduler": "compiled_scheduler"
+    "scheduled_unet": "compiled_spunet",
+    "vae": "compiled_vae"
   },
   "function_names": {
     "clip": [
       "encode_prompts"
     ],
-    "unet": [
-      "main"
+    "scheduled_unet": [
+      "run_initialize",
+      "run_forward"
     ],
     "vae": [
       "decode"
-    ],
-    "scheduler": [
-      "run_initialize",
-      "run_scale",
-      "run_step"
     ]
   },
   "unet_dtype": "float16",
+  "unet_attn_dtype": "fp16",
+  "use_scheduled_unet": true,
   "dims": [
     [
       1024,

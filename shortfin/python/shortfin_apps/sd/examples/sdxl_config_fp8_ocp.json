@@ -38,6 +38,7 @@
     ]
   },
   "unet_dtype": "float16",
+  "unet_attn_dtype": "fp8_ocp",
   "dims": [
     [
       1024,
