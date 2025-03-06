@@ -28,7 +28,7 @@ jobs:
       matrix:
         include:
           - name: cpu
-            runs-on: azure-cpubuilder-linux-scale
+            runs-on: ubuntu-24.04
             test_device: cpu
             python-version: 3.11
           - name: amdgpu_rocm_mi300_gfx942
