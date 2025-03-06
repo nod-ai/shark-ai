@@ -14,6 +14,176 @@ and serving engine. Shortfin consists of these major components:
 
 * Python 3.11+
 
+## RDNA4 Demo
+
+In this technology preview demo, we will set up Stable Diffusion XL (SDXL) running locally on
+RDNA4 (AMD Radeon RX 9070 XT and 9070) and RDNA3 (AMD Radeon 7900 XTX and Radeon Pro W7900).
+SDXL is a popular text to image ML model.
+
+Our demo benefits from improved AI accelerator hardware introduced in RDNA4 that improves
+performance on data types already supported by RDNA3 like fp16, and enabled support for a new data
+type: fp8 (OCP).
+
+### Installation
+
+#### Prerequisites
+
+* Ubuntu 24.04 or 22.04 (not tested on other systems)
+* Python 3.11 or 3.12
+* RDNA4 (gfx1201) or RDNA3 (gfx1100) AMD GPU
+
+Create a new directory for the demo:
+
+```shell
+mkdir demo
+cd demo
+```
+
+#### Install ROCm Community Edition
+
+Simply download the matching tarball, extract it, and add it to your environment variables:
+
+```shell
+mkdir rocm
+cd rocm
+# Check GitHub releases for other distributions.
+wget https://github.com/ROCm/TheRock/releases/download/mainline-snapshot/therock-dist-gfx1201.tar.gz
+tar -xzf tar -xzf therock-dist-gfx1201.tar.gz
+export PATH="$PWD/bin:$PATH"
+export LD_LIBRARY_PATH="$PWD/bin:$LD_LIBRARY_PATH"
+cd ..
+```
+
+Confirm that your GPU is detected:
+```console
+~/demo
+➜  which rocm-smi
+/home/jakub/demo/rocm/bin/rocm-smi
+~/demo
+➜  rocm-smi
+======================================== ROCm System Management Interface ========================================
+================================================== Concise Info ==================================================
+Device  Node  IDs              Temp    Power  Partitions          SCLK  MCLK   Fan    Perf  PwrCap  VRAM%  GPU%  
+              (DID,     GUID)  (Edge)  (Avg)  (Mem, Compute, ID)                                                 
+==================================================================================================================
+0       2     0x7550,   37870  32.0°C  3.0W   N/A, N/A, 0         0Mhz  96Mhz  0%     auto  0.0W    5%     0%    
+1       1     0x7448,   7019   31.0°C  7.0W   N/A, N/A, 0         0Mhz  96Mhz  20.0%  auto  241.0W  0%     0%    
+==================================================================================================================
+============================================== End of ROCm SMI Log ===============================================
+```
+
+Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
+
+#### Install SHARK AI and Shortfin
+
+First, create and activate a Python Virtual Environment:
+
+```shell
+python -m venv venv
+source venv/bin/activate
+```
+
+Clone the shark-ai repository and install Shortfin and its dependencies:
+
+```shell
+git clone https://github.com/nod-ai/shark-ai
+cd shark-ai
+git switch shared/rdna4
+```
+
+Install pip requirements:
+```shell
+pip install -r requirements-iree-pinned.txt
+pip install -r pytorch-cpu-requirements.txt
+pip install -r requirements.txt
+
+cd shortfin
+pip install -e .
+```
+
+### Start Shortfin and run SDXL
+
+Start the Shortfin server with the correct target (`gfx1100` for RDNA3, `gfx1201` for RDNA4).
+You can override the network port used using the `--port <PORT-NUM>` flag.
+
+#### FP8: RDNA4 only
+
+
+
+Note that the first run will download all the artifacts necessary (the model code and the weights).
+This may take a while. The subsequent runs will use the artifacts cached in `~/.cache/shark/genfiles/sdxl`.
+
+```shell
+python -m python.shortfin_apps.sd.server --device=amdgpu --target=gfx1201 --build_preference=precompiled \
+  --device=hip --device_ids 0 --model_config=sdxl_config_fp8.json
+```
+
+You should see the server running:
+
+```console
+[2025-03-05 21:05:00] Application startup complete.
+[2025-03-05 21:05:00] Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+```
+
+Open another terminal and start the client in the interactive mode:
+
+```shell
+cd demo
+source venv/bin/activate
+cd shark-ai/shortfin
+
+python -m python.shortfin_apps.sd.simple_client --interactive
+```
+
+The client will ask you for the input prompt and save the generated image:
+
+```console
+➜  python -m python.shortfin_apps.sd.simple_client --interactive
+Waiting for server.
+Successfully connected to server.
+Enter a prompt:  Shark jumping out of water at sunset. Vaporwave style.
+Sending request with prompt:  ['Shark jumping out of water at sunset. Vaporwave style.']
+Sending request batch # 0
+Saving response as image...
+Saved to gen_imgs/shortfin_sd_output_2025-03-05_21-14-23_0.png
+Responses processed.
+```
+
+While the server will print the total inference time to generate the image:
+
+```console
+[2025-03-05 21:14:08] 127.0.0.1:40956 - "GET /health HTTP/1.1" 200
+[2025-03-05 21:14:19.545] [info] [metrics.py:51] Completed denoise (UNet) single step average (batch size 1) in 0ms
+[2025-03-05 21:14:23.752] [info] [metrics.py:51] Completed inference process in 4209ms
+[2025-03-05 21:14:23] 127.0.0.1:57240 - "POST /generate HTTP/1.1" 200
+```
+
+![The generated image of a shark](./sample_image_shark.png =512x512)
+
+
+You can exit the server and the client by pressing `Ctrl + C`.
+
+
+#### FP16: Both RDNA3 and RDNA4
+
+Use the following command to start the server:
+
+```shell
+python -m python.shortfin_apps.sd.server --device=amdgpu --target=gfx1201 --build_preference=precompiled \
+  --device=hip --device_ids 0 --model_config=sdxl_config_fp16.json
+```
+
+Use `--target=gfx1100` when running on RDNA3.
+
+Open a new terminal and follow the steps from the section above to run the client.
+
+### Performance results
+
+We benchamrked a portion of the SDXL model called 'UNet', comparing the fp16 and fp8 implementation across
+RDNA3 and RDNA4. 'UNet' is typically executed 20 times when generating an image with SDXL.
+
+TODO
+
 ## Simple user installation
 
 Install the latest stable version:
