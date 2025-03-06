@@ -812,6 +812,18 @@ class ShardedTensor(InferenceTensor):
         fake_functional_tensor = isinstance(t, torch._subclasses.functional_tensor.FunctionalTensor) and "FakeTensor" in str(t)
         return not (fake_tensor or fake_functional_tensor)
 
+    def move_shards_to_new_devices(self, shards: Tuple[torch.Tensor, ...], new_devices: Tuple[int, ...]) -> Tuple[torch.Tensor, ...]:
+        from ..ops import transfer_to_logical_device, barrier_on_logical_device
+        new_shards = tuple(
+            (
+                transfer_to_logical_device(shard, new_devices[j])
+                if new_devices[j] != self.devices[j]
+                else barrier_on_logical_device(shard, new_devices[j])
+            )
+            for j, shard in enumerate(shards)
+        )
+        return new_shards
+
 
 @register_inference_tensor
 class ShardedTensorBase(ShardedTensor):
@@ -1081,6 +1093,10 @@ class SplitPrimitiveTensor(ShardedTensorBase):
             "devices": kwargs.get("devices", self.devices),
             "pinned": kwargs.get("pinned", self.pinned),
         }
+
+        if any(d_new != d_old for d_new, d_old in zip(new_kwargs['devices'], self.devices)):
+            new_kwargs['ts'] = self.move_shards_to_new_devices(new_kwargs['ts'], new_kwargs['devices'])
+
         return self.__class__(**new_kwargs)
 
     def _is_slicing_split_dim(self, key):
@@ -1237,6 +1253,10 @@ class ReplicatedTensor(ShardedTensor):
         if "shard_count" in kwargs:
             assert isinstance(new_kwargs["ts"], torch.Tensor)
             new_kwargs["shard_count"] = kwargs["shard_count"]
+        else:
+            assert not isinstance(new_kwargs["ts"], torch.Tensor)
+            if any(d_new != d_old for d_new, d_old in zip(new_kwargs['devices'], self.devices)):
+                new_kwargs['ts'] = self.move_shards_to_new_devices(new_kwargs['ts'], new_kwargs['devices'])
         return self.__class__(**new_kwargs)
 
     @property
@@ -1381,6 +1401,9 @@ class UnreducedTensor(ShardedTensorBase):
             "devices": kwargs.get("devices", self.devices),
             "pinned": kwargs.get("pinned", self.pinned),
         }
+
+        if any(d_new != d_old for d_new, d_old in zip(new_kwargs['devices'], self.devices)):
+            new_kwargs['ts'] = self.move_shards_to_new_devices(new_kwargs['ts'], new_kwargs['devices'])
         return self.__class__(**new_kwargs)
 
 
