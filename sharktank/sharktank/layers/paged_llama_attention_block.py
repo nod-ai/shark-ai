@@ -10,6 +10,8 @@ import math
 
 import torch
 import torch.nn.functional as F
+
+from sharktank.ops.paged_attention import PagedAttention
 from ..types import QuantizerTensor
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
@@ -45,8 +47,16 @@ class PagedLlamaAttentionBlock(ThetaLayer):
     ):
         super().__init__(theta)
 
+        self.paged_attention = PagedAttention(
+            transformer_block_count=cache.transformer_block_count,
+            attn_head_count=head_count_kv,
+            attn_head_dim=head_dim,
+            block_seq_stride=cache.block_seq_stride,
+            dtype=cache.dtype,
+            device=cache.device,
+            shard_count=cache.shard_count,
+        )
         self.block_index = block_index
-        self.cache = cache
         self.head_count = head_count
         self.head_dim = head_dim
         self.head_count_kv = head_count_kv
@@ -127,7 +137,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             xk = embedding.apply_batched_mask(xt=xk, mask=embedding_batch_mask)
 
         # Full sequence length.
-        kv_seq_len = seq_block_ids.shape[1] * self.cache.block_seq_stride
+        kv_seq_len = seq_block_ids.shape[1] * self.paged_attention.block_seq_stride
 
         # Used by fp8_e4m3fnuz model
         if self.cache_quantizer is not None:
@@ -246,11 +256,10 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         kv_seq_len: int,
         start_positions: Optional[torch.Tensor] = None,
     ):
-        cache = self.cache
         # Manage the cache.
         if start_positions is None:
             # Prefill: Write the entire cache.
-            cache.write(
+            self.paged_attention.write(
                 cache_state,
                 cache_partitions=[xk_cache_update, xv_cache_update],
                 transformer_block_index=self.block_index,
@@ -266,10 +275,12 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         # a decode step.
         assert xk_cache_update.shape[1] == 1
         assert xv_cache_update.shape[1] == 1
-        assert kv_seq_len == seq_block_ids.shape[1] * cache.block_seq_stride
+        assert (
+            kv_seq_len == seq_block_ids.shape[1] * self.paged_attention.block_seq_stride
+        )
 
         # Write our one updated cache row into the cache.
-        cache.write_timestep(
+        self.paged_attention.write_timestep(
             cache_state,
             cache_partitions=[
                 xk_cache_update,
@@ -281,7 +292,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         )
 
         # Restore from the cache.
-        xk, xv = cache.read(
+        xk, xv = self.paged_attention.read(
             cache_state,
             transformer_block_index=self.block_index,
             page_ids=seq_block_ids,

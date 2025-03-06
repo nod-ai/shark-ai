@@ -9,8 +9,33 @@ import torch
 
 from sharktank.ops.paged_attention import PagedAttention
 from sharktank.ops import replicate, reshard_split, unshard
+from typing import Optional, Sequence, Union
 from sharktank.layers import *
 from sharktank.types import *
+
+
+def allocate(
+    page_count: int,
+    page_size: int,
+    dtype: torch.dtype,
+    shard_count: int = 1,
+    device: Optional[torch.device] = None,
+) -> Sequence[Union[torch.Tensor, SplitPrimitiveTensor]]:
+    """Allocates tensor state for a page table for the given capacity in
+    pages.
+    """
+    shards = [
+        torch.empty(
+            [page_count, page_size],
+            dtype=dtype,
+            device=device,
+        )
+        for _ in range(shard_count)
+    ]
+
+    if shard_count == 1:
+        return shards
+    return [SplitPrimitiveTensor(ts=shards, shard_dim=1)]
 
 
 @pytest.mark.parametrize(
@@ -44,7 +69,9 @@ def test_paged(dtype: torch.dtype):
     page_ids = page_ids.view(bs, seq_length // block_seq_stride)
     write_page_ids = page_ids[:, : write_seq_length // block_seq_stride]
 
-    allocation = paged_attention.allocate(page_count=page_count)
+    allocation = allocate(
+        page_count, transformer_block_count * paged_attention.get_page_size(), dtype
+    )
     for t in allocation:
         t[...] = torch.full(t.shape, 0.0).to(dtype=dtype)
 
@@ -137,13 +164,14 @@ def test_sharded_paged():
     transformer_block_count = 4
     block_seq_stride = 4
     shard_count = 4
+    dtype = torch.float32
     paged_attention = PagedAttention(
         block_seq_stride=block_seq_stride,
         transformer_block_count=transformer_block_count,
         attn_head_count=attn_head_count,
         attn_head_dim=attn_head_dim,
         shard_count=shard_count,
-        dtype=torch.float32,
+        dtype=dtype,
         device=None,
     )
 
@@ -154,7 +182,12 @@ def test_sharded_paged():
     page_ids = replicate(page_ids, shard_count)
     write_page_ids = page_ids[:, : write_seq_length // block_seq_stride]
 
-    allocation = paged_attention.allocate(page_count=page_count)
+    allocation = allocate(
+        page_count,
+        transformer_block_count * paged_attention.get_page_size(),
+        dtype,
+        shard_count=shard_count,
+    )
 
     # Write a prefill in:
     write_ones = reshard_split(

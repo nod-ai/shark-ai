@@ -11,17 +11,16 @@ tightly coupled transformer blocks a bit less "stringy" with loose tensors
 and dims floating around everywhere.
 """
 
-from typing import Optional, Union, List
+from typing import Optional, Union, List, Sequence
 
 import math
 
 import torch
 
-from ..utils.debugging import trace_tensor
 from ..types import SplitPrimitiveTensor, ReplicatedTensor
 from .. import ops
 
-__all__ = ["PagedKVCache"]
+__all__ = ["PagedAttention"]
 
 
 class PagedAttention:
@@ -31,6 +30,7 @@ class PagedAttention:
             * self.block_seq_stride
             * self.attn_head_count
             * self.attn_head_dim
+            // self.shard_count
         )
 
     def __init__(
@@ -69,7 +69,7 @@ class PagedAttention:
         self.dtype = dtype
 
     def unflatten_page_table(
-        self, state: list[Union[torch.Tensor, SplitPrimitiveTensor]]
+        self, state: Sequence[Union[torch.Tensor, SplitPrimitiveTensor]]
     ) -> Union[torch.Tensor, SplitPrimitiveTensor]:
         """Unflattens the 2D page table to a 6D tensor."""
         assert len(state) == 1, f"Expected 1-element state. Got: {len(state)}"
@@ -78,6 +78,7 @@ class PagedAttention:
             assert not isinstance(page_slab, SplitPrimitiveTensor)
             return page_slab.unflatten(1, self.sub_page_dims)
         else:
+            assert isinstance(page_slab, SplitPrimitiveTensor)
             assert self.shard_count == page_slab.shard_count
             shards = [
                 shard.unflatten(1, self.sub_page_dims) for shard in page_slab.shards
@@ -86,7 +87,7 @@ class PagedAttention:
 
     def shard_state(
         self, state: List[torch.Tensor]
-    ) -> List[Union[torch.Tensor, SplitPrimitiveTensor]]:
+    ) -> Sequence[Union[torch.Tensor, SplitPrimitiveTensor]]:
         """Shard an unsharded state.
         We can't just split the slab on the sub page dims.
         First it needs to be reinterpreted into the actual shape.
@@ -118,29 +119,9 @@ class PagedAttention:
     def pad_sequence_stride(self) -> int:
         return self.block_seq_stride
 
-    def allocate(
-        self, page_count: int
-    ) -> list[Union[torch.Tensor, SplitPrimitiveTensor]]:
-        """Allocates tensor state for a page table for the given capacity in
-        pages.
-        """
-        shards = [
-            torch.empty(
-                [page_count, self.page_slab_flat_dim],
-                dtype=self.dtype,
-                device=self.device,
-            )
-            for _ in range(self.shard_count)
-        ]
-
-        if self.shard_count == 1:
-            return shards
-
-        return [SplitPrimitiveTensor(ts=shards, shard_dim=1)]
-
     def read(
         self,
-        state: list[Union[torch.Tensor, SplitPrimitiveTensor]],
+        state: Sequence[Union[torch.Tensor, SplitPrimitiveTensor]],
         *,
         transformer_block_index: int,
         seq_len: int,
@@ -191,9 +172,9 @@ class PagedAttention:
 
     def write_timestep(
         self,
-        state: list[Union[torch.Tensor, SplitPrimitiveTensor]],
+        state: Sequence[Union[torch.Tensor, SplitPrimitiveTensor]],
         # List of [bs, 1, attn_head_count, attn_head_dim]
-        cache_partitions: list[Union[torch.Tensor, SplitPrimitiveTensor]],
+        cache_partitions: Sequence[Union[torch.Tensor, SplitPrimitiveTensor]],
         *,
         transformer_block_index: int,
         # [bs]
@@ -259,8 +240,8 @@ class PagedAttention:
 
     def write(
         self,
-        state: list[Union[torch.Tensor, SplitPrimitiveTensor]],
-        cache_partitions: list[Union[torch.Tensor, SplitPrimitiveTensor]],
+        state: Sequence[Union[torch.Tensor, SplitPrimitiveTensor]],
+        cache_partitions: Sequence[Union[torch.Tensor, SplitPrimitiveTensor]],
         *,
         transformer_block_index: int,
         page_ids: Union[torch.Tensor, ReplicatedTensor],
