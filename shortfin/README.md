@@ -158,8 +158,7 @@ While the server will print the total inference time to generate the image:
 [2025-03-05 21:14:23] 127.0.0.1:57240 - "POST /generate HTTP/1.1" 200
 ```
 
-![The generated image of a shark](./sample_image_shark.png =512x512)
-
+![The generated image of a shark](./sample_image_shark.png)
 
 You can exit the server and the client by pressing `Ctrl + C`.
 
