@@ -8,7 +8,7 @@ from iree.build import *
 
 from shortfin_apps.utils import *
 
-ARTIFACT_VERSION = "03042025"
+ARTIFACT_VERSION = "03062025"
 SDXL_CONFIG_BUCKET = f"https://sharkpublic.blob.core.windows.net/sharkpublic/sdxl/{ARTIFACT_VERSION}/configs/"
 
 

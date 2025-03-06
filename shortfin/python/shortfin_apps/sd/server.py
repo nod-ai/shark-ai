@@ -396,7 +396,7 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
     parser.add_argument(
         "--build_preference",
         type=str,
-        choices=["compile", "precompiled", "export"],
+        choices=["compile", "precompiled"],
         default="precompiled",
         help="Specify preference for builder artifact generation.",
     )
