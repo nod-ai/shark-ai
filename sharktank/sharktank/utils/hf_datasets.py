@@ -373,6 +373,22 @@ Dataset(
     ),
 )
 
+Dataset(
+    "stabilityai/stable-diffusion-xl-base-1.0",
+    (
+        RemoteFile(
+            "config",
+            "stabilityai/stable-diffusion-xl-base-1.0",
+            "unet/config.json",
+        ),
+        RemoteFile(
+            "parameters",
+            "stabilityai/stable-diffusion-xl-base-1.0",
+            "unet/diffusion_pytorch_model.fp16.safetensors",
+        ),
+    )
+)
+
 # The Flux transformer is in 2 formats.
 # This is used in diffusers.FluxTransformer2DModel
 Dataset(

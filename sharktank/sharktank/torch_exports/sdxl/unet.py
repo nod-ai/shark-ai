@@ -263,16 +263,23 @@ def get_punet_model(hf_model_name, external_weight_path, quant_paths, precision=
     from sharktank.models.punet.model import (
         Unet2DConditionModel as sharktank_unet2d,
     )
-    from sharktank.utils import cli
+    from sharktank.utils import cli, hf_datasets
+    from sharktank.tools.import_hf_dataset import import_hf_dataset
 
     if precision in ["fp8"]:
         repo_id = "amd-shark/sdxl-quant-models"
         subfolder = "unet/int8"
         revision = "a31d1b1cba96f0da388da348bcaee197a073d451"
-    else:
+    elif precision != "fp16":
         repo_id = "amd-shark/sdxl-quant-int8"
         subfolder = "mi300_all_sym_8_step14_fp32"
         revision = "efda8afb35fd72c1769e02370b320b1011622958"
+    else:
+        repo_id = hf_model_name
+        hf_ds = hf_datasets.get_dataset(repo_id).download()
+        ds = import_hf_dataset(hf_ds["config"][0], hf_ds["parameters"], external_weight_path)
+        cond_unet = sharktank_unet2d.from_dataset(ds)
+        return cond_unet
 
     def download(filename):
         return hf_hub_download(
