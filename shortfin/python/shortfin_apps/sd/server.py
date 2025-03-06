@@ -225,7 +225,7 @@ def get_configs(args):
 def get_modules(args, model_config, flagfile, td_spec):
     # TODO: Move this out of server entrypoint
     mod_params = ModelParams.load_json(model_config)
-
+    
     vmfbs = {}
     params = {}
     model_flags = {}
@@ -285,6 +285,8 @@ def get_modules(args, model_config, flagfile, td_spec):
 
         output_paths = output.splitlines()
         for path in output_paths:
+            if not any(x in path for x in [".mlir", ".vmfb", ".irpa"]):
+                output_paths.remove(path)
             if "irpa" in path:
                 params[modelname].append(path)
                 output_paths.remove(path)

@@ -38,6 +38,7 @@
     ]
   },
   "unet_dtype": "float16",
+  "unet_quant_dtype": "i8",
   "dims": [
     [
       1024,

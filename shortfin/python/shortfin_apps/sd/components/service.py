@@ -288,10 +288,12 @@ class InferenceExecutorProcess(sf.Process):
     @measure(type="exec", task="inference process")
     async def run(self):
         try:
+            device = self.fiber.device(0)
+
             if not self.exec_request.command_buffer:
                 self.assign_command_buffer(self.exec_request)
+                await device
 
-            device = self.fiber.device(0)
             phases = self.exec_request.phases
             if phases[InferencePhase.PREPARE]["required"]:
                 await self._prepare(device=device)
@@ -311,6 +313,7 @@ class InferenceExecutorProcess(sf.Process):
             self.exec_request.done.set_success()
 
         self.meta_fiber.command_buffers.append(self.exec_request.command_buffer)
+        self.exec_request.command_buffer = None
         if self.service.prog_isolation == sf.ProgramIsolation.PER_FIBER:
             self.service.idle_meta_fibers.append(self.meta_fiber)
 
@@ -398,7 +401,6 @@ class InferenceExecutorProcess(sf.Process):
         (cb.latents, cb.time_ids, cb.timesteps, cb.sigmas,) = await fns[
             "run_initialize"
         ](cb.sample, cb.num_steps, fiber=self.fiber)
-        accum_step_duration = 0  # Accumulated duration for all steps
 
         for i, t in tqdm(
             enumerate(range(self.exec_request.steps)),
@@ -451,12 +453,6 @@ class InferenceExecutorProcess(sf.Process):
                 (cb.latents,) = await fns["run_step"](
                     cb.noise_pred, cb.latents, cb.sigma, cb.next_sigma, fiber=self.fiber
                 )
-            duration = time.time() - start
-            accum_step_duration += duration
-        average_step_duration = accum_step_duration / self.exec_request.steps
-        log_duration_str(
-            average_step_duration, "denoise (UNet) single step average", req_bs
-        )
         return
 
     async def _decode(self, device):

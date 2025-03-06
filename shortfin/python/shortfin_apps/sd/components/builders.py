@@ -99,7 +99,7 @@ def get_params_filename(model_params: ModelParams, model=None, splat: bool = Fal
     logging.info(f"model_params: {model_params}")
     if model_params.use_punet:
         modnames.append("punet")
-        mod_precs.append(model_params.unet_attn_dtype)
+        mod_precs.append(model_params.unet_quant_dtype)
     else:
         modnames.append("unet")
         mod_precs.append(dtype_to_filetag[model_params.unet_dtype])
@@ -175,7 +175,7 @@ def get_file_stems(model_params: ModelParams) -> list[str]:
                 getattr(model_params, f"{mod}_dtype", sfnp.float16)
             ]
         else:
-            dtype_str = model_params.unet_attn_dtype
+            dtype_str = model_params.unet_quant_dtype
         ord_params.extend([[dtype_str]])
         for x in list(itertools.product(*ord_params)):
             file_stems.extend(["_".join(x)])
