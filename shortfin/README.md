@@ -115,7 +115,7 @@ This may take a while. The subsequent runs will use the artifacts cached in `~/.
 
 ```shell
 python -m python.shortfin_apps.sd.server --device=amdgpu --target=gfx1201 --build_preference=precompiled \
-  --device=hip --device_ids 0 --model_config=sdxl_config_fp8.json
+  --device=hip --device_ids 0 --model_config=sdxl_config_fp8_ocp.json
 ```
 
 You should see the server running:
