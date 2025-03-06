@@ -150,7 +150,7 @@ def configure_service(args, sysman, model_config, flagfile, tuning_spec):
     for key, vmfb_dict in vmfbs.items():
         for bs in vmfb_dict.keys():
             for vmfb in vmfb_dict[bs]:
-                sm.load_inference_module(vmfb, component=key, batch_size=bs)
+                sm.load_inference_module(vmfb, component=key, batch_size=1)
     for key, datasets in params.items():
         sm.load_inference_parameters(*datasets, parameter_scope="model", component=key)
     services[sm.name] = sm

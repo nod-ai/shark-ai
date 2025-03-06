@@ -218,7 +218,13 @@ def needs_file(filename, ctx, url=None, namespace=FileNamespace.GEN) -> bool:
         filekey = os.path.join(ctx.path, filename)
         ctx.executor.all[filekey] = None
     except RuntimeError:
-        return False
+        filekey = os.path.join(ctx.path, filename)
+        out_file = ctx.executor.all[filekey].get_fs_path()
+        if os.path.exists(out_file):
+            return False
+        else:
+            ctx.executor.all[filekey] = None
+            return True
 
     if os.path.exists(out_file):
         if url and not is_valid_size(out_file, url):
@@ -443,6 +449,7 @@ def sdxl(
         params_urls = get_url_map([params_filename], SDXL_WEIGHTS_BUCKET)
         for f, url in params_urls.items():
             if needs_file(f, ctx, url):
+                breakpoint()
                 fetch_http_check_size(name=f, url=url)
             else:
                 get_cached(f, ctx, FileNamespace.GEN)
