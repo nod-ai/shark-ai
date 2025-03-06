@@ -61,7 +61,7 @@ jobs:
             --log-cli-level=INFO
       - name: Upload Test Results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: smoke-test-${{ matrix.name }}
           path: smoke-test-${{ matrix.name }}.xml
@@ -108,7 +108,7 @@ jobs:
             --log-cli-level=INFO
       - name: Upload Test Results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: direct-to-batcher-test-${{ matrix.name }}
           path: direct-to-batcher-test-${{ matrix.name }}.xml
@@ -155,7 +155,7 @@ jobs:
             --log-cli-level=INFO
       - name: Upload Test Results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: integration-test-${{ matrix.name }}
           path: integration-test-${{ matrix.name }}.xml
