@@ -1,145 +1,104 @@
-# Copyright 2024 Advanced Micro Devices, Inc.
-#
-# Licensed under the Apache License v2.0 with LLVM Exceptions.
-# See https://llvm.org/LICENSE.txt for license information.
-# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+"""Test fixtures and configurations."""
 
-import json
-import logging
-import os
-from pathlib import Path
+import hashlib
 import pytest
-import shutil
+from pathlib import Path
+from tokenizers import Tokenizer, Encoding
 
-pytest.importorskip("transformers")
-from integration_tests.llm.utils import (
-    download_huggingface_model,
-    download_tokenizer,
-    export_paged_llm_v1,
-    compile_model,
-    find_available_port,
-    start_llm_server,
-    start_log_group,
-    end_log_group,
+from app_tests.integration_tests.llm.model_management import (
+    ModelProcessor,
+    ModelArtifacts,
+    TEST_MODELS,
+)
+from app_tests.integration_tests.llm.server_management import (
+    ServerInstance,
+    ServerConfig,
 )
 
-logger = logging.getLogger(__name__)
+from app_tests.integration_tests.llm.device_settings import get_device_settings_by_name
 
 
-@pytest.fixture(scope="module")
-def model_test_dir(request, tmp_path_factory):
-    """Prepare model artifacts for starting the LLM server.
-
-    Args:
-        request (FixtureRequest): The following params are accepted:
-            - repo_id (str): The Hugging Face repo ID.
-            - model_file (str): The model file to download.
-            - tokenizer_id (str): The tokenizer ID to download.
-            - settings (dict): The settings for sharktank export.
-            - batch_sizes (list): The batch sizes to use for the model.
-        tmp_path_factory (TempPathFactory): Temp dir to save artifacts to.
-
-    Yields:
-        Tuple[Path, Path]: The paths to the Hugging Face home and the temp dir.
-    """
-    logger.info(
-        "Preparing model artifacts..." + start_log_group("Preparing model artifacts")
+def pytest_addoption(parser):
+    parser.addoption(
+        "--test_device",
+        action="store",
+        metavar="NAME",
+        default=None,  # you must specify a device to test on
+        help="Select device name to compile models to and run tests on ('cpu', 'gfx90a', 'gfx942', ...); see app_tests/integration_tests/llm/device_settings.py for full list of options.",
     )
 
-    repo_id = request.param["repo_id"]
-    model_file = request.param["model_file"]
-    tokenizer_id = request.param["tokenizer_id"]
-    settings = request.param["settings"]
-    batch_sizes = request.param["batch_sizes"]
-    prefix_sharing_algorithm = request.param["prefix_sharing_algorithm"]
 
-    tmp_dir = tmp_path_factory.mktemp("cpu_llm_server_test")
-    hf_home = os.environ.get("HF_HOME", None)
-    hf_home = Path(hf_home) if hf_home is not None else tmp_dir
-    try:
-        # Download model if it doesn't exist
-        model_path = hf_home / model_file
-        download_huggingface_model(hf_home, repo_id, model_file)
+@pytest.fixture(scope="session")
+def test_device(request):
+    ret = request.config.option.test_device
+    if ret is None:
+        raise ValueError("--test_device not specified")
+    return ret
 
-        # Set up tokenizer if it doesn't exist
-        download_tokenizer(hf_home, tokenizer_id)
 
-        # Export model
-        mlir_path = tmp_dir / "model.mlir"
-        config_path = tmp_dir / "config.json"
-        export_paged_llm_v1(mlir_path, config_path, model_path, batch_sizes)
+@pytest.fixture(scope="session")
+def model_artifacts(tmp_path_factory, request, test_device):
+    """Prepares model artifacts in a cached directory."""
+    model_config = TEST_MODELS[request.param]
+    model_config.device_settings = get_device_settings_by_name(test_device)
+    cache_key = hashlib.md5(str(model_config).encode()).hexdigest()
 
-        # Compile model
-        vmfb_path = tmp_dir / "model.vmfb"
-        compile_model(mlir_path, vmfb_path, settings)
+    cache_dir = tmp_path_factory.mktemp("model_cache")
+    model_dir = cache_dir / cache_key
 
-        # Write config
-        edited_config_path = tmp_dir / "edited_config.json"
-        config = {
-            "module_name": "module",
-            "module_abi_version": 1,
-            "max_seq_len": 2048,
-            "attn_head_count": 32,
-            "attn_head_dim": 100,
-            "prefill_batch_sizes": batch_sizes,
-            "decode_batch_sizes": batch_sizes,
-            "transformer_block_count": 26,
-            "paged_kv_cache": {
-                "block_seq_stride": 16,
-                "device_block_count": 256,
-                "prefix_sharing_algorithm": prefix_sharing_algorithm,
-            },
-        }
-        logger.info(f"Saving edited config to: {edited_config_path}\n")
-        logger.info(f"Config: {json.dumps(config, indent=2)}")
-        with open(edited_config_path, "w") as f:
-            json.dump(config, f)
-        logger.info("Model artifacts setup successfully" + end_log_group())
-        yield hf_home, tmp_dir
-    finally:
-        shutil.rmtree(tmp_dir)
+    # Return cached artifacts if available
+    if model_dir.exists():
+        return ModelArtifacts(
+            weights_path=model_dir / model_config.model_file,
+            tokenizer_path=model_dir / "tokenizer.json",
+            mlir_path=model_dir / "model.mlir",
+            vmfb_path=model_dir / "model.vmfb",
+            config_path=model_dir / "config.json",
+        )
+
+    # Process model and create artifacts
+    processor = ModelProcessor(cache_dir)
+    return processor.process_model(model_config)
 
 
 @pytest.fixture(scope="module")
-def available_port():
-    return find_available_port()
+def server(model_artifacts, request):
+    """Starts and manages the test server."""
+    model_config = model_artifacts.model_config
 
-
-@pytest.fixture(scope="module")
-def llm_server(request, model_test_dir, available_port):
-    """Start the LLM server.
-
-    Args:
-        request (FixtureRequest): The following params are accepted:
-            - model_file (str): The model file to download.
-            - settings (dict): The settings for starting the server.
-        model_test_dir (Tuple[Path, Path]): The paths to the Hugging Face home and the temp dir.
-        available_port (int): The available port to start the server on.
-
-    Yields:
-        subprocess.Popen: The server process that was started.
-    """
-    logger.info("Starting LLM server..." + start_log_group("Starting LLM server"))
-    hf_home, tmp_dir = model_test_dir
-    model_file = request.param["model_file"]
-    settings = request.param["settings"]
-
-    tokenizer_path = hf_home / "tokenizer.json"
-    config_path = tmp_dir / "edited_config.json"
-    vmfb_path = tmp_dir / "model.vmfb"
-    parameters_path = hf_home / model_file
-
-    # Start llm server
-    server_process = start_llm_server(
-        available_port,
-        tokenizer_path,
-        config_path,
-        vmfb_path,
-        parameters_path,
-        settings,
+    server_config = ServerConfig(
+        artifacts=model_artifacts,
+        device_settings=model_config.device_settings,
+        prefix_sharing_algorithm=request.param.get("prefix_sharing", "none"),
     )
-    logger.info("LLM server started!" + end_log_group())
-    yield server_process
-    # Teardown: kill the server
-    server_process.terminate()
-    server_process.wait()
+
+    server_instance = ServerInstance(server_config)
+    server_instance.start()
+    process, port = server_instance.process, server_instance.port
+    yield process, port
+
+    process.terminate()
+    process.wait()
+
+
+@pytest.fixture(scope="module")
+def generate_service(model_artifacts, request):
+    """Starts and manages the test server."""
+    model_config = model_artifacts.model_config
+
+    server_config = ServerConfig(
+        artifacts=model_artifacts,
+        device_settings=model_config.device_settings,
+        prefix_sharing_algorithm=request.param.get("prefix_sharing", "none"),
+    )
+
+    server_instance = ServerInstance(server_config)
+    server_instance.port = 0
+    with server_instance.start_service_only() as gs:
+        yield gs
+
+
+@pytest.fixture(scope="module")
+def encoded_prompt(model_artifacts: ModelArtifacts, request) -> list[int]:
+    tokenizer = Tokenizer.from_file(str(model_artifacts.tokenizer_path))
+    return tokenizer.encode(request.param).ids

@@ -249,6 +249,7 @@ class Perplexity:
         Optional, if perplexity_tests/llm/generate.py logits don't work: Plumb thro' return_logprob param to actually return logits, service.py sends logits - https://github.com/nod-ai/shark-ai/blob/04d383b5a67de031bf6e8626a84d030c346792eb/shortfin/python/shortfin_apps/llm/components/service.py#L479
         """
         # TODO: run do_generate and get logits here
+        logits = generate("1, 2, 3, 4, 5, ", port=8000)
 
         is_first_token = True
         start = 0
