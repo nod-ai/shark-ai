@@ -242,7 +242,7 @@ class FluxTest(TempDirTestBase):
             reference_dtype=torch.float32, target_dtype=torch.float32, atol=1e-2
         )
 
-    @pytest.mark.xfail(
+    @pytest.mark.skip(
         reason="Segmentation fault during output comparison. See https://github.com/nod-ai/shark-ai/actions/runs/13704870816/job/38327614337?pr=1003"
     )
     @with_flux_data
