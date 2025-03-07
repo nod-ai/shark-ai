@@ -15,6 +15,26 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class RefCount:
+    """
+    A reference counter to replace simple int.
+    """
+
+    count: int = 0
+
+    def increment(self) -> int:
+        self.count += 1
+        return self.count
+
+    def decrement(self) -> int:
+        self.count -= 1
+        return self.count
+
+    def is_empty(self) -> bool:
+        return self.count <= 0
+
+
+@dataclass
 class PageInfo:
     """
     Page index with some metadata about its contents.
@@ -67,53 +87,77 @@ class PagePool:
 
     def __init__(self, *, devices: Sequence[sf.ScopedDevice], config: PagePoolConfig):
         self._lock = threading.Lock()
-        self.devices = list(devices)
-        self.config = config
-        self.page_tables: list[sf.array.device_array] = []
+        self._devices = list(devices)
+        self._config = config
+        self._page_tables: list[sf.array.device_array] = []
+        self._ref_counts: dict[int, RefCount] = {}
 
         # Setup accounting structs.
         self.attn_page_entries = [
-            PageInfo(
-                index=i,
-                pool=self,
-            )
-            for i in range(self.config.alloc_page_count)
+            PageInfo(index=i, pool=self) for i in range(self._config.alloc_page_count)
         ]
 
-        self.available_pages = list(self.attn_page_entries)
+        self._available_pages = list(self.attn_page_entries)
 
         # Initialize a page table on each device.
         page_table_shape = [
-            self.config.alloc_page_count,
-            self.config.paged_kv_block_size_elements // len(devices),
+            self._config.alloc_page_count,
+            self._config.paged_kv_block_size_elements // len(devices),
         ]
         for device in devices:
             logging.info(
                 "Allocating page table (shape=%r, dtype=%r, size=%s) on %r",
                 page_table_shape,
-                self.config.dtype,
+                self._config.dtype,
                 human_size(config.dtype.compute_dense_nd_size(page_table_shape)),
                 device,
             )
             page_table = sf.array.device_array.for_device(
-                device, page_table_shape, self.config.dtype
+                device, page_table_shape, self._config.dtype
             )
             page_table_host = page_table.for_transfer()
             with page_table_host.map(discard=True) as m:
                 m.fill(0)
             page_table_host.copy_to(page_table)
-            self.page_tables.append(page_table)
+            self._page_tables.append(page_table)
 
     def acquire_free_pages(self, count: int) -> list[PageInfo] | None:
         with self._lock:
-            available = len(self.available_pages)
+            available = len(self._available_pages)
             if count > available:
                 return None
-            return [self.available_pages.pop() for _ in range(count)]
+            pages = []
+            for _ in range(count):
+                available_page = self._available_pages.pop()
+                if available_page.index not in self._ref_counts:
+                    self._ref_counts[available_page.index] = RefCount()
+                self._ref_counts[available_page.index].increment()
+                pages.append(available_page)
+            return pages
+
+    def retain_count(self, page) -> int:
+        with self._lock:
+            if page.index in self._ref_counts:
+                return self._ref_counts[page.index].count
+            return 0
+
+    def retain_pages(self, pages: list[PageInfo]):
+        with self._lock:
+            for page in pages:
+                self._ref_counts[page.index].increment()
 
     def free_pages(self, pages: list[PageInfo]):
         with self._lock:
-            self.available_pages.extend(pages)
+            freed_pages = []
+            for page in pages:
+                self._ref_counts[page.index].decrement()
+                if self._ref_counts[page.index].is_empty():
+                    freed_pages.append(page)
+            self._available_pages.extend(freed_pages)
+            logger.info(f"After freeing Cache Pages: {str(self)}")
+
+    def is_available(self, page: PageInfo) -> bool:
+        return page in self._available_pages
 
     def copy_page(self, src_page: PageInfo) -> PageInfo:
         """
@@ -131,7 +175,7 @@ class PagePool:
         # fill src page with data
 
         # Copy the data on each device
-        for page_table in self.page_tables:
+        for page_table in self._page_tables:
             # View of source and destination pages
             src_view = page_table.view(src_page.index)
             dst_view = page_table.view(dst_page.index)
@@ -142,7 +186,7 @@ class PagePool:
 
     def __repr__(self):
         # No need to lock for repr (list is internally synchronized).
-        free_pages = len(self.available_pages)
+        free_pages = len(self._available_pages)
         total_pages = len(self.attn_page_entries)
         return (
             f"PagePool({total_pages - free_pages}/{total_pages} pages in use: "
