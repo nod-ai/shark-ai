@@ -58,12 +58,18 @@ class Perplexity_torch:
     def __init__(
         self,
         device,
+        use_hf,
+        fake_quant,
         activation_dtype=torch.float32,
         attention_dtype=torch.float32,
+        kv_cache_dtype=torch.float32,
     ):
         self.device = device
         self.activation_dtype = activation_dtype
         self.attention_dtype = attention_dtype
+        self.kv_cache_dtype = kv_cache_dtype
+        self.use_hf = use_hf
+        self.fake_quant = fake_quant
 
     def timeit(func):
         def wrapper(*args, **kwargs):
@@ -112,11 +118,13 @@ class Perplexity_torch:
 
         self.config = LlamaModelConfig(
             hp=configs.LlamaHParams.from_gguf_props(dataset.properties),
-            block_seq_stride=16,
             device=self.device,
             activation_dtype=self.activation_dtype,
             attention_dtype=self.attention_dtype,
+            kv_cache_dtype=self.kv_cache_dtype,
             tensor_parallelism_size=tensor_parallelism_size,
+            use_hf=self.use_hf,
+            fake_quant=self.fake_quant,
         )
 
         if self.config.tensor_parallelism_size > 1:
@@ -298,10 +306,23 @@ def run_perplexity_torch(
     tensor_parallelism_size,
     attention_kernel,
     num_prompts,
+    activation_dtype,
+    attention_dtype,
+    kv_cache_dtype,
+    use_hf,
+    fake_quant,
 ):
     start = time.time()
 
-    perplexity = Perplexity_torch(device=device)
+    perplexity = Perplexity_torch(
+        device=device,
+        activation_dtype=activation_dtype,
+        attention_dtype=attention_dtype,
+        kv_cache_dtype=kv_cache_dtype,
+        fake_quant=fake_quant,
+        use_hf=use_hf,
+    )
+
     perplexity.get_prompts(num_prompts=num_prompts)
     perplexity.load_model(dataset, tokenizer, tensor_parallelism_size, attention_kernel)
     ppl = perplexity.get_perplexity()
@@ -330,11 +351,14 @@ def main(argv):
     cli.add_model_options(parser)
     cli.add_input_dataset_options(parser)
     cli.add_tokenizer_options(parser)
+    cli.add_quantization_options(parser)
+
     args = cli.parse(parser, args=argv)
 
     device = torch.device(args.device) if args.device else None
     dataset = cli.get_input_dataset(args)
     tokenizer = cli.get_tokenizer(args)
+
     # Override flag if dataset disagrees
     tensor_parallelism_size = (
         dataset.properties["tensor_parallelism_size"]
@@ -349,6 +373,11 @@ def main(argv):
         tensor_parallelism_size=tensor_parallelism_size,
         attention_kernel=args.attention_kernel,
         num_prompts=args.num_prompts,
+        attention_dtype=args.attention_dtype,
+        activation_dtype=args.activation_dtype,
+        kv_cache_dtype=args.kv_cache_dtype,
+        use_hf=args.use_hf,
+        fake_quant=args.fake_quant,
     )
 
     logger.info(f"\n{json.dumps(ppl, indent=2)}")

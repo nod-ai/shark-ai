@@ -277,6 +277,16 @@ def get_modules(args, model_config, flagfile, td_spec):
     return vmfbs, params
 
 
+def is_port_valid(port):
+    max_port = 65535
+    if port < 1 or port > max_port:
+        print(
+            f"Error: Invalid port specified ({port}), expected a value between 1 and {max_port}"
+        )
+        return False
+    return True
+
+
 def main(argv, log_config=UVICORN_LOG_CONFIG):
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", type=str, default=None)
@@ -289,7 +299,7 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
         type=str,
         required=True,
         choices=["local-task", "hip", "amdgpu"],
-        help="Primary inferencing device",
+        help="Primary inferencing device.",
     )
     parser.add_argument(
         "--target",
@@ -304,7 +314,7 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
         type=str,
         nargs="*",
         default=None,
-        help="Device IDs visible to the system builder. Defaults to None (full visibility). Can be an index or a sf device id like amdgpu:0:0@0",
+        help="Device IDs visible to the system builder. Defaults to None (full visibility). Can be an IREE index or a device id like GPU-66613339-3934-3261-3131-396338323735.",
     )
     parser.add_argument(
         "--tokenizers",
@@ -405,6 +415,9 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
         help="Use tunings for attention and matmul ops. 0 to disable.",
     )
     args = parser.parse_args(argv)
+    if not is_port_valid(args.port):
+        exit(3)
+
     if not args.artifacts_dir:
         home = Path.home()
         artdir = home / ".cache" / "shark"

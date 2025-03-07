@@ -101,7 +101,6 @@ class FluxInferenceExecRequest(InferenceExecRequest):
         self.image_array = image_array
 
         self.result_image = None
-        self.img_metadata = None
 
         self.done = sf.VoidFuture()
 

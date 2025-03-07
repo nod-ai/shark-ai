@@ -21,10 +21,20 @@ flux_transformer_default_batch_sizes = [1]
 
 
 def export_flux_transformer_model_mlir(
-    model: FluxModelV1,
+    model_or_parameters_path: FluxModelV1 | PathLike,
+    /,
     output_path: PathLike,
     batch_sizes: list[int] = flux_transformer_default_batch_sizes,
 ):
+    if isinstance(model_or_parameters_path, (PathLike, str)):
+        dataset = Dataset.load(model_or_parameters_path)
+        model = FluxModelV1(
+            theta=dataset.root_theta,
+            params=FluxParams.from_hugging_face_properties(dataset.properties),
+        )
+    else:
+        model = model_or_parameters_path
+
     export_static_model_mlir(model, output_path=output_path, batch_sizes=batch_sizes)
 
 
@@ -49,12 +59,8 @@ def export_flux_transformer(
     batch_sizes: list[int] = flux_transformer_default_batch_sizes,
 ):
     export_flux_transformer_iree_parameters(model, parameters_output_path)
-
-    dataset = Dataset.load(parameters_output_path)
-    model_with_frozen_theta = FluxModelV1(theta=dataset.root_theta, params=model.params)
-    model_with_frozen_theta.theta = dataset.root_theta
     export_flux_transformer_model_mlir(
-        model_with_frozen_theta, output_path=mlir_output_path, batch_sizes=batch_sizes
+        parameters_output_path, output_path=mlir_output_path, batch_sizes=batch_sizes
     )
 
 
@@ -81,14 +87,8 @@ def export_flux_transformer_from_hugging_face(
     import_flux_transformer_dataset_from_hugging_face(
         repo_id=repo_id, parameters_output_path=parameters_output_path
     )
-
-    dataset = Dataset.load(parameters_output_path)
-    model = FluxModelV1(
-        theta=dataset.root_theta,
-        params=FluxParams.from_hugging_face_properties(dataset.properties),
-    )
     export_flux_transformer_model_mlir(
-        model, output_path=mlir_output_path, batch_sizes=batch_sizes
+        parameters_output_path, output_path=mlir_output_path, batch_sizes=batch_sizes
     )
 
 

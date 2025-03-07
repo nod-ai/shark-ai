@@ -8,6 +8,7 @@ import iree.runtime
 from typing import List, Tuple, Optional, Union
 from pathlib import Path
 import torch
+import os
 import numpy as np
 import collections.abc
 from collections import OrderedDict
@@ -22,7 +23,40 @@ from ..types.tensors import (
 from .tree import Tree
 
 
-def get_iree_devices(driver: str, device_count: int) -> List[iree.runtime.HalDevice]:
+def get_iree_devices(
+    *, driver: str | None = None, device_count: int = 1
+) -> List[iree.runtime.HalDevice]:
+    """Gets a list of IREE HAL devices for the given driver.
+
+    The first available device_count devices will be created,
+    unless the IREE_DEVICE environment variable is set to an
+    explicit list of device URIs.
+
+    For example, to select HIP devices 5 and 3:
+    ```
+    export IREE_DEVICE=hip://5,hip://3
+    python ...
+    ```
+    """
+    if "IREE_DEVICE" in os.environ:
+        device_uris = [d.strip() for d in os.environ["IREE_DEVICE"].split(",")]
+        driver_names = [n.split("://")[0] for n in device_uris]
+        if driver is not None:
+            if any(driver != driver_name for driver_name in driver_names):
+                ValueError(
+                    f'Inconsistent IREE driver, expected "{driver}" for all devices f{device_uris}'
+                )
+        if device_count > len(device_uris):
+            raise ValueError(
+                "Environment variable IREE_DEVICE provides less devices than requested."
+            )
+        return [
+            iree.runtime.get_driver(driver_names[i]).create_device_by_uri(
+                device_uris[i]
+            )
+            for i in range(device_count)
+        ]
+
     hal_driver = iree.runtime.get_driver(driver)
     available_devices = hal_driver.query_available_devices()
     if driver in ["local-task", "local-sync"]:
