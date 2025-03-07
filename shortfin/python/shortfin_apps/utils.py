@@ -4,6 +4,7 @@ import urllib
 import logging
 import asyncio
 from pathlib import Path
+from typing import Optional
 
 import shortfin.array as sfnp
 import shortfin as sf
@@ -169,24 +170,29 @@ class StrobeMessage(sf.Message):
 class GenerateService:
     """Base class for shortfin service implementations."""
 
-    def __init__(self, sysman: SystemManager):
+    def __init__(
+        self,
+        sysman: SystemManager,
+        fibers_per_device: int = 1,
+        workers_per_device: int = 1,
+    ):
         """Initialize base service attributes."""
         self.sysman = sysman
         self.inference_parameters: dict[str, list[sf.BaseProgramParameters]] = {}
         self.inference_modules: dict[str, list[sf.ProgramModule]] = {}
+        self.inference_programs: dict[int, dict[str, sf.Program]] = {}
+        self.inference_functions: dict[int, dict[str, sf.ProgramFunction]] = {}
         self.name = None
         self.model_params = None
         self.prog_isolation = None
-        self.inference_programs = {}
-        self.inference_functions = {}
         self.trace_execution = False
         self.show_progress = False
 
         # Worker and fiber configuration
-        self.workers = []
-        self.workers_per_device = 1
-        self.fibers_per_device = 1
-        self.fibers_per_worker = 1
+        self.workers: list[sf.local.Worker] = []
+        self.workers_per_device = workers_per_device
+        self.fibers_per_device = fibers_per_device
+        self.validate_fiber_configuration()
 
     def set_isolation(self, isolation_str: str = "per_call"):
         """Set the program isolation mode from a string.
@@ -265,7 +271,13 @@ class GenerateService:
             *self.inference_modules[component],
         ]
 
-    def create_program(self, modules, devices, isolation=None, trace_execution=None):
+    def create_program(
+        self,
+        modules: list[sf.ProgramModule],
+        devices: list[sf.Device],
+        isolation: Optional[str] = None,
+        trace_execution: Optional[bool] = None,
+    ) -> sf.Program:
         """Create a program with the given modules and devices.
 
         Args:
@@ -290,7 +302,7 @@ class GenerateService:
             trace_execution=trace_execution,
         )
 
-    def create_worker(self, device, index):
+    def create_worker(self, device: sf.Device, index: int) -> sf.Worker:
         """Create a worker for a device.
 
         Args:

@@ -63,9 +63,6 @@ def get_schedule(
 class FluxGenerateService(GenerateService):
     """Top level service interface for image generation."""
 
-    inference_programs: dict[int, dict[str, sf.Program]]
-    inference_functions: dict[int, dict[str, sf.ProgramFunction]]
-
     def __init__(
         self,
         *,
@@ -80,18 +77,13 @@ class FluxGenerateService(GenerateService):
         show_progress: bool = False,
         trace_execution: bool = False,
     ):
-        super().__init__(sysman)
+        super().__init__(sysman, fibers_per_device, workers_per_device)
         self.name = name
         self.clip_tokenizers = clip_tokenizers
         self.t5xxl_tokenizers = t5xxl_tokenizers
         self.model_params = model_params
         self.trace_execution = trace_execution
         self.show_progress = show_progress
-
-        # Set up fiber configuration
-        self.workers_per_device = workers_per_device
-        self.fibers_per_device = fibers_per_device
-        self.validate_fiber_configuration()
 
         # Finish initialization
         self.set_isolation(prog_isolation)
