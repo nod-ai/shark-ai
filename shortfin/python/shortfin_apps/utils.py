@@ -21,6 +21,9 @@ dtype_to_filetag = {
 }
 
 
+logger = logging.getLogger(__name__)
+
+
 def get_url_map(filenames: list[str], bucket: str):
     file_map = {}
     for filename in filenames:

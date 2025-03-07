@@ -48,6 +48,11 @@ class PageAllocation(ABC):
         pass
 
     @abstractmethod
+    def replicate_self(self) -> "PageAllocation":
+        """Replicate the pages of self in a new PageAllocation instance."""
+        pass
+
+    @abstractmethod
     def extend_allocation(self, tokens, *, extra_token_slots=0) -> None:
         """
         Extends the allocation to include additional tokens. For details, reference the derived class in trie_attention_cache.py.
@@ -78,6 +83,19 @@ class BasePagedAttentionCacheAllocation(PageAllocation):
             return
         self._cache.page_pool.free_pages(self._pages)
         self._is_released = True
+
+    def replicate_self(self) -> "BasePagedAttentionCacheAllocation":
+        logger.info(f"Cache State:\n\nPage Pool: {str(self._cache.page_pool)}")
+        new_pages = self.pages
+        last_page = new_pages.pop(-1)
+        for page in new_pages:
+            self._cache.page_pool.ref_counts[page.index] += 1
+        last_page_copy = self._cache.page_pool.copy_page(last_page)
+        if last_page_copy is None:
+            raise CacheAllocationFailure()
+        new_pages.append(last_page_copy)
+
+        return BasePagedAttentionCacheAllocation(new_pages, self._cache)
 
     def extend_allocation(self, tokens, *, extra_token_slots=0) -> None:
         # assert old tokens are a prefix of incoming tokens

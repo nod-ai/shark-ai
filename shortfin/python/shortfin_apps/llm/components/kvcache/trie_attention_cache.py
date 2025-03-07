@@ -209,6 +209,11 @@ class TriePagedAttentionCacheAllocation(PageAllocation):
         self.last_cached_node.ref_count.decrement()
         self._is_released = True
 
+    def replicate_self(self):
+        raise NotImplementedError(
+            "Replication not yet implemented for TriePagedAttentionCacheAllocation."
+        )
+
     def extend_allocation(self, tokens: List[int], *, extra_token_slots=0) -> None:
         """Extend the current allocation to accommodate additional tokens.
 

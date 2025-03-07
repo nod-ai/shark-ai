@@ -15,6 +15,10 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Union
 import uuid
 
+MIN_TEMPERATURE = 0.01
+DEFAULT_TEMPERATURE = 1.0
+MAX_TEMPERATURE = 2.0
+
 
 # Adapted from:
 # https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/managers/io_struct.py
@@ -27,6 +31,7 @@ class GenerateReqInput:
     # The image input. It can be a file name, a url, or base64 encoded string.
     # See also python/sglang/srt/utils.py:load_image.
     image_data: Optional[Union[List[str], str]] = None
+    # TODO: Create a dataclass for `sampling_params`
     # The sampling_params. See descriptions below.
     sampling_params: Union[List[Dict], Dict] = None
     # The request id.
@@ -41,12 +46,31 @@ class GenerateReqInput:
     top_logprobs_num: Optional[Union[List[int], int]] = None
     # Whether to detokenize tokens in text in the returned logprobs.
     return_text_in_logprobs: bool = False
+    # Whether to return multiple beams from server when using `beam_search`
+    return_top_k: bool = False
+    # Whether to return inference metrics with response.
+    return_metrics: bool = False
     # Whether to stream output.
     stream: bool = False
     # The modalities of the image data [image, multi-images, video]
     modalities: Optional[List[str]] = None
 
     is_single: bool = True
+
+    def _validate_temperature(self, sampling_params: dict):
+        temperature = sampling_params.get("temperature")
+        match temperature:
+            case temperature if temperature is None:
+                temperature = DEFAULT_TEMPERATURE
+            case temperature if temperature > MAX_TEMPERATURE:
+                temperature = MAX_TEMPERATURE
+            case temperature if temperature < MIN_TEMPERATURE:
+                temperature = MIN_TEMPERATURE
+            case _:
+                pass
+
+        sampling_params["temperature"] = temperature
+        return sampling_params
 
     def post_init(self):
         if (self.text is None and self.input_ids is None) or (
@@ -68,6 +92,7 @@ class GenerateReqInput:
         if is_single:
             if self.sampling_params is None:
                 self.sampling_params = {}
+            self.sampling_params = self._validate_temperature(self.sampling_params)
             if self.rid is None:
                 self.rid = uuid.uuid4().hex
             if self.return_logprob is None:
@@ -126,6 +151,9 @@ class GenerateReqInput:
                 self.sampling_params = [{}] * num
             elif not isinstance(self.sampling_params, list):
                 self.sampling_params = [self.sampling_params] * num
+
+            for sampling_param in self.sampling_params:
+                self._validate_temperature(sampling_param)
 
             if self.rid is None:
                 self.rid = [uuid.uuid4().hex for _ in range(num)]
