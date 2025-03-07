@@ -769,9 +769,27 @@ class ShardedTensor(InferenceTensor):
     def clone(self, **kwargs) -> "ShardedTensor":
         """Create a clone of this tensor with the given properties overridden."""
         if any(d_new != d_old for d_new, d_old in zip(kwargs["devices"], self.devices)):
-            kwargs["ts"] = self.move_shards_to_new_devices(
+            original_shards = kwargs["ts"]
+            new_shards_tensors = self.move_shards_to_new_devices(
                 kwargs["ts"], kwargs["devices"]
             )
+            new_shards = tuple(
+                DefaultPrimitiveTensor(name=orig_dpt.name, data=after_t)
+                for orig_dpt, after_t in zip(original_shards, new_shards_tensors)
+            )
+            for orig_dpt, after_dpt in zip(original_shards, new_shards):
+                orig_device_trait = DeviceTensorTrait.get(orig_dpt._data)
+                if orig_device_trait is not None:
+                    DeviceTensorTrait(
+                        orig_device_trait.ordinal, orig_device_trait.queues
+                    ).set(after_dpt._data)
+                orig_external_trait = ExternalTensorTrait.get(orig_dpt._data)
+                if orig_external_trait is not None:
+                    ExternalTensorTrait(
+                        orig_external_trait.external_scope,
+                        orig_external_trait.external_name,
+                    ).set(after_dpt._data)
+            kwargs["ts"] = new_shards
         return self.__class__(**kwargs)
 
     @property
