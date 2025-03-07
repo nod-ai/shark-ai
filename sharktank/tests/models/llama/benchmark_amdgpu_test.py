@@ -345,7 +345,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
 @skipif_run_quick_llama_test
 class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
 
-    logger.info("BenchmarkLlama3_1_70B...")
+    logger.info("Testing BenchmarkLlama3_1_70B...")
 
     def setUp(self):
         super().setUp()
