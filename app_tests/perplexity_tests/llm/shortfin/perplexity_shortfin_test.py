@@ -203,15 +203,3 @@ def test_prefill_logits_from_server(model_artifacts, server):
     responder = FastAPIResponder(request)
     client_process = generate.ClientGenerateBatchProcess(server, gen_req, responder)
     client_process.launch()
-
-    # client_process = GenerateItemProcess(
-    #     client="YourClientInstance",
-    #     gen_req=generate(
-    #         prompt="Testing prompt", port=port
-    #     ),
-    #     index=0,
-    #     input_token_ids=[1, 2, 3, 4],  # Example input tokens
-    #     max_completion_tokens=15,
-    #     eos_token_id=100  # Example EOS token ID
-    # )
-    # test_process.launch()

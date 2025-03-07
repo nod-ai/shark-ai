@@ -77,8 +77,9 @@ def server(model_artifacts, request):
     process, port = server_instance.process, server_instance.port
     yield process, port
 
-    process.terminate()
-    process.wait()
+    server_instance.stop()
+    # process.terminate()
+    # process.wait()
 
 
 @pytest.fixture(scope="module")
