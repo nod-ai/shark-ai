@@ -12,6 +12,7 @@ import os
 
 from sharktank.types import *
 from sharktank import ops
+from sharktank.utils import iterables_equal
 
 
 def _createTestLayout():
@@ -165,6 +166,58 @@ class ShardedTensorTest(unittest.TestCase):
         sharded_dst[0, ..., 1:3] = sharded_src
         actual_result = ops.unshard(sharded_dst)
         assert ops.equal(actual_result, dst)
+
+    def testCloneUnreducedTensor(self):
+        tensors = [torch.rand([4, 3, 4], dtype=torch.float32) for _ in range(4)]
+        sharded_tensor = UnreducedTensor(ts=tensors)
+        cloned_tensor = sharded_tensor.clone()
+        assert sharded_tensor.is_deep_equal(cloned_tensor)
+        assert iterables_equal(sharded_tensor.devices, cloned_tensor.devices)
+        assert sharded_tensor.pinned == cloned_tensor.pinned
+
+    def testCloneSplitPrimitiveTensor(self):
+        tensor = torch.rand([4, 3, 4], dtype=torch.float32)
+        sharded_tensor = SplitPrimitiveTensor(ts=tensor, shard_dim=0, shard_count=4)
+        cloned_tensor = sharded_tensor.clone()
+        assert sharded_tensor.is_deep_equal(cloned_tensor)
+        assert iterables_equal(sharded_tensor.devices, cloned_tensor.devices)
+        assert sharded_tensor.pinned == cloned_tensor.pinned
+
+    def testCloneReplicatedTensor(self):
+        tensor = torch.rand([4, 3, 4], dtype=torch.float32)
+        sharded_tensor = ReplicatedTensor(ts=tensor, shard_count=4)
+        cloned_tensor = sharded_tensor.clone()
+        assert sharded_tensor.is_deep_equal(cloned_tensor)
+        assert iterables_equal(sharded_tensor.devices, cloned_tensor.devices)
+        assert sharded_tensor.pinned == cloned_tensor.pinned
+
+    def testCloneTensorTraits(self):
+        from iree.turbine.aot import DeviceTensorTrait, ExternalTensorTrait
+
+        num_shards = 4
+        shards = []
+        for i in range(num_shards):
+            shard = torch.rand([4, 3, 4], dtype=torch.float32)
+            DeviceTensorTrait(i).set(shard)
+            ExternalTensorTrait("", f"shard number {i}").set(shard)
+            shards.append(shard)
+
+        original_tensor = SplitPrimitiveTensor(ts=shards, shard_dim=0)
+        cloned_tensor = original_tensor.clone(
+            devices=tuple(1 + i for i in range(num_shards))
+        )
+        for orig_shard, clone_shard in zip(
+            original_tensor.shards, cloned_tensor.shards
+        ):
+            dtt_orig = DeviceTensorTrait.get(orig_shard._data)
+            dtt_clone = DeviceTensorTrait.get(clone_shard._data)
+            assert dtt_orig.ordinal == dtt_clone.ordinal
+            assert dtt_orig.queues == dtt_clone.queues
+
+            ett_orig = ExternalTensorTrait.get(orig_shard._data)
+            ett_clone = ExternalTensorTrait.get(clone_shard._data)
+            assert ett_orig.external_scope == ett_clone.external_scope
+            assert ett_orig.external_name == ett_clone.external_name
 
 
 if __name__ == "__main__":
