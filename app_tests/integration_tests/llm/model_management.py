@@ -327,7 +327,8 @@ class ModelStageManager:
                 f"--{weights_path.suffix.strip('.')}-file={weights_path}",
                 f"--output-mlir={mlir_path}",
                 f"--output-config={config_path}",
-                f"--bs={bs_string}",
+                f"--bs-prefill={bs_string}",
+                f"--bs-decode={bs_string}",
             ],
             check=True,
         )
