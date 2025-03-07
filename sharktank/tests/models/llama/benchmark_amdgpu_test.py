@@ -109,6 +109,7 @@ class BaseBenchmarkTest(unittest.TestCase):
 @is_mi300x
 class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
     logger.info("Testing BenchmarkLlama3_1_8B...")
+
     def setUp(self):
         super().setUp()
         # TODO: add numpy files to Azure and download from it
@@ -343,7 +344,9 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
 @is_mi300x
 @skipif_run_quick_llama_test
 class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
+
     logger.info("BenchmarkLlama3_1_70B...")
+
     def setUp(self):
         super().setUp()
         # TODO: add numpy files to Azure and download from it
@@ -719,7 +722,9 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
 @is_mi300x
 @skipif_run_quick_llama_test
 class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
+
     logger.info("Testing BenchmarkLlama3_1_405B...")
+
     def setUp(self):
         super().setUp()
         # TODO: add numpy files to Azure and download from it
