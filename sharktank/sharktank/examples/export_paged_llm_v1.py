@@ -4,7 +4,13 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Export support for the PagedLLMV1 protocol of models."""
+"""Export support for the PagedLLMV1 protocol of models.
+
+This includes:
+- prefill: Process a batch of tokens from scratch, updating KV cache
+- decode: Process a single token per sequence using existing KV cache
+- extend: Like prefill, but assumes part of the KV cache is already populated
+"""
 
 import json
 from typing import Any, Dict
@@ -41,9 +47,15 @@ def main():
     )
     parser.add_argument(
         "--bs",
-        help="Comma-separated batch size(s) to generate, e.g. `4` or `2,4`",
+        help="Comma-separated batch size(s) to generate for prefill and decode, e.g. `4` or `2,4`",
         type=lambda arg: [int(bs) for bs in arg.split(",")],
         default="4",
+    )
+    parser.add_argument(
+        "--extend-bs",
+        help="Comma-separated batch size(s) to generate for extend operations, e.g. `4` or `2,4`",
+        type=lambda arg: [int(bs) for bs in arg.split(",")],
+        default=None,
     )
     parser.add_argument(
         "--verbose",
@@ -96,16 +108,24 @@ def main():
         model = PagedLlamaModelV1(dataset.root_theta, llama_config)
 
     def generate_params_json(
-        hp: LlamaHParams, prefill_bs: list[int], decode_bs: list[int]
+        hp: LlamaHParams,
+        prefill_bs: list[int],
+        decode_bs: list[int],
+        extend_bs: list[int] = None,
     ) -> Dict[str, Any]:
         """
         Generate config.json for shortfin.
 
-
         For shortfin, we only write attention_head_count_kv because that's all shortfin needs.
         Note that this is different from hp.attn_head_count when grouped attention shares kvcache between heads.
+
+        Args:
+            hp: Model hyperparameters
+            prefill_bs: List of batch sizes for prefill operations
+            decode_bs: List of batch sizes for decode operations
+            extend_bs: List of batch sizes for extend operations (optional)
         """
-        return {
+        config = {
             "module_name": "module",
             "module_abi_version": 1,
             "max_seq_len": hp.context_length,
@@ -119,6 +139,11 @@ def main():
                 "device_block_count": args.device_block_count,  # so that this makes its way into the config file & can be edited.
             },
         }
+
+        if extend_bs:
+            config["extend_batch_sizes"] = extend_bs
+
+        return config
 
     # Unrolling cache updates by batch row makes dynamo sad without an
     # override. There may be a better way to do this.
@@ -335,6 +360,97 @@ def main():
 
             return logits
 
+    def generate_batch_extend(bs: int):
+        """
+        Generate a function to extend an existing prefill with more tokens.
+
+        This is similar to prefill but assumes the KV cache already contains entries
+        for tokens up to start_positions. It will process only tokens from start_positions
+        onward, which is more efficient than redoing the entire prefill.
+        """
+        # torch.export.Dim would make min at least 2
+        block_dim_min = 2
+        block_dim_max = ceildiv(hp.context_length, llama_config.block_seq_stride) - 1
+        block_dim = torch.export.Dim("block", min=block_dim_min, max=block_dim_max)
+        sl_dim = llama_config.block_seq_stride * block_dim
+        seq_block_ids = torch.empty(bs, block_dim_min, dtype=torch.int64)
+        tokens = torch.empty(
+            bs,
+            seq_block_ids.shape[1] * llama_config.block_seq_stride,
+            dtype=torch.int64,
+        )
+        seq_lens = torch.empty(bs, dtype=torch.int64)
+        start_positions = torch.ones(bs, dtype=torch.int64)
+
+        cache, cache_shard_dim, cache_dynamic_shapes, arg_affinities = setup_cache(
+            model, llama_config.tensor_parallelism_size
+        )
+
+        if llama_config.tensor_parallelism_size > 1:
+            # We need to offset the indices for the cache
+            arg_affinities = {key + 4: arg_affinities[key] for key in arg_affinities}
+
+            # Inputs have default affinity 0
+            for i in range(4):
+                arg_affinities[i] = DeviceAffinity("0")
+
+        dynamic_shapes = {
+            "tokens": {1: sl_dim},
+            "seq_lens": {},
+            "start_positions": {},
+            "seq_block_ids": {1: block_dim},
+            "cs": cache_dynamic_shapes,
+        }
+
+        print(f"Exporting extend_bs{bs}")
+
+        @fxb.export_program(
+            name=f"extend_bs{bs}",
+            args=(tokens, seq_lens, start_positions, seq_block_ids, cache),
+            dynamic_shapes=dynamic_shapes,
+            strict=args.strict,
+            arg_device=arg_affinities,
+        )
+        def _(model, tokens, seq_lens, start_positions, seq_block_ids, cs):
+            if (
+                model.config.tensor_parallelism_size == 1
+                and model.config.kv_cache_type == "direct"
+            ):
+                cache_tensors = torch.unbind(cs)
+            else:
+                cache_tensors = cs
+
+            attention_mask = None
+            if args.use_attention_mask:
+                sl = tokens.shape[1]
+                input_mask = model.input_mask(seq_lens, sl)
+                attention_mask = model.attention_mask(input_mask)
+
+            if llama_config.tensor_parallelism_size != 1:
+                shard_count = llama_config.tensor_parallelism_size
+
+                tokens = ops.replicate(tokens, count=shard_count)
+                if attention_mask is not None:
+                    attention_mask = ops.replicate(attention_mask, count=shard_count)
+                start_positions = ops.replicate(start_positions, count=shard_count)
+                seq_block_ids = ops.replicate(seq_block_ids, count=shard_count)
+                cache_tensors = repack_cache(cs, cache_shard_dim)
+
+            # Use prefill method with start_positions to process only new tokens
+            logits = model.prefill(
+                tokens,
+                attention_mask=attention_mask,
+                start_positions=start_positions,
+                seq_block_ids=seq_block_ids,
+                cache_state=cache_tensors,
+            )
+
+            if llama_config.tensor_parallelism_size != 1:
+                logits = ops.unshard(logits)
+
+            return logits
+
+    # Generate prefill and decode functions for each batch size
     bsizes = []
     for bs in args.bs:
         if not args.skip_prefill:
@@ -342,7 +458,18 @@ def main():
         if not args.skip_decode:
             generate_batch_decode(bs)
         bsizes.append(bs)
-    config = generate_params_json(hp, bsizes, bsizes)
+
+    # Generate extend functions only if --extend-bs is specified
+    extend_bsizes = []
+    if args.extend_bs:
+        for bs in args.extend_bs:
+            generate_batch_extend(bs)
+            extend_bsizes.append(bs)
+
+    # Create config with all generated batch sizes
+    config = generate_params_json(
+        hp, bsizes, bsizes, extend_bsizes if extend_bsizes else None
+    )
     print("GENERATED!")
 
     if args.verbose:

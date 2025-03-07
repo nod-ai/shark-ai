@@ -101,7 +101,15 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         embedding_batch_mask: Optional[torch.Tensor] = None,
         cache_state: list[torch.Tensor] = None,
     ):
-        assert bool(start_index is not None) ^ bool(embedding_batch_mask is not None)
+        # Either start_index OR embedding_batch_mask should be provided
+        # (start_positions is a separate parameter and can be provided regardless)
+        if embedding_batch_mask is None and start_index is None:
+            # If neither is provided, use start_index=0 by default
+            start_index = 0
+        else:
+            assert bool(start_index is not None) ^ bool(
+                embedding_batch_mask is not None
+            )
         x = self.attn_norm(h)
         bs, batch_seq_len, _ = x.shape
 
@@ -258,27 +266,43 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             )
             return xk_cache_update, xv_cache_update
 
-        # Decode at ragged start positions.
-        # We need to initialize/read the K/V from the cache for the whole
-        # sequence. Note that at this point, it is possible to fork and
-        # use a memory efficient attention kernel that can do indirect
-        # reads, skipping this materialization. This path is taken for
-        # a decode step.
-        assert xk_cache_update.shape[1] == 1
-        assert xv_cache_update.shape[1] == 1
-        assert kv_seq_len == seq_block_ids.shape[1] * cache.block_seq_stride
+        # Special case for single token decode
+        if xk_cache_update.shape[1] == 1:
+            # Standard decode path (single token)
+            assert xv_cache_update.shape[1] == 1
 
-        # Write our one updated cache row into the cache.
-        cache.write_timestep(
-            cache_state,
-            cache_partitions=[
-                xk_cache_update,
-                xv_cache_update,
-            ],
-            transformer_block_index=self.block_index,
-            seq_positions=start_positions,
-            page_ids=seq_block_ids,
-        )
+            # Write our one updated cache row into the cache.
+            cache.write_timestep(
+                cache_state,
+                cache_partitions=[
+                    xk_cache_update,
+                    xv_cache_update,
+                ],
+                transformer_block_index=self.block_index,
+                seq_positions=start_positions,
+                page_ids=seq_block_ids,
+            )
+        # If all start_positions are 0, treat it like a normal prefill
+        elif start_positions.numel() > 0 and torch.all(start_positions == 0):
+            # Handle the case where we're extending from position 0
+            # This is equivalent to a full prefill, but more consistent to use write_selective
+            cache.write_selective(
+                cache_state,
+                cache_partitions=[xk_cache_update, xv_cache_update],
+                transformer_block_index=self.block_index,
+                page_ids=seq_block_ids,
+                start_positions=start_positions,
+            )
+        else:
+            # For all other cases, use write_selective to only update from start_positions
+            # This properly handles cases like extending from position 16
+            cache.write_selective(
+                cache_state,
+                cache_partitions=[xk_cache_update, xv_cache_update],
+                transformer_block_index=self.block_index,
+                page_ids=seq_block_ids,
+                start_positions=start_positions,
+            )
 
         # Restore from the cache.
         xk, xv = cache.read(

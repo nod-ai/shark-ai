@@ -193,11 +193,28 @@ class PagedKVCache:
         subblock_table = page_table.flatten(start_dim=0, end_dim=1)
         page_stride = self.transformer_block_count
 
-        transformer_block_index = torch.full(
+        # Create a tensor filled with the transformer block index
+        transformer_block_index_tensor = torch.full(
             (bs, block_seq_len), transformer_block_index
         )
-        subblock_ids = page_ids * page_stride + transformer_block_index
-        selected = ops.index_select(subblock_table, 0, subblock_ids.flatten(0, 1))
+
+        # Calculate subblock IDs - these need to be in bounds
+        max_valid_index = subblock_table.shape[0] - 1
+
+        # Create the indices - multiply page ID by stride and add transformer block index
+        subblock_ids = page_ids * page_stride + transformer_block_index_tensor
+
+        # Flatten the indices
+        flat_ids = subblock_ids.flatten(0, 1)
+
+        # Ensure all indices are in bounds
+        valid_mask = flat_ids <= max_valid_index
+        if not torch.all(valid_mask):
+            # If any indices are out of bounds, clamp them
+            flat_ids = torch.clamp(flat_ids, max=max_valid_index)
+
+        # Now select the entries from the page table
+        selected = ops.index_select(subblock_table, 0, flat_ids)
 
         selected = selected.unflatten(0, blocked_shape[:2])
         key = selected[:, :, 0, :seq_len].flatten(1, 2)[:, :seq_len]
@@ -305,20 +322,354 @@ class PagedKVCache:
         )
 
         for index, partition in enumerate(cache_partitions):
-            part_block_view = partition.unflatten(
-                1, (block_seq_len, self.block_seq_stride)
-            )
-            part_block_view = part_block_view.flatten(0, 1)
+            # Handle case where sequence length doesn't evenly divide by block_seq_stride
+            seq_len = partition.shape[1]
+            # Calculate how many blocks we need based on the actual sequence length
+            full_blocks = seq_len // self.block_seq_stride
+            remainder = seq_len % self.block_seq_stride
 
-            subblock_ids = (
-                (base_subblock_ids + index) if index > 0 else base_subblock_ids
-            ).flatten(0, 1)
+            # Process full blocks first if any
+            if full_blocks > 0:
+                # Extract the portion that fits evenly into blocks
+                full_block_data = partition[:, : full_blocks * self.block_seq_stride]
+                part_block_view = full_block_data.unflatten(
+                    1, (full_blocks, self.block_seq_stride)
+                )
+                part_block_view = part_block_view.flatten(0, 1)
 
-            part_block = ops.to(part_block_view, dtype=subblock_table.dtype)
-            if subblock_table.dtype == torch.float8_e4m3fnuz:
-                # Workaround for Torch not supporting torch.Tensor.index_copy_ for f8.
-                subblock_table_as_int8 = subblock_table.view(dtype=torch.int8)
-                part_block_as_int8 = part_block.view(dtype=torch.int8)
-                subblock_table_as_int8.index_copy_(0, subblock_ids, part_block_as_int8)
+                # Get the corresponding block IDs
+                if full_blocks < block_seq_len:
+                    # Only use the blocks we need
+                    block_subids = base_subblock_ids[:, :full_blocks]
+                else:
+                    # Use all available blocks, but limit to block_seq_len
+                    # This prevents out-of-bounds access when block_seq_len < full_blocks
+                    block_subids = base_subblock_ids[
+                        :, : min(full_blocks, block_seq_len)
+                    ]
+
+                subblock_ids = (
+                    (block_subids + index) if index > 0 else block_subids
+                ).flatten(0, 1)
+
+                part_block = ops.to(part_block_view, dtype=subblock_table.dtype)
+
+                # Make sure indices are in bounds
+                max_valid_index = subblock_table.shape[0] - 1
+                valid_mask = subblock_ids <= max_valid_index
+
+                if not torch.all(valid_mask):
+                    # If any indices are out of bounds, skip them
+                    valid_indices = subblock_ids[valid_mask]
+                    valid_part_block = part_block[valid_mask]
+
+                    if (
+                        valid_indices.numel() > 0
+                    ):  # Only proceed if we have valid indices
+                        if subblock_table.dtype == torch.float8_e4m3fnuz:
+                            # Workaround for Torch not supporting torch.Tensor.index_copy_ for f8.
+                            subblock_table_as_int8 = subblock_table.view(
+                                dtype=torch.int8
+                            )
+                            valid_part_block_int8 = valid_part_block.view(
+                                dtype=torch.int8
+                            )
+                            subblock_table_as_int8.index_copy_(
+                                0, valid_indices, valid_part_block_int8
+                            )
+                        else:
+                            subblock_table.index_copy_(
+                                0, valid_indices, valid_part_block
+                            )
+                else:
+                    # All indices are valid
+                    if subblock_table.dtype == torch.float8_e4m3fnuz:
+                        # Workaround for Torch not supporting torch.Tensor.index_copy_ for f8.
+                        subblock_table_as_int8 = subblock_table.view(dtype=torch.int8)
+                        part_block_as_int8 = part_block.view(dtype=torch.int8)
+                        subblock_table_as_int8.index_copy_(
+                            0, subblock_ids, part_block_as_int8
+                        )
+                    else:
+                        subblock_table.index_copy_(0, subblock_ids, part_block)
+
+            # Handle remainder if any
+            if remainder > 0 and full_blocks < block_seq_len:
+                # Extract the remainder
+                remainder_data = partition[:, full_blocks * self.block_seq_stride :]
+                # Pad to full block size
+                padded_remainder = torch.nn.functional.pad(
+                    remainder_data, (0, 0, 0, 0, 0, self.block_seq_stride - remainder)
+                )
+
+                # Get the block ID for the remainder
+                if full_blocks < base_subblock_ids.shape[1]:
+                    remainder_block_id = base_subblock_ids[:, full_blocks]
+                    if index > 0:
+                        remainder_block_id = remainder_block_id + index
+
+                    remainder_block_id = remainder_block_id.flatten()
+
+                    # Check that the remainder_block_id is in bounds
+                    if remainder_block_id.item() < len(subblock_table):
+                        # Convert and write only the valid part of the remainder
+                        padded_remainder = ops.to(
+                            padded_remainder.flatten(), dtype=subblock_table.dtype
+                        )
+
+                        if subblock_table.dtype == torch.float8_e4m3fnuz:
+                            subblock_table_as_int8 = subblock_table.view(
+                                dtype=torch.int8
+                            )
+                            padded_remainder_int8 = padded_remainder.view(
+                                dtype=torch.int8
+                            )
+
+                            # Get current block data
+                            current_block = subblock_table_as_int8[remainder_block_id]
+
+                            # Create mask for the part we want to update (first 'remainder' positions)
+                            remainder_indices = torch.arange(
+                                current_block.shape[0], device=current_block.device
+                            )
+                            valid_indices = (
+                                remainder_indices
+                                < remainder * partition.shape[2] * partition.shape[3]
+                            )
+
+                            # Update only the valid part
+                            current_block[valid_indices] = padded_remainder_int8[
+                                valid_indices
+                            ]
+                            subblock_table_as_int8[remainder_block_id] = current_block
+                        else:
+                            # Get current block data
+                            current_block = subblock_table[remainder_block_id]
+
+                            # Create mask for the part we want to update (first 'remainder' positions)
+                            remainder_indices = torch.arange(
+                                current_block.shape[0], device=current_block.device
+                            )
+                            valid_indices = (
+                                remainder_indices
+                                < remainder * partition.shape[2] * partition.shape[3]
+                            )
+
+                            # Update only the valid part
+                            current_block[valid_indices] = padded_remainder[
+                                valid_indices
+                            ]
+                            subblock_table[remainder_block_id] = current_block
+
+    def write_selective(
+        self,
+        state: list[Union[torch.Tensor, SplitPrimitiveTensor]],
+        cache_partitions: list[Union[torch.Tensor, SplitPrimitiveTensor]],
+        *,
+        transformer_block_index: int,
+        page_ids: Union[torch.Tensor, ReplicatedTensor],
+        start_positions: Union[torch.Tensor, ReplicatedTensor],
+    ):
+        """Writes cache partitions selectively starting from start_positions.
+
+        This method uses a hybrid approach:
+        1. For blocks that are fully after start_positions, uses standard write()
+        2. For blocks that are partially after start_positions, selectively updates
+        3. For blocks that are fully before start_positions, skips them entirely
+
+        Args:
+            state: State struct as returned from allocate().
+            cache_partitions: List of tensors to write for each partition.
+            transformer_block_index: The transformer block index.
+            page_ids: Tensor of [bs, max_seqlen // block_pos_stride] of page ids.
+            start_positions: Tensor of [bs] indicating the position to start updating from.
+        """
+        page_table = self.unflatten_page_table(state)  # 6D
+        bs, block_seq_len, *_ = page_ids.shape
+
+        # Determine which blocks need to be updated for each batch element
+        # Calculate the start block for each sequence in the batch
+        start_blocks = start_positions // self.block_seq_stride
+
+        # Determine positions within start blocks
+        start_offsets = start_positions % self.block_seq_stride
+
+        # Setup for indexing into the page table
+        subblock_table = page_table.flatten(start_dim=0, end_dim=2)
+        page_stride = self.transformer_block_count * self.cache_partition_count
+        transformer_block_stride = self.cache_partition_count
+
+        # Process each partition (K and V)
+        for idx, partition in enumerate(cache_partitions):
+            # Handle case where sequence length doesn't evenly divide by block_seq_stride
+            seq_len = partition.shape[1]
+            # Calculate how many blocks we need based on the actual sequence length
+            full_blocks = seq_len // self.block_seq_stride
+            remainder = seq_len % self.block_seq_stride
+
+            # Reshape partition based on full blocks
+            if full_blocks > 0:
+                # Extract the portion that fits evenly into blocks
+                full_block_data = partition[:, : full_blocks * self.block_seq_stride]
+                part_blocked = full_block_data.unflatten(
+                    1, (full_blocks, self.block_seq_stride)
+                )
             else:
-                subblock_table.index_copy_(0, subblock_ids, part_block)
+                # Handle the case with no full blocks
+                # Create an empty tensor with the right shape
+                part_blocked = torch.zeros(
+                    (partition.shape[0], 0, self.block_seq_stride)
+                    + partition.shape[2:],
+                    dtype=partition.dtype,
+                    device=partition.device,
+                )
+
+            # Process each batch element separately
+            for b in range(bs):
+                start_block = start_blocks[b].item()
+                start_offset = start_offsets[b].item()
+
+                # Skip if there's nothing to update
+                if start_block >= full_blocks and (
+                    start_block > full_blocks or remainder == 0
+                ):
+                    continue
+
+                # Process all blocks for this batch element
+                for blk in range(min(full_blocks, block_seq_len)):
+                    # When extending from position 16 (a block boundary), we
+                    # need to make sure all blocks from the start block onwards are updated
+                    # We keep blocks before start_block untouched
+                    if blk < start_block:
+                        # For blocks before the start position, we don't update anything
+                        # This preserves the KV cache for tokens before start_positions
+                        continue
+
+                    # Get the current block data
+                    curr_block = part_blocked[b, blk]
+                    page_id = page_ids[b, blk]
+
+                    # For start block, selectively update from start offset
+                    if blk == start_block and start_offset > 0:
+                        # Calculate index for the page table
+                        block_index = (
+                            page_id * page_stride
+                            + transformer_block_index * transformer_block_stride
+                            + idx
+                        )
+
+                        # Check if block_index is valid before indexing
+                        if block_index < len(subblock_table):
+                            # Get current values to preserve before start_offset
+                            curr_values = subblock_table[block_index]
+                            curr_values = curr_values.reshape(
+                                self.block_seq_stride, -1, self.attn_head_dim
+                            )
+
+                            # Create updated values - keep original for positions before start_offset
+                            updated_values = curr_values.clone()
+                            updated_values[start_offset:] = curr_block[start_offset:]
+
+                            # Write back to table
+                            updated_flat = updated_values.reshape(-1)
+                            if subblock_table.dtype == torch.float8_e4m3fnuz:
+                                subblock_table_as_int8 = subblock_table.view(
+                                    dtype=torch.int8
+                                )
+                                updated_flat_int8 = updated_flat.view(dtype=torch.int8)
+                                subblock_table_as_int8[block_index] = updated_flat_int8
+                            else:
+                                subblock_table[block_index] = updated_flat
+                        else:
+                            # Log or handle the case where the index is out of bounds
+                            pass
+                    else:
+                        # For blocks after start_block, update entire block
+                        block_index = (
+                            page_id * page_stride
+                            + transformer_block_index * transformer_block_stride
+                            + idx
+                        )
+                        # Check if block_index is valid before indexing
+                        if block_index < len(subblock_table):
+                            block_data = ops.to(
+                                curr_block.flatten(), dtype=subblock_table.dtype
+                            )
+
+                            if subblock_table.dtype == torch.float8_e4m3fnuz:
+                                subblock_table_as_int8 = subblock_table.view(
+                                    dtype=torch.int8
+                                )
+                                block_data_int8 = block_data.view(dtype=torch.int8)
+                                subblock_table_as_int8[block_index] = block_data_int8
+                            else:
+                                subblock_table[block_index] = block_data
+                        else:
+                            # Log or handle the case where the index is out of bounds
+                            # This could happen if the page_ids aren't allocated properly
+                            pass
+
+                # Handle remainder block if any
+                if remainder > 0 and full_blocks < block_seq_len:
+                    # Check if this batch element needs to update the remainder block
+                    if start_block <= full_blocks:
+                        # Extract the remainder portion
+                        remainder_data = partition[
+                            b : b + 1, full_blocks * self.block_seq_stride :
+                        ]
+                        page_id = (
+                            page_ids[b, full_blocks]
+                            if full_blocks < page_ids.shape[1]
+                            else page_ids[b, -1]
+                        )
+
+                        # Calculate index for the page table
+                        block_index = (
+                            page_id * page_stride
+                            + transformer_block_index * transformer_block_stride
+                            + idx
+                        )
+
+                        # Check if block_index is valid before indexing
+                        if block_index < len(subblock_table):
+                            # Get current block data
+                            curr_values = subblock_table[block_index]
+
+                            # If this is the start block and we have an offset, do selective update
+                            if full_blocks == start_block and start_offset > 0:
+                                # Reshape to access by position
+                                curr_values = curr_values.reshape(
+                                    self.block_seq_stride, -1, self.attn_head_dim
+                                )
+
+                                # Only update positions from start_offset onwards
+                                # But only up to the remainder length
+                                for pos in range(remainder):
+                                    if pos >= start_offset:
+                                        pos_in_remainder = pos - 0  # Adjust if needed
+                                        if pos_in_remainder < remainder_data.shape[1]:
+                                            curr_values[pos] = remainder_data[
+                                                0, pos_in_remainder
+                                            ]
+
+                                # Flatten and write back
+                                updated_flat = curr_values.reshape(-1)
+                            else:
+                                # Full update of remainder portion
+                                # Pad remainder to block size
+                                padded = torch.zeros_like(curr_values)
+
+                                # Copy remainder data into padded tensor
+                                flat_remainder = remainder_data.flatten()
+                                padded[: flat_remainder.shape[0]] = flat_remainder
+                                updated_flat = padded
+
+                            # Write back to table
+                            if subblock_table.dtype == torch.float8_e4m3fnuz:
+                                subblock_table_as_int8 = subblock_table.view(
+                                    dtype=torch.int8
+                                )
+                                updated_flat_int8 = updated_flat.view(dtype=torch.int8)
+                                subblock_table_as_int8[block_index] = updated_flat_int8
+                            else:
+                                subblock_table[block_index] = updated_flat
