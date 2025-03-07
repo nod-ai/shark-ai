@@ -6,6 +6,10 @@
 
 from enum import Enum
 
+from typing import (
+    Union,
+)
+
 import logging
 
 import shortfin as sf
@@ -86,7 +90,7 @@ class SDXLInferenceExecRequest(InferenceExecRequest):
         # Decode phase.
         self.image_array = image_array
 
-        self.result_image = None
+        self.result_image: Union[str, None] = None
         self.img_metadata = None
 
         self.done = sf.VoidFuture()

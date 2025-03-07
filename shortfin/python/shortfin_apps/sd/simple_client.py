@@ -6,7 +6,6 @@
 
 from datetime import datetime as dt
 import os
-import sys
 import time
 import json
 import argparse
@@ -56,7 +55,7 @@ def get_batched(request, arg, idx):
     return indexed
 
 
-async def send_request(session, rep, args, data):
+async def send_request(session: aiohttp.ClientSession, rep, args, data):
     print("Sending request batch #", rep)
     url = f"{args.host}:{args.port}/generate"
     start = time.time()

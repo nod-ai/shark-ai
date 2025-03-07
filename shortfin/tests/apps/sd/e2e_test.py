@@ -7,7 +7,6 @@
 import json
 import requests
 import time
-import asyncio
 import base64
 import pytest
 import subprocess
@@ -15,11 +14,8 @@ import os
 import socket
 import sys
 import copy
-import math
-import tempfile
 from contextlib import closing
 
-from datetime import datetime as dt
 from PIL import Image
 
 BATCH_SIZES = [1]
@@ -202,7 +198,6 @@ class ServerRunner:
 
 
 def bytes_to_img(bytes, idx=0, width=1024, height=1024):
-    timestamp = dt.now().strftime("%Y-%m-%d_%H-%M-%S")
     image = Image.frombytes(
         mode="RGB", size=(width, height), data=base64.b64decode(bytes)
     )
