@@ -49,7 +49,9 @@ iree_compile_flags = [
     "--iree-opt-const-eval=false",
     "--iree-opt-strip-assertions=true",
     "--iree-global-opt-propagate-transposes=true",
-    "--iree-dispatch-creation-enable-fuse-horizontal-contractions=true",
+    # TODO: We want the following flag to be enable eventually, but there's
+    # a bug in iree that's causing a failure right now.
+    "--iree-dispatch-creation-enable-fuse-horizontal-contractions=false",
     "--iree-dispatch-creation-enable-aggressive-fusion=true",
     "--iree-opt-aggressively-propagate-transposes=true",
     "--iree-opt-outer-dim-concat=true",
