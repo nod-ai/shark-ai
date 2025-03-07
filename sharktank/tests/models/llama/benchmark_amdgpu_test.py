@@ -20,6 +20,8 @@ from sharktank.utils.export_artifacts import (
     IreeCompileException,
 )
 
+logger = logging.getLogger(__name__)
+
 is_mi300x = pytest.mark.skipif("config.getoption('iree_hip_target') != 'gfx942'")
 skipif_run_quick_llama_test = pytest.mark.skipif(
     'config.getoption("run-quick-llama-test") and not config.getoption("run-nightly-llama-tests")',
@@ -106,6 +108,7 @@ class BaseBenchmarkTest(unittest.TestCase):
 
 @is_mi300x
 class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
+    logger.info("Testing BenchmarkLlama3_1_8B...")
     def setUp(self):
         super().setUp()
         # TODO: add numpy files to Azure and download from it
@@ -191,6 +194,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         ]
 
     def testBenchmark8B_f16_TP1_Non_Decomposed_Input_Len_128(self):
+        logger.info("Testing Benchmark8B_f16_TP1_Non_Decomposed_Input_Len_128...")
         output_file_name = self.dir_path_8b / "f16_torch_128_tp1"
         output_mlir = self.llama8b_f16_torch_sdpa_artifacts.create_file(
             suffix=".mlir", prefix=output_file_name
@@ -208,6 +212,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             mlir_path=output_mlir,
             json_path=output_json,
         )
+        logger.info("Compiling MLIR file...")
         self.llama8b_f16_torch_sdpa_artifacts.compile_to_vmfb(
             mlir_path=str(output_mlir),
             vmfb_path=output_vmfb,
@@ -216,6 +221,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             args=self.compile_args,
         )
         # benchmark prefill
+        logger.info("IREE Benchmark Prefill...")
         self.llama8b_f16_torch_sdpa_artifacts.iree_benchmark_vmfb(
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
@@ -225,6 +231,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
         # benchmark decode
+        logger.info("IREE Benchmark Decode...")
         self.llama8b_f16_torch_sdpa_artifacts.iree_benchmark_vmfb(
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
@@ -236,6 +243,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
 
     @skipif_run_quick_llama_test
     def testBenchmark8B_f16_TP1_Non_Decomposed_Input_Len_2048(self):
+        logger.info("Testing Benchmark8B_f16_TP1_Non_Decomposed_Input_Len_2048...")
         output_file_name = self.dir_path_8b / "f16_torch_2048_tp1"
         output_mlir = self.llama8b_f16_torch_sdpa_artifacts.create_file(
             suffix=".mlir", prefix=output_file_name
@@ -253,6 +261,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             mlir_path=output_mlir,
             json_path=output_json,
         )
+        logger.info("Compiling MLIR file...")
         self.llama8b_f16_torch_sdpa_artifacts.compile_to_vmfb(
             mlir_path=str(output_mlir),
             vmfb_path=output_vmfb,
@@ -261,6 +270,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             args=self.compile_args,
         )
         # benchmark prefill
+        logger.info("IREE Benchmark Prefill...")
         self.llama8b_f16_torch_sdpa_artifacts.iree_benchmark_vmfb(
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
@@ -270,6 +280,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
         # benchmark decode
+        logger.info("IREE Benchmark Decode...")
         self.llama8b_f16_torch_sdpa_artifacts.iree_benchmark_vmfb(
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
@@ -281,6 +292,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
 
     @skipif_run_quick_llama_test
     def testBenchmark8B_fp8_TP1_Non_Decomposed(self):
+        logger.info("Testing Benchmark8B_fp8_TP1_Non_Decomposed...")
         output_file_name = self.dir_path_8b / "fp8_torch_tp1"
         output_mlir = self.llama8b_fp8_torch_sdpa_artifacts.create_file(
             suffix=".mlir", prefix=output_file_name
@@ -298,6 +310,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             mlir_path=output_mlir,
             json_path=output_json,
         )
+        logger.info("Compiling MLIR file...")
         self.llama8b_fp8_torch_sdpa_artifacts.compile_to_vmfb(
             mlir_path=str(output_mlir),
             vmfb_path=output_vmfb,
@@ -306,6 +319,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             args=self.compile_args,
         )
         # benchmark prefill
+        logger.info("IREE Benchmark Prefill...")
         self.llama8b_fp8_torch_sdpa_artifacts.iree_benchmark_vmfb(
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
@@ -315,6 +329,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
         # benchmark decode
+        logger.info("IREE Benchmark Decode...")
         self.llama8b_fp8_torch_sdpa_artifacts.iree_benchmark_vmfb(
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
@@ -328,6 +343,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
 @is_mi300x
 @skipif_run_quick_llama_test
 class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
+    logger.info("BenchmarkLlama3_1_70B...")
     def setUp(self):
         super().setUp()
         # TODO: add numpy files to Azure and download from it
@@ -450,6 +466,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         ]
 
     def testBenchmark70B_f16_TP1_Non_Decomposed_Input_Len_128(self):
+        logger.info("Testing Benchmark70B_f16_TP1_Non_Decomposed_Input_Len_128...")
         output_file_name = self.dir_path_70b / "f16_torch_128_tp1"
         output_mlir = self.llama70b_f16_torch_sdpa_artifacts_tp1.create_file(
             suffix=".mlir", prefix=output_file_name
@@ -467,6 +484,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             mlir_path=output_mlir,
             json_path=output_json,
         )
+        logger.info("Compiling MLIR file...")
         self.llama70b_f16_torch_sdpa_artifacts_tp1.compile_to_vmfb(
             mlir_path=str(output_mlir),
             vmfb_path=output_vmfb,
@@ -475,6 +493,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             args=self.compile_args,
         )
         # benchmark prefill
+        logger.info("IREE Benchmark Prefill...")
         self.llama70b_f16_torch_sdpa_artifacts_tp1.iree_benchmark_vmfb(
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
@@ -484,6 +503,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
         # benchmark decode
+        logger.info("IREE Benchmark Decode...")
         self.llama70b_f16_torch_sdpa_artifacts_tp1.iree_benchmark_vmfb(
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
@@ -494,6 +514,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         )
 
     def testBenchmark70B_f16_TP1_Non_Decomposed_Input_Len_2048(self):
+        logger.info("Testing Benchmark70B_f16_TP1_Non_Decomposed_Input_Len_2048...")
         output_file_name = self.dir_path_70b / "f16_torch_2048_tp1"
         output_mlir = self.llama70b_f16_torch_sdpa_artifacts_tp1.create_file(
             suffix=".mlir", prefix=output_file_name
@@ -511,6 +532,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             mlir_path=output_mlir,
             json_path=output_json,
         )
+        logger.info("Compiling MLIR file...")
         self.llama70b_f16_torch_sdpa_artifacts_tp1.compile_to_vmfb(
             mlir_path=str(output_mlir),
             vmfb_path=output_vmfb,
@@ -519,6 +541,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             args=self.compile_args,
         )
         # benchmark prefill
+        logger.info("IREE Benchmark Prefill...")
         self.llama70b_f16_torch_sdpa_artifacts_tp1.iree_benchmark_vmfb(
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
@@ -528,6 +551,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
         # benchmark decode
+        logger.info("IREE Benchmark Decode...")
         self.llama70b_f16_torch_sdpa_artifacts_tp1.iree_benchmark_vmfb(
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
@@ -541,6 +565,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         reason="Benchmarking Error", strict=True, raises=IreeBenchmarkException
     )
     def testBenchmark70B_f16_TP8_Non_Decomposed_Input_Len_128(self):
+        logger.info("Testing Benchmark70B_f16_TP8_Non_Decomposed_Input_Len_128...")
         output_file_name = self.dir_path_70b / "f16_torch_128_tp8"
         output_mlir = self.llama70b_f16_torch_sdpa_artifacts_tp8.create_file(
             suffix=".mlir", prefix=output_file_name
@@ -563,6 +588,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             mlir_path=output_mlir,
             json_path=output_json,
         )
+        logger.info("Compiling MLIR file...")
         self.llama70b_f16_torch_sdpa_artifacts_tp8.compile_to_vmfb(
             mlir_path=str(output_mlir),
             vmfb_path=output_vmfb,
@@ -571,6 +597,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             args=self.compile_args,
         )
         # benchmark prefill
+        logger.info("IREE Benchmark Prefill...")
         self.llama70b_f16_torch_sdpa_artifacts_tp8.iree_benchmark_vmfb(
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
@@ -579,6 +606,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
         # benchmark decode
+        logger.info("IREE Benchmark Decode...")
         self.llama70b_f16_torch_sdpa_artifacts_tp8.iree_benchmark_vmfb(
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
@@ -591,6 +619,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         reason="Benchmarking Error", strict=True, raises=IreeBenchmarkException
     )
     def testBenchmark70B_f16_TP8_Non_Decomposed_Input_Len_2048(self):
+        logger.info("Testing Benchmark70B_f16_TP8_Non_Decomposed_Input_Len_2048...")
         output_file_name = self.dir_path_70b / "f16_torch_2048_tp8"
         output_mlir = self.llama70b_f16_torch_sdpa_artifacts_tp8.create_file(
             suffix=".mlir", prefix=output_file_name
@@ -613,6 +642,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             mlir_path=output_mlir,
             json_path=output_json,
         )
+        logger.info("Compiling MLIR file...")
         self.llama70b_f16_torch_sdpa_artifacts_tp8.compile_to_vmfb(
             mlir_path=str(output_mlir),
             vmfb_path=output_vmfb,
@@ -621,6 +651,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             args=self.compile_args,
         )
         # benchmark prefill
+        logger.info("IREE Benchmark Prefill...")
         self.llama70b_f16_torch_sdpa_artifacts_tp8.iree_benchmark_vmfb(
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
@@ -629,6 +660,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
         # benchmark decode
+        logger.info("IREE Benchmark Decode...")
         self.llama70b_f16_torch_sdpa_artifacts_tp8.iree_benchmark_vmfb(
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
@@ -641,6 +673,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         reason="70b fp8 irpa does not exist", strict=True, raises=ExportMlirException
     )
     def testBenchmark70B_fp8_TP1_Non_Decomposed(self):
+        logger.info("Testing Benchmark70B_fp8_TP1_Non_Decomposed...")
         output_file_name = self.dir_path_70b / "fp8_torch_tp1"
         output_mlir = self.llama70b_fp8_torch_sdpa_artifacts_tp1.create_file(
             suffix=".mlir", prefix=output_file_name
@@ -655,6 +688,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             mlir_path=output_mlir,
             json_path=output_json,
         )
+        logger.info("Compiling MLIR file...")
         self.llama70b_fp8_torch_sdpa_artifacts_tp1.compile_to_vmfb(
             mlir_path=str(output_mlir),
             vmfb_path=output_vmfb,
@@ -663,6 +697,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             args=self.compile_args,
         )
         # benchmark prefill
+        logger.info("IREE Benchmark Prefill...")
         self.llama70b_fp8_torch_sdpa_artifacts_tp1.iree_benchmark_vmfb(
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
@@ -671,6 +706,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
         # benchmark decode
+        logger.info("IREE Benchmark Decode...")
         self.llama70b_fp8_torch_sdpa_artifacts_tp1.iree_benchmark_vmfb(
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
@@ -683,6 +719,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
 @is_mi300x
 @skipif_run_quick_llama_test
 class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
+    logger.info("Testing BenchmarkLlama3_1_405B...")
     def setUp(self):
         super().setUp()
         # TODO: add numpy files to Azure and download from it
@@ -773,6 +810,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         reason="Benchmarking Error", strict=True, raises=IreeBenchmarkException
     )
     def testBenchmark405B_f16_TP8_Non_Decomposed_Input_Len_128(self):
+        logger.info("Testing Benchmark405B_f16_TP8_Non_Decomposed_Input_Len_128...")
         output_file_name = self.dir_path_405b / "f16_torch_128"
         output_mlir = self.llama405b_f16_torch_sdpa_artifacts.create_file(
             suffix=".mlir", prefix=output_file_name
@@ -793,6 +831,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             mlir_path=output_mlir,
             json_path=output_json,
         )
+        logger.info("Compiling MLIR file...")
         self.llama405b_f16_torch_sdpa_artifacts.compile_to_vmfb(
             mlir_path=str(output_mlir),
             vmfb_path=output_vmfb,
@@ -801,6 +840,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             args=self.compile_args,
         )
         # benchmark prefill
+        logger.info("IREE Benchmark Prefill...")
         self.llama405b_f16_torch_sdpa_artifacts.iree_benchmark_vmfb(
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
@@ -814,6 +854,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         reason="Benchmarking Error", strict=True, raises=IreeBenchmarkException
     )
     def testBenchmark405B_f16_TP8_Non_Decomposed_Input_Len_2048(self):
+        logger.info("Testing Benchmark405B_f16_TP8_Non_Decomposed_Input_Len_2048...")
         output_file_name = self.dir_path_405b / "f16_torch_2048"
         output_mlir = self.llama405b_f16_torch_sdpa_artifacts.create_file(
             suffix=".mlir", prefix=output_file_name
@@ -834,6 +875,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             mlir_path=output_mlir,
             json_path=output_json,
         )
+        logger.info("Compiling MLIR file...")
         self.llama405b_f16_torch_sdpa_artifacts.compile_to_vmfb(
             mlir_path=str(output_mlir),
             vmfb_path=output_vmfb,
@@ -842,6 +884,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             args=self.compile_args,
         )
         # benchmark prefill
+        logger.info("IREE Benchmark Prefill...")
         self.llama405b_f16_torch_sdpa_artifacts.iree_benchmark_vmfb(
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
@@ -855,6 +898,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         reason="KeyError in theta.py", strict=True, raises=ExportMlirException
     )
     def testBenchmark405B_fp8_TP8_Non_Decomposed(self):
+        logger.info("Testing Benchmark405B_fp8_TP8_Non_Decomposed...")
         output_file_name = self.dir_path_405b / "fp8_torch"
         output_mlir = self.llama405b_fp8_torch_sdpa_artifacts.create_file(
             suffix=".mlir", prefix=output_file_name
@@ -875,6 +919,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             mlir_path=output_mlir,
             json_path=output_json,
         )
+        logger.info("Compiling MLIR file...")
         self.llama405b_fp8_torch_sdpa_artifacts.compile_to_vmfb(
             mlir_path=str(output_mlir),
             vmfb_path=output_vmfb,
@@ -883,6 +928,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             args=self.compile_args,
         )
         # benchmark prefill
+        logger.info("IREE Benchmark Prefill...")
         self.llama405b_fp8_torch_sdpa_artifacts.iree_benchmark_vmfb(
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
@@ -891,6 +937,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
         # benchmark decode
+        logger.info("IREE Benchmark Decode...")
         self.llama405b_fp8_torch_sdpa_artifacts.iree_benchmark_vmfb(
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
