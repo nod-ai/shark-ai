@@ -1,10 +1,11 @@
 import pytest
 import logging
-from shortfin_apps.llm.components.kvcache.page_pool import PagePool, PagePoolConfig
-import shortfin as sf
-import shortfin.host
+from shortfin_apps.llm.components.kvcache.page_pool import (
+    PagePool,
+    PagePoolConfig,
+    RefCount,
+)
 import shortfin.array as sfnp
-import shortfin.amdgpu
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,40 @@ def test_page_acquisition(setup_pool):
     logger.info(f"=== Running page acquisition test on system ===")
     page0 = pool.acquire_free_pages(1)
     assert page0 is not None, f"Failed to acquire a free page on system"
+    logger.info(f"Successfully acquired page on system")
+
+
+def test_page_acquisition(setup_pool):
+    pool = setup_pool
+    logger.info(f"=== Running page acquisition test on system ===")
+    page0 = pool.acquire_free_pages(1)
+    assert page0 is not None, f"Failed to acquire a free page on system"
+    assert not pool.is_available(page0[0])
+
+    pool.free_pages(page0)
+    assert pool.is_available(page0[0])
+    logger.info(f"Successfully acquired page on system")
+
+
+def test_page_retain(setup_pool):
+    pool = setup_pool
+    logger.info(f"=== Running page retain test on system ===")
+    page0 = pool.acquire_free_pages(1)
+    assert page0 is not None, f"Failed to acquire a free page on system"
+    assert pool.retain_count(page0[0]) == 1
+    assert not pool.is_available(page0[0])
+
+    pool.retain_pages(page0)
+    assert pool.retain_count(page0[0]) == 2
+    assert not pool.is_available(page0[0])
+
+    pool.free_pages(page0)
+    assert pool.retain_count(page0[0]) == 1
+    assert not pool.is_available(page0[0])
+
+    pool.free_pages(page0)
+    assert pool.retain_count(page0[0]) == 0
+    assert pool.is_available(page0[0])
     logger.info(f"Successfully acquired page on system")
 
 

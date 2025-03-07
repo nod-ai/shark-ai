@@ -4,47 +4,35 @@ import queue
 import random
 import time
 from collections import defaultdict
-from unittest.mock import Mock
-from dataclasses import dataclass
-from typing import List, Optional, Set
+
+import shortfin.array as sfnp
 
 from shortfin_apps.llm.components.kvcache.base_attention_cache import (
     BasePagedAttentionCache,
-    BasePagedAttentionCacheAllocation,
     CacheAllocationFailure,
 )
-from shortfin_apps.llm.components.kvcache.page_pool import PagePool, PageInfo
+from shortfin_apps.llm.components.kvcache.page_pool import PagePool, PagePoolConfig
 
 TEST_PAGE_SIZE = 16
 TEST_POOL_CAPACITY = 10
 
 
-class MockPagePool(PagePool):
-    def __init__(self, total_pages: int):
-        self._queue = queue.Queue()
-        for i in range(total_pages):
-            page = PageInfo(index=i, pool=self)
-            self._queue.put(page)
-
-    def acquire_free_pages(self, count: int) -> List[PageInfo]:
-        try:
-            return [self._queue.get_nowait() for _ in range(count)]
-        except queue.Empty:
-            return None
-
-    def free_pages(self, pages):
-        for page in pages:
-            self._queue.put(page)
+@pytest.fixture
+def setup_pool(generic_device):
+    pool = PagePool(
+        devices=[generic_device],
+        config=PagePoolConfig(
+            alloc_page_count=TEST_POOL_CAPACITY,
+            dtype=sfnp.float16,
+            paged_kv_block_size_elements=16,
+        ),
+    )
+    return pool
 
 
 @pytest.fixture
-def page_pool():
-    return MockPagePool(total_pages=TEST_POOL_CAPACITY)
-
-
-@pytest.fixture
-def cache(page_pool):
-    return BasePagedAttentionCache(page_pool=page_pool, tokens_per_page=TEST_PAGE_SIZE)
+def cache(setup_pool):
+    return BasePagedAttentionCache(page_pool=setup_pool, tokens_per_page=TEST_PAGE_SIZE)
 
 
 # fmt: off
@@ -157,3 +145,17 @@ def test_allocation_failure_when_exhausted(cache, total_pages_needed):
     finally:
         for alloc in successful_allocations:
             alloc.release_pages()
+
+
+def test_replicate_self(cache, setup_pool):
+    tokens = list(range(TEST_PAGE_SIZE * 2))
+    allocation = cache.acquire_pages_for_tokens(tokens)
+    replication = allocation.replicate_self()
+
+    assert allocation.pages[-1] != replication.pages[-1]
+    assert allocation.pages[:-1] == replication.pages[:-1]
+
+    allocation.release_pages()
+    for r in replication.pages:
+        assert not setup_pool.is_available(r)
+    replication.release_pages()
