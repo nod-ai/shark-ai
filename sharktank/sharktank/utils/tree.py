@@ -17,6 +17,10 @@ def is_leaf_default(tree: Tree) -> bool:
     return not isinstance(tree, IterableABC)
 
 
+def is_not_tuple_list_or_dict(tree: Tree) -> bool:
+    return not isinstance(tree, (tuple, list, dict))
+
+
 def map_nodes(
     tree: Tree, f: Callable[[Tree], Tree], is_leaf: IsLeaf | None = None
 ) -> Tree:
@@ -32,6 +36,22 @@ def map_nodes(
         return f({k: map_nodes(v, f, is_leaf) for k, v in tree.items()})
     else:
         return f([map_nodes(v, f, is_leaf) for v in tree])
+
+
+def map_leaves(
+    tree: Tree, f: Callable[[Tree], Tree], is_leaf: IsLeaf | None = None
+) -> Tree:
+    """Apply `f` for each leaf in the tree."""
+    if is_leaf is None:
+        is_leaf = is_leaf_default
+
+    def f_leaves_and_nodes(t: Tree) -> Tree:
+        if is_leaf(t):
+            return f(t)
+        else:
+            return t
+
+    return map_nodes(tree, f_leaves_and_nodes, is_leaf)
 
 
 def flatten(tree: Tree, is_leaf: IsLeaf | None = None) -> Sequence[Leaf]:

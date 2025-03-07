@@ -5,3 +5,4 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from .llm_configs import *
+from .config import *

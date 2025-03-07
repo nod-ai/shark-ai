@@ -17,7 +17,6 @@ import torch
 from torch.utils._pytree import tree_map
 from typing import Optional
 from unittest import TestCase
-import transformers
 from transformers import CLIPTextModel as HfCLIPTextModel, CLIPTokenizer
 from transformers.models.clip.modeling_clip import (
     CLIPAttention as HfCLIPAttention,
@@ -37,7 +36,6 @@ from sharktank.utils.iree import (
 from sharktank.types import (
     DefaultPrimitiveTensor,
     dtype_to_serialized_short_name,
-    Dataset,
 )
 from sharktank.transforms.dataset import set_float_dtype
 from sharktank.utils.hf_datasets import get_dataset
@@ -53,13 +51,10 @@ from sharktank.models.clip.export import (
     hugging_face_clip_attention_to_theta,
     hugging_face_clip_encoder_layer_to_theta,
     hugging_face_clip_encoder_to_theta,
-    hugging_face_clip_text_model_to_dataset,
     hugging_face_clip_text_model_to_theta,
 )
 from sharktank.models.clip.testing import (
-    make_random_input_token_sequences,
-    make_clip_text_model_random_theta,
-    export_clip_text_model_iree_test_data,
+    clip_text_model_from_reference_model,
     clip_toy_text_model_config,
 )
 from sharktank.models.clip import (
@@ -69,6 +64,7 @@ from sharktank.models.clip import (
     ClipTextModel,
 )
 from sharktank.layers.configs.llm_configs import ClipTextConfig
+from sharktank.layers import ExportFunctionConfig
 from sharktank import ops
 
 with_clip_data = pytest.mark.skipif("not config.getoption('with_clip_data')")
@@ -165,23 +161,31 @@ class ClipTextIreeTest(TempDirTestBase):
         input_args = OrderedDict([("input_ids", input_ids)])
         batch_size = input_ids.shape[0]
         mlir_path = f"{target_model_path_prefix}.mlir"
-
-        logger.info("Exporting clip text model to MLIR...")
-        export_clip_text_model_iree_test_data(
+        iree_module_path = f"{target_model_path_prefix}.vmfb"
+        export_functions = [
+            ExportFunctionConfig(function=None, batch_sizes=[batch_size])
+        ]
+        target_model = clip_text_model_from_reference_model(
             reference_model=reference_model,
             target_dtype=target_dtype,
-            input_ids=input_ids,
-            target_mlir_output_path=mlir_path,
-            target_iree_parameters_output_path=parameters_path,
+            extra_config_kwargs={
+                "config_path": None,
+                "export_functions": export_functions,
+                "mlir_path": mlir_path,
+                "export_parameters_path": parameters_path,
+                "iree_module_path": iree_module_path,
+                "compile_args": [
+                    "--iree-hal-target-device=hip",
+                    "--iree-hip-target=gfx942",
+                ],
+            },
         )
 
-        iree_module_path = f"{target_model_path_prefix}.vmfb"
+        logger.info("Exporting clip text model to MLIR...")
+        target_model.export()
+
         logger.info("Compiling MLIR file...")
-        iree.compiler.compile_file(
-            mlir_path,
-            output_file=iree_module_path,
-            extra_args=["--iree-hal-target-device=hip", "--iree-hip-target=gfx942"],
-        )
+        target_model.compile()
 
         logger.info("Invoking reference torch function...")
         reference_result_dict = call_torch_module_function(
@@ -234,11 +238,10 @@ class ClipTextIreeTest(TempDirTestBase):
         atol: float,
         file_artifact_prefix_name: str,
     ):
-        input_ids = make_random_input_token_sequences(
-            batch_size=batch_size, config=reference_config
-        )
-        reference_theta = make_clip_text_model_random_theta(reference_config)
-        reference_model = ClipTextModel(theta=reference_theta, config=reference_config)
+        reference_model = ClipTextModel(config=reference_config)
+        input_ids = reference_model.sample_inputs(batch_size=batch_size,)[
+            1
+        ]["input_ids"]
         self.runTestCompareIreeAgainstTorchEagerWithInputTokens(
             reference_model=reference_model,
             target_dtype=target_dtype,
@@ -280,13 +283,11 @@ class ClipTextIreeTest(TempDirTestBase):
         hf_model: HfCLIPTextModel = HfCLIPTextModel.from_pretrained(
             huggingface_repo_id, torch_dtype=reference_dtype
         )
-        reference_dataset = hugging_face_clip_text_model_to_dataset(hf_model)
+        reference_theta = hugging_face_clip_text_model_to_theta(hf_model)
         config = ClipTextConfig.from_hugging_face_clip_text_model_config(
             hf_model.config
         )
-        reference_model = ClipTextModel(
-            theta=reference_dataset.root_theta, config=config
-        )
+        reference_model = ClipTextModel(theta=reference_theta, config=config)
 
         tokenizer: CLIPTokenizer = CLIPTokenizer.from_pretrained(huggingface_repo_id)
         input_ids = tokenizer(
@@ -331,12 +332,11 @@ class ClipTextEagerTest(TestCase):
         )
 
         theta = hugging_face_clip_text_model_to_theta(reference_model)
-        theta.rename_tensors_to_paths()
         theta = theta.transform(functools.partial(set_float_dtype, dtype=target_dtype))
         config = ClipTextConfig.from_hugging_face_clip_text_model_config(
             reference_model.config
         )
-        model = ClipTextModel(theta, config)
+        model = ClipTextModel(theta=theta, config=config)
 
         tokenizer: CLIPTokenizer = CLIPTokenizer.from_pretrained(
             huggingface_repo_id,
@@ -407,12 +407,11 @@ class ClipTextEagerTest(TestCase):
         reference_model.eval()
 
         theta = hugging_face_clip_text_model_to_theta(reference_model)
-        theta.rename_tensors_to_paths()
         theta = theta.transform(functools.partial(set_float_dtype, dtype=target_dtype))
         config = ClipTextConfig.from_hugging_face_clip_text_model_config(
             reference_config
         )
-        model = ClipTextModel(theta, config)
+        model = ClipTextModel(theta=theta, config=config)
 
         input_ids = torch.randint(
             low=0, high=vocab_size, size=[batch_size, config.max_position_embeddings]
