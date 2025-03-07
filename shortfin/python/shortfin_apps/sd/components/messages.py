@@ -10,6 +10,8 @@ from typing import (
     Union,
 )
 
+from PIL.Image import Image
+
 import logging
 
 import shortfin as sf
@@ -90,7 +92,7 @@ class SDXLInferenceExecRequest(InferenceExecRequest):
         # Decode phase.
         self.image_array = image_array
 
-        self.result_image: Union[str, None] = None
+        self.response_image: Union[Image, None] = None
 
         self.done = sf.VoidFuture()
 
