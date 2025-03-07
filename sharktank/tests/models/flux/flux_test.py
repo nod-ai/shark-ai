@@ -243,7 +243,7 @@ class FluxTest(TempDirTestBase):
         )
 
     @pytest.mark.skip(
-        reason="Segmentation fault during output comparison. See https://github.com/nod-ai/shark-ai/actions/runs/13704870816/job/38327614337?pr=1003"
+        reason="Segmentation fault during output comparison. See https://github.com/nod-ai/shark-ai/issues/1050"
     )
     @with_flux_data
     def testCompareDevIreeBf16AgainstHuggingFaceF32(self):
