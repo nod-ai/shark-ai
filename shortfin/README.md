@@ -190,8 +190,8 @@ RX 7900 XTX | 6.3 | N/A
 Pro W7900 | 6.9 | N/A
 
 Fp8 brings noticeable performance benefits compared to int8 in the SDXL model.
-With int8 data types, supported both on RDNA3 and RDNA4, the RX 9070 XT card about 61%
-faster than RX 7900 XTX while RX 9070 is 64% faster than Pro W7900!
+With int8 data types, supported both on RDNA3 and RDNA4, the RX 9070 XT card about 38%
+faster than RX 7900 XTX while RX 9070 is 39% faster than Pro W7900!
 
 #### UNet isolated benchmarks (fp8 and fp16)
 
@@ -203,10 +203,10 @@ GPU Name | fp16 time [ms] | fp8 time [ms]
 -- | -- | --
 RX 9070 XT | 217 | 140
 RX 9070 | 263 | 151
-RX 7900 XTX | 292 |  N/A
-Pro W7900 | 318 |  N/A
+RX 7900 XTX | 292 | N/A
+Pro W7900 | 318 | N/A
 
-On RDNA4, UNet compiled with fp8 data types is about 50-75% faster than fp16. Despite having fewer
+On RDNA4, UNet compiled with fp8 data types is about 35-42% faster than fp16. Despite having fewer
 Compute Units than 7900-series RDNA3 cards, 9070 and 9070 XT are noticeably faster with fp16, and
 almost twice as fast with fp8.
 
