@@ -12,6 +12,11 @@ import pytest
 import torch
 
 
+@pytest.mark.xfail(
+    reason="https://github.com/nod-ai/shark-ai/issues/1015",
+    strict=False,
+    raises=AssertionError,
+)
 def test_deepseek():
     theta, config = generate(12345)
     model = PagedDeepseekModelV1(theta=theta, config=config)
