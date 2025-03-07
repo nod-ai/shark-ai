@@ -6,12 +6,13 @@
 
 import asyncio
 import logging
-import json
 
 from typing import (
     TypeVar,
     Union,
 )
+
+from fastapi.responses import JSONResponse
 
 from shortfin_apps.types.Base64CharacterEncodedByteSequence import (
     Base64CharacterEncodedByteSequence,
@@ -144,8 +145,13 @@ class ClientGenerateBatchProcess(sf.Process):
                 each_png_image = png_from(each_process.output.image)
                 png_images.append(each_png_image)
 
-            response_body = {"images": png_images}
-            response_body_in_json = json.dumps(response_body)
-            self.responder.send_response(response_body_in_json)
+            self.responder.send_response(
+                JSONResponse(
+                    content={
+                        "images": png_images,
+                    },
+                    media_type="application/json",
+                )
+            )
         finally:
             self.responder.ensure_response()
