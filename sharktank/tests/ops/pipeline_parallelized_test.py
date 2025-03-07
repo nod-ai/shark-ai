@@ -12,6 +12,7 @@ import torch
 from sharktank.ops.sharded_impls import transfer_if_needed
 from sharktank import ops
 from sharktank.types import *
+from sharktank.utils import iterables_equal
 
 
 class TransferIfNeededTest(unittest.TestCase):
@@ -110,13 +111,10 @@ class TransferIfNeededTest(unittest.TestCase):
             )
             for _ in range(tensor_count)
         ]
-
         ts_post = transfer_if_needed(*ts_pre)
 
         for t_pre, t_post in zip(ts_pre, ts_post):
-            assert all(
-                d_pre == d_post for d_pre, d_post in zip(t_pre.devices, t_post.devices)
-            )
+            assert iterables_equal(t_pre.devices, t_post.devices)
             assert t_pre.pinned == t_post.pinned
 
     def testMultiTensorsNoPinnedMultiDevice(self):
@@ -149,7 +147,7 @@ class TransferIfNeededTest(unittest.TestCase):
         shards = [
             torch.rand(shard_shape, dtype=torch.float32) for _ in range(shard_count)
         ]
-        t_pre = [
+        ts_pre = [
             SplitPrimitiveTensor(
                 shard_dim=1,
                 ts=shards,
@@ -158,13 +156,11 @@ class TransferIfNeededTest(unittest.TestCase):
             )
             for i in range(tensor_count)
         ]
-        t_post = transfer_if_needed(*t_pre)
+        ts_post = transfer_if_needed(*ts_pre)
 
-        for i in range(tensor_count):
-            assert all(
-                d_pre == d_post
-                for d_pre, d_post in zip(t_pre[0].devices, t_post[i].devices)
-            )
+        for t_post in ts_post:
+            assert iterables_equal(ts_pre[0].devices, t_post.devices)
+            t_post.pinned == True
 
     def testMultiTensorsMultiPinnedNoConflict(self):
         tensor_count = 5
@@ -173,7 +169,7 @@ class TransferIfNeededTest(unittest.TestCase):
         shards = [
             torch.rand(shard_shape, dtype=torch.float32) for _ in range(shard_count)
         ]
-        t_pre = [
+        ts_pre = [
             SplitPrimitiveTensor(
                 shard_dim=1,
                 ts=shards,
@@ -184,13 +180,11 @@ class TransferIfNeededTest(unittest.TestCase):
             )
             for i in range(tensor_count)
         ]
-        t_post = transfer_if_needed(*t_pre)
+        ts_post = transfer_if_needed(*ts_pre)
 
-        for i in range(tensor_count):
-            assert all(
-                d_pre == d_post
-                for d_pre, d_post in zip(t_pre[0].devices, t_post[i].devices)
-            )
+        for t_post in ts_post:
+            assert iterables_equal(ts_pre[0].devices, t_post.devices)
+            t_post.pinned == True
 
     def testMultiTensorsMultiPinnedWithConflict(self):
         tensor_count = 5
@@ -285,10 +279,7 @@ class CatTest(unittest.TestCase):
         )
         actual_result = ops.cat([sharded_a, sharded_b], dim=cat_dim)
         assert ops.equal(expected_result, actual_result)
-        assert all(
-            d_e == d_a
-            for d_e, d_a in zip(expected_result.devices, actual_result.devices)
-        )
+        assert iterables_equal(expected_result.devices, actual_result.devices)
         assert expected_result.pinned == actual_result.pinned
 
     def testCatNonSplitDimPinned(self):
@@ -317,10 +308,7 @@ class CatTest(unittest.TestCase):
         )
         actual_result = ops.cat([sharded_a, sharded_b], dim=cat_dim)
         assert ops.equal(expected_result, actual_result)
-        assert all(
-            d_e == d_a
-            for d_e, d_a in zip(expected_result.devices, actual_result.devices)
-        )
+        assert iterables_equal(expected_result.devices, actual_result.devices)
         assert expected_result.pinned == actual_result.pinned
 
 
@@ -337,7 +325,7 @@ class IndexSelectTest(unittest.TestCase):
         expected_results = [torch.index_select(shard, 0, indices) for shard in shards]
 
         actual_result = ops.index_select(base, 0, indices_t)
-        assert all(d_e == d_a for d_e, d_a in zip(devices, actual_result.devices))
+        assert iterables_equal(devices, actual_result.devices)
         # assert actual_result.pinned  # TODO: Should these be pinned?
         for expected_shard, actual_shards in zip(
             expected_results, actual_result.shards
@@ -388,10 +376,7 @@ class ShardLikeTest(unittest.TestCase):
         actual_result = ops.reshard_like(tensor, expected_result)
         assert expected_result.is_deep_equal(actual_result)
         assert actual_result.pinned == expected_result.pinned
-        assert all(
-            d_act == d_exp
-            for d_act, d_exp in zip(actual_result.devices, expected_result.devices)
-        )
+        assert iterables_equal(actual_result.devices, expected_result.devices)
 
     def testReshardLikeUnshardedToSharded(self):
         tensor = torch.rand(4, 5, 6, dtype=torch.float32)
@@ -404,10 +389,7 @@ class ShardLikeTest(unittest.TestCase):
         actual_result = ops.reshard_like(tensor, expected_result)
         assert expected_result.is_deep_equal(actual_result)
         assert actual_result.pinned == expected_result.pinned
-        assert all(
-            d_act == d_exp
-            for d_act, d_exp in zip(actual_result.devices, expected_result.devices)
-        )
+        assert iterables_equal(actual_result.devices, expected_result.devices)
 
     def testReshardLikeShardedToShared(self):
         tensor = torch.rand(5, 6, dtype=torch.float32)
@@ -423,10 +405,7 @@ class ShardLikeTest(unittest.TestCase):
         actual_result = ops.reshard_like(expected_result, target)
         assert expected_result.is_deep_equal(actual_result)
         assert actual_result.pinned == target.pinned
-        assert all(
-            d_act == d_targ
-            for d_act, d_targ in zip(actual_result.devices, target.devices)
-        )
+        assert iterables_equal(actual_result.devices, target.devices)
 
     def testReshardLikeReplicatedToReplicated(self):
         tensor = torch.rand(4, 5, 6, dtype=torch.float32)
@@ -441,10 +420,7 @@ class ShardLikeTest(unittest.TestCase):
         actual_result = ops.reshard_like(input_tensor, target)
         assert input_tensor.is_deep_equal(actual_result)
         assert actual_result.pinned == target.pinned
-        assert all(
-            d_act == d_targ
-            for d_act, d_targ in zip(actual_result.devices, target.devices)
-        )
+        assert iterables_equal(actual_result.devices, target.devices)
 
     def testReshardLikeReplicatedToSharded(self):
         tensor = torch.rand(4, 5, 6, dtype=torch.float32)
@@ -460,10 +436,7 @@ class ShardLikeTest(unittest.TestCase):
         actual_result = ops.reshard_like(replicated_tensor, expected_result)
         assert expected_result.is_deep_equal(actual_result)
         assert actual_result.pinned == expected_result.pinned
-        assert all(
-            d_act == d_exp
-            for d_act, d_exp in zip(actual_result.devices, expected_result.devices)
-        )
+        assert iterables_equal(actual_result.devices, expected_result.devices)
 
 
 class TransposeTest(unittest.TestCase):
@@ -479,8 +452,8 @@ class TransposeTest(unittest.TestCase):
         )
 
         post = pre.T
-        assert all(d_pre == d_post for d_pre, d_post in zip(pre.devices, post.devices))
-        # TODO: post gets pinned since resulting ShardedTensor is made with torch.Tensor shards which are assumed to always be pinned
+        assert iterables_equal(pre.devices, post.devices)
+        # NOTE: Can't compare .pinned. post gets pinned since resulting ShardedTensor is made with torch.Tensor shards which are assumed to always be pinned.
         # assert post.pinned == pre.pinned
 
     def testPinnedTranspose(self):
@@ -493,5 +466,5 @@ class TransposeTest(unittest.TestCase):
         pre = SplitPrimitiveTensor(shard_dim=1, ts=shards, devices=devices, pinned=True)
 
         post = pre.T
-        assert all(d_pre == d_post for d_pre, d_post in zip(pre.devices, post.devices))
+        assert iterables_equal(pre.devices, post.devices)
         assert post.pinned == pre.pinned
