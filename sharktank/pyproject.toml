@@ -41,9 +41,10 @@ testing = {file = ["requirements-tests.txt"]}
 addopts = [
     "-ra",
     "--import-mode=importlib",
-    "-m=unit",
+    "-m=unit and not expensive",
 ]
 markers = [
+    "benchmark: model benchmarks",
     "expensive: tests that are very expensive",
     "export: tests that require export from torch",
     "golden: tests that compare to some golden values",

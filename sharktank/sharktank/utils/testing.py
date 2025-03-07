@@ -7,6 +7,7 @@
 from typing import Optional
 import contextlib
 from pathlib import Path
+import pytest
 from os import PathLike
 import os
 import shutil
@@ -20,6 +21,8 @@ import gc
 
 from ..types import *
 from .math import cosine_similarity
+
+is_mi300x = pytest.mark.skipif("config.getoption('iree_hip_target') != 'gfx942'")
 
 # Range of torch.rand() is [0,1)
 # Range of torch.rand() * 2 - 1 is [-1, 1), includes negative values
