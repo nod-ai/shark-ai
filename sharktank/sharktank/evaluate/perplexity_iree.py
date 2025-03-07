@@ -36,13 +36,8 @@ from sharktank.utils.create_cache import *
 from sharktank.utils.export_artifacts import *
 from sharktank.utils.iree import iree_to_torch
 
-log_levels = {
-    "info": logging.INFO,
-    "debug": logging.DEBUG,
-}
-logger = logging.getLogger("eval")
 
-logger.setLevel(log_levels["info"])
+logger = logging.getLogger("eval")
 
 logger.root.handlers[0].setFormatter(
     logging.Formatter(fmt="\n%(levelname)s:%(name)-8s %(message)s")
@@ -205,25 +200,29 @@ class Perplexity:
         self.haldevice = self.runner.config.device
 
     @timeit
-    def get_prompts(self, num_prompts):
-        test_prompts = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")[
-            "text"
-        ]
-        num_test_prompts = 300
+    def get_prompts(self, num_prompts, prompt_list):
+        
+        if prompt_list:
+            self.test_prompts = prompt_list
+        else:
+            test_prompts = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")[
+                "text"
+            ]
+            num_test_prompts = 300
 
-        random.seed(0)
-        test_prompts = random.sample(test_prompts, num_test_prompts)
+            random.seed(0)
+            test_prompts = random.sample(test_prompts, num_test_prompts)
 
-        # Ignore prompts that are: empty, less than 20 tokens or a title.
-        test_prompts = [
-            s.replace("\n", "").rstrip()
-            for s in test_prompts
-            if s != "" and len(s.split()) >= 20 and s.count("=") < 2
-        ][0:num_prompts]
+            # Ignore prompts that are: less than 20 tokens or a title or an incomplete sentence
+            test_prompts = [
+                s.replace("\n", "").rstrip()
+                for s in test_prompts
+                if sum(word.isalpha() for word in s.split()) > 20 and s.count("=") < 2 and s.split()[-1] == '.'
+            ]
 
-        self.test_prompts = test_prompts
+            self.test_prompts = test_prompts[0:num_prompts]
 
-        self.bs = len(test_prompts)
+        self.bs = len(self.test_prompts)
 
         logger.info(f" Batch size: {self.bs}")
 
@@ -287,9 +286,9 @@ class Perplexity:
     def get_logits(self, page_cache_size):
 
         is_first_token = True
-        start = 0
+        self.start = 5
         for i in tqdm(
-            range(start, self.max_prompt_length - 1),
+            range(self.start, self.max_prompt_length - 1),
             mininterval=300,
             desc="eval: Calculating logits",
         ):
@@ -414,9 +413,9 @@ class Perplexity:
 
         self.get_logits(page_cache_size=self.page_cache_size)
 
-        self.out_logits = self.out_logits[..., :-1, :].contiguous()
-        self.token_ids = self.token_ids[..., 1:].contiguous()
-        self.attention_mask = self.attention_mask[..., 1:].contiguous()
+        self.out_logits = self.out_logits[..., :-(self.start+1), :].contiguous()
+        self.token_ids = self.token_ids[..., self.start+1:].contiguous()
+        self.attention_mask = self.attention_mask[..., self.start+1:].contiguous()
 
         logger.debug(f"Final Logits shape: {self.out_logits.shape}")
         logger.debug(f"Token ids: {self.token_ids}, \n{self.token_ids.shape}")
@@ -439,7 +438,6 @@ def run_perplexity(
     iree_hal_target_device,
     tensor_parallelism_size,
     attention_kernel,
-    num_prompts,
     block_seq_stride,
     use_attention_mask,
     activation_dtype,
@@ -449,6 +447,8 @@ def run_perplexity(
     mlir_path,
     json_path,
     vmfb_path,
+    prompt_list,
+    num_prompts,
 ):
     start = time.time()
     perplexity = Perplexity(
@@ -466,7 +466,7 @@ def run_perplexity(
         use_hf=use_hf,
     )
 
-    perplexity.get_prompts(num_prompts=num_prompts)
+    perplexity.get_prompts(num_prompts=num_prompts, prompt_list=prompt_list)
 
     perplexity.compile_model(weight_path_str, mlir_path, json_path, vmfb_path)
     perplexity.load_model(weight_path, tokenizer)
@@ -501,8 +501,14 @@ def main(argv):
     parser.add_argument(
         "--num-prompts",
         type=int,
-        default=100,
-        help="Number of prompts for perplexity test (1 to 100)",
+        default=128,
+        help="Number of prompts for perplexity test (1 to 128)",
+    )
+    parser.add_argument(
+        "--prompt-list",
+        nargs='+',
+        type=str,
+        help="Custom prompts to run perplexity",
     )
     parser.add_argument(
         "--use-attention-mask",
@@ -524,6 +530,14 @@ def main(argv):
         type=str,
         help="Path to compiled vmfb file",
     )
+    parser.add_argument(
+        "--debug",
+        help="Print debugging statements",
+        action="store_const", 
+        dest="loglevel", 
+        const=logging.DEBUG,
+        default=logging.INFO,
+    )
 
     cli.add_model_options(parser)
     cli.add_input_dataset_options(parser)
@@ -531,9 +545,14 @@ def main(argv):
 
     args = cli.parse(parser, args=argv)
 
-    torch_device = torch.device(args.device) if args.device else None
     weight_path = cli.get_input_dataset(args)
     tokenizer = cli.get_tokenizer(args)
+
+    logger.setLevel(args.loglevel)
+    
+    torch_device = torch.device(args.device) if args.device else None
+
+    assert args.num_prompts or args.prompt_list, "Pass --num-prompts or --prompt-list"
 
     if args.mlir_path or args.json_path:
         assert (
@@ -558,6 +577,7 @@ def main(argv):
         tensor_parallelism_size=tensor_parallelism_size,
         attention_kernel=args.attention_kernel,
         num_prompts=args.num_prompts,
+        prompt_list=args.prompt_list,
         block_seq_stride=args.block_seq_stride,
         use_attention_mask=args.use_attention_mask,
         attention_dtype=args.attention_dtype,
@@ -571,7 +591,6 @@ def main(argv):
 
     logger.info(f"\n{json.dumps(ppl, indent=2)}")
     return ppl
-
 
 if __name__ == "__main__":
     main(sys.argv[1:])

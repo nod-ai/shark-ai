@@ -77,10 +77,10 @@ python -m sharktank.evaluate.perplexity_iree  -h
 
 | CPU            | GPU        | Num of prompts   |
 |:-------------: |:----------:|:----------------:|
-| AMD EPYC 9554  | MI300X     |      100         |
+| AMD EPYC 9554  | MI300X     |      128         |
 
 #### LLaMA 3.1
 
 |Models                          |Torch score   |IREE score    | Model size (GB) |
 |:-------------------------------|:-------------|:-------------|:----------------|
-|8B FP16 Instruct TP1            |20.303255     |19.786807     |16.07            |
+|8B FP16 Instruct TP1            |20.3032       |15.4286       |16.07            |
