@@ -31,13 +31,7 @@ from ..models.llama.sharding import shard_theta
 from sharktank.utils import cli
 from sharktank.utils.load_llm import *
 
-log_levels = {
-    "info": logging.INFO,
-    "debug": logging.DEBUG,
-}
 logger = logging.getLogger("eval")
-
-logger.setLevel(log_levels["info"])
 
 logger.root.handlers[0].setFormatter(
     logging.Formatter(fmt="\n%(levelname)s:%(name)-8s %(message)s")
@@ -171,9 +165,10 @@ class Perplexity_torch:
     def get_logits(self, page_cache_size):
 
         is_first_token = True
-        start = 0
+        self.start = self.min_prompt_length//2-1
+        self.out_logits = []
         for i in tqdm(
-            range(start, self.max_prompt_length - 1),
+            range(self.start, self.max_prompt_length - 1),
             mininterval=300,
             desc="eval: Calculating logits",
         ):
@@ -276,6 +271,7 @@ class Perplexity_torch:
             )
 
         self.max_prompt_length = max(seq_lens)
+        self.min_prompt_length = min(seq_lens)
 
         self.token_ids = torch.tensor(token_ids, device=self.device)
         self.attention_mask = (
@@ -284,9 +280,9 @@ class Perplexity_torch:
 
         self.get_logits(page_cache_size=self.page_cache_size)
 
-        self.out_logits = self.out_logits[..., :-1, :].contiguous()
-        self.token_ids = self.token_ids[..., 1:].contiguous()
-        self.attention_mask = self.attention_mask[..., 1:].contiguous()
+        self.out_logits = self.out_logits[..., :-(self.start+1), :].contiguous()
+        self.token_ids = self.token_ids[..., self.start+1:].contiguous()
+        self.attention_mask = self.attention_mask[..., self.start+1:].contiguous()
 
         logger.debug(f"Final Logits shape: {self.out_logits.shape}")
         logger.debug(f"Token ids: {self.token_ids}, \n{self.token_ids.shape}")
@@ -300,31 +296,25 @@ class Perplexity_torch:
 
 
 def run_perplexity_torch(
+    args,
     dataset,
     tokenizer,
     device,
     tensor_parallelism_size,
-    attention_kernel,
-    num_prompts,
-    activation_dtype,
-    attention_dtype,
-    kv_cache_dtype,
-    use_hf,
-    fake_quant,
 ):
     start = time.time()
 
     perplexity = Perplexity_torch(
         device=device,
-        activation_dtype=activation_dtype,
-        attention_dtype=attention_dtype,
-        kv_cache_dtype=kv_cache_dtype,
-        fake_quant=fake_quant,
-        use_hf=use_hf,
+        activation_dtype=args.activation_dtype,
+        attention_dtype=args.attention_dtype,
+        kv_cache_dtype=args.kv_cache_dtype,
+        fake_quant=args.fake_quant,
+        use_hf=args.use_hf,
     )
 
-    perplexity.get_prompts(num_prompts=num_prompts)
-    perplexity.load_model(dataset, tokenizer, tensor_parallelism_size, attention_kernel)
+    perplexity.get_prompts(num_prompts=args.num_prompts)
+    perplexity.load_model(dataset, tokenizer, tensor_parallelism_size, args.attention_kernel)
     ppl = perplexity.get_perplexity()
 
     end = time.time()
@@ -341,23 +331,22 @@ def run_perplexity_torch(
 def main(argv):
     parser = cli.create_parser()
 
-    parser.add_argument(
-        "--num-prompts",
-        type=int,
-        default=100,
-        help="Number of prompts for perplexity test",
-    )
-
+    cli.add_evaluate_options(parser)
     cli.add_model_options(parser)
     cli.add_input_dataset_options(parser)
     cli.add_tokenizer_options(parser)
     cli.add_quantization_options(parser)
+    cli.add_log_options(parser)
 
     args = cli.parse(parser, args=argv)
+    
+    logger.setLevel(args.loglevel)
 
     device = torch.device(args.device) if args.device else None
     dataset = cli.get_input_dataset(args)
     tokenizer = cli.get_tokenizer(args)
+        
+    assert args.num_prompts or args.prompt_list, "Pass --num-prompts or --prompt-list"
 
     # Override flag if dataset disagrees
     tensor_parallelism_size = (
@@ -367,18 +356,15 @@ def main(argv):
     )
 
     ppl = run_perplexity_torch(
+        args,
         dataset=dataset,
         tokenizer=tokenizer,
         device=device,
         tensor_parallelism_size=tensor_parallelism_size,
-        attention_kernel=args.attention_kernel,
-        num_prompts=args.num_prompts,
-        attention_dtype=args.attention_dtype,
-        activation_dtype=args.activation_dtype,
-        kv_cache_dtype=args.kv_cache_dtype,
-        use_hf=args.use_hf,
-        fake_quant=args.fake_quant,
     )
+    
+        # TODO:
+    # Add skip_decode
 
     logger.info(f"\n{json.dumps(ppl, indent=2)}")
     return ppl

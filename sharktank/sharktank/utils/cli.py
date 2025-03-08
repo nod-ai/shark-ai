@@ -127,9 +127,51 @@ def add_model_options(parser: argparse.ArgumentParser):
         type=int,
         default=512,
     )
+    parser.add_argument(
+        "--use-attention-mask",
+        help="Generates attention mask during export",
+        action="store_true",
+    )
 
+def add_iree_flags(parser: argparse.ArgumentParser):
+    """Adds IREE device flag options"""
+    
+    parser.add_argument("--iree-device", help="List an IREE device (e.g., 'hip://0')")
+    parser.add_argument(
+        "--iree-hip-target",
+        action="store",
+        default="gfx942",
+        help="Specify the iree-hip target version (e.g., gfx942)",
+    )
+    parser.add_argument(
+        "--iree-hal-target-device",
+        action="store",
+        default="hip",
+        help="Specify the iree-hal target device (e.g., hip, cpu)",
+    )
+
+def add_export_artifacts(parser:argparse.ArgumentParser):
+    """Adds export & compile artifacts path options"""
+    
+    parser.add_argument(
+        "--mlir-path",
+        type=str,
+        help="Path to exported mlir file",
+    )
+    parser.add_argument(
+        "--json-path",
+        type=str,
+        help="Path to exported config json file",
+    )
+    parser.add_argument(
+        "--vmfb-path",
+        type=str,
+        help="Path to compiled vmfb file",
+    )
 
 def add_quantization_options(parser: argparse.ArgumentParser):
+    """Adds quantization options"""
+    
     parser.add_argument(
         "--fake-quant",
         action=argparse.BooleanOptionalAction,
@@ -150,6 +192,34 @@ def add_tokenizer_options(parser: argparse.ArgumentParser):
         "--tokenizer-config-json",
         help="Direct path to a tokenizer_config.json file",
         type=Path,
+    )
+    
+def add_log_options(parser: argparse.ArgumentParser):
+    """Adds log options"""
+    
+    parser.add_argument(
+        "--debug",
+        help="Print debugging statements",
+        action="store_const", 
+        dest="loglevel", 
+        const=logging.DEBUG,
+        default=logging.INFO,
+    )
+    
+def add_evaluate_options(parser: argparse.ArgumentParser):
+    """Adds input text options for evaluate/perplexity"""
+    
+    parser.add_argument(
+        "--num-prompts",
+        type=int,
+        default=128,
+        help="Number of prompts for perplexity test (1 to 128)",
+    )
+    parser.add_argument(
+        "--prompt-list",
+        nargs='+',
+        type=str,
+        help="Custom prompts to run perplexity",
     )
 
 

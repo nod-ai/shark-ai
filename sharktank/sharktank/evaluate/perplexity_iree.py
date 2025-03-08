@@ -36,14 +36,13 @@ from sharktank.utils.create_cache import *
 from sharktank.utils.export_artifacts import *
 from sharktank.utils.iree import iree_to_torch
 
-
 logger = logging.getLogger("eval")
 
 logger.root.handlers[0].setFormatter(
     logging.Formatter(fmt="\n%(levelname)s:%(name)-8s %(message)s")
 )
 
-__all__ = ["Perplexity", "run_perplexity"]
+__all__ = ["Perplexity", "run_perplexity_iree"]
 
 
 class Perplexity:
@@ -69,6 +68,7 @@ class Perplexity:
         attention_dtype,
         kv_cache_dtype,
         use_hf,
+        skip_decode,
     ):
         self.torch_device = torch_device
         self.iree_device = iree_device
@@ -82,6 +82,7 @@ class Perplexity:
         self.attention_kernel = attention_kernel
         self.use_attention_mask = use_attention_mask
         self.use_hf = use_hf
+        self.skip_decode = skip_decode
         self.halelementtype_map = {
             torch.float8_e4m3fnuz: ireert.HalElementType.FLOAT_8_E4M3_FNUZ,
             torch.bfloat16: ireert.HalElementType.BFLOAT_16,
@@ -286,7 +287,9 @@ class Perplexity:
     def get_logits(self, page_cache_size):
 
         is_first_token = True
-        self.start = 5
+        self.start = self.min_prompt_length//2-1
+        self.out_logits = []
+        print('start', self.start)
         for i in tqdm(
             range(self.start, self.max_prompt_length - 1),
             mininterval=300,
@@ -345,16 +348,21 @@ class Perplexity:
                     )
 
                 prefill_logits = self.prefill_vmfb(token_batch, i)
-                self.out_logits = prefill_logits[:, -1:, :]
+                
+                self.out_logits.append(prefill_logits[:, -1:, :])
 
-                is_first_token = False
+                if not self.skip_decode:
+                    is_first_token = False                    
 
             else:
                 token_batch = self.token_ids[:, i : i + 1]
 
                 decode_logits = self.decode_vmfb(token_batch, i)
-                self.out_logits = torch.cat((self.out_logits, decode_logits), 1)
-
+                self.out_logits.append(decode_logits)
+                
+        self.out_logits = torch.cat(self.out_logits, 1)
+        print('self.out_logits', self.out_logits.shape)
+                
         pad_logits_shape = self.token_ids.shape[1] - self.out_logits.shape[1]
 
         self.pad_logits = torch.zeros(
@@ -405,7 +413,8 @@ class Perplexity:
             )
 
         self.max_prompt_length = max(seq_lens)
-
+        self.min_prompt_length = min(seq_lens)
+        
         self.token_ids = torch.tensor(token_ids, device=self.torch_device)
         self.attention_mask = (
             (self.token_ids != 0).int().detach().clone().to(self.torch_device)
@@ -428,47 +437,37 @@ class Perplexity:
         return self.compute_perplexity()
 
 
-def run_perplexity(
+def run_perplexity_iree(
+    args,
     weight_path,
-    weight_path_str,
     tokenizer,
     torch_device,
-    iree_device,
-    iree_hip_target,
-    iree_hal_target_device,
     tensor_parallelism_size,
-    attention_kernel,
-    block_seq_stride,
-    use_attention_mask,
-    activation_dtype,
-    attention_dtype,
-    kv_cache_dtype,
-    use_hf,
-    mlir_path,
-    json_path,
-    vmfb_path,
-    prompt_list,
-    num_prompts,
 ):
     start = time.time()
     perplexity = Perplexity(
         torch_device=torch_device,
-        iree_device=iree_device,
-        iree_hip_target=iree_hip_target,
-        iree_hal_target_device=iree_hal_target_device,
+        iree_device=args.iree_device,
+        iree_hip_target=args.iree_hip_target,
+        iree_hal_target_device=args.iree_hal_target_device,
         tensor_parallelism_size=tensor_parallelism_size,
-        attention_kernel=attention_kernel,
-        block_seq_stride=block_seq_stride,
-        use_attention_mask=use_attention_mask,
-        activation_dtype=activation_dtype,
-        attention_dtype=attention_dtype,
-        kv_cache_dtype=kv_cache_dtype,
-        use_hf=use_hf,
+        attention_kernel=args.attention_kernel,
+        block_seq_stride=args.block_seq_stride,
+        use_attention_mask=args.use_attention_mask,
+        activation_dtype=args.activation_dtype,
+        attention_dtype=args.attention_dtype,
+        kv_cache_dtype=args.kv_cache_dtype,
+        use_hf=args.use_hf,
+        skip_decode=args.skip_decode,
     )
 
-    perplexity.get_prompts(num_prompts=num_prompts, prompt_list=prompt_list)
+    perplexity.get_prompts(num_prompts=args.num_prompts, prompt_list=args.prompt_list)
 
-    perplexity.compile_model(weight_path_str, mlir_path, json_path, vmfb_path)
+    perplexity.compile_model(weight_path_str=str(args.irpa_file), 
+                             mlir_path = args.mlir_path, 
+                             json_path = args.json_path, 
+                             vmfb_path = args.vmfb_path
+                             )
     perplexity.load_model(weight_path, tokenizer)
     ppl = perplexity.get_perplexity()
 
@@ -485,70 +484,22 @@ def run_perplexity(
 
 def main(argv):
     parser = cli.create_parser()
-    parser.add_argument("--iree-device", help="List an IREE device (e.g., 'hip://0')")
-    parser.add_argument(
-        "--iree-hip-target",
-        action="store",
-        default="gfx942",
-        help="Specify the iree-hip target version (e.g., gfx942)",
-    )
-    parser.add_argument(
-        "--iree-hal-target-device",
-        action="store",
-        default="hip",
-        help="Specify the iree-hal target device (e.g., hip, cpu)",
-    )
-    parser.add_argument(
-        "--num-prompts",
-        type=int,
-        default=128,
-        help="Number of prompts for perplexity test (1 to 128)",
-    )
-    parser.add_argument(
-        "--prompt-list",
-        nargs='+',
-        type=str,
-        help="Custom prompts to run perplexity",
-    )
-    parser.add_argument(
-        "--use-attention-mask",
-        help="Generates attention mask during export",
-        action="store_true",
-    )
-    parser.add_argument(
-        "--mlir-path",
-        type=str,
-        help="Path to exported mlir file",
-    )
-    parser.add_argument(
-        "--json-path",
-        type=str,
-        help="Path to exported config json file",
-    )
-    parser.add_argument(
-        "--vmfb-path",
-        type=str,
-        help="Path to compiled vmfb file",
-    )
-    parser.add_argument(
-        "--debug",
-        help="Print debugging statements",
-        action="store_const", 
-        dest="loglevel", 
-        const=logging.DEBUG,
-        default=logging.INFO,
-    )
 
+    cli.add_evaluate_options(parser)
+    cli.add_export_artifacts(parser)
+    cli.add_iree_flags(parser)
     cli.add_model_options(parser)
     cli.add_input_dataset_options(parser)
     cli.add_tokenizer_options(parser)
+    cli.add_log_options(parser)
 
     args = cli.parse(parser, args=argv)
+    
+    logger.setLevel(args.loglevel)
 
     weight_path = cli.get_input_dataset(args)
     tokenizer = cli.get_tokenizer(args)
 
-    logger.setLevel(args.loglevel)
     
     torch_device = torch.device(args.device) if args.device else None
 
@@ -566,28 +517,16 @@ def main(argv):
         else args.tensor_parallelism_size
     )
 
-    ppl = run_perplexity(
+    ppl = run_perplexity_iree(
+        args,
         weight_path=weight_path,
-        weight_path_str=str(args.irpa_file),
         tokenizer=tokenizer,
         torch_device=torch_device,
-        iree_device=args.iree_device,
-        iree_hip_target=args.iree_hip_target,
-        iree_hal_target_device=args.iree_hal_target_device,
         tensor_parallelism_size=tensor_parallelism_size,
-        attention_kernel=args.attention_kernel,
-        num_prompts=args.num_prompts,
-        prompt_list=args.prompt_list,
-        block_seq_stride=args.block_seq_stride,
-        use_attention_mask=args.use_attention_mask,
-        attention_dtype=args.attention_dtype,
-        activation_dtype=args.activation_dtype,
-        kv_cache_dtype=args.kv_cache_dtype,
-        use_hf=args.use_hf,
-        mlir_path=args.mlir_path,
-        json_path=args.json_path,
-        vmfb_path=args.vmfb_path,
     )
+
+    # TODO:
+    # Add skip_decode
 
     logger.info(f"\n{json.dumps(ppl, indent=2)}")
     return ppl
