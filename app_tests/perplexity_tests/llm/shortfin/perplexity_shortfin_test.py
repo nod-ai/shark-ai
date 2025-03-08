@@ -167,13 +167,12 @@ def generate_request(prompt: str | list[int], port: int, input_ids=False) -> str
             generate_url,
             headers={"Content-Type": "application/json"},
             json=payload,
-            # timeout=30,  # Add reasonable timeout
+            timeout=30,  # Add reasonable timeout
         )
         response.raise_for_status()
 
         # TODO: Parse response for logits
         logits = response.text
-        print(logits)
     except requests.exceptions.RequestException as e:
         print(f"An error occurred: {e}")
 
@@ -188,18 +187,10 @@ def test_prefill_logits_from_server(model_artifacts, server):
     - improper seq_len / current_position handling in service.py
     - improper masking in sharktank
     """
-    # Create and run the test process
-    # test_process = GenerateItemProcess(
-    #     server,
-    #     input_tokens=[1, 2, 3, 4],
-    #     # batch_sizes=[1, 2, 3, 4],
-    #     batch_sizes=[1],
-    #     max_response_length=3,
-    # )
     process, port = server
     print("PORT:", port)
     gen_req = generate_request(prompt="1, 2, 3, 4, 5", port=port)
-    gen_req.post_init()
-    responder = FastAPIResponder(request)
+    # gen_req.post_init()
+    # responder = FastAPIResponder(request)
     client_process = generate.ClientGenerateBatchProcess(server, gen_req, responder)
     client_process.launch()
