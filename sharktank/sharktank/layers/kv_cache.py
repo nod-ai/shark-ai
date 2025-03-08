@@ -194,7 +194,7 @@ class PagedKVCache:
         page_stride = self.transformer_block_count
 
         transformer_block_index = torch.full(
-            (bs, block_seq_len), transformer_block_index
+            (bs, block_seq_len), transformer_block_index, device=page_ids.device
         )
         subblock_ids = page_ids * page_stride + transformer_block_index
         selected = ops.index_select(subblock_table, 0, subblock_ids.flatten(0, 1))
@@ -239,7 +239,7 @@ class PagedKVCache:
             # [1, 1]
             if isinstance(seq_positions, ReplicatedTensor):
                 partitions = [
-                    torch.tensor(idx).unsqueeze(0)
+                    torch.tensor(idx, device=device).unsqueeze(0)
                     for _ in range(seq_positions.shard_count)
                 ]
 
@@ -251,7 +251,7 @@ class PagedKVCache:
                 partitions = ReplicatedTensor(ts=partitions)
                 transformer_block = ReplicatedTensor(ts=transformer_block)
             else:
-                partitions = torch.tensor(idx).unsqueeze(0)
+                partitions = torch.tensor(idx, device=device).unsqueeze(0)
                 transformer_block = torch.full(
                     (bs, 1), transformer_block_index, device=device
                 )

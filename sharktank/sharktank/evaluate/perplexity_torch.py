@@ -172,6 +172,7 @@ class Perplexity_torch:
 
         is_first_token = True
         start = 0
+        self.out_logits = []
         for i in tqdm(
             range(start, self.max_prompt_length - 1),
             mininterval=300,
@@ -205,7 +206,8 @@ class Perplexity_torch:
                 )
 
                 self.batch.prefill()
-                self.out_logits = self.batch.prefill_logits[:, 0:1, :]
+                self.out_logits.append(self.batch.prefill_logits[:, 0:1, :])
+
                 is_first_token = False
 
                 self.print_token_comparison(i)
@@ -220,20 +222,31 @@ class Perplexity_torch:
                 logger.debug(f"{token_batch.tolist()}")
 
                 self.batch.decode(token_batch=token_batch)
-                self.out_logits = torch.cat(
-                    (self.out_logits, self.batch.decode_logits), 1
-                )
+                self.out_logits.append(self.batch.decode_logits)
 
                 self.print_token_comparison(i)
+
+        self.out_logits = torch.cat(self.out_logits, 1)
 
         pad_logits_shape = self.token_ids.shape[1] - self.out_logits.shape[1]
 
         self.pad_logits = torch.zeros(
-            self.out_logits.shape[0], pad_logits_shape, self.out_logits.shape[2]
+            self.out_logits.shape[0],
+            pad_logits_shape,
+            self.out_logits.shape[2],
+            device=self.device,
         )
 
-        self.out_logits = torch.cat((self.out_logits, self.pad_logits), 1).to(
-            self.device
+        self.out_logits = torch.cat((self.out_logits, self.pad_logits), 1)
+
+        print(
+            "nans",
+            torch.isnan(self.out_logits).sum().item(),
+            "total: ",
+            self.out_logits.nelement(),
+            torch.isnan(self.out_logits).sum().item()
+            / self.out_logits.nelement()
+            * 100,
         )
 
     @timeit
@@ -241,11 +254,23 @@ class Perplexity_torch:
         loss_fct = CrossEntropyLoss(reduction="none")
 
         ## perplexity = e ^ (sum(losses) / num_tokenized_tokens)
+        print(
+            "devices",
+            self.out_logits.device,
+            self.token_ids.device,
+            self.attention_mask.device,
+        )
+
         crossentropy_loss = (
             loss_fct(self.out_logits.transpose(1, 2), self.token_ids)
             * self.attention_mask
         ).sum(1)
-        crossentropy_loss = torch.tensor(crossentropy_loss.tolist())
+        print(
+            "compute_perplexity",
+            loss_fct(self.out_logits.transpose(1, 2), self.token_ids),
+            crossentropy_loss,
+        )
+        crossentropy_loss = torch.tensor(crossentropy_loss.tolist(), device=self.device)
         perplexity_batch = torch.exp(
             crossentropy_loss / self.attention_mask.sum(1)
         ).tolist()

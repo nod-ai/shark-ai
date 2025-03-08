@@ -177,10 +177,10 @@ def get_input_dataset(args) -> Dataset:
     """
     data_files = get_input_data_files(args)
     if "gguf" in data_files:
-        return Dataset.load(data_files["gguf"][0], file_type="gguf")
+        return Dataset.load(data_files["gguf"][0], file_type="gguf", device=args.device)
 
     if "irpa" in data_files:
-        return Dataset.load(data_files["irpa"][0], file_type="irpa")
+        return Dataset.load(data_files["irpa"][0], file_type="irpa", device=args.device)
 
     raise ValueError(f'Dataset format unsupported. Must be "gguf" or "irpa".')
 
