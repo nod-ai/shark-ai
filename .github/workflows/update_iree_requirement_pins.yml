@@ -95,7 +95,7 @@ jobs:
           ${{ env.CURRENT_IREE_TURBINE_VERSION }} != ${{ env.LATEST_IREE_TURBINE_VERSION }}
           ${{ env.CURRENT_SHORTFIN_IREE_GIT_TAG }} != ${{ env.LATEST_SHORTFIN_IREE_GIT_TAG }}
         id: cpr
-        uses: peter-evans/create-pull-request@dd2324fc52d5d43c699a5636bcf19fceaa70c284 # v7.0.7
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
         with:
           token: ${{ steps.generate-token.outputs.token || secrets.GITHUB_TOKEN }}
           base: main
