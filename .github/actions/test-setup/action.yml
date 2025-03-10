@@ -33,12 +33,6 @@ runs:
         path: ${{ inputs.venv-dir }}
         key: venv-${{ runner.os }}-${{ hashFiles('**/requirements.txt') }}
 
-    - name: Cache pip packages
-      uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
-      with:
-        path: ~/.cache/pip  # Cache pip's package directory
-        key: pip-${{ runner.os }}-${{ hashFiles('**/requirements.txt') }}
-
     - name: Install Dependencies
       shell: bash
       run: |
