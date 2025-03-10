@@ -800,6 +800,7 @@ class ShardedTensor(InferenceTensor):
             return UnreducedTensor(**kwargs)
         elif isinstance(self, SplitPrimitiveTensor):
             return SplitPrimitiveTensor(**kwargs)
+        raise ValueError(f"Unexpected class provided: {self.__class__}")
 
     @property
     def pinned(self) -> bool:
