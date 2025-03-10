@@ -790,7 +790,16 @@ class ShardedTensor(InferenceTensor):
                         orig_external_trait.external_name,
                     ).set(after_dpt._data)
             kwargs["ts"] = new_shards
-        return self.__class__(**kwargs)
+        # NOTE: Needed with torch 2.4 remains supported.
+        #       `self.__class__(**kwargs)` will fail when calling aot.export.export()
+        #       with `strict=False`.
+        #       Works in torch >2.5 but not 2.4
+        if isinstance(self, ReplicatedTensor):
+            return ReplicatedTensor(**kwargs)
+        elif isinstance(self, UnreducedTensor):
+            return UnreducedTensor(**kwargs)
+        elif isinstance(self, SplitPrimitiveTensor):
+            return SplitPrimitiveTensor(**kwargs)
 
     @property
     def pinned(self) -> bool:
