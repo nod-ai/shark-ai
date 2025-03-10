@@ -130,11 +130,15 @@ class PagedLlamaModelV1(BaseCausalLMModel):
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: Union[torch.Tensor, ReplicatedTensor],
         cache_state: list[Union[torch.Tensor, SplitPrimitiveTensor]],
+        # [bs] of starting positions for selective cache update
+        start_positions: Optional[Union[torch.Tensor, ReplicatedTensor]] = None,
     ):
         self._assert_device(tokens)
         self._assert_device(attention_mask, dtype=self.activation_dtype)
         self._assert_device(seq_block_ids)
         self._assert_device(*cache_state, dtype=self.activation_dtype)
+        if start_positions is not None:
+            self._assert_device(start_positions)
 
         h = self.token_embedding(tokens)
         self.trace_tensor("llama.token_embedding", h)
@@ -143,14 +147,28 @@ class PagedLlamaModelV1(BaseCausalLMModel):
         for block_idx, block in enumerate(self.attn_blocks):
             if block_idx == 0:
                 self.trace_tensor(f"llama.attn_block.{block_idx}.input", h)
-            h = block(
-                h,
-                embedding=self.attention_embedding,
-                start_index=0,
-                attention_mask=attention_mask,
-                cache_state=cache_state,
-                seq_block_ids=seq_block_ids,
-            )
+
+            # If we have start_positions, we're extending an existing cache
+            if start_positions is not None:
+                # In extend mode, pass start_positions to the blocks
+                h = block(
+                    h,
+                    embedding=self.attention_embedding,
+                    start_positions=start_positions,
+                    attention_mask=attention_mask,
+                    cache_state=cache_state,
+                    seq_block_ids=seq_block_ids,
+                )
+            else:
+                # Standard prefill
+                h = block(
+                    h,
+                    embedding=self.attention_embedding,
+                    start_index=0,
+                    attention_mask=attention_mask,
+                    cache_state=cache_state,
+                    seq_block_ids=seq_block_ids,
+                )
             self.trace_tensor(f"llama.attn_block.{block_idx}.output", h)
 
         h = self.output_norm(h)
