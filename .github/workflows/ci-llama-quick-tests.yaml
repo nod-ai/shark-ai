@@ -23,12 +23,13 @@ concurrency:
 
 jobs:
   test_llama_quick:
+    if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
+    runs-on: ${{ github.repository_owner == 'nod-ai' && 'linux-mi300-1gpu-ossci' ||  'ubuntu-24.04'  }}
     name: "Llama Benchmarking 8B Tests"
     strategy:
       matrix:
         version: [3.11]
       fail-fast: false
-    runs-on: linux-mi300-1gpu-ossci
     defaults:
       run:
         shell: bash
