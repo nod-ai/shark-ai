@@ -47,21 +47,6 @@ def hugging_face_clip_text_model_to_dataset(
     return Dataset(properties, theta)
 
 
-def clip_text_model_to_dataset(model: ClipTextModel) -> Dataset:
-    return Dataset(properties=model.config.to_properties(), root_theta=model.theta)
-
-
-def export_clip_text_model_iree_parameters(
-    model: ClipTextModel, output_path: PathLike, dtype: torch.dtype = None
-):
-    dataset = clip_text_model_to_dataset(model)
-    if dtype:
-        dataset.root_theta = dataset.root_theta.transform(
-            functools.partial(set_float_dtype, dtype=dtype)
-        )
-    dataset.save(output_path)
-
-
 def export_clip_text_model_dataset_from_hugging_face(
     model_or_name_or_path: Union[PathLike, transformers.CLIPTextModel],
     output_path: PathLike,

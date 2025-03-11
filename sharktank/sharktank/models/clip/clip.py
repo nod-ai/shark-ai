@@ -13,7 +13,6 @@ from typing import Any, Optional, Tuple, Union
 import torch
 from torch import nn
 import transformers
-from os import PathLike
 
 # TODO: port _prepare_4d_attention_mask and _create_4d_causal_attention_mask to sharktank
 from transformers.modeling_attn_mask_utils import (
@@ -24,8 +23,8 @@ from collections import OrderedDict
 
 from ...layers import ThetaLayer, LinearLayer, LayerNorm, TokenEmbeddingLayer
 from ... import ops
-from ...types.theta import Theta, Dataset
-from ...types.tensors import AnyTensor, DefaultPrimitiveTensor
+from ...types.theta import Theta
+from ...types.tensors import AnyTensor
 from ...layers.configs import ClipTextConfig
 from ...layers.activations import ACT2FN
 
@@ -541,15 +540,15 @@ class ClipTextModel(ThetaLayer):
             return_dict=return_dict,
         )
 
-    @classmethod
     def load_theta_from_hugging_face(self) -> Theta:
         hugging_face_repo_id = self.config.hugging_face_repo_id
         if hugging_face_repo_id is not None:
             import transformers
 
             revision = self.config.hugging_face_revision or "main"
+            subfolder = self.config.hugging_face_subfolder or ""
             hf_model = transformers.CLIPTextModel.from_pretrained(
-                hugging_face_repo_id, revision=revision
+                hugging_face_repo_id, revision=revision, subfolder=subfolder
             )
             from .export import hugging_face_clip_text_model_to_theta
 

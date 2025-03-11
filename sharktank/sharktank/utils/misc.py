@@ -24,7 +24,7 @@ def iterables_equal(
     iterable1: Iterable,
     iterable2: Iterable,
     *,
-    elements_equal: Callable[[Any, Any], bool] | None = None
+    elements_equal: Callable[[Any, Any], bool] | None = None,
 ) -> bool:
     elements_equal = elements_equal or eq
     return all(
@@ -51,3 +51,15 @@ class chdir(AbstractContextManager):
 
     def __exit__(self, *excinfo):
         os.chdir(self._old_cwd.pop())
+
+
+def parse_version(v: str, /) -> tuple[int, ...]:
+    """Parse a version string into a tuple of ints.
+    E.g.
+    "1.2.3" -> (1, 2, 3)
+    "3.4" -> (3, 4, 0)
+    """
+    res = [int(num_str) for num_str in v.split(".")]
+    if len(res) < 3:
+        res += [0] * (3 - len(res))
+    return tuple(res)

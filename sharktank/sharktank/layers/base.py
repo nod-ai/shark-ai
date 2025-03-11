@@ -54,6 +54,7 @@ def create_model(config: PathLike | ModelConfig | Mapping[str, Any], /) -> "Base
     config.json:
     ```
     {
+        "config_version": "0.1.0",
         "model_type": "MyModel",
         "mlir_path": "model.mlir",
         "export_parameters_path": "model.irpa",

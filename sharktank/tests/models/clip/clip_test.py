@@ -7,10 +7,9 @@
 from collections import OrderedDict
 import functools
 import iree.compiler
-import os
+import json
 from pathlib import Path
 from parameterized import parameterized
-from copy import copy
 import logging
 import pytest
 import torch
@@ -24,8 +23,8 @@ from transformers.models.clip.modeling_clip import (
     CLIPEncoder as HfCLIPEncoder,
 )
 
+import iree.runtime
 from sharktank.utils.iree import (
-    get_iree_devices,
     load_iree_module,
     run_iree_module_function,
     prepare_iree_module_function_args,
@@ -47,7 +46,6 @@ from sharktank.utils.testing import (
     test_prompts,
 )
 from sharktank.models.clip.export import (
-    export_clip_text_model_dataset_from_hugging_face,
     hugging_face_clip_attention_to_theta,
     hugging_face_clip_encoder_layer_to_theta,
     hugging_face_clip_encoder_to_theta,
@@ -64,7 +62,12 @@ from sharktank.models.clip import (
     ClipTextModel,
 )
 from sharktank.layers.configs.llm_configs import ClipTextConfig
-from sharktank.layers import ExportFunctionConfig
+from sharktank.layers import (
+    ExportFunctionConfig,
+    ModelConfig,
+    get_model_type_id,
+    create_model,
+)
 from sharktank import ops
 
 with_clip_data = pytest.mark.skipif("not config.getoption('with_clip_data')")
@@ -72,7 +75,7 @@ with_clip_data = pytest.mark.skipif("not config.getoption('with_clip_data')")
 logger = logging.getLogger(__name__)
 
 
-@pytest.mark.usefixtures("path_prefix")
+@pytest.mark.usefixtures("path_prefix", "get_iree_flags")
 class ClipTextIreeTest(TempDirTestBase):
     def setUp(self):
         super().setUp()
@@ -84,22 +87,22 @@ class ClipTextIreeTest(TempDirTestBase):
 
     @with_clip_data
     def testSmokeExportLargeF32FromHuggingFace(self):
-        huggingface_repo_id = "openai/clip-vit-large-patch14"
-        huggingface_repo_id_as_path = (
-            f"{huggingface_repo_id.replace('/', '__').replace('-', '_')}"
-        )
-        get_dataset(
-            huggingface_repo_id,
-        ).download()
-        target_dtype_name = dtype_to_serialized_short_name(torch.float32)
-        target_model_path_prefix = (
-            self.path_prefix
-            / f"{huggingface_repo_id_as_path}_text_model_{target_dtype_name}"
-        )
-        output_path = f"{target_model_path_prefix}.irpa"
-        export_clip_text_model_dataset_from_hugging_face(
-            huggingface_repo_id, output_path
-        )
+        parameters_path = self.path_prefix / "model.irpa"
+        config_dict = {
+            "model_type": get_model_type_id(ClipTextModel),
+            "config_version": ModelConfig.current_config_version,
+            "clip_config_version": ClipTextConfig.current_clip_config_version,
+            "hugging_face_repo_id": "openai/clip-vit-large-patch14",
+            "export_parameters_path": str(parameters_path),
+        }
+        config_path = self.path_prefix / "config.json"
+        with open(str(config_path), "w") as f:
+            json.dump(config_dict, f)
+
+        model: ClipTextModel = create_model(config_path)
+        parameters_path.unlink(missing_ok=True)
+        model.export_parameters()
+        assert config_path.exists()
 
     def testSmokeExportToyIreeTestData(self):
         from sharktank.models.clip.export_toy_text_model_iree_test_data import main
@@ -175,8 +178,8 @@ class ClipTextIreeTest(TempDirTestBase):
                 "export_parameters_path": parameters_path,
                 "iree_module_path": iree_module_path,
                 "compile_args": [
-                    "--iree-hal-target-device=hip",
-                    "--iree-hip-target=gfx942",
+                    f"--iree-hal-target-device={self.iree_hal_target_device}",
+                    f"--iree-hip-target={self.iree_hip_target}",
                 ],
             },
         )
@@ -196,7 +199,7 @@ class ClipTextIreeTest(TempDirTestBase):
         )
         expected_outputs = flatten_for_iree_signature(reference_result_dict)
 
-        iree_devices = get_iree_devices(driver="hip", device_count=1)
+        iree_devices = [iree.runtime.get_device(self.iree_device)]
         logger.info("Loading IREE module...")
         iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
             module_path=iree_module_path,

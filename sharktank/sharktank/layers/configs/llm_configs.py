@@ -14,12 +14,13 @@ When in question, we draw from the vocabulary and normalization they have done
 (and indeed, can bootstrap these off of GGUF files).
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 from dataclasses import asdict, dataclass, field, fields
 from typing import Any, Optional
 import torch
 from transformers import T5Config as T5ConfigHf
 from .config import ModelConfig
+from ...utils import parse_version
 from os import PathLike
 
 from ...types.tensors import serialized_name_to_dtype, dtype_to_serialized_name
@@ -285,6 +286,7 @@ class T5Config:
 
 @dataclass(kw_only=True)
 class ClipTextConfig(ModelConfig):
+    current_clip_config_version: ClassVar[str] = "0.1.0"
     vocab_size: int = 49408
     hidden_size: int = 512
     intermediate_size: int = 2048
@@ -323,14 +325,14 @@ class ClipTextConfig(ModelConfig):
 
         return ClipTextConfig(
             model_type=get_model_type_id(ClipTextModel),
-            **ClipTextConfig.translate_hugging_face_config_properties_into_init_kwargs(
+            **ClipTextConfig.translate_hugging_face_config_dict_into_init_kwargs(
                 config.to_dict()
             ),
         )
 
     @classmethod
-    def translate_hugging_face_config_properties_into_init_kwargs(
-        cls, /, properties: dict[str, Any]
+    def translate_hugging_face_config_dict_into_init_kwargs(
+        cls, properties: dict[str, Any], /
     ) -> dict[str, Any]:
         architectures: list[str] = properties["architectures"]
         if architectures is not None and architectures.count("CLIPModel") < 1:
@@ -372,6 +374,7 @@ class ClipTextConfig(ModelConfig):
             del res["dtype"]
         if "dtype" in res:
             res["dtype"] = dtype_to_serialized_name(self.dtype)
+        res["clip_config_version"] = self.current_clip_config_version
         return res
 
     @classmethod
@@ -394,3 +397,21 @@ class ClipTextConfig(ModelConfig):
             "use_return_dict": "return_dict",
             "dtype": "torch_dtype",
         }
+
+    @classmethod
+    def parse_for_init_kwargs(cls, **config_dict) -> dict[str, Any]:
+        config_dict = super().parse_for_init_kwargs(**config_dict)
+        cls._check_clip_config_version(config_dict)
+        config_dict.pop("clip_config_version")
+        return config_dict
+
+    @classmethod
+    def _check_clip_config_version(cls, config_dict: dict[str, Any], /):
+        version = config_dict.get("clip_config_version")
+        if version is None:
+            raise ValueError("Missing CLIP config version.")
+        if parse_version(version) != parse_version(cls.current_clip_config_version):
+            raise ValueError(
+                f"Could not load config with a CLIP config version {version},"
+                f"expected version is {parse_version(cls.current_clip_config_version)}"
+            )
