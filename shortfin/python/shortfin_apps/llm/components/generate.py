@@ -58,7 +58,7 @@ class GenerateItemProcess(sf.Process):
             rid=self.gen_req.rid,
         )
         try:
-            self.client.batcher.submit(exec)
+            self.client.prefill_batcher.submit(exec)
             await exec.done
 
             # Prefill result.
@@ -72,7 +72,7 @@ class GenerateItemProcess(sf.Process):
                 exec.reset(InferencePhase.DECODE)
                 exec.input_token_ids.append(token_int)
                 exec.start_position += 1
-                self.client.batcher.submit(exec)
+                self.client.decode_batcher.submit(exec)
                 await exec.done
                 token = sfnp.argmax(exec.result_logits)
                 token_int = token.items[0]
@@ -99,9 +99,10 @@ class ClientGenerateBatchProcess(sf.Process):
     """
 
     __slots__ = [
-        "batcher",
         "complete_infeed",
+        "decode_batcher",
         "gen_req",
+        "prefill_batcher",
         "responder",
         "tokenizer",
     ]
@@ -116,7 +117,8 @@ class ClientGenerateBatchProcess(sf.Process):
         self.gen_req = gen_req
         self.responder = responder
         self.tokenizer = service.tokenizer
-        self.batcher = service.batcher
+        self.prefill_batcher = service.prefill_batcher
+        self.decode_batcher = service.decode_batcher
         self.complete_infeed = self.system.create_queue()
 
     async def run(self):
