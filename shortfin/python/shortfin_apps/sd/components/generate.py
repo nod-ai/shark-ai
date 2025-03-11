@@ -68,26 +68,6 @@ class GenerateImageProcess(sf.Process):
         )
 
 
-Item = TypeVar("Item")
-
-
-def from_batch(
-    given_subject: list[Item] | Item | None,
-    given_batch_index,
-) -> Item:
-    if given_subject is None:
-        raise Exception("Expected an item or batch of items but got `None`")
-
-    if not isinstance(given_subject, list):
-        return given_subject
-
-    # some args are broadcasted to each prompt, hence overriding index for single-item entries
-    if len(given_subject) == 1:
-        return given_subject[0]
-
-    return given_subject[given_batch_index]
-
-
 class ClientGenerateBatchProcess(sf.Process):
     """Process instantiated for handling a batch from a client.
 
