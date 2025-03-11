@@ -22,7 +22,8 @@ For Llama3.1 8B (FP16) model on a MI300 server:
 pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_torch_test.py -k test_llama3_8B_f16 \
   --llama3-8b-f16-model-path=llama3.1_8b_instruct_fp16.irpa \
   --llama3-8b-tokenizer-path=tokenizer_config.json \
-  --bs=4 \
+  --bs-prefill=4 \
+  --bs-decode=4 \
   --run-nightly-llama-tests
 ```
 
@@ -31,7 +32,8 @@ pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_torch_test.py -k test_llam
 pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_iree_test.py -k test_llama3_8B_f16 \
   --llama3-8b-f16-model-path=llama3.1_8b_instruct_fp16.irpa  \
   --llama3-8b-tokenizer-path=tokenizer_config.json \
-  --bs=4 \
+  --bs-prefill=4 \
+  --bs-decode=4 \
   --iree-device=hip://1 \
   --iree-hip-target=gfx942 \
   --iree-hal-target-device=hip

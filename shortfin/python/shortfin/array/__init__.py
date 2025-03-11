@@ -47,6 +47,7 @@ DType = _sfl.array.DType
 
 # Ops.
 argmax = _sfl.array.argmax
+argpartition = _sfl.array.argpartition
 add = _sfl.array.add
 ceil = _sfl.array.ceil
 convert = _sfl.array.convert
@@ -99,6 +100,7 @@ __all__ = [
     # Ops.
     "add",
     "argmax",
+    "argpartition",
     "ceil",
     "convert",
     "divide",
