@@ -136,6 +136,16 @@ def parse_args(argv):
         choices=["none", "trie"],
         help="Algorithm to use for prefix sharing in KV cache",
     )
+    parser.add_argument(
+        "--n_beams",
+        type=int,
+        default=1,
+        help="""The number of beams to use during the decode sequence.\n\n
+
+        If `n_beams == 1`, `greedy` decode strategy is used.\n
+        If `n_beams > 1`, `beam_search` decode strategy is used.\n
+        """,
+    )
     return parser.parse_args(argv)
 
 

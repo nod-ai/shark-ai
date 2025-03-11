@@ -5,9 +5,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import asyncio
+import copy
 import io
 import json
 import logging
+from typing import List
 
 import shortfin as sf
 import shortfin.array as sfnp
@@ -19,6 +21,14 @@ from .io_struct import GenerateReqInput
 from .messages import LlmInferenceExecRequest, InferencePhase
 from .service import LlmGenerateService
 from .tokenizer import Encoding
+
+from .decode_strategy import (
+    DecodeStrategy,
+    DecodeStrategyConfig,
+    BeamSearchDecodeStrategy,
+    BeamSearchDecodeStrategyConfig,
+    GreedyDecodeStrategy,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +49,8 @@ class GenerateItemProcess(sf.Process):
         input_token_ids: list[int],
         max_completion_tokens: int,
         eos_token_id: int,
+        n_beams: int,
+        temperature: int,
     ):
         super().__init__(fiber=client.fiber)
         self.client = client
@@ -48,6 +60,42 @@ class GenerateItemProcess(sf.Process):
         self.result_token_ids: list[int] = []
         self.max_completion_tokens = max_completion_tokens
         self.eos_token_id = eos_token_id
+        self.temperature = temperature
+        self.decode_strategy: DecodeStrategy = None
+
+        # See if an `n_beams` value, other than the server param was requested
+        requested_beams = (
+            gen_req.sampling_params.get("n_beams")
+            if isinstance(gen_req.sampling_params, dict)
+            else gen_req.sampling_params[index].get("n_beams")
+        )
+        if requested_beams is not None:
+            n_beams = requested_beams
+
+        self.n_beams = n_beams
+        if n_beams > 1:
+            logger.info(f"Using `beam_search` decode strategy with {n_beams} beams")
+            decode_strategy_config = BeamSearchDecodeStrategyConfig(
+                batcher_callback=self.client.batcher.submit,
+                streaming_callback=self.append_token,
+                eos_token_id=eos_token_id,
+                max_completion_tokens=max_completion_tokens,
+                n_beams=n_beams,
+                temperature=temperature,
+                return_top_k=gen_req.return_top_k,
+            )
+            self.decode_strategy = BeamSearchDecodeStrategy(decode_strategy_config)
+        else:
+            logger.info(f"Using `greedy` decode strategy")
+            decode_strategy_config = DecodeStrategyConfig(
+                batcher_callback=self.client.batcher.submit,
+                streaming_callback=self.append_token,
+                eos_token_id=eos_token_id,
+                max_completion_tokens=max_completion_tokens,
+            )
+            self.decode_strategy = GreedyDecodeStrategy(
+                decode_strategy_config,
+            )
 
         self.streamed_tokens_index = 0
 
@@ -68,22 +116,19 @@ class GenerateItemProcess(sf.Process):
             self.append_token(token_int)
             # Decode loop.
             exec.start_position = len(self.input_token_ids) - 1
-            for i in range(self.max_completion_tokens):
-                exec.reset(InferencePhase.DECODE)
-                exec.input_token_ids.append(token_int)
-                exec.start_position += 1
-                self.client.batcher.submit(exec)
-                await exec.done
-                token = sfnp.argmax(exec.result_logits)
-                token_int = token.items[0]
-                self.append_token(token_int)
-                if token_int == self.eos_token_id:
-                    break
+            exec.input_token_ids.append(token_int)
+            exec.output_token_ids.append(token_int)
+            await self.decode_strategy.decode(exec)
         finally:
+            logger.info(f"Freeing cache pages: {exec.rid}")
             exec.free_cache_pages()
 
-    def append_token(self, token: int):
-        self.result_token_ids.append(token)
+    def append_token(self, token: int | List[int]):
+        if isinstance(token, list):
+            self.result_token_ids = token
+        else:
+            self.result_token_ids.append(token)
+
         self.client.stream_results(self)
 
 
@@ -104,6 +149,7 @@ class ClientGenerateBatchProcess(sf.Process):
         "gen_req",
         "responder",
         "tokenizer",
+        "n_beams",
     ]
 
     def __init__(
@@ -118,6 +164,7 @@ class ClientGenerateBatchProcess(sf.Process):
         self.tokenizer = service.tokenizer
         self.batcher = service.batcher
         self.complete_infeed = self.system.create_queue()
+        self.n_beams = service.server_params.n_beams
 
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
@@ -141,6 +188,11 @@ class ClientGenerateBatchProcess(sf.Process):
                     if self.gen_req.is_single
                     else self.gen_req.sampling_params[index]["max_completion_tokens"]
                 )
+                temperature = (
+                    self.gen_req.sampling_params["temperature"]
+                    if self.gen_req.is_single
+                    else self.gen_req.sampling_params[index]["temperature"]
+                )
                 gen_process = GenerateItemProcess(
                     self,
                     self.gen_req,
@@ -148,6 +200,8 @@ class ClientGenerateBatchProcess(sf.Process):
                     input_tokens if is_pretokenized else input_tokens.ids,
                     max_completion_tokens=max_completion_tokens,
                     eos_token_id=self.tokenizer.eos_token_id,
+                    n_beams=self.n_beams,
+                    temperature=temperature,
                 )
                 gen_processes.append(gen_process)
                 gen_process.launch()
@@ -167,12 +221,24 @@ class ClientGenerateBatchProcess(sf.Process):
                         result_tokens = result_tokens[0]
                     out.write(bytes(json.dumps(result_tokens), "utf-8"))
                 else:
-                    result_texts = self.tokenizer.decode(result_tokens)
-                    for result_text in result_texts:
-                        out.write(b"data: ")
-                        out.write(result_text.encode())
-                        out.write(b"\n\n")
+                    if self.gen_req.return_top_k:
+                        logger.info("Returning `topk` results.")
+                        for batch in result_tokens:
+                            result_texts = self.tokenizer.decode(batch)
+                            for result_text in result_texts:
+                                out.write(b"data: ")
+                                out.write(result_text.encode())
+                                out.write(b"\n\n")
+                    else:
+                        logger.info("Returning result.")
+                        result_texts = self.tokenizer.decode(result_tokens)
+                        for result_text in result_texts:
+                            out.write(b"data: ")
+                            out.write(result_text.encode())
+                            out.write(b"\n\n")
                 self.responder.send_response(out.getvalue())
+        except Exception as e:
+            logger.exception(e)
         finally:
             self.responder.ensure_response()
 

@@ -4,6 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import copy
 from enum import Enum
 
 import shortfin as sf
@@ -12,6 +13,8 @@ import shortfin.array as sfnp
 from .kvcache.base_attention_cache import BasePagedAttentionCache, PageAllocation
 from .kvcache.page_pool import PageInfo
 from ...utils import InferenceExecRequest
+
+from uuid import uuid4
 
 
 class InferencePhase(Enum):
@@ -22,13 +25,23 @@ class InferencePhase(Enum):
 class LlmInferenceExecRequest(InferenceExecRequest):
     """Performs a prefill operation."""
 
-    def __init__(self, phase: InferencePhase, input_token_ids: list[int], rid=None):
+    def __init__(
+        self,
+        phase: InferencePhase,
+        input_token_ids: list[int],
+        rid=None,
+    ):
         super().__init__()
         self.phase = phase
         self.start_position: int = 0
         self.input_token_ids = input_token_ids
+        self.output_token_ids = []
         self.done = sf.VoidFuture()
         self.rid = rid
+        self.instance_id = str(uuid4())
+        self.beam_group_id: str | None = None
+        self.cumulative_log_prob: float = 0.0
+        self.accumulated_normalization: float = 0.0
 
         # Response control.
         # If True, return all sequence position logits. If False, return only
@@ -44,7 +57,7 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         self.result_logits: sfnp.device_array | None = None
 
         # Cache pages that have been locked for this request.
-        self._cache: BasePagedAttentionCache | None = None
+        self.cache: BasePagedAttentionCache | None = None
         self.allocation: PageAllocation | None = None
 
     def reset(self, phase: InferencePhase):
@@ -54,6 +67,23 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         self.return_all_logits = False
         self.return_host_array = True
         self.result_logits = None
+
+    def replicate_self(self) -> "LlmInferenceExecRequest":
+        new_exec_req = LlmInferenceExecRequest(
+            self.phase,
+            copy.deepcopy(self.input_token_ids),
+            self.rid,
+        )
+        new_exec_req.output_token_ids = copy.deepcopy(self.output_token_ids)
+        new_exec_req.accumulated_normalization = self.accumulated_normalization
+        new_exec_req.start_position = self.start_position
+        result_logits: sfnp.device_array = self.result_logits.for_transfer()
+        result_logits.copy_from(self.result_logits)
+        new_exec_req.result_logits = result_logits
+        new_exec_req.beam_group_id = self.beam_group_id
+        new_exec_req.cache = self.cache
+        new_exec_req.allocation = self.allocation.replicate_self()
+        return new_exec_req
 
     def cache_page_indices(self, max_len: int) -> list[int]:
         if not self.allocation:
@@ -91,4 +121,4 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         if self.return_host_array:
             flags.append("host")
         flags_str = ",".join(flags)
-        return f"LlmInferenceExecRequest[phase={phase_char},pos={self.start_position},rid={self.rid},flags={flags_str},input_token_ids={self.input_token_ids}]"
+        return f"LlmInferenceExecRequest[phase={phase_char},pos={self.start_position},rid={self.rid},instance_id={self.instance_id},flags={flags_str},input_token_ids={self.input_token_ids}]"
