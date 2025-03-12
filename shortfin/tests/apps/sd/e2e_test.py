@@ -50,7 +50,7 @@ def start_server(fibers_per_device=1, isolation="per_fiber"):
     ]
     with open("sdxl_config_i8.json", "wb") as f:
         r = requests.get(
-            "https://sharkpublic.blob.core.windows.net/sharkpublic/sdxl/11022024/configs/sdxl_config_i8.json",
+            "https://sharkpublic.blob.core.windows.net/sharkpublic/sdxl/03062025/configs/sdxl_config_i8.json",
             allow_redirects=True,
         )
         f.write(r.content)

@@ -144,10 +144,12 @@ def configure_service(args, sysman, model_config, flagfile, tuning_spec):
         prog_isolation=args.isolation,
         show_progress=args.show_progress,
         trace_execution=args.trace_execution,
+        splat=args.splat,
     )
-    for key, vmfblist in vmfbs.items():
-        for vmfb in vmfblist:
-            sm.load_inference_module(vmfb, component=key)
+    for key, vmfb_dict in vmfbs.items():
+        for bs in vmfb_dict.keys():
+            for vmfb in vmfb_dict[bs]:
+                sm.load_inference_module(vmfb, component=key, batch_size=bs)
     for key, datasets in params.items():
         sm.load_inference_parameters(*datasets, parameter_scope="model", component=key)
     services[sm.name] = sm
@@ -175,7 +177,7 @@ def get_configs(args):
     outs = subprocess.check_output(cfg_builder_args).decode()
     outs_paths = outs.splitlines()
     for i in outs_paths:
-        if "sdxl_config" in i and not args.model_config:
+        if "sdxl_config" in i and not os.path.exists(model_config):
             model_config = i
         elif "topology" in i and args.topology:
             topology_config = i
@@ -220,9 +222,18 @@ def get_configs(args):
 
 def get_modules(args, model_config, flagfile, td_spec):
     # TODO: Move this out of server entrypoint
-    vmfbs = {"clip": [], "unet": [], "vae": [], "scheduler": []}
-    params = {"clip": [], "unet": [], "vae": []}
-    model_flags = copy.deepcopy(vmfbs)
+    mod_params = ModelParams.load_json(model_config)
+
+    vmfbs = {}
+    params = {}
+    model_flags = {}
+    for submodel in mod_params.module_names.keys():
+        vmfbs[submodel] = {}
+        model_flags[submodel] = []
+        for bs in mod_params.batch_sizes[submodel]:
+            vmfbs[submodel][bs] = []
+        if submodel != "scheduler":
+            params[submodel] = []
     model_flags["all"] = args.compile_flags
 
     if flagfile:
@@ -231,16 +242,19 @@ def get_modules(args, model_config, flagfile, td_spec):
         flagged_model = "all"
         for elem in contents:
             match = [keyw in elem for keyw in model_flags.keys()]
-            if any(match):
+            if any(match) or "--" not in elem:
                 flagged_model = elem
-            else:
+            elif flagged_model in model_flags:
                 model_flags[flagged_model].extend([elem])
     if td_spec:
-        model_flags["unet"].extend(
-            [f"--iree-codegen-transform-dialect-library={td_spec}"]
-        )
-
+        for key in model_flags.keys():
+            if key in ["unet", "punet", "scheduled_unet"]:
+                model_flags[key].extend(
+                    [f"--iree-codegen-transform-dialect-library={td_spec}"]
+                )
     filenames = []
+    builder_env = os.environ.copy()
+    builder_env["IREE_BUILD_MP_CONTEXT"] = "fork"
     for modelname in vmfbs.keys():
         ireec_args = model_flags["all"] + model_flags[modelname]
         ireec_extra_args = " ".join(ireec_args)
@@ -255,25 +269,31 @@ def get_modules(args, model_config, flagfile, td_spec):
             f"--build-preference={args.build_preference}",
             f"--output-dir={args.artifacts_dir}",
             f"--model={modelname}",
+            f"--force-update={args.force_update}",
             f"--iree-hal-target-device={args.device}",
             f"--iree-hip-target={args.target}",
             f"--iree-compile-extra-args={ireec_extra_args}",
         ]
         logger.info(f"Preparing runtime artifacts for {modelname}...")
-        logger.debug(
+        logger.info(
             "COMMAND LINE EQUIVALENT: " + " ".join([str(argn) for argn in builder_args])
         )
-        output = subprocess.check_output(builder_args).decode()
+        output = subprocess.check_output(builder_args, env=builder_env).decode()
 
         output_paths = output.splitlines()
+        for path in output_paths:
+            if not any(x in path for x in [".mlir", ".vmfb", ".irpa"]):
+                output_paths.remove(path)
+            if "irpa" in path:
+                params[modelname].append(path)
+                output_paths.remove(path)
         filenames.extend(output_paths)
     for name in filenames:
         for key in vmfbs.keys():
-            if key in name.lower():
-                if any(x in name for x in [".irpa", ".safetensors", ".gguf"]):
-                    params[key].extend([name])
-                elif "vmfb" in name:
-                    vmfbs[key].extend([name])
+            for bs in vmfbs[key].keys():
+                if key in name.lower() and f"_bs{bs}_" in name.lower():
+                    if "vmfb" in name:
+                        vmfbs[key][bs].extend([name])
     return vmfbs, params
 
 
@@ -413,6 +433,11 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
         type=int,
         default=1,
         help="Use tunings for attention and matmul ops. 0 to disable.",
+    )
+    parser.add_argument(
+        "--force_update",
+        default=False,
+        help="Force update model artifacts starting from the specified build preference.",
     )
     args = parser.parse_args(argv)
     if not is_port_valid(args.port):
