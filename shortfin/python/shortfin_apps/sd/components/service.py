@@ -12,7 +12,6 @@ from tqdm.auto import tqdm
 from pathlib import Path
 from PIL import Image
 from collections import namedtuple
-import base64
 
 import shortfin as sf
 import shortfin.array as sfnp
@@ -20,7 +19,7 @@ import shortfin.array as sfnp
 from ...utils import GenerateService, BatcherProcess
 
 from .config_struct import ModelParams
-from .manager import SystemManager
+from .manager import SDXLSystemManager
 from .messages import SDXLInferenceExecRequest, InferencePhase
 from .tokenizer import Tokenizer
 from .metrics import measure, log_duration_str
@@ -35,7 +34,7 @@ class SDXLGenerateService(GenerateService):
         self,
         *,
         name: str,
-        sysman: SystemManager,
+        sysman: SDXLSystemManager,
         tokenizers: list[Tokenizer],
         model_params: ModelParams,
         fibers_per_device: int,
@@ -435,10 +434,8 @@ class InferenceExecutorProcess(sf.Process):
         # TODO: reimpl with sfnp
         permuted = np.transpose(self.exec_request.image_array, (0, 2, 3, 1))[0]
         cast_image = (permuted * 255).round().astype("uint8")
-        image_bytes = Image.fromarray(cast_image).tobytes()
-
-        image = base64.b64encode(image_bytes).decode("utf-8")
-        self.exec_request.result_image = image
+        processed_image = Image.fromarray(cast_image)
+        self.exec_request.response_image = processed_image
         return
 
 

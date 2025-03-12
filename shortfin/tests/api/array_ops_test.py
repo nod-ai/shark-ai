@@ -4,9 +4,10 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import array
 import math
+from typing import List
 import pytest
+import random
 
 import shortfin as sf
 import shortfin.array as sfnp
@@ -110,6 +111,189 @@ def test_argmax_dtypes(device, dtype):
     # some of these.
     src = sfnp.device_array(device, [4, 16, 128], dtype=dtype)
     sfnp.argmax(src)
+
+
+@pytest.mark.parametrize(
+    "k,axis",
+    [
+        # Min sort, default axis
+        [3, None],
+        # Min sort, axis=-1
+        [20, -1],
+        # Max sort, default axis
+        [-3, None],
+        # Max sort, axis=-1
+        [-20, -1],
+    ],
+)
+def test_argpartition(device, k, axis):
+    src = sfnp.device_array(device, [1, 1, 128], dtype=sfnp.float32)
+    data = [float(i) for i in range(math.prod([1, 1, 128]))]
+    randomized_data = data[:]
+    random.shuffle(randomized_data)
+    src.items = randomized_data
+
+    result = (
+        sfnp.argpartition(src, k) if axis is None else sfnp.argpartition(src, k, axis)
+    )
+
+    assert result.shape == src.shape
+
+    expected_values = data[:k] if k >= 0 else data[k:]
+
+    k_slice = slice(0, k) if k >= 0 else slice(k, None)
+
+    indices = result.view(0, 0, k_slice).items.tolist()
+    values = [randomized_data[index] for index in indices]
+    assert sorted(values) == sorted(expected_values)
+
+
+def test_argpartition_out_variant(device):
+    k, axis = -3, -1
+    src = sfnp.device_array(device, [1, 1, 128], dtype=sfnp.float32)
+    data = [float(i) for i in range(math.prod(src.shape))]
+
+    randomized_data = data[:]
+    random.shuffle(randomized_data)
+    src.items = randomized_data
+
+    output_array = sfnp.device_array(device, src.shape, dtype=sfnp.int64)
+    result_out = sfnp.argpartition(src, k, axis, out=output_array)
+    result_no_out = sfnp.argpartition(src, k, axis)
+
+    assert result_out.shape == src.shape
+    out_items = result_out.items.tolist()
+    no_out_items = result_no_out.items.tolist()
+    assert out_items == no_out_items
+
+
+def test_argpartition_axis0(device):
+    def _get_top_values_by_col_indices(
+        indices: List[int], data: List[List[int]], k: int
+    ) -> List[List[int]]:
+        """Obtain the top-k values from out matrix, using column indices.
+
+        For this test, we partition by column (axis == 0). This is just some
+        helper logic to obtain the values from the original matrix, given
+        then column indices.
+
+        Args:
+            indices (List[int]): Flattened indices from `sfnp.argpartition`
+            data (List[List[int]]): Matrix containing original values.
+            k (int): Specify top-k values to select.
+
+        Returns:
+            List[List[int]]: Top-k values for each column.
+        """
+        num_cols = len(data[0])
+
+        top_values_by_col = []
+
+        for c in range(num_cols):
+            # Collect the row indices for the first k entries in column c.
+            col_row_idxs = [indices[r * num_cols + c] for r in range(k)]
+
+            # Map those row indices into actual values in `data`.
+            col_values = [data[row_idx][c] for row_idx in col_row_idxs]
+
+            top_values_by_col.append(col_values)
+
+        return top_values_by_col
+
+    def _get_top_values_by_sorting(
+        data: List[List[float]], k: int
+    ) -> List[List[float]]:
+        """Get the top-k value for each col in the matrix, using sorting.
+
+        This is just to obtain a comparison for our `argpartition` testing.
+
+        Args:
+            data (List[List[int]]): Matrix of data.
+            k (int): Specify top-k values to select.
+
+        Returns:
+            List[List[float]]: Top-k values for each column.
+        """
+        num_rows = len(data)
+        num_cols = len(data[0])
+
+        top_values_by_col = []
+
+        for c in range(num_cols):
+            # Extract the entire column 'c' into a list
+            col = [data[r][c] for r in range(num_rows)]
+            # Sort the column in ascending order
+            col_sorted = sorted(col)
+            # The first k elements are the k smallest
+            col_k_smallest = col_sorted[:k]
+            top_values_by_col.append(col_k_smallest)
+
+        return top_values_by_col
+
+    k, axis = 2, 0
+    src = sfnp.device_array(device, [3, 4], dtype=sfnp.float32)
+    # data = [[float(i) for i in range(math.prod(src.shape))]]
+    data = [[i for i in range(src.shape[-1])] for _ in range(src.shape[0])]
+    for i in range(len(data)):
+        random.shuffle(data[i])
+
+    for i in range(src.shape[0]):
+        src.view(i).items = data[i]
+
+    result = sfnp.argpartition(src, k, axis)
+    assert result.shape == src.shape
+
+    expected_values = _get_top_values_by_sorting(data, k)
+    top_values = _get_top_values_by_col_indices(result.items.tolist(), data, k)
+    for result, expected in zip(top_values, expected_values):
+        assert sorted(result) == sorted(expected)
+
+
+def test_argpartition_error_cases(device):
+    # Invalid `input` dtype
+    with pytest.raises(
+        ValueError,
+    ):
+        src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.int64)
+        sfnp.argpartition(src, 0)
+
+    src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+    data = [float(i) for i in range(math.prod(src.shape))]
+    src.items = data
+
+    # Invalid `axis`
+    with pytest.raises(
+        ValueError,
+    ):
+        sfnp.argpartition(src, 1, 3)
+        sfnp.argpartition(src, 1, -4)
+
+    # Invalid `k`
+    with pytest.raises(
+        ValueError,
+    ):
+        sfnp.argpartition(src, 17)
+        sfnp.argpartition(src, -17)
+
+    # Invalid `out` dtype
+    with pytest.raises(
+        ValueError,
+    ):
+        out = sfnp.device_array(device, src.shape, dtype=sfnp.float32)
+        sfnp.argpartition(src, 2, -1, out)
+
+
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        sfnp.bfloat16,
+        sfnp.float16,
+        sfnp.float32,
+    ],
+)
+def test_argpartition_dtypes(device, dtype):
+    src = sfnp.device_array(device, [4, 16, 128], dtype=dtype)
+    sfnp.argpartition(src, 0)
 
 
 @pytest.mark.parametrize(

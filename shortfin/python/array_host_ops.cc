@@ -148,6 +148,33 @@ Returns:
   A device_array of dtype=int64, allocated on the host and not visible to the device.
 )";
 
+static const char DOCSTRING_ARGPARTITION[] =
+    R"(Partitions the array `input` along the specified `axis` so that certain
+    elements occupy the first or last positions depending on `k`.
+    Similar to `numpy.argpartition`:
+
+    - If `k` is positive, the first `k` positions along `axis` are the indices of the
+      `k` smallest values, while all larger values occupy positions to the right of `k`.
+    - If `k` is negative, it counts from the end. For example, `k = -3` means the last
+      3 positions along `axis` are the indices of the 3 largest values, while all smaller
+      values occupy positions to the left of that boundary.
+
+Implemented for dtypes: float16, float32.
+
+Args:
+  input: An input array.
+  k: The number of maximum values to partition.
+  axis: Axis along which to sort. Defaults to the last axis (note that the
+    numpy default is into the flattened array, which we do not support).
+  out: Array to write into. If specified, it must have an expected shape and
+    int64 dtype.
+  device_visible: Whether to make the result array visible to devices. Defaults to
+    False.
+
+Returns:
+  A device_array of dtype=int64, allocated on the host and not visible to the device.
+)";
+
 static const char DOCSTRING_CONVERT[] =
     R"(Does an elementwise conversion from one dtype to another.
 
@@ -794,6 +821,53 @@ void BindArrayHostOps(py::module_ &m) {
       py::arg("input"), py::arg("axis") = -1, py::arg("out") = py::none(),
       py::kw_only(), py::arg("keepdims") = false,
       py::arg("device_visible") = false, DOCSTRING_ARGMAX);
+
+  m.def(
+      "argpartition",
+      [](device_array &input, int k, int axis, std::optional<device_array> out,
+         bool device_visible) {
+        SHORTFIN_TRACE_SCOPE_NAMED("PyHostOp::argpartition");
+        if (axis < 0) axis += input.shape().size();
+        if (axis < 0 || axis >= input.shape().size()) {
+          throw std::invalid_argument(
+              fmt::format("Axis out of range: Must be [0, {}) but got {}",
+                          input.shape().size(), axis));
+        }
+        // Simulate numpy's negative `k` behavior for max argpartition
+        if (k < 0) k += input.shape()[axis];
+        if (k < 0 || k >= input.shape()[axis]) {
+          throw std::invalid_argument(
+              fmt::format("K out of range: Must be [-{}, {}) but got {}",
+                          input.shape()[axis], input.shape()[axis], k));
+        }
+        if (out && (out->dtype() != DType::int64())) {
+          throw std::invalid_argument("out array must have dtype=int64");
+        }
+        auto compute = [&]<typename EltTy>() {
+          auto input_t = input.map_xtensor<EltTy>();
+          auto result = xt::argpartition(*input_t, k, /*axis=*/axis);
+          if (!out) {
+            out.emplace(device_array::for_host(input.device(), result.shape(),
+                                               DType::int64(), device_visible));
+          }
+          auto out_t = out->map_xtensor_w<int64_t>();
+          *out_t = result;
+          return *out;
+        };
+
+        switch (input.dtype()) {
+          SF_UNARY_FUNCTION_CASE(float16, half_float::half);
+          SF_UNARY_FUNCTION_CASE(bfloat16, bfloat16_t);
+          SF_UNARY_FUNCTION_CASE(float32, float);
+          default:
+            throw std::invalid_argument(
+                fmt::format("Unsupported dtype({}) for operator argmax",
+                            input.dtype().name()));
+        }
+      },
+      py::arg("input"), py::arg("k"), py::arg("axis") = -1,
+      py::arg("out") = py::none(), py::arg("device_visible") = false,
+      DOCSTRING_ARGPARTITION);
 
   // Random number generation.
   py::class_<PyRandomGenerator>(m, "RandomGenerator")
