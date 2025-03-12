@@ -20,6 +20,7 @@ from sharktank.layers import causal_llm
 
 class KVCacheTest(unittest.TestCase):
     def setUp(self):
+        torch.set_default_dtype(torch.float32)
         self.block_count = 5
         self.seq_len = 16
         self.head_count = 32
