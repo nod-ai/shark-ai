@@ -74,6 +74,7 @@ class LlmBatcherProcess(BatcherProcess):
         if waiting_count < self.ideal_batch_size and self.strobes < 2:
             logger.info("Waiting a bit longer to fill flight")
             return
+
         self.strobes = 0
         cache = self.page_cache
 
@@ -161,15 +162,6 @@ class PrefillBatcherProcess(LlmBatcherProcess):
         request.allocation = allocation
 
         return request
-
-    async def board_flights(self):
-        await super().board_flights()
-
-        # For now, kill anything that is left.
-        for prefill_request in self.pending:
-            prefill_request.done.set_success()
-        self.pending.clear()
-
 
 class DecodeBatcherProcess(LlmBatcherProcess):
     """The batcher is a persistent process responsible for flighting incoming work

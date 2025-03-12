@@ -68,7 +68,7 @@ class GenerateItemProcess(sf.Process):
             self.append_token(token_int)
             # Decode loop.
             exec.start_position = len(self.input_token_ids) - 1
-            for i in range(self.max_completion_tokens):
+            for _ in range(self.max_completion_tokens):
                 exec.reset(InferencePhase.DECODE)
                 exec.input_token_ids.append(token_int)
                 exec.start_position += 1
