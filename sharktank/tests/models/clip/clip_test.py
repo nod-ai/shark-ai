@@ -25,6 +25,7 @@ from transformers.models.clip.modeling_clip import (
 
 import iree.runtime
 from sharktank.utils.iree import (
+    get_iree_devices,
     load_iree_module,
     run_iree_module_function,
     prepare_iree_module_function_args,
@@ -199,7 +200,7 @@ class ClipTextIreeTest(TempDirTestBase):
         )
         expected_outputs = flatten_for_iree_signature(reference_result_dict)
 
-        iree_devices = [iree.runtime.get_device(self.iree_device)]
+        iree_devices = get_iree_devices(device=self.iree_device)
         logger.info("Loading IREE module...")
         iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
             module_path=iree_module_path,
