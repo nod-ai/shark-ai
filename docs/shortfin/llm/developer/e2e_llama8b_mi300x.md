@@ -69,7 +69,8 @@ python -m sharktank.examples.export_paged_llm_v1 \
   --irpa-file=$MODEL_PARAMS_PATH \
   --output-mlir=$MLIR_PATH \
   --output-config=$OUTPUT_CONFIG_PATH \
-  --bs=$BS
+  --bs-prefill=$BS
+  --bs-decode=$BS
 ```
 
 ## Compiling to `.vmfb`
