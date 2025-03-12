@@ -10,7 +10,7 @@ from collections import OrderedDict
 
 from .flux import FluxParams, FluxModelV1
 from .export import export_flux_transformer, flux_transformer_default_batch_sizes
-from ...types import DefaultPrimitiveTensor, Theta, save_load_theta
+from ...types import DefaultPrimitiveTensor, Theta
 from ...layers.testing import (
     make_rand_torch,
     make_mmdit_double_block_random_theta,
@@ -41,14 +41,11 @@ def convert_flux_transformer_input_for_hugging_face_model(
 
 
 def make_random_theta(config: FluxParams, dtype: torch.dtype):
-    # TODO: do not hardcode values.
-
     in_channels = config.in_channels
-    in_channels2 = 128
     hidden_size = config.hidden_size
     mlp_ratio = config.mlp_ratio
     context_in_dim = config.context_in_dim
-    time_dim = 256
+    time_dim = config.time_dim
     vec_dim = config.vec_in_dim
     patch_size = 1
     out_channels = config.out_channels
@@ -107,12 +104,18 @@ def make_random_theta(config: FluxParams, dtype: torch.dtype):
 
     for i in range(config.depth):
         tensor_dict[f"double_blocks.{i}"] = make_mmdit_double_block_random_theta(
-            in_channels=in_channels, hidden_size=hidden_size, mlp_ratio=mlp_ratio
+            hidden_size=hidden_size,
+            mlp_ratio=mlp_ratio,
+            num_heads=config.num_heads,
+            dtype=dtype,
         ).flatten()
 
     for i in range(config.depth_single_blocks):
         tensor_dict[f"single_blocks.{i}"] = make_mmdit_single_block_random_theta(
-            in_channels=in_channels2, hidden_size=hidden_size, mlp_ratio=mlp_ratio
+            hidden_size=hidden_size,
+            mlp_ratio=mlp_ratio,
+            num_heads=config.num_heads,
+            dtype=dtype,
         ).flatten()
 
     if config.guidance_embed:
@@ -141,7 +144,9 @@ def make_random_theta(config: FluxParams, dtype: torch.dtype):
             data=make_rand_torch((hidden_size,), dtype=dtype)
         )
 
-    return Theta(tensor_dict)
+    res = Theta(tensor_dict)
+    res.rename_tensors_to_paths()
+    return res
 
 
 def make_dev_single_layer_config():
@@ -159,6 +164,38 @@ def make_dev_single_layer_config():
         theta=10_000,
         qkv_bias=True,
         guidance_embed=True,
+    )
+
+
+def make_toy_config() -> FluxParams:
+    num_heads = 5
+    mlp_ratio = 2
+    axes_dim = [4 * 2, 4 * 3, 4 * 4]
+    in_channels = sum(axes_dim)
+    hidden_size = in_channels * num_heads
+    vec_in_dim = hidden_size // mlp_ratio
+    assert hidden_size == mlp_ratio * vec_in_dim
+    output_img_height = 2 * in_channels // 4
+    output_img_width = 3 * in_channels // 4
+    return FluxParams(
+        in_channels=in_channels,
+        out_channels=in_channels,
+        time_dim=13,
+        vec_in_dim=vec_in_dim,
+        context_in_dim=7,
+        txt_context_length=11,
+        hidden_size=hidden_size,
+        mlp_ratio=float(mlp_ratio),
+        num_heads=num_heads,
+        depth=3,
+        depth_single_blocks=2,
+        axes_dim=axes_dim,
+        theta=10_000,
+        qkv_bias=True,
+        guidance_embed=True,
+        output_img_height=output_img_height,
+        output_img_width=output_img_width,
+        output_img_channels=3,
     )
 
 

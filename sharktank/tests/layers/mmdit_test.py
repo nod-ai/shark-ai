@@ -56,10 +56,16 @@ class MMDITTest(TempDirTestBase):
         asm = str(output.mlir_module)
 
     def testSingleExport(self):
-        theta = make_mmdit_single_block_random_theta(hidden_size=self.hidden_size)
+        mlp_ratio = 4.0
+        theta = make_mmdit_single_block_random_theta(
+            hidden_size=self.hidden_size, num_heads=self.num_heads, mlp_ratio=mlp_ratio
+        )
         theta = self.save_load_theta(theta)
         mmdit = MMDITSingleBlock(
-            theta=theta, num_heads=self.num_heads, hidden_size=self.hidden_size
+            theta=theta,
+            num_heads=self.num_heads,
+            hidden_size=self.hidden_size,
+            mlp_ratio=mlp_ratio,
         )
 
         inp = torch.rand([self.batch_size, 1024, self.hidden_size])
