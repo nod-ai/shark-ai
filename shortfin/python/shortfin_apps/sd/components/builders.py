@@ -54,7 +54,6 @@ def filter_by_model(filenames, model) -> list:
 def get_mlir_filenames(model_params: ModelParams, model=None) -> list:
     mlir_filenames = []
     file_stems = get_file_stems(model_params)
-    print(file_stems)
     for stem in file_stems:
         mlir_filenames.extend([stem + ".mlir"])
     return filter_by_model(mlir_filenames, model)
@@ -65,7 +64,6 @@ def get_vmfb_filenames(
 ) -> list:
     vmfb_filenames = []
     file_stems = get_file_stems(model_params)
-    print(f"File stems: {file_stems}")
     for stem in file_stems:
         vmfb_filenames.extend([stem + "_" + target + ".vmfb"])
     return filter_by_model(vmfb_filenames, model)
@@ -177,7 +175,6 @@ def get_file_stems(model_params: ModelParams) -> list[str]:
         ord_params.extend([[dtype_str]])
         for x in list(itertools.product(*ord_params)):
             file_stems.extend(["_".join(x)])
-    print(f"get_file_stems: {file_stems}")
     return file_stems
 
 
@@ -362,7 +359,6 @@ def sdxl(
 ):
     force_update = False if force_update not in ["True", True] else True
     model_params = ModelParams.load_json(model_json)
-    print(f"Model params: {model_params}")
     ctx = executor.BuildContext.current()
     update = needs_update(ctx)
 

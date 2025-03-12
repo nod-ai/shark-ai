@@ -281,28 +281,6 @@ def get_punet_model(hf_model_name, external_weight_path, quant_paths, precision=
         revision = "efda8afb35fd72c1769e02370b320b1011622958"
 
     # TODO (monorimet): work through issues with pure fp16 punet export. Currently int8 with fp8/fp8_ocp/fp16 sdpa are supported.
-    # elif precision != "fp16":
-    #     repo_id = "amd-shark/sdxl-quant-int8"
-    #     subfolder = "mi300_all_sym_8_step14_fp32"
-    #     revision = "efda8afb35fd72c1769e02370b320b1011622958"
-    # else:
-    #     repo_id = hf_model_name
-    #     hf_ds = hf_datasets.get_dataset(repo_id).download()
-    #     ds = import_hf_dataset(hf_ds["config"][0], hf_ds["parameters"], external_weight_path)
-    #     cond_unet = sharktank_unet2d.from_dataset(ds)
-    #     return cond_unet
-
-    # TODO (monorimet): work through issues with pure fp16 punet export. Currently int8 with fp8/fp8_ocp/fp16 sdpa are supported.
-    # elif precision != "fp16":
-    #     repo_id = "amd-shark/sdxl-quant-int8"
-    #     subfolder = "mi300_all_sym_8_step14_fp32"
-    #     revision = "efda8afb35fd72c1769e02370b320b1011622958"
-    # else:
-    #     repo_id = hf_model_name
-    #     hf_ds = hf_datasets.get_dataset(repo_id).download()
-    #     ds = import_hf_dataset(hf_ds["config"][0], hf_ds["parameters"], external_weight_path)
-    #     cond_unet = sharktank_unet2d.from_dataset(ds)
-    #     return cond_unet
 
     def download(filename):
         return hf_hub_download(

@@ -30,7 +30,7 @@ def export_sdxl_model(
         pass
 
     decomp_list = [torch.ops.aten.logspace]
-    if True:
+    if decomp_attn == True:
         decomp_list = [
             torch.ops.aten._scaled_dot_product_flash_attention_for_cpu,
             torch.ops.aten._scaled_dot_product_flash_attention.default,

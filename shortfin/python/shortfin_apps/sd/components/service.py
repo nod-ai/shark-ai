@@ -534,21 +534,6 @@ def check_host_array(host_array):
     return
 
 
-def check_host_array(host_array):
-    waiting = True
-    while waiting:
-        array = host_array.items
-        if host_array.dtype == sfnp.float16:
-            dtype = np.float16
-        arr = np.frombuffer(array, dtype=dtype)
-        if not np.all(arr == 0):
-            check_1 = arr
-            check_2 = np.frombuffer(array, dtype=dtype)
-            if np.array_equal(check_1, check_2):
-                break
-    return
-
-
 def initialize_command_buffer(fiber, model_params: ModelParams, bs: int = 1):
     device = fiber.device(0)
     h = model_params.dims[0][0]

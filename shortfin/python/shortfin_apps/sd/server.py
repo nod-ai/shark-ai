@@ -130,10 +130,7 @@ def configure_service(args, sysman, model_config, flagfile, tuning_spec):
     for idx, tok_name in enumerate(args.tokenizers):
         subfolder = f"tokenizer_{idx + 1}" if idx > 0 else "tokenizer"
         tokenizers.append(Tokenizer.from_pretrained(tok_name, subfolder))
-
-    logger.info(f"model config: {model_config}")
     model_params = ModelParams.load_json(model_config)
-    logger.info(f"model params: {model_params}")
     vmfbs, params = get_modules(args, model_config, flagfile, tuning_spec)
     logger.info(f"vmfbs: {vmfbs}")
     logger.info(f"params: {params}")
@@ -153,7 +150,7 @@ def configure_service(args, sysman, model_config, flagfile, tuning_spec):
     for key, vmfb_dict in vmfbs.items():
         for bs in vmfb_dict.keys():
             for vmfb in vmfb_dict[bs]:
-                sm.load_inference_module(vmfb, component=key, batch_size=1)
+                sm.load_inference_module(vmfb, component=key, batch_size=bs)
     for key, datasets in params.items():
         sm.load_inference_parameters(*datasets, parameter_scope="model", component=key)
     services[sm.name] = sm
@@ -164,7 +161,6 @@ def get_configs(args):
     # Returns one set of config artifacts.
     modelname = "sdxl"
     model_config = args.model_config if args.model_config else None
-    print(model_config)
     topology_config = None
     tuning_spec = None
     flagfile = args.flagfile if args.flagfile else None
@@ -182,9 +178,11 @@ def get_configs(args):
     outs = subprocess.check_output(cfg_builder_args).decode()
     outs_paths = outs.splitlines()
     for i in outs_paths:
-        if model_config is not None:
+        if model_config:
             if "sdxl_config" in i and not os.path.exists(model_config):
                 model_config = i
+        elif not model_config and "sdxl_config" in i:
+            model_config = i
         elif "topology" in i and args.topology:
             topology_config = i
         elif "flagfile" in i and not args.flagfile:
