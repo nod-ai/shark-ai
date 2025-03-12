@@ -355,4 +355,8 @@ class ThetaLayer(BaseLayer):
         **kwargs,
     ):
         super().export(mlir_path)
-        self.export_parameters(parameters_path)
+        if (
+            parameters_path is not None
+            or self.config.export_parameters_path is not None
+        ):
+            self.export_parameters(parameters_path)
