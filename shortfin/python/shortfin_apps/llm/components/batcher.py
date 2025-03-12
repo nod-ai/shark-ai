@@ -163,6 +163,7 @@ class PrefillBatcherProcess(LlmBatcherProcess):
 
         return request
 
+
 class DecodeBatcherProcess(LlmBatcherProcess):
     """The batcher is a persistent process responsible for flighting incoming work
     into batches and handling the requisite cache allocations (since every batch needs
