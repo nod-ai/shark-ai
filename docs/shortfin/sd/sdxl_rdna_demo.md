@@ -1,4 +1,4 @@
-## RDNA4 Demo
+# RDNA3 + RDNA4 Demo
 
 In this technology preview demo, we will set up Stable Diffusion XL (SDXL) running locally on
 RDNA4 (AMD Radeon RX 9070 XT and 9070) and RDNA3 (AMD Radeon 7900 XTX and Radeon Pro W7900).
@@ -8,9 +8,9 @@ Our demo benefits from improved AI accelerator hardware introduced in RDNA4 that
 performance on data types already supported by RDNA3 like fp16, and enabled support for a new data
 type: fp8 (OCP).
 
-### Installation
+## Installation
 
-#### Prerequisites
+### Prerequisites
 
 * Ubuntu 24.04 or 22.04 (not tested on other systems)
 * Python 3.11 or 3.12
@@ -23,7 +23,7 @@ mkdir demo
 cd demo
 ```
 
-#### Install ROCm Community Edition
+### Install ROCm Community Edition
 
 Simply download the matching tarball, extract it, and add it to your environment variables:
 
@@ -60,7 +60,7 @@ Device  Node  IDs              Temp    Power  Partitions          SCLK  MCLK   F
 
 Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
 
-#### Install SHARK AI and Shortfin
+### Install SHARK AI and Shortfin
 
 First, create and activate a Python Virtual Environment:
 
@@ -87,12 +87,12 @@ cd shortfin
 pip install -e .
 ```
 
-### Start Shortfin and run SDXL
+## Start Shortfin and run SDXL
 
 Start the Shortfin server with the correct target (`gfx1100` for RDNA3, `gfx1201` for RDNA4).
 You can override the network port used using the `--port <PORT-NUM>` flag.
 
-#### FP8: RDNA4 only
+### FP8: RDNA4 only
 
 Note that the first run will download all the artifacts necessary (the model code and the weights).
 This may take a while. The subsequent runs will use the artifacts cached in `~/.cache/shark/genfiles/sdxl`.
@@ -146,7 +146,7 @@ While the server will print the total inference time to generate the image:
 You can exit the server and the client by pressing `Ctrl + C`.
 
 
-#### Int8: Both RDNA3 and RDNA4
+### Int8: Both RDNA3 and RDNA4
 
 Use the following command to start the server:
 
@@ -158,13 +158,13 @@ python -m python.shortfin_apps.sd.server --device=amdgpu --target=gfx1201 --buil
 Use `--target=gfx1100` when running on RDNA3.
 Open a new terminal and follow the steps from the section above to run the client.
 
-### Preliminary performance results
+## Preliminary performance results
 
 > [!NOTE]
 > Disclaimer: The results below are for information purpose only. The evaluation was performed
 > on engineering sample hardware and may differ from retail parts.
 
-#### End-to-end image generation (fp8 and int8)
+### End-to-end image generation (fp8 and int8)
 
 GPU Name | int8 time [s] | fp8 time [s]
 -- | -- | --
@@ -177,7 +177,7 @@ Fp8 brings noticeable performance benefits compared to int8 in the SDXL model.
 With int8 data types, supported both on RDNA3 and RDNA4, the RX 9070 XT card about 38%
 faster than RX 7900 XTX while RX 9070 is 39% faster than Pro W7900!
 
-#### UNet isolated benchmarks (fp8 and fp16)
+### UNet isolated benchmarks (fp8 and fp16)
 
 In addition to the total image generation time from the section above, we benchamrked a
 portion of the SDXL model called 'UNet', comparing the fp16 and fp8 implementation across
