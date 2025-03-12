@@ -283,6 +283,72 @@ def test_argpartition_error_cases(device):
         sfnp.argpartition(src, 2, -1, out)
 
 
+test_cases = [
+    # Single values should always return `0.0`
+    {"shape": [1, 1], "data": [[420.0]], "axis": -1, "expected": [[0.0]]},
+    {"shape": [1, 1], "data": [[420.0]], "axis": None, "expected": [[0.0]]},
+    # Two values with constant offset of `1` should always return
+    # 0th: -log(1 + e)
+    # 1st: 1 - log(1 + e)
+    {
+        "shape": [1, 2],
+        "data": [[float(42), float(43)]],
+        "axis": -1,
+        "expected": [
+            [
+                round(-math.log(1 + math.e), 3),
+                round(1 - math.log(1 + math.e), 3),
+            ]
+        ],
+    },
+    {
+        "shape": [1, 2],
+        "data": [[float(42), float(43)]],
+        "axis": None,
+        "expected": [
+            [
+                round(-math.log(1 + math.e), 3),
+                round(1 - math.log(1 + math.e), 3),
+            ]
+        ],
+    },
+    # When given uniform values, each item should be equal to -log(n), where
+    # n is the size of the targeted axis.
+    {
+        "shape": [5, 10],
+        "data": [[float(42) for _ in range(10)] for _ in range(5)],
+        "axis": -1,
+        "expected": [[round(-math.log(10), 3) for _ in range(10)] for _ in range(5)],
+    },
+    {
+        "shape": [5, 10],
+        "data": [[float(42) for _ in range(10)] for _ in range(5)],
+        "axis": None,
+        "expected": [[round(-math.log(10), 3) for _ in range(10)] for _ in range(5)],
+    },
+]
+
+
+@pytest.mark.parametrize("params", test_cases)
+def test_log_softmax(device, params):
+    shape = params["shape"]
+    data = params["data"]
+    axis = params["axis"]
+    expected = params["expected"]
+    src = sfnp.device_array(device, shape, dtype=sfnp.float32)
+    for i in range(len(data)):
+        src.view(i).items = data[i]
+    if axis is not None:
+        result = sfnp.log_softmax(src, axis)
+    else:
+        result = sfnp.log_softmax(src)
+    results = []
+    for i in range(len(data)):
+        vals = [round(val, 3) for val in result.view(i).items.tolist()]
+        results.append(vals)
+    assert results == expected
+
+
 @pytest.mark.parametrize(
     "dtype",
     [
