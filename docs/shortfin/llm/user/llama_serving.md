@@ -383,7 +383,8 @@ python -m sharktank.examples.export_paged_llm_v1 \
   --irpa-file /path/to/output/llama3.1-405b.irpa \
   --output-mlir /path/to/output/llama3.1-405b.mlir \
   --output-config /path/to/output/llama3.1-405b.config.json \
-  --bs 4
+  --bs-prefill 4 \
+  --bs-decode 4
 ```
 
 ### Compiling to VMFB
