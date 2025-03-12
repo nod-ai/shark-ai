@@ -65,13 +65,6 @@ void AMDGPUSystemBuilder::InitializeDefaultSettings() {
       config_options().GetInt("amdgpu_tracing_level", /*non_negative=*/true);
   default_device_params_.stream_tracing = tracing_level ? *tracing_level : 2;
 
-  // Override logical_devices_per_physical_device if present.
-  auto logical_devices_per_physical_device = config_options().GetInt(
-      "amdgpu_logical_devices_per_physical_device", /*non_negative=*/true);
-  if (logical_devices_per_physical_device) {
-    logical_devices_per_physical_device_ = *logical_devices_per_physical_device;
-  }
-
   // CPU devices.
   cpu_devices_enabled_ = config_options().GetBool("amdgpu_cpu_devices_enabled");
 
@@ -195,47 +188,27 @@ SystemPtr AMDGPUSystemBuilder::CreateSystem() {
     }
   }
 
-  // Estimate the resource requirements for the requested number of devices.
-  // As of 2024-11-08, the number of file handles required to open 64 device
-  // partitions was 31 times the number to open one device. Because it is not
-  // good to run near the limit, we conservatively round that up to 64 above
-  // an arbitrary baseline of 768. This means that on a small, four device
-  // system, we will not request to raise limits for the Linux default of
-  // 1024 file handles, but we will raise for everything larger (which tends
-  // to be where the problems are).
-  size_t expected_device_count =
-      used_device_ids.size() * logical_devices_per_physical_device_;
-  if (!sysconfig::EnsureFileLimit(expected_device_count * 64 + 768)) {
-    logging::error(
-        "Could not ensure sufficient file handles for minimum operations: "
-        "Suggest setting explicit limits with `ulimit -n` and system settings");
-  }
-
   // Initialize all used GPU devices.
   for (size_t instance_ordinal = 0; instance_ordinal < used_device_ids.size();
        ++instance_ordinal) {
     iree_hal_device_id_t device_id = used_device_ids[instance_ordinal];
-    for (size_t logical_index = 0;
-         logical_index < logical_devices_per_physical_device_;
-         ++logical_index) {
-      iree::hal_device_ptr device;
-      SHORTFIN_THROW_IF_ERROR(iree_hal_driver_create_device_by_id(
-          hip_hal_driver_, device_id, 0, nullptr, host_allocator(),
-          device.for_output()));
-      DeviceAddress address(
-          /*system_device_class=*/SYSTEM_DEVICE_CLASS,
-          /*logical_device_class=*/LOGICAL_DEVICE_CLASS,
-          /*hal_driver_prefix=*/HAL_DRIVER_PREFIX,
-          /*instance_ordinal=*/instance_ordinal,
-          /*queue_ordinal=*/0,
-          /*instance_topology_address=*/{logical_index});
-      ConfigureAllocators(amdgpu_allocator_specs_, device, address.device_name);
-      lsys->InitializeHalDevice(std::make_unique<AMDGPUDevice>(
-          address,
-          /*hal_device=*/device,
-          /*node_affinity=*/0,
-          /*capabilities=*/static_cast<uint32_t>(Device::Capabilities::NONE)));
-    }
+    iree::hal_device_ptr device;
+    SHORTFIN_THROW_IF_ERROR(iree_hal_driver_create_device_by_id(
+        hip_hal_driver_, device_id, 0, nullptr, host_allocator(),
+        device.for_output()));
+    DeviceAddress address(
+        /*system_device_class=*/SYSTEM_DEVICE_CLASS,
+        /*logical_device_class=*/LOGICAL_DEVICE_CLASS,
+        /*hal_driver_prefix=*/HAL_DRIVER_PREFIX,
+        /*instance_ordinal=*/instance_ordinal,
+        /*queue_ordinal=*/0,
+        /*instance_topology_address=*/{0});
+    ConfigureAllocators(amdgpu_allocator_specs_, device, address.device_name);
+    lsys->InitializeHalDevice(std::make_unique<AMDGPUDevice>(
+        address,
+        /*hal_device=*/device,
+        /*node_affinity=*/0,
+        /*capabilities=*/static_cast<uint32_t>(Device::Capabilities::NONE)));
   }
 
   // Initialize CPU devices if requested.
