@@ -5,7 +5,7 @@ import logging
 import asyncio
 from pathlib import Path
 import threading
-from typing import Optional
+from typing import Optional, Union
 
 import shortfin.array as sfnp
 import shortfin as sf
@@ -15,12 +15,12 @@ from shortfin.interop.support.device_setup import get_selected_devices
 class SystemManager:
     def __init__(
         self,
-        device="local-task",
-        device_ids=None,
-        async_allocs=True,
-        amdgpu_allocators=None,
-        logger_name=__name__,
-        shutdown_system=True,
+        device: str = "local-task",
+        device_ids: list[Union[str, int]] = None,
+        async_allocs: bool = True,
+        amdgpu_allocators: Optional[bool] = None,
+        logger_name: str = __name__,
+        shutdown_system: bool = True,
     ):
         self.logger = logging.getLogger(logger_name)
 
