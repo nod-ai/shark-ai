@@ -279,7 +279,7 @@ def get_punet_model(hf_model_name, external_weight_path, quant_paths, precision=
         repo_id = "amd-shark/sdxl-quant-int8"
         subfolder = "mi300_all_sym_8_step14_fp32"
         revision = "efda8afb35fd72c1769e02370b320b1011622958"
-    
+
     # TODO (monorimet): work through issues with pure fp16 punet export. Currently int8 with fp8/fp8_ocp/fp16 sdpa are supported.
     # elif precision != "fp16":
     #     repo_id = "amd-shark/sdxl-quant-int8"

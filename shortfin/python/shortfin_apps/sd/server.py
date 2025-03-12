@@ -229,7 +229,7 @@ def get_configs(args):
 def get_modules(args, model_config, flagfile, td_spec):
     # TODO: Move this out of server entrypoint
     mod_params = ModelParams.load_json(model_config)
-    
+
     vmfbs = {}
     params = {}
     model_flags = {}

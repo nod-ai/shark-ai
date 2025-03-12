@@ -386,7 +386,7 @@ Dataset(
             "stabilityai/stable-diffusion-xl-base-1.0",
             "unet/diffusion_pytorch_model.fp16.safetensors",
         ),
-    )
+    ),
 )
 
 # The Flux transformer is in 2 formats.
