@@ -18,10 +18,10 @@ import base64
 import shortfin as sf
 import shortfin.array as sfnp
 
-from ...utils import ServiceBase, BatcherProcessBase, prog_isolations
+from ...utils import GenerateService, BatcherProcess
 
 from .config_struct import ModelParams
-from .manager import SystemManager
+from .manager import FluxSystemManager
 from .messages import FluxInferenceExecRequest, InferencePhase
 from .tokenizer import Tokenizer
 from .metrics import measure
@@ -60,7 +60,7 @@ def get_schedule(
     return timesteps.tolist()
 
 
-class GenerateService(ServiceBase):
+class FluxGenerateService(GenerateService):
     """Top level service interface for image generation."""
 
     def __init__(
@@ -77,15 +77,11 @@ class GenerateService(ServiceBase):
         show_progress: bool = False,
         trace_execution: bool = False,
     ):
-        super().__init__(sysman)
+        super().__init__(sysman, fibers_per_device, workers_per_device)
         self.name = name
-
-        # Application objects.
         self.clip_tokenizers = clip_tokenizers
         self.t5xxl_tokenizers = t5xxl_tokenizers
         self.model_params = model_params
-        self.inference_functions: dict[str, dict[str, sf.ProgramFunction]] = {}
-        self.inference_programs: dict[int, dict[str, sf.Program]] = {}
         self.trace_execution = trace_execution
         self.show_progress = show_progress
 
@@ -122,8 +118,6 @@ class GenerateService(ServiceBase):
                 "denoise": {},
                 "decode": {},
             }
-        # Scope dependent objects.
-        self.batcher = FluxBatcherProcess(self)
 
     def get_worker_index(self, fiber):
         if fiber not in self.fibers:
@@ -191,7 +185,7 @@ class GenerateService(ServiceBase):
 ########################################################################################
 
 
-class FluxBatcherProcess(BatcherProcessBase):
+class FluxBatcherProcess(BatcherProcess):
     STROBE_SHORT_DELAY = 0.5
     STROBE_LONG_DELAY = 1
 

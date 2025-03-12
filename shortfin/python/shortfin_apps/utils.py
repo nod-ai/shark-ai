@@ -4,7 +4,6 @@ import urllib
 import logging
 import asyncio
 from pathlib import Path
-<<<<<<< HEAD
 import threading
 from typing import Optional, Union
 
@@ -68,12 +67,6 @@ class SystemManager:
         while command := await reader():
             ...
         self.logger.info("System manager command processor stopped")
-=======
-
-import shortfin.array as sfnp
-import shortfin as sf
-from shortfin_apps.flux.components.manager import SystemManager
->>>>>>> 174fc17 (Refactor BatcherProcess and GenerateService between shortfin apps (#1009))
 
 
 dtype_to_filetag = {
@@ -232,7 +225,6 @@ class StrobeMessage(sf.Message):
     ...
 
 
-<<<<<<< HEAD
 class GenerateService:
     """Base class for shortfin service implementations."""
 
@@ -242,17 +234,10 @@ class GenerateService:
         fibers_per_device: int = 1,
         workers_per_device: int = 1,
     ):
-=======
-class ServiceBase:
-    """Base class for shortfin service implementations."""
-
-    def __init__(self, sysman: SystemManager):
->>>>>>> 174fc17 (Refactor BatcherProcess and GenerateService between shortfin apps (#1009))
         """Initialize base service attributes."""
         self.sysman = sysman
         self.inference_parameters: dict[str, list[sf.BaseProgramParameters]] = {}
         self.inference_modules: dict[str, list[sf.ProgramModule]] = {}
-<<<<<<< HEAD
         self.inference_programs: dict[int, dict[str, sf.Program]] = {}
         self.inference_functions: dict[int, dict[str, sf.ProgramFunction]] = {}
         self.name = None
@@ -282,10 +267,10 @@ class ServiceBase:
                 "Currently, fibers_per_device must be divisible by workers_per_device"
             )
         self.fibers_per_worker = int(self.fibers_per_device / self.workers_per_device)
-=======
->>>>>>> 174fc17 (Refactor BatcherProcess and GenerateService between shortfin apps (#1009))
 
-    def load_inference_module(self, vmfb_path: Path, component: str = "main", batch_size: int = None):
+    def load_inference_module(
+        self, vmfb_path: Path, component: str = "main", batch_size: int = None
+    ):
         """Load an inference module from a VMFB file.
 
         Args:
@@ -339,7 +324,6 @@ class ServiceBase:
             self.inference_parameters[component] = []
         self.inference_parameters[component].append(p)
 
-<<<<<<< HEAD
     def initialize_program_modules(self, component: str):
         """Initialize program modules for a component.
 
@@ -442,10 +426,6 @@ class ServiceBase:
 
 
 class BatcherProcess(sf.Process):
-=======
-
-class BatcherProcessBase(sf.Process):
->>>>>>> 174fc17 (Refactor BatcherProcess and GenerateService between shortfin apps (#1009))
     """The batcher is a persistent process responsible for flighting incoming work
     into batches."""
 

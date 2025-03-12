@@ -15,7 +15,7 @@ from shortfin.interop.fastapi import FastAPIResponder
 
 from .io_struct import GenerateReqInput
 from .messages import FluxInferenceExecRequest
-from .service import GenerateService
+from .service import FluxGenerateService
 from .metrics import measure
 
 logger = logging.getLogger("shortfin-flux.generate")

@@ -13,7 +13,7 @@ from pathlib import Path
 import shortfin as sf
 import shortfin.array as sfnp
 
-from ...utils import ServiceBase, BatcherProcessBase, prog_isolations
+from ...utils import GenerateService, BatcherProcess
 
 from .kvcache.base_attention_cache import (
     BasePagedAttentionCache,
@@ -23,7 +23,7 @@ from .kvcache.base_attention_cache import (
 from .kvcache.trie_attention_cache import TriePagedAttentionCache
 from .kvcache.page_pool import PagePoolConfig, PagePool, PageInfo
 from .config_struct import ModelParams, ServerParams
-from .manager import SystemManager
+from .manager import LlmSystemManager
 from .messages import LlmInferenceExecRequest, InferencePhase
 from .tokenizer import Tokenizer
 from .service_debug_dumper import SERVICE_DEBUG_DUMPER
@@ -31,7 +31,7 @@ from .service_debug_dumper import SERVICE_DEBUG_DUMPER
 logger = logging.getLogger(__name__)
 
 
-class GenerateService(ServiceBase):
+class LlmGenerateService(GenerateService):
     """Top level service interface for generating text against a model."""
 
     inference_program: sf.Program
@@ -50,16 +50,21 @@ class GenerateService(ServiceBase):
     ):
         super().__init__(sysman)
         self.name = name
-
-        # Application objects.
         self.tokenizer = tokenizer
         self.model_params = model_params
         self.server_params = server_params
-        self.main_worker = sysman.ls.create_worker(f"{name}-inference")
-        self.main_fiber = sysman.ls.create_fiber(self.main_worker)
 
-        # Scope dependent objects.
+        self.set_isolation(program_isolation)
+        self.initialize_worker_and_fiber()
+        self.initialize_page_cache()
         self.batcher = LlmBatcherProcess(self)
+
+    def initialize_worker_and_fiber(self):
+        self.main_worker = self.sysman.ls.create_worker(f"{self.name}-inference")
+        self.main_fiber = self.sysman.ls.create_fiber(self.main_worker)
+
+    def initialize_page_cache(self):
+        """Initialize page pool and attention cache."""
         page_pool_config = PagePoolConfig(
             dtype=self.model_params.attn_dtype,
             alloc_page_count=self.model_params.paged_kv_cache.device_block_count,
@@ -84,19 +89,10 @@ class GenerateService(ServiceBase):
                 f"Unknown prefix_sharing_algorithm {self.server_params.prefix_sharing_algorithm}. Currently only supporting 'trie' and 'none'."
             )
 
-        self.program_isolation = prog_isolations[program_isolation]
-
     def start(self):
-        self.inference_program = sf.Program(
-            modules=[
-                sf.ProgramModule.parameter_provider(
-                    self.sysman.ls, *self.inference_parameters["main"]
-                )
-            ]
-            + self.inference_modules["main"],
-            devices=self.sysman.ls.devices,
-            trace_execution=False,
-            isolation=self.program_isolation,
+        component_modules = self.initialize_program_modules("main")
+        self.inference_program = self.create_program(
+            modules=component_modules, devices=self.sysman.ls.devices
         )
         self.initialize_function_references()
         self.batcher.launch()
@@ -131,7 +127,7 @@ class GenerateService(ServiceBase):
 import math
 
 
-class LlmBatcherProcess(BatcherProcessBase):
+class LlmBatcherProcess(BatcherProcess):
     """The batcher is a persistent process responsible for flighting incoming work
     into batches and handling the requisite cache allocations (since every batch needs
     committed cache state).
