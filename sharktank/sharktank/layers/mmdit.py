@@ -162,11 +162,12 @@ class MMDITDoubleBlock(ThetaLayer):
 
 
 class MMDITSingleBlock(ThetaLayer):
-    def __init__(self, theta, num_heads: int, hidden_size: int):
+    def __init__(self, theta, num_heads: int, hidden_size: int, mlp_ratio: float):
         super().__init__(theta)
 
         self.num_heads = num_heads
         self.hidden_size = hidden_size
+        self.mlp_hidden_dim = int(hidden_size * mlp_ratio)
         self.add_module("mod", ModulationLayer(theta("modulation"), double=False))
         self.add_module(
             "attn_norm_q",
@@ -179,9 +180,6 @@ class MMDITSingleBlock(ThetaLayer):
 
         self.add_module("linear1", LinearLayer(theta("linear1")))
         self.add_module("linear2", LinearLayer(theta("linear2")))
-        # TODO: There should be a way to refactor out the following two constants and just reference model shapes
-        self.hidden_size = 3072
-        self.mlp_hidden_dim = 3072
 
     def forward(self, x: Tensor, vec: Tensor, pe: Tensor) -> tuple[Tensor, Tensor]:
         mod, _ = self.mod(vec)
@@ -191,7 +189,7 @@ class MMDITSingleBlock(ThetaLayer):
         x_mod = (1 + mod.scale) * x_norm + mod.shift
         x_lin = self.linear1(x_mod)
         qkv, mlp = torch.split(
-            x_lin, [3 * self.hidden_size, 4 * self.mlp_hidden_dim], dim=-1
+            x_lin, [3 * self.hidden_size, self.mlp_hidden_dim], dim=-1
         )
 
         qkv_2 = qkv.view(qkv.shape[0], qkv.shape[1], 3, self.num_heads, -1)  #
