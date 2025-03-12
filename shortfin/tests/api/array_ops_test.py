@@ -349,6 +349,62 @@ def test_log_softmax(device, params):
     assert results == expected
 
 
+def test_log_softmax_out_variant(device):
+    axis = -1
+    src = sfnp.device_array(device, [1, 1, 128], dtype=sfnp.float32)
+    data = [float(i) for i in range(math.prod(src.shape))]
+    src.items = data
+
+    output_array = sfnp.device_array(device, src.shape, dtype=sfnp.float32)
+    result_out = sfnp.log_softmax(src, axis, out=output_array)
+    result_no_out = sfnp.log_softmax(src, axis)
+
+    assert result_out.shape == src.shape
+    assert result_out.dtype.name == src.dtype.name
+    out_items = result_out.items.tolist()
+    no_out_items = result_no_out.items.tolist()
+    assert out_items == no_out_items
+
+
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        sfnp.float16,
+        sfnp.float32,
+    ],
+)
+def test_log_softmax_dtype(device, dtype):
+    src = sfnp.device_array(device, [4, 16, 128], dtype=dtype)
+    sfnp.log_softmax(src)
+
+
+def test_log_softmax_error_cases(device):
+    # Invalid `input` dtype
+    with pytest.raises(
+        ValueError,
+    ):
+        src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.int64)
+        sfnp.log_softmax(src)
+
+    src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+    data = [float(i) for i in range(math.prod(src.shape))]
+    src.items = data
+
+    # Invalid `axis`
+    with pytest.raises(
+        ValueError,
+    ):
+        sfnp.log_softmax(src, 3)
+        sfnp.log_softmax(src, -4)
+
+    # Invalid `out` dtype
+    with pytest.raises(
+        ValueError,
+    ):
+        out = sfnp.device_array(device, src.shape, dtype=sfnp.float16)
+        sfnp.log_softmax(src, -1, out)
+
+
 @pytest.mark.parametrize(
     "dtype",
     [
