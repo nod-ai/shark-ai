@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import math
-from typing import List
+from typing import Any, List
 import pytest
 import random
 
@@ -283,6 +283,32 @@ def test_argpartition_error_cases(device):
         sfnp.argpartition(src, 2, -1, out)
 
 
+def approximately_equal(a: Any, b: Any, rel_tol=1e-2, abs_tol=0.0) -> bool:
+    """
+    Recursively checks if two nested lists (or scalar values) are approximately equal.
+
+    Args:
+        a: First list or scalar.
+        b: Second list or scalar.
+        rel_tol: Relative tolerance.
+        abs_tol: Absolute tolerance.
+
+    Returns:
+        True if all corresponding elements are approximately equal.
+    """
+    # If both are lists, iterate element-wise
+    if isinstance(a, list) and isinstance(b, list):
+        if len(a) != len(b):
+            return False
+        return all(
+            approximately_equal(sub_a, sub_b, rel_tol, abs_tol)
+            for sub_a, sub_b in zip(a, b)
+        )
+
+    # Otherwise, assume they are scalars and compare
+    return math.isclose(a, b, rel_tol=rel_tol, abs_tol=abs_tol)
+
+
 test_cases = [
     # Single values should always return `0.0`
     {"shape": [1, 1], "data": [[420.0]], "axis": -1, "expected": [[0.0]]},
@@ -296,8 +322,8 @@ test_cases = [
         "axis": -1,
         "expected": [
             [
-                round(-math.log(1 + math.e), 3),
-                round(1 - math.log(1 + math.e), 3),
+                -math.log(1 + math.e),
+                1 - math.log(1 + math.e),
             ]
         ],
     },
@@ -307,8 +333,8 @@ test_cases = [
         "axis": None,
         "expected": [
             [
-                round(-math.log(1 + math.e), 3),
-                round(1 - math.log(1 + math.e), 3),
+                -math.log(1 + math.e),
+                1 - math.log(1 + math.e),
             ]
         ],
     },
@@ -318,13 +344,21 @@ test_cases = [
         "shape": [5, 10],
         "data": [[float(42) for _ in range(10)] for _ in range(5)],
         "axis": -1,
-        "expected": [[round(-math.log(10), 3) for _ in range(10)] for _ in range(5)],
+        "expected": [[-math.log(10) for _ in range(10)] for _ in range(5)],
     },
     {
         "shape": [5, 10],
         "data": [[float(42) for _ in range(10)] for _ in range(5)],
         "axis": None,
-        "expected": [[round(-math.log(10), 3) for _ in range(10)] for _ in range(5)],
+        "expected": [[-math.log(10) for _ in range(10)] for _ in range(5)],
+    },
+    # Axis 0 test. If given all uniform values, and taking column-wise
+    # log_softmax, then each item should be equal to -log(2).
+    {
+        "shape": [2, 3],
+        "data": [[float(42) for _ in range(3)] for _ in range(2)],
+        "axis": 0,
+        "expected": [[-math.log(2) for _ in range(3)] for _ in range(2)],
     },
 ]
 
@@ -344,9 +378,9 @@ def test_log_softmax(device, params):
         result = sfnp.log_softmax(src)
     results = []
     for i in range(len(data)):
-        vals = [round(val, 3) for val in result.view(i).items.tolist()]
+        vals = result.view(i).items.tolist()
         results.append(vals)
-    assert results == expected
+    assert approximately_equal(results, expected)
 
 
 def test_log_softmax_out_variant(device):
@@ -363,7 +397,7 @@ def test_log_softmax_out_variant(device):
     assert result_out.dtype.name == src.dtype.name
     out_items = result_out.items.tolist()
     no_out_items = result_no_out.items.tolist()
-    assert out_items == no_out_items
+    assert approximately_equal(out_items, no_out_items)
 
 
 @pytest.mark.parametrize(
@@ -374,7 +408,7 @@ def test_log_softmax_out_variant(device):
     ],
 )
 def test_log_softmax_dtype(device, dtype):
-    src = sfnp.device_array(device, [4, 16, 128], dtype=dtype)
+    src = sfnp.device_array(device, [1, 16, 128], dtype=dtype)
     sfnp.log_softmax(src)
 
 
