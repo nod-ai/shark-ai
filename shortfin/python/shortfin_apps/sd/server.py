@@ -150,6 +150,7 @@ def configure_service(args, sysman, model_config, flagfile, tuning_spec):
         prog_isolation=args.isolation,
         show_progress=args.show_progress,
         trace_execution=args.trace_execution,
+        splat=args.splat,
     )
     for key, vmfb_dict in vmfbs.items():
         for bs in vmfb_dict.keys():
@@ -182,7 +183,7 @@ def get_configs(args):
     outs = subprocess.check_output(cfg_builder_args).decode()
     outs_paths = outs.splitlines()
     for i in outs_paths:
-        if "sdxl_config" in i and not args.model_config:
+        if "sdxl_config" in i and not os.path.exists(model_config):
             model_config = i
         elif "topology" in i and args.topology:
             topology_config = i
@@ -287,6 +288,8 @@ def get_modules(args, model_config, flagfile, td_spec):
 
         output_paths = output.splitlines()
         for path in output_paths:
+            if not any(x in path for x in [".mlir", ".vmfb", ".irpa"]):
+                output_paths.remove(path)
             if "irpa" in path:
                 params[modelname].append(path)
                 output_paths.remove(path)

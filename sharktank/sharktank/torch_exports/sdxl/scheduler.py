@@ -33,6 +33,7 @@ class SchedulingModel(torch.nn.Module):
         self.batch_size = batch_size
         # Whether this will be used with CFG-enabled pipeline.
         self.do_classifier_free_guidance = True
+        # Prefetch a list of timesteps and sigmas for steps 1-100.
         timesteps = [torch.empty((100), dtype=dtype, requires_grad=False)] * 100
         sigmas = [torch.empty((100), dtype=torch.float32, requires_grad=False)] * 100
         for i in range(1, 100):

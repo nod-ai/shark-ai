@@ -230,9 +230,9 @@ def apply_per_layer_quant(
         else:
             weight_zp_k = None
             weight_zp_v = None
-        print(
-            f"Chunk MCHA KV into {weight_k.shape}, {weight_v.shape} from {weight.shape}"
-        )
+        # print(
+        #     f"Chunk MCHA KV into {weight_k.shape}, {weight_v.shape} from {weight.shape}"
+        # )
         quantize_weight(
             f"{layer_name}.to_k.weight", weight_k, weight_scale_k, weight_zp_k
         )
@@ -259,9 +259,9 @@ def apply_per_layer_quant(
             weight_zp_q = None
             weight_zp_k = None
             weight_zp_v = None
-        print(
-            f"Chunk MHA QKV into {weight_q.shape}, {weight_k.shape}, {weight_v.shape} from {weight.shape}"
-        )
+        # print(
+        #     f"Chunk MHA QKV into {weight_q.shape}, {weight_k.shape}, {weight_v.shape} from {weight.shape}"
+        # )
         quantize_weight(
             f"{layer_name}.to_q.weight", weight_q, weight_scale_q, weight_zp_q
         )
@@ -357,7 +357,7 @@ def main(argv):
     # quantization scheme where no quantized tensors escape their layer.
     updated_tensors: dict[str, InferenceTensor] = {}
     for layer_name, qp in quant_params_struct.items():
-        print(f"Applying per-layer quants: {layer_name}")
+        # print(f"Applying per-layer quants: {layer_name}")
         apply_per_layer_quant(quant_theta, layer_name, qp, updated_tensors)
 
     # Apply updates into a new Theta.
@@ -368,7 +368,7 @@ def main(argv):
 
     # TODO: Post-process to introduce fused cross-layer connections.
 
-    ds.save(args.output_irpa_file, io_report_callback=print)
+    ds.save(args.output_irpa_file, io_report_callback=None)
 
 
 if __name__ == "__main__":

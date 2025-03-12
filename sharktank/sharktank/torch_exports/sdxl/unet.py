@@ -212,7 +212,8 @@ def get_punet_model_and_inputs(
     precision,
     batch_size,
     external_weight_path,
-    quant_path,
+    quant_path=None,
+    scheduler_config_path=None,
 ):
     from sharktank.models.punet.model import ClassifierFreeGuidanceUnetModel as CFGPunet
 
@@ -265,14 +266,30 @@ def get_punet_model(hf_model_name, external_weight_path, quant_paths, precision=
     )
     from sharktank.utils import cli
 
-    if precision in ["fp8"]:
+    if precision in ["fp8", "f8"]:
         repo_id = "amd-shark/sdxl-quant-models"
         subfolder = "unet/int8"
         revision = "a31d1b1cba96f0da388da348bcaee197a073d451"
+    elif precision == "fp8_ocp":
+        repo_id = "amd-shark/sdxl-quant-fp8"
+        subfolder = "unet_int8_sdpa_fp8_ocp"
+        revision = "e6e3c031e6598665ca317b80c3b627c186ca08e7"
     else:
         repo_id = "amd-shark/sdxl-quant-int8"
         subfolder = "mi300_all_sym_8_step14_fp32"
         revision = "efda8afb35fd72c1769e02370b320b1011622958"
+
+    # TODO (monorimet): work through issues with pure fp16 punet export. Currently int8 with fp8/fp8_ocp/fp16 sdpa are supported.
+    # elif precision != "fp16":
+    #     repo_id = "amd-shark/sdxl-quant-int8"
+    #     subfolder = "mi300_all_sym_8_step14_fp32"
+    #     revision = "efda8afb35fd72c1769e02370b320b1011622958"
+    # else:
+    #     repo_id = hf_model_name
+    #     hf_ds = hf_datasets.get_dataset(repo_id).download()
+    #     ds = import_hf_dataset(hf_ds["config"][0], hf_ds["parameters"], external_weight_path)
+    #     cond_unet = sharktank_unet2d.from_dataset(ds)
+    #     return cond_unet
 
     def download(filename):
         return hf_hub_download(
@@ -284,9 +301,19 @@ def get_punet_model(hf_model_name, external_weight_path, quant_paths, precision=
             "config.json": quant_paths["config"],
         }
     else:
-        results = {
-            "config.json": download("config.json"),
-        }
+        try:
+            results = {
+                "config.json": download("config.json"),
+            }
+        except:
+            # Fallback to original model config file.
+            results = {
+                "config.json": hf_hub_download(
+                    repo_id="stabilityai/stable-diffusion-xl-base-1.0",
+                    subfolder="unet",
+                    filename="config.json",
+                )
+            }
     if quant_paths and quant_paths["params"] and os.path.exists(quant_paths["params"]):
         results["params.safetensors"] = quant_paths["params"]
     else:
@@ -294,9 +321,6 @@ def get_punet_model(hf_model_name, external_weight_path, quant_paths, precision=
 
     output_dir = os.path.dirname(external_weight_path)
 
-    # if os.path.exists(external_weight_path):
-    #     from sharktank.models.punet.tools import import_brevitas_dataset
-    #     ds = import_brevitas_dataset.Dataset.load(external_weight_path)
     if (
         quant_paths
         and quant_paths["quant_params"]

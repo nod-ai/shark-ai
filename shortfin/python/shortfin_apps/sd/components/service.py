@@ -56,6 +56,7 @@ class GenerateService:
         show_progress: bool = False,
         trace_execution: bool = False,
         use_batcher: bool = True,
+        splat: bool = False,
     ):
         self.name = name
 
@@ -69,6 +70,7 @@ class GenerateService:
         self.inference_programs: dict[int, dict[str, sf.Program]] = {}
         self.trace_execution = trace_execution
         self.show_progress = show_progress
+        self.splat_weights = splat
 
         self.prog_isolation = prog_isolations[prog_isolation]
 
@@ -155,6 +157,42 @@ class GenerateService:
             self.inference_parameters[component] = []
         self.inference_parameters[component].append(p)
 
+    def load_inference_module(
+        self, vmfb_path: Path, component: str = None, batch_size: int = None
+    ):
+        if not self.inference_modules.get(component):
+            self.inference_modules[component] = {}
+        if batch_size:
+            bs = batch_size
+        else:
+            match = re.search(r"_bs(\d+)_", str(vmfb_path))
+            if match:
+                bs = int(match.group(1))
+            else:
+                raise ValueError(
+                    "Batch size not found in filename or provided to load function."
+                )
+        if not self.inference_modules[component].get(bs):
+            self.inference_modules[component][bs] = []
+        self.inference_modules[component][bs].append(
+            sf.ProgramModule.load(self.sysman.ls, vmfb_path)
+        )
+
+    def load_inference_parameters(
+        self,
+        *paths: Path,
+        parameter_scope: str,
+        format: str = "",
+        component: str = None,
+    ):
+        p = sf.StaticProgramParameters(self.sysman.ls, parameter_scope=parameter_scope)
+        for path in paths:
+            logger.info("Loading parameter fiber '%s' from: %s", parameter_scope, path)
+            p.load(path, format=format)
+        if not self.inference_parameters.get(component):
+            self.inference_parameters[component] = []
+        self.inference_parameters[component].append(p)
+
     def start(self):
         # Initialize programs.
         for component in self.inference_modules.keys():
@@ -177,12 +215,14 @@ class GenerateService:
                     )
                     self.inference_programs[worker_idx][component][
                         batch_size
-                    ] = sf.Program(
+                    ] = self.create_program(
                         modules=component_modules,
                         devices=worker_devices,
                         isolation=self.prog_isolation,
                         trace_execution=self.trace_execution,
                     )
+        self.initialize_inference_functions()
+        self.batcher.launch()
 
         for worker_idx, worker in enumerate(self.workers):
             self.inference_functions[worker_idx]["encode"] = {}
@@ -207,42 +247,6 @@ class GenerateService:
                         fn_dest[fn] = self.inference_programs[worker_idx][submodel][bs][
                             ".".join([module_name, fn])
                         ]
-        if self.use_batcher:
-            self.batcher.launch()
-
-    def shutdown(self):
-        if self.use_batcher:
-            self.batcher.shutdown()
-            del self.batcher
-        del self.idle_meta_fibers
-        del self.meta_fibers
-        del self.workers
-        gc.collect()
-
-    def __repr__(self):
-        modules = [
-            f"     {key} : {value}" for key, value in self.inference_modules.items()
-        ]
-        params = [
-            f"     {key} : {value}" for key, value in self.inference_parameters.items()
-        ]
-        # For python 3.11 since we can't have \ in the f"" expression.
-        new_line = "\n"
-        return (
-            f"ServiceManager("
-            f"\n  INFERENCE DEVICES : \n"
-            f"     {self.sysman.ls.devices}\n"
-            f"\n  MODEL PARAMS : \n"
-            f"{self.model_params}"
-            f"\n  SERVICE PARAMS : \n"
-            f"     fibers per device : {self.fibers_per_device}\n"
-            f"     program isolation mode : {self.prog_isolation}\n"
-            f"\n  INFERENCE MODULES : \n"
-            f"{new_line.join(modules)}\n"
-            f"\n  INFERENCE PARAMETERS : \n"
-            f"{new_line.join(params)}\n"
-            f")"
-        )
 
 
 ########################################################################################
@@ -396,10 +400,11 @@ class InferenceExecutorProcess(sf.Process):
     @measure(type="exec", task="inference process")
     async def run(self):
         try:
+            device = self.fiber.device(0)
             if not self.exec_request.command_buffer:
                 self.assign_command_buffer(self.exec_request)
+                await device
 
-            device = self.fiber.device(0)
             phases = self.exec_request.phases
             if phases[InferencePhase.PREPARE]["required"]:
                 await self._prepare(device=device)
@@ -420,6 +425,7 @@ class InferenceExecutorProcess(sf.Process):
 
         with self.meta_fiber.lock:
             self.meta_fiber.command_buffers.append(self.exec_request.command_buffer)
+            self.exec_request.command_buffer = None
         if self.service.prog_isolation == sf.ProgramIsolation.PER_FIBER:
             self.service.idle_meta_fibers.append(self.meta_fiber)
 
@@ -508,7 +514,6 @@ class InferenceExecutorProcess(sf.Process):
         (cb.latents, cb.time_ids, cb.timesteps, cb.sigmas,) = await fns[
             "run_initialize"
         ](cb.sample, cb.num_steps, fiber=self.fiber)
-        accum_step_duration = 0  # Accumulated duration for all steps
 
         for i, t in tqdm(
             enumerate(range(self.exec_request.steps)),
@@ -561,12 +566,6 @@ class InferenceExecutorProcess(sf.Process):
                 (cb.latents,) = await fns["run_step"](
                     cb.noise_pred, cb.latents, cb.sigma, cb.next_sigma, fiber=self.fiber
                 )
-            duration = time.time() - start
-            accum_step_duration += duration
-        average_step_duration = accum_step_duration / self.exec_request.steps
-        log_duration_str(
-            average_step_duration, "denoise (UNet) single step average", req_bs
-        )
         return
 
     async def _decode(self, device):
