@@ -6,8 +6,7 @@
 
 
 class AbstractResponder:
-    """Interface for a responder to 
-    """
+    """Interface for a responder to"""
 
     def __init__(self):
         pass
