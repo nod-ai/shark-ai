@@ -922,8 +922,13 @@ void BindArrayHostOps(py::module_ &m) {
             out.emplace(device_array::for_host(input.device(), result.shape(),
                                                input.dtype(), device_visible));
           }
-          auto out_t = out->map_xtensor_w<float>();
-          *out_t = result;
+          if (input.dtype() == DType::float32()) {
+            auto out_t = out->map_xtensor_w<float>();
+            *out_t = result;
+          } else {
+            auto out_t = out->map_xtensor_w<half_float::half>();
+            *out_t = result;
+          }
           return *out;
         };
 
