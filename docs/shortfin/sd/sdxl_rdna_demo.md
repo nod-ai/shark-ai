@@ -129,17 +129,21 @@ Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
 NOTE: The first run will download all the necessary artifacts (the model code and the weights).
 This may take a while. The subsequent runs will use the artifacts cached in `~/.cache/shark/genfiles/sdxl`.
 
-### Run SDXL
+### Start the Shortfin SD Client
 
-Open another terminal and start the client in the interactive mode:
+1. In a new terminal session, navigate back to Shortfin
 
-```shell
-cd demo
-source .venv/bin/activate
-cd shark-ai/shortfin
+    ```shell
+    cd demo
+    source .venv/bin/activate
+    cd shark-ai/shortfin
+    ```
 
-python -m python.shortfin_apps.sd.simple_client --interactive
-```
+1. Start the client in the interactive mode:
+
+    ```shell
+    python -m python.shortfin_apps.sd.simple_client --interactive
+    ```
 
 ### Use the Client
 
