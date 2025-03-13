@@ -15,6 +15,7 @@ import copy
 import re
 import gc
 import logging
+import urllib
 
 from shortfin_apps.sd.components.config_struct import ModelParams
 
@@ -95,7 +96,6 @@ def get_params_filename(model_params: ModelParams, model=None, splat: bool = Fal
         dtype_to_filetag[model_params.clip_dtype],
         dtype_to_filetag[model_params.unet_dtype],
     ]
-    logging.info(f"model_params: {model_params}")
     if model_params.use_punet:
         modnames.append("punet")
         mod_precs.append(model_params.unet_quant_dtype)
@@ -211,7 +211,13 @@ def needs_file(filename, ctx, url=None, namespace=FileNamespace.GEN) -> bool:
         filekey = os.path.join(ctx.path, filename)
         ctx.executor.all[filekey] = None
     except RuntimeError:
-        return False
+        filekey = os.path.join(ctx.path, filename)
+        out_file = ctx.executor.all[filekey].get_fs_path()
+        if os.path.exists(out_file):
+            return False
+        else:
+            ctx.executor.all[filekey] = None
+            return True
 
     if os.path.exists(out_file):
         if url and not is_valid_size(out_file, url):

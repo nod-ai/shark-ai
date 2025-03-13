@@ -136,7 +136,6 @@ def configure_service(args, sysman, model_config, flagfile, tuning_spec):
     for idx, tok_name in enumerate(args.tokenizers):
         subfolder = f"tokenizer_{idx + 1}" if idx > 0 else "tokenizer"
         tokenizers.append(Tokenizer.from_pretrained(tok_name, subfolder))
-
     model_params = ModelParams.load_json(model_config)
     vmfbs, params = get_modules(args, model_config, flagfile, tuning_spec)
 
@@ -183,7 +182,10 @@ def get_configs(args):
     outs = subprocess.check_output(cfg_builder_args).decode()
     outs_paths = outs.splitlines()
     for i in outs_paths:
-        if "sdxl_config" in i and not os.path.exists(model_config):
+        if model_config:
+            if "sdxl_config" in i and not os.path.exists(model_config):
+                model_config = i
+        elif not model_config and "sdxl_config" in i:
             model_config = i
         elif "topology" in i and args.topology:
             topology_config = i
@@ -281,7 +283,8 @@ def get_modules(args, model_config, flagfile, td_spec):
             f"--iree-compile-extra-args={ireec_extra_args}",
         ]
         logger.info(f"Preparing runtime artifacts for {modelname}...")
-        logger.info(
+        logger.info(f"Builder args: {' '.join(builder_args)}")
+        logger.debug(
             "COMMAND LINE EQUIVALENT: " + " ".join([str(argn) for argn in builder_args])
         )
         output = subprocess.check_output(builder_args, env=builder_env).decode()
@@ -322,7 +325,7 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
         type=str,
         required=False,
         default="gfx942",
-        choices=["gfx942", "gfx1100", "gfx90a"],
+        choices=["gfx90a", "gfx942", "gfx1100", "gfx1201"],
         help="Primary inferencing device LLVM target arch.",
     )
     parser.add_argument(

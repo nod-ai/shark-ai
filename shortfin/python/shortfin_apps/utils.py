@@ -1,5 +1,6 @@
 from iree.build.executor import FileNamespace, BuildAction, BuildContext, BuildFile
 import os
+import re
 import urllib
 
 import shortfin.array as sfnp
@@ -136,3 +137,328 @@ class FetchHttpWithCheckAction(BuildAction):
             if retries > 0:
                 retries -= 1
                 self._invoke(retries=retries)
+
+
+# Common mapping for program isolation modes
+PROG_ISOLATIONS = {
+    isolation.name.lower(): isolation for isolation in sf.ProgramIsolation
+}
+# For backward compatibility
+prog_isolations = {
+    "none": sf.ProgramIsolation.NONE,
+    "per_fiber": sf.ProgramIsolation.PER_FIBER,
+    "per_call": sf.ProgramIsolation.PER_CALL,
+}
+
+
+class InferenceExecRequest(sf.Message):
+    def __init__(self):
+        super().__init__()
+
+
+class StrobeMessage(sf.Message):
+    """Sent to strobe a queue with fake activity (generate a wakeup)."""
+
+    ...
+
+
+class GenerateService:
+    """Base class for shortfin service implementations."""
+
+    def __init__(
+        self,
+        sysman: SystemManager,
+        fibers_per_device: int = 1,
+        workers_per_device: int = 1,
+    ):
+        """Initialize base service attributes."""
+        self.sysman = sysman
+        self.inference_parameters: dict[str, list[sf.BaseProgramParameters]] = {}
+        self.inference_modules: dict[str, list[sf.ProgramModule]] = {}
+        self.inference_programs: dict[int, dict[str, sf.Program]] = {}
+        self.inference_functions: dict[int, dict[str, sf.ProgramFunction]] = {}
+        self.name = None
+        self.model_params = None
+        self.prog_isolation = None
+        self.trace_execution = False
+        self.show_progress = False
+
+        # Worker and fiber configuration
+        self.workers: list[sf.Worker] = []
+        self.workers_per_device = workers_per_device
+        self.fibers_per_device = fibers_per_device
+        self.validate_fiber_configuration()
+
+    def set_isolation(self, isolation_str: str = "per_call"):
+        """Set the program isolation mode from a string.
+
+        Args:
+            isolation_str: Program isolation mode string
+        """
+        self.prog_isolation = prog_isolations[isolation_str]
+
+    def validate_fiber_configuration(self):
+        """Validate fiber configuration."""
+        if self.fibers_per_device % self.workers_per_device != 0:
+            raise ValueError(
+                "Currently, fibers_per_device must be divisible by workers_per_device"
+            )
+        self.fibers_per_worker = int(self.fibers_per_device / self.workers_per_device)
+
+    def load_inference_module(
+        self, vmfb_path: Path, component: str = "main", batch_size: int = None
+    ):
+        """Load an inference module from a VMFB file.
+
+        Args:
+            vmfb_path: Path to the VMFB file
+            component: Optional component name for organizing modules
+        """
+        if batch_size:
+            bs = batch_size
+        else:
+            match = re.search(r"_bs(\d+)_", str(vmfb_path))
+            if match:
+                bs = int(match.group(1))
+            else:
+                bs = None
+        if not hasattr(self, "inference_modules"):
+            self.inference_modules = {}
+        if bs:
+            if not self.inference_modules.get(component):
+                self.inference_modules[component] = {}
+            if not self.inference_modules[component].get(bs):
+                self.inference_modules[component][bs] = []
+            self.inference_modules[component][bs].append(
+                sf.ProgramModule.load(self.sysman.ls, vmfb_path)
+            )
+        else:
+            if not self.inference_modules.get(component):
+                self.inference_modules[component] = []
+            self.inference_modules[component].append(
+                sf.ProgramModule.load(self.sysman.ls, vmfb_path)
+            )
+
+    def load_inference_parameters(
+        self,
+        *paths: Path,
+        parameter_scope: str,
+        format: str = "",
+        component: str = "main",
+    ):
+        """Load inference parameters from files.
+
+        Args:
+            *paths: Paths to parameter files
+            parameter_scope: Parameter scope name
+            format: Optional format string
+            component: Optional component name for organizing parameters
+        """
+        p = sf.StaticProgramParameters(self.sysman.ls, parameter_scope=parameter_scope)
+        for path in paths:
+            logging.info("Loading parameter fiber '%s' from: %s", parameter_scope, path)
+            p.load(path, format=format)
+
+        if not hasattr(self, "inference_parameters"):
+            self.inference_parameters = {}
+        if not self.inference_parameters.get(component):
+            self.inference_parameters[component] = []
+        self.inference_parameters[component].append(p)
+
+    def initialize_program_modules(self, component: str):
+        """Initialize program modules for a component.
+
+        Args:
+            component: Component name
+
+        Returns:
+            List of program modules
+        """
+        if component not in self.inference_modules:
+            return []
+
+        return [
+            sf.ProgramModule.parameter_provider(
+                self.sysman.ls, *self.inference_parameters.get(component, [])
+            ),
+            *self.inference_modules[component],
+        ]
+
+    def create_program(
+        self,
+        modules: list[sf.ProgramModule],
+        devices: list[sf.Device],
+        isolation: Optional[str] = None,
+        trace_execution: Optional[bool] = None,
+    ) -> sf.Program:
+        """Create a program with the given modules and devices.
+
+        Args:
+            modules: List of program modules
+            devices: List of devices
+            isolation: Program isolation mode (defaults to self.prog_isolation)
+            trace_execution: Whether to trace execution (defaults to self.trace_execution)
+
+        Returns:
+            Program instance
+        """
+        if isolation is None:
+            isolation = self.prog_isolation
+
+        if trace_execution is None:
+            trace_execution = self.trace_execution
+
+        return sf.Program(
+            modules=modules,
+            devices=devices,
+            isolation=isolation,
+            trace_execution=trace_execution,
+        )
+
+    def create_worker(self, device: sf.Device, index: int) -> sf.Worker:
+        """Create a worker for a device.
+
+        Args:
+            device: Device to create worker for
+            index: Worker index
+
+        Returns:
+            Worker instance
+        """
+        return self.sysman.ls.create_worker(
+            f"{self.name}-inference-{device.name}-{index}"
+        )
+
+    def start(self):
+        """Start the service by loading program modules and launching the batcher."""
+        # Override in derived classes
+        pass
+
+    def shutdown(self):
+        """Shutdown the service."""
+        if hasattr(self, "batcher"):
+            self.batcher.shutdown()
+
+    def __repr__(self):
+        """Default string representation for service instances."""
+        modules = [
+            f"     {key} : {value}" for key, value in self.inference_modules.items()
+        ]
+        params = [
+            f"     {key} : {value}" for key, value in self.inference_parameters.items()
+        ]
+        # For python 3.11 since we can't have \ in the f"" expression.
+        new_line = "\n"
+        return (
+            f"ServiceManager("
+            f"\n  INFERENCE DEVICES : \n"
+            f"     {self.sysman.ls.devices}\n"
+            f"\n  MODEL PARAMS : \n"
+            f"{self.model_params}"
+            f"\n  SERVICE PARAMS : \n"
+            f"     fibers per device : {self.fibers_per_device}\n"
+            f"     program isolation mode : {self.prog_isolation}\n"
+            f"\n  INFERENCE MODULES : \n"
+            f"{new_line.join(modules)}\n"
+            f"\n  INFERENCE PARAMETERS : \n"
+            f"{new_line.join(params)}\n"
+            f")"
+        )
+
+
+class BatcherProcess(sf.Process):
+    """The batcher is a persistent process responsible for flighting incoming work
+    into batches."""
+
+    STROBE_SHORT_DELAY = 0.5
+    STROBE_LONG_DELAY = 1.0
+
+    def __init__(self, fiber, name="batcher"):
+        super().__init__(fiber=fiber)
+        self.batcher_infeed = self.system.create_queue()
+        self.strobe_enabled = True
+        self.strobes = 0
+        self.pending_requests = set()
+
+    def shutdown(self):
+        """Shutdown the batcher process."""
+        self.batcher_infeed.close()
+
+    def submit(self, request):
+        """Submit a request to the batcher."""
+        self.batcher_infeed.write_nodelay(request)
+
+    async def _background_strober(self):
+        """Background strober task that monitors pending requests."""
+        while not self.batcher_infeed.closed:
+            await asyncio.sleep(
+                self.STROBE_SHORT_DELAY
+                if len(self.pending_requests) > 0
+                else self.STROBE_LONG_DELAY
+            )
+            if self.strobe_enabled:
+                self.submit(StrobeMessage())
+
+    async def run(self):
+        """Main run loop for the batcher process."""
+        strober_task = asyncio.create_task(self._background_strober())
+        reader = self.batcher_infeed.reader()
+        while item := await reader():
+            self.strobe_enabled = False
+            if isinstance(item, InferenceExecRequest):
+                self.handle_inference_request(item)
+            elif isinstance(item, StrobeMessage):
+                self.strobes += 1
+            else:
+                logger.error("Illegal message received by batcher: %r", item)
+                exit(1)
+
+            await self.process_batches()
+
+            self.strobe_enabled = True
+        await strober_task
+
+    def handle_inference_request(self, request):
+        """Handle an inference request. To be implemented by subclasses."""
+        pass
+
+    async def process_batches(self):
+        """Process batches of requests. To be implemented by subclasses."""
+        pass
+
+    def sort_batches(self):
+        """Files pending requests into sorted batches suitable for program invocations.
+
+        This is a common implementation used by SDXLBatcherProcess and FluxBatcherProcess.
+        """
+        if not hasattr(self, "pending_requests"):
+            return {}
+
+        reqs = self.pending_requests
+        next_key = 0
+        batches = {}
+        for req in reqs:
+            is_sorted = False
+            req_metas = [req.phases[phase]["metadata"] for phase in req.phases.keys()]
+
+            for idx_key, data in batches.items():
+                if not isinstance(data, dict):
+                    logger.error(
+                        "Expected to find a dictionary containing a list of requests and their shared metadatas."
+                    )
+                if len(batches[idx_key]["reqs"]) >= self.ideal_batch_size:
+                    # Batch is full
+                    next_key = idx_key + 1
+                    continue
+                elif data["meta"] == req_metas:
+                    batches[idx_key]["reqs"].extend([req])
+                    is_sorted = True
+                    break
+                else:
+                    next_key = idx_key + 1
+            if not is_sorted:
+                batches[next_key] = {
+                    "reqs": [req],
+                    "meta": req_metas,
+                }
+        return batches

@@ -22,6 +22,7 @@ def export_sdxl_model(
     decomp_attn=False,
     quant_path=None,
     scheduler_config_path=None,
+    weights_only=False,
 ) -> ExportOutput:
     import torch
 

@@ -18,9 +18,11 @@ from pathlib import Path
 from dataclasses_json import dataclass_json, Undefined
 
 import shortfin.array as sfnp
+import json as json
 
 str_to_dtype = {
     "int8": sfnp.int8,
+    "float8": sfnp.opaque8,
     "float16": sfnp.float16,
 }
 
@@ -85,6 +87,7 @@ class ModelParams:
     def load_json(path):
         with open(path, "rt") as f:
             json_text = f.read()
+        json_obj = json.loads(json_text)
         raw_params = ModelParams.from_json(json_text)
         if isinstance(raw_params.unet_dtype, str):
             raw_params.unet_dtype = str_to_dtype[raw_params.unet_dtype]
