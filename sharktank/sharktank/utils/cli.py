@@ -132,6 +132,15 @@ def add_model_options(parser: argparse.ArgumentParser):
         help="Generates attention mask during export",
         action="store_true",
     )
+    
+def add_model_input_options(parser: argparse.ArgumentParser):
+    """Adds input options for LLMs"""
+    
+    parser.add_argument(
+        "prompt",
+        nargs='+',
+        help="Custom prompt strings to run LLM or perplexity",
+    )
 
 def add_iree_flags(parser: argparse.ArgumentParser):
     """Adds IREE device flag options"""
@@ -154,19 +163,43 @@ def add_export_artifacts(parser:argparse.ArgumentParser):
     """Adds export & compile artifacts path options"""
     
     parser.add_argument(
-        "--mlir-path",
-        type=str,
-        help="Path to exported mlir file",
+        "--bs",
+        help="Comma-separated batch size(s) to export, e.g. `4` or `2,4`",
+        type=lambda arg: [int(bs) for bs in arg.split(",")],
+        default="4",
     )
     parser.add_argument(
-        "--json-path",
-        type=str,
-        help="Path to exported config json file",
+        "--strict",
+        help="Enables strictness during export",
+        action="store_true",
     )
     parser.add_argument(
-        "--vmfb-path",
+        "--output-mlir",
+        help="Output file path for exported MLIR file",
         type=str,
-        help="Path to compiled vmfb file",
+    )
+    parser.add_argument(
+        "--output-config",
+        help="Output file path for exported config file",
+        type=str,
+    )
+    parser.add_argument(
+        "--output-vmfb",
+        help="Output file path for compiled vmfb file",
+        type=str,
+    )
+
+def add_save_tensor_options(parser: argparse.ArgumentParser):
+    """Adds options to save input and intermediate tensors to separate files"""
+    
+    parser.add_argument(
+        "--save_intermediates_path",
+        help="save module forward outputs to safetensors, ex: run_0 will save to run_0_prefill.savetensors",
+    )
+    parser.add_argument(
+        "--dump-bins",
+        help="dump input tensors to bin files",
+        action="store_true",
     )
 
 def add_quantization_options(parser: argparse.ArgumentParser):
@@ -198,8 +231,8 @@ def add_log_options(parser: argparse.ArgumentParser):
     """Adds log options"""
     
     parser.add_argument(
-        "--debug",
-        help="Print debugging statements",
+        "--verbose",
+        help="Include verbose logging",
         action="store_const", 
         dest="loglevel", 
         const=logging.DEBUG,
@@ -213,7 +246,7 @@ def add_evaluate_options(parser: argparse.ArgumentParser):
         "--num-prompts",
         type=int,
         default=128,
-        help="Number of prompts for perplexity test (1 to 128)",
+        help="Number of prompts/batch size for perplexity test (1 to 128)",
     )
     parser.add_argument(
         "--prompt-list",

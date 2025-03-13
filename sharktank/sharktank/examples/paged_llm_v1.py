@@ -264,25 +264,19 @@ def main():
     from ..utils import cli
 
     parser = cli.create_parser()
-    parser.add_argument("prompt", nargs="+", help="Prompt strings")
-    parser.add_argument(
-        "--save_intermediates_path",
-        help="save module forward outputs to safetensors, ex: run_0 will save to run_0_prefill.savetensors",
-    )
-    parser.add_argument(
-        "--dump-bins",
-        help="dump input tensors to bin files",
-        action="store_true",
-    )
     cli.add_input_dataset_options(parser)
     cli.add_tokenizer_options(parser)
     cli.add_quantization_options(parser)
     cli.add_model_options(parser)
+    cli.add_model_input_options(parser)
+    cli.add_save_tensor_options(parser)
+
     args = cli.parse(parser)
     device = torch.device(args.device) if args.device else None
     dataset = cli.get_input_dataset(args)
     tokenizer = cli.get_tokenizer(args)
     prompts = args.prompt
+    
     config = LlamaModelConfig(
         hp=configs.LlamaHParams.from_gguf_props(dataset.properties),
         block_seq_stride=args.block_seq_stride,

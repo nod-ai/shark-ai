@@ -6,6 +6,7 @@
 
 """Export support for the PagedLLMV1 protocol of models."""
 
+import logging
 import json
 from typing import Any, Dict
 import torch
@@ -28,41 +29,13 @@ def main():
     from ..utils import cli
 
     parser = cli.create_parser()
-    cli.add_input_dataset_options(parser)
-    parser.add_argument(
-        "--output-mlir",
-        help="Output file path for exported MLIR file",
-        default="/tmp/batch_llama_v1.mlir",
-    )
-    parser.add_argument(
-        "--output-config",
-        help="Output file path for exported config file",
-        default="/tmp/batch_llama_v1.json",
-    )
-    parser.add_argument(
-        "--bs",
-        help="Comma-separated batch size(s) to generate, e.g. `4` or `2,4`",
-        type=lambda arg: [int(bs) for bs in arg.split(",")],
-        default="4",
-    )
-    parser.add_argument(
-        "--verbose",
-        help="Include verbose logging",
-        action="store_true",
-    )
-    parser.add_argument(
-        "--strict",
-        help="Enables strictness during export",
-        action="store_true",
-    )
-    parser.add_argument(
-        "--use-attention-mask",
-        help="Generates attention mask during export",
-        action="store_true",
-    )
 
-    cli.add_quantization_options(parser)
+    cli.add_input_dataset_options(parser)
     cli.add_model_options(parser)
+    cli.add_export_artifacts(parser)
+    cli.add_quantization_options(parser)
+    cli.add_log_options(parser)
+    
     args = cli.parse(parser)
     dataset_type = cli.get_input_data_files(args)
     dataset_type = "irpa" if "irpa" in dataset_type else "gguf"
@@ -345,7 +318,7 @@ def main():
     config = generate_params_json(hp, bsizes, bsizes)
     print("GENERATED!")
 
-    if args.verbose:
+    if args.loglevel==logging.DEBUG:
         for name, ep in fxb.programs.items():
             print(f"EXPORT {name}:\n{ep}")
 
