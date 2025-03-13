@@ -290,12 +290,17 @@ class GenerateService:
             if match:
                 bs = int(match.group(1))
             else:
-                bs = 1
-        if not self.inference_modules[component].get(bs):
-            self.inference_modules[component][bs] = []
-        self.inference_modules[component][bs].append(
-            sf.ProgramModule.load(self.sysman.ls, vmfb_path)
-        )
+                bs = None
+        if bs:
+            if not self.inference_modules[component].get(bs):
+                self.inference_modules[component][bs] = []
+            self.inference_modules[component][bs].append(
+                sf.ProgramModule.load(self.sysman.ls, vmfb_path)
+            )
+        else:
+            self.inference_modules[component].append(
+                sf.ProgramModule.load(self.sysman.ls, vmfb_path)
+            )
 
     def load_inference_parameters(
         self,
