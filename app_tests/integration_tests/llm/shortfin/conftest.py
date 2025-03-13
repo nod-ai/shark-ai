@@ -14,6 +14,11 @@ from ..server_management import ServerInstance, ServerConfig
 
 from ..device_settings import get_device_settings_by_name
 
+# logging
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 def pytest_addoption(parser):
     parser.addoption(
@@ -40,7 +45,16 @@ def model_artifacts(tmp_path_factory, request, test_device):
     model_config.device_settings = get_device_settings_by_name(test_device)
     cache_key = hashlib.md5(str(model_config).encode()).hexdigest()
 
-    cache_dir = tmp_path_factory.mktemp("model_cache")
+    # try to establish cache dir in /shark-cache
+    try:
+        cache_dir = Path("/shark-cache/hf-model-cache")
+        cache_dir.mkdir(exist_ok=True, parents=True)
+    except Exception as e:
+        logger.warning(
+            "Failed to establish cache dir with exception: %s. Caching models in pytest tempt instead.",
+            str(e),
+        )
+        cache_dir = tmp_path_factory.mktemp("model_cache")
     model_dir = cache_dir / cache_key
 
     # Return cached artifacts if available
