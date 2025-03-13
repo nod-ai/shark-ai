@@ -91,7 +91,7 @@ Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
 
 ## Usage
 
-### Start Shortfin and run SDXL
+### Start Shortfin
 
 Start the Shortfin server with the correct target (`gfx1100` for RDNA3, `gfx1201` for RDNA4).
 You can override the network port used using the `--port <PORT-NUM>` flag.
@@ -112,6 +112,19 @@ You should see the server running:
 [2025-03-05 21:05:00] Application startup complete.
 [2025-03-05 21:05:00] Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
 ```
+
+#### Int8: Both RDNA3 and RDNA4
+
+Use the following command to start the server:
+
+```shell
+python -m python.shortfin_apps.sd.server --device=amdgpu --target=gfx1201 --build_preference=precompiled \
+  --device=hip --device_ids 0 --model_config=sdxl_config_i8.json
+```
+
+Use `--target=gfx1100` when running on RDNA3.
+
+### Run SDXL
 
 Open another terminal and start the client in the interactive mode:
 
@@ -148,19 +161,6 @@ While the server will print the total inference time to generate the image:
 ![The generated image of a shark](./sample_image_shark.png)
 
 You can exit the server and the client by pressing `Ctrl + C`.
-
-
-#### Int8: Both RDNA3 and RDNA4
-
-Use the following command to start the server:
-
-```shell
-python -m python.shortfin_apps.sd.server --device=amdgpu --target=gfx1201 --build_preference=precompiled \
-  --device=hip --device_ids 0 --model_config=sdxl_config_i8.json
-```
-
-Use `--target=gfx1100` when running on RDNA3.
-Open a new terminal and follow the steps from the section above to run the client.
 
 ## Preliminary performance results
 
