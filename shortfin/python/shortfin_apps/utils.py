@@ -278,11 +278,6 @@ class GenerateService:
             vmfb_path: Path to the VMFB file
             component: Optional component name for organizing modules
         """
-        if not hasattr(self, "inference_modules"):
-            self.inference_modules = {}
-        if not self.inference_modules.get(component):
-            self.inference_modules[component] = {}
-
         if batch_size:
             bs = batch_size
         else:
@@ -291,13 +286,19 @@ class GenerateService:
                 bs = int(match.group(1))
             else:
                 bs = None
+        if not hasattr(self, "inference_modules"):
+            self.inference_modules = {}
         if bs:
+            if not self.inference_modules.get(component):
+                self.inference_modules[component] = {}
             if not self.inference_modules[component].get(bs):
                 self.inference_modules[component][bs] = []
             self.inference_modules[component][bs].append(
                 sf.ProgramModule.load(self.sysman.ls, vmfb_path)
             )
         else:
+            if not self.inference_modules.get(component):
+                self.inference_modules[component] = []
             self.inference_modules[component].append(
                 sf.ProgramModule.load(self.sysman.ls, vmfb_path)
             )
