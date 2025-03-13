@@ -318,10 +318,9 @@ class Perplexity:
                     seq_lens_batch, device=self.torch_device
                 )
 
-                self.batch = self.generator.begin_eval_batch(
-                    token_batch=token_batch,
-                    seq_lens_batch=self.seq_lens_batch,
-                    bs=self.bs,
+                self.batch = self.generator.begin_batch(
+                    token_ids=token_batch,
+                    seq_lens=self.seq_lens_batch,
                     page_cache_size=page_cache_size,
                 )
 
@@ -405,7 +404,7 @@ class Perplexity:
         self.page_cache_size = (
             len(token_ids[0]) // self.config.block_seq_stride
         ) * self.bs + 1
-
+        
         logger.debug(f" Prompts for Evaluation:")
         for idx, prompt in enumerate(self.test_prompts):
             logger.debug(
@@ -419,7 +418,7 @@ class Perplexity:
         self.attention_mask = (
             (self.token_ids != 0).int().detach().clone().to(self.torch_device)
         )
-
+        
         self.get_logits(page_cache_size=self.page_cache_size)
 
         self.out_logits = self.out_logits[..., :-(self.start+1), :].contiguous()

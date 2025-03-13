@@ -7,14 +7,16 @@
 import math
 
 import torch
+import numpy as np
 
 from sharktank.layers import *
 from sharktank.types import *
 from sharktank.models.llama.llama import *
+from sharktank.models.llama.tools.data_utils import write_ndarray_to_bin
 
+from ..ops import replicate, unshard
 from ..utils.debugging import trace_tensor
 from ..utils.tokenizer import InferenceTokenizer
-
 
 class TorchGenerator:
     """Generator that runs directly on the Torch model."""
@@ -23,56 +25,47 @@ class TorchGenerator:
         self,
         model: PagedLlamaModelV1,
         tokenizer: InferenceTokenizer,
-        page_cache_size: int = 128,
         # Need to look at the model more for this.
         end_token: int = 2,
+        dump_bins: bool = False,
     ):
         self.model = model
         self.tokenizer = tokenizer
-        self.shared_cache_state = model.cache.allocate(page_cache_size)
-        self.free_pages = list(range(1, page_cache_size))
         self.end_token = end_token
+        self.dump_bins = dump_bins
 
     @property
     def block_seq_stride(self) -> int:
         return self.model.cache.block_seq_stride
 
-    def begin_batch(
-        self, prompts: list[str], add_start_token: bool, page_cache_size: int = 128
+    def preprocess_input(
+        self, prompts: list[str]
     ):
         token_ids, seq_lens = self.tokenizer.encode(
             prompts,
             pad_to_multiple_of=self.model.cache.pad_sequence_stride,
-            add_start_token=add_start_token,
         )
+
         token_ids = torch.tensor(token_ids, device=self.model.device)
         seq_lens = torch.tensor(seq_lens, device=self.model.device)
         
-        if self.shared_cache_state is not None:
-            cache_state = self.shared_cache_state
-        else:
-            cache_state = self.model.cache.allocate(bs=len(prompts))
-        return Batch(self, token_ids, seq_lens, cache_state)
+        return token_ids, seq_lens
 
-    def begin_eval_batch(
+    def begin_batch(
         self,
-        token_batch: torch.tensor,
-        seq_lens_batch: torch.tensor,
-        bs: int,
+        token_ids: torch.tensor,
+        seq_lens: torch.tensor,
         page_cache_size: int = 128,
     ):
-        if self.shared_cache_state is not None:
-            cache_state = self.shared_cache_state
-        else:
-            cache_state = self.model.cache.allocate(bs=bs)
-        return Batch(self, token_batch, seq_lens_batch, cache_state)
+        cache_state = self.model.cache.allocate(page_cache_size)
+        self.free_pages = list(range(1, page_cache_size))
+        return Batch(self, token_ids, seq_lens, cache_state, dump_bins=self.dump_bins)
 
     def alloc_page(self) -> int:
         return self.free_pages.pop()
 
     def release_page(self, index: int):
         self.free_pages.append(index)
-
 
 class Batch:
     def __init__(
@@ -81,6 +74,7 @@ class Batch:
         token_ids: torch.Tensor,
         seq_lens: torch.Tensor,
         cache_state: list[torch.Tensor],
+        dump_bins: bool = False,
     ):
         self.bs = token_ids.shape[0]
         assert seq_lens.shape[0] == self.bs
@@ -90,6 +84,7 @@ class Batch:
         self.cache_state = cache_state
         self.results: list[list[int]] = [[] for _ in range(self.bs)]
         self.done_result_indices: set[int] = set()
+        self.dump_bins = dump_bins
 
         # Assemble the batch.
         seq_stride = self.parent.block_seq_stride
@@ -146,12 +141,38 @@ class Batch:
         trace_tensor("prefill.token_ids", self.token_ids)
         trace_tensor("prefill.seq_block_ids", seq_block_ids_tensor)
         trace_tensor("prefill.attention_mask", attention_mask)
+        token_ids = self.token_ids
+        if model.config.tensor_parallelism_size != 1:
+            tp = model.config.tensor_parallelism_size
+            token_ids = replicate(token_ids, tp)
+            attention_mask = replicate(attention_mask, tp)
+            seq_block_ids_tensor = replicate(seq_block_ids_tensor, tp)
+
+        if self.dump_bins:
+            write_ndarray_to_bin(
+                token_ids.numpy(),
+                f"prefill_token_ids_{'x'.join([str(x) for x in token_ids.shape])}xi64.bin",
+            )
+            write_ndarray_to_bin(
+                np.array(token_ids.shape[0], dtype=np.int64),
+                f"prefill_seq_lens_1xi64.bin",
+            )
+            write_ndarray_to_bin(
+                seq_block_ids_tensor.numpy(),
+                f"prefill_seq_block_ids_{'x'.join([str(x) for x in seq_block_ids_tensor.shape])}xi64.bin",
+            )
+            write_ndarray_to_bin(
+                self.cache_state[0].to(torch.float8_e4m3fnuz).to(torch.uint8).numpy(),
+                f"prefill_cache_state_{'x'.join([str(x) for x in self.cache_state[0].shape])}xf8E4M3FNUZ.bin",
+            )
         self.prefill_logits = model.prefill(
-            self.token_ids,
+            token_ids,
             attention_mask=attention_mask,
             seq_block_ids=seq_block_ids_tensor,
             cache_state=self.cache_state,
         )
+        
+        self.prefill_logits = unshard(self.prefill_logits)
 
         # TODO: Generalize the sampling and don't make it swap on/off cpu.
         # TODO: Normalize the output of extract_tokens_from_logits into
@@ -177,10 +198,39 @@ class Batch:
                 seq_block_ids_tensor.shape[1] * self.parent.block_seq_stride,
             )
         )
-        trace_tensor("decode.token_ids", self.token_ids)
+        trace_tensor("decode.token_ids", self.token_batch)
         trace_tensor("decode.start_positions", start_positions)
         trace_tensor("decode.seq_block_ids", seq_block_ids_tensor)
         trace_tensor("decode.attention_mask", decode_attention_mask)
+        
+        if model.config.tensor_parallelism_size != 1:
+            tp = model.config.tensor_parallelism_size
+            self.token_batch = replicate(self.token_batch, tp)
+            start_positions = replicate(start_positions, tp)
+            seq_block_ids_tensor = replicate(seq_block_ids_tensor, tp)
+            decode_attention_mask = replicate(decode_attention_mask, tp)
+
+        if self.dump_bins:
+            write_ndarray_to_bin(
+                self.token_batch.numpy(),
+                f"decode_next_tokens_{'x'.join([str(x)for x in self.token_batch.shape])}xi64.bin",
+            )
+            write_ndarray_to_bin(
+                start_positions.numpy(),
+                f"decode_start_positions_{'x'.join([str(x)for x in start_positions.shape])}xi64.bin",
+            )
+            write_ndarray_to_bin(
+                seq_block_ids_tensor.numpy(),
+                f"decode_seq_block_ids_tensor_{'x'.join([str(x)for x in seq_block_ids_tensor.shape])}xi64.bin",
+            )
+            write_ndarray_to_bin(
+                torch.tensor(self.token_batch.shape[0]).to(torch.int64).numpy(),
+                f"decode_seq_lens_1xi64.bin",
+            )
+            write_ndarray_to_bin(
+                self.cache_state[0].to(torch.float8_e4m3fnuz).to(torch.uint8).numpy(),
+                f"decode_cache_state_{'x'.join([str(x) for x in self.cache_state[0].shape])}xf8E4M3FNUZ.bin",
+            )
 
         self.decode_logits = model.decode(
             self.token_batch,
@@ -189,7 +239,9 @@ class Batch:
             seq_block_ids=seq_block_ids_tensor,
             cache_state=self.cache_state,
         )
-
+        
+        self.decode_logits = unshard(self.decode_logits)
+        
         trace_tensor("decode.logits", self.decode_logits)
         # # TODO: Normalize the output of extract_tokens_from_logits into
         # # tensor [bs, 1].

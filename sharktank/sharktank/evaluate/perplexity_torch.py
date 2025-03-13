@@ -192,10 +192,9 @@ class Perplexity_torch:
                 token_batch = torch.tensor(token_batch, device=self.device)
                 seq_lens_batch = torch.tensor(seq_lens_batch, device=self.device)
 
-                self.batch = self.generator.begin_eval_batch(
-                    token_batch=token_batch,
-                    seq_lens_batch=seq_lens_batch,
-                    bs=self.bs,
+                self.batch = self.generator.begin_batch(
+                    token_ids=token_batch,
+                    seq_lens=seq_lens_batch,
                     page_cache_size=page_cache_size,
                 )
 
