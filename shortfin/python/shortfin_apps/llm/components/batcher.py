@@ -43,6 +43,7 @@ class LlmBatcherProcess(BatcherProcess):
 
     def __init__(
         self,
+        name: str,
         fiber: Fiber,
         page_cache: BasePagedAttentionCache,
         model_params: ModelParams,
@@ -50,6 +51,7 @@ class LlmBatcherProcess(BatcherProcess):
         ideal_batch_size: int,
     ):
         super().__init__(fiber=fiber)
+        self.name = name
         self.page_cache = page_cache
         self.model_params = model_params
         self.functions = functions
@@ -130,6 +132,7 @@ class PrefillBatcherProcess(LlmBatcherProcess):
         prefill_functions: dict[int, sf.ProgramFunction],
     ):
         super().__init__(
+            name="prefill",
             fiber=fiber,
             page_cache=page_cache,
             model_params=model_params,
@@ -181,6 +184,7 @@ class DecodeBatcherProcess(LlmBatcherProcess):
         decode_functions: dict[int, sf.ProgramFunction],
     ):
         super().__init__(
+            name="decode",
             fiber=fiber,
             page_cache=page_cache,
             model_params=model_params,
@@ -213,12 +217,14 @@ class LlmExecutorProcess(sf.Process):
 
     def __init__(
         self,
+        name: str,
         fiber: Fiber,
         functions: dict[int, sf.ProgramFunction],
         seq_stride: int,
         page_tables,
     ):
         super().__init__(fiber=fiber)
+        self.name = name
         self.seq_stride = seq_stride
         self.exec_requests: list[LlmInferenceExecRequest] = []
         self.page_tables = page_tables
@@ -303,6 +309,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         page_tables,
     ):
         super().__init__(
+            name="prefill_process",
             fiber=fiber,
             functions=functions,
             seq_stride=seq_stride,
@@ -399,6 +406,7 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         page_tables,
     ):
         super().__init__(
+            name="decode_process",
             fiber=fiber,
             functions=functions,
             seq_stride=seq_stride,

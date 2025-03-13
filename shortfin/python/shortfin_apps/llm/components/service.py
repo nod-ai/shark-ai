@@ -55,6 +55,8 @@ class LlmGenerateService(GenerateService):
     def initialize_worker_and_fiber(self):
         self.main_worker = self.sysman.ls.create_worker(f"{self.name}-inference")
         self.main_fiber = self.sysman.ls.create_fiber(self.main_worker)
+        self.prefill_fiber = self.sysman.ls.create_fiber(self.main_worker)
+        self.decode_fiber = self.sysman.ls.create_fiber(self.main_worker)
 
     def initialize_page_cache(self):
         """Initialize page pool and attention cache."""
@@ -90,14 +92,14 @@ class LlmGenerateService(GenerateService):
         self.initialize_function_references()
 
         self.prefill_batcher = PrefillBatcherProcess(
-            self.main_fiber,
+            self.prefill_fiber,
             self.page_cache,
             self.model_params,
             self.prefill_functions,
         )
 
         self.decode_batcher = DecodeBatcherProcess(
-            self.main_fiber,
+            self.decode_fiber,
             self.page_cache,
             self.model_params,
             self.decode_functions,
