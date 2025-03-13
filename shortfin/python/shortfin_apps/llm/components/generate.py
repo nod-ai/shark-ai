@@ -52,16 +52,19 @@ class GenerateItemProcess(sf.Process):
         self.streamed_tokens_index = 0
 
     async def run(self):
+        logger.info("HERE 2")
         exec = LlmInferenceExecRequest(
             phase=InferencePhase.PREFILL,
             input_token_ids=self.input_token_ids,
             rid=self.gen_req.rid,
         )
+        exec.return_all_logits = True
         try:
             self.client.batcher.submit(exec)
             await exec.done
 
             # Prefill result.
+            logger.info(f"exec: {exec}")
             token = sfnp.argmax(exec.result_logits)
             token_int = token.items[0]
 
@@ -128,6 +131,7 @@ class ClientGenerateBatchProcess(sf.Process):
         try:
             # Launch all individual generate processes and wait for them to finish.
             gen_processes = []
+            logger.info("HEREEEE")
             input_ids = self.gen_req.input_ids
             is_pretokenized = input_ids is not None
             # TODO: We should send this to an executor and await the results.

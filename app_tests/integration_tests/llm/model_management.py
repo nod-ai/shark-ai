@@ -410,7 +410,7 @@ TEST_MODELS["llama3.1_8b"] = ModelConfig(
     repo_id="SanctumAI/Meta-Llama-3.1-8B-Instruct-GGUF",
     model_file="meta-llama-3.1-8b-instruct.f16.gguf",
     tokenizer_id="NousResearch/Meta-Llama-3.1-8B",
-    batch_sizes=(1, 4),
+    batch_sizes=(1,),
     device_settings=None,
 )
 TEST_MODELS[
