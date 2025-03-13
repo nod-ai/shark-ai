@@ -1,5 +1,6 @@
 from iree.build.executor import FileNamespace, BuildAction, BuildContext, BuildFile
 import os
+import re
 import urllib
 import logging
 import asyncio
