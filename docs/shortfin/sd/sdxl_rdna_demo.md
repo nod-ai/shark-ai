@@ -89,12 +89,14 @@ Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
     cd shortfin && pip install --editable .
     ```
 
-## Start Shortfin and run SDXL
+## Usage
+
+### Start Shortfin and run SDXL
 
 Start the Shortfin server with the correct target (`gfx1100` for RDNA3, `gfx1201` for RDNA4).
 You can override the network port used using the `--port <PORT-NUM>` flag.
 
-### FP8: RDNA4 only
+#### FP8: RDNA4 only
 
 Note that the first run will download all the artifacts necessary (the model code and the weights).
 This may take a while. The subsequent runs will use the artifacts cached in `~/.cache/shark/genfiles/sdxl`.
@@ -148,7 +150,7 @@ While the server will print the total inference time to generate the image:
 You can exit the server and the client by pressing `Ctrl + C`.
 
 
-### Int8: Both RDNA3 and RDNA4
+#### Int8: Both RDNA3 and RDNA4
 
 Use the following command to start the server:
 
