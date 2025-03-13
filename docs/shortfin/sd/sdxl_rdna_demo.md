@@ -89,10 +89,46 @@ Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
     cd shortfin && pip install --editable .
     ```
 
+### Install SHARK UI
+
+1. In a new terminal session, clone the shark-ui project
+
+    ```shell
+    cd demo && git clone https://github.com/nod-ai/shark-ui.git && cd shark-ui
+    ```
+
+1. Checkout the preview branch
+
+    ```shell
+    git checkout feature-connects-text-to-image-api
+    ```
+
+1. Install dependencies
+    1. [Install node/npm](https://nodejs.org/en/download)
+        1. Select highest LTS version (i.e. v22)
+        1. For "using", select `nvm` if available, otherwise select `fnm`
+        1. For "with", select `npm`
+    1. Update npm:
+
+        ```shell
+        npm install -g npm@latest
+        ```
+
+    1. Use npm
+
+        ```shell
+        npm install
+        ```
+1. Set environment variable
+    ```shell
+    echo "VITE_TEXT_TO_IMAGE_API_ORIGIN=http://localhost:8000" > .env
+    ```
+
 ## Usage
 
 ### Start the Shortfin SD Server
 
+1. Go back to the terminal session with Shortfin
 1. Run the command for your target (`gfx1100` for RDNA3, `gfx1201` for RDNA4):
     * On RDNA4:
       * for FP8, run:
@@ -129,49 +165,35 @@ Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
 NOTE: The first run will download all the necessary artifacts (the model code and the weights).
 This may take a while. The subsequent runs will use the artifacts cached in `~/.cache/shark/genfiles/sdxl`.
 
-### Start the Shortfin SD Client
+### Start the SHARK UI Text-To-Image Client
 
-1. In a new terminal session, navigate back to Shortfin
-
-    ```shell
-    cd demo
-    source .venv/bin/activate
-    cd shark-ai/shortfin
-    ```
-
-1. Start the client in the interactive mode:
+1. Go back to the terminal session that has SHARK UI
+1. Serve the client:
 
     ```shell
-    python -m python.shortfin_apps.sd.simple_client --interactive
+    npm run dev
     ```
 
 ### Use the Client
 
-The client will ask you for the input prompt and save the generated image:
+1. Visit http://localhost:5173 in your browser:
 
-```console
-➜  python -m python.shortfin_apps.sd.simple_client --interactive
-Waiting for server.
-Successfully connected to server.
-Enter a prompt:  Shark jumping out of water at sunset. Vaporwave style.
-Sending request with prompt:  ['Shark jumping out of water at sunset. Vaporwave style.']
-Sending request batch # 0
-Saving response as image...
-Saved to gen_imgs/shortfin_sd_output_2025-03-05_21-14-23_0.png
-Responses processed.
-```
+    ![SHARK UI upon first load](./shark_ui_example_pre_generation.png)
 
-While the server will print the total inference time to generate the image:
+1. Modify the prompts if desired
+1. Select the "Generate" button:
 
-```console
-[2025-03-05 21:14:08] 127.0.0.1:40956 - "GET /health HTTP/1.1" 200
-[2025-03-05 21:14:23.752] [info] [metrics.py:51] Completed inference process in 4209ms
-[2025-03-05 21:14:23] 127.0.0.1:57240 - "POST /generate HTTP/1.1" 200
-```
+    ![SHARK UI after successful server response](./shark_ui_example_post_generation.png)
 
-![The generated image of a shark](./sample_image_shark.png)
+1. Go back to the shortfin terminal session to see the total inference time to generate the image:
 
-You can exit the server and the client by pressing `Ctrl + C`.
+    ```console
+    [2025-03-05 21:14:08] 127.0.0.1:40956 - "GET /health HTTP/1.1" 200
+    [2025-03-05 21:14:23.752] [info] [metrics.py:51] Completed inference process in 4209ms
+    [2025-03-05 21:14:23] 127.0.0.1:57240 - "POST /generate HTTP/1.1" 200
+    ```
+
+1. Exit the server and the client by pressing `Ctrl + C` in each terminal session.
 
 ## Preliminary performance results
 
