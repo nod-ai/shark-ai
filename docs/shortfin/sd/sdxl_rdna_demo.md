@@ -74,7 +74,6 @@ Clone the shark-ai repository and install Shortfin and its dependencies:
 ```shell
 git clone https://github.com/nod-ai/shark-ai
 cd shark-ai
-git switch shared/rdna4
 ```
 
 Install pip requirements:
