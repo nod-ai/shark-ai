@@ -19,6 +19,7 @@ from datasets import load_dataset
 
 import torch
 from torch.nn import CrossEntropyLoss
+import iree.runtime
 
 from sharktank.models.llama.llama import *
 from sharktank.models.mixtral.mixtral import *
@@ -34,7 +35,7 @@ from sharktank.utils.vmfb_runner import *
 from sharktank.utils.load_llm import *
 from sharktank.utils.create_cache import *
 from sharktank.utils.export_artifacts import *
-from sharktank.utils.iree import iree_to_torch
+from sharktank.utils.iree import iree_to_torch, with_iree_device_context
 
 log_levels = {
     "info": logging.INFO,
@@ -285,76 +286,81 @@ class Perplexity:
 
     @timeit
     def get_logits(self, page_cache_size):
+        def run_iree_module(iree_devices: list[iree.runtime.HalDevice]):
+            is_first_token = True
+            start = 0
+            for i in tqdm(
+                range(start, self.max_prompt_length - 1),
+                mininterval=300,
+                desc="eval: Calculating logits",
+            ):
+                logger.debug(f"Iteration: {i}")
 
-        is_first_token = True
-        start = 0
-        for i in tqdm(
-            range(start, self.max_prompt_length - 1),
-            mininterval=300,
-            desc="eval: Calculating logits",
-        ):
-            logger.debug(f"Iteration: {i}")
+                if is_first_token:
 
-            if is_first_token:
+                    token_batch = self.token_ids[:, : i + 1]
 
-                token_batch = self.token_ids[:, : i + 1]
+                    logger.debug(f"Prefill:")
 
-                logger.debug(f"Prefill:")
+                    logger.debug("Input:")
+                    logger.debug(f"{self.generator.tokenizer.decode(token_batch)}")
 
-                logger.debug("Input:")
-                logger.debug(f"{self.generator.tokenizer.decode(token_batch)}")
-
-                token_batch, seq_lens_batch = self.generator.tokenizer.pad_tokens(
-                    token_ids=token_batch.tolist(),
-                    pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
-                )
-
-                logger.debug(f"{token_batch}")
-
-                token_batch = torch.tensor(token_batch, device=self.torch_device)
-                self.seq_lens_batch = torch.tensor(
-                    seq_lens_batch, device=self.torch_device
-                )
-
-                self.batch = self.generator.begin_eval_batch(
-                    token_batch=token_batch,
-                    seq_lens_batch=self.seq_lens_batch,
-                    bs=self.bs,
-                    page_cache_size=page_cache_size,
-                )
-
-                if self.kv_cache_dtype in self.halelementtype_map.keys():
-
-                    cache_state = self.batch.cache_state[0]
-
-                    cache_as_int16 = cache_state.to(dtype=torch.int16)
-
-                    device_array_as_int16 = ireert.asdevicearray(
-                        self.haldevice, unbox_tensor(cache_as_int16).to("cpu").numpy()
+                    token_batch, seq_lens_batch = self.generator.tokenizer.pad_tokens(
+                        token_ids=token_batch.tolist(),
+                        pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
                     )
 
-                    buffer_view = ireert.HalBufferView(
-                        buffer=device_array_as_int16._buffer_view.get_buffer(),
-                        shape=device_array_as_int16._buffer_view.shape,
-                        element_type=self.halelementtype_map[self.kv_cache_dtype],
+                    logger.debug(f"{token_batch}")
+
+                    token_batch = torch.tensor(token_batch, device=self.torch_device)
+                    self.seq_lens_batch = torch.tensor(
+                        seq_lens_batch, device=self.torch_device
                     )
-                    self.cache_state = ireert.DeviceArray(self.haldevice, buffer_view)
+
+                    self.batch = self.generator.begin_eval_batch(
+                        token_batch=token_batch,
+                        seq_lens_batch=self.seq_lens_batch,
+                        bs=self.bs,
+                        page_cache_size=page_cache_size,
+                    )
+
+                    if self.kv_cache_dtype in self.halelementtype_map.keys():
+
+                        cache_state = self.batch.cache_state[0]
+
+                        cache_as_int16 = cache_state.to(dtype=torch.int16)
+
+                        device_array_as_int16 = ireert.asdevicearray(
+                            self.haldevice,
+                            unbox_tensor(cache_as_int16).to("cpu").numpy(),
+                        )
+
+                        buffer_view = ireert.HalBufferView(
+                            buffer=device_array_as_int16._buffer_view.get_buffer(),
+                            shape=device_array_as_int16._buffer_view.shape,
+                            element_type=self.halelementtype_map[self.kv_cache_dtype],
+                        )
+                        self.cache_state = ireert.DeviceArray(
+                            self.haldevice, buffer_view
+                        )
+
+                    else:
+                        self.cache_state = ireert.asdevicearray(
+                            self.haldevice, self.batch.cache_state[0].to("cpu").numpy()
+                        )
+
+                    prefill_logits = self.prefill_vmfb(token_batch, i).clone()
+                    self.out_logits = prefill_logits[:, -1:, :]
+
+                    is_first_token = False
 
                 else:
-                    self.cache_state = ireert.asdevicearray(
-                        self.haldevice, self.batch.cache_state[0].to("cpu").numpy()
-                    )
+                    token_batch = self.token_ids[:, i : i + 1]
 
-                prefill_logits = self.prefill_vmfb(token_batch, i)
-                self.out_logits = prefill_logits[:, -1:, :]
+                    decode_logits = self.decode_vmfb(token_batch, i)
+                    self.out_logits = torch.cat((self.out_logits, decode_logits), 1)
 
-                is_first_token = False
-
-            else:
-                token_batch = self.token_ids[:, i : i + 1]
-
-                decode_logits = self.decode_vmfb(token_batch, i)
-                self.out_logits = torch.cat((self.out_logits, decode_logits), 1)
+        with_iree_device_context(run_iree_module, [self.runner.config.device])
 
         pad_logits_shape = self.token_ids.shape[1] - self.out_logits.shape[1]
 
