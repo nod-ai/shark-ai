@@ -133,7 +133,7 @@ class Perplexity:
             logger.debug(f"{expected_token_id}")
 
     @timeit
-    def compile_model(self, weight_path_str, mlir_path, json_path, vmfb_path):
+    def compile_model(self, weight_path_str, output_mlir, output_config, output_vmfb):
         self.weight_path_str = weight_path_str
 
         logger.info(f" Model: {self.weight_path_str}")
@@ -141,9 +141,9 @@ class Perplexity:
         if self.kv_cache_dtype is None:
             self.kv_cache_dtype = self.attention_dtype
 
-        if vmfb_path:
-            self.vmfb_path = vmfb_path
-            logger.info(f" Using pre-compiled vmfb: {self.vmfb_path}")
+        if output_vmfb:
+            self.output_vmfb = output_vmfb
+            logger.info(f" Using pre-compiled vmfb: {self.output_vmfb}")
         else:
             export_artifacts = ExportArtifacts(
                 irpa_path=self.weight_path_str,
@@ -158,10 +158,10 @@ class Perplexity:
                 attention_dtype=str(self.attention_dtype).split(".")[-1],
                 kv_cache_dtype=str(self.kv_cache_dtype).split(".")[-1],
                 use_hf=self.use_hf,
-                mlir_path=mlir_path,
-                json_path=json_path,
+                output_mlir=output_mlir,
+                output_config=output_config,
             )
-            self.vmfb_path = export_artifacts.get_artifacts()
+            self.output_vmfb = export_artifacts.get_artifacts()
 
     @timeit
     def load_model(self, weight_path, tokenizer):
@@ -194,7 +194,7 @@ class Perplexity:
 
         self.runner = vmfbRunner(
             device=self.iree_device,
-            vmfb_path=self.vmfb_path,
+            vmfb_path=self.output_vmfb,
             external_weight_path=self.weight_path_str,
         )
 
@@ -464,9 +464,9 @@ def run_perplexity_iree(
     perplexity.get_prompts(num_prompts=args.num_prompts, prompt_list=args.prompt_list)
 
     perplexity.compile_model(weight_path_str=str(args.irpa_file), 
-                             mlir_path = args.mlir_path, 
-                             json_path = args.json_path, 
-                             vmfb_path = args.vmfb_path
+                             output_mlir = args.output_mlir, 
+                             output_config = args.output_config, 
+                             output_vmfb = args.output_vmfb
                              )
     perplexity.load_model(weight_path, tokenizer)
     ppl = perplexity.get_perplexity()
@@ -505,9 +505,9 @@ def main(argv):
 
     assert args.num_prompts or args.prompt_list, "Pass --num-prompts or --prompt-list"
 
-    if args.mlir_path or args.json_path:
+    if args.output_mlir or args.output_config:
         assert (
-            args.json_path is not None and args.mlir_path is not None
+            args.output_config is not None and args.output_mlir is not None
         ), "If using pre-exported mlir, both --mlir-path and --json-path must be passed"
 
     # Override flag if dataset disagrees
