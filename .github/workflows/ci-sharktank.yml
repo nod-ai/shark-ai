@@ -140,6 +140,9 @@ jobs:
           pytest \
             -v \
             --log-cli-level=info \
+            --iree-hal-target-device=hip \
+            --iree-hip-target=gfx942 \
+            --iree-device="hip://0" \
             --with-clip-data \
             --with-flux-data \
             --with-vae-data \

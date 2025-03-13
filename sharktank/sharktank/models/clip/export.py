@@ -42,25 +42,9 @@ def hugging_face_clip_text_model_to_dataset(
     model: transformers.CLIPTextModel,
 ) -> Dataset:
     config = ClipTextConfig.from_hugging_face_clip_text_model_config(model.config)
-    properties = config.to_properties()
+    properties = config.asdict_for_saving()
     theta = hugging_face_clip_text_model_to_theta(model)
-    theta.rename_tensors_to_paths()
     return Dataset(properties, theta)
-
-
-def clip_text_model_to_dataset(model: ClipTextModel) -> Dataset:
-    return Dataset(properties=model.config.to_properties(), root_theta=model.theta)
-
-
-def export_clip_text_model_iree_parameters(
-    model: ClipTextModel, output_path: PathLike, dtype: torch.dtype = None
-):
-    dataset = clip_text_model_to_dataset(model)
-    if dtype:
-        dataset.root_theta = dataset.root_theta.transform(
-            functools.partial(set_float_dtype, dtype=dtype)
-        )
-    dataset.save(output_path)
 
 
 def export_clip_text_model_dataset_from_hugging_face(
@@ -77,52 +61,3 @@ def export_clip_text_model_dataset_from_hugging_face(
         )
     dataset = hugging_face_clip_text_model_to_dataset(model)
     dataset.save(output_path)
-
-
-def export_clip_text_model_mlir(
-    model: Union[ClipTextModel, PathLike],
-    batch_sizes: list[int],
-    mlir_output_path: str,
-):
-    """
-    Args:
-      model: either the torch module or path to GGUF/IRPA.
-    """
-    if not isinstance(model, ClipTextModel):
-        dataset = Dataset.load(model)
-        config = ClipTextConfig.from_properties(dataset.properties)
-        model = ClipTextModel(theta=dataset.root_theta, config=config)
-
-    fxb = FxProgramsBuilder(model)
-
-    for batch_size in batch_sizes:
-        sample_inputs = model.sample_inputs(batch_size)
-
-        @fxb.export_program(
-            name=f"forward_bs{batch_size}",
-            args=tuple(sample_inputs.values()),
-            dynamic_shapes=None,
-            strict=False,
-        )
-        def _(
-            model,
-            input_ids,
-        ):
-            return model(input_ids)
-
-    output = export(fxb, import_symbolic_shape_expressions=True)
-    output.save_mlir(mlir_output_path)
-
-
-def export_clip_text_model_to_iree(
-    model: ClipTextModel,
-    batch_sizes: list[int],
-    mlir_output_path: PathLike,
-    parameters_output_path: PathLike,
-):
-    export_clip_text_model_iree_parameters(model, parameters_output_path)
-    export_clip_text_model_mlir(
-        model=parameters_output_path,
-        batch_sizes=batch_sizes,
-        mlir_output_path=mlir_output_path,
-    )
