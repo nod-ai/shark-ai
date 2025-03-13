@@ -91,43 +91,43 @@ Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
 
 ## Usage
 
-### Start Shortfin
+### Start the Shortfin SD Server
 
-Start the Shortfin server with the correct target (`gfx1100` for RDNA3, `gfx1201` for RDNA4).
-You can override the network port used using the `--port <PORT-NUM>` flag.
+1. Run the command for your target (`gfx1100` for RDNA3, `gfx1201` for RDNA4):
+    - On RDNA4:
+      - for FP8, run:
 
-- On RDNA4:
-  - for FP8, run:
+        ```shell
+        python -m python.shortfin_apps.sd.server --device=amdgpu --target=gfx1201 --build_preference=precompiled \
+          --device=hip --device_ids 0 --model_config=sdxl_config_fp8_ocp.json
+        ```
 
-    ```shell
-    python -m python.shortfin_apps.sd.server --device=amdgpu --target=gfx1201 --build_preference=precompiled \
-      --device=hip --device_ids 0 --model_config=sdxl_config_fp8_ocp.json
+      - for Int8, run:
+
+        ```shell
+        python -m python.shortfin_apps.sd.server --device=amdgpu --target=gfx1201 --build_preference=precompiled \
+          --device=hip --device_ids 0 --model_config=sdxl_config_i8.json
+        ```
+
+    - On RDNA3:
+      - for FP8: not supported
+      - for Int8, run:
+
+        ```shell
+        python -m python.shortfin_apps.sd.server --device=amdgpu --target=gfx1100 --build_preference=precompiled \
+          --device=hip --device_ids 0 --model_config=sdxl_config_i8.json
+        ```
+
+1. (Optional) Specify a network port by including the `--port <PORT-NUM>` flag.
+1. Wait until you see that the server is running:
+
+    ```console
+    [2025-03-05 21:05:00] Application startup complete.
+    [2025-03-05 21:05:00] Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
     ```
 
-  - for Int8, run:
-    ```shell
-    python -m python.shortfin_apps.sd.server --device=amdgpu --target=gfx1201 --build_preference=precompiled \
-      --device=hip --device_ids 0 --model_config=sdxl_config_i8.json
-    ```
-
-- On RDNA3:
-  - for FP8: not supported
-  - for Int8, run:
-
-    ```shell
-    python -m python.shortfin_apps.sd.server --device=amdgpu --target=gfx1100 --build_preference=precompiled \
-      --device=hip --device_ids 0 --model_config=sdxl_config_i8.json
-    ```
-
-Note that the first run will download all the artifacts necessary (the model code and the weights).
+NOTE: The first run will download all the necessary artifacts (the model code and the weights).
 This may take a while. The subsequent runs will use the artifacts cached in `~/.cache/shark/genfiles/sdxl`.
-
-You should see the server running:
-
-```console
-[2025-03-05 21:05:00] Application startup complete.
-[2025-03-05 21:05:00] Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-```
 
 ### Run SDXL
 
