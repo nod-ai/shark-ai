@@ -1,0 +1,44 @@
+name: "Setup Python and Virtual Environment"
+description: "Sets up Python, a virtual environment, and installs dependencies"
+
+inputs:
+  python-version:
+    description: "Python version to use"
+    required: true
+  venv-dir:
+    description: "Virtual environment directory"
+    required: true
+    default: "${{ github.workspace }}/.venv"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Get Current Date
+      id: date
+      shell: bash
+      run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
+
+    - name: Set up Python
+      uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Create Python Virtual Environment
+      shell: bash
+      run: python -m venv ${{ inputs.venv-dir }}
+
+    - name: Cache virtual environment
+      uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+      with:
+        path: ${{ inputs.venv-dir }}
+        key: venv-${{ runner.os }}-${{ hashFiles('**/requirements.txt') }}
+
+    - name: Install Dependencies
+      shell: bash
+      run: |
+        source ${{ inputs.venv-dir }}/bin/activate
+        python -m pip install --no-compile --upgrade pip
+        pip install --no-compile -r pytorch-cpu-requirements.txt
+        pip install -r requirements-iree-unpinned.txt
+        pip install --no-compile -r sharktank/requirements-tests.txt -e sharktank/
+        pip freeze
