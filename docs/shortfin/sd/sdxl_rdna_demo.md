@@ -65,8 +65,8 @@ Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
 First, create and activate a Python Virtual Environment:
 
 ```shell
-python -m venv venv
-source venv/bin/activate
+python -m venv ./.venv
+source .venv/bin/activate
 ```
 
 Clone the shark-ai repository and install Shortfin and its dependencies:
@@ -113,7 +113,7 @@ Open another terminal and start the client in the interactive mode:
 
 ```shell
 cd demo
-source venv/bin/activate
+source .venv/bin/activate
 cd shark-ai/shortfin
 
 python -m python.shortfin_apps.sd.simple_client --interactive
