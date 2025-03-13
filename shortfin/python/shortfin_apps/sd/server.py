@@ -132,8 +132,6 @@ def configure_service(args, sysman, model_config, flagfile, tuning_spec):
         tokenizers.append(Tokenizer.from_pretrained(tok_name, subfolder))
     model_params = ModelParams.load_json(model_config)
     vmfbs, params = get_modules(args, model_config, flagfile, tuning_spec)
-    logger.info(f"vmfbs: {vmfbs}")
-    logger.info(f"params: {params}")
 
     sm = SDXLGenerateService(
         name="sd",

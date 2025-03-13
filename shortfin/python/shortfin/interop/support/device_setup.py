@@ -3,7 +3,6 @@ import shortfin as sf
 
 def get_selected_devices(sb: sf.SystemBuilder, device_ids=None):
     available = sb.available_devices
-    print(available)
     selected = []
     if device_ids is not None:
         if len(device_ids) > len(available):
