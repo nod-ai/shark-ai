@@ -141,6 +141,8 @@ cd shark-ai/shortfin
 python -m python.shortfin_apps.sd.simple_client --interactive
 ```
 
+### Use the Client
+
 The client will ask you for the input prompt and save the generated image:
 
 ```console
