@@ -62,32 +62,32 @@ Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
 
 ### Install SHARK AI and Shortfin
 
-First, create and activate a Python Virtual Environment:
+1. Create and activate a Python Virtual Environment:
 
-```shell
-python -m venv ./.venv
-source .venv/bin/activate
-```
+    ```shell
+    python -m venv ./.venv
+    source .venv/bin/activate
+    ```
 
-Clone the shark-ai repository:
+1. Clone the shark-ai repository:
 
-```shell
-git clone https://github.com/nod-ai/shark-ai && cd shark-ai
-```
+    ```shell
+    git clone https://github.com/nod-ai/shark-ai && cd shark-ai
+    ```
 
-Install dependencies:
+1. Install dependencies:
 
-```shell
-pip install -r requirements-iree-pinned.txt
-pip install -r pytorch-cpu-requirements.txt
-pip install -r requirements.txt
-```
+    ```shell
+    pip install -r requirements-iree-pinned.txt
+    pip install -r pytorch-cpu-requirements.txt
+    pip install -r requirements.txt
+    ```
 
-Install Shortfin
+1. Install Shortfin
 
-```shell
-cd shortfin && pip install --editable .
-```
+    ```shell
+    cd shortfin && pip install --editable .
+    ```
 
 ## Start Shortfin and run SDXL
 
