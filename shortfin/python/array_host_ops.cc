@@ -8,6 +8,7 @@
 #include "./utils.h"
 #include "shortfin/array/api.h"
 #include "shortfin/support/logging.h"
+#include "xtensor/xmath.hpp"
 #include "xtensor/xrandom.hpp"
 #include "xtensor/xsort.hpp"
 #include "xtl/xhalf_float.hpp"
@@ -173,6 +174,24 @@ Args:
 
 Returns:
   A device_array of dtype=int64, allocated on the host and not visible to the device.
+)";
+
+static const char DOCSTRING_LOG_SOFTMAX[] =
+    R"(Return the log of the softmax of the `input` array. Written to match
+    the behavior of `torch.log_softmax`.
+
+Implemented for dtypes: float16, float32.
+
+Args:
+  input: An input array.
+  axis: Axis along which to sort. Defaults to the last axis.
+  out: Array to write into. If specified, it must have an expected shape and
+    the same dtype as `input`.
+  device_visible: Whether to make the result array visible to devices. Defaults to
+    False.
+
+Returns:
+  A device_array of dtype=input.dtype(), allocated on the host and not visible to the device.
 )";
 
 static const char DOCSTRING_CONVERT[] =
@@ -868,6 +887,62 @@ void BindArrayHostOps(py::module_ &m) {
       py::arg("input"), py::arg("k"), py::arg("axis") = -1,
       py::arg("out") = py::none(), py::arg("device_visible") = false,
       DOCSTRING_ARGPARTITION);
+
+  m.def(
+      "log_softmax",
+      [](device_array &input, int axis, std::optional<device_array> out,
+         bool device_visible) {
+        SHORTFIN_TRACE_SCOPE_NAMED("PyHostOp::log_softmax");
+        if (axis < 0) axis += input.shape().size();
+        if (axis < 0 || axis >= input.shape().size()) {
+          throw std::invalid_argument(
+              fmt::format("Axis out of range: Must be [0, {}) but got {}",
+                          input.shape().size(), axis));
+        }
+        if (out && (out->dtype() != input.dtype())) {
+          throw std::invalid_argument(
+              fmt::format("out array must have dtype={} but got {}",
+                          input.dtype().name(), out->dtype().name()));
+        }
+        auto compute = [&]<typename EltTy>() {
+          auto input_t = input.map_xtensor<EltTy>();
+          auto max = xt::amax(*input_t, axis);
+          // Expand to keep dims
+          auto maxExpanded = xt::expand_dims(max, axis);
+
+          // Equivalent to: log( ∑[i in axis] exp(x_i - c) )
+          // where x_i are the elements of the input tensor along the given
+          // axis, and c (maxExpanded) is the maximum value along that axis.
+          auto sum_expression = xt::sum(xt::exp(*input_t - maxExpanded), axis);
+          auto sum_axis_expanded = xt::expand_dims(sum_expression, axis);
+          auto log_sum_expression = xt::log(sum_axis_expanded);
+
+          auto result = *input_t - maxExpanded - log_sum_expression;
+          if (!out) {
+            out.emplace(device_array::for_host(input.device(), result.shape(),
+                                               input.dtype(), device_visible));
+          }
+          if (input.dtype() == DType::float32()) {
+            auto out_t = out->map_xtensor_w<float>();
+            *out_t = result;
+          } else {
+            auto out_t = out->map_xtensor_w<half_float::half>();
+            *out_t = result;
+          }
+          return *out;
+        };
+
+        switch (input.dtype()) {
+          SF_UNARY_FUNCTION_CASE(float16, half_float::half);
+          SF_UNARY_FUNCTION_CASE(float32, float);
+          default:
+            throw std::invalid_argument(
+                fmt::format("Unsupported dtype({}) for operator argmax",
+                            input.dtype().name()));
+        }
+      },
+      py::arg("input"), py::arg("axis") = -1, py::arg("out") = py::none(),
+      py::arg("device_visible") = false, DOCSTRING_LOG_SOFTMAX);
 
   // Random number generation.
   py::class_<PyRandomGenerator>(m, "RandomGenerator")

@@ -54,6 +54,7 @@ convert = _sfl.array.convert
 divide = _sfl.array.divide
 fill_randn = _sfl.array.fill_randn
 floor = _sfl.array.floor
+log_softmax = _sfl.array.log_softmax
 multiply = _sfl.array.multiply
 round = _sfl.array.round
 subtract = _sfl.array.subtract
@@ -106,6 +107,7 @@ __all__ = [
     "divide",
     "fill_randn",
     "floor",
+    "log_softmax",
     "multiply",
     "round",
     "subtract",
