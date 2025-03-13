@@ -96,15 +96,31 @@ Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
 Start the Shortfin server with the correct target (`gfx1100` for RDNA3, `gfx1201` for RDNA4).
 You can override the network port used using the `--port <PORT-NUM>` flag.
 
-#### FP8: RDNA4 only
+- On RDNA4:
+  - for FP8, run:
+
+    ```shell
+    python -m python.shortfin_apps.sd.server --device=amdgpu --target=gfx1201 --build_preference=precompiled \
+      --device=hip --device_ids 0 --model_config=sdxl_config_fp8_ocp.json
+    ```
+
+  - for Int8, run:
+    ```shell
+    python -m python.shortfin_apps.sd.server --device=amdgpu --target=gfx1201 --build_preference=precompiled \
+      --device=hip --device_ids 0 --model_config=sdxl_config_i8.json
+    ```
+
+- On RDNA3:
+  - for FP8: not supported
+  - for Int8, run:
+
+    ```shell
+    python -m python.shortfin_apps.sd.server --device=amdgpu --target=gfx1100 --build_preference=precompiled \
+      --device=hip --device_ids 0 --model_config=sdxl_config_i8.json
+    ```
 
 Note that the first run will download all the artifacts necessary (the model code and the weights).
 This may take a while. The subsequent runs will use the artifacts cached in `~/.cache/shark/genfiles/sdxl`.
-
-```shell
-python -m python.shortfin_apps.sd.server --device=amdgpu --target=gfx1201 --build_preference=precompiled \
-  --device=hip --device_ids 0 --model_config=sdxl_config_fp8_ocp.json
-```
 
 You should see the server running:
 
@@ -112,17 +128,6 @@ You should see the server running:
 [2025-03-05 21:05:00] Application startup complete.
 [2025-03-05 21:05:00] Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
 ```
-
-#### Int8: Both RDNA3 and RDNA4
-
-Use the following command to start the server:
-
-```shell
-python -m python.shortfin_apps.sd.server --device=amdgpu --target=gfx1201 --build_preference=precompiled \
-  --device=hip --device_ids 0 --model_config=sdxl_config_i8.json
-```
-
-Use `--target=gfx1100` when running on RDNA3.
 
 ### Run SDXL
 
