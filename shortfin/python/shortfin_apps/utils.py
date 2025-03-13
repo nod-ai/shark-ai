@@ -290,9 +290,7 @@ class GenerateService:
             if match:
                 bs = int(match.group(1))
             else:
-                raise ValueError(
-                    "Batch size not found in filename or provided to load function."
-                )
+                bs = 1
         if not self.inference_modules[component].get(bs):
             self.inference_modules[component][bs] = []
         self.inference_modules[component][bs].append(
