@@ -99,6 +99,7 @@ def apply_per_layer_quant(
     updated_tensors: dict[str, InferenceTensor],
     n_head: int,
     split_sizes: list[int],
+    output_dtype: torch.dtype,
 ):
     """Take the quantization parameters and hf weights from the imported Theta
     and create InferenceTensors out of them, converting their names to gguf format
@@ -112,7 +113,6 @@ def apply_per_layer_quant(
     weight = layer_theta.tensor("weight").as_torch()
 
     # It looks dumb but, this step is required for numerical correctness against quark.
-    # weight = weight.view(torch.float8_e4m3fn)
     weight = (weight.to(torch.float64) * weight_quant_scale).to(torch.bfloat16)
 
     weight_quant_zero_point = layer_theta.optional_tensor("weight_zero_point")
@@ -122,7 +122,12 @@ def apply_per_layer_quant(
         weight_quant_zero_point = weight_quant_zero_point.as_torch()
     input_quant_scale = as_torch_or_none(layer_theta.optional_tensor("input_scale"))
     output_quant_scale = as_torch_or_none(layer_theta.optional_tensor("output_scale"))
-
+    # if using fnuz multiply scale by 2.0 to account for conversion between fn and fnuz
+    if output_dtype == torch.float8_e4m3fnuz:
+        if input_quant_scale is not None:
+            input_quant_scale = input_quant_scale * 2.0
+        if output_quant_scale is not None:
+            output_quant_scale = output_quant_scale * 2.0
     if weight_quant_scale is None:
         print("weight quant scale not found for layer ", layer_name)
         return
@@ -138,12 +143,12 @@ def apply_per_layer_quant(
         # Our scale is the reciprocal of the quark scale
         # We multiply scale by two to account for diff between fnuz and fn
         weight_quantizer = StaticScaledQuantizer(
-            scale=1.0 / (weight_scale * 2.0),
-            reciprocal_scale=(weight_scale * 2.0),
+            scale=1.0 / weight_scale * 2.0,
+            reciprocal_scale=weight_scale,
             offset=None
             if (weight_zp is None or torch.count_nonzero(weight_zp) == 0)
             else weight_zp,
-            dtype=torch.float8_e4m3fnuz,
+            dtype=output_dtype,
         )
         weight_quant = weight_quantizer.quantize(weight, name=weight_name)
         updated_tensors[weight_quant.name] = weight_quant
@@ -183,17 +188,17 @@ def apply_per_layer_quant(
         for name in names:
             updated_tensors[name] = StaticScaledQuantizer(
                 name=name,
-                scale=1.0 / (output_quant_scale * 2.0),
-                reciprocal_scale=output_quant_scale * 2.0,
-                dtype=torch.float8_e4m3fnuz,
+                scale=1.0 / output_quant_scale,
+                reciprocal_scale=output_quant_scale,
+                dtype=output_dtype,
             )
         names = [f"{i}.q_input" for i in [q_name, k_name, v_name]]
         for name in names:
             updated_tensors[name] = StaticScaledQuantizer(
                 name=name,
-                scale=1.0 / (input_quant_scale * 2.0),
-                reciprocal_scale=input_quant_scale * 2.0,
-                dtype=torch.float8_e4m3fnuz,
+                scale=1.0 / input_quant_scale,
+                reciprocal_scale=input_quant_scale,
+                dtype=output_dtype,
             )
         # Remove the updated tensors from the original tree.
         root_theta.pop(layer_parent + ".q_proj")
@@ -213,16 +218,16 @@ def apply_per_layer_quant(
         if input_quant_scale is not None:
             updated_tensors[new_layer_name + ".q_input"] = StaticScaledQuantizer(
                 name=new_layer_name + ".q_input",
-                scale=1.0 / (input_quant_scale * 2.0),
-                reciprocal_scale=input_quant_scale * 2.0,
-                dtype=torch.float8_e4m3fnuz,
+                scale=1.0 / input_quant_scale,
+                reciprocal_scale=input_quant_scale,
+                dtype=output_dtype,
             )
         if output_quant_scale is not None:
             updated_tensors[new_layer_name + ".qdq_output"] = StaticScaledQuantizer(
                 name=new_layer_name + ".qdq_output",
                 scale=1.0 / output_quant_scale,
                 reciprocal_scale=output_quant_scale,
-                dtype=torch.float8_e4m3fnuz,
+                dtype=output_dtype,
             )
 
         # Remove the updated tensor from the original tree.
@@ -251,7 +256,10 @@ def convert_hf_hparams_to_gguf(hf_hparams: dict[str, any]) -> dict[str, any]:
 
 
 def update_norm_layer(
-    quant_theta: Theta, layer_name: str, updated_tensors: dict[str, InferenceTensor]
+    quant_theta: Theta,
+    layer_name: str,
+    updated_tensors: dict[str, InferenceTensor],
+    output_dtype: torch.dtype,
 ):
     """Convert layernames for non quantized tensors and add them to the updated_tensors dict"""
     for sub in ["input_layernorm", "post_attention_layernorm"]:
@@ -259,13 +267,15 @@ def update_norm_layer(
         new_name = hf_to_gguf(sub_name) + ".weight"
         single_replace(quant_theta, sub_name, new_name, updated_tensors)
     kv_cache_scale = quant_theta(layer_name, "self_attn").tensor("kv_scale").as_torch()
+    if output_dtype == torch.float8_e4m3fnuz:
+        kv_cache_scale *= 2
     layer_idx = layer_name.split(".")[-1]
     new_name = f"blk.{layer_idx}.kv_cache"
     updated_tensors[new_name] = StaticScaledQuantizer(
         name=new_name + ".quantizer",
-        scale=1.0 / (kv_cache_scale * 2.0),
-        reciprocal_scale=kv_cache_scale * 2.0,
-        dtype=torch.float8_e4m3fnuz,
+        scale=1.0 / kv_cache_scale,
+        reciprocal_scale=kv_cache_scale,
+        dtype=output_dtype,
     )
 
 
@@ -300,8 +310,18 @@ def main(argv):
         help="Base model to use for split sizes to decompose the qkv tensor. Default is 7b, 70b is also supported.",
         choices=["7b", "70b"],
     )
+    parser.add_argument(
+        "--output-dtype",
+        type=str,
+        default="float8_e4m3fnuz",
+        choices=["float8_e4m3fnuz", "float8_e4m3fn"],
+    )
     args = cli.parse(parser, args=argv)
-
+    output_dtype = (
+        torch.float8_e4m3fnuz
+        if args.output_dtype == "float8_e4m3fnuz"
+        else torch.float8_e4m3fn
+    )
     config_json_path: Path = args.config_json
     params_path: Path = args.params
     # TODO: find a way to get this programatically so we don't have to flag for it
@@ -340,6 +360,7 @@ def main(argv):
                 updated_tensors,
                 n_head=head_count[0],
                 split_sizes=split_sizes,
+                output_dtype=output_dtype,
             )
 
     # Update the non quantized weights (norm layers)
@@ -348,6 +369,7 @@ def main(argv):
             quant_theta,
             layer_idx,
             updated_tensors,
+            output_dtype=output_dtype,
         )
 
     # The stragglers
