@@ -598,7 +598,7 @@ if __name__ == "__main__":
     with open(f"{safe_name}.mlir", "w+") as f:
         f.write(mod_str)
     print("Saved to", safe_name + ".mlir")
-    
+
     # TODO: Figure out why the following appears to be necessary to actually make
     # the program terminate. Otherwise, it gets to the end and hangs.
     gc.collect()
