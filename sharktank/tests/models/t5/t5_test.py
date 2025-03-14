@@ -50,6 +50,7 @@ from sharktank.utils.testing import (
 )
 from sharktank.utils.hf_datasets import get_dataset
 from sharktank.utils.iree import (
+    with_iree_device_context,
     get_iree_devices,
     load_iree_module,
     run_iree_module_function,
@@ -362,30 +363,35 @@ class T5EncoderIreeTest(TempDirTestBase):
             )
 
         iree_devices = get_iree_devices(driver="hip", device_count=1)
-        logger.info("Loading IREE module...")
-        iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
-            module_path=iree_module_path,
-            devices=iree_devices,
-            parameters_path=parameters_path,
-        )
-        iree_args = prepare_iree_module_function_args(
-            args=flatten_for_iree_signature(input_args), devices=iree_devices
-        )
-        logger.info("Invoking IREE function...")
-        iree_result = iree_to_torch(
-            *run_iree_module_function(
-                module=iree_module,
-                vm_context=iree_vm_context,
-                args=iree_args,
-                device=iree_devices[0],
-                function_name=f"forward_bs{batch_size}",
-                trace_path_prefix=f"{self.path_prefix}iree_",
+
+        def run_iree_module(iree_devices: list[iree.runtime.HalDevice]):
+            logger.info("Loading IREE module...")
+            iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
+                module_path=iree_module_path,
+                devices=iree_devices,
+                parameters_path=parameters_path,
             )
-        )
-        iree_result = [
-            ops.to(iree_result[i], dtype=reference_result[i].dtype)
-            for i in range(len(reference_result))
-        ]
+            iree_args = prepare_iree_module_function_args(
+                args=flatten_for_iree_signature(input_args), devices=iree_devices
+            )
+            logger.info("Invoking IREE function...")
+            iree_result = iree_to_torch(
+                *run_iree_module_function(
+                    module=iree_module,
+                    vm_context=iree_vm_context,
+                    args=iree_args,
+                    device=iree_devices[0],
+                    function_name=f"forward_bs{batch_size}",
+                    trace_path_prefix=f"{self.path_prefix}iree_",
+                )
+            )
+            iree_result = [
+                ops.to(iree_result[i], dtype=reference_result[i].dtype)
+                for i in range(len(reference_result))
+            ]
+            return [t.clone() for t in iree_result]
+
+        iree_result = with_iree_device_context(run_iree_module, iree_devices)
 
         logger.info("Comparing outputs...")
         reference_result_last_hidden_state = reference_result[0]

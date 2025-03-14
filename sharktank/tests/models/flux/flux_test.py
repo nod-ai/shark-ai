@@ -27,6 +27,7 @@ from sharktank.models.flux.testing import (
 from sharktank.models.flux.flux import FluxModelV1, FluxParams
 from sharktank.utils.testing import TempDirTestBase, skip, is_mi300x
 from sharktank.utils.iree import (
+    with_iree_device_context,
     load_iree_module,
     run_iree_module_function,
     prepare_iree_module_function_args,
@@ -150,32 +151,38 @@ class FluxTest(TempDirTestBase):
         )
         expected_outputs = flatten_for_iree_signature(reference_result_dict)
 
-        iree_devices = [iree.runtime.get_device(self.iree_device)]
-        logger.info("Loading IREE module...")
-        iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
-            module_path=iree_module_path,
-            devices=iree_devices,
-            parameters_path=parameters_path,
-        )
-        iree_args = prepare_iree_module_function_args(
-            args=flatten_for_iree_signature(target_input_kwargs),
-            devices=iree_devices,
-        )
+        iree_devices = [iree.runtime.get_device(self.iree_device, cache=False)]
 
-        logger.info("Invoking IREE function...")
-        iree_result = iree_to_torch(
-            *run_iree_module_function(
-                module=iree_module,
-                vm_context=iree_vm_context,
-                args=iree_args,
-                device=iree_devices[0],
-                function_name=f"forward_bs{batch_size}",
+        def run_iree_module(iree_devices: list[iree.runtime.HalDevice]):
+            logger.info("Loading IREE module...")
+            iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
+                module_path=iree_module_path,
+                devices=iree_devices,
+                parameters_path=parameters_path,
             )
-        )
-        actual_outputs = [
-            ops.to(iree_result[i], dtype=expected_outputs[i].dtype)
-            for i in range(len(expected_outputs))
-        ]
+            iree_args = prepare_iree_module_function_args(
+                args=flatten_for_iree_signature(target_input_kwargs),
+                devices=iree_devices,
+            )
+
+            logger.info("Invoking IREE function...")
+            iree_result = iree_to_torch(
+                *run_iree_module_function(
+                    module=iree_module,
+                    vm_context=iree_vm_context,
+                    args=iree_args,
+                    device=iree_devices[0],
+                    function_name=f"forward_bs{batch_size}",
+                )
+            )
+            actual_outputs = [
+                ops.to(iree_result[i], dtype=expected_outputs[i].dtype)
+                for i in range(len(expected_outputs))
+            ]
+            return [t.clone() for t in actual_outputs]
+
+        actual_outputs = with_iree_device_context(run_iree_module, iree_devices)
+
         logger.info("Comparing outputs...")
         logger.info(f"Expected output {format_tensor_statistics(expected_outputs[0])}")
         abs_diff = (actual_outputs[0] - expected_outputs[0]).abs()
@@ -252,12 +259,6 @@ class FluxTest(TempDirTestBase):
             reference_dtype=torch.float64, target_dtype=torch.float32, atol=1e-1
         )
 
-    @skip(
-        reason=(
-            "Sporadic segmentation fault during buffer destruction."
-            " See https://github.com/nod-ai/shark-ai/issues/1050"
-        )
-    )
     @is_mi300x
     def testCompareToyIreeBf16AgainstEagerF64(self):
         """atol is apparently high because the expected output range is large.
@@ -274,12 +275,6 @@ class FluxTest(TempDirTestBase):
             reference_dtype=torch.float32, target_dtype=torch.float32, atol=1e-2
         )
 
-    @skip(
-        reason=(
-            "Sporadic segmentation fault during buffer destruction."
-            " See https://github.com/nod-ai/shark-ai/issues/1050"
-        )
-    )
     @with_flux_data
     def testCompareDevIreeBf16AgainstEagerF32(self):
         self.runTestCompareDevIreeAgainstEager(
