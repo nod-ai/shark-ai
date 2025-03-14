@@ -128,7 +128,8 @@ class PagePool:
         # Allocate new page
         (dst_page,) = self.acquire_free_pages(1)
 
-        # fill src page with data
+        if dst_page is None:
+            return None
 
         # Copy the data on each device
         for page_table in self.page_tables:

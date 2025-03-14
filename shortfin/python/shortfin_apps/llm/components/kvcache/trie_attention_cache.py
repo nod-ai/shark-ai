@@ -6,8 +6,8 @@ import heapq
 from .page_pool import PagePool, PageInfo
 from .base_attention_cache import (
     BasePagedAttentionCache,
-    PageAllocation,
     CacheAllocationFailure,
+    PageAllocation,
 )
 
 
