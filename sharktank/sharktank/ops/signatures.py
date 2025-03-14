@@ -882,7 +882,7 @@ def _scaled_dot_product_attention(
 ):
     tensors = (q, k, v, a)
     for override in d.find_overrides(tensors):
-        result = override(q, k, v, a, is_causal=is_causal, scale=scale)
+        result = override(q, k, v, a, scale=scale)
         if result is not NotImplemented:
             return override, result
     else:

@@ -75,7 +75,7 @@ def add_model_options(parser: argparse.ArgumentParser):
         "--attention-kernel",
         type=str,
         default="torch",
-        choices=["decomposed", "torch"],
+        choices=["decomposed", "torch", "sharktank"],
     )
     parser.add_argument(
         "--skip-prefill",

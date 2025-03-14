@@ -93,6 +93,7 @@ def qlinear_tensor_scaled(
 
     # Fall back to automatic fusion based on integer, high precision matmul.
     y_qs = _invoke_mmt_kernel(x_qs, weight_qs, accum_dtype=accum_dtype)
+    return y_qs
 
     # Offset correction. By applying the offset correction in post, it is
     # set up to fuse with its consumer, which is already doing additional
