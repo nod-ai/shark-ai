@@ -259,12 +259,6 @@ class FluxTest(TempDirTestBase):
             reference_dtype=torch.float64, target_dtype=torch.float32, atol=1e-1
         )
 
-    @skip(
-        reason=(
-            "Sporadic segmentation fault during buffer destruction."
-            " See https://github.com/nod-ai/shark-ai/issues/1050"
-        )
-    )
     @is_mi300x
     def testCompareToyIreeBf16AgainstEagerF64(self):
         """atol is apparently high because the expected output range is large.
@@ -281,12 +275,6 @@ class FluxTest(TempDirTestBase):
             reference_dtype=torch.float32, target_dtype=torch.float32, atol=1e-2
         )
 
-    @skip(
-        reason=(
-            "Sporadic segmentation fault during buffer destruction."
-            " See https://github.com/nod-ai/shark-ai/issues/1050"
-        )
-    )
     @with_flux_data
     def testCompareDevIreeBf16AgainstEagerF32(self):
         self.runTestCompareDevIreeAgainstEager(
