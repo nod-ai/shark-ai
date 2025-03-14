@@ -95,6 +95,9 @@ class ModelConfig:
     repo_id: Optional[str] = None
     local_path: Optional[Path] = None
     azure_config: Optional[AzureConfig] = None
+    tensor_parallelism_size: Optional[
+        int
+    ] = None  # Number of shards for tensor parallelism
 
     def __post_init__(self):
         if self.source == ModelSource.HUGGINGFACE_FROM_GGUF:
@@ -117,12 +120,13 @@ class ModelConfig:
 class ModelArtifacts:
     """Container for all paths related to model artifacts."""
 
-    weights_path: Path
+    weights_path: Path  # Main weights file (unranked for sharded models)
     tokenizer_path: Path
     mlir_path: Path
     vmfb_path: Path
     config_path: Path
     model_config: ModelConfig  # config that was originally used to generate these artifacts
+    shard_paths: Optional[list[Path]] = None  # Paths to sharded weight files (rank0-N)
 
 
 class ModelStageManager:
@@ -305,33 +309,119 @@ class ModelStageManager:
 
         return tokenizer_path
 
+    def shard_model(self, weights_path: Path) -> Tuple[Path, list[Path]]:
+        """Shards model using tensor parallelism if configured."""
+        if not self.config.tensor_parallelism_size:
+            return weights_path, None
+
+        # Determine device type from compile flags
+        device_type = "cpu"  # Default to CPU
+        compile_flags = self.config.device_settings.compile_flags
+        for flag in compile_flags:
+            if "hip" in flag.lower():
+                device_type = "cuda"  # Use "cuda" for hip device
+                break
+
+        logger.info(
+            f"Sharding model with tensor parallelism size {self.config.tensor_parallelism_size} "
+            f"for device type: {device_type}"
+        )
+
+        # Determine output paths
+        base_name = weights_path.stem
+        output_base = self.model_dir / f"{base_name}.sharded"
+        output_irpa = output_base.with_suffix(".irpa")
+
+        # Build sharding command
+        shard_cmd = [
+            "python",
+            "-m",
+            "sharktank.examples.sharding.shard_llm_dataset",
+            f"--{weights_path.suffix.strip('.')}-file={weights_path}",
+            f"--output-irpa={output_irpa}",
+            f"--tensor-parallelism-size={self.config.tensor_parallelism_size}",
+        ]
+
+        logger.info(f"Running sharding command: {' '.join(shard_cmd)}")
+
+        try:
+            result = subprocess.run(
+                shard_cmd, check=True, capture_output=True, text=True
+            )
+            logger.info(f"Sharding succeeded")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Sharding failed with code {e.returncode}")
+            logger.error(f"STDOUT: {e.stdout}")
+            logger.error(f"STDERR: {e.stderr}")
+            raise
+
+        # Collect paths to all shards
+        shard_paths = [
+            output_base.with_suffix(f".rank{i}.irpa")
+            for i in range(self.config.tensor_parallelism_size)
+        ]
+
+        logger.info(f"Model successfully sharded into {len(shard_paths)} shards")
+        return output_irpa, shard_paths
+
     def export_model(self, weights_path: Path) -> Tuple[Path, Path]:
         """Exports model to MLIR format."""
         bs_string = ",".join(map(str, self.config.batch_sizes))
         mlir_path = self.model_dir / "model.mlir"
         config_path = self.model_dir / "config.json"
 
+        # Determine device type from compile flags
+        device_type = "cpu"  # Default to CPU
+        compile_flags = self.config.device_settings.compile_flags
+        for flag in compile_flags:
+            if "hip" in flag.lower():
+                device_type = "cuda"  # Use "cuda" for hip device
+                break
+
         logger.info(
             "Exporting model with following settings:\n"
             f"  MLIR Path: {mlir_path}\n"
             f"  Config Path: {config_path}\n"
-            f"  Batch Sizes: {bs_string}"
+            f"  Batch Sizes: {bs_string}\n"
+            f"  Device Type: {device_type}"
         )
 
-        subprocess.run(
-            [
-                "python",
-                "-m",
-                "sharktank.examples.export_paged_llm_v1",
-                "--block-seq-stride=16",
-                f"--{weights_path.suffix.strip('.')}-file={weights_path}",
-                f"--output-mlir={mlir_path}",
-                f"--output-config={config_path}",
-                f"--bs-prefill={bs_string}",
-                f"--bs-decode={bs_string}",
-            ],
-            check=True,
-        )
+        # For sharded models, we use the unranked irpa file
+        if self.config.tensor_parallelism_size:
+            weights_path = weights_path.with_suffix(".irpa")
+
+        # Build command
+        export_cmd = [
+            "python",
+            "-m",
+            "sharktank.examples.export_paged_llm_v1",
+            "--block-seq-stride=16",
+            f"--{weights_path.suffix.strip('.')}-file={weights_path}",
+            f"--output-mlir={mlir_path}",
+            f"--output-config={config_path}",
+            f"--bs-prefill={bs_string}",
+            f"--bs-decode={bs_string}",
+        ]
+
+        # Add device and tensor parallelism options
+        export_cmd.append(f"--device={device_type}")
+        if self.config.tensor_parallelism_size:
+            export_cmd.append(
+                f"--tensor-parallelism-size={self.config.tensor_parallelism_size}"
+            )
+
+        logger.info(f"Running export command: {' '.join(export_cmd)}")
+
+        try:
+            result = subprocess.run(
+                export_cmd, check=True, capture_output=True, text=True
+            )
+            logger.info(f"Export succeeded.")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Export failed with code {e.returncode}")
+            logger.error(f"STDOUT: {e.stdout}")
+            logger.error(f"STDERR: {e.stderr}")
+            raise
 
         logger.info(f"Model successfully exported to {mlir_path}")
         return mlir_path, config_path
@@ -347,9 +437,22 @@ class ModelStageManager:
             "-o",
             str(vmfb_path),
         ]
+
         compile_command.extend(self.config.device_settings.compile_flags)
 
-        subprocess.run(compile_command, check=True)
+        # Add debug output to see what's happening
+        logger.info(f"Running compiler command: {' '.join(compile_command)}")
+        try:
+            result = subprocess.run(
+                compile_command, check=True, capture_output=True, text=True
+            )
+            logger.info(f"Compilation succeeded")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Compilation failed with code {e.returncode}")
+            logger.error(f"STDOUT: {e.stdout}")
+            logger.error(f"STDERR: {e.stderr}")
+            raise
+
         logger.info(f"Model successfully compiled to {vmfb_path}")
         return vmfb_path
 
@@ -378,6 +481,11 @@ class ModelProcessor:
 
         tokenizer_path = manager.prepare_tokenizer()
 
+        # Stage 1.5: Shard model if tensor parallelism is configured
+        shard_paths = None
+        if config.tensor_parallelism_size:
+            weights_path, shard_paths = manager.shard_model(weights_path)
+
         # Stage 2: Export model (fresh every time)
         mlir_path, config_path = manager.export_model(weights_path)
 
@@ -391,6 +499,7 @@ class ModelProcessor:
             vmfb_path=vmfb_path,
             config_path=config_path,
             model_config=config,
+            shard_paths=shard_paths,
         )
 
 
@@ -452,4 +561,43 @@ TEST_MODELS["tinystories_llama2_25m"] = ModelConfig(
     tokenizer_id="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
     batch_sizes=(1, 4),
     device_settings=None,
+)
+
+# Base function to create TinyStories models with configurable tensor parallelism
+def create_tinystories_model(tp_size=None, batch_sizes=(1, 4)):
+    """Create a TinyStories model config with configurable tensor parallelism."""
+    return ModelConfig(
+        source=ModelSource.HUGGINGFACE_FROM_SAFETENSORS,
+        dataset_name="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
+        model_file="model.irpa",  # This will be the final converted file name
+        tokenizer_id="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
+        batch_sizes=batch_sizes,
+        device_settings=None,
+        tensor_parallelism_size=tp_size,
+    )
+
+
+# Predefined sharded versions of tinystories for common TP sizes
+# These are convenience configurations that can be referenced directly in tests
+TEST_MODELS["tinystories_tp2"] = create_tinystories_model(
+    tp_size=2, batch_sizes=(4,)  # Fixed batch size of 4 for testing
+)
+
+TEST_MODELS["tinystories_tp4"] = create_tinystories_model(
+    tp_size=4, batch_sizes=(4,)  # Fixed batch size of 4 for testing
+)
+
+TEST_MODELS["tinystories_tp8"] = create_tinystories_model(
+    tp_size=8, batch_sizes=(8,)  # Fixed batch size of 8 for testing
+)
+
+# Example of a sharded model configuration
+TEST_MODELS["llama3.1_405b"] = ModelConfig(
+    source=ModelSource.HUGGINGFACE_FROM_GGUF,
+    repo_id="meta-llama/Llama-3.1-405B",  # Note: This is a placeholder, actual repo may differ
+    model_file="llama3.1-405b.f16.gguf",
+    tokenizer_id="meta-llama/Llama-3.1-405B",
+    batch_sizes=(1, 4),
+    device_settings=None,
+    tensor_parallelism_size=8,  # Required for 405B model
 )
