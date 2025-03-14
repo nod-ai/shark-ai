@@ -119,7 +119,9 @@ Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
         ```shell
         npm install
         ```
+
 1. Set environment variable
+
     ```shell
     echo "VITE_TEXT_TO_IMAGE_API_ORIGIN=http://localhost:8000" > .env
     ```
