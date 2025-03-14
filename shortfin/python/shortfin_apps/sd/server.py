@@ -177,7 +177,7 @@ def get_configs(args):
     outs_paths = outs.splitlines()
     for i in outs_paths:
         if model_config:
-            if "sdxl_config" in i and not os.path.exists(model_config):
+            if str(model_config) in i and not os.path.exists(model_config):
                 model_config = i
         elif not model_config and "sdxl_config" in i:
             model_config = i
@@ -187,6 +187,9 @@ def get_configs(args):
             flagfile = i
         elif "attention_and_matmul_spec" in i and args.use_tuned:
             tuning_spec = i
+
+    if not os.path.exists(model_config):
+        raise ValueError(f"Model config not found at {model_config}.")
 
     if args.use_tuned and args.tuning_spec:
         tuning_spec = os.path.abspath(args.tuning_spec)
