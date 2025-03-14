@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import os
+import gc
 import re
 from dataclasses import dataclass
 import math
@@ -20,7 +20,7 @@ from iree.turbine.dynamo.passes import (
     DEFAULT_DECOMPOSITIONS,
 )
 
-from transformers import CLIPTextModel
+from transformers import T5Config as T5ConfigHf
 from sharktank.models.clip import ClipTextModel, ClipTextConfig
 from sharktank.models.t5 import T5Encoder, T5Config
 from sharktank.models.flux.flux import FluxModelV1, FluxParams
@@ -206,10 +206,7 @@ class HFEmbedder(torch.nn.Module):
             self.hf_module = ClipTextModel(theta=clip_dataset.root_theta, config=config)
         else:
             t5_dataset = Dataset.load(weight_file)
-            t5_config = T5Config.from_gguf_properties(
-                t5_dataset.properties,
-                feed_forward_proj="gated-gelu",
-            )
+            t5_config = T5Config.from_properties(t5_dataset.properties)
             self.hf_module = T5Encoder(theta=t5_dataset.root_theta, config=t5_config)
 
         self.hf_module = self.hf_module.eval().requires_grad_(False)
@@ -601,3 +598,8 @@ if __name__ == "__main__":
     with open(f"{safe_name}.mlir", "w+") as f:
         f.write(mod_str)
     print("Saved to", safe_name + ".mlir")
+    
+    # TODO: Figure out why the following appears to be necessary to actually make
+    # the program terminate. Otherwise, it gets to the end and hangs.
+    gc.collect()
+    exit(0)
