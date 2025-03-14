@@ -60,6 +60,7 @@ class ShortfinLlmLifecycleManager:
             device_ids=server_params.device_ids,
             async_allocs=server_params.amdgpu_async_allocations,
             amdgpu_allocators=server_params.amdgpu_allocators,
+            amdgpu_allow_device_reuse=server_params.amdgpu_allow_device_reuse,
         )
 
         # Setup each service we are hosting.

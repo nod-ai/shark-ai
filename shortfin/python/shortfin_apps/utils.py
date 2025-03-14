@@ -13,12 +13,45 @@ import shortfin as sf
 from shortfin.interop.support.device_setup import get_selected_devices
 
 
+def get_system_args(parser):
+    parser.add_argument(
+        "--device",
+        type=str,
+        required=True,
+        choices=["local-task", "hip", "amdgpu"],
+        help="Device to serve on; e.g. local-task, hip. Same options as `iree-run-module --device` ",
+    )
+    parser.add_argument(
+        "--device_ids",
+        type=str,
+        nargs="*",
+        default=None,
+        help="Device IDs visible to the system builder. Defaults to None (full visibility). Can be an index or a sf device id like amdgpu:0:0@0",
+    )
+    parser.add_argument(
+        "--amdgpu_async_allocations",
+        action="store_true",
+        help="Enable asynchronous allocations for amdgpu device contexts.",
+    )
+    parser.add_argument(
+        "--amdgpu_allow_device_reuse",
+        action="store_true",
+        help="Allows the same device to be used for each instance",
+    )
+    parser.add_argument(
+        "--amdgpu_allocators",
+        default=None,
+        help="Allocator to use during VMFB invocation.",
+    )
+
+
 class SystemManager:
     def __init__(
         self,
         device: str = "local-task",
         device_ids: list[Union[str, int]] = None,
         async_allocs: bool = True,
+        amdgpu_allow_device_reuse: bool = False,
         amdgpu_allocators: Optional[bool] = None,
         logger_name: str = __name__,
         shutdown_system: bool = True,
@@ -34,12 +67,14 @@ class SystemManager:
                 sb = sf.SystemBuilder(
                     system_type="amdgpu",
                     amdgpu_async_allocations=async_allocs,
+                    amdgpu_allow_device_reuse=amdgpu_allow_device_reuse,
                 )
             else:
                 sb = sf.SystemBuilder(
                     system_type="amdgpu",
                     amdgpu_async_allocations=async_allocs,
                     amdgpu_allocators=amdgpu_allocators,
+                    amdgpu_allow_device_reuse=amdgpu_allow_device_reuse,
                 )
             if device_ids:
                 sb.visible_devices = sb.available_devices

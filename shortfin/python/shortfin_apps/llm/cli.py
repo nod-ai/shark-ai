@@ -18,6 +18,7 @@ from shortfin.support.responder import AbstractResponder
 from .components.generate import ClientGenerateBatchProcess
 from .components.io_struct import GenerateReqInput
 from .components.lifecycle import ShortfinLlmLifecycleManager
+from ..utils import get_system_args
 
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,8 @@ def add_input_args(parser):
 
 
 def add_service_args(parser):
+    get_system_args(parser)
+
     parser.add_argument(
         "--tokenizer_json",
         type=Path,
@@ -63,35 +66,11 @@ def add_service_args(parser):
         metavar="FILE",
     )
     parser.add_argument(
-        "--device",
-        type=str,
-        required=True,
-        choices=["local-task", "hip", "amdgpu"],
-        help="Device to serve on; e.g. local-task, hip. Same options as `iree-run-module --device` ",
-    )
-    parser.add_argument(
-        "--device_ids",
-        type=str,
-        nargs="*",
-        default=None,
-        help="Device IDs visible to the system builder. Defaults to None (full visibility). Can be an index or a sf device id like amdgpu:0:0@0",
-    )
-    parser.add_argument(
         "--isolation",
         type=str,
         default="per_call",
         choices=[isolation.name.lower() for isolation in ProgramIsolation],
         help="Concurrency control -- How to isolate programs.",
-    )
-    parser.add_argument(
-        "--amdgpu_async_allocations",
-        action="store_true",
-        help="Enable asynchronous allocations for amdgpu device contexts.",
-    )
-    parser.add_argument(
-        "--amdgpu_allocators",
-        default=None,
-        help="Allocator to use during VMFB invocation.",
     )
     parser.add_argument(
         "--server_config",
