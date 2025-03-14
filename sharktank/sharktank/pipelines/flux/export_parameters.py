@@ -60,13 +60,15 @@ def find_safetensors_files(path: Path) -> list[Path]:
     return safetensors_files
 
 
-def filter_properties_for_config(properties: Dict[str, Any], config_class: Any) -> Dict[str, Any]:
+def filter_properties_for_config(
+    properties: Dict[str, Any], config_class: Any
+) -> Dict[str, Any]:
     """Filter properties to only include fields valid for the given config class.
-    
+
     Args:
         properties: Properties dictionary
         config_class: The dataclass to filter properties for
-        
+
     Returns:
         Filtered properties dictionary with only valid fields for the config class
     """
@@ -75,13 +77,13 @@ def filter_properties_for_config(properties: Dict[str, Any], config_class: Any) 
         props = properties["hparams"]
     else:
         props = properties
-        
+
     # Get set of valid field names for the config class
     valid_fields = {f.name for f in fields(config_class)}
-    
+
     # Filter to only include valid fields
     filtered_props = {k: v for k, v in props.items() if k in valid_fields}
-    
+
     return filtered_props
 
 
@@ -114,8 +116,12 @@ def export_flux_pipeline_iree_parameters(
     if not is_already_exported(t5_output_path):
         config_json_path = t5_path / "config.json"
         param_paths = find_safetensors_files(t5_path)
-        t5_dataset = import_hf_dataset(config_json_path, param_paths, target_dtype=dtype)
-        t5_dataset.properties = filter_properties_for_config(t5_dataset.properties, T5Config)
+        t5_dataset = import_hf_dataset(
+            config_json_path, param_paths, target_dtype=dtype
+        )
+        t5_dataset.properties = filter_properties_for_config(
+            t5_dataset.properties, T5Config
+        )
         t5_dataset.save(str(t5_output_path))
         logging.info(f"Exported T5 parameters to {t5_output_path}")
     else:
@@ -127,8 +133,12 @@ def export_flux_pipeline_iree_parameters(
     if not is_already_exported(clip_output_path):
         config_json_path = clip_path / "config.json"
         param_paths = find_safetensors_files(clip_path)
-        clip_dataset = import_hf_dataset(config_json_path, param_paths, target_dtype=dtype)
-        clip_dataset.properties = filter_properties_for_config(clip_dataset.properties, ClipTextConfig)
+        clip_dataset = import_hf_dataset(
+            config_json_path, param_paths, target_dtype=dtype
+        )
+        clip_dataset.properties = filter_properties_for_config(
+            clip_dataset.properties, ClipTextConfig
+        )
         clip_dataset.save(str(clip_output_path))
         logging.info(f"Exported CLIP parameters to {clip_output_path}")
     else:
@@ -142,7 +152,9 @@ def export_flux_pipeline_iree_parameters(
     if not is_already_exported(transformer_output_path):
         config_json_path = transformer_path / "config.json"
         param_paths = [Path(model_path) / "flux1-dev.safetensors"]
-        transformer_dataset = import_hf_dataset(config_json_path, param_paths, target_dtype=dtype)
+        transformer_dataset = import_hf_dataset(
+            config_json_path, param_paths, target_dtype=dtype
+        )
         transformer_dataset.save(str(transformer_output_path))
         logging.info(
             f"Exported FluxTransformer parameters to {transformer_output_path}"
@@ -158,7 +170,9 @@ def export_flux_pipeline_iree_parameters(
     if not is_already_exported(vae_output_path):
         config_json_path = vae_path / "config.json"
         param_paths = find_safetensors_files(vae_path)
-        import_hf_dataset(config_json_path, param_paths, vae_output_path, target_dtype=dtype)
+        import_hf_dataset(
+            config_json_path, param_paths, vae_output_path, target_dtype=dtype
+        )
         logging.info(f"Exported VAE parameters to {vae_output_path}")
     else:
         logging.info(
