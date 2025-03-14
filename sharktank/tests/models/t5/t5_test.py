@@ -75,13 +75,13 @@ def assert_t5_encoder_state_close(
         # For both
         # testCompareV1_1XxlTorchEagerBf16AgainstHuggingFaceF32 and
         # testCompareV1_1XxlTorchEagerHuggingFaceBf16AgainstF32
-        # the observed absolute numerical error is 0.549.
-        # The error seems high as it corresponds to 57° angular difference.
-        # The majority of tokens have an error less than 0.01.
-        worst_observed_cosine_similarity_per_token = 0.549
+        # the observed absolute numerical error is 0.610.
+        # The error seems high as it corresponds to ~67° angular difference.
+        # The majority of tokens have an error less than 0.02.
+        worst_observed_cosine_similarity_per_token = 0.610
         tolerance_from_observed = 1.5
         atol = worst_observed_cosine_similarity_per_token * tolerance_from_observed
-        worst_observed_outliers_fraction = 0.016
+        worst_observed_outliers_fraction = 0.0207
         max_outliers_fraction = (
             worst_observed_outliers_fraction * tolerance_from_observed
         )
@@ -90,7 +90,7 @@ def assert_t5_encoder_state_close(
             expected,
             atol=atol,
             max_outliers_fraction=max_outliers_fraction,
-            inlier_atol=0.01,
+            inlier_atol=0.02,
         )
     elif target_dtype == torch.float32:
         assert_text_encoder_state_close(

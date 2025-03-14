@@ -18,6 +18,8 @@ from typing import Any, Callable
 from operator import eq
 from collections.abc import Iterable
 import gc
+from datasets import load_dataset
+import random
 
 from ..types import *
 from .math import cosine_similarity
@@ -342,13 +344,26 @@ def skip(*decorator_args, **decorator_kwargs):
     return decorator
 
 
-test_prompts = [
-    "Studies have been shown that owning a dog is good for you",
-    "The horse went into the river",
-    "We need at least one sentence long enough so that it spans more than one padding block which by default is of size 16.",
-    "Make the batch size 4",
-    "In data analysis, cosine similarity is a measure of similarity between two non-zero vectors defined in an inner product space. Cosine similarity is the cosine of the angle between the vectors; that is, it is the dot product of the vectors divided by the product of their lengths. It follows that the cosine similarity does not depend on the magnitudes of the vectors, but only on their angle.",
-    'Lexical tokenization is conversion of a text into (semantically or syntactically) meaningful lexical tokens belonging to categories defined by a "lexer" program. In case of a natural language, those categories include nouns, verbs, adjectives, punctuations etc. In case of a programming language, the categories include identifiers, operators, grouping symbols and data types. Lexical tokenization is related to the type of tokenization used in large language models (LLMs) but with two differences. First, lexical tokenization is usually based on a lexical grammar, whereas LLM tokenizers are usually probability-based. Second, LLM tokenizers perform a second step that converts the tokens into numerical values.',
-    "A large language model (LLM) is a type of machine learning model designed for natural language processing tasks such as language generation. LLMs are language models with many parameters, and are trained with self-supervised learning on a vast amount of text.\nThe largest and most capable LLMs are generative pretrained transformers (GPTs). Modern models can be fine-tuned for specific tasks or guided by prompt engineering. These models acquire predictive power regarding syntax, semantics, and ontologies inherent in human language corpora, but they also inherit inaccuracies and biases present in the data they are trained in",
-    "Predictive learning is a machine learning (ML) technique where an artificial intelligence model is fed new data to develop an understanding of its environment, capabilities, and limitations. This technique finds application in many areas, including neuroscience, business, robotics, and computer vision. This concept was developed and expanded by French computer scientist Yann LeCun in 1988 during his career at Bell Labs, where he trained models to detect handwriting so that financial companies could automate check processing.",
-]
+def get_random_test_text_prompts(
+    num_prompts: int, min_prompt_length: int | None = None
+):
+    prompts = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")["text"]
+    if min_prompt_length is not None:
+        prompts = [p for p in prompts if len(p) >= min_prompt_length]
+    return random.sample(prompts, num_prompts)
+
+
+def get_frozen_test_text_prompts(
+    num_prompts: int, min_prompt_length: int | None = None
+):
+    orig_rng_state = random.getstate()
+    try:
+        random.seed(13910398)
+        return get_random_test_text_prompts(
+            num_prompts=num_prompts, min_prompt_length=min_prompt_length
+        )
+    finally:
+        random.setstate(orig_rng_state)
+
+
+test_prompts = get_frozen_test_text_prompts(num_prompts=16, min_prompt_length=50)
