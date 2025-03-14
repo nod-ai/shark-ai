@@ -15,6 +15,13 @@ import shortfin.array as sfnp
 # TODO: Have a generic "Responder" interface vs just the concrete impl.
 from shortfin.interop.fastapi import FastAPIResponder
 
+from .token_selection_strategy import (
+    BaseTokenSelectionStrategy,
+    TokenSelectionStrategyConfig,
+    TokenSelectionStrategy,
+    build_token_selector,
+    build_token_selector_config,
+)
 from .io_struct import GenerateReqInput
 from .messages import LlmInferenceExecRequest, InferencePhase
 from .service import LlmGenerateService
@@ -39,6 +46,7 @@ class GenerateItemProcess(sf.Process):
         input_token_ids: list[int],
         max_completion_tokens: int,
         eos_token_id: int,
+        token_selection_strategy: TokenSelectionStrategy = TokenSelectionStrategy.GREEDY,
     ):
         super().__init__(fiber=client.fiber)
         self.client = client
@@ -48,39 +56,35 @@ class GenerateItemProcess(sf.Process):
         self.result_token_ids: list[int] = []
         self.max_completion_tokens = max_completion_tokens
         self.eos_token_id = eos_token_id
+        self.token_selection_strategy = token_selection_strategy
+        config: TokenSelectionStrategyConfig = build_token_selector_config(
+            self.token_selection_strategy,
+            prefill_callback=self.client.prefill_batcher.submit,
+            decode_callback=self.client.decode_batcher.submit,
+            results_callback=self.append_token,
+            eos_token_id=self.eos_token_id,
+            max_completion_tokens=self.max_completion_tokens,
+        )
+        self.token_selector: BaseTokenSelectionStrategy = build_token_selector(
+            config,
+        )
 
         self.streamed_tokens_index = 0
 
     async def run(self):
-        exec = LlmInferenceExecRequest(
+        exec_req = LlmInferenceExecRequest(
             phase=InferencePhase.PREFILL,
             input_token_ids=self.input_token_ids,
             rid=self.gen_req.rid,
         )
         try:
-            self.client.prefill_batcher.submit(exec)
-            await exec.done
-
             # Prefill result.
-            token = sfnp.argmax(exec.result_logits)
-            token_int = token.items[0]
+            await self.token_selector.prefill(exec_req)
 
-            self.append_token(token_int)
             # Decode loop.
-            exec.start_position = len(self.input_token_ids) - 1
-            for _ in range(self.max_completion_tokens):
-                exec.reset(InferencePhase.DECODE)
-                exec.input_token_ids.append(token_int)
-                exec.start_position += 1
-                self.client.decode_batcher.submit(exec)
-                await exec.done
-                token = sfnp.argmax(exec.result_logits)
-                token_int = token.items[0]
-                self.append_token(token_int)
-                if token_int == self.eos_token_id:
-                    break
+            await self.token_selector.decode(exec_req)
         finally:
-            exec.free_cache_pages()
+            exec_req.free_cache_pages()
 
     def append_token(self, token: int):
         self.result_token_ids.append(token)

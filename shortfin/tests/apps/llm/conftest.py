@@ -15,3 +15,24 @@ def require_deps():
         import shortfin_apps.llm
     except ShortfinDepNotFoundError as e:
         pytest.skip(f"Dep not available: {e}")
+
+
+import shortfin as sf
+
+
+@pytest.fixture(scope="module")
+def lsys():
+    sc = sf.host.CPUSystemBuilder()
+    lsys = sc.create_system()
+    yield lsys
+    lsys.shutdown()
+
+
+@pytest.fixture(scope="module")
+def fiber(lsys):
+    return lsys.create_fiber()
+
+
+@pytest.fixture(scope="module")
+def device(fiber):
+    return fiber.device(0)
