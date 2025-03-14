@@ -176,12 +176,12 @@ This may take a while. The subsequent runs will use the artifacts cached in `~/.
 
 ### Use the Client
 
-1. Visit http://localhost:5173 in your browser:
+1. Visit <http://localhost:5173> in your browser:
 
     ![SHARK UI upon first load](./shark_ui_example_pre_generation.png)
 
 1. Modify the prompts if desired
-1. Select the "Generate" button:
+1. Select "Generate Image":
 
     ![SHARK UI after successful server response](./shark_ui_example_post_generation.png)
 
