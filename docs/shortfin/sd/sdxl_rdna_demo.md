@@ -139,14 +139,14 @@ Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
 
         ```shell
         python -m python.shortfin_apps.sd.server --device=amdgpu --target=gfx1201 --build_preference=precompiled \
-          --device=hip --device_ids 0 --model_config=sdxl_config_fp8_ocp.json
+          --device_ids 0 --model_config=sdxl_config_fp8_ocp.json
         ```
 
       * for Int8, run:
 
         ```shell
         python -m python.shortfin_apps.sd.server --device=amdgpu --target=gfx1201 --build_preference=precompiled \
-          --device=hip --device_ids 0 --model_config=sdxl_config_i8.json
+          --device_ids 0 --model_config=sdxl_config_i8.json
         ```
 
     * On RDNA3:
@@ -155,7 +155,7 @@ Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
 
         ```shell
         python -m python.shortfin_apps.sd.server --device=amdgpu --target=gfx1100 --build_preference=precompiled \
-          --device=hip --device_ids 0 --model_config=sdxl_config_i8.json
+          --device_ids 0 --model_config=sdxl_config_i8.json
         ```
 
 1. (Optional) Specify a network port by including the `--port <PORT-NUM>` flag.
