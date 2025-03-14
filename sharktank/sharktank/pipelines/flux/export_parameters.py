@@ -56,14 +56,11 @@ def is_already_exported(output_path: Path) -> bool:
 def find_safetensors_files(path: Path) -> list[Path]:
     """Find all .safetensors files in a directory, excluding index files."""
     safetensors_files = list(path.glob("*.safetensors"))
-    # Filter out .safetensors.index.json files
-    safetensors_files = [f for f in safetensors_files if not f.name.endswith(".index.json")]
-    # Sort to ensure deterministic ordering
     safetensors_files.sort()
     return safetensors_files
 
 
-def filter_properties_for_config(properties: Dict[str, Any], config_class) -> Dict[str, Any]:
+def filter_properties_for_config(properties: Dict[str, Any], config_class: Any) -> Dict[str, Any]:
     """Filter properties to only include fields valid for the given config class.
     
     Args:
@@ -117,11 +114,8 @@ def export_flux_pipeline_iree_parameters(
     if not is_already_exported(t5_output_path):
         config_json_path = t5_path / "config.json"
         param_paths = find_safetensors_files(t5_path)
-        # Get the dataset but don't save it yet
         t5_dataset = import_hf_dataset(config_json_path, param_paths, target_dtype=dtype)
-        # Filter properties to only include valid fields for T5Config
         t5_dataset.properties = filter_properties_for_config(t5_dataset.properties, T5Config)
-        # Now save the dataset with the filtered properties
         t5_dataset.save(str(t5_output_path))
         logging.info(f"Exported T5 parameters to {t5_output_path}")
     else:
@@ -133,11 +127,8 @@ def export_flux_pipeline_iree_parameters(
     if not is_already_exported(clip_output_path):
         config_json_path = clip_path / "config.json"
         param_paths = find_safetensors_files(clip_path)
-        # Get the dataset but don't save it yet
         clip_dataset = import_hf_dataset(config_json_path, param_paths, target_dtype=dtype)
-        # Filter properties to only include valid fields for ClipTextConfig
         clip_dataset.properties = filter_properties_for_config(clip_dataset.properties, ClipTextConfig)
-        # Now save the dataset with the filtered properties
         clip_dataset.save(str(clip_output_path))
         logging.info(f"Exported CLIP parameters to {clip_output_path}")
     else:
@@ -151,18 +142,7 @@ def export_flux_pipeline_iree_parameters(
     if not is_already_exported(transformer_output_path):
         config_json_path = transformer_path / "config.json"
         param_paths = [Path(model_path) / "flux1-dev.safetensors"]
-        # Get the dataset but don't save it yet
         transformer_dataset = import_hf_dataset(config_json_path, param_paths, target_dtype=dtype)
-        # For FluxTransformer, we need to keep the nested structure that FluxParams expects
-        # but we need to make sure we only include valid fields within the hparams
-        if "hparams" in transformer_dataset.properties:
-            # We don't filter at the top level because FluxParams expects the nested structure
-            # We'll keep the structure FluxParams expects from_hugging_face_properties
-            pass
-        else:
-            # If it's not already in the right format, create it
-            transformer_dataset.properties = {"hparams": transformer_dataset.properties}
-        # Now save the dataset
         transformer_dataset.save(str(transformer_output_path))
         logging.info(
             f"Exported FluxTransformer parameters to {transformer_output_path}"
@@ -178,14 +158,7 @@ def export_flux_pipeline_iree_parameters(
     if not is_already_exported(vae_output_path):
         config_json_path = vae_path / "config.json"
         param_paths = find_safetensors_files(vae_path)
-        # Get the dataset but don't save it yet
-        vae_dataset = import_hf_dataset(config_json_path, param_paths, vae_output_path, target_dtype=dtype)
-        # For VAE, we need to filter but ensure we use "hparams" structure if required
-        #if "hparams" in vae_dataset.properties:
-            # Just use the hparams directly since VAE doesn't have a specific validator
-            #vae_dataset.properties = vae_dataset.properties["hparams"]
-        # Now save the dataset with the fixed properties
-        #vae_dataset.save(str(vae_output_path))
+        import_hf_dataset(config_json_path, param_paths, vae_output_path, target_dtype=dtype)
         logging.info(f"Exported VAE parameters to {vae_output_path}")
     else:
         logging.info(
