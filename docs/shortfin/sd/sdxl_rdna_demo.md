@@ -94,24 +94,24 @@ Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
 ### Start the Shortfin SD Server
 
 1. Run the command for your target (`gfx1100` for RDNA3, `gfx1201` for RDNA4):
-    - On RDNA4:
-      - for FP8, run:
+    * On RDNA4:
+      * for FP8, run:
 
         ```shell
         python -m python.shortfin_apps.sd.server --device=amdgpu --target=gfx1201 --build_preference=precompiled \
           --device=hip --device_ids 0 --model_config=sdxl_config_fp8_ocp.json
         ```
 
-      - for Int8, run:
+      * for Int8, run:
 
         ```shell
         python -m python.shortfin_apps.sd.server --device=amdgpu --target=gfx1201 --build_preference=precompiled \
           --device=hip --device_ids 0 --model_config=sdxl_config_i8.json
         ```
 
-    - On RDNA3:
-      - for FP8: not supported
-      - for Int8, run:
+    * On RDNA3:
+      * for FP8: not supported
+      * for Int8, run:
 
         ```shell
         python -m python.shortfin_apps.sd.server --device=amdgpu --target=gfx1100 --build_preference=precompiled \
