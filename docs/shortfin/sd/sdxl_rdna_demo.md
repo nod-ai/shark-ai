@@ -94,7 +94,9 @@ Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
 1. In a new terminal session, clone the shark-ui project
 
     ```shell
-    cd demo && git clone https://github.com/nod-ai/shark-ui.git && cd shark-ui
+    cd demo
+    git clone https://github.com/nod-ai/shark-ui.git
+    cd shark-ui
     ```
 
 1. Checkout the preview branch
