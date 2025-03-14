@@ -108,13 +108,13 @@ Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
         1. Select highest LTS version (i.e. v22)
         1. For "using", select `nvm` if available, otherwise select `fnm`
         1. For "with", select `npm`
-    1. Update npm:
+    1. Update `npm`:
 
         ```shell
         npm install -g npm@latest
         ```
 
-    1. Use npm
+    1. Use `npm` to install dependencies
 
         ```shell
         npm install
