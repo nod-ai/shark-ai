@@ -125,7 +125,7 @@ class PagedAttention:
         *,
         transformer_block_index: int,
         seq_len: int,
-        page_ids: Optional[Union[torch.Tensor, ReplicatedTensor]] = None,
+        page_ids: Union[torch.Tensor, ReplicatedTensor],
     ):
         """Reads K/V caches the page table for the given page_ids.
 
@@ -158,10 +158,10 @@ class PagedAttention:
         subblock_table = page_table.flatten(start_dim=0, end_dim=1)
         page_stride = self.transformer_block_count
 
-        transformer_block_index = torch.full(
+        transformer_block_indices = torch.full(
             (bs, block_seq_len), transformer_block_index
         )
-        subblock_ids = page_ids * page_stride + transformer_block_index
+        subblock_ids = page_ids * page_stride + transformer_block_indices
         selected = ops.index_select(subblock_table, 0, subblock_ids.flatten(0, 1))
 
         selected = selected.unflatten(0, blocked_shape[:2])
@@ -170,7 +170,7 @@ class PagedAttention:
 
         return key, value
 
-    def write_timestep(
+    def write_decode(
         self,
         state: Sequence[Union[torch.Tensor, SplitPrimitiveTensor]],
         # List of [bs, 1, attn_head_count, attn_head_dim]
@@ -187,11 +187,13 @@ class PagedAttention:
         Note that this internally loops over the batch size, which cannot be
         dynamic.
         """
+        assert all((part.shape[1] == 1 for part in cache_partitions))
+        assert len(cache_partitions) == self.cache_partition_count
+
         device = self.device
         page_table = self.unflatten_page_table(state)  # 6D
         page_table = page_table.flatten(0, 3)
         bs, *_ = seq_positions.shape
-        assert len(cache_partitions) == self.cache_partition_count
 
         # [bs, 1, atten_head_count, attn_head_dim]
         for idx, cache_partition in enumerate(cache_partitions):
@@ -238,7 +240,7 @@ class PagedAttention:
 
         return
 
-    def write(
+    def write_prefill(
         self,
         state: Sequence[Union[torch.Tensor, SplitPrimitiveTensor]],
         cache_partitions: Sequence[Union[torch.Tensor, SplitPrimitiveTensor]],
@@ -287,3 +289,56 @@ class PagedAttention:
                 subblock_table_as_int8.index_copy_(0, subblock_ids, part_block_as_int8)
             else:
                 subblock_table.index_copy_(0, subblock_ids, part_block)
+
+    def attention(
+        self,
+        *,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        attention_kernel: str,
+        softcap: Optional[float] = None,
+        scale: Optional[torch.Tensor] = None,
+        mask: Optional[torch.Tensor] = None,
+    ):
+        # Non-decomposed
+        if attention_kernel != "decomposed":
+            if softcap is not None:
+                raise ValueError("softcap not supported yet")
+
+            return ops.scaled_dot_product_attention(
+                q=q,  # [bs, ..., sl, dim]
+                k=k,  # [bs, ..., sl, dim]
+                v=v,  # [bs, ..., sl, dim]
+                a=mask,  # [bs, ..., sl, sl]
+                is_causal=mask is None,  # assumes causal masking when true
+                scale=None,  # defaults to 1/sqrt(dim)
+            )
+
+        # Decomposed
+        if attention_kernel == "decomposed":
+            attn_weights = ops.matmul(q, k.transpose(2, 3))
+            if scale is None:
+                attn_weights = attn_weights / math.sqrt(self.attn_head_dim)
+            else:
+                attn_weights = attn_weights * scale
+
+            # Flash attention.
+            if softcap is not None:
+                attn_weights = softcap * torch.tanh(attn_weights / softcap)
+
+            # Apply attention mask.
+            if mask is None:
+                mask = torch.full(
+                    (attn_weights.shape[2], attn_weights.shape[3]), float("-inf")
+                )
+                mask = torch.triu(mask, diagonal=1)[None, None, :, :]
+                attn_weights = attn_weights + mask
+            else:
+                attn_weights = attn_weights + mask
+
+            attn_weights = ops.softmax(
+                ops.to(attn_weights, dtype=torch.float32), dim=-1
+            )
+            attn_weights = ops.to(attn_weights, dtype=q.dtype)
+            return ops.matmul(attn_weights, v)  # (bs, heads, slen, head_dim)
