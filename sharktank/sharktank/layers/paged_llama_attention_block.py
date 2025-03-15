@@ -11,6 +11,7 @@ import math
 import torch
 import torch.nn.functional as F
 
+from sharktank.kernels import attention
 from sharktank.ops.paged_attention import PagedAttention
 from ..types import QuantizerTensor
 from .base import Theta, ThetaLayer
@@ -191,50 +192,14 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         if attention_mask is not None:
             attention_mask = ops.to(attention_mask, dtype=self.attention_dtype)
 
-        if self.attention_kernel == "decomposed":
-            attn_weights = ops.matmul(xq, keys.transpose(2, 3))
-            if self.attention_scale is None:
-                attn_weights = attn_weights / math.sqrt(self.head_dim)
-            else:
-                attn_weights = attn_weights * self.attention_scale
-
-            # Flash attention.
-            if self.softcap is not None:
-                attn_weights = self.softcap * torch.tanh(attn_weights / self.softcap)
-
-            self.assert_not_nan(attn_weights)
-
-            # Apply attention mask.
-            self.trace_tensor("attn_weights", attn_weights)
-            if attention_mask is None:
-                attention_mask = torch.full(
-                    (attn_weights.shape[2], attn_weights.shape[3]), float("-inf")
-                )
-                attention_mask = torch.triu(attention_mask, diagonal=1)[
-                    None, None, :, :
-                ]
-                attn_weights = attn_weights + attention_mask
-            else:
-                attn_weights = attn_weights + attention_mask
-
-            attn_weights = ops.softmax(
-                ops.to(attn_weights, dtype=torch.float32), dim=-1
-            )
-            attn_weights = ops.to(attn_weights, dtype=xq.dtype)
-            attn_output = ops.matmul(
-                attn_weights, values
-            )  # (bs, heads, slen, head_dim)
-        else:
-            if self.softcap is not None:
-                raise ValueError("softcap not supported yet")
-            attn_output = ops.scaled_dot_product_attention(
-                q=xq,  # [bs, ..., sl, dim]
-                k=keys,  # [bs, ..., sl, dim]
-                v=values,  # [bs, ..., sl, dim]
-                a=attention_mask,  # [bs, ..., sl, sl]
-                is_causal=attention_mask is None,  # assumes causal masking when true
-                scale=None,  # defaults to 1/sqrt(dim)
-            )
+        attn_output = self.paged_attention.attention(
+            q=xq,  # [bs, ..., sl, dim]
+            k=keys,  # [bs, ..., sl, dim]
+            v=values,  # [bs, ..., sl, dim]
+            attention_kernel=self.attention_kernel,
+            mask=attention_mask,  # [bs, ..., sl, sl]
+            scale=None,  # defaults to 1/sqrt(dim)
+        )
 
         attn_output = attn_output.transpose(1, 2)
         attn_output = attn_output.flatten(2, 3)
@@ -252,14 +217,14 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         xv_cache_update: torch.Tensor,
         cache_state: list[torch.Tensor],
         # [bs, batch_seq_len // block_seq_stride]
-        seq_block_ids: Optional[torch.Tensor],
+        seq_block_ids: torch.Tensor,
         kv_seq_len: int,
         start_positions: Optional[torch.Tensor] = None,
     ):
         # Manage the cache.
         if start_positions is None:
             # Prefill: Write the entire cache.
-            self.paged_attention.write(
+            self.paged_attention.write_prefill(
                 cache_state,
                 cache_partitions=[xk_cache_update, xv_cache_update],
                 transformer_block_index=self.block_index,
@@ -273,14 +238,12 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         # use a memory efficient attention kernel that can do indirect
         # reads, skipping this materialization. This path is taken for
         # a decode step.
-        assert xk_cache_update.shape[1] == 1
-        assert xv_cache_update.shape[1] == 1
         assert (
             kv_seq_len == seq_block_ids.shape[1] * self.paged_attention.block_seq_stride
         )
 
         # Write our one updated cache row into the cache.
-        self.paged_attention.write_timestep(
+        self.paged_attention.write_decode(
             cache_state,
             cache_partitions=[
                 xk_cache_update,

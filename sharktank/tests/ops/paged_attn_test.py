@@ -85,7 +85,7 @@ def test_paged(dtype: torch.dtype):
         2.0,
     ).to(dtype=dtype)
 
-    paged_attention.write(
+    paged_attention.write_prefill(
         allocation,
         cache_partitions=[write_ones, write_twos],
         transformer_block_index=1,
@@ -126,7 +126,7 @@ def test_paged(dtype: torch.dtype):
         dtype=dtype
     )
     write_pos = torch.full((bs,), write_seq_length, dtype=torch.int64)
-    paged_attention.write_timestep(
+    paged_attention.write_decode(
         allocation,
         cache_partitions=[write_threes, write_fours],
         transformer_block_index=1,
@@ -209,7 +209,7 @@ def test_sharded_paged():
         count=shard_count,
     )
 
-    paged_attention.write(
+    paged_attention.write_prefill(
         allocation,
         cache_partitions=[write_ones, write_twos],
         transformer_block_index=1,
@@ -242,7 +242,7 @@ def test_sharded_paged():
         torch.full((bs,), write_seq_length, dtype=torch.int64), shard_count
     )
 
-    paged_attention.write_timestep(
+    paged_attention.write_decode(
         allocation,
         cache_partitions=[write_threes, write_fours],
         transformer_block_index=1,
