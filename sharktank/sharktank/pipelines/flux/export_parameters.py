@@ -112,10 +112,10 @@ def export_flux_pipeline_iree_parameters(
 
     # Export FluxTransformer parameters
     transformer_path = Path(model_path) / "transformer/"
-    transformer_output_path = output_path / f"flux_schnell_sampler_{dtype_str}.irpa"
+    transformer_output_path = output_path / f"flux_dev_sampler_{dtype_str}.irpa"
     if not is_already_exported(transformer_output_path):
         config_json_path = transformer_path / "config.json"
-        param_paths = [Path(model_path) / "flux1-schnell.safetensors"]
+        param_paths = [Path(model_path) / "flux1-dev.safetensors"]
         transformer_dataset = import_hf_dataset(
             config_json_path, param_paths, target_dtype=dtype
         )
