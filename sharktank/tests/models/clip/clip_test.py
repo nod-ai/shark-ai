@@ -44,7 +44,7 @@ from sharktank.types import (
 from sharktank.transforms.dataset import set_float_dtype
 from sharktank.utils.hf_datasets import get_dataset
 from sharktank.utils.testing import (
-    is_mi300x,
+    is_cpu_condition,
     assert_text_encoder_state_close,
     make_rand_torch,
     make_random_mask,
@@ -135,11 +135,23 @@ class ClipTextIreeTest(TempDirTestBase):
             atol=3e-3,
         )
 
+    @pytest.mark.xfail(
+        is_cpu_condition,
+        raises=iree.compiler.CompilerToolError,
+        strict=True,
+        reason="The compiler segfaults https://github.com/iree-org/iree/issues/20283",
+    )
     def testCompareToyModelIreeF32AgainstTorchEagerF32(self):
         self.runTestCompareToyModelIreeAgainstTorch(
             reference_dtype=torch.float32, target_dtype=torch.float32, atol=1e-5
         )
 
+    @pytest.mark.xfail(
+        is_cpu_condition,
+        raises=iree.compiler.CompilerToolError,
+        strict=True,
+        reason="The compiler segfaults https://github.com/iree-org/iree/issues/20283",
+    )
     def testCompareToyModelIreeBf16AgainstTorchEagerF32(self):
         self.runTestCompareToyModelIreeAgainstTorch(
             reference_dtype=torch.float32, target_dtype=torch.bfloat16, atol=1e-3
