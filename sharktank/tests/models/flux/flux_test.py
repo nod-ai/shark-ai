@@ -25,7 +25,13 @@ from sharktank.models.flux.testing import (
     make_random_theta,
 )
 from sharktank.models.flux.flux import FluxModelV1, FluxParams
-from sharktank.utils.testing import TempDirTestBase, skip, is_mi300x
+from sharktank.utils.testing import (
+    TempDirTestBase,
+    skip,
+    is_mi300x,
+    is_cpu,
+    is_cpu_condition,
+)
 from sharktank.utils.iree import (
     with_iree_device_context,
     load_iree_module,
@@ -252,7 +258,12 @@ class FluxTest(TempDirTestBase):
             reference_model=reference_model, target_dtype=target_dtype, atol=atol
         )
 
-    @is_mi300x
+    @pytest.mark.xfail(
+        is_cpu_condition,
+        raises=iree.compiler.CompilerToolError,
+        strict=True,
+        reason="The compiler segfaults https://github.com/iree-org/iree/issues/20283",
+    )
     def testCompareToyIreeF32AgainstEagerF64(self):
         """atol is apparently high because the expected output range is large.
         Its absolute maximum is 3915. Observed atol is 0.036."""
@@ -260,7 +271,12 @@ class FluxTest(TempDirTestBase):
             reference_dtype=torch.float64, target_dtype=torch.float32, atol=1e-1
         )
 
-    @is_mi300x
+    @pytest.mark.xfail(
+        is_cpu_condition,
+        raises=iree.compiler.CompilerToolError,
+        strict=True,
+        reason="The compiler segfaults https://github.com/iree-org/iree/issues/20283",
+    )
     def testCompareToyIreeBf16AgainstEagerF64(self):
         """atol is apparently high because the expected output range is large.
         Its absolute maximum is 3915. Observed atol is 260.6.
