@@ -110,6 +110,24 @@ def export_flux_pipeline_iree_parameters(
     )
     output_path.mkdir(parents=True, exist_ok=True)
 
+    # Export FluxTransformer parameters
+    transformer_path = Path(model_path) / "transformer/"
+    transformer_output_path = output_path / f"flux_schnell_sampler_{dtype_str}.irpa"
+    if not is_already_exported(transformer_output_path):
+        config_json_path = transformer_path / "config.json"
+        param_paths = [Path(model_path) / "flux1-schnell.safetensors"]
+        transformer_dataset = import_hf_dataset(
+            config_json_path, param_paths, target_dtype=dtype
+        )
+        transformer_dataset.save(str(transformer_output_path))
+        logging.info(
+            f"Exported FluxTransformer parameters to {transformer_output_path}"
+        )
+    else:
+        logging.info(
+            f"Skipped FluxTransformer parameter export, already exists at {transformer_output_path}"
+        )
+
     # Export T5 parameters
     t5_path = Path(model_path) / "text_encoder_2/"
     t5_output_path = output_path / f"flux_dev_t5xxl_{dtype_str}.irpa"
@@ -144,24 +162,6 @@ def export_flux_pipeline_iree_parameters(
     else:
         logging.info(
             f"Skipped CLIP parameter export, already exists at {clip_output_path}"
-        )
-
-    # Export FluxTransformer parameters
-    transformer_path = Path(model_path) / "transformer/"
-    transformer_output_path = output_path / f"flux_dev_sampler_{dtype_str}.irpa"
-    if not is_already_exported(transformer_output_path):
-        config_json_path = transformer_path / "config.json"
-        param_paths = [Path(model_path) / "flux1-dev.safetensors"]
-        transformer_dataset = import_hf_dataset(
-            config_json_path, param_paths, target_dtype=dtype
-        )
-        transformer_dataset.save(str(transformer_output_path))
-        logging.info(
-            f"Exported FluxTransformer parameters to {transformer_output_path}"
-        )
-    else:
-        logging.info(
-            f"Skipped FluxTransformer parameter export, already exists at {transformer_output_path}"
         )
 
     # Export VAE parameters
