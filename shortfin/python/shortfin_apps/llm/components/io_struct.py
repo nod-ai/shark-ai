@@ -12,8 +12,11 @@ sglang: Copyright 2023-2024 SGLang Team, Licensed under the Apache License, Vers
 """
 
 from dataclasses import dataclass
+import logging
 from typing import Dict, List, Optional, Union
 import uuid
+
+logger = logging.getLogger(__name__)
 
 
 # Adapted from:
@@ -49,6 +52,7 @@ class GenerateReqInput:
     is_single: bool = True
 
     def post_init(self):
+        logger.info("POST INIT")
         if (self.text is None and self.input_ids is None) or (
             self.text is not None and self.input_ids is not None
         ):

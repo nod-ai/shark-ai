@@ -69,6 +69,7 @@ class ServerInstance:
             f"--parameters={self.config.artifacts.weights_path}",
             f"--port={self.port}",
             f"--prefix_sharing_algorithm={self.config.prefix_sharing_algorithm}",
+            "--device_ids=0",
         ]
         argv.extend(self.config.device_settings.server_flags)
         return argv
