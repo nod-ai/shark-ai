@@ -79,7 +79,7 @@ class FastAPIResponder(AbstractResponder):
             response = Response(response)
         self._loop.call_soon_threadsafe(self.response.set_result, response)
 
-    def start_response(self, **kwargs):
+    def stream_start(self, **kwargs):
         """Starts a streaming response, passing the given kwargs to the
         fastapi.responses.StreamingResponse constructor.
 
