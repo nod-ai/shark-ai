@@ -6,6 +6,8 @@
 
 from enum import Enum
 
+from typing import Union
+
 import logging
 
 import shortfin as sf
@@ -100,8 +102,7 @@ class FluxInferenceExecRequest(InferenceExecRequest):
         # Postprocess.
         self.image_array = image_array
 
-        self.result_image = None
-        self.img_metadata = None
+        self.result_image: Union[str | None] = None
 
         self.done = sf.VoidFuture()
 

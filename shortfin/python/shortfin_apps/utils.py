@@ -1,13 +1,108 @@
 from iree.build.executor import FileNamespace, BuildAction, BuildContext, BuildFile
 import os
+import re
 import urllib
 import logging
 import asyncio
 from pathlib import Path
+import threading
+from typing import Optional, Union
 
 import shortfin.array as sfnp
 import shortfin as sf
-from shortfin_apps.flux.components.manager import SystemManager
+from shortfin.interop.support.device_setup import get_selected_devices
+
+
+def get_system_args(parser):
+    parser.add_argument(
+        "--device",
+        type=str,
+        required=True,
+        choices=["local-task", "hip", "amdgpu"],
+        help="Device to serve on; e.g. local-task, hip. Same options as `iree-run-module --device` ",
+    )
+    parser.add_argument(
+        "--device_ids",
+        type=str,
+        nargs="*",
+        default=None,
+        help="Device IDs visible to the system builder. Defaults to None (full visibility). Can be an index or a sf device id like amdgpu:0:0@0",
+    )
+    parser.add_argument(
+        "--amdgpu_async_allocations",
+        action="store_true",
+        help="Enable asynchronous allocations for amdgpu device contexts.",
+    )
+    parser.add_argument(
+        "--amdgpu_allow_device_reuse",
+        action="store_true",
+        help="Allows the same device to be used for each instance",
+    )
+    parser.add_argument(
+        "--amdgpu_allocators",
+        default=None,
+        help="Allocator to use during VMFB invocation.",
+    )
+
+
+class SystemManager:
+    def __init__(
+        self,
+        device: str = "local-task",
+        device_ids: list[Union[str, int]] = None,
+        async_allocs: bool = True,
+        amdgpu_allow_device_reuse: bool = False,
+        amdgpu_allocators: Optional[bool] = None,
+        logger_name: str = __name__,
+        shutdown_system: bool = True,
+    ):
+        self.logger = logging.getLogger(logger_name)
+
+        self.shutdown_system = shutdown_system
+
+        if any(x in device for x in ["local-task", "cpu"]):
+            self.ls = sf.host.CPUSystemBuilder().create_system()
+        elif any(x in device for x in ["hip", "amdgpu"]):
+            if amdgpu_allocators is None:
+                sb = sf.SystemBuilder(
+                    system_type="amdgpu",
+                    amdgpu_async_allocations=async_allocs,
+                    amdgpu_allow_device_reuse=amdgpu_allow_device_reuse,
+                )
+            else:
+                sb = sf.SystemBuilder(
+                    system_type="amdgpu",
+                    amdgpu_async_allocations=async_allocs,
+                    amdgpu_allocators=amdgpu_allocators,
+                    amdgpu_allow_device_reuse=amdgpu_allow_device_reuse,
+                )
+            if device_ids:
+                sb.visible_devices = sb.available_devices
+                sb.visible_devices = get_selected_devices(sb, device_ids)
+            self.ls = sb.create_system()
+
+        self.logger.info(f"Created local system with {self.ls.device_names} devices")
+        # TODO: Come up with an easier bootstrap thing than manually
+        # running a thread.
+        self.t = threading.Thread(target=lambda: self.ls.run(self.run()))
+        self.command_queue = self.ls.create_queue("command")
+        self.command_writer = self.command_queue.writer()
+
+    def start(self):
+        self.logger.info("Starting system manager")
+        self.t.start()
+
+    def shutdown(self):
+        self.logger.info("Shutting down system manager")
+        self.command_queue.close()
+        if self.shutdown_system:
+            self.ls.shutdown()
+
+    async def run(self):
+        reader = self.command_queue.reader()
+        while command := await reader():
+            ...
+        self.logger.info("System manager command processor stopped")
 
 
 dtype_to_filetag = {
@@ -166,30 +261,82 @@ class StrobeMessage(sf.Message):
     ...
 
 
-class ServiceBase:
+class GenerateService:
     """Base class for shortfin service implementations."""
 
-    def __init__(self, sysman: SystemManager):
+    def __init__(
+        self,
+        sysman: SystemManager,
+        fibers_per_device: int = 1,
+        workers_per_device: int = 1,
+    ):
         """Initialize base service attributes."""
         self.sysman = sysman
         self.inference_parameters: dict[str, list[sf.BaseProgramParameters]] = {}
         self.inference_modules: dict[str, list[sf.ProgramModule]] = {}
+        self.inference_programs: dict[int, dict[str, sf.Program]] = {}
+        self.inference_functions: dict[int, dict[str, sf.ProgramFunction]] = {}
+        self.name = None
+        self.model_params = None
+        self.prog_isolation = None
+        self.trace_execution = False
+        self.show_progress = False
 
-    def load_inference_module(self, vmfb_path: Path, component: str = "main"):
+        # Worker and fiber configuration
+        self.workers: list[sf.Worker] = []
+        self.workers_per_device = workers_per_device
+        self.fibers_per_device = fibers_per_device
+        self.validate_fiber_configuration()
+
+    def set_isolation(self, isolation_str: str = "per_call"):
+        """Set the program isolation mode from a string.
+
+        Args:
+            isolation_str: Program isolation mode string
+        """
+        self.prog_isolation = prog_isolations[isolation_str]
+
+    def validate_fiber_configuration(self):
+        """Validate fiber configuration."""
+        if self.fibers_per_device % self.workers_per_device != 0:
+            raise ValueError(
+                "Currently, fibers_per_device must be divisible by workers_per_device"
+            )
+        self.fibers_per_worker = int(self.fibers_per_device / self.workers_per_device)
+
+    def load_inference_module(
+        self, vmfb_path: Path, component: str = "main", batch_size: int = None
+    ):
         """Load an inference module from a VMFB file.
 
         Args:
             vmfb_path: Path to the VMFB file
             component: Optional component name for organizing modules
         """
+        if batch_size:
+            bs = batch_size
+        else:
+            match = re.search(r"_bs(\d+)_", str(vmfb_path))
+            if match:
+                bs = int(match.group(1))
+            else:
+                bs = None
         if not hasattr(self, "inference_modules"):
             self.inference_modules = {}
-
-        if not self.inference_modules.get(component):
-            self.inference_modules[component] = []
-        self.inference_modules[component].append(
-            sf.ProgramModule.load(self.sysman.ls, vmfb_path)
-        )
+        if bs:
+            if not self.inference_modules.get(component):
+                self.inference_modules[component] = {}
+            if not self.inference_modules[component].get(bs):
+                self.inference_modules[component][bs] = []
+            self.inference_modules[component][bs].append(
+                sf.ProgramModule.load(self.sysman.ls, vmfb_path)
+            )
+        else:
+            if not self.inference_modules.get(component):
+                self.inference_modules[component] = []
+            self.inference_modules[component].append(
+                sf.ProgramModule.load(self.sysman.ls, vmfb_path)
+            )
 
     def load_inference_parameters(
         self,
@@ -217,8 +364,108 @@ class ServiceBase:
             self.inference_parameters[component] = []
         self.inference_parameters[component].append(p)
 
+    def initialize_program_modules(self, component: str):
+        """Initialize program modules for a component.
 
-class BatcherProcessBase(sf.Process):
+        Args:
+            component: Component name
+
+        Returns:
+            List of program modules
+        """
+        if component not in self.inference_modules:
+            return []
+
+        return [
+            sf.ProgramModule.parameter_provider(
+                self.sysman.ls, *self.inference_parameters.get(component, [])
+            ),
+            *self.inference_modules[component],
+        ]
+
+    def create_program(
+        self,
+        modules: list[sf.ProgramModule],
+        devices: list[sf.Device],
+        isolation: Optional[str] = None,
+        trace_execution: Optional[bool] = None,
+    ) -> sf.Program:
+        """Create a program with the given modules and devices.
+
+        Args:
+            modules: List of program modules
+            devices: List of devices
+            isolation: Program isolation mode (defaults to self.prog_isolation)
+            trace_execution: Whether to trace execution (defaults to self.trace_execution)
+
+        Returns:
+            Program instance
+        """
+        if isolation is None:
+            isolation = self.prog_isolation
+
+        if trace_execution is None:
+            trace_execution = self.trace_execution
+
+        return sf.Program(
+            modules=modules,
+            devices=devices,
+            isolation=isolation,
+            trace_execution=trace_execution,
+        )
+
+    def create_worker(self, device: sf.Device, index: int) -> sf.Worker:
+        """Create a worker for a device.
+
+        Args:
+            device: Device to create worker for
+            index: Worker index
+
+        Returns:
+            Worker instance
+        """
+        return self.sysman.ls.create_worker(
+            f"{self.name}-inference-{device.name}-{index}"
+        )
+
+    def start(self):
+        """Start the service by loading program modules and launching the batcher."""
+        # Override in derived classes
+        pass
+
+    def shutdown(self):
+        """Shutdown the service."""
+        if hasattr(self, "batcher"):
+            self.batcher.shutdown()
+
+    def __repr__(self):
+        """Default string representation for service instances."""
+        modules = [
+            f"     {key} : {value}" for key, value in self.inference_modules.items()
+        ]
+        params = [
+            f"     {key} : {value}" for key, value in self.inference_parameters.items()
+        ]
+        # For python 3.11 since we can't have \ in the f"" expression.
+        new_line = "\n"
+        return (
+            f"ServiceManager("
+            f"\n  INFERENCE DEVICES : \n"
+            f"     {self.sysman.ls.devices}\n"
+            f"\n  MODEL PARAMS : \n"
+            f"{self.model_params}"
+            f"\n  SERVICE PARAMS : \n"
+            f"     fibers per device : {self.fibers_per_device}\n"
+            f"     program isolation mode : {self.prog_isolation}\n"
+            f"\n  INFERENCE MODULES : \n"
+            f"{new_line.join(modules)}\n"
+            f"\n  INFERENCE PARAMETERS : \n"
+            f"{new_line.join(params)}\n"
+            f")"
+        )
+
+
+class BatcherProcess(sf.Process):
     """The batcher is a persistent process responsible for flighting incoming work
     into batches."""
 

@@ -18,10 +18,10 @@ import base64
 import shortfin as sf
 import shortfin.array as sfnp
 
-from ...utils import ServiceBase, BatcherProcessBase, prog_isolations
+from ...utils import GenerateService, BatcherProcess
 
 from .config_struct import ModelParams
-from .manager import SystemManager
+from .manager import FluxSystemManager
 from .messages import FluxInferenceExecRequest, InferencePhase
 from .tokenizer import Tokenizer
 from .metrics import measure
@@ -60,18 +60,14 @@ def get_schedule(
     return timesteps.tolist()
 
 
-class GenerateService(ServiceBase):
+class FluxGenerateService(GenerateService):
     """Top level service interface for image generation."""
-
-    inference_programs: dict[str, sf.Program]
-
-    inference_functions: dict[str, dict[str, sf.ProgramFunction]]
 
     def __init__(
         self,
         *,
         name: str,
-        sysman: SystemManager,
+        sysman: FluxSystemManager,
         clip_tokenizers: list[Tokenizer],
         t5xxl_tokenizers: list[Tokenizer],
         model_params: ModelParams,
@@ -81,43 +77,39 @@ class GenerateService(ServiceBase):
         show_progress: bool = False,
         trace_execution: bool = False,
     ):
-        super().__init__(sysman)
+        super().__init__(sysman, fibers_per_device, workers_per_device)
         self.name = name
-
-        # Application objects.
         self.clip_tokenizers = clip_tokenizers
         self.t5xxl_tokenizers = t5xxl_tokenizers
         self.model_params = model_params
-        self.inference_functions: dict[str, dict[str, sf.ProgramFunction]] = {}
-        self.inference_programs: dict[int, dict[str, sf.Program]] = {}
         self.trace_execution = trace_execution
         self.show_progress = show_progress
 
-        self.prog_isolation = prog_isolations[prog_isolation]
+        # Finish initialization
+        self.set_isolation(prog_isolation)
+        self.initialize_workers_and_fibers()
+        self.batcher = FluxBatcherProcess(self)
 
-        self.workers_per_device = workers_per_device
-        self.fibers_per_device = fibers_per_device
-        if fibers_per_device % workers_per_device != 0:
-            raise ValueError(
-                "Currently, fibers_per_device must be divisible by workers_per_device"
-            )
-        self.fibers_per_worker = int(fibers_per_device / workers_per_device)
-
+    def initialize_workers_and_fibers(self):
         self.workers = []
         self.fibers = []
         self.idle_fibers = set()
-        # For each worker index we create one on each device, and add their fibers to the idle set.
-        # This roughly ensures that the first picked fibers are distributed across available devices.
+
+        # Create workers
         for i in range(self.workers_per_device):
             for idx, device in enumerate(self.sysman.ls.devices):
-                worker = sysman.ls.create_worker(f"{name}-inference-{device.name}-{i}")
+                worker = self.create_worker(device, i)
                 self.workers.append(worker)
+
+        # Create fibers
         for idx, device in enumerate(self.sysman.ls.devices):
             for i in range(self.fibers_per_device):
                 tgt_worker = self.workers[i % len(self.workers)]
-                fiber = sysman.ls.create_fiber(tgt_worker, devices=[device])
+                fiber = self.sysman.ls.create_fiber(tgt_worker, devices=[device])
                 self.fibers.append(fiber)
                 self.idle_fibers.add(fiber)
+
+        # Initialize inference containers
         for idx in range(len(self.workers)):
             self.inference_programs[idx] = {}
             self.inference_functions[idx] = {
@@ -126,8 +118,6 @@ class GenerateService(ServiceBase):
                 "denoise": {},
                 "decode": {},
             }
-        # Scope dependent objects.
-        self.batcher = FluxBatcherProcess(self)
 
     def get_worker_index(self, fiber):
         if fiber not in self.fibers:
@@ -139,15 +129,8 @@ class GenerateService(ServiceBase):
         return worker_idx
 
     def start(self):
-        # Initialize programs.
         for component in self.inference_modules:
-            logger.info(f"Loading component: {component}")
-            component_modules = [
-                sf.ProgramModule.parameter_provider(
-                    self.sysman.ls, *self.inference_parameters.get(component, [])
-                ),
-                *self.inference_modules[component],
-            ]
+            component_modules = self.initialize_program_modules(component)
 
             for worker_idx, worker in enumerate(self.workers):
                 worker_devices = self.fibers[
@@ -156,26 +139,30 @@ class GenerateService(ServiceBase):
                 logger.info(
                     f"Loading inference program: {component}, worker index: {worker_idx}, device: {worker_devices}"
                 )
-                self.inference_programs[worker_idx][component] = sf.Program(
-                    modules=component_modules,
-                    devices=worker_devices,
-                    isolation=self.prog_isolation,
-                    trace_execution=self.trace_execution,
+                self.inference_programs[worker_idx][component] = self.create_program(
+                    modules=component_modules, devices=worker_devices
                 )
 
+        self.initialize_inference_functions()
+        self.batcher.launch()
+
+    def initialize_inference_functions(self):
         for worker_idx, worker in enumerate(self.workers):
+            # Initialize clip functions
             for bs in self.model_params.clip_batch_sizes:
                 self.inference_functions[worker_idx]["clip"][
                     bs
                 ] = self.inference_programs[worker_idx]["clip"][
                     f"{self.model_params.clip_module_name}.encode_prompts"
                 ]
+            # Initialize t5xxl functions
             for bs in self.model_params.t5xxl_batch_sizes:
                 self.inference_functions[worker_idx]["t5xxl"][
                     bs
                 ] = self.inference_programs[worker_idx]["t5xxl"][
                     f"{self.model_params.t5xxl_module_name}.encode_prompts"
                 ]
+            # Initialize denoise functions
             self.inference_functions[worker_idx]["denoise"] = {}
             for bs in self.model_params.sampler_batch_sizes:
                 self.inference_functions[worker_idx]["denoise"][bs] = {
@@ -183,6 +170,7 @@ class GenerateService(ServiceBase):
                         f"{self.model_params.sampler_module_name}.{self.model_params.sampler_fn_name}"
                     ],
                 }
+            # Initialize decode functions
             self.inference_functions[worker_idx]["decode"] = {}
             for bs in self.model_params.vae_batch_sizes:
                 self.inference_functions[worker_idx]["decode"][
@@ -190,35 +178,6 @@ class GenerateService(ServiceBase):
                 ] = self.inference_programs[worker_idx]["vae"][
                     f"{self.model_params.vae_module_name}.decode"
                 ]
-        self.batcher.launch()
-
-    def shutdown(self):
-        self.batcher.shutdown()
-
-    def __repr__(self):
-        modules = [
-            f"     {key} : {value}" for key, value in self.inference_modules.items()
-        ]
-        params = [
-            f"     {key} : {value}" for key, value in self.inference_parameters.items()
-        ]
-        # For python 3.11 since we can't have \ in the f"" expression.
-        new_line = "\n"
-        return (
-            f"ServiceManager("
-            f"\n  INFERENCE DEVICES : \n"
-            f"     {self.sysman.ls.devices}\n"
-            f"\n  MODEL PARAMS : \n"
-            f"{self.model_params}"
-            f"\n  SERVICE PARAMS : \n"
-            f"     fibers per device : {self.fibers_per_device}\n"
-            f"     program isolation mode : {self.prog_isolation}\n"
-            f"\n  INFERENCE MODULES : \n"
-            f"{new_line.join(modules)}\n"
-            f"\n  INFERENCE PARAMETERS : \n"
-            f"{new_line.join(params)}\n"
-            f")"
-        )
 
 
 ########################################################################################
@@ -226,11 +185,11 @@ class GenerateService(ServiceBase):
 ########################################################################################
 
 
-class FluxBatcherProcess(BatcherProcessBase):
+class FluxBatcherProcess(BatcherProcess):
     STROBE_SHORT_DELAY = 0.5
     STROBE_LONG_DELAY = 1
 
-    def __init__(self, service: GenerateService):
+    def __init__(self, service: FluxGenerateService):
         super().__init__(fiber=service.fibers[0])
         self.service = service
         self.ideal_batch_size: int = max(service.model_params.max_batch_size)
@@ -288,7 +247,7 @@ class InferenceExecutorProcess(sf.Process):
 
     def __init__(
         self,
-        service: GenerateService,
+        service: FluxGenerateService,
         fiber,
     ):
         super().__init__(fiber=fiber)

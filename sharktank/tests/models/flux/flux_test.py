@@ -21,13 +21,13 @@ from sharktank.models.flux.export import (
 from sharktank.models.flux.testing import (
     convert_flux_transformer_input_for_hugging_face_model,
     export_dev_random_single_layer,
-    make_dev_single_layer_config,
+    make_toy_config,
     make_random_theta,
 )
 from sharktank.models.flux.flux import FluxModelV1, FluxParams
-from sharktank.utils.testing import TempDirTestBase
+from sharktank.utils.testing import TempDirTestBase, skip, is_mi300x
 from sharktank.utils.iree import (
-    get_iree_devices,
+    with_iree_device_context,
     load_iree_module,
     run_iree_module_function,
     prepare_iree_module_function_args,
@@ -35,6 +35,7 @@ from sharktank.utils.iree import (
     flatten_for_iree_signature,
     iree_to_torch,
 )
+from sharktank.utils.logging import format_tensor_statistics
 from sharktank import ops
 from sharktank.transforms.dataset import set_float_dtype
 from sharktank.types import Dataset, Theta
@@ -44,12 +45,12 @@ logger = logging.getLogger(__name__)
 with_flux_data = pytest.mark.skipif("not config.getoption('with_flux_data')")
 
 iree_compile_flags = [
-    "--iree-hal-target-device=hip",
-    "--iree-hip-target=gfx942",
     "--iree-opt-const-eval=false",
     "--iree-opt-strip-assertions=true",
     "--iree-global-opt-propagate-transposes=true",
-    "--iree-dispatch-creation-enable-fuse-horizontal-contractions=true",
+    # TODO: We want the following flag to be enable eventually, but there's
+    # a bug in iree that's causing a failure right now.
+    "--iree-dispatch-creation-enable-fuse-horizontal-contractions=false",
     "--iree-dispatch-creation-enable-aggressive-fusion=true",
     "--iree-opt-aggressively-propagate-transposes=true",
     "--iree-opt-outer-dim-concat=true",
@@ -57,10 +58,10 @@ iree_compile_flags = [
     "--iree-llvmgpu-enable-prefetch=true",
     "--iree-opt-data-tiling=false",
     "--iree-codegen-gpu-native-math-precision=true",
-    "--iree-codegen-llvmgpu-use-vector-distribution",
+    "--iree-codegen-llvmgpu-use-vector-distribution=1",
     "--iree-hip-waves-per-eu=2",
     "--iree-execution-model=async-external",
-    "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline,iree-preprocessing-pad-to-intrinsics)",
+    "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline,iree-preprocessing-pad-to-intrinsics,util.func(iree-preprocessing-generalize-linalg-matmul-experimental))",
 ]
 
 
@@ -72,6 +73,15 @@ def convert_dtype_if_dtype(
     return t
 
 
+def convert_input_dtype(input: dict[str, torch.Tensor], dtype: torch.dtype):
+    always_float32_input_arg_names = set(["img_ids", "txt_ids"])
+    return OrderedDict(
+        (k, t if k in always_float32_input_arg_names else t.to(dtype=dtype))
+        for k, t in input.items()
+    )
+
+
+@pytest.mark.usefixtures("path_prefix", "get_iree_flags")
 class FluxTest(TempDirTestBase):
     def setUp(self):
         super().setUp()
@@ -94,6 +104,7 @@ class FluxTest(TempDirTestBase):
         target_theta = reference_model.theta.transform(
             functools.partial(set_float_dtype, dtype=target_dtype)
         )
+
         target_torch_model = FluxModelV1(
             theta=target_theta,
             params=reference_model.params,
@@ -113,30 +124,22 @@ class FluxTest(TempDirTestBase):
 
         iree_module_path = self._temp_dir / "model.vmfb"
         logger.info("Compiling MLIR file...")
+        compile_flags = iree_compile_flags + [
+            f"--iree-hal-target-device={self.iree_hal_target_device}",
+            f"--iree-hip-target={self.iree_hip_target}",
+        ]
         iree.compiler.compile_file(
             str(mlir_path),
             output_file=str(iree_module_path),
-            extra_args=iree_compile_flags,
+            extra_args=compile_flags,
         )
 
-        target_input_args, target_input_kwargs = target_torch_model.sample_inputs(
+        reference_input_args, reference_input_kwargs = reference_model.sample_inputs(
             batch_size
         )
-
-        reference_input_args = [
-            convert_dtype_if_dtype(
-                t, source_dtype=target_dtype, target_dtype=reference_model.dtype
-            )
-            for t in target_input_args
-        ]
-        reference_input_kwargs = OrderedDict(
-            (
-                k,
-                convert_dtype_if_dtype(
-                    t, source_dtype=target_dtype, target_dtype=reference_model.dtype
-                ),
-            )
-            for k, t in target_input_kwargs.items()
+        assert len(reference_input_args) == 0
+        target_input_kwargs = convert_input_dtype(
+            reference_input_kwargs, dtype=target_dtype
         )
 
         logger.info("Invoking reference torch function...")
@@ -148,36 +151,47 @@ class FluxTest(TempDirTestBase):
         )
         expected_outputs = flatten_for_iree_signature(reference_result_dict)
 
-        iree_devices = get_iree_devices(driver="hip", device_count=1)
-        logger.info("Loading IREE module...")
-        iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
-            module_path=iree_module_path,
-            devices=iree_devices,
-            parameters_path=parameters_path,
-        )
-        iree_args = prepare_iree_module_function_args(
-            args=flatten_for_iree_signature([target_input_args, target_input_kwargs]),
-            devices=iree_devices,
-        )
+        iree_devices = [iree.runtime.get_device(self.iree_device, cache=False)]
 
-        logger.info("Invoking IREE function...")
-        iree_result = iree_to_torch(
-            *run_iree_module_function(
-                module=iree_module,
-                vm_context=iree_vm_context,
-                args=iree_args,
-                device=iree_devices[0],
-                function_name=f"forward_bs{batch_size}",
+        def run_iree_module(iree_devices: list[iree.runtime.HalDevice]):
+            logger.info("Loading IREE module...")
+            iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
+                module_path=iree_module_path,
+                devices=iree_devices,
+                parameters_path=parameters_path,
             )
-        )
-        actual_outputs = [
-            ops.to(iree_result[i], dtype=expected_outputs[i].dtype)
-            for i in range(len(expected_outputs))
-        ]
+            iree_args = prepare_iree_module_function_args(
+                args=flatten_for_iree_signature(target_input_kwargs),
+                devices=iree_devices,
+            )
+
+            logger.info("Invoking IREE function...")
+            iree_result = iree_to_torch(
+                *run_iree_module_function(
+                    module=iree_module,
+                    vm_context=iree_vm_context,
+                    args=iree_args,
+                    device=iree_devices[0],
+                    function_name=f"forward_bs{batch_size}",
+                )
+            )
+            actual_outputs = [
+                ops.to(iree_result[i], dtype=expected_outputs[i].dtype)
+                for i in range(len(expected_outputs))
+            ]
+            return [t.clone() for t in actual_outputs]
+
+        actual_outputs = with_iree_device_context(run_iree_module, iree_devices)
+
         logger.info("Comparing outputs...")
+        logger.info(f"Expected output {format_tensor_statistics(expected_outputs[0])}")
+        abs_diff = (actual_outputs[0] - expected_outputs[0]).abs()
+        logger.info(
+            f"Actual vs expected abs diff {format_tensor_statistics(abs_diff[0])}"
+        )
         torch.testing.assert_close(actual_outputs, expected_outputs, atol=atol, rtol=0)
 
-    def runTestCompareDevIreeAgainstHuggingFace(
+    def runTestCompareDevIreeAgainstEager(
         self, reference_dtype: torch.dtype, target_dtype: torch.dtype, atol: float
     ):
         parameters_output_path = self._temp_dir / "parameters.irpa"
@@ -209,21 +223,12 @@ class FluxTest(TempDirTestBase):
     ):
         target_input_args, target_input_kwargs = target_model.sample_inputs()
 
-        reference_input_args = [
-            convert_dtype_if_dtype(
-                t, source_dtype=target_model.dtype, target_dtype=reference_dtype
-            )
-            for t in target_input_args
-        ]
-        reference_input_kwargs = OrderedDict(
-            (
-                k,
-                convert_dtype_if_dtype(
-                    t, source_dtype=target_model.dtype, target_dtype=reference_dtype
-                ),
-            )
-            for k, t in target_input_kwargs.items()
+        assert len(target_input_args) == 0
+        reference_input_args = []
+        reference_input_kwargs = convert_input_dtype(
+            target_input_kwargs, dtype=reference_dtype
         )
+
         reference_input_kwargs = convert_flux_transformer_input_for_hugging_face_model(
             *reference_input_args, **reference_input_kwargs
         )
@@ -236,15 +241,43 @@ class FluxTest(TempDirTestBase):
 
         torch.testing.assert_close(target_output, reference_output, atol=atol, rtol=0)
 
+    def runTestCompareToyIreeAgainstEager(
+        self, reference_dtype: torch.dtype, target_dtype: torch.dtype, atol: float
+    ):
+        config = make_toy_config()
+        reference_theta = make_random_theta(config, dtype=reference_dtype)
+        reference_model = FluxModelV1(theta=reference_theta, params=config)
+        self.runCompareIreeAgainstTorchEager(
+            reference_model=reference_model, target_dtype=target_dtype, atol=atol
+        )
+
+    @is_mi300x
+    def testCompareToyIreeF32AgainstEagerF64(self):
+        """atol is apparently high because the expected output range is large.
+        Its absolute maximum is 3915. Observed atol is 0.036."""
+        self.runTestCompareToyIreeAgainstEager(
+            reference_dtype=torch.float64, target_dtype=torch.float32, atol=1e-1
+        )
+
+    @is_mi300x
+    def testCompareToyIreeBf16AgainstEagerF64(self):
+        """atol is apparently high because the expected output range is large.
+        Its absolute maximum is 3915. Observed atol is 260.6.
+        This is consistent with the expectation that bf16 atol should be worse by ~10^4
+        compared to f32. f32 can represent ~7 digits and bf16 can represent ~3."""
+        self.runTestCompareToyIreeAgainstEager(
+            reference_dtype=torch.float64, target_dtype=torch.bfloat16, atol=5e2
+        )
+
     @with_flux_data
-    def testCompareDevIreeF32AgainstHuggingFaceF32(self):
-        self.runTestCompareDevIreeAgainstHuggingFace(
+    def testCompareDevIreeF32AgainstEagerF32(self):
+        self.runTestCompareDevIreeAgainstEager(
             reference_dtype=torch.float32, target_dtype=torch.float32, atol=1e-2
         )
 
     @with_flux_data
-    def testCompareDevIreeBf16AgainstHuggingFaceF32(self):
-        self.runTestCompareDevIreeAgainstHuggingFace(
+    def testCompareDevIreeBf16AgainstEagerF32(self):
+        self.runTestCompareDevIreeAgainstEager(
             reference_dtype=torch.float32, target_dtype=torch.bfloat16, atol=1
         )
 

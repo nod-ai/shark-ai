@@ -8,6 +8,7 @@ import asyncio
 import logging
 
 from shortfin.support.deps import ShortfinDepNotFoundError
+from ...support.responder import AbstractResponder
 
 try:
     from fastapi import Request, Response
@@ -23,7 +24,7 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 
-class FastAPIResponder:
+class FastAPIResponder(AbstractResponder):
     """Bridge between FastAPI and shortfin that can be used to send out of band
     responses back to a waiting FastAPI async request.
 

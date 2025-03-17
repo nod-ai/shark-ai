@@ -24,10 +24,11 @@ class SHORTFIN_API AMDGPUDevice : public Device {
 };
 
 // System configuration for some subset of AMD GPUs connected to the local
-// system. Note that this inherits from HostCPUSystemBuilder, allowing joint
-// configuration of a heterogenous CPU/GPU system. Depending on the specific
-// system, this can involve more than simple starting CPU drivers: datacenter
-// GPU systems have specific NUMA configurations that need to be mated.
+// system. Note that this inherits from HostCPUSystemBuilder, amdgpu_allowing
+// joint configuration of a heterogenous CPU/GPU system. Depending on the
+// specific system, this can involve more than simple starting CPU drivers:
+// datacenter GPU systems have specific NUMA configurations that need to be
+// mated.
 class SHORTFIN_API AMDGPUSystemBuilder : public HostCPUSystemBuilder {
  public:
   AMDGPUSystemBuilder(iree_allocator_t host_allocator,
@@ -98,6 +99,7 @@ class SHORTFIN_API AMDGPUSystemBuilder : public HostCPUSystemBuilder {
 
   // Configuration.
   bool cpu_devices_enabled_ = false;
+  bool amdgpu_allow_device_reuse_ = false;
   std::vector<std::string> hip_lib_search_paths_;
   std::optional<std::vector<std::string>> visible_devices_;
   size_t logical_devices_per_physical_device_ = 1;

@@ -192,7 +192,8 @@ class ExportArtifacts:
             f"--irpa-file={self.irpa_path}",
             f"--output-mlir={mlir_path}",
             f"--output-config={json_path}",
-            f"--bs={str(self.batch_size)}",
+            f"--bs-prefill={str(self.batch_size)}",
+            f"--bs-decode={str(self.batch_size)}",
             f"--block-seq-stride={self.block_seq_stride}",
             f"--attention-dtype={self.attention_dtype}",
             f"--activation-dtype={self.activation_dtype}",
@@ -284,6 +285,7 @@ class ExportArtifacts:
         hip_device_id: str,
         vmfb_name: str,
         irpa_path: str,
+        benchmark_filename: Optional[Path] = None,
         args: List[str],
         cwd: str | Path,
     ):
@@ -326,6 +328,7 @@ class ExportArtifacts:
         benchmark_args += params
         benchmark_args += devices
         benchmark_args += args
+        benchmark_args += [str(benchmark_filename)]
         cmd = subprocess.list2cmdline(benchmark_args)
         logger.info(f" Launching run command:\n" f"cd {cwd} && {cmd}")
         proc = subprocess.run(cmd, shell=True, stdout=sys.stdout, cwd=cwd)
