@@ -159,12 +159,19 @@ def export_sdxl_model(
             from sharktank.torch_exports.sdxl.vae import get_vae_model_and_inputs
 
             module_name = "compiled_vae"
-            if quant_path and os.path.exists(os.path.join(quant_path, "vae.safetensors")):
+            if quant_path and os.path.exists(
+                os.path.join(quant_path, "vae.safetensors")
+            ):
                 vae_path = os.path.join(quant_path, "vae.safetensors")
             else:
                 vae_path = None
             model, encode_args, decode_args = get_vae_model_and_inputs(
-                hf_model_name, height, width, precision=precision, batch_size=batch_size, custom_vae_path=vae_path
+                hf_model_name,
+                height,
+                width,
+                precision=precision,
+                batch_size=batch_size,
+                custom_vae_path=vae_path,
             )
             fxb = FxProgramsBuilder(model)
 

@@ -342,9 +342,13 @@ def sdxl(
     quant_path=cl_arg(
         "quant-path", default=None, help="Path for quantized punet model artifacts."
     ),
-    model_weights_path=cl_arg("model-weights-path", default=None, help="Path to local model checkpoint."
+    model_weights_path=cl_arg(
+        "model-weights-path", default=None, help="Path to local model checkpoint."
     ),
-    scheduler_config_path=cl_arg("scheduler-config-path", default=None, help="Path to folder with scheduler .config."
+    scheduler_config_path=cl_arg(
+        "scheduler-config-path",
+        default=None,
+        help="Path to folder with scheduler .config.",
     ),
     force_update=cl_arg("force-update", default=False, help="Force update artifacts."),
 ):
@@ -402,9 +406,9 @@ def sdxl(
                 else:
                     model_key = model
                 if model_weights_path and os.path.exists(model_weights_path):
-                    hf_model_name=model_weights_path
+                    hf_model_name = model_weights_path
                 else:
-                    hf_model_name=model_params.base_model_name
+                    hf_model_name = model_params.base_model_name
                 turbine_generate(
                     export_sdxl_model,
                     hf_model_name=hf_model_name,

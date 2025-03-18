@@ -16,7 +16,6 @@ from shortfin.interop.fastapi import FastAPIResponder
 from .io_struct import GenerateReqInput
 from .messages import InferenceExecRequest
 from .service import GenerateService
-from .metrics import measure
 
 logger = logging.getLogger("shortfin-sd.generate")
 

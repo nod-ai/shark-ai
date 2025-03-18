@@ -163,7 +163,7 @@ def get_scheduled_unet_model_and_inputs(
         precision,
     )
     if not scheduler_config_path:
-        scheduler_config_path=hf_model_name
+        scheduler_config_path = hf_model_name
     raw_scheduler = get_scheduler(scheduler_config_path, "EulerDiscrete")
     model = ScheduledUnetModel(
         hf_model_name,
