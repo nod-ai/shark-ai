@@ -6,12 +6,10 @@
 
 from typing import Optional
 
-from dataclasses import dataclass
 from typing import Union
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from ...layers import *
 from ...types import *
@@ -232,7 +230,7 @@ class AttentionFFNBlock(ThetaLayer):
         theta: Theta,
         *,
         block_index: int,
-        cache: PagedKVCache,
+        cache: PagedAttention,
         head_count: int,
         head_dim: int,
         head_count_kv: int,

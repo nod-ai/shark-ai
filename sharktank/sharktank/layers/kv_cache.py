@@ -22,10 +22,10 @@ from ..utils.debugging import trace_tensor
 from ..types import SplitPrimitiveTensor, ReplicatedTensor
 from .. import ops
 
-__all__ = ["PagedKVCache"]
+__all__ = ["PagedAttention"]
 
 
-class PagedKVCache:
+class PagedAttention:
     """Implementation of a KV cache on top of a 'page table'.
 
     The page table slab is physically represented as a 2D tensor:
@@ -322,3 +322,56 @@ class PagedKVCache:
                 subblock_table_as_int8.index_copy_(0, subblock_ids, part_block_as_int8)
             else:
                 subblock_table.index_copy_(0, subblock_ids, part_block)
+
+    def attention(
+        self,
+        *,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        attention_kernel: str,
+        softcap: Optional[float] = None,
+        scale: Optional[torch.Tensor] = None,
+        mask: Optional[torch.Tensor] = None,
+    ):
+        # Non-decomposed
+        if attention_kernel != "decomposed":
+            if softcap is not None:
+                raise ValueError("softcap not supported yet")
+
+            return ops.scaled_dot_product_attention(
+                q=q,  # [bs, ..., sl, dim]
+                k=k,  # [bs, ..., sl, dim]
+                v=v,  # [bs, ..., sl, dim]
+                a=mask,  # [bs, ..., sl, sl]
+                is_causal=mask is None,  # assumes causal masking when true
+                scale=None,  # defaults to 1/sqrt(dim)
+            )
+
+        # Decomposed
+        if attention_kernel == "decomposed":
+            attn_weights = ops.matmul(q, k.transpose(2, 3))
+            if scale is None:
+                attn_weights = attn_weights / math.sqrt(self.attn_head_dim)
+            else:
+                attn_weights = attn_weights * scale
+
+            # Flash attention.
+            if softcap is not None:
+                attn_weights = softcap * torch.tanh(attn_weights / softcap)
+
+            # Apply attention mask.
+            if mask is None:
+                mask = torch.full(
+                    (attn_weights.shape[2], attn_weights.shape[3]), float("-inf")
+                )
+                mask = torch.triu(mask, diagonal=1)[None, None, :, :]
+                attn_weights = attn_weights + mask
+            else:
+                attn_weights = attn_weights + mask
+
+            attn_weights = ops.softmax(
+                ops.to(attn_weights, dtype=torch.float32), dim=-1
+            )
+            attn_weights = ops.to(attn_weights, dtype=q.dtype)
+            return ops.matmul(attn_weights, v)  # (bs, heads, slen, head_dim)

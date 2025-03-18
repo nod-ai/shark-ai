@@ -6,19 +6,15 @@
 
 from typing import Optional
 
-import math
 
 import torch
-import torch.nn.functional as F
 
-from sharktank.kernels import attention
-from sharktank.ops.paged_attention import PagedAttention
 from ..types import QuantizerTensor
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
 from .norm import RMSNormLayer
 from .rotary_embedding import RotaryEmbeddingLayer
-from .kv_cache import PagedKVCache
+from .kv_cache import PagedAttention
 from .. import ops
 
 __all__ = [
@@ -35,7 +31,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         theta: Theta,
         *,
         block_index: int,
-        cache: PagedKVCache,
+        cache: PagedAttention,
         head_count: int,
         head_dim: int,
         head_count_kv: int,
@@ -224,7 +220,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         # Manage the cache.
         if start_positions is None:
             # Prefill: Write the entire cache.
-            self.paged_attention.write_prefill(
+            self.paged_attention.write(
                 cache_state,
                 cache_partitions=[xk_cache_update, xv_cache_update],
                 transformer_block_index=self.block_index,
@@ -243,7 +239,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         )
 
         # Write our one updated cache row into the cache.
-        self.paged_attention.write_decode(
+        self.paged_attention.write_timestep(
             cache_state,
             cache_partitions=[
                 xk_cache_update,

@@ -7,7 +7,7 @@
 import unittest
 from sharktank.layers import (
     PagedLlamaAttentionBlock,
-    PagedKVCache,
+    PagedAttention,
     RotaryEmbeddingLayer,
 )
 from sharktank.layers.testing import make_llama_attention_block_theta, make_rand_torch
@@ -57,8 +57,8 @@ class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
     def runTestSmallSizedLayer(self, dtype: torch.dtype):
         torch.set_default_dtype(dtype)
 
-        def make_paged_kv_cache(shard_count: int) -> PagedKVCache:
-            return PagedKVCache(
+        def make_paged_kv_cache(shard_count: int) -> PagedAttention:
+            return PagedAttention(
                 transformer_block_count=self.transformer_block_count,
                 attn_head_count=self.head_count_kv,
                 attn_head_dim=self.attention_head_dim,

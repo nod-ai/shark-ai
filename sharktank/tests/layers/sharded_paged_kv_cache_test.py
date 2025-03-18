@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import unittest
-from sharktank.layers import PagedKVCache
+from sharktank.layers import PagedAttention
 import torch
 from sharktank.utils import iterables_equal
 from copy import deepcopy
@@ -32,7 +32,7 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
         self.block_seq_len = 2
         self.max_seq_len = self.block_seq_len * self.block_seq_stride
 
-        self.cache = PagedKVCache(
+        self.cache = PagedAttention(
             transformer_block_count=self.transformer_block_count,
             attn_head_count=self.attn_head_count,
             block_seq_stride=self.block_seq_stride,
@@ -40,7 +40,7 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
             cache_partition_count=self.cache_partition_count,
             dtype=self.dtype,
         )
-        self.sharded_cache = PagedKVCache(
+        self.sharded_cache = PagedAttention(
             shard_count=self.shard_count,
             transformer_block_count=self.transformer_block_count,
             attn_head_count=self.attn_head_count,
