@@ -264,8 +264,6 @@ def timeit(func):
                 int(hours), int(minutes), round(float(seconds), 2)
             )
 
-        # func_name = func.__name__
-
         return result
 
     return wrapper
@@ -423,6 +421,8 @@ def main(argv):
     )
 
     logger.info(f"\n{json.dumps(ppl, indent=2)}")
+
+    gc.collect()
     return ppl
 
 
