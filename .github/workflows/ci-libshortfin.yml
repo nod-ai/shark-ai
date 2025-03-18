@@ -130,7 +130,7 @@ jobs:
       if: ${{ matrix.name != 'Ubuntu (Clang)(host-only)'}}
       working-directory: ${{ env.LIBSHORTFIN_DIR }}
       run: |
-        pip install -v -e build/
+        SHORTFIN_ENABLE_TRACING=ON pip install -v -e build/
 
     - name: Test shortfin
       if: ${{ matrix.name != 'Ubuntu (Clang)(host-only)' && !contains(matrix.name, 'tracing') }}
