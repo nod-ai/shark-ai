@@ -123,6 +123,9 @@ def main():
             "prefill_batch_sizes": prefill_bs,
             "decode_batch_sizes": decode_bs,
             "transformer_block_count": hp.block_count,
+            "attn_dtype": str(llama_config.kv_cache_dtype).split(".")[
+                -1
+            ],  # convert torch.bfloat16 dtype into "bfloat16"
             "paged_kv_cache": {
                 "attention_head_count_kv": hp.attention_head_count_kv,
                 "block_seq_stride": llama_config.block_seq_stride,
