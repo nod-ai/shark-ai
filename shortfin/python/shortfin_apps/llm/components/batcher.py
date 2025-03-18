@@ -467,7 +467,8 @@ class DecodeExecutorProcess(LlmExecutorProcess):
             block_ids = []
             for i in range(bs):
                 if i < req_count:
-                    block_ids += self.exec_requests[i].cache_page_indices(block_count)
+                    batch_ids = self.exec_requests[i].cache_page_indices(block_count)
+                    batch_ids += [0] * (block_count - len(batch_ids))
             m.items = block_ids
 
         # Transfer to device memory:
