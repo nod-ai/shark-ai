@@ -13,6 +13,8 @@ import uvicorn.logging
 
 # Import first as it does dep checking and reporting.
 from shortfin import ProgramIsolation
+from .cli import add_service_args
+
 import uvicorn
 
 from .application import get_app
@@ -51,6 +53,7 @@ UVICORN_LOG_CONFIG = {
 
 def parse_args(argv):
     parser = argparse.ArgumentParser()
+    add_service_args(parser)
     parser.add_argument("--host", type=str, default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument(
@@ -61,80 +64,6 @@ def parse_args(argv):
     )
     parser.add_argument(
         "--timeout-keep-alive", type=int, default=5, help="Keep alive timeout"
-    )
-    parser.add_argument(
-        "--tokenizer_json",
-        type=Path,
-        required=True,
-        help="Path to a tokenizer.json file",
-    )
-    parser.add_argument(
-        "--tokenizer_config_json",
-        type=Path,
-        required=False,
-        help="Path to a tokenizer_config json file",
-    )
-    parser.add_argument(
-        "--model_config",
-        type=Path,
-        required=True,
-        help="Path to the model config file",
-    )
-    parser.add_argument(
-        "--vmfb",
-        type=Path,
-        required=True,
-        help="Model VMFB to load",
-    )
-    # parameters are loaded with `iree_io_parameters_module_create`
-    parser.add_argument(
-        "--parameters",
-        type=Path,
-        nargs="*",
-        help="Parameter archives to load (supports: gguf, irpa, safetensors).",
-        metavar="FILE",
-    )
-    parser.add_argument(
-        "--device",
-        type=str,
-        required=True,
-        choices=["local-task", "hip", "amdgpu"],
-        help="Device to serve on; e.g. local-task, hip. Same options as `iree-run-module --device` ",
-    )
-    parser.add_argument(
-        "--device_ids",
-        type=str,
-        nargs="*",
-        default=None,
-        help="Device IDs visible to the system builder. Defaults to None (full visibility). Can be an index or a sf device id like amdgpu:0:0@0",
-    )
-    parser.add_argument(
-        "--isolation",
-        type=str,
-        default="per_call",
-        choices=[isolation.name.lower() for isolation in ProgramIsolation],
-        help="Concurrency control -- How to isolate programs.",
-    )
-    parser.add_argument(
-        "--amdgpu_async_allocations",
-        action="store_true",
-        help="Enable asynchronous allocations for amdgpu device contexts.",
-    )
-    parser.add_argument(
-        "--amdgpu_allocators",
-        default=None,
-        help="Allocator to use during VMFB invocation.",
-    )
-    parser.add_argument(
-        "--server_config",
-        type=Path,
-        help="Path to server configuration file",
-    )
-    parser.add_argument(
-        "--prefix_sharing_algorithm",
-        type=str,
-        choices=["none", "trie"],
-        help="Algorithm to use for prefix sharing in KV cache",
     )
     return parser.parse_args(argv)
 

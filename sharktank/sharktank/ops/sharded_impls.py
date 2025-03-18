@@ -6,7 +6,7 @@
 
 import torch
 from torch import Tensor
-from typing import List, Optional, Sequence, Union, Any, Tuple
+from typing import List, Optional, Sequence, Union, Any, Tuple, Dict
 import itertools
 from numbers import Number
 import math
@@ -26,9 +26,171 @@ from ..types import (
 )
 from ..types.tensors import unbox_tensor
 from ._registry import AllOfType, AllOfExprsVariadic, IsOfType
-from .signatures import *
 from .shape import broadcast_dims, broadcast_dim, unbroadcast_dim
 from ..utils import longest_equal_range
+from .signatures import *
+
+
+def sharded_wrap_override():
+    def transfer_n_pin(f):
+        """
+        Wrapper for each op defined in this file.
+        """
+
+        def flatten_args(
+            items: Tuple | Dict[str, Any]
+        ) -> Tuple[List[int | List[int]], List[ShardedTensor]]:
+            """
+            Takes the args/kwargs.values() and flattens them into a flat representation of (any) ShardedTensors and their indices.
+            """
+            t_i, t_vals = [], []
+            for i, arg in enumerate(items):
+                if isinstance(arg, ShardedTensor):
+                    t_i.append(i)
+                    t_vals.append(arg)
+                elif isinstance(arg, list) and all(
+                    isinstance(val, ShardedTensor) for val in arg
+                ):
+                    t_i.append([i] * len(arg))
+                    t_vals.extend(arg)
+            return t_i, t_vals
+
+        def unflatten_args(
+            items: Tuple | Dict, t_i: List[int | List[int]], t_vals: List[ShardedTensor]
+        ) -> Tuple[Tuple, Dict[str, Any]]:
+            """
+            Converts the flattened and (potentially) modified args or kwargs.values() back into the original structure.
+            """
+            i_lookup = (
+                list(range(len(items)))
+                if isinstance(items, tuple)
+                else list(items.keys())
+            )
+            new_items = list(items) if isinstance(items, tuple) else dict(items)
+
+            for i in t_i:
+                if isinstance(i, int):
+                    new_items[i_lookup[i]] = t_vals.pop(0)
+                else:  # List[int]
+                    _popped_vals = [t_vals.pop(0) for _ in range(len(i))]
+                    new_items[i_lookup[i[0]]] = items[i_lookup[i[0]]].__class__(
+                        _popped_vals
+                    )
+
+            if isinstance(new_items, list):
+                new_items = tuple(new_items)
+            return new_items
+
+        def func_wrapper(*args: Tuple, **kwargs: Dict[str, Any]):
+            """
+            Wraps each operation, f, in order to transfer all unpinned ShardedTensors in its input args/kwargs onto the same device,
+            then calls f with the modified args/kwargs, finally it will ensure the result is on the same devices as the input tensors.
+
+            If no ShardedTensors are present in the input, then no changes are made to input/output.
+            """
+            t_i_args, t_vals_args = flatten_args(args)
+            t_i_kwargs, t_vals_kwargs = flatten_args(list(kwargs.values()))
+            t_vals = t_vals_args + t_vals_kwargs
+
+            t_vals = transfer_if_needed(*t_vals)
+
+            args = unflatten_args(args, t_i_args, t_vals[: len(t_vals_args)])
+            kwargs = unflatten_args(kwargs, t_i_kwargs, t_vals[len(t_vals_args) :])
+            res = f(*args, **kwargs)
+            if isinstance(res, ShardedTensor) and len(t_vals) > 0:
+                pinned = (
+                    res.pinned
+                    or (len(t_vals) == 1 and t_vals[0].pinned)
+                    or "_like_" in f.__name__
+                )
+                res = res.clone(devices=t_vals[0].devices, pinned=pinned)
+            return res
+
+        return func_wrapper
+
+    def wrap_override(signature_dispatcher_override):
+        """
+        Wrap [op].override's result so that the transfer_n_pin(f) becomes the target in _TargetOverride rather than f itself.
+        """
+
+        def override_return_wrapper(*override_args, **override_kwargs):
+            orig_decorator = signature_dispatcher_override(
+                *override_args, **override_kwargs
+            )
+            new_decorator = lambda f: orig_decorator(transfer_n_pin(f))
+            return new_decorator
+
+        return override_return_wrapper
+
+    do_not_wrap = {
+        "all_gather",
+        "all_reduce",
+        "replicate",
+        "index_copy_",
+        "index_put_",
+        "transfer_to_logical_device",
+    }
+
+    from . import signatures
+
+    for func_name in signatures.__all__:
+        func = globals()[func_name]
+        if (func_name not in do_not_wrap) and (hasattr(func, "override")):
+            func.override_orig = func.override
+            func.override = wrap_override(func.override_orig)
+
+
+def sharded_unwrap_override():
+    """
+    Unwraps [op].override to restore the original function.
+    Must be called at the end of this file.
+    """
+    from . import signatures
+
+    for func_name in signatures.__all__:
+        func = globals()[func_name]
+        if hasattr(func, "override_orig"):
+            func.override = func.override_orig
+            del func.override_orig
+
+
+sharded_wrap_override()
+
+
+def transfer_if_needed(*tensors: Tuple[ShardedTensor]) -> List[ShardedTensor]:
+    """
+    If at least 2 tensors are panned in, the shards of all unpinned tensors are transfered to be on the same devices as those of the pinned tensors.
+    """
+    if len(tensors) <= 1:
+        return list(tensors)
+    assert all(isinstance(tensor, ShardedTensor) for tensor in tensors)
+
+    # Check if all tensors are on the same devices.
+    all_on_same_devices = True
+    for tensor in tensors[1:]:
+        if any(d0 != d for d0, d in zip(tensors[0].devices, tensor.devices)):
+            all_on_same_devices = False
+            break
+    if all_on_same_devices:
+        return list(tensors)
+
+    pinned_tensors = [tensor for tensor in tensors if tensor.pinned]
+    if len(pinned_tensors) == 0:
+        raise ValueError(
+            "Tensors are on different devices, but none are pinned. Don't know which devices to transfer to."
+        )
+
+    pinned_devices = pinned_tensors[0].devices
+    for pinned_tensor in pinned_tensors[1:]:
+        if any(d0 != d for d0, d in zip(pinned_devices, pinned_tensor.devices)):
+            raise ValueError("All pinned tensors must be on the same devices.")
+
+    # Move all non-pinned tensors to the same devices as the pinned ones.
+    new_tensors = [
+        (tensor if tensor.pinned else tensor.clone(devices=pinned_devices))
+        for tensor in tensors
+    ]
+    return new_tensors
 
 
 @all_gather.override(SplitPrimitiveTensor)
@@ -36,48 +198,53 @@ def all_gather_split(
     input: SplitPrimitiveTensor, *, dim: int | None
 ) -> ReplicatedTensor:
     dim = input.shard_dim if dim is None else dim
-    # For each device move the shards to it and do a concatenation.
-    # If we don't move first, common sub-expression elimination is free to collapse all
-    # concatenations into one and then copy to all devices, which is not what we want.
+
+    gathered = cat(
+        [
+            (
+                transfer_to_logical_device(shard, input.devices[0])
+                if i != 0
+                else barrier_on_logical_device(shard, input.devices[0])
+            )
+            for i, shard in enumerate(input.shards)
+        ],
+        dim=dim,
+    )
     shards = [
-        cat(
-            [
-                (
-                    barrier_on_logical_device(shard, i)
-                    if i == j
-                    else transfer_to_logical_device(shard, i)
-                )
-                for j, shard in enumerate(input.shards)
-            ],
-            dim=dim,
+        (
+            transfer_to_logical_device(gathered, input.devices[i])
+            if i != 0
+            else barrier_on_logical_device(gathered, input.devices[0])
         )
         for i in range(input.shard_count)
     ]
-    return ReplicatedTensor(ts=shards)
+    return ReplicatedTensor(ts=shards, devices=input.devices)
 
 
 @all_reduce.override(AllOfType(SplitPrimitiveTensor, UnreducedTensor))
 def all_reduce_split_or_unreduced(
     input: Union[SplitPrimitiveTensor, UnreducedTensor],
 ) -> ReplicatedTensor:
-    # For each device move the shards to it and do a reduction.
-    # If we don't move first, common sub-expression elimination is free to collapse all
-    # reductions into one and then copy to all devices, which is not what we want.
+    reduced = functools.reduce(
+        lambda x, y: elementwise(torch.add, x, y),
+        [
+            (
+                transfer_to_logical_device(shard, input.devices[0])
+                if i != 0
+                else barrier_on_logical_device(shard, input.devices[0])
+            )
+            for i, shard in enumerate(input.shards)
+        ],
+    )
     shards = [
-        functools.reduce(
-            lambda x, y: elementwise(torch.add, x, y),
-            [
-                (
-                    barrier_on_logical_device(shard, i)
-                    if i == j
-                    else transfer_to_logical_device(shard, i)
-                )
-                for j, shard in enumerate(input.shards)
-            ],
+        (
+            transfer_to_logical_device(reduced, input.devices[i])
+            if i != 0
+            else barrier_on_logical_device(reduced, input.devices[0])
         )
         for i in range(input.shard_count)
     ]
-    return ReplicatedTensor(ts=shards)
+    return ReplicatedTensor(ts=shards, devices=input.devices)
 
 
 @cat.override(AllOfType(ReplicatedTensor))
@@ -102,7 +269,6 @@ def cat_split(
             for t in tensors
         ]
     )
-
     shard_dim = tensors[0].shard_dim
     shard_count = tensors[0].shard_count
     if dim != shard_dim:
@@ -894,32 +1060,43 @@ def repeat_replicated(input: ReplicatedTensor, *sizes: List[int]) -> ReplicatedT
 
 
 @replicate.override(ReplicatedTensor)
-def replicate_replicated(input: ReplicatedTensor, *, count: int) -> ReplicatedTensor:
+def replicate_replicated(
+    input: ReplicatedTensor, *, count: int, devices: None, pinned: None
+) -> ReplicatedTensor:
     if input.shard_count != count:
         raise ValueError(f"Number of shards not equal ({input.shard_count} != {count})")
     return input
 
 
 @replicate.override(SplitPrimitiveTensor)
-def replicate_split(input: SplitPrimitiveTensor, *, count: int) -> ReplicatedTensor:
+def replicate_split(
+    input: SplitPrimitiveTensor, *, count: int, devices: None, pinned: None
+) -> ReplicatedTensor:
     if input.shard_count != count:
         raise ValueError(f"Number of shards not equal ({input.shard_count} != {count})")
     return all_gather(input)
 
 
 @replicate.override(UnreducedTensor)
-def replicate_unreduced(input: UnreducedTensor, *, count: int) -> ReplicatedTensor:
+def replicate_unreduced(
+    input: UnreducedTensor, *, count: int, devices: None, pinned: None
+) -> ReplicatedTensor:
     if input.shard_count != count:
         raise ValueError(f"Number of shards not equal ({input.shard_count} != {count})")
     return all_reduce(input)
 
 
 @replicate.override(Tensor)
-def replicate_unsharded(input, *, count: int) -> ReplicatedTensor:
+def replicate_unsharded(
+    input, *, count: int, devices: Tuple[int], pinned: bool
+) -> ReplicatedTensor:
     torch_input = unbox_tensor(input)
+    assert count == len(devices)
     # If we have a torch input replicating we can assume we need to transfer:
-    torch_inputs = [transfer_to_logical_device(torch_input, i) for i in range(count)]
-    return ReplicatedTensor(ts=torch_inputs)
+    torch_inputs = [
+        transfer_to_logical_device(torch_input, devices[i]) for i in range(count)
+    ]
+    return ReplicatedTensor(ts=torch_inputs, devices=devices, pinned=pinned)
 
 
 @reshape.override(SplitPrimitiveTensor)
@@ -1099,9 +1276,9 @@ def reshard_like_unreduced_to_replicated(
 def sharded_cat_unsharded(tensor: SplitPrimitiveTensor):
     shard_ts = [
         (
-            transfer_to_logical_device(shard.as_torch(), 0)
+            transfer_to_logical_device(shard.as_torch(), tensor.devices[0])
             if i != 0
-            else barrier_on_logical_device(shard.as_torch(), 0)
+            else barrier_on_logical_device(shard.as_torch(), tensor.devices[0])
         )
         for i, shard in enumerate(tensor.shards)
     ]
@@ -1195,9 +1372,9 @@ def unshard_unreduced(input: UnreducedTensor) -> Tensor:
     shards = input.shards
     shards = [
         (
-            barrier_on_logical_device(shard, i)
+            barrier_on_logical_device(shard, input.devices[0])
             if i == 0
-            else transfer_to_logical_device(shard, 0)
+            else transfer_to_logical_device(shard, input.devices[0])
         )
         for i, shard in enumerate(shards)
     ]
@@ -1351,3 +1528,7 @@ def view_as_real_split(tensor: SplitPrimitiveTensor) -> SplitPrimitiveTensor:
 def view_as_real_rep(tensor: ReplicatedTensor) -> ReplicatedTensor:
     shards = [view_as_real(shard) for shard in tensor.shards]
     return ReplicatedTensor(ts=shards)
+
+
+# Note: Must be last thing in file
+sharded_unwrap_override()

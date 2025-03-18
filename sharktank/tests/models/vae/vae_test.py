@@ -10,6 +10,7 @@ import sys
 import torch
 
 from iree.turbine import aot
+import iree.runtime
 
 from sharktank.types import Dataset
 from sharktank.models.vae.model import VaeDecoderModel
@@ -25,6 +26,7 @@ import unittest
 import pytest
 from huggingface_hub import hf_hub_download
 from sharktank.utils.iree import (
+    with_iree_device_context,
     get_iree_devices,
     load_iree_module,
     run_iree_module_function,
@@ -150,57 +152,60 @@ class VaeSDXLDecoderTest(TempDirTestBase):
 
         iree_devices = get_iree_devices(driver="hip", device_count=1)
 
-        iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
-            module_path=f"{self._temp_dir}/vae_f16.vmfb",
-            devices=iree_devices,
-            parameters_path=f"{self._temp_dir}/vae_f16.irpa",
-        )
+        def run_iree_module(iree_devices: list[iree.runtime.HalDevice]):
+            iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
+                module_path=f"{self._temp_dir}/vae_f16.vmfb",
+                devices=iree_devices,
+                parameters_path=f"{self._temp_dir}/vae_f16.irpa",
+            )
 
-        input_args = OrderedDict([("inputs", inputs.to(torch.float16))])
-        iree_args = flatten_for_iree_signature(input_args)
+            input_args = OrderedDict([("inputs", inputs.to(torch.float16))])
+            iree_args = flatten_for_iree_signature(input_args)
 
-        iree_args = prepare_iree_module_function_args(
-            args=iree_args, devices=iree_devices
-        )
-        iree_result = run_iree_module_function(
-            module=iree_module,
-            vm_context=iree_vm_context,
-            args=iree_args,
-            device=iree_devices[0],
-            function_name="decode",
-        )[0].to_host()
-        # TODO: Verify these numerics are good or if tolerances are too loose
-        # TODO: Upload IR on passing tests to keep https://github.com/iree-org/iree/blob/main/experimental/regression_suite/shark-test-suite-models/sdxl/test_vae.py at latest
-        torch.testing.assert_close(
-            ref_results.to(torch.float16),
-            torch.from_numpy(iree_result),
-            atol=5e-2,
-            rtol=4e-1,
-        )
+            iree_args = prepare_iree_module_function_args(
+                args=iree_args, devices=iree_devices
+            )
+            iree_result = run_iree_module_function(
+                module=iree_module,
+                vm_context=iree_vm_context,
+                args=iree_args,
+                device=iree_devices[0],
+                function_name="decode",
+            )[0].to_host()
+            # TODO: Verify these numerics are good or if tolerances are too loose
+            # TODO: Upload IR on passing tests to keep https://github.com/iree-org/iree/blob/main/experimental/regression_suite/shark-test-suite-models/sdxl/test_vae.py at latest
+            torch.testing.assert_close(
+                ref_results.to(torch.float16),
+                torch.from_numpy(iree_result),
+                atol=5e-2,
+                rtol=4e-1,
+            )
 
-        iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
-            module_path=f"{self._temp_dir}/vae_f32.vmfb",
-            devices=iree_devices,
-            parameters_path=f"{self._temp_dir}/vae_f32.irpa",
-        )
+            iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
+                module_path=f"{self._temp_dir}/vae_f32.vmfb",
+                devices=iree_devices,
+                parameters_path=f"{self._temp_dir}/vae_f32.irpa",
+            )
 
-        input_args = OrderedDict([("inputs", inputs)])
-        iree_args = flatten_for_iree_signature(input_args)
+            input_args = OrderedDict([("inputs", inputs)])
+            iree_args = flatten_for_iree_signature(input_args)
 
-        iree_args = prepare_iree_module_function_args(
-            args=iree_args, devices=iree_devices
-        )
-        iree_result = run_iree_module_function(
-            module=iree_module,
-            vm_context=iree_vm_context,
-            args=iree_args,
-            device=iree_devices[0],
-            function_name="decode",
-        )[0].to_host()
+            iree_args = prepare_iree_module_function_args(
+                args=iree_args, devices=iree_devices
+            )
+            iree_result = run_iree_module_function(
+                module=iree_module,
+                vm_context=iree_vm_context,
+                args=iree_args,
+                device=iree_devices[0],
+                function_name="decode",
+            )[0].to_host()
+            return torch.from_numpy(iree_result).clone()
+
+        iree_result = with_iree_device_context(run_iree_module, iree_devices)
+
         # TODO: Upload IR on passing tests
-        torch.testing.assert_close(
-            ref_results, torch.from_numpy(iree_result), atol=3e-5, rtol=6e-6
-        )
+        torch.testing.assert_close(ref_results, iree_result, atol=3e-5, rtol=6e-6)
 
 
 @with_vae_data
@@ -314,54 +319,58 @@ class VaeFluxDecoderTest(TempDirTestBase):
 
         iree_devices = get_iree_devices(driver="hip", device_count=1)
 
-        iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
-            module_path=f"{self._temp_dir}/flux_vae_bf16.vmfb",
-            devices=iree_devices,
-            parameters_path=f"{self._temp_dir}/flux_vae_bf16.irpa",
-        )
+        def run_iree_module(iree_devices: list[iree.runtime.HalDevice]):
+            iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
+                module_path=f"{self._temp_dir}/flux_vae_bf16.vmfb",
+                devices=iree_devices,
+                parameters_path=f"{self._temp_dir}/flux_vae_bf16.irpa",
+            )
 
-        input_args = OrderedDict([("inputs", inputs.to(dtype=dtype))])
-        iree_args = flatten_for_iree_signature(input_args)
+            input_args = OrderedDict([("inputs", inputs.to(dtype=dtype))])
+            iree_args = flatten_for_iree_signature(input_args)
 
-        iree_args = prepare_iree_module_function_args(
-            args=iree_args, devices=iree_devices
-        )
-        iree_result = device_array_to_host(
-            run_iree_module_function(
-                module=iree_module,
-                vm_context=iree_vm_context,
-                args=iree_args,
-                device=iree_devices[0],
-                function_name="decode",
-            )[0]
-        )
+            iree_args = prepare_iree_module_function_args(
+                args=iree_args, devices=iree_devices
+            )
+            iree_result = device_array_to_host(
+                run_iree_module_function(
+                    module=iree_module,
+                    vm_context=iree_vm_context,
+                    args=iree_args,
+                    device=iree_devices[0],
+                    function_name="decode",
+                )[0]
+            )
 
-        # TODO verify these numerics
-        torch.testing.assert_close(
-            ref_results.to(torch.bfloat16), iree_result, atol=3.3e-2, rtol=4e5
-        )
+            # TODO verify these numerics
+            torch.testing.assert_close(
+                ref_results.to(torch.bfloat16), iree_result, atol=3.3e-2, rtol=4e5
+            )
 
-        iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
-            module_path=f"{self._temp_dir}/flux_vae_f32.vmfb",
-            devices=iree_devices,
-            parameters_path=f"{self._temp_dir}/flux_vae_f32.irpa",
-        )
+            iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
+                module_path=f"{self._temp_dir}/flux_vae_f32.vmfb",
+                devices=iree_devices,
+                parameters_path=f"{self._temp_dir}/flux_vae_f32.irpa",
+            )
 
-        input_args = OrderedDict([("inputs", inputs)])
-        iree_args = flatten_for_iree_signature(input_args)
+            input_args = OrderedDict([("inputs", inputs)])
+            iree_args = flatten_for_iree_signature(input_args)
 
-        iree_args = prepare_iree_module_function_args(
-            args=iree_args, devices=iree_devices
-        )
-        iree_result_f32 = device_array_to_host(
-            run_iree_module_function(
-                module=iree_module,
-                vm_context=iree_vm_context,
-                args=iree_args,
-                device=iree_devices[0],
-                function_name="decode",
-            )[0]
-        )
+            iree_args = prepare_iree_module_function_args(
+                args=iree_args, devices=iree_devices
+            )
+            iree_result_f32 = device_array_to_host(
+                run_iree_module_function(
+                    module=iree_module,
+                    vm_context=iree_vm_context,
+                    args=iree_args,
+                    device=iree_devices[0],
+                    function_name="decode",
+                )[0]
+            )
+            return iree_result_f32.clone()
+
+        iree_result_f32 = with_iree_device_context(run_iree_module, iree_devices)
 
         torch.testing.assert_close(ref_results, iree_result_f32)
 

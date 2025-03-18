@@ -5,13 +5,15 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import iree.runtime
-from typing import List, Tuple, Optional, Union
+from typing import Any, Callable, Generator, List, Tuple, Optional, Union
 from pathlib import Path
 import torch
 import os
 import numpy as np
 import collections.abc
 from collections import OrderedDict
+from contextlib import contextmanager
+import gc
 from ..types.tensors import (
     AnyTensor,
     InferenceTensor,
@@ -21,6 +23,45 @@ from ..types.tensors import (
     torch_tree_flatten,
 )
 from .tree import Tree
+
+
+def with_iree_device_context(
+    fn: Callable[[list[iree.runtime.HalDevice]], Any],
+    devices: list[iree.runtime.HalDevice],
+):
+    """Run a function with the provided devices and make sure all local resources
+    created in the function are cleaned up.
+
+    This construct is required as iree.runtime.HalBuffer, iree.runtime.HalBufferView
+    and iree.runtime.MappedMemory do not hold a reference to their respective
+    HalDevice, but they must be destroyed before the device is destroyed.
+    They are thin wrappers of the underlying native objects and they do not hold
+    references to their parent devices to avoid circular references.
+    To ensure a correct destruction order it is desirable that callable argument does
+    not return or leak arrays to the external context that are backed by IREE native
+    buffers.
+    If that is the case the user is responsible for destruction order.
+
+    An example usage that may cause a problem is
+    ```
+    def f():
+        dev: iree.runtime.HalDevice = ...
+        dev_arr: iree.runtime.DeviceArray = ...
+
+        # This creates a numpy array that is backed by iree.runtime.MappedMemory.
+        arr = dev_arr.to_host()
+
+        del dev_arr
+
+        t = torch.tensor(arr)
+    ```
+    Although the dev variable will be deleted after all other variables, in practice
+    with the various object wrappings with numpy and torch, the underlying HalBuffer
+    may get destroyed after the device.
+    """
+    res = fn(devices)
+    gc.collect()
+    return res
 
 
 def get_iree_devices(

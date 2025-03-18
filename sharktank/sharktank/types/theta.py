@@ -450,7 +450,7 @@ class DatasetMetadata:
             import textwrap
 
             io_report_callback(
-                f"Add __SHARK_INFERENCE_TENSORS__:\n{textwrap.indent(inference_tensors_blob, '    ')}"
+                f"Add __SHARK_INFERENCE_TENSORS__:\n{textwrap.indent(inference_tensors_blob, '    ')}\n"
             )
         builder.add_blob("__SHARK_INFERENCE_TENSORS__", inference_tensors_blob.encode())
 

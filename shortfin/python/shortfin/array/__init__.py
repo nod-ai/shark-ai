@@ -47,12 +47,14 @@ DType = _sfl.array.DType
 
 # Ops.
 argmax = _sfl.array.argmax
+argpartition = _sfl.array.argpartition
 add = _sfl.array.add
 ceil = _sfl.array.ceil
 convert = _sfl.array.convert
 divide = _sfl.array.divide
 fill_randn = _sfl.array.fill_randn
 floor = _sfl.array.floor
+log_softmax = _sfl.array.log_softmax
 multiply = _sfl.array.multiply
 round = _sfl.array.round
 subtract = _sfl.array.subtract
@@ -99,11 +101,13 @@ __all__ = [
     # Ops.
     "add",
     "argmax",
+    "argpartition",
     "ceil",
     "convert",
     "divide",
     "fill_randn",
     "floor",
+    "log_softmax",
     "multiply",
     "round",
     "subtract",

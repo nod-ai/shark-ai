@@ -5,8 +5,13 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import logging
+import torch
 
 from iree.turbine.support.logging import get_logger
 
 
 transform_logger: logging.Logger = get_logger("sharktank.transforms")
+
+
+def format_tensor_statistics(tensor: torch.Tensor):
+    return f"mean = {tensor.mean()}, median = {tensor.median()}, std dev = {tensor.std()}, min = {tensor.min()}, max = {tensor.max()}"

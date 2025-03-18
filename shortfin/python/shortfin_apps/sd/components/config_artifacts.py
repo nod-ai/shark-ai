@@ -8,7 +8,7 @@ from iree.build import *
 
 from shortfin_apps.utils import *
 
-ARTIFACT_VERSION = "01202025"
+ARTIFACT_VERSION = "03062025"
 SDXL_CONFIG_BUCKET = f"https://sharkpublic.blob.core.windows.net/sharkpublic/sdxl/{ARTIFACT_VERSION}/configs/"
 
 
@@ -30,7 +30,10 @@ def sdxlconfig(
     ctx = executor.BuildContext.current()
     update = needs_update(ctx, ARTIFACT_VERSION)
 
-    model_config_filenames = [f"{model}_config_i8.json"]
+    model_config_filenames = [
+        f"{model}_config_i8.json",
+        f"{model}_config_fp8_ocp.json",
+    ]
     model_config_urls = get_url_map(model_config_filenames, SDXL_CONFIG_BUCKET)
     for f, url in model_config_urls.items():
         if update or needs_file(f, ctx):

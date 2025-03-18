@@ -144,6 +144,9 @@ jobs:
             --with-flux-data \
             --with-vae-data \
             --with-quark-data \
+            --iree-hal-target-device=hip \
+            --iree-hip-target=gfx942 \
+            --iree-device=hip://0 \
             sharktank/tests/models/clip/clip_test.py \
             sharktank/tests/models/t5/t5_test.py \
             sharktank/tests/models/flux/flux_test.py \

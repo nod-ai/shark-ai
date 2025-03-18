@@ -196,7 +196,7 @@ void Scheduler::Initialize(
       throw std::logic_error("Duplicate device in Scheduler");
     }
     account.Initialize();
-    semaphore_count_ += account.semaphore_count();
+    semaphore_count_ += account.semaphore_count() + 8;
   }
 }
 
