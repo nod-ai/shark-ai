@@ -58,7 +58,7 @@ class System:
                     )
                 else:
                     # Stream responses from 0..value
-                    responder.start_response()
+                    responder.stream_start()
                     for i in range(request.request_value + 1):
                         if responder.is_disconnected:
                             continue
