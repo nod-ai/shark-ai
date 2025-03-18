@@ -32,6 +32,7 @@ def sdxlconfig(
 
     model_config_filenames = [
         f"{model}_config_i8.json",
+        f"{model}_config_fp8.json",
         f"{model}_config_fp8_ocp.json",
     ]
     model_config_urls = get_url_map(model_config_filenames, SDXL_CONFIG_BUCKET)
