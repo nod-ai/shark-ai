@@ -143,7 +143,7 @@ jobs:
       if: ${{ contains(matrix.name, 'tracing') }}
       working-directory: ${{ env.LIBSHORTFIN_DIR }}
       run: |
-        pytest -s --durations=10 --timeout=30 tests/invocation/mobilenet_tracing_test.py
+        SHORTFIN_PY_RUNTIME=tracy pytest -s --durations=10 --timeout=30 tests/invocation/mobilenet_tracing_test.py
 
   # Depends on all other jobs to provide an aggregate job status.
   ci_libshortfin_summary:
