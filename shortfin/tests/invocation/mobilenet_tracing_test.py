@@ -112,11 +112,13 @@ def run_mobilenet(model_path):
     logger.info("MobileNet model execution finished")
 
 
-def run_mobilenet_subprocess(model_path, tracy_port):
+def run_mobilenet_subprocess(model_path, tracy_port, output_dir):
     """Execute MobileNet model with tracy profiling in a subprocess.
 
     Args:
         model_path: Path to the compiled VMFB file
+        tracy_port: Port to use for tracy capture
+        output_dir: Directory to write output files to
 
     Returns:
         subprocess.CompletedProcess object with the result of the subprocess execution
@@ -134,7 +136,7 @@ def run_mobilenet_subprocess(model_path, tracy_port):
 
     # Use this same file as the runner script, but pass a special flag to indicate
     # we want to run the model directly rather than run the test
-    mobilenet_log = "/home/xidaren2/mobilenet.log"
+    mobilenet_log = output_dir / "mobilenet.log"
     print(f"sending mobilenet console output to {mobilenet_log}")
     with open(mobilenet_log, "w") as mobilenet_stdout:
         return subprocess.run(
@@ -216,7 +218,7 @@ def test_tracing_mobilenet(mobilenet_compiled_path, tmp_path):
         # Step 2: Run MobileNet model with tracing enabled
         logger.info("Running MobileNet model with tracing enabled via subprocess")
         result = run_mobilenet_subprocess(
-            mobilenet_compiled_path, tracy_port=tracy_port
+            mobilenet_compiled_path, tracy_port=tracy_port, output_dir=output_dir
         )
 
         # Try to exit tracy gracefully, by first waiting then sending SIGINT (Ctrl+C equiv)
