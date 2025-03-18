@@ -144,58 +144,40 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 xk = self.cache_quantizer.quantize(xk).unpack().qs
                 xv = self.cache_quantizer.quantize(xv).unpack().qs
 
-        xk, xv = self.transact_cache(
-            xk_cache_update=xk,
-            xv_cache_update=xv,
-            seq_block_ids=seq_block_ids,
-            kv_seq_len=kv_seq_len,
-            start_positions=start_positions,
-            cache_state=cache_state,
-        )
-
-        # Expand kv heads for GQA.
-        gqa_n_rep = self.head_count // self.head_count_kv
-        assert gqa_n_rep > 0
-        if gqa_n_rep > 1:
-
-            def repeat_kv(x: torch.Tensor) -> torch.Tensor:
-                bs, slen, n_kv_heads, head_dim = x.shape
-                unsq = x.unsqueeze(-2)
-                exp = ops.expand(unsq, (bs, slen, n_kv_heads, gqa_n_rep, head_dim))
-                return exp.flatten(2, 3)
-
-            xk = repeat_kv(xk)
-            xv = repeat_kv(xv)
-
-        # Fake quant is already dequantized when stored in the cache.
-        if self.cache_quantizer and not self.fake_quant:
-            xk = self.cache_quantizer.dequantize_raw_tensor(
-                xk, self.attention_dtype, name="xk_deq"
+        if start_positions is None:
+            attn_output = self.paged_attention.forward_prefill(
+                q=xq,
+                k=xk,
+                v=xv,
+                cache_state=cache_state,
+                seq_block_ids=seq_block_ids,
+                block_index=self.block_index,
+                head_count_attn=self.head_count,
+                cache_quantizer=self.cache_quantizer,
+                fake_quant=self.fake_quant,
+                attention_kernel=self.attention_kernel,
+                mask=attention_mask,
+                scale=self.attention_scale,
+                softcap=self.softcap,
             )
-            xv = self.cache_quantizer.dequantize_raw_tensor(
-                xv, self.attention_dtype, name="xv_deq"
+        else:
+            attn_output = self.paged_attention.forward_decode(
+                q=xq,
+                k=xk,
+                v=xv,
+                cache_state=cache_state,
+                seq_block_ids=seq_block_ids,
+                block_index=self.block_index,
+                kv_seq_len=kv_seq_len,
+                start_positions=start_positions,
+                head_count_attn=self.head_count,
+                cache_quantizer=self.cache_quantizer,
+                fake_quant=self.fake_quant,
+                attention_kernel=self.attention_kernel,
+                mask=attention_mask,
+                scale=self.attention_scale,
+                softcap=self.softcap,
             )
-
-        # Transpose into [bs, heads, sl, dim]
-        xq = xq.transpose(1, 2)
-        keys = xk.transpose(1, 2)
-        values = xv.transpose(1, 2)
-
-        # Coerce to the attention dtype.
-        xq = ops.to(xq, dtype=self.attention_dtype)
-        keys = ops.to(keys, dtype=self.attention_dtype)
-        values = ops.to(values, dtype=self.attention_dtype)
-        if attention_mask is not None:
-            attention_mask = ops.to(attention_mask, dtype=self.attention_dtype)
-
-        attn_output = self.paged_attention.attention(
-            q=xq,  # [bs, ..., sl, dim]
-            k=keys,  # [bs, ..., sl, dim]
-            v=values,  # [bs, ..., sl, dim]
-            attention_kernel=self.attention_kernel,
-            mask=attention_mask,  # [bs, ..., sl, sl]
-            scale=None,  # defaults to 1/sqrt(dim)
-        )
 
         attn_output = attn_output.transpose(1, 2)
         attn_output = attn_output.flatten(2, 3)
