@@ -276,7 +276,8 @@ class RotaryEmbeddingLayer(BaseLayer):
             freqs = torch.where(is_medium_freq, smoothed_inv_freq, inv_freq_llama)
 
             freqs = torch.cat((freqs, freqs), dim=-1).to(device=self.device)
-            emb = torch.outer(t.float(), freqs.float())
+            emb = t.unsqueeze(1).float() * freqs.unsqueeze(0).float()
+
             cos = torch.cos(emb).to(self.dtype)
             sin = torch.sin(emb).to(self.dtype)
             return (cos, sin)
@@ -284,7 +285,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         freqs = 1.0 / (
             self.rope_freq_base ** ((torch.arange(0, dim) // 2).float() / dim * 2.0)
         ).to(device=self.device)
-        freqs = torch.outer(t, freqs).float()
+        freqs = (t.unsqueeze(1) * freqs.unsqueeze(0)).float()
         return freqs
 
     def _create_rotary_embed_table(self):

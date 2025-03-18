@@ -108,6 +108,7 @@ class SHORTFIN_API InlinedDims {
       return p != other.p;
     }
     constexpr reference operator*() { return *p; }
+    constexpr reference operator[](difference_type d) const { return *(p + d); }
     constexpr const_iterator operator+(difference_type d) const {
       return const_iterator(p + d);
     }

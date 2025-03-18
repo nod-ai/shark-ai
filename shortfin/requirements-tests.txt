@@ -1,4 +1,5 @@
 pytest
+pytest-asyncio
 pytest-timeout
 requests
 fastapi

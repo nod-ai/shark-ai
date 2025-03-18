@@ -159,7 +159,8 @@ python -m sharktank.examples.export_paged_llm_v1 \
   --gguf-file=$MODEL_PARAMS_PATH \
   --output-mlir=$MLIR_PATH \
   --output-config=$OUTPUT_CONFIG_PATH \
-  --bs=$EXPORT_BATCH_SIZES
+  --bs-prefill=$EXPORT_BATCH_SIZES \
+  --bs-decode=$EXPORT_BATCH_SIZES
 ```
 
 ### Compile using IREE to a `.vmfb` file
@@ -382,7 +383,8 @@ python -m sharktank.examples.export_paged_llm_v1 \
   --irpa-file /path/to/output/llama3.1-405b.irpa \
   --output-mlir /path/to/output/llama3.1-405b.mlir \
   --output-config /path/to/output/llama3.1-405b.config.json \
-  --bs 4
+  --bs-prefill 4 \
+  --bs-decode 4
 ```
 
 ### Compiling to VMFB

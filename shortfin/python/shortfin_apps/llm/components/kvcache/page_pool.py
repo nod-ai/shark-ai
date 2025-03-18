@@ -126,17 +126,19 @@ class PagePool:
             New PageInfo containing the copied data
         """
         # Allocate new page
-        (dst_page,) = self.acquire_free_pages(1)
+        dst_page = self.acquire_free_pages(1)
 
-        # fill src page with data
+        if dst_page is None:
+            return None
+
+        dst_page = dst_page[0]
 
         # Copy the data on each device
         for page_table in self.page_tables:
             # View of source and destination pages
             src_view = page_table.view(src_page.index)
-            dst_view = page_table.view(dst_page.index)
-            # Copy the data
-            dst_view.copy_from(src_view)
+            with page_table.view(dst_page.index).map(discard=True) as m:
+                m.items = src_view.items
 
         return dst_page
 

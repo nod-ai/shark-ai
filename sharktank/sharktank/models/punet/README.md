@@ -38,7 +38,7 @@ python -m sharktank.models.punet.tools.run_diffuser_ref
 ## Run punet model
 
 ```
-python -m sharktank.tools.run_punet --irpa-file ~/models/punet_fp16.irpa
+python -m sharktank.models.punet.tools.run_punet --irpa-file ~/models/punet_fp16.irpa
 ```
 
 ## Integration Testing

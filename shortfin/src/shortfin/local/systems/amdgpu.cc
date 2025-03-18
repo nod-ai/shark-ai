@@ -55,6 +55,9 @@ void AMDGPUSystemBuilder::InitializeDefaultSettings() {
   default_device_params_.async_allocations =
       config_options().GetBool("amdgpu_async_allocations", true);
 
+  amdgpu_allow_device_reuse_ =
+      config_options().GetBool("amdgpu_allow_device_reuse", false);
+
   // HIP options.
   // "amdgpu_tracing_level": Matches IREE flag --hip_tracing:
   // Permissible values are:
@@ -177,7 +180,9 @@ SystemPtr AMDGPUSystemBuilder::CreateSystem() {
         if (hal_id) {
           found = true;
           used_device_ids.push_back(*hal_id);
-          hal_id.reset();
+          if (!amdgpu_allow_device_reuse_) {
+            hal_id.reset();
+          }
         }
       }
 
