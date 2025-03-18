@@ -143,8 +143,8 @@ class FluxGenerateService(GenerateService):
 
                 for worker_idx, worker in enumerate(self.workers):
                     worker_devices = self.fibers[
-                    worker_idx * (self.fibers_per_worker)
-                ].raw_devices
+                        worker_idx * (self.fibers_per_worker)
+                    ].raw_devices
                     logger.info(
                         f"Loading inference program: {component}, batch size {batch_size}, worker index: {worker_idx}, device: {worker_devices}"
                     )
