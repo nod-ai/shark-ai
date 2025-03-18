@@ -16,12 +16,21 @@ import os
 import pytest
 import shutil
 import subprocess
+import signal
 import sys
 import time
 from pathlib import Path
 
-import shortfin as sf
-import shortfin.array as sfnp
+import socket
+from contextlib import closing
+
+
+def find_free_port():
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+        s.bind(("", 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return s.getsockname()[1]
+
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +60,14 @@ def run_mobilenet(model_path):
     Args:
         model_path: Path to the compiled VMFB file
     """
+    # Import shortfin here to avoid connecting to tracy at module import time
+    import shortfin as sf
+    import shortfin.array as sfnp
+
+    # Check environment variable for tracing
+    runtime = os.environ.get("SHORTFIN_PY_RUNTIME", "")
+    print(f"-- Using {runtime} runtime (SHORTFIN_PY_RUNTIME={runtime})")
+
     logging.basicConfig(level=logging.INFO)
     logger.info(f"Running MobileNet model from {model_path}")
 
@@ -95,7 +112,7 @@ def run_mobilenet(model_path):
     logger.info("MobileNet model execution finished")
 
 
-def run_mobilenet_subprocess(model_path):
+def run_mobilenet_subprocess(model_path, tracy_port):
     """Execute MobileNet model with tracy profiling in a subprocess.
 
     Args:
@@ -107,20 +124,32 @@ def run_mobilenet_subprocess(model_path):
     # Run this same file in a subprocess with tracing enabled
     env = os.environ.copy()
     env["SHORTFIN_PY_RUNTIME"] = "tracy"
-    env["TRACY_ENABLE"] = "1"
+
+    # Ensure these environment variables are set
+    env["TRACY_NO_EXIT"] = "1"
+    env["TRACY_NO_BROADCAST"] = "1"  # Don't broadcast presence - connect directly
+    env["TRACY_PORT"] = tracy_port
 
     logger.info(f"Launching subprocess to run MobileNet model")
 
     # Use this same file as the runner script, but pass a special flag to indicate
     # we want to run the model directly rather than run the test
-    return subprocess.run(
-        [sys.executable, __file__, str(model_path), "--run-mobilenet-as-subprocess"],
-        env=env,
-        check=False,  # Don't fail on error
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
+    mobilenet_log = "/home/xidaren2/mobilenet.log"
+    print(f"sending mobilenet console output to {mobilenet_log}")
+    with open(mobilenet_log, "w") as mobilenet_stdout:
+        return subprocess.run(
+            [
+                sys.executable,
+                __file__,
+                str(model_path),
+                "--run-mobilenet-as-subprocess",
+            ],
+            env=env,
+            check=False,  # Don't fail on error
+            stdout=mobilenet_stdout,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
 
 
 tracing_not_enabled = not is_tracing_enabled()
@@ -163,60 +192,52 @@ def test_tracing_mobilenet(mobilenet_compiled_path, tmp_path):
 
     # Step 1: Start tracy capture
     logger.info(f"Tracy capture will be saved to: {capture_file}")
+    tracy_port = str(find_free_port())
+    logger.info(f"Tracy capture will be using port %s" % tracy_port)
 
     tracy_process = None
     try:
-        # Start tracy capture with output redirection and prevent it from exiting
-        # when the first client disconnects
+        # Step 1: Start tracy capture
+        logger.info(f"Tracy capture will be saved to: {capture_file}")
+
+        tracy_process = None
+        # Start tracy capture with output redirection
         env = os.environ.copy()
         env["TRACY_NO_EXIT"] = "1"
 
         with open(tracy_log, "w") as tracy_stdout:
             tracy_process = subprocess.Popen(
-                ["iree-tracy-capture", "-o", str(capture_file)],
+                ["iree-tracy-capture", "-o", str(capture_file), "-f", "-p", tracy_port],
                 stdout=tracy_stdout,
                 stderr=subprocess.STDOUT,
                 env=env,
             )
 
-        # Step 2: Run MobileNet model with tracing enabled via subprocess
+        # Step 2: Run MobileNet model with tracing enabled
         logger.info("Running MobileNet model with tracing enabled via subprocess")
+        result = run_mobilenet_subprocess(
+            mobilenet_compiled_path, tracy_port=tracy_port
+        )
 
-        result = run_mobilenet_subprocess(mobilenet_compiled_path)
-
-        # Log the output from the subprocess
-        logger.info(f"Subprocess output:\n{result.stdout}")
-
-        # Manually check if it was successful
-        if result.returncode != 0:
-            logger.error(f"Subprocess failed with exit code {result.returncode}")
-            logger.error(f"Command: {' '.join(result.args)}")
-            logger.error(f"Output: {result.stdout}")
+        # Try to exit tracy gracefully, by first waiting then sending SIGINT (Ctrl+C equiv)
+        logger.info("Waiting for tracy to finish collecting data...")
+        try:
+            tracy_process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            logger.info("Tracy didn't terminate, sending SIGINT...")
+            tracy_process.send_signal(signal.SIGINT)
+            tracy_process.wait(
+                timeout=5
+            )  # if tracy still doesn't terminate, an error will be thrown
 
     finally:
-        # shut down tracy
-        logger.info("Waiting for tracy to finish collecting data...")
-        time.sleep(5)
-        # Ensure the tracy process is terminated
-        if tracy_process and tracy_process.poll() is None:
-            logger.info("Terminating tracy process...")
-            tracy_process.terminate()
-            try:
-                tracy_process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                logger.warning("Tracy process didn't terminate, killing it...")
-                tracy_process.kill()
-
-    assert (
-        capture_file.exists()
-    ), f"Tracy capture file was not created at {capture_file}"
-    assert (
-        capture_file.stat().st_size > 0
-    ), f"Tracy capture file at {capture_file} is empty"
-    logger.info(
-        f"Tracy capture should be at: {capture_file} (exists: {capture_file.exists()})"
-    )
-    if capture_file.exists():
+        # Verify the trace file was created
+        assert (
+            capture_file.exists()
+        ), f"Tracy capture file was not created at {capture_file}"
+        assert (
+            capture_file.stat().st_size > 0
+        ), f"Tracy capture file at {capture_file} is empty"
         logger.info(f"Tracy capture file size: {capture_file.stat().st_size} bytes")
 
 
