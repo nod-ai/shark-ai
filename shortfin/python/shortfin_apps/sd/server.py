@@ -10,7 +10,6 @@ import logging
 from pathlib import Path
 import sys
 import os
-import copy
 import subprocess
 from contextlib import asynccontextmanager
 import uvicorn
