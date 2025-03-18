@@ -63,7 +63,12 @@ def pytest_addoption(parser):
         default=False,
         help="Load cached results if present instead of recomputing.",
     )
-
+    parser.addoption(
+        "--device",
+        type=str,
+        action="store",
+        help="List a torch device, (e.g., 'cuda:0')",
+    )
     parser.addoption(
         "--run-quick-llama-test",
         action="store_true",
@@ -217,7 +222,7 @@ def pytest_addoption(parser):
         "--iree-device",
         type=str,
         action="store",
-        help="List an IREE device from iree-run-module --list_devices",
+        help="List an IREE device from 'iree-run-module --list_devices'",
     )
 
     parser.addoption(
@@ -286,6 +291,11 @@ def path_prefix(request: FixtureRequest) -> Optional[str]:
 @pytest.fixture(scope="class")
 def caching(request: FixtureRequest) -> Optional[bool]:
     return set_fixture_from_cli_option(request, "caching")
+
+
+@pytest.fixture(scope="class")
+def device(request: FixtureRequest) -> Optional[bool]:
+    return set_fixture_from_cli_option(request, "device")
 
 
 @pytest.fixture(scope="class")

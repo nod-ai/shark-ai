@@ -22,6 +22,7 @@ skipif_run_quick_llama_test = pytest.mark.skipif(
     "tensor_parallelism_size",
     "baseline_perplexity_scores",
     "batch_size",
+    "device",
 )
 class PerplexityTest(unittest.TestCase):
     def setUp(self):
@@ -45,6 +46,7 @@ class PerplexityTest(unittest.TestCase):
                 f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
                 f"--attention-kernel=torch",
                 f"--num-prompts={self.batch_size}",
+                f"--device={self.device}",
             ]
         )
 
@@ -82,6 +84,7 @@ class PerplexityTest(unittest.TestCase):
                 f"--activation-dtype=bfloat16",
                 "--use-hf",
                 "--fake-quant",
+                f"--device={self.device}",
             ]
         )
 
@@ -117,6 +120,7 @@ class PerplexityTest(unittest.TestCase):
                 f"--tensor-parallelism-size={self.tensor_parallelism_size}",
                 f"--attention-kernel=torch",
                 f"--num-prompts={self.batch_size}",
+                f"--device={self.device}",
             ]
         )
 
@@ -152,6 +156,7 @@ class PerplexityTest(unittest.TestCase):
                 f"--tensor-parallelism-size={self.tensor_parallelism_size}",
                 f"--attention-kernel=torch",
                 f"--num-prompts={self.batch_size}",
+                f"--device={self.device}",
             ]
         )
 
