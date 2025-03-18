@@ -127,7 +127,7 @@ jobs:
         cmake --build build --target all
 
     - name: pip install shortfin
-      if: ${{ matrix.name != 'Ubuntu (Clang)(host-only)' && !contains(matrix.name, 'tracing') }}
+      if: ${{ matrix.name != 'Ubuntu (Clang)(host-only)'}}
       working-directory: ${{ env.LIBSHORTFIN_DIR }}
       run: |
         pip install -v -e build/
