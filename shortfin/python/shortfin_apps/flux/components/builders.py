@@ -69,8 +69,13 @@ def get_params_filenames(model_params: ModelParams, model=None, splat: bool = Fa
             )
     else:
         for idx, mod in enumerate(modnames):
-            subtype = "schnell" if model_params.is_schnell and mod == "sampler" else "dev"
-            params_filenames.extend([base + "_" + subtype + "_" + mod + "_" + mod_precs[idx] + ".irpa"])
+            # schnell and dev weights are the same, except for sampler
+            subtype = (
+                "schnell" if model_params.is_schnell and mod == "sampler" else "dev"
+            )
+            params_filenames.extend(
+                [base + "_" + subtype + "_" + mod + "_" + mod_precs[idx] + ".irpa"]
+            )
 
     return filter_by_model(params_filenames, model)
 
@@ -85,6 +90,7 @@ def get_file_stems(model_params: ModelParams):
         "vae": "vae",
     }
     for mod, modname in mod_names.items():
+        # schnell and dev weights are the same, except for sampler
         subtype = "schnell" if model_params.is_schnell and mod == "sampler" else "dev"
         ord_params = [
             [base + subtype],

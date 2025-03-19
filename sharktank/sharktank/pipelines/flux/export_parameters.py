@@ -90,6 +90,7 @@ def filter_properties_for_config(
 def export_flux_pipeline_iree_parameters(
     model_path: str,
     output_path: str,
+    model_name: Optional[str] = None,
     dtype_str: Optional[str] = None,
 ):
     """Export Flux pipeline parameters to IREE format.
@@ -100,6 +101,8 @@ def export_flux_pipeline_iree_parameters(
         dtype: Optional dtype to convert parameters to
     """
     # Ensure output_path is a Path object
+    if not model_name:
+        model_name = "flux_dev"
     if not dtype_str:
         dtype_str = "bf16"
     dtype = torch_dtypes[dtype_str]
@@ -112,10 +115,11 @@ def export_flux_pipeline_iree_parameters(
 
     # Export FluxTransformer parameters
     transformer_path = Path(model_path) / "transformer/"
-    transformer_output_path = output_path / f"flux_dev_sampler_{dtype_str}.irpa"
+    transformer_output_path = output_path / f"{model_name}_sampler_{dtype_str}.irpa"
     if not is_already_exported(transformer_output_path):
         config_json_path = transformer_path / "config.json"
-        param_paths = [Path(model_path) / "flux1-dev.safetensors"]
+        st_str = model_name.replace("flux_", "flux1-")
+        param_paths = [Path(model_path) / f"{st_str}.safetensors"]
         transformer_dataset = import_hf_dataset(
             config_json_path, param_paths, target_dtype=dtype
         )
@@ -187,10 +191,16 @@ def main():
     parser.add_argument("--dtype", type=str, default="bf16")
     parser.add_argument("--input-path", type=str, default="/data/flux/FLUX.1-dev/")
     parser.add_argument("--output-path", type=str, default="/data/flux/FLUX.1-dev/")
+    parser.add_argument(
+        "--model",
+        default="flux_schnell",
+        choices=["flux_dev", "flux_schnell", "flux_pro"],
+    )
     args = parser.parse_args()
     export_flux_pipeline_iree_parameters(
         args.input_path,
         args.output_path,
+        model_name=args.model,
         dtype_str=args.dtype,
     )
 

@@ -180,13 +180,21 @@ def get_flux_transformer_model(
         sample_kwargs["y"],
         torch.full((bs,), 1, dtype=torch.int64),
         torch.full((100,), 1, dtype=dtype),  # TODO: non-dev timestep sizes
-        sample_kwargs["guidance"] if not schnell else torch.tensor(0), # will be ignored
+        sample_kwargs["guidance"]
+        if not schnell
+        else torch.tensor(0),  # will be ignored
     )
     return model, sample_inputs
 
 
 def get_flux_model_and_inputs(
-    weight_file, precision, batch_size, max_length, height, width, schnell=False,
+    weight_file,
+    precision,
+    batch_size,
+    max_length,
+    height,
+    width,
+    schnell=False,
 ):
     return get_flux_transformer_model(
         weight_file, height, width, 8, max_length, precision, batch_size, schnell
