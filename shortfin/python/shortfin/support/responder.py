@@ -11,13 +11,16 @@ class AbstractResponder:
     def __init__(self):
         pass
 
+    def start_response(self):
+        pass
+
     def ensure_response(self):
         pass
 
     def send_response(self, response):
         pass
 
-    def start_response(self, **kwargs):
+    def stream_start(self, **kwargs):
         pass
 
     def stream_part(self, content: bytes | None):
