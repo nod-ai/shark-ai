@@ -76,7 +76,6 @@ def pytest_addoption(parser):
         default=False,
         help="Run large llama tests if passed",
     )
-
     parser.addoption(
         "--run-nightly-llama-tests",
         action="store_true",
@@ -112,7 +111,6 @@ def pytest_addoption(parser):
             "code. The user is expected to provide the data"
         ),
     )
-
     parser.addoption(
         "--with-vae-data",
         action="store_true",
@@ -121,7 +119,6 @@ def pytest_addoption(parser):
             "Enable tests that use vae data such as models not part of the source code."
         ),
     )
-
     parser.addoption(
         "--with-quark-data",
         action="store_true",
@@ -138,14 +135,12 @@ def pytest_addoption(parser):
         action="store",
         help="Llama3.1 8b tokenizer path, defaults to 30F CI system path",
     )
-
     parser.addoption(
         "--llama3-8b-f16-model-path",
         type=Path,
         action="store",
         help="Llama3.1 8b model path, defaults to 30F CI system path",
     )
-
     parser.addoption(
         "--llama3-8b-f8-model-path",
         type=Path,
@@ -153,21 +148,18 @@ def pytest_addoption(parser):
         default=None,
         help="Llama3.1 8b f8 model path",
     )
-
     parser.addoption(
         "--llama3-405b-tokenizer-path",
         type=Path,
         action="store",
         help="Llama3.1 405b tokenizer path, defaults to 30F CI system path",
     )
-
     parser.addoption(
         "--llama3-405b-f16-model-path",
         type=Path,
         action="store",
         help="Llama3.1 405b model path, defaults to 30F CI system path",
     )
-
     parser.addoption(
         "--llama3-405b-f8-model-path",
         type=Path,
@@ -217,26 +209,22 @@ def pytest_addoption(parser):
         default="sharktank/tests/evaluate/baseline_perplexity_scores.json",
         help="Llama3.1 8B & 405B model baseline perplexity scores",
     )
-
     parser.addoption(
         "--iree-device",
         type=str,
         action="store",
         help="List an IREE device from 'iree-run-module --list_devices'",
     )
-
     parser.addoption(
         "--iree-hip-target",
         action="store",
         help="Specify the iree-hip target version (e.g., gfx942)",
     )
-
     parser.addoption(
         "--iree-hal-target-device",
         action="store",
         help="Specify the iree-hal target device (e.g., hip)",
     )
-
     parser.addoption(
         "--tensor-parallelism-size",
         action="store",
@@ -244,7 +232,6 @@ def pytest_addoption(parser):
         default=1,
         help="Number of devices for tensor parallel sharding",
     )
-
     parser.addoption(
         "--bs",
         action="store",
