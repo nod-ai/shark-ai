@@ -101,6 +101,11 @@ jobs:
     steps:
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
+    - name: Forward matrix environment variables
+      run: |
+        echo "SHORTFIN_ENABLE_TRACING=${{ matrix.env.SHORTFIN_ENABLE_TRACING }}" >> $GITHUB_ENV
+        echo "SHORTFIN_PY_RUNTIME=${{ matrix.env.SHORTFIN_PY_RUNTIME }}" >> $GITHUB_ENV
+
     - name: (Linux) Install dependencies
       if: "runner.os == 'Linux'"
       run: |
@@ -144,11 +149,6 @@ jobs:
           -DSHORTFIN_BUILD_PYTHON_BINDINGS=ON \
           ${{matrix.cmake-options}}
         cmake --build build --target all
-
-    - name: Forward matrix environment variables
-      run: |
-        echo "SHORTFIN_ENABLE_TRACING=${{ matrix.env.SHORTFIN_ENABLE_TRACING }}" >> $GITHUB_ENV
-        echo "SHORTFIN_PY_RUNTIME=${{ matrix.env.SHORTFIN_PY_RUNTIME }}" >> $GITHUB_ENV
 
     - name: pip install shortfin
       if: ${{ matrix.name != 'Ubuntu (Clang)(host-only)' }}
