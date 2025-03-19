@@ -1,6 +1,6 @@
 {
-  "base_model_name": "flux_schnell",
-  "is_schnell": true,
+  "base_model_name": "flux_dev",
+  "is_schnell": false,
   "num_latents_channels": 16,
   "cfg_mult": 1,
   "clip_max_seq_len": 77,
