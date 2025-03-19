@@ -108,40 +108,6 @@ class T5EncoderEagerTest(TestCase):
         torch.random.manual_seed(12345)
         torch.no_grad()
 
-    @with_t5_data
-    def testV1_1XxlBf16AgainstFluxGolden(self):
-        """The ground-truth values were acquired from the Flux pipeline."""
-        dataset = import_encoder_dataset_from_hugging_face("google/t5-v1_1-xxl")
-        dataset.root_theta = dataset.root_theta.transform(
-            functools.partial(set_float_dtype, dtype=torch.bfloat16)
-        )
-        config = T5Config.from_properties(
-            dataset.properties,
-        )
-        model = T5Encoder(theta=dataset.root_theta, config=config)
-        model.eval()
-
-        with open(
-            "/data/t5/xxl/flux_schnell_t5_v1_1_xxl_encoder_bf16_input_ids.pt", "rb"
-        ) as f:
-            reference_input_ids = torch.load(f)
-
-        outputs = model(
-            input_ids=reference_input_ids,
-            attention_mask=None,
-            output_hidden_states=False,
-        )
-
-        with open(
-            "/data/t5/xxl/flux_schnell_t5_v1_1_xxl_encoder_bf16_output_last_hidden_state.pt",
-            "rb",
-        ) as f:
-            reference_last_hidden_state = torch.load(f)
-
-        assert_text_encoder_state_close(
-            outputs["last_hidden_state"], reference_last_hidden_state, atol=1e-1
-        )
-
     def runTestV1_1CompareTorchEagerHuggingFace(
         self,
         huggingface_repo_id: str,

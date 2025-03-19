@@ -144,6 +144,7 @@ jobs:
             --with-flux-data \
             --with-vae-data \
             --with-quark-data \
+            --with-t5-data \
             --iree-hal-target-device=hip \
             --iree-hip-target=gfx942 \
             --iree-device=hip://0 \
@@ -154,9 +155,6 @@ jobs:
             sharktank/tests/models/llama/quark_parity_test.py \
             --durations=0 \
             --timeout=800
-# TODO: add back
-#             --with-t5-data \
-# when #888 is resolved
 
   test_integration:
     name: "Model Integration Tests"

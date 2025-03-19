@@ -8,10 +8,12 @@ import argparse
 import asyncio
 import json
 import logging
-from pathlib import Path
 import sys
+import time
+
 
 # Import first as it does dep checking and reporting.
+from pathlib import Path
 from shortfin import ProgramIsolation
 from shortfin.support.responder import AbstractResponder
 
@@ -26,9 +28,9 @@ logger = logging.getLogger(__name__)
 
 def add_input_args(parser):
     group = parser.add_argument_group("Input Source", "Inputs to select from")
-    group = group.add_mutually_exclusive_group()
-    parser.add_argument("--prompt")
-    parser.add_argument("--prompt-file")
+    group = group.add_mutually_exclusive_group(required=True)
+    group.add_argument("--prompt")
+    group.add_argument("--prompt-file")
 
 
 def add_service_args(parser):
@@ -83,6 +85,29 @@ def add_service_args(parser):
         choices=["none", "trie"],
         help="Algorithm to use for prefix sharing in KV cache",
     )
+    parser.add_argument(
+        "--decode_steps",
+        type=int,
+        default=5,
+        help="The number of decode steps to execute",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Number of concurrent requests that should be running",
+    )
+    parser.add_argument(
+        "--benchmark",
+        action="store_true",
+        help="Perform a benchmarking run for throughput",
+    )
+    parser.add_argument(
+        "--benchmark_tasks",
+        type=int,
+        default=None,
+        help="Workload size to benchmark with",
+    )
 
 
 def parse_args(argv):
@@ -95,8 +120,27 @@ def parse_args(argv):
 
 def process_inputs(args):
     if args.prompt:
-        return [args.prompt]
+        prompts = [args.prompt]
+        if args.benchmark and args.benchmark_tasks is not None:
+            prompts = prompts * args.benchmark_tasks
+        return prompts
+
     return json.load(open(args.prompt_file, "r"))
+
+
+class Timer:
+    def __init__(self):
+        self._start = None
+        self._end = None
+
+    def start(self):
+        self._start = time.perf_counter()
+
+    def end(self):
+        self._end = time.perf_counter()
+
+    def elapsed(self):
+        return self._end - self._start
 
 
 class CliResponder(AbstractResponder):
@@ -105,9 +149,13 @@ class CliResponder(AbstractResponder):
         self._loop = asyncio.get_running_loop()
         self.response = asyncio.Future(loop=self._loop)
         self.responded = False
+        self.timer = Timer()
+
+    def start_response(self):
+        self.timer.start()
 
     def ensure_response(self):
-        pass
+        self.timer.end()
 
     def send_response(self, response):
         assert not self.responded, "Response already sent"
@@ -116,7 +164,7 @@ class CliResponder(AbstractResponder):
         self.responded = True
         self._loop.call_soon_threadsafe(self.response.set_result, response)
 
-    def start_response(self, **kwargs):
+    def stream_start(self, **kwargs):
         raise Exception("Streaming not supported")
 
     def stream_part(self, content):
@@ -139,27 +187,63 @@ async def main(argv):
     service = lifecycle_manager.services["default"]
     service.start()
 
-    sampling_params = {"max_completion_tokens": 5}
+    sampling_params = {"max_completion_tokens": args.decode_steps}
 
     prompts = process_inputs(args)
 
-    responders = []
-    for prompt in prompts:
-        logger.log(msg=f'Submitting request for prompt "{prompt}"', level=logging.INFO)
-        gen_req = GenerateReqInput(text=prompt, sampling_params=sampling_params)
-        responder = CliResponder()
+    class Task:
+        def __init__(self, prompt):
+            self.prompt = prompt
+            self.responder = None
 
-        async def submit():
+        def runtime(self):
+            return self.responder.timer.elapsed()
+
+    logger.log(msg=f"Setting up a tasklist of {len(prompts)} items", level=logging.INFO)
+    queue = asyncio.Queue()
+    tasks = []
+    for p in prompts:
+        task = Task(p)
+        tasks.append(task)
+        queue.put_nowait(task)
+
+    async def worker(name, queue):
+        while True:
+            task = await queue.get()
+            responder = CliResponder()
+            gen_req = GenerateReqInput(
+                text=task.prompt, sampling_params=sampling_params
+            )
             ClientGenerateBatchProcess(service, gen_req, responder).launch()
-            return responder
+            await responder.response
+            task.responder = responder
+            task.result = responder.response.result()
+            queue.task_done()
 
-        await submit()
-        responders.append(responder)
+    global_timer = Timer()
+    global_timer.start()
 
-    await asyncio.gather(*[r.response for r in responders])
+    logger.log(msg=f"Setting up {args.workers} workers", level=logging.INFO)
+    workers = []
+    for i in range(args.workers):
+        w = asyncio.create_task(worker(f"worker-{i}", queue))
+        workers.append(w)
 
-    for responder in responders:
-        print(responder.response.result().decode())
+    logger.log(msg=f"Processing tasks", level=logging.INFO)
+    await queue.join()
+    global_timer.end()
+
+    for w in workers:
+        w.cancel()
+
+    if args.benchmark:
+        latency_sum = sum([s.runtime() for s in tasks])
+        latency_avg = latency_sum / len(tasks)
+        total_time = global_timer.elapsed()
+        reqs = len(prompts) / total_time
+
+        print(f"Requests per second: {reqs:2f}")
+        print(f"AverageLatency:      {latency_avg:2f}")
 
     logger.log(msg=f"Shutting down service", level=logging.INFO)
     service.shutdown()
