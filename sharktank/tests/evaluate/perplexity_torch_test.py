@@ -8,7 +8,6 @@ import unittest
 import pytest
 import json
 import numpy as np
-import gc
 
 from sharktank.evaluate import perplexity_torch
 
@@ -64,7 +63,6 @@ class PerplexityTest(unittest.TestCase):
             delta=self.delta,
             msg=f"Current perplexity deviates baseline by {perplexity_difference}",
         )
-        gc.collect()
 
     @skipif_run_quick_llama_test
     def test_llama3_8B_f8(self):
@@ -101,7 +99,6 @@ class PerplexityTest(unittest.TestCase):
             delta=self.delta,
             msg=f"Current perplexity deviates baseline by {perplexity_difference}",
         )
-        gc.collect()
 
     @pytest.mark.xfail(
         reason="Non-decomposed attention is not supported yet",
@@ -138,7 +135,6 @@ class PerplexityTest(unittest.TestCase):
             delta=self.delta,
             msg=f"Current perplexity deviates baseline by {perplexity_difference}",
         )
-        gc.collect()
 
     @pytest.mark.xfail(
         reason="Non-decomposed attention is not supported yet",
@@ -175,7 +171,6 @@ class PerplexityTest(unittest.TestCase):
             delta=self.delta,
             msg=f"Current perplexity deviates baseline by {perplexity_difference}",
         )
-        gc.collect()
 
 
 if __name__ == "__main__":
