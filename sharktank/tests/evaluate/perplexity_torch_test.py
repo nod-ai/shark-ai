@@ -72,14 +72,12 @@ class PerplexityTest(unittest.TestCase):
         model_name = "llama3_8B_f8_torch"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
-        batch_size = 8
-
         current_perplexity = perplexity_torch.main(
             [
                 f"--irpa-file={self.llama3_8b_f8_model}",
                 f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
                 f"--attention-kernel=torch",
-                f"--num-prompts={batch_size}",
+                f"--num-prompts={self.batch_size}",
                 f"--attention-dtype=bfloat16",
                 f"--activation-dtype=bfloat16",
                 "--use-hf",
@@ -89,7 +87,7 @@ class PerplexityTest(unittest.TestCase):
         )
 
         baseline_mean_perplexity = round(
-            np.mean(baseline_perplexity["perplexities"][0:batch_size]), 6
+            np.mean(baseline_perplexity["perplexities"][0 : self.batch_size]), 6
         )
         current_mean_perplexity = round(current_perplexity["mean_perplexity"], 6)
 
