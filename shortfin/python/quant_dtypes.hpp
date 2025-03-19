@@ -8,6 +8,38 @@
 #include <limits>
 #include <type_traits>
 
+struct float8_e4m3fnuz_t {
+  uint8_t value;
+
+  constexpr float8_e4m3fnuz_t() noexcept : value(0) {}
+
+  explicit constexpr float8_e4m3fnuz_t(char c) noexcept {
+    uint8_t temp = std::bit_cast<uint8_t>(c);
+    value = temp;
+  }
+
+  template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> &&
+                                                    !std::is_same_v<T, float>>>
+  constexpr float8_e4m3fnuz_t(T value) noexcept
+      : float8_e4m3fnuz_t(static_cast<float>(value)) {}
+
+  constexpr operator float() const noexcept {
+    uint32_t temp = value;
+    return std::bit_cast<float>(temp);
+  }
+};
+
+// Mark float8_e4m3fnuz_t as a trivial, standard-layout type so that xtensor can
+// use it.
+namespace std {
+template <>
+struct is_trivial<float8_e4m3fnuz_t> : std::true_type {};
+template <>
+struct is_standard_layout<float8_e4m3fnuz_t> : std::true_type {};
+template <>
+struct is_trivially_copyable<float8_e4m3fnuz_t> : std::true_type {};
+}  // namespace std
+
 struct bfloat16_t {
   uint16_t value;
 
