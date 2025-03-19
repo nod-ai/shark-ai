@@ -101,6 +101,7 @@ def test_argmax_axis0(device):
 @pytest.mark.parametrize(
     "dtype",
     [
+        sfnp.float8_e4m3fnuz,
         sfnp.bfloat16,
         sfnp.float16,
         sfnp.float32,
