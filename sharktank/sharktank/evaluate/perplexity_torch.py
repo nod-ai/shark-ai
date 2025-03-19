@@ -301,6 +301,7 @@ def run_perplexity_torch(
     kv_cache_dtype,
     use_hf,
     fake_quant,
+    model_file,
 ):
 
     prompts = get_prompts(num_prompts=num_prompts)
@@ -314,8 +315,7 @@ def run_perplexity_torch(
     perplexity_batch = []
     for p in tqdm(
         input_prompts,
-        mininterval=300,
-        desc="eval: Calculating logits",
+        desc=f"eval: Calculating logits for {model_file.name}",
     ):
         perplexity_batch.extend(
             perplexity_torch(
@@ -396,6 +396,7 @@ def main(argv):
     args = cli.parse(parser, args=argv)
 
     device = torch.device(args.device) if args.device else None
+    model_file = args.gguf_file or args.irpa_file
     dataset = cli.get_input_dataset(args)
     tokenizer = cli.get_tokenizer(args)
 
@@ -418,6 +419,7 @@ def main(argv):
         kv_cache_dtype=args.kv_cache_dtype,
         use_hf=args.use_hf,
         fake_quant=args.fake_quant,
+        model_file=model_file,
     )
 
     logger.info(f"\n{json.dumps(ppl, indent=2)}")
