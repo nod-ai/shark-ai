@@ -44,10 +44,10 @@ class custom_attention(unittest.TestCase):
         k = torch.rand([N, H, S, Eqk], dtype=dtype)
         v = torch.rand([N, H, S, Ev], dtype=dtype)
         # mask is same type as inputs, therefore its added to score
-        mask = torch.zeros([L, S], dtype=torch.float32)
+        mask = torch.zeros([L, S], dtype=dtype)
         scale = torch.tensor(1.0, dtype=dtype)
         if use_mask:
-            mask = torch.rand([L, S], dtype=torch.float32)
+            mask = torch.rand([L, S], dtype=dtype)
 
         res2 = kernels.masked_flash_attention(q, k, v, mask, scale=scale)
         # TODO: enable once unmasked kernel is fixed
@@ -123,6 +123,7 @@ class custom_attention(unittest.TestCase):
         )
         output = aot.export(ep)
         output.verify()
+        scaled_dot_product_attention.remove_override("masked_flash_attention")
 
 
 if __name__ == "__main__":
