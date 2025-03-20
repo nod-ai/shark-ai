@@ -104,6 +104,13 @@ async def generate_request(gen_req: GenerateReqInput, request: Request):
 app.post("/generate")(generate_request)
 app.put("/generate")(generate_request)
 
+# -------- MIDDLEWARE --------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def configure_sys(args) -> FluxSystemManager:
     # Setup system (configure devices, etc).
