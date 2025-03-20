@@ -31,6 +31,8 @@ from ..models.llama.sharding import shard_theta
 
 from sharktank.utils import cli
 from sharktank.utils.load_llm import *
+from sharktank.utils.evaluate import *
+
 
 log_levels = {
     "info": logging.INFO,
@@ -267,26 +269,6 @@ def timeit(func):
         return result
 
     return wrapper
-
-
-@timeit
-def get_prompts(num_prompts):
-
-    test_prompts = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")["text"]
-
-    num_test_prompts = 219
-
-    random.seed(0)
-    test_prompts = random.sample(test_prompts, num_test_prompts)
-
-    # Ignore prompts that are: empty, less than 20 tokens or a title.
-    test_prompts = [
-        s.replace("\n", "").rstrip()
-        for s in test_prompts
-        if s != "" and len(s.split()) >= 20 and s.count("=") < 2
-    ][0:num_prompts]
-
-    return test_prompts
 
 
 def run_perplexity_torch(
