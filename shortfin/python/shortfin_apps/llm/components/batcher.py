@@ -38,8 +38,8 @@ import math
 class LlmBatcherProcess(BatcherProcess):
     """This batcher provides a high-level mechanism for dispatching LLM tasks."""
 
-    STROBE_SHORT_DELAY = 0.1
-    STROBE_LONG_DELAY = 0.25
+    STROBE_SHORT_DELAY = 0.010
+    STROBE_LONG_DELAY = 0.010
 
     def __init__(
         self,
@@ -121,8 +121,8 @@ class PrefillBatcherProcess(LlmBatcherProcess):
     committed cache state).
     """
 
-    STROBE_SHORT_DELAY = 0.1
-    STROBE_LONG_DELAY = 0.25
+    STROBE_SHORT_DELAY = 0.010
+    STROBE_LONG_DELAY = 0.010
 
     def __init__(
         self,
@@ -173,8 +173,8 @@ class DecodeBatcherProcess(LlmBatcherProcess):
     committed cache state).
     """
 
-    STROBE_SHORT_DELAY = 0.1
-    STROBE_LONG_DELAY = 0.25
+    STROBE_SHORT_DELAY = 0.010
+    STROBE_LONG_DELAY = 0.010
 
     def __init__(
         self,
@@ -434,38 +434,48 @@ class DecodeExecutorProcess(LlmExecutorProcess):
             device0, [bs, block_count], int_dtype
         )
 
-        # Populate tokens.
+        # Setup host buffers for transfer:
         tokens_host = tokens.for_transfer()
-        for i in range(bs):
-            with tokens_host.view(i).map(discard=True) as m:
-                m.fill(0)
+        seq_lens_host = seq_lens.for_transfer()
+        start_positions_host = start_positions.for_transfer()
+        seq_block_ids_host = seq_block_ids.for_transfer()
+
+        # Populate tokens.
+        with tokens_host.map(discard=True) as m:
+            m.fill(0)
+            vals = []
+            for i in range(bs):
                 if i < req_count:
-                    m.items = self.exec_requests[i].input_token_ids[-1:]
-        tokens_host.copy_to(tokens)
+                    vals = vals + self.exec_requests[i].input_token_ids[-1:]
+            m.items = vals
 
         # For decode, populate start_positions and seq_lens.
-        start_positions_host = start_positions.for_transfer()
         with start_positions_host.map(discard=True) as m:
             m.fill(0)
             m.items = [req.start_position for req in self.exec_requests]
-        start_positions_host.copy_to(start_positions)
 
-        seq_lens_host = seq_lens.for_transfer()
         with seq_lens_host.map(discard=True) as m:
             # Pad unused requests.
             m.fill(
                 1  # Must pad with a nonzero value because a division by 0 during softmax floods clobber page (page 0) in cache with NaN values.
             )
             m.items = [req.start_position + 1 for req in self.exec_requests]
-        seq_lens_host.copy_to(seq_lens)
 
         # Populate cache pages.
-        seq_block_ids_host = seq_block_ids.for_transfer()
-        for i in range(bs):
-            with seq_block_ids_host.view(i).map(discard=True) as m:
-                m.fill(0)
+        with seq_block_ids_host.map(discard=True) as m:
+            m.fill(0)
+            block_ids = []
+            for i in range(bs):
                 if i < req_count:
-                    m.items = self.exec_requests[i].cache_page_indices(block_count)
+                    batch_ids = self.exec_requests[i].cache_page_indices(block_count)
+                    block_ids += batch_ids
+                    block_ids += [0] * (block_count - len(batch_ids))
+            m.items = block_ids
+
+        # Transfer to device memory:
+        tokens_host.copy_to(tokens)
+        start_positions_host.copy_to(start_positions)
+        seq_lens_host.copy_to(seq_lens)
         seq_block_ids_host.copy_to(seq_block_ids)
 
         # V1 args:

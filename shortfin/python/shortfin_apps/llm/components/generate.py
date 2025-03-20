@@ -128,8 +128,9 @@ class ClientGenerateBatchProcess(sf.Process):
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
         streaming = self.gen_req.stream
+        self.responder.start_response()
         if streaming:
-            self.responder.start_response()
+            self.responder.stream_start()
 
         try:
             # Launch all individual generate processes and wait for them to finish.
