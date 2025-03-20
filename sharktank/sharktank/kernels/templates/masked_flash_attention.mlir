@@ -53,10 +53,10 @@ util.func private @{{func_name}}(
                     affine_map<(d0, d1, d2, d3, d4) -> (d1, d4)>,
                     affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2)>]}
                     ins(%collapsed_q, %collapsed_k, %collapsed_v, %scale, %a : !q_collapsed_type, !k_collapsed_type, !v_collapsed_type, {{scale_dtype}}, !a_collapsed_type) outs(%empty : !o_collapsed_type) {
-                      ^bb0(%score: f32):
-                        iree_linalg_ext.yield %score : f32
+                      ^bb0(%score: {{o_dtype}}):
+                        iree_linalg_ext.yield %score : {{o_dtype}}
                     } -> !o_collapsed_type
-        %expanded_o = tensor.expand_shape %atten [[0,1], [2], [3]] output_shape [{{b1}}, {{b2}}, %l, {{e}}] : !o_collapsed_type into !o_type
+        %expanded_o = tensor.expand_shape %atten [[0,1], [2], [3]] output_shape [{{b1}}, {{b2}}, %l, %e] : !o_collapsed_type into !o_type
         util.return %expanded_o : !o_type
     }
 }
