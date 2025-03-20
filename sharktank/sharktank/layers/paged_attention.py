@@ -26,7 +26,7 @@ __all__ = ["PagedAttention"]
 
 
 class PagedAttention:
-    """Implementation of a KV cache on top of a 'page table'.
+    """Implementation of paged attention
 
     The page table slab is physically represented as a 2D tensor:
         [page_count, flattened_dims]

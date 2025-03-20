@@ -14,7 +14,7 @@ from .base import Theta, ThetaLayer
 from .linear import LinearLayer
 from .norm import RMSNormLayer
 from .rotary_embedding import RotaryEmbeddingLayer
-from .kv_cache import PagedAttention
+from .paged_attention import PagedAttention
 from .. import ops
 
 __all__ = [
