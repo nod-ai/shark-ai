@@ -78,6 +78,7 @@ def main(argv, log_config=uvicorn.config.LOGGING_CONFIG):
             args.tokenizer_json.stem + "_config.json"
         )
         args.tokenizer_config_json = inferred_tokenizer_config_path
+
     lifecycle_manager = ShortfinLlmLifecycleManager(args)
 
     uvicorn.run(
