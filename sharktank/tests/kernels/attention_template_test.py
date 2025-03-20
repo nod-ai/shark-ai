@@ -18,6 +18,7 @@ from sharktank import kernels
 from sharktank.types import layout_utils
 from sharktank.utils import debugging
 from sharktank import ops
+from sharktank.ops.signatures import scaled_dot_product_attention
 
 
 class custom_attention(unittest.TestCase):
@@ -110,7 +111,7 @@ class custom_attention(unittest.TestCase):
         class MyModule(torch.nn.Module):
             def forward(self, q, k, v, mask, scale):
                 return ops.scaled_dot_product_attention(
-                    q, k, v, a=mask, is_causal=False, scale=scale
+                    q, k, v, a=mask, is_causal=None, scale=scale
                 )
 
         mod = MyModule()
@@ -122,6 +123,7 @@ class custom_attention(unittest.TestCase):
         )
         output = aot.export(ep)
         output.verify()
+        scaled_dot_product_attention.remove_override("masked_flash_attention")
 
 
 if __name__ == "__main__":
