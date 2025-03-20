@@ -177,7 +177,7 @@ tool for compiling our model.
 
 ```bash
 iree-compile $MLIR_PATH \
- --iree-hal-target-backends=rocm \
+ --iree-hal-target-device=hip \
  --iree-hip-target=gfx942 \
  -o $VMFB_PATH
 ```
