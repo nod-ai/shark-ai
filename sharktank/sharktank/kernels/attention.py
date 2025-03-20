@@ -47,6 +47,10 @@ class masked_flash_attention(CustomOp):
             and s_desc.t.dtype.is_floating_point,
             lambda: f"flash_attention: Expected floating point",
         )
+        torch._check(
+            q_desc.t.dtype == k_desc.t.dtype == v_desc.t.dtype,
+            lambda: f"flash_attention: Expected matching dtypes",
+        )
 
         for q_b, k_b, v_b in zip(q_bs, k_bs, v_bs):
             torch._check(
@@ -87,9 +91,11 @@ class masked_flash_attention(CustomOp):
         b = str(int(b1) * int(b2))
         i_type_str = str(q_tensor_type.element_type)
         scale_type_str = str(scale_tensor_type.element_type)
+        a_type_str = str(RankedTensorType(a.type).element_type)
+        # TODO: enable f16 output type via arg
         o_type_str = "f32"
 
-        target_function_name = f"sharktank_masked_flash_attention_{b1}_{b2}_{d}_{e}_{i_type_str}_{scale_type_str}_{o_type_str}"
+        target_function_name = f"sharktank_masked_flash_attention_{b1}_{b2}_{d}_{e}_{i_type_str}_{a_type_str}_{scale_type_str}_{o_type_str}"
         kwargs = {
             "b": b,
             "b1": b1,
@@ -98,6 +104,7 @@ class masked_flash_attention(CustomOp):
             "d": d,
             "s": s,
             "e": e,
+            "a_dtype": a_type_str,
             "i_dtype": i_type_str,
             "scale_dtype": scale_type_str,
             "o_dtype": o_type_str,

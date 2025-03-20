@@ -28,9 +28,8 @@ class custom_attention(unittest.TestCase):
         [
             (torch.float32, 5e-3, 1e-3, True),
             (torch.float16, 5e-3, 1e-3, True),
-            # Currently failing on unmasked error
-            # (torch.float32, 5e-3, 1e-3, False),
-            # (torch.float16, 5e-3, 1e-3, False),
+            (torch.float32, 5e-3, 1e-3, False),
+            (torch.float16, 5e-3, 1e-3, False),
         ]
     )
     def test_compare_torch_spda(self, dtype, atol, rtol, use_mask):
@@ -44,15 +43,14 @@ class custom_attention(unittest.TestCase):
         k = torch.rand([N, H, S, Eqk], dtype=dtype)
         v = torch.rand([N, H, S, Ev], dtype=dtype)
         # mask is same type as inputs, therefore its added to score
-        mask = None
+        mask = torch.zeros([L, S], dtype=torch.float32)
         scale = torch.tensor(1.0, dtype=dtype)
         if use_mask:
-            mask = torch.rand([L, S], dtype=dtype)
+            mask = torch.rand([L, S], dtype=torch.float32)
 
-            res2 = kernels.masked_flash_attention(q, k, v, mask, scale=scale)
-
-        else:
-            res2 = kernels.flash_attention(q, k, v, scale)
+        res2 = kernels.masked_flash_attention(q, k, v, mask, scale=scale)
+        # TODO: enable once unmasked kernel is fixed
+        # res2 = kernels.flash_attention(q, k, v, scale)
 
         ref = torch.nn.functional.scaled_dot_product_attention(
             q, k, v, mask, scale=scale
@@ -62,18 +60,15 @@ class custom_attention(unittest.TestCase):
 
     @parameterized.expand(
         [
-            # Todo: fixed unmasked.
-            # (torch.float32, False, False),
+            (torch.float32, False, False),
             (torch.float32, False, True),
             (torch.float16, True, True),
             (torch.float8_e4m3fnuz, False, True),
         ]
     )
     def test_export_dynamic(self, dtype, static, use_mask):
-        ops.attention_impls.register_attention_override_by_name(
-            "masked_flash_attention"
-        )
         cast = False
+        # Get rid of this once output type is supported in sdpa op
         if dtype == torch.float8_e4m3fnuz:
             dtype = torch.float32
             cast = True
@@ -86,6 +81,7 @@ class custom_attention(unittest.TestCase):
         q = torch.rand([N, H, L, Eqk], dtype=dtype)
         k = torch.rand([N, H, S, Eqk], dtype=dtype)
         v = torch.rand([N, H, S, Ev], dtype=dtype)
+        mask = torch.zeros([L, S], dtype=dtype)
         if use_mask:
             # mask is same type as inputs, therefore its added to score
             mask = torch.rand([L, S], dtype=dtype)
@@ -93,8 +89,6 @@ class custom_attention(unittest.TestCase):
             q = q.to(torch.float8_e4m3fnuz)
             k = q.to(torch.float8_e4m3fnuz)
             v = v.to(torch.float8_e4m3fnuz)
-            if use_mask:
-                mask = mask.to(torch.float8_e4m3fnuz)
         scale = torch.tensor(1.0, dtype=dtype)
         dynamic_shapes = None
         if not static:
@@ -118,18 +112,11 @@ class custom_attention(unittest.TestCase):
 
         mod = MyModule()
         dtype = torch.dtype
-        if use_mask:
-            ep = torch.export.export(
-                mod,
-                args=(q, k, v, mask, scale),
-                dynamic_shapes=dynamic_shapes,
-            )
-        else:
-            ep = torch.export.export(
-                mod,
-                args=(q, k, v, None, scale),
-                dynamic_shapes=dynamic_shapes,
-            )
+        ep = torch.export.export(
+            mod,
+            args=(q, k, v, mask, scale),
+            dynamic_shapes=dynamic_shapes,
+        )
         output = aot.export(ep)
         output.verify()
 

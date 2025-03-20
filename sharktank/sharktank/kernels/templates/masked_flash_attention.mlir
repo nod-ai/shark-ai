@@ -7,7 +7,7 @@
 !q_type = tensor<{{b1}}x{{b2}}x{{l}}x{{d}}x{{i_dtype}}>
 !k_type = tensor<{{b1}}x{{b2}}x{{s}}x{{d}}x{{i_dtype}}>
 !v_type = tensor<{{b1}}x{{b2}}x{{s}}x{{e}}x{{i_dtype}}>
-!a_type = tensor<{{l}}x{{s}}xf32>
+!a_type = tensor<{{l}}x{{s}}x{{a_dtype}}>
 !trans_v_type = tensor<{{b1}}x{{b2}}x{{e}}x{{s}}x{{i_dtype}}>
 !o_type = tensor<{{b1}}x{{b2}}x{{l}}x{{e}}x{{o_dtype}}>
 !o_dyn_type = tensor<?x?x?x{{o_dtype}}>
@@ -15,7 +15,7 @@
 !q_collapsed_type = tensor<{{b}}x{{l}}x{{d}}x{{i_dtype}}>
 !k_collapsed_type = tensor<{{b}}x{{s}}x{{d}}x{{i_dtype}}>
 !v_collapsed_type = tensor<{{b}}x{{s}}x{{e}}x{{i_dtype}}>
-!a_collapsed_type = tensor<{{l}}x{{s}}xf32>
+!a_collapsed_type = tensor<{{l}}x{{s}}x{{a_dtype}}>
 !s_type = tensor<{{scale_dtype}}>
 
 module {
