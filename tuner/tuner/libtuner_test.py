@@ -188,7 +188,7 @@ def test_get_compilation_success_rate():
 
 
 def test_enum_collision():
-    from iree.compiler.dialects import linalg, vector, iree_gpu, iree_codegen, iree_input  # type: ignore
+    from iree.compiler.dialects import linalg, vector, iree_gpu, iree_codegen  # type: ignore
 
 
 def test_baseline_result_handler_valid():
