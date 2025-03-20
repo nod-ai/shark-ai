@@ -22,7 +22,6 @@ import dataclasses_json
 from dataclasses_json import dataclass_json, Undefined
 
 import shortfin.array as sfnp
-import logging
 
 from .token_selection_strategy import DecodeConfig
 
@@ -50,6 +49,7 @@ def _decode_dtype(name: str) -> sfnp.DType:
         "int64": sfnp.int64,
         "sint64": sfnp.sint64,
         "uint64": sfnp.uint64,
+        "float8_e4m3fnuz": sfnp.float8_e4m3fnuz,
         "float16": sfnp.float16,
         "float32": sfnp.float32,
         "float64": sfnp.float64,

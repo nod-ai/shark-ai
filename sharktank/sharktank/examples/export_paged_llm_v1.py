@@ -118,7 +118,9 @@ def main():
         attn_dtype = (
             "bfloat16"
             if llama_config.kv_cache_dtype is None
-            else str(llama_config.kv_cache_dtype)
+            else str(llama_config.kv_cache_dtype).split(".")[
+                -1
+            ]  # convert torch.float8_e4m3fnuz dtype into "float8_e4m3fnuz"
         )
         return {
             "module_name": "module",
