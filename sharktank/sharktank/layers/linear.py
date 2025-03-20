@@ -84,7 +84,8 @@ class LinearLayer(ThetaLayer):
             y = self.q_output.quantize(y)
             if self.fake_quant:
                 return y.unpack().dequant()
-            return y.unpack().qs
+            return y
+
         if isinstance(y, QuantizedTensor):
             y = y.unpack().dequant()
         # Note that f8_e4m3fnuz types on AMD GPUs accumulate to fp32.

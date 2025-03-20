@@ -95,7 +95,3 @@ if debugging.flags.use_custom_iree_kernels:
     scaled_dot_product_attention.override(
         PlanarQuantizedTensor, PlanarQuantizedTensor, PlanarQuantizedTensor, NoneType
     )(flash_attention)
-if debugging.flags.use_custom_generic_attention:
-    scaled_dot_product_attention.override(AnyTensor, AnyTensor, AnyTensor, AnyTensor)(
-        masked_flash_attention
-    )

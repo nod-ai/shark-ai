@@ -60,13 +60,16 @@ class custom_attention(unittest.TestCase):
 
     @parameterized.expand(
         [
-            (torch.float32, False, False),
-            (torch.float32, False, True),
-            (torch.float16, True, True),
             (torch.float8_e4m3fnuz, False, True),
+            (torch.float8_e4m3fnuz, False, False),
+            (torch.float8_e4m3fnuz, True, True),
+            (torch.float8_e4m3fnuz, True, False),
         ]
     )
-    def test_export_dynamic(self, dtype, static, use_mask):
+    def test_export_custom_sdpa(self, dtype, static, use_mask):
+        ops.attention_impls.register_attention_override_by_name(
+            "masked_flash_attention"
+        )
         cast = False
         # Get rid of this once output type is supported in sdpa op
         if dtype == torch.float8_e4m3fnuz:
