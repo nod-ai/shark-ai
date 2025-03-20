@@ -95,6 +95,9 @@ class ModelConfig:
     repo_id: Optional[str] = None
     local_path: Optional[Path] = None
     azure_config: Optional[AzureConfig] = None
+    tensor_parallelism_size: Optional[
+        int
+    ] = None  # Number of shards for tensor parallelism
 
     def __post_init__(self):
         if self.source == ModelSource.HUGGINGFACE_FROM_GGUF:
@@ -117,12 +120,13 @@ class ModelConfig:
 class ModelArtifacts:
     """Container for all paths related to model artifacts."""
 
-    weights_path: Path
+    weights_path: Path  # Main weights file (unranked for sharded models)
     tokenizer_path: Path
     mlir_path: Path
     vmfb_path: Path
     config_path: Path
     model_config: ModelConfig  # config that was originally used to generate these artifacts
+    shard_paths: Optional[list[Path]] = None  # Paths to sharded weight files (rank0-N)
 
 
 class ModelStageManager:
@@ -305,6 +309,42 @@ class ModelStageManager:
 
         return tokenizer_path
 
+    def shard_model(self, weights_path: Path) -> Tuple[Path, list[Path]]:
+        """Shards model using tensor parallelism if configured."""
+        if not self.config.tensor_parallelism_size:
+            return weights_path, None
+
+        logger.info(
+            f"Sharding model with tensor parallelism size {self.config.tensor_parallelism_size}"
+        )
+
+        # Determine output paths
+        base_name = weights_path.stem
+        output_base = self.model_dir / f"{base_name}.sharded"
+        output_irpa = output_base.with_suffix(".irpa")
+
+        # Run sharding script
+        subprocess.run(
+            [
+                "python",
+                "-m",
+                "sharktank.examples.sharding.shard_llm_dataset",
+                f"--{weights_path.suffix.strip('.')}-file={weights_path}",
+                f"--output-irpa={output_irpa}",
+                f"--tensor-parallelism-size={self.config.tensor_parallelism_size}",
+            ],
+            check=True,
+        )
+
+        # Collect paths to all shards
+        shard_paths = [
+            output_base.with_suffix(f".rank{i}.irpa")
+            for i in range(self.config.tensor_parallelism_size)
+        ]
+
+        logger.info(f"Model successfully sharded into {len(shard_paths)} shards")
+        return output_irpa, shard_paths
+
     def export_model(self, weights_path: Path) -> Tuple[Path, Path]:
         """Exports model to MLIR format."""
         bs_string = ",".join(map(str, self.config.batch_sizes))
@@ -317,6 +357,10 @@ class ModelStageManager:
             f"  Config Path: {config_path}\n"
             f"  Batch Sizes: {bs_string}"
         )
+
+        # For sharded models, we use the unranked irpa file
+        if self.config.tensor_parallelism_size:
+            weights_path = weights_path.with_suffix(".irpa")
 
         subprocess.run(
             [
@@ -347,6 +391,7 @@ class ModelStageManager:
             "-o",
             str(vmfb_path),
         ]
+
         compile_command.extend(self.config.device_settings.compile_flags)
 
         subprocess.run(compile_command, check=True)
@@ -378,6 +423,11 @@ class ModelProcessor:
 
         tokenizer_path = manager.prepare_tokenizer()
 
+        # Stage 1.5: Shard model if tensor parallelism is configured
+        shard_paths = None
+        if config.tensor_parallelism_size:
+            weights_path, shard_paths = manager.shard_model(weights_path)
+
         # Stage 2: Export model (fresh every time)
         mlir_path, config_path = manager.export_model(weights_path)
 
@@ -391,6 +441,7 @@ class ModelProcessor:
             vmfb_path=vmfb_path,
             config_path=config_path,
             model_config=config,
+            shard_paths=shard_paths,
         )
 
 
@@ -452,4 +503,43 @@ TEST_MODELS["tinystories_llama2_25m"] = ModelConfig(
     tokenizer_id="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
     batch_sizes=(1, 4),
     device_settings=None,
+)
+
+# Base function to create TinyStories models with configurable tensor parallelism
+def create_tinystories_model(tp_size=None, batch_sizes=(1, 4)):
+    """Create a TinyStories model config with configurable tensor parallelism."""
+    return ModelConfig(
+        source=ModelSource.HUGGINGFACE_FROM_SAFETENSORS,
+        dataset_name="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
+        model_file="model.irpa",  # This will be the final converted file name
+        tokenizer_id="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
+        batch_sizes=batch_sizes,
+        device_settings=None,
+        tensor_parallelism_size=tp_size,
+    )
+
+
+# Predefined sharded versions of tinystories for common TP sizes
+# These are convenience configurations that can be referenced directly in tests
+TEST_MODELS["tinystories_tp2"] = create_tinystories_model(
+    tp_size=2, batch_sizes=(4,)  # Fixed batch size of 4 for testing
+)
+
+TEST_MODELS["tinystories_tp4"] = create_tinystories_model(
+    tp_size=4, batch_sizes=(4,)  # Fixed batch size of 4 for testing
+)
+
+TEST_MODELS["tinystories_tp8"] = create_tinystories_model(
+    tp_size=8, batch_sizes=(8,)  # Fixed batch size of 8 for testing
+)
+
+# Example of a sharded model configuration
+TEST_MODELS["llama3.1_405b"] = ModelConfig(
+    source=ModelSource.HUGGINGFACE_FROM_GGUF,
+    repo_id="meta-llama/Llama-3.1-405B",  # Note: This is a placeholder, actual repo may differ
+    model_file="llama3.1-405b.f16.gguf",
+    tokenizer_id="meta-llama/Llama-3.1-405B",
+    batch_sizes=(1, 4),
+    device_settings=None,
+    tensor_parallelism_size=8,  # Required for 405B model
 )
