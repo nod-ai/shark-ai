@@ -64,7 +64,9 @@ class GenerateImageProcess(sf.Process):
             else None
         )
 
+
 Item = TypeVar("Item")
+
 
 class ClientGenerateBatchProcess(sf.Process):
     """Process instantiated for handling a batch from a client.

@@ -198,6 +198,7 @@ class ServerRunner:
             process.terminate()
             process.wait()
 
+
 def send_json_file(url="http://0.0.0.0:8000", num_copies=1):
     # Read the JSON file
     data = copy.deepcopy(sample_request)
@@ -225,6 +226,7 @@ def send_json_file(url="http://0.0.0.0:8000", num_copies=1):
         print(f"Error sending the request: {e}")
 
     return imgs, response.status_code
+
 
 def find_free_port():
     """This tries to find a free port to run a server on for the test.
