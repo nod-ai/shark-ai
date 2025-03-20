@@ -61,13 +61,13 @@ class custom_attention(unittest.TestCase):
 
     @parameterized.expand(
         [
-            (torch.float8_e4m3fnuz, False, True),
-            (torch.float8_e4m3fnuz, False, False),
-            (torch.float8_e4m3fnuz, True, True),
-            (torch.float8_e4m3fnuz, True, False),
+            (torch.float8_e4m3fnuz, False, True, 19),
+            (torch.float8_e4m3fnuz, False, False, 2000),
+            (torch.float8_e4m3fnuz, True, True, 8),
+            (torch.float8_e4m3fnuz, True, False, 3),
         ]
     )
-    def test_export_custom_sdpa(self, dtype, static, use_mask):
+    def test_export_custom_sdpa(self, dtype, static, use_mask, SL):
         ops.attention_impls.register_attention_override_by_name(
             "masked_flash_attention"
         )
@@ -78,8 +78,8 @@ class custom_attention(unittest.TestCase):
             cast = True
         H = 4  # Head dim
         N = 3  # Batch Size
-        L = 19  # Target Seq Len
-        S = 19  # Source Seq Len
+        L = SL  # Target Seq Len
+        S = SL  # Source Seq Len
         Eqk = Ev = 64  # embedding dimensions with subscript identifiers
 
         q = torch.rand([N, H, L, Eqk], dtype=dtype)
@@ -123,7 +123,6 @@ class custom_attention(unittest.TestCase):
         )
         output = aot.export(ep)
         output.verify()
-        scaled_dot_product_attention.remove_override("masked_flash_attention")
 
 
 if __name__ == "__main__":

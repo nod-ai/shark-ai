@@ -189,10 +189,14 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         xq = ops.to(xq, dtype=self.attention_dtype)
         keys = ops.to(keys, dtype=self.attention_dtype)
         values = ops.to(values, dtype=self.attention_dtype)
-        # if attention_mask is not None:
-        #    attention_mask = ops.to(attention_mask, dtype=self.attention_dtype)
 
         if self.attention_kernel == "decomposed":
+            if isinstance(xq, PlanarQuantizedTensor):
+                xq = xq.unpack().dequantize()
+            if isinstance(keys, PlanarQuantizedTensor):
+                keys = keys.unpack().dequantize()
+            if isinstance(values, PlanarQuantizedTensor):
+                values = values.unpack().dequantize()
 
             attn_weights = ops.matmul(
                 xq.to(torch.float32), keys.transpose(2, 3).to(torch.float32)
@@ -242,7 +246,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                     keys,
                     values,
                     attention_mask[0, 0, :, :],
-                    self.attention_scale,
+                    torch.tensor(1 / math.sqrt(self.head_dim)),
                 )
             else:
                 attn_output = kernels.flash_attention(xq, keys, values)
