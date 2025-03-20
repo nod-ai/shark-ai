@@ -19,7 +19,7 @@ python -m sharktank.pipelines.flux.export_parameters --dtype $export_dtype --inp
 mkdir -p $destination
 # Copy VMFB files
 # Fallback to t5xxl irpa fetching during server startup
-rm ./flux_dev_t5xxl*.irpa # TODO: Modify T5 to enable initialization from the flux repo
+rm ./exported_parameters_${export_dtype}/flux_dev_t5xxl_${export_dtype}.irpa # TODO: Modify T5 to enable initialization from the flux repo
 # Copy IRPA files from exported_parameters directory
 mv exported_parameters_${export_dtype}/* "$destination/"
 
