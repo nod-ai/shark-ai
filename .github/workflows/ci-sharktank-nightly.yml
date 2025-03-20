@@ -76,6 +76,7 @@ jobs:
             --log-cli-level=info \
             --with-clip-data \
             --with-flux-data \
+            --with-t5-data \
             --iree-hal-target-device=hip \
             --iree-hip-target=gfx942 \
             --iree-device=hip://0 \

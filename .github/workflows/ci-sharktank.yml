@@ -142,11 +142,9 @@ jobs:
             --log-cli-level=info \
             --with-vae-data \
             --with-quark-data \
-            --with-t5-data \
             --iree-hal-target-device=hip \
             --iree-hip-target=gfx942 \
             --iree-device=hip://0 \
-            sharktank/tests/models/t5/t5_test.py \
             sharktank/tests/models/vae/vae_test.py \
             sharktank/tests/models/llama/quark_parity_test.py \
             --durations=0 \

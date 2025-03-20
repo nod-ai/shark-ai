@@ -255,6 +255,11 @@ class T5Config:
         all_kwargs.update(kwargs)
         return T5Config(**all_kwargs)
 
+    def to_hugging_face_config(self) -> T5ConfigHf:
+        kwargs = asdict(self)
+        del kwargs["activation_dtype"]
+        return T5ConfigHf(dropout_rate=0, **kwargs)
+
     @staticmethod
     def from_properties(properties: dict[str, Any]) -> "T5Config":
         kwargs = dict(properties)
