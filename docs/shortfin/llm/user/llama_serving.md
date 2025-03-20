@@ -384,7 +384,8 @@ python -m sharktank.examples.export_paged_llm_v1 \
   --output-mlir /path/to/output/llama3.1-405b.mlir \
   --output-config /path/to/output/llama3.1-405b.config.json \
   --bs-prefill 4 \
-  --bs-decode 4
+  --bs-decode 4 \
+  --use-attention-mask
 ```
 
 ### Compiling to VMFB
