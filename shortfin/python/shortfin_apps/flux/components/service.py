@@ -13,7 +13,6 @@ from tqdm.auto import tqdm
 from pathlib import Path
 from typing import Callable
 from PIL import Image
-import base64
 
 import shortfin as sf
 import shortfin.array as sfnp
@@ -730,8 +729,6 @@ class InferenceExecutorProcess(sf.Process):
             sfnp.transpose(images_planar, (1, 2, 0), out=permuted)
             permuted = sfnp.multiply(127.5, (sfnp.add(permuted, 1.0)))
             out = sfnp.round(permuted, dtype=sfnp.uint8)
-            image_bytes = bytes(out.map(read=True))
-
-            image = base64.b64encode(image_bytes).decode("utf-8")
-            req.result_image = image
+            processed_image = Image.fromarray(out)
+            req.response_image = processed_image
         return
