@@ -25,7 +25,7 @@ class VaeDecoderModel(ThetaLayer):
         hp = HParams.from_dict(ds.properties["hparams"])
         return cls(hp, ds.root_theta)
 
-    def __init__(self, hp, theta: Theta):
+    def __init__(self, hp: HParams, theta: Theta):
         super().__init__(theta)
         self.hp = hp
 
@@ -58,6 +58,11 @@ class VaeDecoderModel(ThetaLayer):
         self.conv_act = nn.SiLU()
         self.conv_out = Conv2DLayer(theta("decoder")("conv_out"), padding=(1, 1))
 
+        self.sample_size = hp.sample_size
+        if isinstance(self.sample_size, int):
+            # (height, width)
+            self.sample_size = (self.sample_size, self.sample_size)
+
     def forward(
         self, sample: torch.Tensor, latent_embeds: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
@@ -78,8 +83,8 @@ class VaeDecoderModel(ThetaLayer):
             sample = rearrange(
                 sample,
                 "b (h w) (c ph pw) -> b c (h ph) (w pw)",
-                h=math.ceil(1024 / 16),
-                w=math.ceil(1024 / 16),
+                h=math.ceil(self.sample_size[0] / 16),
+                w=math.ceil(self.sample_size[1] / 16),
                 ph=2,
                 pw=2,
             )
@@ -111,6 +116,10 @@ class VaeDecoderModel(ThetaLayer):
         else:
             sample = (sample / 2 + 0.5).clamp(0, 1)
         return sample
+
+    @property
+    def dtype(self) -> torch.dtype:
+        return self.conv_out.weight.dtype
 
     def _create_mid_block(self, mid_block_theta: Theta) -> nn.Module:
         hp = self.hp

@@ -54,7 +54,7 @@ def get_vmfb_filenames(
 
 def get_params_filenames(model_params: ModelParams, model=None, splat: bool = False):
     params_filenames = []
-    base = "flux_dev" if not model_params.is_schnell else model_params.base_model_name
+    base = "flux"
     modnames = ["clip", "sampler", "t5xxl", "vae"]
     mod_precs = [
         dtype_to_filetag[model_params.clip_dtype],
@@ -69,14 +69,20 @@ def get_params_filenames(model_params: ModelParams, model=None, splat: bool = Fa
             )
     else:
         for idx, mod in enumerate(modnames):
-            params_filenames.extend([base + "_" + mod + "_" + mod_precs[idx] + ".irpa"])
+            # schnell and dev weights are the same, except for sampler
+            subtype = (
+                "schnell" if model_params.is_schnell and mod == "sampler" else "dev"
+            )
+            params_filenames.extend(
+                [base + "_" + subtype + "_" + mod + "_" + mod_precs[idx] + ".irpa"]
+            )
 
     return filter_by_model(params_filenames, model)
 
 
 def get_file_stems(model_params: ModelParams):
     file_stems = []
-    base = ["flux_dev" if not model_params.is_schnell else model_params.base_model_name]
+    base = "flux_"
     mod_names = {
         "clip": "clip",
         "t5xxl": "t5xxl",
@@ -84,8 +90,10 @@ def get_file_stems(model_params: ModelParams):
         "vae": "vae",
     }
     for mod, modname in mod_names.items():
+        # schnell and dev weights are the same, except for sampler
+        subtype = "schnell" if model_params.is_schnell and mod == "sampler" else "dev"
         ord_params = [
-            base,
+            [base + subtype],
             [modname],
         ]
         bsizes = []

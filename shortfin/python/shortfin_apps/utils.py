@@ -410,8 +410,8 @@ class GenerateService:
         return sf.Program(
             modules=modules,
             devices=devices,
-            isolation=isolation,
             trace_execution=trace_execution,
+            isolation=isolation,
         )
 
     def create_worker(self, device: sf.Device, index: int) -> sf.Worker:

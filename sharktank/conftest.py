@@ -213,6 +213,7 @@ def pytest_addoption(parser):
         "--iree-device",
         type=str,
         action="store",
+        default="local-task",
         help="List an IREE device from 'iree-run-module --list_devices'",
     )
     parser.addoption(
@@ -223,6 +224,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--iree-hal-target-device",
         action="store",
+        default="local",
         help="Specify the iree-hal target device (e.g., hip)",
     )
     parser.addoption(
