@@ -111,6 +111,11 @@ def main():
         For shortfin, we only write attention_head_count_kv because that's all shortfin needs.
         Note that this is different from hp.attn_head_count when grouped attention shares kvcache between heads.
         """
+        attn_dtype = (
+            "bfloat16"
+            if llama_config.kv_cache_dtype is None
+            else str(llama_config.kv_cache_dtype)
+        )
         return {
             "module_name": "module",
             "module_abi_version": 1,
@@ -119,9 +124,7 @@ def main():
             "prefill_batch_sizes": prefill_bs,
             "decode_batch_sizes": decode_bs,
             "transformer_block_count": hp.block_count,
-            "attn_dtype": str(llama_config.kv_cache_dtype).split(".")[
-                -1
-            ],  # convert torch.bfloat16 dtype into "bfloat16"
+            "attn_dtype": attn_dtype,
             "paged_kv_cache": {
                 "attention_head_count_kv": hp.attention_head_count_kv,
                 "block_seq_stride": llama_config.block_seq_stride,
