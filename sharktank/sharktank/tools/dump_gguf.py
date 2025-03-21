@@ -14,12 +14,13 @@ import torch
 from ..layers import *
 from ..types import *
 
+logger = logging.getLogger(__name__)
+
 
 def main():
     from ..utils import cli
 
     # Set up logging
-    logger = logging.getLogger(__name__)
 
     parser = cli.create_parser()
     cli.add_input_dataset_options(parser)
@@ -39,9 +40,9 @@ def main():
 
     # Configure logging based on verbosity
     if args.verbose:
-        logging.basicConfig(level=logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
     else:
-        logging.basicConfig(level=logging.INFO)
+        logger.setLevel(logging.INFO)
 
     config = cli.get_input_dataset(args)
 
@@ -82,10 +83,10 @@ def main():
             for i, pt in enumerate(tensor.shards):
                 logger.debug(f"    {i}: {pt}")
 
-        _maybe_dump_tensor(args, tensor, logger)
+        _maybe_dump_tensor(args, tensor)
 
 
-def _maybe_dump_tensor(args, t: InferenceTensor, logger: logging.Logger):
+def _maybe_dump_tensor(args, t: InferenceTensor):
     if not args.dump_tensor_dir:
         return
     dir: Path = args.dump_tensor_dir
