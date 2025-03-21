@@ -17,7 +17,7 @@ this_dir = os.path.dirname(os.path.abspath(__file__))
 parent = os.path.dirname(this_dir)
 default_config_json = os.path.join(parent, "examples", "flux_dev_config_mixed.json")
 
-ARTIFACT_VERSION = "02102025"
+ARTIFACT_VERSION = "20250321"
 FLUX_BUCKET = (
     f"https://sharkpublic.blob.core.windows.net/sharkpublic/flux.1/{ARTIFACT_VERSION}/"
 )
@@ -100,7 +100,7 @@ def get_file_stems(model_params: ModelParams):
         for bs in getattr(model_params, f"{mod}_batch_sizes", [1]):
             bsizes.extend([f"bs{bs}"])
         ord_params.extend([bsizes])
-        if mod in ["sampler"]:
+        if mod in ["sampler", "t5xxl"]:
             ord_params.extend([[str(model_params.t5xxl_max_seq_len)]])
         elif mod == "clip":
             ord_params.extend([[str(model_params.clip_max_seq_len)]])
@@ -181,7 +181,10 @@ def flux(
     params_urls = get_url_map(params_filenames, FLUX_WEIGHTS_BUCKET)
     for f, url in params_urls.items():
         if needs_file_url(f, ctx, url):
-            fetch_http_check_size(name=f, url=url)
+            raise RuntimeError(
+                "Model parameters auto-downloading is disable."
+                " To obtain the weights please follow https://github.com/nod-ai/shark-ai/tree/main/shortfin/python/shortfin_apps/flux#prepare-artifacts"
+            )
     filenames = [*vmfb_filenames, *params_filenames, *mlir_filenames]
     return filenames
 

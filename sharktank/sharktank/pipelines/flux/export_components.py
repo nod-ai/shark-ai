@@ -50,7 +50,7 @@ class ModelSpec:
 
 
 fluxconfigs = {
-    "flux-dev": ModelSpec(
+    "flux_dev": ModelSpec(
         ae_path=None,  # os.getenv("AE"),
         ae_params=AutoEncoderParams(
             resolution=256,
@@ -66,7 +66,7 @@ fluxconfigs = {
             width=1024,
         ),
     ),
-    "flux-schnell": ModelSpec(
+    "flux_schnell": ModelSpec(
         ae_path=None,  # os.getenv("AE"),
         ae_params=AutoEncoderParams(
             resolution=256,
@@ -84,14 +84,6 @@ fluxconfigs = {
     ),
 }
 
-model_repo_map = {
-    "flux-dev": "black-forest-labs/FLUX.1-dev",
-    "flux-schnell": "black-forest-labs/FLUX.1-schnell",
-}
-model_file_map = {
-    "flux-dev": "https://huggingface.co/black-forest-labs/FLUX.1-dev/blob/main/flux1-dev.safetensors",
-    "flux-schnell": "https://huggingface.co/black-forest-labs/FLUX.1-schnell/blob/main/flux1-schnell.safetensors",
-}
 
 torch_dtypes = {
     "fp16": torch.float16,
@@ -253,12 +245,12 @@ def get_te_model_and_inputs(
                 512,
                 weight_file,
             )
-            clip_ids_shape = (
+            t5xxl_ids_shape = (
                 batch_size,
                 512,
             )
             input_args = [
-                torch.ones(clip_ids_shape, dtype=torch.int64),
+                torch.ones(t5xxl_ids_shape, dtype=torch.int64),
             ]
             return te, input_args
 
@@ -392,7 +384,8 @@ def export_flux_model(
     ):
         if component == "mmdit":
             model, sample_inputs = get_flux_model_and_inputs(
-                weights_path / f"transformer.{external_weights}",
+                weights_path
+                / f"{hf_model_name}_sampler_{precision}.{external_weights}",
                 precision,
                 batch_size,
                 max_length,
@@ -423,7 +416,7 @@ def export_flux_model(
             model, sample_inputs = get_te_model_and_inputs(
                 hf_model_name,
                 component,
-                weights_path / f"clip.{external_weights}",
+                weights_path / f"{hf_model_name}_clip_{precision}.{external_weights}",
                 batch_size,
                 max_length,
             )
@@ -449,7 +442,7 @@ def export_flux_model(
             model, sample_inputs = get_te_model_and_inputs(
                 hf_model_name,
                 component,
-                weights_path / f"t5.{external_weights}",
+                weights_path / f"{hf_model_name}_t5xxl_{precision}.{external_weights}",
                 batch_size,
                 max_length,
             )
@@ -474,7 +467,7 @@ def export_flux_model(
         elif component == "vae":
             model, encode_inputs, decode_inputs = get_ae_model_and_inputs(
                 hf_model_name,
-                weights_path / f"vae.{external_weights}",
+                weights_path / f"{hf_model_name}_vae_{precision}.{external_weights}",
                 precision,
                 batch_size,
                 height,
@@ -531,7 +524,7 @@ def get_filename(args):
         case "mmdit":
             return create_safe_name(
                 args.model,
-                f"mmdit_bs{args.batch_size}_{args.max_length}_{args.height}x{args.width}_{args.precision}",
+                f"sampler_bs{args.batch_size}_{args.max_length}_{args.height}x{args.width}_{args.precision}",
             )
         case "clip":
             return create_safe_name(
@@ -539,7 +532,7 @@ def get_filename(args):
             )
         case "t5xxl":
             return create_safe_name(
-                args.model, f"t5xxl_bs{args.batch_size}_256_{args.precision}"
+                args.model, f"t5xxl_bs{args.batch_size}_512_{args.precision}"
             )
         case "scheduler":
             return create_safe_name(
@@ -561,8 +554,8 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument(
         "--model",
-        default="flux-schnell",
-        choices=["flux-dev", "flux-schnell", "flux-pro"],
+        default="flux_schnell",
+        choices=["flux_dev", "flux_schnell", "flux_pro"],
     )
     p.add_argument(
         "--component",
@@ -574,7 +567,7 @@ if __name__ == "__main__":
     p.add_argument("--width", default=1024)
     p.add_argument("--precision", default="fp32")
     p.add_argument("--max_length", default=512)
-    p.add_argument("--weights_directory", default="/data/flux/flux/FLUX.1-dev/")
+    p.add_argument("--weights_directory", default="/data/flux/FLUX.1-dev/")
     p.add_argument("--external_weights", default="irpa")
     p.add_argument("--external_weights_file", default=None)
     p.add_argument("--decomp_attn", action="store_true")
