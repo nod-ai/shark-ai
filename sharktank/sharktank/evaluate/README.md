@@ -66,7 +66,7 @@ python -m sharktank.evaluate.perplexity_iree \
 
 To run on CPU, replace the above --iree-* flags with:
 ```bash
-  --iree-device='local-task' --iree-hal-target-device=llvm-cpu
+  --iree-device='local-task' --iree-hal-target-device=local --iree-hal-local-target-backends=llvm-cpu
 ```
 
 For additional options:

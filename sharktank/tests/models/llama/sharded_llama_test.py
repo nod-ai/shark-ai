@@ -309,8 +309,9 @@ class ShardedLlamaTest(unittest.TestCase):
             if dump_enabled:
                 output.save_mlir(f"{path_prefix}program.mlir")
             output.session.set_flags(
+                "--iree-hal-local-target-backends=llvm-cpu",
                 *[
-                    f"--iree-hal-target-device=llvm-cpu[{i}]"
+                    f"--iree-hal-target-device=local[{i}]"
                     for i in range(self.sharded_config.tensor_parallelism_size)
                 ]
             )
