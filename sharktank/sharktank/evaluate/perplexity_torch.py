@@ -10,6 +10,7 @@ import time
 import json
 import numpy as np
 from tqdm import tqdm
+import gc
 
 import torch
 from torch.nn import CrossEntropyLoss
@@ -285,6 +286,8 @@ def run_perplexity_torch(
             )
         )
 
+        gc.collect()
+
     end = time.time()
     total_time = round(end - start, 2)
     if total_time < 60:
@@ -374,6 +377,7 @@ def main(argv):
 
     logger.info(f"\n{json.dumps(ppl, indent=2)}")
 
+    gc.collect()
     return ppl
 
 
