@@ -20,6 +20,7 @@ from shortfin.interop.fastapi import FastAPIResponder
 from shortfin.support.logging_setup import native_handler
 
 from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 
 from .components.generate import ClientGenerateBatchProcess
 from .components.config_struct import ModelParams

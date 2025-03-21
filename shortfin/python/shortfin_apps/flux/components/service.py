@@ -729,6 +729,9 @@ class InferenceExecutorProcess(sf.Process):
             sfnp.transpose(images_planar, (1, 2, 0), out=permuted)
             permuted = sfnp.multiply(127.5, (sfnp.add(permuted, 1.0)))
             out = sfnp.round(permuted, dtype=sfnp.uint8)
-            processed_image = Image.fromarray(out)
+            out_bytes = bytes(out.map(read=True))
+            processed_image = Image.frombytes(
+                mode="RGB", size=out.shape[:2], data=out_bytes
+            )
             req.response_image = processed_image
         return
