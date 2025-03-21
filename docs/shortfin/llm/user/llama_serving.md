@@ -5,18 +5,18 @@
 The following models are supported for serving:
 
 <!-- TODO(https://github.com/iree-org/iree/issues/19832): Determine lower-bound of tp required for 405b -->
-| Model Name                   | HuggingFace Model                                                                                   | Tensor Parallelism Range | Limitations                                    |
-| ---------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------ | ---------------------------------------------- |
-| **Llama Models**             |                                                                                                     |                          |                                                |
-| `Llama-3.1-8B`               | [meta-llama/Llama-3.1-8B](https://huggingface.co/meta-llama/Llama-3.1-8B)                           | tp1-tp8                  | Lower accuracy compared to `instruct` variant. |
-| `Llama-3.1-8B-Instruct`      | [meta-llama/Llama-3.1-8B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct)         | tp1-tp8                  |                                                |
-| `Llama-3.1-70B`              | [meta-llama/Llama-3.1-70B](https://huggingface.co/meta-llama/Llama-3.1-70B)                         | tp1-tp8                  | Lower accuracy compared to `instruct` variant. |
-| `Llama-3.1-70B-Instruct`     | [meta-llama/Llama-3.1-70B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-70B-Instruct)       | tp1-tp8                  |                                                |
-| `Llama-3.1-405b`             | [meta-llama/Llama-3.1-405B](https://huggingface.co/meta-llama/Llama-3.1-405B)                       | tp8                      | Lower accuracy compared to `instruct` variant. |
-| `Llama-3.1-405b-Instruct`    | [meta-llama/Llama-3.1-405B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-405B-Instruct)     | tp8                      |                                                |
-| **Llama-Like Models**        |                                                                                                     |                          |                                                |
-| `Mistral-Nemo-Base-2407`     | [mistralai/Mistral-Nemo-Base-2407](https://huggingface.co/mistralai/Mistral-Nemo-Base-2407)         | tp1                      | Lower accuracy compared to `instruct` variant. |
-| `Mistral-Nemo-Instruct-2407` | [mistralai/Mistral-Nemo-Instruct-2407](https://huggingface.co/mistralai/Mistral-Nemo-Instruct-2407) | tp1                      |                                                |
+| Model Name                   | HuggingFace Model                                                                                   | Tensor Parallelism Range |
+| ---------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------ |
+| **Llama Models**             |                                                                                                     |                          |
+| `Llama-3.1-8B`               | [meta-llama/Llama-3.1-8B](https://huggingface.co/meta-llama/Llama-3.1-8B)                           | tp1-tp8                  |
+| `Llama-3.1-8B-Instruct`      | [meta-llama/Llama-3.1-8B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct)         | tp1-tp8                  |
+| `Llama-3.1-70B`              | [meta-llama/Llama-3.1-70B](https://huggingface.co/meta-llama/Llama-3.1-70B)                         | tp1-tp8                  |
+| `Llama-3.1-70B-Instruct`     | [meta-llama/Llama-3.1-70B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-70B-Instruct)       | tp1-tp8                  |
+| `Llama-3.1-405b`             | [meta-llama/Llama-3.1-405B](https://huggingface.co/meta-llama/Llama-3.1-405B)                       | tp8                      |
+| `Llama-3.1-405b-Instruct`    | [meta-llama/Llama-3.1-405B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-405B-Instruct)     | tp8                      |
+| **Llama-Like Models**        |                                                                                                     |                          |
+| `Mistral-Nemo-Base-2407`     | [mistralai/Mistral-Nemo-Base-2407](https://huggingface.co/mistralai/Mistral-Nemo-Base-2407)         | tp1                      |
+| `Mistral-Nemo-Instruct-2407` | [mistralai/Mistral-Nemo-Instruct-2407](https://huggingface.co/mistralai/Mistral-Nemo-Instruct-2407) | tp1                      |
 
 ## Introduction
 
