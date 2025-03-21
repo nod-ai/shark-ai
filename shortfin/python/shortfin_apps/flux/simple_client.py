@@ -29,7 +29,7 @@ sample_request = {
     "neg_prompt": ["Watermark, blurry, oversaturated, low resolution, pollution"],
     "height": [1024],
     "width": [1024],
-    "steps": [2],
+    "steps": [20],
     "guidance_scale": [3.5],
     "seed": [0],
     "output_type": ["base64"],
