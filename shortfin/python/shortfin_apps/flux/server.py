@@ -112,6 +112,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 def configure_sys(args) -> FluxSystemManager:
     # Setup system (configure devices, etc).
     model_config, topology_config, flagfile, tuning_spec, args = get_configs(args)
