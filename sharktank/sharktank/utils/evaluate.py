@@ -4,6 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from typing import Optional
 import time
 import random
 import re
@@ -11,10 +12,10 @@ from datetime import timedelta
 from datasets import load_dataset
 
 
-def get_prompts(num_prompts: int) -> list[str]:
+def get_prompts(num_prompts: Optional[int] = None) -> list[str]:
     """Fetches prompts from the wikitext test dataset.
     Args:
-          num_prompts: Number of prompts to fetch from dataset
+          num_prompts: Number of prompts to fetch from dataset, will return all prompts if None
     """
 
     test_prompts = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")["text"]
