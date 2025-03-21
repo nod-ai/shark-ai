@@ -167,7 +167,11 @@ jobs:
       if: matrix.tracing
       working-directory: ${{ env.LIBSHORTFIN_DIR }}
       run: |
-        pytest -s --durations=10 --timeout=30 tests/invocation/mobilenet_tracing_test.py
+        pytest \
+          --durations=0 \
+          --timeout=30 \
+          --log-cli-level=info \
+          tests/invocation/mobilenet_tracing_test.py
 
   # Depends on all other jobs to provide an aggregate job status.
   ci_libshortfin_summary:
