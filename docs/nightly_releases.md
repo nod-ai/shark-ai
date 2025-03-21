@@ -84,23 +84,6 @@ python -c "import shortfin as sf; print('Sanity check passed')"
 deactivate
 ```
 
-## Quickstart - shortfin apps
-
-```bash
-# Set up a virtual environment to isolate packages from other envs.
-python3.11 -m venv 3.11.venv
-source 3.11.venv/bin/activate
-
-# Install 'shortfin' package from nightly releases with the 'apps' requirement.
-pip install shortfin[apps] -f https://github.com/nod-ai/shark-ai/releases/expanded_assets/dev-wheels --pre
-
-# Test the installation.
-python -c "import shortfin as sf; print('Sanity check passed')"
-
-# Deactivate the virtual environment when done.
-deactivate
-```
-
 ## Installing newer versions of dependencies
 
 To install all IREE packages from nightly releases:
