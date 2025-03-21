@@ -18,7 +18,7 @@ from .op_matchers import ROOT_OP_ATTR_NAME
 
 def get_placeholder_spec(context: ir.Context) -> ir.Module:
     spec_text = f"""
-        module attributes {{ transform.with_named_sequence, iree_codegen.tuning_spec_with_default_entrypoint }} {{
+        module attributes {{ transform.with_named_sequence }} {{
             transform.named_sequence
             @__kernel_config(%variant_op: !transform.any_op {{transform.readonly}}) -> !transform.any_op
                 attributes {{ iree_codegen.tuning_spec_entrypoint }} {{
