@@ -7,15 +7,9 @@
 import sys
 import logging
 import time
-import random
-import re
-from datetime import timedelta
 import json
 import numpy as np
 from tqdm import tqdm
-import gc
-
-from datasets import load_dataset
 
 import torch
 from torch.nn import CrossEntropyLoss
@@ -124,9 +118,9 @@ class Perplexity_torch:
     def get_logits(self, page_cache_size):
 
         is_first_token = True
-        start = 0
+        self.start = 0
         self.out_logits = []
-        for i in range(start, self.max_prompt_length - 1):
+        for i in range(self.start, self.max_prompt_length - 1):
             logger.debug(f"Iteration: {i}")
 
             if is_first_token:
@@ -176,7 +170,6 @@ class Perplexity_torch:
                 self.print_token_comparison(i)
 
         self.out_logits = torch.cat(self.out_logits, 1)
-        self.out_logits = torch.nan_to_num(self.out_logits, nan=0.0)
 
         pad_logits_shape = self.token_ids.shape[1] - self.out_logits.shape[1]
 
@@ -214,15 +207,15 @@ class Perplexity_torch:
             pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
         )
 
-        self.page_cache_size = (
-            len(token_ids[0]) // self.config.block_seq_stride
-        ) * self.bs + 1
-
         logger.debug(f" Prompts for Evaluation:")
         for idx, prompt in enumerate(self.test_prompts):
             logger.debug(
                 f" Prompt {idx}: \nTokens: {prompt.encode()}\nToken ids: {token_ids[idx]}\n"
             )
+
+        self.page_cache_size = (
+            len(token_ids[0]) // self.config.block_seq_stride
+        ) * self.bs + 1
 
         self.max_prompt_length = max(seq_lens)
 
@@ -246,29 +239,6 @@ class Perplexity_torch:
         assert self.token_ids.shape == self.out_logits.shape[0:2]
 
         return self.compute_perplexity()
-
-
-def timeit(func):
-    def wrapper(*args, **kwargs):
-        start = time.time()
-        result = func(*args, **kwargs)
-        end = time.time()
-        total_seconds = end - start
-        time_taken = abs(timedelta(seconds=total_seconds))
-        hours, minutes, seconds = re.split(":", str(time_taken))
-
-        if total_seconds < 1:
-            time_taken = f" {round(total_seconds * 1000, 3)} ms"
-        elif total_seconds < 60:
-            time_taken = "{:.2f} secs".format(round(float(total_seconds), 2))
-        else:
-            time_taken = "{:02d} hrs : {:02d} mins : {:.2f} secs".format(
-                int(hours), int(minutes), round(float(seconds), 2)
-            )
-
-        return result
-
-    return wrapper
 
 
 def run_perplexity_torch(
@@ -314,8 +284,6 @@ def run_perplexity_torch(
                 fake_quant,
             )
         )
-
-        gc.collect()
 
     end = time.time()
     total_time = round(end - start, 2)
@@ -406,7 +374,6 @@ def main(argv):
 
     logger.info(f"\n{json.dumps(ppl, indent=2)}")
 
-    gc.collect()
     return ppl
 
 
