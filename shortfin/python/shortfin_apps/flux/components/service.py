@@ -129,20 +129,33 @@ class FluxGenerateService(GenerateService):
         return worker_idx
 
     def start(self):
-        for component in self.inference_modules:
-            component_modules = self.initialize_program_modules(component)
-
+        # Initialize programs.
+        for component in self.inference_modules.keys():
             for worker_idx, worker in enumerate(self.workers):
-                worker_devices = self.fibers[
-                    worker_idx * (self.fibers_per_worker)
-                ].raw_devices
-                logger.info(
-                    f"Loading inference program: {component}, worker index: {worker_idx}, device: {worker_devices}"
-                )
-                self.inference_programs[worker_idx][component] = self.create_program(
-                    modules=component_modules, devices=worker_devices
-                )
+                self.inference_programs[worker_idx][component] = {}
+            for batch_size in self.inference_modules[component]:
+                component_modules = [
+                    sf.ProgramModule.parameter_provider(
+                        self.sysman.ls, *self.inference_parameters.get(component, [])
+                    ),
+                    *self.inference_modules[component][batch_size],
+                ]
 
+                for worker_idx, worker in enumerate(self.workers):
+                    worker_devices = self.fibers[
+                        worker_idx * (self.fibers_per_worker)
+                    ].raw_devices
+                    logger.info(
+                        f"Loading inference program: {component}, batch size {batch_size}, worker index: {worker_idx}, device: {worker_devices}"
+                    )
+                    self.inference_programs[worker_idx][component][
+                        batch_size
+                    ] = self.create_program(
+                        modules=component_modules,
+                        devices=worker_devices,
+                        isolation=self.prog_isolation,
+                        trace_execution=self.trace_execution,
+                    )
         self.initialize_inference_functions()
         self.batcher.launch()
 
@@ -152,21 +165,21 @@ class FluxGenerateService(GenerateService):
             for bs in self.model_params.clip_batch_sizes:
                 self.inference_functions[worker_idx]["clip"][
                     bs
-                ] = self.inference_programs[worker_idx]["clip"][
+                ] = self.inference_programs[worker_idx]["clip"][bs][
                     f"{self.model_params.clip_module_name}.encode_prompts"
                 ]
             # Initialize t5xxl functions
             for bs in self.model_params.t5xxl_batch_sizes:
                 self.inference_functions[worker_idx]["t5xxl"][
                     bs
-                ] = self.inference_programs[worker_idx]["t5xxl"][
+                ] = self.inference_programs[worker_idx]["t5xxl"][bs][
                     f"{self.model_params.t5xxl_module_name}.encode_prompts"
                 ]
             # Initialize denoise functions
             self.inference_functions[worker_idx]["denoise"] = {}
             for bs in self.model_params.sampler_batch_sizes:
                 self.inference_functions[worker_idx]["denoise"][bs] = {
-                    "sampler": self.inference_programs[worker_idx]["sampler"][
+                    "sampler": self.inference_programs[worker_idx]["sampler"][bs][
                         f"{self.model_params.sampler_module_name}.{self.model_params.sampler_fn_name}"
                     ],
                 }
@@ -175,7 +188,7 @@ class FluxGenerateService(GenerateService):
             for bs in self.model_params.vae_batch_sizes:
                 self.inference_functions[worker_idx]["decode"][
                     bs
-                ] = self.inference_programs[worker_idx]["vae"][
+                ] = self.inference_programs[worker_idx]["vae"][bs][
                     f"{self.model_params.vae_module_name}.decode"
                 ]
 

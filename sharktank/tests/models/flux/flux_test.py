@@ -25,7 +25,13 @@ from sharktank.models.flux.testing import (
     make_random_theta,
 )
 from sharktank.models.flux.flux import FluxModelV1, FluxParams
-from sharktank.utils.testing import TempDirTestBase, skip, is_mi300x
+from sharktank.utils.testing import (
+    TempDirTestBase,
+    skip,
+    is_mi300x,
+    is_cpu,
+    is_cpu_condition,
+)
 from sharktank.utils.iree import (
     with_iree_device_context,
     load_iree_module,
@@ -87,6 +93,7 @@ class FluxTest(TempDirTestBase):
         super().setUp()
         torch.manual_seed(12345)
 
+    @pytest.mark.expensive
     def testExportDevRandomSingleLayerBf16(self):
         export_dev_random_single_layer(
             dtype=torch.bfloat16,
@@ -251,7 +258,12 @@ class FluxTest(TempDirTestBase):
             reference_model=reference_model, target_dtype=target_dtype, atol=atol
         )
 
-    @is_mi300x
+    @pytest.mark.xfail(
+        is_cpu_condition,
+        raises=iree.compiler.CompilerToolError,
+        strict=True,
+        reason="The compiler segfaults https://github.com/iree-org/iree/issues/20283",
+    )
     def testCompareToyIreeF32AgainstEagerF64(self):
         """atol is apparently high because the expected output range is large.
         Its absolute maximum is 3915. Observed atol is 0.036."""
@@ -259,7 +271,12 @@ class FluxTest(TempDirTestBase):
             reference_dtype=torch.float64, target_dtype=torch.float32, atol=1e-1
         )
 
-    @is_mi300x
+    @pytest.mark.xfail(
+        is_cpu_condition,
+        raises=iree.compiler.CompilerToolError,
+        strict=True,
+        reason="The compiler segfaults https://github.com/iree-org/iree/issues/20283",
+    )
     def testCompareToyIreeBf16AgainstEagerF64(self):
         """atol is apparently high because the expected output range is large.
         Its absolute maximum is 3915. Observed atol is 260.6.
@@ -270,18 +287,21 @@ class FluxTest(TempDirTestBase):
         )
 
     @with_flux_data
+    @pytest.mark.expensive
     def testCompareDevIreeF32AgainstEagerF32(self):
         self.runTestCompareDevIreeAgainstEager(
             reference_dtype=torch.float32, target_dtype=torch.float32, atol=1e-2
         )
 
     @with_flux_data
+    @pytest.mark.expensive
     def testCompareDevIreeBf16AgainstEagerF32(self):
         self.runTestCompareDevIreeAgainstEager(
             reference_dtype=torch.float32, target_dtype=torch.bfloat16, atol=1
         )
 
     @with_flux_data
+    @pytest.mark.expensive
     def testCompareDevTorchEagerBf16AgainstHuggingFaceF32(self):
         parameters_output_path = self._temp_dir / "parameters.irpa"
         reference_dtype = torch.float32
@@ -310,6 +330,7 @@ class FluxTest(TempDirTestBase):
         )
 
     @with_flux_data
+    @pytest.mark.expensive
     def testCompareDevTorchEagerF32AgainstHuggingFaceF32(self):
         parameters_output_path = self._temp_dir / "parameters.irpa"
         reference_dtype = torch.float32
@@ -345,6 +366,7 @@ class FluxTest(TempDirTestBase):
         )
 
     @with_flux_data
+    @pytest.mark.expensive
     def testExportSchnellTransformerFromHuggingFace(self):
         export_flux_transformer_from_hugging_face(
             "black-forest-labs/FLUX.1-schnell/black-forest-labs-transformer",
@@ -353,6 +375,7 @@ class FluxTest(TempDirTestBase):
         )
 
     @with_flux_data
+    @pytest.mark.expensive
     def testExportDevTransformerFromHuggingFace(self):
         export_flux_transformer_from_hugging_face(
             "black-forest-labs/FLUX.1-dev/black-forest-labs-transformer",
