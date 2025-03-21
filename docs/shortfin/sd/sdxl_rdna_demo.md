@@ -123,10 +123,13 @@ Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
         ```
 
 1. Set environment variable
-
+    
     ```shell
     echo "VITE_TEXT_TO_IMAGE_API_ORIGIN=http://localhost:8000" > .env
     ```
+
+    > [!TIP]
+    > If you are connecting to a server on a virtual machine, you must forward the port from your local machine.
 
 ## Usage
 
