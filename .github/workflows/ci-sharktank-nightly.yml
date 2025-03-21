@@ -207,11 +207,12 @@ jobs:
             sharktank/tests/evaluate/perplexity_torch_test.py \
             -k test_llama3_8B_f16 \
             --run-nightly-llama-tests \
-            --bs=100 --device='cuda:0' \
+            --bs=100 --device='cuda:3' \
             --llama3-8b-f16-model-path=/shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa \
             --llama3-8b-tokenizer-path=/shark-dev/data/llama3.1/weights/8b/fp16/tokenizer_config.json \
             --html=out/llm/llama/perplexity/torch_perplexity/index_f16.html \
             --log-cli-level=INFO
+
           pytest \
             -n 8 \
             -v \
@@ -220,7 +221,7 @@ jobs:
             -k test_llama3_8B_f8 \
             --run-nightly-llama-tests \
             --bs=100 \
-            --device='cuda:0' \
+            --device='cuda:4' \
             --llama3-8b-f8-model-path=/shark-dev/8b/fp8/native_fp8_e4m3fnuz_llama3_8b.irpa \
             --llama3-8b-tokenizer-path=/shark-dev/data/llama3.1/weights/8b/fp16/tokenizer_config.json \
             --html=out/llm/llama/perplexity/torch_perplexity/index_f8.html \
