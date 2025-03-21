@@ -62,7 +62,7 @@ class flash_attention(CustomOp):
 
         # Result 0: Shape batch..., m, n
         ksel.return_new_tensor((*q_bs, q_l, v_e), dtype=torch.float16).specialize_dims(
-            1, 2
+            -1, -2
         )
 
     def generate(self, ksel: KernelSelection, kb: KernelBuilder):
