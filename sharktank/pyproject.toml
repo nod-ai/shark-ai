@@ -41,7 +41,7 @@ testing = {file = ["requirements-tests.txt"]}
 addopts = [
     "-ra",
     "--import-mode=importlib",
-    "-m=unit",
+    "-m=unit and not expensive",
 ]
 markers = [
     "expensive: tests that are very expensive",

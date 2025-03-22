@@ -6,20 +6,35 @@
 
 """Various utilities for deriving stable sample data for the model."""
 
-from pathlib import Path
-
+import math
 import torch
+import logging
+
+logger = logging.getLogger(__name__)
 
 
-def get_random_inputs(dtype, device, bs: int = 2, config: str = "sdxl"):
-    height = 1024
-    width = 1024
+def get_random_inputs(
+    *,
+    dtype: torch.dtype,
+    device: torch.device,
+    bs: int = 2,
+    config: str = "sdxl",
+    width: int = 1024,
+    height: int = 1024,
+    latent_channels: int = 16,
+):
     if config == "sdxl":
-        print("sdxl returning inputs")
+        logger.debug("sdxl returning inputs")
+        assert width % 8 == 0 and height % 8 == 0
         return torch.rand(bs, 4, width // 8, height // 8, dtype=dtype).to(device)
     elif config == "flux":
-        print("flux returning inputs")
-        return torch.rand(bs, int(width * height / 256), 64, dtype=dtype).to(device)
+        logger.debug("flux returning inputs")
+        return torch.rand(
+            bs,
+            math.ceil(height / 16) * math.ceil(width / 16),
+            4 * latent_channels,
+            dtype=dtype,
+        ).to(device)
     else:
-        print("config: ", config)
+        logger.debug("config: ", config)
         raise AssertionError(f"{config} config not implmented [sdxl, flux] implemented")

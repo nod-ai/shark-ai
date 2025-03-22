@@ -11,6 +11,7 @@ import torch
 
 from iree.turbine import aot
 
+from ..layers import ThetaLayer
 from ..model import VaeDecoderModel
 from ....utils.patching import SaveModuleResultTensorsPatch
 
@@ -24,7 +25,12 @@ from iree.turbine.dynamo.passes import (
 import numpy as np
 
 
-def export_vae(model, sample_inputs, decomp_attn):
+def export_vae(model: ThetaLayer, sample_inputs, decomp_attn: bool) -> aot.ExportOutput:
+    for t in model.theta.flatten().values():
+        aot.ExternalTensorTrait(external_name=t.name, external_scope="").set(
+            t.as_torch()
+        )
+
     decomp_list = []
     if decomp_attn:
         decomp_list = [

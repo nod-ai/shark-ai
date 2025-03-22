@@ -15,6 +15,7 @@ from iree.turbine.aot import *
 from sharktank.layers import *
 from sharktank.types import *
 from sharktank.utils.math import ceildiv
+from sharktank import ops
 
 # TODO: Should be using a base class with the protocol supported.
 from ..models.llama.llama import LlamaModelConfig, PagedLlamaModelV1
@@ -70,6 +71,10 @@ def main():
     cli.add_quantization_options(parser)
     cli.add_model_options(parser)
     args = cli.parse(parser)
+    if args.attention_kernel == "sharktank":
+        ops.attention_impls.register_attention_override_by_name(
+            "masked_flash_attention"
+        )
     dataset_type = cli.get_input_data_files(args)
     dataset_type = "irpa" if "irpa" in dataset_type else "gguf"
     dataset = cli.get_input_dataset(args)
@@ -79,7 +84,6 @@ def main():
         if "tensor_parallelism_size" in dataset.properties
         else args.tensor_parallelism_size
     )
-
     llama_config = LlamaModelConfig(
         hp,
         tensor_parallelism_size=tensor_parallelism_size,

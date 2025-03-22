@@ -1,0 +1,249 @@
+# Copyright 2025 Advanced Micro Devices, Inc.
+#
+# Licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+import logging
+import math
+import pytest
+from typing import List
+from unittest.mock import patch
+
+import shortfin as sf
+import shortfin.array as sfnp
+
+from shortfin_apps.llm.components.kvcache.base_attention_cache import (
+    BasePagedAttentionCacheAllocation,
+)
+from shortfin_apps.llm.components.messages import (
+    LlmInferenceExecRequest,
+)
+from shortfin_apps.llm.components.token_selection_strategy import (
+    build_token_selector_config,
+    DecodeConfig,
+    MultiGreedyTokenSelectionStrategy,
+    TokenSelectionStrategy,
+)
+
+logger = logging.getLogger(__name__)
+
+
+@pytest.fixture()
+def exec_req_list(exec_req, cache, dummy_pages):
+    exec_req._cache = cache
+    allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache)
+    exec_req.allocation = allocation
+    exec_reqs = [exec_req]
+    num_beams = len(dummy_pages)
+    with patch.object(exec_req._cache, "fork_pages", return_value=allocation):
+        for _ in range(num_beams - 1):
+            exec_reqs.append(LlmInferenceExecRequest.copy_exec_request(exec_req))
+
+    yield exec_reqs
+
+
+@pytest.fixture(scope="function")
+def multi_greedy_token_selection_strategy():
+    yield MultiGreedyTokenSelectionStrategy(
+        None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_multi_greedy_decode_single(
+    cache,
+    device,
+    dummy_pages,
+    exec_req: LlmInferenceExecRequest,
+    multi_greedy_token_selection_strategy,
+):
+    def _batcher_callback(request: LlmInferenceExecRequest):
+        result_logits = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+        data = [float(i) for i in range(math.prod(result_logits.shape))]
+        result_logits.items = data
+        request.result_logits = result_logits
+        request.done.set_success()
+
+    results_array = []
+
+    def _results_callback(tokens: List[List[int]]):
+        results_array.extend(tokens)
+
+    decode_config = DecodeConfig(
+        token_selection_strategy=TokenSelectionStrategy.MULTI_GREEDY,
+        num_beams=2,
+    )
+    config = build_token_selector_config(
+        decode_config,
+        prefill_callback=_batcher_callback,
+        decode_callback=_batcher_callback,
+        results_callback=_results_callback,
+        eos_token_id=-1,
+        max_completion_tokens=1,
+    )
+
+    allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache)
+    exec_req._cache = cache
+    allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache)
+    exec_req.allocation = allocation
+    with patch.object(
+        multi_greedy_token_selection_strategy,
+        "_token_selection_strategy_config",
+        new=config,
+    ):
+        with patch.object(
+            exec_req._cache, "fork_pages", return_value=allocation
+        ) as fork_pages_mock:
+            await multi_greedy_token_selection_strategy.decode(exec_req)
+            logger.info(f"results_array: {results_array}")
+            assert len(results_array) == 2
+            for result in results_array:
+                assert len(result) == 1
+                assert result[0] == 15
+
+            fork_pages_mock.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_multi_greedy_decode_multiple_completions(
+    cache,
+    device,
+    dummy_pages,
+    exec_req: LlmInferenceExecRequest,
+    multi_greedy_token_selection_strategy,
+):
+    results_array = []
+
+    def _results_callback(tokens: List[List[int]]):
+        results_array.extend(tokens)
+
+    count = 0
+
+    def _batcher_callback_multiple_completions(request: LlmInferenceExecRequest):
+        """Mock the batcher function to isolate `TokenSelectionStrategy.prefill`.
+
+        This adds a `device_array` to the `LlmInferenceExecRequest's` result_logits.
+        Then we set the request to done, effectively simulating what would
+        happen under the hood.
+
+        Args:
+            request (LlmInferenceExecRequest): Request that would be submitted to batcher.
+        """
+        nonlocal count
+        result_logits = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+        data = [float(i) for i in range(math.prod(result_logits.shape))]
+
+        # Set max to an explicit index
+        data[count // 2] = 16
+        result_logits.items = data
+        request.result_logits = result_logits
+        request.done.set_success()
+        count += 1
+
+    exec_req.start_position = len(exec_req.input_token_ids) - 1
+    decode_config = DecodeConfig(
+        token_selection_strategy=TokenSelectionStrategy.MULTI_GREEDY,
+        num_beams=2,
+    )
+    config = build_token_selector_config(
+        decode_config,
+        prefill_callback=_batcher_callback_multiple_completions,
+        decode_callback=_batcher_callback_multiple_completions,
+        results_callback=_results_callback,
+        eos_token_id=-1,
+        max_completion_tokens=5,
+    )
+
+    allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache)
+    exec_req._cache = cache
+    allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache)
+    exec_req.allocation = allocation
+    with patch.object(
+        multi_greedy_token_selection_strategy,
+        "_token_selection_strategy_config",
+        new=config,
+    ):
+        with patch.object(
+            exec_req._cache, "fork_pages", return_value=allocation
+        ) as fork_pages_mock:
+            await multi_greedy_token_selection_strategy.decode(exec_req)
+            logger.info(f"results_array: {results_array}")
+            assert len(results_array) == 2
+            for result in results_array:
+                assert len(result) == 5
+                assert result == [0, 1, 2, 3, 4]
+
+            fork_pages_mock.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_multi_greedy_decode_eos_token(
+    cache,
+    device,
+    dummy_pages,
+    exec_req: LlmInferenceExecRequest,
+    multi_greedy_token_selection_strategy,
+):
+    results_array = []
+
+    def _results_callback(tokens: List[int]):
+        results_array.extend(tokens)
+
+    count = 0
+
+    def _batcher_callback_multiple_completions(request: LlmInferenceExecRequest):
+        """Mock the batcher function to isolate `TokenSelectionStrategy.prefill`.
+
+        This adds a `device_array` to the `LlmInferenceExecRequest's` result_logits.
+        Then we set the request to done, effectively simulating what would
+        happen under the hood.
+
+        Args:
+            request (LlmInferenceExecRequest): Request that would be submitted to batcher.
+        """
+        nonlocal count
+        result_logits = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+        data = [float(i) for i in range(math.prod(result_logits.shape))]
+
+        # Set max to an explicit index
+        data[count // 2] = 16
+        result_logits.items = data
+        request.result_logits = result_logits
+        request.done.set_success()
+        count += 1
+
+    exec_req.start_position = len(exec_req.input_token_ids) - 1
+    decode_config = DecodeConfig(
+        token_selection_strategy=TokenSelectionStrategy.MULTI_GREEDY,
+        num_beams=2,
+    )
+    config = build_token_selector_config(
+        decode_config,
+        prefill_callback=_batcher_callback_multiple_completions,
+        decode_callback=_batcher_callback_multiple_completions,
+        results_callback=_results_callback,
+        eos_token_id=-1,
+        max_completion_tokens=5,
+    )
+
+    allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache)
+    exec_req._cache = cache
+    allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache)
+    exec_req.allocation = allocation
+    with patch.object(
+        multi_greedy_token_selection_strategy,
+        "_token_selection_strategy_config",
+        new=config,
+    ):
+        with patch.object(
+            exec_req._cache, "fork_pages", return_value=allocation
+        ) as fork_pages_mock:
+            await multi_greedy_token_selection_strategy.decode(exec_req)
+            logger.info(f"results_array: {results_array}")
+            assert len(results_array) == 2
+            for result in results_array:
+                assert len(result) == 5
+                assert result == [0, 1, 2, 3, 4]
+
+            fork_pages_mock.assert_called_once()

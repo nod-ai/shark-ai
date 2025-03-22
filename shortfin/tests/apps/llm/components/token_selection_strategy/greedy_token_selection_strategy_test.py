@@ -18,6 +18,7 @@ from shortfin_apps.llm.components.token_selection_strategy import (
     build_token_selector_config,
     GreedyTokenSelectionStrategy,
     TokenSelectionStrategy,
+    DecodeConfig,
 )
 
 logger = logging.getLogger(__name__)
@@ -56,8 +57,11 @@ async def test_greedy_decode_single(
         results_array.append(token)
 
     exec_req.start_position = len(exec_req.input_token_ids) - 1
+    decode_config = DecodeConfig(
+        token_selection_strategy=TokenSelectionStrategy.GREEDY,
+    )
     config = build_token_selector_config(
-        TokenSelectionStrategy.GREEDY,
+        decode_config,
         prefill_callback=_batcher_callback,
         decode_callback=_batcher_callback,
         results_callback=_results_callback,
@@ -111,8 +115,11 @@ async def test_greedy_decode_multiple_completions(
         count += 1
 
     exec_req.start_position = len(exec_req.input_token_ids) - 1
+    decode_config = DecodeConfig(
+        token_selection_strategy=TokenSelectionStrategy.GREEDY,
+    )
     config = build_token_selector_config(
-        TokenSelectionStrategy.GREEDY,
+        decode_config,
         prefill_callback=_batcher_callback_multiple_completions,
         decode_callback=_batcher_callback_multiple_completions,
         results_callback=_results_callback,
@@ -166,8 +173,11 @@ async def test_greedy_decode_eos_token(
         count += 1
 
     exec_req.start_position = len(exec_req.input_token_ids) - 1
+    decode_config = DecodeConfig(
+        token_selection_strategy=TokenSelectionStrategy.GREEDY,
+    )
     config = build_token_selector_config(
-        TokenSelectionStrategy.GREEDY,
+        decode_config,
         prefill_callback=_batcher_callback_multiple_completions,
         decode_callback=_batcher_callback_multiple_completions,
         results_callback=_results_callback,

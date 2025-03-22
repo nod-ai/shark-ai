@@ -8,14 +8,12 @@ from typing import Optional
 
 
 import torch
-
 from ..types import QuantizerTensor
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
 from .norm import RMSNormLayer
 from .rotary_embedding import RotaryEmbeddingLayer
 from .paged_attention import PagedAttention
-from .. import ops
 
 __all__ = [
     "PagedLlamaAttentionBlock",
@@ -62,6 +60,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self.attention_scale = attention_scale
         self.softcap = softcap
         self.fake_quant = fake_quant
+        self.cache_quantizer = None
+        self.probs_quantizer = None
 
         self.add_module(
             "attn_norm", RMSNormLayer(theta("attn_norm"), epsilon=rms_epsilon)
@@ -78,10 +78,17 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self.add_module(
             "attn_output", LinearLayer(theta("attn_output"), fake_quant=self.fake_quant)
         )
-        self.cache_quantizer = None
         if "kv_cache" in theta.keys:
             self.cache_quantizer: Optional[QuantizerTensor] = theta.optional_tensor(
                 "kv_cache.quantizer"
+            )
+        if "attn_scale" in theta.keys:
+            self.attention_scale = theta("attn_scale").as_torch()
+            self.probs_quantizer = StaticScaledQuantizer(
+                name="attn_scale.quantizer",
+                scale=1.0 / (self.attention_scale * 2.0),
+                reciprocal_scale=self.attention_scale * 2.0,
+                dtype=torch.float8_e4m3fnuz,
             )
 
         if theta.optional_tensor("attn_output_norm") is None:
@@ -159,6 +166,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 mask=attention_mask,
                 scale=self.attention_scale,
                 softcap=self.softcap,
+                probs_quantizer=self.probs_quantizer,
             )
         else:
             attn_output = self.paged_attention.forward_decode(

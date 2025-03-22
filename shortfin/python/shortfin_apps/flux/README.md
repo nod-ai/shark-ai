@@ -7,6 +7,13 @@ This directory contains a [Flux](https://blackforestlabs.ai/#get-flux) inference
 For [nightly releases](../../../../docs/nightly_releases.md)
 For our [stable release](../../../../docs/user_guide.md)
 
+## Prepare artifacts
+
+The flux model weights are gated. Once you have access, clone the huggingface repository for [FLUX.1-dev](https://huggingface.co/black-forest-labs/FLUX.1-dev) or [FLUX.1-schnell](https://huggingface.co/black-forest-labs/FLUX.1-schnell). Then run the following:
+```
+./sharktank/sharktank/pipelines/flux/export_from_hf.sh /absolute/path/to/flux/folder/ <flux_dev/flux_schnell>
+```
+
 ## Start Flux Server
 The server will prepare runtime artifacts for you.
 
@@ -14,9 +21,13 @@ By default, the port is set to 8000. If you would like to change this, use `--po
 
 You can check if this (or any) port is in use on Linux with `ss -ntl | grep 8000`.
 
-From a source checkout of shortfin:
+The first time you run the server, you may need to wait for artifacts to download.
+
+From a source checkout of shortfin, you must run from the `/shortfin/python/` directory:
 ```
-python -m shortfin_apps.flux.server --model_config=./python/shortfin_apps/flux/examples/flux_dev_config_mixed.json --device=amdgpu --fibers_per_device=1 --workers_per_device=1 --isolation="per_fiber" --flagfile=./python/shortfin_apps/flux/examples/flux_flags_gfx942.txt --build_preference=precompiled
+python -m shortfin_apps.flux.server --model_config=./python/shortfin_apps/flux/examples/flux_dev_config_mixed.json --device=amdgpu --fibers_per_device=1 --workers_per_device=1 --isolation="per_fiber" --build_preference=precompiled
+# For schnell, run:
+# python -m shortfin_apps.flux.server --model_config=./python/shortfin_apps/flux/examples/flux_schnell_config_mixed.json --device=amdgpu --fibers_per_device=1 --workers_per_device=1 --isolation="per_fiber" --build_preference=precompiled
 ```
  - Wait until your server outputs:
 ```
@@ -29,3 +40,9 @@ INFO - Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
 ```
 python -m shortfin_apps.flux.simple_client --interactive
 ```
+
+Enter your prompts. The generated images will be stored at `./gen_imgs/`!
+
+### Update flags
+
+Please see --help for both the server and client for usage instructions.

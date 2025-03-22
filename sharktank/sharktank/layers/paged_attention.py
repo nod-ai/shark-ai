@@ -19,8 +19,15 @@ import math
 import torch
 
 from ..utils.debugging import trace_tensor
-from ..types import SplitPrimitiveTensor, ReplicatedTensor, QuantizerTensor
+from ..types import (
+    SplitPrimitiveTensor,
+    ReplicatedTensor,
+    QuantizerTensor,
+    PlanarQuantizedTensor,
+    StaticScaledQuantizer,
+)
 from .. import ops
+from .. import kernels
 
 __all__ = ["PagedAttention"]
 
@@ -336,6 +343,7 @@ class PagedAttention:
         softcap: Optional[float] = None,
         scale: Optional[torch.Tensor] = None,
         mask: Optional[torch.Tensor] = None,
+        probs_quantizer: Optional[StaticScaledQuantizer] = None,
     ):
         gqa_n_rep = head_count_attn // self.head_count_kv
         assert gqa_n_rep > 0
@@ -365,27 +373,19 @@ class PagedAttention:
         if mask is not None:
             mask = ops.to(mask, dtype=self.dtype)
 
-        # Non-decomposed
-        if attention_kernel != "decomposed":
-            if softcap is not None:
-                raise ValueError("softcap not supported yet")
-
-            return ops.scaled_dot_product_attention(
-                q=q,  # [bs, ..., sl, dim]
-                k=k,  # [bs, ..., sl, dim]
-                v=v,  # [bs, ..., sl, dim]
-                a=mask,  # [bs, ..., sl, sl]
-                is_causal=mask is None,  # assumes causal masking when true
-                scale=None,  # defaults to 1/sqrt(dim)
-            )
-
         # Decomposed
         if attention_kernel == "decomposed":
-            attn_weights = ops.matmul(q, k.transpose(2, 3))
-            if scale is None:
-                attn_weights = attn_weights / math.sqrt(self.attn_head_dim)
-            else:
-                attn_weights = attn_weights * scale
+            if isinstance(q, PlanarQuantizedTensor):
+                q = q.unpack().dequantize()
+            if isinstance(k, PlanarQuantizedTensor):
+                k = k.unpack().dequantize()
+            if isinstance(v, PlanarQuantizedTensor):
+                v = v.unpack().dequantize()
+
+            attn_weights = ops.matmul(
+                q.to(torch.float32), k.transpose(2, 3).to(torch.float32)
+            )
+            attn_weights = attn_weights / math.sqrt(self.attn_head_dim)
 
             # Flash attention.
             if softcap is not None:
@@ -404,8 +404,39 @@ class PagedAttention:
             attn_weights = ops.softmax(
                 ops.to(attn_weights, dtype=torch.float32), dim=-1
             )
+            if probs_quantizer is not None:
+                if fake_quant:
+                    attn_weights = (
+                        probs_quantizer.quantize(attn_weights).unpack().dequant()
+                    )
+                else:
+                    attn_weights = probs_quantizer.quantize(attn_weights).unpack().qs
             attn_weights = ops.to(attn_weights, dtype=q.dtype)
             return ops.matmul(attn_weights, v)  # (bs, heads, slen, head_dim)
+        elif attention_kernel == "sharktank":
+            if mask is not None:
+                attn_output = kernels.masked_flash_attention(
+                    q,
+                    k,
+                    v,
+                    mask[0, 0, :, :],
+                    torch.tensor(1 / math.sqrt(self.attn_head_dim)),
+                )
+            else:
+                attn_output = kernels.flash_attention(q, k, v)
+        else:
+            # Non-decomposed
+            if softcap is not None:
+                raise ValueError("softcap not supported yet")
+
+            return ops.scaled_dot_product_attention(
+                q=q,  # [bs, ..., sl, dim]
+                k=k,  # [bs, ..., sl, dim]
+                v=v,  # [bs, ..., sl, dim]
+                a=mask,  # [bs, ..., sl, sl]
+                is_causal=mask is None,  # assumes causal masking when true
+                scale=None,  # defaults to 1/sqrt(dim)
+            )
 
     def forward_decode(
         self,
@@ -475,6 +506,7 @@ class PagedAttention:
         softcap: Optional[float] = None,
         scale: Optional[float] = None,
         mask: Optional[torch.Tensor] = None,
+        probs_quantizer: Optional[StaticScaledQuantizer] = None,
     ):
         self.write(
             cache_state,
@@ -494,4 +526,5 @@ class PagedAttention:
             softcap=softcap,
             scale=scale,
             mask=mask,
+            probs_quantizer=probs_quantizer,
         )

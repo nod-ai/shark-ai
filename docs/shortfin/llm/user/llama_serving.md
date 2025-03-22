@@ -5,20 +5,25 @@
 The following models are supported for serving:
 
 <!-- TODO(https://github.com/iree-org/iree/issues/19832): Determine lower-bound of tp required for 405b -->
-| Model Name                | HuggingFace Model                                                                               | Tensor Parallelism Range |
-| ------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------ |
-| `Llama-3.1-8B`            | [meta-llama/Llama-3.1-8B](https://huggingface.co/meta-llama/Llama-3.1-8B)                       | tp1-tp8                  |
-| `Llama-3.1-8B-Instruct`   | [meta-llama/Llama-3.1-8B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct)     | tp1-tp8                  |
-| `Llama-3.1-70B`           | [meta-llama/Llama-3.1-70B](https://huggingface.co/meta-llama/Llama-3.1-70B)                     | tp1-tp8                  |
-| `Llama-3.1-70B-Instruct`  | [meta-llama/Llama-3.1-70B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-70B-Instruct)   | tp1-tp8                  |
-| `Llama-3.1-405b`          | [meta-llama/Llama-3.1-405B](https://huggingface.co/meta-llama/Llama-3.1-405B)                   | tp8                      |
-| `Llama-3.1-405b-Instruct` | [meta-llama/Llama-3.1-405B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-405B-Instruct) | tp8                      |
+| Model Name                   | HuggingFace Model                                                                                   | Tensor Parallelism Range |
+| ---------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------ |
+| **Llama Models**             |                                                                                                     |                          |
+| `Llama-3.1-8B`               | [meta-llama/Llama-3.1-8B](https://huggingface.co/meta-llama/Llama-3.1-8B)                           | tp1-tp8                  |
+| `Llama-3.1-8B-Instruct`      | [meta-llama/Llama-3.1-8B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct)         | tp1-tp8                  |
+| `Llama-3.1-70B`              | [meta-llama/Llama-3.1-70B](https://huggingface.co/meta-llama/Llama-3.1-70B)                         | tp1-tp8                  |
+| `Llama-3.1-70B-Instruct`     | [meta-llama/Llama-3.1-70B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-70B-Instruct)       | tp1-tp8                  |
+| `Llama-3.1-405b`             | [meta-llama/Llama-3.1-405B](https://huggingface.co/meta-llama/Llama-3.1-405B)                       | tp8                      |
+| `Llama-3.1-405b-Instruct`    | [meta-llama/Llama-3.1-405B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-405B-Instruct)     | tp8                      |
+| **Llama-Like Models**        |                                                                                                     |                          |
+| `Mistral-Nemo-Base-2407`     | [mistralai/Mistral-Nemo-Base-2407](https://huggingface.co/mistralai/Mistral-Nemo-Base-2407)         | tp1                      |
+| `Mistral-Nemo-Instruct-2407` | [mistralai/Mistral-Nemo-Instruct-2407](https://huggingface.co/mistralai/Mistral-Nemo-Instruct-2407) | tp1                      |
 
 ## Introduction
 
 This guide demonstrates how to serve the
-[Llama family](https://www.llama.com/) of Large Language Models (LLMs) using
-shark-ai.
+[Llama family](https://www.llama.com/) of Large Language Models (LLMs), along
+with `Llama-Like` models such as [Mistral 12B](https://huggingface.co/mistralai/Mistral-Nemo-Instruct-2407),
+using shark-ai.
 
 * By the end of this guide you will have a server running locally and you will
   be able to send HTTP requests containing chat prompts and receive chat
@@ -311,11 +316,6 @@ ps -f | grep shortfin
 
 <!-- TODO(#402): Streamline the way that models are sharded/exported/compiled for server. -->
 
-> [!WARNING]
->
-> There is a [known issue](https://github.com/iree-org/iree/issues/19948)
-> impacting the accuracy of outputs from *sharded llama* variants.
-
 Sharding, in the context of LLMs, refers to splitting the model’s parameters
 across multiple machines or GPUs so that each device only handles a portion of
 the overall weight matrix. This technique allows large models to fit into
@@ -455,9 +455,11 @@ A full list of options can be found below:
 | `--tokenizer_json TOKENIZER_JSON`               | Path to a `tokenizer.json` file.                                                                                                                                                                                     |
 | `--tokenizer_config_json TOKENIZER_CONFIG_JSON` | Path to a `tokenizer_config.json` file.                                                                                                                                                                              |
 | `--model_config MODEL_CONFIG`                   | Path to the model config file.                                                                                                                                                                                       |
+| `--server_config SERVER_CONFIG`                 | Path to the server config file.                                                                                                                                                                                      |
 | `--vmfb VMFB`                                   | Model [VMFB](https://iree.dev/developers/general/developer-tips/#inspecting-vmfb-files) to load.                                                                                                                     |
 | `--parameters [FILE ...]`                       | Parameter archives to load (supports: `gguf`, `irpa`, `safetensors`).                                                                                                                                                |
 | `--device {local-task,hip,amdgpu}`              | Device to serve on (e.g., `local-task`, `hip`). Same options as [iree-run-module --list_drivers](https://iree.dev/guides/deployment-configurations/gpu-rocm/#get-the-iree-runtime).                                  |
 | `--device_ids [DEVICE_IDS ...]`                 | Device IDs visible to the system builder. Defaults to None (full visibility). Can be an index or a device ID like `amdgpu:0:0@0`. The number of `device_ids` should be equal to the tensor parallelism of the model. |
 | `--isolation {none,per_fiber,per_call}`         | Concurrency control: How to isolate programs.                                                                                                                                                                        |
 | `--amdgpu_async_allocations`                    | Enable asynchronous allocations for AMD GPU device contexts.                                                                                                                                                         |
+| `--amdgpu_allocators`                           | Allocator to use during `VMFB` invocation.                                                                                                                                                                           |

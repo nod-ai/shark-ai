@@ -26,6 +26,21 @@ from .math import cosine_similarity
 
 is_mi300x = pytest.mark.skipif("config.getoption('iree_hip_target') != 'gfx942'")
 
+is_cpu_condition = (
+    "exec('from sharktank.utils.testing import is_iree_hal_target_device_cpu') or "
+    "is_iree_hal_target_device_cpu(config.getoption('iree_hal_target_device'))"
+)
+is_not_cpu_condition = (
+    "exec('from sharktank.utils.testing import is_iree_hal_target_device_cpu') or "
+    "not is_iree_hal_target_device_cpu(config.getoption('iree_hal_target_device'))"
+)
+is_cpu = pytest.mark.skipif(is_not_cpu_condition)
+
+
+def is_iree_hal_target_device_cpu(v: str, /) -> bool:
+    return v.startswith("local") or v == "llvm-cpu"
+
+
 # Range of torch.rand() is [0,1)
 # Range of torch.rand() * 2 - 1 is [-1, 1), includes negative values
 def make_rand_torch(shape: list[int], dtype: Optional[torch.dtype] = torch.float32):

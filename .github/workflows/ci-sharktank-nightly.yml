@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-name: CI - sharktank perplexity
+name: CI - sharktank nightly
 
 on:
   workflow_dispatch:
@@ -21,6 +21,70 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  nightly-mi300x:
+    if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
+    name: "Nightly tests MI300X"
+    strategy:
+      matrix:
+        python-version: [3.11]
+        runs-on: [linux-mi300-1gpu-ossci]
+      fail-fast: false
+    runs-on: ${{matrix.runs-on}}
+    defaults:
+      run:
+        shell: bash
+    env:
+      VENV_DIR: ${{ github.workspace }}/.venv
+      HF_HOME: "/shark-cache/data/huggingface"
+      HF_TOKEN: ${{ secrets.HF_FLUX_TOKEN }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: "Setting up Python"
+        id: setup_python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: ${{matrix.python-version}}
+
+      - name: Create Python venv
+        run: python -m venv ${VENV_DIR}
+
+      - name: Install sharktank deps
+        run: |
+          source ${VENV_DIR}/bin/activate
+          python -m pip install --no-compile --upgrade pip
+
+          # Note: We install in three steps in order to satisfy requirements
+          # from non default locations first.
+          pip install --no-compile -r pytorch-cpu-requirements.txt
+          pip install -r requirements-iree-unpinned.txt
+          pip install --no-compile \
+            -r sharktank/requirements-tests.txt \
+            -e sharktank/
+
+          pip freeze
+
+      - name: Run tests
+      # TODO: unify with-*-data flags into a single flag and make it possible to run
+      # only tests that require data.
+      # We would still want the separate flags as we may endup with data being
+      # scattered on different CI machines.
+        run: |
+          source ${VENV_DIR}/bin/activate
+          pytest \
+            -v \
+            --log-cli-level=info \
+            --with-clip-data \
+            --with-flux-data \
+            --iree-hal-target-device=hip \
+            --iree-hip-target=gfx942 \
+            --iree-device=hip://0 \
+            sharktank/tests \
+            --durations=0 \
+            -m "expensive" \
+            --timeout=800
+
+
   test_perplexity_iree:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
     timeout-minutes: 1000

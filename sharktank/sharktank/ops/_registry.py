@@ -218,6 +218,7 @@ class SignatureDispatcher:
         def decorator(f):
             if f.__name__ == "_":
                 f.__name__ = f"{self.__name__}__override"
+            print(f.__name__)
             self._overrides.append(
                 _TargetOverride(
                     salience=salience,
@@ -250,6 +251,15 @@ class SignatureDispatcher:
             f"have an implementation for argument types: "
             f"{spec}"
         )
+
+    def get_override_names(self):
+        return [o.target.__name__ for o in self._overrides]
+
+    def remove_override(self, override_name: str):
+        self._overrides = [
+            o for o in self._overrides if o.target.__name__ != override_name
+        ]
+        self._target_cache.clear()
 
     def trampoline(self, trampoline: Callable):
         assert self._trampoline is None

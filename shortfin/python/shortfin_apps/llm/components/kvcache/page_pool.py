@@ -6,12 +6,20 @@ import shortfin as sf
 import shortfin.array as sfnp
 from dataclasses import dataclass
 
-from ..config_struct import human_size
 import math
 
 import time
 
 logger = logging.getLogger(__name__)
+
+
+# From: https://stackoverflow.com/questions/1094841/get-human-readable-version-of-file-size
+def human_size(num, suffix="B"):
+    for unit in ("", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"):
+        if abs(num) < 1024.0:
+            return f"{num:3.1f}{unit}{suffix}"
+        num /= 1024.0
+    return f"{num:.1f}Yi{suffix}"
 
 
 @dataclass
@@ -137,8 +145,10 @@ class PagePool:
         for page_table in self.page_tables:
             # View of source and destination pages
             src_view = page_table.view(src_page.index)
-            with page_table.view(dst_page.index).map(discard=True) as m:
-                m.items = src_view.items
+            dst_view = page_table.view(dst_page.index)
+
+            # Copy the data
+            dst_view.copy_from(src_view)
 
         return dst_page
 

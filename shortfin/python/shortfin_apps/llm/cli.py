@@ -33,7 +33,7 @@ def add_input_args(parser):
     group.add_argument("--prompt-file")
 
 
-def add_service_args(parser):
+def add_service_args(parser: argparse.ArgumentParser):
     get_system_args(parser)
 
     parser.add_argument(
@@ -84,6 +84,19 @@ def add_service_args(parser):
         type=str,
         choices=["none", "trie"],
         help="Algorithm to use for prefix sharing in KV cache",
+    )
+    parser.add_argument(
+        "--num_beams",
+        type=int,
+        default=1,
+        help="The number of beams to use during decode sequence. Defaults to `1`.",
+    )
+    parser.add_argument(
+        "--token_selection_strategy",
+        type=str,
+        choices=["greedy", "multi_greedy"],
+        default="greedy",
+        help="Strategy to use when selecting tokens during generation. Defaults to `greedy`.",
     )
     parser.add_argument(
         "--decode_steps",
