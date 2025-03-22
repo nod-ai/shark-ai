@@ -37,8 +37,11 @@ sample_request = {
 }
 
 
-async def send_request(session: aiohttp.ClientSession, rep, args, data):
+async def send_request(
+    session: aiohttp.ClientSession, rep: int, args: argparse.Namespace, data: dict
+):
     print("Sending request batch #", rep)
+    breakpoint()
     url = f"{args.host}:{args.port}/generate"
     start = time.time()
     async with session.post(url, json=data) as response:
