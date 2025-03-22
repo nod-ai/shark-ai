@@ -19,14 +19,21 @@ import math
 import torch
 
 from ..utils.debugging import trace_tensor
-from ..types import SplitPrimitiveTensor, ReplicatedTensor
+from ..types import (
+    SplitPrimitiveTensor,
+    ReplicatedTensor,
+    QuantizerTensor,
+    PlanarQuantizedTensor,
+    StaticScaledQuantizer,
+)
 from .. import ops
+from .. import kernels
 
-__all__ = ["PagedKVCache"]
+__all__ = ["PagedAttention"]
 
 
-class PagedKVCache:
-    """Implementation of a KV cache on top of a 'page table'.
+class PagedAttention:
+    """Implementation of paged attention
 
     The page table slab is physically represented as a 2D tensor:
         [page_count, flattened_dims]
@@ -62,7 +69,7 @@ class PagedKVCache:
         shard_count: int = 1,
     ):
         self.transformer_block_count = transformer_block_count
-        self.attn_head_count = attn_head_count
+        self.head_count_kv = attn_head_count
         self.attn_head_dim = attn_head_dim
         self.cache_partition_count = cache_partition_count
         self.block_seq_stride = block_seq_stride
@@ -77,7 +84,7 @@ class PagedKVCache:
             self.transformer_block_count,
             self.cache_partition_count,
             self.block_seq_stride,
-            self.attn_head_count // self.shard_count,
+            self.head_count_kv // self.shard_count,
             self.attn_head_dim,
         ]
         self.page_slab_flat_dim = math.prod(self.sub_page_dims)
@@ -117,7 +124,7 @@ class PagedKVCache:
                 self.transformer_block_count,
                 self.cache_partition_count,
                 self.block_seq_stride,
-                self.attn_head_count,
+                self.head_count_kv,
                 self.attn_head_dim,
             ]
         )
@@ -184,7 +191,7 @@ class PagedKVCache:
             block_seq_len,
             self.cache_partition_count,
             self.block_seq_stride,
-            self.attn_head_count // self.shard_count,
+            self.head_count_kv // self.shard_count,
             self.attn_head_dim,
         ]
 
@@ -322,3 +329,202 @@ class PagedKVCache:
                 subblock_table_as_int8.index_copy_(0, subblock_ids, part_block_as_int8)
             else:
                 subblock_table.index_copy_(0, subblock_ids, part_block)
+
+    def attention(
+        self,
+        *,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        head_count_attn: int,
+        attention_kernel: str,
+        cache_quantizer: Optional[QuantizerTensor],
+        fake_quant: Optional[bool],
+        softcap: Optional[float] = None,
+        scale: Optional[torch.Tensor] = None,
+        mask: Optional[torch.Tensor] = None,
+        probs_quantizer: Optional[StaticScaledQuantizer] = None,
+    ):
+        gqa_n_rep = head_count_attn // self.head_count_kv
+        assert gqa_n_rep > 0
+        if gqa_n_rep > 1:
+
+            def repeat_kv(x: torch.Tensor) -> torch.Tensor:
+                bs, slen, n_kv_heads, head_dim = x.shape
+                unsq = x.unsqueeze(-2)
+                exp = ops.expand(unsq, (bs, slen, n_kv_heads, gqa_n_rep, head_dim))
+                return exp.flatten(2, 3)
+
+            k = repeat_kv(k)
+            v = repeat_kv(v)
+
+        # Fake quant is already dequantized when stored in the cache.
+        if cache_quantizer and not fake_quant:
+            k = cache_quantizer.dequantize_raw_tensor(k, self.dtype, name="xk_deq")
+            v = cache_quantizer.dequantize_raw_tensor(v, self.dtype, name="xv_deq")
+
+        q = q.transpose(1, 2)
+        k = k.transpose(1, 2)
+        v = v.transpose(1, 2)
+
+        q = ops.to(q, dtype=self.dtype)
+        k = ops.to(k, dtype=self.dtype)
+        v = ops.to(v, dtype=self.dtype)
+        if mask is not None:
+            mask = ops.to(mask, dtype=self.dtype)
+
+        # Decomposed
+        if attention_kernel == "decomposed":
+            if isinstance(q, PlanarQuantizedTensor):
+                q = q.unpack().dequantize()
+            if isinstance(k, PlanarQuantizedTensor):
+                k = k.unpack().dequantize()
+            if isinstance(v, PlanarQuantizedTensor):
+                v = v.unpack().dequantize()
+
+            attn_weights = ops.matmul(
+                q.to(torch.float32), k.transpose(2, 3).to(torch.float32)
+            )
+            attn_weights = attn_weights / math.sqrt(self.attn_head_dim)
+
+            # Flash attention.
+            if softcap is not None:
+                attn_weights = softcap * torch.tanh(attn_weights / softcap)
+
+            # Apply attention mask.
+            if mask is None:
+                mask = torch.full(
+                    (attn_weights.shape[2], attn_weights.shape[3]), float("-inf")
+                )
+                mask = torch.triu(mask, diagonal=1)[None, None, :, :]
+                attn_weights = attn_weights + mask
+            else:
+                attn_weights = attn_weights + mask
+
+            attn_weights = ops.softmax(
+                ops.to(attn_weights, dtype=torch.float32), dim=-1
+            )
+            if probs_quantizer is not None:
+                if fake_quant:
+                    attn_weights = (
+                        probs_quantizer.quantize(attn_weights).unpack().dequant()
+                    )
+                else:
+                    attn_weights = probs_quantizer.quantize(attn_weights).unpack().qs
+            attn_weights = ops.to(attn_weights, dtype=q.dtype)
+            return ops.matmul(attn_weights, v)  # (bs, heads, slen, head_dim)
+        elif attention_kernel == "sharktank":
+            if mask is not None:
+                attn_output = kernels.masked_flash_attention(
+                    q,
+                    k,
+                    v,
+                    mask[0, 0, :, :],
+                    torch.tensor(1 / math.sqrt(self.attn_head_dim)),
+                )
+            else:
+                attn_output = kernels.flash_attention(q, k, v)
+        else:
+            # Non-decomposed
+            if softcap is not None:
+                raise ValueError("softcap not supported yet")
+
+            return ops.scaled_dot_product_attention(
+                q=q,  # [bs, ..., sl, dim]
+                k=k,  # [bs, ..., sl, dim]
+                v=v,  # [bs, ..., sl, dim]
+                a=mask,  # [bs, ..., sl, sl]
+                is_causal=mask is None,  # assumes causal masking when true
+                scale=None,  # defaults to 1/sqrt(dim)
+            )
+
+    def forward_decode(
+        self,
+        *,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        cache_state: list[torch.Tensor],
+        seq_block_ids: torch.Tensor,
+        kv_seq_len: int,
+        block_index: int,
+        start_positions: torch.Tensor,
+        attention_kernel: str,
+        head_count_attn: int,
+        cache_quantizer: Optional[QuantizerTensor],
+        fake_quant: Optional[bool],
+        softcap: Optional[float] = None,
+        scale: Optional[float] = None,
+        mask: Optional[torch.Tensor] = None,
+    ):
+        # Write our one updated cache row into the cache.
+        self.write_timestep(
+            cache_state,
+            cache_partitions=[
+                k,
+                v,
+            ],
+            transformer_block_index=block_index,
+            seq_positions=start_positions,
+            page_ids=seq_block_ids,
+        )
+
+        # Restore from the cache.
+        k, v = self.read(
+            cache_state,
+            transformer_block_index=block_index,
+            page_ids=seq_block_ids,
+            seq_len=kv_seq_len,
+        )
+
+        return self.attention(
+            q=q,
+            k=k,
+            v=v,
+            head_count_attn=head_count_attn,
+            attention_kernel=attention_kernel,
+            cache_quantizer=cache_quantizer,
+            fake_quant=fake_quant,
+            softcap=softcap,
+            scale=scale,
+            mask=mask,
+        )
+
+    def forward_prefill(
+        self,
+        *,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        cache_state: list[torch.Tensor],
+        seq_block_ids: torch.Tensor,
+        block_index: int,
+        attention_kernel: str,
+        head_count_attn: int,
+        cache_quantizer: Optional[QuantizerTensor],
+        fake_quant: Optional[bool],
+        softcap: Optional[float] = None,
+        scale: Optional[float] = None,
+        mask: Optional[torch.Tensor] = None,
+        probs_quantizer: Optional[StaticScaledQuantizer] = None,
+    ):
+        self.write(
+            cache_state,
+            cache_partitions=[k, v],
+            transformer_block_index=block_index,
+            page_ids=seq_block_ids,
+        )
+
+        return self.attention(
+            q=q,
+            k=k,
+            v=v,
+            head_count_attn=head_count_attn,
+            attention_kernel=attention_kernel,
+            cache_quantizer=cache_quantizer,
+            fake_quant=fake_quant,
+            softcap=softcap,
+            scale=scale,
+            mask=mask,
+            probs_quantizer=probs_quantizer,
+        )

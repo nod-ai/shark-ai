@@ -45,6 +45,9 @@ jobs:
             cmake-options:
               -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18 -DCMAKE_LINKER_TYPE=LLD -DSHORTFIN_ENABLE_TOKENIZERS=ON
             additional-packages: clang lld
+            env:
+              SHORTFIN_ENABLE_TRACING: OFF
+              SHORTFIN_PY_RUNTIME: default
           - name: Ubuntu (Clang)(host-only)
             runs-on: ubuntu-24.04
             # In this configuration, also build static+dynamic in order to verify
@@ -52,26 +55,42 @@ jobs:
             cmake-options:
               -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18 -DCMAKE_LINKER_TYPE=LLD -DSHORTFIN_HAVE_AMDGPU=OFF -DSHORTFIN_BUILD_STATIC=ON -DSHORTFIN_BUILD_DYNAMIC=ON
             additional-packages: clang lld
+            env:
+              SHORTFIN_ENABLE_TRACING: OFF
+              SHORTFIN_PY_RUNTIME: default
           - name: Ubuntu (GCC 13)
             runs-on: ubuntu-24.04
             # Only test with GCC 13 and Python 3.12
             python-version: "3.12"
             cmake-options:
               -DCMAKE_C_COMPILER=gcc-13 -DCMAKE_CXX_COMPILER=g++-13
+            env:
+              SHORTFIN_ENABLE_TRACING: OFF
+              SHORTFIN_PY_RUNTIME: default
           - name: Ubuntu (GCC 14)
             runs-on: ubuntu-24.04
             # Only test with GCC 14 and Python 3.12
             python-version: "3.12"
             cmake-options:
               -DCMAKE_C_COMPILER=gcc-14 -DCMAKE_CXX_COMPILER=g++-14
+            env:
+              SHORTFIN_ENABLE_TRACING: OFF
+              SHORTFIN_PY_RUNTIME: default
           - name: Ubuntu (GCC 14, tracing)
             runs-on: ubuntu-24.04
             # Only test with GCC 14 and Python 3.12
             python-version: "3.12"
             cmake-options:
               -DCMAKE_C_COMPILER=gcc-14 -DCMAKE_CXX_COMPILER=g++-14 -DSHORTFIN_ENABLE_TRACING=ON
+            tracing: true
+            env:
+              SHORTFIN_ENABLE_TRACING: ON
+              SHORTFIN_PY_RUNTIME: tracy
           - name: Windows (MSVC)
             runs-on: windows-2022
+            env:
+              SHORTFIN_ENABLE_TRACING: OFF
+              SHORTFIN_PY_RUNTIME: default
         exclude:
           # TODO: Include additional Python versions for Windows after build got fixed
           - name: Windows (MSVC)
@@ -81,6 +100,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+    - name: Forward matrix environment variables
+      run: |
+        echo "SHORTFIN_ENABLE_TRACING=${{ matrix.env.SHORTFIN_ENABLE_TRACING }}" >> $GITHUB_ENV
+        echo "SHORTFIN_PY_RUNTIME=${{ matrix.env.SHORTFIN_PY_RUNTIME }}" >> $GITHUB_ENV
 
     - name: (Linux) Install dependencies
       if: "runner.os == 'Linux'"
@@ -127,17 +151,27 @@ jobs:
         cmake --build build --target all
 
     - name: pip install shortfin
-      if: ${{ matrix.name != 'Ubuntu (Clang)(host-only)' && !contains(matrix.name, 'tracing') }}
+      if: ${{ matrix.name != 'Ubuntu (Clang)(host-only)' }}
       working-directory: ${{ env.LIBSHORTFIN_DIR }}
       run: |
         pip install -v -e build/
 
     - name: Test shortfin
-      if: ${{ matrix.name != 'Ubuntu (Clang)(host-only)' && !contains(matrix.name, 'tracing') }}
+      if: ${{ matrix.name != 'Ubuntu (Clang)(host-only)' && !matrix.tracing }}
       working-directory: ${{ env.LIBSHORTFIN_DIR }}
       run: |
         ctest --timeout 30 --output-on-failure --test-dir build
         pytest -s --durations=10 --timeout=30
+
+    - name: Test tracing shortfin
+      if: matrix.tracing
+      working-directory: ${{ env.LIBSHORTFIN_DIR }}
+      run: |
+        pytest \
+          --durations=0 \
+          --timeout=30 \
+          --log-cli-level=info \
+          tests/invocation/mobilenet_tracing_test.py
 
   # Depends on all other jobs to provide an aggregate job status.
   ci_libshortfin_summary:

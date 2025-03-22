@@ -38,7 +38,7 @@ def exec_req():
         yield LlmInferenceExecRequest(
             phase=InferencePhase.PREFILL,
             input_token_ids=[0, 1, 2, 3, 4, 5],
-            rid=str(uuid4),
+            rid=str(uuid4()),
         )
 
 

@@ -14,8 +14,8 @@ def lifecycle(app: FastApi):
 ```
 """
 
-
 from .config_struct import ModelParams, ServerParams
+from .token_selection_strategy import DecodeConfig
 from .manager import LlmSystemManager
 from .service import LlmGenerateService
 from .tokenizer import Tokenizer
@@ -53,6 +53,10 @@ class ShortfinLlmLifecycleManager:
             args.server_config if hasattr(args, "server_config") else None
         )
         server_params.update_from_args(args)
+
+        if server_params.decode_config is None:
+            decode_config = DecodeConfig(args.num_beams, args.token_selection_strategy)
+            server_params.decode_config = decode_config
 
         # Setup system (configure devices, etc).
         sysman = LlmSystemManager(

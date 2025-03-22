@@ -4,8 +4,7 @@ This directory contains a [Flux](https://blackforestlabs.ai/#get-flux) inference
 
 ## Install
 
-For [nightly releases](../../../../docs/nightly_releases.md)
-For our [stable release](../../../../docs/user_guide.md)
+To get your environment ready, follow the [developer guide](https://github.com/nod-ai/shark-ai/blob/main/docs/developer_guide.md)
 
 ## Prepare artifacts
 

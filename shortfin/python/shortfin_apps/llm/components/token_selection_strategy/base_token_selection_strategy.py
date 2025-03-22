@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import List, Callable, Union
 
+from dataclasses_json import dataclass_json, Undefined
+
 from ..messages import LlmInferenceExecRequest
 
 import shortfin.array as sfnp
@@ -18,13 +20,46 @@ class TokenSelectionStrategy(Enum):
     """Supported token selection strategies."""
 
     GREEDY = auto()
+    MULTI_GREEDY = auto()
+
+
+def get_strategy_from_str(token_selection_strategy: str) -> TokenSelectionStrategy:
+    name_to_strategy = {
+        strategy.name.lower(): strategy for strategy in TokenSelectionStrategy
+    }
+    strategy = token_selection_strategy.lower()
+    if strategy not in name_to_strategy:
+        raise KeyError(f"Unknown token_selection_strategy: {token_selection_strategy}")
+
+    return name_to_strategy[strategy]
+
+
+def is_ref_counted(token_selection_strategy: TokenSelectionStrategy) -> bool:
+    return token_selection_strategy in {TokenSelectionStrategy.MULTI_GREEDY}
+
+
+@dataclass_json(undefined=Undefined.RAISE)
+@dataclass
+class DecodeConfig:
+
+    # Number of beams to use during generation
+    num_beams: int = 1
+
+    # Strategy for selecting tokens during generation
+    token_selection_strategy: str | TokenSelectionStrategy = "greedy"
+
+    def __post_init__(self):
+        if isinstance(self.token_selection_strategy, str):
+            self.token_selection_strategy = get_strategy_from_str(
+                self.token_selection_strategy
+            )
 
 
 @dataclass
 class TokenSelectionStrategyConfig:
     """Configuration for token selection strategies."""
 
-    token_selection_strategy: TokenSelectionStrategy
+    decode_config: DecodeConfig
     prefill_callback: Callable[[LlmInferenceExecRequest], None]
     decode_callback: Callable[[LlmInferenceExecRequest], None]
     results_callback: Callable[[Union[int, List[int]]], None]
@@ -65,7 +100,10 @@ class BaseTokenSelectionStrategy(ABC):
 
         token = sfnp.argmax(exec_req.result_logits)
         token_int = token.items[0]
-        token_selection_strategy_config.results_callback(token_int)
+        decode_config = token_selection_strategy_config.decode_config
+        # TODO: This is only temporary until streaming is enabled for `MultiGreedy`
+        if decode_config.token_selection_strategy == TokenSelectionStrategy.GREEDY:
+            token_selection_strategy_config.results_callback(token_int)
 
         exec_req.input_token_ids.append(token_int)
         exec_req.start_position = len(exec_req.input_token_ids) - 1

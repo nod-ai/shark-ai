@@ -204,4 +204,4 @@ class BasePagedAttentionCache:
 
         new_pages.append(new_page)
         self.increment_pages(new_pages)
-        return new_pages
+        return BasePagedAttentionCacheAllocation(new_pages, cache=self)

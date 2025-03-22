@@ -9,18 +9,21 @@ import logging
 
 import shortfin as sf
 
-from ...utils import GenerateService
 
+from .batcher import PrefillBatcherProcess, DecodeBatcherProcess
+from .config_struct import ModelParams, ServerParams
 from .kvcache.base_attention_cache import (
     BasePagedAttentionCache,
 )
-from .batcher import PrefillBatcherProcess, DecodeBatcherProcess
 from .kvcache.trie_attention_cache import TriePagedAttentionCache
 from .kvcache.page_pool import PagePoolConfig, PagePool
-from .config_struct import ModelParams, ServerParams
 from .manager import LlmSystemManager
-from .tokenizer import Tokenizer
 from .service_debug_dumper import SERVICE_DEBUG_DUMPER
+from .tokenizer import Tokenizer
+from .token_selection_strategy import get_strategy_from_str, is_ref_counted
+
+from ...utils import GenerateService
+
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +81,9 @@ class LlmGenerateService(GenerateService):
             self.page_cache = BasePagedAttentionCache(
                 page_pool=page_pool,
                 tokens_per_page=self.model_params.paged_kv_cache.block_seq_stride,
+                use_ref_counts=is_ref_counted(
+                    self.server_params.decode_config.token_selection_strategy
+                ),
             )
         else:
             raise ValueError(
@@ -125,6 +131,7 @@ class LlmGenerateService(GenerateService):
         return (
             f"ServiceManager(\n"
             f"  model_params={self.model_params}\n"
+            f"  server_params={self.server_params}\n"
             f"  inference_modules={self.inference_modules}\n"
             f"  page_cache={self.page_cache}\n"
             f")"

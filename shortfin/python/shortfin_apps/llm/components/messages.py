@@ -5,12 +5,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from enum import Enum
+from uuid import uuid4
 
 import shortfin as sf
 import shortfin.array as sfnp
 
 from .kvcache.base_attention_cache import BasePagedAttentionCache, PageAllocation
-from .kvcache.page_pool import PageInfo
 from ...utils import InferenceExecRequest
 
 
@@ -27,8 +27,12 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         self.phase = phase
         self.start_position: int = 0
         self.input_token_ids = input_token_ids
+        self.prompt_length = len(input_token_ids)
         self.done = sf.VoidFuture()
         self.rid = rid
+        # Unique `instance_id` for token selection strategies that may need
+        # to differentiate between an original req and a copy of a req.
+        self.instance_id = str(uuid4())
 
         # Response control.
         # If True, return all sequence position logits. If False, return only
@@ -46,6 +50,24 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         # Cache pages that have been locked for this request.
         self._cache: BasePagedAttentionCache | None = None
         self.allocation: PageAllocation | None = None
+
+    @classmethod
+    def copy_exec_request(
+        cls, exec_req: "LlmInferenceExecRequest"
+    ) -> "LlmInferenceExecRequest":
+        new_exec_req = cls(
+            exec_req.phase,
+            exec_req.input_token_ids.copy(),
+            exec_req.rid,
+        )
+
+        new_exec_req.start_position = exec_req.start_position
+        new_exec_req.prompt_length = exec_req.prompt_length
+        new_exec_req._cache = exec_req._cache
+        new_exec_req.allocation = new_exec_req._cache.fork_pages(
+            exec_req.allocation.pages
+        )
+        return new_exec_req
 
     def reset(self, phase: InferencePhase):
         """Resets all per request state in preparation for an subsequent execution."""
@@ -91,4 +113,4 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         if self.return_host_array:
             flags.append("host")
         flags_str = ",".join(flags)
-        return f"LlmInferenceExecRequest[phase={phase_char},pos={self.start_position},rid={self.rid},flags={flags_str},input_token_ids={self.input_token_ids}]"
+        return f"LlmInferenceExecRequest[phase={phase_char},pos={self.start_position},rid={self.rid},instance_id={self.instance_id},flags={flags_str},input_token_ids={self.input_token_ids}]"
