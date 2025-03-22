@@ -7,6 +7,10 @@ Setup SHARK Platform's Evaluation Pipeline
 pip install -r sharktank/requirements-tests.txt
 ```
 
+## Project Status
+
+[![CI - sharktank nightly](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharktank-nightly.yml/badge.svg?branch=main)](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharktank-nightly.yml)
+
 ### Perplexity
 
 Perplexity score measures the ability of a language model to predict the next token in a sequence. A lower score indicates that a model has higher certainty in it's predictions. Perplexity acts as an intrinsic evaluation metric that measures the model quality, independent of any downstream task.

@@ -12,7 +12,7 @@ tooling.
 
 ## Project Status
 
-[![CI - sharktank perplexity](https://github.com/nod-ai/shark-ai/actions/workflows/ci_eval.yaml/badge.svg?branch=main)](https://github.com/nod-ai/shark-ai/actions/workflows/ci_eval.yaml)
+[![CI - sharktank nightly](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharktank-nightly.yml/badge.svg?branch=main)](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharktank-nightly.yml)
 
 ## Examples
 
