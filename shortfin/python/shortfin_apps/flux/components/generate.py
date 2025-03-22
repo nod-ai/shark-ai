@@ -65,9 +65,6 @@ class GenerateImageProcess(sf.Process):
         )
 
 
-Item = TypeVar("Item")
-
-
 class ClientGenerateBatchProcess(sf.Process):
     """Process instantiated for handling a batch from a client.
 
@@ -113,6 +110,7 @@ class ClientGenerateBatchProcess(sf.Process):
 
             # TODO: stream image outputs
             logging.debug("Responding to one shot batch")
+
             png_images: list[Base64CharacterEncodedByteSequence] = []
 
             for index_of_each_process, each_process in enumerate(gen_processes):
