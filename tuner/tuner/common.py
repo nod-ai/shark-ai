@@ -10,10 +10,12 @@ from enum import Enum
 from types import TracebackType
 from typing import Optional
 from typing import Any
+import subprocess
 
 from iree.compiler import ir  # type: ignore
 
 from iree.compiler.dialects import iree_gpu  # type: ignore
+import iree.compiler as ireec  # type: ignore
 
 
 class CommonTypes:
@@ -266,3 +268,41 @@ class MLIRTransformation:
     template: list[str]
     modified: str
     embeddable: str
+
+
+def combine_tuning_specs(
+    tuner_ctx: TunerContext, td_specs: list[ir.Module]
+) -> ir.Module:
+    with tuner_ctx.mlir_ctx as ctx, ir.Location.unknown():
+        top_module = ir.Module.create()
+        top_module.operation.attributes[
+            "transform.with_named_sequence"
+        ] = ir.UnitAttr.get()
+
+        for td_spec in td_specs:
+            top_module.body.append(td_spec.operation.clone())
+        return top_module
+
+
+def link_tuning_specs(tuner_ctx: TunerContext, td_specs: list[ir.Module]) -> ir.Module:
+    module = combine_tuning_specs(tuner_ctx, td_specs)
+    iree_opt = ireec.binaries.find_tool("iree-opt")
+
+    result = subprocess.run(
+        [
+            iree_opt,
+            "--split-input-file",
+            "--verify-diagnostics",
+            "--iree-codegen-link-tuning-specs",
+            "-",
+        ],
+        input=str(module),  # Provide MLIR text directly via stdin.
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        raise RuntimeError(f"iree-opt failed: {result.stderr}")
+
+    linked_module = ir.Module.parse(result.stdout, tuner_ctx.mlir_ctx)
+    return linked_module

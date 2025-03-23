@@ -2,6 +2,6 @@
 
 --pre
 --find-links https://iree.dev/pip-release-links.html
-iree-base-compiler
-iree-base-runtime
-iree-turbine
+iree-base-compiler==3.3.0rc20250324
+iree-base-runtime==3.3.0rc20250324
+iree-turbine==3.3.0rc20250324
