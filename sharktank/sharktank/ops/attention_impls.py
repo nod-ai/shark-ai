@@ -65,8 +65,6 @@ def register_attention_override_by_name(name: str):
     else:
         assert False, f"{name} not a registerable override"
 
-    print(scaled_dot_product_attention.get_override_names())
-
 
 def prepare_args(q, k, v, scale):
     scale = torch.scalar_tensor(1.0 / math.sqrt(q.shape[-1]), dtype=torch.float32)
