@@ -23,9 +23,7 @@ from sharktank.models.flux.flux import FluxParams
 from sharktank.types import Dataset, dtype_to_serialized_short_name
 from sharktank.transforms.dataset import set_float_dtype
 from iree.turbine.aot import FxProgramsBuilder, export
-from sharktank.models.t5.export import (
-    export_encoder_iree_parameters as export_t5_parameters,
-)
+from sharktank.models import t5
 from sharktank.models.clip.export import (
     export_clip_text_model_dataset_from_hugging_face,
 )
@@ -134,12 +132,13 @@ def export_flux_pipeline_iree_parameters(
 
     # Export T5 parameters
     t5_path = Path(model_path) / "text_encoder_2/"
-    t5_output_path = output_path / f"flux_dev_t5xxl_{dtype_str}.irpa"
+    t5_tokenizer_path = Path(model_path) / "tokenizer_2/"
+    t5_output_path = output_path / f"{model_name}_t5xxl_{dtype_str}.irpa"
     if not is_already_exported(t5_output_path):
         config_json_path = t5_path / "config.json"
         param_paths = find_safetensors_files(t5_path)
-        t5_dataset = import_hf_dataset(
-            config_json_path, param_paths, target_dtype=dtype
+        t5_dataset = t5.export.import_encoder_dataset_from_hugging_face(
+            str(t5_path), tokenizer_path_or_repo_id=str(t5_tokenizer_path)
         )
         t5_dataset.properties = filter_properties_for_config(
             t5_dataset.properties, T5Config
@@ -151,7 +150,7 @@ def export_flux_pipeline_iree_parameters(
 
     # Export CLIP parameters
     clip_path = Path(model_path) / "text_encoder/"
-    clip_output_path = output_path / f"flux_dev_clip_{dtype_str}.irpa"
+    clip_output_path = output_path / f"{model_name}_clip_{dtype_str}.irpa"
     if not is_already_exported(clip_output_path):
         config_json_path = clip_path / "config.json"
         param_paths = find_safetensors_files(clip_path)
@@ -170,7 +169,7 @@ def export_flux_pipeline_iree_parameters(
 
     # Export VAE parameters
     vae_path = Path(model_path) / "vae/"
-    vae_output_path = output_path / f"flux_dev_vae_{dtype_str}.irpa"
+    vae_output_path = output_path / f"{model_name}_vae_{dtype_str}.irpa"
     if not is_already_exported(vae_output_path):
         config_json_path = vae_path / "config.json"
         param_paths = find_safetensors_files(vae_path)

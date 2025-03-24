@@ -103,14 +103,26 @@ def import_encoder_dataset_from_hugging_face(
     /,
     *,
     tokenizer_config: dict[str, Any] | None = None,
+    tokenizer_path_or_repo_id: str | None = None,
+    tokenizer_subfolder: str | None = None,
+    subfolder: str = "",
 ) -> Dataset:
     model = repo_id_or_model
     if not isinstance(repo_id_or_model, transformers.T5EncoderModel):
-        model = transformers.T5EncoderModel.from_pretrained(repo_id_or_model)
+        model = transformers.T5EncoderModel.from_pretrained(
+            repo_id_or_model, subfolder=subfolder, torch_dtype="auto"
+        )
         from transformers.models.auto.tokenization_auto import get_tokenizer_config
 
+        if tokenizer_path_or_repo_id is None:
+            assert not isinstance(repo_id_or_model, transformers.T5EncoderModel)
+            tokenizer_path_or_repo_id = repo_id_or_model
+        if tokenizer_subfolder is None:
+            tokenizer_subfolder = subfolder
         if tokenizer_config is None:
-            tokenizer_config = get_tokenizer_config(repo_id_or_model)
+            tokenizer_config = get_tokenizer_config(
+                tokenizer_path_or_repo_id, subfolder=tokenizer_subfolder
+            )
     else:
         if tokenizer_config is None:
             raise ValueError(

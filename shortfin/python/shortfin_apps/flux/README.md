@@ -8,9 +8,9 @@ To get your environment ready, follow the [developer guide](https://github.com/n
 
 ## Prepare artifacts
 
-The flux model weights are gated. Once you have access, clone the huggingface repository for [FLUX.1-dev](https://huggingface.co/black-forest-labs/FLUX.1-dev) or [FLUX.1-schnell](https://huggingface.co/black-forest-labs/FLUX.1-schnell). Then run the following:
+The flux model weights are gated. Once you have access, clone the huggingface repository for [FLUX.1-dev](https://huggingface.co/black-forest-labs/FLUX.1-dev). Then run the following:
 ```
-./sharktank/sharktank/pipelines/flux/export_from_hf.sh /absolute/path/to/flux/folder/ <flux_dev/flux_schnell>
+./sharktank/sharktank/pipelines/flux/export_from_hf.sh /absolute/path/to/flux/folder/ <flux_dev>
 ```
 
 ## Start Flux Server
@@ -22,11 +22,10 @@ You can check if this (or any) port is in use on Linux with `ss -ntl | grep 8000
 
 The first time you run the server, you may need to wait for artifacts to download.
 
-From a source checkout of shortfin, you must run from the `/shortfin/python/` directory:
+From a source checkout of shortfin, you must run from the `/shortfin` directory:
 ```
 python -m shortfin_apps.flux.server --model_config=./python/shortfin_apps/flux/examples/flux_dev_config_mixed.json --device=amdgpu --fibers_per_device=1 --workers_per_device=1 --isolation="per_fiber" --build_preference=precompiled
-# For schnell, run:
-# python -m shortfin_apps.flux.server --model_config=./python/shortfin_apps/flux/examples/flux_schnell_config_mixed.json --device=amdgpu --fibers_per_device=1 --workers_per_device=1 --isolation="per_fiber" --build_preference=precompiled
+
 ```
  - Wait until your server outputs:
 ```

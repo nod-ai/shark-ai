@@ -278,14 +278,24 @@ class T5EncoderIreeTest(TempDirTestBase):
         huggingface_repo_id: str,
         reference_dtype: torch.dtype,
         target_dtype: torch.dtype,
+        subfolder: str = "",
+        tokenizer_huggingface_repo_id: str | None = None,
+        tokenizer_subfolder: str | None = None,
     ):
-        get_dataset(
-            huggingface_repo_id,
-        ).download()
-        tokenizer = AutoTokenizer.from_pretrained(huggingface_repo_id)
+        if tokenizer_huggingface_repo_id is None:
+            tokenizer_huggingface_repo_id = huggingface_repo_id
+        if tokenizer_subfolder is None:
+            tokenizer_subfolder = subfolder
+        tokenizer = AutoTokenizer.from_pretrained(
+            tokenizer_huggingface_repo_id, subfolder=tokenizer_subfolder
+        )
 
         reference_dataset = import_encoder_dataset_from_hugging_face(
-            huggingface_repo_id
+            huggingface_repo_id,
+            subfolder=subfolder,
+            tokenizer_config=get_tokenizer_config(
+                tokenizer_huggingface_repo_id, subfolder=tokenizer_subfolder
+            ),
         )
         target_dataset = copy(reference_dataset)
 
@@ -410,6 +420,16 @@ class T5EncoderIreeTest(TempDirTestBase):
     def testCompareV1_1XxlIreeBf16AgainstTorchEagerF32(self):
         self.runTestV1_1CompareIreeAgainstTorchEager(
             "google/t5-v1_1-xxl",
+            reference_dtype=torch.float32,
+            target_dtype=torch.bfloat16,
+        )
+
+    @with_t5_data
+    def testCompareV1_1XxlFluxRepoIreeBf16AgainstTorchEagerF32(self):
+        self.runTestV1_1CompareIreeAgainstTorchEager(
+            "black-forest-labs/FLUX.1-dev",
+            subfolder="text_encoder_2",
+            tokenizer_subfolder="tokenizer_2",
             reference_dtype=torch.float32,
             target_dtype=torch.bfloat16,
         )

@@ -51,7 +51,6 @@ def _extract_linear_scale(t):
 def register_attention_override_by_name(name: str):
     """Provides a way to override available attention kernels
     based on something other than a global flag"""
-    print(scaled_dot_product_attention.get_override_names())
     if name == "flash_attention":
         scaled_dot_product_attention.override(
             PlanarQuantizedTensor,
@@ -65,8 +64,6 @@ def register_attention_override_by_name(name: str):
         )(masked_flash_attention)
     else:
         assert False, f"{name} not a registerable override"
-
-    print(scaled_dot_product_attention.get_override_names())
 
 
 def prepare_args(q, k, v, scale):

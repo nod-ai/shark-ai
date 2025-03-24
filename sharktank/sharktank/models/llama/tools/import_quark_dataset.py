@@ -280,8 +280,6 @@ def update_norm_layer(
         updated_tensors[new_name] = DefaultPrimitiveTensor(
             name=new_name, data=prob_output_scale
         )
-        print("added attn_scale", new_name)
-        print(prob_output_scale)
 
 
 def single_replace(
