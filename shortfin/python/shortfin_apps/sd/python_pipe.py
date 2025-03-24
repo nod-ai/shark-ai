@@ -12,7 +12,6 @@ import numpy as np
 import sys
 import time
 import os
-import copy
 import subprocess
 
 # Import first as it does dep checking and reporting.

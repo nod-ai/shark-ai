@@ -29,9 +29,8 @@ import shortfin as sf
 from shortfin.interop.fastapi import FastAPIResponder
 
 from .io_struct import GenerateReqInput
-from .messages import SDXLInferenceExecRequest
-from .service import SDXLGenerateService
-from .metrics import measure
+from .messages import InferenceExecRequest
+from .service import GenerateService
 
 logger = logging.getLogger("shortfin-sd.generate")
 
