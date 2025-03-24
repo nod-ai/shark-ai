@@ -12,13 +12,11 @@ import numpy as np
 import sys
 import time
 import os
-import copy
 import subprocess
 
 # Import first as it does dep checking and reporting.
 from shortfin.support.logging_setup import native_handler
 import shortfin as sf
-
 
 from .components.messages import InferenceExecRequest, InferencePhase
 from .components.config_struct import ModelParams
