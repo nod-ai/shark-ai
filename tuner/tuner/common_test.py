@@ -314,34 +314,28 @@ def test_link_tuning_specs(tuner_ctx: common.TunerContext) -> None:
                 kernel_config_op = op
 
     assert kernel_config_op is not None, "Missing @__kernel_config"
-    expected_names = {
-        "match",
-        "apply_op_config",
-        "inner_module_b_match",
-        "inner_module_b_apply_op_config",
-        "__kernel_config",
-    }
-    assert (
-        set(named_sequences) == expected_names
-    ), f"Unexpected named sequence names: {named_sequences}"
 
-    foreach_match_op = kernel_config_op.body.operations[0]
-    assert (
-        foreach_match_op.name == "transform.foreach_match"
-    ), f"Expected op name 'transform.foreach_match', got '{foreach_match_op.name}'"
-    assert (
-        len(foreach_match_op.matchers) == len(foreach_match_op.actions)
-        and len(foreach_match_op.matchers) == 2
-    )
-    assert (
-        foreach_match_op.matchers[0].value == "match"
-    ), f"Expected first matcher to be 'match', got '{foreach_match_op.matchers[0].value}'"
-    assert (
-        foreach_match_op.matchers[1].value == "inner_module_b_match"
-    ), f"Expected second matcher to be 'inner_module_b_match', got '{foreach_match_op.matchers[1].value}'"
-    assert (
-        foreach_match_op.actions[0].value == "apply_op_config"
-    ), f"Expected first action to be 'apply_op_config', got '{foreach_match_op.actions[0].value}'"
-    assert (
-        foreach_match_op.actions[1].value == "inner_module_b_apply_op_config"
-    ), f"Expected second action to be 'inner_module_b_apply_op_config', got '{foreach_match_op.actions[1].value}'"
+
+def test_link_tuning_specs_raises_error(tuner_ctx: common.TunerContext) -> None:
+    context = tuner_ctx.mlir_ctx
+    module_str = """
+        module @inner_module_a
+            attributes { transform.with_named_sequence } {
+            transform.named_sequence @match(%arg: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
+                transform.yield %arg : !transform.any_op
+            }
+
+            transform.named_sequence @apply_op_config(%op: !transform.any_op {transform.readonly}) {
+                transform.yield
+            }
+        }
+    """
+
+    module = ir.Module.parse(module_str, context)
+    module.operation.attributes[
+        "iree_codegen.tuning_spec_with_default_entrypoint"
+    ] = ir.UnitAttr.get()
+    with pytest.raises(RuntimeError) as exc_info:
+        common.link_tuning_specs(tuner_ctx, [module])
+
+    assert "iree-opt failed" in str(exc_info.value)

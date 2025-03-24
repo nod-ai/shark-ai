@@ -270,6 +270,8 @@ class MLIRTransformation:
     embeddable: str
 
 
+# Puts multiple input modules `td_specs` into a single top-level container module.
+# This function does *not* attempt to merge or link `td_specs` across modules.
 def combine_tuning_specs(
     tuner_ctx: TunerContext, td_specs: list[ir.Module]
 ) -> ir.Module:
@@ -284,6 +286,12 @@ def combine_tuning_specs(
         return top_module
 
 
+# Links multiple input modules (`td_specs`) into a single tuning specification module.
+# First, the input modules are combined into a container module. Then, the external
+# `iree-opt` tool is invoked with the `--iree-codegen-link-tuning-specs` pass to
+# link or merge the individual tuning specs. When all input specs are marked with the
+# default attribute `iree_codegen.tuning_spec_with_default_entrypoint`, they are merged
+# into one tuning spec.
 def link_tuning_specs(tuner_ctx: TunerContext, td_specs: list[ir.Module]) -> ir.Module:
     module = combine_tuning_specs(tuner_ctx, td_specs)
     iree_opt = ireec.binaries.find_tool("iree-opt")
@@ -304,5 +312,4 @@ def link_tuning_specs(tuner_ctx: TunerContext, td_specs: list[ir.Module]) -> ir.
     if result.returncode != 0:
         raise RuntimeError(f"iree-opt failed: {result.stderr}")
 
-    linked_module = ir.Module.parse(result.stdout, tuner_ctx.mlir_ctx)
-    return linked_module
+    return ir.Module.parse(result.stdout, tuner_ctx.mlir_ctx)
