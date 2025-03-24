@@ -218,7 +218,6 @@ class SignatureDispatcher:
         def decorator(f):
             if f.__name__ == "_":
                 f.__name__ = f"{self.__name__}__override"
-            print(f.__name__)
             self._overrides.append(
                 _TargetOverride(
                     salience=salience,
