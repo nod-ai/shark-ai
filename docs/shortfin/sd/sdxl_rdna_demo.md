@@ -91,45 +91,7 @@ Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
 
 ### Install SHARK UI
 
-1. In a new terminal session, clone the shark-ui project
-
-    ```shell
-    cd demo
-    git clone https://github.com/nod-ai/shark-ui.git
-    cd shark-ui
-    ```
-
-1. Checkout the preview branch
-
-    ```shell
-    git checkout feature-connects-text-to-image-api
-    ```
-
-1. Install dependencies
-    1. [Install node/npm](https://nodejs.org/en/download)
-        1. Select highest LTS version (i.e. v22)
-        1. For "using", select `nvm` if available, otherwise select `fnm`
-        1. For "with", select `npm`
-    1. Update `npm`:
-
-        ```shell
-        npm install -g npm@latest
-        ```
-
-    1. Use `npm` to install dependencies
-
-        ```shell
-        npm install
-        ```
-
-1. Set environment variable
-    
-    ```shell
-    echo "VITE_TEXT_TO_IMAGE_API_ORIGIN=http://localhost:8000" > .env
-    ```
-
-    > [!TIP]
-    > If you are connecting to a server on a virtual machine, you must forward the port from your local machine.
+Refer to the [shark-ui README](https://github.com/nod-ai/shark-ui#installation) for instructions on setting up shark-ui.
 
 ## Usage
 
