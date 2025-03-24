@@ -50,48 +50,7 @@ Confirm that your GPU is detected:
 ======================================== ROCm System Management Interface ========================================
 ================================================== Concise Info ==================================================
 Device  Node  IDs              Temp    Power  Partitions          SCLK  MCLK   Fan    Perf  PwrCap  VRAM%  GPU%
-              (DID,     GUID)  (Edge)  (Avg)  (Mem, Compute, ID)
-==================================================================================================================
-0       2     0x7550,   37870  32.0°C  3.0W   N/A, N/A, 0         0Mhz  96Mhz  0%     auto  0.0W    5%     0%
-1       1     0x7448,   7019   31.0°C  7.0W   N/A, N/A, 0         0Mhz  96Mhz  20.0%  auto  241.0W  0%     0%
-==================================================================================================================
-============================================== End of ROCm SMI Log ===============================================
-```
-
-Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
-
-### Install SHARK AI and Shortfin
-
-1. Create and activate a Python Virtual Environment:
-
-    ```shell
-    python -m venv ./.venv
-    source .venv/bin/activate
-    ```
-
-1. Clone the shark-ai repository:
-
-    ```shell
-    git clone https://github.com/nod-ai/shark-ai && cd shark-ai
-    ```
-
-1. Install dependencies:
-
-    ```shell
-    pip install -r requirements-iree-pinned.txt
-    pip install -r pytorch-cpu-requirements.txt
-    pip install -r requirements.txt
-    ```
-
-1. Install Shortfin
-
-    ```shell
-    cd shortfin && pip install --editable .
-    ```
-
-### Install SHARK UI
-
-Refer to the [shark-ui README](https://github.com/nod-ai/shark-ui#installation) for instructions on setting up shark-ui.
+[### Install SHARK UI](https://github.com/nod-ai/shark-ui#installation)
 
 ## Usage
 
