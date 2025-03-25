@@ -98,13 +98,11 @@ class TorchGenerator:
             (token_ids[0].shape[0] // self.model.config.block_seq_stride) * self.bs + 1
         ) * 2
 
-        # print('page_cache_size', self.page_cache_size, token_ids[0].shape[0])
         cache_state = self.model.cache.allocate(self.page_cache_size)
         self.free_pages = list(range(1, self.page_cache_size))
         return Batch(self, token_ids, seq_lens, cache_state, dump_path=dump_path)
 
     def alloc_page(self) -> int:
-        # print('free_pages', len(self.free_pages))
         return self.free_pages.pop()
 
     def release_page(self, index: int):
