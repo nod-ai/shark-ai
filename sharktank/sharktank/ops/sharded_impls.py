@@ -91,6 +91,7 @@ def sharded_wrap_override():
         "transfer_to_logical_device",
         "reshard_like",
         "replicate_like",
+        "equal",
     }
 
     from . import signatures
