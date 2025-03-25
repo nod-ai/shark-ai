@@ -31,19 +31,20 @@ from ..utils import longest_equal_range
 from .signatures import *
 
 
+def assert_on_same_devices(*tensors: Tuple[ShardedTensor]) -> None:
+    """
+    Checks that all tensors are placed on the same devices.
+    """
+    if len(tensors) <= 1:
+        return
+    assert all(isinstance(tensor, ShardedTensor) for tensor in tensors)
+
+    for tensor in tensors[1:]:
+        if any(d0 != d for d0, d in zip(tensors[0].devices, tensor.devices)):
+            raise ValueError("All tensors must be placed on the same devices.")
+
+
 def sharded_wrap_override():
-    def assert_on_same_devices(*tensors: Tuple[ShardedTensor]) -> None:
-        """
-        Checks that all tensors are placed on the same devices.
-        """
-        if len(tensors) <= 1:
-            return
-        assert all(isinstance(tensor, ShardedTensor) for tensor in tensors)
-
-        for tensor in tensors[1:]:
-            if any(d0 != d for d0, d in zip(tensors[0].devices, tensor.devices)):
-                raise ValueError("All tensors must be placed on the same devices.")
-
     def transfer_n_pin(f):
         """
         Wrapper for each NON-TRANSFERING op defined in this file.
