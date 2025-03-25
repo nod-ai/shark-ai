@@ -17,6 +17,7 @@ from shortfin_apps.types.Base64CharacterEncodedByteSequence import (
     Base64CharacterEncodedByteSequence,
 )
 from shortfin_apps.utilities.image import png_from
+from shortfin_apps.types.TextToImageInferenceOutput import TextToImageInferenceOutput
 
 import shortfin as sf
 
@@ -27,7 +28,6 @@ from .io_struct import GenerateReqInput
 from .messages import FluxInferenceExecRequest
 from .service import FluxGenerateService
 from .metrics import measure
-from .TextToImageInferenceOutput import TextToImageInferenceOutput
 
 logger = logging.getLogger("shortfin-flux.generate")
 
