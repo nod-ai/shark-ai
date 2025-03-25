@@ -70,7 +70,7 @@ source .venv/bin/activate
 
 If no explicit action is taken, the default PyTorch version will be installed.
 This will give you a current CUDA-based version, which takes longer to download
-and includes other dependencies that SHARK does not require. In order to run eager mode inference in sharktank on a GPU, `torch+rocm` installation is required.
+and includes other dependencies that SHARK does not require. In order to run eager mode inference in sharktank on an AMD GPU, `torch+rocm` installation is required.
 
 Follow these commands to install the appropriate torch version:
 
