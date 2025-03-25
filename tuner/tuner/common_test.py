@@ -304,13 +304,6 @@ def test_link_tuning_specs_raises_error(tuner_ctx: common.TunerContext) -> None:
     module_str = """
         module @inner_module_a
             attributes { transform.with_named_sequence } {
-            transform.named_sequence @match(%arg: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
-                transform.yield %arg : !transform.any_op
-            }
-
-            transform.named_sequence @apply_op_config(%op: !transform.any_op {transform.readonly}) {
-                transform.yield
-            }
         }
     """
 
@@ -321,5 +314,5 @@ def test_link_tuning_specs_raises_error(tuner_ctx: common.TunerContext) -> None:
     with pytest.raises(RuntimeError) as exc_info:
         common.link_tuning_specs(tuner_ctx, [module])
         # iree-opt should fail due to missing named sequence @__kernel_config entrypoint required
-        # by `iree_codegen.tuning_spec_with_default_entrypoint` attribute.
+        # by the `iree_codegen.tuning_spec_with_default_entrypoint` attribute.
         assert "iree-opt failed" in str(exc_info.value)

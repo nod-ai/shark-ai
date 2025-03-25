@@ -306,9 +306,6 @@ def link_tuning_specs(tuner_ctx: TunerContext, td_specs: list[ir.Module]) -> ir.
         input_path = os.path.join(tmpdir, "tmp_input.mlir")
         output_path = os.path.join(tmpdir, "tmp_output.mlir")
 
-        print(input_path)
-        print(output_path)
-
         with open(input_path, "w") as f:
             f.write(str(module))
 
