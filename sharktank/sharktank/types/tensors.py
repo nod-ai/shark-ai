@@ -764,42 +764,6 @@ class ShardedTensor(InferenceTensor):
         self.shard_dim = shard_dim
         self._devices = devices
 
-    def clone(self, **kwargs) -> "ShardedTensor":
-        """Create a clone of this tensor with the given properties overridden."""
-        if any(d_new != d_old for d_new, d_old in zip(kwargs["devices"], self.devices)):
-            original_shards = kwargs["ts"]
-            new_shards_tensors = self.move_shards_to_new_devices(
-                kwargs["ts"], kwargs["devices"]
-            )
-            new_shards = tuple(
-                DefaultPrimitiveTensor(name=orig_dpt.name, data=after_t)
-                for orig_dpt, after_t in zip(original_shards, new_shards_tensors)
-            )
-            for orig_dpt, after_dpt in zip(original_shards, new_shards):
-                orig_device_trait = DeviceTensorTrait.get(orig_dpt._data)
-                if orig_device_trait is not None:
-                    DeviceTensorTrait(
-                        orig_device_trait.ordinal, orig_device_trait.queues
-                    ).set(after_dpt._data)
-                orig_external_trait = ExternalTensorTrait.get(orig_dpt._data)
-                if orig_external_trait is not None:
-                    ExternalTensorTrait(
-                        orig_external_trait.external_scope,
-                        orig_external_trait.external_name,
-                    ).set(after_dpt._data)
-            kwargs["ts"] = new_shards
-        # NOTE: Needed with torch 2.4 remains supported.
-        #       `self.__class__(**kwargs)` will fail when calling aot.export.export()
-        #       with `strict=False`.
-        #       Works in torch >2.5 but not 2.4
-        if isinstance(self, ReplicatedTensor):
-            return ReplicatedTensor(**kwargs)
-        elif isinstance(self, UnreducedTensor):
-            return UnreducedTensor(**kwargs)
-        elif isinstance(self, SplitPrimitiveTensor):
-            return SplitPrimitiveTensor(**kwargs)
-        raise ValueError(f"Unexpected class provided: {self.__class__}")
-
     @property
     def devices(self) -> Tuple[int]:
         return self._devices
@@ -820,6 +784,14 @@ class ShardedTensor(InferenceTensor):
     def is_replicated(self) -> bool:
         """Returns whether the original tensor is replicated.
         If replicated, `shard_dim` does not make sense and is None."""
+        ...
+
+    @abstractmethod
+    def clone(self, **kwargs) -> "ShardedTensor":
+        """
+        Create a clone of this tensor with the given properties overridden.
+        NOTE: Changing the `devices` will NOT transfer the shards to the corresponding devices.
+        """
         ...
 
     @InferenceTensor.name.setter
@@ -1105,7 +1077,7 @@ class SplitPrimitiveTensor(ShardedTensorBase):
             "shape": kwargs.get("shape", self.shape),
             "devices": kwargs.get("devices", self.devices),
         }
-        return super(SplitPrimitiveTensor, self).clone(**new_kwargs)
+        return SplitPrimitiveTensor(**new_kwargs)
 
     def _is_slicing_split_dim(self, key):
         if isinstance(
@@ -1256,7 +1228,7 @@ class ReplicatedTensor(ShardedTensor):
             new_kwargs["shard_count"] = kwargs["shard_count"]
         else:
             assert not isinstance(new_kwargs["ts"], torch.Tensor)
-        return super(ReplicatedTensor, self).clone(**new_kwargs)
+        return ReplicatedTensor(**new_kwargs)
 
     @property
     def shard_count(self) -> int:
@@ -1394,7 +1366,7 @@ class UnreducedTensor(ShardedTensorBase):
             "shape": kwargs.get("shape", self.shape),
             "devices": kwargs.get("devices", self.devices),
         }
-        return super(UnreducedTensor, self).clone(**new_kwargs)
+        return UnreducedTensor(**new_kwargs)
 
 
 def flatten_tensor_tree(
