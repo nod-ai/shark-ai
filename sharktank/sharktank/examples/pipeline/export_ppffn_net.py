@@ -57,11 +57,13 @@ def pipeline_parallelize_theta(
     else:
         shard_count = theta.tensor("w", "0").shard_count
 
-    for layer in list(theta.tensor("w").keys()):
-        weight: ShardedTensor | PrimitiveTensor = theta.tensor("w", layer)
-        pp_group = int(int(layer) * pp_count / num_layers)
+    block_to_device_lookup = []
+    for block in list(theta.tensor("w").keys()):
+        weight: ShardedTensor | PrimitiveTensor = theta.tensor("w", block)
+        pp_group = int(int(block) * pp_count / num_layers)
         zero_4_group = shard_count * pp_group
         devices = tuple(i + zero_4_group for i in range(shard_count))
+        block_to_device_lookup.append(devices)
 
         if isinstance(weight, PrimitiveTensor):
             ett = ExternalTensorTrait.get(weight._data)
@@ -73,20 +75,52 @@ def pipeline_parallelize_theta(
                 ).set(weight.shards[0]._data)
         for i, shard in enumerate(weight.shards):
             DeviceTensorTrait(devices[i]).set(shard._data)
-        theta.tensor("w")[layer] = weight.clone(devices=devices)
+        theta.tensor("w")[block] = weight.clone(devices=devices)
+
+    return block_to_device_lookup
 
 
 class PPFFN(ThetaLayer):
+    block_to_device_loopukp: tuple[tuple[int, ...], ...]
+
+    def __init__(self, theta, block_to_device_lookup):
+        super().__init__(theta)
+        assert len(self.theta.tensor("w")) == len(block_to_device_lookup)
+        self.block_to_device_lookup = block_to_device_lookup
+
+    def _inter_layer_callback(self, x: ShardedTensor, curr_block: int):
+        if curr_block == len(self.block_to_device_lookup) - 1:
+            return x
+
+        curr_devices = self.block_to_device_lookup[curr_block]
+        next_devices = self.block_to_device_lookup[curr_block + 1]
+        if all(d_curr == d_next for d_curr, d_next in zip(curr_devices, next_devices)):
+            return x
+
+        shards = [
+            (
+                ops.barrier_on_logical_device(shard, next_devices[i])
+                if next_devices[i] != curr_devices[i]
+                else ops.transfer_to_logical_device(shard, next_devices[i])
+            )
+            for i, shard in enumerate(x.shards)
+        ]
+        return x.clone(shards=shards, devices=next_devices)
+
     def forward(self, x: torch.Tensor):
-        num_layers = len(self.theta.tensor("w"))
+        num_blocks = len(self.block_to_device_lookup)
         shard_count = self.theta.tensor("w", "0").shard_count
 
-        x = ReplicatedTensor(ts=x, shard_count=shard_count)
-        for layer in range(num_layers):
+        x = ReplicatedTensor(
+            ts=x, shard_count=shard_count, devices=self.block_to_device_lookup[0]
+        )
+        for block in range(num_blocks):
             weight: SplitPrimitiveTensor | ReplicatedTensor = self.theta.tensor(
-                "w", str(layer)
+                "w", str(block)
             )
             x: ReplicatedTensor = ops.replicate(ops.linear(x, weight), shard_count)
+
+            x = self._inter_layer_callback(x, block)
 
         return x
 
@@ -120,14 +154,14 @@ def main(raw_args=None):
     sl = 128
     primary_dim = 128 * 2**5
     shard_count = 2
-    num_layers = 40
+    num_layers = 2
     create_theta(primary_dim, shard_count, num_layers, save_path=args.output_irpa_file)
 
-    pp_count = 4
+    pp_count = 2
     ds = Dataset.load(args.output_irpa_file)
     block_to_device_lookup = pipeline_parallelize_theta(ds.root_theta, pp_count)
 
-    mdl = PPFFN(ds.root_theta)
+    mdl = PPFFN(ds.root_theta, block_to_device_lookup)
 
     example_arg = torch.empty(bs, sl, primary_dim, dtype=torch.float16)
     ep = torch.export.export(mdl, (example_arg,), strict=False)
