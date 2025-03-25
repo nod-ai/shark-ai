@@ -26,8 +26,8 @@ For Llama3.1 8B (FP16) model on a MI300 server:
 pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_torch_test.py -k test_llama3_8B_f16 \
   --llama3-8b-f16-model-path=llama3.1_8b_instruct_fp16.irpa \
   --llama3-8b-tokenizer-path=tokenizer_config.json \
-  --bs-prefill=4 \
-  --bs-decode=4 \
+  --bs=4 \
+  --device='cuda:0' \
   --run-nightly-llama-tests
 ```
 
@@ -36,9 +36,8 @@ pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_torch_test.py -k test_llam
 pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_iree_test.py -k test_llama3_8B_f16 \
   --llama3-8b-f16-model-path=llama3.1_8b_instruct_fp16.irpa  \
   --llama3-8b-tokenizer-path=tokenizer_config.json \
-  --bs-prefill=4 \
-  --bs-decode=4 \
-  --iree-device=hip://1 \
+  --bs=4 \
+  --iree-device=hip://0 \
   --iree-hip-target=gfx942 \
   --iree-hal-target-device=hip
 ```
@@ -52,7 +51,8 @@ Replace `--irpa-file` with `--gguf-file` flag if necessary (eg: `--gguf-file=lla
 python -m  sharktank.evaluate.perplexity_torch \
   --irpa-file=llama3_70b_instruct_fp16.irpa \
   --tokenizer-config-json=tokenizer_config.json \
-  --num-prompts=4
+  --num-prompts=4 \
+  --device='cuda:0'
 ```
 
 ##### IREE mode
@@ -89,4 +89,4 @@ python -m sharktank.evaluate.perplexity_iree  -h
 
 |Models                          |Torch score   |IREE score    | Model size (GB) |
 |:-------------------------------|:-------------|:-------------|:----------------|
-|8B FP16 Instruct TP1            |20.303255     |19.786807     |16.07            |
+|8B FP16 Instruct TP1            |20.223236     |19.786807     |16.07            |
