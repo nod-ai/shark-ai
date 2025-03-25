@@ -153,6 +153,9 @@ def all_gather_split(
 def all_reduce_split_or_unreduced(
     input: Union[SplitPrimitiveTensor, UnreducedTensor],
 ) -> ReplicatedTensor:
+    if len(input.shards) == 1:
+        return ReplicatedTensor(ts=input.shards, devices=input.devices)
+
     reduced = functools.reduce(
         lambda x, y: elementwise(torch.add, x, y),
         [
