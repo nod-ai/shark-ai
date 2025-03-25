@@ -9,7 +9,7 @@ import pytest
 
 import torch
 
-from sharktank.ops.sharded_impls import check_that_on_same_devices
+from sharktank.ops.sharded_impls import assert_on_same_devices
 from sharktank import ops
 from sharktank.types import *
 from sharktank.utils import iterables_equal
@@ -31,7 +31,7 @@ class CheckThatOnSameDevicesTest(unittest.TestCase):
             )
             for _ in range(tensor_count)
         ]
-        check_that_on_same_devices(*ts_pre)
+        assert_on_same_devices(*ts_pre)
 
     def testOnDifferentDevices(self):
         tensor_count = 5
@@ -49,7 +49,7 @@ class CheckThatOnSameDevicesTest(unittest.TestCase):
             for i in range(tensor_count)
         ]
         try:
-            check_that_on_same_devices(*t_pre)
+            assert_on_same_devices(*t_pre)
         except ValueError:
             return
 

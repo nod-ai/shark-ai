@@ -32,54 +32,22 @@ from .signatures import *
 
 
 def sharded_wrap_override():
+    def assert_on_same_devices(*tensors: Tuple[ShardedTensor]) -> None:
+        """
+        Checks that all tensors are placed on the same devices.
+        """
+        if len(tensors) <= 1:
+            return
+        assert all(isinstance(tensor, ShardedTensor) for tensor in tensors)
+
+        for tensor in tensors[1:]:
+            if any(d0 != d for d0, d in zip(tensors[0].devices, tensor.devices)):
+                raise ValueError("All tensors must be placed on the same devices.")
+
     def transfer_n_pin(f):
         """
         Wrapper for each NON-TRANSFERING op defined in this file.
         """
-
-        def flatten_args(
-            items: Tuple | Dict[str, Any]
-        ) -> Tuple[List[int | List[int]], List[ShardedTensor]]:
-            """
-            Takes the args/kwargs.values() and flattens them into a flat representation of (any) ShardedTensors and their indices.
-            """
-            t_i, t_vals = [], []
-            for i, arg in enumerate(items):
-                if isinstance(arg, ShardedTensor):
-                    t_i.append(i)
-                    t_vals.append(arg)
-                elif isinstance(arg, list) and all(
-                    isinstance(val, ShardedTensor) for val in arg
-                ):
-                    t_i.append([i] * len(arg))
-                    t_vals.extend(arg)
-            return t_i, t_vals
-
-        def unflatten_args(
-            items: Tuple | Dict, t_i: List[int | List[int]], t_vals: List[ShardedTensor]
-        ) -> Tuple[Tuple, Dict[str, Any]]:
-            """
-            Converts the flattened and (potentially) modified args or kwargs.values() back into the original structure.
-            """
-            i_lookup = (
-                list(range(len(items)))
-                if isinstance(items, tuple)
-                else list(items.keys())
-            )
-            new_items = list(items) if isinstance(items, tuple) else dict(items)
-
-            for i in t_i:
-                if isinstance(i, int):
-                    new_items[i_lookup[i]] = t_vals.pop(0)
-                else:  # List[int]
-                    _popped_vals = [t_vals.pop(0) for _ in range(len(i))]
-                    new_items[i_lookup[i[0]]] = items[i_lookup[i[0]]].__class__(
-                        _popped_vals
-                    )
-
-            if isinstance(new_items, list):
-                new_items = tuple(new_items)
-            return new_items
 
         def func_wrapper(*args: Tuple, **kwargs: Dict[str, Any]):
             """
@@ -87,17 +55,15 @@ def sharded_wrap_override():
 
             If no ShardedTensors are present in the input, then no changes are made to input/output.
             """
-            t_i_args, t_vals_args = flatten_args(args)
-            t_i_kwargs, t_vals_kwargs = flatten_args(list(kwargs.values()))
-            t_vals = t_vals_args + t_vals_kwargs
-
-            check_that_on_same_devices(*t_vals)
-
-            args = unflatten_args(args, t_i_args, t_vals[: len(t_vals_args)])
-            kwargs = unflatten_args(kwargs, t_i_kwargs, t_vals[len(t_vals_args) :])
+            sharded_tensors = [
+                value
+                for value in itertools.chain(args, kwargs.values())
+                if isinstance(value, ShardedTensor)
+            ]
+            assert_on_same_devices(*sharded_tensors)
             res = f(*args, **kwargs)
-            if isinstance(res, ShardedTensor) and len(t_vals) > 0:
-                res = res.clone(devices=t_vals[0].devices)
+            if isinstance(res, ShardedTensor) and len(sharded_tensors) > 0:
+                res = res.clone(devices=sharded_tensors[0].devices)
             return res
 
         return func_wrapper
@@ -151,19 +117,6 @@ def sharded_unwrap_override():
 
 
 sharded_wrap_override()
-
-
-def check_that_on_same_devices(*tensors: Tuple[ShardedTensor]) -> None:
-    """
-    Checks that all tensors are placed on the same devices.
-    """
-    if len(tensors) <= 1:
-        return
-    assert all(isinstance(tensor, ShardedTensor) for tensor in tensors)
-
-    for tensor in tensors[1:]:
-        if any(d0 != d for d0, d in zip(tensors[0].devices, tensor.devices)):
-            raise ValueError("All tensors must be placed on the same devices.")
 
 
 @all_gather.override(SplitPrimitiveTensor)
