@@ -244,7 +244,7 @@ def test_combine_tuning_specs(tuner_ctx: common.TunerContext) -> None:
 
 def test_link_tuning_specs(tuner_ctx: common.TunerContext) -> None:
     context = tuner_ctx.mlir_ctx
-    first_module_str = """
+    module_str = """
         module @inner_module_a
             attributes { transform.with_named_sequence, iree_codegen.tuning_spec_with_default_entrypoint } {
             transform.named_sequence @match(%arg: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
@@ -264,28 +264,11 @@ def test_link_tuning_specs(tuner_ctx: common.TunerContext) -> None:
         }
     """
 
-    second_module_str = """
-        module @inner_module_b
-            attributes { transform.with_named_sequence, iree_codegen.tuning_spec_with_default_entrypoint } {
-            transform.named_sequence @match(%arg: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
-                transform.yield %arg : !transform.any_op
-            }
-
-            transform.named_sequence @apply_op_config(%op: !transform.any_op {transform.readonly}) {
-                transform.yield
-            }
-
-            transform.named_sequence @__kernel_config(%arg0: !transform.any_op {transform.consumed})
-            -> (!transform.any_op) attributes { iree_codegen.tuning_spec_entrypoint } {
-                %res = transform.foreach_match in %arg0 @match -> @apply_op_config
-                    : (!transform.any_op) -> (!transform.any_op)
-                transform.yield %res : !transform.any_op
-            }
-        }
-    """
-
-    first_ir_module = ir.Module.parse(first_module_str, context)
-    second_ir_module = ir.Module.parse(second_module_str, context)
+    first_ir_module = ir.Module.parse(module_str, context)
+    second_ir_module = ir.Module.parse(module_str, context)
+    second_ir_module.operation.attributes["sym_name"] = ir.StringAttr.get(
+        "inner_module_b"
+    )
     linked_module = common.link_tuning_specs(
         tuner_ctx, [first_ir_module, second_ir_module]
     )
@@ -337,5 +320,6 @@ def test_link_tuning_specs_raises_error(tuner_ctx: common.TunerContext) -> None:
     ] = ir.UnitAttr.get()
     with pytest.raises(RuntimeError) as exc_info:
         common.link_tuning_specs(tuner_ctx, [module])
-
-    assert "iree-opt failed" in str(exc_info.value)
+        # iree-opt should fail due to missing named sequence @__kernel_config entrypoint required
+        # by `iree_codegen.tuning_spec_with_default_entrypoint` attribute.
+        assert "iree-opt failed" in str(exc_info.value)
