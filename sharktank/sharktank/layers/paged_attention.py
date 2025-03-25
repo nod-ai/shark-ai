@@ -424,6 +424,7 @@ class PagedAttention:
                 )
             else:
                 attn_output = kernels.flash_attention(q, k, v)
+            return attn_output
         else:
             # Non-decomposed
             if softcap is not None:
