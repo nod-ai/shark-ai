@@ -1027,13 +1027,18 @@ class SplitPrimitiveTensor(ShardedTensorBase):
             from ..ops import transfer_to_logical_device
 
             assert shard_count is not None
+            assert (
+                shard_count > 1
+            ), "SplitTensor must have at least 2 shards. Use ReplicatedTensor for 1 shard."
             ts = ts.split(ceildiv(ts.shape[shard_dim], shard_count), dim=shard_dim)
             ts = [transfer_to_logical_device(t, devices[i]) for i, t in enumerate(ts)]
             assert len(ts) == shard_count
             shard_count = None
 
         assert shard_count is None
-        assert len(ts) > 0
+        assert (
+            len(ts) > 1
+        ), "SplitTensor must have at least 2 shards. Use ReplicatedTensor for 1 shard."
         first_shape = ts[0].shape
         assert len(first_shape) > shard_dim
         expected_shape = list(first_shape)
