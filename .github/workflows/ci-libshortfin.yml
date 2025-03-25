@@ -120,7 +120,7 @@ jobs:
       # For now, `SHORTFIN_ENABLE_TOKENIZERS` is only enabled for 'Ubuntu (Clang)(full)'.
       # TODO(#620): Enable on Windows.
       if: ${{ matrix.name == 'Ubuntu (Clang)(full)'}}
-      uses: dtolnay/rust-toolchain@a54c7afa936fefeb4456b2dd8068152669aa8203 # master branch (Nov 18, 2024)
+      uses: dtolnay/rust-toolchain@56f84321dbccf38fb67ce29ab63e4754056677e0 # master branch (Nov 18, 2024)
       with:
         toolchain: stable
 
