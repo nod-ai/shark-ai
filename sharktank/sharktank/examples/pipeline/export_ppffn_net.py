@@ -99,13 +99,13 @@ class PPFFN(ThetaLayer):
 
         shards = [
             (
-                ops.barrier_on_logical_device(shard, next_devices[i])
+                ops.transfer_to_logical_device(shard, next_devices[i])
                 if next_devices[i] != curr_devices[i]
-                else ops.transfer_to_logical_device(shard, next_devices[i])
+                else ops.barrier_on_logical_device(shard, next_devices[i])
             )
             for i, shard in enumerate(x.shards)
         ]
-        return x.clone(shards=shards, devices=next_devices)
+        return x.clone(ts=shards, devices=next_devices)
 
     def forward(self, x: torch.Tensor):
         num_blocks = len(self.block_to_device_lookup)
@@ -122,7 +122,7 @@ class PPFFN(ThetaLayer):
 
             x = self._inter_layer_callback(x, block)
 
-        return x
+        return ops.unshard(x)
 
 
 def main(raw_args=None):
@@ -153,7 +153,7 @@ def main(raw_args=None):
     bs = 16
     sl = 128
     primary_dim = 128 * 2**5
-    shard_count = 2
+    shard_count = 1
     num_layers = 2
     create_theta(primary_dim, shard_count, num_layers, save_path=args.output_irpa_file)
 
