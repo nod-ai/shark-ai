@@ -6,6 +6,12 @@
 
 from enum import Enum
 
+from typing import (
+    Union,
+)
+
+from PIL.Image import Image
+
 import logging
 
 import shortfin as sf
@@ -86,8 +92,7 @@ class SDXLInferenceExecRequest(InferenceExecRequest):
         # Decode phase.
         self.image_array = image_array
 
-        self.result_image = None
-        self.img_metadata = None
+        self.response_image: Union[Image, None] = None
 
         self.done = sf.VoidFuture()
 
@@ -105,17 +110,22 @@ class SDXLInferenceExecRequest(InferenceExecRequest):
             host_arrs = [None] * len(cb.input_ids)
             for idx, arr in enumerate(cb.input_ids):
                 host_arrs[idx] = arr.for_transfer()
-                for i in range(cb.sample.shape[0]):
-                    with host_arrs[idx].view(i).map(write=True, discard=True) as m:
+                with host_arrs[idx].map(write=True, discard=True) as m:
 
-                        # TODO: fix this attr redundancy
-                        np_arr = self.input_ids[i][idx]
+                    # TODO: fix this attr redundancy
+                    np_arr = self.input_ids[0][idx]
 
-                        m.fill(np_arr)
+                    m.fill(np_arr)
                 cb.input_ids[idx].copy_from(host_arrs[idx])
 
         # Same for noisy latents if they are explicitly provided as a numpy array.
-        if self.sample is not None:
+        if isinstance(self.sample, list):
+            sample_host = cb.sample.for_transfer()
+            for idx, i in enumerate(self.sample):
+                with sample_host.view(idx).map(discard=True) as m:
+                    m.fill(i.tobytes())
+            cb.sample.copy_from(sample_host)
+        elif self.sample is not None:
             sample_host = cb.sample.for_transfer()
             with sample_host.map(discard=True) as m:
                 m.fill(self.sample.tobytes())
@@ -138,12 +148,19 @@ class SDXLInferenceExecRequest(InferenceExecRequest):
 
             m.fill(np_arr)
         cb.guidance_scale.copy_from(guidance_host)
-
+        cb.images_host.fill(np.array(0, dtype="float16"))
         self.command_buffer = cb
         return
 
     def post_init(self):
         """Determines necessary inference phases and tags them with static program parameters."""
+        if self.prompt is not None:
+            self.batch_size = len(self.prompt) if isinstance(self.prompt, list) else 1
+        elif self.input_ids is not None:
+            if isinstance(self.input_ids[0], list):
+                self.batch_size = len(self.input_ids)
+            else:
+                self.batch_size = 1
         for p in reversed(list(InferencePhase)):
             required, metadata = self.check_phase(p)
             p_data = {"required": required, "metadata": metadata}

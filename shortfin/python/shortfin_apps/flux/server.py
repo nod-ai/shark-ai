@@ -24,8 +24,8 @@ from fastapi import FastAPI, Request, Response
 from .components.generate import ClientGenerateBatchProcess
 from .components.config_struct import ModelParams
 from .components.io_struct import GenerateReqInput
-from .components.manager import SystemManager
-from .components.service import GenerateService
+from .components.manager import FluxSystemManager
+from .components.service import FluxGenerateService
 from .components.tokenizer import Tokenizer
 
 
@@ -83,7 +83,7 @@ async def lifespan(app: FastAPI):
         sysman.shutdown()
 
 
-sysman: SystemManager
+sysman: FluxSystemManager
 services: dict[str, Any] = {}
 app = FastAPI(lifespan=lifespan)
 
@@ -94,7 +94,7 @@ async def health() -> Response:
 
 
 async def generate_request(gen_req: GenerateReqInput, request: Request):
-    service = services["sd"]
+    service = services["flux"]
     gen_req.post_init()
     responder = FastAPIResponder(request)
     ClientGenerateBatchProcess(service, gen_req, responder).launch()
@@ -105,10 +105,12 @@ app.post("/generate")(generate_request)
 app.put("/generate")(generate_request)
 
 
-def configure_sys(args) -> SystemManager:
+def configure_sys(args) -> FluxSystemManager:
     # Setup system (configure devices, etc).
     model_config, topology_config, flagfile, tuning_spec, args = get_configs(args)
-    sysman = SystemManager(args.device, args.device_ids, args.amdgpu_async_allocations)
+    sysman = FluxSystemManager(
+        args.device, args.device_ids, args.amdgpu_async_allocations
+    )
     return sysman, model_config, flagfile, tuning_spec
 
 
@@ -124,8 +126,8 @@ def configure_service(args, sysman, model_config, flagfile, tuning_spec):
     model_params = ModelParams.load_json(model_config)
     vmfbs, params = get_modules(args, model_config, flagfile, tuning_spec)
 
-    sm = GenerateService(
-        name="sd",
+    sm = FluxGenerateService(
+        name="flux",
         sysman=sysman,
         clip_tokenizers=clip_tokenizers,
         t5xxl_tokenizers=t5xxl_tokenizers,

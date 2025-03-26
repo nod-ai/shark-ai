@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-name: CI - sharktank perplexity
+name: CI - sharktank nightly
 
 on:
   workflow_dispatch:
@@ -21,6 +21,70 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  nightly-mi300x:
+    if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
+    name: "Flux & CLIP evaluation"
+    strategy:
+      matrix:
+        python-version: [3.11]
+        runs-on: [linux-mi300-1gpu-ossci]
+      fail-fast: false
+    runs-on: ${{matrix.runs-on}}
+    defaults:
+      run:
+        shell: bash
+    env:
+      VENV_DIR: ${{ github.workspace }}/.venv
+      HF_HOME: "/shark-cache/data/huggingface"
+      HF_TOKEN: ${{ secrets.HF_FLUX_TOKEN }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: "Setting up Python"
+        id: setup_python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: ${{matrix.python-version}}
+
+      - name: Create Python venv
+        run: python -m venv ${VENV_DIR}
+
+      - name: Install sharktank deps
+        run: |
+          source ${VENV_DIR}/bin/activate
+          python -m pip install --no-compile --upgrade pip
+
+          # Note: We install in three steps in order to satisfy requirements
+          # from non default locations first.
+          pip install --no-compile -r pytorch-cpu-requirements.txt
+          pip install -r requirements-iree-unpinned.txt
+          pip install --no-compile \
+            -r sharktank/requirements-tests.txt \
+            -e sharktank/
+
+          pip freeze
+
+      - name: Run tests
+      # TODO: unify with-*-data flags into a single flag and make it possible to run
+      # only tests that require data.
+      # We would still want the separate flags as we may endup with data being
+      # scattered on different CI machines.
+        run: |
+          source ${VENV_DIR}/bin/activate
+          pytest \
+            -v \
+            --log-cli-level=info \
+            --with-clip-data \
+            --with-flux-data \
+            --iree-hal-target-device=hip \
+            --iree-hip-target=gfx942 \
+            --iree-device=hip://0 \
+            sharktank/tests \
+            --durations=0 \
+            -m "expensive" \
+            --timeout=800
+
+
   test_perplexity_iree:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
     timeout-minutes: 1000
@@ -65,7 +129,21 @@ jobs:
       - name: Run perplexity test with IREE
         run: |
           source ${VENV_DIR}/bin/activate
-          pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_iree_test.py --run-nightly-llama-tests --bs=128 --iree-device=hip://0 --iree-hip-target=gfx942 --iree-hal-target-device=hip --llama3-8b-f16-model-path=/shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa --llama3-8b-f8-model-path=/shark-dev/8b/fp8/native_fp8_e4m3fnuz_llama3_8b.irpa --llama3-8b-tokenizer-path=/shark-dev/data/llama3.1/weights/8b/fp16/tokenizer_config.json --html=out/llm/llama/perplexity/iree_perplexity/index.html --log-cli-level=INFO
+          pytest \
+            -n 8 \
+            -v \
+            -s \
+            sharktank/tests/evaluate/perplexity_iree_test.py \
+            --run-nightly-llama-tests \
+            --bs=128 \
+            --iree-device=hip://0 \
+            --iree-hip-target=gfx942 \
+            --iree-hal-target-device=hip \
+            --llama3-8b-f16-model-path=/shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa \
+            --llama3-8b-f8-model-path=/shark-dev/8b/fp8/native_fp8_e4m3fnuz_llama3_8b.irpa \
+            --llama3-8b-tokenizer-path=/shark-dev/data/llama3.1/weights/8b/fp16/tokenizer_config.json \
+            --html=out/llm/llama/perplexity/iree_perplexity/index.html \
+            --log-cli-level=INFO
           ls -lha ${{ github.workspace }}/perplexity_ci_artifacts
 
 
@@ -110,7 +188,7 @@ jobs:
 
           # Note: We install in three steps in order to satisfy requirements
           # from non default locations first.
-          pip install --no-compile -r pytorch-cpu-requirements.txt
+          pip install --no-compile -r pytorch-rocm-requirements.txt
           pip install -r requirements-iree-unpinned.txt
           pip install --no-compile \
             -r sharktank/requirements-tests.txt \
@@ -118,10 +196,15 @@ jobs:
 
           pip freeze
 
-      - name: Run perplexity test with Torch
+      - name: Run Torch perplexity for fp16
         run: |
           source ${VENV_DIR}/bin/activate
-          pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_torch_test.py --run-nightly-llama-tests --bs=100 --llama3-8b-f16-model-path=/shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa --llama3-8b-f8-model-path=/shark-dev/8b/fp8/native_fp8_e4m3fnuz_llama3_8b.irpa --llama3-8b-tokenizer-path=/shark-dev/data/llama3.1/weights/8b/fp16/tokenizer_config.json --html=out/llm/llama/perplexity/torch_perplexity/index.html
+          pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_torch_test.py -k test_llama3_8B_f16 --run-nightly-llama-tests --bs=32 --device='cuda:0' --llama3-8b-f16-model-path=/shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa --llama3-8b-tokenizer-path=/shark-dev/data/llama3.1/weights/8b/fp16/tokenizer_config.json --html=out/llm/llama/perplexity/torch_perplexity/index_f16.html --log-cli-level=INFO
+
+      - name: Run Torch perplexity for fp8
+        run: |
+          source ${VENV_DIR}/bin/activate
+          pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_torch_test.py -k test_llama3_8B_f8 --run-nightly-llama-tests --bs=32 --device='cuda:0' --llama3-8b-f8-model-path=/shark-dev/8b/fp8/native_fp8_e4m3fnuz_llama3_8b.irpa --llama3-8b-tokenizer-path=/shark-dev/data/llama3.1/weights/8b/fp16/tokenizer_config.json --html=out/llm/llama/perplexity/torch_perplexity/index_f8.html --log-cli-level=INFO
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4.0.0

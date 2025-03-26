@@ -17,7 +17,7 @@ import torch
 from iree.turbine import aot
 from sharktank.layers import (
     PagedLlamaAttentionBlock,
-    PagedKVCache,
+    PagedAttention,
     RotaryEmbeddingLayer,
 )
 from sharktank.layers.testing import make_llama_attention_block_theta
@@ -48,7 +48,7 @@ class PagedLlamaAttentionBlockTest(unittest.TestCase):
     def testExportDecomposed(self):
         dtype = torch.float32
 
-        cache = PagedKVCache(
+        cache = PagedAttention(
             transformer_block_count=self.transformer_block_count,
             attn_head_count=self.head_count_kv,
             attn_head_dim=self.attention_head_dim,
@@ -131,7 +131,7 @@ class PagedLlamaAttentionBlockTest(unittest.TestCase):
     def testExportNondecomposed(self):
         dtype = torch.float32
 
-        cache = PagedKVCache(
+        cache = PagedAttention(
             transformer_block_count=self.transformer_block_count,
             attn_head_count=self.head_count_kv,
             attn_head_dim=self.attention_head_dim,

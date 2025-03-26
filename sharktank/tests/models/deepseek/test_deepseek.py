@@ -13,6 +13,7 @@ import torch
 
 
 def test_deepseek():
+    torch.set_default_dtype(torch.float32)
     theta, config = generate(12345)
     model = PagedDeepseekModelV1(theta=theta, config=config)
 

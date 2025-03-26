@@ -95,24 +95,22 @@ def make_latent_attention_block_theta(
 
 
 def make_mmdit_double_block_random_theta(
-    in_channels: int = 128,
     hidden_size: int = 3072,
+    num_heads: int = 24,
     mlp_ratio: float = 4.0,
     dtype: torch.dtype | None = None,
 ) -> Theta:
-    in_channels = 128
-    hidden_size = 3072
-    mlp_ratio = 4.0
-    mlp_hidden_size = int((mlp_ratio - 1) * hidden_size)
-    mlp_hidden_size2 = int(mlp_ratio * hidden_size)
-    mlp_hidden_size3 = int(2 * (mlp_ratio - 1) * hidden_size)
+    head_dim = hidden_size // num_heads
+    mlp_hidden_size = int(mlp_ratio * hidden_size)
+    qkv_out_size = 3 * hidden_size
+    modulation_size = hidden_size * 6
     return Theta(
         {
             "img_attn.norm.key_norm.scale": DefaultPrimitiveTensor(  #
-                data=make_rand_torch((in_channels,), dtype=dtype)
+                data=make_rand_torch((head_dim,), dtype=dtype)
             ),
             "img_attn.norm.query_norm.scale": DefaultPrimitiveTensor(  #
-                data=make_rand_torch((in_channels,), dtype=dtype)
+                data=make_rand_torch((head_dim,), dtype=dtype)
             ),
             "img_attn.proj.bias": DefaultPrimitiveTensor(
                 data=make_rand_torch((hidden_size,), dtype=dtype)
@@ -121,34 +119,34 @@ def make_mmdit_double_block_random_theta(
                 data=make_rand_torch((hidden_size, hidden_size), dtype=dtype)
             ),
             "img_attn.qkv.bias": DefaultPrimitiveTensor(
-                data=make_rand_torch((mlp_hidden_size,), dtype=dtype)
+                data=make_rand_torch((qkv_out_size,), dtype=dtype)
             ),
             "img_attn.qkv.weight": DefaultPrimitiveTensor(
-                data=make_rand_torch((mlp_hidden_size, hidden_size), dtype=dtype)
+                data=make_rand_torch((qkv_out_size, hidden_size), dtype=dtype)
             ),
             "img_mlp.0.bias": DefaultPrimitiveTensor(
-                data=make_rand_torch((mlp_hidden_size2), dtype=dtype)
+                data=make_rand_torch((mlp_hidden_size), dtype=dtype)
             ),
             "img_mlp.0.weight": DefaultPrimitiveTensor(
-                data=make_rand_torch((mlp_hidden_size2, hidden_size), dtype=dtype)
+                data=make_rand_torch((mlp_hidden_size, hidden_size), dtype=dtype)
             ),
             "img_mlp.2.bias": DefaultPrimitiveTensor(
                 data=make_rand_torch((hidden_size), dtype=dtype)
             ),
             "img_mlp.2.weight": DefaultPrimitiveTensor(
-                data=make_rand_torch((hidden_size, mlp_hidden_size2), dtype=dtype)
+                data=make_rand_torch((hidden_size, mlp_hidden_size), dtype=dtype)
             ),
             "img_mod.lin.bias": DefaultPrimitiveTensor(
-                data=make_rand_torch((mlp_hidden_size3,), dtype=dtype)
+                data=make_rand_torch((modulation_size,), dtype=dtype)
             ),
             "img_mod.lin.weight": DefaultPrimitiveTensor(
-                data=make_rand_torch((mlp_hidden_size3, hidden_size), dtype=dtype)
+                data=make_rand_torch((modulation_size, hidden_size), dtype=dtype)
             ),
             "txt_attn.norm.key_norm.scale": DefaultPrimitiveTensor(  #
-                data=make_rand_torch((in_channels,), dtype=dtype)
+                data=make_rand_torch((head_dim,), dtype=dtype)
             ),
             "txt_attn.norm.query_norm.scale": DefaultPrimitiveTensor(  #
-                data=make_rand_torch((in_channels,), dtype=dtype)
+                data=make_rand_torch((head_dim,), dtype=dtype)
             ),
             "txt_attn.proj.bias": DefaultPrimitiveTensor(
                 data=make_rand_torch((hidden_size,), dtype=dtype)
@@ -157,49 +155,50 @@ def make_mmdit_double_block_random_theta(
                 data=make_rand_torch((hidden_size, hidden_size), dtype=dtype)
             ),
             "txt_attn.qkv.bias": DefaultPrimitiveTensor(
-                data=make_rand_torch((mlp_hidden_size,), dtype=dtype)
+                data=make_rand_torch((qkv_out_size,), dtype=dtype)
             ),
             "txt_attn.qkv.weight": DefaultPrimitiveTensor(
-                data=make_rand_torch((mlp_hidden_size, hidden_size), dtype=dtype)
+                data=make_rand_torch((qkv_out_size, hidden_size), dtype=dtype)
             ),
             "txt_mlp.0.bias": DefaultPrimitiveTensor(
-                data=make_rand_torch((mlp_hidden_size2), dtype=dtype)
+                data=make_rand_torch((mlp_hidden_size), dtype=dtype)
             ),
             "txt_mlp.0.weight": DefaultPrimitiveTensor(
-                data=make_rand_torch((mlp_hidden_size2, hidden_size), dtype=dtype)
+                data=make_rand_torch((mlp_hidden_size, hidden_size), dtype=dtype)
             ),
             "txt_mlp.2.bias": DefaultPrimitiveTensor(
                 data=make_rand_torch((hidden_size), dtype=dtype)
             ),
             "txt_mlp.2.weight": DefaultPrimitiveTensor(
-                data=make_rand_torch((hidden_size, mlp_hidden_size2), dtype=dtype)
+                data=make_rand_torch((hidden_size, mlp_hidden_size), dtype=dtype)
             ),
             "txt_mod.lin.bias": DefaultPrimitiveTensor(
-                data=make_rand_torch((mlp_hidden_size3,), dtype=dtype)
+                data=make_rand_torch((modulation_size,), dtype=dtype)
             ),
             "txt_mod.lin.weight": DefaultPrimitiveTensor(
-                data=make_rand_torch((mlp_hidden_size3, hidden_size), dtype=dtype)
+                data=make_rand_torch((modulation_size, hidden_size), dtype=dtype)
             ),
         }
     )
 
 
 def make_mmdit_single_block_random_theta(
-    in_channels: int = 128,
     hidden_size: int = 3072,
+    num_heads: int = 24,
     mlp_ratio: float = 4.0,
     dtype: torch.dtype | None = None,
 ) -> Theta:
-    mlp_hidden_size = int((mlp_ratio - 1) * hidden_size)
-    mlp_hidden_size2 = int((mlp_ratio + 1) * hidden_size)
-    mlp_hidden_size3 = int((2 * mlp_ratio - 1) * hidden_size)
+    mlp_hidden_dim = int(hidden_size * mlp_ratio)
+    head_dim = hidden_size // num_heads
+    modulation_size = 3 * hidden_size
+    linear1_hidden_size = hidden_size * 3 + mlp_hidden_dim
     return Theta(
         {
             "norm.key_norm.scale": DefaultPrimitiveTensor(  #
-                data=make_rand_torch((in_channels,), dtype=dtype)
+                data=make_rand_torch((head_dim,), dtype=dtype)
             ),
             "norm.query_norm.scale": DefaultPrimitiveTensor(  #
-                data=make_rand_torch((in_channels,), dtype=dtype)
+                data=make_rand_torch((head_dim,), dtype=dtype)
             ),
             "attn.proj.bias": DefaultPrimitiveTensor(
                 data=make_rand_torch((hidden_size,), dtype=dtype)
@@ -208,22 +207,24 @@ def make_mmdit_single_block_random_theta(
                 data=make_rand_torch((hidden_size, hidden_size), dtype=dtype)
             ),
             "linear1.bias": DefaultPrimitiveTensor(
-                data=make_rand_torch((mlp_hidden_size3,), dtype=dtype)
+                data=make_rand_torch((linear1_hidden_size,), dtype=dtype)
             ),
             "linear1.weight": DefaultPrimitiveTensor(
-                data=make_rand_torch((mlp_hidden_size3, hidden_size), dtype=dtype)
+                data=make_rand_torch((linear1_hidden_size, hidden_size), dtype=dtype)
             ),
             "linear2.bias": DefaultPrimitiveTensor(
                 data=make_rand_torch((hidden_size), dtype=dtype)
             ),
             "linear2.weight": DefaultPrimitiveTensor(
-                data=make_rand_torch((hidden_size, mlp_hidden_size2), dtype=dtype)
+                data=make_rand_torch(
+                    (hidden_size, hidden_size + mlp_hidden_dim), dtype=dtype
+                )
             ),
             "modulation.lin.bias": DefaultPrimitiveTensor(
-                data=make_rand_torch((mlp_hidden_size,), dtype=dtype)
+                data=make_rand_torch((modulation_size,), dtype=dtype)
             ),
             "modulation.lin.weight": DefaultPrimitiveTensor(
-                data=make_rand_torch((mlp_hidden_size, hidden_size), dtype=dtype)
+                data=make_rand_torch((modulation_size, hidden_size), dtype=dtype)
             ),
         }
     )

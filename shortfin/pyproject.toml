@@ -41,7 +41,7 @@ apps = [
   "pillow",
   "fastapi",
   "uvicorn",
-  "aiohttp",
+  "aiohttp>=3.11.3",
 ]
 
 [tool.pytest.ini_options]

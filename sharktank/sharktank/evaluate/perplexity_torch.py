@@ -7,14 +7,10 @@
 import sys
 import logging
 import time
-import random
-import re
-from datetime import timedelta
 import json
 import numpy as np
 from tqdm import tqdm
-
-from datasets import load_dataset
+import gc
 
 import torch
 from torch.nn import CrossEntropyLoss
@@ -30,7 +26,8 @@ from ..models.llama.sharding import shard_theta
 
 from sharktank.utils import cli
 from sharktank.utils.load_llm import *
-from .utils import *
+from sharktank.utils.evaluate import *
+
 
 logger = logging.getLogger("eval")
 
@@ -141,11 +138,7 @@ class Perplexity_torch:
         is_first_token = True
         self.start = 10
         out_logits = []
-        for i in tqdm(
-            range(self.start, self.max_prompt_length - 1),
-            mininterval=300,
-            desc="eval: Calculating logits",
-        ):
+        for i in range(self.start, self.max_prompt_length - 1):
             logger.debug(f"Iteration: {i}")
 
             if is_first_token:
@@ -176,15 +169,15 @@ class Perplexity_torch:
 
                 self.print_token_comparison(i)
 
-        out_logits = torch.cat(out_logits, 1)
+        out_logits = torch.cat(out_logits, dim=1)
 
         pad_logits_shape = self.token_ids.shape[1] - out_logits.shape[1]
 
         pad_logits = torch.zeros(
-            out_logits.shape[0], pad_logits_shape, out_logits.shape[2]
+            out_logits.shape[0], pad_logits_shape, out_logits.shape[2], device=self.device,
         )
 
-        out_logits = torch.cat((out_logits, pad_logits), 1).to(
+        out_logits = torch.cat((out_logits, pad_logits), dim=1).to(
             self.device
         )
         
@@ -225,28 +218,41 @@ def run_perplexity_torch(
     tokenizer,
     device,
     tensor_parallelism_size,
+    model_file,
 ):
+
     start = time.time()
     
     test_prompts = args.prompt_list or get_prompts(num_prompts=args.num_prompts)
 
-    perplexity = Perplexity_torch()
-    
-    perplexity.load_model(
-        dataset=dataset,
-        tokenizer=tokenizer,
-        tensor_parallelism_size=tensor_parallelism_size,
-        device=device,
-        activation_dtype=args.activation_dtype,
-        attention_dtype=args.attention_dtype,
-        kv_cache_dtype=args.kv_cache_dtype,
-        attention_kernel=args.attention_kernel,
-        block_seq_stride=args.block_seq_stride,
-        use_hf=args.use_hf,
-        fake_quant=args.fake_quant,
+    bs = 32
+
+    input_prompts = [test_prompts[idx : idx + bs] for idx in range(0, len(test_prompts), bs)]
+
+    perplexity_batch = []
+    for p in tqdm(
+        input_prompts,
+        desc=f"eval: Calculating logits for {model_file.name}",
+    ):
+        perplexity_batch.extend(
+            perplexity_torch(
+                dataset=dataset,
+                tokenizer=tokenizer,
+                device=device,
+                tensor_parallelism_size=tensor_parallelism_size,
+                attention_kernel=args.attention_kernel,
+                block_seq_stride=args.block_seq_stride,
+                prompts=p,
+                activation_dtype=args.activation_dtype,
+                attention_dtype=args.attention_dtype,
+                kv_cache_dtype=args.kv_cache_dtype,
+                use_hf=args.use_hf,
+                fake_quant=args.fake_quant,
+                skip_decode=args.skip_decode,
+            )
         )
-    
-    ppl = perplexity.get_perplexity(test_prompts, skip_decode=args.skip_decode)
+
+        gc.collect()
 
     end = time.time()
     total_time = round(end - start, 2)
@@ -255,6 +261,46 @@ def run_perplexity_torch(
     else:
         total_time = str(round(total_time / 60, 2)) + " mins"
     logger.info(f" Total time taken: {total_time}")
+
+    return {
+        "perplexities": perplexity_batch,
+        "mean_perplexity": round(np.mean(perplexity_batch), 6),
+    }
+
+
+def perplexity_torch(
+    dataset,
+    tokenizer,
+    device,
+    tensor_parallelism_size,
+    attention_kernel,
+    block_seq_stride,
+    prompts,
+    activation_dtype,
+    attention_dtype,
+    kv_cache_dtype,
+    use_hf,
+    fake_quant,
+    skip_decode,
+):
+    
+    perplexity = Perplexity_torch()
+    
+    perplexity.load_model(
+        dataset=dataset,
+        tokenizer=tokenizer,
+        tensor_parallelism_size=tensor_parallelism_size,
+        device=device,
+        activation_dtype=activation_dtype,
+        attention_dtype=attention_dtype,
+        kv_cache_dtype=kv_cache_dtype,
+        attention_kernel=attention_kernel,
+        block_seq_stride=block_seq_stride,
+        use_hf=use_hf,
+        fake_quant=fake_quant,
+        )
+    
+    ppl = perplexity.get_perplexity(prompts, skip_decode=skip_decode)
 
     return ppl
 
@@ -270,11 +316,13 @@ def main(argv):
     cli.add_log_options(parser)
 
     args = cli.parse(parser, args=argv)
+
     dataset = cli.get_input_dataset(args)
     tokenizer = cli.get_tokenizer(args)
     
     logger.setLevel(args.loglevel)
     device = torch.device(args.device) if args.device else None
+    model_file = args.gguf_file or args.irpa_file
 
     assert args.num_prompts or args.prompt_list, "Pass --num-prompts or --prompt-list"
 
@@ -291,9 +339,12 @@ def main(argv):
         tokenizer=tokenizer,
         device=device,
         tensor_parallelism_size=tensor_parallelism_size,
+        model_file=model_file,
     )
 
     logger.info(f"\n{json.dumps(ppl, indent=2)}")
+
+    gc.collect()
     return ppl
 
 

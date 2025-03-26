@@ -1,7 +1,9 @@
 pytest
+pytest-asyncio
 pytest-timeout
 requests
 fastapi
+aiohttp==3.11.3
 onnx
 uvicorn
 

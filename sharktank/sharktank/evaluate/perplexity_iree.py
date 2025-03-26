@@ -24,8 +24,7 @@ from sharktank.utils.vmfb_runner import *
 from sharktank.utils.load_llm import *
 from sharktank.utils.create_cache import *
 from sharktank.utils.export_artifacts import *
-from sharktank.utils.iree import iree_to_torch
-
+from sharktank.utils.iree import iree_to_torch, with_iree_device_context
 from .utils import *
 
 logger = logging.getLogger("eval")
@@ -262,36 +261,37 @@ class Perplexity_iree:
 
     @timeit
     def get_logits(self, skip_decode: bool) -> torch.tensor:
+        def run_iree_module(iree_devices: list[ireert.HalDevice]):
+            is_first_token = True
+            self.start = 10
+            out_logits = []
+            for i in tqdm(
+                range(self.start, self.max_prompt_length - 1),
+                mininterval=300,
+                desc="eval: Calculating logits",
+            ):
+                logger.debug(f"Iteration: {i}")
 
-        is_first_token = True
-        self.start = 10
-        out_logits = []
-        for i in tqdm(
-            range(self.start, self.max_prompt_length - 1),
-            mininterval=300,
-            desc="eval: Calculating logits",
-        ):
-            logger.debug(f"Iteration: {i}")
+                if is_first_token:
 
-            if is_first_token:
+                    token_batch = self.token_ids[:, : i + 1]
 
-                token_batch = self.token_ids[:, : i + 1]
+                    prefill_logits = self.prefill_vmfb(token_batch, i)
+                    
+                    out_logits.append(prefill_logits[:, -1:, :])
 
-                prefill_logits = self.prefill_vmfb(token_batch, i)
-                
-                out_logits.append(prefill_logits[:, -1:, :])
+                    if not skip_decode:
+                        is_first_token = False                    
 
-                if not skip_decode:
-                    is_first_token = False                    
-
-            else:
-                token_batch = self.token_ids[:, i : i + 1]
+                else:
+                    token_batch = self.token_ids[:, i : i + 1]
 
                 decode_logits = self.decode_vmfb(token_batch, i)
                 out_logits.append(decode_logits)
-                
-        out_logits = torch.cat(out_logits, 1)
-                
+
+        with_iree_device_context(run_iree_module, [self.runner.config.device])
+        out_logits = torch.cat(out_logits, dim=1)
+
         pad_logits_shape = self.token_ids.shape[1] - out_logits.shape[1]
 
         pad_logits = torch.zeros(

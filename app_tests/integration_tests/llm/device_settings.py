@@ -32,9 +32,18 @@ GFX90A = DeviceSettings(
     server_flags=("--device=hip",),
 )
 
+GFX1100 = DeviceSettings(
+    compile_flags=(
+        "--iree-hal-target-backends=rocm",
+        "--iree-hip-target=gfx1100",
+    ),
+    server_flags=("--device=hip",),
+)
+
 table = {
     "gfx942": GFX942,
     "gfx90a": GFX90A,
+    "gfx1100": GFX1100,
     "host": CPU,
     "hostcpu": CPU,
     "local-task": CPU,

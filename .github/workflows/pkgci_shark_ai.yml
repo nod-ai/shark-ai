@@ -28,7 +28,7 @@ jobs:
       matrix:
         include:
           - name: cpu
-            runs-on: azure-cpubuilder-linux-scale
+            runs-on: ubuntu-24.04
             test_device: cpu
             python-version: 3.11
           - name: amdgpu_rocm_mi300_gfx942
@@ -61,7 +61,7 @@ jobs:
             --log-cli-level=INFO
       - name: Upload Test Results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: smoke-test-${{ matrix.name }}
           path: smoke-test-${{ matrix.name }}.xml
@@ -108,7 +108,7 @@ jobs:
             --log-cli-level=INFO
       - name: Upload Test Results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: direct-to-batcher-test-${{ matrix.name }}
           path: direct-to-batcher-test-${{ matrix.name }}.xml
@@ -155,7 +155,7 @@ jobs:
             --log-cli-level=INFO
       - name: Upload Test Results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: integration-test-${{ matrix.name }}
           path: integration-test-${{ matrix.name }}.xml

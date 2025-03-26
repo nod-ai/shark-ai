@@ -74,8 +74,8 @@ deactivate
 python3.11 -m venv 3.11.venv
 source 3.11.venv/bin/activate
 
-# Install 'shortfin' package from nightly releases.
-pip install shortfin -f https://github.com/nod-ai/shark-ai/releases/expanded_assets/dev-wheels --pre
+# Install 'shortfin' package from nightly releases, optionally with [apps] extra requirements.
+pip install shortfin[apps] -f https://github.com/nod-ai/shark-ai/releases/expanded_assets/dev-wheels --pre
 
 # Test the installation.
 python -c "import shortfin as sf; print('Sanity check passed')"

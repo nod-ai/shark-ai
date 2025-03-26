@@ -57,7 +57,7 @@ jobs:
           python-version: ${{matrix.python-version}}
 
       - name: Cache Pip Packages
-        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         id: cache-pip
         with:
           path: ${{ env.PIP_CACHE_DIR }}
@@ -140,20 +140,17 @@ jobs:
           pytest \
             -v \
             --log-cli-level=info \
-            --with-clip-data \
-            --with-flux-data \
             --with-vae-data \
             --with-quark-data \
-            sharktank/tests/models/clip/clip_test.py \
+            --with-t5-data \
+            --iree-hal-target-device=hip \
+            --iree-hip-target=gfx942 \
+            --iree-device=hip://0 \
             sharktank/tests/models/t5/t5_test.py \
-            sharktank/tests/models/flux/flux_test.py \
             sharktank/tests/models/vae/vae_test.py \
             sharktank/tests/models/llama/quark_parity_test.py \
             --durations=0 \
             --timeout=800
-# TODO: add back
-#             --with-t5-data \
-# when #888 is resolved
 
   test_integration:
     name: "Model Integration Tests"
@@ -170,7 +167,7 @@ jobs:
           python-version: 3.11
 
       - name: Cache Pip Packages
-        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         id: cache-pip
         with:
           path: ${{ env.PIP_CACHE_DIR }}

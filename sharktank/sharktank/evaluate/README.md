@@ -7,6 +7,10 @@ Setup SHARK Platform's Evaluation Pipeline
 pip install -r sharktank/requirements-tests.txt
 ```
 
+## Project Status
+
+[![CI - sharktank nightly](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharktank-nightly.yml/badge.svg?branch=main)](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharktank-nightly.yml)
+
 ### Perplexity
 
 Perplexity score measures the ability of a language model to predict the next token in a sequence. A lower score indicates that a model has higher certainty in it's predictions. Perplexity acts as an intrinsic evaluation metric that measures the model quality, independent of any downstream task.
@@ -23,6 +27,7 @@ pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_torch_test.py -k test_llam
   --llama3-8b-f16-model-path=llama3.1_8b_instruct_fp16.irpa \
   --llama3-8b-tokenizer-path=tokenizer_config.json \
   --bs=4 \
+  --device='cuda:0' \
   --run-nightly-llama-tests
 ```
 
@@ -32,7 +37,7 @@ pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_iree_test.py -k test_llama
   --llama3-8b-f16-model-path=llama3.1_8b_instruct_fp16.irpa  \
   --llama3-8b-tokenizer-path=tokenizer_config.json \
   --bs=4 \
-  --iree-device=hip://1 \
+  --iree-device=hip://0 \
   --iree-hip-target=gfx942 \
   --iree-hal-target-device=hip
 ```
@@ -46,7 +51,8 @@ Replace `--irpa-file` with `--gguf-file` flag if necessary (eg: `--gguf-file=lla
 python -m  sharktank.evaluate.perplexity_torch \
   --irpa-file=llama3_70b_instruct_fp16.irpa \
   --tokenizer-config-json=tokenizer_config.json \
-  --num-prompts=4
+  --num-prompts=4 \
+  --device='cuda:0'
 ```
 
 ##### IREE mode
@@ -83,4 +89,4 @@ python -m sharktank.evaluate.perplexity_iree  -h
 
 |Models                          |Torch score   |IREE score    | Model size (GB) |
 |:-------------------------------|:-------------|:-------------|:----------------|
-|8B FP16 Instruct TP1            |20.3033       |14.6294       |16.07            |
+|8B FP16 Instruct TP1            |20.2232       |14.6294       |16.07            |

@@ -1,22 +1,44 @@
 {
   "max_seq_len": 64,
   "num_latents_channels": 4,
-  "clip_batch_sizes": [
-    1
-  ],
-  "unet_batch_sizes": [
-    1
-  ],
-  "vae_batch_sizes": [
-    1
-  ],
-  "scheduler_batch_sizes": [
-    1
-  ],
+  "batch_sizes": {
+    "clip": [
+      1
+    ],
+    "unet": [
+      1
+    ],
+    "vae": [
+      1
+    ],
+    "scheduler": [
+      1
+    ]
+  },
+  "module_names": {
+    "clip": "compiled_clip",
+    "unet": "compiled_punet",
+    "vae": "compiled_vae",
+    "scheduler": "compiled_scheduler"
+  },
+  "function_names": {
+    "clip": [
+      "encode_prompts"
+    ],
+    "unet": [
+      "main"
+    ],
+    "vae": [
+      "decode"
+    ],
+    "scheduler": [
+      "run_initialize",
+      "run_scale",
+      "run_step"
+    ]
+  },
   "unet_dtype": "float16",
-  "unet_module_name": "compiled_punet",
-  "unet_fn_name": "main",
-  "use_i8_punet": true,
+  "unet_quant_dtype": "i8",
   "dims": [
     [
       1024,

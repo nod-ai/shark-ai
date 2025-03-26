@@ -4,32 +4,24 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import Any
 import argparse
 import logging
 import asyncio
 from pathlib import Path
 import numpy as np
-import math
 import sys
 import time
 import os
 import copy
 import subprocess
-from contextlib import asynccontextmanager
-import uvicorn
 
 # Import first as it does dep checking and reporting.
-from shortfin.interop.fastapi import FastAPIResponder
 from shortfin.support.logging_setup import native_handler
 import shortfin as sf
 
-from fastapi import FastAPI, Request, Response
 
-from .components.generate import GenerateImageProcess
 from .components.messages import InferenceExecRequest, InferencePhase
 from .components.config_struct import ModelParams
-from .components.io_struct import GenerateReqInput
 from .components.manager import SystemManager
 from .components.service import GenerateService, InferenceExecutorProcess
 from .components.tokenizer import Tokenizer
@@ -85,11 +77,22 @@ def get_modules(
     td_spec=None,
     extra_compile_flags=[],
     artifacts_dir=None,
+    splat=False,
+    build_preference="export",
+    force_update=False,
 ):
-    # TODO: Move this out of server entrypoint
-    vmfbs = {"clip": [], "unet": [], "vae": [], "scheduler": []}
-    params = {"clip": [], "unet": [], "vae": []}
-    model_flags = copy.deepcopy(vmfbs)
+    mod_params = ModelParams.load_json(model_config)
+
+    vmfbs = {}
+    params = {}
+    model_flags = {}
+    for submodel in mod_params.module_names.keys():
+        vmfbs[submodel] = {}
+        model_flags[submodel] = []
+        for bs in mod_params.batch_sizes[submodel]:
+            vmfbs[submodel][bs] = []
+        if submodel != "scheduler":
+            params[submodel] = []
     model_flags["all"] = extra_compile_flags
 
     if flagfile:
@@ -98,16 +101,19 @@ def get_modules(
         flagged_model = "all"
         for elem in contents:
             match = [keyw in elem for keyw in model_flags.keys()]
-            if any(match):
+            if any(match) or "--" not in elem:
                 flagged_model = elem
-            else:
+            elif flagged_model in model_flags:
                 model_flags[flagged_model].extend([elem])
     if td_spec:
-        model_flags["unet"].extend(
-            [f"--iree-codegen-transform-dialect-library={td_spec}"]
-        )
-
+        for key in model_flags.keys():
+            if key in ["unet", "punet", "scheduled_unet"]:
+                model_flags[key].extend(
+                    [f"--iree-codegen-transform-dialect-library={td_spec}"]
+                )
     filenames = []
+    builder_env = os.environ.copy()
+    builder_env["IREE_BUILD_MP_CONTEXT"] = "fork"
     for modelname in vmfbs.keys():
         ireec_args = model_flags["all"] + model_flags[modelname]
         ireec_extra_args = " ".join(ireec_args)
@@ -118,29 +124,33 @@ def get_modules(
             os.path.join(THIS_DIR, "components", "builders.py"),
             f"--model-json={model_config}",
             f"--target={target}",
-            f"--splat=False",
-            f"--build-preference=precompiled",
+            f"--splat={splat}",
+            f"--build-preference={build_preference}",
             f"--output-dir={artifacts_dir}",
             f"--model={modelname}",
+            f"--force-update={force_update}",
             f"--iree-hal-target-device={device}",
             f"--iree-hip-target={target}",
             f"--iree-compile-extra-args={ireec_extra_args}",
         ]
         logger.info(f"Preparing runtime artifacts for {modelname}...")
-        logger.debug(
+        logger.info(
             "COMMAND LINE EQUIVALENT: " + " ".join([str(argn) for argn in builder_args])
         )
-        output = subprocess.check_output(builder_args).decode()
+        output = subprocess.check_output(builder_args, env=builder_env).decode()
 
         output_paths = output.splitlines()
+        for path in output_paths:
+            if "irpa" in path:
+                params[modelname].append(path)
+                output_paths.remove(path)
         filenames.extend(output_paths)
     for name in filenames:
         for key in vmfbs.keys():
-            if key in name.lower():
-                if any(x in name for x in [".irpa", ".safetensors", ".gguf"]):
-                    params[key].extend([name])
-                elif "vmfb" in name:
-                    vmfbs[key].extend([name])
+            for bs in vmfbs[key].keys():
+                if key in name.lower() and f"_bs{bs}_" in name.lower():
+                    if "vmfb" in name:
+                        vmfbs[key][bs].extend([name])
     return vmfbs, params
 
 
@@ -150,6 +160,7 @@ class MicroSDXLExecutor(sf.Process):
         self.service = service
 
         self.args = args
+        self.batch_size = args.batch_size
         self.exec = None
         self.imgs = None
 
@@ -172,8 +183,8 @@ class MicroSDXLExecutor(sf.Process):
                 np.ones([1, 64], dtype=np.int64),
                 np.ones([1, 64], dtype=np.int64),
             ]
-        ]
-        sample = np.ones([1, 4, 128, 128], dtype=np.float16)
+        ] * self.batch_size
+        sample = [np.ones([1, 4, 128, 128], dtype=np.float16)] * self.batch_size
         self.exec = InferenceExecRequest(
             prompt=None,
             neg_prompt=None,
@@ -260,9 +271,12 @@ def create_service(
         show_progress=False,
         trace_execution=trace_execution,
     )
-    for key, vmfblist in vmfbs.items():
-        for vmfb in vmfblist:
-            sdxl_service.load_inference_module(vmfb, component=key)
+    for key, bs in vmfbs.items():
+        for bs_int, vmfb_list in bs.items():
+            for vmfb in vmfb_list:
+                sdxl_service.load_inference_module(
+                    vmfb, component=key, batch_size=bs_int
+                )
     for key, datasets in params.items():
         sdxl_service.load_inference_parameters(
             *datasets, parameter_scope="model", component=key
@@ -291,6 +305,7 @@ def prepare_service(args):
         flagfile,
         tuning_spec,
         artifacts_dir=args.artifacts_dir,
+        build_preference=args.build_preference,
     )
     return model_params, tokenizers, vmfbs, params
 
@@ -398,7 +413,7 @@ def run_cli(argv):
         type=str,
         required=False,
         default="gfx942",
-        choices=["gfx942", "gfx1100", "gfx90a"],
+        choices=["gfx90a", "gfx942", "gfx1100", "gfx1201"],
         help="Primary inferencing device LLVM target arch.",
     )
     parser.add_argument(
@@ -465,7 +480,7 @@ def run_cli(argv):
     parser.add_argument(
         "--build_preference",
         type=str,
-        choices=["compile", "precompiled"],
+        choices=["compile", "precompiled", "export"],
         default="precompiled",
         help="Specify preference for builder artifact generation.",
     )
@@ -540,6 +555,12 @@ def run_cli(argv):
         type=int,
         default=16,
         help="Maximum number of executor threads to run at any given time.",
+    )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=1,
+        help="Inference program batch size to test.",
     )
     args = parser.parse_args(argv)
     if not args.artifacts_dir:

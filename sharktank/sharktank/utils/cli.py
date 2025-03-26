@@ -75,7 +75,7 @@ def add_model_options(parser: argparse.ArgumentParser):
         "--attention-kernel",
         type=str,
         default="torch",
-        choices=["decomposed", "torch"],
+        choices=["decomposed", "torch", "sharktank"],
     )
     parser.add_argument(
         "--skip-prefill",
@@ -279,11 +279,13 @@ def get_input_dataset(args) -> Dataset:
     Presumes that the arg parser was initialized with |add_input_dataset|.
     """
     data_files = get_input_data_files(args)
+    device = getattr(args, "device", None)
+
     if "gguf" in data_files:
-        return Dataset.load(data_files["gguf"][0], file_type="gguf")
+        return Dataset.load(data_files["gguf"][0], file_type="gguf", device=device)
 
     if "irpa" in data_files:
-        return Dataset.load(data_files["irpa"][0], file_type="irpa")
+        return Dataset.load(data_files["irpa"][0], file_type="irpa", device=device)
 
     raise ValueError(f'Dataset format unsupported. Must be "gguf" or "irpa".')
 

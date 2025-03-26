@@ -17,7 +17,7 @@ this_dir = os.path.dirname(os.path.abspath(__file__))
 parent = os.path.dirname(this_dir)
 default_config_json = os.path.join(parent, "examples", "flux_dev_config_mixed.json")
 
-ARTIFACT_VERSION = "02102025"
+ARTIFACT_VERSION = "20250321"
 FLUX_BUCKET = (
     f"https://sharkpublic.blob.core.windows.net/sharkpublic/flux.1/{ARTIFACT_VERSION}/"
 )
@@ -54,7 +54,7 @@ def get_vmfb_filenames(
 
 def get_params_filenames(model_params: ModelParams, model=None, splat: bool = False):
     params_filenames = []
-    base = "flux_dev" if not model_params.is_schnell else model_params.base_model_name
+    base = "flux"
     modnames = ["clip", "sampler", "t5xxl", "vae"]
     mod_precs = [
         dtype_to_filetag[model_params.clip_dtype],
@@ -69,14 +69,20 @@ def get_params_filenames(model_params: ModelParams, model=None, splat: bool = Fa
             )
     else:
         for idx, mod in enumerate(modnames):
-            params_filenames.extend([base + "_" + mod + "_" + mod_precs[idx] + ".irpa"])
+            # schnell and dev weights are the same, except for sampler
+            subtype = (
+                "schnell" if model_params.is_schnell and mod == "sampler" else "dev"
+            )
+            params_filenames.extend(
+                [base + "_" + subtype + "_" + mod + "_" + mod_precs[idx] + ".irpa"]
+            )
 
     return filter_by_model(params_filenames, model)
 
 
 def get_file_stems(model_params: ModelParams):
     file_stems = []
-    base = ["flux_dev" if not model_params.is_schnell else model_params.base_model_name]
+    base = "flux_"
     mod_names = {
         "clip": "clip",
         "t5xxl": "t5xxl",
@@ -84,15 +90,17 @@ def get_file_stems(model_params: ModelParams):
         "vae": "vae",
     }
     for mod, modname in mod_names.items():
+        # schnell and dev weights are the same, except for sampler
+        subtype = "schnell" if model_params.is_schnell and mod == "sampler" else "dev"
         ord_params = [
-            base,
+            [base + subtype],
             [modname],
         ]
         bsizes = []
         for bs in getattr(model_params, f"{mod}_batch_sizes", [1]):
             bsizes.extend([f"bs{bs}"])
         ord_params.extend([bsizes])
-        if mod in ["sampler"]:
+        if mod in ["sampler", "t5xxl"]:
             ord_params.extend([[str(model_params.t5xxl_max_seq_len)]])
         elif mod == "clip":
             ord_params.extend([[str(model_params.clip_max_seq_len)]])
@@ -173,7 +181,10 @@ def flux(
     params_urls = get_url_map(params_filenames, FLUX_WEIGHTS_BUCKET)
     for f, url in params_urls.items():
         if needs_file_url(f, ctx, url):
-            fetch_http_check_size(name=f, url=url)
+            raise RuntimeError(
+                "Model parameters auto-downloading is disable."
+                " To obtain the weights please follow https://github.com/nod-ai/shark-ai/tree/main/shortfin/python/shortfin_apps/flux#prepare-artifacts"
+            )
     filenames = [*vmfb_filenames, *params_filenames, *mlir_filenames]
     return filenames
 

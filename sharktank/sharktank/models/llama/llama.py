@@ -6,12 +6,10 @@
 
 from typing import Optional
 
-from dataclasses import dataclass
 from typing import Union
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from ...layers import *
 from ...types import *
@@ -36,7 +34,7 @@ class PagedLlamaModelV1(BaseCausalLMModel):
 
     The inference procedure is typically:
 
-    1. Initialize the PagedKVCache state tensors.
+    1. Initialize the kv cache state tensors.
     2. Generate an input mask given a vector of sequence lengths.
     3. Generate an attention mask from the input mask.
     4. Allocate a block mapping table.
@@ -232,7 +230,7 @@ class AttentionFFNBlock(ThetaLayer):
         theta: Theta,
         *,
         block_index: int,
-        cache: PagedKVCache,
+        cache: PagedAttention,
         head_count: int,
         head_dim: int,
         head_count_kv: int,

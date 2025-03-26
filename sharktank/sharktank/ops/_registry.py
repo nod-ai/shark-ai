@@ -251,6 +251,15 @@ class SignatureDispatcher:
             f"{spec}"
         )
 
+    def get_override_names(self):
+        return [o.target.__name__ for o in self._overrides]
+
+    def remove_override(self, override_name: str):
+        self._overrides = [
+            o for o in self._overrides if o.target.__name__ != override_name
+        ]
+        self._target_cache.clear()
+
     def trampoline(self, trampoline: Callable):
         assert self._trampoline is None
         self._trampoline = trampoline

@@ -16,6 +16,7 @@ from iree.turbine.aot import *
 from sharktank.layers import *
 from sharktank.types import *
 from sharktank.utils.math import ceildiv
+from sharktank import ops
 
 # TODO: Should be using a base class with the protocol supported.
 from ..models.llama.llama import LlamaModelConfig, PagedLlamaModelV1
@@ -37,6 +38,10 @@ def main():
     cli.add_log_options(parser)
     
     args = cli.parse(parser)
+    if args.attention_kernel == "sharktank":
+        ops.attention_impls.register_attention_override_by_name(
+            "masked_flash_attention"
+        )
     dataset_type = cli.get_input_data_files(args)
     dataset_type = "irpa" if "irpa" in dataset_type else "gguf"
     dataset = cli.get_input_dataset(args)
@@ -46,7 +51,6 @@ def main():
         if "tensor_parallelism_size" in dataset.properties
         else args.tensor_parallelism_size
     )
-
     llama_config = LlamaModelConfig(
         hp,
         tensor_parallelism_size=tensor_parallelism_size,
@@ -309,13 +313,14 @@ def main():
             return logits
 
     bsizes = []
-    for bs in args.bs:
-        if not args.skip_prefill:
+    if not args.skip_prefill:
+        for bs in args.bs_prefill:
             generate_batch_prefill(bs)
-        if not args.skip_decode:
+    if not args.skip_decode:
+        for bs in args.bs_decode:
             generate_batch_decode(bs)
-        bsizes.append(bs)
-    config = generate_params_json(hp, bsizes, bsizes)
+
+    config = generate_params_json(hp, args.bs_prefill, args.bs_decode)
     print("GENERATED!")
 
     if args.loglevel==logging.DEBUG:
