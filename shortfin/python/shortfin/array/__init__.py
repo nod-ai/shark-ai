@@ -32,6 +32,7 @@ uint64 = _sfl.array.uint64
 float16 = _sfl.array.float16
 float32 = _sfl.array.float32
 float64 = _sfl.array.float64
+float8_e4m3fnuz = _sfl.array.float8_e4m3fnuz
 bfloat16 = _sfl.array.bfloat16
 complex64 = _sfl.array.complex64
 complex128 = _sfl.array.complex128
@@ -84,6 +85,7 @@ __all__ = [
     "int64",
     "sint64",
     "uint64",
+    "float8_e4m3fnuz",
     "float16",
     "float32",
     "float64",
