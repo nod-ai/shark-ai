@@ -93,7 +93,7 @@ jobs:
     strategy:
       matrix:
         python-version: [3.11]
-        runs-on: [linux-mi300-1gpu-ossci]
+        runs-on: [linux-mi300-1gpu-ossci-nod-ai]
       fail-fast: false
     runs-on: ${{matrix.runs-on}}
     defaults:
