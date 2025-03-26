@@ -66,12 +66,15 @@ class TorchGenerator:
             )
             print(f":: Prompt tokens shape [bs, seq_len]: {token_ids.shape}")
         else:
-            print(f":: Prompt tokens:")
-            for prompt in prompts:
-                print(f"    {prompt.encode()}")
-
             self.bs = len(prompts)
             token_ids = self.tokenizer._encode(texts=prompts, add_start_token=False)
+
+            print(f":: Prompt tokens:")
+            for idx, prompt in enumerate(prompts):
+                print(
+                    f"    prompt_{idx}: \n    {prompt.encode()} \n    {token_ids[idx]}\n"
+                )
+
             token_ids, seq_lens = self.tokenizer.pad_tokens(
                 token_ids, pad_to_multiple_of=self.model.cache.pad_sequence_stride
             )
@@ -174,11 +177,13 @@ class Batch:
         else:
             phase = "decode"
 
-        print(f":: {phase} result tokens: {self.results}")
+        print(f":: {phase} result tokens:")
         results = self.detokenize()
         for i, s in enumerate(results):
             seq_len = int(self.seq_lens[i])
-            print(f"  prompt_{i}({len(self.results[i])}, {seq_len}): {s}")
+            print(
+                f"   prompt_{i}({len(self.results[i])}, {seq_len}): {s} \n   {self.results[i]}"
+            )
 
     def add_result_token(self, tokens: torch.Tensor):
         for i in range(self.bs):
@@ -355,7 +360,7 @@ class Batch:
 
 def main():
     """
-    Run LLM inference in torch/eager mode
+    Run LLM inference in torch/eager mode. Use --device='cuda:0' to run on AMD GPU
     Args:
         --prompt: list[str] - Custom space separated prompts
         --prompt-seq-len: int - Generate random token ids for given seq len and bs and save prefill & first decode step input args as npy files

@@ -28,8 +28,7 @@ Note: Use `--device='cuda:0'` to run this inference on an AMD GPU.
 ```shell
 python -m sharktank.examples.paged_llm_v1 \
   --hf-dataset=open_llama_3b_v2_f16_gguf \
-  "Prompt 1" \
-  "Prompt 2" ...
+  --prompt "Prompt 1" "Prompt 2" ...
 ```
 
 ### Export an IREE compilable batched LLM for serving:
