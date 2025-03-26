@@ -216,7 +216,9 @@ class SHORTFIN_API device_array
   void AddAsInvocationArgument(local::ProgramInvocation *inv,
                                local::ProgramResourceBarrier barrier) override;
   static device_array CreateFromInvocationResultRef(
-      local::ProgramInvocation *inv, iree::vm_opaque_ref ref);
+      local::ProgramInvocation *inv,
+      local::CoarseInvocationTimelineImporter *timeline_importer,
+      iree::vm_opaque_ref ref);
   static iree_vm_ref_type_t invocation_marshalable_type();
   friend class shortfin::local::ProgramInvocationMarshalableFactory;
 };

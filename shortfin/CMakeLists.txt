@@ -47,7 +47,7 @@ add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 # Prefer to keep the IREE git tag synced with the Python package version in the
 # requirements-iree-pinned.txt file. At a minimum, the compiler from those
 # packages must be compatible with the runtime at this source ref.
-set(SHORTFIN_IREE_GIT_TAG "iree-3.2.0rc20250206")
+set(SHORTFIN_IREE_GIT_TAG "iree-3.3.0rc20250317")
 
 
 # build options
@@ -165,6 +165,13 @@ if(SHORTFIN_BUNDLE_DEPS)
     GIT_TAG        8e5613379f5140fefb0b60412fbf1f5406e7c7f8 # v1.15.0
   )
 
+  ## xsimd: required for bf16
+  FetchContent_Declare(
+    xsimd
+    GIT_REPOSITORY https://github.com/xtensor-stack/xsimd.git
+    GIT_TAG        148fa1328c674ab2ee1d03b1460204671ae82a8b # v13.1.0
+  )
+
   ## xtl: required for xtensor
   FetchContent_Declare(
     xtl
@@ -185,7 +192,7 @@ if(SHORTFIN_BUNDLE_DEPS)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DSPDLOG_SHARED_LIB -Dspdlog_EXPORTS")
   message(STATUS "Fetching bundled projects")
   list(APPEND CMAKE_MESSAGE_INDENT "  ")
-  FetchContent_MakeAvailable(fmt spdlog xtl xtensor)
+  FetchContent_MakeAvailable(fmt spdlog xsimd xtl xtensor)
   shortfin_pop_bundled_lib_options()
   list(POP_BACK CMAKE_MESSAGE_INDENT)
 else()

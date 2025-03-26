@@ -18,10 +18,8 @@ parser.add_argument("-s", "--seed", default=12345)
 parser.add_argument("-o", "--output", default="/tmp/toy_llama.irpa")
 
 
-def main():
-    args = parser.parse_args()
-    torch.manual_seed(args.seed)
-
+def generate(seed):
+    torch.manual_seed(seed)
     dtype = torch.float16
     block_seq_stride = 16
     max_blocks = 8
@@ -56,6 +54,12 @@ def main():
         config=config,
         vocab_size=vocabulary_size,
     )
+    return theta, config
+
+
+def main():
+    args = parser.parse_args()
+    theta, config = generate(args.seed)
 
     config_dict = config.hp.to_gguf_props()
 

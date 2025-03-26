@@ -5,20 +5,25 @@
 The following models are supported for serving:
 
 <!-- TODO(https://github.com/iree-org/iree/issues/19832): Determine lower-bound of tp required for 405b -->
-| Model Name                | HuggingFace Model                                                                               | Tensor Parallelism Range |
-| ------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------ |
-| `Llama-3.1-8B`            | [meta-llama/Llama-3.1-8B](https://huggingface.co/meta-llama/Llama-3.1-8B)                       | tp1-tp8                  |
-| `Llama-3.1-8B-Instruct`   | [meta-llama/Llama-3.1-8B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct)     | tp1-tp8                  |
-| `Llama-3.1-70B`           | [meta-llama/Llama-3.1-70B](https://huggingface.co/meta-llama/Llama-3.1-70B)                     | tp1-tp8                  |
-| `Llama-3.1-70B-Instruct`  | [meta-llama/Llama-3.1-70B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-70B-Instruct)   | tp1-tp8                  |
-| `Llama-3.1-405b`          | [meta-llama/Llama-3.1-405B](https://huggingface.co/meta-llama/Llama-3.1-405B)                   | tp8                      |
-| `Llama-3.1-405b-Instruct` | [meta-llama/Llama-3.1-405B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-405B-Instruct) | tp8                      |
+| Model Name                   | HuggingFace Model                                                                                   | Tensor Parallelism Range |
+| ---------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------ |
+| **Llama Models**             |                                                                                                     |                          |
+| `Llama-3.1-8B`               | [meta-llama/Llama-3.1-8B](https://huggingface.co/meta-llama/Llama-3.1-8B)                           | tp1-tp8                  |
+| `Llama-3.1-8B-Instruct`      | [meta-llama/Llama-3.1-8B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct)         | tp1-tp8                  |
+| `Llama-3.1-70B`              | [meta-llama/Llama-3.1-70B](https://huggingface.co/meta-llama/Llama-3.1-70B)                         | tp1-tp8                  |
+| `Llama-3.1-70B-Instruct`     | [meta-llama/Llama-3.1-70B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-70B-Instruct)       | tp1-tp8                  |
+| `Llama-3.1-405b`             | [meta-llama/Llama-3.1-405B](https://huggingface.co/meta-llama/Llama-3.1-405B)                       | tp8                      |
+| `Llama-3.1-405b-Instruct`    | [meta-llama/Llama-3.1-405B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-405B-Instruct)     | tp8                      |
+| **Llama-Like Models**        |                                                                                                     |                          |
+| `Mistral-Nemo-Base-2407`     | [mistralai/Mistral-Nemo-Base-2407](https://huggingface.co/mistralai/Mistral-Nemo-Base-2407)         | tp1                      |
+| `Mistral-Nemo-Instruct-2407` | [mistralai/Mistral-Nemo-Instruct-2407](https://huggingface.co/mistralai/Mistral-Nemo-Instruct-2407) | tp1                      |
 
 ## Introduction
 
 This guide demonstrates how to serve the
-[Llama family](https://www.llama.com/) of Large Language Models (LLMs) using
-shark-ai.
+[Llama family](https://www.llama.com/) of Large Language Models (LLMs), along
+with `Llama-Like` models such as [Mistral 12B](https://huggingface.co/mistralai/Mistral-Nemo-Instruct-2407),
+using shark-ai.
 
 * By the end of this guide you will have a server running locally and you will
   be able to send HTTP requests containing chat prompts and receive chat
@@ -80,7 +85,7 @@ following either https://pytorch.org/get-started/locally/ or our recommendation:
 
 ```bash
 # Fast installation of torch with just CPU support.
-pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install torch --index-url https://download.pytorch.org/whl/cpu "torch>=2.3.0,<2.6.0"
 ```
 
 ### Prepare a working directory
@@ -159,7 +164,8 @@ python -m sharktank.examples.export_paged_llm_v1 \
   --gguf-file=$MODEL_PARAMS_PATH \
   --output-mlir=$MLIR_PATH \
   --output-config=$OUTPUT_CONFIG_PATH \
-  --bs=$EXPORT_BATCH_SIZES
+  --bs-prefill=$EXPORT_BATCH_SIZES \
+  --bs-decode=$EXPORT_BATCH_SIZES
 ```
 
 ### Compile using IREE to a `.vmfb` file
@@ -171,7 +177,7 @@ tool for compiling our model.
 
 ```bash
 iree-compile $MLIR_PATH \
- --iree-hal-target-backends=rocm \
+ --iree-hal-target-device=hip \
  --iree-hip-target=gfx942 \
  -o $VMFB_PATH
 ```
@@ -262,7 +268,7 @@ Next, let's send a generation request:
 curl http://localhost:8000/generate \
     -H "Content-Type: application/json" \
     -d '{
-        "text": "Name the capital of the United States.",
+        "text": "<|begin_of_text|>Name the capital of the United States.<|eot_id|>",
         "sampling_params": {"max_completion_tokens": 50}
     }'
 ```
@@ -281,7 +287,7 @@ port = 8000 # Change if running on a different port
 generate_url = f"http://localhost:{port}/generate"
 
 def generation_request():
-    payload = {"text": "Name the capital of the United States.", "sampling_params": {"max_completion_tokens": 50}}
+    payload = {"text": "<|begin_of_text|>Name the capital of the United States.<|eot_id|>", "sampling_params": {"max_completion_tokens": 50}}
     try:
         resp = requests.post(generate_url, json=payload)
         resp.raise_for_status()  # Raises an HTTPError for bad responses
@@ -377,7 +383,9 @@ python -m sharktank.examples.export_paged_llm_v1 \
   --irpa-file /path/to/output/llama3.1-405b.irpa \
   --output-mlir /path/to/output/llama3.1-405b.mlir \
   --output-config /path/to/output/llama3.1-405b.config.json \
-  --bs 4
+  --bs-prefill 4 \
+  --bs-decode 4 \
+  --use-attention-mask
 ```
 
 ### Compiling to VMFB
@@ -448,9 +456,11 @@ A full list of options can be found below:
 | `--tokenizer_json TOKENIZER_JSON`               | Path to a `tokenizer.json` file.                                                                                                                                                                                     |
 | `--tokenizer_config_json TOKENIZER_CONFIG_JSON` | Path to a `tokenizer_config.json` file.                                                                                                                                                                              |
 | `--model_config MODEL_CONFIG`                   | Path to the model config file.                                                                                                                                                                                       |
+| `--server_config SERVER_CONFIG`                 | Path to the server config file.                                                                                                                                                                                      |
 | `--vmfb VMFB`                                   | Model [VMFB](https://iree.dev/developers/general/developer-tips/#inspecting-vmfb-files) to load.                                                                                                                     |
 | `--parameters [FILE ...]`                       | Parameter archives to load (supports: `gguf`, `irpa`, `safetensors`).                                                                                                                                                |
 | `--device {local-task,hip,amdgpu}`              | Device to serve on (e.g., `local-task`, `hip`). Same options as [iree-run-module --list_drivers](https://iree.dev/guides/deployment-configurations/gpu-rocm/#get-the-iree-runtime).                                  |
 | `--device_ids [DEVICE_IDS ...]`                 | Device IDs visible to the system builder. Defaults to None (full visibility). Can be an index or a device ID like `amdgpu:0:0@0`. The number of `device_ids` should be equal to the tensor parallelism of the model. |
 | `--isolation {none,per_fiber,per_call}`         | Concurrency control: How to isolate programs.                                                                                                                                                                        |
 | `--amdgpu_async_allocations`                    | Enable asynchronous allocations for AMD GPU device contexts.                                                                                                                                                         |
+| `--amdgpu_allocators`                           | Allocator to use during `VMFB` invocation.                                                                                                                                                                           |

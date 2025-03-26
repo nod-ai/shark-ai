@@ -93,8 +93,9 @@ VoidFuture Account::OnSync() {
 // -------------------------------------------------------------------------- //
 
 TimelineResource::TimelineResource(std::shared_ptr<Fiber> fiber,
-                                   size_t semaphore_capacity)
-    : fiber_(std::move(fiber)) {
+                                   size_t semaphore_capacity,
+                                   TimelineResourceDestructor destructor)
+    : fiber_(std::move(fiber)), destructor_(std::move(destructor)) {
   logging::construct("TimelineResource", this);
   SHORTFIN_THROW_IF_ERROR(
       iree_hal_fence_create(semaphore_capacity, fiber_->host_allocator(),
@@ -103,6 +104,55 @@ TimelineResource::TimelineResource(std::shared_ptr<Fiber> fiber,
 
 TimelineResource::~TimelineResource() {
   logging::destruct("TimelineResource", this);
+  if (destructor_) {
+    destructor_(*this);
+  }
+}
+
+TimelineResourceDestructor TimelineResource::CreateAsyncBufferDestructor(
+    ScopedDevice &scoped_device, iree::hal_buffer_ptr buffer) {
+  // The ScopedDevice doesn't lifetime extend the underlying hal device, so
+  // we must do that manually across the callback (and then release at the end).
+  iree_hal_device_retain(scoped_device.raw_device()->hal_device());
+  return [device_affinity = scoped_device.affinity(),
+          buffer = std::move(buffer)](TimelineResource &res) {
+    ScopedDevice scoped_device(*res.fiber(), device_affinity);
+    iree_hal_device_t *hal_device = scoped_device.raw_device()->hal_device();
+    auto queue_affinity = scoped_device.affinity().queue_affinity();
+    SHORTFIN_TRACE_SCOPE_NAMED("TimelineResource::AsyncBufferDestructor");
+
+    // The dealloca needs to wait on the current timepoint+all uses, and it
+    // needs to signal the next timepoint. Since this is a destructor, we
+    // now have exclusive control of the TimelineResource and simply record
+    // the current timepoint in its uses as a (small) optimization for merging
+    // the wait semaphore list, prior to acquiring a new timepoint
+    // (to signal).
+    auto fiber = res.fiber();
+    auto &account = fiber->scheduler().GetDefaultAccount(scoped_device);
+    iree_hal_semaphore_t *timeline_sem = account.timeline_sem();
+    res.use_barrier_insert(timeline_sem, account.timeline_idle_timepoint());
+    uint64_t signal_timepoint = account.timeline_acquire_timepoint();
+    iree_hal_semaphore_list_t wait_semaphore_list = res.use_barrier();
+    iree_hal_semaphore_list_t signal_semaphore_list{
+        .count = 1,
+        .semaphores = &timeline_sem,
+        .payload_values = &signal_timepoint,
+    };
+
+    if (SHORTFIN_SCHED_LOG_ENABLED) {
+      auto wait_sum = iree::DebugPrintSemaphoreList(wait_semaphore_list);
+      auto signal_sum = iree::DebugPrintSemaphoreList(signal_semaphore_list);
+      SHORTFIN_SCHED_LOG(
+          "async dealloca(device={}, affinity={:x}, buffer={}):[Wait:{}, "
+          "Signal:{}]",
+          static_cast<void *>(hal_device), queue_affinity,
+          static_cast<void *>(buffer.get()), wait_sum, signal_sum);
+    }
+    SHORTFIN_THROW_IF_ERROR(iree_hal_device_queue_dealloca(
+        hal_device, queue_affinity, wait_semaphore_list, signal_semaphore_list,
+        buffer));
+    iree_hal_device_release(hal_device);
+  };
 }
 
 void TimelineResource::use_barrier_insert(iree_hal_semaphore_t *sem,
@@ -146,7 +196,7 @@ void Scheduler::Initialize(
       throw std::logic_error("Duplicate device in Scheduler");
     }
     account.Initialize();
-    semaphore_count_ += account.semaphore_count();
+    semaphore_count_ += account.semaphore_count() + 8;
   }
 }
 

@@ -63,23 +63,19 @@ def pytest_addoption(parser):
         default=False,
         help="Load cached results if present instead of recomputing.",
     )
-
     parser.addoption(
-        "--longrun",
-        action="store_true",
-        dest="longrun",
-        default=False,
-        help="Enable long tests",
+        "--device",
+        type=str,
+        action="store",
+        help="List a torch device, (e.g., 'cuda:0')",
     )
-
     parser.addoption(
         "--run-quick-llama-test",
         action="store_true",
         dest="run-quick-llama-test",
         default=False,
-        help="Enable llama 8b f16 decomposed benchmarking test",
+        help="Run large llama tests if passed",
     )
-
     parser.addoption(
         "--run-nightly-llama-tests",
         action="store_true",
@@ -115,7 +111,6 @@ def pytest_addoption(parser):
             "code. The user is expected to provide the data"
         ),
     )
-
     parser.addoption(
         "--with-vae-data",
         action="store_true",
@@ -124,7 +119,6 @@ def pytest_addoption(parser):
             "Enable tests that use vae data such as models not part of the source code."
         ),
     )
-
     parser.addoption(
         "--with-quark-data",
         action="store_true",
@@ -141,42 +135,37 @@ def pytest_addoption(parser):
         action="store",
         help="Llama3.1 8b tokenizer path, defaults to 30F CI system path",
     )
-
     parser.addoption(
         "--llama3-8b-f16-model-path",
         type=Path,
         action="store",
         help="Llama3.1 8b model path, defaults to 30F CI system path",
     )
-
     parser.addoption(
-        "--llama3-8b-fp8-model-path",
+        "--llama3-8b-f8-model-path",
         type=Path,
         action="store",
         default=None,
-        help="Llama3.1 8b fp8 model path",
+        help="Llama3.1 8b f8 model path",
     )
-
     parser.addoption(
         "--llama3-405b-tokenizer-path",
         type=Path,
         action="store",
         help="Llama3.1 405b tokenizer path, defaults to 30F CI system path",
     )
-
     parser.addoption(
         "--llama3-405b-f16-model-path",
         type=Path,
         action="store",
         help="Llama3.1 405b model path, defaults to 30F CI system path",
     )
-
     parser.addoption(
-        "--llama3-405b-fp8-model-path",
+        "--llama3-405b-f8-model-path",
         type=Path,
         action="store",
         default=None,
-        help="Llama3.1 405b fp8 model path",
+        help="Llama3.1 405b f8 model path",
     )
 
     # To obtain a T5 GGUF file you can use llama.cpp's convert_hf_to_gguf.py.
@@ -220,26 +209,24 @@ def pytest_addoption(parser):
         default="sharktank/tests/evaluate/baseline_perplexity_scores.json",
         help="Llama3.1 8B & 405B model baseline perplexity scores",
     )
-
     parser.addoption(
         "--iree-device",
         type=str,
         action="store",
-        help="List an IREE device from iree-run-module --list_devices",
+        default="local-task",
+        help="List an IREE device from 'iree-run-module --list_devices'",
     )
-
     parser.addoption(
         "--iree-hip-target",
         action="store",
         help="Specify the iree-hip target version (e.g., gfx942)",
     )
-
     parser.addoption(
         "--iree-hal-target-device",
         action="store",
+        default="local",
         help="Specify the iree-hal target device (e.g., hip)",
     )
-
     parser.addoption(
         "--tensor-parallelism-size",
         action="store",
@@ -247,7 +234,6 @@ def pytest_addoption(parser):
         default=1,
         help="Number of devices for tensor parallel sharding",
     )
-
     parser.addoption(
         "--bs",
         action="store",
@@ -297,6 +283,11 @@ def caching(request: FixtureRequest) -> Optional[bool]:
 
 
 @pytest.fixture(scope="class")
+def device(request: FixtureRequest) -> Optional[bool]:
+    return set_fixture_from_cli_option(request, "device")
+
+
+@pytest.fixture(scope="class")
 def tensor_parallelism_size(request: FixtureRequest) -> Optional[str]:
     return set_fixture_from_cli_option(
         request, "tensor_parallelism_size", "tensor_parallelism_size"
@@ -324,8 +315,8 @@ def get_model_artifacts(request: FixtureRequest):
     model_path["llama3_8b_f16_model_path"] = set_fixture_from_cli_option(
         request, "--llama3-8b-f16-model-path", "llama3_8b_f16_model"
     )
-    model_path["llama3_8b_fp8_model_path"] = set_fixture_from_cli_option(
-        request, "--llama3-8b-fp8-model-path", "llama3_8b_fp8_model"
+    model_path["llama3_8b_f8_model_path"] = set_fixture_from_cli_option(
+        request, "--llama3-8b-f8-model-path", "llama3_8b_f8_model"
     )
     model_path["llama3_405b_tokenizer_path"] = set_fixture_from_cli_option(
         request, "--llama3-405b-tokenizer-path", "llama3_405b_tokenizer"
@@ -333,8 +324,8 @@ def get_model_artifacts(request: FixtureRequest):
     model_path["llama3_405b_f16_model_path"] = set_fixture_from_cli_option(
         request, "--llama3-405b-f16-model-path", "llama3_405b_f16_model"
     )
-    model_path["llama3_405b_fp8_model_path"] = set_fixture_from_cli_option(
-        request, "--llama3-405b-fp8-model-path", "llama3_405b_fp8_model"
+    model_path["llama3_405b_f8_model_path"] = set_fixture_from_cli_option(
+        request, "--llama3-405b-f8-model-path", "llama3_405b_f8_model"
     )
     model_path["google__t5_v1_1_small_f32_model_path"] = set_fixture_from_cli_option(
         request,

@@ -12,8 +12,8 @@ https://github.com/black-forest-labs/flux/blob/main/src/flux/model.py
 from typing import Any, Optional
 from collections import OrderedDict
 from copy import copy
+from dataclasses import dataclass, asdict
 import math
-from dataclasses import dataclass
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -25,6 +25,7 @@ from ...utils.testing import make_rand_torch
 from ... import ops
 
 __all__ = [
+    "FluxParams",
     "FluxModelV1",
 ]
 
@@ -49,6 +50,31 @@ class FluxParams:
     qkv_bias: bool
     guidance_embed: bool
 
+    time_dim: int = 256
+    txt_context_length: int = 512
+
+    # The allowed range of these values is dependent on the model size.
+    # They will not work for all variants, specifically toy-sized models.
+    output_img_height: int = 1024
+    output_img_width: int = 1024
+    output_img_channels: int = 3
+
+    # def __post_init__(self):
+    #     assert self.hidden_size == self.vec_in_dim * int(self.mlp_ratio)
+
+    def to_hugging_face_properties(self) -> dict[str, Any]:
+        hparams = {
+            "in_channels": self.in_channels,
+            "pooled_projection_dim": self.vec_in_dim,
+            "joint_attention_dim": self.context_in_dim,
+            "num_attention_heads": self.num_heads,
+            "num_layers": self.depth,
+            "num_single_layers": self.depth_single_blocks,
+            "attention_head_dim": sum(self.axes_dim),
+            "guidance_embeds": self.guidance_embed,
+        }
+        return {"hparams": hparams}
+
     @staticmethod
     def from_hugging_face_properties(properties: dict[str, Any]) -> "FluxParams":
         p = properties["hparams"]
@@ -58,14 +84,12 @@ class FluxParams:
         vec_in_dim = p["pooled_projection_dim"]
         context_in_dim = p["joint_attention_dim"]
         mlp_ratio = 4.0
-        hidden_size = vec_in_dim * int(mlp_ratio)
+        hidden_size = int(vec_in_dim * mlp_ratio)
         num_heads = p["num_attention_heads"]
         depth = p["num_layers"]
         depth_single_blocks = p["num_single_layers"]
 
-        # TODO: figure out relation between hidden_size, num_heads and
-        # attention_head_dim.
-        # diffusers.FluxTransformer2DModel also hardcodes this.
+        # diffusers.FluxTransformer2DModel hardcodes this.
         axes_dim = [16, 56, 56]
         assert sum(axes_dim) == p["attention_head_dim"]
 
@@ -89,6 +113,29 @@ class FluxParams:
             guidance_embed=guidance_embed,
         )
 
+    def validate(self):
+        if self.in_channels % 4 != 0:
+            raise ValueError(f"In channels {self.in_channels} must be a multiple of 4")
+        if self.hidden_size != self.vec_in_dim * self.mlp_ratio:
+            raise ValueError(
+                "Equality hidden_size == vec_in_dim * mlp_ratio does not hold. "
+                f"{self.hidden_size} != {self.vec_in_dim} * {self.mlp_ratio}"
+            )
+        if self.hidden_size % self.num_heads != 0:
+            raise ValueError(
+                f"Hidden size {self.hidden_size} must be divisible by num_heads {self.num_heads}"
+            )
+        pe_dim = self.hidden_size // self.num_heads
+        if sum(self.axes_dim) != pe_dim:
+            raise ValueError(
+                f"axes_dim {self.axes_dim} must sum up to the positional embeddings"
+                f" dimension size {pe_dim}"
+            )
+        if any(d % 2 != 0 for d in self.axes_dim):
+            raise ValueError(
+                f"All elements of axes_dim {self.axes_dim} must be a multiple of 2"
+            )
+
 
 class FluxModelV1(ThetaLayer):
     """FluxModel adapted from Black Forest Lab's implementation."""
@@ -98,18 +145,11 @@ class FluxModelV1(ThetaLayer):
             theta,
         )
 
+        params.validate()
         self.params = copy(params)
         self.in_channels = params.in_channels
         self.out_channels = self.in_channels
-        if params.hidden_size % params.num_heads != 0:
-            raise ValueError(
-                f"Hidden size {params.hidden_size} must be divisible by num_heads {params.num_heads}"
-            )
         pe_dim = params.hidden_size // params.num_heads
-        if sum(params.axes_dim) != pe_dim:
-            raise ValueError(
-                f"Got {params.axes_dim} but expected positional dim {pe_dim}"
-            )
         self.hidden_size = params.hidden_size
         self.num_heads = params.num_heads
         self.pe_embedder = EmbedND(
@@ -141,6 +181,7 @@ class FluxModelV1(ThetaLayer):
                     theta("single_blocks", i),
                     num_heads=self.num_heads,
                     hidden_size=self.hidden_size,
+                    mlp_ratio=params.mlp_ratio,
                 )
                 for i in range(params.depth_single_blocks)
             ]
@@ -168,13 +209,16 @@ class FluxModelV1(ThetaLayer):
 
         # running on sequences img
         img = self.img_in(img)
-        vec = self.time_in(timestep_embedding(timesteps, 256))
+        vec = self.time_in(timestep_embedding(timesteps, self.params.time_dim))
         if self.guidance:
             if guidance is None:
                 raise ValueError(
                     "Didn't get guidance strength for guidance distilled model."
                 )
-            vec = vec + self.guidance_in(timestep_embedding(guidance, 256))
+            vec = vec + self.guidance_in(
+                timestep_embedding(guidance, self.params.time_dim)
+            )
+
         vec = vec + self.vector_in(y)
 
         txt = self.txt_in(txt)
@@ -199,14 +243,13 @@ class FluxModelV1(ThetaLayer):
         if not (function is None or function == "forward"):
             raise ValueError(f'Only function "forward" is supported. Got "{function}"')
 
-        # The allowed range of these values is dependent on the model size.
-        # They will not work for all variants, specifically toy-sized models.
-        output_img_height = 1024
-        output_img_width = 1024
-        output_img_channels = 3
+        output_img_channels = self.params.output_img_channels
 
         img = self._get_noise(
-            batch_size, output_img_height, output_img_width, self.dtype
+            batch_size,
+            self.params.output_img_height,
+            self.params.output_img_width,
+            self.dtype,
         )
 
         _, c, h, w = img.shape
@@ -219,16 +262,17 @@ class FluxModelV1(ThetaLayer):
         img_ids = img_ids.repeat(batch_size, 1, 1)
 
         # T5 encoder output
-        txt_context_length = 512
-        txt_dims_per_token = 4096
-        txt = torch.rand([1, txt_context_length, txt_dims_per_token], dtype=self.dtype)
+        txt_dims_per_token = self.params.context_in_dim
+        txt = torch.rand(
+            [1, self.params.txt_context_length, txt_dims_per_token], dtype=self.dtype
+        )
         txt = txt.repeat(batch_size, 1, 1)
         txt_ids = torch.zeros(batch_size, txt.shape[1], output_img_channels)
 
         timesteps = torch.rand([batch_size], dtype=self.dtype)
 
         # CLIP text model output
-        y = make_rand_torch([1, 768], dtype=self.dtype)
+        y = make_rand_torch([1, self.params.vec_in_dim], dtype=self.dtype)
         y = y.repeat(batch_size, 1)
 
         args = tuple()
@@ -255,12 +299,14 @@ class FluxModelV1(ThetaLayer):
         width: int,
         dtype: torch.dtype,
     ):
+        assert self.params.in_channels % 4 == 0
+        channels = self.params.in_channels // 4
         return torch.randn(
             batch_size,
-            16,
+            channels,
             # allow for packing
-            2 * math.ceil(height / 16),
-            2 * math.ceil(width / 16),
+            2 * math.ceil(height / channels),
+            2 * math.ceil(width / channels),
             dtype=dtype,
         )
 

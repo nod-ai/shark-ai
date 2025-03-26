@@ -4,13 +4,14 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import pytest
 import unittest
 import torch
 import torch.nn as nn
 from sharktank.models.llama.llama import (
     LlamaAttentionBlock,
     PagedLlamaAttentionBlock,
-    PagedKVCache,
+    PagedAttention,
 )
 from sharktank.models.llama.testing import *
 from sharktank.layers.rotary_embedding import RotaryEmbeddingLayer
@@ -19,6 +20,7 @@ from sharktank.layers import causal_llm
 
 class KVCacheTest(unittest.TestCase):
     def setUp(self):
+        torch.set_default_dtype(torch.float32)
         self.block_count = 5
         self.seq_len = 16
         self.head_count = 32
@@ -39,7 +41,7 @@ class KVCacheTest(unittest.TestCase):
             ffn_dim=self.ffn_dim,
             dtype=self.attention_dtype,
         )
-        self.paged_kv_cache = PagedKVCache(
+        self.paged_kv_cache = PagedAttention(
             transformer_block_count=self.head_count,
             attn_head_count=self.head_count,
             attn_head_dim=self.head_dim,
@@ -105,6 +107,12 @@ class KVCacheTest(unittest.TestCase):
             self.model.input_mask(self.start_positions, self.seq_len)
         )
 
+    torch_version = str(torch.__version__).split(".")[:2]
+    skip_torch_2_3 = torch_version[0] == "2" and torch_version[1] == "3"
+
+    @pytest.mark.skipif(
+        skip_torch_2_3, reason="torch 2.3 has a bug that causes dtype pollution"
+    )
     def testDirectAndPagedKVCachePrefill(self):
         torch.set_default_dtype(torch.float32)
 

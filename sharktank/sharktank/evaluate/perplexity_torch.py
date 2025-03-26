@@ -7,14 +7,10 @@
 import sys
 import logging
 import time
-import random
-import re
-from datetime import timedelta
 import json
 import numpy as np
 from tqdm import tqdm
-
-from datasets import load_dataset
+import gc
 
 import torch
 from torch.nn import CrossEntropyLoss
@@ -30,6 +26,8 @@ from ..models.llama.sharding import shard_theta
 
 from sharktank.utils import cli
 from sharktank.utils.load_llm import *
+from sharktank.utils.evaluate import *
+
 
 log_levels = {
     "info": logging.INFO,
@@ -58,38 +56,21 @@ class Perplexity_torch:
     def __init__(
         self,
         device,
+        use_hf,
+        fake_quant,
+        test_prompts,
         activation_dtype=torch.float32,
         attention_dtype=torch.float32,
+        kv_cache_dtype=torch.float32,
     ):
         self.device = device
         self.activation_dtype = activation_dtype
         self.attention_dtype = attention_dtype
-
-    def timeit(func):
-        def wrapper(*args, **kwargs):
-            start = time.time()
-            result = func(*args, **kwargs)
-            end = time.time()
-            total_seconds = end - start
-            time_taken = abs(timedelta(seconds=total_seconds))
-            hours, minutes, seconds = re.split(":", str(time_taken))
-
-            if total_seconds < 1:
-                time_taken = f" {round(total_seconds * 1000, 3)} ms"
-            elif total_seconds < 60:
-                time_taken = "{:.2f} secs".format(round(float(total_seconds), 2))
-            else:
-                time_taken = "{:02d} hrs : {:02d} mins : {:.2f} secs".format(
-                    int(hours), int(minutes), round(float(seconds), 2)
-                )
-
-            func_name = func.__name__
-            if func_name == "get_perplexity":
-                func_name = "Calculate perplexity"
-            logger.info(f" {func_name}: {time_taken}")
-            return result
-
-        return wrapper
+        self.kv_cache_dtype = kv_cache_dtype
+        self.use_hf = use_hf
+        self.fake_quant = fake_quant
+        self.test_prompts = test_prompts
+        self.bs = len(self.test_prompts)
 
     def print_token_comparison(self, i):
         if i <= self.max_prompt_length:
@@ -107,16 +88,17 @@ class Perplexity_torch:
             logger.debug(f"{expected_token}")
             logger.debug(f"{expected_token_id}")
 
-    @timeit
     def load_model(self, dataset, tokenizer, tensor_parallelism_size, attention_kernel):
 
         self.config = LlamaModelConfig(
             hp=configs.LlamaHParams.from_gguf_props(dataset.properties),
-            block_seq_stride=16,
             device=self.device,
             activation_dtype=self.activation_dtype,
             attention_dtype=self.attention_dtype,
+            kv_cache_dtype=self.kv_cache_dtype,
             tensor_parallelism_size=tensor_parallelism_size,
+            use_hf=self.use_hf,
+            fake_quant=self.fake_quant,
         )
 
         if self.config.tensor_parallelism_size > 1:
@@ -134,41 +116,12 @@ class Perplexity_torch:
 
         self.generator = TorchGenerator(model, tokenizer)
 
-    @timeit
-    def get_prompts(self, num_prompts):
-
-        test_prompts = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")[
-            "text"
-        ]
-
-        num_test_prompts = 219
-
-        random.seed(0)
-        test_prompts = random.sample(test_prompts, num_test_prompts)
-
-        # Ignore prompts that are: empty, less than 20 tokens or a title.
-        test_prompts = [
-            s.replace("\n", "").rstrip()
-            for s in test_prompts
-            if s != "" and len(s.split()) >= 20 and s.count("=") < 2
-        ][0:num_prompts]
-
-        self.test_prompts = test_prompts
-
-        self.bs = len(test_prompts)
-
-        logger.info(f" Batch size: {self.bs}")
-
-    @timeit
     def get_logits(self, page_cache_size):
 
         is_first_token = True
-        start = 0
-        for i in tqdm(
-            range(start, self.max_prompt_length - 1),
-            mininterval=300,
-            desc="eval: Calculating logits",
-        ):
+        self.start = 0
+        self.out_logits = []
+        for i in range(self.start, self.max_prompt_length - 1):
             logger.debug(f"Iteration: {i}")
 
             if is_first_token:
@@ -197,7 +150,8 @@ class Perplexity_torch:
                 )
 
                 self.batch.prefill()
-                self.out_logits = self.batch.prefill_logits[:, 0:1, :]
+                self.out_logits.append(self.batch.prefill_logits[:, 0:1, :])
+
                 is_first_token = False
 
                 self.print_token_comparison(i)
@@ -212,44 +166,41 @@ class Perplexity_torch:
                 logger.debug(f"{token_batch.tolist()}")
 
                 self.batch.decode(token_batch=token_batch)
-                self.out_logits = torch.cat(
-                    (self.out_logits, self.batch.decode_logits), 1
-                )
+                self.out_logits.append(self.batch.decode_logits)
 
                 self.print_token_comparison(i)
+
+        self.out_logits = torch.cat(self.out_logits, 1)
 
         pad_logits_shape = self.token_ids.shape[1] - self.out_logits.shape[1]
 
         self.pad_logits = torch.zeros(
-            self.out_logits.shape[0], pad_logits_shape, self.out_logits.shape[2]
+            self.out_logits.shape[0],
+            pad_logits_shape,
+            self.out_logits.shape[2],
+            device=self.device,
         )
 
-        self.out_logits = torch.cat((self.out_logits, self.pad_logits), 1).to(
-            self.device
-        )
+        self.out_logits = torch.cat((self.out_logits, self.pad_logits), 1)
 
-    @timeit
     def compute_perplexity(self):
         loss_fct = CrossEntropyLoss(reduction="none")
 
         ## perplexity = e ^ (sum(losses) / num_tokenized_tokens)
+
         crossentropy_loss = (
             loss_fct(self.out_logits.transpose(1, 2), self.token_ids)
             * self.attention_mask
         ).sum(1)
-        crossentropy_loss = torch.tensor(crossentropy_loss.tolist())
+        crossentropy_loss = torch.tensor(crossentropy_loss.tolist(), device=self.device)
         perplexity_batch = torch.exp(
             crossentropy_loss / self.attention_mask.sum(1)
         ).tolist()
 
         perplexity_batch = [round(ppl, 6) for ppl in perplexity_batch]
 
-        return {
-            "perplexities": perplexity_batch,
-            "mean_perplexity": round(np.mean(perplexity_batch), 6),
-        }
+        return perplexity_batch
 
-    @timeit
     def get_perplexity(self):
 
         token_ids, seq_lens = self.generator.tokenizer.encode(
@@ -257,15 +208,15 @@ class Perplexity_torch:
             pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
         )
 
-        self.page_cache_size = (
-            len(token_ids[0]) // self.config.block_seq_stride
-        ) * self.bs + 1
-
         logger.debug(f" Prompts for Evaluation:")
         for idx, prompt in enumerate(self.test_prompts):
             logger.debug(
                 f" Prompt {idx}: \nTokens: {prompt.encode()}\nToken ids: {token_ids[idx]}\n"
             )
+
+        self.page_cache_size = (
+            len(token_ids[0]) // self.config.block_seq_stride
+        ) * self.bs + 1
 
         self.max_prompt_length = max(seq_lens)
 
@@ -298,13 +249,44 @@ def run_perplexity_torch(
     tensor_parallelism_size,
     attention_kernel,
     num_prompts,
+    activation_dtype,
+    attention_dtype,
+    kv_cache_dtype,
+    use_hf,
+    fake_quant,
+    model_file,
 ):
+
+    prompts = get_prompts(num_prompts=num_prompts)
+
+    logger.info(f" Batch size: {len(prompts)}")
     start = time.time()
 
-    perplexity = Perplexity_torch(device=device)
-    perplexity.get_prompts(num_prompts=num_prompts)
-    perplexity.load_model(dataset, tokenizer, tensor_parallelism_size, attention_kernel)
-    ppl = perplexity.get_perplexity()
+    bs = 32
+
+    input_prompts = [prompts[idx : idx + bs] for idx in range(0, len(prompts), bs)]
+    perplexity_batch = []
+    for p in tqdm(
+        input_prompts,
+        desc=f"eval: Calculating logits for {model_file.name}",
+    ):
+        perplexity_batch.extend(
+            perplexity_torch(
+                dataset,
+                tokenizer,
+                device,
+                tensor_parallelism_size,
+                attention_kernel,
+                p,
+                activation_dtype,
+                attention_dtype,
+                kv_cache_dtype,
+                use_hf,
+                fake_quant,
+            )
+        )
+
+        gc.collect()
 
     end = time.time()
     total_time = round(end - start, 2)
@@ -314,6 +296,38 @@ def run_perplexity_torch(
         total_time = str(round(total_time / 60, 2)) + " mins"
     logger.info(f" Total time taken: {total_time}")
 
+    return {
+        "perplexities": perplexity_batch,
+        "mean_perplexity": round(np.mean(perplexity_batch), 6),
+    }
+
+
+def perplexity_torch(
+    dataset,
+    tokenizer,
+    device,
+    tensor_parallelism_size,
+    attention_kernel,
+    prompts,
+    activation_dtype,
+    attention_dtype,
+    kv_cache_dtype,
+    use_hf,
+    fake_quant,
+):
+
+    perplexity = Perplexity_torch(
+        device=device,
+        test_prompts=prompts,
+        activation_dtype=activation_dtype,
+        attention_dtype=attention_dtype,
+        kv_cache_dtype=kv_cache_dtype,
+        fake_quant=fake_quant,
+        use_hf=use_hf,
+    )
+
+    perplexity.load_model(dataset, tokenizer, tensor_parallelism_size, attention_kernel)
+    ppl = perplexity.get_perplexity()
     return ppl
 
 
@@ -330,11 +344,15 @@ def main(argv):
     cli.add_model_options(parser)
     cli.add_input_dataset_options(parser)
     cli.add_tokenizer_options(parser)
+    cli.add_quantization_options(parser)
+
     args = cli.parse(parser, args=argv)
 
     device = torch.device(args.device) if args.device else None
+    model_file = args.gguf_file or args.irpa_file
     dataset = cli.get_input_dataset(args)
     tokenizer = cli.get_tokenizer(args)
+
     # Override flag if dataset disagrees
     tensor_parallelism_size = (
         dataset.properties["tensor_parallelism_size"]
@@ -349,9 +367,17 @@ def main(argv):
         tensor_parallelism_size=tensor_parallelism_size,
         attention_kernel=args.attention_kernel,
         num_prompts=args.num_prompts,
+        attention_dtype=args.attention_dtype,
+        activation_dtype=args.activation_dtype,
+        kv_cache_dtype=args.kv_cache_dtype,
+        use_hf=args.use_hf,
+        fake_quant=args.fake_quant,
+        model_file=model_file,
     )
 
     logger.info(f"\n{json.dumps(ppl, indent=2)}")
+
+    gc.collect()
     return ppl
 
 

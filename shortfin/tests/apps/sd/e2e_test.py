@@ -4,23 +4,25 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import json
 import requests
 import time
-import asyncio
-import base64
 import pytest
 import subprocess
 import os
 import socket
 import sys
 import copy
-import math
-import tempfile
 from contextlib import closing
 
-from datetime import datetime as dt
-from PIL import Image
+from PIL.Image import Image
+
+from shortfin_apps.types.Base64CharacterEncodedByteSequence import (
+    Base64CharacterEncodedByteSequence,
+)
+
+from shortfin_apps.utilities.image import (
+    image_from,
+)
 
 BATCH_SIZES = [1]
 
@@ -48,7 +50,7 @@ def start_server(fibers_per_device=1, isolation="per_fiber"):
     ]
     with open("sdxl_config_i8.json", "wb") as f:
         r = requests.get(
-            "https://sharkpublic.blob.core.windows.net/sharkpublic/sdxl/11022024/configs/sdxl_config_i8.json",
+            "https://sharkpublic.blob.core.windows.net/sharkpublic/sdxl/03062025/configs/sdxl_config_i8.json",
             allow_redirects=True,
         )
         f.write(r.content)
@@ -201,18 +203,10 @@ class ServerRunner:
             process.wait()
 
 
-def bytes_to_img(bytes, idx=0, width=1024, height=1024):
-    timestamp = dt.now().strftime("%Y-%m-%d_%H-%M-%S")
-    image = Image.frombytes(
-        mode="RGB", size=(width, height), data=base64.b64decode(bytes)
-    )
-    return image
-
-
 def send_json_file(url="http://0.0.0.0:8000", num_copies=1):
     # Read the JSON file
     data = copy.deepcopy(sample_request)
-    imgs = []
+    imgs: list[Image] = []
     # Send the data to the /generate endpoint
     data["prompt"] = (
         [data["prompt"]]
@@ -222,28 +216,21 @@ def send_json_file(url="http://0.0.0.0:8000", num_copies=1):
     try:
         response = requests.post(url + "/generate", json=data)
         response.raise_for_status()  # Raise an error for bad responses
-        request = json.loads(response.request.body.decode("utf-8"))
+        response_body = response.json()
 
-        for idx, item in enumerate(response.json()["images"]):
-            width = getbatched(request, idx, "width")
-            height = getbatched(request, idx, "height")
-            img = bytes_to_img(item.encode("utf-8"), idx, width, height)
-            imgs.append(img)
+        for idx, each_png in enumerate(response_body["images"]):
+            if not isinstance(each_png, str):
+                raise ValueError(
+                    f"Expected string-encoded png at index {idx}, found {each_png}"
+                )
+
+            each_image = image_from(Base64CharacterEncodedByteSequence(each_png))
+            imgs.append(each_image)
 
     except requests.exceptions.RequestException as e:
         print(f"Error sending the request: {e}")
 
     return imgs, response.status_code
-
-
-def getbatched(req, idx, key):
-    if isinstance(req[key], list):
-        if len(req[key]) == 1:
-            return req[key][0]
-        elif len(req[key]) > idx:
-            return req[key][idx]
-    else:
-        return req[key]
 
 
 def find_free_port():

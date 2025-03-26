@@ -11,7 +11,7 @@ import torch
 
 from sharktank.models.llama.testing import *
 from sharktank.layers.rotary_embedding import RotaryEmbeddingLayer
-from sharktank.models.llama.llama import AttentionFFNBlock, PagedKVCache
+from sharktank.models.llama.llama import AttentionFFNBlock, PagedAttention
 from sharktank import ops
 
 from transformers.models.llama.modeling_llama import (
@@ -42,7 +42,7 @@ class AttentionBlockTest(unittest.TestCase):
         attention_block_theta = make_attention_block_theta(
             feature_dim=head_count * head_dim, ffn_dim=ffn_dim, dtype=torch.float32
         )
-        paged_kv_cache = PagedKVCache(
+        paged_kv_cache = PagedAttention(
             transformer_block_count=head_count,
             attn_head_count=head_count,
             attn_head_dim=head_dim,
@@ -76,6 +76,7 @@ class AttentionBlockTest(unittest.TestCase):
         sharktank_output = attention_block(
             input_tensor,
             embedding=attention_embedding,
+            attention_mask=torch.zeros(1, seq_len, seq_len, dtype=torch.float32),
             start_index=0,
             cache_state=paged_kv_cache.allocate(128),
             seq_block_ids=torch.arange(seq_len).view(1, -1),

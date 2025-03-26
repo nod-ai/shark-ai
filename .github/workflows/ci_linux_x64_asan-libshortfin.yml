@@ -50,7 +50,7 @@ jobs:
     steps:
     - name: Cache Python ASan
       id: cache-python-asan
-      uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
       with:
         path: ${{ env.PYENV_ROOT }}
         key: ${{ runner.os }}-python-asan-${{ env.PYENV_REF }}-${{ env.PYTHON_VER }}-v${{ env.CACHE_ASAN_VER }}
@@ -101,7 +101,7 @@ jobs:
 
     - name: Restore Python dependencies cache
       id: cache-python-deps-restore
-      uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+      uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
       with:
         path: ${{ env.PYENV_ROOT }}
         key: ${{ runner.os }}-python-deps-${{ hashFiles('shortfin/requirements-tests.txt', 'requirements-iree-pinned.txt') }}-v${{ env.CACHE_DEPS_VER }}
@@ -109,7 +109,7 @@ jobs:
     - name: Restore Python ASan cache
       id: cache-python-asan
       if: steps.cache-python-deps-restore.outputs.cache-hit != 'true'
-      uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+      uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
       with:
         path: ${{ env.PYENV_ROOT }}
         key: ${{ runner.os }}-python-asan-${{ env.PYENV_REF }}-${{ env.PYTHON_VER }}-v${{ env.CACHE_ASAN_VER }}
@@ -130,7 +130,7 @@ jobs:
     - name: Save Python dependencies cache
       if: steps.cache-python-deps-restore.outputs.cache-hit != 'true'
       id: cache-python-deps-save
-      uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+      uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
       with:
         path: ${{ env.PYENV_ROOT }}
         key: ${{ steps.cache-python-deps-restore.outputs.cache-primary-key }}

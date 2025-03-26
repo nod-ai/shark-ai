@@ -8,6 +8,7 @@ import asyncio
 import logging
 
 from shortfin.support.deps import ShortfinDepNotFoundError
+from ...support.responder import AbstractResponder
 
 try:
     from fastapi import Request, Response
@@ -23,7 +24,7 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 
-class FastAPIResponder:
+class FastAPIResponder(AbstractResponder):
     """Bridge between FastAPI and shortfin that can be used to send out of band
     responses back to a waiting FastAPI async request.
 
@@ -68,7 +69,7 @@ class FastAPIResponder:
         """Sends a response back for this transaction.
 
         This is intended for sending single part responses back. See
-        start_response() for sending back a streaming, multi-part response.
+        stream_start() for sending back a streaming, multi-part response.
         """
         assert not self.responded, "Response already sent"
         if self._loop.is_closed():
@@ -78,7 +79,7 @@ class FastAPIResponder:
             response = Response(response)
         self._loop.call_soon_threadsafe(self.response.set_result, response)
 
-    def start_response(self, **kwargs):
+    def stream_start(self, **kwargs):
         """Starts a streaming response, passing the given kwargs to the
         fastapi.responses.StreamingResponse constructor.
 
@@ -111,11 +112,11 @@ class FastAPIResponder:
         )
 
     def stream_part(self, content: bytes | None):
-        """Streams content to a response started with start_response().
+        """Streams content to a response started with stream_start().
 
         Streaming must be ended by sending None.
         """
-        assert self._streaming_queue is not None, "start_response() not called"
+        assert self._streaming_queue is not None, "stream_start() not called"
         if self._loop.is_closed():
             raise IOError("Web server is shut down")
         self._loop.call_soon_threadsafe(self._streaming_queue.put_nowait, content)

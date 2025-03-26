@@ -6,17 +6,14 @@
 
 from typing import Optional
 
-import math
 
 import torch
-import torch.nn.functional as F
-from ..types import QuantizerTensor
+from ..types import QuantizerTensor, StaticScaledQuantizer
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
 from .norm import RMSNormLayer
 from .rotary_embedding import RotaryEmbeddingLayer
-from .kv_cache import PagedKVCache
-from .. import ops
+from .paged_attention import PagedAttention
 
 __all__ = [
     "PagedLlamaAttentionBlock",
@@ -32,11 +29,12 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         theta: Theta,
         *,
         block_index: int,
-        cache: PagedKVCache,
+        cache: PagedAttention,
         head_count: int,
         head_dim: int,
         head_count_kv: int,
         rms_epsilon: float,
+        attention_dtype: Optional[torch.dtype] = None,
         attention_kernel: str = "decomposed",
         attention_scale: Optional[float] = None,
         softcap: Optional[float] = None,
@@ -44,15 +42,26 @@ class PagedLlamaAttentionBlock(ThetaLayer):
     ):
         super().__init__(theta)
 
+        self.paged_attention = PagedAttention(
+            transformer_block_count=cache.transformer_block_count,
+            attn_head_count=head_count_kv,
+            attn_head_dim=head_dim,
+            block_seq_stride=cache.block_seq_stride,
+            dtype=cache.dtype,
+            device=cache.device,
+            shard_count=cache.shard_count,
+        )
         self.block_index = block_index
-        self.cache = cache
         self.head_count = head_count
         self.head_dim = head_dim
         self.head_count_kv = head_count_kv
+        self.attention_dtype = attention_dtype
         self.attention_kernel = attention_kernel
         self.attention_scale = attention_scale
         self.softcap = softcap
         self.fake_quant = fake_quant
+        self.cache_quantizer = None
+        self.probs_quantizer = None
 
         self.add_module(
             "attn_norm", RMSNormLayer(theta("attn_norm"), epsilon=rms_epsilon)
@@ -69,10 +78,17 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self.add_module(
             "attn_output", LinearLayer(theta("attn_output"), fake_quant=self.fake_quant)
         )
-        self.cache_quantizer = None
         if "kv_cache" in theta.keys:
             self.cache_quantizer: Optional[QuantizerTensor] = theta.optional_tensor(
                 "kv_cache.quantizer"
+            )
+        if "attn_scale" in theta.keys:
+            self.attention_scale = theta("attn_scale").as_torch()
+            self.probs_quantizer = StaticScaledQuantizer(
+                name="attn_scale.quantizer",
+                scale=1.0 / (self.attention_scale * 2.0),
+                reciprocal_scale=self.attention_scale * 2.0,
+                dtype=torch.float8_e4m3fnuz,
             )
 
         if theta.optional_tensor("attn_output_norm") is None:
@@ -101,12 +117,15 @@ class PagedLlamaAttentionBlock(ThetaLayer):
     ):
         assert bool(start_index is not None) ^ bool(embedding_batch_mask is not None)
         x = self.attn_norm(h)
-        bs, batch_seq_len, feature_dim = x.shape
-        assert feature_dim == self.head_count * self.head_dim
+        bs, batch_seq_len, _ = x.shape
 
         xq = self.attn_q(x)
         xk = self.attn_k(x)
         xv = self.attn_v(x)
+
+        assert xq.shape[-1] == self.head_count * self.head_dim
+        assert xk.shape[-1] == self.head_count_kv * self.head_dim
+        assert xv.shape[-1] == self.head_count_kv * self.head_dim
 
         xq = xq.view(bs, batch_seq_len, self.head_count, self.head_dim)
         xk = xk.view(bs, batch_seq_len, self.head_count_kv, self.head_dim)
@@ -122,7 +141,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             xk = embedding.apply_batched_mask(xt=xk, mask=embedding_batch_mask)
 
         # Full sequence length.
-        kv_seq_len = seq_block_ids.shape[1] * self.cache.block_seq_stride
+        kv_seq_len = seq_block_ids.shape[1] * self.paged_attention.block_seq_stride
 
         # Used by fp8_e4m3fnuz model
         if self.cache_quantizer is not None:
@@ -132,79 +151,40 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 xk = self.cache_quantizer.quantize(xk).unpack().qs
                 xv = self.cache_quantizer.quantize(xv).unpack().qs
 
-        xk, xv = self.transact_cache(
-            xk_cache_update=xk,
-            xv_cache_update=xv,
-            seq_block_ids=seq_block_ids,
-            kv_seq_len=kv_seq_len,
-            start_positions=start_positions,
-            cache_state=cache_state,
-        )
-
-        # Expand kv heads for GQA.
-        gqa_n_rep = self.head_count // self.head_count_kv
-        assert gqa_n_rep > 0
-        if gqa_n_rep > 1:
-
-            def repeat_kv(x: torch.Tensor) -> torch.Tensor:
-                bs, slen, n_kv_heads, head_dim = x.shape
-                unsq = x.unsqueeze(-2)
-                exp = ops.expand(unsq, (bs, slen, n_kv_heads, gqa_n_rep, head_dim))
-                return exp.flatten(2, 3)
-
-            xk = repeat_kv(xk)
-            xv = repeat_kv(xv)
-
-        # Fake quant is already dequantized when stored in the cache.
-        if self.cache_quantizer and not self.fake_quant:
-            xk = self.cache_quantizer.dequantize_raw_tensor(
-                xk, torch.bfloat16, name="xk_deq"
+        if start_positions is None:
+            attn_output = self.paged_attention.forward_prefill(
+                q=xq,
+                k=xk,
+                v=xv,
+                cache_state=cache_state,
+                seq_block_ids=seq_block_ids,
+                block_index=self.block_index,
+                head_count_attn=self.head_count,
+                cache_quantizer=self.cache_quantizer,
+                fake_quant=self.fake_quant,
+                attention_kernel=self.attention_kernel,
+                mask=attention_mask,
+                scale=self.attention_scale,
+                softcap=self.softcap,
+                probs_quantizer=self.probs_quantizer,
             )
-            xv = self.cache_quantizer.dequantize_raw_tensor(
-                xv, torch.bfloat16, name="xv_deq"
-            )
-            if attention_mask is not None:
-                attention_mask = attention_mask.to(torch.bfloat16)
-
-        # Transpose into [bs, heads, sl, dim]
-        xq = xq.transpose(1, 2)
-        keys = xk.transpose(1, 2)
-        values = xv.transpose(1, 2)
-
-        if self.attention_kernel == "decomposed":
-            attn_weights = ops.matmul(xq, keys.transpose(2, 3))
-            if self.attention_scale is None:
-                attn_weights = attn_weights / math.sqrt(self.head_dim)
-            else:
-                attn_weights = attn_weights * self.attention_scale
-
-            # Flash attention.
-            if self.softcap is not None:
-                attn_weights = self.softcap * torch.tanh(attn_weights / self.softcap)
-
-            self.assert_not_nan(attn_weights)
-
-            # Apply attention mask.
-            self.trace_tensor("attn_weights", attn_weights)
-            if attention_mask is not None:
-                # self.trace_tensor("attn_mask", attention_mask)
-                attn_weights = attn_weights + attention_mask
-
-            attn_weights = ops.softmax(
-                ops.to(attn_weights, dtype=torch.float32), dim=-1
-            )
-            attn_weights = ops.to(attn_weights, dtype=xq.dtype)
-            attn_output = ops.matmul(
-                attn_weights, values
-            )  # (bs, heads, slen, head_dim)
         else:
-            attn_output = ops.scaled_dot_product_attention(
-                q=xq,  # [bs, ..., sl, dim]
-                k=keys,  # [bs, ..., sl, dim]
-                v=values,  # [bs, ..., sl, dim]
-                a=attention_mask,  # [bs, ..., sl, sl]
-                is_causal=attention_mask is None,  # assumes causal masking when true
-                scale=None,  # defaults to 1/sqrt(dim)
+            attn_output = self.paged_attention.forward_decode(
+                q=xq,
+                k=xk,
+                v=xv,
+                cache_state=cache_state,
+                seq_block_ids=seq_block_ids,
+                block_index=self.block_index,
+                kv_seq_len=kv_seq_len,
+                start_positions=start_positions,
+                head_count_attn=self.head_count,
+                cache_quantizer=self.cache_quantizer,
+                fake_quant=self.fake_quant,
+                attention_kernel=self.attention_kernel,
+                mask=attention_mask,
+                scale=self.attention_scale,
+                softcap=self.softcap,
             )
 
         attn_output = attn_output.transpose(1, 2)
@@ -223,15 +203,14 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         xv_cache_update: torch.Tensor,
         cache_state: list[torch.Tensor],
         # [bs, batch_seq_len // block_seq_stride]
-        seq_block_ids: Optional[torch.Tensor],
+        seq_block_ids: torch.Tensor,
         kv_seq_len: int,
         start_positions: Optional[torch.Tensor] = None,
     ):
-        cache = self.cache
         # Manage the cache.
         if start_positions is None:
             # Prefill: Write the entire cache.
-            cache.write(
+            self.paged_attention.write(
                 cache_state,
                 cache_partitions=[xk_cache_update, xv_cache_update],
                 transformer_block_index=self.block_index,
@@ -245,12 +224,12 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         # use a memory efficient attention kernel that can do indirect
         # reads, skipping this materialization. This path is taken for
         # a decode step.
-        assert xk_cache_update.shape[1] == 1
-        assert xv_cache_update.shape[1] == 1
-        assert kv_seq_len == seq_block_ids.shape[1] * cache.block_seq_stride
+        assert (
+            kv_seq_len == seq_block_ids.shape[1] * self.paged_attention.block_seq_stride
+        )
 
         # Write our one updated cache row into the cache.
-        cache.write_timestep(
+        self.paged_attention.write_timestep(
             cache_state,
             cache_partitions=[
                 xk_cache_update,
@@ -262,7 +241,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         )
 
         # Restore from the cache.
-        xk, xv = cache.read(
+        xk, xv = self.paged_attention.read(
             cache_state,
             transformer_block_index=self.block_index,
             page_ids=seq_block_ids,

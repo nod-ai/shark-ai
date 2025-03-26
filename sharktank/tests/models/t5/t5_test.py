@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import functools
+from copy import copy
 from transformers.models.t5.modeling_t5 import (
     T5Attention as ReferenceT5Attention,
     T5LayerSelfAttention as ReferenceT5LayerSelfAttention,
@@ -15,13 +16,14 @@ from transformers import (
     T5EncoderModel as ReferenceT5EncoderModel,
     T5Config as ReferenceT5Config,
 )
+from transformers.models.auto.tokenization_auto import get_tokenizer_config
 from typing import Optional
 import os
 from collections import OrderedDict
 import logging
 import pytest
 import torch
-from torch.utils._pytree import tree_map, tree_unflatten, tree_flatten_with_path
+from torch.utils._pytree import tree_map
 from unittest import TestCase
 from parameterized import parameterized
 from sharktank.types import (
@@ -29,7 +31,6 @@ from sharktank.types import (
     DefaultPrimitiveTensor,
     unbox_tensor,
     Dataset,
-    dtype_to_serialized_short_name,
 )
 from sharktank.models.t5 import (
     T5Attention,
@@ -38,9 +39,10 @@ from sharktank.models.t5 import (
     T5Encoder,
     T5LayerFF,
     export_encoder_mlir,
-    export_encoder_iree_parameters,
+    import_encoder_dataset_from_hugging_face,
 )
 from sharktank.utils.testing import (
+    assert_text_encoder_state_close,
     make_rand_torch,
     make_random_mask,
     TempDirTestBase,
@@ -48,6 +50,7 @@ from sharktank.utils.testing import (
 )
 from sharktank.utils.hf_datasets import get_dataset
 from sharktank.utils.iree import (
+    with_iree_device_context,
     get_iree_devices,
     load_iree_module,
     run_iree_module_function,
@@ -65,59 +68,51 @@ with_t5_data = pytest.mark.skipif("not config.getoption('with_t5_data')")
 logger = logging.getLogger(__name__)
 
 
-@pytest.mark.usefixtures("get_model_artifacts")
+def assert_t5_encoder_state_close(
+    actual: torch.Tensor, expected: torch.Tensor, target_dtype: torch.dtype
+):
+    if target_dtype == torch.bfloat16:
+        # For both
+        # testCompareV1_1XxlTorchEagerBf16AgainstHuggingFaceF32 and
+        # testCompareV1_1XxlTorchEagerHuggingFaceBf16AgainstF32
+        # the observed absolute numerical error is 0.610.
+        # The error seems high as it corresponds to ~67° angular difference.
+        # The majority of tokens have an error less than 0.02.
+        worst_observed_cosine_similarity_per_token = 0.610
+        tolerance_from_observed = 1.5
+        atol = worst_observed_cosine_similarity_per_token * tolerance_from_observed
+        worst_observed_outliers_fraction = 0.0207
+        max_outliers_fraction = (
+            worst_observed_outliers_fraction * tolerance_from_observed
+        )
+        assert_text_encoder_state_close(
+            actual,
+            expected,
+            atol=atol,
+            max_outliers_fraction=max_outliers_fraction,
+            inlier_atol=0.02,
+        )
+    elif target_dtype == torch.float32:
+        assert_text_encoder_state_close(
+            actual,
+            expected,
+            atol=1e-5,
+        )
+    else:
+        raise ValueError(f"Unsupported dtype {target_dtype}.")
+
+
 class T5EncoderEagerTest(TestCase):
     def setUp(self):
         super().setUp()
         torch.random.manual_seed(12345)
         torch.no_grad()
 
-    @with_t5_data
-    def testXxlBf16AgainstFluxGolden(self):
-        """The ground-truth values were acquired from the Flux pipeline."""
-        target_model_name = (
-            f"{'google/t5-v1_1-xxl'.replace('/', '__').replace('-', '_')}_f32_model"
-        )
-        target_model_path = getattr(self, target_model_name)
-        dataset = Dataset.load(target_model_path)
-        dataset.root_theta = dataset.root_theta.transform(
-            functools.partial(set_float_dtype, dtype=torch.bfloat16)
-        )
-        config = T5Config.from_gguf_properties(
-            dataset.properties,
-            feed_forward_proj="gated-gelu",
-        )
-        model = T5Encoder(theta=dataset.root_theta, config=config)
-        model.eval()
-
-        with open(
-            "/data/t5/xxl/flux_schnell_t5_v1_1_xxl_encoder_bf16_input_ids.pt", "rb"
-        ) as f:
-            reference_input_ids = torch.load(f)
-
-        outputs = model(
-            input_ids=reference_input_ids,
-            attention_mask=None,
-            output_hidden_states=False,
-        )
-
-        with open(
-            "/data/t5/xxl/flux_schnell_t5_v1_1_xxl_encoder_bf16_output_last_hidden_state.pt",
-            "rb",
-        ) as f:
-            reference_last_hidden_state = torch.load(f)
-
-        torch.testing.assert_close(
-            outputs["last_hidden_state"], reference_last_hidden_state
-        )
-
     def runTestV1_1CompareTorchEagerHuggingFace(
         self,
         huggingface_repo_id: str,
         reference_dtype: torch.dtype,
         target_dtype: torch.dtype,
-        atol: Optional[float] = None,
-        rtol: Optional[float] = None,
     ):
         get_dataset(
             huggingface_repo_id,
@@ -135,9 +130,11 @@ class T5EncoderEagerTest(TestCase):
 
         input_ids = tokenizer(
             test_prompts,
+            truncation=True,
+            return_length=False,
+            return_overflowing_tokens=False,
+            padding="max_length",
             return_tensors="pt",
-            padding=True,
-            pad_to_multiple_of=16,
         ).input_ids
 
         expected_outputs = dict(reference_model(input_ids=input_ids))
@@ -146,8 +143,10 @@ class T5EncoderEagerTest(TestCase):
             lambda t: ops.to(t, dtype=reference_dtype), actual_outputs
         )
 
-        torch.testing.assert_close(
-            actual_outputs, expected_outputs, atol=atol, rtol=rtol
+        assert_t5_encoder_state_close(
+            actual_outputs["last_hidden_state"],
+            expected_outputs["last_hidden_state"],
+            target_dtype,
         )
 
     def runTestV1_1CompareTorchEagerAgainstHuggingFace(
@@ -155,8 +154,6 @@ class T5EncoderEagerTest(TestCase):
         huggingface_repo_id: str,
         reference_dtype: torch.dtype,
         target_dtype: torch.dtype,
-        atol: Optional[float] = None,
-        rtol: Optional[float] = None,
     ):
         get_dataset(
             huggingface_repo_id,
@@ -167,24 +164,21 @@ class T5EncoderEagerTest(TestCase):
         )
         reference_model.eval()
 
-        target_model_name = (
-            f"{huggingface_repo_id.replace('/', '__').replace('-', '_')}_f32_model"
-        )
-        target_model_path = getattr(self, target_model_name)
-        dataset = Dataset.load(target_model_path)
+        dataset = import_encoder_dataset_from_hugging_face(huggingface_repo_id)
         dataset.root_theta = dataset.root_theta.transform(
             functools.partial(set_float_dtype, dtype=target_dtype)
         )
-        config = T5Config.from_gguf_properties(
+        config = T5Config.from_properties(
             dataset.properties,
-            feed_forward_proj="gated-gelu",
         )
 
         input_ids = tokenizer(
             test_prompts,
+            truncation=True,
+            return_length=False,
+            return_overflowing_tokens=False,
+            padding="max_length",
             return_tensors="pt",
-            padding=True,
-            pad_to_multiple_of=config.context_length_padding_block_size,
         ).input_ids
 
         logger.info("Invoking Torch eager model...")
@@ -199,56 +193,56 @@ class T5EncoderEagerTest(TestCase):
         )
 
         logger.info("Comparing outputs...")
-        torch.testing.assert_close(
-            actual_outputs, expected_outputs, atol=atol, rtol=rtol
+        assert_t5_encoder_state_close(
+            actual_outputs["last_hidden_state"],
+            expected_outputs["last_hidden_state"],
+            target_dtype,
         )
 
-    @pytest.mark.xfail(
-        raises=AssertionError,
-        reason=(
-            "The accuracy is bad, "
-            "but for XXL we get the same result as the Flux pipeline. "
-            "This need further investigation how Flux works at all like that."
-        ),
-    )
+    @pytest.mark.skip
     @with_t5_data
-    def testV1_1SmallCompareTorchEagerHuggingFaceBf16AgainstF32(self):
+    def testCompareV1_1SmallTorchEagerHuggingFaceBf16AgainstF32(self):
+        """Hugging Face model tests to estimate numerical error baseline for reference.
+        We don't want to run this test regularly, but we would like to keep it around
+        as a reference. It provides some baseline of what numerical error to expect.
+        """
         self.runTestV1_1CompareTorchEagerHuggingFace(
             "google/t5-v1_1-small",
             reference_dtype=torch.float32,
             target_dtype=torch.bfloat16,
-            atol=1e-2,
-            rtol=1.6e-2,
+        )
+
+    @pytest.mark.skip
+    @with_t5_data
+    def testCompareV1_1XxlTorchEagerHuggingFaceBf16AgainstF32(self):
+        """Hugging Face model tests to estimate numerical error baseline for reference.
+        We don't want to run this test regularly, but we would like to keep it around
+        as a reference. It provides some baseline of what numerical error to expect.
+        """
+        self.runTestV1_1CompareTorchEagerHuggingFace(
+            "google/t5-v1_1-xxl",
+            reference_dtype=torch.float32,
+            target_dtype=torch.bfloat16,
         )
 
     @with_t5_data
-    def testV1_1SmallF32CompareTorchEagerAgainstHuggingFace(self):
+    def testCompareV1_1SmallTorchEagerF32AgainstHuggingFaceF32(self):
         self.runTestV1_1CompareTorchEagerAgainstHuggingFace(
             "google/t5-v1_1-small",
             reference_dtype=torch.float32,
             target_dtype=torch.float32,
         )
 
-    @pytest.mark.xfail(
-        raises=AssertionError,
-        reason=(
-            "The accuracy is bad, "
-            "but for XXL we get the same result as the Flux pipeline. "
-            "This need further investigation how Flux works at all like that."
-        ),
-    )
     @with_t5_data
-    def testV1_1SmallBf16CompareTorchEagerAgainstHuggingFaceF32(self):
+    def testCompareV1_1SmallTorchEagerBf16AgainstHuggingFaceF32(self):
         self.runTestV1_1CompareTorchEagerAgainstHuggingFace(
             "google/t5-v1_1-small",
             reference_dtype=torch.float32,
             target_dtype=torch.bfloat16,
-            atol=1e-2,
-            rtol=1.6e-2,
         )
 
     @with_t5_data
-    def testV1_1SmallBf16CompareTorchEagerAgainstHuggingFace(self):
+    def testCompareV1_1SmallTorchEagerBf16AgainstHuggingFaceBf16(self):
         self.runTestV1_1CompareTorchEagerAgainstHuggingFace(
             "google/t5-v1_1-small",
             reference_dtype=torch.bfloat16,
@@ -256,28 +250,19 @@ class T5EncoderEagerTest(TestCase):
         )
 
     @with_t5_data
-    def testV1_1XxlF32CompareTorchEagerAgainstHuggingFace(self):
+    def testCompareV1_1XxlTorchEagerF32AgainstHuggingFaceF32(self):
         self.runTestV1_1CompareTorchEagerAgainstHuggingFace(
             "google/t5-v1_1-xxl",
             reference_dtype=torch.float32,
             target_dtype=torch.float32,
         )
 
-    @pytest.mark.xfail(
-        raises=AssertionError,
-        reason=(
-            "The accuracy is bad, but we get the same result as the Flux pipeline. "
-            "This need further investigation how Flux works at all like that."
-        ),
-    )
     @with_t5_data
-    def testV1_1XxlBf16CompareTorchEagerAgainstHuggingFaceF32(self):
+    def testCompareV1_1XxlTorchEagerBf16AgainstHuggingFaceF32(self):
         self.runTestV1_1CompareTorchEagerAgainstHuggingFace(
             "google/t5-v1_1-xxl",
             reference_dtype=torch.float32,
             target_dtype=torch.bfloat16,
-            atol=1e-2,
-            rtol=1.6e-2,
         )
 
 
@@ -293,64 +278,72 @@ class T5EncoderIreeTest(TempDirTestBase):
         huggingface_repo_id: str,
         reference_dtype: torch.dtype,
         target_dtype: torch.dtype,
-        atol: Optional[float] = None,
-        rtol: Optional[float] = None,
+        subfolder: str = "",
+        tokenizer_huggingface_repo_id: str | None = None,
+        tokenizer_subfolder: str | None = None,
     ):
-        get_dataset(
-            huggingface_repo_id,
-        ).download()
-        tokenizer = AutoTokenizer.from_pretrained(huggingface_repo_id)
-
-        huggingface_repo_id_as_path = (
-            f"{huggingface_repo_id.replace('/', '__').replace('-', '_')}"
+        if tokenizer_huggingface_repo_id is None:
+            tokenizer_huggingface_repo_id = huggingface_repo_id
+        if tokenizer_subfolder is None:
+            tokenizer_subfolder = subfolder
+        tokenizer = AutoTokenizer.from_pretrained(
+            tokenizer_huggingface_repo_id, subfolder=tokenizer_subfolder
         )
-        source_model_name = f"{huggingface_repo_id_as_path}_f32_model"
-        source_model_path = getattr(self, source_model_name)
 
-        reference_dataset = Dataset.load(source_model_path)
+        reference_dataset = import_encoder_dataset_from_hugging_face(
+            huggingface_repo_id,
+            subfolder=subfolder,
+            tokenizer_config=get_tokenizer_config(
+                tokenizer_huggingface_repo_id, subfolder=tokenizer_subfolder
+            ),
+        )
+        target_dataset = copy(reference_dataset)
+
         reference_dataset.root_theta = reference_dataset.root_theta.transform(
             functools.partial(set_float_dtype, dtype=reference_dtype)
         )
-        config = T5Config.from_gguf_properties(
+        config = T5Config.from_properties(
             reference_dataset.properties,
-            feed_forward_proj="gated-gelu",
+        )
+
+        target_dataset.root_theta = target_dataset.root_theta.transform(
+            functools.partial(set_float_dtype, dtype=target_dtype)
         )
 
         input_ids = tokenizer(
             test_prompts,
+            truncation=True,
+            return_length=False,
+            return_overflowing_tokens=False,
+            padding="max_length",
             return_tensors="pt",
-            padding=True,
-            pad_to_multiple_of=config.context_length_padding_block_size,
         ).input_ids
         input_args = OrderedDict([("input_ids", input_ids)])
         batch_size = input_ids.shape[0]
-
-        reference_dtype_name = dtype_to_serialized_short_name(reference_dtype)
-        target_dtype_name = dtype_to_serialized_short_name(target_dtype)
-        target_model_path_prefix = f"{self.path_prefix}{huggingface_repo_id_as_path}_encoder_{target_dtype_name}"
 
         reference_model = T5Encoder(theta=reference_dataset.root_theta, config=config)
         reference_result_dict = call_torch_module_function(
             module=reference_model,
             function_name="forward",
             kwargs=input_args,
-            trace_path_prefix=f"{self.path_prefix}{huggingface_repo_id_as_path}_encoder_{reference_dtype_name}_torch_",
+            trace_path_prefix=f"{self.path_prefix}torch_",
         )
         reference_result = flatten_for_iree_signature(reference_result_dict)
 
-        parameters_path = f"{target_model_path_prefix}.irpa"
+        parameters_path = f"{self.path_prefix}parameters.irpa"
         if not self.caching or not os.path.exists(parameters_path):
-            export_encoder_iree_parameters(
-                source_model_path, parameters_path, dtype=target_dtype
-            )
+            target_dataset.save(parameters_path)
 
-        mlir_path = f"{target_model_path_prefix}.mlir"
+        mlir_path = f"{self.path_prefix}model.mlir"
         if not self.caching or not os.path.exists(mlir_path):
             logger.info("Exporting T5 encoder model to MLIR...")
             export_encoder_mlir(
-                parameters_path, batch_sizes=[batch_size], mlir_output_path=mlir_path
+                parameters_path,
+                batch_sizes=[batch_size],
+                mlir_output_path=mlir_path,
+                dynamic_context_length=False,
             )
-        iree_module_path = f"{target_model_path_prefix}.vmfb"
+        iree_module_path = f"{self.path_prefix}model.vmfb"
         if not self.caching or not os.path.exists(iree_module_path):
             logger.info("Compiling MLIR file...")
             iree.compiler.compile_file(
@@ -360,88 +353,85 @@ class T5EncoderIreeTest(TempDirTestBase):
             )
 
         iree_devices = get_iree_devices(driver="hip", device_count=1)
-        logger.info("Loading IREE module...")
-        iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
-            module_path=iree_module_path,
-            devices=iree_devices,
-            parameters_path=parameters_path,
-        )
-        iree_args = prepare_iree_module_function_args(
-            args=flatten_for_iree_signature(input_args), devices=iree_devices
-        )
-        logger.info("Invoking IREE function...")
-        iree_result = iree_to_torch(
-            *run_iree_module_function(
-                module=iree_module,
-                vm_context=iree_vm_context,
-                args=iree_args,
-                device=iree_devices[0],
-                function_name=f"forward_bs{batch_size}",
-                trace_path_prefix=f"{target_model_path_prefix}_iree_",
+
+        def run_iree_module(iree_devices: list[iree.runtime.HalDevice]):
+            logger.info("Loading IREE module...")
+            iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
+                module_path=iree_module_path,
+                devices=iree_devices,
+                parameters_path=parameters_path,
             )
-        )
-        iree_result = [
-            ops.to(iree_result[i], dtype=reference_result[i].dtype)
-            for i in range(len(reference_result))
-        ]
+            iree_args = prepare_iree_module_function_args(
+                args=flatten_for_iree_signature(input_args), devices=iree_devices
+            )
+            logger.info("Invoking IREE function...")
+            iree_result = iree_to_torch(
+                *run_iree_module_function(
+                    module=iree_module,
+                    vm_context=iree_vm_context,
+                    args=iree_args,
+                    device=iree_devices[0],
+                    function_name=f"forward_bs{batch_size}",
+                    trace_path_prefix=f"{self.path_prefix}iree_",
+                )
+            )
+            iree_result = [
+                ops.to(iree_result[i], dtype=reference_result[i].dtype)
+                for i in range(len(reference_result))
+            ]
+            return [t.clone() for t in iree_result]
+
+        iree_result = with_iree_device_context(run_iree_module, iree_devices)
 
         logger.info("Comparing outputs...")
-        torch.testing.assert_close(reference_result, iree_result, atol=atol, rtol=rtol)
+        reference_result_last_hidden_state = reference_result[0]
+        iree_result_last_hidden_state = iree_result[0]
+        assert_t5_encoder_state_close(
+            iree_result_last_hidden_state,
+            reference_result_last_hidden_state,
+            target_dtype,
+        )
 
     @with_t5_data
-    def testV1_1CompareSmallIreeF32AgainstTorchEagerF32(self):
+    def testCompareV1_1SmallIreeF32AgainstTorchEagerF32(self):
         self.runTestV1_1CompareIreeAgainstTorchEager(
             "google/t5-v1_1-small",
             reference_dtype=torch.float32,
             target_dtype=torch.float32,
-            atol=1e-4,
-            rtol=2.0e-3,
         )
 
-    @pytest.mark.xfail(
-        raises=AssertionError,
-        reason=(
-            "The accuracy is bad, "
-            "but but it is no worse than the accuracy for of eager bfloat16. "
-            "This need further investigation how Flux works at all like that."
-        ),
-    )
     @with_t5_data
-    def testV1_1CompareSmallIreeBf16AgainstTorchEagerF32(self):
+    def testCompareV1_1SmallIreeBf16AgainstTorchEagerF32(self):
         self.runTestV1_1CompareIreeAgainstTorchEager(
             "google/t5-v1_1-small",
             reference_dtype=torch.float32,
             target_dtype=torch.bfloat16,
-            atol=1e-2,
-            rtol=1.6e-2,
         )
 
     @with_t5_data
-    def testV1_1CompareXxlIreeF32AgainstTorchEagerF32(self):
+    def testCompareV1_1XxlIreeF32AgainstTorchEagerF32(self):
         self.runTestV1_1CompareIreeAgainstTorchEager(
             "google/t5-v1_1-xxl",
             reference_dtype=torch.float32,
             target_dtype=torch.float32,
-            atol=1e-4,
-            rtol=2.0e-3,
         )
 
-    @pytest.mark.xfail(
-        raises=AssertionError,
-        reason=(
-            "The accuracy is bad, "
-            "but but it is no worse than the accuracy for of eager bfloat16. "
-            "This need further investigation how Flux works at all like that."
-        ),
-    )
     @with_t5_data
-    def testV1_1CompareXxlIreeBf16AgainstTorchEagerF32(self):
+    def testCompareV1_1XxlIreeBf16AgainstTorchEagerF32(self):
         self.runTestV1_1CompareIreeAgainstTorchEager(
             "google/t5-v1_1-xxl",
             reference_dtype=torch.float32,
             target_dtype=torch.bfloat16,
-            atol=1e-2,
-            rtol=1.6e-2,
+        )
+
+    @with_t5_data
+    def testCompareV1_1XxlFluxRepoIreeBf16AgainstTorchEagerF32(self):
+        self.runTestV1_1CompareIreeAgainstTorchEager(
+            "black-forest-labs/FLUX.1-dev",
+            subfolder="text_encoder_2",
+            tokenizer_subfolder="tokenizer_2",
+            reference_dtype=torch.float32,
+            target_dtype=torch.bfloat16,
         )
 
 
@@ -485,19 +475,19 @@ class T5AttentionTest(TestCase):
 
         theta = Theta(
             {
-                "attn_q.weight": DefaultPrimitiveTensor(
+                "q.weight": DefaultPrimitiveTensor(
                     data=reference_model.q.weight.to(dtype=target_dtype)
                 ),
-                "attn_k.weight": DefaultPrimitiveTensor(
+                "k.weight": DefaultPrimitiveTensor(
                     data=reference_model.k.weight.to(dtype=target_dtype)
                 ),
-                "attn_v.weight": DefaultPrimitiveTensor(
+                "v.weight": DefaultPrimitiveTensor(
                     data=reference_model.v.weight.to(dtype=target_dtype)
                 ),
-                "attn_o.weight": DefaultPrimitiveTensor(
+                "o.weight": DefaultPrimitiveTensor(
                     data=reference_model.o.weight.to(dtype=target_dtype)
                 ),
-                "attn_rel_b.weight": DefaultPrimitiveTensor(
+                "relative_attention_bias.weight": DefaultPrimitiveTensor(
                     data=reference_model.relative_attention_bias.weight.to(
                         dtype=target_dtype
                     )
@@ -580,24 +570,24 @@ class T5AttentionTest(TestCase):
 
         theta = Theta(
             {
-                "attn_q.weight": DefaultPrimitiveTensor(
+                "SelfAttention.q.weight": DefaultPrimitiveTensor(
                     data=reference_model.SelfAttention.q.weight.to(dtype=target_dtype)
                 ),
-                "attn_k.weight": DefaultPrimitiveTensor(
+                "SelfAttention.k.weight": DefaultPrimitiveTensor(
                     data=reference_model.SelfAttention.k.weight.to(dtype=target_dtype)
                 ),
-                "attn_v.weight": DefaultPrimitiveTensor(
+                "SelfAttention.v.weight": DefaultPrimitiveTensor(
                     data=reference_model.SelfAttention.v.weight.to(dtype=target_dtype)
                 ),
-                "attn_o.weight": DefaultPrimitiveTensor(
+                "SelfAttention.o.weight": DefaultPrimitiveTensor(
                     data=reference_model.SelfAttention.o.weight.to(dtype=target_dtype)
                 ),
-                "attn_rel_b.weight": DefaultPrimitiveTensor(
+                "SelfAttention.relative_attention_bias.weight": DefaultPrimitiveTensor(
                     data=reference_model.SelfAttention.relative_attention_bias.weight.to(
                         dtype=target_dtype
                     )
                 ),
-                "attn_norm.weight": DefaultPrimitiveTensor(
+                "layer_norm.weight": DefaultPrimitiveTensor(
                     data=reference_model.layer_norm.weight.to(dtype=target_dtype)
                 ),
             }
@@ -695,20 +685,20 @@ class T5LayerFFTest(TestCase):
 
         theta = Theta(
             {
-                "ffn_gate.weight": DefaultPrimitiveTensor(
+                "DenseReluDense.wi_0.weight": DefaultPrimitiveTensor(
                     data=reference_model.DenseReluDense.wi_0.weight.to(
                         dtype=target_dtype
                     )
                 ),
-                "ffn_up.weight": DefaultPrimitiveTensor(
+                "DenseReluDense.wi_1.weight": DefaultPrimitiveTensor(
                     data=reference_model.DenseReluDense.wi_1.weight.to(
                         dtype=target_dtype
                     )
                 ),
-                "ffn_down.weight": DefaultPrimitiveTensor(
+                "DenseReluDense.wo.weight": DefaultPrimitiveTensor(
                     data=reference_model.DenseReluDense.wo.weight.to(dtype=target_dtype)
                 ),
-                "ffn_norm.weight": DefaultPrimitiveTensor(
+                "layer_norm.weight": DefaultPrimitiveTensor(
                     data=reference_model.layer_norm.weight.to(dtype=target_dtype)
                 ),
             }

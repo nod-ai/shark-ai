@@ -10,6 +10,8 @@ from typing import Optional
 
 from .device_settings import DeviceSettings
 from .model_management import ModelArtifacts
+from shortfin_apps.llm.components.service import GenerateService
+from contextlib import contextmanager
 
 
 @dataclass
@@ -58,6 +60,41 @@ class ServerInstance:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             return s.getsockname()[1]
 
+    def get_server_args(self) -> list[str]:
+        """Returns the command line arguments to start the server."""
+        argv = [
+            f"--tokenizer_json={self.config.artifacts.tokenizer_path}",
+            f"--model_config={self.config.artifacts.config_path}",
+            f"--vmfb={self.config.artifacts.vmfb_path}",
+            f"--parameters={self.config.artifacts.weights_path}",
+            f"--port={self.port}",
+            f"--prefix_sharing_algorithm={self.config.prefix_sharing_algorithm}",
+        ]
+        argv.extend(self.config.device_settings.server_flags)
+        return argv
+
+    @contextmanager
+    def start_service_only(self) -> GenerateService:
+        """Starts a server with only the shortfin_apps.llm.components.serivce.GenerateService."""
+
+        argv = self.get_server_args()
+        from shortfin_apps.llm.server import parse_args
+
+        args = parse_args(argv)
+        if args.tokenizer_config_json is None:
+            # this is only used for the EOS token
+            inferred_tokenizer_config_path = args.tokenizer_json.with_name(
+                args.tokenizer_json.stem + "_config.json"
+            )
+        args.tokenizer_config_json = inferred_tokenizer_config_path
+
+        from shortfin_apps.llm.components.lifecycle import ShortfinLlmLifecycleManager
+
+        lifecycle_manager = ShortfinLlmLifecycleManager(args)
+
+        with lifecycle_manager:
+            yield lifecycle_manager.services["default"]
+
     def start(self) -> None:
         """Starts the server process."""
         if self.process is not None:
@@ -69,15 +106,7 @@ class ServerInstance:
             sys.executable,
             "-m",
             "shortfin_apps.llm.server",
-            f"--tokenizer_json={self.config.artifacts.tokenizer_path}",
-            f"--model_config={self.config.artifacts.config_path}",
-            f"--vmfb={self.config.artifacts.vmfb_path}",
-            f"--parameters={self.config.artifacts.weights_path}",
-            f"--port={self.port}",
-            f"--prefix_sharing_algorithm={self.config.prefix_sharing_algorithm}",
-        ]
-        cmd.extend(self.config.device_settings.server_flags)
-
+        ] + self.get_server_args()
         self.process = subprocess.Popen(cmd)
         self.wait_for_ready()
 

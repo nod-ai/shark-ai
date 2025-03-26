@@ -4,9 +4,10 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import array
 import math
+from typing import Any, List
 import pytest
+import random
 
 import shortfin as sf
 import shortfin.array as sfnp
@@ -100,6 +101,7 @@ def test_argmax_axis0(device):
 @pytest.mark.parametrize(
     "dtype",
     [
+        sfnp.bfloat16,
         sfnp.float16,
         sfnp.float32,
     ],
@@ -112,8 +114,348 @@ def test_argmax_dtypes(device, dtype):
 
 
 @pytest.mark.parametrize(
+    "k,axis",
+    [
+        # Min sort, default axis
+        [3, None],
+        # Min sort, axis=-1
+        [20, -1],
+        # Max sort, default axis
+        [-3, None],
+        # Max sort, axis=-1
+        [-20, -1],
+    ],
+)
+def test_argpartition(device, k, axis):
+    src = sfnp.device_array(device, [1, 1, 128], dtype=sfnp.float32)
+    data = [float(i) for i in range(math.prod([1, 1, 128]))]
+    randomized_data = data[:]
+    random.shuffle(randomized_data)
+    src.items = randomized_data
+
+    result = (
+        sfnp.argpartition(src, k) if axis is None else sfnp.argpartition(src, k, axis)
+    )
+
+    assert result.shape == src.shape
+
+    expected_values = data[:k] if k >= 0 else data[k:]
+
+    k_slice = slice(0, k) if k >= 0 else slice(k, None)
+
+    indices = result.view(0, 0, k_slice).items.tolist()
+    values = [randomized_data[index] for index in indices]
+    assert sorted(values) == sorted(expected_values)
+
+
+def test_argpartition_out_variant(device):
+    k, axis = -3, -1
+    src = sfnp.device_array(device, [1, 1, 128], dtype=sfnp.float32)
+    data = [float(i) for i in range(math.prod(src.shape))]
+
+    randomized_data = data[:]
+    random.shuffle(randomized_data)
+    src.items = randomized_data
+
+    output_array = sfnp.device_array(device, src.shape, dtype=sfnp.int64)
+    result_out = sfnp.argpartition(src, k, axis, out=output_array)
+    result_no_out = sfnp.argpartition(src, k, axis)
+
+    assert result_out.shape == src.shape
+    out_items = result_out.items.tolist()
+    no_out_items = result_no_out.items.tolist()
+    assert out_items == no_out_items
+
+
+def test_argpartition_axis0(device):
+    def _get_top_values_by_col_indices(
+        indices: List[int], data: List[List[int]], k: int
+    ) -> List[List[int]]:
+        """Obtain the top-k values from out matrix, using column indices.
+
+        For this test, we partition by column (axis == 0). This is just some
+        helper logic to obtain the values from the original matrix, given
+        then column indices.
+
+        Args:
+            indices (List[int]): Flattened indices from `sfnp.argpartition`
+            data (List[List[int]]): Matrix containing original values.
+            k (int): Specify top-k values to select.
+
+        Returns:
+            List[List[int]]: Top-k values for each column.
+        """
+        num_cols = len(data[0])
+
+        top_values_by_col = []
+
+        for c in range(num_cols):
+            # Collect the row indices for the first k entries in column c.
+            col_row_idxs = [indices[r * num_cols + c] for r in range(k)]
+
+            # Map those row indices into actual values in `data`.
+            col_values = [data[row_idx][c] for row_idx in col_row_idxs]
+
+            top_values_by_col.append(col_values)
+
+        return top_values_by_col
+
+    def _get_top_values_by_sorting(
+        data: List[List[float]], k: int
+    ) -> List[List[float]]:
+        """Get the top-k value for each col in the matrix, using sorting.
+
+        This is just to obtain a comparison for our `argpartition` testing.
+
+        Args:
+            data (List[List[int]]): Matrix of data.
+            k (int): Specify top-k values to select.
+
+        Returns:
+            List[List[float]]: Top-k values for each column.
+        """
+        num_rows = len(data)
+        num_cols = len(data[0])
+
+        top_values_by_col = []
+
+        for c in range(num_cols):
+            # Extract the entire column 'c' into a list
+            col = [data[r][c] for r in range(num_rows)]
+            # Sort the column in ascending order
+            col_sorted = sorted(col)
+            # The first k elements are the k smallest
+            col_k_smallest = col_sorted[:k]
+            top_values_by_col.append(col_k_smallest)
+
+        return top_values_by_col
+
+    k, axis = 2, 0
+    src = sfnp.device_array(device, [3, 4], dtype=sfnp.float32)
+    # data = [[float(i) for i in range(math.prod(src.shape))]]
+    data = [[i for i in range(src.shape[-1])] for _ in range(src.shape[0])]
+    for i in range(len(data)):
+        random.shuffle(data[i])
+
+    for i in range(src.shape[0]):
+        src.view(i).items = data[i]
+
+    result = sfnp.argpartition(src, k, axis)
+    assert result.shape == src.shape
+
+    expected_values = _get_top_values_by_sorting(data, k)
+    top_values = _get_top_values_by_col_indices(result.items.tolist(), data, k)
+    for result, expected in zip(top_values, expected_values):
+        assert sorted(result) == sorted(expected)
+
+
+def test_argpartition_error_cases(device):
+    # Invalid `input` dtype
+    with pytest.raises(
+        ValueError,
+    ):
+        src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.int64)
+        sfnp.argpartition(src, 0)
+
+    src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+    data = [float(i) for i in range(math.prod(src.shape))]
+    src.items = data
+
+    # Invalid `axis`
+    with pytest.raises(
+        ValueError,
+    ):
+        sfnp.argpartition(src, 1, 3)
+        sfnp.argpartition(src, 1, -4)
+
+    # Invalid `k`
+    with pytest.raises(
+        ValueError,
+    ):
+        sfnp.argpartition(src, 17)
+        sfnp.argpartition(src, -17)
+
+    # Invalid `out` dtype
+    with pytest.raises(
+        ValueError,
+    ):
+        out = sfnp.device_array(device, src.shape, dtype=sfnp.float32)
+        sfnp.argpartition(src, 2, -1, out)
+
+
+def approximately_equal(a: Any, b: Any, rel_tol=1e-2, abs_tol=0.0) -> bool:
+    """
+    Recursively checks if two nested lists (or scalar values) are approximately equal.
+
+    Args:
+        a: First list or scalar.
+        b: Second list or scalar.
+        rel_tol: Relative tolerance.
+        abs_tol: Absolute tolerance.
+
+    Returns:
+        True if all corresponding elements are approximately equal.
+    """
+    # If both are lists, iterate element-wise
+    if isinstance(a, list) and isinstance(b, list):
+        if len(a) != len(b):
+            return False
+        return all(
+            approximately_equal(sub_a, sub_b, rel_tol, abs_tol)
+            for sub_a, sub_b in zip(a, b)
+        )
+
+    # Otherwise, assume they are scalars and compare
+    return math.isclose(a, b, rel_tol=rel_tol, abs_tol=abs_tol)
+
+
+test_cases = [
+    # Single values should always return `0.0`
+    {"shape": [1, 1], "data": [[420.0]], "axis": -1, "expected": [[0.0]]},
+    {"shape": [1, 1], "data": [[420.0]], "axis": None, "expected": [[0.0]]},
+    # Two values with constant offset of `1` should always return
+    # 0th: -log(1 + e)
+    # 1st: 1 - log(1 + e)
+    {
+        "shape": [1, 2],
+        "data": [[float(42), float(43)]],
+        "axis": -1,
+        "expected": [
+            [
+                -math.log(1 + math.e),
+                1 - math.log(1 + math.e),
+            ]
+        ],
+    },
+    {
+        "shape": [1, 2],
+        "data": [[float(42), float(43)]],
+        "axis": None,
+        "expected": [
+            [
+                -math.log(1 + math.e),
+                1 - math.log(1 + math.e),
+            ]
+        ],
+    },
+    # When given uniform values, each item should be equal to -log(n), where
+    # n is the size of the targeted axis.
+    {
+        "shape": [5, 10],
+        "data": [[float(42) for _ in range(10)] for _ in range(5)],
+        "axis": -1,
+        "expected": [[-math.log(10) for _ in range(10)] for _ in range(5)],
+    },
+    {
+        "shape": [5, 10],
+        "data": [[float(42) for _ in range(10)] for _ in range(5)],
+        "axis": None,
+        "expected": [[-math.log(10) for _ in range(10)] for _ in range(5)],
+    },
+    # Axis 0 test. If given all uniform values, and taking column-wise
+    # log_softmax, then each item should be equal to -log(2).
+    {
+        "shape": [2, 3],
+        "data": [[float(42) for _ in range(3)] for _ in range(2)],
+        "axis": 0,
+        "expected": [[-math.log(2) for _ in range(3)] for _ in range(2)],
+    },
+]
+
+
+@pytest.mark.parametrize("params", test_cases)
+def test_log_softmax(device, params):
+    shape = params["shape"]
+    data = params["data"]
+    axis = params["axis"]
+    expected = params["expected"]
+    src = sfnp.device_array(device, shape, dtype=sfnp.float32)
+    for i in range(len(data)):
+        src.view(i).items = data[i]
+    if axis is not None:
+        result = sfnp.log_softmax(src, axis)
+    else:
+        result = sfnp.log_softmax(src)
+    results = []
+    for i in range(len(data)):
+        vals = result.view(i).items.tolist()
+        results.append(vals)
+    assert approximately_equal(results, expected)
+
+
+def test_log_softmax_out_variant(device):
+    axis = -1
+    src = sfnp.device_array(device, [1, 1, 128], dtype=sfnp.float32)
+    data = [float(i) for i in range(math.prod(src.shape))]
+    src.items = data
+
+    output_array = sfnp.device_array(device, src.shape, dtype=sfnp.float32)
+    result_out = sfnp.log_softmax(src, axis, out=output_array)
+    result_no_out = sfnp.log_softmax(src, axis)
+
+    assert result_out.shape == src.shape
+    assert result_out.dtype.name == src.dtype.name
+    out_items = result_out.items.tolist()
+    no_out_items = result_no_out.items.tolist()
+    assert approximately_equal(out_items, no_out_items)
+
+
+@pytest.mark.parametrize(
     "dtype",
     [
+        sfnp.float16,
+        sfnp.float32,
+    ],
+)
+def test_log_softmax_dtype(device, dtype):
+    src = sfnp.device_array(device, [1, 16, 128], dtype=dtype)
+    sfnp.log_softmax(src)
+
+
+def test_log_softmax_error_cases(device):
+    # Invalid `input` dtype
+    with pytest.raises(
+        ValueError,
+    ):
+        src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.int64)
+        sfnp.log_softmax(src)
+
+    src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+    data = [float(i) for i in range(math.prod(src.shape))]
+    src.items = data
+
+    # Invalid `axis`
+    with pytest.raises(
+        ValueError,
+    ):
+        sfnp.log_softmax(src, 3)
+        sfnp.log_softmax(src, -4)
+
+    # Invalid `out` dtype
+    with pytest.raises(
+        ValueError,
+    ):
+        out = sfnp.device_array(device, src.shape, dtype=sfnp.float16)
+        sfnp.log_softmax(src, -1, out)
+
+
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        sfnp.bfloat16,
+        sfnp.float16,
+        sfnp.float32,
+    ],
+)
+def test_argpartition_dtypes(device, dtype):
+    src = sfnp.device_array(device, [4, 16, 128], dtype=dtype)
+    sfnp.argpartition(src, 0)
+
+
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        sfnp.bfloat16,
         sfnp.float16,
         sfnp.float32,
     ],
@@ -138,6 +480,7 @@ def test_fill_randn_default_generator(device, dtype):
 @pytest.mark.parametrize(
     "dtype",
     [
+        sfnp.bfloat16,
         sfnp.float16,
         sfnp.float32,
     ],
@@ -180,6 +523,7 @@ def test_fill_randn_explicit_generator(device, dtype):
         sfnp.int16,
         sfnp.int32,
         sfnp.int64,
+        sfnp.bfloat16,
         sfnp.float16,
         sfnp.float32,
         sfnp.float64,
@@ -208,12 +552,16 @@ def round_half_away_from_zero(n):
 @pytest.mark.parametrize(
     "dtype,sfnp_func,ref_round_func",
     [
+        (sfnp.bfloat16, sfnp.round, round_half_away_from_zero),
         (sfnp.float16, sfnp.round, round_half_away_from_zero),
         (sfnp.float32, sfnp.round, round_half_away_from_zero),
+        (sfnp.bfloat16, sfnp.ceil, math.ceil),
         (sfnp.float16, sfnp.ceil, math.ceil),
         (sfnp.float32, sfnp.ceil, math.ceil),
+        (sfnp.bfloat16, sfnp.floor, math.floor),
         (sfnp.float16, sfnp.floor, math.floor),
         (sfnp.float32, sfnp.floor, math.floor),
+        (sfnp.bfloat16, sfnp.trunc, math.trunc),
         (sfnp.float16, sfnp.trunc, math.trunc),
         (sfnp.float32, sfnp.trunc, math.trunc),
     ],
@@ -309,6 +657,8 @@ def test_elementwise_forms(device):
 @pytest.mark.parametrize(
     "lhs_dtype,rhs_dtype,promoted_dtype",
     [
+        (sfnp.float32, sfnp.bfloat16, sfnp.float32),
+        (sfnp.bfloat16, sfnp.float32, sfnp.float32),
         (sfnp.float32, sfnp.float16, sfnp.float32),
         (sfnp.float16, sfnp.float32, sfnp.float32),
         (sfnp.float32, sfnp.float64, sfnp.float64),
@@ -347,6 +697,7 @@ def test_elementwise_promotion(device, lhs_dtype, rhs_dtype, promoted_dtype):
         (sfnp.uint16, sfnp.add, 44.0),
         (sfnp.uint32, sfnp.add, 44.0),
         (sfnp.uint64, sfnp.add, 44.0),
+        (sfnp.bfloat16, sfnp.add, 44.0),
         (sfnp.float16, sfnp.add, 44.0),
         (sfnp.float32, sfnp.add, 44.0),
         (sfnp.float64, sfnp.add, 44.0),
@@ -359,6 +710,7 @@ def test_elementwise_promotion(device, lhs_dtype, rhs_dtype, promoted_dtype):
         (sfnp.uint16, sfnp.divide, 21.0),
         (sfnp.uint32, sfnp.divide, 21.0),
         (sfnp.uint64, sfnp.divide, 21.0),
+        (sfnp.bfloat16, sfnp.divide, 21.0),
         (sfnp.float16, sfnp.divide, 21.0),
         (sfnp.float32, sfnp.divide, 21.0),
         (sfnp.float64, sfnp.divide, 21.0),
@@ -371,6 +723,7 @@ def test_elementwise_promotion(device, lhs_dtype, rhs_dtype, promoted_dtype):
         (sfnp.uint16, sfnp.multiply, 84.0),
         (sfnp.uint32, sfnp.multiply, 84.0),
         (sfnp.uint64, sfnp.multiply, 84.0),
+        (sfnp.bfloat16, sfnp.multiply, 84.0),
         (sfnp.float16, sfnp.multiply, 84.0),
         (sfnp.float32, sfnp.multiply, 84.0),
         (sfnp.float64, sfnp.multiply, 84.0),
@@ -383,6 +736,7 @@ def test_elementwise_promotion(device, lhs_dtype, rhs_dtype, promoted_dtype):
         (sfnp.uint16, sfnp.subtract, 40.0),
         (sfnp.uint32, sfnp.subtract, 40.0),
         (sfnp.uint64, sfnp.subtract, 40.0),
+        (sfnp.bfloat16, sfnp.subtract, 40.0),
         (sfnp.float16, sfnp.subtract, 40.0),
         (sfnp.float32, sfnp.subtract, 40.0),
         (sfnp.float64, sfnp.subtract, 40.0),
@@ -418,6 +772,7 @@ def test_elementwise_array_correctness(device, dtype, op, check_value):
         sfnp.uint32,
         sfnp.uint64,
         sfnp.float32,
+        sfnp.bfloat16,
         sfnp.float16,
         sfnp.float32,
         sfnp.float64,

@@ -5,12 +5,13 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from enum import Enum
+from uuid import uuid4
 
 import shortfin as sf
 import shortfin.array as sfnp
 
 from .kvcache.base_attention_cache import BasePagedAttentionCache, PageAllocation
-from .kvcache.page_pool import PageInfo
+from ...utils import InferenceExecRequest
 
 
 class InferencePhase(Enum):
@@ -18,7 +19,7 @@ class InferencePhase(Enum):
     DECODE = 2
 
 
-class InferenceExecRequest(sf.Message):
+class LlmInferenceExecRequest(InferenceExecRequest):
     """Performs a prefill operation."""
 
     def __init__(self, phase: InferencePhase, input_token_ids: list[int], rid=None):
@@ -26,8 +27,12 @@ class InferenceExecRequest(sf.Message):
         self.phase = phase
         self.start_position: int = 0
         self.input_token_ids = input_token_ids
+        self.prompt_length = len(input_token_ids)
         self.done = sf.VoidFuture()
         self.rid = rid
+        # Unique `instance_id` for token selection strategies that may need
+        # to differentiate between an original req and a copy of a req.
+        self.instance_id = str(uuid4())
 
         # Response control.
         # If True, return all sequence position logits. If False, return only
@@ -45,6 +50,24 @@ class InferenceExecRequest(sf.Message):
         # Cache pages that have been locked for this request.
         self._cache: BasePagedAttentionCache | None = None
         self.allocation: PageAllocation | None = None
+
+    @classmethod
+    def copy_exec_request(
+        cls, exec_req: "LlmInferenceExecRequest"
+    ) -> "LlmInferenceExecRequest":
+        new_exec_req = cls(
+            exec_req.phase,
+            exec_req.input_token_ids.copy(),
+            exec_req.rid,
+        )
+
+        new_exec_req.start_position = exec_req.start_position
+        new_exec_req.prompt_length = exec_req.prompt_length
+        new_exec_req._cache = exec_req._cache
+        new_exec_req.allocation = new_exec_req._cache.fork_pages(
+            exec_req.allocation.pages
+        )
+        return new_exec_req
 
     def reset(self, phase: InferencePhase):
         """Resets all per request state in preparation for an subsequent execution."""
@@ -71,8 +94,23 @@ class InferenceExecRequest(sf.Message):
             self.allocation.release_pages()
             self.allocation = None
 
+    def __repr__(self) -> str:
+        """
+        String representation for logging purposes. It looks like this:
 
-class StrobeMessage(sf.Message):
-    """Sent to strobe a queue with fake activity (generate a wakeup)."""
+        LlmInferenceExecRequest[phase=P,pos=0,rid=test123,flags=host,input_token_ids=[1, 2, 3, 4]]
 
-    ...
+        Use
+        `logging.debug("Request: %r", request)`
+        and not
+        `logging.debug(f"Request: {request}")
+        to avoid running through this method all the time.
+        """
+        phase_char = "D" if self.phase == InferencePhase.DECODE else "P"
+        flags = []
+        if self.return_all_logits:
+            flags.append("all")
+        if self.return_host_array:
+            flags.append("host")
+        flags_str = ",".join(flags)
+        return f"LlmInferenceExecRequest[phase={phase_char},pos={self.start_position},rid={self.rid},instance_id={self.instance_id},flags={flags_str},input_token_ids={self.input_token_ids}]"

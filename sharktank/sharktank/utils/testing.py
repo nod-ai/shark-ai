@@ -7,6 +7,7 @@
 from typing import Optional
 import contextlib
 from pathlib import Path
+import pytest
 from os import PathLike
 import os
 import shutil
@@ -17,14 +18,33 @@ from typing import Any, Callable
 from operator import eq
 from collections.abc import Iterable
 import gc
+from datasets import load_dataset
+import random
 
 from ..types import *
 from .math import cosine_similarity
 
+is_mi300x = pytest.mark.skipif("config.getoption('iree_hip_target') != 'gfx942'")
+
+is_cpu_condition = (
+    "exec('from sharktank.utils.testing import is_iree_hal_target_device_cpu') or "
+    "is_iree_hal_target_device_cpu(config.getoption('iree_hal_target_device'))"
+)
+is_not_cpu_condition = (
+    "exec('from sharktank.utils.testing import is_iree_hal_target_device_cpu') or "
+    "not is_iree_hal_target_device_cpu(config.getoption('iree_hal_target_device'))"
+)
+is_cpu = pytest.mark.skipif(is_not_cpu_condition)
+
+
+def is_iree_hal_target_device_cpu(v: str, /) -> bool:
+    return v.startswith("local") or v == "llvm-cpu"
+
+
 # Range of torch.rand() is [0,1)
 # Range of torch.rand() * 2 - 1 is [-1, 1), includes negative values
 def make_rand_torch(shape: list[int], dtype: Optional[torch.dtype] = torch.float32):
-    return torch.rand(shape, dtype=dtype) * 2 - 1
+    return (torch.rand(shape) * 2 - 1).to(dtype=dtype)
 
 
 def make_random_mask(shape: tuple[int], dtype: Optional[torch.dtype] = None):
@@ -239,8 +259,56 @@ def assert_iterables_equal(
         ), f"Iterables not equal at index {i} for elements {v1} and {v2}"
 
 
+def assert_tensor_close(
+    actual: torch.Tensor,
+    expected: torch.Tensor,
+    atol: float,
+    max_outliers_fraction: Optional[float] = None,
+    inlier_atol: Optional[float] = None,
+):
+    if (max_outliers_fraction is None and inlier_atol is not None) or (
+        max_outliers_fraction is not None and inlier_atol is None
+    ):
+        raise ValueError(
+            "max_outliers_fraction and inlier_atol must be provided or not together."
+        )
+
+    try:
+        torch.testing.assert_close(
+            actual,
+            expected,
+            atol=atol,
+            rtol=0,
+        )
+
+        if inlier_atol is not None:
+            outliers = (actual - expected).abs() > inlier_atol
+            outliers_fraction = outliers.count_nonzero() / outliers.numel()
+            if outliers_fraction > max_outliers_fraction:
+                raise AssertionError(
+                    f"The fraction of outliers {outliers_fraction:%} is above the allowed "
+                    f"{max_outliers_fraction:%}. Inlier atol={inlier_atol}."
+                )
+    except AssertionError as ex:
+        diff = actual - expected
+        std, mean = torch.std_mean(diff)
+        msg = (
+            "Difference (actual - expected):\n"
+            f"mean = {mean}\n"
+            f"median = {diff.median()}\n"
+            f"std dev = {std}\n"
+            f"min = {diff.min()}\n"
+            f"max = {diff.max()}\n"
+        )
+        raise AssertionError(msg) from ex
+
+
 def assert_text_encoder_state_close(
-    actual: torch.Tensor, expected: torch.Tensor, atol: float
+    actual: torch.Tensor,
+    expected: torch.Tensor,
+    atol: float,
+    max_outliers_fraction: Optional[float] = None,
+    inlier_atol: Optional[float] = None,
 ):
     """The cosine similarity has been suggested to compare encoder states.
 
@@ -261,11 +329,13 @@ def assert_text_encoder_state_close(
         expected,
         dim=-1,
     )
-    torch.testing.assert_close(
-        cosine_similarity_per_token,
-        torch.ones_like(cosine_similarity_per_token),
+
+    assert_tensor_close(
+        actual=cosine_similarity_per_token,
+        expected=torch.ones_like(cosine_similarity_per_token),
         atol=atol,
-        rtol=0,
+        max_outliers_fraction=max_outliers_fraction,
+        inlier_atol=inlier_atol,
     )
 
 
@@ -289,9 +359,26 @@ def skip(*decorator_args, **decorator_kwargs):
     return decorator
 
 
-test_prompts = [
-    "Studies have been shown that owning a dog is good for you",
-    "The horse went into the river",
-    "We need at least one sentence long enough so that it spans more than one padding block which by default is of size 16.",
-    "Make the batch size 4",
-]
+def get_random_test_text_prompts(
+    num_prompts: int, min_prompt_length: int | None = None
+):
+    prompts = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")["text"]
+    if min_prompt_length is not None:
+        prompts = [p for p in prompts if len(p) >= min_prompt_length]
+    return random.sample(prompts, num_prompts)
+
+
+def get_frozen_test_text_prompts(
+    num_prompts: int, min_prompt_length: int | None = None
+):
+    orig_rng_state = random.getstate()
+    try:
+        random.seed(13910398)
+        return get_random_test_text_prompts(
+            num_prompts=num_prompts, min_prompt_length=min_prompt_length
+        )
+    finally:
+        random.setstate(orig_rng_state)
+
+
+test_prompts = get_frozen_test_text_prompts(num_prompts=16, min_prompt_length=50)

@@ -20,12 +20,13 @@ from shortfin.interop.fastapi import FastAPIResponder
 from shortfin.support.logging_setup import native_handler
 
 from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 
 from .components.generate import ClientGenerateBatchProcess
 from .components.config_struct import ModelParams
 from .components.io_struct import GenerateReqInput
-from .components.manager import SystemManager
-from .components.service import GenerateService
+from .components.manager import SDXLSystemManager
+from .components.service import SDXLGenerateService
 from .components.tokenizer import Tokenizer
 
 
@@ -83,7 +84,7 @@ async def lifespan(app: FastAPI):
         sysman.shutdown()
 
 
-sysman: SystemManager
+sysman: SDXLSystemManager
 services: dict[str, Any] = {}
 app = FastAPI(lifespan=lifespan)
 
@@ -105,10 +106,21 @@ app.post("/generate")(generate_request)
 app.put("/generate")(generate_request)
 
 
-def configure_sys(args) -> SystemManager:
+# -------- MIDDLEWARE --------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+def configure_sys(args) -> SDXLSystemManager:
     # Setup system (configure devices, etc).
     model_config, topology_config, flagfile, tuning_spec, args = get_configs(args)
-    sysman = SystemManager(args.device, args.device_ids, args.amdgpu_async_allocations)
+    sysman = SDXLSystemManager(
+        args.device, args.device_ids, args.amdgpu_async_allocations
+    )
     return sysman, model_config, flagfile, tuning_spec
 
 
@@ -118,11 +130,10 @@ def configure_service(args, sysman, model_config, flagfile, tuning_spec):
     for idx, tok_name in enumerate(args.tokenizers):
         subfolder = f"tokenizer_{idx + 1}" if idx > 0 else "tokenizer"
         tokenizers.append(Tokenizer.from_pretrained(tok_name, subfolder))
-
     model_params = ModelParams.load_json(model_config)
     vmfbs, params = get_modules(args, model_config, flagfile, tuning_spec)
 
-    sm = GenerateService(
+    sm = SDXLGenerateService(
         name="sd",
         sysman=sysman,
         tokenizers=tokenizers,
@@ -132,10 +143,12 @@ def configure_service(args, sysman, model_config, flagfile, tuning_spec):
         prog_isolation=args.isolation,
         show_progress=args.show_progress,
         trace_execution=args.trace_execution,
+        splat=args.splat,
     )
-    for key, vmfblist in vmfbs.items():
-        for vmfb in vmfblist:
-            sm.load_inference_module(vmfb, component=key)
+    for key, vmfb_dict in vmfbs.items():
+        for bs in vmfb_dict.keys():
+            for vmfb in vmfb_dict[bs]:
+                sm.load_inference_module(vmfb, component=key, batch_size=bs)
     for key, datasets in params.items():
         sm.load_inference_parameters(*datasets, parameter_scope="model", component=key)
     services[sm.name] = sm
@@ -163,7 +176,10 @@ def get_configs(args):
     outs = subprocess.check_output(cfg_builder_args).decode()
     outs_paths = outs.splitlines()
     for i in outs_paths:
-        if "sdxl_config" in i and not args.model_config:
+        if model_config:
+            if str(model_config) in i and not os.path.exists(model_config):
+                model_config = i
+        elif not model_config and "sdxl_config" in i:
             model_config = i
         elif "topology" in i and args.topology:
             topology_config = i
@@ -171,6 +187,9 @@ def get_configs(args):
             flagfile = i
         elif "attention_and_matmul_spec" in i and args.use_tuned:
             tuning_spec = i
+
+    if not os.path.exists(model_config):
+        raise ValueError(f"Model config not found at {model_config}.")
 
     if args.use_tuned and args.tuning_spec:
         tuning_spec = os.path.abspath(args.tuning_spec)
@@ -208,9 +227,18 @@ def get_configs(args):
 
 def get_modules(args, model_config, flagfile, td_spec):
     # TODO: Move this out of server entrypoint
-    vmfbs = {"clip": [], "unet": [], "vae": [], "scheduler": []}
-    params = {"clip": [], "unet": [], "vae": []}
-    model_flags = copy.deepcopy(vmfbs)
+    mod_params = ModelParams.load_json(model_config)
+
+    vmfbs = {}
+    params = {}
+    model_flags = {}
+    for submodel in mod_params.module_names.keys():
+        vmfbs[submodel] = {}
+        model_flags[submodel] = []
+        for bs in mod_params.batch_sizes[submodel]:
+            vmfbs[submodel][bs] = []
+        if submodel != "scheduler":
+            params[submodel] = []
     model_flags["all"] = args.compile_flags
 
     if flagfile:
@@ -219,16 +247,19 @@ def get_modules(args, model_config, flagfile, td_spec):
         flagged_model = "all"
         for elem in contents:
             match = [keyw in elem for keyw in model_flags.keys()]
-            if any(match):
+            if any(match) or "--" not in elem:
                 flagged_model = elem
-            else:
+            elif flagged_model in model_flags:
                 model_flags[flagged_model].extend([elem])
     if td_spec:
-        model_flags["unet"].extend(
-            [f"--iree-codegen-transform-dialect-library={td_spec}"]
-        )
-
+        for key in model_flags.keys():
+            if key in ["unet", "punet", "scheduled_unet"]:
+                model_flags[key].extend(
+                    [f"--iree-codegen-transform-dialect-library={td_spec}"]
+                )
     filenames = []
+    builder_env = os.environ.copy()
+    builder_env["IREE_BUILD_MP_CONTEXT"] = "fork"
     for modelname in vmfbs.keys():
         ireec_args = model_flags["all"] + model_flags[modelname]
         ireec_extra_args = " ".join(ireec_args)
@@ -243,26 +274,43 @@ def get_modules(args, model_config, flagfile, td_spec):
             f"--build-preference={args.build_preference}",
             f"--output-dir={args.artifacts_dir}",
             f"--model={modelname}",
+            f"--force-update={args.force_update}",
             f"--iree-hal-target-device={args.device}",
             f"--iree-hip-target={args.target}",
             f"--iree-compile-extra-args={ireec_extra_args}",
         ]
         logger.info(f"Preparing runtime artifacts for {modelname}...")
+        logger.info(f"Builder args: {' '.join(builder_args)}")
         logger.debug(
             "COMMAND LINE EQUIVALENT: " + " ".join([str(argn) for argn in builder_args])
         )
-        output = subprocess.check_output(builder_args).decode()
+        output = subprocess.check_output(builder_args, env=builder_env).decode()
 
         output_paths = output.splitlines()
+        for path in output_paths:
+            if not any(x in path for x in [".mlir", ".vmfb", ".irpa"]):
+                output_paths.remove(path)
+            if "irpa" in path:
+                params[modelname].append(path)
+                output_paths.remove(path)
         filenames.extend(output_paths)
     for name in filenames:
         for key in vmfbs.keys():
-            if key in name.lower():
-                if any(x in name for x in [".irpa", ".safetensors", ".gguf"]):
-                    params[key].extend([name])
-                elif "vmfb" in name:
-                    vmfbs[key].extend([name])
+            for bs in vmfbs[key].keys():
+                if key in name.lower() and f"_bs{bs}_" in name.lower():
+                    if "vmfb" in name:
+                        vmfbs[key][bs].extend([name])
     return vmfbs, params
+
+
+def is_port_valid(port):
+    max_port = 65535
+    if port < 1 or port > max_port:
+        print(
+            f"Error: Invalid port specified ({port}), expected a value between 1 and {max_port}"
+        )
+        return False
+    return True
 
 
 def main(argv, log_config=UVICORN_LOG_CONFIG):
@@ -277,14 +325,14 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
         type=str,
         required=True,
         choices=["local-task", "hip", "amdgpu"],
-        help="Primary inferencing device",
+        help="Primary inferencing device.",
     )
     parser.add_argument(
         "--target",
         type=str,
         required=False,
         default="gfx942",
-        choices=["gfx942", "gfx1100", "gfx90a"],
+        choices=["gfx90a", "gfx942", "gfx1100", "gfx1201"],
         help="Primary inferencing device LLVM target arch.",
     )
     parser.add_argument(
@@ -292,7 +340,7 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
         type=str,
         nargs="*",
         default=None,
-        help="Device IDs visible to the system builder. Defaults to None (full visibility). Can be an index or a sf device id like amdgpu:0:0@0",
+        help="Device IDs visible to the system builder. Defaults to None (full visibility). Can be an IREE index or a device id like GPU-66613339-3934-3261-3131-396338323735.",
     )
     parser.add_argument(
         "--tokenizers",
@@ -351,7 +399,7 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
     parser.add_argument(
         "--build_preference",
         type=str,
-        choices=["compile", "precompiled"],
+        choices=["compile", "precompiled", "export"],
         default="precompiled",
         help="Specify preference for builder artifact generation.",
     )
@@ -392,7 +440,15 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
         default=1,
         help="Use tunings for attention and matmul ops. 0 to disable.",
     )
+    parser.add_argument(
+        "--force_update",
+        default=False,
+        help="Force update model artifacts starting from the specified build preference.",
+    )
     args = parser.parse_args(argv)
+    if not is_port_valid(args.port):
+        exit(3)
+
     if not args.artifacts_dir:
         home = Path.home()
         artdir = home / ".cache" / "shark"

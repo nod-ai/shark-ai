@@ -8,9 +8,120 @@
 #include "./utils.h"
 #include "shortfin/array/api.h"
 #include "shortfin/support/logging.h"
+#include "xtensor/xmath.hpp"
 #include "xtensor/xrandom.hpp"
 #include "xtensor/xsort.hpp"
 #include "xtl/xhalf_float.hpp"
+
+#ifndef BFLOAT16_HPP
+#define BFLOAT16_HPP
+
+#include <bit>
+#include <cstdint>
+#include <limits>
+#include <type_traits>
+
+struct bfloat16_t {
+  uint16_t value;
+
+  constexpr bfloat16_t() noexcept : value(0) {}
+
+  explicit constexpr bfloat16_t(float f) noexcept {
+    uint32_t temp = std::bit_cast<uint32_t>(f);
+    value = static_cast<uint16_t>(temp >> 16);
+  }
+
+  template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> &&
+                                                    !std::is_same_v<T, float>>>
+  constexpr bfloat16_t(T value) noexcept
+      : bfloat16_t(static_cast<float>(value)) {}
+
+  constexpr operator float() const noexcept {
+    uint32_t temp = static_cast<uint32_t>(value) << 16;
+    return std::bit_cast<float>(temp);
+  }
+
+  // Arithmetic operators (implemented via conversion to float)
+  constexpr bfloat16_t operator+(const bfloat16_t &other) const noexcept {
+    return bfloat16_t(float(*this) + float(other));
+  }
+  constexpr bfloat16_t operator-(const bfloat16_t &other) const noexcept {
+    return bfloat16_t(float(*this) - float(other));
+  }
+  constexpr bfloat16_t operator*(const bfloat16_t &other) const noexcept {
+    return bfloat16_t(float(*this) * float(other));
+  }
+  constexpr bfloat16_t operator/(const bfloat16_t &other) const noexcept {
+    return bfloat16_t(float(*this) / float(other));
+  }
+
+  constexpr bfloat16_t &operator+=(const bfloat16_t &other) noexcept {
+    *this = *this + other;
+    return *this;
+  }
+  constexpr bfloat16_t &operator-=(const bfloat16_t &other) noexcept {
+    *this = *this - other;
+    return *this;
+  }
+  constexpr bfloat16_t &operator*=(const bfloat16_t &other) noexcept {
+    *this = *this * other;
+    return *this;
+  }
+  constexpr bfloat16_t &operator/=(const bfloat16_t &other) noexcept {
+    *this = *this / other;
+    return *this;
+  }
+
+  // Comparison operators (using conversion to float)
+  constexpr bool operator==(const bfloat16_t &other) const noexcept {
+    return float(*this) == float(other);
+  }
+  constexpr bool operator!=(const bfloat16_t &other) const noexcept {
+    return !(*this == other);
+  }
+  constexpr bool operator<(const bfloat16_t &other) const noexcept {
+    return float(*this) < float(other);
+  }
+  constexpr bool operator<=(const bfloat16_t &other) const noexcept {
+    return float(*this) <= float(other);
+  }
+  constexpr bool operator>(const bfloat16_t &other) const noexcept {
+    return float(*this) > float(other);
+  }
+  constexpr bool operator>=(const bfloat16_t &other) const noexcept {
+    return float(*this) >= float(other);
+  }
+};
+
+// Mark bfloat16_t as a trivial, standard-layout type so that xtensor can use
+// it.
+namespace std {
+template <>
+struct is_trivial<bfloat16_t> : std::true_type {};
+template <>
+struct is_standard_layout<bfloat16_t> : std::true_type {};
+template <>
+struct is_trivially_copyable<bfloat16_t> : std::true_type {};
+}  // namespace std
+
+// Math functions needed by xtensor for bfloat16_t
+inline constexpr bfloat16_t round(bfloat16_t x) noexcept {
+  return bfloat16_t(std::round(float(x)));
+}
+
+inline constexpr bfloat16_t ceil(bfloat16_t x) noexcept {
+  return bfloat16_t(std::ceil(float(x)));
+}
+
+inline constexpr bfloat16_t floor(bfloat16_t x) noexcept {
+  return bfloat16_t(std::floor(float(x)));
+}
+
+inline constexpr bfloat16_t trunc(bfloat16_t x) noexcept {
+  return bfloat16_t(std::trunc(float(x)));
+}
+
+#endif  // BFLOAT16_HPP
 
 using namespace shortfin::array;
 
@@ -36,6 +147,51 @@ Args:
 
 Returns:
   A device_array of dtype=int64, allocated on the host and not visible to the device.
+)";
+
+static const char DOCSTRING_ARGPARTITION[] =
+    R"(Partitions the array `input` along the specified `axis` so that certain
+    elements occupy the first or last positions depending on `k`.
+    Similar to `numpy.argpartition`:
+
+    - If `k` is positive, the first `k` positions along `axis` are the indices of the
+      `k` smallest values, while all larger values occupy positions to the right of `k`.
+    - If `k` is negative, it counts from the end. For example, `k = -3` means the last
+      3 positions along `axis` are the indices of the 3 largest values, while all smaller
+      values occupy positions to the left of that boundary.
+
+Implemented for dtypes: float16, float32.
+
+Args:
+  input: An input array.
+  k: The number of maximum values to partition.
+  axis: Axis along which to sort. Defaults to the last axis (note that the
+    numpy default is into the flattened array, which we do not support).
+  out: Array to write into. If specified, it must have an expected shape and
+    int64 dtype.
+  device_visible: Whether to make the result array visible to devices. Defaults to
+    False.
+
+Returns:
+  A device_array of dtype=int64, allocated on the host and not visible to the device.
+)";
+
+static const char DOCSTRING_LOG_SOFTMAX[] =
+    R"(Return the log of the softmax of the `input` array. Written to match
+    the behavior of `torch.log_softmax`.
+
+Implemented for dtypes: float16, float32.
+
+Args:
+  input: An input array.
+  axis: Axis along which to sort. Defaults to the last axis.
+  out: Array to write into. If specified, it must have an expected shape and
+    the same dtype as `input`.
+  device_visible: Whether to make the result array visible to devices. Defaults to
+    False.
+
+Returns:
+  A device_array of dtype=input.dtype(), allocated on the host and not visible to the device.
 )";
 
 static const char DOCSTRING_CONVERT[] =
@@ -191,6 +347,7 @@ struct ConvertFunctor {
   }
       switch (dtype) {
         SF_STORE_CASE(float16, half_float::half);
+        SF_STORE_CASE(bfloat16, bfloat16_t);
         SF_STORE_CASE(float32, float);
         SF_STORE_CASE(float64, double);
         SF_STORE_CASE(uint8, uint8_t);
@@ -210,6 +367,7 @@ struct ConvertFunctor {
 
     switch (input.dtype()) {
       SF_UNARY_THUNK_CASE(float16, half_float::half);
+      SF_UNARY_THUNK_CASE(bfloat16, bfloat16_t);
       SF_UNARY_THUNK_CASE(float32, float);
       SF_UNARY_THUNK_CASE(float64, double);
       SF_UNARY_THUNK_CASE(uint8, uint8_t);
@@ -264,6 +422,7 @@ struct ConvertRoundFunctor {
 
     switch (input.dtype()) {
       SF_UNARY_THUNK_CASE(float16, half_float::half);
+      SF_UNARY_THUNK_CASE(bfloat16, bfloat16_t);
       SF_UNARY_THUNK_CASE(float32, float);
       default:
         throw std::invalid_argument(fmt::format(
@@ -308,6 +467,7 @@ struct ConvertCeilFunctor {
 
     switch (input.dtype()) {
       SF_UNARY_THUNK_CASE(float16, half_float::half);
+      SF_UNARY_THUNK_CASE(bfloat16, bfloat16_t);
       SF_UNARY_THUNK_CASE(float32, float);
       default:
         throw std::invalid_argument(fmt::format(
@@ -352,6 +512,7 @@ struct ConvertFloorFunctor {
 
     switch (input.dtype()) {
       SF_UNARY_THUNK_CASE(float16, half_float::half);
+      SF_UNARY_THUNK_CASE(bfloat16, bfloat16_t);
       SF_UNARY_THUNK_CASE(float32, float);
       default:
         throw std::invalid_argument(fmt::format(
@@ -396,6 +557,7 @@ struct ConvertTruncFunctor {
 
     switch (input.dtype()) {
       SF_UNARY_THUNK_CASE(float16, half_float::half);
+      SF_UNARY_THUNK_CASE(bfloat16, bfloat16_t);
       SF_UNARY_THUNK_CASE(float32, float);
       default:
         throw std::invalid_argument(fmt::format(
@@ -525,6 +687,11 @@ half_float::half ConvertPyToEltTy(py::handle py_value, half_float::half zero) {
   return static_cast<half_float::half>(py::cast<double>(py_value));
 }
 
+bfloat16_t ConvertPyToEltTy(py::handle py_value, bfloat16_t zero) {
+  // Python can't cast directly to half so first go to double.
+  return static_cast<bfloat16_t>(py::cast<double>(py_value));
+}
+
 struct AddFunctor {
   template <typename Lhs, typename Rhs>
   static auto Invoke(Lhs &&lhs, Rhs &&rhs) {
@@ -610,6 +777,7 @@ device_array ElementwiseOperation(py::handle lhs, py::handle rhs,
 
   switch (dtype) {
     SF_UNARY_FUNCTION_CASE(float16, half_float::half);
+    SF_UNARY_FUNCTION_CASE(bfloat16, bfloat16_t);
     SF_UNARY_FUNCTION_CASE(float32, float);
     SF_UNARY_FUNCTION_CASE(float64, double);
     SF_UNARY_FUNCTION_CASE(uint8, uint8_t);
@@ -661,6 +829,7 @@ void BindArrayHostOps(py::module_ &m) {
 
         switch (input.dtype()) {
           SF_UNARY_FUNCTION_CASE(float16, half_float::half);
+          SF_UNARY_FUNCTION_CASE(bfloat16, bfloat16_t);
           SF_UNARY_FUNCTION_CASE(float32, float);
           default:
             throw std::invalid_argument(
@@ -671,6 +840,109 @@ void BindArrayHostOps(py::module_ &m) {
       py::arg("input"), py::arg("axis") = -1, py::arg("out") = py::none(),
       py::kw_only(), py::arg("keepdims") = false,
       py::arg("device_visible") = false, DOCSTRING_ARGMAX);
+
+  m.def(
+      "argpartition",
+      [](device_array &input, int k, int axis, std::optional<device_array> out,
+         bool device_visible) {
+        SHORTFIN_TRACE_SCOPE_NAMED("PyHostOp::argpartition");
+        if (axis < 0) axis += input.shape().size();
+        if (axis < 0 || axis >= input.shape().size()) {
+          throw std::invalid_argument(
+              fmt::format("Axis out of range: Must be [0, {}) but got {}",
+                          input.shape().size(), axis));
+        }
+        // Simulate numpy's negative `k` behavior for max argpartition
+        if (k < 0) k += input.shape()[axis];
+        if (k < 0 || k >= input.shape()[axis]) {
+          throw std::invalid_argument(
+              fmt::format("K out of range: Must be [-{}, {}) but got {}",
+                          input.shape()[axis], input.shape()[axis], k));
+        }
+        if (out && (out->dtype() != DType::int64())) {
+          throw std::invalid_argument("out array must have dtype=int64");
+        }
+        auto compute = [&]<typename EltTy>() {
+          auto input_t = input.map_xtensor<EltTy>();
+          auto result = xt::argpartition(*input_t, k, /*axis=*/axis);
+          if (!out) {
+            out.emplace(device_array::for_host(input.device(), result.shape(),
+                                               DType::int64(), device_visible));
+          }
+          auto out_t = out->map_xtensor_w<int64_t>();
+          *out_t = result;
+          return *out;
+        };
+
+        switch (input.dtype()) {
+          SF_UNARY_FUNCTION_CASE(float16, half_float::half);
+          SF_UNARY_FUNCTION_CASE(bfloat16, bfloat16_t);
+          SF_UNARY_FUNCTION_CASE(float32, float);
+          default:
+            throw std::invalid_argument(
+                fmt::format("Unsupported dtype({}) for operator argmax",
+                            input.dtype().name()));
+        }
+      },
+      py::arg("input"), py::arg("k"), py::arg("axis") = -1,
+      py::arg("out") = py::none(), py::arg("device_visible") = false,
+      DOCSTRING_ARGPARTITION);
+
+  m.def(
+      "log_softmax",
+      [](device_array &input, int axis, std::optional<device_array> out,
+         bool device_visible) {
+        SHORTFIN_TRACE_SCOPE_NAMED("PyHostOp::log_softmax");
+        if (axis < 0) axis += input.shape().size();
+        if (axis < 0 || axis >= input.shape().size()) {
+          throw std::invalid_argument(
+              fmt::format("Axis out of range: Must be [0, {}) but got {}",
+                          input.shape().size(), axis));
+        }
+        if (out && (out->dtype() != input.dtype())) {
+          throw std::invalid_argument(
+              fmt::format("out array must have dtype={} but got {}",
+                          input.dtype().name(), out->dtype().name()));
+        }
+        auto compute = [&]<typename EltTy>() {
+          auto input_t = input.map_xtensor<EltTy>();
+          auto max = xt::amax(*input_t, axis);
+          // Expand to keep dims
+          auto maxExpanded = xt::expand_dims(max, axis);
+
+          // Equivalent to: log( ∑[i in axis] exp(x_i - c) )
+          // where x_i are the elements of the input tensor along the given
+          // axis, and c (maxExpanded) is the maximum value along that axis.
+          auto sum_expression = xt::sum(xt::exp(*input_t - maxExpanded), axis);
+          auto sum_axis_expanded = xt::expand_dims(sum_expression, axis);
+          auto log_sum_expression = xt::log(sum_axis_expanded);
+
+          auto result = *input_t - maxExpanded - log_sum_expression;
+          if (!out) {
+            out.emplace(device_array::for_host(input.device(), result.shape(),
+                                               input.dtype(), device_visible));
+          }
+          if (input.dtype() == DType::float32()) {
+            auto out_t = out->map_xtensor_w<float>();
+            *out_t = result;
+          } else {
+            auto out_t = out->map_xtensor_w<half_float::half>();
+            *out_t = result;
+          }
+          return *out;
+        };
+
+        switch (input.dtype()) {
+          SF_UNARY_FUNCTION_CASE(float16, half_float::half);
+          SF_UNARY_FUNCTION_CASE(float32, float);
+          default:
+            throw std::invalid_argument(
+                fmt::format("Unsupported dtype({}) for operator argmax",
+                            input.dtype().name()));
+        }
+      },
+      py::arg("input"), py::arg("axis") = -1, py::arg("out") = py::none(),
+      py::arg("device_visible") = false, DOCSTRING_LOG_SOFTMAX);
 
   // Random number generation.
   py::class_<PyRandomGenerator>(m, "RandomGenerator")
@@ -690,6 +962,7 @@ void BindArrayHostOps(py::module_ &m) {
 
         switch (out.dtype()) {
           SF_UNARY_FUNCTION_CASE(float16, half_float::half);
+          SF_UNARY_FUNCTION_CASE(bfloat16, bfloat16_t);
           SF_UNARY_FUNCTION_CASE(float32, float);
           default:
             throw std::invalid_argument(

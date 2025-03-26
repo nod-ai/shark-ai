@@ -33,7 +33,7 @@ def test_device(request):
     return ret
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def model_artifacts(tmp_path_factory, request, test_device):
     """Prepares model artifacts in a cached directory."""
     model_config = TEST_MODELS[request.param]
@@ -76,6 +76,23 @@ def server(model_artifacts, request):
 
     process.terminate()
     process.wait()
+
+
+@pytest.fixture(scope="module")
+def generate_service(model_artifacts, request):
+    """Starts and manages the test server."""
+    model_config = model_artifacts.model_config
+
+    server_config = ServerConfig(
+        artifacts=model_artifacts,
+        device_settings=model_config.device_settings,
+        prefix_sharing_algorithm=request.param.get("prefix_sharing", "none"),
+    )
+
+    server_instance = ServerInstance(server_config)
+    server_instance.port = 0
+    with server_instance.start_service_only() as gs:
+        yield gs
 
 
 @pytest.fixture(scope="module")

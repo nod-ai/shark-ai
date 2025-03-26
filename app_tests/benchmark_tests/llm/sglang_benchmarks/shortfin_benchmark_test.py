@@ -60,7 +60,7 @@ def test_shortfin_benchmark(
     request,
 ):
     # TODO: Remove when multi-device is fixed
-    os.environ["ROCR_VISIBLE_DEVICES"] = "1"
+    os.environ["ROCR_VISIBLE_DEVICES"] = "0"
 
     process, port = server
 

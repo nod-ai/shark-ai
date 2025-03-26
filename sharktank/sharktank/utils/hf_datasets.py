@@ -103,7 +103,7 @@ Dataset(
         ),
         RemoteFile(
             "tokenizer_config.json",
-            "NousResearch/Meta-Llama-3-8B",
+            "NousResearch/Meta-Llama-3-8B-Instruct",
             "tokenizer_config.json",
             extra_filenames=["tokenizer.json"],
         ),
@@ -369,6 +369,22 @@ Dataset(
                 "tokenizer_config.json",
                 "vocab.json",
             ],
+        ),
+    ),
+)
+
+Dataset(
+    "stabilityai/stable-diffusion-xl-base-1.0",
+    (
+        RemoteFile(
+            "config",
+            "stabilityai/stable-diffusion-xl-base-1.0",
+            "unet/config.json",
+        ),
+        RemoteFile(
+            "parameters",
+            "stabilityai/stable-diffusion-xl-base-1.0",
+            "unet/diffusion_pytorch_model.fp16.safetensors",
         ),
     ),
 )

@@ -78,7 +78,7 @@ jobs:
       - name: Update IREE requirement pins
         run: build_tools/update_iree_requirement_pins.py
 
-      - uses: actions/create-github-app-token@136412a57a7081aa63c935a2cc2918f76c34f514 # v1.11.2
+      - uses: actions/create-github-app-token@af35edadc00be37caa72ed9f3e6d5f7801bfdf09 # v1.11.7
         if: ${{ env.CREATE_PULL_REQUEST_TOKEN_APP_ID != '' && env.CREATE_PULL_REQUEST_TOKEN_APP_PRIVATE_KEY != '' }}
         id: generate-token
         with:
@@ -95,14 +95,14 @@ jobs:
           ${{ env.CURRENT_IREE_TURBINE_VERSION }} != ${{ env.LATEST_IREE_TURBINE_VERSION }}
           ${{ env.CURRENT_SHORTFIN_IREE_GIT_TAG }} != ${{ env.LATEST_SHORTFIN_IREE_GIT_TAG }}
         id: cpr
-        uses: peter-evans/create-pull-request@67ccf781d68cd99b580ae25a5c18a1cc84ffff1f # v7.0.6
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
         with:
           token: ${{ steps.generate-token.outputs.token || secrets.GITHUB_TOKEN }}
           base: main
           branch: ${{ env.GIT_BRANCH_NAME }}
           author: shark-pr-automator[bot] <41898282+github-actions[bot]@users.noreply.github.com>
           signoff: true
-          title: "Bump IREE requirement pins to their latest versions."
+          title: "Bump IREE requirement pins to ${{ env.LATEST_IREE_BASE_COMPILER_VERSION }}"
           body: |
             Diff: https://github.com/iree-org/iree/compare/iree-${{ env.CURRENT_IREE_BASE_COMPILER_VERSION }}...iree-${{ env.LATEST_IREE_BASE_COMPILER_VERSION }}
 

@@ -5,47 +5,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from iree.build import *
-from iree.build.executor import FileNamespace
-import os
 
-ARTIFACT_VERSION = "01202025"
+from shortfin_apps.utils import *
+
+ARTIFACT_VERSION = "03062025"
 SDXL_CONFIG_BUCKET = f"https://sharkpublic.blob.core.windows.net/sharkpublic/sdxl/{ARTIFACT_VERSION}/configs/"
-
-
-def get_url_map(filenames: list[str], bucket: str):
-    file_map = {}
-    for filename in filenames:
-        file_map[filename] = f"{bucket}{filename}"
-    return file_map
-
-
-def needs_update(ctx):
-    stamp = ctx.allocate_file("version.txt")
-    stamp_path = stamp.get_fs_path()
-    if os.path.exists(stamp_path):
-        with open(stamp_path, "r") as s:
-            ver = s.read()
-        if ver != ARTIFACT_VERSION:
-            return True
-    else:
-        with open(stamp_path, "w") as s:
-            s.write(ARTIFACT_VERSION)
-        return True
-    return False
-
-
-def needs_file(filename, ctx, namespace=FileNamespace.GEN):
-    out_file = ctx.allocate_file(filename, namespace=namespace).get_fs_path()
-    if os.path.exists(out_file):
-        needed = False
-    else:
-        # name_path = "bin" if namespace == FileNamespace.BIN else ""
-        # if name_path:
-        #     filename = os.path.join(name_path, filename)
-        filekey = os.path.join(ctx.path, filename)
-        ctx.executor.all[filekey] = None
-        needed = True
-    return needed
 
 
 @entrypoint(description="Retreives a set of SDXL configuration files.")
@@ -64,9 +28,13 @@ def sdxlconfig(
     ),
 ):
     ctx = executor.BuildContext.current()
-    update = needs_update(ctx)
+    update = needs_update(ctx, ARTIFACT_VERSION)
 
-    model_config_filenames = [f"{model}_config_i8.json"]
+    model_config_filenames = [
+        f"{model}_config_i8.json",
+        f"{model}_config_fp8.json",
+        f"{model}_config_fp8_ocp.json",
+    ]
     model_config_urls = get_url_map(model_config_filenames, SDXL_CONFIG_BUCKET)
     for f, url in model_config_urls.items():
         if update or needs_file(f, ctx):

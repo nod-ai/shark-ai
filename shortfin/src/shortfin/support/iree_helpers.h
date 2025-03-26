@@ -354,6 +354,12 @@ using vm_opaque_ref = ::iree::vm::opaque_ref;
 template <typename T>
 using vm_ref = ::iree::vm::ref<T>;
 
+// -------------------------------------------------------------------------- //
+// Debugging
+// -------------------------------------------------------------------------- //
+
+std::string DebugPrintSemaphoreList(iree_hal_semaphore_list_t &sl);
+
 }  // namespace iree
 }  // namespace shortfin
 

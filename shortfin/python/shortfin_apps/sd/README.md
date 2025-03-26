@@ -15,7 +15,7 @@ By default, the port is set to 8000. If you would like to change this, use `--po
 You can check if this (or any) port is in use on Linux with `ss -ntl | grep 8000`.
 
 ```
-python -m shortfin_apps.sd.server --device=amdgpu --device_ids=0 --build_preference=precompiled --topology="spx_single"
+python -m shortfin_apps.sd.server --device=amdgpu --device_ids=0 --build_preference=precompiled
 ```
  - Wait until your server outputs:
 ```
@@ -47,7 +47,7 @@ Please see --help for both the server and client for usage instructions. Here's 
 |--root-path ROOT_PATH |
 |--timeout-keep-alive |
 |--device | local-task,hip,amdgpu | amdgpu only supported in this release
-|--target | gfx942,gfx1100 | gfx942 only supported in this release
+|--target | gfx942, gfx1100, gfx1201 | gfx942 only supported in this release
 |--device_ids |
 |--tokenizers |
 |--model_config |

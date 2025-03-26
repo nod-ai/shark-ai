@@ -40,7 +40,7 @@ jobs:
       matrix:
         version: [3.11]
       fail-fast: false
-    runs-on: mi300x-3
+    runs-on: linux-mi300-1gpu-ossci
     defaults:
       run:
         shell: bash
@@ -82,7 +82,9 @@ jobs:
 
       - name: Login to huggingface
         continue-on-error: true
-        run: huggingface-cli login --token ${{ secrets.HF_TOKEN }}
+        run: |
+          pip install -U "huggingface_hub[cli]"
+          huggingface-cli login --token ${{ secrets.HF_TOKEN }}
 
       - name: Run Shortfin Benchmark Tests
         run: |
@@ -90,7 +92,7 @@ jobs:
           pytest -v app_tests/benchmark_tests/llm/sglang_benchmarks/shortfin_benchmark_test.py --log-cli-level=INFO --html=shortfin_index.html --self-contained-html
 
       - name: Upload pytest report
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: shortfin_benchmark
           path: shortfin_index.html
@@ -101,7 +103,7 @@ jobs:
       matrix:
         version: [3.11]
       fail-fast: false
-    runs-on: mi300x-3
+    runs-on: linux-mi300-1gpu-ossci
     defaults:
       run:
         shell: bash
@@ -134,7 +136,7 @@ jobs:
           pip freeze
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
 
       # Instruction for SGLang image sourced from here:
       #   https://sgl-project.github.io/start/install.html#method-3-using-docker
@@ -177,7 +179,7 @@ jobs:
           pytest -v app_tests/benchmark_tests/llm/sglang_benchmarks/sglang_benchmark_test.py --port 30000 --log-cli-level=INFO --html=sglang_index.html --self-contained-html
 
       - name: Upload pytest report
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: sglang_benchmark
           path: sglang_index.html
@@ -187,14 +189,10 @@ jobs:
     needs: benchmark_sglang
     name: "Docker Cleanup"
     if: always()
-    runs-on: mi300x-3
+    runs-on: linux-mi300-1gpu-ossci
     steps:
       - name: Stop sglang-server
         run: docker stop sglang-server || true # Stop container if it's running
-
-      # Deleting image after run due to large disk space requirement (83 GB)
-      - name: Cleanup SGLang Image
-        run: docker image rm lmsysorg/sglang:v0.3.5.post1-rocm620
 
   merge_and_upload_reports:
     name: "Merge and upload benchmark reports"
@@ -215,14 +213,14 @@ jobs:
         run: pip install pytest-html-merger
 
       - name: Download shortfin report
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
         with:
           name: shortfin_benchmark
           path: reports
         continue-on-error: true
 
       - name: Download sglang report
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
         with:
           name: sglang_benchmark
           path: reports

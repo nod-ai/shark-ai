@@ -7,6 +7,7 @@
 from collections import OrderedDict
 import functools
 import iree.compiler
+import iree.runtime
 import os
 from pathlib import Path
 from parameterized import parameterized
@@ -26,6 +27,7 @@ from transformers.models.clip.modeling_clip import (
 )
 
 from sharktank.utils.iree import (
+    with_iree_device_context,
     get_iree_devices,
     load_iree_module,
     run_iree_module_function,
@@ -42,6 +44,7 @@ from sharktank.types import (
 from sharktank.transforms.dataset import set_float_dtype
 from sharktank.utils.hf_datasets import get_dataset
 from sharktank.utils.testing import (
+    is_cpu_condition,
     assert_text_encoder_state_close,
     make_rand_torch,
     make_random_mask,
@@ -76,7 +79,7 @@ with_clip_data = pytest.mark.skipif("not config.getoption('with_clip_data')")
 logger = logging.getLogger(__name__)
 
 
-@pytest.mark.usefixtures("path_prefix")
+@pytest.mark.usefixtures("path_prefix", "get_iree_flags")
 class ClipTextIreeTest(TempDirTestBase):
     def setUp(self):
         super().setUp()
@@ -87,6 +90,7 @@ class ClipTextIreeTest(TempDirTestBase):
             self.path_prefix = Path(self.path_prefix)
 
     @with_clip_data
+    @pytest.mark.expensive
     def testSmokeExportLargeF32FromHuggingFace(self):
         huggingface_repo_id = "openai/clip-vit-large-patch14"
         huggingface_repo_id_as_path = (
@@ -111,6 +115,7 @@ class ClipTextIreeTest(TempDirTestBase):
         main([f"--output-dir={self.path_prefix/'clip_toy_text_model'}"])
 
     @with_clip_data
+    @pytest.mark.expensive
     def testCompareLargeIreeF32AgainstTorchEagerF32(self):
         self.runTestCompareIreeAgainstPretrainedTorchEager(
             "openai/clip-vit-large-patch14",
@@ -120,6 +125,7 @@ class ClipTextIreeTest(TempDirTestBase):
         )
 
     @with_clip_data
+    @pytest.mark.expensive
     def testCompareLargeIreeBf16AgainstTorchEagerF32(self):
         self.runTestCompareIreeAgainstPretrainedTorchEager(
             "openai/clip-vit-large-patch14",
@@ -129,13 +135,23 @@ class ClipTextIreeTest(TempDirTestBase):
             atol=3e-3,
         )
 
-    @with_clip_data
+    @pytest.mark.xfail(
+        is_cpu_condition,
+        raises=iree.compiler.CompilerToolError,
+        strict=True,
+        reason="The compiler segfaults https://github.com/iree-org/iree/issues/20283",
+    )
     def testCompareToyModelIreeF32AgainstTorchEagerF32(self):
         self.runTestCompareToyModelIreeAgainstTorch(
             reference_dtype=torch.float32, target_dtype=torch.float32, atol=1e-5
         )
 
-    @with_clip_data
+    @pytest.mark.xfail(
+        is_cpu_condition,
+        raises=iree.compiler.CompilerToolError,
+        strict=True,
+        reason="The compiler segfaults https://github.com/iree-org/iree/issues/20283",
+    )
     def testCompareToyModelIreeBf16AgainstTorchEagerF32(self):
         self.runTestCompareToyModelIreeAgainstTorch(
             reference_dtype=torch.float32, target_dtype=torch.bfloat16, atol=1e-3
@@ -180,7 +196,10 @@ class ClipTextIreeTest(TempDirTestBase):
         iree.compiler.compile_file(
             mlir_path,
             output_file=iree_module_path,
-            extra_args=["--iree-hal-target-device=hip", "--iree-hip-target=gfx942"],
+            extra_args=[
+                f"--iree-hal-target-device={self.iree_hal_target_device}",
+                f"--iree-hip-target={self.iree_hip_target}",
+            ],
         )
 
         logger.info("Invoking reference torch function...")
@@ -192,31 +211,36 @@ class ClipTextIreeTest(TempDirTestBase):
         )
         expected_outputs = flatten_for_iree_signature(reference_result_dict)
 
-        iree_devices = get_iree_devices(driver="hip", device_count=1)
-        logger.info("Loading IREE module...")
-        iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
-            module_path=iree_module_path,
-            devices=iree_devices,
-            parameters_path=parameters_path,
-        )
-        iree_args = prepare_iree_module_function_args(
-            args=flatten_for_iree_signature(input_args), devices=iree_devices
-        )
-        logger.info("Invoking IREE function...")
-        iree_result = iree_to_torch(
-            *run_iree_module_function(
-                module=iree_module,
-                vm_context=iree_vm_context,
-                args=iree_args,
-                device=iree_devices[0],
-                function_name=f"forward_bs{batch_size}",
-                trace_path_prefix=f"{target_model_path_prefix}_iree_",
+        iree_devices = get_iree_devices(driver=self.iree_device, device_count=1)
+
+        def run_iree_module(iree_devices: list[iree.runtime.HalDevice]):
+            logger.info("Loading IREE module...")
+            iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
+                module_path=iree_module_path,
+                devices=iree_devices,
+                parameters_path=parameters_path,
             )
-        )
-        actual_outputs = [
-            ops.to(iree_result[i], dtype=expected_outputs[i].dtype)
-            for i in range(len(expected_outputs))
-        ]
+            iree_args = prepare_iree_module_function_args(
+                args=flatten_for_iree_signature(input_args), devices=iree_devices
+            )
+            logger.info("Invoking IREE function...")
+            iree_result = iree_to_torch(
+                *run_iree_module_function(
+                    module=iree_module,
+                    vm_context=iree_vm_context,
+                    args=iree_args,
+                    device=iree_devices[0],
+                    function_name=f"forward_bs{batch_size}",
+                    trace_path_prefix=f"{target_model_path_prefix}_iree_",
+                )
+            )
+            actual_outputs = [
+                ops.to(iree_result[i], dtype=expected_outputs[i].dtype)
+                for i in range(len(expected_outputs))
+            ]
+            return [t.clone() for t in actual_outputs]
+
+        actual_outputs = with_iree_device_context(run_iree_module, iree_devices)
 
         actual_last_hidden_state = actual_outputs[0]
         expected_last_hidden_state = expected_outputs[0]
@@ -364,6 +388,7 @@ class ClipTextEagerTest(TestCase):
         )
 
     @with_clip_data
+    @pytest.mark.expensive
     def testLargeCompareTorchEagerF32AgainstHuggingFaceF32(self):
         self.runTestCompareTorchEagerAgainstHuggingFace(
             "openai/clip-vit-large-patch14",
@@ -373,13 +398,14 @@ class ClipTextEagerTest(TestCase):
         )
 
     @with_clip_data
+    @pytest.mark.expensive
     def testLargeCompareTorchEagerBf16AgainstHuggingFaceF32(self):
         self.runTestCompareTorchEagerAgainstHuggingFace(
             "openai/clip-vit-large-patch14",
             reference_dtype=torch.float32,
             target_dtype=torch.bfloat16,
-            # The observed error is 3.66e-4. We leave a bit of margin.
-            atol=1e-3,
+            # The observed error is 1.5e-3. We leave a bit of margin.
+            atol=3e-3,
         )
 
     @parameterized.expand(

@@ -210,6 +210,7 @@ def apply_per_layer_quant(
             weight_quant_zero_point,
         )
         # we explicitly provide the reciprocal scale because converting from float16 to float8 after doing 1/scale results in significant numerical differences
+        # scales are multipled by two to account for the difference between fnuz and fn
         if input_quant_scale is not None:
             updated_tensors[new_layer_name + ".q_input"] = StaticScaledQuantizer(
                 name=new_layer_name + ".q_input",
@@ -218,10 +219,10 @@ def apply_per_layer_quant(
                 dtype=torch.float8_e4m3fnuz,
             )
         if output_quant_scale is not None:
-            updated_tensors[new_layer_name + ".qdq_output"] = StaticScaledQuantizer(
-                name=new_layer_name + ".qdq_output",
-                scale=1.0 / output_quant_scale,
-                reciprocal_scale=output_quant_scale,
+            updated_tensors[new_layer_name + ".q_output"] = StaticScaledQuantizer(
+                name=new_layer_name + ".q_output",
+                scale=1.0 / (output_quant_scale * 2.0),
+                reciprocal_scale=output_quant_scale * 2.0,
                 dtype=torch.float8_e4m3fnuz,
             )
 
@@ -258,15 +259,27 @@ def update_norm_layer(
         sub_name = layer_name + "." + sub
         new_name = hf_to_gguf(sub_name) + ".weight"
         single_replace(quant_theta, sub_name, new_name, updated_tensors)
-    kv_cache_scale = quant_theta(layer_name, "self_attn").tensor("kv_scale").as_torch()
     layer_idx = layer_name.split(".")[-1]
-    new_name = f"blk.{layer_idx}.kv_cache"
-    updated_tensors[new_name] = StaticScaledQuantizer(
-        name=new_name + ".quantizer",
-        scale=1.0 / (kv_cache_scale * 2.0),
-        reciprocal_scale=kv_cache_scale * 2.0,
-        dtype=torch.float8_e4m3fnuz,
-    )
+    if "kv_cache_scale" in quant_theta(layer_name, "self_attn").keys:
+        kv_cache_scale = (
+            quant_theta(layer_name, "self_attn").tensor("kv_scale").as_torch()
+        )
+        new_name = f"blk.{layer_idx}.kv_cache"
+        updated_tensors[new_name] = StaticScaledQuantizer(
+            name=new_name + ".quantizer",
+            scale=1.0 / (kv_cache_scale * 2.0),
+            reciprocal_scale=kv_cache_scale * 2.0,
+            dtype=torch.float8_e4m3fnuz,
+        )
+    if "prob_output_scale" in quant_theta(layer_name, "self_attn").keys:
+        prob_output_scale = (
+            quant_theta(layer_name, "self_attn").tensor("prob_output_scale").as_torch()
+            * 2.0
+        )
+        new_name = f"blk.{layer_idx}.attn_scale"
+        updated_tensors[new_name] = DefaultPrimitiveTensor(
+            name=new_name, data=prob_output_scale
+        )
 
 
 def single_replace(
@@ -298,7 +311,7 @@ def main(argv):
         type=str,
         default="7b",
         help="Base model to use for split sizes to decompose the qkv tensor. Default is 7b, 70b is also supported.",
-        choices=["7b", "70b"],
+        choices=["7b", "70b", "405b"],
     )
     args = cli.parse(parser, args=argv)
 
@@ -306,8 +319,8 @@ def main(argv):
     params_path: Path = args.params
     # TODO: find a way to get this programatically so we don't have to flag for it
     split_sizes = [4096, 4096, 4096] if args.model_base == "7b" else [8192, 1024, 1024]
-    num_layers = 32 if args.model_base == "7b" else 80
-
+    layers_per_base = {"7b": 32, "70b": 40, "405b": 125}
+    num_layers = layers_per_base[args.model_base]
     # Construct the pre-transform dataset.
     dataset_props = _get_dataset_props(_load_json(config_json_path))
     with safetensors.safe_open(params_path, framework="pt", device="cpu") as st:

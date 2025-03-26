@@ -37,7 +37,7 @@ env:
 jobs:
   install-and-test:
     name: Install and test
-    runs-on: mi300x-3
+    runs-on: linux-mi300-1gpu-ossci
 
     steps:
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2

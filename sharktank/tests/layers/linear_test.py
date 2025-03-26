@@ -4,12 +4,16 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import logging
 import unittest
-
 import torch
+from parameterized import parameterized
 
 from sharktank.layers import *
 from sharktank.types import *
+from sharktank.utils.testing import make_rand_torch
+
+logger = logging.getLogger(__name__)
 
 
 def _randomize_per_axis(t: torch.Tensor, axis: int, offset_range: float = 0.0):
@@ -90,6 +94,102 @@ class LinearQuantTest(unittest.TestCase):
         output_ref = torch.matmul(lhs, rhs.T) + bias
         print(torch.abs(output - output_ref))
         torch.testing.assert_close(output, output_ref, atol=1e-1, rtol=1e-1)
+
+    @parameterized.expand(
+        [
+            (torch.bfloat16, torch.float32, torch.float8_e4m3fnuz, False, False, 1e-2),
+            (torch.bfloat16, torch.float32, torch.float8_e4m3fnuz, False, True, 1e-2),
+            (torch.float32, torch.float32, torch.float8_e4m3fnuz, False, False, 1e-6),
+            (torch.float32, torch.float32, torch.float8_e4m3fnuz, False, True, 1e-6),
+            (torch.float32, torch.float32, torch.float16, True, False, 1e-6),
+            (torch.float32, torch.float32, torch.float16, False, False, 1e-6),
+            (torch.float32, torch.float32, torch.float16, False, True, 1e-6),
+            (torch.float32, torch.float32, torch.float32, True, False, 1e-6),
+        ],
+    )
+    def testPerTensorScale(
+        self,
+        dequantized_dtype: torch.dtype,
+        quantized_scale_dtype: torch.dtype,
+        quantized_dtype: torch.dtype,
+        with_bias: bool,
+        fake_quant: bool,
+        atol: float,
+    ):
+        """Test a linear layer where each tensor being quantized with a single
+        different scale."""
+        ref_dtype = torch.float64
+
+        x = make_rand_torch([10, 8, 8], dtype=dequantized_dtype)
+        input_scale = torch.tensor(0.5, dtype=quantized_scale_dtype)
+        input_quantizer = StaticScaledQuantizer(
+            name="q_input", scale=input_scale, dtype=quantized_dtype
+        )
+        # We roundtrip through quantization to know that any discrepancies in the
+        # results come from the quantized linear operation itself. Not form the
+        # inaccuracies of the initial quantization.
+        x_dequantized = input_quantizer.quantize(x).unpack().dequant()
+        torch.testing.assert_close(
+            input_quantizer.quantize(x_dequantized).unpack().dequant(),
+            x_dequantized,
+            atol=0,
+            rtol=0,
+        )
+
+        weight = make_rand_torch([12, x.shape[2]], dtype=dequantized_dtype)
+        weight_scale = torch.tensor(0.66, dtype=quantized_scale_dtype)
+        weight_quantizer = StaticScaledQuantizer(
+            scale=weight_scale, dtype=quantized_dtype
+        )
+        weight_dequantized = weight_quantizer.quantize(weight).unpack().dequant()
+        weight_quantized = weight_quantizer.quantize(weight_dequantized, name="weight")
+        torch.testing.assert_close(
+            weight_quantizer.quantize(weight_dequantized).unpack().dequant(),
+            weight_dequantized,
+            atol=0,
+            rtol=0,
+        )
+
+        if with_bias:
+            bias = make_rand_torch(
+                [x.shape[1], weight.shape[0]], dtype=dequantized_dtype
+            )
+            bias_scale = torch.tensor(1.25, dtype=quantized_scale_dtype)
+            bias_quantizer = StaticScaledQuantizer(
+                scale=bias_scale, dtype=quantized_dtype
+            )
+            bias_dequantized = bias_quantizer.quantize(bias).unpack().dequant()
+            bias_quantized = bias_quantizer.quantize(bias_dequantized, name="bias")
+            torch.testing.assert_close(
+                bias_quantizer.quantize(bias_dequantized).unpack().dequant(),
+                bias_dequantized,
+                atol=0,
+                rtol=0,
+            )
+
+        expected = torch.matmul(
+            x_dequantized.to(ref_dtype), weight_dequantized.T.to(ref_dtype)
+        )
+        if with_bias:
+            expected += bias_dequantized.to(ref_dtype)
+
+        theta_tensors = [
+            input_quantizer,
+            weight_quantized,
+        ]
+        if with_bias:
+            theta_tensors += [bias_quantized]
+        theta = Theta(theta_tensors)
+        linear = LinearLayer(theta, fake_quant=fake_quant)
+        actual = linear(x_dequantized)
+        actual = actual.to(dtype=expected.dtype)
+
+        abs_diff = (expected - actual).abs()
+        logger.info(
+            f"abs diff from expected (std, mean, median) = {[float(abs_diff.std()), float(abs_diff.mean()), float(abs_diff.median())]}"
+        )
+
+        torch.testing.assert_close(actual, expected, atol=atol, rtol=0)
 
 
 if __name__ == "__main__":

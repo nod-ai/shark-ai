@@ -59,6 +59,7 @@ class LinearLayer(ThetaLayer):
         if self.q_input is not None and self.qdq_input is not None:
             raise AssertionError(f"LinearLayer cannot have both q_input and qdq_input")
         self.qdq_output: Optional[QuantizedTensor] = theta.optional_tensor("qdq_output")
+        self.q_output: Optional[QuantizerTensor] = theta.optional_tensor("q_output")
 
     def forward(self, x):
         weight = self.weight
@@ -79,16 +80,17 @@ class LinearLayer(ThetaLayer):
 
         y = ops.linear(x, weight, bias)
         # Unconditionally dequantize.
+        if self.q_output is not None:
+            # Probably dont need the custom kernel to return a float32 tensor as a PlanarQuantizedTensor
+            assert y.unpack().qs.dtype == torch.float32
+            y = self.q_output.quantize(y.unpack().qs)
+            if self.fake_quant:
+                return y.unpack().dequant()
+            return y.unpack().qs
+
         if isinstance(y, QuantizedTensor):
             y = y.unpack().dequant()
-        # Note that f8_e4m3fnuz types on AMD GPUs accumulate to fp32.
-        # We can truncate to fp16 in iree, so we do a cast here
-        # to account for this in the IR. This is may not be the right
-        # level to do this, but for now its here.
-        if not isinstance(y, QuantizedTensor):
-            if y.dtype == torch.float8_e4m3fnuz:
-                y = ops.to(y, torch.bfloat16)
-                return y
+
         if qdq_output is not None:
             y = qdq_output.quantize(y).unpack().dequant()
         return y

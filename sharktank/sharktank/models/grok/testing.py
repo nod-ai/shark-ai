@@ -51,26 +51,26 @@ def make_moe_block_theta(
 ) -> Theta:
     return Theta(
         {
-            f"blk.{block_idx}.ffn_gate_inp.weight": DefaultPrimitiveTensor(
+            f"ffn_gate_inp.weight": DefaultPrimitiveTensor(
                 name=f"blk.{block_idx}.ffn_gate_inp.weight",
                 data=make_rand_torch((num_experts, ffn_dim)),
             ),
-            f"blk.{block_idx}.ffn_norm.weight": DefaultPrimitiveTensor(
+            f"ffn_norm.weight": DefaultPrimitiveTensor(
                 name=f"blk.{block_idx}.ffn_norm.weight", data=make_rand_torch((ffn_dim))
             ),
-            f"blk.{block_idx}.layer_output_norm.weight": DefaultPrimitiveTensor(
+            f"layer_output_norm.weight": DefaultPrimitiveTensor(
                 name=f"blk.{block_idx}.layer_output_norm.weight",
                 data=make_rand_torch((ffn_dim)),
             ),
-            f"blk.{block_idx}.ffn_gate_exps.weight": DefaultPrimitiveTensor(
+            f"ffn_gate_exps.weight": DefaultPrimitiveTensor(
                 name=f"blk.{block_idx}.ffn_gate_exps.weight",
                 data=make_rand_torch((num_experts, feature_dim * num_experts, ffn_dim)),
             ),
-            f"blk.{block_idx}.ffn_up_exps.weight": DefaultPrimitiveTensor(
+            f"ffn_up_exps.weight": DefaultPrimitiveTensor(
                 name=f"blk.{block_idx}.ffn_up_exps.weight",
                 data=make_rand_torch((num_experts, feature_dim * num_experts, ffn_dim)),
             ),
-            f"blk.{block_idx}.ffn_down_exps.weight": DefaultPrimitiveTensor(
+            f"ffn_down_exps.weight": DefaultPrimitiveTensor(
                 name=f"blk.{block_idx}.ffn_down_exps.weight",
                 data=make_rand_torch((num_experts, ffn_dim, feature_dim * num_experts)),
             ),

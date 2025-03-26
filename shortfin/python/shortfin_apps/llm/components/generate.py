@@ -8,6 +8,7 @@ import asyncio
 import io
 import json
 import logging
+from typing import List
 
 import shortfin as sf
 import shortfin.array as sfnp
@@ -15,9 +16,18 @@ import shortfin.array as sfnp
 # TODO: Have a generic "Responder" interface vs just the concrete impl.
 from shortfin.interop.fastapi import FastAPIResponder
 
+from .config_struct import DecodeConfig
 from .io_struct import GenerateReqInput
-from .messages import InferenceExecRequest, InferencePhase
-from .service import GenerateService
+from .messages import LlmInferenceExecRequest, InferencePhase
+from .service import LlmGenerateService
+from .token_selection_strategy import (
+    BaseTokenSelectionStrategy,
+    TokenSelectionStrategyConfig,
+    TokenSelectionStrategy,
+    build_token_selector,
+    build_token_selector_config,
+    is_multi_beam,
+)
 from .tokenizer import Encoding
 
 logger = logging.getLogger(__name__)
@@ -39,6 +49,7 @@ class GenerateItemProcess(sf.Process):
         input_token_ids: list[int],
         max_completion_tokens: int,
         eos_token_id: int,
+        decode_config: DecodeConfig,
     ):
         super().__init__(fiber=client.fiber)
         self.client = client
@@ -48,42 +59,53 @@ class GenerateItemProcess(sf.Process):
         self.result_token_ids: list[int] = []
         self.max_completion_tokens = max_completion_tokens
         self.eos_token_id = eos_token_id
+        self.decode_config = decode_config
+        self.token_selector_config: TokenSelectionStrategyConfig = (
+            build_token_selector_config(
+                decode_config,
+                prefill_callback=self.client.prefill_batcher.submit,
+                decode_callback=self.client.decode_batcher.submit,
+                results_callback=self.results_callback,
+                eos_token_id=self.eos_token_id,
+                max_completion_tokens=self.max_completion_tokens,
+            )
+        )
+        self.token_selector: BaseTokenSelectionStrategy = build_token_selector(
+            self.token_selector_config,
+        )
 
         self.streamed_tokens_index = 0
 
     async def run(self):
-        exec = InferenceExecRequest(
+        exec_req = LlmInferenceExecRequest(
             phase=InferencePhase.PREFILL,
             input_token_ids=self.input_token_ids,
             rid=self.gen_req.rid,
         )
+        exec_req._cache = self.client.prefill_batcher.page_cache
         try:
-            self.client.batcher.submit(exec)
-            await exec.done
-
             # Prefill result.
-            token = sfnp.argmax(exec.result_logits)
-            token_int = token.items[0]
+            await self.token_selector.prefill(exec_req)
 
-            self.append_token(token_int)
             # Decode loop.
-            exec.start_position = len(self.input_token_ids) - 1
-            for i in range(self.max_completion_tokens):
-                exec.reset(InferencePhase.DECODE)
-                exec.input_token_ids.append(token_int)
-                exec.start_position += 1
-                self.client.batcher.submit(exec)
-                await exec.done
-                token = sfnp.argmax(exec.result_logits)
-                token_int = token.items[0]
-                self.append_token(token_int)
-                if token_int == self.eos_token_id:
-                    break
+            await self.token_selector.decode(exec_req)
         finally:
-            exec.free_cache_pages()
+            exec_req.free_cache_pages()
 
-    def append_token(self, token: int):
+    def results_callback(self, result: int | List[List[int]]):
+        if is_multi_beam(self.decode_config.token_selection_strategy):
+            self._results_multi_beam(result)
+
+        else:
+            self._append_token(result)
+
+    def _append_token(self, token: int):
         self.result_token_ids.append(token)
+        self.client.stream_results(self)
+
+    def _results_multi_beam(self, tokens: List[List[int]]):
+        # TODO: Fix for batch request scenario
+        self.result_token_ids = tokens
         self.client.stream_results(self)
 
 
@@ -99,31 +121,38 @@ class ClientGenerateBatchProcess(sf.Process):
     """
 
     __slots__ = [
-        "batcher",
         "complete_infeed",
+        "decode_batcher",
         "gen_req",
+        "prefill_batcher",
         "responder",
         "tokenizer",
+        "decode_config",
     ]
 
     def __init__(
         self,
-        service: GenerateService,
+        service: LlmGenerateService,
         gen_req: GenerateReqInput,
         responder: FastAPIResponder,
+        fiber: sf.Fiber | None = None,
     ):
-        super().__init__(fiber=service.main_fiber)
+        super().__init__(fiber=service.main_fiber if fiber is None else fiber)
         self.gen_req = gen_req
         self.responder = responder
         self.tokenizer = service.tokenizer
-        self.batcher = service.batcher
+        self.prefill_batcher = service.prefill_batcher
+        self.decode_batcher = service.decode_batcher
         self.complete_infeed = self.system.create_queue()
+
+        self.decode_config = service.server_params.decode_config
 
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
         streaming = self.gen_req.stream
+        self.responder.start_response()
         if streaming:
-            self.responder.start_response()
+            self.responder.stream_start()
 
         try:
             # Launch all individual generate processes and wait for them to finish.
@@ -148,33 +177,56 @@ class ClientGenerateBatchProcess(sf.Process):
                     input_tokens if is_pretokenized else input_tokens.ids,
                     max_completion_tokens=max_completion_tokens,
                     eos_token_id=self.tokenizer.eos_token_id,
+                    decode_config=self.decode_config,
                 )
                 gen_processes.append(gen_process)
                 gen_process.launch()
 
             await asyncio.gather(*gen_processes)
-
-            if streaming:
-                logger.debug("Responding to streaming batch")
-                self.responder.stream_part(b"data: [DONE]\n\n")
-                self.responder.stream_part(None)
-            else:
-                logging.debug("Responding to one shot batch")
-                out = io.BytesIO()
-                result_tokens = [p.result_token_ids for p in gen_processes]
-                if self.gen_req.return_input_ids:
-                    if self.gen_req.is_single:
-                        result_tokens = result_tokens[0]
-                    out.write(bytes(json.dumps(result_tokens), "utf-8"))
-                else:
-                    result_texts = self.tokenizer.decode(result_tokens)
-                    for result_text in result_texts:
-                        out.write(b"data: ")
-                        out.write(result_text.encode())
-                        out.write(b"\n\n")
-                self.responder.send_response(out.getvalue())
+            self.generate_response(gen_processes, streaming)
         finally:
             self.responder.ensure_response()
+
+    def generate_response(
+        self, gen_processes: List[GenerateItemProcess], streaming: bool
+    ):
+        if streaming:
+            logger.debug("Responding to streaming batch")
+            self.responder.stream_part(b"data: [DONE]\n\n")
+            self.responder.stream_part(None)
+            return
+
+        logging.debug("Responding to one shot batch")
+        out = io.BytesIO()
+        result_tokens = [p.result_token_ids for p in gen_processes]
+        if self.gen_req.return_input_ids:
+            if self.gen_req.is_single:
+                result_tokens = result_tokens[0]
+            out.write(bytes(json.dumps(result_tokens), "utf-8"))
+        elif is_multi_beam(self.decode_config.token_selection_strategy):
+            out = self._respond_multi_beams(result_tokens, out)
+        else:
+            result_texts = self.tokenizer.decode(result_tokens)
+            for result_text in result_texts:
+                out.write(b"data: ")
+                out.write(result_text.encode())
+                out.write(b"\n\n")
+        self.responder.send_response(out.getvalue())
+
+    def _respond_multi_beams(
+        self, result_token_ids: List[List[int]], out: io.BytesIO
+    ) -> io.BytesIO:
+        logger.debug("Responding to multi-beam request")
+
+        # Parse each request in batch
+        for token_ids in result_token_ids:
+            result_texts = self.tokenizer.decode(token_ids)
+            for result_text in result_texts:
+                out.write(b"data: ")
+                out.write(result_text.encode())
+                out.write(b"\n\n")
+
+        return out
 
     def stream_results(self, gen_process: GenerateItemProcess):
         if not self.gen_req.stream:

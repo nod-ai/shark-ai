@@ -32,10 +32,12 @@ def parse(parser: argparse.ArgumentParser, *, args: Sequence[str] | None = None)
     """Parses arguments and does any prescribed global process setup."""
     parsed_args = parser.parse_args(args)
     # Set torch dtypes
-    for attr in ["activation_dtype", "attention_dtype"]:
+    for attr in ["activation_dtype", "attention_dtype", "kv_cache_dtype"]:
         if hasattr(parsed_args, attr):
-            dtype = getattr(torch, getattr(parsed_args, attr))
-            assert isinstance(dtype, torch.dtype)
+            dtype = getattr(parsed_args, attr)
+            if dtype is not None:
+                dtype = getattr(torch, dtype)
+                assert isinstance(dtype, torch.dtype)
             setattr(parsed_args, attr, dtype)
     return parsed_args
 
@@ -73,7 +75,7 @@ def add_model_options(parser: argparse.ArgumentParser):
         "--attention-kernel",
         type=str,
         default="torch",
-        choices=["decomposed", "torch"],
+        choices=["decomposed", "torch", "sharktank"],
     )
     parser.add_argument(
         "--skip-prefill",
@@ -82,7 +84,7 @@ def add_model_options(parser: argparse.ArgumentParser):
     )
     parser.add_argument(
         "--skip-decode",
-        help="Skips export decode",
+        help="Skips exporting decode",
         action="store_true",
     )
     parser.add_argument(
@@ -97,8 +99,13 @@ def add_model_options(parser: argparse.ArgumentParser):
     )
     parser.add_argument(
         "--attention-dtype",
-        help="DType to use for activations in the model",
+        help="DType to use for attention in the model",
         default="float16",
+    )
+    parser.add_argument(
+        "--kv-cache-dtype",
+        help="DType to use for the KV cache. If not given will be attention dtype",
+        default=None,
     )
     parser.add_argument("--device", help="Torch device (or default)")
 
@@ -169,11 +176,13 @@ def get_input_dataset(args) -> Dataset:
     Presumes that the arg parser was initialized with |add_input_dataset|.
     """
     data_files = get_input_data_files(args)
+    device = getattr(args, "device", None)
+
     if "gguf" in data_files:
-        return Dataset.load(data_files["gguf"][0], file_type="gguf")
+        return Dataset.load(data_files["gguf"][0], file_type="gguf", device=device)
 
     if "irpa" in data_files:
-        return Dataset.load(data_files["irpa"][0], file_type="irpa")
+        return Dataset.load(data_files["irpa"][0], file_type="irpa", device=device)
 
     raise ValueError(f'Dataset format unsupported. Must be "gguf" or "irpa".')
 

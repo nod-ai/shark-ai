@@ -16,6 +16,7 @@
 
 namespace shortfin::local {
 
+class CoarseInvocationTimelineImporter;
 class ProgramInvocation;
 
 // The type of barrier that should be managed for a program resource.
@@ -63,9 +64,12 @@ class SHORTFIN_API ProgramInvocationMarshalableFactory {
   // iree::vm_opaque_ref)` static method. The type `T` must be friends with this
   // class.
   template <typename T>
-  static T CreateFromInvocationResultRef(ProgramInvocation *inv,
-                                         iree::vm_opaque_ref ref) {
-    return T::CreateFromInvocationResultRef(inv, std::move(ref));
+  static T CreateFromInvocationResultRef(
+      ProgramInvocation *inv,
+      CoarseInvocationTimelineImporter *timeline_importer,
+      iree::vm_opaque_ref ref) {
+    return T::CreateFromInvocationResultRef(inv, timeline_importer,
+                                            std::move(ref));
   }
 
   // Gets the type id that corresponds to this marshalable type.
