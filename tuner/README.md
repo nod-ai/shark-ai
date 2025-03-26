@@ -33,5 +33,5 @@ documentation](https://iree.dev/building-from-source/getting-started/#python-bin
 ## Examples
 
 Check the `examples` directory for sample tuners implemented with `libtuner`.
-The [`dispatch` example](https://github.com/nod-ai/shark-ai/tree/main/tuner/examples/dispatch)
+The [`dispatch example`](https://github.com/nod-ai/shark-ai/tree/main/tuner/examples/simple)
 should be a good starting point for most users.
