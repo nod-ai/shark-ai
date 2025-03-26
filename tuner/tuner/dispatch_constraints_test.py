@@ -187,6 +187,16 @@ def test_adjust_problem_size_for_pipeline(
     lhs_type = common.ShapedType([2, 34, 34, 512], tuner_ctx.type.f16)
     rhs_type = common.ShapedType([3, 3, 512, 256], tuner_ctx.type.f16)
     res_type = common.ShapedType([2, 32, 32, 256], tuner_ctx.type.f32)
+    conv_dims = common.ConvolutionDimensions(
+        batch=[0],
+        outputImage=[1, 2],
+        outputChannel=[3],
+        filterLoop=[4, 5],
+        inputChannel=[6],
+        depth=[],
+        strides=[1, 1],
+        dilations=[1, 1],
+    )
     conv_problem_size = common.ProblemSize(
         conv_size,
         lhs_type,
@@ -194,6 +204,10 @@ def test_adjust_problem_size_for_pipeline(
         res_type,
         common.DispatchKind.conv,
         contraction_dims,
+        [[0], [1, 4], [2, 5], [6]],
+        [[4], [5], [6], [3]],
+        [[0], [1], [2], [3]],
+        conv_dims,
     )
     vec_dist_pipeline = (
         iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute
