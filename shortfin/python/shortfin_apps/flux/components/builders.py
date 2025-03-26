@@ -17,7 +17,7 @@ this_dir = os.path.dirname(os.path.abspath(__file__))
 parent = os.path.dirname(this_dir)
 default_config_json = os.path.join(parent, "examples", "flux_dev_config_mixed.json")
 
-ARTIFACT_VERSION = "20250321"
+ARTIFACT_VERSION = "20250326"
 FLUX_BUCKET = (
     f"https://sharkpublic.blob.core.windows.net/sharkpublic/flux.1/{ARTIFACT_VERSION}/"
 )
@@ -70,9 +70,12 @@ def get_params_filenames(model_params: ModelParams, model=None, splat: bool = Fa
     else:
         for idx, mod in enumerate(modnames):
             # schnell and dev weights are the same, except for sampler
-            subtype = "schnell" if model_params.is_schnell else "dev"
+            base_subtype = "flux"
+            if mod == "sampler":
+                subtype = "schnell" if model_params.is_schnell else "dev"
+                base_subtype += f"_{subtype}"
             params_filenames.extend(
-                [base + "_" + subtype + "_" + mod + "_" + mod_precs[idx] + ".irpa"]
+                [base_subtype + "_" + mod + "_" + mod_precs[idx] + ".irpa"]
             )
 
     return filter_by_model(params_filenames, model)
@@ -89,9 +92,13 @@ def get_file_stems(model_params: ModelParams):
     }
     for mod, modname in mod_names.items():
         # schnell and dev weights are the same, except for sampler
+        base_subtype = "flux"
+        if mod == "sampler":
+            subtype = "schnell" if model_params.is_schnell else "dev"
+            base_subtype += f"_{subtype}"
         subtype = "schnell" if model_params.is_schnell and mod == "sampler" else "dev"
         ord_params = [
-            [base + subtype],
+            [base_subtype],
             [modname],
         ]
         bsizes = []
