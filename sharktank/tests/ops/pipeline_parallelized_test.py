@@ -99,56 +99,54 @@ class AllReduceTest(unittest.TestCase):
 
 
 class CatTest(unittest.TestCase):
-    @pytest.mark.skip(
-        reason="reshard_split implementation needs to be changed to support pipeline parallelism",
-    )
-    def testCatSplitDimPinned(self):
+    def testCatSplitDim(self):
         """Concatenation along the sharded split dimension."""
         shard_dim = 1
         shard_count = 2
         cat_dim = 1
+        # Done to ensure no overlap with default devices so incorrect placement is caught
+        devices = tuple(range(shard_count, 2 * shard_count))
+
         a = torch.rand(3, 6, dtype=torch.float32)
         b = torch.rand(3, 4, dtype=torch.float32)
         unsharded_result = torch.cat([a, b], dim=cat_dim)
         expected_result = ops.reshard_split(
-            unsharded_result, count=shard_count, dim=shard_dim
-        )
-        expected_result = expected_result.clone(
-            devices=tuple(4 + i for i in range(shard_count))
+            unsharded_result, count=shard_count, dim=shard_dim, devices=devices
         )
 
-        sharded_a = ops.reshard_split(a, count=shard_count, dim=shard_dim)
-        sharded_a = sharded_a.clone(devices=tuple(4 + i for i in range(shard_count)))
+        sharded_a = ops.reshard_split(
+            a, count=shard_count, dim=shard_dim, devices=devices
+        )
+        sharded_b = ops.reshard_split(
+            b, count=shard_count, dim=shard_dim, devices=devices
+        )
 
-        sharded_b = ops.reshard_split(b, count=shard_count, dim=shard_dim)
-        sharded_b = sharded_b.clone(devices=tuple(4 + i for i in range(shard_count)))
         actual_result = ops.cat([sharded_a, sharded_b], dim=cat_dim)
         assert ops.equal(expected_result, actual_result)
         assert iterables_equal(expected_result.devices, actual_result.devices)
 
-    @pytest.mark.skip(
-        reason="reshard_split implementation needs to be changed to support pipeline parallelism",
-    )
-    def testCatNonSplitDimPinned(self):
+    def testCatNonSplitDim(self):
         """Concatenation along a non-split dimension."""
         shard_dim = 1
         shard_count = 2
         cat_dim = 0
+        # Done to ensure no overlap with default devices so incorrect placement is caught
+        devices = tuple(range(shard_count, 2 * shard_count))
+
         a = torch.rand(5, 4, dtype=torch.float32)
         b = torch.rand(3, 4, dtype=torch.float32)
         unsharded_result = torch.cat([a, b], dim=cat_dim)
         expected_result = ops.reshard_split(
-            unsharded_result, count=shard_count, dim=shard_dim
-        )
-        expected_result = expected_result.clone(
-            devices=tuple(4 + i for i in range(shard_count))
+            unsharded_result, count=shard_count, dim=shard_dim, devices=devices
         )
 
-        sharded_a = ops.reshard_split(a, count=shard_count, dim=shard_dim)
-        sharded_a = sharded_a.clone(devices=tuple(4 + i for i in range(shard_count)))
+        sharded_a = ops.reshard_split(
+            a, count=shard_count, dim=shard_dim, devices=devices
+        )
+        sharded_b = ops.reshard_split(
+            b, count=shard_count, dim=shard_dim, devices=devices
+        )
 
-        sharded_b = ops.reshard_split(b, count=shard_count, dim=shard_dim)
-        sharded_b = sharded_b.clone(devices=tuple(4 + i for i in range(shard_count)))
         actual_result = ops.cat([sharded_a, sharded_b], dim=cat_dim)
         assert ops.equal(expected_result, actual_result)
         assert iterables_equal(expected_result.devices, actual_result.devices)
