@@ -10,6 +10,8 @@ and serving engine. Shortfin consists of these major components:
   ['shortfin_apps'](https://github.com/nod-ai/shark-ai/tree/main/shortfin/python/shortfin_apps)
   built using the python bindings
 
+TRIGGER CI
+
 ## Prerequisites
 
 * Python 3.11+
