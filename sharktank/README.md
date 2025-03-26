@@ -12,7 +12,7 @@ tooling.
 
 ## Project Status
 
-[![CI - sharktank perplexity](https://github.com/nod-ai/shark-ai/actions/workflows/ci_eval.yaml/badge.svg?branch=main)](https://github.com/nod-ai/shark-ai/actions/workflows/ci_eval.yaml)
+[![CI - sharktank nightly](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharktank-nightly.yml/badge.svg?branch=main)](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharktank-nightly.yml)
 
 ## Examples
 
@@ -22,6 +22,8 @@ These are all under active development and should not yet be expected to work.
 
 
 ### Perform batched inference in PyTorch on a paged llama derived LLM:
+
+Note: Use `--device='cuda:0'` to run this inference on an AMD GPU.
 
 ```shell
 python -m sharktank.examples.paged_llm_v1 \

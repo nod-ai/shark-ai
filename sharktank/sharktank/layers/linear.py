@@ -81,10 +81,12 @@ class LinearLayer(ThetaLayer):
         y = ops.linear(x, weight, bias)
         # Unconditionally dequantize.
         if self.q_output is not None:
-            y = self.q_output.quantize(y)
+            # Probably dont need the custom kernel to return a float32 tensor as a PlanarQuantizedTensor
+            assert y.unpack().qs.dtype == torch.float32
+            y = self.q_output.quantize(y.unpack().qs)
             if self.fake_quant:
                 return y.unpack().dequant()
-            return y
+            return y.unpack().qs
 
         if isinstance(y, QuantizedTensor):
             y = y.unpack().dequant()

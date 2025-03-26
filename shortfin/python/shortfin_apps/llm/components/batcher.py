@@ -72,6 +72,7 @@ class LlmBatcherProcess(BatcherProcess):
     async def board_flights(self):
         waiting_count = len(self.pending)
         if waiting_count == 0:
+            self.strobes = 0
             return
         if waiting_count < self.ideal_batch_size and self.strobes < 2:
             logger.info("Waiting a bit longer to fill flight")

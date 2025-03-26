@@ -92,7 +92,7 @@ jobs:
           pytest -v app_tests/benchmark_tests/llm/sglang_benchmarks/shortfin_benchmark_test.py --log-cli-level=INFO --html=shortfin_index.html --self-contained-html
 
       - name: Upload pytest report
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: shortfin_benchmark
           path: shortfin_index.html
@@ -179,7 +179,7 @@ jobs:
           pytest -v app_tests/benchmark_tests/llm/sglang_benchmarks/sglang_benchmark_test.py --port 30000 --log-cli-level=INFO --html=sglang_index.html --self-contained-html
 
       - name: Upload pytest report
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: sglang_benchmark
           path: sglang_index.html
@@ -213,14 +213,14 @@ jobs:
         run: pip install pytest-html-merger
 
       - name: Download shortfin report
-        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.9
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
         with:
           name: shortfin_benchmark
           path: reports
         continue-on-error: true
 
       - name: Download sglang report
-        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.9
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
         with:
           name: sglang_benchmark
           path: reports

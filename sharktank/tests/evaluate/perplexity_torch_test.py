@@ -8,6 +8,7 @@ import unittest
 import pytest
 import json
 import numpy as np
+import gc
 
 from sharktank.evaluate import perplexity_torch
 
@@ -22,6 +23,7 @@ skipif_run_quick_llama_test = pytest.mark.skipif(
     "tensor_parallelism_size",
     "baseline_perplexity_scores",
     "batch_size",
+    "device",
 )
 class PerplexityTest(unittest.TestCase):
     def setUp(self):
@@ -45,6 +47,7 @@ class PerplexityTest(unittest.TestCase):
                 f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
                 f"--attention-kernel=torch",
                 f"--num-prompts={self.batch_size}",
+                f"--device={self.device}",
             ]
         )
 
@@ -61,6 +64,7 @@ class PerplexityTest(unittest.TestCase):
             delta=self.delta,
             msg=f"Current perplexity deviates baseline by {perplexity_difference}",
         )
+        gc.collect()
 
     @skipif_run_quick_llama_test
     def test_llama3_8B_f8(self):
@@ -70,23 +74,22 @@ class PerplexityTest(unittest.TestCase):
         model_name = "llama3_8B_f8_torch"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
-        batch_size = 8
-
         current_perplexity = perplexity_torch.main(
             [
                 f"--irpa-file={self.llama3_8b_f8_model}",
                 f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
                 f"--attention-kernel=torch",
-                f"--num-prompts={batch_size}",
+                f"--num-prompts={self.batch_size}",
                 f"--attention-dtype=bfloat16",
                 f"--activation-dtype=bfloat16",
                 "--use-hf",
                 "--fake-quant",
+                f"--device={self.device}",
             ]
         )
 
         baseline_mean_perplexity = round(
-            np.mean(baseline_perplexity["perplexities"][0:batch_size]), 6
+            np.mean(baseline_perplexity["perplexities"][0 : self.batch_size]), 6
         )
         current_mean_perplexity = round(current_perplexity["mean_perplexity"], 6)
 
@@ -98,6 +101,7 @@ class PerplexityTest(unittest.TestCase):
             delta=self.delta,
             msg=f"Current perplexity deviates baseline by {perplexity_difference}",
         )
+        gc.collect()
 
     @pytest.mark.xfail(
         reason="Non-decomposed attention is not supported yet",
@@ -117,6 +121,7 @@ class PerplexityTest(unittest.TestCase):
                 f"--tensor-parallelism-size={self.tensor_parallelism_size}",
                 f"--attention-kernel=torch",
                 f"--num-prompts={self.batch_size}",
+                f"--device={self.device}",
             ]
         )
 
@@ -133,6 +138,7 @@ class PerplexityTest(unittest.TestCase):
             delta=self.delta,
             msg=f"Current perplexity deviates baseline by {perplexity_difference}",
         )
+        gc.collect()
 
     @pytest.mark.xfail(
         reason="Non-decomposed attention is not supported yet",
@@ -152,6 +158,7 @@ class PerplexityTest(unittest.TestCase):
                 f"--tensor-parallelism-size={self.tensor_parallelism_size}",
                 f"--attention-kernel=torch",
                 f"--num-prompts={self.batch_size}",
+                f"--device={self.device}",
             ]
         )
 
@@ -168,6 +175,7 @@ class PerplexityTest(unittest.TestCase):
             delta=self.delta,
             msg=f"Current perplexity deviates baseline by {perplexity_difference}",
         )
+        gc.collect()
 
 
 if __name__ == "__main__":

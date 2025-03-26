@@ -213,14 +213,12 @@ async def main(argv):
             return self.responder.timer.elapsed()
 
     logger.log(msg=f"Setting up a tasklist of {len(prompts)} items", level=logging.INFO)
-    queue = asyncio.Queue()
     tasks = []
     for p in prompts:
         task = Task(p)
         tasks.append(task)
-        queue.put_nowait(task)
 
-    async def worker(name, queue):
+    async def worker(name, queue, fiber):
         while True:
             task = await queue.get()
             responder = CliResponder()
@@ -233,16 +231,23 @@ async def main(argv):
             task.result = responder.response.result()
             queue.task_done()
 
-    global_timer = Timer()
-    global_timer.start()
-
     logger.log(msg=f"Setting up {args.workers} workers", level=logging.INFO)
     workers = []
+    queue = asyncio.Queue()
     for i in range(args.workers):
-        w = asyncio.create_task(worker(f"worker-{i}", queue))
+        name = f"worker-{i}"
+        workerr = service.sysman.ls.create_worker(name)
+        fiber = service.sysman.ls.create_fiber(workerr)
+        w = asyncio.create_task(worker(name, queue, fiber))
         workers.append(w)
 
     logger.log(msg=f"Processing tasks", level=logging.INFO)
+
+    global_timer = Timer()
+    global_timer.start()
+    for t in tasks:
+        queue.put_nowait(t)
+
     await queue.join()
     global_timer.end()
 

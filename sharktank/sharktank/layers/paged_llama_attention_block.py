@@ -8,7 +8,7 @@ from typing import Optional
 
 
 import torch
-from ..types import QuantizerTensor
+from ..types import QuantizerTensor, StaticScaledQuantizer
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
 from .norm import RMSNormLayer
