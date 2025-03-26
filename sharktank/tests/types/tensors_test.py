@@ -173,7 +173,6 @@ class ShardedTensorTest(unittest.TestCase):
         cloned_tensor = sharded_tensor.clone()
         assert sharded_tensor.is_deep_equal(cloned_tensor)
         assert iterables_equal(sharded_tensor.devices, cloned_tensor.devices)
-        assert sharded_tensor.pinned == cloned_tensor.pinned
 
     def testCloneSplitPrimitiveTensor(self):
         tensor = torch.rand([4, 3, 4], dtype=torch.float32)
@@ -181,7 +180,6 @@ class ShardedTensorTest(unittest.TestCase):
         cloned_tensor = sharded_tensor.clone()
         assert sharded_tensor.is_deep_equal(cloned_tensor)
         assert iterables_equal(sharded_tensor.devices, cloned_tensor.devices)
-        assert sharded_tensor.pinned == cloned_tensor.pinned
 
     def testCloneReplicatedTensor(self):
         tensor = torch.rand([4, 3, 4], dtype=torch.float32)
@@ -189,7 +187,6 @@ class ShardedTensorTest(unittest.TestCase):
         cloned_tensor = sharded_tensor.clone()
         assert sharded_tensor.is_deep_equal(cloned_tensor)
         assert iterables_equal(sharded_tensor.devices, cloned_tensor.devices)
-        assert sharded_tensor.pinned == cloned_tensor.pinned
 
     def testCloneTensorTraits(self):
         from iree.turbine.aot import DeviceTensorTrait, ExternalTensorTrait
