@@ -30,6 +30,7 @@ from ..models.llama.sharding import shard_theta
 
 from sharktank.utils import cli
 from sharktank.utils.load_llm import *
+from .utils import *
 
 logger = logging.getLogger("eval")
 
@@ -49,49 +50,10 @@ class Perplexity_torch:
     For more information, see https://huggingface.co/docs/transformers/perplexity
     """
 
-    def __init__(
-        self,
-        device,
-        use_hf,
-        fake_quant,
-        activation_dtype=torch.float32,
-        attention_dtype=torch.float32,
-        kv_cache_dtype=torch.float32,
-    ):
-        self.device = device
-        self.activation_dtype = activation_dtype
-        self.attention_dtype = attention_dtype
-        self.kv_cache_dtype = kv_cache_dtype
-        self.use_hf = use_hf
-        self.fake_quant = fake_quant
+    def __init__(self):
+        pass
 
-    def timeit(func):
-        def wrapper(*args, **kwargs):
-            start = time.time()
-            result = func(*args, **kwargs)
-            end = time.time()
-            total_seconds = end - start
-            time_taken = abs(timedelta(seconds=total_seconds))
-            hours, minutes, seconds = re.split(":", str(time_taken))
-
-            if total_seconds < 1:
-                time_taken = f" {round(total_seconds * 1000, 3)} ms"
-            elif total_seconds < 60:
-                time_taken = "{:.2f} secs".format(round(float(total_seconds), 2))
-            else:
-                time_taken = "{:02d} hrs : {:02d} mins : {:.2f} secs".format(
-                    int(hours), int(minutes), round(float(seconds), 2)
-                )
-
-            func_name = func.__name__
-            if func_name == "get_perplexity":
-                func_name = "Calculate perplexity"
-            logger.info(f" {func_name}: {time_taken}")
-            return result
-
-        return wrapper
-
-    def print_token_comparison(self, i):
+    def print_token_comparison(self, i: int):
         if i <= self.max_prompt_length:
             batch_predicted_token_id = [[i[-1]] for i in self.batch.results]
             batch_predicted_token = self.generator.tokenizer.decode(
@@ -107,66 +69,78 @@ class Perplexity_torch:
             logger.debug(f"{expected_token}")
             logger.debug(f"{expected_token_id}")
 
-    @timeit
-    def load_model(self, dataset, tokenizer, tensor_parallelism_size, attention_kernel):
+    def load_model(
+        self, 
+        dataset: Dataset, 
+        tokenizer: InferenceTokenizer, 
+        tensor_parallelism_size: int,
+        device: torch.device,
+        activation_dtype: torch.dtype,
+        attention_dtype: torch.dtype,
+        kv_cache_dtype: torch.dtype, 
+        attention_kernel:str, 
+        block_seq_stride: int,
+        use_hf: bool,
+        fake_quant: bool,
+        ):
 
-        self.config = LlamaModelConfig(
+        config = LlamaModelConfig(
             hp=configs.LlamaHParams.from_gguf_props(dataset.properties),
-            device=self.device,
-            activation_dtype=self.activation_dtype,
-            attention_dtype=self.attention_dtype,
-            kv_cache_dtype=self.kv_cache_dtype,
+            device=device,
+            activation_dtype=activation_dtype,
+            attention_dtype=attention_dtype,
+            kv_cache_dtype=kv_cache_dtype,
             tensor_parallelism_size=tensor_parallelism_size,
-            use_hf=self.use_hf,
-            fake_quant=self.fake_quant,
+            block_seq_stride=block_seq_stride,
+            attention_kernel=attention_kernel,
+            use_hf=use_hf,
+            fake_quant=fake_quant,
         )
+        
+        self.device = device
 
-        if self.config.tensor_parallelism_size > 1:
-            dataset.root_theta = shard_theta(dataset.root_theta, self.config)
+        if config.tensor_parallelism_size > 1:
+            dataset.root_theta = shard_theta(dataset.root_theta, config)
 
         theta = dataset.root_theta
 
-        if self.config.hp.expert_count:
-            if self.config.hp.model_arch == "grok":
-                model = PagedGrokModelV1(theta, self.config)
+        if config.hp.expert_count:
+            if config.hp.model_arch == "grok":
+                model = PagedGrokModelV1(theta, config)
             else:
-                model = PagedMixtralModelV1(theta, self.config)
+                model = PagedMixtralModelV1(theta, config)
         else:
-            model = PagedLlamaModelV1(theta, self.config)
+            model = PagedLlamaModelV1(theta, config)
 
         self.generator = TorchGenerator(model, tokenizer)
 
-    @timeit
-    def get_prompts(self, num_prompts):
+    def assemble_batch(self, token_batch: torch.tensor) -> torch.tensor:
+        
+        token_batch, seq_lens_batch = self.generator.tokenizer.pad_tokens(
+            token_ids=token_batch.tolist(),
+            pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
+        )
 
-        test_prompts = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")[
-            "text"
-        ]
+        logger.debug(f"{token_batch}")
 
-        num_test_prompts = 219
+        token_batch = torch.as_tensor(token_batch, device=self.device)
+        seq_lens_batch = torch.as_tensor(
+            seq_lens_batch, device=self.device
+        )
 
-        random.seed(0)
-        test_prompts = random.sample(test_prompts, num_test_prompts)
+        self.batch = self.generator.begin_batch(
+            token_ids=token_batch,
+            seq_lens=seq_lens_batch,
+            page_cache_size=self.page_cache_size,
+        )
 
-        # Ignore prompts that are: empty, less than 20 tokens or a title.
-        test_prompts = [
-            s.replace("\n", "").rstrip()
-            for s in test_prompts
-            if s != "" and len(s.split()) >= 20 and s.count("=") < 2
-        ][0:num_prompts]
+        return token_batch
 
-        self.test_prompts = test_prompts
-
-        self.bs = len(test_prompts)
-
-        logger.info(f" Batch size: {self.bs}")
-
-    @timeit
-    def get_logits(self, page_cache_size):
+    def get_logits(self, skip_decode: bool) -> torch.tensor:
 
         is_first_token = True
-        self.start = self.min_prompt_length//2-1
-        self.out_logits = []
+        self.start = 10
+        out_logits = []
         for i in tqdm(
             range(self.start, self.max_prompt_length - 1),
             mininterval=300,
@@ -177,121 +151,72 @@ class Perplexity_torch:
             if is_first_token:
 
                 token_batch = self.token_ids[:, : i + 1]
-                logger.debug(f"Prefill:")
-
-                logger.debug("Input:")
+                logger.debug(f"Prefill input:")
                 logger.debug(f"{self.generator.tokenizer.decode(token_batch)}")
 
-                token_batch, seq_lens_batch = self.generator.tokenizer.pad_tokens(
-                    token_ids=token_batch.tolist(),
-                    pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
-                )
-
-                logger.debug(f"{token_batch}")
-
-                token_batch = torch.tensor(token_batch, device=self.device)
-                seq_lens_batch = torch.tensor(seq_lens_batch, device=self.device)
-
-                self.batch = self.generator.begin_batch(
-                    token_ids=token_batch,
-                    seq_lens=seq_lens_batch,
-                    page_cache_size=page_cache_size,
-                )
+                token_batch = self.assemble_batch(token_batch)
 
                 self.batch.prefill()
-                self.out_logits = self.batch.prefill_logits[:, 0:1, :]
-                is_first_token = False
+                out_logits.append(self.batch.prefill_logits[:, 0:1, :])
 
                 self.print_token_comparison(i)
+                
+                if not skip_decode:
+                    is_first_token = False 
 
             else:
                 token_batch = self.token_ids[:, i : i + 1]
 
-                logger.debug("Decode:")
-
-                logger.debug("Input:")
+                logger.debug("Decode input:")
                 logger.debug(f"{self.generator.tokenizer.decode(token_batch)}")
                 logger.debug(f"{token_batch.tolist()}")
 
                 self.batch.decode(token_batch=token_batch)
-                self.out_logits = torch.cat(
-                    (self.out_logits, self.batch.decode_logits), 1
-                )
+                out_logits.append(self.batch.decode_logits)
 
                 self.print_token_comparison(i)
 
-        pad_logits_shape = self.token_ids.shape[1] - self.out_logits.shape[1]
+        out_logits = torch.cat(out_logits, 1)
 
-        self.pad_logits = torch.zeros(
-            self.out_logits.shape[0], pad_logits_shape, self.out_logits.shape[2]
+        pad_logits_shape = self.token_ids.shape[1] - out_logits.shape[1]
+
+        pad_logits = torch.zeros(
+            out_logits.shape[0], pad_logits_shape, out_logits.shape[2]
         )
 
-        self.out_logits = torch.cat((self.out_logits, self.pad_logits), 1).to(
+        out_logits = torch.cat((out_logits, pad_logits), 1).to(
             self.device
         )
+        
+        return out_logits
 
-    @timeit
-    def compute_perplexity(self):
-        loss_fct = CrossEntropyLoss(reduction="none")
-
-        ## perplexity = e ^ (sum(losses) / num_tokenized_tokens)
-        crossentropy_loss = (
-            loss_fct(self.out_logits.transpose(1, 2), self.token_ids)
-            * self.attention_mask
-        ).sum(1)
-        crossentropy_loss = torch.tensor(crossentropy_loss.tolist())
-        perplexity_batch = torch.exp(
-            crossentropy_loss / self.attention_mask.sum(1)
-        ).tolist()
-
-        perplexity_batch = [round(ppl, 6) for ppl in perplexity_batch]
-
-        return {
-            "perplexities": perplexity_batch,
-            "mean_perplexity": round(np.mean(perplexity_batch), 6),
-        }
-
-    @timeit
-    def get_perplexity(self):
+    def get_perplexity(self, test_prompts: list[str], skip_decode: bool) -> dict[str, Any]:
 
         token_ids, seq_lens = self.generator.tokenizer.encode(
-            self.test_prompts,
+            test_prompts,
             pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
         )
 
-        self.page_cache_size = (
-            len(token_ids[0]) // self.config.block_seq_stride
-        ) * self.bs + 1
-
         logger.debug(f" Prompts for Evaluation:")
-        for idx, prompt in enumerate(self.test_prompts):
+        for idx, prompt in enumerate(test_prompts):
             logger.debug(
                 f" Prompt {idx}: \nTokens: {prompt.encode()}\nToken ids: {token_ids[idx]}\n"
             )
-
+            
+        self.page_cache_size = (
+            len(token_ids[0]) // self.generator.model.config.block_seq_stride
+        ) * len(test_prompts) + 1
+        
         self.max_prompt_length = max(seq_lens)
-        self.min_prompt_length = min(seq_lens)
 
         self.token_ids = torch.tensor(token_ids, device=self.device)
-        self.attention_mask = (
-            (self.token_ids != 0).int().detach().clone().to(self.device)
-        )
 
-        self.get_logits(page_cache_size=self.page_cache_size)
+        out_logits = self.get_logits(skip_decode)
 
-        self.out_logits = self.out_logits[..., :-(self.start+1), :].contiguous()
-        self.token_ids = self.token_ids[..., self.start+1:].contiguous()
-        self.attention_mask = self.attention_mask[..., self.start+1:].contiguous()
+        logger.debug(f"Final Logits shape: {out_logits.shape}")
+        logger.debug(f"Token ids shape: {self.token_ids.shape}")
 
-        logger.debug(f"Final Logits shape: {self.out_logits.shape}")
-        logger.debug(f"Token ids: {self.token_ids}, \n{self.token_ids.shape}")
-        logger.debug(
-            f"Mask shape: {self.attention_mask}, \n{self.attention_mask.shape}"
-        )
-
-        assert self.token_ids.shape == self.out_logits.shape[0:2]
-
-        return self.compute_perplexity()
+        return compute_perplexity(self.token_ids, out_logits, self.start)
 
 
 def run_perplexity_torch(
@@ -302,19 +227,26 @@ def run_perplexity_torch(
     tensor_parallelism_size,
 ):
     start = time.time()
+    
+    test_prompts = args.prompt_list or get_prompts(num_prompts=args.num_prompts)
 
-    perplexity = Perplexity_torch(
+    perplexity = Perplexity_torch()
+    
+    perplexity.load_model(
+        dataset=dataset,
+        tokenizer=tokenizer,
+        tensor_parallelism_size=tensor_parallelism_size,
         device=device,
         activation_dtype=args.activation_dtype,
         attention_dtype=args.attention_dtype,
         kv_cache_dtype=args.kv_cache_dtype,
-        fake_quant=args.fake_quant,
+        attention_kernel=args.attention_kernel,
+        block_seq_stride=args.block_seq_stride,
         use_hf=args.use_hf,
-    )
-
-    perplexity.get_prompts(num_prompts=args.num_prompts)
-    perplexity.load_model(dataset, tokenizer, tensor_parallelism_size, args.attention_kernel)
-    ppl = perplexity.get_perplexity()
+        fake_quant=args.fake_quant,
+        )
+    
+    ppl = perplexity.get_perplexity(test_prompts, skip_decode=args.skip_decode)
 
     end = time.time()
     total_time = round(end - start, 2)
@@ -338,13 +270,12 @@ def main(argv):
     cli.add_log_options(parser)
 
     args = cli.parse(parser, args=argv)
-    
-    logger.setLevel(args.loglevel)
-
-    device = torch.device(args.device) if args.device else None
     dataset = cli.get_input_dataset(args)
     tokenizer = cli.get_tokenizer(args)
-        
+    
+    logger.setLevel(args.loglevel)
+    device = torch.device(args.device) if args.device else None
+
     assert args.num_prompts or args.prompt_list, "Pass --num-prompts or --prompt-list"
 
     # Override flag if dataset disagrees
@@ -361,9 +292,6 @@ def main(argv):
         device=device,
         tensor_parallelism_size=tensor_parallelism_size,
     )
-    
-        # TODO:
-    # Add skip_decode
 
     logger.info(f"\n{json.dumps(ppl, indent=2)}")
     return ppl

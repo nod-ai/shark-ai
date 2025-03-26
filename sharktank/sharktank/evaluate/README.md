@@ -83,4 +83,4 @@ python -m sharktank.evaluate.perplexity_iree  -h
 
 |Models                          |Torch score   |IREE score    | Model size (GB) |
 |:-------------------------------|:-------------|:-------------|:----------------|
-|8B FP16 Instruct TP1            |20.3032       |15.4286       |16.07            |
+|8B FP16 Instruct TP1            |20.3033       |14.6294       |16.07            |
