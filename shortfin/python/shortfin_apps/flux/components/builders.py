@@ -43,7 +43,7 @@ def get_mlir_filenames(model_params: ModelParams, model=None):
 
 
 def get_vmfb_filenames(
-    model_params: ModelParams, model=None, target: str = "amdgpu-gfx942"
+    model_params: ModelParams, model=None, target: str = "hip-gfx942"
 ):
     vmfb_filenames = []
     file_stems = get_file_stems(model_params)
@@ -70,9 +70,7 @@ def get_params_filenames(model_params: ModelParams, model=None, splat: bool = Fa
     else:
         for idx, mod in enumerate(modnames):
             # schnell and dev weights are the same, except for sampler
-            subtype = (
-                "schnell" if model_params.is_schnell and mod == "sampler" else "dev"
-            )
+            subtype = "schnell" if model_params.is_schnell else "dev"
             params_filenames.extend(
                 [base + "_" + subtype + "_" + mod + "_" + mod_precs[idx] + ".irpa"]
             )
@@ -149,7 +147,7 @@ def flux(
     mlir_bucket = FLUX_BUCKET + "mlir/"
     vmfb_bucket = FLUX_BUCKET + "vmfb/"
     if "gfx" in target:
-        target = "amdgpu-" + target
+        target = "hip-" + target
 
     mlir_filenames = get_mlir_filenames(model_params, model)
     mlir_urls = get_url_map(mlir_filenames, mlir_bucket)
@@ -182,7 +180,8 @@ def flux(
     for f, url in params_urls.items():
         if needs_file_url(f, ctx, url):
             raise RuntimeError(
-                "Model parameters auto-downloading is disable."
+                f'Could not find file "{f}".'
+                " Model parameters auto-downloading is disable."
                 " To obtain the weights please follow https://github.com/nod-ai/shark-ai/tree/main/shortfin/python/shortfin_apps/flux#prepare-artifacts"
             )
     filenames = [*vmfb_filenames, *params_filenames, *mlir_filenames]
