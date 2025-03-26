@@ -1515,15 +1515,6 @@ void BindAMDGPUSystem(py::module_ &global_m) {
           },
           DOCSTRING_AMDGPU_SYSTEM_BUILDER_TRACING_LEVEL)
       .def_prop_rw(
-          "logical_devices_per_physical_device",
-          [](local::systems::AMDGPUSystemBuilder &self) -> size_t {
-            return self.logical_devices_per_physical_device();
-          },
-          [](local::systems::AMDGPUSystemBuilder &self, size_t value) {
-            self.logical_devices_per_physical_device() = value;
-          },
-          DOCSTRING_AMDGPU_SYSTEM_BUILDER_LOGICAL_DEVICES_PER_PHYSICAL_DEVICE)
-      .def_prop_rw(
           "visible_devices",
           [](local::systems::AMDGPUSystemBuilder &self)
               -> std::optional<std::vector<std::string>> {
