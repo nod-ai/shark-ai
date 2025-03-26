@@ -451,6 +451,23 @@ Dataset(
     ),
 )
 
+# tiny llama2-25m model for testing; has tokenizer
+Dataset(
+    "Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
+    files=[
+        RemoteFile(
+            file_id="model.safetensors",
+            filename="model.safetensors",
+            repo_id="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
+            extra_filenames=(
+                "config.json",
+                "tokenizer.json",
+                "tokenizer_config.json",
+            ),
+        ),
+    ],
+)
+
 
 ################################################################################
 # Tool entrypoint

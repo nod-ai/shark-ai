@@ -9,14 +9,18 @@ import uuid
 
 logger = logging.getLogger(__name__)
 
-from ..model_management import AccuracyValidationException
+from ..model_management import AccuracyValidationException, ModelConfig
 
 
 pytestmark = pytest.mark.parametrize(
     "model_artifacts,server",
     [
-        ["llama3.1_8b", {"prefix_sharing": "none"}],
-        ["llama3.1_8b", {"prefix_sharing": "trie"}],
+        (ModelConfig.get(name="llama3.1_8b"), {"prefix_sharing": "none"}),
+        (ModelConfig.get(name="llama3.1_8b"), {"prefix_sharing": "trie"}),
+    ],
+    ids=[
+        "llama31_8b_none",
+        "llama31_8b_trie",
     ],
     indirect=True,
 )

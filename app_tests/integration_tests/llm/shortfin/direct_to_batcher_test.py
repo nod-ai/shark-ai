@@ -7,7 +7,10 @@ from app_tests.integration_tests.llm.server_management import (
     ServerInstance,
     ServerConfig,
 )
-from app_tests.integration_tests.llm.model_management import TEST_MODELS, ModelProcessor
+from app_tests.integration_tests.llm.model_management import (
+    ModelProcessor,
+    ModelConfig,
+)
 from app_tests.integration_tests.llm.device_settings import CPU
 from shortfin_apps.llm.components.messages import InferencePhase, InferenceExecRequest
 
@@ -15,7 +18,10 @@ from shortfin_apps.llm.components.messages import InferencePhase, InferenceExecR
 pytestmark = pytest.mark.parametrize(
     "model_artifacts,generate_service",
     [
-        ["tinystories_llama2_25m", {"prefix_sharing": "none"}],
+        (ModelConfig.get(name="tinystories_llama2_25m"), {"prefix_sharing": "none"}),
+    ],
+    ids=[
+        "tinystories_llama2_25m_none",
     ],
     indirect=True,
 )

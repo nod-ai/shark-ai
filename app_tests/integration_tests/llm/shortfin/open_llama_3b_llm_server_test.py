@@ -9,14 +9,18 @@ import uuid
 
 logger = logging.getLogger(__name__)
 
-from ..model_management import AccuracyValidationException
+from ..model_management import AccuracyValidationException, ModelConfig
 
 
 pytestmark = pytest.mark.parametrize(
     "model_artifacts,server",
     [
-        ["open_llama_3b", {"prefix_sharing": "none"}],
-        ["open_llama_3b", {"prefix_sharing": "trie"}],
+        (ModelConfig.get(name="open_llama_3b"), {"prefix_sharing": "none"}),
+        (ModelConfig.get(name="open_llama_3b"), {"prefix_sharing": "trie"}),
+    ],
+    ids=[
+        "open_llama_3b_none",
+        "open_llama_3b_trie",
     ],
     indirect=True,
 )
