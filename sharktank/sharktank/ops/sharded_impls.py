@@ -528,8 +528,6 @@ def equal_split(a: SplitPrimitiveTensor, b: AnyTensor) -> bool:
 
 @expand.override(ReplicatedTensor)
 def expand_replicated(tensor: ReplicatedTensor, shape: List[int]) -> ReplicatedTensor:
-    assert len(shape) == len(tensor.shape)
-
     shards = [expand(shard, shape) for shard in tensor.shards]
     return tensor.clone(ts=shards)
 
