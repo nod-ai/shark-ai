@@ -10,6 +10,7 @@ import uuid
 logger = logging.getLogger(__name__)
 
 from ..model_management import AccuracyValidationException
+from ..server_management import ServerInstance
 
 
 pytestmark = pytest.mark.parametrize(
@@ -25,13 +26,13 @@ pytestmark = pytest.mark.parametrize(
 class TestLLMServer:
     """Test suite for LLM server functionality."""
 
-    def test_basic_generation(self, server: tuple[Any, int]) -> None:
+    def test_basic_generation(self, server: ServerInstance) -> None:
         """Tests basic text generation capabilities.
 
         Args:
             server: Tuple of (process, port) from server fixture
         """
-        process, port = server
+        process, port = server.process, server.port
         assert process.poll() is None, "Server process terminated unexpectedly"
 
         response = self._generate("1 2 3 4 5 ", port)
@@ -45,14 +46,14 @@ class TestLLMServer:
 
     @pytest.mark.parametrize("encoded_prompt", ["0 1 2 3 4 5 "], indirect=True)
     def test_basic_generation_input_ids(
-        self, server: tuple[Any, int], encoded_prompt
+        self, server: "ServerInstance", encoded_prompt
     ) -> None:
         """Tests basic text generation capabilities.
 
         Args:
             server: Tuple of (process, port) from server fixture
         """
-        process, port = server
+        process, port = server.process, server.port
         assert process.poll() is None, "Server process terminated unexpectedly"
 
         response = self._generate(encoded_prompt, port, input_ids=True)
@@ -72,7 +73,7 @@ class TestLLMServer:
         ],
     )
     def test_concurrent_generation(
-        self, server: tuple[Any, int], concurrent_requests: int
+        self, ServerInstance, concurrent_requests: int
     ) -> None:
         """Tests concurrent text generation requests.
 
@@ -80,7 +81,7 @@ class TestLLMServer:
             server: Tuple of (process, port) from server fixture
             concurrent_requests: Number of concurrent requests to test
         """
-        process, port = server
+        process, port = server.process, server.port
         assert process.poll() is None, "Server process terminated unexpectedly"
 
         prompt = "1 2 3 4 5 "

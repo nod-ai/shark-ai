@@ -1,4 +1,6 @@
 """Handles server lifecycle and configuration."""
+import os
+from datetime import datetime
 import socket
 from contextlib import closing
 from dataclasses import dataclass
@@ -12,6 +14,10 @@ from .device_settings import DeviceSettings
 from .model_management import ModelArtifacts
 from shortfin_apps.llm.components.service import GenerateService
 from contextlib import contextmanager
+
+from logging import getLogger
+
+logger = getLogger(__name__)
 
 
 @dataclass
@@ -66,7 +72,9 @@ class ServerInstance:
             f"--tokenizer_json={self.config.artifacts.tokenizer_path}",
             f"--model_config={self.config.artifacts.config_path}",
             f"--vmfb={self.config.artifacts.vmfb_path}",
-            f"--parameters={self.config.artifacts.weights_path}",
+            f"--parameters",
+            str(self.config.artifacts.weights_path),
+            *(str(path) for path in (self.config.artifacts.shard_paths or [])),
             f"--port={self.port}",
             f"--prefix_sharing_algorithm={self.config.prefix_sharing_algorithm}",
         ]
@@ -95,7 +103,7 @@ class ServerInstance:
         with lifecycle_manager:
             yield lifecycle_manager.services["default"]
 
-    def start(self) -> None:
+    def start(self, log_dir="/tmp") -> None:
         """Starts the server process."""
         if self.process is not None:
             raise RuntimeError("Server is already running")
@@ -107,10 +115,35 @@ class ServerInstance:
             "-m",
             "shortfin_apps.llm.server",
         ] + self.get_server_args()
-        self.process = subprocess.Popen(cmd)
-        self.wait_for_ready()
+        logger.info("Starting server with command: %s", " ".join(cmd))
 
-    def wait_for_ready(self, timeout: int = 30) -> None:
+        # Create log file for capturing output
+        os.makedirs(log_dir, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.log_path = os.path.join(log_dir, f"server_{timestamp}_{self.port}.log")
+
+        logger.info("Server logs: %s", self.log_path)
+
+        # Log file will be automatically closed when process terminates
+        self.process = subprocess.Popen(
+            cmd,
+            stdout=open(
+                self.log_path, "w"
+            ),  # File handle will be garbage collected with process
+            stderr=subprocess.STDOUT,  # Redirect stderr to stdout
+            close_fds=True,  # Ensures file descriptors are closed when process exits
+        )
+
+        try:
+            self.wait_for_ready()
+        except Exception as e:
+            # Log path for easier debugging on failure
+            logger.error("Server failed to start, check logs at: %s", self.log_path)
+            # Print the tail of the log for immediate debugging
+            self._dump_log_tail()
+            raise
+
+    def wait_for_ready(self, timeout: int = 180) -> None:
         """Waits for server to be ready and responding to health checks."""
         if self.port is None:
             raise RuntimeError("Server hasn't been started")
@@ -120,9 +153,29 @@ class ServerInstance:
             try:
                 requests.get(f"http://localhost:{self.port}/health")
                 return
-            except requests.exceptions.ConnectionError:
+            except requests.exceptions.ConnectionError as e:
+                logger.info("While attempting to server,")
+                logger.info("Encountered connection error %s", e)
                 time.sleep(1)
         raise TimeoutError(f"Server failed to start within {timeout} seconds")
+
+    def _dump_log_tail(self, lines=20):
+        """Dumps the tail of the log file for debugging."""
+        if hasattr(self, "log_path") and os.path.exists(self.log_path):
+            try:
+                with open(self.log_path, "r") as f:
+                    log_content = f.readlines()
+                    tail = (
+                        log_content[-lines:]
+                        if len(log_content) > lines
+                        else log_content
+                    )
+                    if tail:
+                        logger.error("Last %d lines of server log:", len(tail))
+                        for line in tail:
+                            logger.error("  %s", line.rstrip())
+            except Exception as e:
+                logger.error("Failed to read log file: %s", str(e))
 
     def stop(self) -> None:
         """Stops the server process."""

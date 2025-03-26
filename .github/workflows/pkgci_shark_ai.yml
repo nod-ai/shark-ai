@@ -66,6 +66,56 @@ jobs:
           name: smoke-test-${{ matrix.name }}
           path: smoke-test-${{ matrix.name }}.xml
 
+  sharded_tests:
+    name: "Sharded smoke tests (${{ matrix.name }})"
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # CPU sharded test with TP4
+          - name: cpu_tp4
+            runs-on: azure-cpubuilder-linux-scale
+            test_device: cpu_tp4
+            python-version: 3.11
+          # GPU sharded test with TP2 - running on the 4-GPU machine but only using 2 GPUs
+          - name: amdgpu_mi300_gfx942_tp2
+            runs-on: linux-mi300-4gpu-ossci-nod-ai
+            test_device: gfx942_tp2
+            python-version: 3.11
+    defaults:
+      run:
+        shell: bash
+    env:
+      PACKAGE_DOWNLOAD_DIR: ${{ github.workspace }}/.packages
+      VENV_DIR: ${{ github.workspace }}/.venv
+    steps:
+      - name: Run rocminfo
+        if: contains(matrix.test_device, 'gfx')
+        run: rocminfo
+      - name: "Checkout Code"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: "Set up environment and install PkgCI Artifacts"
+        uses: ./.github/actions/pkgci-setup
+        with:
+          python-version: ${{matrix.python-version}}
+          artifact-run-id: ${{ inputs.artifact_run_id }}
+      - name: Run LLM Sharded Smoke Test
+        run: |
+          source ${VENV_DIR}/bin/activate
+          # Show device information for debugging
+          echo "Running sharded test with device: ${{ matrix.test_device }}"
+          # Run the sharded model test
+          pytest -v --test_device=${{ matrix.test_device }} \
+            --junitxml=sharded-smoke-test-${{ matrix.name }}.xml \
+            app_tests/integration_tests/llm/shortfin/sharded_meta_llama3_8b_test.py \
+            --log-cli-level=INFO
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sharded-smoke-test-${{ matrix.name }}
+          path: sharded-smoke-test-${{ matrix.name }}.xml
 
   direct_to_batcher_test:
     name: "Direct to Batcher Test (${{ matrix.name }})"
@@ -163,7 +213,7 @@ jobs:
   # TODO: Figure out how to publish one summary over many pytest runs. This current test summary action doesn't work due to perms problems.
   # test_summary:
   #   name: "Test Summary"
-  #   needs: [smoke_test, integration_test]
+  #   needs: [smoke_test, sharded_tests, direct_to_batcher_test, integration_test]
   #   runs-on: ubuntu-latest
   #   if: always()
   #   steps:

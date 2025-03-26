@@ -8,7 +8,7 @@ from tokenizers import Tokenizer, Encoding
 from ..model_management import (
     ModelProcessor,
     ModelArtifacts,
-    TEST_MODELS,
+    get_model_by_name,
 )
 from ..server_management import ServerInstance, ServerConfig
 
@@ -36,7 +36,7 @@ def test_device(request):
 @pytest.fixture(scope="session")
 def model_artifacts(tmp_path_factory, request, test_device):
     """Prepares model artifacts in a cached directory."""
-    model_config = TEST_MODELS[request.param]
+    model_config = get_model_by_name(request.param)
     model_config.device_settings = get_device_settings_by_name(test_device)
     cache_key = hashlib.md5(str(model_config).encode()).hexdigest()
 
@@ -51,6 +51,8 @@ def model_artifacts(tmp_path_factory, request, test_device):
             mlir_path=model_dir / "model.mlir",
             vmfb_path=model_dir / "model.vmfb",
             config_path=model_dir / "config.json",
+            model_config=model_config,
+            shard_paths=None,
         )
 
     # Process model and create artifacts
@@ -59,9 +61,12 @@ def model_artifacts(tmp_path_factory, request, test_device):
 
 
 @pytest.fixture(scope="module")
-def server(model_artifacts, request):
+def server(model_artifacts, request, tmp_path_factory):
     """Starts and manages the test server."""
     model_config = model_artifacts.model_config
+
+    # Create a logs directory in the pytest temporary path
+    logs_dir = tmp_path_factory.mktemp("server_logs")
 
     server_config = ServerConfig(
         artifacts=model_artifacts,
@@ -70,12 +75,14 @@ def server(model_artifacts, request):
     )
 
     server_instance = ServerInstance(server_config)
-    server_instance.start()
+    server_instance.start(log_dir=str(logs_dir))
     process, port = server_instance.process, server_instance.port
-    yield process, port
 
-    process.terminate()
-    process.wait()
+    # Store the server instance for test access
+    yield server_instance
+
+    # Stop the server
+    server_instance.stop()
 
 
 @pytest.fixture(scope="module")
