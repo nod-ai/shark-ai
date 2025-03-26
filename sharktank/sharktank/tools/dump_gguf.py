@@ -49,7 +49,7 @@ def main():
     if args.save is not None:
 
         def report(s):
-            logger.info(f"Save: {s}")
+            logger.debug(f"Save: {s}")
 
         logger.info(f"Saving to: {args.save}")
         config.save(args.save, io_report_callback=report)
