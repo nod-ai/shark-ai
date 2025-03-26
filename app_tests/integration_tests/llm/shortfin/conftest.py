@@ -51,6 +51,8 @@ def model_artifacts(tmp_path_factory, request, test_device):
             mlir_path=model_dir / "model.mlir",
             vmfb_path=model_dir / "model.vmfb",
             config_path=model_dir / "config.json",
+            model_config=model_config,
+            shard_paths=None,
         )
 
     # Process model and create artifacts
