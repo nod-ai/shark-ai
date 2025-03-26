@@ -6,7 +6,7 @@
 
 import torch
 from torch import Tensor
-from typing import List, Optional, Sequence, Union, Any, Tuple, Dict
+from typing import List, Optional, Sequence, Union, Any, Tuple, Dict, Iterable
 import itertools
 from numbers import Number
 import math
@@ -56,11 +56,16 @@ def sharded_wrap_override():
 
             If no ShardedTensors are present in the input, then no changes are made to input/output.
             """
-            sharded_tensors = [
-                value
-                for value in itertools.chain(args, kwargs.values())
-                if isinstance(value, ShardedTensor)
-            ]
+            sharded_tensors = []
+            for value in itertools.chain(args, kwargs.values()):
+                if isinstance(value, ShardedTensor):
+                    sharded_tensors.append(value)
+                    continue
+                if isinstance(value, Iterable):
+                    for val in value:
+                        if isinstance(val, ShardedTensor):
+                            sharded_tensors.append(val)
+
             assert_on_same_devices(*sharded_tensors)
             res = f(*args, **kwargs)
             if isinstance(res, ShardedTensor) and len(sharded_tensors) > 0:
