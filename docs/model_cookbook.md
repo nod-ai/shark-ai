@@ -258,6 +258,17 @@ iree-run-module \
 
 [Instructions](../sharktank/sharktank/evaluate/README.md) to run perplexity test
 
+## Generate sample input tokens for IREE inference/tracy:
+
+```bash
+python -m sharktank.examples.paged_llm_v1 \
+  --hf-dataset=open_llama_3b_v2_f16_gguf \
+  --prompt-seq-len=128 \
+  --bs=4 \
+  --dump-decode-steps=1 \
+  --dump-path='/tmp'
+```
+
 ## Generating data for llama models
 
 ```bash

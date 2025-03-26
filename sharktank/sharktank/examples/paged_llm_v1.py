@@ -365,8 +365,8 @@ def main():
         --prompt: list[str] - Custom space separated prompts
         --prompt-seq-len: int - Generate random token ids for given seq len and bs and save prefill & first decode step input args as npy files
         --dump-path: str - Path to save prefill and decode input args as npy files
-        --dump-decode-steps: int - Number of decode steps to dump decode args, defaults to 1 decode step
-        --bs: int - batch size, for custom prompts, bs is number of given prompts, defaults to 4
+        --dump-decode-steps: int - Number of decode steps to dump decode args (defaults to 1 decode step)
+        --bs: int - batch size, for custom prompts, bs is number of given prompts (defaults to 4)
         --save_intermediates_path: str - save module forward outputs to safetensors, ex: run_0 will save to run_0_prefill.savetensors"
     """
 
@@ -378,7 +378,7 @@ def main():
     )
     parser.add_argument(
         "--dump-path",
-        help="Path to dump input tensors to npy files",
+        help="Path to dump prefill/decode input tensors to npy files",
         type=str,
         default=None,
     )
@@ -390,7 +390,7 @@ def main():
     )
     parser.add_argument(
         "--prompt-seq-len",
-        help="Seq len for prefill input prompts to be dumped to npy files",
+        help="Seq len to generate input prompts for prefill",
         type=int,
     )
     parser.add_argument(
