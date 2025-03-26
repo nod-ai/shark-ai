@@ -755,6 +755,7 @@ class ShardedTensor(InferenceTensor):
     def __init__(
         self,
         *,
+        ts: list[torch.Tensor] | list[DefaultPrimitiveTensor],
         shape: list[int],
         shard_dim: int | None,
         name: str = UnnamedTensorName,
@@ -763,21 +764,28 @@ class ShardedTensor(InferenceTensor):
         super().__init__(name=name, shape=shape)
         self.shard_dim = shard_dim
         self._devices = devices
+        self._shards: tuple[DefaultPrimitiveTensor] = tuple(
+            DefaultPrimitiveTensor(
+                name=f"{name}.shard.{i}",
+                data=t,
+            )
+            if isinstance(t, torch.Tensor)
+            else t
+            for i, t in enumerate(ts)
+        )
 
     @property
     def devices(self) -> Tuple[int]:
         return self._devices
 
     @property
-    @abstractmethod
     def shard_count(self) -> int:
-        ...
+        return len(self._shards)
 
     @property
-    @abstractmethod
     def shards(self) -> tuple[InferenceTensor]:
         """Accesses the underlying shards"""
-        ...
+        return self._shards
 
     @property
     @abstractmethod
@@ -842,24 +850,9 @@ class ShardedTensorBase(ShardedTensor):
         if devices is None:
             devices = tuple(range(len(ts)))
         assert len(ts) == len(devices)
-        super().__init__(name=name, shape=shape, shard_dim=shard_dim, devices=devices)
-        self._shards: tuple[DefaultPrimitiveTensor] = tuple(
-            DefaultPrimitiveTensor(
-                name=f"{name}.shard.{i}",
-                data=t,
-            )
-            if isinstance(t, torch.Tensor)
-            else t
-            for i, t in enumerate(ts)
+        super().__init__(
+            ts=ts, name=name, shape=shape, shard_dim=shard_dim, devices=devices
         )
-
-    @property
-    def shard_count(self) -> int:
-        return len(self._shards)
-
-    @property
-    def shards(self) -> tuple[InferenceTensor]:
-        return self._shards
 
     @property
     def is_replicated(self) -> bool:
@@ -1200,21 +1193,11 @@ class ReplicatedTensor(ShardedTensor):
         assert shard_count is None
         assert len(ts) > 0
         assert len(ts) == len(devices)
-        first_shape = ts[0].shape
-        shape = list(first_shape)
+        for shard in ts[1:]:
+            assert all(s_0 == s_i for (s_0, s_i) in zip(ts[0].shape, shard.shape))
 
-        super().__init__(name=name, shape=shape, shard_dim=None, devices=devices)
-        for shard in ts:
-            assert shape == list(shard.shape)
-
-        self._shards: tuple[DefaultPrimitiveTensor] = tuple(
-            DefaultPrimitiveTensor(
-                name=f"{name}.shard.{i}",
-                data=t,
-            )
-            if isinstance(t, torch.Tensor)
-            else t
-            for i, t in enumerate(ts)
+        super().__init__(
+            ts=ts, name=name, shape=list(ts[0].shape), shard_dim=None, devices=devices
         )
 
     def clone(self, **kwargs) -> "ReplicatedTensor":
@@ -1229,14 +1212,6 @@ class ReplicatedTensor(ShardedTensor):
         else:
             assert not isinstance(new_kwargs["ts"], torch.Tensor)
         return ReplicatedTensor(**new_kwargs)
-
-    @property
-    def shard_count(self) -> int:
-        return len(self._shards)
-
-    @property
-    def shards(self) -> tuple[InferenceTensor]:
-        return self._shards
 
     @property
     def is_replicated(self) -> bool:
