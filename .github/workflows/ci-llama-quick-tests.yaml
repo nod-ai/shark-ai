@@ -67,7 +67,13 @@ jobs:
       - name: Run llama 8b f16 decomposed test
         run: |
           source ${VENV_DIR}/bin/activate
-          pytest sharktank/tests/models/llama/benchmark_amdgpu_test.py -v -s --iree-hip-target=gfx942 --iree-device=hip://0 --run-quick-llama-test
+          pytest \
+            sharktank/tests/models/llama/benchmark_amdgpu_test.py \
+            -v -s \
+            -m "expensive" \
+            --iree-hip-target=gfx942 \
+            --iree-device=hip://0 \
+            --run-quick-llama-test
 
       - name: Upload llama executable files
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

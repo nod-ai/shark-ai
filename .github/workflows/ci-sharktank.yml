@@ -23,25 +23,30 @@ concurrency:
 
 jobs:
   test:
-    name: "Unit Tests (${{ matrix.os }}, ${{ matrix.python-version }}, ${{ matrix.torch-version }})"
+    name: "Unit Tests (${{ matrix.runs-on }}, ${{ matrix.python-version }}, ${{ matrix.torch-version }})"
     strategy:
       matrix:
         python-version: ["3.11", "3.12"]
         torch-version: ["2.3.0", "2.4.1", "2.5.1"]
-        os: [ubuntu-24.04]
+        iree-target-args: [""]
+        runs-on: [ubuntu-24.04]
         include:
-          - os: windows-2022
+          - runs-on: windows-2022
             python-version: "3.11"
             torch-version: "2.3.0"
-          - os: windows-2022
+          - runs-on: windows-2022
             python-version: "3.12"
             torch-version: "2.4.1"
+          - runs-on: linux-mi300-1gpu-ossci-nod-ai
+            python-version: "3.12"
+            torch-version: "2.5.1"
+            iree-target-args: "--iree-hip-target=gfx942 --iree-hal-target-device=hip"
         exclude:
           - python-version: "3.12"
              # `torch.compile` requires torch>=2.4.0 for Python 3.12+
             torch-version: "2.3.0"
       fail-fast: false
-    runs-on: ${{matrix.os}}
+    runs-on: ${{matrix.runs-on}}
     defaults:
       run:
         shell: bash
@@ -64,7 +69,7 @@ jobs:
           key: pip-${{ steps.setup_python.outputs.python-version }}-${{ hashFiles('*requirements*.txt','sharktank/requirements*.txt') }}
 
       - name: Install numpy
-        if: ${{ matrix.os == 'windows-2022' && matrix.torch-version == '2.3.0' }}
+        if: ${{ matrix.runs-on == 'windows-2022' && matrix.torch-version == '2.3.0' }}
         run: pip install "numpy<2.0"
 
       - name: Install pip deps
@@ -85,7 +90,7 @@ jobs:
       - name: Run sharktank tests
         if: ${{ !cancelled() }}
         run: |
-          pytest -n 4 sharktank/ --durations=10
+          pytest -n 4 sharktank/ --durations=10 ${{matrix.iree-target-args}}
 
 
   test_with_data:
