@@ -207,3 +207,41 @@ def test_get_td_spec_convolution(tuner_ctx: common.TunerContext) -> None:
         "gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = false>"
         in matcher_sequence_str
     )
+
+
+def test_check_td_spec_matchers_overlap(tuner_ctx: common.TunerContext) -> None:
+    starter = {
+        "match_contraction_2048x2048x2048_f16xf16xf32",
+        "match_contraction_4x640x4096_i8xi8xi32",
+    }
+    current = {
+        "match_attention_2x10x4096x64x64x64_f16",
+        "match_contraction_4x4096x1920_i8xi8xi32",
+    }
+    warned: set[str] = set()
+
+    should_link, new_warned = candidate_gen.check_td_spec_matchers_overlap(
+        starter, current, warned
+    )
+
+    assert should_link is True
+    assert new_warned == set()
+
+    current = {"match_contraction_2048x2048x2048_f16xf16xf32"}
+    should_link, new_warned = candidate_gen.check_td_spec_matchers_overlap(
+        starter, current, warned
+    )
+    assert should_link is True
+    assert new_warned == {"match_contraction_2048x2048x2048_f16xf16xf32"}
+    warned.update(new_warned)
+
+    current = {
+        "match_contraction_2048x2048x2048_f16xf16xf32",
+        "match_contraction_4x640x4096_i8xi8xi32",
+    }
+    should_link, new_warned = candidate_gen.check_td_spec_matchers_overlap(
+        starter, current, warned
+    )
+    assert should_link is False
+    print(new_warned)
+    assert new_warned == {"match_contraction_4x640x4096_i8xi8xi32"}
