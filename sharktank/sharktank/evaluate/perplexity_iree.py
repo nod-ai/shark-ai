@@ -65,7 +65,7 @@ class Perplexity_iree:
         self.iree_device = iree_device
         self.iree_hip_target = iree_hip_target
         self.iree_hal_target_device = iree_hal_target_device
-        self.bs = bs        
+        self.bs = bs
         self.tensor_parallelism_size = tensor_parallelism_size
         self.attention_kernel = attention_kernel
         self.block_seq_stride = block_seq_stride
@@ -96,7 +96,13 @@ class Perplexity_iree:
             logger.debug(f"{expected_token_id}")
 
     @timeit
-    def compile_model(self, weight_path_str: str, output_mlir: str, output_config: str, output_vmfb: str):
+    def compile_model(
+        self,
+        weight_path_str: str,
+        output_mlir: str,
+        output_config: str,
+        output_vmfb: str,
+    ):
         self.weight_path_str = weight_path_str
 
         logger.info(f" Model: {self.weight_path_str}")
@@ -162,7 +168,7 @@ class Perplexity_iree:
         self.haldevice = self.runner.config.device
 
     def assemble_batch(self, token_batch: torch.tensor) -> torch.tensor:
-        
+
         token_batch, seq_lens_batch = self.generator.tokenizer.pad_tokens(
             token_ids=token_batch.tolist(),
             pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
@@ -171,10 +177,8 @@ class Perplexity_iree:
         logger.debug(f"{token_batch}")
 
         token_batch = torch.as_tensor(token_batch, device=self.torch_device)
-        seq_lens_batch = torch.as_tensor(
-            seq_lens_batch, device=self.torch_device
-        )
-    
+        seq_lens_batch = torch.as_tensor(seq_lens_batch, device=self.torch_device)
+
         self.batch = self.generator.begin_batch(
             token_ids=token_batch,
             seq_lens=seq_lens_batch,
@@ -205,10 +209,10 @@ class Perplexity_iree:
         return token_batch
 
     def prefill_vmfb(self, token_batch: torch.tensor, i: int) -> torch.tensor:
-        
+
         logger.debug(f"Prefill input:")
         logger.debug(f"{self.generator.tokenizer.decode(token_batch)}")
-        
+
         token_batch = self.assemble_batch(token_batch)
 
         seq_block_ids = self.batch.pad_block_ids()
@@ -261,10 +265,10 @@ class Perplexity_iree:
 
     @timeit
     def get_logits(self, skip_decode: bool) -> torch.tensor:
-        
+
         self.start = 10
         self.out_logits = []
-        
+
         def run_iree_module(iree_devices: list[ireert.HalDevice]):
             iter = 0
             is_first_token = True
@@ -280,11 +284,11 @@ class Perplexity_iree:
                     token_batch = self.token_ids[:, : i + 1]
 
                     prefill_logits = self.prefill_vmfb(token_batch, i)
-                    
+
                     self.out_logits.append(prefill_logits[:, -1:, :])
 
                     if not skip_decode:
-                        is_first_token = False                    
+                        is_first_token = False
 
                 else:
                     token_batch = self.token_ids[:, i : i + 1]
@@ -292,7 +296,7 @@ class Perplexity_iree:
                     self.out_logits.append(decode_logits)
 
                 iter += 1
-                    
+
             out_logits = torch.cat(self.out_logits, dim=1)
 
             pad_logits_shape = self.token_ids.shape[1] - out_logits.shape[1]
@@ -301,42 +305,43 @@ class Perplexity_iree:
                 out_logits.shape[0], pad_logits_shape, out_logits.shape[2]
             )
 
-            out_logits = torch.cat((out_logits, pad_logits), 1).to(
-                self.torch_device
-            )
-        
+            out_logits = torch.cat((out_logits, pad_logits), 1).to(self.torch_device)
+
             return out_logits
-   
+
         return with_iree_device_context(run_iree_module, [self.runner.config.device])
 
     @timeit
-    def get_perplexity(self, test_prompts: list[str], skip_decode: bool) -> dict[str, Any]:
+    def get_perplexity(
+        self, test_prompts: list[str], skip_decode: bool
+    ) -> dict[str, Any]:
 
         token_ids, seq_lens = self.generator.tokenizer.encode(
             test_prompts,
             pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
         )
-        
+
         logger.debug(f" Prompts for Evaluation:")
         for idx, prompt in enumerate(test_prompts):
             logger.debug(
                 f" Prompt {idx}: \nTokens: {prompt.encode()}\nToken ids: {token_ids[idx]}\n"
             )
-            
+
         self.page_cache_size = (
             len(token_ids[0]) // self.generator.model.config.block_seq_stride
         ) * len(test_prompts) + 1
 
         self.max_prompt_length = max(seq_lens)
-        
+
         self.token_ids = torch.as_tensor(token_ids, device=self.torch_device)
-        
+
         out_logits = self.get_logits(skip_decode)
-        
+
         logger.debug(f"Final Logits shape: {out_logits.shape}")
         logger.debug(f"Token ids shape: {self.token_ids.shape}")
-        
+
         return compute_perplexity(self.token_ids, out_logits, self.start)
+
 
 def run_perplexity_iree(
     args,
@@ -347,9 +352,9 @@ def run_perplexity_iree(
 ) -> dict[str, Any]:
 
     start = time.time()
-    
+
     test_prompts = args.prompt_list or get_prompts(num_prompts=args.num_prompts)
-    
+
     perplexity = Perplexity_iree(
         torch_device=torch_device,
         iree_device=args.iree_device,
@@ -366,15 +371,18 @@ def run_perplexity_iree(
         bs=len(test_prompts),
     )
 
-    perplexity.compile_model(weight_path_str=str(args.irpa_file),
-                             output_mlir=args.output_mlir,
-                             output_config=args.output_config,
-                             output_vmfb=args.output_vmfb
-                             )
+    perplexity.compile_model(
+        weight_path_str=str(args.irpa_file),
+        output_mlir=args.output_mlir,
+        output_config=args.output_config,
+        output_vmfb=args.output_vmfb,
+    )
 
     perplexity.load_model(dataset=dataset, tokenizer=tokenizer)
 
-    perplexity_batch = perplexity.get_perplexity(test_prompts, skip_decode=args.skip_decode)
+    perplexity_batch = perplexity.get_perplexity(
+        test_prompts, skip_decode=args.skip_decode
+    )
 
     end = time.time()
     total_time = round(end - start, 2)
@@ -432,6 +440,7 @@ def main(argv):
 
     logger.info(f"\n{json.dumps(ppl, indent=2)}")
     return ppl
+
 
 if __name__ == "__main__":
     main(sys.argv[1:])

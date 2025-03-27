@@ -67,19 +67,19 @@ class Perplexity_torch:
             logger.debug(f"{expected_token_id}")
 
     def load_model(
-        self, 
-        dataset: Dataset, 
-        tokenizer: InferenceTokenizer, 
+        self,
+        dataset: Dataset,
+        tokenizer: InferenceTokenizer,
         tensor_parallelism_size: int,
         device: torch.device,
         activation_dtype: torch.dtype,
         attention_dtype: torch.dtype,
-        kv_cache_dtype: torch.dtype, 
-        attention_kernel:str, 
+        kv_cache_dtype: torch.dtype,
+        attention_kernel: str,
         block_seq_stride: int,
         use_hf: bool,
         fake_quant: bool,
-        ):
+    ):
 
         config = LlamaModelConfig(
             hp=configs.LlamaHParams.from_gguf_props(dataset.properties),
@@ -93,7 +93,7 @@ class Perplexity_torch:
             use_hf=use_hf,
             fake_quant=fake_quant,
         )
-        
+
         self.device = device
 
         if config.tensor_parallelism_size > 1:
@@ -112,7 +112,7 @@ class Perplexity_torch:
         self.generator = TorchGenerator(model, tokenizer)
 
     def assemble_batch(self, token_batch: torch.tensor) -> torch.tensor:
-        
+
         token_batch, seq_lens_batch = self.generator.tokenizer.pad_tokens(
             token_ids=token_batch.tolist(),
             pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
@@ -121,9 +121,7 @@ class Perplexity_torch:
         logger.debug(f"{token_batch}")
 
         token_batch = torch.as_tensor(token_batch, device=self.device)
-        seq_lens_batch = torch.as_tensor(
-            seq_lens_batch, device=self.device
-        )
+        seq_lens_batch = torch.as_tensor(seq_lens_batch, device=self.device)
 
         self.batch = self.generator.begin_batch(
             token_ids=token_batch,
@@ -153,9 +151,9 @@ class Perplexity_torch:
                 out_logits.append(self.batch.prefill_logits[:, 0:1, :])
 
                 self.print_token_comparison(i)
-                
+
                 if not skip_decode:
-                    is_first_token = False 
+                    is_first_token = False
 
             else:
                 token_batch = self.token_ids[:, i : i + 1]
@@ -174,16 +172,19 @@ class Perplexity_torch:
         pad_logits_shape = self.token_ids.shape[1] - out_logits.shape[1]
 
         pad_logits = torch.zeros(
-            out_logits.shape[0], pad_logits_shape, out_logits.shape[2], device=self.device,
+            out_logits.shape[0],
+            pad_logits_shape,
+            out_logits.shape[2],
+            device=self.device,
         )
 
-        out_logits = torch.cat((out_logits, pad_logits), dim=1).to(
-            self.device
-        )
-        
+        out_logits = torch.cat((out_logits, pad_logits), dim=1).to(self.device)
+
         return out_logits
 
-    def get_perplexity(self, test_prompts: list[str], skip_decode: bool) -> dict[str, Any]:
+    def get_perplexity(
+        self, test_prompts: list[str], skip_decode: bool
+    ) -> dict[str, Any]:
 
         token_ids, seq_lens = self.generator.tokenizer.encode(
             test_prompts,
@@ -195,11 +196,11 @@ class Perplexity_torch:
             logger.debug(
                 f" Prompt {idx}: \nTokens: {prompt.encode()}\nToken ids: {token_ids[idx]}\n"
             )
-            
+
         self.page_cache_size = (
             len(token_ids[0]) // self.generator.model.config.block_seq_stride
         ) * len(test_prompts) + 1
-        
+
         self.max_prompt_length = max(seq_lens)
 
         self.token_ids = torch.tensor(token_ids, device=self.device)
@@ -222,12 +223,14 @@ def run_perplexity_torch(
 ):
 
     start = time.time()
-    
+
     test_prompts = args.prompt_list or get_prompts(num_prompts=args.num_prompts)
 
     bs = 32
 
-    input_prompts = [test_prompts[idx : idx + bs] for idx in range(0, len(test_prompts), bs)]
+    input_prompts = [
+        test_prompts[idx : idx + bs] for idx in range(0, len(test_prompts), bs)
+    ]
 
     perplexity_batch = []
     for p in tqdm(
@@ -283,9 +286,9 @@ def perplexity_torch(
     fake_quant,
     skip_decode,
 ):
-    
+
     perplexity = Perplexity_torch()
-    
+
     perplexity.load_model(
         dataset=dataset,
         tokenizer=tokenizer,
@@ -298,8 +301,8 @@ def perplexity_torch(
         block_seq_stride=block_seq_stride,
         use_hf=use_hf,
         fake_quant=fake_quant,
-        )
-    
+    )
+
     ppl = perplexity.get_perplexity(prompts, skip_decode=skip_decode)
 
     return ppl
@@ -319,7 +322,7 @@ def main(argv):
 
     dataset = cli.get_input_dataset(args)
     tokenizer = cli.get_tokenizer(args)
-    
+
     logger.setLevel(args.loglevel)
     device = torch.device(args.device) if args.device else None
     model_file = args.gguf_file or args.irpa_file

@@ -19,7 +19,6 @@ from sharktank.utils.load_llm import *
 from sharktank.utils import cli
 
 
-
 def main():
     """
     Run LLM inference in torch/eager mode. Use --device='cuda:0' to run on AMD GPU
@@ -51,7 +50,7 @@ def main():
     device = torch.device(args.device) if args.device else None
     dataset = cli.get_input_dataset(args)
     tokenizer = cli.get_tokenizer(args)
-    
+
     config = LlamaModelConfig(
         hp=configs.LlamaHParams.from_gguf_props(dataset.properties),
         block_seq_stride=args.block_seq_stride,

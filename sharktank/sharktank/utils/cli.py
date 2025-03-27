@@ -132,19 +132,21 @@ def add_model_options(parser: argparse.ArgumentParser):
         help="Generates attention mask during export",
         action="store_true",
     )
-    
+
+
 def add_model_input_options(parser: argparse.ArgumentParser):
     """Adds input options for LLMs"""
-    
+
     parser.add_argument(
         "--prompt",
-        nargs='+',
+        nargs="+",
         help="Custom prompt strings to run LLM or perplexity",
     )
 
+
 def add_iree_flags(parser: argparse.ArgumentParser):
     """Adds IREE device flag options"""
-    
+
     parser.add_argument("--iree-device", help="List an IREE device (e.g., 'hip://0')")
     parser.add_argument(
         "--iree-hip-target",
@@ -159,9 +161,10 @@ def add_iree_flags(parser: argparse.ArgumentParser):
         help="Specify the iree-hal target device (e.g., hip, cpu)",
     )
 
-def add_export_artifacts(parser:argparse.ArgumentParser):
+
+def add_export_artifacts(parser: argparse.ArgumentParser):
     """Adds export & compile artifacts path options"""
-    
+
     parser.add_argument(
         "--bs-prefill",
         help="Comma-separated batch size(s) to generate, e.g. `4` or `2,4`",
@@ -195,6 +198,7 @@ def add_export_artifacts(parser:argparse.ArgumentParser):
         type=str,
     )
 
+
 def add_save_tensor_options(parser: argparse.ArgumentParser):
     """Adds options to save input and intermediate tensors to separate files"""
 
@@ -226,9 +230,10 @@ def add_save_tensor_options(parser: argparse.ArgumentParser):
         default="4",
     )
 
+
 def add_quantization_options(parser: argparse.ArgumentParser):
     """Adds quantization options"""
-    
+
     parser.add_argument(
         "--fake-quant",
         action=argparse.BooleanOptionalAction,
@@ -250,22 +255,24 @@ def add_tokenizer_options(parser: argparse.ArgumentParser):
         help="Direct path to a tokenizer_config.json file",
         type=Path,
     )
-    
+
+
 def add_log_options(parser: argparse.ArgumentParser):
     """Adds log options"""
-    
+
     parser.add_argument(
         "--verbose",
         help="Include verbose logging",
-        action="store_const", 
-        dest="loglevel", 
+        action="store_const",
+        dest="loglevel",
         const=logging.DEBUG,
         default=logging.INFO,
     )
-    
+
+
 def add_evaluate_options(parser: argparse.ArgumentParser):
     """Adds input text options for evaluate/perplexity"""
-    
+
     parser.add_argument(
         "--num-prompts",
         type=int,
@@ -274,7 +281,7 @@ def add_evaluate_options(parser: argparse.ArgumentParser):
     )
     parser.add_argument(
         "--prompt-list",
-        nargs='+',
+        nargs="+",
         type=str,
         help="Custom prompts to run perplexity",
     )

@@ -18,6 +18,7 @@ from ..ops import replicate, unshard
 from ..utils.debugging import trace_tensor
 from ..utils.tokenizer import InferenceTokenizer
 
+
 class TorchGenerator:
     """Generator that runs directly on the Torch model."""
 
@@ -50,9 +51,8 @@ class TorchGenerator:
                 size=(bs, prompt_seq_len),
                 device=self.model.device,
             )
-            seq_lens = torch.tensor(
-                [prompt_seq_len] * bs, device=self.model.device
-            )
+            seq_lens = torch.tensor([prompt_seq_len] * bs, device=self.model.device)
+
             print(f":: Prompt tokens shape [bs, seq_len]: {token_ids.shape}")
         else:
             token_ids = self.tokenizer._encode(texts=prompts, add_start_token=False)
@@ -87,9 +87,11 @@ class TorchGenerator:
         if self.prompt_seq_len and not dump_path:
             dump_path = ""
 
-        self.page_cache_size = page_cache_size or (
-            (token_ids[0].shape[0] // self.model.config.block_seq_stride) * bs + 1
-        ) * 2
+        self.page_cache_size = (
+            page_cache_size
+            or ((token_ids[0].shape[0] // self.model.config.block_seq_stride) * bs + 1)
+            * 2
+        )
 
         cache_state = self.model.cache.allocate(self.page_cache_size)
         self.free_pages = list(range(1, self.page_cache_size))
@@ -109,6 +111,7 @@ class TorchGenerator:
 
     def release_page(self, index: int):
         self.free_pages.append(index)
+
 
 class Batch:
     def __init__(
@@ -246,7 +249,7 @@ class Batch:
             seq_block_ids=seq_block_ids_tensor,
             cache_state=self.cache_state,
         )
-        
+
         self.prefill_logits = unshard(self.prefill_logits)
 
         # TODO: Generalize the sampling and don't make it swap on/off cpu.
@@ -258,7 +261,7 @@ class Batch:
         self.add_result_token(tokens)
         return tokens.to(device=model.device)
 
-    def decode(self, token_batch = None):
+    def decode(self, token_batch=None):
 
         model = self.parent.model
         start_positions = self.seq_lens.clone()
@@ -276,7 +279,7 @@ class Batch:
         trace_tensor("decode.start_positions", start_positions)
         trace_tensor("decode.seq_block_ids", seq_block_ids_tensor)
         trace_tensor("decode.attention_mask", decode_attention_mask)
-        
+
         if model.config.tensor_parallelism_size != 1:
             tp = model.config.tensor_parallelism_size
             token_batch = replicate(token_batch, tp)
@@ -325,9 +328,9 @@ class Batch:
             seq_block_ids=seq_block_ids_tensor,
             cache_state=self.cache_state,
         )
-        
+
         self.decode_logits = unshard(self.decode_logits)
-        
+
         trace_tensor("decode.logits", self.decode_logits)
         # # TODO: Normalize the output of extract_tokens_from_logits into
         # # tensor [bs, 1].

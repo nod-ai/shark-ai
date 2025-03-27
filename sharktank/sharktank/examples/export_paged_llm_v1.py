@@ -36,7 +36,7 @@ def main():
     cli.add_export_artifacts(parser)
     cli.add_quantization_options(parser)
     cli.add_log_options(parser)
-    
+
     args = cli.parse(parser)
     if args.attention_kernel == "sharktank":
         ops.attention_impls.register_attention_override_by_name(
@@ -323,7 +323,7 @@ def main():
     config = generate_params_json(hp, args.bs_prefill, args.bs_decode)
     print("GENERATED!")
 
-    if args.loglevel==logging.DEBUG:
+    if args.loglevel == logging.DEBUG:
         for name, ep in fxb.programs.items():
             print(f"EXPORT {name}:\n{ep}")
 
