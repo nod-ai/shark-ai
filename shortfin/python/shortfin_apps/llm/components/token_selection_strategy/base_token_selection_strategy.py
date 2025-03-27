@@ -62,6 +62,8 @@ class TokenSelectionStrategyConfig:
     decode_config: DecodeConfig
     prefill_callback: Callable[[LlmInferenceExecRequest], None]
     decode_callback: Callable[[LlmInferenceExecRequest], None]
+    decode_begin_callback: Callable[[], None]
+    decode_end_callback: Callable[[], None]
     results_callback: Callable[[Union[int, List[int]]], None]
     eos_token_id: int
     max_completion_tokens: int
