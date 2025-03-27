@@ -1027,13 +1027,18 @@ class SplitPrimitiveTensor(ShardedTensorBase):
             from ..ops import transfer_to_logical_device
 
             assert shard_count is not None
+            assert (
+                shard_count > 1
+            ), "SplitTensor must have at least 2 shards. Use ReplicatedTensor for 1 shard."
             ts = ts.split(ceildiv(ts.shape[shard_dim], shard_count), dim=shard_dim)
             ts = [transfer_to_logical_device(t, devices[i]) for i, t in enumerate(ts)]
             assert len(ts) == shard_count
             shard_count = None
 
         assert shard_count is None
-        assert len(ts) > 0
+        assert (
+            len(ts) > 1
+        ), "SplitTensor must have at least 2 shards. Use ReplicatedTensor for 1 shard."
         first_shape = ts[0].shape
         assert len(first_shape) > shard_dim
         expected_shape = list(first_shape)
@@ -1063,14 +1068,18 @@ class SplitPrimitiveTensor(ShardedTensorBase):
         )
 
     def clone(self, **kwargs) -> "SplitPrimitiveTensor":
-        new_kwargs = {
-            "shard_dim": kwargs.get("shard_dim", self.shard_dim),
-            "ts": kwargs.get("ts", self.shards),
-            "name": kwargs.get("name", self.name),
-            "shape": kwargs.get("shape", self.shape),
-            "devices": kwargs.get("devices", self.devices),
-        }
-        return SplitPrimitiveTensor(**new_kwargs)
+        kwargs["name"] = kwargs.get("name", self.name)
+        kwargs["devices"] = kwargs.get("devices", self.devices)
+        kwargs["shape"] = kwargs.get("shape", self.shape)
+        kwargs["shard_dim"] = kwargs.get("shard_dim", self.shard_dim)
+
+        if "ts" in kwargs:
+            # Only override shard_count if ts is a tensor.
+            if isinstance(kwargs["ts"], torch.Tensor):
+                kwargs["shard_count"] = kwargs.get("shard_count", self.shard_count)
+        else:
+            kwargs["ts"] = self.shards
+        return SplitPrimitiveTensor(**kwargs)
 
     def _is_slicing_split_dim(self, key):
         if isinstance(
@@ -1201,17 +1210,17 @@ class ReplicatedTensor(ShardedTensor):
         )
 
     def clone(self, **kwargs) -> "ReplicatedTensor":
-        new_kwargs = {
-            "ts": kwargs.get("ts", self.shards),
-            "name": kwargs.get("name", self.name),
-            "devices": kwargs.get("devices", self.devices),
-        }
-        if "shard_count" in kwargs:
-            assert isinstance(new_kwargs["ts"], torch.Tensor)
-            new_kwargs["shard_count"] = kwargs["shard_count"]
+        kwargs["ts"] = kwargs.get("ts", self.shards)
+        kwargs["name"] = kwargs.get("name", self.name)
+        kwargs["devices"] = kwargs.get("devices", self.devices)
+
+        if "ts" in kwargs:
+            # Only override shard_count if ts is a tensor.
+            if isinstance(kwargs["ts"], torch.Tensor):
+                kwargs["shard_count"] = kwargs.get("shard_count", self.shard_count)
         else:
-            assert not isinstance(new_kwargs["ts"], torch.Tensor)
-        return ReplicatedTensor(**new_kwargs)
+            kwargs["ts"] = self.shards
+        return ReplicatedTensor(**kwargs)
 
     @property
     def is_replicated(self) -> bool:
@@ -1335,13 +1344,11 @@ class UnreducedTensor(ShardedTensorBase):
         )
 
     def clone(self, **kwargs) -> "UnreducedTensor":
-        new_kwargs = {
-            "ts": kwargs.get("ts", self.shards),
-            "name": kwargs.get("name", self.name),
-            "shape": kwargs.get("shape", self.shape),
-            "devices": kwargs.get("devices", self.devices),
-        }
-        return UnreducedTensor(**new_kwargs)
+        kwargs["ts"] = kwargs.get("ts", self.shards)
+        kwargs["name"] = kwargs.get("name", self.name)
+        kwargs["shape"] = kwargs.get("shape", self.shape)
+        kwargs["devices"] = kwargs.get("devices", self.devices)
+        return UnreducedTensor(**kwargs)
 
 
 def flatten_tensor_tree(

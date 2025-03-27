@@ -31,13 +31,13 @@ import torch
 
 class ExportTest(TestCase):
     def testFlattenSignature(self):
-        expected_a = [SplitPrimitiveTensor(ts=[torch.tensor([1])], shard_dim=0)]
+        expected_a = [ReplicatedTensor(ts=[torch.tensor([1])])]
         expected_b = {"element": DefaultPrimitiveTensor(data=torch.tensor([2]))}
         expected_c = torch.tensor([3])
 
         @flatten_signature(expected_a, expected_b, expected_c)
         def f(
-            a: list[SplitPrimitiveTensor],
+            a: list[ReplicatedTensor],
             b: dict[str, DefaultPrimitiveTensor],
             c: torch.Tensor,
         ):

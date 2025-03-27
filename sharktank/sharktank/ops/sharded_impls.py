@@ -6,7 +6,7 @@
 
 import torch
 from torch import Tensor
-from typing import List, Optional, Sequence, Union, Any, Tuple, Dict
+from typing import List, Optional, Sequence, Union, Any, Tuple, Dict, Iterable
 import itertools
 from numbers import Number
 import math
@@ -56,11 +56,16 @@ def sharded_wrap_override():
 
             If no ShardedTensors are present in the input, then no changes are made to input/output.
             """
-            sharded_tensors = [
-                value
-                for value in itertools.chain(args, kwargs.values())
-                if isinstance(value, ShardedTensor)
-            ]
+            sharded_tensors = []
+            for value in itertools.chain(args, kwargs.values()):
+                if isinstance(value, ShardedTensor):
+                    sharded_tensors.append(value)
+                    continue
+                if isinstance(value, Iterable):
+                    for val in value:
+                        if isinstance(val, ShardedTensor):
+                            sharded_tensors.append(val)
+
             assert_on_same_devices(*sharded_tensors)
             res = f(*args, **kwargs)
             if isinstance(res, ShardedTensor) and len(sharded_tensors) > 0:
@@ -211,7 +216,12 @@ def cat_split(
         concatenated_unsharded = cat(
             [shard for t in tensors for shard in t.shards], dim
         )
-        return reshard_split(concatenated_unsharded, dim=shard_dim, count=shard_count)
+        return reshard_split(
+            concatenated_unsharded,
+            dim=shard_dim,
+            count=shard_count,
+            devices=tensors[0].devices,
+        )
 
 
 # conv2d
@@ -1167,14 +1177,18 @@ def reshard_all_to_replicated(
 
 
 @reshard_split.override(Tensor)
-def reshard_split_unsharded(input, *, dim: int, count: int) -> SplitPrimitiveTensor:
+def reshard_split_unsharded(
+    input, *, dim: int, count: int, devices: tuple[int, ...]
+) -> SplitPrimitiveTensor:
     torch_input = unbox_tensor(input)
-    return SplitPrimitiveTensor(ts=torch_input, shard_dim=dim, shard_count=count)
+    return SplitPrimitiveTensor(
+        ts=torch_input, shard_dim=dim, shard_count=count, devices=devices
+    )
 
 
 @reshard_split.override(SplitPrimitiveTensor)
 def reshard_split_split(
-    input: SplitPrimitiveTensor, *, dim: int, count: int
+    input: SplitPrimitiveTensor, *, dim: int, count: int, devices: None
 ) -> SplitPrimitiveTensor:
     if input.shard_count != count:
         raise ValueError(f"Number of shards not equal ({input.shard_count} != {count})")
@@ -1185,7 +1199,7 @@ def reshard_split_split(
 
 @reshard_split.override(ReplicatedTensor)
 def reshard_split_replicated(
-    input: ReplicatedTensor, *, dim: int, count: int
+    input: ReplicatedTensor, *, dim: int, count: int, devices: None
 ) -> SplitPrimitiveTensor:
     if input.shard_count != count:
         raise ValueError(f"Number of shards not equal ({input.shard_count} != {count})")
@@ -1206,7 +1220,7 @@ def reshard_split_replicated(
         ]
         for shard_idx, shard in enumerate(input.shards)
     ]
-    return SplitPrimitiveTensor(ts=shards, shard_dim=dim)
+    return SplitPrimitiveTensor(ts=shards, shard_dim=dim, devices=input.devices)
 
 
 @reshard_like.override(Tensor, SplitPrimitiveTensor)

@@ -608,9 +608,9 @@ class AttentionTest(unittest.TestCase):
         k = torch.rand(4, 32, 16, dtype=torch.float32)
         v = torch.rand(4, 32, 16, dtype=torch.float32)
 
-        qs = SplitPrimitiveTensor(shard_dim=0, ts=q.split(4, dim=0))
-        ks = SplitPrimitiveTensor(shard_dim=0, ts=k.split(4, dim=0))
-        vs = SplitPrimitiveTensor(shard_dim=0, ts=v.split(4, dim=0))
+        qs = SplitPrimitiveTensor(shard_dim=0, ts=q.split(2, dim=0))
+        ks = SplitPrimitiveTensor(shard_dim=0, ts=k.split(2, dim=0))
+        vs = SplitPrimitiveTensor(shard_dim=0, ts=v.split(2, dim=0))
 
         expected_result = ops.scaled_dot_product_attention(q, k, v, a=None)
         sharded_result = ops.scaled_dot_product_attention(qs, ks, vs, a=None)
@@ -622,9 +622,9 @@ class AttentionTest(unittest.TestCase):
         k = torch.rand(4, 32, 16, dtype=torch.float32)
         v = torch.rand(4, 32, 16, dtype=torch.float32)
 
-        qs = SplitPrimitiveTensor(shard_dim=0, ts=q.split(4, dim=0))
-        ks = SplitPrimitiveTensor(shard_dim=0, ts=k.split(4, dim=0))
-        vs = SplitPrimitiveTensor(shard_dim=0, ts=v.split(4, dim=0))
+        qs = SplitPrimitiveTensor(shard_dim=0, ts=q.split(2, dim=0))
+        ks = SplitPrimitiveTensor(shard_dim=0, ts=k.split(2, dim=0))
+        vs = SplitPrimitiveTensor(shard_dim=0, ts=v.split(2, dim=0))
 
         expected_result = ops.scaled_dot_product_attention(
             q, k, v, a=None, is_causal=True

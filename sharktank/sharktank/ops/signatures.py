@@ -824,7 +824,7 @@ def _repeat_trampoline(
 
 @overridable
 def replicate(
-    input: AnyTensor, count: int, devices: Tuple[int] | None
+    input: AnyTensor, count: int, devices: tuple[int, ...] | None
 ) -> ShardedTensor:
     """Replicate across devices.
 
@@ -837,13 +837,12 @@ def _replicate_trampoline(
     d: SignatureDispatcher,
     input: AnyTensor,
     count: int,
-    devices: Tuple[int] | None = None,
+    devices: tuple[int, ...] | None = None,
 ) -> ShardedTensor:
     tensors = (input,)
     if isinstance(input, (torch.Tensor, PrimitiveTensor)):
         devices = devices if devices is not None else tuple(range(count))
     else:
-        # TODO: Is this correct? Will use data on `input`.
         assert devices is None
 
     for override in d.find_overrides(tensors):
@@ -935,7 +934,9 @@ def _reshard_trampoline(d: SignatureDispatcher, input, spec) -> ShardedTensor:
 
 
 @overridable
-def reshard_split(input: AnyTensor, *, dim: int, count: int) -> ShardedTensor:
+def reshard_split(
+    input: AnyTensor, *, dim: int, count: int, devices: tuple[int, ...] | None
+) -> ShardedTensor:
     """Split `input` along `dim`.
     This does not mean that a sharded tensor is further sharded.
     It is not composition of sharding operations.
@@ -945,11 +946,20 @@ def reshard_split(input: AnyTensor, *, dim: int, count: int) -> ShardedTensor:
 
 @reshard_split.trampoline
 def _reshard_split_trampoline(
-    d: SignatureDispatcher, input: AnyTensor, dim: int, count: int
+    d: SignatureDispatcher,
+    input: AnyTensor,
+    dim: int,
+    count: int,
+    devices: tuple[int, ...] | None = None,
 ) -> ShardedTensor:
     tensors = (input,)
+    if isinstance(input, (torch.Tensor, PrimitiveTensor)):
+        devices = devices if devices is not None else tuple(range(count))
+    else:
+        assert devices is None
+
     for override in d.find_overrides(tensors):
-        result = override(input, dim=dim, count=count)
+        result = override(input, dim=dim, count=count, devices=devices)
         if result is not NotImplemented:
             return override, result
     else:
