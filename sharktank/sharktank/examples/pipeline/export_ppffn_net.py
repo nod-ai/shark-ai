@@ -70,6 +70,7 @@ class PPFFN(ThetaLayer):
 
 def main(raw_args=None):
     from ...utils import cli
+    import os
 
     parser = cli.create_parser()
     parser.add_argument(
@@ -81,6 +82,19 @@ def main(raw_args=None):
     )
     cli.add_output_dataset_options(parser)
     args = cli.parse(parser, args=raw_args)
+
+    if args.output_irpa_file and args.output_irpa_file != "-":
+        irpa_dir = os.path.dirname(args.output_irpa_file)
+        if irpa_dir and not os.path.exists(irpa_dir):
+            raise ValueError(
+                f"Parent directory for output IRPA file does not exist: {irpa_dir}"
+            )
+    if args.output_file and args.output_file != "-":
+        output_dir = os.path.dirname(args.output_file)
+        if output_dir and not os.path.exists(output_dir):
+            raise ValueError(
+                f"Parent directory for output file does not exist: {output_dir}"
+            )
 
     bs = 16
     sl = 128
