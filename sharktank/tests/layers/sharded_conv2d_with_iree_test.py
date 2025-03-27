@@ -37,6 +37,8 @@ def get_compiler_args(target_device_kind: str, shard_count: int) -> List[str]:
         f"--iree-hal-target-device={target_device_kind}[{i}]"
         for i in range(shard_count)
     ]
+    if target_device_kind == "local":
+        result.append("--iree-hal-local-target-device-backends=llvm-cpu")
     return result
 
 
@@ -44,7 +46,7 @@ def compile_iree_module(
     export_output: aot.ExportOutput, module_path: str, shard_count: int
 ):
     export_output.session.set_flags(
-        *get_compiler_args(target_device_kind="llvm-cpu", shard_count=shard_count)
+        *get_compiler_args(target_device_kind="local", shard_count=shard_count)
     )
     export_output.compile(save_to=module_path, target_backends=None)
 

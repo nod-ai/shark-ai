@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 device_settings = {
     "device_flags": [
-        "--iree-hal-target-backends=rocm",
+        "--iree-hal-target-device=hip",
         "--iree-hip-target=gfx942",
     ],
     "device": "hip",

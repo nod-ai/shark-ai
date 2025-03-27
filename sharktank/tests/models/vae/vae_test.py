@@ -132,7 +132,7 @@ class VaeSDXLDecoderTest(TempDirTestBase):
         module_f16.save_mlir(f"{self._temp_dir}/vae_f16.mlir")
         module_f32.save_mlir(f"{self._temp_dir}/vae_f32.mlir")
         extra_args = [
-            "--iree-hal-target-backends=rocm",
+            "--iree-hal-target-device=hip",
             "--iree-hip-target=gfx942",
             "--iree-opt-const-eval=false",
             "--iree-opt-strip-assertions=true",
@@ -252,7 +252,7 @@ class VaeFluxDecoderTest(TempDirTestBase):
         )
 
         self.extra_args = [
-            "--iree-hal-target-backends=rocm",
+            "--iree-hal-target-device=hip",
             "--iree-hip-target=gfx942",
             "--iree-opt-const-eval=false",
             "--iree-opt-strip-assertions=true",

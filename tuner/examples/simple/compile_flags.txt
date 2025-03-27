@@ -1,2 +1,2 @@
---iree-hal-target-backends=rocm
+--iree-hal-target-device=hip
 --iree-hip-target=gfx942
