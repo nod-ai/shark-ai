@@ -14,7 +14,7 @@ from datasets import load_dataset
 
 import torch
 
-def compute_perplexity(token_ids: torch.tensor, logits: torch.tensor, start: int) -> dict[str, Any]:
+def compute_perplexity(token_ids: torch.tensor, logits: torch.tensor, start: int) -> list[float]:
       
       ''' Compute perplexity for predicted logits and groundtruth tokens.
       Args:
@@ -49,10 +49,7 @@ def compute_perplexity(token_ids: torch.tensor, logits: torch.tensor, start: int
 
       perplexity_batch = [round(ppl, 6) for ppl in perplexity_batch]
 
-      return {
-            "perplexities": perplexity_batch,
-            "mean_perplexity": round(np.mean(perplexity_batch), 6),
-      }
+      return perplexity_batch
 
 def get_prompts(num_prompts: Optional[int] = None) -> list[str]:
     """Fetches prompts from the wikitext test dataset.

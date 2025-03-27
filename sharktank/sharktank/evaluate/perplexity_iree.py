@@ -24,8 +24,8 @@ from sharktank.utils.vmfb_runner import *
 from sharktank.utils.load_llm import *
 from sharktank.utils.create_cache import *
 from sharktank.utils.export_artifacts import *
+from sharktank.utils.evaluate import *
 from sharktank.utils.iree import iree_to_torch, with_iree_device_context
-from .utils import *
 
 logger = logging.getLogger("eval")
 
@@ -264,7 +264,7 @@ class Perplexity_iree:
         def run_iree_module(iree_devices: list[ireert.HalDevice]):
             is_first_token = True
             self.start = 10
-            out_logits = []
+            self.out_logits = []
             for i in tqdm(
                 range(self.start, self.max_prompt_length - 1),
                 mininterval=300,
@@ -278,19 +278,19 @@ class Perplexity_iree:
 
                     prefill_logits = self.prefill_vmfb(token_batch, i)
                     
-                    out_logits.append(prefill_logits[:, -1:, :])
+                    self.out_logits.append(prefill_logits[:, -1:, :])
 
                     if not skip_decode:
                         is_first_token = False                    
 
                 else:
                     token_batch = self.token_ids[:, i : i + 1]
-
-                decode_logits = self.decode_vmfb(token_batch, i)
-                out_logits.append(decode_logits)
-
+                    decode_logits = self.decode_vmfb(token_batch, i)
+                    self.out_logits.append(decode_logits)
+        
         with_iree_device_context(run_iree_module, [self.runner.config.device])
-        out_logits = torch.cat(out_logits, dim=1)
+        
+        out_logits = torch.cat(self.out_logits, dim=1)
 
         pad_logits_shape = self.token_ids.shape[1] - out_logits.shape[1]
 
@@ -369,7 +369,7 @@ def run_perplexity_iree(
 
     perplexity.load_model(dataset=dataset, tokenizer=tokenizer)
 
-    ppl = perplexity.get_perplexity(test_prompts, skip_decode=args.skip_decode)
+    perplexity_batch = perplexity.get_perplexity(test_prompts, skip_decode=args.skip_decode)
 
     end = time.time()
     total_time = round(end - start, 2)
@@ -379,7 +379,10 @@ def run_perplexity_iree(
         total_time = str(round(total_time / 60, 2)) + " mins"
     logger.info(f" Total time taken: {total_time}")
 
-    return ppl
+    return {
+        "perplexities": perplexity_batch,
+        "mean_perplexity": round(np.mean(perplexity_batch), 6),
+    }
 
 
 def main(argv):

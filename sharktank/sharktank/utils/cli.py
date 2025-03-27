@@ -163,8 +163,14 @@ def add_export_artifacts(parser:argparse.ArgumentParser):
     """Adds export & compile artifacts path options"""
     
     parser.add_argument(
-        "--bs",
-        help="Comma-separated batch size(s) to export, e.g. `4` or `2,4`",
+        "--bs-prefill",
+        help="Comma-separated batch size(s) to generate, e.g. `4` or `2,4`",
+        type=lambda arg: [int(bs) for bs in arg.split(",")],
+        default="4",
+    )
+    parser.add_argument(
+        "--bs-decode",
+        help="Comma-separated batch size(s) to generate, e.g. `4` or `2,4`",
         type=lambda arg: [int(bs) for bs in arg.split(",")],
         default="4",
     )
