@@ -272,14 +272,12 @@ class MLIRTransformation:
     embeddable: str
 
 
-def combine_tuning_specs(
-    tuner_ctx: TunerContext, td_specs: list[ir.Module]
-) -> ir.Module:
+def combine_tuning_specs(context: ir.Context, td_specs: list[ir.Module]) -> ir.Module:
     """
     Puts multiple input modules `td_specs` into a single top-level container module.
     This function does *not* attempt to merge or link `td_specs` across modules.
     """
-    with tuner_ctx.mlir_ctx as ctx, ir.Location.unknown():
+    with context, ir.Location.unknown():
         top_module = ir.Module.create()
         top_module.operation.attributes[
             "transform.with_named_sequence"
@@ -290,7 +288,7 @@ def combine_tuning_specs(
         return top_module
 
 
-def link_tuning_specs(tuner_ctx: TunerContext, td_specs: list[ir.Module]) -> ir.Module:
+def link_tuning_specs(context: ir.Context, td_specs: list[ir.Module]) -> ir.Module:
     """
     Links multiple input modules (`td_specs`) into a single tuning specification module.
     First, the input modules are combined into a container module. Then, the external
@@ -299,7 +297,7 @@ def link_tuning_specs(tuner_ctx: TunerContext, td_specs: list[ir.Module]) -> ir.
     default attribute `iree_codegen.tuning_spec_with_default_entrypoint`, they are merged
     into one tuning spec.
     """
-    module = combine_tuning_specs(tuner_ctx, td_specs)
+    module = combine_tuning_specs(context, td_specs)
     iree_opt = ireec.binaries.find_tool("iree-opt")
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -326,4 +324,21 @@ def link_tuning_specs(tuner_ctx: TunerContext, td_specs: list[ir.Module]) -> ir.
 
         with open(output_path, "r") as f:
             output_mlir = f.read()
-            return ir.Module.parse(output_mlir, tuner_ctx.mlir_ctx)
+            return ir.Module.parse(output_mlir, context)
+
+
+def get_matcher_names_from_td_spec(td_spec: ir.Module) -> set[str]:
+    matcher_names = set()
+
+    for op in td_spec.body.operations:
+        if op.name != "transform.named_sequence":
+            continue
+        if op.sym_name.value != "__kernel_config":
+            continue
+
+        for inner_op in op.regions[0].blocks[0].operations:
+            if inner_op.name == "transform.foreach_match":
+                for matcher in inner_op.matchers:
+                    matcher_names.add(matcher.value)
+
+    return matcher_names
