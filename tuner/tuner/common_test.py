@@ -270,7 +270,7 @@ def test_link_tuning_specs(tuner_ctx: common.TunerContext) -> None:
         "inner_module_b"
     )
     linked_module = common.link_tuning_specs(
-        tuner_ctx, [first_ir_module, second_ir_module]
+        context, [first_ir_module, second_ir_module]
     )
     assert linked_module
 
@@ -312,7 +312,40 @@ def test_link_tuning_specs_raises_error(tuner_ctx: common.TunerContext) -> None:
         "iree_codegen.tuning_spec_with_default_entrypoint"
     ] = ir.UnitAttr.get()
     with pytest.raises(RuntimeError) as exc_info:
-        common.link_tuning_specs(tuner_ctx, [module])
+        common.link_tuning_specs(context, [module])
         # iree-opt should fail due to missing named sequence @__kernel_config entrypoint required
         # by the `iree_codegen.tuning_spec_with_default_entrypoint` attribute.
         assert "iree-opt failed" in str(exc_info.value)
+
+
+def test_get_matcher_names_from_td_spec(tuner_ctx: common.TunerContext) -> None:
+    context = tuner_ctx.mlir_ctx
+    module_str = """
+        module attributes { transform.with_named_sequence } {
+        transform.named_sequence @apply_op_config(%arg0: !transform.any_op {transform.readonly}) {
+            transform.yield
+        }
+
+        transform.named_sequence @match_foo(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
+            transform.yield %arg0 : !transform.any_op
+        }
+
+        transform.named_sequence @match_bar(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
+            transform.yield %arg0 : !transform.any_op
+        }
+
+        transform.named_sequence @__kernel_config(%arg0: !transform.any_op ) -> !transform.any_op
+            attributes { iree_codegen.tuning_spec_entrypoint } {
+            %0 = transform.foreach_match in %arg0
+            @match_foo -> @apply_op_config
+            , @match_bar -> @apply_op_config
+            : (!transform.any_op) -> !transform.any_op
+            transform.yield %0 : !transform.any_op
+        }
+        }
+    """
+
+    module = ir.Module.parse(module_str, context)
+    matcher_names = common.get_matcher_names_from_td_spec(module)
+
+    assert matcher_names == {"match_foo", "match_bar"}

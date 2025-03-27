@@ -155,6 +155,7 @@ def generate_configs_and_td_specs(
     allowed_waves_per_eu: list[int] = [2],
     pipeline_options_search_space: PipelineOptionsSearchSpace = PipelineOptionsSearchSpace(),
     codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline = iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
+    starter_td_spec: Optional[ir.Module] = None,
 ) -> list[ir.Module]:
     dispatch_tuner_registry = DispatchTunerRegistry()
     dispatch_tuner_registry.register(
@@ -181,6 +182,7 @@ def generate_configs_and_td_specs(
     assert len(variant_op_list) == 1, "Expect one executable variant op"
     variant_op = variant_op_list[0]
     mma_list = iree_codegen.query_mma_intrinsics(variant_op)
+    warned_overlap_matchers: set[str] = set()
     for i, config in enumerate(
         generate_solutions(
             tuner_context,
@@ -196,6 +198,24 @@ def generate_configs_and_td_specs(
             break
         tune_logger.debug(f"Solution #{i+1}: {config}")
         td_spec_module = dispatch_tuner.get_td_spec(input_module, config)
+        if starter_td_spec != None:
+            starter_matchers = get_matcher_names_from_td_spec(starter_td_spec)
+            current_matchers = get_matcher_names_from_td_spec(td_spec_module)
+            overlap_matchers = starter_matchers & current_matchers
+            unique_stater_matchers = starter_matchers - current_matchers
+            new_warnings = overlap_matchers - warned_overlap_matchers
+
+            # Log warnings only for newly detected overlapping target operations.
+            if new_warnings:
+                logging.warning(
+                    f"Operations have been tuned in the starter tuning spec: {sorted(new_warnings)}"
+                )
+                warned_overlap_matchers.update(new_warnings)
+            # Only link td spec and starter spec if it adds unique target operations.
+            if unique_stater_matchers:
+                td_spec_module = link_tuning_specs(
+                    tuner_context.mlir_ctx, [starter_td_spec, td_spec_module]
+                )
         assert td_spec_module, "Failed to generate transform dialect spec"
         config_specs.append(td_spec_module)
 
