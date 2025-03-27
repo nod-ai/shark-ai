@@ -27,6 +27,7 @@ from .. import ops
 
 def main():
     from ..utils import cli
+    import os
 
     parser = cli.create_parser()
     cli.add_input_dataset_options(parser)
@@ -71,6 +72,14 @@ def main():
     cli.add_quantization_options(parser)
     cli.add_model_options(parser)
     args = cli.parse(parser)
+
+    if args.output_mlir and args.output_mlir != "-":
+        mlir_dir = os.path.dirname(args.output_mlir)
+        if mlir_dir and not os.path.exists(mlir_dir):
+            raise ValueError(
+                f"Parent directory for output MLIR file does not exist: {mlir_dir}"
+            )
+
     if args.attention_kernel == "sharktank":
         ops.attention_impls.register_attention_override_by_name(
             "masked_flash_attention"
