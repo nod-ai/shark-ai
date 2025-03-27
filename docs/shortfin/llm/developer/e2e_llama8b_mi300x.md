@@ -119,7 +119,7 @@ cat > $EDITED_CONFIG_PATH << EOF
     "paged_kv_cache": {
         "block_seq_stride": 16,
         "device_block_count": 256,
-        "attention_head_count_kv": 8
+        "attention_head_count_kv": 16
     }
 }
 EOF
