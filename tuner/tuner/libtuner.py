@@ -683,7 +683,6 @@ def generate_candidate_specs(
             no_reduce_shared_memory_bank_conflicts=args.no_reduce_shared_memory_bank_conflicts_options,
         )
         starter_td_spec: Optional[ir.Module] = None
-        print(args.simple_starter_td_spec)
         if args.simple_starter_td_spec:
             with open(args.simple_starter_td_spec, "r") as f:
                 starter_td_spec = ir.Module.parse(f.read())
