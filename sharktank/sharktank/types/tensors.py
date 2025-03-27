@@ -1076,7 +1076,7 @@ class SplitPrimitiveTensor(ShardedTensorBase):
         if "ts" in kwargs:
             # Only override shard_count if ts is a tensor.
             if isinstance(kwargs["ts"], torch.Tensor):
-                kwargs["shard_count"] = kwargs.get("shard_count", self.shard_dim)
+                kwargs["shard_count"] = kwargs.get("shard_count", self.shard_count)
         else:
             kwargs["ts"] = self.shards
         return SplitPrimitiveTensor(**kwargs)
@@ -1217,7 +1217,7 @@ class ReplicatedTensor(ShardedTensor):
         if "ts" in kwargs:
             # Only override shard_count if ts is a tensor.
             if isinstance(kwargs["ts"], torch.Tensor):
-                kwargs["shard_count"] = kwargs.get("shard_count", self.shard_dim)
+                kwargs["shard_count"] = kwargs.get("shard_count", self.shard_count)
         else:
             kwargs["ts"] = self.shards
         return ReplicatedTensor(**kwargs)
