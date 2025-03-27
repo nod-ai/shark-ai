@@ -812,20 +812,27 @@ class ShardedTensor(InferenceTensor):
     def dtype(self) -> torch.dtype:
         return self.shards[0].dtype
 
+    @staticmethod
     def move_shards_to_new_devices(
-        self, shards: Tuple[torch.Tensor, ...], new_devices: Tuple[int, ...]
-    ) -> Tuple[torch.Tensor, ...]:
+        shards: Tuple[torch.Tensor | DefaultPrimitiveTensor, ...],
+        *,
+        old_devices: Tuple[int, ...],
+        new_devices: Tuple[int, ...],
+    ) -> Tuple[DefaultPrimitiveTensor, ...]:
         from ..ops import transfer_to_logical_device, barrier_on_logical_device
 
-        new_shards = tuple(
+        new_shard_tensors = tuple(
             (
                 transfer_to_logical_device(shard, new_devices[j])
-                if new_devices[j] != self.devices[j]
+                if new_devices[j] != old_devices[j]
                 else barrier_on_logical_device(shard, new_devices[j])
             )
             for j, shard in enumerate(shards)
         )
-        return new_shards
+        return tuple(
+            DefaultPrimitiveTensor(name=orig_dpt.name, data=new_shard_tensor)
+            for orig_dpt, new_shard_tensor in zip(shards, new_shard_tensors)
+        )
 
 
 @register_inference_tensor
