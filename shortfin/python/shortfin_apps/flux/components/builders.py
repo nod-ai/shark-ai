@@ -15,7 +15,7 @@ from shortfin_apps.utils import *
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
 parent = os.path.dirname(this_dir)
-default_config_json = os.path.join(parent, "examples", "flux_dev_config_mixed.json")
+default_config_json = os.path.join(parent, "examples", "flux_dev_config.json")
 
 ARTIFACT_VERSION = "20250326"
 FLUX_BUCKET = (
