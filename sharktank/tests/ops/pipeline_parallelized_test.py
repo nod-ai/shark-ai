@@ -152,6 +152,42 @@ class CatTest(unittest.TestCase):
         assert iterables_equal(expected_result.devices, actual_result.devices)
 
 
+class CloneTest(unittest.TestCase):
+    def testCloneReplicatedFail(self):
+        original = ReplicatedTensor(
+            ts=torch.rand(5, 4, dtype=torch.float32), shard_count=4
+        )
+        try:
+            original.clone(shards=None)
+        except:
+            return
+        assert (
+            False
+        ), "Should have thrown an error when passing incorrect keywords to clone"
+
+    def testCloneSplitFail(self):
+        original = SplitPrimitiveTensor(
+            ts=torch.rand(5, 4, dtype=torch.float32), shard_dim=1, shard_count=4
+        )
+        try:
+            original.clone(shards=None)
+        except:
+            return
+        assert (
+            False
+        ), "Should have thrown an error when passing incorrect keywords to clone"
+
+    def testCloneUnreducedFail(self):
+        original = UnreducedTensor(ts=[torch.rand(5, 4, dtype=torch.float32)])
+        try:
+            original.clone(shards=None)
+        except:
+            return
+        assert (
+            False
+        ), "Should have thrown an error when passing incorrect keywords to clone"
+
+
 class IndexSelectTest(unittest.TestCase):
     def testIndexReplicatedPinned(self):
         shard_count = 5
