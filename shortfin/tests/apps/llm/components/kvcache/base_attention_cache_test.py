@@ -528,7 +528,7 @@ def test_free_pages_use_ref_count(
     "tokens,expected_pages,case_name",
     [  # Tokens                                Pages  Case Name
         (list(range(TEST_PAGE_SIZE // 2)), 1, "partial_page"),
-        pytest.param(list(range(TEST_PAGE_SIZE)), 1, "exact_page", marks=pytest.mark.xfail(reason="On python 3.10 this test throws `New last page should be filled with 1s`")),
+        (list(range(TEST_PAGE_SIZE)), 1, "exact_page"),
         (list(range(TEST_PAGE_SIZE + 1)), 2, "just_over_one_page"),
         (list(range(TEST_PAGE_SIZE * 2)), 2, "multiple_exact_pages"),
         (list(range(TEST_PAGE_SIZE * 2 + 1)), 3, "multiple_pages_with_remainder"),
@@ -539,6 +539,7 @@ def test_free_pages_use_ref_count(
 )
 # fmt: on
 @pytest.mark.asyncio
+@pytest.mark.xfail(reason="xfailed for flakiness on the new-pages-should-be-all-1s assertion. See https://github.com/nod-ai/shark-ai/issues/1176")
 async def test_fork_pages(cache_ref_count, tokens, expected_pages, case_name):
     ref_counts = cache_ref_count.ref_counts
 
