@@ -178,6 +178,7 @@ class Perplexity_iree:
         self.batch = self.generator.begin_batch(
             token_ids=token_batch,
             seq_lens=seq_lens_batch,
+            page_cache_size=self.page_cache_size,
         )
 
         if self.kv_cache_dtype in self.halelementtype_map.keys():
@@ -321,6 +322,10 @@ class Perplexity_iree:
             logger.debug(
                 f" Prompt {idx}: \nTokens: {prompt.encode()}\nToken ids: {token_ids[idx]}\n"
             )
+            
+        self.page_cache_size = (
+            len(token_ids[0]) // self.generator.model.config.block_seq_stride
+        ) * len(test_prompts) + 1
 
         self.max_prompt_length = max(seq_lens)
         
