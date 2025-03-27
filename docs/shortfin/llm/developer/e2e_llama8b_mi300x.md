@@ -28,7 +28,7 @@ Create a new directory for us to export files like `model.mlir`, `model.vmfb`, e
 
 ```bash
 mkdir $PWD/export
-export EXPORT_DIR=$PWD/exportd
+export EXPORT_DIR=$PWD/export
 ```
 
 ### Define environment variables
