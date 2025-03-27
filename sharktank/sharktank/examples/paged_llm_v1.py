@@ -18,7 +18,19 @@ from ..types import *
 from sharktank.utils.load_llm import *
 from sharktank.utils import cli
 
+
+
 def main():
+    """
+    Run LLM inference in torch/eager mode. Use --device='cuda:0' to run on AMD GPU
+    Args:
+        --prompt: list[str] - Custom space separated prompts
+        --prompt-seq-len: int - Generate random token ids for given seq len and bs and save prefill & first decode step input args as npy files
+        --dump-path: str - Path to save prefill and decode input args as npy files
+        --dump-decode-steps: int - Number of decode steps to dump decode args (defaults to 1 decode step)
+        --bs: int - batch size, for custom prompts, bs is number of given prompts (defaults to 4)
+        --save_intermediates_path: str - save module forward outputs to safetensors, ex: run_0 will save to run_0_prefill.savetensors"
+    """
 
     parser = cli.create_parser()
     cli.add_input_dataset_options(parser)
@@ -29,10 +41,16 @@ def main():
     cli.add_save_tensor_options(parser)
 
     args = cli.parse(parser)
+
+    prompt_seq_len = args.prompt_seq_len
+
+    assert (
+        args.prompt or prompt_seq_len
+    ), "Pass --prompt for custom prompts or --prompt-seq-len and --bs to generate random token ids"
+
     device = torch.device(args.device) if args.device else None
     dataset = cli.get_input_dataset(args)
     tokenizer = cli.get_tokenizer(args)
-    prompts = args.prompt
     
     config = LlamaModelConfig(
         hp=configs.LlamaHParams.from_gguf_props(dataset.properties),
@@ -62,19 +80,21 @@ def main():
 
         intermediates_saver = SaveModuleResultTensorsPatch()
         intermediates_saver.patch_child_modules(model)
-    generator = TorchGenerator(model, tokenizer, dump_bins=args.dump_bins)
 
-    print(f":: Prompting:")
-    for prompt in prompts:
-        print(f"    {prompt.encode()}")
+    generator = TorchGenerator(model, tokenizer)
 
-    token_ids, seq_lens = generator.preprocess_input(prompts)
-    batch = generator.begin_batch(token_ids=token_ids, seq_lens=seq_lens)
-    
-    print(f":: Prompt tokens: {batch.token_ids}")
-    batch.prefill()
-    print(f":: Prefill results:\n{batch.next_tokens.tolist()}")
-    print(batch.detokenize())
+    token_ids, seq_lens = generator.preprocess_prompts(
+        prompts=args.prompt, prompt_seq_len=prompt_seq_len, bs=args.bs
+    )
+    batch = generator.begin_batch(
+        token_ids=token_ids,
+        seq_lens=seq_lens,
+        prompt_seq_len=prompt_seq_len,
+        dump_path=args.dump_path,
+        dump_decode_steps=args.dump_decode_steps,
+    )
+    results = batch.prefill()
+    batch.print_current_results()
 
     if args.save_intermediates_path:
         intermediates_saver.save_file(
@@ -83,14 +103,20 @@ def main():
     if not args.skip_decode:
         counter = 0
         while not batch.done:
-            batch.decode(batch.next_tokens)
+            results = batch.decode(results)
+            batch.print_current_results()
+
             if args.save_intermediates_path:
                 intermediates_saver.save_file(
                     args.save_intermediates_path + f"_step_{counter}.safetensors"
                 )
-            print(f":: Result tokens: {batch.results}")
-            batch.print_current_results()
+
             counter += 1
+
+        if len(batch.parent.free_pages) == 0:
+            print(
+                "\n\n:: Out of allocated pages, increase page_cache_size to continue generation.\n"
+            )
 
 
 if __name__ == "__main__":

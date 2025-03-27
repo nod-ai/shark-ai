@@ -27,7 +27,7 @@ jobs:
     strategy:
       matrix:
         python-version: [3.11]
-        runs-on: [linux-mi300-1gpu-ossci]
+        runs-on: [linux-mi300-1gpu-ossci-nod-ai]
       fail-fast: false
     runs-on: ${{matrix.runs-on}}
     defaults:
@@ -76,6 +76,7 @@ jobs:
             --log-cli-level=info \
             --with-clip-data \
             --with-flux-data \
+            --with-t5-data \
             --iree-hal-target-device=hip \
             --iree-hip-target=gfx942 \
             --iree-device=hip://0 \
@@ -92,7 +93,7 @@ jobs:
     strategy:
       matrix:
         version: [3.11]
-        runs-on: [linux-mi300-1gpu-ossci]
+        runs-on: [linux-mi300-1gpu-ossci-nod-ai]
       fail-fast: false
     runs-on: ${{matrix.runs-on}}
     defaults:
@@ -162,7 +163,7 @@ jobs:
     strategy:
       matrix:
         version: [3.11]
-        runs-on: [linux-mi300-1gpu-ossci]
+        runs-on: [linux-mi300-1gpu-ossci-nod-ai]
       fail-fast: false
     runs-on: ${{matrix.runs-on}}
     defaults:

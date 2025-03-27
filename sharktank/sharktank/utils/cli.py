@@ -13,7 +13,7 @@ import logging
 from pathlib import Path
 import torch
 from ..types import Dataset
-
+from ..types import serialized_name_to_dtype
 from . import hf_datasets
 from . import tokenizer
 
@@ -36,7 +36,7 @@ def parse(parser: argparse.ArgumentParser, *, args: Sequence[str] | None = None)
         if hasattr(parsed_args, attr):
             dtype = getattr(parsed_args, attr)
             if dtype is not None:
-                dtype = getattr(torch, dtype)
+                dtype = serialized_name_to_dtype(dtype)
                 assert isinstance(dtype, torch.dtype)
             setattr(parsed_args, attr, dtype)
     return parsed_args
@@ -137,7 +137,7 @@ def add_model_input_options(parser: argparse.ArgumentParser):
     """Adds input options for LLMs"""
     
     parser.add_argument(
-        "prompt",
+        "--prompt",
         nargs='+',
         help="Custom prompt strings to run LLM or perplexity",
     )
@@ -197,15 +197,33 @@ def add_export_artifacts(parser:argparse.ArgumentParser):
 
 def add_save_tensor_options(parser: argparse.ArgumentParser):
     """Adds options to save input and intermediate tensors to separate files"""
-    
+
     parser.add_argument(
         "--save_intermediates_path",
         help="save module forward outputs to safetensors, ex: run_0 will save to run_0_prefill.savetensors",
     )
     parser.add_argument(
-        "--dump-bins",
-        help="dump input tensors to bin files",
-        action="store_true",
+        "--dump-path",
+        help="Path to dump prefill/decode input tensors to npy files",
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
+        "--dump-decode-steps",
+        help="Number of decode steps to dump decode input tensors",
+        type=int,
+        default=1,
+    )
+    parser.add_argument(
+        "--prompt-seq-len",
+        help="Seq len to generate input prompts for prefill",
+        type=int,
+    )
+    parser.add_argument(
+        "--bs",
+        help="Batch size",
+        type=int,
+        default="4",
     )
 
 def add_quantization_options(parser: argparse.ArgumentParser):

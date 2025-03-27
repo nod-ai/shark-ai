@@ -174,11 +174,10 @@ class Perplexity_iree:
         seq_lens_batch = torch.as_tensor(
             seq_lens_batch, device=self.torch_device
         )
-
+    
         self.batch = self.generator.begin_batch(
             token_ids=token_batch,
             seq_lens=seq_lens_batch,
-            page_cache_size=self.page_cache_size,
         )
 
         if self.kv_cache_dtype in self.halelementtype_map.keys():
@@ -261,16 +260,19 @@ class Perplexity_iree:
 
     @timeit
     def get_logits(self, skip_decode: bool) -> torch.tensor:
+        
+        self.start = 10
+        self.out_logits = []
+        
         def run_iree_module(iree_devices: list[ireert.HalDevice]):
+            iter = 0
             is_first_token = True
-            self.start = 10
-            self.out_logits = []
             for i in tqdm(
                 range(self.start, self.max_prompt_length - 1),
                 mininterval=300,
                 desc="eval: Calculating logits",
             ):
-                logger.debug(f"Iteration: {i}")
+                logger.debug(f"Iteration: {iter}")
 
                 if is_first_token:
 
@@ -287,22 +289,24 @@ class Perplexity_iree:
                     token_batch = self.token_ids[:, i : i + 1]
                     decode_logits = self.decode_vmfb(token_batch, i)
                     self.out_logits.append(decode_logits)
-        
-        with_iree_device_context(run_iree_module, [self.runner.config.device])
-        
-        out_logits = torch.cat(self.out_logits, dim=1)
 
-        pad_logits_shape = self.token_ids.shape[1] - out_logits.shape[1]
+                iter += 1
+                    
+            out_logits = torch.cat(self.out_logits, dim=1)
 
-        pad_logits = torch.zeros(
-            out_logits.shape[0], pad_logits_shape, out_logits.shape[2]
-        )
+            pad_logits_shape = self.token_ids.shape[1] - out_logits.shape[1]
 
-        out_logits = torch.cat((out_logits, pad_logits), 1).to(
-            self.torch_device
-        )
+            pad_logits = torch.zeros(
+                out_logits.shape[0], pad_logits_shape, out_logits.shape[2]
+            )
+
+            out_logits = torch.cat((out_logits, pad_logits), 1).to(
+                self.torch_device
+            )
         
-        return out_logits
+            return out_logits
+   
+        return with_iree_device_context(run_iree_module, [self.runner.config.device])
 
     @timeit
     def get_perplexity(self, test_prompts: list[str], skip_decode: bool) -> dict[str, Any]:
@@ -317,10 +321,6 @@ class Perplexity_iree:
             logger.debug(
                 f" Prompt {idx}: \nTokens: {prompt.encode()}\nToken ids: {token_ids[idx]}\n"
             )
-        
-        self.page_cache_size = (
-            len(token_ids[0]) // self.generator.model.config.block_seq_stride
-        ) * self.bs + 1
 
         self.max_prompt_length = max(seq_lens)
         

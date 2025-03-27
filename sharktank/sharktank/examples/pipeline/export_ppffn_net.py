@@ -51,7 +51,7 @@ def pipeline_parallelize_theta(theta: Theta, pp_count: int) -> Theta:
         shards = weight.shards
         for i, shard in enumerate(shards):
             DeviceTensorTrait(devices[i]).set(shard._data)
-        theta.tensor("w")[layer] = weight.clone(ts=shards, devices=devices, pinned=True)
+        theta.tensor("w")[layer] = weight.clone(ts=shards, devices=devices)
     return theta
 
 

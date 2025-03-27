@@ -8,7 +8,7 @@ from tokenizers import Tokenizer, Encoding
 from ..model_management import (
     ModelProcessor,
     ModelArtifacts,
-    TEST_MODELS,
+    ModelConfig,
 )
 from ..server_management import ServerInstance, ServerConfig
 
@@ -36,7 +36,7 @@ def test_device(request):
 @pytest.fixture(scope="session")
 def model_artifacts(tmp_path_factory, request, test_device):
     """Prepares model artifacts in a cached directory."""
-    model_config = TEST_MODELS[request.param]
+    model_config = request.param
     model_config.device_settings = get_device_settings_by_name(test_device)
     cache_key = hashlib.md5(str(model_config).encode()).hexdigest()
 
