@@ -245,7 +245,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             cache_state,
             transformer_block_index=self.block_index,
             page_ids=seq_block_ids,
-            seq_len=kv_seq_len,
         )
 
         # For computation, we create a subview of the xk/xv tensors to have

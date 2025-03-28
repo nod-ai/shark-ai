@@ -168,7 +168,6 @@ class PagedAttention:
         state: list[Union[torch.Tensor, SplitPrimitiveTensor]],
         *,
         transformer_block_index: int,
-        seq_len: int,
         page_ids: Optional[Union[torch.Tensor, ReplicatedTensor]] = None,
     ):
         """Reads K/V caches the page table for the given page_ids.
@@ -199,19 +198,25 @@ class PagedAttention:
 
         # Gather both partitions and split post gather. This is more
         # computationally efficient without gather fusion:
-        subblock_table = page_table.flatten(start_dim=0, end_dim=1)
-        page_stride = self.transformer_block_count
+        subblock_table = page_table.flatten(start_dim=0, end_dim=2)
 
         transformer_block_index = torch.full(
             (bs, block_seq_len), transformer_block_index, device=self.device
         )
-        subblock_ids = page_ids * page_stride + transformer_block_index
-        selected = ops.index_select(subblock_table, 0, subblock_ids.flatten(0, 1))
 
-        selected = selected.unflatten(0, blocked_shape[:2])
-        selected = ops.transpose(selected, 3, 4)
-        key = selected[:, :, 0, :seq_len].flatten(1, 2)[:, :seq_len]
-        value = selected[:, :, 1, :seq_len].flatten(1, 2)[:, :seq_len]
+        reads = []
+        for i in range(self.cache_partition_count):
+            read_ids = page_ids
+            read_ids = read_ids * self.transformer_block_count + transformer_block_index
+            read_ids = read_ids * self.cache_partition_count + i
+            read = ops.index_select(subblock_table, 0, read_ids.flatten(0, 1))
+            read = read.unflatten(0, blocked_shape[:2])
+            read = ops.transpose(read, 2, 3)
+            read = read.flatten(1, 2)
+            reads.append(read)
+
+        key = reads[0]
+        value = reads[1]
 
         return key, value
 
@@ -527,7 +532,6 @@ class PagedAttention:
             cache_state,
             transformer_block_index=block_index,
             page_ids=seq_block_ids,
-            seq_len=kv_seq_len,
         )
 
         return self.attention(

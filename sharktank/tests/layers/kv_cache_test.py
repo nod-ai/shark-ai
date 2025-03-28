@@ -37,7 +37,7 @@ def test_paged(dtype: torch.dtype):
         device=None,
     )
 
-    write_seq_length = seq_length - 4
+    write_seq_length = seq_length - block_seq_stride
     page_count = bs * seq_length // block_seq_stride
     page_ids = torch.arange(page_count, dtype=torch.int64)
     page_ids = page_ids.view(bs, seq_length // block_seq_stride)
@@ -62,7 +62,6 @@ def test_paged(dtype: torch.dtype):
     read_back = cache.read(
         allocation,
         transformer_block_index=1,
-        seq_len=write_seq_length,
         page_ids=write_page_ids,
     )
     torch.testing.assert_close(write_ones, read_back[0])
@@ -75,7 +74,6 @@ def test_paged(dtype: torch.dtype):
         read_ones = cache.read(
             allocation,
             transformer_block_index=i,
-            seq_len=write_seq_length,
             page_ids=write_page_ids,
         )
         torch.testing.assert_close(
@@ -90,32 +88,38 @@ def test_paged(dtype: torch.dtype):
     write_threes = torch.rand(*ts_shape).to(dtype=dtype)
     write_fours = torch.rand(*ts_shape).to(dtype=dtype)
 
-    write_pos = torch.full((bs,), write_seq_length, dtype=torch.int64)
-    cache.write_timestep(
-        allocation,
-        cache_partitions=[write_threes, write_fours],
-        transformer_block_index=1,
-        seq_positions=write_pos,
-        page_ids=page_ids,
-    )
+    for i in range(block_seq_stride):
+        write_pos = torch.full((bs,), write_seq_length + i, dtype=torch.int64)
+        cache.write_timestep(
+            allocation,
+            cache_partitions=[write_threes, write_fours],
+            transformer_block_index=1,
+            seq_positions=write_pos,
+            page_ids=page_ids,
+        )
 
     read_back = cache.read(
         allocation,
         transformer_block_index=1,
-        seq_len=write_seq_length + 1,
         page_ids=page_ids,
     )
 
     if dtype == torch.float8_e4m3fnuz:
-        check_concat_0 = torch.concat(
-            [write_ones.view(torch.int8), write_threes.view(torch.int8)], dim=1
-        ).view(torch.float8_e4m3fnuz)
-        check_concat_1 = torch.concat(
-            [write_twos.view(torch.int8), write_fours.view(torch.int8)], dim=1
-        ).view(torch.float8_e4m3fnuz)
-    else:
-        check_concat_0 = torch.concat([write_ones, write_threes], dim=1)
-        check_concat_1 = torch.concat([write_twos, write_fours], dim=1)
+        write_ones = write_ones.view(torch.int8)
+        write_twos = write_twos.view(torch.int8)
+        write_threes = write_threes.view(torch.int8)
+        write_fours = write_fours.view(torch.int8)
+
+    check_concat_0 = torch.concat(
+        [write_ones] + block_seq_stride * [write_threes], dim=1
+    )
+    check_concat_1 = torch.concat(
+        [write_twos] + block_seq_stride * [write_fours], dim=1
+    )
+
+    if dtype == torch.float8_e4m3fnuz:
+        check_concat_0 = check_concat_0.view(dtype=dtype)
+        check_concat_1 = check_concat_1.view(dtype=dtype)
 
     torch.testing.assert_close(check_concat_0, read_back[0])
     torch.testing.assert_close(check_concat_1, read_back[1])
@@ -139,7 +143,7 @@ def test_sharded_paged():
         device=None,
     )
 
-    write_seq_length = seq_length - 4
+    write_seq_length = seq_length - block_seq_stride
     page_count = bs * seq_length // block_seq_stride
     page_ids = torch.arange(page_count, dtype=torch.int64)
     page_ids = page_ids.view(bs, seq_length // block_seq_stride)
@@ -178,7 +182,6 @@ def test_sharded_paged():
     read_back = cache.read(
         allocation,
         transformer_block_index=1,
-        seq_len=write_seq_length,
         page_ids=write_page_ids,
     )
     torch.testing.assert_close(unshard(write_ones), unshard(read_back[0]))
@@ -201,23 +204,27 @@ def test_sharded_paged():
         torch.full((bs,), write_seq_length, dtype=torch.int64), shard_count
     )
 
-    cache.write_timestep(
-        allocation,
-        cache_partitions=[write_threes, write_fours],
-        transformer_block_index=1,
-        seq_positions=write_pos,
-        page_ids=page_ids,
-    )
+    for i in range(block_seq_stride):
+        cache.write_timestep(
+            allocation,
+            cache_partitions=[write_threes, write_fours],
+            transformer_block_index=1,
+            seq_positions=write_pos + i,
+            page_ids=page_ids,
+        )
 
     read_back = cache.read(
         allocation,
         transformer_block_index=1,
-        seq_len=write_seq_length + 1,
         page_ids=page_ids,
     )
 
-    check_concat_0 = torch.concat([unshard(write_ones), unshard(write_threes)], dim=1)
-    check_concat_1 = torch.concat([unshard(write_twos), unshard(write_fours)], dim=1)
+    check_concat_0 = torch.concat(
+        [unshard(write_ones)] + block_seq_stride * [unshard(write_threes)], dim=1
+    )
+    check_concat_1 = torch.concat(
+        [unshard(write_twos)] + block_seq_stride * [unshard(write_fours)], dim=1
+    )
 
     torch.testing.assert_close(check_concat_0, unshard(read_back[0]))
     torch.testing.assert_close(check_concat_1, unshard(read_back[1]))
