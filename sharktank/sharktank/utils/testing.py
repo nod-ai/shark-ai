@@ -394,4 +394,13 @@ def get_frozen_test_text_prompts(
         random.setstate(orig_rng_state)
 
 
-test_prompts = get_frozen_test_text_prompts(num_prompts=16, min_prompt_length=50)
+_test_prompts = None
+
+
+def get_test_prompts():
+    global _test_prompts
+    if _test_prompts is None:
+        _test_prompts = get_frozen_test_text_prompts(
+            num_prompts=16, min_prompt_length=50
+        )
+    return _test_prompts
