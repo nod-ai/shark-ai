@@ -166,11 +166,11 @@ def main(raw_args=None):
     bs = 16
     sl = 128
     primary_dim = 128 * 2**5
-    shard_count = 1
-    num_layers = 2
+    shard_count = 2
+    num_layers = 40
     create_theta(primary_dim, shard_count, num_layers, save_path=args.output_irpa_file)
 
-    pp_count = 2
+    pp_count = 4
     ds = Dataset.load(args.output_irpa_file)
     block_to_device_lookup = pipeline_parallelize_theta(ds.root_theta, pp_count)
 
