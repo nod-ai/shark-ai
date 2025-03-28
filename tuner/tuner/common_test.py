@@ -19,21 +19,8 @@ from iree.compiler.dialects import iree_codegen  # type: ignore
 from iree.compiler.dialects import transform  # type: ignore
 from iree.compiler.dialects import _builtin_ops_gen  # type: ignore
 
-
-@pytest.fixture
-def tuner_ctx() -> Generator[common.TunerContext, None, None]:
-    from logging import Logger
-    from unittest.mock import MagicMock
-
-    mock_logger = MagicMock(spec=Logger)
-    with common.TunerContext(logger=mock_logger) as ctx:
-        yield ctx
-
-
-@pytest.fixture
-def mlir_ctx() -> Generator[ir.Context, None, None]:
-    with ir.Context() as ctx:
-        yield ctx
+from .test_utils import tuner_ctx
+from .test_utils import mlir_ctx
 
 
 def test_get_shaped_type_element_bitwidth(tuner_ctx: common.TunerContext) -> None:
