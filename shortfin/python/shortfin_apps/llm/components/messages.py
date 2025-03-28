@@ -51,6 +51,11 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         self._cache: BasePagedAttentionCache | None = None
         self.allocation: PageAllocation | None = None
 
+        # Fields that must be tracked for `multi_beam` related selection
+        # strategies.
+        self.score: float = 0.0
+        self.accumulated_normalization: float = 0.0
+
     @classmethod
     def copy_exec_request(
         cls, exec_req: "LlmInferenceExecRequest"

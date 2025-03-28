@@ -5,9 +5,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import math
-from typing import Any, List
 import pytest
 import random
+
+from typing import Any, List
 
 import shortfin as sf
 import shortfin.array as sfnp
@@ -146,6 +147,18 @@ def test_argpartition(device, k, axis):
     indices = result.view(0, 0, k_slice).items.tolist()
     values = [randomized_data[index] for index in indices]
     assert sorted(values) == sorted(expected_values)
+
+
+def test_argpartition_large_array(device):
+    """Test to ensure that `argpartition` doesn't hang on large `device_arrays`.
+
+    Accuracy validation is handled by `test_log_softmax` above.
+    """
+    src = sfnp.device_array(device, [1, 1, 128256], dtype=sfnp.float32)
+    data = [float(i) for i in range(math.prod(src.shape))]
+    src.items = data
+    k = -1000
+    sfnp.argpartition(src, k)
 
 
 def test_argpartition_out_variant(device):
@@ -381,6 +394,17 @@ def test_log_softmax(device, params):
         vals = result.view(i).items.tolist()
         results.append(vals)
     assert approximately_equal(results, expected)
+
+
+def test_log_softmax_large_array(device):
+    """Test to ensure that `log_softmax` doesn't hang on large `device_arrays`.
+
+    Accuracy validation is handled by `test_log_softmax` above.
+    """
+    src = sfnp.device_array(device, [1, 1, 128256], dtype=sfnp.float32)
+    data = [float(i) for i in range(math.prod(src.shape))]
+    src.items = data
+    sfnp.log_softmax(src)
 
 
 def test_log_softmax_out_variant(device):

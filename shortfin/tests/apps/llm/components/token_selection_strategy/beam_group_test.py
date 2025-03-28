@@ -46,6 +46,60 @@ async def test_wait(exec_req_list):
         assert req.done._event.is_set()
 
 
+def test__update_exec_req(exec_req):
+    expected_start_position = exec_req.start_position + 1
+
+    # Score & Normalization is None
+    selection = ExecRequestSelection(exec_req, 0)
+    beam_group = BeamGroup(
+        eos_token_id=-1,
+        num_beams=1,
+        exec_reqs=[exec_req],
+        selection_callback=lambda _: None,
+    )
+    beam_group._update_exec_req(selection)
+    assert exec_req.input_token_ids[-1] == 0
+    assert exec_req.start_position == expected_start_position
+
+    expected_start_position += 1
+
+    # Score is not None
+    selection.score = 42.0
+    selection.token = 1
+    beam_group._update_exec_req(selection)
+    assert exec_req.input_token_ids[-1] == 1
+    assert exec_req.start_position == expected_start_position
+    assert exec_req.score == 42.0
+
+    expected_start_position += 1
+
+    # Normalization is not None
+    selection.score = None
+    selection.token = 2
+
+    def _normalization_function(req: LlmInferenceExecRequest):
+        req.accumulated_normalization += 1
+        return req
+
+    selection.normalization_function = _normalization_function
+    beam_group._update_exec_req(selection)
+    assert exec_req.input_token_ids[-1] == 2
+    assert exec_req.start_position == expected_start_position
+    assert exec_req.score == 42.0
+    assert exec_req.accumulated_normalization == 1
+
+    expected_start_position += 1
+
+    # Score & Normalization are not None
+    selection.token = 3
+    selection.score = 20.0
+    beam_group._update_exec_req(selection)
+    assert exec_req.input_token_ids[-1] == 3
+    assert exec_req.start_position == expected_start_position
+    assert exec_req.score == 20.0
+    assert exec_req.accumulated_normalization == 2
+
+
 def test_process_beams_one_req(exec_req):
     def selection_callback(
         active_reqs: LlmInferenceExecRequest, _: LlmInferenceExecRequest

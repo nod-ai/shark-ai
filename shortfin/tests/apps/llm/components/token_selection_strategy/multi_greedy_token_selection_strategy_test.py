@@ -168,7 +168,6 @@ async def test_multi_greedy_decode_multiple_completions(
             exec_req._cache, "fork_pages", return_value=allocation
         ) as fork_pages_mock:
             await multi_greedy_token_selection_strategy.decode(exec_req)
-            logger.info(f"results_array: {results_array}")
             assert len(results_array) == 2
             for result in results_array:
                 assert len(result) == 5

@@ -907,28 +907,24 @@ void BindArrayHostOps(py::module_ &m) {
         auto compute = [&]<typename EltTy>() {
           auto input_t = input.map_xtensor<EltTy>();
           auto max = xt::amax(*input_t, axis);
-          // Expand to keep dims
-          auto maxExpanded = xt::expand_dims(max, axis);
+          auto &&maxExpanded = xt::eval(xt::expand_dims(max, axis));
 
           // Equivalent to: log( ∑[i in axis] exp(x_i - c) )
           // where x_i are the elements of the input tensor along the given
           // axis, and c (maxExpanded) is the maximum value along that axis.
-          auto sum_expression = xt::sum(xt::exp(*input_t - maxExpanded), axis);
+          auto &&shiftedInput = xt::eval(*input_t - maxExpanded);
+          auto &&exp_shifted = xt::eval(xt::exp(shiftedInput));
+          auto &&sum_expression = xt::eval(xt::sum(exp_shifted, axis));
           auto sum_axis_expanded = xt::expand_dims(sum_expression, axis);
-          auto log_sum_expression = xt::log(sum_axis_expanded);
+          auto &&log_sum_expression = xt::eval(xt::log(sum_axis_expanded));
 
-          auto result = *input_t - maxExpanded - log_sum_expression;
+          auto &&result = xt::eval(shiftedInput - log_sum_expression);
           if (!out) {
             out.emplace(device_array::for_host(input.device(), result.shape(),
                                                input.dtype(), device_visible));
           }
-          if (input.dtype() == DType::float32()) {
-            auto out_t = out->map_xtensor_w<float>();
-            *out_t = result;
-          } else {
-            auto out_t = out->map_xtensor_w<half_float::half>();
-            *out_t = result;
-          }
+          auto out_t = out->map_xtensor_w<EltTy>();
+          *out_t = result;
           return *out;
         };
 

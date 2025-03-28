@@ -23,6 +23,10 @@ class ExecRequestSelection:
 
     exec_req: LlmInferenceExecRequest
     token: int
+    score: float | None = None
+    normalization_function: (
+        None | Callable[[LlmInferenceExecRequest], LlmInferenceExecRequest]
+    ) = None
 
 
 class BeamGroup:
@@ -47,41 +51,52 @@ class BeamGroup:
         done_signals = [req.done for req in self.active_exec_reqs]
         return await gather(*done_signals)
 
+    def _update_exec_req(self, selection: ExecRequestSelection):
+        token = selection.token
+        exec_req = selection.exec_req
+
+        exec_req.input_token_ids.append(token)
+        exec_req.start_position += 1
+        if selection.normalization_function is not None:
+            exec_req = selection.normalization_function(exec_req)
+        if selection.score is not None:
+            exec_req.score = selection.score
+
     def process_beams(self):
         exec_reqs_selections = self.selection_callback(
             self.active_exec_reqs, self.completed_reqs
         )
         visited_reqs: Dict[str, LlmInferenceExecRequest] = {}
-        new_reqs = set()
+        active_reqs = set()
         completed_reqs = set()
+        req_selection_map: Dict[str, ExecRequestSelection] = {}
 
         for selection in exec_reqs_selections:
             new_req, token = selection.exec_req, selection.token
 
-            if new_req.instance_id not in visited_reqs:
-                new_req.input_token_ids.append(token)
-                new_req.start_position += 1
-
-            else:
+            if new_req.instance_id in visited_reqs:
                 visited_req = visited_reqs[new_req.instance_id]
                 new_req = LlmInferenceExecRequest.copy_exec_request(visited_req)
-                new_req.input_token_ids.append(token)
+                selection.exec_req = new_req
 
+            req_selection_map[new_req.instance_id] = selection
             visited_reqs[new_req.instance_id] = new_req
             if token == self.eos_token_id:
                 completed_reqs.add(new_req)
             else:
-                new_reqs.add(new_req)
+                active_reqs.add(new_req)
 
-        for req in completed_reqs:
-            req.free_cache_pages()
-
-        for req in self.active_exec_reqs:
-            # Free cache pages of reqs we don't need anymore
-            if req not in new_reqs and req not in completed_reqs:
+        for req in completed_reqs | active_reqs:
+            self._update_exec_req(req_selection_map[req.instance_id])
+            if req in completed_reqs:
                 req.free_cache_pages()
 
-        self.active_exec_reqs = list(new_reqs)
+        # Free cache pages of reqs we don't need anymore
+        for req in self.active_exec_reqs:
+            if req not in active_reqs and req not in completed_reqs:
+                req.free_cache_pages()
+
+        self.active_exec_reqs = list(active_reqs)
         self.completed_reqs |= completed_reqs
 
     def clean_up(self):

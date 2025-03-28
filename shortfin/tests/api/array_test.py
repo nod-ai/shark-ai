@@ -135,6 +135,7 @@ def test_xtensor_types(fiber, dtype, code, py_value, expected_str):
         (sfnp.int16, 42),
         (sfnp.int32, 42),
         (sfnp.int64, 42),
+        (sfnp.float16, 42),
         (sfnp.float32, 42.0),
         (sfnp.float64, 42.0),
     ],

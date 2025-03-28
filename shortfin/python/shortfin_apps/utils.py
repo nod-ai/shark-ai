@@ -105,6 +105,60 @@ class SystemManager:
         self.logger.info("System manager command processor stopped")
 
 
+def convert_int_to_float(value: int, dtype: sfnp.DType) -> float:
+    """Convert an `int` representation of a `float` value to float64.
+
+    Args:
+        value (int): Int representation of the float value.
+        dtype (sfnp.DType): Shortfin dtype of the value.
+
+    Raises:
+        ValueError: Unsupported `dtype`.
+
+    Returns:
+        float: float64 representation of original value.
+    """
+    format_specs = {
+        str(sfnp.float16): {"sign_bits": 1, "exp_bits": 5, "frac_bits": 10},
+    }
+    dtype_str = str(dtype)
+    if dtype_str not in format_specs:
+        raise ValueError(f"Unsupported dtype: {dtype}")
+
+    sign_bits = format_specs[dtype_str]["sign_bits"]
+    exp_bits = format_specs[dtype_str]["exp_bits"]
+    frac_bits = format_specs[dtype_str]["frac_bits"]
+
+    # Calculate bit masks
+    sign_mask = (1 << sign_bits) - 1
+    exponent_mask = (1 << exp_bits) - 1
+    frac_mask = (1 << frac_bits) - 1
+
+    # Extract sign, exponent, and mantissa
+    sign = (value >> (exp_bits + frac_bits)) & sign_mask
+    exponent = (value >> frac_bits) & exponent_mask
+    frac = value & frac_mask
+
+    # Bias calculation
+    bias = (1 << (exp_bits - 1)) - 1
+
+    # Compute the float value
+    if exponent == 0:
+        if frac == 0:
+            return -0.0 if sign else 0.0  # Zero
+        else:
+            # Subnormal number
+            return (-1) ** sign * (frac / (1 << frac_bits)) * 2 ** (1 - bias)
+    elif exponent == exponent_mask:
+        if frac == 0:
+            return float("-inf") if sign else float("inf")  # Infinity
+        else:
+            return float("nan")  # NaN
+    else:
+        # Normalized number
+        return (-1) ** sign * (1 + frac / (1 << frac_bits)) * 2 ** (exponent - bias)
+
+
 dtype_to_filetag = {
     "bfloat16": "bf16",
     "float32": "f32",
