@@ -105,6 +105,7 @@ class BaseBenchmarkTest(unittest.TestCase):
 
 
 @is_mi300x
+@pytest.mark.expensive
 class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
     def setUp(self):
         super().setUp()
@@ -326,6 +327,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
 
 
 @is_mi300x
+@pytest.mark.expensive
 @skipif_run_quick_llama_test
 class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
     def setUp(self):
@@ -681,6 +683,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
 
 
 @is_mi300x
+@pytest.mark.expensive
 @skipif_run_quick_llama_test
 class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
     def setUp(self):
