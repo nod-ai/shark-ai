@@ -539,10 +539,12 @@ def expand_split(
     assert len(shape) == len(tensor.shape)
     shard_dim = tensor.shard_dim
     not_expanding_split_dim = (
-        shape[shard_dim] == -1 or shape[shard_dim] == tensor.shards[0].shape[shard_dim]
+        shape[shard_dim] == -1 or shape[shard_dim] == tensor.shape[shard_dim]
     )
     assert not_expanding_split_dim, "Expanding a split dimension is not supported"
 
+    shape = list(shape)
+    shape[shard_dim] = -1
     shards = [expand(shard, shape) for shard in tensor.shards]
     return SplitPrimitiveTensor(ts=shards, shard_dim=tensor.shard_dim)
 
