@@ -634,7 +634,7 @@ def shareded_group_norm_affine(input, weight, bias, *, num_groups, eps):
 
 
 @index_copy_.override(ReplicatedTensor, ReplicatedTensor, ReplicatedTensor)
-def index_copy__split_replicated_split(
+def index_copy__replicated_replicated_replicated(
     inout: ReplicatedTensor,
     dim: int,
     index: ReplicatedTensor,
@@ -652,7 +652,7 @@ def index_copy__split_replicated_split(
 
 
 @index_copy_.override(SplitPrimitiveTensor, ReplicatedTensor, ReplicatedTensor)
-def index_copy__split_replicated_split(
+def index_copy__split_replicated_replicated(
     inout: SplitPrimitiveTensor,
     dim: int,
     index: ReplicatedTensor,
