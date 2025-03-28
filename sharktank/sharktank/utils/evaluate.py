@@ -4,12 +4,50 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import Optional
+from typing import Any, Optional
 import time
 import random
 import re
 from datetime import timedelta
+import numpy as np
 from datasets import load_dataset
+
+import torch
+
+
+def compute_perplexity(
+    token_ids: torch.tensor, logits: torch.tensor, start: int
+) -> list[float]:
+
+    """Compute perplexity for predicted logits and groundtruth tokens.
+    Args:
+          token_ids: Token ids of input prompts (groundtruth)
+          logits: Output logits from an LLM
+          start: Index of the first input token to prefill
+    Returns:
+          Dictionary of list of perplexities per prompt and
+    """
+
+    attention_mask = (token_ids != 0).int().detach().clone().to(token_ids.device)
+
+    logits = logits[..., : -(start + 1), :].contiguous()
+    token_ids = token_ids[..., start + 1 :].contiguous()
+    attention_mask = attention_mask[..., start + 1 :].contiguous()
+
+    assert (
+        token_ids.shape == logits.shape[0:2]
+    ), "Mismatching token_ids and logits shapes, verify bs, seq_len dims match"
+
+    loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
+
+    ## perplexity = e ^ (sum(losses) / num_tokenized_tokens)
+    crossentropy_loss = (
+        loss_fct(logits.transpose(1, 2), token_ids) * attention_mask
+    ).sum(1)
+
+    perplexity_batch = torch.exp(crossentropy_loss / attention_mask.sum(1)).tolist()
+    perplexity_batch = [round(ppl, 6) for ppl in perplexity_batch]
+    return perplexity_batch
 
 
 def get_prompts(num_prompts: Optional[int] = None) -> list[str]:
@@ -29,8 +67,10 @@ def get_prompts(num_prompts: Optional[int] = None) -> list[str]:
     test_prompts = [
         s.replace("\n", "").rstrip()
         for s in test_prompts
-        if s != "" and len(s.split()) >= 20 and s.count("=") < 2
-    ]
+        if sum(word.isalpha() for word in s.split()) > 20
+        and s.count("=") < 2
+        and s.split()[-1] == "."
+    ][0:num_prompts]
 
     if num_prompts:
         test_prompts = test_prompts[0:num_prompts]

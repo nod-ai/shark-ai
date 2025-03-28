@@ -205,12 +205,12 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             suffix=".txt", prefix=output_file_name
         )
         export_return_code = self.llama8b_f16_torch_sdpa_artifacts.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
+            output_mlir=output_mlir,
+            output_config=output_json,
         )
         self.llama8b_f16_torch_sdpa_artifacts.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
+            output_mlir=str(output_mlir),
+            output_vmfb=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
             args=self.compile_args,
@@ -250,12 +250,12 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             suffix=".txt", prefix=output_file_name
         )
         export_return_code = self.llama8b_f16_torch_sdpa_artifacts.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
+            output_mlir=output_mlir,
+            output_config=output_json,
         )
         self.llama8b_f16_torch_sdpa_artifacts.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
+            output_mlir=str(output_mlir),
+            output_vmfb=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
             args=self.compile_args,
@@ -295,12 +295,12 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             suffix=".txt", prefix=output_file_name
         )
         export_return_code = self.llama8b_fp8_torch_sdpa_artifacts.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
+            output_mlir=output_mlir,
+            output_config=output_json,
         )
         self.llama8b_fp8_torch_sdpa_artifacts.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
+            output_mlir=str(output_mlir),
+            output_vmfb=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
             args=self.compile_args,
@@ -464,12 +464,12 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             suffix=".txt", prefix=output_file_name
         )
         export_return_code = self.llama70b_f16_torch_sdpa_artifacts_tp1.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
+            output_mlir=output_mlir,
+            output_config=output_json,
         )
         self.llama70b_f16_torch_sdpa_artifacts_tp1.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
+            output_mlir=str(output_mlir),
+            output_vmfb=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
             args=self.compile_args,
@@ -508,12 +508,12 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             suffix=".txt", prefix=output_file_name
         )
         export_return_code = self.llama70b_f16_torch_sdpa_artifacts_tp1.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
+            output_mlir=output_mlir,
+            output_config=output_json,
         )
         self.llama70b_f16_torch_sdpa_artifacts_tp1.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
+            output_mlir=str(output_mlir),
+            output_vmfb=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
             args=self.compile_args,
@@ -560,12 +560,12 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
                 output_shard_file_name
             )
         export_return_code = self.llama70b_f16_torch_sdpa_artifacts_tp8.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
+            output_mlir=output_mlir,
+            output_config=output_json,
         )
         self.llama70b_f16_torch_sdpa_artifacts_tp8.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
+            output_mlir=str(output_mlir),
+            output_vmfb=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
             args=self.compile_args,
@@ -610,12 +610,12 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
                 output_shard_file_name
             )
         export_return_code = self.llama70b_f16_torch_sdpa_artifacts_tp8.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
+            output_mlir=output_mlir,
+            output_config=output_json,
         )
         self.llama70b_f16_torch_sdpa_artifacts_tp8.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
+            output_mlir=str(output_mlir),
+            output_vmfb=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
             args=self.compile_args,
@@ -652,12 +652,12 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             suffix=".vmfb", prefix=output_file_name
         )
         export_return_code = self.llama70b_fp8_torch_sdpa_artifacts_tp1.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
+            output_mlir=output_mlir,
+            output_config=output_json,
         )
         self.llama70b_fp8_torch_sdpa_artifacts_tp1.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
+            output_mlir=str(output_mlir),
+            output_vmfb=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
             args=self.compile_args,
@@ -790,12 +790,12 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         if output_shard_file_name.exists():
             self.llama405b_f16_torch_sdpa_artifacts.irpa_path = output_shard_file_name
         export_return_code = self.llama405b_f16_torch_sdpa_artifacts.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
+            output_mlir=output_mlir,
+            output_config=output_json,
         )
         self.llama405b_f16_torch_sdpa_artifacts.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
+            output_mlir=str(output_mlir),
+            output_vmfb=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
             args=self.compile_args,
@@ -831,12 +831,12 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         if output_shard_file_name.exists():
             self.llama405b_f16_torch_sdpa_artifacts.irpa_path = output_shard_file_name
         export_return_code = self.llama405b_f16_torch_sdpa_artifacts.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
+            output_mlir=output_mlir,
+            output_config=output_json,
         )
         self.llama405b_f16_torch_sdpa_artifacts.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
+            output_mlir=str(output_mlir),
+            output_vmfb=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
             args=self.compile_args,
@@ -872,12 +872,12 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         if output_shard_file_name.exists():
             self.llama405b_fp8_torch_sdpa_artifacts.irpa_path = output_shard_file_name
         export_return_code = self.llama405b_fp8_torch_sdpa_artifacts.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
+            output_mlir=output_mlir,
+            output_config=output_json,
         )
         self.llama405b_fp8_torch_sdpa_artifacts.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
+            output_mlir=str(output_mlir),
+            output_vmfb=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
             args=self.compile_args,
