@@ -228,6 +228,15 @@ def pytest_addoption(parser):
         help="Specify the iree-hal target device (e.g., hip)",
     )
     parser.addoption(
+        "--iree-hal-local-target-device-backends",
+        type=list[str],
+        nargs="+",
+        action="store",
+        default=["llvm-cpu"],
+        help="Default target backends for local device executable compilation",
+    )
+
+    parser.addoption(
         "--tensor-parallelism-size",
         action="store",
         type=int,
@@ -356,6 +365,11 @@ def get_iree_flags(request: FixtureRequest):
     )
     model_path["iree_hal_target_device"] = set_fixture_from_cli_option(
         request, "--iree-hal-target-device", "iree_hal_target_device"
+    )
+    model_path["iree_hal_local_target_device_backends"] = set_fixture_from_cli_option(
+        request,
+        "--iree-hal-local-target-device-backends",
+        "iree_hal_local_target_device_backends",
     )
 
 

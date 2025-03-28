@@ -17,7 +17,8 @@ from transformers import (
     T5Config as ReferenceT5Config,
 )
 from transformers.models.auto.tokenization_auto import get_tokenizer_config
-from typing import Optional
+import iree.runtime
+from typing import Callable, Optional
 import os
 from collections import OrderedDict
 import logging
@@ -41,10 +42,17 @@ from sharktank.models.t5 import (
     export_encoder_mlir,
     import_encoder_dataset_from_hugging_face,
 )
+from sharktank.models.t5.testing import (
+    get_t5_encoder_toy_config,
+    covert_t5_encoder_to_hugging_face,
+    make_t5_encoder_random_theta,
+)
 from sharktank.utils.testing import (
+    get_iree_compiler_flags,
     assert_text_encoder_state_close,
     make_rand_torch,
     make_random_mask,
+    skip,
     TempDirTestBase,
     test_prompts,
 )
@@ -68,10 +76,8 @@ with_t5_data = pytest.mark.skipif("not config.getoption('with_t5_data')")
 logger = logging.getLogger(__name__)
 
 
-def assert_t5_encoder_state_close(
-    actual: torch.Tensor, expected: torch.Tensor, target_dtype: torch.dtype
-):
-    if target_dtype == torch.bfloat16:
+def assert_t5_encoder_state_close(actual: torch.Tensor, expected: torch.Tensor):
+    if actual.dtype == torch.bfloat16:
         # For both
         # testCompareV1_1XxlTorchEagerBf16AgainstHuggingFaceF32 and
         # testCompareV1_1XxlTorchEagerHuggingFaceBf16AgainstF32
@@ -92,14 +98,14 @@ def assert_t5_encoder_state_close(
             max_outliers_fraction=max_outliers_fraction,
             inlier_atol=0.02,
         )
-    elif target_dtype == torch.float32:
+    elif actual.dtype == torch.float32:
         assert_text_encoder_state_close(
             actual,
             expected,
             atol=1e-5,
         )
     else:
-        raise ValueError(f"Unsupported dtype {target_dtype}.")
+        raise ValueError(f"Unsupported actual dtype {actual.dtype}.")
 
 
 class T5EncoderEagerTest(TestCase):
@@ -107,6 +113,29 @@ class T5EncoderEagerTest(TestCase):
         super().setUp()
         torch.random.manual_seed(12345)
         torch.no_grad()
+
+    def compare_torch_eager_vs_hugging_face(
+        self,
+        target_model: T5Encoder,
+        input_kwargs: dict[str, torch.Tensor],
+        assert_close: Callable[[torch.Tensor, torch.Tensor], None],
+        reference_model: ReferenceT5EncoderModel | None = None,
+        reference_dtype: torch.dtype | None = None,
+    ):
+        if reference_model is None:
+            reference_model = covert_t5_encoder_to_hugging_face(target_model)
+        if reference_dtype is not None:
+            reference_model = reference_model.to(dtype=reference_dtype)
+
+        logger.info("Invoking reference HuggingFace model...")
+        reference_results = reference_model(**input_kwargs)
+        logger.info("Invoking Torch eager model...")
+        target_results = target_model(**input_kwargs)
+        logger.info("Comparing outputs...")
+        assert_close(
+            target_results["last_hidden_state"],
+            reference_results["last_hidden_state"],
+        )
 
     def runTestV1_1CompareTorchEagerHuggingFace(
         self,
@@ -123,10 +152,9 @@ class T5EncoderEagerTest(TestCase):
         )
         reference_model.eval()
 
-        model = ReferenceT5EncoderModel.from_pretrained(
+        target_model = ReferenceT5EncoderModel.from_pretrained(
             huggingface_repo_id, torch_dtype=target_dtype
         )
-        model.eval()
 
         input_ids = tokenizer(
             test_prompts,
@@ -137,16 +165,17 @@ class T5EncoderEagerTest(TestCase):
             return_tensors="pt",
         ).input_ids
 
-        expected_outputs = dict(reference_model(input_ids=input_ids))
-        actual_outputs = dict(model(input_ids=input_ids))
-        actual_outputs = tree_map(
-            lambda t: ops.to(t, dtype=reference_dtype), actual_outputs
-        )
+        def assert_close(actual: torch.Tensor, expected: torch.Tensor):
+            assert_t5_encoder_state_close(
+                actual,
+                expected,
+            )
 
-        assert_t5_encoder_state_close(
-            actual_outputs["last_hidden_state"],
-            expected_outputs["last_hidden_state"],
-            target_dtype,
+        self.compare_torch_eager_vs_hugging_face(
+            target_model=target_model,
+            reference_model=reference_model,
+            input_kwargs={"input_ids": input_ids},
+            assert_close=assert_close,
         )
 
     def runTestV1_1CompareTorchEagerAgainstHuggingFace(
@@ -181,26 +210,54 @@ class T5EncoderEagerTest(TestCase):
             return_tensors="pt",
         ).input_ids
 
-        logger.info("Invoking Torch eager model...")
-        model = T5Encoder(theta=dataset.root_theta, config=config)
-        model.eval()
+        target_model = T5Encoder(theta=dataset.root_theta, config=config)
 
-        logger.info("Invoking reference HuggingFace model...")
-        expected_outputs = reference_model(input_ids=input_ids)
-        actual_outputs = model(input_ids=input_ids)
-        actual_outputs = tree_map(
-            lambda t: ops.to(t, dtype=reference_dtype), actual_outputs
+        def assert_close(actual: torch.Tensor, expected: torch.Tensor):
+            assert_t5_encoder_state_close(
+                actual,
+                expected,
+            )
+
+        self.compare_torch_eager_vs_hugging_face(
+            target_model=target_model,
+            reference_model=reference_model,
+            input_kwargs={"input_ids": input_ids},
+            assert_close=assert_close,
         )
 
-        logger.info("Comparing outputs...")
-        assert_t5_encoder_state_close(
-            actual_outputs["last_hidden_state"],
-            expected_outputs["last_hidden_state"],
-            target_dtype,
+    @parameterized.expand(
+        [
+            (torch.float32, torch.float64, 1e-5, 1e-5),
+            (torch.bfloat16, torch.float64, 2e-2, 1e-2),
+        ]
+    )
+    def testCompareToyEagerVsHuggigFace(
+        self,
+        target_dtype: torch.dtype,
+        reference_dtype: torch.dtype,
+        atol: float,
+        rtol: float,
+    ):
+        config = get_t5_encoder_toy_config()
+        theta = make_t5_encoder_random_theta(config, dtype=target_dtype)
+        target_model = T5Encoder(theta=theta, config=config)
+        _, input_kwargs = target_model.sample_inputs(batch_size=2)
+
+        def assert_close(actual: torch.Tensor, expected: torch.Tensor):
+            torch.testing.assert_close(
+                actual.to(dtype=expected.dtype), expected, atol=atol, rtol=rtol
+            )
+
+        self.compare_torch_eager_vs_hugging_face(
+            target_model=target_model,
+            input_kwargs=input_kwargs,
+            assert_close=assert_close,
+            reference_dtype=reference_dtype,
         )
 
-    @pytest.mark.skip
+    @skip
     @with_t5_data
+    @pytest.mark.expensive
     def testCompareV1_1SmallTorchEagerHuggingFaceBf16AgainstF32(self):
         """Hugging Face model tests to estimate numerical error baseline for reference.
         We don't want to run this test regularly, but we would like to keep it around
@@ -212,8 +269,9 @@ class T5EncoderEagerTest(TestCase):
             target_dtype=torch.bfloat16,
         )
 
-    @pytest.mark.skip
+    @skip
     @with_t5_data
+    @pytest.mark.expensive
     def testCompareV1_1XxlTorchEagerHuggingFaceBf16AgainstF32(self):
         """Hugging Face model tests to estimate numerical error baseline for reference.
         We don't want to run this test regularly, but we would like to keep it around
@@ -226,6 +284,7 @@ class T5EncoderEagerTest(TestCase):
         )
 
     @with_t5_data
+    @pytest.mark.expensive
     def testCompareV1_1SmallTorchEagerF32AgainstHuggingFaceF32(self):
         self.runTestV1_1CompareTorchEagerAgainstHuggingFace(
             "google/t5-v1_1-small",
@@ -234,6 +293,7 @@ class T5EncoderEagerTest(TestCase):
         )
 
     @with_t5_data
+    @pytest.mark.expensive
     def testCompareV1_1SmallTorchEagerBf16AgainstHuggingFaceF32(self):
         self.runTestV1_1CompareTorchEagerAgainstHuggingFace(
             "google/t5-v1_1-small",
@@ -242,6 +302,7 @@ class T5EncoderEagerTest(TestCase):
         )
 
     @with_t5_data
+    @pytest.mark.expensive
     def testCompareV1_1SmallTorchEagerBf16AgainstHuggingFaceBf16(self):
         self.runTestV1_1CompareTorchEagerAgainstHuggingFace(
             "google/t5-v1_1-small",
@@ -250,6 +311,7 @@ class T5EncoderEagerTest(TestCase):
         )
 
     @with_t5_data
+    @pytest.mark.expensive
     def testCompareV1_1XxlTorchEagerF32AgainstHuggingFaceF32(self):
         self.runTestV1_1CompareTorchEagerAgainstHuggingFace(
             "google/t5-v1_1-xxl",
@@ -258,6 +320,7 @@ class T5EncoderEagerTest(TestCase):
         )
 
     @with_t5_data
+    @pytest.mark.expensive
     def testCompareV1_1XxlTorchEagerBf16AgainstHuggingFaceF32(self):
         self.runTestV1_1CompareTorchEagerAgainstHuggingFace(
             "google/t5-v1_1-xxl",
@@ -266,12 +329,99 @@ class T5EncoderEagerTest(TestCase):
         )
 
 
-@pytest.mark.usefixtures("caching", "get_model_artifacts", "path_prefix")
+@pytest.mark.usefixtures("caching", "get_iree_flags", "path_prefix")
 class T5EncoderIreeTest(TempDirTestBase):
     def setUp(self):
         super().setUp()
         if self.path_prefix is None:
             self.path_prefix = f"{self._temp_dir}/"
+
+    def compare_iree_vs_eager(
+        self,
+        target_model: T5Encoder,
+        input_kwargs: dict[str, torch.Tensor],
+        assert_close: Callable[[torch.Tensor, torch.Tensor], None],
+        reference_model: T5Encoder | None = None,
+        reference_dtype: torch.dtype | None = None,
+    ):
+        if reference_model is None:
+            reference_model = target_model
+        if reference_dtype is not None:
+            reference_theta = reference_model.theta.transform(
+                functools.partial(set_float_dtype, dtype=reference_dtype)
+            )
+            reference_model = T5Encoder(
+                theta=reference_theta, config=reference_model.config
+            )
+
+        batch_size = input_kwargs["input_ids"].shape[0]
+
+        reference_result_dict = call_torch_module_function(
+            module=reference_model,
+            function_name="forward",
+            kwargs=input_kwargs,
+            trace_path_prefix=f"{self.path_prefix}torch_",
+        )
+        reference_result = flatten_for_iree_signature(reference_result_dict)
+
+        parameters_path = f"{self.path_prefix}parameters.irpa"
+        if not self.caching or not os.path.exists(parameters_path):
+            target_dataset = Dataset(
+                properties=target_model.config.to_properties(),
+                root_theta=target_model.theta,
+            )
+            target_dataset.save(parameters_path)
+
+        mlir_path = f"{self.path_prefix}model.mlir"
+        if not self.caching or not os.path.exists(mlir_path):
+            logger.info("Exporting T5 encoder model to MLIR...")
+            export_encoder_mlir(
+                target_model,
+                batch_sizes=[batch_size],
+                mlir_output_path=mlir_path,
+                dynamic_context_length=False,
+            )
+        iree_module_path = f"{self.path_prefix}model.vmfb"
+        if not self.caching or not os.path.exists(iree_module_path):
+            logger.info("Compiling MLIR file...")
+            iree.compiler.compile_file(
+                mlir_path,
+                output_file=iree_module_path,
+                extra_args=get_iree_compiler_flags(self),
+            )
+
+        iree_devices = get_iree_devices(driver=self.iree_device, device_count=1)
+
+        def run_iree_module(iree_devices: list[iree.runtime.HalDevice]):
+            logger.info("Loading IREE module...")
+            iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
+                module_path=iree_module_path,
+                devices=iree_devices,
+                parameters_path=parameters_path,
+            )
+            iree_args = prepare_iree_module_function_args(
+                args=flatten_for_iree_signature(input_kwargs), devices=iree_devices
+            )
+            logger.info("Invoking IREE function...")
+            iree_result = iree_to_torch(
+                *run_iree_module_function(
+                    module=iree_module,
+                    vm_context=iree_vm_context,
+                    args=iree_args,
+                    device=iree_devices[0],
+                    function_name=f"forward_bs{batch_size}",
+                    trace_path_prefix=f"{self.path_prefix}iree_",
+                )
+            )
+            return [t.clone() for t in iree_result]
+
+        iree_result = with_iree_device_context(run_iree_module, iree_devices)
+
+        logger.info("Comparing outputs...")
+        reference_result_last_hidden_state = reference_result[0]
+        iree_result_last_hidden_state = iree_result[0]
+
+        assert_close(iree_result_last_hidden_state, reference_result_last_hidden_state)
 
     def runTestV1_1CompareIreeAgainstTorchEager(
         self,
@@ -310,6 +460,9 @@ class T5EncoderIreeTest(TempDirTestBase):
             functools.partial(set_float_dtype, dtype=target_dtype)
         )
 
+        target_model = T5Encoder(theta=target_dataset.root_theta, config=config)
+        reference_model = T5Encoder(theta=reference_dataset.root_theta, config=config)
+
         input_ids = tokenizer(
             test_prompts,
             truncation=True,
@@ -318,81 +471,48 @@ class T5EncoderIreeTest(TempDirTestBase):
             padding="max_length",
             return_tensors="pt",
         ).input_ids
-        input_args = OrderedDict([("input_ids", input_ids)])
+        input_kwargs = OrderedDict([("input_ids", input_ids)])
         batch_size = input_ids.shape[0]
 
-        reference_model = T5Encoder(theta=reference_dataset.root_theta, config=config)
-        reference_result_dict = call_torch_module_function(
-            module=reference_model,
-            function_name="forward",
-            kwargs=input_args,
-            trace_path_prefix=f"{self.path_prefix}torch_",
+        self.compare_iree_vs_eager(
+            target_model=target_model,
+            reference_model=reference_model,
+            input_kwargs=input_kwargs,
+            assert_close=assert_t5_encoder_state_close,
         )
-        reference_result = flatten_for_iree_signature(reference_result_dict)
 
-        parameters_path = f"{self.path_prefix}parameters.irpa"
-        if not self.caching or not os.path.exists(parameters_path):
-            target_dataset.save(parameters_path)
+    @parameterized.expand(
+        [
+            (torch.float32, torch.float64, 1e-5, 1e-5),
+            (torch.bfloat16, torch.float64, 2e-2, 1e-2),
+        ]
+    )
+    def testCompareToyIreeVsEager(
+        self,
+        target_dtype: torch.dtype,
+        reference_dtype: torch.dtype,
+        atol: float,
+        rtol: float,
+    ):
+        config = get_t5_encoder_toy_config()
+        target_theta = make_t5_encoder_random_theta(config, dtype=target_dtype)
+        target_model = T5Encoder(theta=target_theta, config=config)
+        _, input_kwargs = target_model.sample_inputs(batch_size=2)
 
-        mlir_path = f"{self.path_prefix}model.mlir"
-        if not self.caching or not os.path.exists(mlir_path):
-            logger.info("Exporting T5 encoder model to MLIR...")
-            export_encoder_mlir(
-                parameters_path,
-                batch_sizes=[batch_size],
-                mlir_output_path=mlir_path,
-                dynamic_context_length=False,
+        def assert_close(actual: torch.Tensor, expected: torch.Tensor):
+            torch.testing.assert_close(
+                actual.to(dtype=expected.dtype), expected, atol=atol, rtol=rtol
             )
-        iree_module_path = f"{self.path_prefix}model.vmfb"
-        if not self.caching or not os.path.exists(iree_module_path):
-            logger.info("Compiling MLIR file...")
-            iree.compiler.compile_file(
-                mlir_path,
-                output_file=iree_module_path,
-                extra_args=["--iree-hal-target-device=hip", "--iree-hip-target=gfx942"],
-            )
 
-        iree_devices = get_iree_devices(driver="hip", device_count=1)
-
-        def run_iree_module(iree_devices: list[iree.runtime.HalDevice]):
-            logger.info("Loading IREE module...")
-            iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
-                module_path=iree_module_path,
-                devices=iree_devices,
-                parameters_path=parameters_path,
-            )
-            iree_args = prepare_iree_module_function_args(
-                args=flatten_for_iree_signature(input_args), devices=iree_devices
-            )
-            logger.info("Invoking IREE function...")
-            iree_result = iree_to_torch(
-                *run_iree_module_function(
-                    module=iree_module,
-                    vm_context=iree_vm_context,
-                    args=iree_args,
-                    device=iree_devices[0],
-                    function_name=f"forward_bs{batch_size}",
-                    trace_path_prefix=f"{self.path_prefix}iree_",
-                )
-            )
-            iree_result = [
-                ops.to(iree_result[i], dtype=reference_result[i].dtype)
-                for i in range(len(reference_result))
-            ]
-            return [t.clone() for t in iree_result]
-
-        iree_result = with_iree_device_context(run_iree_module, iree_devices)
-
-        logger.info("Comparing outputs...")
-        reference_result_last_hidden_state = reference_result[0]
-        iree_result_last_hidden_state = iree_result[0]
-        assert_t5_encoder_state_close(
-            iree_result_last_hidden_state,
-            reference_result_last_hidden_state,
-            target_dtype,
+        self.compare_iree_vs_eager(
+            target_model=target_model,
+            input_kwargs=input_kwargs,
+            assert_close=assert_close,
+            reference_dtype=reference_dtype,
         )
 
     @with_t5_data
+    @pytest.mark.expensive
     def testCompareV1_1SmallIreeF32AgainstTorchEagerF32(self):
         self.runTestV1_1CompareIreeAgainstTorchEager(
             "google/t5-v1_1-small",
@@ -401,6 +521,7 @@ class T5EncoderIreeTest(TempDirTestBase):
         )
 
     @with_t5_data
+    @pytest.mark.expensive
     def testCompareV1_1SmallIreeBf16AgainstTorchEagerF32(self):
         self.runTestV1_1CompareIreeAgainstTorchEager(
             "google/t5-v1_1-small",
@@ -409,6 +530,7 @@ class T5EncoderIreeTest(TempDirTestBase):
         )
 
     @with_t5_data
+    @pytest.mark.expensive
     def testCompareV1_1XxlIreeF32AgainstTorchEagerF32(self):
         self.runTestV1_1CompareIreeAgainstTorchEager(
             "google/t5-v1_1-xxl",
@@ -417,6 +539,7 @@ class T5EncoderIreeTest(TempDirTestBase):
         )
 
     @with_t5_data
+    @pytest.mark.expensive
     def testCompareV1_1XxlIreeBf16AgainstTorchEagerF32(self):
         self.runTestV1_1CompareIreeAgainstTorchEager(
             "google/t5-v1_1-xxl",
@@ -425,6 +548,7 @@ class T5EncoderIreeTest(TempDirTestBase):
         )
 
     @with_t5_data
+    @pytest.mark.expensive
     def testCompareV1_1XxlFluxRepoIreeBf16AgainstTorchEagerF32(self):
         self.runTestV1_1CompareIreeAgainstTorchEager(
             "black-forest-labs/FLUX.1-dev",

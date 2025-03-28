@@ -382,6 +382,20 @@ class FlattenTest(unittest.TestCase):
         assert expected_result.is_deep_equal(actual_result)
 
 
+class ExpandTest(unittest.TestCase):
+    def testExpandReplicated(self):
+        sizes = [4, 4, 5]
+        shard_count = 2
+        a = torch.rand(4, 1, 5)
+        b = ops.replicate(a, shard_count)
+
+        expected = torch.Tensor.expand(a, sizes)
+        actual = ops.expand(b, sizes)
+
+        for shard in actual.shards:
+            torch.testing.assert_close(shard.as_torch(), expected)
+
+
 class GemmTest(unittest.TestCase):
     def testShardedParallelDim(self):
         a = torch.rand(4, 3)
@@ -594,9 +608,9 @@ class AttentionTest(unittest.TestCase):
         k = torch.rand(4, 32, 16, dtype=torch.float32)
         v = torch.rand(4, 32, 16, dtype=torch.float32)
 
-        qs = SplitPrimitiveTensor(shard_dim=0, ts=q.split(4, dim=0))
-        ks = SplitPrimitiveTensor(shard_dim=0, ts=k.split(4, dim=0))
-        vs = SplitPrimitiveTensor(shard_dim=0, ts=v.split(4, dim=0))
+        qs = SplitPrimitiveTensor(shard_dim=0, ts=q.split(2, dim=0))
+        ks = SplitPrimitiveTensor(shard_dim=0, ts=k.split(2, dim=0))
+        vs = SplitPrimitiveTensor(shard_dim=0, ts=v.split(2, dim=0))
 
         expected_result = ops.scaled_dot_product_attention(q, k, v, a=None)
         sharded_result = ops.scaled_dot_product_attention(qs, ks, vs, a=None)
@@ -608,9 +622,9 @@ class AttentionTest(unittest.TestCase):
         k = torch.rand(4, 32, 16, dtype=torch.float32)
         v = torch.rand(4, 32, 16, dtype=torch.float32)
 
-        qs = SplitPrimitiveTensor(shard_dim=0, ts=q.split(4, dim=0))
-        ks = SplitPrimitiveTensor(shard_dim=0, ts=k.split(4, dim=0))
-        vs = SplitPrimitiveTensor(shard_dim=0, ts=v.split(4, dim=0))
+        qs = SplitPrimitiveTensor(shard_dim=0, ts=q.split(2, dim=0))
+        ks = SplitPrimitiveTensor(shard_dim=0, ts=k.split(2, dim=0))
+        vs = SplitPrimitiveTensor(shard_dim=0, ts=v.split(2, dim=0))
 
         expected_result = ops.scaled_dot_product_attention(
             q, k, v, a=None, is_causal=True
@@ -823,6 +837,18 @@ class MatmulTest(unittest.TestCase):
         assert sharded_result.shard_dim == shard_dim
         actual_result = unbox_tensor(ops.unshard(sharded_result))
         torch.testing.assert_close(actual_result, expected_result)
+
+    def testReplicatedLhsAndRhs(self):
+        a = torch.rand(2, 5, 3, dtype=torch.float32)
+        b = torch.rand(3, 6, dtype=torch.float32)
+        shard_count = 3
+        unsharded_result = torch.matmul(a, b)
+
+        a_sharded = ops.replicate(a, count=shard_count)
+        b_sharded = ops.replicate(b, count=shard_count)
+        actual_result = ops.matmul(a_sharded, b_sharded)
+        for shard in actual_result.shards:
+            assert ops.equal(shard, unsharded_result)
 
 
 class ReplicateTest(unittest.TestCase):
@@ -1062,6 +1088,30 @@ class ShardLikeTest(unittest.TestCase):
         expected_result = ops.reshard_split(tensor, dim=shard_dim, count=shard_count)
         actual_result = ops.reshard_like(expected_result, expected_result)
         assert expected_result.is_deep_equal(actual_result)
+
+
+class TransposeTest(unittest.TestCase):
+    def testTransposeReplicated(self):
+        a = torch.randn(3, 4, 1)
+        expected = torch.transpose(a, 1, 2)
+        replicated = ops.replicate(a, count=3)
+        actual = ops.transpose(replicated, 1, 2)
+
+        assert all(s_a == s_e for (s_a, s_e) in zip(actual.shape, expected.shape))
+        for shard in actual.shards:
+            assert ops.equal(shard, expected)
+
+
+class UnflattenTest(unittest.TestCase):
+    def testUnflattenReplicated(self):
+        a = torch.randn(3, 4, 1)
+        expected = torch.unflatten(a, 1, [2, 2])
+        replicated = ops.replicate(a, count=3)
+        actual = ops.unflatten(replicated, 1, [2, 2])
+
+        assert all(s_a == s_e for (s_a, s_e) in zip(actual.shape, expected.shape))
+        for shard in actual.shards:
+            assert ops.equal(shard, expected)
 
 
 class UnshardTest(unittest.TestCase):

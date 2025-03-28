@@ -18,32 +18,23 @@ logger = logging.getLogger(__name__)
 
 def get_llama_cpp_path() -> Path:
     """Downloads and extracts llama.cpp if needed, returns path to installation."""
-    # Use system temp directory as base
     temp_base = Path(tempfile.gettempdir()) / "sharktank_llamacpp"
     llama_cpp_dir = temp_base / "llama.cpp-b4696"
 
-    # Only download and extract if not already present
     if not llama_cpp_dir.exists():
         temp_base.mkdir(parents=True, exist_ok=True)
         zip_path = temp_base / "llama.cpp.zip"
 
-        # Download zip file
         logger.info("Downloading llama.cpp...")
         urllib.request.urlretrieve(
             "https://github.com/ggerganov/llama.cpp/archive/refs/tags/b4696.zip",
             zip_path,
         )
-
-        # Extract zip file
         logger.info("Extracting llama.cpp...")
         with zipfile.ZipFile(zip_path, "r") as zip_ref:
             zip_ref.extractall(temp_base)
-
-        # Clean up zip file
         zip_path.unlink()
-
         logger.info(f"llama.cpp installed at {llama_cpp_dir}")
-
     return llama_cpp_dir
 
 
@@ -95,6 +86,9 @@ class ModelConfig:
     repo_id: Optional[str] = None
     local_path: Optional[Path] = None
     azure_config: Optional[AzureConfig] = None
+    tensor_parallelism_size: Optional[
+        int
+    ] = None  # Number of shards for tensor parallelism
 
     def __post_init__(self):
         if self.source == ModelSource.HUGGINGFACE_FROM_GGUF:
@@ -112,17 +106,110 @@ class ModelConfig:
                     "dataset_name required for HUGGINGFACE_FROM_SAFETENSORS models"
                 )
 
+    @staticmethod
+    def get(name, tp_size=None, batch_sizes=None):
+        """Get a model config by name, with optional tensor parallelism.
+
+        Args:
+            name: Base model name
+            tp_size: Optional tensor parallelism size
+            batch_sizes: Optional tuple of batch sizes to support
+
+        Returns:
+            ModelConfig: The requested model configuration
+
+        Raises:
+            KeyError: If the base model name is not found in the predefined models
+        """
+        # Check if the base model exists in predefined models
+        if name not in _PREDEFINED_MODELS:
+            # Try to parse a model pattern like "model_name_tp4"
+            import re
+
+            tp_match = re.match(r"(.+)_tp(\d+)$", name)
+            if tp_match:
+                base_name, tp_size_str = tp_match.groups()
+                if base_name in _PREDEFINED_MODELS:
+                    return ModelConfig.get(base_name, int(tp_size_str), batch_sizes)
+            raise KeyError(
+                f"Model '{name}' not found. Available models: {list(_PREDEFINED_MODELS.keys())}"
+            )
+
+        # Get the base model config
+        base_config = _PREDEFINED_MODELS[name]
+
+        if tp_size is None and batch_sizes is None:
+            return base_config
+
+        # Set tp and batch size
+        return ModelConfig(
+            source=base_config.source,
+            repo_id=base_config.repo_id,
+            dataset_name=base_config.dataset_name,
+            model_file=base_config.model_file,
+            tokenizer_id=base_config.tokenizer_id,
+            batch_sizes=batch_sizes or base_config.batch_sizes,
+            device_settings=base_config.device_settings,
+            local_path=base_config.local_path,
+            azure_config=base_config.azure_config,
+            tensor_parallelism_size=tp_size,
+        )
+
+
+# Dictionary of predefined base model configurations
+_PREDEFINED_MODELS = {
+    "open_llama_3b": ModelConfig(
+        source=ModelSource.HUGGINGFACE_FROM_GGUF,
+        repo_id="SlyEcho/open_llama_3b_v2_gguf",
+        model_file="open-llama-3b-v2-f16.gguf",
+        tokenizer_id="openlm-research/open_llama_3b_v2",
+        batch_sizes=(1, 4),
+        device_settings=None,
+    ),
+    "llama3.1_8b": ModelConfig(
+        source=ModelSource.HUGGINGFACE_FROM_GGUF,
+        repo_id="SanctumAI/Meta-Llama-3.1-8B-Instruct-GGUF",
+        model_file="meta-llama-3.1-8b-instruct.f16.gguf",
+        tokenizer_id="NousResearch/Meta-Llama-3.1-8B",
+        batch_sizes=(4,),
+        device_settings=None,
+    ),
+    "azure_llama": ModelConfig(  # This model is currently unused. When you use it, check to make sure the irpa indeed still exist and remove this comment.
+        source=ModelSource.AZURE,
+        azure_config=AzureConfig(
+            account_name="sharkblobs",
+            container_name="halo-models",
+            blob_path="llm-dev/llama3_8b/8b_f16.irpa",
+        ),
+        model_file="azure-llama.irpa",
+        tokenizer_id="openlm-research/open_llama_3b_v2",
+        batch_sizes=(1, 4),
+        device_settings=None,
+    ),
+    "tinystories_llama2_25m": ModelConfig(
+        source=ModelSource.HUGGINGFACE_FROM_SAFETENSORS,
+        dataset_name="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
+        model_file="model.irpa",  # This will be the final converted file name
+        tokenizer_id="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
+        batch_sizes=(4,),
+        device_settings=None,
+    ),
+}
+
 
 @dataclass
 class ModelArtifacts:
     """Container for all paths related to model artifacts."""
 
-    weights_path: Path
+    weights_path: Path  # Main weights file (the .irpa without .rankX for sharded models)
     tokenizer_path: Path
     mlir_path: Path
     vmfb_path: Path
     config_path: Path
     model_config: ModelConfig  # config that was originally used to generate these artifacts
+    shard_paths: Optional[
+        list[Path]
+    ] = None  # Paths to sharded weight files (model_name.rank\d+.irpa)
 
 
 class ModelStageManager:
@@ -305,12 +392,63 @@ class ModelStageManager:
 
         return tokenizer_path
 
+    def shard_model(self, weights_path: Path) -> Tuple[Path, list[Path]]:
+        """Shards model using tensor parallelism if configured."""
+        if not self.config.tensor_parallelism_size:
+            return weights_path, None
+
+        # Determine device type from compile flags
+        device_type = "cpu"  # Default to CPU
+        compile_flags = self.config.device_settings.compile_flags
+        for flag in compile_flags:
+            if "hip" in flag.lower():
+                device_type = "hip"  # Use "hip" for AMD GPU device
+                break
+
+        logger.info(
+            f"Sharding model with tensor parallelism size {self.config.tensor_parallelism_size} "
+            f"for device type: {device_type}"
+        )
+
+        base_name = weights_path.stem
+        output_base = self.model_dir / f"{base_name}.sharded"
+        output_irpa = output_base.with_suffix(".irpa")
+
+        shard_cmd = [
+            "python",
+            "-m",
+            "sharktank.examples.sharding.shard_llm_dataset",
+            f"--{weights_path.suffix.strip('.')}-file={weights_path}",
+            f"--output-irpa={output_irpa}",
+            f"--tensor-parallelism-size={self.config.tensor_parallelism_size}",
+        ]
+
+        logger.info(f"Running sharding command: {' '.join(shard_cmd)}")
+
+        try:
+            result = subprocess.run(
+                shard_cmd, check=True, capture_output=True, text=True
+            )
+            logger.info(f"Sharding succeeded")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Sharding failed with code {e.returncode}")
+            logger.error(f"STDOUT: {e.stdout}")
+            logger.error(f"STDERR: {e.stderr}")
+            raise
+
+        shard_paths = [
+            output_base.with_suffix(f".rank{i}.irpa")
+            for i in range(self.config.tensor_parallelism_size)
+        ]
+
+        logger.info(f"Model successfully sharded into {len(shard_paths)} shards")
+        return output_irpa, shard_paths
+
     def export_model(self, weights_path: Path) -> Tuple[Path, Path]:
         """Exports model to MLIR format."""
         bs_string = ",".join(map(str, self.config.batch_sizes))
         mlir_path = self.model_dir / "model.mlir"
         config_path = self.model_dir / "config.json"
-
         logger.info(
             "Exporting model with following settings:\n"
             f"  MLIR Path: {mlir_path}\n"
@@ -318,20 +456,39 @@ class ModelStageManager:
             f"  Batch Sizes: {bs_string}"
         )
 
-        subprocess.run(
-            [
-                "python",
-                "-m",
-                "sharktank.examples.export_paged_llm_v1",
-                "--block-seq-stride=16",
-                f"--{weights_path.suffix.strip('.')}-file={weights_path}",
-                f"--output-mlir={mlir_path}",
-                f"--output-config={config_path}",
-                f"--bs-prefill={bs_string}",
-                f"--bs-decode={bs_string}",
-            ],
-            check=True,
-        )
+        if self.config.tensor_parallelism_size:
+            weights_path = weights_path.with_suffix(".irpa")
+
+        export_cmd = [
+            "python",
+            "-m",
+            "sharktank.examples.export_paged_llm_v1",
+            "--use-attention-mask",
+            "--block-seq-stride=16",
+            f"--{weights_path.suffix.strip('.')}-file={weights_path}",
+            f"--output-mlir={mlir_path}",
+            f"--output-config={config_path}",
+            f"--bs-prefill={bs_string}",
+            f"--bs-decode={bs_string}",
+        ]
+
+        if self.config.tensor_parallelism_size:
+            export_cmd.append(
+                f"--tensor-parallelism-size={self.config.tensor_parallelism_size}"
+            )
+
+        logger.info(f"Running export command: {' '.join(export_cmd)}")
+
+        try:
+            result = subprocess.run(
+                export_cmd, check=True, capture_output=True, text=True
+            )
+            logger.info(f"Export succeeded.")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Export failed with code {e.returncode}")
+            logger.error(f"STDOUT: {e.stdout}")
+            logger.error(f"STDERR: {e.stderr}")
+            raise
 
         logger.info(f"Model successfully exported to {mlir_path}")
         return mlir_path, config_path
@@ -347,9 +504,21 @@ class ModelStageManager:
             "-o",
             str(vmfb_path),
         ]
+
         compile_command.extend(self.config.device_settings.compile_flags)
 
-        subprocess.run(compile_command, check=True)
+        logger.info(f"Running compiler command: {' '.join(compile_command)}")
+        try:
+            result = subprocess.run(
+                compile_command, check=True, capture_output=True, text=True
+            )
+            logger.info(f"Compilation succeeded")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Compilation failed with code {e.returncode}")
+            logger.error(f"STDOUT: {e.stdout}")
+            logger.error(f"STDERR: {e.stderr}")
+            raise
+
         logger.info(f"Model successfully compiled to {vmfb_path}")
         return vmfb_path
 
@@ -378,6 +547,11 @@ class ModelProcessor:
 
         tokenizer_path = manager.prepare_tokenizer()
 
+        # Stage 1.5: Shard model if tensor parallelism is configured
+        shard_paths = None
+        if config.tensor_parallelism_size:
+            weights_path, shard_paths = manager.shard_model(weights_path)
+
         # Stage 2: Export model (fresh every time)
         mlir_path, config_path = manager.export_model(weights_path)
 
@@ -391,65 +565,5 @@ class ModelProcessor:
             vmfb_path=vmfb_path,
             config_path=config_path,
             model_config=config,
+            shard_paths=shard_paths,
         )
-
-
-TEST_MODELS = {}
-
-TEST_MODELS["open_llama_3b"] = ModelConfig(
-    source=ModelSource.HUGGINGFACE_FROM_GGUF,
-    repo_id="SlyEcho/open_llama_3b_v2_gguf",
-    model_file="open-llama-3b-v2-f16.gguf",
-    tokenizer_id="openlm-research/open_llama_3b_v2",
-    batch_sizes=(1, 4),
-    device_settings=None,
-)
-
-TEST_MODELS["llama3.1_8b"] = ModelConfig(
-    source=ModelSource.HUGGINGFACE_FROM_GGUF,
-    repo_id="SanctumAI/Meta-Llama-3.1-8B-Instruct-GGUF",
-    model_file="meta-llama-3.1-8b-instruct.f16.gguf",
-    tokenizer_id="NousResearch/Meta-Llama-3.1-8B",
-    batch_sizes=(1, 4),
-    device_settings=None,
-)
-TEST_MODELS[
-    "azure_llama"
-] = ModelConfig(  # This model is currently unused. When you use it, check to make sure the irpa indeed still exist and remove this comment.
-    source=ModelSource.AZURE,
-    azure_config=AzureConfig(
-        account_name="sharkblobs",
-        container_name="halo-models",
-        blob_path="llm-dev/llama3_8b/8b_f16.irpa",
-    ),
-    model_file="azure-llama.irpa",
-    tokenizer_id="openlm-research/open_llama_3b_v2",
-    batch_sizes=(1, 4),
-    device_settings=None,
-)
-
-# TODO: upstream this to sharktank
-Dataset(
-    "Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
-    files=[
-        RemoteFile(
-            file_id="model.safetensors",
-            filename="model.safetensors",
-            repo_id="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
-            extra_filenames=(
-                "config.json",
-                "tokenizer.json",
-                "tokenizer_config.json",
-            ),
-        ),
-    ],
-)
-
-TEST_MODELS["tinystories_llama2_25m"] = ModelConfig(
-    source=ModelSource.HUGGINGFACE_FROM_SAFETENSORS,
-    dataset_name="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
-    model_file="model.irpa",  # This will be the final converted file name
-    tokenizer_id="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
-    batch_sizes=(1, 4),
-    device_settings=None,
-)

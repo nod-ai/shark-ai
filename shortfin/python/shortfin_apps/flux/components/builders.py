@@ -15,9 +15,9 @@ from shortfin_apps.utils import *
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
 parent = os.path.dirname(this_dir)
-default_config_json = os.path.join(parent, "examples", "flux_dev_config_mixed.json")
+default_config_json = os.path.join(parent, "examples", "flux_dev_config.json")
 
-ARTIFACT_VERSION = "20250321"
+ARTIFACT_VERSION = "20250326"
 FLUX_BUCKET = (
     f"https://sharkpublic.blob.core.windows.net/sharkpublic/flux.1/{ARTIFACT_VERSION}/"
 )
@@ -43,7 +43,7 @@ def get_mlir_filenames(model_params: ModelParams, model=None):
 
 
 def get_vmfb_filenames(
-    model_params: ModelParams, model=None, target: str = "amdgpu-gfx942"
+    model_params: ModelParams, model=None, target: str = "hip-gfx942"
 ):
     vmfb_filenames = []
     file_stems = get_file_stems(model_params)
@@ -70,11 +70,12 @@ def get_params_filenames(model_params: ModelParams, model=None, splat: bool = Fa
     else:
         for idx, mod in enumerate(modnames):
             # schnell and dev weights are the same, except for sampler
-            subtype = (
-                "schnell" if model_params.is_schnell and mod == "sampler" else "dev"
-            )
+            base_subtype = "flux"
+            if mod == "sampler":
+                subtype = "schnell" if model_params.is_schnell else "dev"
+                base_subtype += f"_{subtype}"
             params_filenames.extend(
-                [base + "_" + subtype + "_" + mod + "_" + mod_precs[idx] + ".irpa"]
+                [base_subtype + "_" + mod + "_" + mod_precs[idx] + ".irpa"]
             )
 
     return filter_by_model(params_filenames, model)
@@ -91,9 +92,13 @@ def get_file_stems(model_params: ModelParams):
     }
     for mod, modname in mod_names.items():
         # schnell and dev weights are the same, except for sampler
+        base_subtype = "flux"
+        if mod == "sampler":
+            subtype = "schnell" if model_params.is_schnell else "dev"
+            base_subtype += f"_{subtype}"
         subtype = "schnell" if model_params.is_schnell and mod == "sampler" else "dev"
         ord_params = [
-            [base + subtype],
+            [base_subtype],
             [modname],
         ]
         bsizes = []
@@ -149,7 +154,7 @@ def flux(
     mlir_bucket = FLUX_BUCKET + "mlir/"
     vmfb_bucket = FLUX_BUCKET + "vmfb/"
     if "gfx" in target:
-        target = "amdgpu-" + target
+        target = "hip-" + target
 
     mlir_filenames = get_mlir_filenames(model_params, model)
     mlir_urls = get_url_map(mlir_filenames, mlir_bucket)
@@ -182,7 +187,8 @@ def flux(
     for f, url in params_urls.items():
         if needs_file_url(f, ctx, url):
             raise RuntimeError(
-                "Model parameters auto-downloading is disable."
+                f'Could not find file "{f}".'
+                " Model parameters auto-downloading is disable."
                 " To obtain the weights please follow https://github.com/nod-ai/shark-ai/tree/main/shortfin/python/shortfin_apps/flux#prepare-artifacts"
             )
     filenames = [*vmfb_filenames, *params_filenames, *mlir_filenames]

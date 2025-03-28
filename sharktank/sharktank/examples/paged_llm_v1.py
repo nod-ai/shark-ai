@@ -8,7 +8,8 @@
 
 
 import math
-from ..models.llama.tools.data_utils import write_ndarray_to_bin
+from pathlib import Path
+from typing import Optional
 import torch
 import numpy as np
 from ..layers import *
@@ -23,6 +24,7 @@ from ..models.llama.llama import *
 from ..models.llama.sharding import shard_theta
 from ..utils.debugging import trace_tensor
 from ..utils.tokenizer import InferenceTokenizer
+from ..utils import cli
 
 
 class TorchGenerator:
@@ -32,34 +34,85 @@ class TorchGenerator:
         self,
         model: PagedLlamaModelV1,
         tokenizer: InferenceTokenizer,
-        page_cache_size: int = 128,
         # Need to look at the model more for this.
         end_token: int = 2,
-        dump_bins: bool = False,
     ):
         self.model = model
         self.tokenizer = tokenizer
-        self.shared_cache_state = model.cache.allocate(page_cache_size)
-        self.free_pages = list(range(1, page_cache_size))
         self.end_token = end_token
-        self.dump_bins = dump_bins
 
     @property
     def block_seq_stride(self) -> int:
         return self.model.cache.block_seq_stride
 
-    def begin_batch(self, prompts: list[str]):
-        token_ids, seq_lens = self.tokenizer.encode(
-            prompts, pad_to_multiple_of=self.model.cache.pad_sequence_stride
-        )
-
-        token_ids = torch.tensor(token_ids, device=self.model.device)
-        seq_lens = torch.tensor(seq_lens, device=self.model.device)
-        if self.shared_cache_state is not None:
-            cache_state = self.shared_cache_state
+    def preprocess_prompts(
+        self,
+        prompts: list[str],
+        prompt_seq_len: int = None,
+        bs=int,
+    ):
+        self.prompt_seq_len = prompt_seq_len
+        if self.prompt_seq_len is not None:
+            self.bs = bs
+            vocab_size = self.tokenizer.vocab_size
+            token_ids = torch.randint(
+                low=0,
+                high=vocab_size,
+                size=(self.bs, self.prompt_seq_len),
+                device=self.model.device,
+            )
+            seq_lens = torch.tensor(
+                [self.prompt_seq_len] * self.bs, device=self.model.device
+            )
+            print(f":: Prompt tokens shape [bs, seq_len]: {token_ids.shape}")
         else:
-            cache_state = self.model.cache.allocate(bs=len(prompts))
-        return Batch(self, token_ids, seq_lens, cache_state, dump_bins=self.dump_bins)
+            self.bs = len(prompts)
+            token_ids = self.tokenizer._encode(texts=prompts, add_start_token=False)
+
+            print(f":: Prompt tokens:")
+            for idx, prompt in enumerate(prompts):
+                print(
+                    f"    prompt_{idx}: \n    {prompt.encode()} \n    {token_ids[idx]}\n"
+                )
+
+            token_ids, seq_lens = self.tokenizer.pad_tokens(
+                token_ids, pad_to_multiple_of=self.model.cache.pad_sequence_stride
+            )
+
+            token_ids = torch.tensor(token_ids, device=self.model.device)
+            seq_lens = torch.tensor(seq_lens, device=self.model.device)
+
+        return token_ids, seq_lens
+
+    def begin_batch(
+        self,
+        token_ids: torch.tensor,
+        seq_lens: torch.tensor,
+        dump_path: Path,
+        dump_decode_steps: int,
+    ):
+        assert (
+            self.bs == token_ids.shape[0]
+        ), "bs (Batch size) does not match the number of prompts in token_ids"
+
+        if self.prompt_seq_len and not dump_path:
+            dump_path = ""
+
+        self.page_cache_size = (
+            (token_ids[0].shape[0] // self.model.config.block_seq_stride) * self.bs + 1
+        ) * 2
+
+        cache_state = self.model.cache.allocate(self.page_cache_size)
+        self.free_pages = list(range(1, self.page_cache_size))
+
+        return Batch(
+            self,
+            token_ids,
+            seq_lens,
+            cache_state,
+            dump_path=dump_path,
+            dump_decode_steps=dump_decode_steps,
+        )
 
     def alloc_page(self) -> int:
         return self.free_pages.pop()
@@ -77,7 +130,8 @@ class Batch:
         token_ids: torch.Tensor,
         seq_lens: torch.Tensor,
         cache_state: list[torch.Tensor],
-        dump_bins: bool = False,
+        dump_path: Path,
+        dump_decode_steps: int,
     ):
         self.bs = token_ids.shape[0]
         assert seq_lens.shape[0] == self.bs
@@ -87,7 +141,9 @@ class Batch:
         self.cache_state = cache_state
         self.results: list[list[int]] = [[] for _ in range(self.bs)]
         self.done_result_indices: set[int] = set()
-        self.dump_bins = dump_bins
+        self.dump_path = dump_path
+        self.dump_decode_steps = dump_decode_steps
+        self.decode_step = 0
 
         # Assemble the batch.
         seq_stride = self.parent.block_seq_stride
@@ -103,16 +159,31 @@ class Batch:
 
     @property
     def done(self) -> bool:
-        return len(self.done_result_indices) == self.bs
+        return (
+            len(self.done_result_indices) == self.bs
+            or len(self.parent.free_pages) == 0
+            or (
+                self.parent.prompt_seq_len
+                and self.decode_step == self.dump_decode_steps
+            )
+        )
 
     def detokenize(self) -> list[str]:
         return self.parent.tokenizer.decode(self.results)
 
     def print_current_results(self):
+        if len(self.results[0]) == 1:
+            phase = "prefill"
+        else:
+            phase = "decode"
+
+        print(f":: {phase} result tokens:")
         results = self.detokenize()
         for i, s in enumerate(results):
             seq_len = int(self.seq_lens[i])
-            print(f"  {i}({len(self.results[i])}, {seq_len}): {s}")
+            print(
+                f"   prompt_{i}({len(self.results[i])}, {seq_len}): {s} \n   {self.results[i]}"
+            )
 
     def add_result_token(self, tokens: torch.Tensor):
         for i in range(self.bs):
@@ -133,7 +204,25 @@ class Batch:
                 needed_blocks = math.ceil(sl / self.parent.block_seq_stride)
             block_ids_row = self.seq_block_ids[i]
             while len(block_ids_row) < needed_blocks:
+                if self.done:
+                    break
                 block_ids_row.append(self.parent.alloc_page())
+
+    def dump_args(
+        self,
+        phase: str,
+        arg_name: str,
+        arg: torch.tensor,
+        decode_step: Optional[int] = None,
+    ):
+
+        if arg.dtype in [torch.float8_e4m3fnuz, torch.bfloat16]:
+            arg = arg.to(torch.uint8)
+        if phase == "decode":
+            arg_name = f"{arg_name}_{decode_step}"
+        file_path = Path(self.dump_path, f"{phase}_{arg_name}.npy")
+
+        np.save(file_path, arg.cpu().numpy())
 
     def prefill(self):
         model = self.parent.model
@@ -141,7 +230,6 @@ class Batch:
             model.input_mask(self.seq_lens, self.token_ids.shape[1])
         )
         seq_block_ids_tensor = self.pad_block_ids()
-        print(f":: Invoke prefill:")
         trace_tensor("prefill.token_ids", self.token_ids)
         trace_tensor("prefill.seq_block_ids", seq_block_ids_tensor)
         trace_tensor("prefill.attention_mask", attention_mask)
@@ -153,23 +241,18 @@ class Batch:
             attention_mask = replicate(attention_mask, tp)
             seq_block_ids_tensor = replicate(seq_block_ids_tensor, tp)
 
-        if self.dump_bins:
-            write_ndarray_to_bin(
-                token_ids.numpy(),
-                f"prefill_token_ids_{'x'.join([str(x) for x in token_ids.shape])}xi64.bin",
+        if self.dump_path is not None:
+            print(f"\nSaving prefill args to {Path(self.dump_path)}\n")
+
+            self.dump_args(phase="prefill", arg_name="token_ids", arg=token_ids)
+            self.dump_args(phase="prefill", arg_name="seq_lens", arg=self.seq_lens)
+            self.dump_args(
+                phase="prefill", arg_name="seq_block_ids", arg=seq_block_ids_tensor
             )
-            write_ndarray_to_bin(
-                np.array(token_ids.shape[0], dtype=np.int64),
-                f"prefill_seq_lens_1xi64.bin",
+            self.dump_args(
+                phase="prefill", arg_name="cache_state", arg=self.cache_state[0]
             )
-            write_ndarray_to_bin(
-                seq_block_ids_tensor.numpy(),
-                f"prefill_seq_block_ids_{'x'.join([str(x) for x in seq_block_ids_tensor.shape])}xi64.bin",
-            )
-            write_ndarray_to_bin(
-                self.cache_state[0].to(torch.float8_e4m3fnuz).to(torch.uint8).numpy(),
-                f"prefill_cache_state_{'x'.join([str(x) for x in self.cache_state[0].shape])}xf8E4M3FNUZ.bin",
-            )
+
         logits = model.prefill(
             token_ids,
             attention_mask=attention_mask,
@@ -185,9 +268,9 @@ class Batch:
         tokens = torch.tensor(
             model.extract_tokens_from_logits(logits, self.seq_lens)
         ).unsqueeze(1)
-        print(f":: Prefill results:\n{tokens.tolist()}")
         self.add_result_token(tokens)
         self.next_tokens = tokens.to(device=model.device)
+        self.print_current_results()
 
     def decode(self):
         model = self.parent.model
@@ -214,27 +297,40 @@ class Batch:
             seq_block_ids_tensor = replicate(seq_block_ids_tensor, tp)
             decode_attention_mask = replicate(decode_attention_mask, tp)
 
-        if self.dump_bins:
-            write_ndarray_to_bin(
-                self.next_tokens.numpy(),
-                f"decode_next_tokens_{'x'.join([str(x)for x in self.next_tokens.shape])}xi64.bin",
+        if self.dump_path is not None:
+            print(f"\nSaving decode args to {Path(self.dump_path)}\n")
+
+            self.dump_args(
+                phase="decode",
+                arg_name="next_tokens",
+                arg=self.next_tokens,
+                decode_step=self.decode_step,
             )
-            write_ndarray_to_bin(
-                start_positions.numpy(),
-                f"decode_start_positions_{'x'.join([str(x)for x in start_positions.shape])}xi64.bin",
+            self.dump_args(
+                phase="decode",
+                arg_name="start_positions",
+                arg=start_positions,
+                decode_step=self.decode_step,
             )
-            write_ndarray_to_bin(
-                seq_block_ids_tensor.numpy(),
-                f"decode_seq_block_ids_tensor_{'x'.join([str(x)for x in seq_block_ids_tensor.shape])}xi64.bin",
+            self.dump_args(
+                phase="decode",
+                arg_name="seq_lens",
+                arg=self.seq_lens,
+                decode_step=self.decode_step,
             )
-            write_ndarray_to_bin(
-                torch.tensor(self.next_tokens.shape[0]).to(torch.int64).numpy(),
-                f"decode_seq_lens_1xi64.bin",
+            self.dump_args(
+                phase="decode",
+                arg_name="seq_block_ids",
+                arg=seq_block_ids_tensor,
+                decode_step=self.decode_step,
             )
-            write_ndarray_to_bin(
-                self.cache_state[0].to(torch.float8_e4m3fnuz).to(torch.uint8).numpy(),
-                f"decode_cache_state_{'x'.join([str(x) for x in self.cache_state[0].shape])}xf8E4M3FNUZ.bin",
+            self.dump_args(
+                phase="decode",
+                arg_name="cache_state",
+                arg=self.cache_state[0],
+                decode_step=self.decode_step,
             )
+
         logits = model.decode(
             self.next_tokens,
             attention_mask=decode_attention_mask,
@@ -253,6 +349,8 @@ class Batch:
         ).unsqueeze(1)
         self.add_result_token(tokens)
         self.next_tokens = tokens
+        self.print_current_results()
+        self.decode_step += 1
 
     def pad_block_ids(self) -> torch.Tensor:
         max_length = max(len(r) for r in self.seq_block_ids)
@@ -261,28 +359,61 @@ class Batch:
 
 
 def main():
-    from ..utils import cli
+    """
+    Run LLM inference in torch/eager mode. Use --device='cuda:0' to run on AMD GPU
+    Args:
+        --prompt: list[str] - Custom space separated prompts
+        --prompt-seq-len: int - Generate random token ids for given seq len and bs and save prefill & first decode step input args as npy files
+        --dump-path: str - Path to save prefill and decode input args as npy files
+        --dump-decode-steps: int - Number of decode steps to dump decode args (defaults to 1 decode step)
+        --bs: int - batch size, for custom prompts, bs is number of given prompts (defaults to 4)
+        --save_intermediates_path: str - save module forward outputs to safetensors, ex: run_0 will save to run_0_prefill.savetensors"
+    """
 
     parser = cli.create_parser()
-    parser.add_argument("prompt", nargs="+", help="Prompt strings")
+    parser.add_argument("--prompt", nargs="+", help="Prompt strings")
     parser.add_argument(
         "--save_intermediates_path",
         help="save module forward outputs to safetensors, ex: run_0 will save to run_0_prefill.savetensors",
     )
     parser.add_argument(
-        "--dump-bins",
-        help="dump input tensors to bin files",
-        action="store_true",
+        "--dump-path",
+        help="Path to dump prefill/decode input tensors to npy files",
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
+        "--dump-decode-steps",
+        help="Number of decode steps to dump decode input tensors",
+        type=int,
+        default=1,
+    )
+    parser.add_argument(
+        "--prompt-seq-len",
+        help="Seq len to generate input prompts for prefill",
+        type=int,
+    )
+    parser.add_argument(
+        "--bs",
+        help="Batch size",
+        type=int,
+        default="4",
     )
     cli.add_input_dataset_options(parser)
     cli.add_tokenizer_options(parser)
     cli.add_quantization_options(parser)
     cli.add_model_options(parser)
     args = cli.parse(parser)
+
+    prompt_seq_len = args.prompt_seq_len
+
+    assert (
+        args.prompt or prompt_seq_len
+    ), "Pass --prompt for custom prompts or --prompt-seq-len and --bs to generate random token ids"
+
     device = torch.device(args.device) if args.device else None
     dataset = cli.get_input_dataset(args)
     tokenizer = cli.get_tokenizer(args)
-    prompts = args.prompt
     config = LlamaModelConfig(
         hp=configs.LlamaHParams.from_gguf_props(dataset.properties),
         block_seq_stride=args.block_seq_stride,
@@ -311,16 +442,19 @@ def main():
 
         intermediates_saver = SaveModuleResultTensorsPatch()
         intermediates_saver.patch_child_modules(model)
-    generator = TorchGenerator(model, tokenizer, dump_bins=args.dump_bins)
 
-    print(f":: Prompting:")
-    for prompt in prompts:
-        print(f"    {prompt.encode()}")
+    generator = TorchGenerator(model, tokenizer)
 
-    batch = generator.begin_batch(prompts)
-    print(f":: Prompt tokens: {batch.token_ids}")
+    token_ids, seq_lens = generator.preprocess_prompts(
+        prompts=args.prompt, prompt_seq_len=prompt_seq_len, bs=args.bs
+    )
+    batch = generator.begin_batch(
+        token_ids=token_ids,
+        seq_lens=seq_lens,
+        dump_path=args.dump_path,
+        dump_decode_steps=args.dump_decode_steps,
+    )
     batch.prefill()
-    print(batch.detokenize())
 
     if args.save_intermediates_path:
         intermediates_saver.save_file(
@@ -334,9 +468,13 @@ def main():
                 intermediates_saver.save_file(
                     args.save_intermediates_path + f"_step_{counter}.safetensors"
                 )
-            print(f":: Result tokens: {batch.results}")
-            batch.print_current_results()
+
             counter += 1
+
+        if len(batch.parent.free_pages) == 0:
+            print(
+                "\n\n:: Out of allocated pages, increase page_cache_size to continue generation.\n"
+            )
 
 
 if __name__ == "__main__":

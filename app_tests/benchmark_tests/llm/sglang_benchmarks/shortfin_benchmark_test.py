@@ -21,7 +21,7 @@ from .utils import (
 
 from integration_tests.llm.logging_utils import end_log_group, start_log_group
 from integration_tests.llm.server_management import ServerConfig, ServerInstance
-from integration_tests.llm.model_management import ModelArtifacts
+from integration_tests.llm.model_management import ModelArtifacts, ModelConfig
 
 logger = logging.getLogger(__name__)
 
@@ -38,13 +38,13 @@ device_settings = {
 @pytest.mark.parametrize(
     "model_artifacts,server",
     [
-        pytest.param(
-            "llama3.1_8b",
-            {"model": "llama3.1_8b", "prefix_sharing": "none"},
+        (
+            ModelConfig.get(name="llama3.1_8b"),
+            {"prefix_sharing": "none"},
         ),
-        pytest.param(
-            "llama3.1_8b",
-            {"model": "llama3.1_8b", "prefix_sharing": "trie"},
+        (
+            ModelConfig.get(name="llama3.1_8b"),
+            {"prefix_sharing": "trie"},
         ),
     ],
     ids=[

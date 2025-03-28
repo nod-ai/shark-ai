@@ -363,13 +363,11 @@ def export_flux_model(
     width,
     precision="fp16",
     max_length=512,
-    compile_to="torch",
     weights_directory=None,
     external_weights=None,
-    external_weight_path=None,
     decomp_attn=False,
 ):
-    weights_path = Path(weights_directory) / f"exported_parameters_{precision}"
+    weights_path = Path(weights_directory)
     dtype = torch_dtypes[precision]
     decomp_list = []
     if decomp_attn == True:
@@ -416,7 +414,8 @@ def export_flux_model(
             model, sample_inputs = get_te_model_and_inputs(
                 hf_model_name,
                 component,
-                weights_path / f"{hf_model_name}_clip_{precision}.{external_weights}",
+                weights_path
+                / f"{hf_model_name.split('_')[0]}_clip_{precision}.{external_weights}",
                 batch_size,
                 max_length,
             )
@@ -442,7 +441,8 @@ def export_flux_model(
             model, sample_inputs = get_te_model_and_inputs(
                 hf_model_name,
                 component,
-                weights_path / f"{hf_model_name}_t5xxl_{precision}.{external_weights}",
+                weights_path
+                / f"{hf_model_name.split('_')[0]}_t5xxl_{precision}.{external_weights}",
                 batch_size,
                 max_length,
             )
@@ -467,7 +467,8 @@ def export_flux_model(
         elif component == "vae":
             model, encode_inputs, decode_inputs = get_ae_model_and_inputs(
                 hf_model_name,
-                weights_path / f"{hf_model_name}_vae_{precision}.{external_weights}",
+                weights_path
+                / f"{hf_model_name.split('_')[0]}_vae_{precision}.{external_weights}",
                 precision,
                 batch_size,
                 height,
@@ -528,11 +529,13 @@ def get_filename(args):
             )
         case "clip":
             return create_safe_name(
-                args.model, f"clip_bs{args.batch_size}_77_{args.precision}"
+                args.model.split("_")[0],
+                f"clip_bs{args.batch_size}_77_{args.precision}",
             )
         case "t5xxl":
             return create_safe_name(
-                args.model, f"t5xxl_bs{args.batch_size}_512_{args.precision}"
+                args.model.split("_")[0],
+                f"t5xxl_bs{args.batch_size}_512_{args.precision}",
             )
         case "scheduler":
             return create_safe_name(
@@ -541,7 +544,7 @@ def get_filename(args):
             )
         case "vae":
             return create_safe_name(
-                args.model,
+                args.model.split("_")[0],
                 f"vae_bs{args.batch_size}_{args.height}x{args.width}_{args.precision}",
             )
 
@@ -569,33 +572,21 @@ if __name__ == "__main__":
     p.add_argument("--max_length", default=512)
     p.add_argument("--weights_directory", default="/data/flux/FLUX.1-dev/")
     p.add_argument("--external_weights", default="irpa")
-    p.add_argument("--external_weights_file", default=None)
     p.add_argument("--decomp_attn", action="store_true")
     args = p.parse_args()
 
-    if args.external_weights and not args.external_weights_file:
-        args.external_weights_file = (
-            create_safe_name(
-                args.model,
-                args.component + "_" + args.precision,
-            )
-            + "."
-            + args.external_weights
-        )
     safe_name = get_filename(args)
     mod_str = export_flux_model(
-        args.model,
-        args.component,
-        args.batch_size,
-        args.height,
-        args.width,
-        args.precision,
-        args.max_length,
-        "mlir",
-        args.weights_directory,
-        args.external_weights,
-        args.external_weights_file,
-        args.decomp_attn,
+        hf_model_name=args.model,
+        component=args.component,
+        batch_size=args.batch_size,
+        height=args.height,
+        width=args.width,
+        precision=args.precision,
+        max_length=args.max_length,
+        weights_directory=args.weights_directory,
+        external_weights=args.external_weights,
+        decomp_attn=args.decomp_attn,
     )
 
     with open(f"{safe_name}.mlir", "w+") as f:

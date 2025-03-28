@@ -6,7 +6,7 @@
 
 import torch
 from torch import Tensor
-from typing import List, Optional, Sequence, Union, Any, Tuple, Dict
+from typing import List, Optional, Sequence, Union, Any, Tuple, Dict, Iterable
 import itertools
 from numbers import Number
 import math
@@ -31,79 +31,45 @@ from ..utils import longest_equal_range
 from .signatures import *
 
 
+def assert_on_same_devices(*tensors: Tuple[ShardedTensor]) -> None:
+    """
+    Checks that all tensors are placed on the same devices.
+    """
+    if len(tensors) <= 1:
+        return
+    assert all(isinstance(tensor, ShardedTensor) for tensor in tensors)
+
+    for tensor in tensors[1:]:
+        if any(d0 != d for d0, d in zip(tensors[0].devices, tensor.devices)):
+            raise ValueError("All tensors must be placed on the same devices.")
+
+
 def sharded_wrap_override():
     def transfer_n_pin(f):
         """
-        Wrapper for each op defined in this file.
+        Wrapper for each NON-TRANSFERING op defined in this file.
         """
-
-        def flatten_args(
-            items: Tuple | Dict[str, Any]
-        ) -> Tuple[List[int | List[int]], List[ShardedTensor]]:
-            """
-            Takes the args/kwargs.values() and flattens them into a flat representation of (any) ShardedTensors and their indices.
-            """
-            t_i, t_vals = [], []
-            for i, arg in enumerate(items):
-                if isinstance(arg, ShardedTensor):
-                    t_i.append(i)
-                    t_vals.append(arg)
-                elif isinstance(arg, list) and all(
-                    isinstance(val, ShardedTensor) for val in arg
-                ):
-                    t_i.append([i] * len(arg))
-                    t_vals.extend(arg)
-            return t_i, t_vals
-
-        def unflatten_args(
-            items: Tuple | Dict, t_i: List[int | List[int]], t_vals: List[ShardedTensor]
-        ) -> Tuple[Tuple, Dict[str, Any]]:
-            """
-            Converts the flattened and (potentially) modified args or kwargs.values() back into the original structure.
-            """
-            i_lookup = (
-                list(range(len(items)))
-                if isinstance(items, tuple)
-                else list(items.keys())
-            )
-            new_items = list(items) if isinstance(items, tuple) else dict(items)
-
-            for i in t_i:
-                if isinstance(i, int):
-                    new_items[i_lookup[i]] = t_vals.pop(0)
-                else:  # List[int]
-                    _popped_vals = [t_vals.pop(0) for _ in range(len(i))]
-                    new_items[i_lookup[i[0]]] = items[i_lookup[i[0]]].__class__(
-                        _popped_vals
-                    )
-
-            if isinstance(new_items, list):
-                new_items = tuple(new_items)
-            return new_items
 
         def func_wrapper(*args: Tuple, **kwargs: Dict[str, Any]):
             """
-            Wraps each operation, f, in order to transfer all unpinned ShardedTensors in its input args/kwargs onto the same device,
-            then calls f with the modified args/kwargs, finally it will ensure the result is on the same devices as the input tensors.
+            Wraps each NON-TRANSFERING operation, f, to ensure that all incoming tensors are on the same device and that the result has the devices correctly labelled.
 
             If no ShardedTensors are present in the input, then no changes are made to input/output.
             """
-            t_i_args, t_vals_args = flatten_args(args)
-            t_i_kwargs, t_vals_kwargs = flatten_args(list(kwargs.values()))
-            t_vals = t_vals_args + t_vals_kwargs
+            sharded_tensors = []
+            for value in itertools.chain(args, kwargs.values()):
+                if isinstance(value, ShardedTensor):
+                    sharded_tensors.append(value)
+                    continue
+                if isinstance(value, Iterable):
+                    for val in value:
+                        if isinstance(val, ShardedTensor):
+                            sharded_tensors.append(val)
 
-            t_vals = transfer_if_needed(*t_vals)
-
-            args = unflatten_args(args, t_i_args, t_vals[: len(t_vals_args)])
-            kwargs = unflatten_args(kwargs, t_i_kwargs, t_vals[len(t_vals_args) :])
+            assert_on_same_devices(*sharded_tensors)
             res = f(*args, **kwargs)
-            if isinstance(res, ShardedTensor) and len(t_vals) > 0:
-                pinned = (
-                    res.pinned
-                    or (len(t_vals) == 1 and t_vals[0].pinned)
-                    or "_like_" in f.__name__
-                )
-                res = res.clone(devices=t_vals[0].devices, pinned=pinned)
+            if isinstance(res, ShardedTensor) and len(sharded_tensors) > 0:
+                res = res.clone(devices=sharded_tensors[0].devices)
             return res
 
         return func_wrapper
@@ -129,6 +95,9 @@ def sharded_wrap_override():
         "index_copy_",
         "index_put_",
         "transfer_to_logical_device",
+        "reshard_like",
+        "replicate_like",
+        "equal",
     }
 
     from . import signatures
@@ -155,42 +124,6 @@ def sharded_unwrap_override():
 
 
 sharded_wrap_override()
-
-
-def transfer_if_needed(*tensors: Tuple[ShardedTensor]) -> List[ShardedTensor]:
-    """
-    If at least 2 tensors are panned in, the shards of all unpinned tensors are transfered to be on the same devices as those of the pinned tensors.
-    """
-    if len(tensors) <= 1:
-        return list(tensors)
-    assert all(isinstance(tensor, ShardedTensor) for tensor in tensors)
-
-    # Check if all tensors are on the same devices.
-    all_on_same_devices = True
-    for tensor in tensors[1:]:
-        if any(d0 != d for d0, d in zip(tensors[0].devices, tensor.devices)):
-            all_on_same_devices = False
-            break
-    if all_on_same_devices:
-        return list(tensors)
-
-    pinned_tensors = [tensor for tensor in tensors if tensor.pinned]
-    if len(pinned_tensors) == 0:
-        raise ValueError(
-            "Tensors are on different devices, but none are pinned. Don't know which devices to transfer to."
-        )
-
-    pinned_devices = pinned_tensors[0].devices
-    for pinned_tensor in pinned_tensors[1:]:
-        if any(d0 != d for d0, d in zip(pinned_devices, pinned_tensor.devices)):
-            raise ValueError("All pinned tensors must be on the same devices.")
-
-    # Move all non-pinned tensors to the same devices as the pinned ones.
-    new_tensors = [
-        (tensor if tensor.pinned else tensor.clone(devices=pinned_devices))
-        for tensor in tensors
-    ]
-    return new_tensors
 
 
 @all_gather.override(SplitPrimitiveTensor)
@@ -225,6 +158,9 @@ def all_gather_split(
 def all_reduce_split_or_unreduced(
     input: Union[SplitPrimitiveTensor, UnreducedTensor],
 ) -> ReplicatedTensor:
+    if len(input.shards) == 1:
+        return ReplicatedTensor(ts=input.shards, devices=input.devices)
+
     reduced = functools.reduce(
         lambda x, y: elementwise(torch.add, x, y),
         [
@@ -280,7 +216,12 @@ def cat_split(
         concatenated_unsharded = cat(
             [shard for t in tensors for shard in t.shards], dim
         )
-        return reshard_split(concatenated_unsharded, dim=shard_dim, count=shard_count)
+        return reshard_split(
+            concatenated_unsharded,
+            dim=shard_dim,
+            count=shard_count,
+            devices=tensors[0].devices,
+        )
 
 
 # conv2d
@@ -595,6 +536,12 @@ def equal_split(a: SplitPrimitiveTensor, b: AnyTensor) -> bool:
     return a.is_deep_equal(b)
 
 
+@expand.override(ReplicatedTensor)
+def expand_replicated(tensor: ReplicatedTensor, shape: List[int]) -> ReplicatedTensor:
+    shards = [expand(shard, shape) for shard in tensor.shards]
+    return tensor.clone(ts=shards)
+
+
 @expand.override(SplitPrimitiveTensor)
 def expand_split(
     tensor: SplitPrimitiveTensor, shape: List[int]
@@ -684,6 +631,25 @@ def shareded_group_norm_affine(input, weight, bias, *, num_groups, eps):
     ]
 
     return SplitPrimitiveTensor(shard_dim=1, ts=result_shards)
+
+
+@index_copy_.override(SplitPrimitiveTensor, ReplicatedTensor, ReplicatedTensor)
+def index_copy__split_replicated_split(
+    inout: SplitPrimitiveTensor,
+    dim: int,
+    index: ReplicatedTensor,
+    tensor: ReplicatedTensor,
+) -> SplitPrimitiveTensor:
+    assert (
+        inout.shard_count == index.shard_count
+        and inout.shard_count == tensor.shard_count
+    )
+    assert inout.shard_dim != dim
+    for inout_shard, index_shard, tensor_shard in zip(
+        inout.shards, index.shards, tensor.shards
+    ):
+        index_copy_(inout_shard, dim, index_shard, tensor_shard)
+    return inout
 
 
 @index_copy_.override(SplitPrimitiveTensor, ReplicatedTensor, SplitPrimitiveTensor)
@@ -852,6 +818,22 @@ for types in itertools.product([Tensor, ShardedTensor], repeat=2):
 # Sharded matmuls.
 
 
+@matmul.override(ReplicatedTensor, ReplicatedTensor)
+def matmul_replicated(
+    lhs: ReplicatedTensor, rhs: ReplicatedTensor, *, transpose_rhs: bool
+) -> ReplicatedTensor:
+    assert lhs.shard_count == rhs.shard_count
+
+    if transpose_rhs:
+        return matmul(lhs, rhs.T)
+
+    shards = [
+        matmul(lhs_shard, rhs_shard)
+        for (lhs_shard, rhs_shard) in zip(lhs.shards, rhs.shards)
+    ]
+    return ReplicatedTensor(ts=shards)
+
+
 @matmul.override(ReplicatedTensor, SplitPrimitiveTensor)
 def matmul_replicated_lhs_split_rhs(
     lhs: ReplicatedTensor, rhs: SplitPrimitiveTensor, *, transpose_rhs: bool
@@ -985,12 +967,44 @@ def matmul_split(
 
 # Scaled dot product attention
 @scaled_dot_product_attention.override(
+    ReplicatedTensor, ReplicatedTensor, ReplicatedTensor, Optional[ReplicatedTensor]
+)
+def scaled_dot_product_attention_replicated(
+    q: ReplicatedTensor,
+    k: ReplicatedTensor,
+    v: ReplicatedTensor,
+    a: Optional[ReplicatedTensor],
+    is_causal: bool,
+    scale: float,
+) -> ReplicatedTensor:
+    if q.shard_count != k.shard_count or q.shard_count != v.shard_count:
+        raise ValueError("Incompatible number of shards for qkv")
+
+    if a and q.shard_count != a.shard_count:
+        raise ValueError(
+            f"Incompatible number of shards for a ({a.shard_count}) should be ({q.shard_count})"
+        )
+    a_shards = [None] * q.shard_count if a is None else a.shards
+
+    output_shards = []
+    for q_s, k_s, v_s, a_s in zip(q.shards, k.shards, v.shards, a_shards):
+        o_s = scaled_dot_product_attention(
+            q_s, k_s, v_s, a_s, is_causal=is_causal, scale=scale
+        )
+        output_shards.append(o_s)
+
+    return ReplicatedTensor(ts=output_shards)
+
+
+@scaled_dot_product_attention.override(
     SplitPrimitiveTensor,
     SplitPrimitiveTensor,
     SplitPrimitiveTensor,
     Optional[ReplicatedTensor],
 )
-def scaled_dot_product_attention_sharded(q, k, v, a, is_causal, scale) -> Tensor:
+def scaled_dot_product_attention_sharded(
+    q, k, v, a, is_causal, scale
+) -> SplitPrimitiveTensor:
     if q.shard_count != k.shard_count or q.shard_count != v.shard_count:
         raise ValueError("Incompatible number of shards for qkv")
 
@@ -1061,7 +1075,7 @@ def repeat_replicated(input: ReplicatedTensor, *sizes: List[int]) -> ReplicatedT
 
 @replicate.override(ReplicatedTensor)
 def replicate_replicated(
-    input: ReplicatedTensor, *, count: int, devices: None, pinned: None
+    input: ReplicatedTensor, *, count: int, devices: None
 ) -> ReplicatedTensor:
     if input.shard_count != count:
         raise ValueError(f"Number of shards not equal ({input.shard_count} != {count})")
@@ -1070,7 +1084,7 @@ def replicate_replicated(
 
 @replicate.override(SplitPrimitiveTensor)
 def replicate_split(
-    input: SplitPrimitiveTensor, *, count: int, devices: None, pinned: None
+    input: SplitPrimitiveTensor, *, count: int, devices: None
 ) -> ReplicatedTensor:
     if input.shard_count != count:
         raise ValueError(f"Number of shards not equal ({input.shard_count} != {count})")
@@ -1079,7 +1093,7 @@ def replicate_split(
 
 @replicate.override(UnreducedTensor)
 def replicate_unreduced(
-    input: UnreducedTensor, *, count: int, devices: None, pinned: None
+    input: UnreducedTensor, *, count: int, devices: None
 ) -> ReplicatedTensor:
     if input.shard_count != count:
         raise ValueError(f"Number of shards not equal ({input.shard_count} != {count})")
@@ -1087,16 +1101,10 @@ def replicate_unreduced(
 
 
 @replicate.override(Tensor)
-def replicate_unsharded(
-    input, *, count: int, devices: Tuple[int], pinned: bool
-) -> ReplicatedTensor:
+def replicate_unsharded(input, *, count: int, devices: Tuple[int]) -> ReplicatedTensor:
     torch_input = unbox_tensor(input)
     assert count == len(devices)
-    # If we have a torch input replicating we can assume we need to transfer:
-    torch_inputs = [
-        transfer_to_logical_device(torch_input, devices[i]) for i in range(count)
-    ]
-    return ReplicatedTensor(ts=torch_inputs, devices=devices, pinned=pinned)
+    return ReplicatedTensor(ts=torch_input, shard_count=count, devices=devices)
 
 
 @reshape.override(SplitPrimitiveTensor)
@@ -1169,14 +1177,18 @@ def reshard_all_to_replicated(
 
 
 @reshard_split.override(Tensor)
-def reshard_split_unsharded(input, *, dim: int, count: int) -> SplitPrimitiveTensor:
+def reshard_split_unsharded(
+    input, *, dim: int, count: int, devices: tuple[int, ...]
+) -> SplitPrimitiveTensor:
     torch_input = unbox_tensor(input)
-    return SplitPrimitiveTensor(ts=torch_input, shard_dim=dim, shard_count=count)
+    return SplitPrimitiveTensor(
+        ts=torch_input, shard_dim=dim, shard_count=count, devices=devices
+    )
 
 
 @reshard_split.override(SplitPrimitiveTensor)
 def reshard_split_split(
-    input: SplitPrimitiveTensor, *, dim: int, count: int
+    input: SplitPrimitiveTensor, *, dim: int, count: int, devices: None
 ) -> SplitPrimitiveTensor:
     if input.shard_count != count:
         raise ValueError(f"Number of shards not equal ({input.shard_count} != {count})")
@@ -1187,7 +1199,7 @@ def reshard_split_split(
 
 @reshard_split.override(ReplicatedTensor)
 def reshard_split_replicated(
-    input: ReplicatedTensor, *, dim: int, count: int
+    input: ReplicatedTensor, *, dim: int, count: int, devices: None
 ) -> SplitPrimitiveTensor:
     if input.shard_count != count:
         raise ValueError(f"Number of shards not equal ({input.shard_count} != {count})")
@@ -1208,7 +1220,7 @@ def reshard_split_replicated(
         ]
         for shard_idx, shard in enumerate(input.shards)
     ]
-    return SplitPrimitiveTensor(ts=shards, shard_dim=dim)
+    return SplitPrimitiveTensor(ts=shards, shard_dim=dim, devices=input.devices)
 
 
 @reshard_like.override(Tensor, SplitPrimitiveTensor)
@@ -1234,7 +1246,7 @@ def reshard_like_unsharded_to_replicated(
     tensor, like: ReplicatedTensor
 ) -> ReplicatedTensor:
     torch_tensor = unbox_tensor(tensor)
-    return replicate(torch_tensor, count=like.shard_count)
+    return replicate(torch_tensor, count=like.shard_count, devices=like.devices)
 
 
 @reshard_like.override(ReplicatedTensor, ReplicatedTensor)
@@ -1332,6 +1344,14 @@ def to_split(tensor: SplitPrimitiveTensor, *args, **kwargs):
     return SplitPrimitiveTensor(ts=shards, shard_dim=tensor.shard_dim)
 
 
+@transpose.override(ReplicatedTensor)
+def transpose_replicated(
+    tensor: ReplicatedTensor, dim0: int, dim1: int
+) -> ReplicatedTensor:
+    shards = [transpose(shard, dim0, dim1) for shard in tensor.shards]
+    return ReplicatedTensor(ts=shards)
+
+
 @transpose.override(SplitPrimitiveTensor)
 def transpose_split(
     tensor: SplitPrimitiveTensor, dim0: int, dim1: int
@@ -1345,11 +1365,24 @@ def transpose_split(
     return SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim)
 
 
+@unflatten.override(ReplicatedTensor)
+def unflatten_replicated(
+    input: ReplicatedTensor, dim: int, sizes: Tuple[int]
+) -> ReplicatedTensor:
+    shards = [unflatten(shard, dim, sizes) for shard in input.shards]
+    return input.clone(ts=shards)
+
+
 @unflatten.override(SplitPrimitiveTensor)
 def unflatten_split(
     input: SplitPrimitiveTensor, dim: int, sizes: Tuple[int]
 ) -> SplitPrimitiveTensor:
-    assert dim != input.shard_dim, "Unflattening the split dimension is not supported."
+    if dim == input.shard_dim:
+        if sizes[0] == -1:
+            assert (
+                dim != input.shard_dim
+            ), "Unflattening the split dimension is not supported."
+        sizes = tuple([sizes[0] // input.shard_dim] + [s for s in sizes[1:]])
     shards = [unflatten(shard, dim, sizes) for shard in input.shards]
     shard_dim = input.shard_dim
     if dim < shard_dim:
@@ -1473,6 +1506,19 @@ def unsqueeze_split(tensor: SplitPrimitiveTensor, dim: int) -> SplitPrimitiveTen
 def unsqueeze_replicated(tensor: ReplicatedTensor, dim: int) -> SplitPrimitiveTensor:
     shards = [torch.unsqueeze(unbox_tensor(shard), dim) for shard in tensor.shards]
     return ReplicatedTensor(ts=shards)
+
+
+@view.override(ReplicatedTensor)
+def view_replicated(tensor: ReplicatedTensor, shape: List[int]) -> ReplicatedTensor:
+    view_split_range = _reshape_get_single_split_dim(tensor.shape, shape)
+    if view_split_range is None:
+        raise ValueError(
+            "Only taking a tensor view where splitting a single dimension is supported"
+        )
+    shards = [view(shard, shape) for shard in tensor.shards]
+    res = ReplicatedTensor(ts=shards)
+    assert math.prod(res.shape) == math.prod(tensor.shape)
+    return res
 
 
 @view.override(SplitPrimitiveTensor)

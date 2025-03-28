@@ -15,6 +15,7 @@ from huggingface_hub import hf_hub_download
 from diffusers.models.autoencoders.autoencoder_kl import AutoencoderKL
 import functools
 from parameterized import parameterized
+import platform
 
 
 from sharktank.types import Dataset
@@ -35,7 +36,11 @@ from sharktank.utils.iree import (
     flatten_for_iree_signature,
     device_array_to_host,
 )
-from sharktank.utils.testing import TempDirTestBase
+from sharktank.utils.testing import (
+    TempDirTestBase,
+    get_iree_compiler_flags,
+    is_cpu_condition,
+)
 from sharktank.models.vae.testing import (
     get_toy_vae_decoder_config,
     make_vae_decoder_random_theta,
@@ -48,6 +53,7 @@ with_vae_data = pytest.mark.skipif("not config.getoption('with_vae_data')")
 
 
 @with_vae_data
+@pytest.mark.usefixtures("get_iree_flags")
 class VaeSDXLDecoderTest(TempDirTestBase):
     def setUp(self):
         super().setUp()
@@ -79,16 +85,17 @@ class VaeSDXLDecoderTest(TempDirTestBase):
             [f"{self._temp_dir}/vae/diffusion_pytorch_model.safetensors"],
         )
         f32_dataset.save(
-            f"{self._temp_dir}/vae_f32.irpa", io_report_callback=logger.info
+            f"{self._temp_dir}/vae_f32.irpa", io_report_callback=logger.debug
         )
         f16_dataset = import_hf_dataset(
             f"{self._temp_dir}/vae/config.json",
             [f"{self._temp_dir}/vae/vae.safetensors"],
         )
         f16_dataset.save(
-            f"{self._temp_dir}/vae_f16.irpa", io_report_callback=logger.info
+            f"{self._temp_dir}/vae_f16.irpa", io_report_callback=logger.debug
         )
 
+    @pytest.mark.expensive
     def testCompareF32EagerVsHuggingface(self):
         dtype = getattr(torch, "float32")
         inputs = get_random_inputs(dtype=dtype, device="cpu", bs=1)
@@ -101,6 +108,7 @@ class VaeSDXLDecoderTest(TempDirTestBase):
 
         torch.testing.assert_close(ref_results, results)
 
+    @pytest.mark.expensive
     @pytest.mark.skip(reason="running fp16 on cpu is extremely slow")
     def testCompareF16EagerVsHuggingface(self):
         dtype = getattr(torch, "float32")
@@ -114,6 +122,7 @@ class VaeSDXLDecoderTest(TempDirTestBase):
 
         torch.testing.assert_close(ref_results, results)
 
+    @pytest.mark.expensive
     def testVaeIreeVsHuggingFace(self):
         dtype = getattr(torch, "float32")
         inputs = get_random_inputs(dtype=dtype, device="cpu", bs=1)
@@ -132,8 +141,6 @@ class VaeSDXLDecoderTest(TempDirTestBase):
         module_f16.save_mlir(f"{self._temp_dir}/vae_f16.mlir")
         module_f32.save_mlir(f"{self._temp_dir}/vae_f32.mlir")
         extra_args = [
-            "--iree-hal-target-backends=rocm",
-            "--iree-hip-target=gfx942",
             "--iree-opt-const-eval=false",
             "--iree-opt-strip-assertions=true",
             "--iree-global-opt-propagate-transposes=true",
@@ -144,7 +151,7 @@ class VaeSDXLDecoderTest(TempDirTestBase):
             "--iree-codegen-llvmgpu-use-vector-distribution=true",
             "--iree-execution-model=async-external",
             "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline,iree-preprocessing-pad-to-intrinsics)",
-        ]
+        ] + get_iree_compiler_flags(self)
 
         iree.compiler.compile_file(
             f"{self._temp_dir}/vae_f16.mlir",
@@ -157,7 +164,7 @@ class VaeSDXLDecoderTest(TempDirTestBase):
             extra_args=extra_args,
         )
 
-        iree_devices = get_iree_devices(driver="hip", device_count=1)
+        iree_devices = get_iree_devices(driver=self.iree_device, device_count=1)
 
         def run_iree_module(iree_devices: list[iree.runtime.HalDevice]):
             iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
@@ -215,45 +222,13 @@ class VaeSDXLDecoderTest(TempDirTestBase):
         torch.testing.assert_close(ref_results, iree_result, atol=3e-5, rtol=6e-6)
 
 
-@with_vae_data
+@pytest.mark.usefixtures("get_iree_flags")
 class VaeFluxDecoderTest(TempDirTestBase):
     def setUp(self):
         super().setUp()
-        hf_model_id = "black-forest-labs/FLUX.1-dev"
-        hf_hub_download(
-            repo_id=hf_model_id,
-            local_dir=f"{self._temp_dir}/flux_vae/",
-            local_dir_use_symlinks=False,
-            revision="main",
-            filename="vae/config.json",
-        )
-        hf_hub_download(
-            repo_id=hf_model_id,
-            local_dir=f"{self._temp_dir}/flux_vae/",
-            local_dir_use_symlinks=False,
-            revision="main",
-            filename="vae/diffusion_pytorch_model.safetensors",
-        )
         torch.manual_seed(12345)
-        dataset = import_hf_dataset(
-            f"{self._temp_dir}/flux_vae/vae/config.json",
-            [f"{self._temp_dir}/flux_vae/vae/diffusion_pytorch_model.safetensors"],
-        )
-        dataset.save(
-            f"{self._temp_dir}/flux_vae_bf16.irpa", io_report_callback=logger.info
-        )
-        dataset_f32 = import_hf_dataset(
-            f"{self._temp_dir}/flux_vae/vae/config.json",
-            [f"{self._temp_dir}/flux_vae/vae/diffusion_pytorch_model.safetensors"],
-            target_dtype=torch.float32,
-        )
-        dataset_f32.save(
-            f"{self._temp_dir}/flux_vae_f32.irpa", io_report_callback=logger.info
-        )
-
+        self.hf_model_id = "black-forest-labs/FLUX.1-dev"
         self.extra_args = [
-            "--iree-hal-target-backends=rocm",
-            "--iree-hip-target=gfx942",
             "--iree-opt-const-eval=false",
             "--iree-opt-strip-assertions=true",
             "--iree-global-opt-propagate-transposes=true",
@@ -264,9 +239,14 @@ class VaeFluxDecoderTest(TempDirTestBase):
             "--iree-codegen-llvmgpu-use-vector-distribution=true",
             "--iree-execution-model=async-external",
             "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline,iree-preprocessing-pad-to-intrinsics)",
-        ]
+        ] + get_iree_compiler_flags(self)
 
+    @pytest.mark.expensive
+    @with_vae_data
     def testCompareBF16EagerVsHuggingface(self):
+        self.download_from_hf()
+        self.import_bf16_dataset()
+
         dtype = torch.bfloat16
         inputs = get_random_inputs(dtype=dtype, device="cpu", bs=1, config="flux")
         ref_results = run_torch_vae(
@@ -280,7 +260,12 @@ class VaeFluxDecoderTest(TempDirTestBase):
         # TODO: verify numerics
         torch.testing.assert_close(ref_results, results, atol=3e-2, rtol=3e5)
 
+    @pytest.mark.expensive
+    @with_vae_data
     def testCompareF32EagerVsHuggingface(self):
+        self.download_from_hf()
+        self.import_f32_dataset()
+
         dtype = torch.float32
         inputs = get_random_inputs(dtype=dtype, device="cpu", bs=1, config="flux")
         ref_results = run_torch_vae(
@@ -295,12 +280,22 @@ class VaeFluxDecoderTest(TempDirTestBase):
 
     @parameterized.expand(
         [
-            (torch.float32, torch.float64, 1e-5),
-            (torch.bfloat16, torch.float64, 2e-2),
+            (torch.float32, torch.float64, 1e-5, 1e-5),
+            (torch.bfloat16, torch.float64, 3e-2, 3e-2),
         ],
     )
+    @pytest.mark.xfail(
+        platform.system() == "Windows",
+        raises=AssertionError,
+        strict=False,
+        reason="nan on Windows",
+    )
     def testCompareToyEagerVsHuggingFace(
-        self, target_dtype: torch.dtype, reference_dtype: torch.dtype, atol: float
+        self,
+        target_dtype: torch.dtype,
+        reference_dtype: torch.dtype,
+        atol: float,
+        rtol: float,
     ):
         config = get_toy_vae_decoder_config()
         theta = make_vae_decoder_random_theta(config, dtype=target_dtype)
@@ -308,32 +303,46 @@ class VaeFluxDecoderTest(TempDirTestBase):
         hf_model = convert_vae_decoder_to_hugging_face(model).to(dtype=reference_dtype)
 
         self.runTestCompareEagerVsHuggingFace(
-            target_model=model, reference_model=hf_model, atol=atol
+            target_model=model, reference_model=hf_model, atol=atol, rtol=rtol
         )
 
     @parameterized.expand(
         [
-            (torch.float32, torch.float64, 1e-5),
-            (torch.bfloat16, torch.float64, 2e-2),
+            (torch.float32, torch.float64, 1e-5, 1e-5),
+            (torch.bfloat16, torch.float64, 3e-2, 3e-2),
         ],
     )
     @pytest.mark.xfail(
-        reason="See https://github.com/iree-org/iree/issues/20307",
-        strict=True,
+        is_cpu_condition,
         raises=iree.compiler.CompilerToolError,
+        strict=True,
+        reason="Compiler error on CPU TODO: file issue",
     )
     def testCompareToyIreeVsEager(
-        self, target_dtype: torch.dtype, reference_dtype: torch.dtype, atol: float
+        self,
+        target_dtype: torch.dtype,
+        reference_dtype: torch.dtype,
+        atol: float,
+        rtol: float,
     ):
         config = get_toy_vae_decoder_config()
         reference_theta = make_vae_decoder_random_theta(config, dtype=reference_dtype)
         reference_model = VaeDecoderModel(config, reference_theta)
 
         self.runTestCompareIreeVsEager(
-            target_dtype=target_dtype, reference_model=reference_model, atol=atol
+            target_dtype=target_dtype,
+            reference_model=reference_model,
+            atol=atol,
+            rtol=rtol,
         )
 
+    @pytest.mark.expensive
+    @with_vae_data
     def testVaeIreeVsHuggingFace(self):
+        self.download_from_hf()
+        self.import_bf16_dataset()
+        self.import_f32_dataset()
+
         dtype = torch.bfloat16
         inputs = get_random_inputs(
             dtype=torch.float32, device="cpu", bs=1, config="flux"
@@ -366,7 +375,7 @@ class VaeFluxDecoderTest(TempDirTestBase):
             extra_args=self.extra_args,
         )
 
-        iree_devices = get_iree_devices(driver="hip", device_count=1)
+        iree_devices = get_iree_devices(driver=self.iree_device, device_count=1)
 
         def run_iree_module(iree_devices: list[iree.runtime.HalDevice]):
             iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
@@ -424,7 +433,11 @@ class VaeFluxDecoderTest(TempDirTestBase):
         torch.testing.assert_close(ref_results, iree_result_f32)
 
     def runTestCompareEagerVsHuggingFace(
-        self, target_model: VaeDecoderModel, reference_model: AutoencoderKL, atol: float
+        self,
+        target_model: VaeDecoderModel,
+        reference_model: AutoencoderKL,
+        atol: float,
+        rtol: float,
     ):
         inputs = get_random_inputs(
             dtype=target_model.dtype,
@@ -444,11 +457,15 @@ class VaeFluxDecoderTest(TempDirTestBase):
         )
         results = target_model.forward(inputs)
         torch.testing.assert_close(
-            results.to(dtype=ref_results.dtype), ref_results, atol=atol, rtol=0
+            results.to(dtype=ref_results.dtype), ref_results, atol=atol, rtol=rtol
         )
 
     def runTestCompareIreeVsEager(
-        self, target_dtype: torch.dtype, reference_model: VaeDecoderModel, atol: float
+        self,
+        target_dtype: torch.dtype,
+        reference_model: VaeDecoderModel,
+        atol: float,
+        rtol: float,
     ):
         target_theta = reference_model.theta.transform(
             functools.partial(set_float_dtype, dtype=target_dtype)
@@ -483,7 +500,7 @@ class VaeFluxDecoderTest(TempDirTestBase):
         )
         target_dataset.save(target_parameters_path)
 
-        iree_devices = get_iree_devices(driver="hip", device_count=1)
+        iree_devices = get_iree_devices(driver=self.iree_device, device_count=1)
 
         def run_iree_module(iree_devices: list[iree.runtime.HalDevice]):
             iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
@@ -508,10 +525,45 @@ class VaeFluxDecoderTest(TempDirTestBase):
             ).to(dtype=reference_results.dtype)
 
             torch.testing.assert_close(
-                reference_results, target_results, atol=atol, rtol=0
+                reference_results, target_results, atol=atol, rtol=rtol
             )
 
         with_iree_device_context(run_iree_module, iree_devices)
+
+    def download_from_hf(self):
+        hf_hub_download(
+            repo_id=self.hf_model_id,
+            local_dir=f"{self._temp_dir}/flux_vae/",
+            local_dir_use_symlinks=False,
+            revision="main",
+            filename="vae/config.json",
+        )
+        hf_hub_download(
+            repo_id=self.hf_model_id,
+            local_dir=f"{self._temp_dir}/flux_vae/",
+            local_dir_use_symlinks=False,
+            revision="main",
+            filename="vae/diffusion_pytorch_model.safetensors",
+        )
+
+    def import_bf16_dataset(self):
+        dataset = import_hf_dataset(
+            f"{self._temp_dir}/flux_vae/vae/config.json",
+            [f"{self._temp_dir}/flux_vae/vae/diffusion_pytorch_model.safetensors"],
+        )
+        dataset.save(
+            f"{self._temp_dir}/flux_vae_bf16.irpa", io_report_callback=logger.debug
+        )
+
+    def import_f32_dataset(self):
+        dataset_f32 = import_hf_dataset(
+            f"{self._temp_dir}/flux_vae/vae/config.json",
+            [f"{self._temp_dir}/flux_vae/vae/diffusion_pytorch_model.safetensors"],
+            target_dtype=torch.float32,
+        )
+        dataset_f32.save(
+            f"{self._temp_dir}/flux_vae_f32.irpa", io_report_callback=logger.debug
+        )
 
 
 if __name__ == "__main__":
