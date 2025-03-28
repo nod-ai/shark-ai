@@ -70,6 +70,12 @@ def main():
         default="",
         help="Path to the flags file for iree-benchmark-module for model benchmarking.",
     )
+    client_args.add_argument(
+        "--simple-starter-td-spec",
+        type=str,
+        default="",
+        help="Path to a starter td spec file to merge with tuning spec files.",
+    )
     # Remaining arguments come from libtuner
     args = libtuner.parse_arguments(parser)
 
