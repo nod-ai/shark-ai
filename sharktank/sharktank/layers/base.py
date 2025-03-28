@@ -221,13 +221,13 @@ class BaseLayer(nn.Module, metaclass=BaseLayerMetaClass):
         if path is None:
             raise ValueError("Missing MLIR export path.")
 
-        function_batch_size_pairs = self._get_function_batch_sizes_map()
+        function_batch_sizes_map = self._get_function_batch_sizes_map()
         from ..export import export_model_mlir
 
         export_model_mlir(
             model=self,
             output_path=path,
-            function_batch_size_pairs=function_batch_size_pairs,
+            function_batch_sizes_map=function_batch_sizes_map,
         )
 
     def export(self, mlir_path: PathLike | None = None, /, *args, **kwargs):
@@ -249,10 +249,10 @@ class BaseLayer(nn.Module, metaclass=BaseLayerMetaClass):
             raise ValueError("Can't export sample inputs. No path prefix specified.")
         path_prefix = Path(path_prefix)
 
-        function_batch_size_pairs = self._get_function_batch_sizes_map()
+        function_batch_sizes_map = self._get_function_batch_sizes_map()
 
         with chdir(str(path_prefix.parent)):
-            for function, batch_sizes in function_batch_size_pairs.items():
+            for function, batch_sizes in function_batch_sizes_map.items():
                 for batch_size in batch_sizes:
                     sample_args, sample_kwargs = self.sample_inputs(
                         function=function, batch_size=batch_size
