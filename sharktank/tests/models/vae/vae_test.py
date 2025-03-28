@@ -229,8 +229,6 @@ class VaeFluxDecoderTest(TempDirTestBase):
         torch.manual_seed(12345)
         self.hf_model_id = "black-forest-labs/FLUX.1-dev"
         self.extra_args = [
-            "--iree-hal-target-device=hip",
-            "--iree-hip-target=gfx942",
             "--iree-opt-const-eval=false",
             "--iree-opt-strip-assertions=true",
             "--iree-global-opt-propagate-transposes=true",
