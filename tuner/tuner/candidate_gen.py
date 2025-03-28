@@ -147,30 +147,48 @@ def get_default_output_dir() -> str:
     return "tuning_" + datetime.now().strftime("%Y_%m_%d_%H_%M")
 
 
-def check_td_spec_matchers_overlap(
-    starter_matchers: set[str],
-    current_matchers: set[str],
-    warned_overlap_matchers: set[str],
-) -> tuple[bool, set[str]]:
+def determine_td_specs_to_link(
+    td_specs: list[ir.Module], warned_overlap_matchers: set[str]
+) -> tuple[list[ir.Module], set[str]]:
     """
-    Determines whether tuning specs should be linked and new overlapping matchers for warning.
+    Determines which tuning specs should be linked based on matcher overlap.
+
+    Additionally, the function identifies any overlapping matchers between the
+    starter and current tuning specs that haven't yet triggered a warning.
 
     Args:
-        starter_matchers: Matcher names from the starter tuning spec.
-        current_matchers: Matcher names from the current tuning spec.
+        td_specs: A list of 1 or 2 tuning spec modules. If two are provided, the first is
+                the starter spec.
         warned_overlap_matchers: Set of matchers already warned about for overlaps.
 
     Returns:
-        should_link: True if starter matchers contain any target operations not in the current spec.
-        new_warned_matchers: Set of oerlapping matchers that havenot' been warned about yet.
+         A tuple containing:
+        - A list of td specs to link (possibly excluding the starter spec).
+        - A set of overlapping matchers that haven't been warned about yet.
     """
+
+    if len(td_specs) == 1:
+        # No starter td spec provided, nothing to merge.
+        return td_specs, set()
+
+    assert len(td_specs) == 2, "Expected exactly two TD specs (starter and current)"
+    starter_td_spec = td_specs[0]
+    current_td_spec = td_specs[1]
+
+    starter_matchers = get_matcher_names_from_td_spec(starter_td_spec)
+    current_matchers = get_matcher_names_from_td_spec(current_td_spec)
 
     overlap_matchers = starter_matchers & current_matchers
     unique_starter_matchers = starter_matchers - current_matchers
+
+    # Determine overlapping matchers which haven't been warned about yet.
     new_warned_matchers = overlap_matchers - warned_overlap_matchers
 
-    should_link = bool(unique_starter_matchers)
-    return should_link, new_warned_matchers
+    if unique_starter_matchers:
+        return td_specs, new_warned_matchers
+
+    # Starter spec is redundant, so skip merging it.
+    return [current_td_spec], new_warned_matchers
 
 
 def generate_configs_and_td_specs(
@@ -208,29 +226,8 @@ def generate_configs_and_td_specs(
     assert len(variant_op_list) == 1, "Expect one executable variant op"
     variant_op = variant_op_list[0]
     mma_list = iree_codegen.query_mma_intrinsics(variant_op)
-    if starter_td_spec == None:
-        for i, config in enumerate(
-            generate_solutions(
-                tuner_context,
-                problem_size,
-                num_subgroups,
-                mma_list,
-                allowed_waves_per_eu,
-                pipeline_options_search_space,
-                codegen_pipeline,
-            )
-        ):
-            if i >= limit:
-                break
-            tune_logger.debug(f"Solution #{i+1}: {config}")
-            td_spec_module = dispatch_tuner.get_td_spec(input_module, config)
-            assert td_spec_module, "Failed to generate transform dialect spec"
-            config_specs.append(td_spec_module)
-            tune_logger.debug(f"Generated {len(config_specs)} tuning specs")
-            return config_specs
 
     warned_overlap_matchers: set[str] = set()
-    starter_matchers = get_matcher_names_from_td_spec(starter_td_spec)
     for i, config in enumerate(
         generate_solutions(
             tuner_context,
@@ -246,10 +243,13 @@ def generate_configs_and_td_specs(
             break
         tune_logger.debug(f"Solution #{i+1}: {config}")
         td_spec_module = dispatch_tuner.get_td_spec(input_module, config)
-        current_matchers = get_matcher_names_from_td_spec(td_spec_module)
+        assert td_spec_module, "Failed to generate transform dialect spec"
 
-        should_link, new_warned_matchers = check_td_spec_matchers_overlap(
-            starter_matchers, current_matchers, warned_overlap_matchers
+        td_specs_to_link, new_warned_matchers = determine_td_specs_to_link(
+            [starter_td_spec, td_spec_module]
+            if starter_td_spec is not None
+            else [td_spec_module],
+            warned_overlap_matchers,
         )
 
         # Log warnings only for newly detected overlapping target operations.
@@ -259,13 +259,7 @@ def generate_configs_and_td_specs(
             )
             warned_overlap_matchers.update(new_warned_matchers)
 
-        # Only link td spec and starter spec if it adds unique target operations.
-        if should_link:
-            td_spec_module = link_tuning_specs(
-                tuner_context.mlir_ctx, [starter_td_spec, td_spec_module]
-            )
-
-        assert td_spec_module, "Failed to generate transform dialect spec"
+        td_spec_module = link_tuning_specs(tuner_context.mlir_ctx, td_specs_to_link)
         config_specs.append(td_spec_module)
 
     tune_logger.debug(f"Generated {len(config_specs)} tuning specs")

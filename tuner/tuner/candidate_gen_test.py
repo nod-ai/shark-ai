@@ -209,39 +209,67 @@ def test_get_td_spec_convolution(tuner_ctx: common.TunerContext) -> None:
     )
 
 
-def test_check_td_spec_matchers_overlap(tuner_ctx: common.TunerContext) -> None:
-    starter = {
-        "match_contraction_2048x2048x2048_f16xf16xf32",
-        "match_contraction_4x640x4096_i8xi8xi32",
-    }
-    current = {
-        "match_attention_2x10x4096x64x64x64_f16",
-        "match_contraction_4x4096x1920_i8xi8xi32",
-    }
+def test_determine_td_specs_to_link(tuner_ctx: common.TunerContext) -> None:
+    context = tuner_ctx.mlir_ctx
+    module_str = """
+        module attributes { transform.with_named_sequence } {
+            transform.named_sequence @apply_op_config(%arg0: !transform.any_op {transform.readonly}) {
+                transform.yield
+            }
+
+            transform.named_sequence @match_foo(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
+                transform.yield %arg0 : !transform.any_op
+            }
+
+            transform.named_sequence @match_bar(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
+                transform.yield %arg0 : !transform.any_op
+            }
+
+            transform.named_sequence @__kernel_config(%arg0: !transform.any_op ) -> !transform.any_op
+                attributes { iree_codegen.tuning_spec_entrypoint } {
+                %0 = transform.foreach_match in %arg0
+                @match_foo -> @apply_op_config
+                , @match_bar -> @apply_op_config
+                : (!transform.any_op) -> !transform.any_op
+                transform.yield %0 : !transform.any_op
+            }
+        }
+    """
+    starter_td_spec = ir.Module.parse(module_str, context)
+    current_td_spec = ir.Module.parse(module_str, context)
     warned: set[str] = set()
 
-    should_link, new_warned = candidate_gen.check_td_spec_matchers_overlap(
-        starter, current, warned
+    td_specs_to_link, new_warnings = candidate_gen.determine_td_specs_to_link(
+        [starter_td_spec, current_td_spec], warned
     )
 
-    assert should_link is True
-    assert new_warned == set()
+    assert td_specs_to_link == [current_td_spec]
+    assert new_warnings == {"match_foo", "match_bar"}
+    warned.update(new_warnings)
 
-    current = {"match_contraction_2048x2048x2048_f16xf16xf32"}
-    should_link, new_warned = candidate_gen.check_td_spec_matchers_overlap(
-        starter, current, warned
-    )
-    assert should_link is True
-    assert new_warned == {"match_contraction_2048x2048x2048_f16xf16xf32"}
-    warned.update(new_warned)
+    module_str = """
+        module attributes { transform.with_named_sequence } {
+            transform.named_sequence @apply_op_config(%arg0: !transform.any_op {transform.readonly}) {
+                transform.yield
+            }
 
-    current = {
-        "match_contraction_2048x2048x2048_f16xf16xf32",
-        "match_contraction_4x640x4096_i8xi8xi32",
-    }
-    should_link, new_warned = candidate_gen.check_td_spec_matchers_overlap(
-        starter, current, warned
+            transform.named_sequence @match_baz(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
+                transform.yield %arg0 : !transform.any_op
+            }
+
+            transform.named_sequence @__kernel_config(%arg0: !transform.any_op ) -> !transform.any_op
+                attributes { iree_codegen.tuning_spec_entrypoint } {
+                %0 = transform.foreach_match in %arg0
+                @match_baz -> @apply_op_config
+                : (!transform.any_op) -> !transform.any_op
+                transform.yield %0 : !transform.any_op
+            }
+        }
+    """
+    current_td_spec = ir.Module.parse(module_str, context)
+    td_specs_to_link, new_warnings = candidate_gen.determine_td_specs_to_link(
+        [starter_td_spec, current_td_spec], warned
     )
-    assert should_link is False
-    print(new_warned)
-    assert new_warned == {"match_contraction_4x640x4096_i8xi8xi32"}
+
+    assert td_specs_to_link == [starter_td_spec, current_td_spec]
+    assert new_warnings == set()

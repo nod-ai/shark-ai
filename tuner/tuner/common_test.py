@@ -322,26 +322,26 @@ def test_get_matcher_names_from_td_spec(tuner_ctx: common.TunerContext) -> None:
     context = tuner_ctx.mlir_ctx
     module_str = """
         module attributes { transform.with_named_sequence } {
-        transform.named_sequence @apply_op_config(%arg0: !transform.any_op {transform.readonly}) {
-            transform.yield
-        }
+            transform.named_sequence @apply_op_config(%arg0: !transform.any_op {transform.readonly}) {
+                transform.yield
+            }
 
-        transform.named_sequence @match_foo(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
-            transform.yield %arg0 : !transform.any_op
-        }
+            transform.named_sequence @match_foo(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
+                transform.yield %arg0 : !transform.any_op
+            }
 
-        transform.named_sequence @match_bar(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
-            transform.yield %arg0 : !transform.any_op
-        }
+            transform.named_sequence @match_bar(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
+                transform.yield %arg0 : !transform.any_op
+            }
 
-        transform.named_sequence @__kernel_config(%arg0: !transform.any_op ) -> !transform.any_op
-            attributes { iree_codegen.tuning_spec_entrypoint } {
-            %0 = transform.foreach_match in %arg0
-            @match_foo -> @apply_op_config
-            , @match_bar -> @apply_op_config
-            : (!transform.any_op) -> !transform.any_op
-            transform.yield %0 : !transform.any_op
-        }
+            transform.named_sequence @__kernel_config(%arg0: !transform.any_op ) -> !transform.any_op
+                attributes { iree_codegen.tuning_spec_entrypoint } {
+                %0 = transform.foreach_match in %arg0
+                @match_foo -> @apply_op_config
+                , @match_bar -> @apply_op_config
+                : (!transform.any_op) -> !transform.any_op
+                transform.yield %0 : !transform.any_op
+            }
         }
     """
 
@@ -349,3 +349,15 @@ def test_get_matcher_names_from_td_spec(tuner_ctx: common.TunerContext) -> None:
     matcher_names = common.get_matcher_names_from_td_spec(module)
 
     assert matcher_names == {"match_foo", "match_bar"}
+
+    module_str = """
+        module attributes { transform.with_named_sequence } {
+            transform.named_sequence @__kernel_config(%arg0: !transform.any_op) -> !transform.any_op
+                attributes { iree_codegen.tuning_spec_entrypoint } {
+                transform.yield %arg0 : !transform.any_op
+            }
+        }
+    """
+    module = ir.Module.parse(module_str, context)
+    matcher_names = common.get_matcher_names_from_td_spec(module)
+    assert matcher_names == set()
