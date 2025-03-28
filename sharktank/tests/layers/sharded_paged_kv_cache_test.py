@@ -94,7 +94,7 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
         assert iterables_equal(
             unflattened_cache_state.shape, sharded_unflattened_cache_state.shape
         )
-        assert sharded_unflattened_cache_state.shard_dim == 4
+        assert sharded_unflattened_cache_state.shard_dim == 3
         assert sharded_unflattened_cache_state.shard_count == self.shard_count
         assert sharded_unflattened_cache_state.shape[0] == self.page_count
 

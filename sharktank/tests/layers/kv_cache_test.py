@@ -24,7 +24,7 @@ from sharktank.types import *
 def test_paged(dtype: torch.dtype):
     bs = 4
     seq_length = 24
-    attn_head_count = 4
+    attn_head_count = 3
     attn_head_dim = 16
     transformer_block_count = 4
     block_seq_stride = 4
@@ -47,15 +47,10 @@ def test_paged(dtype: torch.dtype):
     for t in allocation:
         t[...] = torch.full(t.shape, 0.0).to(dtype=dtype)
 
+    shape = bs, write_seq_length, attn_head_count, attn_head_dim
     # Write a prefill in:
-    write_ones = torch.full(
-        (bs, write_seq_length, attn_head_count, attn_head_dim),
-        1.0,
-    ).to(dtype=dtype)
-    write_twos = torch.full(
-        (bs, write_seq_length, attn_head_count, attn_head_dim),
-        2.0,
-    ).to(dtype=dtype)
+    write_ones = torch.rand(*shape).to(dtype=dtype)
+    write_twos = torch.rand(*shape).to(dtype=dtype)
 
     cache.write(
         allocation,
@@ -91,12 +86,10 @@ def test_paged(dtype: torch.dtype):
         )
 
     # Write timestep
-    write_threes = torch.full((bs, 1, attn_head_count, attn_head_dim), 3.0).to(
-        dtype=dtype
-    )
-    write_fours = torch.full((bs, 1, attn_head_count, attn_head_dim), 4.0).to(
-        dtype=dtype
-    )
+    ts_shape = (bs, 1, attn_head_count, attn_head_dim)
+    write_threes = torch.rand(*ts_shape).to(dtype=dtype)
+    write_fours = torch.rand(*ts_shape).to(dtype=dtype)
+
     write_pos = torch.full((bs,), write_seq_length, dtype=torch.int64)
     cache.write_timestep(
         allocation,
