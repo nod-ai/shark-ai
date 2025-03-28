@@ -136,6 +136,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             attention_kernel="torch",
             tensor_parallelism_size=self.tensor_parallelism_size,
             block_seq_stride=32,
+            use_hf=True,
             activation_dtype="bfloat16",
             attention_dtype="bfloat16",
             kv_cache_dtype="float8_e4m3fnuz",
