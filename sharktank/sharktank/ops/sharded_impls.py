@@ -633,8 +633,26 @@ def shareded_group_norm_affine(input, weight, bias, *, num_groups, eps):
     return SplitPrimitiveTensor(shard_dim=1, ts=result_shards)
 
 
+@index_copy_.override(ReplicatedTensor, ReplicatedTensor, ReplicatedTensor)
+def index_copy__replicated_replicated_replicated(
+    inout: ReplicatedTensor,
+    dim: int,
+    index: ReplicatedTensor,
+    tensor: ReplicatedTensor,
+) -> ReplicatedTensor:
+    assert (
+        inout.shard_count == index.shard_count
+        and inout.shard_count == tensor.shard_count
+    )
+    for inout_shard, index_shard, tensor_shard in zip(
+        inout.shards, index.shards, tensor.shards
+    ):
+        index_copy_(inout_shard, dim, index_shard, tensor_shard)
+    return inout
+
+
 @index_copy_.override(SplitPrimitiveTensor, ReplicatedTensor, ReplicatedTensor)
-def index_copy__split_replicated_split(
+def index_copy__split_replicated_replicated(
     inout: SplitPrimitiveTensor,
     dim: int,
     index: ReplicatedTensor,
