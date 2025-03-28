@@ -89,17 +89,7 @@ def merge_tuning_specs(tuner_ctx: TunerContext, td_specs: list[ir.Module]) -> ir
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="merge_td_specs",
-        description="""
-            Merge multiple tuner-generated specs into a single one.
-
-            This script wraps the `iree-opt --iree-codegen-link-tuning-specs` pass.
-            It can be invoked in two ways:
-                1. From another python script by importing and calling `merge_tuning_specs()`
-                2. Directly from the command line to merge tuning spec files
-
-            Usage:
-                python -m tuner.merge_td_specs input1.mlir input2.mlir -o merged.mlir
-        """,
+        description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
