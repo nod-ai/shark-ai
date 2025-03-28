@@ -161,10 +161,11 @@ class Theta:
                 current_ts = current_ts[str(part)]
             last = name_path[-1]
         except KeyError:
-            raise KeyError(
-                f"Unknown parameter {name_path} (in Theta object "
-                f"containing {self.keys})"
-            )
+            return None
+            # raise KeyError(
+            #     f"Unknown parameter {name_path} (in Theta object "
+            #     f"containing {self.keys})"
+            # )
         t = current_ts.get(str(last))
         return t
 
