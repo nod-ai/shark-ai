@@ -342,3 +342,17 @@ def get_matcher_names_from_td_spec(td_spec: ir.Module) -> set[str]:
                     matcher_names.add(matcher.value)
 
     return matcher_names
+
+
+def get_matcher_overlap_info(
+    starter_matchers: set[str], current_matchers: set[str]
+) -> tuple[set[str], set[str]]:
+    """
+    Returns:
+        - overlapping_matchers: matchers shared by starter and current
+        - unique_starter_matchers: matchers only in the starter
+    """
+    overlapping_matchers = starter_matchers & current_matchers
+    unique_starter_matchers = starter_matchers - current_matchers
+
+    return overlapping_matchers, unique_starter_matchers
