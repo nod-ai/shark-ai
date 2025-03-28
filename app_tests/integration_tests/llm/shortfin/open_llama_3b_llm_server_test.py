@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 from ..model_management import AccuracyValidationException, ModelConfig
 
 
-pytestmark = pytest.mark.parametrize(
+parameterization = pytest.mark.parametrize(
     "model_artifacts,server",
     [
         (ModelConfig.get(name="open_llama_3b"), {"prefix_sharing": "none"}),
@@ -24,6 +24,17 @@ pytestmark = pytest.mark.parametrize(
     ],
     indirect=True,
 )
+
+# Failure:
+# > error: Vector shape: [1, 1, 1, 100] does not match the layout (nested_layout<subgroup_tile = [1, 1, 1, 1], batch_tile = [1, 1, 1, 3], outer_tile = [1, 1, 1, 1], thread_tile = [1, 1, 1, 4], element_tile = [1, 1, 1, 8], subgroup_strides = [0, 0, 0, 0], thread_strides = [0, 0, 0, 16]>) at dim 3. Dimension expected by layout: 96 actual: 100
+# > ...
+# > torch.operator "torch.aten._scaled_dot_product_flash_attention_for_cpu"(%397, %398, %399, %float0.000000e00, %false_224, %266, %none_225) : (!torch.vtensor<[1,32,?,100],f16>, !torch.vtensor<[1,32,?,100],f16>, !torch.vtensor<[1,32,?,100],f16>, !torch.float, !torch.bool, !torch.vtensor<[1,1,?,?],f16>, !torch.none) -> (!torch.vtensor<[1,32,?,100],f16>, !torch.vtensor<[1,32,?],f32>)
+# > error: failed to run translation of source executable to target executable for backend #hal.executable.target<"rocm", "rocm-hsaco-fb", {abi = "hip", iree.gpu.target = #iree_gpu.target<arch = "gfx942", features = "", wgp = <compute =  fp64|fp32|fp16|int64|int32|int16|int8, storage =  b64|b32|b16|b8, subgroup =  shuffle|arithmetic, dot =  dp4xi8toi32, mma = [<MFMA_F32_16x16x4_F32>, <MFMA_F32_16x16x16_F16>, <MFMA_F32_32x32x8_F16>, <MFMA_F64_16x16x4_F64>, <MFMA_F32_16x16x16_BF16>, <MFMA_F32_32x32x8_BF16>, <MFMA_F32_16x16x32_F8E5M2FNUZ>, <MFMA_F32_16x16x32_F8E5M2FNUZ_F8E4M3FNUZ>, <MFMA_F32_16x16x32_F8E4M3FNUZ>, <MFMA_F32_16x16x32_F8E4M3FNUZ_F8E5M2FNUZ>, <MFMA_F32_32x32x16_F8E5M2FNUZ>, <MFMA_F32_32x32x16_F8E5M2FNUZ_F8E4M3FNUZ>, <MFMA_F32_32x32x16_F8E4M3FNUZ>, <MFMA_F32_32x32x16_F8E4M3FNUZ_F8E5M2FNUZ>, <MFMA_I32_16x16x32_I8>, <MFMA_I32_32x32x16_I8>], subgroup_size_choices = [64], max_workgroup_sizes = [1024, 1024, 1024], max_thread_count_per_workgroup = 1024, max_workgroup_memory_bytes = 65536, max_workgroup_counts = [2147483647, 2147483647, 2147483647], max_load_instruction_bits = 128, simds_per_wgp = 4, vgpr_space_bits = 16384>>, ukernels = "none"}>
+ireebump_xfail = pytest.mark.xfail(
+    reason="Compile failure tracked at https://github.com/iree-org/iree/issues/20365",
+)
+
+pytestmark = [parameterization, ireebump_xfail]
 
 
 class TestLLMServer:

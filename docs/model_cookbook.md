@@ -205,7 +205,8 @@ Compile using flags of your choosing, e.g. for `llvm-cpu`:
 
 ```bash
 iree-compile /tmp/open_llama_3b_v2/open-llama-3b-v2-f16.mlir \
-  --iree-hal-target-backends=llvm-cpu \
+  --iree-hal-target-device=local \
+  --iree-hal-local-target-device-backends=llvm-cpu \
   --iree-llvmcpu-target-cpu-features=host \
   -o /tmp/open_llama_3b_v2/open-llama-3b-v2-f16_cpu.vmfb
 ```
