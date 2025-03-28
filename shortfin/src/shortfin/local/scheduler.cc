@@ -150,7 +150,7 @@ TimelineResourceDestructor TimelineResource::CreateAsyncBufferDestructor(
     }
     SHORTFIN_THROW_IF_ERROR(iree_hal_device_queue_dealloca(
         hal_device, queue_affinity, wait_semaphore_list, signal_semaphore_list,
-        buffer));
+        buffer, IREE_HAL_DEALLOCA_FLAG_NONE));
     iree_hal_device_release(hal_device);
   };
 }
