@@ -22,9 +22,50 @@ pytest sharktank/tests/evaluate/perplexity_test.py  --longrun
 * Calculate perplexity for a new model:
 
 ```bash
-python -m  sharktank.evaluate.perplexity \
-  --gguf-file=llama3_70b_f16.gguf \
-  --tokenizer-config-json=tokenizer_config.json
+pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_iree_test.py -k test_llama3_8B_f16 \
+  --llama3-8b-f16-model-path=llama3.1_8b_instruct_fp16.irpa  \
+  --llama3-8b-tokenizer-path=tokenizer_config.json \
+  --bs=4 \
+  --iree-device=hip://0 \
+  --iree-hip-target=gfx942 \
+  --iree-hal-target-device=hip
+```
+
+For a new model:
+
+Replace `--irpa-file` with `--gguf-file` flag if necessary (eg: `--gguf-file=llama3_70b_instruct_fp16.gguf`)
+
+##### Torch mode
+```bash
+python -m  sharktank.evaluate.perplexity_torch \
+  --irpa-file=llama3_70b_instruct_fp16.irpa \
+  --tokenizer-config-json=tokenizer_config.json \
+  --num-prompts=4 \
+  --device='cuda:0'
+```
+
+##### IREE mode
+
+To run on MI300:
+```bash
+python -m sharktank.evaluate.perplexity_iree \
+  --irpa-file=llama3_70b_instruct_fp16.irpa \
+  --tokenizer-config-json=tokenizer_config.json \
+  --num-prompts=4 \
+  --iree-device='hip://0' \
+  --iree-hal-target-device=hip \
+  --iree-hip-target=gfx942
+```
+
+To run on CPU, replace the above --iree-* flags with:
+```bash
+  --iree-device='local-task' --iree-hal-target-device=local --iree-hal-local-target-device-backends=llvm-cpu
+```
+
+For additional options:
+```bash
+python -m sharktank.evaluate.perplexity_torch  -h
+python -m sharktank.evaluate.perplexity_iree  -h
 ```
 
 ### Perplexity Scoreboard
