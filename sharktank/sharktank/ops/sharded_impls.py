@@ -547,26 +547,15 @@ def expand_split(
     tensor: SplitPrimitiveTensor, shape: List[int]
 ) -> SplitPrimitiveTensor:
     assert len(shape) == len(tensor.shape)
-    expanded_dims = [
-        i
-        for i, (old_dim, new_dim) in enumerate(zip(tensor.shape, shape))
-        if old_dim == 1 and new_dim != 1
-    ]
-    assert (
-        tensor.shard_dim not in expanded_dims
-    ), "Expanding a split dimension is not supported"
+    shard_dim = tensor.shard_dim
+    not_expanding_split_dim = (
+        shape[shard_dim] == -1 or shape[shard_dim] == tensor.shape[shard_dim]
+    )
+    assert not_expanding_split_dim, "Expanding a split dimension is not supported"
 
-    def set_element(l: List, idx: int, el: Any) -> List:
-        l[idx] = el
-        return l
-
-    shards = [
-        expand(
-            shard,
-            set_element(list(shape), tensor.shard_dim, shard.shape[tensor.shard_dim]),
-        )
-        for shard in tensor.shards
-    ]
+    shape = list(shape)
+    shape[shard_dim] = -1
+    shards = [expand(shard, shape) for shard in tensor.shards]
     return SplitPrimitiveTensor(ts=shards, shard_dim=tensor.shard_dim)
 
 

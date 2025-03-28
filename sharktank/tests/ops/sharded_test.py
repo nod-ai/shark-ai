@@ -383,6 +383,42 @@ class FlattenTest(unittest.TestCase):
 
 
 class ExpandTest(unittest.TestCase):
+    def testExpandSplit(self):
+        sizes = [4, -1, -1]
+        a = torch.rand(1, 2, 5)
+        b = SplitPrimitiveTensor(ts=a.split(1, dim=1), shard_dim=1)
+
+        expected = [torch.Tensor.expand(shard, sizes) for shard in a.split(1, dim=1)]
+        actual = ops.expand(b, sizes)
+
+        for expected_shard, actual_shard in zip(expected, actual.shards):
+            torch.testing.assert_close(actual_shard.as_torch(), expected_shard)
+
+    def testExpandSplitAlongSplit(self):
+        sizes = [-1, 4, -1]
+        a = torch.rand(4, 2, 5)
+        b = SplitPrimitiveTensor(ts=a.split(1, dim=1), shard_dim=1)
+
+        try:
+            ops.expand(b, sizes)
+        except:
+            return
+
+        assert (
+            False
+        ), "Expanding SplitTensor along split dimension should have thrown an error"
+
+    def testExpandSplitAlongSplitNoExand(self):
+        sizes = [-1, 3, -1]
+        a = torch.rand(4, 2, 5)
+        b = torch.rand(4, 1, 5)
+        split = SplitPrimitiveTensor(ts=[a, b], shard_dim=1)
+
+        actual = ops.expand(split, sizes)
+
+        for pre_shard, post_shard in zip(split.shards, actual.shards):
+            torch.testing.assert_close(pre_shard.as_torch(), post_shard.as_torch())
+
     def testExpandReplicated(self):
         sizes = [4, 4, 5]
         shard_count = 2
