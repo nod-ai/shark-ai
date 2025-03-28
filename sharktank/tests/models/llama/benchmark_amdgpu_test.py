@@ -356,6 +356,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             attention_kernel="torch",
             tensor_parallelism_size=self.tensor_parallelism_size,
             block_seq_stride=32,
+            use_attention_mask=True,
         )
         self.llama70b_fp8_torch_sdpa_artifacts_tp1 = ExportArtifacts(
             irpa_path=str(self.irpa_path_fp8),
@@ -704,6 +705,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             attention_kernel="torch",
             tensor_parallelism_size=self.tensor_parallelism_size,
             block_seq_stride=32,
+            use_attention_mask=True,
         )
         self.llama405b_fp8_torch_sdpa_artifacts = ExportArtifacts(
             irpa_path=str(self.irpa_path_fp8),
@@ -716,6 +718,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             activation_dtype="bfloat16",
             attention_dtype="bfloat16",
             kv_cache_dtype="float8_e4m3fnuz",
+            use_attention_mask=True,
         )
         self.prefill_args_bs4_128_stride_32_tp8_f16 = (
             self.artifacts_dir / "prefill_args_bs4_128_stride_32_tp8"
