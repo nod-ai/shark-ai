@@ -24,11 +24,22 @@ from shortfin_apps.llm.components.token_selection_strategy import (
 logger = logging.getLogger(__name__)
 
 
+class FakeBatcher:
+    def __init__(self, submit_cb, workitem_cb):
+        self.submit = submit_cb
+        self.reserve_workitem = workitem_cb
+        self.complete_workitem = workitem_cb
+
+
 @pytest.fixture(scope="function")
 def greedy_token_selection_strategy():
     yield GreedyTokenSelectionStrategy(
         None,
     )
+
+
+def batcher_workitem_cb():
+    pass
 
 
 @pytest.mark.asyncio
@@ -62,8 +73,8 @@ async def test_greedy_decode_single(
     )
     config = build_token_selector_config(
         decode_config,
-        prefill_callback=_batcher_callback,
-        decode_callback=_batcher_callback,
+        prefill_batcher=FakeBatcher(_batcher_callback, batcher_workitem_cb),
+        decode_batcher=FakeBatcher(_batcher_callback, batcher_workitem_cb),
         results_callback=_results_callback,
         eos_token_id=-1,
         max_completion_tokens=1,
@@ -120,8 +131,12 @@ async def test_greedy_decode_multiple_completions(
     )
     config = build_token_selector_config(
         decode_config,
-        prefill_callback=_batcher_callback_multiple_completions,
-        decode_callback=_batcher_callback_multiple_completions,
+        prefill_batcher=FakeBatcher(
+            _batcher_callback_multiple_completions, batcher_workitem_cb
+        ),
+        decode_batcher=FakeBatcher(
+            _batcher_callback_multiple_completions, batcher_workitem_cb
+        ),
         results_callback=_results_callback,
         eos_token_id=-1,
         max_completion_tokens=5,
@@ -178,8 +193,12 @@ async def test_greedy_decode_eos_token(
     )
     config = build_token_selector_config(
         decode_config,
-        prefill_callback=_batcher_callback_multiple_completions,
-        decode_callback=_batcher_callback_multiple_completions,
+        prefill_batcher=FakeBatcher(
+            _batcher_callback_multiple_completions, batcher_workitem_cb
+        ),
+        decode_batcher=FakeBatcher(
+            _batcher_callback_multiple_completions, batcher_workitem_cb
+        ),
         results_callback=_results_callback,
         eos_token_id=5,
         max_completion_tokens=10,
