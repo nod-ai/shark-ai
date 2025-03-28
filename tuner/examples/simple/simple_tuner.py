@@ -78,6 +78,7 @@ def main():
     )
     # Remaining arguments come from libtuner
     args = libtuner.parse_arguments(parser)
+
     path_config = libtuner.PathConfig()
     path_config.base_dir.mkdir(parents=True, exist_ok=True)
     # TODO(Max191): Make candidate_trackers internal to TuningClient.

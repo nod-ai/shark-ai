@@ -209,7 +209,9 @@ def test_get_td_spec_convolution(tuner_ctx: common.TunerContext) -> None:
     )
 
 
-def test_determine_td_specs_to_link(tuner_ctx: common.TunerContext) -> None:
+def test_determine_td_specs_to_link(
+    tuner_ctx: common.TunerContext, caplog: pytest.LogCaptureFixture
+) -> None:
     context = tuner_ctx.mlir_ctx
     module_str = """
         module attributes { transform.with_named_sequence } {
@@ -228,25 +230,26 @@ def test_determine_td_specs_to_link(tuner_ctx: common.TunerContext) -> None:
             transform.named_sequence @__kernel_config(%arg0: !transform.any_op ) -> !transform.any_op
                 attributes { iree_codegen.tuning_spec_entrypoint } {
                 %0 = transform.foreach_match in %arg0
-                @match_foo -> @apply_op_config
-                , @match_bar -> @apply_op_config
-                : (!transform.any_op) -> !transform.any_op
+                    @match_foo -> @apply_op_config,
+                    @match_bar -> @apply_op_config : (!transform.any_op) -> !transform.any_op
                 transform.yield %0 : !transform.any_op
             }
         }
     """
     starter_td_spec = ir.Module.parse(module_str, context)
     current_td_spec = ir.Module.parse(module_str, context)
-    warned: set[str] = set()
 
-    td_specs_to_link, new_warnings = candidate_gen.determine_td_specs_to_link(
-        [starter_td_spec, current_td_spec], warned
+    td_specs_to_link = candidate_gen.determine_td_specs_to_link(
+        [starter_td_spec, current_td_spec],
+        log_duplicates=True,
     )
 
     assert td_specs_to_link == [current_td_spec]
-    assert new_warnings == {"match_foo", "match_bar"}
-    warned.update(new_warnings)
+    assert "match_foo" in caplog.text
+    assert "match_bar" in caplog.text
+    assert "already been tuned in the starter" in caplog.text
 
+    caplog.clear()
     module_str = """
         module attributes { transform.with_named_sequence } {
             transform.named_sequence @apply_op_config(%arg0: !transform.any_op {transform.readonly}) {
@@ -260,16 +263,17 @@ def test_determine_td_specs_to_link(tuner_ctx: common.TunerContext) -> None:
             transform.named_sequence @__kernel_config(%arg0: !transform.any_op ) -> !transform.any_op
                 attributes { iree_codegen.tuning_spec_entrypoint } {
                 %0 = transform.foreach_match in %arg0
-                @match_baz -> @apply_op_config
-                : (!transform.any_op) -> !transform.any_op
+                    @match_baz -> @apply_op_config : (!transform.any_op) -> !transform.any_op
                 transform.yield %0 : !transform.any_op
             }
         }
     """
     current_td_spec = ir.Module.parse(module_str, context)
-    td_specs_to_link, new_warnings = candidate_gen.determine_td_specs_to_link(
-        [starter_td_spec, current_td_spec], warned
+    td_specs_to_link = candidate_gen.determine_td_specs_to_link(
+        [starter_td_spec, current_td_spec],
+        log_duplicates=True,
     )
 
     assert td_specs_to_link == [starter_td_spec, current_td_spec]
-    assert new_warnings == set()
+    assert "match_baz" not in caplog.text
+    assert "already been tuned" not in caplog.text

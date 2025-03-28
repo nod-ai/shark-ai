@@ -148,47 +148,46 @@ def get_default_output_dir() -> str:
 
 
 def determine_td_specs_to_link(
-    td_specs: list[ir.Module], warned_overlap_matchers: set[str]
-) -> tuple[list[ir.Module], set[str]]:
+    td_specs: list[ir.Module],
+    log_duplicates: bool = False,
+) -> list[ir.Module]:
     """
     Determines which tuning specs should be linked based on matcher overlap.
-
-    Additionally, the function identifies any overlapping matchers between the
-    starter and current tuning specs that haven't yet triggered a warning.
 
     Args:
         td_specs: A list of 1 or 2 tuning spec modules. If two are provided, the first is
                 the starter spec.
-        warned_overlap_matchers: Set of matchers already warned about for overlaps.
+        log_duplicates: If True, logs a warning for overlapping matchers.
 
     Returns:
-         A tuple containing:
-        - A list of td specs to link (possibly excluding the starter spec).
-        - A set of overlapping matchers that haven't been warned about yet.
+        A list of td specs to link (possibly excluding the starter spec).
     """
+
+    assert 1 <= len(td_specs) <= 2, "Expected 1 or 2 td specs (starter and current)"
 
     if len(td_specs) == 1:
         # No starter td spec provided, nothing to merge.
-        return td_specs, set()
+        return td_specs
 
-    assert len(td_specs) == 2, "Expected exactly two TD specs (starter and current)"
-    starter_td_spec = td_specs[0]
-    current_td_spec = td_specs[1]
+    starter_td_spec, current_td_spec = td_specs
 
     starter_matchers = get_matcher_names_from_td_spec(starter_td_spec)
     current_matchers = get_matcher_names_from_td_spec(current_td_spec)
 
-    overlap_matchers = starter_matchers & current_matchers
-    unique_starter_matchers = starter_matchers - current_matchers
+    overlapping_matchers, unique_starter_matchers = get_matcher_overlap_info(
+        starter_matchers, current_matchers
+    )
 
-    # Determine overlapping matchers which haven't been warned about yet.
-    new_warned_matchers = overlap_matchers - warned_overlap_matchers
+    if log_duplicates and overlapping_matchers:
+        logging.warning(
+            f"Operations have already been tuned in the starter tuning spec: {sorted(overlapping_matchers)}"
+        )
 
     if unique_starter_matchers:
-        return td_specs, new_warned_matchers
+        return td_specs
 
     # Starter spec is redundant, so skip merging it.
-    return [current_td_spec], new_warned_matchers
+    return [current_td_spec]
 
 
 def generate_configs_and_td_specs(
@@ -227,7 +226,6 @@ def generate_configs_and_td_specs(
     variant_op = variant_op_list[0]
     mma_list = iree_codegen.query_mma_intrinsics(variant_op)
 
-    warned_overlap_matchers: set[str] = set()
     for i, config in enumerate(
         generate_solutions(
             tuner_context,
@@ -245,19 +243,18 @@ def generate_configs_and_td_specs(
         td_spec_module = dispatch_tuner.get_td_spec(input_module, config)
         assert td_spec_module, "Failed to generate transform dialect spec"
 
-        td_specs_to_link, new_warned_matchers = determine_td_specs_to_link(
-            [starter_td_spec, td_spec_module]
-            if starter_td_spec is not None
-            else [td_spec_module],
-            warned_overlap_matchers,
-        )
+        td_specs: list[ir.Module] = []
+        if starter_td_spec is not None:
+            td_specs.append(starter_td_spec)
+        td_specs.append(td_spec_module)
 
-        # Log warnings only for newly detected overlapping target operations.
-        if new_warned_matchers:
-            logging.warning(
-                f"Operations have been tuned in the starter tuning spec: {sorted(new_warned_matchers)}"
-            )
-            warned_overlap_matchers.update(new_warned_matchers)
+        # Only log duplicate matchers during the first iteration.
+        log_duplicates = i == 0
+
+        td_specs_to_link = determine_td_specs_to_link(
+            td_specs,
+            log_duplicates=log_duplicates,
+        )
 
         td_spec_module = link_tuning_specs(tuner_context.mlir_ctx, td_specs_to_link)
         config_specs.append(td_spec_module)
