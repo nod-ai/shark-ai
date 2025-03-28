@@ -1,12 +1,9 @@
-# Copyright 2024 Advanced Micro Devices, Inc.
+# Copyright 2025 Advanced Micro Devices, Inc.
 #
 # Licensed under the Apache License v2.0 with LLVM Exceptions.
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""
-Usage: python -m pytest merge_td_specs_test.py
-"""
 
 import pytest
 
@@ -17,15 +14,7 @@ from iree.compiler import ir  # type: ignore
 from . import merge_td_specs
 from . import common
 
-
-@pytest.fixture
-def tuner_ctx() -> Generator[common.TunerContext, None, None]:
-    from logging import Logger
-    from unittest.mock import MagicMock
-
-    mock_logger = MagicMock(spec=Logger)
-    with common.TunerContext(logger=mock_logger) as ctx:
-        yield ctx
+from .test_utils import tuner_ctx
 
 
 def test_combine_tuning_specs(tuner_ctx: common.TunerContext) -> None:

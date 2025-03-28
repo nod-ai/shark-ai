@@ -1,4 +1,4 @@
-# Copyright 2024 Advanced Micro Devices, Inc.
+# Copyright 2025 Advanced Micro Devices, Inc.
 #
 # Licensed under the Apache License v2.0 with LLVM Exceptions.
 # See https://llvm.org/LICENSE.txt for license information.
@@ -7,7 +7,7 @@
 """
 Merge multiple tuner-generated specs into a single one.
 
-This script wraps the `iree-opt --iree-codegen-link-tuning-specs` pass .
+This script wraps the `iree-opt --iree-codegen-link-tuning-specs` pass.
 It can be invoked in two ways:
     1. From another python script by importing and calling `merge_tuning_specs()`
     2. Directly from the command line to merge tuning spec files
@@ -90,13 +90,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         prog="merge_td_specs",
         description="""
-        Merge multiple tuning specification modules into a single one.
+            Merge multiple tuner-generated specs into a single one.
 
-        This script wraps the `--iree-codegen-link-tuning-specs` pass and is useful for merging
-        multiple tuning specs into one for further compilation or tuning.
+            This script wraps the `iree-opt --iree-codegen-link-tuning-specs` pass.
+            It can be invoked in two ways:
+                1. From another python script by importing and calling `merge_tuning_specs()`
+                2. Directly from the command line to merge tuning spec files
 
-        Examples:
-            python -m tuner.merge_td_specs td_spec_1.mlir td_spec_2.mlir -o merged.mlir
+            Usage:
+                python -m tuner.merge_td_specs input1.mlir input2.mlir -o merged.mlir
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -127,7 +129,7 @@ def main() -> None:
     with TunerContext() as tuner_ctx:
         td_specs = []
         for input_path in args.inputs:
-            tune_logger.info(f"Reading td spec: {input_path}")
+            tune_logger.debug(f"Reading td spec: {input_path}")
             with open(input_path, "r") as f:
                 td_spec_str = f.read()
                 td_specs.append(ir.Module.parse(td_spec_str, tuner_ctx.mlir_ctx))
@@ -136,7 +138,7 @@ def main() -> None:
         if args.output:
             with open(args.output, "w") as f:
                 f.write(str(merged_td_spec))
-            tune_logger.info(f"Merged spec written to: {args.output}")
+            tune_logger.debug(f"Merged spec written to: {args.output}")
         else:
             print(str(merged_td_spec))
 

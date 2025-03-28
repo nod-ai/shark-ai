@@ -21,15 +21,7 @@ from . import candidate_gen
 from . import common
 from . import op_matchers
 
-
-@pytest.fixture
-def tuner_ctx() -> Generator[common.TunerContext, None, None]:
-    from logging import Logger
-    from unittest.mock import MagicMock
-
-    mock_logger = MagicMock(spec=Logger)
-    with common.TunerContext(logger=mock_logger) as ctx:
-        yield ctx
+from .test_utils import tuner_ctx
 
 
 def test_get_td_spec_contraction(tuner_ctx: common.TunerContext) -> None:
