@@ -13,6 +13,7 @@ import iree.compiler
 import iree.runtime
 from collections import OrderedDict
 from diffusers import FluxTransformer2DModel
+from sharktank.layers import model_config_presets, create_model
 from sharktank.models.flux.export import (
     export_flux_transformer_from_hugging_face,
     export_flux_transformer,
@@ -25,6 +26,7 @@ from sharktank.models.flux.testing import (
     make_random_theta,
 )
 from sharktank.models.flux.flux import FluxModelV1, FluxParams
+from sharktank.models.flux.compile import iree_compile_flags
 from sharktank.utils.testing import (
     TempDirTestBase,
     skip,
@@ -42,6 +44,7 @@ from sharktank.utils.iree import (
     iree_to_torch,
 )
 from sharktank.utils.logging import format_tensor_statistics
+from sharktank.utils import chdir
 from sharktank import ops
 from sharktank.transforms.dataset import set_float_dtype
 from sharktank.types import Dataset, Theta
@@ -49,26 +52,6 @@ from sharktank.types import Dataset, Theta
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 with_flux_data = pytest.mark.skipif("not config.getoption('with_flux_data')")
-
-iree_compile_flags = [
-    "--iree-opt-const-eval=false",
-    "--iree-opt-strip-assertions=true",
-    "--iree-global-opt-propagate-transposes=true",
-    # TODO: We want the following flag to be enable eventually, but there's
-    # a bug in iree that's causing a failure right now.
-    "--iree-dispatch-creation-enable-fuse-horizontal-contractions=false",
-    "--iree-dispatch-creation-enable-aggressive-fusion=true",
-    "--iree-opt-aggressively-propagate-transposes=true",
-    "--iree-opt-outer-dim-concat=true",
-    "--iree-vm-target-truncate-unsupported-floats",
-    "--iree-llvmgpu-enable-prefetch=true",
-    "--iree-opt-data-tiling=false",
-    "--iree-codegen-gpu-native-math-precision=true",
-    "--iree-codegen-llvmgpu-use-vector-distribution=1",
-    "--iree-hip-waves-per-eu=2",
-    "--iree-execution-model=async-external",
-    "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline,iree-preprocessing-pad-to-intrinsics,util.func(iree-preprocessing-generalize-linalg-matmul-experimental))",
-]
 
 
 def convert_dtype_if_dtype(
@@ -382,6 +365,19 @@ class FluxTest(TempDirTestBase):
             mlir_output_path=self._temp_dir / "model.mlir",
             parameters_output_path=self._temp_dir / "parameters.irpa",
         )
+
+    @with_flux_data
+    @pytest.mark.expensive
+    def testExportAndCompileFromPreset(self):
+        with chdir(self._temp_dir):
+            name = "black-forest-labs--FLUX.1-dev-bf16-1024x1024-hip-gfx942"
+            config = model_config_presets[name]
+            logger.info("Creating model...")
+            model = create_model(config)
+            logger.info("Exporting model...")
+            model.export()
+            logger.info("Compiling model...")
+            model.compile()
 
 
 if __name__ == "__main__":

@@ -12,10 +12,13 @@ import torch
 import torch.nn as nn
 from os import PathLike
 import logging
+from pathlib import Path
 
 from ..types import InferenceTensor, Theta, AnyTensor, Dataset
-from ..utils import debugging
+from ..utils import debugging, chdir
 from .configs import ModelConfig, ExportFunctionConfig, DynamicBatchSize
+from ..utils.iree import flatten_for_iree_signature
+from iree.turbine.support.tools import iree_tool_prepare_input_args
 
 __all__ = [
     "BaseLayer",
@@ -218,33 +221,53 @@ class BaseLayer(nn.Module, metaclass=BaseLayerMetaClass):
         if path is None:
             raise ValueError("Missing MLIR export path.")
 
-        export_functions = [
-            ExportFunctionConfig(
-                function=self.default_export_function,
-                batch_sizes=self.default_export_batch_sizes,
-            )
-        ]
-        if self.config.export_functions is not None:
-            export_functions = self.config.export_functions
-
-        function_batch_size_pairs = {
-            export_function.function
-            or self.default_export_function: export_function.batch_sizes
-            or self.default_export_batch_sizes
-            for export_function in export_functions
-        }
+        function_batch_sizes_map = self._get_function_batch_sizes_map()
         from ..export import export_model_mlir
 
         export_model_mlir(
             model=self,
             output_path=path,
-            function_batch_size_pairs=function_batch_size_pairs,
+            function_batch_sizes_map=function_batch_sizes_map,
         )
 
     def export(self, mlir_path: PathLike | None = None, /, *args, **kwargs):
         """Export MLIR and any other artifacts required for compilation.
         Can be overridden in derived classes."""
+        if self.config.export_sample_inputs_enabled:
+            path_prefix = mlir_path
+            if path_prefix is not None:
+                path_prefix = Path(path_prefix)
+                path_prefix = path_prefix.parent / path_prefix.stem
+            self.export_sample_inputs()
+
         self.export_mlir(mlir_path)
+
+    def export_sample_inputs(self, path_prefix: PathLike | None = None):
+        if path_prefix is None:
+            path_prefix = self.config.mlir_path.parent / self.config.mlir_path.stem
+        if path_prefix is None:
+            raise ValueError("Can't export sample inputs. No path prefix specified.")
+        path_prefix = Path(path_prefix)
+
+        function_batch_sizes_map = self._get_function_batch_sizes_map()
+
+        with chdir(str(path_prefix.parent)):
+            for function, batch_sizes in function_batch_sizes_map.items():
+                for batch_size in batch_sizes:
+                    sample_args, sample_kwargs = self.sample_inputs(
+                        function=function, batch_size=batch_size
+                    )
+                    flat_args = flatten_for_iree_signature((sample_args, sample_kwargs))
+                    file_path_prefix = (
+                        f"{path_prefix.name}-{function}_bs{batch_size}-arg"
+                    )
+                    arg_descriptors = iree_tool_prepare_input_args(
+                        flat_args, file_path_prefix=file_path_prefix
+                    )
+                    arg_descriptor_path = f"{file_path_prefix}-desc"
+                    with open(arg_descriptor_path, "w") as f:
+                        for desc in arg_descriptors:
+                            print(desc, file=f)
 
     def compile(self, output_path: PathLike | None = None, /):
         """Compile the model.
@@ -261,6 +284,22 @@ class BaseLayer(nn.Module, metaclass=BaseLayerMetaClass):
             output_file=str(output_path),
             extra_args=self.config.get_compile_args(),
         )
+
+    def _get_function_batch_sizes_map(self) -> dict[str, list[int]]:
+        export_functions = [
+            ExportFunctionConfig(
+                function=self.default_export_function,
+                batch_sizes=self.default_export_batch_sizes,
+            )
+        ]
+        if self.config.export_functions is not None:
+            export_functions = self.config.export_functions
+        return {
+            export_function.function
+            or self.default_export_function: export_function.batch_sizes
+            or self.default_export_batch_sizes
+            for export_function in export_functions
+        }
 
 
 class ThetaLayer(BaseLayer):

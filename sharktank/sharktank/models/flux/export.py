@@ -11,7 +11,7 @@ from pathlib import Path
 import torch
 
 from ...export import export_model_mlir
-from ...tools.import_hf_dataset import import_hf_dataset
+from ...utils.hf import import_hf_dataset_from_hub
 from .flux import FluxModelV1, FluxParams
 from ...types import Dataset
 from ...utils.hf_datasets import get_dataset
@@ -70,15 +70,16 @@ def export_flux_transformer(
 
 
 def import_flux_transformer_dataset_from_hugging_face(
-    repo_id: str, parameters_output_path: PathLike
-):
-    hf_dataset = get_dataset(
-        repo_id,
-    ).download()
-
-    import_hf_dataset(
-        config_json_path=hf_dataset["config"][0],
-        param_paths=hf_dataset["parameters"],
+    repo_id: str,
+    revision: str | None = None,
+    subfolder: str | None = None,
+    parameters_output_path: PathLike | None = None,
+) -> Dataset | None:
+    return import_hf_dataset_from_hub(
+        repo_id=repo_id,
+        revision=revision,
+        subfolder=subfolder,
+        config_subpath="transformer/config.json",
         output_irpa_file=parameters_output_path,
     )
 

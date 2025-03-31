@@ -20,6 +20,8 @@ __all__ = [
     "ExportFunctionConfig",
     "DynamicBatchSize",
     "ModelConfig",
+    "model_config_presets",
+    "register_model_config_preset",
 ]
 
 
@@ -73,6 +75,7 @@ class ModelConfig:
 
     export_functions: list[ExportFunctionConfig] | None = None
     """function, batch size pairs that are to be exported."""
+    export_sample_inputs_enabled: bool = False
 
     tensor_parallelism: int | None = None
     """If specified exported model parameters will be shard."""
@@ -274,6 +277,16 @@ class ModelConfig:
         if path is None or path.is_absolute() or config_dir is None:
             return path
         return Path(os.path.normpath(os.path.relpath(path, config_dir)))
+
+
+model_config_presets: dict[str, ModelConfig] = {}
+"""Presets of named model configurations."""
+
+
+def register_model_config_preset(name: str, config: ModelConfig):
+    if name in model_config_presets:
+        raise ValueError(f'Model config preset with name "{name}" already registered.')
+    model_config_presets[name] = config
 
 
 def _make_optional_path(path: PathLike | None = None) -> Path | None:
