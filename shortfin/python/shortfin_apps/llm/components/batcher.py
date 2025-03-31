@@ -104,7 +104,10 @@ class LlmBatcherProcess(BatcherProcess):
             self.strobes = 0
             return
         target_size = min(self._current_workitems, self.ideal_batch_size)
-        if waiting_count < target_size and self.strobes < 2:
+        if waiting_count < target_size:
+            logger.info("Pending workitems to be enqueued")
+            return
+        if waiting_count < self.ideal_batch_size and self.strobes < 2:
             logger.info("Waiting a bit longer to fill flight")
             return
 
