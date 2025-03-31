@@ -299,11 +299,11 @@ def configure_default_export_compile(config: ModelConfig):
     config.export_sample_inputs_enabled = True
 
 
-model_config_presets: dict[str, ModelConfig] = {}
+model_config_presets: dict[str, dict[str, Any]] = {}
 """Presets of named model configurations."""
 
 
-def register_model_config_preset(name: str, config: ModelConfig):
+def register_model_config_preset(name: str, config: dict[str, Any]):
     if name in model_config_presets:
         raise ValueError(f'Model config preset with name "{name}" already registered.')
     model_config_presets[name] = config

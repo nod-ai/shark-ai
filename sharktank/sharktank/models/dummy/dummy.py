@@ -89,7 +89,7 @@ def _register_dummy_model_config_presets():
     configure_default_export_compile(config)
     register_model_config_preset(
         name="dummy-model-local-llvm-cpu",
-        config=config,
+        config=config.asdict_for_saving(),
     )
 
 
