@@ -301,6 +301,10 @@ def link_tuning_specs(context: ir.Context, td_specs: list[ir.Module]) -> ir.Modu
     module = combine_tuning_specs(context, td_specs)
     iree_opt = ireec.binaries.find_tool("iree-opt")
 
+    if len(td_specs) == 1:
+        # avoid unnessary link overhead.
+        return td_specs[0]
+
     with tempfile.TemporaryDirectory() as tmpdir:
         input_path = os.path.join(tmpdir, "tmp_input.mlir")
         output_path = os.path.join(tmpdir, "tmp_output.mlir")

@@ -263,11 +263,8 @@ def generate_configs_and_td_specs(
             td_specs,
             log_duplicates=log_duplicates,
         )
-        if len(td_specs_to_link) == 2:
-            td_spec_module = link_tuning_specs(tuner_context.mlir_ctx, td_specs_to_link)
-        else:
-            # avoid unnessary link overhead.
-            td_spec_module = td_specs_to_link[0]
+
+        td_spec_module = link_tuning_specs(tuner_context.mlir_ctx, td_specs_to_link)
         config_specs.append(td_spec_module)
 
     tune_logger.debug(f"Generated {len(config_specs)} tuning specs")
