@@ -240,7 +240,7 @@ def test_determine_td_specs_to_link(
     current_td_spec = ir.Module.parse(module_str, context)
 
     td_specs_to_link = candidate_gen.determine_td_specs_to_link(
-        [starter_td_spec, current_td_spec],
+        [current_td_spec, starter_td_spec],
         log_duplicates=True,
     )
 

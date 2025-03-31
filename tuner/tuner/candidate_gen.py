@@ -156,23 +156,23 @@ def determine_td_specs_to_link(
 
     Args:
         td_specs: A list of 1 or 2 tuning spec modules. If two are provided, the first is
-                the starter spec.
+                the candidate spec and the second is the starter spec.
         log_duplicates: If True, logs a warning for overlapping matchers.
 
     Returns:
         A list of td specs to link (possibly excluding the starter spec).
     """
 
-    assert 1 <= len(td_specs) <= 2, "Expected 1 or 2 td specs (starter and current)"
+    assert 1 <= len(td_specs) <= 2, "Expected 1 or 2 td specs (current and starter)"
 
     if len(td_specs) == 1:
         # No starter td spec provided, nothing to merge.
         return td_specs
 
-    starter_td_spec, current_td_spec = td_specs
+    current_td_spec, starter_td_spec = td_specs
 
-    starter_matchers = get_matcher_names_from_td_spec(starter_td_spec)
     current_matchers = get_matcher_names_from_td_spec(current_td_spec)
+    starter_matchers = get_matcher_names_from_td_spec(starter_td_spec)
 
     overlapping_matchers, unique_starter_matchers = get_matcher_overlap_info(
         starter_matchers, current_matchers
@@ -243,20 +243,31 @@ def generate_configs_and_td_specs(
         td_spec_module = dispatch_tuner.get_td_spec(input_module, config)
         assert td_spec_module, "Failed to generate transform dialect spec"
 
+        # if starter td spec is not provided, use the generated td spec directly.
+        if starter_td_spec is None:
+            config_specs.append(td_spec_module)
+            continue
+
         td_specs: list[ir.Module] = []
-        if starter_td_spec is not None:
-            td_specs.append(starter_td_spec)
         td_specs.append(td_spec_module)
+        td_specs.append(starter_td_spec)
 
         # Only log duplicate matchers during the first iteration.
         log_duplicates = i == 0
 
+        # The generated candidate spec takes precedence over the starter td spec.
+        # If the candidate spec covers all the ops supported by the starter spec,
+        # a warning will be issued in `determine_td_specs_to_link`, and the starter
+        # spec will be excluded from linking.
         td_specs_to_link = determine_td_specs_to_link(
             td_specs,
             log_duplicates=log_duplicates,
         )
-
-        td_spec_module = link_tuning_specs(tuner_context.mlir_ctx, td_specs_to_link)
+        if len(td_specs_to_link) == 2:
+            td_spec_module = link_tuning_specs(tuner_context.mlir_ctx, td_specs_to_link)
+        else:
+            # avoid unnessary link overhead.
+            td_spec_module = td_specs_to_link[0]
         config_specs.append(td_spec_module)
 
     tune_logger.debug(f"Generated {len(config_specs)} tuning specs")

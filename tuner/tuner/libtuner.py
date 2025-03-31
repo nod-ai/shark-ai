@@ -338,6 +338,21 @@ def parse_arguments(
         help="Codegen pipeline to tune for",
     )
 
+    """
+    Providing a starter td spec enables incremental merging of TD specs across different dispatches
+    when tuning real models.
+
+    If there are conflicts on target operations (e.g., duplicate matchers), the candidate spec takes
+    precedence, and a warning will be issued to notify the user. If the candidate spec fully covers all
+    operations from the starter spec, the starter td spec will be excluded from linking.
+    """
+    general_args.add_argument(
+        "--simple-starter-td-spec",
+        type=str,
+        default="",
+        help="Path to a starter td spec file to merge with tuning spec files.",
+    )
+
     return parser.parse_args()
 
 

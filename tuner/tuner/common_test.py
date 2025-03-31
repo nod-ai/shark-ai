@@ -16,6 +16,8 @@ from typing import Generator
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_gpu  # type: ignore
 from iree.compiler.dialects import iree_codegen  # type: ignore
+from iree.compiler.dialects import transform  # type: ignore
+from iree.compiler.dialects import _builtin_ops_gen  # type: ignore
 
 
 @pytest.fixture
@@ -231,7 +233,7 @@ def test_combine_tuning_specs(tuner_ctx: common.TunerContext) -> None:
 
     inner_ops = list(module.body.operations)
     assert all(
-        op.name == "builtin.module" for op in inner_ops
+        isinstance(op, _builtin_ops_gen.ModuleOp) for op in inner_ops
     ), "Not all ops are builtin.module"
     assert len(inner_ops) == 2, f"Expected 2 inner modules, got {len(inner_ops)}"
     assert (
@@ -283,13 +285,13 @@ def test_link_tuning_specs(tuner_ctx: common.TunerContext) -> None:
     inner_ops = list(linked_module.body.operations)
     # Check that inner modules have been merged into the top-level module and no inner modules remain.
     assert all(
-        op.name != "builtin.module" for op in inner_ops
+        not isinstance(op, _builtin_ops_gen.ModuleOp) for op in inner_ops
     ), "Unexpected inner builtin.module ops found"
 
     named_sequences = []
     kernel_config_op = None
     for op in linked_module.body.operations:
-        if op.name == "transform.named_sequence":
+        if isinstance(op, transform.NamedSequenceOp):
             sym_name_attr = op.sym_name
             assert sym_name_attr is not None
             named_sequences.append(sym_name_attr.value)

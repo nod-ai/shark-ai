@@ -17,6 +17,7 @@ import os
 from iree.compiler import ir  # type: ignore
 
 from iree.compiler.dialects import iree_gpu  # type: ignore
+from iree.compiler.dialects import transform  # type: ignore
 import iree.compiler as ireec  # type: ignore
 
 
@@ -331,13 +332,13 @@ def get_matcher_names_from_td_spec(td_spec: ir.Module) -> set[str]:
     matcher_names = set()
 
     for op in td_spec.body.operations:
-        if op.name != "transform.named_sequence":
+        if not isinstance(op, transform.NamedSequenceOp):
             continue
         if op.sym_name.value != "__kernel_config":
             continue
 
         for inner_op in op.regions[0].blocks[0].operations:
-            if inner_op.name == "transform.foreach_match":
+            if isinstance(inner_op, transform.ForeachMatchOp):
                 for matcher in inner_op.matchers:
                     matcher_names.add(matcher.value)
 
