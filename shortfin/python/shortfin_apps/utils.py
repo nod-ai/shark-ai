@@ -478,6 +478,7 @@ class BatcherProcess(sf.Process):
         self.strobe_enabled = True
         self.strobes = 0
         self.pending_requests = set()
+        self.logger = logging.getLogger("batcher")
 
     def shutdown(self):
         """Shutdown the batcher process."""
@@ -498,6 +499,10 @@ class BatcherProcess(sf.Process):
             if self.strobe_enabled:
                 self.submit(StrobeMessage())
 
+    def custom_message(self, msg):
+        self.logger.error("Illegal message received by batcher: %r", msg)
+        exit(1)
+
     async def run(self):
         """Main run loop for the batcher process."""
         strober_task = asyncio.create_task(self._background_strober())
@@ -509,9 +514,7 @@ class BatcherProcess(sf.Process):
             elif isinstance(item, StrobeMessage):
                 self.strobes += 1
             else:
-                logger.error("Illegal message received by batcher: %r", item)
-                exit(1)
-
+                self.custom_message(item)
             await self.process_batches()
 
             self.strobe_enabled = True
