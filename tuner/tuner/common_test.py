@@ -267,7 +267,7 @@ def test_link_tuning_specs(tuner_ctx: common.TunerContext) -> None:
     """
 
     ir_module = ir.Module.parse(module_str, context)
-    linked_module = common.link_tuning_specs(context, [ir_module])
+    linked_module = common.link_tuning_specs(tuner_ctx, [ir_module])
     assert (
         linked_module is ir_module
     ), "Expected single input module to be returned without modification"
@@ -278,7 +278,7 @@ def test_link_tuning_specs(tuner_ctx: common.TunerContext) -> None:
         "inner_module_b"
     )
     linked_module = common.link_tuning_specs(
-        context, [first_ir_module, second_ir_module]
+        tuner_ctx, [first_ir_module, second_ir_module]
     )
     assert linked_module
 
@@ -320,7 +320,7 @@ def test_link_tuning_specs_raises_error(tuner_ctx: common.TunerContext) -> None:
         "iree_codegen.tuning_spec_with_default_entrypoint"
     ] = ir.UnitAttr.get()
     with pytest.raises(RuntimeError) as exc_info:
-        common.link_tuning_specs(context, [module, module])
+        common.link_tuning_specs(tuner_ctx, [module, module])
         # iree-opt should fail due to missing named sequence @__kernel_config entrypoint required
         # by the `iree_codegen.tuning_spec_with_default_entrypoint` attribute.
         assert "iree-opt failed" in str(exc_info.value)

@@ -243,7 +243,7 @@ def generate_configs_and_td_specs(
         td_spec_module = dispatch_tuner.get_td_spec(input_module, config)
         assert td_spec_module, "Failed to generate transform dialect spec"
 
-        # if starter td spec is not provided, use the generated td spec directly.
+        # If starter td spec is not provided, use the generated td spec directly.
         if starter_td_spec is None:
             config_specs.append(td_spec_module)
             continue
@@ -264,7 +264,7 @@ def generate_configs_and_td_specs(
             log_duplicates=log_duplicates,
         )
 
-        td_spec_module = link_tuning_specs(tuner_context.mlir_ctx, td_specs_to_link)
+        td_spec_module = link_tuning_specs(tuner_context, td_specs_to_link)
         config_specs.append(td_spec_module)
 
     tune_logger.debug(f"Generated {len(config_specs)} tuning specs")
