@@ -22,53 +22,9 @@ Properties are separated into a "meta" dict (for "_" prefixed props) and an
 "hparams" dict.
 """
 
-from typing import Optional
-from os import PathLike
-import json
 from pathlib import Path
 import sys
-import logging
-
-from ..types import *
-
-logger = logging.getLogger(__name__)
-
-
-def import_hf_dataset(
-    config_json_path: PathLike,
-    param_paths: list[PathLike],
-    output_irpa_file: Optional[PathLike] = None,
-    target_dtype=None,
-) -> Optional[Dataset]:
-    import safetensors
-
-    with open(config_json_path, "rb") as f:
-        config_json = json.load(f)
-    # Separate meta parameters (prefixed with _) from hparams.
-    meta_params = {k: v for k, v in config_json.items() if k.startswith("_")}
-    hparams = {k: v for k, v in config_json.items() if not k.startswith("_")}
-
-    tensors = []
-    for params_path in param_paths:
-        with safetensors.safe_open(params_path, framework="pt", device="cpu") as st:
-            tensors += [
-                DefaultPrimitiveTensor(
-                    name=name, data=st.get_tensor(name).to(target_dtype)
-                )
-                for name in st.keys()
-            ]
-
-    theta = Theta(tensors)
-    props = {
-        "meta": meta_params,
-        "hparams": hparams,
-    }
-    dataset = Dataset(props, theta)
-
-    if output_irpa_file is None:
-        return dataset
-
-    dataset.save(output_irpa_file, io_report_callback=logger.debug)
+from ..utils.hf import import_hf_dataset
 
 
 def main(argv: list[str]):

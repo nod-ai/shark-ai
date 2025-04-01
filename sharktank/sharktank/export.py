@@ -182,7 +182,7 @@ def export_model_mlir(
     model: BaseLayer,
     output_path: PathLike,
     *,
-    function_batch_size_pairs: Optional[dict[Optional[str], list[int]]] = None,
+    function_batch_sizes_map: Optional[dict[Optional[str], list[int]]] = None,
     batch_sizes: Optional[list[int]] = None,
 ):
     """Export a model with no dynamic dimensions.
@@ -199,20 +199,20 @@ def export_model_mlir(
     The model is required to implement method `sample_inputs`.
     """
 
-    assert not (function_batch_size_pairs is not None and batch_sizes is not None)
+    assert not (function_batch_sizes_map is not None and batch_sizes is not None)
 
     if isinstance(model, ThetaLayer):
         mark_export_external_theta(model.theta)
 
     if batch_sizes is not None:
-        function_batch_size_pairs = {None: batch_sizes}
+        function_batch_sizes_map = {None: batch_sizes}
 
-    if function_batch_size_pairs is None and batch_sizes is None:
-        function_batch_size_pairs = {None: batch_sizes}
+    if function_batch_sizes_map is None and batch_sizes is None:
+        function_batch_sizes_map = {None: batch_sizes}
 
     fxb = FxProgramsBuilder(model)
 
-    for function, batch_sizes in function_batch_size_pairs.items():
+    for function, batch_sizes in function_batch_sizes_map.items():
         for batch_size in batch_sizes:
             args, kwargs = model.sample_inputs(batch_size, function)
             dynamic_shapes = model.dynamic_shapes_for_export(

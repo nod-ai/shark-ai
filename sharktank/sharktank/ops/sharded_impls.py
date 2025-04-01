@@ -547,26 +547,15 @@ def expand_split(
     tensor: SplitPrimitiveTensor, shape: List[int]
 ) -> SplitPrimitiveTensor:
     assert len(shape) == len(tensor.shape)
-    expanded_dims = [
-        i
-        for i, (old_dim, new_dim) in enumerate(zip(tensor.shape, shape))
-        if old_dim == 1 and new_dim != 1
-    ]
-    assert (
-        tensor.shard_dim not in expanded_dims
-    ), "Expanding a split dimension is not supported"
+    shard_dim = tensor.shard_dim
+    not_expanding_split_dim = (
+        shape[shard_dim] == -1 or shape[shard_dim] == tensor.shape[shard_dim]
+    )
+    assert not_expanding_split_dim, "Expanding a split dimension is not supported"
 
-    def set_element(l: List, idx: int, el: Any) -> List:
-        l[idx] = el
-        return l
-
-    shards = [
-        expand(
-            shard,
-            set_element(list(shape), tensor.shard_dim, shard.shape[tensor.shard_dim]),
-        )
-        for shard in tensor.shards
-    ]
+    shape = list(shape)
+    shape[shard_dim] = -1
+    shards = [expand(shard, shape) for shard in tensor.shards]
     return SplitPrimitiveTensor(ts=shards, shard_dim=tensor.shard_dim)
 
 
@@ -633,8 +622,26 @@ def shareded_group_norm_affine(input, weight, bias, *, num_groups, eps):
     return SplitPrimitiveTensor(shard_dim=1, ts=result_shards)
 
 
+@index_copy_.override(ReplicatedTensor, ReplicatedTensor, ReplicatedTensor)
+def index_copy__replicated_replicated_replicated(
+    inout: ReplicatedTensor,
+    dim: int,
+    index: ReplicatedTensor,
+    tensor: ReplicatedTensor,
+) -> ReplicatedTensor:
+    assert (
+        inout.shard_count == index.shard_count
+        and inout.shard_count == tensor.shard_count
+    )
+    for inout_shard, index_shard, tensor_shard in zip(
+        inout.shards, index.shards, tensor.shards
+    ):
+        index_copy_(inout_shard, dim, index_shard, tensor_shard)
+    return inout
+
+
 @index_copy_.override(SplitPrimitiveTensor, ReplicatedTensor, ReplicatedTensor)
-def index_copy__split_replicated_split(
+def index_copy__split_replicated_replicated(
     inout: SplitPrimitiveTensor,
     dim: int,
     index: ReplicatedTensor,

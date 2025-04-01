@@ -22,8 +22,8 @@ from ..messages import LlmInferenceExecRequest
 
 def build_token_selector_config(
     decode_config: DecodeConfig,
-    prefill_callback: Callable[[LlmInferenceExecRequest], None],
-    decode_callback: Callable[[LlmInferenceExecRequest], None],
+    prefill_batcher,
+    decode_batcher,
     results_callback: Callable[[Union[int, List[int]]], None],
     eos_token_id: int,
     max_completion_tokens: int,
@@ -49,8 +49,10 @@ def build_token_selector_config(
         case TokenSelectionStrategy.GREEDY | TokenSelectionStrategy.MULTI_GREEDY:
             config = TokenSelectionStrategyConfig(
                 decode_config,
-                prefill_callback=prefill_callback,
-                decode_callback=decode_callback,
+                prefill_callback=prefill_batcher.submit,
+                decode_callback=decode_batcher.submit,
+                decode_begin_callback=decode_batcher.reserve_workitem,
+                decode_end_callback=decode_batcher.complete_workitem,
                 results_callback=results_callback,
                 eos_token_id=eos_token_id,
                 max_completion_tokens=max_completion_tokens,

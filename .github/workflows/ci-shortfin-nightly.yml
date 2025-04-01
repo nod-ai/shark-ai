@@ -1,26 +1,16 @@
-# Copyright 2024 Advanced Micro Devices, Inc.
+# Copyright 2025 Advanced Micro Devices, Inc.
 #
 # Licensed under the Apache License v2.0 with LLVM Exceptions.
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-name: CI - shortfin - SDXL
+name: CI - shortfin nightly
 
 on:
-  workflow_dispatch:
-  pull_request:
-    paths:
-      - '.github/workflows/ci-sdxl.yaml'
-      - 'shortfin/**'
-  push:
-    branches:
-      - main
-    paths:
-      - '.github/workflows/ci-sdxl.yaml'
-      - 'shortfin/**'
-
-permissions:
-  contents: read
+    workflow_dispatch:
+    schedule:
+      # All days of the week at 10:00 AM UTC = 02:00 AM PST / 03:00 AM PDT
+      - cron: "0 10 * * *"
 
 concurrency:
   # A PR number if a pull request and otherwise the commit hash. This cancels
@@ -37,7 +27,7 @@ env:
 jobs:
   install-and-test:
     name: Install and test
-    runs-on: linux-mi300-1gpu-ossci-nod-ai
+    runs-on: linux-mi300-1gpu-ossci
 
     steps:
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -65,7 +55,7 @@ jobs:
       working-directory: ${{ env.LIBSHORTFIN_DIR }}
       run: |
         pip install -r requirements-tests.txt
-        pip install -r ../requirements-iree-pinned.txt
+        pip install -r ../requirements-iree-unpinned.txt
         pip freeze
 
     - name: Install shortfin
@@ -73,9 +63,14 @@ jobs:
       run: |
         pip install --no-compile -e .
 
-    - name: Test apps/sd/e2e_test
+    - name: Test apps/flux/e2e_test
       working-directory: ${{ env.LIBSHORTFIN_DIR }}
       env:
         HIP_VISIBLE_DEVICES: 0
       run: |
-        pytest tests/apps/sd/e2e_test.py -v -s --system=amdgpu
+        pytest \
+        --verbose \
+        --capture=no \
+        --log-cli-level=info \
+        --system=hip \
+        tests/apps/flux/e2e_test.py

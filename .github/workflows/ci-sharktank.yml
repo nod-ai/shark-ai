@@ -52,7 +52,7 @@ jobs:
 
       - name: "Setting up Python"
         id: setup_python
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
         with:
           python-version: ${{matrix.python-version}}
 
@@ -108,7 +108,7 @@ jobs:
 
       - name: "Setting up Python"
         id: setup_python
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
         with:
           python-version: ${{matrix.python-version}}
 
@@ -140,12 +140,10 @@ jobs:
           pytest \
             -v \
             --log-cli-level=info \
-            --with-vae-data \
             --with-quark-data \
             --iree-hal-target-device=hip \
             --iree-hip-target=gfx942 \
             --iree-device=hip://0 \
-            sharktank/tests/models/vae/vae_test.py \
             sharktank/tests/models/llama/quark_parity_test.py \
             --durations=0 \
             --timeout=800
@@ -160,7 +158,7 @@ jobs:
 
       - name: "Setting up Python"
         id: setup_python
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
         with:
           python-version: 3.11
 

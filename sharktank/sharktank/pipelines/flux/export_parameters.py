@@ -105,10 +105,7 @@ def export_flux_pipeline_iree_parameters(
         dtype_str = "bf16"
     dtype = torch_dtypes[dtype_str]
 
-    output_path = (
-        Path(output_path)
-        / f"exported_parameters_{dtype_to_serialized_short_name(dtype)}"
-    )
+    output_path = Path(output_path)
     output_path.mkdir(parents=True, exist_ok=True)
 
     # Export FluxTransformer parameters
@@ -133,7 +130,7 @@ def export_flux_pipeline_iree_parameters(
     # Export T5 parameters
     t5_path = Path(model_path) / "text_encoder_2/"
     t5_tokenizer_path = Path(model_path) / "tokenizer_2/"
-    t5_output_path = output_path / f"{model_name}_t5xxl_{dtype_str}.irpa"
+    t5_output_path = output_path / f"{model_name.split('_')[0]}_t5xxl_{dtype_str}.irpa"
     if not is_already_exported(t5_output_path):
         config_json_path = t5_path / "config.json"
         param_paths = find_safetensors_files(t5_path)
@@ -150,7 +147,7 @@ def export_flux_pipeline_iree_parameters(
 
     # Export CLIP parameters
     clip_path = Path(model_path) / "text_encoder/"
-    clip_output_path = output_path / f"{model_name}_clip_{dtype_str}.irpa"
+    clip_output_path = output_path / f"{model_name.split('_')[0]}_clip_{dtype_str}.irpa"
     if not is_already_exported(clip_output_path):
         config_json_path = clip_path / "config.json"
         param_paths = find_safetensors_files(clip_path)
@@ -169,7 +166,7 @@ def export_flux_pipeline_iree_parameters(
 
     # Export VAE parameters
     vae_path = Path(model_path) / "vae/"
-    vae_output_path = output_path / f"{model_name}_vae_{dtype_str}.irpa"
+    vae_output_path = output_path / f"{model_name.split('_')[0]}_vae_{dtype_str}.irpa"
     if not is_already_exported(vae_output_path):
         config_json_path = vae_path / "config.json"
         param_paths = find_safetensors_files(vae_path)

@@ -287,7 +287,7 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
         "--device",
         type=str,
         required=True,
-        choices=["local-task", "hip", "amdgpu"],
+        choices=["local-task", "hip"],
         help="Primary inferencing device",
     )
     parser.add_argument(

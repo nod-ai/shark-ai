@@ -23,7 +23,6 @@ from .service import LlmGenerateService
 from .token_selection_strategy import (
     BaseTokenSelectionStrategy,
     TokenSelectionStrategyConfig,
-    TokenSelectionStrategy,
     build_token_selector,
     build_token_selector_config,
     is_multi_beam,
@@ -63,8 +62,8 @@ class GenerateItemProcess(sf.Process):
         self.token_selector_config: TokenSelectionStrategyConfig = (
             build_token_selector_config(
                 decode_config,
-                prefill_callback=self.client.prefill_batcher.submit,
-                decode_callback=self.client.decode_batcher.submit,
+                prefill_batcher=self.client.prefill_batcher,
+                decode_batcher=self.client.decode_batcher,
                 results_callback=self.results_callback,
                 eos_token_id=self.eos_token_id,
                 max_completion_tokens=self.max_completion_tokens,

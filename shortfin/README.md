@@ -62,7 +62,7 @@ We recommend this development setup for core contributors:
    * `pip install onnx` to run some more model tests that depend on downloading
      ONNX models
    * Run tests on devices other than the CPU with flags like:
-     `--system amdgpu --compile-flags="--iree-hal-target-backends=rocm --iree-hip-target=gfx1100"`
+     `--system amdgpu --compile-flags="--iree-hal-target-device=hip --iree-hip-target=gfx1100"`
    * Use the tracy instrumented runtime to collect execution traces:
      `export SHORTFIN_PY_RUNTIME=tracy`
 
@@ -179,7 +179,7 @@ Run tests including for a specific platform (in this example, a gfx1100 AMDGPU):
 
 ```bash
 pytest tests/ --system amdgpu \
-    --compile-flags="--iree-hal-target-backends=rocm --iree-hip-target=gfx1100"
+    --compile-flags="--iree-hal-target-device=hip --iree-hip-target=gfx1100"
 ```
 
 ## Production library building

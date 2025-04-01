@@ -13,21 +13,40 @@ from ...transforms.dataset import set_float_dtype
 
 
 def get_toy_vae_decoder_config() -> HParams:
-    norm_num_groups = 3
+    # This config causes compiler error
+    # https://github.com/iree-org/iree/issues/20307
+    # norm_num_groups = 3
+    # return HParams(
+    #     block_out_channels=[norm_num_groups * 7, norm_num_groups * 11],
+    #     in_channels=5,
+    #     out_channels=17,
+    #     up_block_types=[
+    #         "UpDecoderBlock2D",
+    #         "UpDecoderBlock2D",
+    #     ],
+    #     norm_num_groups=norm_num_groups,
+    #     latent_channels=13,
+    #     layers_per_block=2,
+    #     shift_factor=0.1234,
+    #     use_post_quant_conv=False,
+    #     sample_size=[23, 29],
+    # )
+
+    norm_num_groups = 2
     return HParams(
-        block_out_channels=[norm_num_groups * 7, norm_num_groups * 11],
+        block_out_channels=[norm_num_groups * 3, norm_num_groups * 4],
         in_channels=5,
-        out_channels=17,
+        out_channels=6,
         up_block_types=[
             "UpDecoderBlock2D",
             "UpDecoderBlock2D",
         ],
         norm_num_groups=norm_num_groups,
-        latent_channels=13,
-        layers_per_block=2,
+        latent_channels=7,
+        layers_per_block=8,
         shift_factor=0.1234,
         use_post_quant_conv=False,
-        sample_size=[23, 29],
+        sample_size=[128, 128],
     )
 
 

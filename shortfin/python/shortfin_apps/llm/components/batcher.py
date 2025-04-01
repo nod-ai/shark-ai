@@ -35,6 +35,14 @@ logger = logging.getLogger(__name__)
 import math
 
 
+class NewWorkItem(sf.Message):
+    ...
+
+
+class DoneWorkItem(sf.Message):
+    ...
+
+
 class LlmBatcherProcess(BatcherProcess):
     """This batcher provides a high-level mechanism for dispatching LLM tasks."""
 
@@ -60,6 +68,7 @@ class LlmBatcherProcess(BatcherProcess):
         # batching in the scheduling algo.
         self.ideal_batch_size: int = ideal_batch_size
         self.page_seq_stride = self.model_params.paged_kv_cache.block_seq_stride
+        self._current_workitems = 0
 
     def handle_inference_request(self, request):
         """Handle an inference request."""
@@ -69,10 +78,34 @@ class LlmBatcherProcess(BatcherProcess):
         """Process batches of requests."""
         await self.board_flights()
 
+    def reserve_workitem(self):
+        self.submit(NewWorkItem())
+
+    def complete_workitem(self):
+        self.submit(DoneWorkItem())
+
+    def custom_message(self, msg):
+        if isinstance(msg, NewWorkItem):
+            self._current_workitems = self._current_workitems + 1
+            return
+
+        if isinstance(msg, DoneWorkItem):
+            self._current_workitems = self._current_workitems - 1
+            return
+
+        super().custom_message(msg)
+
+    async def board_flights(self):
+        await super().board_flights()
+
     async def board_flights(self):
         waiting_count = len(self.pending)
         if waiting_count == 0:
             self.strobes = 0
+            return
+        target_size = min(self._current_workitems, self.ideal_batch_size)
+        if waiting_count < target_size:
+            logger.info("Pending workitems to be enqueued")
             return
         if waiting_count < self.ideal_batch_size and self.strobes < 2:
             logger.info("Waiting a bit longer to fill flight")
@@ -174,8 +207,8 @@ class DecodeBatcherProcess(LlmBatcherProcess):
     committed cache state).
     """
 
-    STROBE_SHORT_DELAY = 0.010
-    STROBE_LONG_DELAY = 0.010
+    STROBE_SHORT_DELAY = 0.0001
+    STROBE_LONG_DELAY = 0.0001
 
     def __init__(
         self,

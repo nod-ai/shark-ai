@@ -19,6 +19,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from ...layers import *
+from ...layers import model_config_presets, get_model_type_id
 from ...types import *
 from ...utils.create_cache import *
 from ...utils.testing import make_rand_torch
@@ -34,8 +35,8 @@ __all__ = [
 ################################################################################
 
 
-@dataclass
-class FluxParams:
+@dataclass(kw_only=True)
+class FluxParams(ModelConfig):
     in_channels: int
     out_channels: int
     vec_in_dim: int
@@ -59,8 +60,9 @@ class FluxParams:
     output_img_width: int = 1024
     output_img_channels: int = 3
 
-    # def __post_init__(self):
-    #     assert self.hidden_size == self.vec_in_dim * int(self.mlp_ratio)
+    def __post_init__(self):
+        self.model_type = FluxModelV1
+        super().__post_init__()
 
     def to_hugging_face_properties(self) -> dict[str, Any]:
         hparams = {
@@ -75,42 +77,59 @@ class FluxParams:
         }
         return {"hparams": hparams}
 
-    @staticmethod
-    def from_hugging_face_properties(properties: dict[str, Any]) -> "FluxParams":
-        p = properties["hparams"]
-
-        in_channels = p["in_channels"]
-        out_channels = p["in_channels"]
-        vec_in_dim = p["pooled_projection_dim"]
-        context_in_dim = p["joint_attention_dim"]
+    @classmethod
+    def translate_hugging_face_config_dict_into_init_kwargs(
+        cls, properties: dict[str, Any], /
+    ) -> dict[str, Any]:
+        if "hparams" in properties:
+            properties = properties["hparams"]
+        vec_in_dim = properties["pooled_projection_dim"]
         mlp_ratio = 4.0
-        hidden_size = int(vec_in_dim * mlp_ratio)
-        num_heads = p["num_attention_heads"]
-        depth = p["num_layers"]
-        depth_single_blocks = p["num_single_layers"]
 
         # diffusers.FluxTransformer2DModel hardcodes this.
         axes_dim = [16, 56, 56]
-        assert sum(axes_dim) == p["attention_head_dim"]
+        assert sum(axes_dim) == properties["attention_head_dim"]
 
-        theta = 10_000
-        qkv_bias = True
-        guidance_embed = p["guidance_embeds"]
+        return {
+            "in_channels": properties["in_channels"],
+            "out_channels": properties["in_channels"],
+            "vec_in_dim": vec_in_dim,
+            "context_in_dim": properties["joint_attention_dim"],
+            "mlp_ratio": mlp_ratio,
+            "hidden_size": int(vec_in_dim * mlp_ratio),
+            "num_heads": properties["num_attention_heads"],
+            "depth": properties["num_layers"],
+            "depth_single_blocks": properties["num_single_layers"],
+            "axes_dim": axes_dim,
+            "theta": 10_000,
+            "qkv_bias": True,
+            "guidance_embed": properties["guidance_embeds"],
+        }
 
+    @classmethod
+    def translate_hugging_face_config_into_init_kwargs(
+        cls: type["FluxParams"],
+        /,
+        repo_id: str,
+        revision: str | None = None,
+        subfolder: str | None = None,
+    ) -> dict[str, Any]:
+        # There are 2 sets of parameters and the ones we use don't have a config.
+        # We resort to using the config for the diffusers.FluxTransformer2DModel.
+        if subfolder is None:
+            subfolder = "transformer"
+        else:
+            subfolder = f"{subfolder}/transformer"
+        return super(cls, cls).translate_hugging_face_config_into_init_kwargs(
+            repo_id, revision, subfolder
+        )
+
+    @staticmethod
+    def from_hugging_face_properties(
+        cls: type["FluxParams"], properties: dict[str, Any]
+    ) -> "FluxParams":
         return FluxParams(
-            in_channels=in_channels,
-            out_channels=out_channels,
-            vec_in_dim=vec_in_dim,
-            context_in_dim=context_in_dim,
-            mlp_ratio=mlp_ratio,
-            hidden_size=hidden_size,
-            num_heads=num_heads,
-            depth=depth,
-            depth_single_blocks=depth_single_blocks,
-            axes_dim=axes_dim,
-            theta=theta,
-            qkv_bias=qkv_bias,
-            guidance_embed=guidance_embed,
+            **cls.translate_hugging_face_config_dict_into_init_kwargs(properties)
         )
 
     def validate(self):
@@ -140,9 +159,10 @@ class FluxParams:
 class FluxModelV1(ThetaLayer):
     """FluxModel adapted from Black Forest Lab's implementation."""
 
-    def __init__(self, theta: Theta, params: FluxParams):
+    def __init__(self, params: FluxParams, theta: Theta | None = None):
         super().__init__(
-            theta,
+            config=params,
+            theta=theta,
         )
 
         params.validate()
@@ -155,19 +175,19 @@ class FluxModelV1(ThetaLayer):
         self.pe_embedder = EmbedND(
             dim=pe_dim, theta=params.theta, axes_dim=params.axes_dim
         )
-        self.add_module("img_in", LinearLayer(theta("img_in")))
-        self.add_module("time_in", MLPEmbedder(theta("time_in")))
-        self.add_module("vector_in", MLPEmbedder(theta("vector_in")))
+        self.add_module("img_in", LinearLayer(self.theta("img_in")))
+        self.add_module("time_in", MLPEmbedder(self.theta("time_in")))
+        self.add_module("vector_in", MLPEmbedder(self.theta("vector_in")))
         self.guidance = False
         if params.guidance_embed:
             self.guidance = True
-            self.add_module("guidance_in", MLPEmbedder(theta("guidance_in")))
-        self.add_module("txt_in", LinearLayer(theta("txt_in")))
+            self.add_module("guidance_in", MLPEmbedder(self.theta("guidance_in")))
+        self.add_module("txt_in", LinearLayer(self.theta("txt_in")))
 
         self.double_blocks = nn.ModuleList(
             [
                 MMDITDoubleBlock(
-                    theta("double_blocks", i),
+                    self.theta("double_blocks", i),
                     num_heads=self.num_heads,
                     hidden_size=self.hidden_size,
                 )
@@ -178,7 +198,7 @@ class FluxModelV1(ThetaLayer):
         self.single_blocks = nn.ModuleList(
             [
                 MMDITSingleBlock(
-                    theta("single_blocks", i),
+                    self.theta("single_blocks", i),
                     num_heads=self.num_heads,
                     hidden_size=self.hidden_size,
                     mlp_ratio=params.mlp_ratio,
@@ -189,10 +209,19 @@ class FluxModelV1(ThetaLayer):
 
         self.add_module(
             "final_layer",
-            LastLayer(theta("final_layer")),
+            LastLayer(self.theta("final_layer")),
         )
 
         self.dtype = self._deduce_dtype()
+
+    @classmethod
+    def from_config(cls, config: ModelConfig, /) -> "BaseLayer":
+        """TODO: rename __init__'s arg params -> config and remove this method"""
+        return cls(params=config)
+
+    @classmethod
+    def config_type(cls) -> type[FluxParams]:
+        return FluxParams
 
     def forward(
         self,
@@ -236,6 +265,23 @@ class FluxModelV1(ThetaLayer):
 
         img = self.final_layer(img, vec)  # (N, T, patch_size ** 2 * out_channels)
         return img
+
+    def load_theta_from_hugging_face(self) -> Theta:
+        hugging_face_repo_id = self.config.hugging_face_repo_id
+        if hugging_face_repo_id is not None:
+            from .export import import_flux_transformer_dataset_from_hugging_face
+
+            dataset: Dataset = import_flux_transformer_dataset_from_hugging_face(
+                repo_id=hugging_face_repo_id,
+                revision=self.config.hugging_face_revision,
+                subfolder=self.config.hugging_face_subfolder,
+            )
+            return dataset.root_theta
+
+        raise ValueError(
+            "Could not load Theta from Hugging Face. "
+            f"Missing config option hugging_face_repo_id"
+        )
 
     def sample_inputs(
         self, batch_size: int = 1, function: Optional[str] = None
@@ -423,3 +469,41 @@ class LastLayer(ThetaLayer):
         x = (1 + scale[:, None, :]) * layer_norm(x) + shift[:, None, :]
         x = self.linear(x)
         return x
+
+
+def _register_flux_transformer_config_presets():
+    from . import compile
+
+    variants = ["dev", "schnell"]
+    hf_revisions = [
+        "0ef5fff789c832c5c7f4e127f94c8b54bbcced44",
+        "741f7c3ce8b383c54771c7003378a50191e9efe9",
+    ]
+    iree_hal_target_device = "hip"
+    iree_hip_target = "gfx942"
+    iree_compile_flags = compile.iree_compile_flags + [
+        f"--iree-hal-target-device={iree_hal_target_device}",
+        f"--iree-hip-target={iree_hip_target}",
+    ]
+    output_img_height = 1024
+    output_img_width = 1024
+    for variant, hf_revision in zip(variants, hf_revisions):
+        device_agnostic_name = f"black-forest-labs--FLUX.1-{variant}-bf16-{output_img_height}x{output_img_width}"
+        name = f"{device_agnostic_name}-{iree_hal_target_device}-{iree_hip_target}"
+        config = {
+            "model_type": get_model_type_id(FluxModelV1),
+            "mlir_path": f"{device_agnostic_name}.mlir",
+            "iree_module_path": f"{name}.vmfb",
+            "export_parameters_path": f"{device_agnostic_name}.irpa",
+            "export_sample_inputs_enabled": True,
+            "hugging_face_repo_id": f"black-forest-labs/FLUX.1-{variant}",
+            "hugging_face_revision": hf_revision,
+            "output_img_height": output_img_height,
+            "output_img_width": output_img_width,
+            "compile_args": iree_compile_flags,
+            "config_version": ModelConfig.current_config_version,
+        }
+        register_model_config_preset(name, config)
+
+
+_register_flux_transformer_config_presets()
