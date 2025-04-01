@@ -43,7 +43,7 @@ jobs:
           - name: Ubuntu (Clang)(full)
             runs-on: ubuntu-24.04
             cmake-options:
-              -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18 -DCMAKE_LINKER_TYPE=LLD -DSHORTFIN_ENABLE_TOKENIZERS=ON
+              -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18 -DCMAKE_LINKER_TYPE=LLD
             additional-packages: clang lld
             env:
               SHORTFIN_ENABLE_TRACING: OFF
