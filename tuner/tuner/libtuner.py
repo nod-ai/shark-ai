@@ -337,20 +337,16 @@ def parse_arguments(
         default=CodegenPipelines.llvmgpu_vector_distribute,
         help="Codegen pipeline to tune for",
     )
-
-    """
-    Providing a starter td spec enables incremental merging of TD specs across different dispatches
-    when tuning real models.
-
-    If there are conflicts on target operations (e.g., duplicate matchers), the candidate spec takes
-    precedence, and a warning will be issued to notify the user. If the candidate spec fully covers all
-    operations from the starter spec, the starter td spec will be excluded from linking.
-    """
     general_args.add_argument(
-        "--simple-starter-td-spec",
-        type=str,
+        "--starter-td-spec",
+        type=Path,
         default="",
-        help="Path to a starter td spec file to merge with tuning spec files.",
+        help=(
+            "Path to a starter TD spec file to merge with tuning spec files. "
+            "Enables incremental merging of td specs across dispatches when tuning real models. "
+            "Candidate specs take precedence in case of conflicts; the starter spec is excluded "
+            "if fully covered."
+        ),
     )
 
     return parser.parse_args()
@@ -698,8 +694,8 @@ def generate_candidate_specs(
             no_reduce_shared_memory_bank_conflicts=args.no_reduce_shared_memory_bank_conflicts_options,
         )
         starter_td_spec: Optional[ir.Module] = None
-        if args.simple_starter_td_spec:
-            with open(args.simple_starter_td_spec, "r") as f:
+        if args.starter_td_spec:
+            with open(args.starter_td_spec, "r") as f:
                 starter_td_spec = ir.Module.parse(f.read())
         config_specs: list[ir.Module] = candidate_gen.generate_configs_and_td_specs(
             input_module=mlir_module,
