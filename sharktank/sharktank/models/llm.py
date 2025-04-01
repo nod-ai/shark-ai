@@ -8,6 +8,8 @@ from typing import Optional
 
 from typing import Union
 
+import math
+
 import torch
 import torch.nn as nn
 
@@ -72,6 +74,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         self.config = config
         self.hp = self.config.hp
         self.cache = create_paged_kv_cache(self.config)
+        self.inference_norm = self.config.hp.model_arch == "grok"
 
         self.add_module(
             "token_embedding",
@@ -128,6 +131,9 @@ class PagedLlmModelV1(BaseCausalLMModel):
         h = self.token_embedding(tokens)
         self.trace_tensor("llama.token_embedding", h)
 
+        if self.inference_norm:
+            h *= math.sqrt(h.shape[-1])
+
         # Iterate over attention blocks.
         for block_idx, block in enumerate(self.attn_blocks):
             if block_idx == 0:
@@ -144,6 +150,9 @@ class PagedLlmModelV1(BaseCausalLMModel):
 
         h = self.output_norm(h)
         logits = self.output_lm_head(h)
+
+        if self.inference_norm:
+            logits = logits / math.sqrt(3.0)
         return logits
 
     def decode(
@@ -187,6 +196,9 @@ class PagedLlmModelV1(BaseCausalLMModel):
         h = self.token_embedding(tokens)
         self.trace_tensor("llama.token_embedding", h)
 
+        if self.inference_norm:
+            h *= math.sqrt(h.shape[-1])
+
         # Iterate over attention blocks.
         for block_idx, block in enumerate(self.attn_blocks):
             if block_idx == 0:
@@ -204,6 +216,9 @@ class PagedLlmModelV1(BaseCausalLMModel):
 
         h = self.output_norm(h)
         logits = self.output_lm_head(h)
+
+        if self.inference_norm:
+            logits = logits / math.sqrt(3.0)
         return logits
 
 
