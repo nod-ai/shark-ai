@@ -55,6 +55,10 @@ class TestLLMServer:
         prompt = GOLDEN_PROMPT
         expected_prefix = GOLDEN_RESPONSE
         response = self._generate(prompt, port)
+        response = json.loads(response)
+        response = GenerateReqOutput(**response)
+        response = PromptResponse(**response.responses[0])
+        response = GeneratedResponse(**response.responses[0])
         response = response.text
         if not expected_prefix in response:
             raise AccuracyValidationException(
