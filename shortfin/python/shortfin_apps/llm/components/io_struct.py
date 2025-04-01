@@ -150,7 +150,7 @@ class GenerateReqInput:
 
 
 @dataclass
-class GeneratedReponse:
+class GeneratedResponse:
     text: str
 
 
@@ -158,7 +158,7 @@ class GeneratedReponse:
 class PromptResponse:
     prompt: str
 
-    responses: list[GeneratedReponse]
+    responses: list[GeneratedResponse]
 
 
 @dataclass

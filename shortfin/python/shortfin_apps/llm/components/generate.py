@@ -20,7 +20,7 @@ from shortfin.interop.fastapi import FastAPIResponder
 from .config_struct import DecodeConfig
 from .io_struct import (
     GenerateReqInput,
-    GeneratedReponse,
+    GeneratedResponse,
     GenerateReqOutput,
     PromptResponse,
 )
@@ -224,7 +224,7 @@ class ClientGenerateBatchProcess(sf.Process):
                 token_ids = [token_ids]
 
             decoded = self.tokenizer.decode(token_ids)
-            rs = [GeneratedReponse(d) for d in decoded]
+            rs = [GeneratedResponse(d) for d in decoded]
             response_map[p.input_text] += rs
 
         responses = []
@@ -233,11 +233,11 @@ class ClientGenerateBatchProcess(sf.Process):
             r = dataclasses.asdict(r)
             responses.append(r)
 
-        response = json.dumps(responses)
+        response = GenerateReqOutput(responses=responses)
+        response = dataclasses.asdict(response)
+        response = json.dumps(response)
         out = io.BytesIO()
-        out.write(b"data: ")
         out.write(response.encode())
-        out.write(b"\n\n")
         self.responder.send_response(out.getvalue())
 
     def _respond_multi_responses(
