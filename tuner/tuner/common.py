@@ -17,6 +17,7 @@ import os
 from iree.compiler import ir  # type: ignore
 
 from iree.compiler.dialects import iree_gpu  # type: ignore
+from iree.compiler.dialects import transform  # type: ignore
 import iree.compiler as ireec  # type: ignore
 
 
@@ -302,6 +303,10 @@ def link_tuning_specs(tuner_ctx: TunerContext, td_specs: list[ir.Module]) -> ir.
     module = combine_tuning_specs(tuner_ctx, td_specs)
     iree_opt = ireec.binaries.find_tool("iree-opt")
 
+    if len(td_specs) == 1:
+        # avoid unnessary link overhead.
+        return td_specs[0]
+
     with tempfile.TemporaryDirectory() as tmpdir:
         input_path = os.path.join(tmpdir, "tmp_input.mlir")
         output_path = os.path.join(tmpdir, "tmp_output.mlir")
@@ -327,3 +332,34 @@ def link_tuning_specs(tuner_ctx: TunerContext, td_specs: list[ir.Module]) -> ir.
         with open(output_path, "r") as f:
             output_mlir = f.read()
             return ir.Module.parse(output_mlir, tuner_ctx.mlir_ctx)
+
+
+def get_matcher_names_from_td_spec(td_spec: ir.Module) -> set[str]:
+    matcher_names = set()
+
+    for op in td_spec.body.operations:
+        if not isinstance(op, transform.NamedSequenceOp):
+            continue
+        if op.sym_name.value != "__kernel_config":
+            continue
+
+        for inner_op in op.regions[0].blocks[0].operations:
+            if isinstance(inner_op, transform.ForeachMatchOp):
+                for matcher in inner_op.matchers:
+                    matcher_names.add(matcher.value)
+
+    return matcher_names
+
+
+def get_matcher_overlap_info(
+    starter_matchers: set[str], current_matchers: set[str]
+) -> tuple[set[str], set[str]]:
+    """
+    Returns:
+        - overlapping_matchers: matchers shared by starter and current
+        - unique_starter_matchers: matchers only in the starter
+    """
+    overlapping_matchers = starter_matchers & current_matchers
+    unique_starter_matchers = starter_matchers - current_matchers
+
+    return overlapping_matchers, unique_starter_matchers

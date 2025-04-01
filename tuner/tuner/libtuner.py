@@ -337,6 +337,17 @@ def parse_arguments(
         default=CodegenPipelines.llvmgpu_vector_distribute,
         help="Codegen pipeline to tune for",
     )
+    general_args.add_argument(
+        "--starter-td-spec",
+        type=Path,
+        default="",
+        help=(
+            "Path to a starter TD spec file to merge with tuning spec files. "
+            "Enables incremental merging of td specs across dispatches when tuning real models. "
+            "Candidate specs take precedence in case of conflicts; the starter spec is excluded "
+            "if fully covered."
+        ),
+    )
 
     return parser.parse_args()
 
@@ -682,6 +693,10 @@ def generate_candidate_specs(
             prefetch_shared_memory=args.prefetch_shared_memory_options,
             no_reduce_shared_memory_bank_conflicts=args.no_reduce_shared_memory_bank_conflicts_options,
         )
+        starter_td_spec: Optional[ir.Module] = None
+        if args.starter_td_spec:
+            with open(args.starter_td_spec, "r") as f:
+                starter_td_spec = ir.Module.parse(f.read())
         config_specs: list[ir.Module] = candidate_gen.generate_configs_and_td_specs(
             input_module=mlir_module,
             tuner_context=tuning_client.tuner_context,
@@ -690,6 +705,7 @@ def generate_candidate_specs(
             allowed_waves_per_eu=args.waves_per_eu_options,
             pipeline_options_search_space=pipeline_options_search_space,
             codegen_pipeline=get_iree_codegen_pipeline(args.codegen_pipeline),
+            starter_td_spec=starter_td_spec,
         )
         logging.debug("candidate_gen.py ends")
         handle_error(

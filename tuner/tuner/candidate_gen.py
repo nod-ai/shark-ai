@@ -147,6 +147,49 @@ def get_default_output_dir() -> str:
     return "tuning_" + datetime.now().strftime("%Y_%m_%d_%H_%M")
 
 
+def determine_td_specs_to_link(
+    td_specs: list[ir.Module],
+    log_duplicates: bool = False,
+) -> list[ir.Module]:
+    """
+    Determines which tuning specs should be linked based on matcher overlap.
+
+    Args:
+        td_specs: A list of 1 or 2 tuning spec modules. If two are provided, the first is
+                the candidate spec and the second is the starter spec.
+        log_duplicates: If True, logs a warning for overlapping matchers.
+
+    Returns:
+        A list of td specs to link (possibly excluding the starter spec).
+    """
+
+    assert 1 <= len(td_specs) <= 2, "Expected 1 or 2 td specs (current and starter)"
+
+    if len(td_specs) == 1:
+        # No starter td spec provided, nothing to merge.
+        return td_specs
+
+    current_td_spec, starter_td_spec = td_specs
+
+    current_matchers = get_matcher_names_from_td_spec(current_td_spec)
+    starter_matchers = get_matcher_names_from_td_spec(starter_td_spec)
+
+    overlapping_matchers, unique_starter_matchers = get_matcher_overlap_info(
+        starter_matchers, current_matchers
+    )
+
+    if log_duplicates and overlapping_matchers:
+        logging.warning(
+            f"Operations have already been tuned in the starter tuning spec: {sorted(overlapping_matchers)}"
+        )
+
+    if unique_starter_matchers:
+        return td_specs
+
+    # Starter spec is redundant, so skip merging it.
+    return [current_td_spec]
+
+
 def generate_configs_and_td_specs(
     input_module: ir.Module,  # Path to the mlir file to be tuned
     tuner_context: TunerContext,
@@ -155,6 +198,7 @@ def generate_configs_and_td_specs(
     allowed_waves_per_eu: list[int] = [2],
     pipeline_options_search_space: PipelineOptionsSearchSpace = PipelineOptionsSearchSpace(),
     codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline = iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
+    starter_td_spec: Optional[ir.Module] = None,
 ) -> list[ir.Module]:
     dispatch_tuner_registry = DispatchTunerRegistry()
     dispatch_tuner_registry.register(
@@ -181,6 +225,7 @@ def generate_configs_and_td_specs(
     assert len(variant_op_list) == 1, "Expect one executable variant op"
     variant_op = variant_op_list[0]
     mma_list = iree_codegen.query_mma_intrinsics(variant_op)
+
     for i, config in enumerate(
         generate_solutions(
             tuner_context,
@@ -197,6 +242,29 @@ def generate_configs_and_td_specs(
         tune_logger.debug(f"Solution #{i+1}: {config}")
         td_spec_module = dispatch_tuner.get_td_spec(input_module, config)
         assert td_spec_module, "Failed to generate transform dialect spec"
+
+        # If starter td spec is not provided, use the generated td spec directly.
+        if starter_td_spec is None:
+            config_specs.append(td_spec_module)
+            continue
+
+        td_specs: list[ir.Module] = []
+        td_specs.append(td_spec_module)
+        td_specs.append(starter_td_spec)
+
+        # Only log duplicate matchers during the first iteration.
+        log_duplicates = i == 0
+
+        # The generated candidate spec takes precedence over the starter td spec.
+        # If the candidate spec covers all the ops supported by the starter spec,
+        # a warning will be issued in `determine_td_specs_to_link`, and the starter
+        # spec will be excluded from linking.
+        td_specs_to_link = determine_td_specs_to_link(
+            td_specs,
+            log_duplicates=log_duplicates,
+        )
+
+        td_spec_module = link_tuning_specs(tuner_context, td_specs_to_link)
         config_specs.append(td_spec_module)
 
     tune_logger.debug(f"Generated {len(config_specs)} tuning specs")
