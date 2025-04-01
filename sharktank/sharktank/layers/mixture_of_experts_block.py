@@ -7,8 +7,6 @@
 from typing import Optional
 
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
@@ -36,7 +34,7 @@ class MoeBlock(ThetaLayer):
         theta: Theta,
         expert_used_count: int,
         rms_epsilon: float,
-        moe_activation=F.silu,
+        moe_activation=torch.nn.functional.silu,
         *,
         score_experts=softmax,
         normalize_experts=True,
