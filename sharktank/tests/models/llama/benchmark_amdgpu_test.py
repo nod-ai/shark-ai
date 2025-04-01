@@ -110,6 +110,9 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         self.irpa_path_fp8 = (
             self.artifacts_dir / "fp8/native_fp8_e4m3fnuz_llama3_8b.irpa"
         )
+        self.irpa_path_fp8_attnf8 = (
+            self.artifacts_dir / "fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa"
+        )
         self.tensor_parallelism_size = 1
         self.dir_path_8b = self.dir_path / "llama-8b"
         self.temp_dir_8b = Path(self.dir_path_8b)
@@ -135,6 +138,20 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             activation_dtype="bfloat16",
             attention_dtype="bfloat16",
             kv_cache_dtype="float8_e4m3fnuz",
+        )
+        self.llama8b_fp8_attnf8_sdpa_artifacts = ExportArtifacts(
+            irpa_path=str(self.irpa_path_fp8_attnf8),
+            batch_size=4,
+            iree_hip_target="gfx942",
+            iree_hal_target_device="hip",
+            attention_kernel="sharktank",
+            tensor_parallelism_size=self.tensor_parallelism_size,
+            block_seq_stride=32,
+            use_hf=True,
+            activation_dtype="bfloat16",
+            attention_dtype="float8_e4m3fnuz",
+            kv_cache_dtype="float8_e4m3fnuz",
+            use_attention_mask=True,
         )
         self.prefill_args_bs4_128_stride_32_f16 = (
             self.artifacts_dir / "prefill_args_bs4_128_stride_32_tp1"
@@ -315,6 +332,51 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
             irpa_path=self.irpa_path_fp8,
+            benchmark_filename=output_benchmark,
+            args=self.iree_run_decode_args_fp8,
+            cwd=self.repo_root,
+        )
+
+    @skipif_run_quick_llama_test
+    def testBenchmark8B_fp8_attnf8_TP1_Non_Decomposed(self):
+        output_file_name = self.dir_path_8b / "fp8_attnf8_tp1"
+        output_mlir = self.llama8b_fp8_attnf8_sdpa_artifacts.create_file(
+            suffix=".mlir", prefix=output_file_name
+        )
+        output_json = self.llama8b_fp8_attnf8_sdpa_artifacts.create_file(
+            suffix=".json", prefix=output_file_name
+        )
+        output_vmfb = self.llama8b_fp8_attnf8_sdpa_artifacts.create_file(
+            suffix=".vmfb", prefix=output_file_name
+        )
+        output_benchmark = self.llama8b_fp8_attnf8_sdpa_artifacts.create_file(
+            suffix=".txt", prefix=output_file_name
+        )
+        export_return_code = self.llama8b_fp8_attnf8_sdpa_artifacts.export_to_mlir(
+            mlir_path=output_mlir,
+            json_path=output_json,
+        )
+        self.llama8b_fp8_attnf8_sdpa_artifacts.compile_to_vmfb(
+            mlir_path=str(output_mlir),
+            vmfb_path=output_vmfb,
+            hal_dump_path=output_file_name,
+            cwd=self.repo_root,
+            args=self.compile_args,
+        )
+        # benchmark prefill
+        self.llama8b_fp8_attnf8_sdpa_artifacts.iree_benchmark_vmfb(
+            hip_device_id=self.iree_device,
+            vmfb_name=output_vmfb,
+            irpa_path=self.irpa_path_fp8_attnf8,
+            benchmark_filename=output_benchmark,
+            args=self.iree_run_prefill_args_fp8,
+            cwd=self.repo_root,
+        )
+        # benchmark decode
+        self.llama8b_fp8_attnf8_sdpa_artifacts.iree_benchmark_vmfb(
+            hip_device_id=self.iree_device,
+            vmfb_name=output_vmfb,
+            irpa_path=self.irpa_path_fp8_attnf8,
             benchmark_filename=output_benchmark,
             args=self.iree_run_decode_args_fp8,
             cwd=self.repo_root,
