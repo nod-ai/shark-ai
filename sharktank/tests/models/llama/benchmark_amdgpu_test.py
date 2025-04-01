@@ -49,15 +49,10 @@ class BaseBenchmarkTest(unittest.TestCase):
 
     def setUp(self):
         self.compile_args = [
-            "--iree-dispatch-creation-enable-aggressive-fusion=true",
-            "--iree-global-opt-propagate-transposes=true",
-            "--iree-opt-aggressively-propagate-transposes=true",
-            "--iree-opt-data-tiling=false",
-            "--iree-preprocessing-pass-pipeline='builtin.module(util.func(iree-preprocessing-generalize-linalg-matmul-experimental))'",
-            "--iree-stream-resource-memory-model=discrete",
+            "--iree-opt-level=O3",
             "--iree-hal-indirect-command-buffers=true",
+            "--iree-stream-resource-memory-model=discrete",
             "--iree-hal-memoization=true",
-            "--iree-opt-strip-assertions",
         ]
 
     def save_benchmarks(
@@ -136,6 +131,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             attention_kernel="torch",
             tensor_parallelism_size=self.tensor_parallelism_size,
             block_seq_stride=32,
+            use_hf=True,
             activation_dtype="bfloat16",
             attention_dtype="bfloat16",
             kv_cache_dtype="float8_e4m3fnuz",
