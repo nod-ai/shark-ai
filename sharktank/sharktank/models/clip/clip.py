@@ -23,8 +23,8 @@ from collections import OrderedDict
 
 from ...layers import ThetaLayer, LinearLayer, LayerNorm, TokenEmbeddingLayer
 from ... import ops
-from ...types.theta import Theta, Dataset
-from ...types.tensors import AnyTensor, DefaultPrimitiveTensor
+from ...types.theta import Theta
+from ...types.tensors import AnyTensor
 from ...layers.configs import ClipTextConfig
 from ...layers.activations import ACT2FN
 
@@ -476,10 +476,15 @@ class ClipTextTransformer(ThetaLayer):
 
 
 class ClipTextModel(ThetaLayer):
-    def __init__(self, theta: Theta, config: ClipTextConfig):
-        super().__init__(theta)
-        self.config = config
-        self.text_model = ClipTextTransformer(theta=theta("text_model"), config=config)
+    def __init__(self, *, config: ClipTextConfig, theta: Theta | None = None):
+        super().__init__(theta, config=config)
+        self.text_model = ClipTextTransformer(
+            theta=self.theta("text_model"), config=config
+        )
+
+    @classmethod
+    def config_type(cls) -> type[ClipTextConfig]:
+        return ClipTextConfig
 
     def get_input_embeddings(self) -> nn.Module:
         return self.text_model.embeddings.token_embedding
@@ -487,17 +492,24 @@ class ClipTextModel(ThetaLayer):
     def set_input_embeddings(self, value):
         self.text_model.embeddings.token_embedding = value
 
-    def sample_inputs(self, batch_size: int) -> OrderedDict[str, AnyTensor]:
-        input_ids = (
-            torch.arange(
-                start=0,
-                end=batch_size * self.config.max_position_embeddings,
-                dtype=torch.long,
-            )
-            % self.config.vocab_size
+    def sample_inputs(
+        self, batch_size: int | None = 1, function: Optional[str] = None
+    ) -> tuple[tuple[AnyTensor, ...], OrderedDict[str, AnyTensor]]:
+        assert batch_size is not None
+        assert function == "forward" or function is None
+        sequence_lens = torch.randint(
+            low=1, high=self.config.max_position_embeddings + 1, size=(batch_size,)
         )
-        input_ids = input_ids.reshape([batch_size, self.config.max_position_embeddings])
-        return OrderedDict(
+        input_ids = torch.full(
+            size=(batch_size, self.config.max_position_embeddings),
+            fill_value=self.config.eos_token_id,
+            dtype=torch.long,
+        )
+        for batch_idx, l in enumerate(sequence_lens):
+            input_ids[batch_idx][0:l] = torch.randint(
+                low=0, high=self.config.vocab_size - 1, size=(l,), dtype=torch.long
+            )
+        return tuple(), OrderedDict(
             [
                 (
                     "input_ids",
@@ -527,3 +539,36 @@ class ClipTextModel(ThetaLayer):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
+
+    def load_theta_from_hugging_face(self) -> Theta:
+        hugging_face_repo_id = self.config.hugging_face_repo_id
+        if hugging_face_repo_id is not None:
+            import transformers
+
+            revision = self.config.hugging_face_revision or "main"
+            subfolder = self.config.hugging_face_subfolder or ""
+            hf_model = transformers.CLIPTextModel.from_pretrained(
+                hugging_face_repo_id, revision=revision, subfolder=subfolder
+            )
+            from .export import hugging_face_clip_text_model_to_theta
+
+            return hugging_face_clip_text_model_to_theta(hf_model)
+
+        raise ValueError(
+            "Could not load Theta from Hugging Face. "
+            f"Missing config option hugging_face_repo_id"
+        )
+
+    def generate_random_theta(self) -> Theta:
+        from .export import hugging_face_clip_text_model_to_theta
+
+        hf_config = self.config.to_hugging_face_clip_text_model_config()
+
+        if self.config.rng_seed is not None:
+            with torch.random.fork_rng():
+                torch.random.manual_seed(self.config.rng_seed)
+                model = transformers.CLIPTextModel(hf_config)
+        else:
+            model = transformers.CLIPTextModel(hf_config)
+
+        return hugging_face_clip_text_model_to_theta(model)

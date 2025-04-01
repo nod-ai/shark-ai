@@ -17,7 +17,9 @@ import sys
 import copy
 import math
 import tempfile
+import huggingface_hub
 from contextlib import closing
+from pathlib import Path
 
 from datetime import datetime as dt
 from PIL import Image
@@ -31,7 +33,7 @@ sample_request = {
     "neg_prompt": ["blurry, low quality, simplified"],
     "height": [1024],
     "width": [1024],
-    "steps": [20],
+    "steps": [2],
     "guidance_scale": [7.5],
     "seed": [42],
     "output_type": ["base64"],
@@ -39,73 +41,110 @@ sample_request = {
 }
 
 
-def start_server(fibers_per_device=1, isolation="per_fiber"):
+def start_server(pipeline_variant: str, fibers_per_device=1, isolation="per_fiber"):
     # Start the server
+    model_config_path = model_config[pipeline_variant]
     srv_args = [
         "python",
         "-m",
         "shortfin_apps.flux.server",
+        f"--model_config={model_config_path}",
+        f"--fibers_per_device={fibers_per_device}",
+        f"--isolation={isolation}",
     ]
-    with open("flux_config_bf16.json", "wb") as f:
-        r = requests.get(
-            "https://sharkpublic.blob.core.windows.net/sharkpublic/flux.1/configs/flux_config_bf16.json",
-            allow_redirects=True,
-        )
-        f.write(r.content)
-    srv_args.extend(
-        [
-            "--model_config=flux_config_bf16.json",
-            f"--fibers_per_device={fibers_per_device}",
-            f"--isolation={isolation}",
-            "--splat",
-        ]
-    )
     runner = ServerRunner(srv_args)
     # Wait for server to start
     time.sleep(3)
     return runner
 
 
+model_config = {
+    "flux_dev": str(
+        Path(__file__).parent.parent.parent.parent
+        / "python"
+        / "shortfin_apps"
+        / "flux"
+        / "examples"
+        / "flux_dev_config.json"
+    ),
+    "flux_schnell": str(
+        Path(__file__).parent.parent.parent.parent
+        / "python"
+        / "shortfin_apps"
+        / "flux"
+        / "examples"
+        / "flux_schnell_config.json"
+    ),
+}
+
+hf_repo = {
+    "flux_dev": "black-forest-labs/FLUX.1-dev",
+    "flux_schnell": "black-forest-labs/FLUX.1-schnell",
+}
+
+
+@pytest.fixture(scope="module", params=["flux_dev", "flux_schnell"])
+def pipeline_variant(request):
+    yield request.param
+
+
 @pytest.fixture(scope="module")
-def flux_server_fpd1():
-    runner = start_server(fibers_per_device=1)
+def pipeline_parameters(pipeline_variant):
+    """Download and export model parameters."""
+    export_script_path = str(
+        Path(__file__).parent.parent.parent.parent.parent
+        / "sharktank"
+        / "sharktank"
+        / "pipelines"
+        / "flux"
+        / "export_from_hf.sh"
+    )
+    hf_model_dir = huggingface_hub.snapshot_download(hf_repo[pipeline_variant])
+    subprocess.check_call([export_script_path, hf_model_dir, pipeline_variant])
+
+
+@pytest.fixture(scope="module")
+def flux_server_fpd1(pipeline_variant, pipeline_parameters):
+    runner = start_server(pipeline_variant=pipeline_variant, fibers_per_device=1)
     yield runner
     # Teardown: kill the server
     del runner
 
 
 @pytest.fixture(scope="module")
-def flux_server_fpd1_per_call():
-    runner = start_server(fibers_per_device=1, isolation="per_call")
+def flux_server_fpd1_per_call(pipeline_variant, pipeline_parameters):
+    runner = start_server(
+        pipeline_variant=pipeline_variant, fibers_per_device=1, isolation="per_call"
+    )
     yield runner
     # Teardown: kill the server
     del runner
 
 
 @pytest.fixture(scope="module")
-def flux_server_fpd2():
-    runner = start_server(fibers_per_device=2)
+def flux_server_fpd2(pipeline_variant, pipeline_parameters):
+    runner = start_server(pipeline_variant=pipeline_variant, fibers_per_device=2)
     yield runner
     # Teardown: kill the server
     del runner
 
 
-@pytest.mark.system("amdgpu")
-def test_flux_server(flux_server_fpd1):
+@pytest.mark.system("hip")
+def test_smoke_flux_server(flux_server_fpd1):
     imgs, status_code = send_json_file(flux_server_fpd1.url)
     assert len(imgs) == 1
     assert status_code == 200
 
 
-@pytest.mark.system("amdgpu")
-def test_flux_server_bs4_dense(flux_server_fpd1):
+@pytest.mark.system("hip")
+def test_smoke_flux_server_bs4_dense(flux_server_fpd1):
     imgs, status_code = send_json_file(flux_server_fpd1.url, num_copies=4)
     assert len(imgs) == 4
     assert status_code == 200
 
 
-@pytest.mark.system("amdgpu")
-def test_flux_server_bs4_dense_fpd2(flux_server_fpd2):
+@pytest.mark.system("hip")
+def test_smoke_flux_server_bs4_dense_fpd2(flux_server_fpd2):
     imgs, status_code = send_json_file(flux_server_fpd2.url, num_copies=4)
     assert len(imgs) == 4
     assert status_code == 200
@@ -121,7 +160,7 @@ class ServerRunner:
             [
                 *args,
                 "--port=" + port,
-                "--device=amdgpu",
+                "--device=hip",
             ],
             env=env,
             # TODO: Have a more robust way of forking a subprocess.

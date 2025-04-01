@@ -41,6 +41,19 @@ def is_iree_hal_target_device_cpu(v: str, /) -> bool:
     return v.startswith("local") or v == "llvm-cpu"
 
 
+def get_iree_compiler_flags(o: Any) -> list[str]:
+    """Retrieve compiler flags driven by the test configuration."""
+    res = [f"--iree-hal-target-device={o.iree_hal_target_device}"]
+    if o.iree_hal_target_device.startswith("local"):
+        res += [
+            f"--iree-hal-local-target-device-backends={v}"
+            for v in o.iree_hal_local_target_device_backends
+        ]
+    elif o.iree_hal_target_device.startswith("hip"):
+        res += [f"--iree-hip-target={o.iree_hip_target}"]
+    return res
+
+
 # Range of torch.rand() is [0,1)
 # Range of torch.rand() * 2 - 1 is [-1, 1), includes negative values
 def make_rand_torch(shape: list[int], dtype: Optional[torch.dtype] = torch.float32):
@@ -381,4 +394,13 @@ def get_frozen_test_text_prompts(
         random.setstate(orig_rng_state)
 
 
-test_prompts = get_frozen_test_text_prompts(num_prompts=16, min_prompt_length=50)
+_test_prompts = None
+
+
+def get_test_prompts():
+    global _test_prompts
+    if _test_prompts is None:
+        _test_prompts = get_frozen_test_text_prompts(
+            num_prompts=16, min_prompt_length=50
+        )
+    return _test_prompts

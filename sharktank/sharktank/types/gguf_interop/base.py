@@ -33,6 +33,7 @@ from . import layouts
 
 __all__ = [
     "load_file",
+    "load_properties",
 ]
 
 logger = get_logger("gguf")
@@ -161,3 +162,8 @@ def load_file(gguf_path: Union[str, os.PathLike]) -> Dataset:
         tensors[tensor.name] = gguf_tensor
     root_theta = Theta(tensors)
     return Dataset(properties=properties, root_theta=root_theta)
+
+
+def load_properties(gguf_path: Union[str, os.PathLike], /) -> dict[str, Any]:
+    reader = GGUFReader(gguf_path)
+    return _load_properties(reader)

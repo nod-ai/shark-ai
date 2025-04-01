@@ -16,7 +16,7 @@ Use the usual `iree-compile` command for your model, add
 and get the dispatch benchmark that you want to tune. For example:
 ```shell
 mkdir tmp
-iree-compile double_mmt.mlir --iree-hal-target-backends=rocm \
+iree-compile double_mmt.mlir --iree-hal-target-device=hip \
     --iree-hip-target=gfx942 --iree-hal-dump-executable-files-to=tmp/dump \
     --iree-config-add-tuner-attributes -o /dev/null
 

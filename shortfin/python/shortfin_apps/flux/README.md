@@ -24,7 +24,7 @@ The first time you run the server, you may need to wait for artifacts to downloa
 
 From a source checkout of shortfin, you must run from the `/shortfin` directory:
 ```
-python -m shortfin_apps.flux.server --model_config=./python/shortfin_apps/flux/examples/flux_dev_config_mixed.json --device=amdgpu --fibers_per_device=1 --workers_per_device=1 --isolation="per_fiber" --build_preference=precompiled
+python -m shortfin_apps.flux.server --model_config=./python/shortfin_apps/flux/examples/flux_dev_config.json --device=hip --fibers_per_device=1 --workers_per_device=1 --isolation="per_fiber" --build_preference=precompiled
 
 ```
  - Wait until your server outputs:

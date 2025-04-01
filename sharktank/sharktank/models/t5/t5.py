@@ -20,6 +20,7 @@ from collections import OrderedDict
 
 from ...layers import (
     BaseLayer,
+    ThetaLayer,
     RMSNormLayer,
     TokenEmbeddingLayer,
     LinearLayer,
@@ -1053,9 +1054,12 @@ class T5Stack(BaseLayer):
         )
 
 
-class T5Encoder(BaseLayer):
+class T5Encoder(ThetaLayer):
     def __init__(self, theta: Theta, config: T5Config):
-        super().__init__()
+        encoder_config = copy.deepcopy(config)
+        encoder_config.use_cache = False
+        encoder_config.is_encoder_decoder = False
+        super().__init__(theta, encoder_config)
         self.add_module(
             "token_embedding",
             TokenEmbeddingLayer(
@@ -1063,30 +1067,23 @@ class T5Encoder(BaseLayer):
             ),
         )
 
-        encoder_config = copy.deepcopy(config)
-        encoder_config.use_cache = False
-        encoder_config.is_encoder_decoder = False
         self.encoder = T5Stack(
             theta=theta("encoder"),
             config=encoder_config,
             embed_tokens=self.token_embedding,
         )
 
-    @property
-    def config(self):
-        return self.encoder.config
-
-    def sample_inputs(self, batch_size: int) -> OrderedDict[str, AnyTensor]:
-        return OrderedDict(
-            [
-                (
-                    "input_ids",
-                    torch.empty(
-                        size=[batch_size, self.config.context_length], dtype=torch.long
-                    ),
-                )
-            ]
+    def sample_inputs(
+        self, batch_size: int = 1, function: Optional[str] = None
+    ) -> tuple[tuple[AnyTensor], OrderedDict[str, AnyTensor]]:
+        assert function is None or function == "forward"
+        input_ids = torch.randint(
+            low=0,
+            high=self.config.vocab_size,
+            size=[batch_size, self.config.context_length],
+            dtype=torch.long,
         )
+        return tuple(), OrderedDict([("input_ids", input_ids)])
 
     def forward(
         self,

@@ -10,7 +10,8 @@ class DeviceSettings:
 
 CPU = DeviceSettings(
     compile_flags=(
-        "-iree-hal-target-backends=llvm-cpu",
+        "--iree-hal-target-device=local",
+        "--iree-hal-local-target-device-backends=llvm-cpu",
         "--iree-llvmcpu-target-cpu=host",
     ),
     server_flags=("--device=local-task",),
@@ -18,7 +19,7 @@ CPU = DeviceSettings(
 
 GFX942 = DeviceSettings(
     compile_flags=(
-        "--iree-hal-target-backends=rocm",
+        "--iree-hal-target-device=hip",
         "--iree-hip-target=gfx942",
     ),
     server_flags=("--device=hip",),
@@ -26,7 +27,7 @@ GFX942 = DeviceSettings(
 
 GFX90A = DeviceSettings(
     compile_flags=(
-        "--iree-hal-target-backends=rocm",
+        "--iree-hal-target-device=hip",
         "--iree-hip-target=gfx90a",
     ),
     server_flags=("--device=hip",),
@@ -34,7 +35,7 @@ GFX90A = DeviceSettings(
 
 GFX1100 = DeviceSettings(
     compile_flags=(
-        "--iree-hal-target-backends=rocm",
+        "--iree-hal-target-device=hip",
         "--iree-hip-target=gfx1100",
     ),
     server_flags=("--device=hip",),

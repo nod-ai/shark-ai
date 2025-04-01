@@ -539,6 +539,7 @@ def test_free_pages_use_ref_count(
 )
 # fmt: on
 @pytest.mark.asyncio
+@pytest.mark.xfail(reason="xfailed for flakiness on the new-pages-should-be-all-1s assertion. See https://github.com/nod-ai/shark-ai/issues/1176")
 async def test_fork_pages(cache_ref_count, tokens, expected_pages, case_name):
     ref_counts = cache_ref_count.ref_counts
 

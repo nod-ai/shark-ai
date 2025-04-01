@@ -364,7 +364,10 @@ class TestTraceTensors(TempDirTestBase):
         iree.compiler.compile_file(
             str(mlir_path),
             output_file=str(iree_module_path),
-            extra_args=["--iree-hal-target-device=local"],
+            extra_args=[
+                "--iree-hal-local-target-device-backends=llvm-cpu",
+                "--iree-hal-target-device=local",
+            ],
         )
 
         iree_devices = get_iree_devices(driver="local-task", device_count=1)

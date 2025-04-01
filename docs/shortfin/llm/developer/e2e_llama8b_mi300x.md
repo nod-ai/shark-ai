@@ -28,7 +28,7 @@ Create a new directory for us to export files like `model.mlir`, `model.vmfb`, e
 
 ```bash
 mkdir $PWD/export
-export EXPORT_DIR=$PWD/exportd
+export EXPORT_DIR=$PWD/export
 ```
 
 ### Define environment variables
@@ -69,7 +69,7 @@ python -m sharktank.examples.export_paged_llm_v1 \
   --irpa-file=$MODEL_PARAMS_PATH \
   --output-mlir=$MLIR_PATH \
   --output-config=$OUTPUT_CONFIG_PATH \
-  --bs-prefill=$BS
+  --bs-prefill=$BS \
   --bs-decode=$BS
 ```
 
@@ -89,7 +89,7 @@ look [here](https://iree.dev/guides/deployment-configurations/gpu-rocm/#compile-
 
 ```bash
 iree-compile $MLIR_PATH \
- --iree-hal-target-backends=rocm \
+ --iree-hal-target-device=hip \
  --iree-hip-target=gfx942 \
  -o $VMFB_PATH
 ```
@@ -108,7 +108,6 @@ cat > $EDITED_CONFIG_PATH << EOF
     "module_name": "module",
     "module_abi_version": 1,
     "max_seq_len": 131072,
-    "attn_head_count": 8,
     "attn_head_dim": 128,
     "prefill_batch_sizes": [
         $BS
@@ -119,7 +118,8 @@ cat > $EDITED_CONFIG_PATH << EOF
     "transformer_block_count": 32,
     "paged_kv_cache": {
         "block_seq_stride": 16,
-        "device_block_count": 256
+        "device_block_count": 256,
+        "attention_head_count_kv": 16
     }
 }
 EOF

@@ -14,7 +14,7 @@ import transformers
 from .t5 import T5Config, T5Encoder
 from ...types import Dataset, Theta, DefaultPrimitiveTensor
 from ...transforms.dataset import set_float_dtype
-from iree.turbine.aot import FxProgramsBuilder, export
+from iree.turbine.aot import FxProgramsBuilder, export, ExternalTensorTrait
 
 __all__ = [
     "export_encoder_mlir",
@@ -39,11 +39,13 @@ def export_encoder_mlir(
             dataset.properties,
         )
         model = T5Encoder(theta=dataset.root_theta, config=config)
+    for t in model.theta.flatten().values():
+        ExternalTensorTrait(external_name=t.name, external_scope="").set(t.as_torch())
 
     fxb = FxProgramsBuilder(model)
 
     for batch_size in batch_sizes:
-        sample_inputs = model.sample_inputs(batch_size)
+        _, sample_inputs = model.sample_inputs(batch_size)
 
         if dynamic_context_length:
             context_length_dim_idx = 1

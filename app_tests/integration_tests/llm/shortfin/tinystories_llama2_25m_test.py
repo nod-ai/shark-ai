@@ -13,13 +13,16 @@ import uuid
 
 logger = logging.getLogger(__name__)
 
-from ..model_management import AccuracyValidationException
+from ..model_management import AccuracyValidationException, ModelConfig
 
 
 pytestmark = pytest.mark.parametrize(
     "model_artifacts,server",
     [
-        ["tinystories_llama2_25m", {"prefix_sharing": "none"}],
+        (ModelConfig.get(name="tinystories_llama2_25m"), {"prefix_sharing": "none"}),
+    ],
+    ids=[
+        "tinystories_llama2_25m_none",
     ],
     indirect=True,
 )
