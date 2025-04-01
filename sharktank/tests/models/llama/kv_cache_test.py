@@ -171,7 +171,8 @@ class KVCacheTest(unittest.TestCase):
             first transformer block's K cache for the first 8 (start_positions) tensors starting at
             sequence 0.
         """
-        updated_paged_k_cache_state = page_table[page_id][0, 0, :index_written]
+        updated_paged_k_cache_state = page_table[page_id][0, 0, :, :index_written]
+        updated_paged_k_cache_state = torch.transpose(updated_paged_k_cache_state, 0, 1)
         assert updated_direct_k_cache_state.shape == updated_paged_k_cache_state.shape
         torch.testing.assert_close(
             updated_direct_k_cache_state, updated_paged_k_cache_state
