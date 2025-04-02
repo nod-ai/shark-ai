@@ -1,11 +1,18 @@
 """Main test module for LLM server functionality."""
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import json
 import logging
 import pytest
 import requests
-from typing import Dict, Any
 import uuid
+
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from shortfin_apps.llm.components.io_struct import (
+    PromptResponse,
+    GeneratedResponse,
+    GenerateReqOutput,
+)
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +45,13 @@ class TestLLMServer:
         process, port = server
         assert process.poll() is None, "Server process terminated unexpectedly"
 
-        response = self._generate("1 2 3 4 5 ", port)
         expected_prefix = "6 7 8"
+        response = self._generate("1 2 3 4 5 ", port)
+        response = json.loads(response)
+        response = GenerateReqOutput(**response)
+        response = PromptResponse(**response.responses[0])
+        response = GeneratedResponse(**response.responses[0])
+        response = response.text
         if not response.startswith(expected_prefix):
             raise AccuracyValidationException(
                 expected=f"{expected_prefix}...",
@@ -59,8 +71,13 @@ class TestLLMServer:
         process, port = server
         assert process.poll() is None, "Server process terminated unexpectedly"
 
-        response = self._generate(encoded_prompt, port, input_ids=True)
         expected_prefix = "6 7 8"
+        response = self._generate(encoded_prompt, port, input_ids=True)
+        response = json.loads(response)
+        response = GenerateReqOutput(**response)
+        response = PromptResponse(**response.responses[0])
+        response = GeneratedResponse(**response.responses[0])
+        response = response.text
         if not response.startswith(expected_prefix):
             raise AccuracyValidationException(
                 expected=f"{expected_prefix}...",
@@ -98,6 +115,11 @@ class TestLLMServer:
 
             for future in as_completed(futures):
                 response = future.result()
+                response = json.loads(response)
+                response = GenerateReqOutput(**response)
+                response = PromptResponse(**response.responses[0])
+                response = GeneratedResponse(**response.responses[0])
+                response = response.text
                 if not response.startswith(expected_prefix):
                     raise AccuracyValidationException(
                         expected=f"{expected_prefix}...",
@@ -135,14 +157,4 @@ class TestLLMServer:
             timeout=30,  # Add reasonable timeout
         )
         response.raise_for_status()
-
-        # Parse and validate streaming response format
-        data = response.text
-        if not data.startswith("data: "):
-            raise AccuracyValidationException(
-                expected="Response starting with 'data: '",
-                actual=data,
-                message=f"Invalid response format.\nExpected format starting with 'data: '\nActual response: {data}",
-            )
-
-        return data[6:].rstrip("\n")
+        return response.text

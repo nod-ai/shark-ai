@@ -21,15 +21,7 @@ from iree.compiler.dialects import linalg  # type: ignore
 from . import common
 from . import dispatch_parser
 
-
-@pytest.fixture
-def tuner_ctx() -> Generator[common.TunerContext, None, None]:
-    from logging import Logger
-    from unittest.mock import MagicMock
-
-    mock_logger = MagicMock(spec=Logger)
-    with common.TunerContext(logger=mock_logger) as ctx:
-        yield ctx
+from .test_utils import tuner_ctx
 
 
 CONTRACTION_TEMPLATE = r"""

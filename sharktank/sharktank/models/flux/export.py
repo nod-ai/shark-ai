@@ -108,7 +108,7 @@ def export_flux_transformer_models(dir: Path):
     mlir_path = base_dir / f"{file_name_base}.mlir"
     parameters_output_path = base_dir / f"{file_name_base}.irpa"
     export_flux_transformer_from_hugging_face(
-        "black-forest-labs/FLUX.1-dev/black-forest-labs-transformer",
+        "black-forest-labs/FLUX.1-dev",
         mlir_output_path=mlir_path,
         parameters_output_path=parameters_output_path,
     )
@@ -119,7 +119,7 @@ def export_flux_transformer_models(dir: Path):
     mlir_path = base_dir / f"{file_name_base}.mlir"
     parameters_output_path = base_dir / f"{file_name_base}.irpa"
     export_flux_transformer_from_hugging_face(
-        "black-forest-labs/FLUX.1-schnell/black-forest-labs-transformer",
+        "black-forest-labs/FLUX.1-schnell",
         mlir_output_path=mlir_path,
         parameters_output_path=parameters_output_path,
     )

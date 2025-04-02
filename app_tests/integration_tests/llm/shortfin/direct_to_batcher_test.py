@@ -12,7 +12,10 @@ from app_tests.integration_tests.llm.model_management import (
     ModelConfig,
 )
 from app_tests.integration_tests.llm.device_settings import CPU
-from shortfin_apps.llm.components.messages import InferencePhase, InferenceExecRequest
+from shortfin_apps.llm.components.messages import (
+    InferencePhase,
+    LlmInferenceExecRequest,
+)
 
 
 pytestmark = pytest.mark.parametrize(
@@ -47,7 +50,7 @@ class BatchConsistencyTestProcess(sf.Process):
         for batch_size in self.batch_sizes:
             batch_results = []
             for _ in range(batch_size):
-                prefill_req = InferenceExecRequest(
+                prefill_req = LlmInferenceExecRequest(
                     phase=InferencePhase.PREFILL,
                     input_token_ids=self.input_tokens,
                     rid=f"test-{batch_size}",

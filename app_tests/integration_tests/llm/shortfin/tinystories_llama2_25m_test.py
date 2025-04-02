@@ -4,12 +4,20 @@ Simple smoke tests to:
 - ensure the smoke test model works so we know it's not a model issue when another test using this model fails.
 """
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import dataclasses
+import json
 import logging
 import pytest
 import requests
-from typing import Dict, Any
 import uuid
+
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any
+from shortfin_apps.llm.components.io_struct import (
+    PromptResponse,
+    GeneratedResponse,
+    GenerateReqOutput,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +38,7 @@ pytestmark = pytest.mark.parametrize(
 
 # goldens are generated in: https://colab.research.google.com/drive/1pFiyvyIxk1RsHnw5gTk_gu9QiQNy9gfW?usp=sharing
 GOLDEN_PROMPT = "Once upon a time"
-GOLDEN_RESPONSE = ", there was a little girl named Lily."  # this assumes purely deterministic greedy search
+GOLDEN_RESPONSE = ", there was a little girl named Lily. She loved to play with her"  # this assumes purely deterministic greedy search
 
 
 class TestLLMServer:
@@ -47,6 +55,11 @@ class TestLLMServer:
         prompt = GOLDEN_PROMPT
         expected_prefix = GOLDEN_RESPONSE
         response = self._generate(prompt, port)
+        response = json.loads(response)
+        response = GenerateReqOutput(**response)
+        response = PromptResponse(**response.responses[0])
+        response = GeneratedResponse(**response.responses[0])
+        response = response.text
         if not expected_prefix in response:
             raise AccuracyValidationException(
                 expected=f"{expected_prefix}...",
@@ -84,7 +97,12 @@ class TestLLMServer:
 
             for future in as_completed(futures):
                 response = future.result()
-                if not response.startswith(expected_prefix):
+                response = json.loads(response)
+                response = GenerateReqOutput(**response)
+                response = PromptResponse(**response.responses[0])
+                response = GeneratedResponse(**response.responses[0])
+                response = response.text
+                if response != expected_prefix:
                     raise AccuracyValidationException(
                         expected=f"{expected_prefix}...",
                         actual=response,
@@ -121,14 +139,4 @@ class TestLLMServer:
             timeout=30,  # Add reasonable timeout
         )
         response.raise_for_status()
-
-        # Parse and validate streaming response format
-        data = response.text
-        if not data.startswith("data: "):
-            raise AccuracyValidationException(
-                expected="Response starting with 'data: '",
-                actual=data,
-                message=f"Invalid response format.\nExpected format starting with 'data: '\nActual response: {data}",
-            )
-
-        return data[6:].rstrip("\n")
+        return response.text

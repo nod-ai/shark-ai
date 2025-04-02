@@ -43,7 +43,7 @@ jobs:
           - name: Ubuntu (Clang)(full)
             runs-on: ubuntu-24.04
             cmake-options:
-              -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18 -DCMAKE_LINKER_TYPE=LLD -DSHORTFIN_ENABLE_TOKENIZERS=ON
+              -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18 -DCMAKE_LINKER_TYPE=LLD
             additional-packages: clang lld
             env:
               SHORTFIN_ENABLE_TRACING: OFF
@@ -115,14 +115,6 @@ jobs:
     - name: (Windows) Configure MSVC
       if: "runner.os == 'Windows'"
       uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
-
-    - name: Setup Rust
-      # For now, `SHORTFIN_ENABLE_TOKENIZERS` is only enabled for 'Ubuntu (Clang)(full)'.
-      # TODO(#620): Enable on Windows.
-      if: ${{ matrix.name == 'Ubuntu (Clang)(full)'}}
-      uses: dtolnay/rust-toolchain@56f84321dbccf38fb67ce29ab63e4754056677e0 # master branch (Nov 18, 2024)
-      with:
-        toolchain: stable
 
     - name: "Setup Python ${{ matrix.python-version }}"
       uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
