@@ -19,21 +19,8 @@ from iree.compiler.dialects import iree_codegen  # type: ignore
 from iree.compiler.dialects import transform  # type: ignore
 from iree.compiler.dialects import _builtin_ops_gen  # type: ignore
 
-
-@pytest.fixture
-def tuner_ctx() -> Generator[common.TunerContext, None, None]:
-    from logging import Logger
-    from unittest.mock import MagicMock
-
-    mock_logger = MagicMock(spec=Logger)
-    with common.TunerContext(logger=mock_logger) as ctx:
-        yield ctx
-
-
-@pytest.fixture
-def mlir_ctx() -> Generator[ir.Context, None, None]:
-    with ir.Context() as ctx:
-        yield ctx
+from .test_utils import tuner_ctx
+from .test_utils import mlir_ctx
 
 
 def test_get_shaped_type_element_bitwidth(tuner_ctx: common.TunerContext) -> None:
@@ -390,3 +377,73 @@ def test_get_matcher_overlap_info(tuner_ctx: common.TunerContext) -> None:
     overlapping, unique = common.get_matcher_overlap_info(starter, current)
     assert overlapping == {"match_a", "match_b"}
     assert unique == set()
+
+
+def test_determine_td_specs_to_link(
+    tuner_ctx: common.TunerContext, caplog: pytest.LogCaptureFixture
+) -> None:
+    context = tuner_ctx.mlir_ctx
+    module_str = """
+        module attributes { transform.with_named_sequence } {
+            transform.named_sequence @apply_op_config(%arg0: !transform.any_op {transform.readonly}) {
+                transform.yield
+            }
+
+            transform.named_sequence @match_foo(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
+                transform.yield %arg0 : !transform.any_op
+            }
+
+            transform.named_sequence @match_bar(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
+                transform.yield %arg0 : !transform.any_op
+            }
+
+            transform.named_sequence @__kernel_config(%arg0: !transform.any_op ) -> !transform.any_op
+                attributes { iree_codegen.tuning_spec_entrypoint } {
+                %0 = transform.foreach_match in %arg0
+                    @match_foo -> @apply_op_config,
+                    @match_bar -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+                transform.yield %0 : !transform.any_op
+            }
+        }
+    """
+    starter_td_spec = ir.Module.parse(module_str, context)
+    current_td_spec = ir.Module.parse(module_str, context)
+
+    td_specs_to_link = common.determine_td_specs_to_link(
+        [current_td_spec, starter_td_spec],
+        log_duplicates=True,
+    )
+
+    assert td_specs_to_link == [current_td_spec]
+    assert "match_foo" in caplog.text
+    assert "match_bar" in caplog.text
+    assert "already been tuned in the starter" in caplog.text
+
+    caplog.clear()
+    module_str = """
+        module attributes { transform.with_named_sequence } {
+            transform.named_sequence @apply_op_config(%arg0: !transform.any_op {transform.readonly}) {
+                transform.yield
+            }
+
+            transform.named_sequence @match_baz(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
+                transform.yield %arg0 : !transform.any_op
+            }
+
+            transform.named_sequence @__kernel_config(%arg0: !transform.any_op ) -> !transform.any_op
+                attributes { iree_codegen.tuning_spec_entrypoint } {
+                %0 = transform.foreach_match in %arg0
+                    @match_baz -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+                transform.yield %0 : !transform.any_op
+            }
+        }
+    """
+    current_td_spec = ir.Module.parse(module_str, context)
+    td_specs_to_link = common.determine_td_specs_to_link(
+        [starter_td_spec, current_td_spec],
+        log_duplicates=True,
+    )
+
+    assert td_specs_to_link == [starter_td_spec, current_td_spec]
+    assert "match_baz" not in caplog.text
+    assert "already been tuned" not in caplog.text
