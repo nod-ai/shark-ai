@@ -147,49 +147,6 @@ def get_default_output_dir() -> str:
     return "tuning_" + datetime.now().strftime("%Y_%m_%d_%H_%M")
 
 
-def determine_td_specs_to_link(
-    td_specs: list[ir.Module],
-    log_duplicates: bool = False,
-) -> list[ir.Module]:
-    """
-    Determines which tuning specs should be linked based on matcher overlap.
-
-    Args:
-        td_specs: A list of 1 or 2 tuning spec modules. If two are provided, the first is
-                the candidate spec and the second is the starter spec.
-        log_duplicates: If True, logs a warning for overlapping matchers.
-
-    Returns:
-        A list of td specs to link (possibly excluding the starter spec).
-    """
-
-    assert 1 <= len(td_specs) <= 2, "Expected 1 or 2 td specs (current and starter)"
-
-    if len(td_specs) == 1:
-        # No starter td spec provided, nothing to merge.
-        return td_specs
-
-    current_td_spec, starter_td_spec = td_specs
-
-    current_matchers = get_matcher_names_from_td_spec(current_td_spec)
-    starter_matchers = get_matcher_names_from_td_spec(starter_td_spec)
-
-    overlapping_matchers, unique_starter_matchers = get_matcher_overlap_info(
-        starter_matchers, current_matchers
-    )
-
-    if log_duplicates and overlapping_matchers:
-        logging.warning(
-            f"Operations have already been tuned in the starter tuning spec: {sorted(overlapping_matchers)}"
-        )
-
-    if unique_starter_matchers:
-        return td_specs
-
-    # Starter spec is redundant, so skip merging it.
-    return [current_td_spec]
-
-
 def generate_configs_and_td_specs(
     input_module: ir.Module,  # Path to the mlir file to be tuned
     tuner_context: TunerContext,

@@ -67,7 +67,9 @@ def main() -> None:
                 td_spec_str = f.read()
                 td_specs.append(ir.Module.parse(td_spec_str, tuner_ctx.mlir_ctx))
 
-        merged_td_spec = link_tuning_specs(tuner_ctx, td_specs)
+        # Emit warnings for duplicate matchers in td_specs.
+        td_specs_to_link = determine_td_specs_to_link(td_specs, log_duplicates=True)
+        merged_td_spec = link_tuning_specs(tuner_ctx, td_specs_to_link)
         if args.output:
             with open(args.output, "w") as f:
                 f.write(str(merged_td_spec))

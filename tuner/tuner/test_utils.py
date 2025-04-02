@@ -18,7 +18,6 @@ from . import common
 
 @pytest.fixture
 def tuner_ctx() -> Generator[common.TunerContext, None, None]:
-
     mock_logger = MagicMock(spec=Logger)
     with common.TunerContext(logger=mock_logger) as ctx:
         yield ctx
