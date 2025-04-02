@@ -12,7 +12,10 @@ from app_tests.integration_tests.llm.model_management import (
     ModelConfig,
 )
 from app_tests.integration_tests.llm.device_settings import CPU
-from shortfin_apps.llm.components.messages import InferencePhase, LlmInferenceExecRequest
+from shortfin_apps.llm.components.messages import (
+    InferencePhase,
+    LlmInferenceExecRequest,
+)
 
 
 pytestmark = pytest.mark.parametrize(
