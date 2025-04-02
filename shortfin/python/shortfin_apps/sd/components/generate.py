@@ -19,7 +19,9 @@ from shortfin_apps.types.Base64CharacterEncodedByteSequence import (
 )
 
 from shortfin_apps.utilities.image import png_from
-from shortfin_apps.types.TextToImageInferenceOutput import TextToImageInferenceOutput
+from shortfin_apps.text_to_image.TextToImageInferenceOutput import (
+    TextToImageInferenceOutput,
+)
 
 import shortfin as sf
 
