@@ -2,6 +2,6 @@
 
 # Keep these versions synced with SHORTFIN_IREE_GIT_TAG in shortfin/CMakeLists.txt
 --find-links https://iree.dev/pip-release-links.html
-iree-base-compiler==3.4.0rc20250325
-iree-base-runtime==3.4.0rc20250325
-iree-turbine==3.4.0rc20250325
+iree-base-compiler==3.4.0rc20250402
+iree-base-runtime==3.4.0rc20250402
+iree-turbine==3.4.0rc20250402
