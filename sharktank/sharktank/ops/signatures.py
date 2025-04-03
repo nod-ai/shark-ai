@@ -7,12 +7,13 @@
 """Signatures for dynamic dispatch of ops covering our fundamental tensor types."""
 
 from typing import Optional, Sequence, Union, List, Tuple
+from numbers import Number
+import math
 
 import torch
-import numbers
 from torch import Tensor, dtype
 
-from ..types import (
+from sharktank.types import (
     AnyTensor,
     ShardedTensor,
     Theta,
@@ -20,8 +21,7 @@ from ..types import (
     InferenceTensor,
     PrimitiveTensor,
 )
-from numbers import Number
-import math
+
 
 from ._registry import *
 

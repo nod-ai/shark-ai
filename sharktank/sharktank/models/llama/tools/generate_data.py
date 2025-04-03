@@ -36,21 +36,20 @@ Usage:
 """
 
 from pathlib import Path
-import logging
 import sys
 import json
 import numpy as np
 
 from transformers import LlamaTokenizer  # type: ignore
 
-from ....utils.logging import get_logger
+from sharktank.utils.logging import get_logger
+from sharktank.utils import cli
 from .data_utils import write_ndarray_to_bin
 
 logger = get_logger("sharktank.models.llama.tools.generate_data")
 
 
 def main(argv):
-    from ....utils import cli
 
     parser = cli.create_parser()
     parser.add_argument(
