@@ -49,15 +49,16 @@ class FFN(ThetaLayer):
         self,
         h: AnyTensor,
     ) -> AnyTensor:
+        h_norm = h
         if self.ffn_norm:
-            h = self.ffn_norm(h)
+            h_norm = self.ffn_norm(h)
         if self.is_gated:
-            ffn_gate = ops.elementwise(self.activation_fn, self.ffn_gate(h))
-            ffn_up = self.ffn_up(h)
+            ffn_gate = ops.elementwise(self.activation_fn, self.ffn_gate(h_norm))
+            ffn_up = self.ffn_up(h_norm)
             ffn_down = self.ffn_down(ffn_gate * ffn_up)
-            return ffn_down
         else:
-            h = self.ffn_up(h)
-            h = ops.elementwise(self.activation_fn, h)
-            h = self.ffn_down(h)
-            return h
+            ffn_up = self.ffn_up(h_norm)
+            ffn_act = ops.elementwise(self.activation_fn, ffn_up)
+            ffn_down = self.ffn_down(ffn_act)
+
+        return h + ffn_down
