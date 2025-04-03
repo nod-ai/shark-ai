@@ -17,14 +17,11 @@ from iree.turbine.aot import *
 
 from sharktank.layers import *
 from sharktank.types import *
-
 from sharktank.models.llama.testing import *
-from sharktank.layers import causal_llm
-
+from sharktank.utils import cli
 from sharktank.utils.create_cache import *
 
 # TODO: Should be using a base class with the protocol supported.
-from ..models.llama.llama import LlamaModelConfig, PagedLlamaAttentionBlock
 
 
 def paged_attention(
@@ -116,7 +113,6 @@ def run_llama(
 
 
 def main():
-    from ..utils import cli
 
     parser = cli.create_parser()
     # cli.add_input_dataset_options(parser)
@@ -155,9 +151,6 @@ def main():
     )
 
     args = cli.parse(parser)
-
-    # dataset = cli.get_input_dataset(args)
-    # hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
 
     hp = configs.LlamaHParams(
         context_length=4096,

@@ -4,21 +4,20 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import Optional
-
-from typing import Union
+from typing import Optional, Union
 
 import math
 
 import torch
 import torch.nn as nn
 
-from ..layers import *
-from ..types import *
-from ..utils.create_cache import *
+from sharktank.layers import *
+from sharktank.types import *
+from sharktank.utils.create_cache import *
 
 __all__ = [
     "PagedLlmModelV1",
+    "AttentionFFNBlock",
 ]
 
 ################################################################################

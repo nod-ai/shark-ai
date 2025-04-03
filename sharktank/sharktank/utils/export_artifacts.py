@@ -8,12 +8,9 @@ import sys
 import subprocess
 import logging
 import time
-import re
 from pathlib import Path
 from datetime import timedelta
 from typing import List, Optional
-
-import iree.compiler as ireec
 
 logger = logging.getLogger("eval")
 
@@ -124,8 +121,8 @@ class ExportArtifacts:
             result = func(*args, **kwargs)
             end = time.time()
             total_seconds = end - start
-            time_taken = abs(timedelta(seconds=total_seconds))
-            hours, minutes, seconds = re.split(":", str(time_taken))
+            time_taken = str(abs(timedelta(seconds=total_seconds)))
+            hours, minutes, seconds = time_taken.split(":")
 
             if total_seconds < 1:
                 time_taken = f" {round(total_seconds * 1000, 3)} ms"
