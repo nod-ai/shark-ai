@@ -5,7 +5,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import torch
-import torch.nn.functional as F
 
 from iree.turbine.aot import *
 

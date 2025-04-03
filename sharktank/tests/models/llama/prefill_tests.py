@@ -4,14 +4,14 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import unittest
+from pathlib import Path
+
 import torch
 from sharktank.layers.configs import *
 from sharktank.examples.paged_llm_v1 import *
 from sharktank.models.llm import *
-from sharktank.utils import tokenizer
-from sharktank.utils import hf_datasets
-import unittest
-from pathlib import Path
+from sharktank.utils import tokenizer, hf_datasets
 
 
 class BaseLlamaTest(unittest.TestCase):
