@@ -18,11 +18,7 @@ from sharktank.utils.math import ceildiv
 from sharktank import ops
 
 # TODO: Should be using a base class with the protocol supported.
-from ..models.llama.llama import LlamaModelConfig, PagedLlamaModelV1
-from ..models.llama.sharding import shard_theta
-from ..models.mixtral.mixtral import *
-from ..models.grok.grok import *
-from .. import ops
+from sharktank.models.llm import *
 
 
 def main():
@@ -106,13 +102,7 @@ def main():
     )
     llama_config.fake_quant = args.fake_quant
 
-    if llama_config.hp.expert_count:
-        if llama_config.hp.model_arch == "grok":
-            model = PagedGrokModelV1(dataset.root_theta, llama_config)
-        else:
-            model = PagedMixtralModelV1(dataset.root_theta, llama_config)
-    else:
-        model = PagedLlamaModelV1(dataset.root_theta, llama_config)
+    model = PagedLlmModelV1(dataset.root_theta, llama_config)
 
     def generate_params_json(
         hp: LlamaHParams, prefill_bs: list[int], decode_bs: list[int]

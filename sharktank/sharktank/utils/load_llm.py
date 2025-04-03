@@ -10,7 +10,7 @@ import torch
 
 from sharktank.layers import *
 from sharktank.types import *
-from sharktank.models.llama.llama import *
+from sharktank.models.llm import *
 
 from ..utils.debugging import trace_tensor
 from ..utils.tokenizer import InferenceTokenizer
@@ -21,7 +21,7 @@ class TorchGenerator:
 
     def __init__(
         self,
-        model: PagedLlamaModelV1,
+        model: PagedLlmModelV1,
         tokenizer: InferenceTokenizer,
         # Need to look at the model more for this.
         end_token: int = 2,

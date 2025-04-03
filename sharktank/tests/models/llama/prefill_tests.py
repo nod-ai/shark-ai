@@ -5,7 +5,9 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import torch
+from sharktank.layers.configs import *
 from sharktank.examples.paged_llm_v1 import *
+from sharktank.models.llm import *
 from sharktank.utils import tokenizer
 from sharktank.utils import hf_datasets
 import unittest
@@ -28,7 +30,7 @@ class BaseLlamaTest(unittest.TestCase):
 
     def runPrefill(self, *, kv_cache_type):
         config = self.createConfigModel(kv_cache_type)
-        model = PagedLlamaModelV1(self.dataset.root_theta, config)
+        model = PagedLlmModelV1(self.dataset.root_theta, config)
         generator = TorchGenerator(model, self.tokenizer_config)
         token_ids, seq_lens = generator.preprocess_prompts(prompts=self.prompts)
         batch = generator.begin_batch(
