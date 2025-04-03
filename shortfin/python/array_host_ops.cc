@@ -10,6 +10,7 @@
 #include "shortfin/support/logging.h"
 #include "xtensor/xmath.hpp"
 #include "xtensor/xrandom.hpp"
+#include "xtensor/xreducer.hpp"
 #include "xtensor/xsort.hpp"
 #include "xtl/xhalf_float.hpp"
 
@@ -905,30 +906,27 @@ void BindArrayHostOps(py::module_ &m) {
                           input.dtype().name(), out->dtype().name()));
         }
         auto compute = [&]<typename EltTy>() {
-          auto input_t = input.map_xtensor<EltTy>();
-          auto max = xt::amax(*input_t, axis);
-          // Expand to keep dims
-          auto maxExpanded = xt::expand_dims(max, axis);
+          auto input_t = input.map_xtensor_rw<EltTy>();
 
-          // Equivalent to: log( ∑[i in axis] exp(x_i - c) )
-          // where x_i are the elements of the input tensor along the given
-          // axis, and c (maxExpanded) is the maximum value along that axis.
-          auto sum_expression = xt::sum(xt::exp(*input_t - maxExpanded), axis);
-          auto sum_axis_expanded = xt::expand_dims(sum_expression, axis);
-          auto log_sum_expression = xt::log(sum_axis_expanded);
+          auto max_vals = xt::amax(*input_t, {axis});
+          xt::xarray<EltTy> max_vals_keep_dim = xt::expand_dims(max_vals, axis);
 
-          auto result = *input_t - maxExpanded - log_sum_expression;
+          xt::xarray<EltTy> input_stable = *input_t - max_vals_keep_dim;
+
+          auto sum_exp = xt::sum(xt::exp(input_stable), {axis});
+          auto sum_exp_expanded = xt::expand_dims(sum_exp, axis);
+          xt::xarray<EltTy> log_sum_exp = xt::log(sum_exp_expanded);
+
+          xt::xarray<EltTy> result = input_stable - log_sum_exp;
+
           if (!out) {
             out.emplace(device_array::for_host(input.device(), result.shape(),
                                                input.dtype(), device_visible));
           }
-          if (input.dtype() == DType::float32()) {
-            auto out_t = out->map_xtensor_w<float>();
-            *out_t = result;
-          } else {
-            auto out_t = out->map_xtensor_w<half_float::half>();
-            *out_t = result;
-          }
+
+          auto out_t = out->map_xtensor_w<EltTy>();
+          *out_t = result;
+
           return *out;
         };
 

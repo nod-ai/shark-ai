@@ -17,6 +17,7 @@ import os
 from iree.compiler import ir  # type: ignore
 
 from iree.compiler.dialects import iree_gpu  # type: ignore
+from iree.compiler.dialects import transform  # type: ignore
 import iree.compiler as ireec  # type: ignore
 
 
@@ -302,6 +303,10 @@ def link_tuning_specs(tuner_ctx: TunerContext, td_specs: list[ir.Module]) -> ir.
     module = combine_tuning_specs(tuner_ctx, td_specs)
     iree_opt = ireec.binaries.find_tool("iree-opt")
 
+    if len(td_specs) == 1:
+        # avoid unnessary link overhead.
+        return td_specs[0]
+
     with tempfile.TemporaryDirectory() as tmpdir:
         input_path = os.path.join(tmpdir, "tmp_input.mlir")
         output_path = os.path.join(tmpdir, "tmp_output.mlir")
@@ -327,3 +332,77 @@ def link_tuning_specs(tuner_ctx: TunerContext, td_specs: list[ir.Module]) -> ir.
         with open(output_path, "r") as f:
             output_mlir = f.read()
             return ir.Module.parse(output_mlir, tuner_ctx.mlir_ctx)
+
+
+def get_matcher_names_from_td_spec(td_spec: ir.Module) -> set[str]:
+    matcher_names = set()
+
+    for op in td_spec.body.operations:
+        if not isinstance(op, transform.NamedSequenceOp):
+            continue
+        if op.sym_name.value != "__kernel_config":
+            continue
+
+        for inner_op in op.regions[0].blocks[0].operations:
+            if isinstance(inner_op, transform.ForeachMatchOp):
+                for matcher in inner_op.matchers:
+                    matcher_names.add(matcher.value)
+
+    return matcher_names
+
+
+def get_matcher_overlap_info(
+    starter_matchers: set[str], current_matchers: set[str]
+) -> tuple[set[str], set[str]]:
+    """
+    Returns:
+        - overlapping_matchers: matchers shared by starter and current
+        - unique_starter_matchers: matchers only in the starter
+    """
+    overlapping_matchers = starter_matchers & current_matchers
+    unique_starter_matchers = starter_matchers - current_matchers
+
+    return overlapping_matchers, unique_starter_matchers
+
+
+def determine_td_specs_to_link(
+    td_specs: list[ir.Module],
+    log_duplicates: bool = False,
+) -> list[ir.Module]:
+    """
+    Determines which tuning specs should be linked based on matcher overlap.
+
+    Args:
+        td_specs: A list of 1 or 2 tuning spec modules. If two are provided, the first is
+                the candidate spec and the second is the starter spec.
+        log_duplicates: If True, logs a warning for overlapping matchers.
+
+    Returns:
+        A list of td specs to link (possibly excluding the starter spec).
+    """
+
+    assert 1 <= len(td_specs) <= 2, "Expected 1 or 2 td specs (current and starter)"
+
+    if len(td_specs) == 1:
+        # No starter td spec provided, nothing to merge.
+        return td_specs
+
+    current_td_spec, starter_td_spec = td_specs
+
+    current_matchers = get_matcher_names_from_td_spec(current_td_spec)
+    starter_matchers = get_matcher_names_from_td_spec(starter_td_spec)
+
+    overlapping_matchers, unique_starter_matchers = get_matcher_overlap_info(
+        starter_matchers, current_matchers
+    )
+
+    if log_duplicates and overlapping_matchers:
+        logging.warning(
+            f"Operations have already been tuned in the starter tuning spec: {sorted(overlapping_matchers)}"
+        )
+
+    if unique_starter_matchers:
+        return td_specs
+
+    # Starter spec is redundant, so skip merging it.
+    return [current_td_spec]

@@ -6,7 +6,20 @@
 
 import asyncio
 import logging
-import json
+
+from typing import (
+    TypeVar,
+    Union,
+)
+from fastapi.responses import JSONResponse
+
+from shortfin_apps.types.Base64CharacterEncodedByteSequence import (
+    Base64CharacterEncodedByteSequence,
+)
+from shortfin_apps.utilities.image import png_from
+from shortfin_apps.text_to_image.TextToImageInferenceOutput import (
+    TextToImageInferenceOutput,
+)
 
 import shortfin as sf
 
@@ -41,13 +54,17 @@ class GenerateImageProcess(sf.Process):
         self.client = client
         self.gen_req = gen_req
         self.index = index
-        self.result_image = None
+        self.output: Union[TextToImageInferenceOutput, None] = None
 
     async def run(self):
         exec = FluxInferenceExecRequest.from_batch(self.gen_req, self.index)
         self.client.batcher.submit(exec)
         await exec.done
-        self.result_image = exec.result_image
+        self.output = (
+            TextToImageInferenceOutput(exec.response_image)
+            if exec.response_image
+            else None
+        )
 
 
 class ClientGenerateBatchProcess(sf.Process):
@@ -85,7 +102,7 @@ class ClientGenerateBatchProcess(sf.Process):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
         try:
             # Launch all individual generate processes and wait for them to finish.
-            gen_processes = []
+            gen_processes: list[GenerateImageProcess] = []
             for index in range(self.gen_req.num_output_images):
                 gen_process = GenerateImageProcess(self, self.gen_req, index)
                 gen_processes.append(gen_process)
@@ -95,8 +112,25 @@ class ClientGenerateBatchProcess(sf.Process):
 
             # TODO: stream image outputs
             logging.debug("Responding to one shot batch")
-            response_data = {"images": [p.result_image for p in gen_processes]}
-            json_str = json.dumps(response_data)
-            self.responder.send_response(json_str)
+
+            png_images: list[Base64CharacterEncodedByteSequence] = []
+
+            for index_of_each_process, each_process in enumerate(gen_processes):
+                if each_process.output is None:
+                    raise Exception(
+                        f"Expected output for process {index_of_each_process} but got `None`"
+                    )
+
+                each_png_image = png_from(each_process.output.image)
+                png_images.append(each_png_image)
+
+            self.responder.send_response(
+                JSONResponse(
+                    content={
+                        "images": png_images,
+                    },
+                    media_type="application/json",
+                )
+            )
         finally:
             self.responder.ensure_response()

@@ -122,7 +122,7 @@ class FluxParams(ModelConfig):
             repo_id, revision, subfolder
         )
 
-    @staticmethod
+    @classmethod
     def from_hugging_face_properties(
         cls: type["FluxParams"], properties: dict[str, Any]
     ) -> "FluxParams":
