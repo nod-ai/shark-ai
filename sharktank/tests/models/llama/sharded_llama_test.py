@@ -31,7 +31,7 @@ from sharktank.utils.iree import (
     iree_to_torch,
 )
 import sharktank.ops as ops
-from sharktank.export import export as sharktank_export
+from sharktank.utils.export import export as sharktank_export
 
 from iree.turbine.aot import FxProgramsBuilder, export
 

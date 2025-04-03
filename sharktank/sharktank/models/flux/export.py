@@ -11,7 +11,7 @@ from pathlib import Path
 
 import torch
 
-from sharktank.export import export_model_mlir
+from sharktank.utils.export import export_model_mlir
 from sharktank.utils.hf import import_hf_dataset_from_hub
 from sharktank.types import Dataset
 from .flux import FluxModelV1, FluxParams
