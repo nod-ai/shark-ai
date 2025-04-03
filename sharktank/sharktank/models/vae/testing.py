@@ -8,8 +8,8 @@ import functools
 import torch
 
 from .config import HParams
-from ...types import Theta, torch_module_to_theta
-from ...transforms.dataset import set_float_dtype
+from sharktank.types import Theta, torch_module_to_theta
+from sharktank.transforms.dataset import set_float_dtype
 
 
 def get_toy_vae_decoder_config() -> HParams:

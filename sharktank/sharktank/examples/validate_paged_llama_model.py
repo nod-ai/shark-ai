@@ -11,10 +11,10 @@ import torch
 from sharktank.layers import *
 from sharktank.types import *
 from sharktank.models.llm import *
+from sharktank.utils import cli
 
 
 def main(args: list[str]):
-    from ..utils import cli
 
     torch.no_grad().__enter__()
 

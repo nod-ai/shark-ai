@@ -8,8 +8,8 @@ from typing import List
 
 import torch
 
-from ...types.tensors import *
-from ...types.theta import Theta
+from sharktank.types.tensors import *
+from sharktank.types.theta import Theta
 
 
 def make_conv2d_layer_theta(

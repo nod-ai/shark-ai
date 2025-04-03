@@ -4,16 +4,16 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import torch
 from collections import OrderedDict
 from iree.build import compile, entrypoint, iree_build_main
 import os
 from dataclasses import dataclass
+import torch
 
-from ..layers import ThetaLayer, ModelConfig, LinearLayer
-from ..types import Theta, DefaultPrimitiveTensor
-from ..build import export_model
-from ..utils.testing import make_rand_torch
+from sharktank.layers import ThetaLayer, ModelConfig, LinearLayer
+from sharktank.types import Theta, DefaultPrimitiveTensor
+from sharktank.build import export_model
+from sharktank.utils.testing import make_rand_torch
 
 
 @dataclass(kw_only=True)
