@@ -50,6 +50,16 @@ Confirm that your GPU is detected:
 ======================================== ROCm System Management Interface ========================================
 ================================================== Concise Info ==================================================
 Device  Node  IDs              Temp    Power  Partitions          SCLK  MCLK   Fan    Perf  PwrCap  VRAM%  GPU%
+              (DID,     GUID)  (Edge)  (Avg)  (Mem, Compute, ID)
+==================================================================================================================
+0       2     0x7550,   37870  32.0°C  3.0W   N/A, N/A, 0         0Mhz  96Mhz  0%     auto  0.0W    5%     0%
+1       1     0x7448,   7019   31.0°C  7.0W   N/A, N/A, 0         0Mhz  96Mhz  20.0%  auto  241.0W  0%     0%
+==================================================================================================================
+============================================== End of ROCm SMI Log ===============================================
+```
+
+Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
+
 [### Install SHARK UI](https://github.com/nod-ai/shark-ui#installation)
 
 ## Usage
