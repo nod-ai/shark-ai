@@ -166,7 +166,7 @@ def main():
     )
 
     llama_config = LlamaModelConfig(hp)
-    llama_config.kv_cache_type = "direct" if args.bs == [1] else "paged"
+    llama_config.kv_cache_type = "paged"
     llama_config.bs = args.bs
     llama_config.is_causal = args.is_causal
 
@@ -222,12 +222,6 @@ def main():
             )
             page_dim = torch.export.Dim("page")
             cache_state_dynamic_shapes = [{0: page_dim}]
-        elif llama_config.kv_cache_type == "direct":
-            cache_state = model.cache.allocate(bs=1)
-            # Direct cache dimensions:
-            #   2 * transformer_block_count of...
-            #   [bs, seq_length, attn_head_count, attn_head_dim]
-            cache_state_dynamic_shapes = (2 * hp.block_count) * [{}]
         else:
             raise NotImplementedError(f"Unsupported KV cache type: {type(model.cache)}")
 
@@ -286,12 +280,6 @@ def main():
             )
             page_dim = torch.export.Dim("page")
             cache_state_dynamic_shapes = [{0: page_dim}]
-        elif llama_config.kv_cache_type == "direct":
-            cache_state = model.cache.allocate(bs=1)
-            # Direct cache dimensions:
-            #   2 * transformer_block_count of...
-            #   [bs, seq_length, attn_head_count, attn_head_dim]
-            cache_state_dynamic_shapes = (2 * hp.block_count) * [{}]
         else:
             raise NotImplementedError(f"Unsupported KV cache type: {type(model.cache)}")
 

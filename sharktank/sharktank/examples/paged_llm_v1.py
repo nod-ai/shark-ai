@@ -116,8 +116,6 @@ class TorchGenerator:
         return self.free_pages.pop()
 
     def release_page(self, index: int):
-        if self.model.config.kv_cache_type == "direct":
-            return
         self.free_pages.append(index)
 
 

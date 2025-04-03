@@ -167,7 +167,7 @@ class LlamaModelConfig:
     # into the context length.
     block_seq_stride: int = 32
 
-    # Either "paged" or "direct".
+    # Sharktank supports only "paged"
     kv_cache_type: str = "paged"
 
     # If None will use attention_dtype.

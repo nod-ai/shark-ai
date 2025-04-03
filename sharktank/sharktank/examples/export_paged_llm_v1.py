@@ -22,6 +22,7 @@ from sharktank.utils import cli
 # TODO: Should be using a base class with the protocol supported.
 from sharktank.models.llm import *
 
+
 def main():
 
     parser = cli.create_parser()
@@ -172,16 +173,6 @@ def main():
                     arg_affinities[i] = DeviceAffinity(str(i))
 
             return unpacked, shard_dim, dynamic_shapes, arg_affinities
-
-        elif model.config.kv_cache_type == "direct":
-            cache_state = model.cache.allocate(bs=1)
-            # Direct cache dimensions:
-            #   2 * transformer_block_count of...
-            #   [bs, seq_length, attn_head_count, attn_head_dim]
-            dynamic_shapes = [None]
-            arg_affinities = {}
-            shard_dim = None
-            return torch.stack(cache_state), shard_dim, dynamic_shapes, arg_affinities
         else:
             raise NotImplementedError(f"Unsupported KV cache type: {type(model.cache)}")
 
@@ -230,13 +221,7 @@ def main():
             arg_device=arg_affinities,
         )
         def _(model, tokens, seq_lens, seq_block_ids, cs):
-            if (
-                model.config.tensor_parallelism_size == 1
-                and model.config.kv_cache_type == "direct"
-            ):
-                cache_tensors = torch.unbind(cs)
-            else:
-                cache_tensors = cs
+            cache_tensors = cs
 
             attention_mask = None
             if args.use_attention_mask:

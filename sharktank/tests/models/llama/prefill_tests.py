@@ -113,17 +113,6 @@ class Llama7BTest(BaseLlamaTest):
             self.llama_cpp_7b_prefill_token_logit,
         )
 
-    def testPrefillDirect7B(self):
-        batch_results_direct, greedy_token_logit_direct = self.runPrefill(
-            kv_cache_type="direct"
-        )
-        self.comparePrefillResults(
-            batch_results_direct,
-            greedy_token_logit_direct,
-            self.llama_cpp_7b_prefill_token,
-            self.llama_cpp_7b_prefill_token_logit,
-        )
-
 
 class Llama8BTest(BaseLlamaTest):
     def setUp(self):
@@ -161,17 +150,6 @@ class Llama8BTest(BaseLlamaTest):
         self.comparePrefillResults(
             batch_results_paged,
             greedy_token_logit_paged,
-            self.llama_cpp_8b_prefill_token,
-            self.llama_cpp_8b_prefill_token_logit,
-        )
-
-    def testPrefillDirect8B(self):
-        batch_results_direct, greedy_token_logit_direct = self.runPrefill(
-            kv_cache_type="direct"
-        )
-        self.comparePrefillResults(
-            batch_results_direct,
-            greedy_token_logit_direct,
             self.llama_cpp_8b_prefill_token,
             self.llama_cpp_8b_prefill_token_logit,
         )
