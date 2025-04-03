@@ -282,6 +282,8 @@ class BaseLayer(nn.Module, metaclass=BaseLayerMetaClass):
         if output_path is None:
             raise ValueError("Missing compile output path.")
 
+        self._save_compile_command(Path(output_path))
+
         from iree.compiler import compile_file
 
         compile_file(
@@ -305,6 +307,26 @@ class BaseLayer(nn.Module, metaclass=BaseLayerMetaClass):
             or self.default_export_batch_sizes
             for export_function in export_functions
         }
+
+    def _save_compile_command(self, module_path: Path):
+        from iree.compiler.tools.core import build_compile_command_line
+        from iree.compiler import TempFileSaver, CompilerOptions
+
+        with TempFileSaver.implicit() as tfs:
+            options = CompilerOptions(
+                output_file=str(module_path), extra_args=self.config.get_compile_args()
+            )
+            compile_command = build_compile_command_line(
+                input_file=str(self.config.mlir_path), tfs=tfs, options=options
+            )
+        compile_command_file = (
+            module_path.parent / f"{module_path.stem}-compile-command"
+        )
+        with open(compile_command_file, "w") as f:
+            f.write(compile_command[0])
+            for arg in compile_command[1:]:
+                f.write(f" {arg}")
+            f.write("\n")
 
 
 class ThetaLayer(BaseLayer):
