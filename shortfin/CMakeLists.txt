@@ -212,7 +212,7 @@ endif()
 # runtime and linker scripts.
 set(IREE_VISIBILITY_HIDDEN OFF)
 set(IREE_BUILD_COMPILER OFF)
-set(IREE_BUILD_TESTS OFF)
+set(IREE_BUILD_TESTS ON)
 set(IREE_BUILD_SAMPLES OFF)
 # Disable missing submodules error because we are only building the runtime.
 set(IREE_ERROR_ON_MISSING_SUBMODULES OFF)
