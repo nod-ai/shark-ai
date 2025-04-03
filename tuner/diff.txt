@@ -1,0 +1,1362 @@
+diff -r tuning_2025_04_03_15_07/autotune_mmt_benchmark.log tuning_2025_04_03_15_42/autotune_mmt_benchmark.log
+23c23
+< DEBUG - starter_td_spec: /home/vivekag/scratch/mlperf/iree/compiler/plugins/target/ROCM/builtins/tuning/iree_default_tuning_spec_gfx942.mlir
+---
+> DEBUG - starter_td_spec: None
+29d28
+< DEBUG - args.starter_td_spec=PosixPath('/home/vivekag/scratch/mlperf/iree/compiler/plugins/target/ROCM/builtins/tuning/iree_default_tuning_spec_gfx942.mlir')
+110,112d108
+< DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/0.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/0.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/0_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+< DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/1.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/1.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/1_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+< DEBUG - Compiling candidate 3 with spec: tuning_2025_04_old/candidates/specs/3_spec.mlir
+113a110,111
+> DEBUG - Compiling candidate 3 with spec: tuning_2025_04_old/candidates/specs/3_spec.mlir
+> DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/0.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/0.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/0_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+115,116d112
+< DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/2.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/2.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/2_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+< DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/3.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/3.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/3_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+119d114
+< DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/4.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/4.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/4_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+121d115
+< DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/5.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/5.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/5_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+123,125c117,120
+< DEBUG - Compiling candidate 9 with spec: tuning_2025_04_old/candidates/specs/9_spec.mlir
+< DEBUG - Compiling candidate 10 with spec: tuning_2025_04_old/candidates/specs/10_spec.mlir
+< DEBUG - Compiling candidate 11 with spec: tuning_2025_04_old/candidates/specs/11_spec.mlir
+---
+> DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/1.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/1.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/1_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+> DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/2.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/2.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/2_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+> DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/3.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/3.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/3_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+> DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/5.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/5.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/5_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+127,129c122
+< DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/7.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/7.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/7_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+< DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/9.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/9.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/9_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+< DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/10.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/10.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/10_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+---
+> DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/4.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/4.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/4_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+131c124,126
+< DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/11.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/11.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/11_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+---
+> DEBUG - Compiling candidate 9 with spec: tuning_2025_04_old/candidates/specs/9_spec.mlir
+> DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/7.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/7.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/7_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+> DEBUG - Compiling candidate 11 with spec: tuning_2025_04_old/candidates/specs/11_spec.mlir
+132a128,131
+> DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/11.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/11.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/11_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+> DEBUG - Compiling candidate 10 with spec: tuning_2025_04_old/candidates/specs/10_spec.mlir
+> DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/9.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/9.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/9_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+> DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/12.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/12.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/12_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+135d133
+< DEBUG - Compiling candidate 13 with spec: tuning_2025_04_old/candidates/specs/13_spec.mlir
+136a135
+> DEBUG - Compiling candidate 13 with spec: tuning_2025_04_old/candidates/specs/13_spec.mlir
+138,139c137,138
+< DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/12.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/12.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/12_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+< DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/16.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/16.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/16_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+---
+> DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/10.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/10.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/10_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+> DEBUG - Compiling candidate 18 with spec: tuning_2025_04_old/candidates/specs/18_spec.mlir
+140a140
+> DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/16.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/16.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/16_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+142,143d141
+< DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/13.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/13.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/13_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+< DEBUG - Compiling candidate 19 with spec: tuning_2025_04_old/candidates/specs/19_spec.mlir
+144a143
+> DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/13.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/13.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/13_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+146,148c145,146
+< DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/19.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/19.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/19_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+< DEBUG - Compiling candidate 22 with spec: tuning_2025_04_old/candidates/specs/22_spec.mlir
+< DEBUG - Compiling candidate 18 with spec: tuning_2025_04_old/candidates/specs/18_spec.mlir
+---
+> DEBUG - Compiling candidate 19 with spec: tuning_2025_04_old/candidates/specs/19_spec.mlir
+> DEBUG - Compiling candidate 23 with spec: tuning_2025_04_old/candidates/specs/23_spec.mlir
+150c148
+< DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/14.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/14.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/14_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+---
+> DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/18.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/18.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/18_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+152d149
+< DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/22.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/22.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/22_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+154,160d150
+< DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/18.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/18.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/18_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+< DEBUG - Compiling candidate 26 with spec: tuning_2025_04_old/candidates/specs/26_spec.mlir
+< DEBUG - Compiling candidate 23 with spec: tuning_2025_04_old/candidates/specs/23_spec.mlir
+< DEBUG - Compiling candidate 28 with spec: tuning_2025_04_old/candidates/specs/28_spec.mlir
+< DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/24.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/24.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/24_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+< DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/26.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/26.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/26_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+< DEBUG - Compiling candidate 29 with spec: tuning_2025_04_old/candidates/specs/29_spec.mlir
+162,165c152,153
+< DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/28.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/28.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/28_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+< DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/23.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/23.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/23_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+< DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/29.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/29.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/29_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+< DEBUG - Compiling candidate 30 with spec: tuning_2025_04_old/candidates/specs/30_spec.mlir
+---
+> DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/14.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/14.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/14_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+> DEBUG - Compiling candidate 22 with spec: tuning_2025_04_old/candidates/specs/22_spec.mlir
+166a155
+> DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/23.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/23.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/23_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+168c157
+< DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/30.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/30.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/30_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+---
+> DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/24.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/24.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/24_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+169a159,168
+> DEBUG - Compiling candidate 30 with spec: tuning_2025_04_old/candidates/specs/30_spec.mlir
+> DEBUG - Compiling candidate 29 with spec: tuning_2025_04_old/candidates/specs/29_spec.mlir
+> DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/19.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/19.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/19_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+> DEBUG - Compiling candidate 28 with spec: tuning_2025_04_old/candidates/specs/28_spec.mlir
+> DEBUG - Compiling candidate 26 with spec: tuning_2025_04_old/candidates/specs/26_spec.mlir
+> DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/22.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/22.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/22_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+> DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/30.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/30.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/30_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+> DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/29.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/29.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/29_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+> DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/28.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/28.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/28_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+> DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/26.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/26.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/26_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --compile-from=executable-sources
+174,200c173,199
+< DEBUG - Benchmark time of candidate 0: 295.00 ms
+< DEBUG - Benchmark time of candidate 3: 320.33 ms
+< DEBUG - Benchmark time of candidate 2: 392.33 ms
+< DEBUG - Benchmark time of candidate 10: 543.00 ms
+< DEBUG - Benchmark time of candidate 25: 494.00 ms
+< DEBUG - Benchmark time of candidate 21: 476.67 ms
+< DEBUG - Benchmark time of candidate 27: 530.67 ms
+< DEBUG - Benchmark time of candidate 24: 585.00 ms
+< DEBUG - Benchmark time of candidate 4: 314.00 ms
+< DEBUG - Benchmark time of candidate 14: 305.00 ms
+< DEBUG - Benchmark time of candidate 17: 584.33 ms
+< DEBUG - Benchmark time of candidate 26: 479.33 ms
+< DEBUG - Benchmark time of candidate 28: 522.67 ms
+< DEBUG - Benchmark time of candidate 9: 336.33 ms
+< DEBUG - Benchmark time of candidate 22: 493.00 ms
+< DEBUG - Benchmark time of candidate 16: 334.67 ms
+< DEBUG - Benchmark time of candidate 12: 373.67 ms
+< DEBUG - Benchmark time of candidate 18: 417.00 ms
+< DEBUG - Benchmark time of candidate 11: 303.33 ms
+< DEBUG - Benchmark time of candidate 8: 370.00 ms
+< DEBUG - Benchmark time of candidate 13: 405.00 ms
+< DEBUG - Benchmark time of candidate 5: 345.00 ms
+< DEBUG - Benchmark time of candidate 15: 345.00 ms
+< DEBUG - Benchmark time of candidate 19: 359.00 ms
+< DEBUG - Benchmark time of candidate 7: 408.33 ms
+< DEBUG - Benchmark time of candidate 29: 647.00 ms
+< DEBUG - Benchmark time of candidate 23: 498.00 ms
+---
+> DEBUG - Benchmark time of candidate 0: 293.33 ms
+> DEBUG - Benchmark time of candidate 10: 544.33 ms
+> DEBUG - Benchmark time of candidate 24: 583.67 ms
+> DEBUG - Benchmark time of candidate 25: 492.00 ms
+> DEBUG - Benchmark time of candidate 27: 531.67 ms
+> DEBUG - Benchmark time of candidate 21: 475.00 ms
+> DEBUG - Benchmark time of candidate 3: 319.67 ms
+> DEBUG - Benchmark time of candidate 2: 392.00 ms
+> DEBUG - Benchmark time of candidate 17: 583.67 ms
+> DEBUG - Benchmark time of candidate 4: 312.67 ms
+> DEBUG - Benchmark time of candidate 11: 305.00 ms
+> DEBUG - Benchmark time of candidate 16: 336.33 ms
+> DEBUG - Benchmark time of candidate 22: 494.00 ms
+> DEBUG - Benchmark time of candidate 14: 306.00 ms
+> DEBUG - Benchmark time of candidate 9: 338.33 ms
+> DEBUG - Benchmark time of candidate 18: 416.00 ms
+> DEBUG - Benchmark time of candidate 28: 526.33 ms
+> DEBUG - Benchmark time of candidate 8: 371.00 ms
+> DEBUG - Benchmark time of candidate 12: 372.67 ms
+> DEBUG - Benchmark time of candidate 26: 480.67 ms
+> DEBUG - Benchmark time of candidate 13: 403.00 ms
+> DEBUG - Benchmark time of candidate 19: 359.67 ms
+> DEBUG - Benchmark time of candidate 23: 499.00 ms
+> DEBUG - Benchmark time of candidate 5: 345.33 ms
+> DEBUG - Benchmark time of candidate 15: 345.67 ms
+> DEBUG - Benchmark time of candidate 7: 410.00 ms
+> DEBUG - Benchmark time of candidate 29: 645.33 ms
+205,209c204,208
+< INFO - Candidate 11 time: 303.33 ms (102.9% of baseline)
+< INFO - Candidate 14 time: 305.00 ms (103.5% of baseline)
+< INFO - Candidate 4 time: 314.00 ms (106.6% of baseline)
+< INFO - Candidate 3 time: 320.33 ms (108.7% of baseline)
+< INFO - Candidate 16 time: 334.67 ms (113.6% of baseline)
+---
+> INFO - Candidate 11 time: 305.00 ms (103.8% of baseline)
+> INFO - Candidate 14 time: 306.00 ms (104.1% of baseline)
+> INFO - Candidate 4 time: 312.67 ms (106.4% of baseline)
+> INFO - Candidate 3 time: 319.67 ms (108.8% of baseline)
+> INFO - Candidate 16 time: 336.33 ms (114.5% of baseline)
+219c218
+< DEBUG - Compiling candidate 14 with spec: tuning_2025_04_old/candidates/specs/14_spec.mlir
+---
+> DEBUG - Compiling candidate 4 with spec: tuning_2025_04_old/candidates/specs/4_spec.mlir
+220a220,221
+> DEBUG - Compiling candidate 0 with spec: tuning_2025_04_old/candidates/specs/0_spec.mlir
+> DEBUG - Compiling candidate 14 with spec: tuning_2025_04_old/candidates/specs/14_spec.mlir
+223,225c224
+< DEBUG - Compiling candidate 0 with spec: tuning_2025_04_old/candidates/specs/0_spec.mlir
+< DEBUG - Compiling candidate 4 with spec: tuning_2025_04_old/candidates/specs/4_spec.mlir
+< DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/14.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/14.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/14_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942
+---
+> DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/4.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/4.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/4_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942
+227d225
+< DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/16.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/16.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/16_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942
+229c227,228
+< DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/4.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/4.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/4_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942
+---
+> DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/16.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/16.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/16_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942
+> DEBUG - Run: /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile tuning_2025_04_old/template.mlir -o=tuning_2025_04_old/candidates/compiled/14.vmfb --mlir-pass-pipeline-crash-reproducer=tuning_2025_04_old/candidates/compiled/14.vmfb.crash_report.mlir --iree-codegen-tuning-spec-path=tuning_2025_04_old/candidates/specs/14_spec.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942
+234,236c233,234
+< DEBUG - Benchmark time of candidate 0: 1390.00 ms
+< DEBUG - Benchmark time of candidate 11: 1430.00 ms
+< DEBUG - Benchmark time of candidate 4: 1430.00 ms
+---
+> DEBUG - Benchmark time of candidate 0: 1420.00 ms
+> DEBUG - Benchmark time of candidate 4: 1440.00 ms
+238d235
+< DEBUG - Benchmark time of candidate 16: 1450.00 ms
+240,244c237,243
+< DEBUG - Benchmark time of candidate 0: 1400.00 ms
+< INFO - Candidate 14 time: 1410.00 ms (101.1% of baseline)
+< INFO - Candidate 3 time: 1420.00 ms (101.8% of baseline)
+< INFO - Candidate 11 time: 1430.00 ms (102.5% of baseline)
+< INFO - Top model candidates: [14, 3, 11]
+---
+> DEBUG - Benchmark time of candidate 16: 1430.00 ms
+> DEBUG - Benchmark time of candidate 11: 1410.00 ms
+> DEBUG - Benchmark time of candidate 0: 1410.00 ms
+> INFO - Candidate 14 time: 1410.00 ms (99.6% of baseline)
+> INFO - Candidate 11 time: 1410.00 ms (99.6% of baseline)
+> INFO - Candidate 3 time: 1420.00 ms (100.4% of baseline)
+> INFO - Top model candidates: [14, 11, 3]
+246d244
+< INFO - /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/tuning_2025_04_old/candidates/specs/3_spec.mlir
+247a246
+> INFO - /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/tuning_2025_04_old/candidates/specs/3_spec.mlir
+Binary files tuning_2025_04_03_15_07/candidates/compiled/0.vmfb and tuning_2025_04_03_15_42/candidates/compiled/0.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/10.vmfb and tuning_2025_04_03_15_42/candidates/compiled/10.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/11.vmfb and tuning_2025_04_03_15_42/candidates/compiled/11.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/12.vmfb and tuning_2025_04_03_15_42/candidates/compiled/12.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/13.vmfb and tuning_2025_04_03_15_42/candidates/compiled/13.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/14.vmfb and tuning_2025_04_03_15_42/candidates/compiled/14.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/15.vmfb and tuning_2025_04_03_15_42/candidates/compiled/15.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/16.vmfb and tuning_2025_04_03_15_42/candidates/compiled/16.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/17.vmfb and tuning_2025_04_03_15_42/candidates/compiled/17.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/18.vmfb and tuning_2025_04_03_15_42/candidates/compiled/18.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/19.vmfb and tuning_2025_04_03_15_42/candidates/compiled/19.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/20.vmfb and tuning_2025_04_03_15_42/candidates/compiled/20.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/21.vmfb and tuning_2025_04_03_15_42/candidates/compiled/21.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/22.vmfb and tuning_2025_04_03_15_42/candidates/compiled/22.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/23.vmfb and tuning_2025_04_03_15_42/candidates/compiled/23.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/24.vmfb and tuning_2025_04_03_15_42/candidates/compiled/24.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/25.vmfb and tuning_2025_04_03_15_42/candidates/compiled/25.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/26.vmfb and tuning_2025_04_03_15_42/candidates/compiled/26.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/27.vmfb and tuning_2025_04_03_15_42/candidates/compiled/27.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/28.vmfb and tuning_2025_04_03_15_42/candidates/compiled/28.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/29.vmfb and tuning_2025_04_03_15_42/candidates/compiled/29.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/2.vmfb and tuning_2025_04_03_15_42/candidates/compiled/2.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/30.vmfb and tuning_2025_04_03_15_42/candidates/compiled/30.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/3.vmfb and tuning_2025_04_03_15_42/candidates/compiled/3.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/4.vmfb and tuning_2025_04_03_15_42/candidates/compiled/4.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/5.vmfb and tuning_2025_04_03_15_42/candidates/compiled/5.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/6.vmfb and tuning_2025_04_03_15_42/candidates/compiled/6.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/7.vmfb and tuning_2025_04_03_15_42/candidates/compiled/7.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/8.vmfb and tuning_2025_04_03_15_42/candidates/compiled/8.vmfb differ
+Binary files tuning_2025_04_03_15_07/candidates/compiled/9.vmfb and tuning_2025_04_03_15_42/candidates/compiled/9.vmfb differ
+diff -r tuning_2025_04_03_15_07/candidates/specs/10_spec.mlir tuning_2025_04_03_15_42/candidates/specs/10_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/11_spec.mlir tuning_2025_04_03_15_42/candidates/specs/11_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/12_spec.mlir tuning_2025_04_03_15_42/candidates/specs/12_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/13_spec.mlir tuning_2025_04_03_15_42/candidates/specs/13_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/14_spec.mlir tuning_2025_04_03_15_42/candidates/specs/14_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/15_spec.mlir tuning_2025_04_03_15_42/candidates/specs/15_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/16_spec.mlir tuning_2025_04_03_15_42/candidates/specs/16_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/17_spec.mlir tuning_2025_04_03_15_42/candidates/specs/17_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/18_spec.mlir tuning_2025_04_03_15_42/candidates/specs/18_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/19_spec.mlir tuning_2025_04_03_15_42/candidates/specs/19_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/1_spec.mlir tuning_2025_04_03_15_42/candidates/specs/1_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/20_spec.mlir tuning_2025_04_03_15_42/candidates/specs/20_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/21_spec.mlir tuning_2025_04_03_15_42/candidates/specs/21_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/22_spec.mlir tuning_2025_04_03_15_42/candidates/specs/22_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/23_spec.mlir tuning_2025_04_03_15_42/candidates/specs/23_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/24_spec.mlir tuning_2025_04_03_15_42/candidates/specs/24_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/25_spec.mlir tuning_2025_04_03_15_42/candidates/specs/25_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/26_spec.mlir tuning_2025_04_03_15_42/candidates/specs/26_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/27_spec.mlir tuning_2025_04_03_15_42/candidates/specs/27_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/28_spec.mlir tuning_2025_04_03_15_42/candidates/specs/28_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/29_spec.mlir tuning_2025_04_03_15_42/candidates/specs/29_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/2_spec.mlir tuning_2025_04_03_15_42/candidates/specs/2_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/30_spec.mlir tuning_2025_04_03_15_42/candidates/specs/30_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/3_spec.mlir tuning_2025_04_03_15_42/candidates/specs/3_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/4_spec.mlir tuning_2025_04_03_15_42/candidates/specs/4_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/5_spec.mlir tuning_2025_04_03_15_42/candidates/specs/5_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/6_spec.mlir tuning_2025_04_03_15_42/candidates/specs/6_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/7_spec.mlir tuning_2025_04_03_15_42/candidates/specs/7_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/8_spec.mlir tuning_2025_04_03_15_42/candidates/specs/8_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/candidates/specs/9_spec.mlir tuning_2025_04_03_15_42/candidates/specs/9_spec.mlir
+21,49d20
+<   transform.named_sequence @iree_default_tuning_spec_gfx942_apply_op_config(%arg0: !transform.any_op {transform.readonly}, %arg1: !transform.any_param {transform.readonly}) {
+<     transform.annotate %arg0 "compilation_info" = %arg1 : !transform.any_op, !transform.any_param
+<     transform.annotate %arg0 "__tuning_spec_applied__" : !transform.any_op
+<     transform.yield 
+<   }
+<   transform.named_sequence @match_mmt_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> !transform.any_op {
+<     transform.match.operation_name %arg0 ["linalg.generic"] : !transform.any_op
+<     %inputs, %outputs = transform.iree.match.cast_compatible_dag_from_root %arg0 {
+<     ^bb0(%arg1: tensor<?x?xf16>, %arg2: tensor<?x?xf16>, %arg3: tensor<?x?xf32>):
+<       %0 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d1, d2)>, affine_map<(d0, d1, d2) -> (d0, d1)>], iterator_types = ["parallel", "parallel", "reduction"]} ins(%arg1, %arg2 : tensor<?x?xf16>, tensor<?x?xf16>) outs(%arg3 : tensor<?x?xf32>) {
+<       ^bb0(%in: f16, %in_0: f16, %out: f32):
+<         %1 = arith.extf %in : f16 to f32
+<         %2 = arith.extf %in_0 : f16 to f32
+<         %3 = arith.mulf %1, %2 : f32
+<         %4 = arith.addf %out, %3 : f32
+<         linalg.yield %4 : f32
+<       } -> tensor<?x?xf32>
+<     } : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+<     transform.yield %arg0 : !transform.any_op
+<   }
+<   transform.named_sequence @match_mmt_2048x1280x5120_f16_f16_f32(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op, !transform.any_param) {
+<     %0 = transform.include @match_mmt_f16_f16_f32 failures(propagate) (%arg0) : (!transform.any_op) -> !transform.any_op
+<     %1 = transform.get_operand %arg0[0] : (!transform.any_op) -> !transform.any_value
+<     %2 = transform.get_operand %arg0[1] : (!transform.any_op) -> !transform.any_value
+<     transform.iree.match.cast_compatible_type %1 = tensor<2048x5120xf16> : !transform.any_value
+<     transform.iree.match.cast_compatible_type %2 = tensor<1280x5120xf16> : !transform.any_value
+<     %3 = transform.param.constant #iree_codegen.compilation_info<lowering_config = #iree_gpu.lowering_config<{mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>, promote_operands = [0, 1], reduction = [0, 0, 64], subgroup_m_count = 2 : i64, subgroup_n_count = 2 : i64, workgroup = [64, 128, 0]}>, translation_info = <pipeline = LLVMGPUVectorDistribute workgroup_size = [256, 1, 1] subgroup_size = 64, {gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = true>}>> -> !transform.any_param
+<     transform.yield %arg0, %3 : !transform.any_op, !transform.any_param
+<   }
+52,53c23
+<         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config, 
+<         @match_mmt_2048x1280x5120_f16_f16_f32 -> @iree_default_tuning_spec_gfx942_apply_op_config : (!transform.any_op) -> !transform.any_op
+---
+>         @match_contraction_2048x2048x2048_f16xf16xf32 -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+diff -r tuning_2025_04_03_15_07/summary.log tuning_2025_04_03_15_42/summary.log
+2,6c2,6
+< INFO - Candidate 11 time: 303.33 ms (102.9% of baseline)
+< INFO - Candidate 14 time: 305.00 ms (103.5% of baseline)
+< INFO - Candidate 4 time: 314.00 ms (106.6% of baseline)
+< INFO - Candidate 3 time: 320.33 ms (108.7% of baseline)
+< INFO - Candidate 16 time: 334.67 ms (113.6% of baseline)
+---
+> INFO - Candidate 11 time: 305.00 ms (103.8% of baseline)
+> INFO - Candidate 14 time: 306.00 ms (104.1% of baseline)
+> INFO - Candidate 4 time: 312.67 ms (106.4% of baseline)
+> INFO - Candidate 3 time: 319.67 ms (108.8% of baseline)
+> INFO - Candidate 16 time: 336.33 ms (114.5% of baseline)
+14,17c14,17
+< INFO - Candidate 14 time: 1410.00 ms (101.1% of baseline)
+< INFO - Candidate 3 time: 1420.00 ms (101.8% of baseline)
+< INFO - Candidate 11 time: 1430.00 ms (102.5% of baseline)
+< INFO - Top model candidates: [14, 3, 11]
+---
+> INFO - Candidate 14 time: 1410.00 ms (99.6% of baseline)
+> INFO - Candidate 11 time: 1410.00 ms (99.6% of baseline)
+> INFO - Candidate 3 time: 1420.00 ms (100.4% of baseline)
+> INFO - Top model candidates: [14, 11, 3]
+19d18
+< INFO - /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/tuning_2025_04_old/candidates/specs/3_spec.mlir
+20a20
+> INFO - /home/vivekag/scratch/mlperf/sharkai_vivekag_repo1/shark-ai/tuner/tuning_2025_04_old/candidates/specs/3_spec.mlir
