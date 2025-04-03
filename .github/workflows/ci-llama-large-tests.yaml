@@ -68,7 +68,13 @@ jobs:
       - name: Run llama tests
         run: |
           source ${VENV_DIR}/bin/activate
-          pytest sharktank/tests/models/llama/benchmark_amdgpu_test.py -v -s --run-nightly-llama-tests --iree-hip-target=gfx942 --iree-device=hip://0 --html=out/llm/llama/benchmark/index.html
+          pytest sharktank/tests/models/llama/benchmark_amdgpu_test.py \
+            -v -s \
+            -m "expensive" \
+            --run-nightly-llama-tests \
+            --iree-hip-target=gfx942 \
+            --iree-device=hip://0 \
+            --html=out/llm/llama/benchmark/index.html
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4.0.0

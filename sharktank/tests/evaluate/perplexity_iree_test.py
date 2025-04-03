@@ -26,6 +26,7 @@ skipif_run_quick_llama_test = pytest.mark.skipif(
     "batch_size",
 )
 @is_mi300x
+@pytest.mark.expensive
 class PerplexityTest(unittest.TestCase):
     def setUp(self):
         self.current_perplexity_all = {}
