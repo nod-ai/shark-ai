@@ -4,8 +4,9 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import Callable
+from typing import Callable, Optional
 
+import torch
 import torch.nn.functional as F
 from sharktank import ops
 from sharktank.types import AnyTensor
@@ -25,6 +26,7 @@ class FFN(ThetaLayer):
         self,
         theta: Theta,
         rms_epsilon: float,
+        activation_dtype: Optional[torch.dtype],
         is_gated: bool = True,
         activation_fn: Callable[[AnyTensor], AnyTensor] = F.silu,
         fake_quant: bool = False,
@@ -38,7 +40,13 @@ class FFN(ThetaLayer):
                 "ffn_gate", LinearLayer(theta("ffn_gate"), fake_quant=fake_quant)
             )
         if "ffn_norm" in theta:
+            # Llama & MoE models
             self.ffn_norm = RMSNormLayer(theta("ffn_norm"), epsilon=rms_epsilon)
+        elif "layer_norm" in theta:
+            # T5 model
+            self.ffn_norm = RMSNormLayer(
+                theta("layer_norm"), epsilon=rms_epsilon, dtype=activation_dtype
+            )
 
         self.add_module("ffn_up", LinearLayer(theta("ffn_up"), fake_quant=fake_quant))
         self.add_module(

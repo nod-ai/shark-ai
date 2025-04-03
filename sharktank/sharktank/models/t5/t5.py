@@ -69,6 +69,7 @@ class T5LayerFF(nn.Module):
         self.dense_activation_dense = FFN(
             theta=ffn_theta,
             rms_epsilon=layer_norm_epsilon,
+            activation_dtype=activation_dtype,
             is_gated=is_gated_act,
             activation_fn=ACT2FN[dense_act_fn],
         )
