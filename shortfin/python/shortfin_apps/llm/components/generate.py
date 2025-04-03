@@ -53,7 +53,6 @@ class GenerateItemProcess(sf.Process):
         index: int,
         input_text: str,
         input_token_ids: list[int],
-        max_completion_tokens: int,
         eos_token_id: int,
         decode_config: DecodeConfig,
     ):
@@ -64,7 +63,6 @@ class GenerateItemProcess(sf.Process):
         self.input_text = input_text
         self.input_token_ids = input_token_ids
         self.result_token_ids: list[int] = []
-        self.max_completion_tokens = max_completion_tokens
         self.eos_token_id = eos_token_id
         self.decode_config = decode_config
         self.token_selector_config: TokenSelectionStrategyConfig = (
@@ -74,7 +72,6 @@ class GenerateItemProcess(sf.Process):
                 decode_batcher=self.client.decode_batcher,
                 results_callback=self.results_callback,
                 eos_token_id=self.eos_token_id,
-                max_completion_tokens=self.max_completion_tokens,
             )
         )
         self.token_selector: BaseTokenSelectionStrategy = build_token_selector(
@@ -149,6 +146,7 @@ class ClientGenerateBatchProcess(sf.Process):
         self.complete_infeed = self.system.create_queue()
 
         self.decode_config = service.server_params.decode_config
+        self.decode_config.update_from_sampling_params(gen_req.sampling_params)
 
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
@@ -168,11 +166,6 @@ class ClientGenerateBatchProcess(sf.Process):
             else:
                 input_batch = self.tokenize()
             for index, input_tokens in enumerate(input_batch):
-                max_completion_tokens = (
-                    self.gen_req.sampling_params["max_completion_tokens"]
-                    if self.gen_req.is_single
-                    else self.gen_req.sampling_params[index]["max_completion_tokens"]
-                )
                 gen_process = GenerateItemProcess(
                     self,
                     self.gen_req,
@@ -181,7 +174,6 @@ class ClientGenerateBatchProcess(sf.Process):
                     if self.gen_req.is_single
                     else self.gen_req.text[index],
                     input_tokens if is_pretokenized else input_tokens.ids,
-                    max_completion_tokens=max_completion_tokens,
                     eos_token_id=self.tokenizer.eos_token_id,
                     decode_config=self.decode_config,
                 )

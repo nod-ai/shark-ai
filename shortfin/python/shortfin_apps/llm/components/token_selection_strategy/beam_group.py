@@ -13,6 +13,10 @@ from typing import Callable, Dict, List, Set
 from uuid import uuid4
 
 from ..messages import LlmInferenceExecRequest
+from ..io_struct import DEFAULT_TEMPERATURE
+
+
+import shortfin.array as sfnp
 
 
 logger = logging.getLogger(__name__)
@@ -24,9 +28,23 @@ logger = logging.getLogger(__name__)
 class Beam(ABC):
     exec_req: LlmInferenceExecRequest
 
+    temperature: float = DEFAULT_TEMPERATURE
+
     score: float = 0.0
     accumulated_normalization: float = 0.0
     last_token: int | None = None
+
+    def apply_temperature(self):
+        """Apply temperature to the logits of a decode invocation.
+
+        Args:
+            temperature (float): Value to use for `temperature`.
+        """
+        if self.temperature == 1.0:
+            return
+        self.exec_req.result_logits = sfnp.divide(
+            self.exec_req.result_logits, self.temperature
+        )
 
     @abstractmethod
     def sample_logits(self):

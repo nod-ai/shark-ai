@@ -61,6 +61,7 @@ class BeamSearchBeam(Beam):
         # TODO (1196): Conditionally take `log_softmax` depending on
         # model configuration.
         # This is where we'd add an optional call to our `sampling` mechanism.
+        self.apply_temperature()
         log_softmax_logits = sfnp.log_softmax(self.exec_req.result_logits)
         return self._top_k(log_softmax_logits, -k)
 
@@ -135,6 +136,7 @@ class BeamSearchTokenSelectionStrategy(BaseTokenSelectionStrategy):
                     score=beam.score,
                     accumulated_normalization=beam.accumulated_normalization,
                     last_token=token,
+                    temperature=config.decode_config.temperature,
                 )
                 new_beam.update_score(value)
                 selections.append(new_beam)
@@ -177,15 +179,16 @@ class BeamSearchTokenSelectionStrategy(BaseTokenSelectionStrategy):
         Args:
             exec_req (LlmInferenceExecRequest): Initial inference request, post prefill.
         """
+        logger.info("Starting `beam_search` decode loop...")
         config = self.token_selection_strategy_config
 
         beam_group = BeamGroup(
             config.eos_token_id,
             config.decode_config.num_beams,
-            [BeamSearchBeam(exec_req)],
+            [BeamSearchBeam(exec_req, config.decode_config.temperature)],
             self.select_top_k,
         )
-        for _ in range(config.max_completion_tokens):
+        for _ in range(config.decode_config.max_completion_tokens):
             if not beam_group.active_beams:
                 break
 
