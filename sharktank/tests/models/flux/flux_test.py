@@ -370,7 +370,7 @@ class FluxTest(TempDirTestBase):
     @pytest.mark.expensive
     def testExportAndCompileFromPreset(self):
         with chdir(self._temp_dir):
-            name = "black-forest-labs--FLUX.1-dev-bf16-1024x1024-hip-gfx942"
+            name = "black-forest-labs--FLUX.1-dev-bf16-1024x1024-hip-gfx942-release"
             config = model_config_presets[name]
             logger.info("Creating model...")
             model = create_model(config)
