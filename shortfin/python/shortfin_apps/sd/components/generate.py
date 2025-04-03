@@ -19,6 +19,9 @@ from shortfin_apps.types.Base64CharacterEncodedByteSequence import (
 )
 
 from shortfin_apps.utilities.image import png_from
+from shortfin_apps.text_to_image.TextToImageInferenceOutput import (
+    TextToImageInferenceOutput,
+)
 
 import shortfin as sf
 
@@ -29,7 +32,6 @@ from .io_struct import GenerateReqInput
 from .messages import SDXLInferenceExecRequest
 from .service import SDXLGenerateService
 from .metrics import measure
-from .TextToImageInferenceOutput import TextToImageInferenceOutput
 
 logger = logging.getLogger("shortfin-sd.generate")
 

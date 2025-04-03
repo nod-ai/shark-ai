@@ -16,6 +16,7 @@ from .base_token_selection_strategy import (
 )
 from .greedy_token_selection_strategy import GreedyTokenSelectionStrategy
 from .multi_greedy_token_selection_strategy import MultiGreedyTokenSelectionStrategy
+from .beam_search_token_selection_strategy import BeamSearchTokenSelectionStrategy
 
 from ..messages import LlmInferenceExecRequest
 
@@ -44,25 +45,23 @@ def build_token_selector_config(
     Returns:
         TokenSelectionStrategyConfig: Instantiated config for token selector.
     """
-    config: None | TokenSelectionStrategyConfig = None
-    match decode_config.token_selection_strategy:
-        case TokenSelectionStrategy.GREEDY | TokenSelectionStrategy.MULTI_GREEDY:
-            config = TokenSelectionStrategyConfig(
-                decode_config,
-                prefill_callback=prefill_batcher.submit,
-                decode_callback=decode_batcher.submit,
-                decode_begin_callback=decode_batcher.reserve_workitem,
-                decode_end_callback=decode_batcher.complete_workitem,
-                results_callback=results_callback,
-                eos_token_id=eos_token_id,
-                max_completion_tokens=max_completion_tokens,
-            )
-        case _:
-            raise NotImplementedError(
-                f"Unsupported token selection strategy: {decode_config.token_selection_strategy}.\n"
-                f"Supported strategies: {','.join([strategy.name for strategy in TokenSelectionStrategy])}"
-            )
-    return config
+    if decode_config.token_selection_strategy not in {
+        strategy for strategy in TokenSelectionStrategy
+    }:
+        raise NotImplementedError(
+            f"Unsupported token selection strategy: {decode_config.token_selection_strategy}.\n"
+            f"Supported strategies: {','.join([strategy.name for strategy in TokenSelectionStrategy])}"
+        )
+    return TokenSelectionStrategyConfig(
+        decode_config,
+        prefill_callback=prefill_batcher.submit,
+        decode_callback=decode_batcher.submit,
+        decode_begin_callback=decode_batcher.reserve_workitem,
+        decode_end_callback=decode_batcher.complete_workitem,
+        results_callback=results_callback,
+        eos_token_id=eos_token_id,
+        max_completion_tokens=max_completion_tokens,
+    )
 
 
 def build_token_selector(
@@ -80,28 +79,23 @@ def build_token_selector(
     Returns:
         BaseTokenSelectionStrategy: Instantiated token selector. Current only `Greedy`, but more will be added.
     """
-    token_selector: BaseTokenSelectionStrategy | None = None
-    match config.decode_config.token_selection_strategy:
-        case TokenSelectionStrategy.GREEDY:
-            token_selector = GreedyTokenSelectionStrategy(
-                config,
-            )
-        case TokenSelectionStrategy.MULTI_GREEDY:
-            token_selector = MultiGreedyTokenSelectionStrategy(
-                config,
-            )
-        case _:
-            raise NotImplementedError(
-                f"Unsupported token selection strategy: {config.decode_config.token_selection_strategy}.\n"
-                f"Supported strategies: {','.join([strategy.name for strategy in TokenSelectionStrategy])}"
-            )
+    strategy_map = {
+        TokenSelectionStrategy.GREEDY: GreedyTokenSelectionStrategy,
+        TokenSelectionStrategy.MULTI_GREEDY: MultiGreedyTokenSelectionStrategy,
+        TokenSelectionStrategy.BEAM_SEARCH: BeamSearchTokenSelectionStrategy,
+    }
+    if config.decode_config.token_selection_strategy not in strategy_map:
+        raise NotImplementedError(
+            f"Unsupported token selection strategy: {config.decode_config.token_selection_strategy}.\n"
+            f"Supported strategies: {','.join([strategy.name for strategy in TokenSelectionStrategy])}"
+        )
 
-    return token_selector
+    return strategy_map[config.decode_config.token_selection_strategy](config)
 
 
-def is_multi_beam(token_selection_strategy: TokenSelectionStrategy):
+def is_multi_response(token_selection_strategy: TokenSelectionStrategy):
     match token_selection_strategy:
-        case TokenSelectionStrategy.MULTI_GREEDY:
+        case TokenSelectionStrategy.MULTI_GREEDY | TokenSelectionStrategy.BEAM_SEARCH:
             return True
 
         case _:
@@ -112,11 +106,12 @@ __all__ = [
     "BaseTokenSelectionStrategy",
     "TokenSelectionStrategyConfig",
     "TokenSelectionStrategy",
+    "BeamSearchTokenSelectionStrategy",
     "GreedyTokenSelectionStrategy",
     "MultiGreedyTokenSelectionStrategy",
     "build_token_selector",
     "build_token_selector_config",
     "get_strategy_from_str",
     "is_ref_counted",
-    "is_multi_beam",
+    "is_multi_response",
 ]

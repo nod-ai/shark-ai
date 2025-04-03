@@ -147,3 +147,20 @@ class GenerateReqInput:
                 self.top_logprobs_num = [0] * num
             elif not isinstance(self.top_logprobs_num, list):
                 self.top_logprobs_num = [self.top_logprobs_num] * num
+
+
+@dataclass
+class GeneratedResponse:
+    text: str
+
+
+@dataclass
+class PromptResponse:
+    prompt: str
+
+    responses: list[GeneratedResponse]
+
+
+@dataclass
+class GenerateReqOutput:
+    responses: list[PromptResponse]

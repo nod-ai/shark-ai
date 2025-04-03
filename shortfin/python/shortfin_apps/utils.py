@@ -5,6 +5,7 @@ import urllib
 import logging
 import asyncio
 from pathlib import Path
+import struct
 import threading
 from typing import Optional, Union
 
@@ -103,6 +104,32 @@ class SystemManager:
         while command := await reader():
             ...
         self.logger.info("System manager command processor stopped")
+
+
+def convert_int_to_float(value: int, dtype: sfnp.DType) -> float:
+    """Convert an `int` representation of a `float` value to float64.
+
+    Args:
+        value (int): Int representation of the float value.
+        dtype (sfnp.DType): Shortfin dtype of the value.
+
+    Raises:
+        ValueError: Unsupported `dtype`.
+
+    Returns:
+        float: float64 representation of original value.
+    """
+    format_specs = {
+        str(sfnp.float16): "<H",
+    }
+    format_spec = format_specs.get(str(dtype))
+    if format_spec is None:
+        raise ValueError(f"Unsupported dtype: {dtype}")
+
+    # Convert the int value to bytes
+    packed_val = struct.pack(format_spec, value)
+    # Unpack the bytes to a float
+    return struct.unpack("<e", packed_val)[0]
 
 
 dtype_to_filetag = {

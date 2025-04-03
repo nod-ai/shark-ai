@@ -137,6 +137,8 @@ class ModelParams:
     # ABI of the module.
     module_abi_version: int = 1
 
+    logits_normalization: str = "none"
+
     # The element type of the attention caches.
     attn_dtype: sfnp.DType = sfnp.float16
 

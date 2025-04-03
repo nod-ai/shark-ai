@@ -19,15 +19,7 @@ from iree.compiler.dialects import iree_gpu, iree_codegen  # type: ignore
 from . import common
 from . import dispatch_constraints
 
-
-@pytest.fixture
-def tuner_ctx() -> Generator[common.TunerContext, None, None]:
-    from logging import Logger
-    from unittest.mock import MagicMock
-
-    mock_logger = MagicMock(spec=Logger)
-    with common.TunerContext(logger=mock_logger) as ctx:
-        yield ctx
+from .test_utils import tuner_ctx
 
 
 def test_generate_solutions(tuner_ctx: common.TunerContext) -> None:

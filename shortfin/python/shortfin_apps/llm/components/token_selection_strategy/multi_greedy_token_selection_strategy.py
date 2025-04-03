@@ -7,7 +7,7 @@
 import logging
 from typing import List, Set
 
-from .beam_group import BeamGroup, ExecRequestSelection
+from .beam_group import BeamGroup, Beam
 from .greedy_token_selection_strategy import GreedyTokenSelectionStrategy
 
 from ..messages import LlmInferenceExecRequest, InferencePhase
@@ -17,21 +17,54 @@ import shortfin.array as sfnp
 logger = logging.getLogger(__name__)
 
 
+class MultiGreedyBeam(Beam):
+    def sample_logits(self) -> int:
+        """Return the single highest scoring token of the logits.
+
+        Returns:
+            int: The `argmax` of the logits.
+        """
+        exec_req = self.exec_req
+        token = sfnp.argmax(exec_req.result_logits)
+        token_int = token.items[0]
+        return token_int
+
+    def update_exec_req(self):
+        """Update the `LlmInferenceExecRequest` with the selected token."""
+        self.exec_req.input_token_ids.append(self.last_token)
+        self.exec_req.start_position += 1
+
+    def update_score(self, value):
+        raise NotImplementedError("MultiGreedyBeam does not track a score")
+
+    def normalize_score(self, value):
+        raise NotImplementedError("MultiGreedyBeam does not track a score")
+
+    def update_final_score(self):
+        raise NotImplementedError("MultiGreedyBeam does not track a score")
+
+
 class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
     def select_greedy(
         self,
-        active_exec_reqs: List[LlmInferenceExecRequest],
-        _: Set[LlmInferenceExecRequest],
-    ):
+        active_beams: List[MultiGreedyBeam],
+        _: List[MultiGreedyBeam],
+    ) -> List[MultiGreedyBeam]:
+        """Greedily select a token for each active beam.
+
+        Args:
+            active_beams (List[MultiGreedyBeam]): Beams that are still active.
+            _ (List[MultiGreedyBeam]): Beams that are completed.
+
+        Returns:
+            List[MultiGreedyBeam]: Beams with new token selected.
+        """
         selections = []
-        for exec_req in active_exec_reqs:
-            token = sfnp.argmax(exec_req.result_logits)
-            token_int = token.items[0]
+        for beam in active_beams:
+            token = beam.sample_logits()
+            beam.last_token = token
             selections.append(
-                ExecRequestSelection(
-                    exec_req,
-                    token_int,
-                )
+                beam,
             )
 
         return selections
@@ -40,40 +73,47 @@ class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
         self,
         exec_req: LlmInferenceExecRequest,
     ):
+        """Orchestrate decode loop for `multi_greedy` selection strategy.
+
+        Args:
+            exec_req (LlmInferenceExecRequest): Initial inference request, post prefill.
+        """
         config = self.token_selection_strategy_config
 
         exec_req.reset(InferencePhase.DECODE)
 
         # Copy `exec_req` to `num_beams` total requests
-        exec_reqs = [exec_req]
-        for _ in range(config.decode_config.num_beams - 1):
-            exec_reqs.append(LlmInferenceExecRequest.copy_exec_request(exec_req))
+        exec_reqs = self.replicate_inference_exec_requests(
+            exec_req, config.decode_config.num_beams - 1
+        )
 
+        beams = [MultiGreedyBeam(exec_req) for exec_req in exec_reqs]
         beam_group = BeamGroup(
             config.eos_token_id,
             config.decode_config.num_beams,
-            exec_reqs,
+            beams,
             self.select_greedy,
         )
 
         for _ in range(config.max_completion_tokens):
-            if not beam_group.active_exec_reqs:
+            if not beam_group.active_beams:
                 break
-            for req in beam_group.active_exec_reqs:
+            for beam in beam_group.active_beams:
+                req = beam.exec_req
                 req.reset(InferencePhase.DECODE)
                 config.decode_callback(req)
             await beam_group.wait()
             beam_group.process_beams()
 
         results = [
-            exec_req.input_token_ids[exec_req.prompt_length :]
-            for exec_req in beam_group.completed_reqs
+            beam.exec_req.input_token_ids[exec_req.prompt_length :]
+            for beam in beam_group.completed_beams
         ]
         if len(results) < beam_group.num_beams:
             results.extend(
                 [
-                    exec_req.input_token_ids[exec_req.prompt_length :]
-                    for exec_req in beam_group.active_exec_reqs
+                    beam.exec_req.input_token_ids[exec_req.prompt_length :]
+                    for beam in beam_group.active_beams
                 ]
             )
         config.results_callback(results)

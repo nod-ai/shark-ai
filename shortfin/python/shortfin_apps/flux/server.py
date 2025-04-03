@@ -20,6 +20,7 @@ from shortfin.interop.fastapi import FastAPIResponder
 from shortfin.support.logging_setup import native_handler
 
 from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 
 from .components.generate import ClientGenerateBatchProcess
 from .components.config_struct import ModelParams
@@ -103,6 +104,14 @@ async def generate_request(gen_req: GenerateReqInput, request: Request):
 
 app.post("/generate")(generate_request)
 app.put("/generate")(generate_request)
+
+# -------- MIDDLEWARE --------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def configure_sys(args) -> FluxSystemManager:

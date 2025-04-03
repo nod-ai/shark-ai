@@ -20,6 +20,7 @@ from shortfin.support.responder import AbstractResponder
 from .components.generate import ClientGenerateBatchProcess
 from .components.io_struct import GenerateReqInput
 from .components.lifecycle import ShortfinLlmLifecycleManager
+from .components.token_selection_strategy import TokenSelectionStrategy
 from ..utils import get_system_args
 
 
@@ -94,7 +95,7 @@ def add_service_args(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--token_selection_strategy",
         type=str,
-        choices=["greedy", "multi_greedy"],
+        choices=[strategy.name.lower() for strategy in TokenSelectionStrategy],
         default="greedy",
         help="Strategy to use when selecting tokens during generation. Defaults to `greedy`.",
     )
