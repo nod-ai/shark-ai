@@ -7,6 +7,8 @@
 from pathlib import Path
 import torch
 from os import PathLike
+from contextlib import closing
+import socket
 
 from iree.turbine.aot import ParameterArchiveBuilder, ParameterArchive
 
@@ -68,3 +70,17 @@ def load_irpa_as_tensor(tensor: torch.Tensor, path: PathLike, **kwargs):
             " Only a single tensor was expected."
         )
     return items[0][1].as_tensor()
+
+
+def find_free_port() -> int:
+    """This tries to find a free port.
+
+    Race conditions are possible - the port can be acquired between when this
+    runs and when it is used.
+
+    https://stackoverflow.com/questions/1365265/on-localhost-how-do-i-pick-a-free-port-number
+    """
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+        s.bind(("localhost", 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return s.getsockname()[1]

@@ -80,6 +80,7 @@ def create_model(config: PathLike | ModelConfig | Mapping[str, Any], /) -> "Base
     model.compile()
     ```
     """
+    register_all_models()
     if isinstance(config, Mapping):
         config = ModelConfig.create(**config)
     elif not isinstance(config, ModelConfig):
@@ -91,6 +92,10 @@ def create_model(config: PathLike | ModelConfig | Mapping[str, Any], /) -> "Base
 model_registry: dict[str, type["BaseLayer"]] = {}
 """Registry of all model types.
 This is used to dispatch when construction a model form a config."""
+
+
+def register_all_models():
+    from .. import models
 
 
 class BaseLayerMetaClass(ABCMeta):
