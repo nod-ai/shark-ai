@@ -12,7 +12,7 @@ from sharktank.types import (
     DefaultPrimitiveTensor,
     unbox_tensor,
 )
-from sharktank.export import (
+from sharktank.utils.export import (
     export,
     flatten_signature,
     get_argument_flat_device_affinities,
