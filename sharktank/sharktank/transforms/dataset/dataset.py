@@ -6,12 +6,8 @@
 
 import torch
 
-from sharktank.types.tensors import (
-    InferenceTensor,
-    PrimitiveTensor,
-    DefaultPrimitiveTensor,
-)
-from sharktank import ops
+from ...types.tensors import InferenceTensor, PrimitiveTensor, DefaultPrimitiveTensor
+from ... import ops
 
 
 def set_float_dtype(tensor: InferenceTensor, dtype: torch.dtype) -> InferenceTensor:

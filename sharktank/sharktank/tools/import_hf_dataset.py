@@ -24,11 +24,11 @@ Properties are separated into a "meta" dict (for "_" prefixed props) and an
 
 from pathlib import Path
 import sys
-from sharktank.utils.hf import import_hf_dataset
-from sharktank.utils import cli
+from ..utils.hf import import_hf_dataset
 
 
 def main(argv: list[str]):
+    from ..utils import cli
 
     parser = cli.create_parser()
     cli.add_output_dataset_options(parser)

@@ -12,12 +12,13 @@ import torch
 from iree.turbine import aot
 
 from ..model import Unet2DConditionModel, ClassifierFreeGuidanceUnetModel
-from sharktank.utils.patching import SaveModuleResultTensorsPatch
-from sharktank.utils import cli
+from ....utils.patching import SaveModuleResultTensorsPatch
+
 from .sample_data import get_random_inputs, load_inputs, save_outputs
 
 
 def main(argv):
+    from ....utils import cli
 
     parser = cli.create_parser()
     cli.add_input_dataset_options(parser)

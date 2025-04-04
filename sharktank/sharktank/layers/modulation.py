@@ -11,14 +11,10 @@ https://github.com/black-forest-labs/flux/blob/main/src/flux/modules/layers.py
 import torch
 import torch.nn.functional as F
 
-from sharktank import ops
-from sharktank.types import Theta
-from .base import ThetaLayer
-from .linear import LinearLayer
+from .. import ops
 
-__all__ = [
-    "ModulationLayer",
-]
+from .base import Theta, ThetaLayer
+from .linear import LinearLayer
 
 
 class ModulationOut:

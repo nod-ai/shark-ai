@@ -99,7 +99,7 @@ def trace_tensor(
     if isinstance(tensors, torch.Tensor):
         tensors = (tensors,)
 
-    from sharktank import ops
+    from .. import ops
 
     ops.trace_tensor(key, *tensors)
 

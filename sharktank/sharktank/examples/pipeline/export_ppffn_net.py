@@ -14,15 +14,13 @@ Generate MLIR and a random inited IRPA file with:
         --output-irpa-file=/tmp/ffn.irpa /tmp/ffn.mlir
 """
 
-import os
 import math
 
 import torch
 
-from sharktank.utils import cli
-from sharktank.layers import *
-from sharktank import ops
-from sharktank.types import *
+from ...layers import *
+from ... import ops
+from ...types import *
 
 from iree.turbine.aot import DeviceAffinity, DeviceTensorTrait, export
 
@@ -71,6 +69,9 @@ class PPFFN(ThetaLayer):
 
 
 def main(raw_args=None):
+    from ...utils import cli
+    import os
+
     parser = cli.create_parser()
     parser.add_argument(
         "output_file",

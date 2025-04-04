@@ -16,14 +16,15 @@ import torch.nn.functional as F
 
 from sharktank import kernels
 
-from sharktank.types import (
+from ..types import (
     AnyTensor,
     QuantizedTensor,
     PlanarQuantizedTensor,
     TensorScaledLayout,
 )
-from sharktank.utils import debugging
+from ..utils import debugging
 
+from ..types.tensors import unbox_tensor
 from .signatures import (
     IntOrSequenceInt,
     conv2d,

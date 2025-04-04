@@ -4,13 +4,15 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from collections import namedtuple
 from typing import Optional, Union
 
 import torch
 
 from .base import BaseLayer
-from sharktank import ops, kernels
-from sharktank.types import SplitPrimitiveTensor, ReplicatedTensor, unbox_tensor
+from .. import ops
+from .. import kernels
+from ..types import SplitPrimitiveTensor, ReplicatedTensor, unbox_tensor
 
 
 class RotaryEmbeddingLayer(BaseLayer):

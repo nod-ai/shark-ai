@@ -4,15 +4,19 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import Optional, Union
+from typing import Optional
+
+from dataclasses import dataclass
+from typing import Union
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
-from sharktank.layers import *
-from sharktank.types import *
-from sharktank.utils.create_cache import *
-from sharktank import ops
+from ...layers import *
+from ...types import *
+from ...utils.create_cache import *
+from ... import ops
 
 __all__ = [
     "PagedDeepseekModelV1",

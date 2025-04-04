@@ -5,18 +5,17 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import functools
-import os
 from os import PathLike
+import os
 from pathlib import Path
-
 import torch
 
-from sharktank.utils.export import export_model_mlir
-from sharktank.utils.hf import import_hf_dataset_from_hub
-from sharktank.types import Dataset
+from ...export import export_model_mlir
+from ...utils.hf import import_hf_dataset_from_hub
 from .flux import FluxModelV1, FluxParams
+from ...types import Dataset
+from ...utils.hf_datasets import get_dataset
 from sharktank.transforms.dataset import set_float_dtype
-
 from iree.turbine.aot import (
     ExternalTensorTrait,
 )

@@ -4,16 +4,15 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-
+import torch
+from torch import Tensor
 from typing import List, Optional, Sequence, Union, Any, Tuple, Dict, Iterable
 import itertools
 from numbers import Number
 import math
 import functools
-import torch
-from torch import Tensor
 
-from sharktank.types import (
+from ..types import (
     AnyTensor,
     DefaultPrimitiveTensor,
     InferenceTensor,
@@ -25,10 +24,10 @@ from sharktank.types import (
     Theta,
     UnreducedTensor,
 )
-from sharktank.types.tensors import unbox_tensor
+from ..types.tensors import unbox_tensor
 from ._registry import AllOfType, AllOfExprsVariadic, IsOfType
 from .shape import broadcast_dims, broadcast_dim, unbroadcast_dim
-from sharktank.utils import longest_equal_range
+from ..utils import longest_equal_range
 from .signatures import *
 
 

@@ -14,14 +14,14 @@ from torch import Tensor, dtype
 import torch.nn.functional as F
 from numbers import Number
 
-from sharktank.types import (
+from ..types import (
     PrimitiveTensor,
     QuantizedTensor,
     InferenceTensor,
     PlanarQuantizedTensor,
     BlockScaledI4Layout,
 )
-from sharktank.types.tensors import unbox_tensor, AnyTensor
+from ..types.tensors import unbox_tensor, AnyTensor
 from ._registry import AllOfType, AllOfExprs, AllOfExprsVariadic, IsOfType
 from .signatures import *
 import iree.turbine.ops.iree

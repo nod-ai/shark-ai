@@ -9,11 +9,13 @@ from typing_extensions import deprecated
 from tempfile import TemporaryFile
 import json
 from pathlib import Path
+from types import NotImplementedType
 from dataclasses import dataclass
 import warnings
 from os import PathLike
 
 import torch
+import torch.nn.functional as F
 
 from iree.turbine.aot import (
     ExternalTensorTrait,
@@ -21,10 +23,12 @@ from iree.turbine.aot import (
     ParameterArchiveEntry,
 )
 
-from sharktank.utils.io import ShardedArchiveBuilder
+from ..utils.io import ShardedArchiveBuilder
 
 from .tensors import (
     InferenceTensor,
+    PrimitiveTensor,
+    QuantizedTensor,
     InferenceTensorMetadata,
     DefaultPrimitiveTensor,
     REGISTERED_INFERENCE_TENSOR_CLASSES,

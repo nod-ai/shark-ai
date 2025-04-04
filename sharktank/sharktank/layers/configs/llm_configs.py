@@ -14,14 +14,16 @@ When in question, we draw from the vocabulary and normalization they have done
 (and indeed, can bootstrap these off of GGUF files).
 """
 
-from typing import TYPE_CHECKING, ClassVar, Any, Optional
-from os import PathLike
+from typing import TYPE_CHECKING, ClassVar
 from dataclasses import asdict, dataclass, field, fields
+from typing import Any, Optional
 import torch
 from transformers import T5Config as T5ConfigHf
 from .config import ModelConfig
-from sharktank.utils import parse_version
-from sharktank.types.tensors import serialized_name_to_dtype, dtype_to_serialized_name
+from ...utils import parse_version
+from os import PathLike
+
+from ...types.tensors import serialized_name_to_dtype, dtype_to_serialized_name
 
 if TYPE_CHECKING:
     import transformers
@@ -310,7 +312,7 @@ class ClipTextConfig(ModelConfig):
     dtype: torch.dtype = torch.float32
 
     def __post_init__(self):
-        from sharktank.models.clip import ClipTextModel
+        from ...models.clip import ClipTextModel
 
         self.model_type = ClipTextModel
         super().__post_init__()
@@ -323,8 +325,8 @@ class ClipTextConfig(ModelConfig):
     def from_hugging_face_clip_text_model_config(
         config: "transformers.CLIPTextConfig",
     ) -> "ClipTextConfig":
-        from sharktank.models.clip import ClipTextModel
-        from sharktank.layers.base import get_model_type_id
+        from ...models.clip import ClipTextModel
+        from ..base import get_model_type_id
 
         return ClipTextConfig(
             model_type=get_model_type_id(ClipTextModel),

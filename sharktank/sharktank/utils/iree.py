@@ -4,16 +4,17 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import iree.runtime
 from typing import Any, Callable, List, Tuple, Optional, Union, overload
 from pathlib import Path
+import torch
 import os
+import numpy as np
 import collections.abc
 from collections import OrderedDict
+from contextlib import contextmanager
 import gc
-import numpy as np
-import torch
-
-from sharktank.types.tensors import (
+from ..types.tensors import (
     AnyTensor,
     InferenceTensor,
     ShardedTensor,
@@ -22,7 +23,6 @@ from sharktank.types.tensors import (
     torch_tree_flatten,
 )
 from .tree import Tree
-import iree.runtime
 
 
 def with_iree_device_context(

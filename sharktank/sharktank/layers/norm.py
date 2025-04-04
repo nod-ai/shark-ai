@@ -6,9 +6,8 @@
 
 import torch
 
-from sharktank import ops
-from sharktank.types import Theta
-from .base import ThetaLayer
+from .. import ops
+from .base import Theta, ThetaLayer
 
 
 class RMSNormLayer(ThetaLayer):

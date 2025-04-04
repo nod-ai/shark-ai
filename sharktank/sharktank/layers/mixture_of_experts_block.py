@@ -8,10 +8,13 @@ from typing import Optional
 
 import torch
 
-from sharktank.types import Theta
-from sharktank.layers import *
+from .base import Theta, ThetaLayer
+from .linear import LinearLayer
+from .norm import RMSNormLayer
+from .ffn_block import FFN
+from .ffn_moe_block import FFNMOE, PreGatherFFNMOE
 
-from sharktank.ops import softmax, topk
+from ..ops import softmax, topk
 
 __all__ = [
     "MoeBlock",

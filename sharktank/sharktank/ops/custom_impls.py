@@ -4,12 +4,14 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import torch
 
+from torch import Tensor, dtype
 from typing import Union
-from torch import Tensor
 
+import torch.nn.functional as F
 
-from sharktank.kernels import (
+from ..kernels import (
     einsum_2args_q4,
     mmt_block_scaled_offset_q4_unsigned,
     mmt_block_scaled_q8,
@@ -18,7 +20,7 @@ from sharktank.kernels import (
     bitcast_to_real,
 )
 
-from sharktank.types import (
+from ..types import (
     BlockScaledLayout,
     BlockScaledI4Layout,
     PrimitiveTensor,
@@ -26,7 +28,7 @@ from sharktank.types import (
     SuperBlockOffsetScaled_4_6_Layout,
 )
 
-from sharktank.types.tensors import unbox_tensor
+from ..types.tensors import unbox_tensor
 from .signatures import *
 
 

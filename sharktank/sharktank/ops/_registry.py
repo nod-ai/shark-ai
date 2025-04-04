@@ -6,13 +6,15 @@
 
 """Signatures for dynamic dispatch of ops covering our fundamental tensor types."""
 
-from typing import Any, Callable, Iterable, Optional, Tuple
+from typing import Any, Callable, Iterable, Optional, Union, Tuple
 
 import collections
+import inspect
 import functools
 
+import torch
 from torch import Tensor
-from sharktank.types import PrimitiveTensor, QuantizedTensor
+from ..types import PrimitiveTensor, QuantizedTensor
 
 __all__ = [
     "AllOfExprs",

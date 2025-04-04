@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from sharktank.layers import *
+from ..layers import *
 
 
 def create_paged_kv_cache(config: LlamaModelConfig) -> PagedAttention:

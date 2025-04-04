@@ -12,16 +12,18 @@ https://github.com/black-forest-labs/flux/blob/main/src/flux/model.py
 from typing import Any, Optional
 from collections import OrderedDict
 from copy import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 import math
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
-from sharktank.layers import *
-from sharktank.types import *
-from sharktank.utils.create_cache import *
-from sharktank.utils.testing import make_rand_torch
-from sharktank import ops
+from ...layers import *
+from ...layers import model_config_presets, get_model_type_id
+from ...types import *
+from ...utils.create_cache import *
+from ...utils.testing import make_rand_torch
+from ... import ops
 
 __all__ = [
     "FluxParams",
@@ -461,7 +463,7 @@ class LastLayer(ThetaLayer):
         self.add_module("linear", LinearLayer(theta("linear")))
 
     def forward(self, x: AnyTensor, vec: AnyTensor) -> AnyTensor:
-        silu = ops.elementwise(nn.functional.silu, vec)
+        silu = ops.elementwise(F.silu, vec)
         lin = self.adaLN_modulation_linear(silu)
         shift, scale = lin.chunk(2, dim=1)
         x = (1 + scale[:, None, :]) * layer_norm(x) + shift[:, None, :]
