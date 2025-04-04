@@ -12,6 +12,7 @@ import iree.turbine.aot as aot
 from iree.turbine.aot import FxProgramsBuilder
 import iree.runtime
 import iree.compiler
+from iree.turbine.aot import DeviceTensorTrait
 import safetensors
 from sharktank import ops
 from sharktank.types import *
@@ -47,6 +48,20 @@ class BroadcastDimsTest(unittest.TestCase):
         res = ops.broadcast_dims(dims, tensors)
         assert res[0] == 0
         assert res[1] == 2
+
+
+class CloneTest(unittest.TestCase):
+    def testDefaultPrimitiveTensor(self):
+        data = torch.tensor([1, 2, 3], dtype=int)
+        DeviceTensorTrait(1).set(data)
+        a = DefaultPrimitiveTensor(data=data, name="a")
+        b = ops.clone(a)
+        assert isinstance(b, DefaultPrimitiveTensor)
+        torch.testing.assert_close(a.as_torch(), b.as_torch())
+        assert a.name != b.name
+        assert DeviceTensorTrait.get(a.as_torch()) == DeviceTensorTrait.get(
+            b.as_torch()
+        )
 
 
 class EqualTest(unittest.TestCase):
