@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 import torch
 
-from ...export import export_model_mlir
+from sharktank.utils.export import export_model_mlir
 from ...utils.hf import import_hf_dataset_from_hub
 from .flux import FluxModelV1, FluxParams
 from ...types import Dataset
