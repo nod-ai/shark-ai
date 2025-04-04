@@ -36,44 +36,38 @@ def paged_attention(
     cache_state: list[torch.Tensor] = None,
 ):
 
+    block_index = attention_block.block_index
+    head_count = attention_block.head_count
     bs, batch_seq_len, _, _ = xq.shape
 
     # Full sequence length.
     kv_seq_len = seq_block_ids.shape[1] * attention_block.cache.block_seq_stride
 
-    xk, xv = attention_block.transact_cache(
-        xk_cache_update=xk,
-        xv_cache_update=xv,
-        seq_block_ids=seq_block_ids,
-        kv_seq_len=kv_seq_len,
-        start_positions=start_positions,
-        cache_state=cache_state,
-    )
+    if start_positions is None:
+        attn_output = paged_attention.forward_prefill(
+            q=xq,
+            k=xk,
+            v=xv,
+            cache_state=cache_state,
+            seq_block_ids=seq_block_ids,
+            block_index=block_index,
+            head_count_attn=head_count,
+            mask=attention_mask,
+        )
+    else:
+        attn_output = paged_attention.forward_decode(
+            q=xq,
+            k=xk,
+            v=xv,
+            cache_state=cache_state,
+            seq_block_ids=seq_block_ids,
+            block_index=block_index,
+            kv_seq_len=kv_seq_len,
+            start_positions=start_positions,
+            head_count_attn=head_count,
+            mask=attention_mask,
+        )
 
-    # Expand kv heads for GQA.
-    gqa_n_rep = attention_block.head_count // attention_block.head_count_kv
-    assert gqa_n_rep > 0
-    if gqa_n_rep > 1:
-
-        def repeat_kv(x: torch.Tensor) -> torch.Tensor:
-            bs, slen, n_kv_heads, head_dim = x.shape
-            return (
-                x.unsqueeze(-2)
-                .expand(bs, slen, n_kv_heads, gqa_n_rep, head_dim)
-                .reshape(bs, slen, n_kv_heads * gqa_n_rep, head_dim)
-            )
-
-        xk = repeat_kv(xk)
-        xv = repeat_kv(xv)
-
-    # Transpose into [bs, heads, sl, dim]
-    xq = xq.transpose(1, 2)
-    keys = xk.transpose(1, 2)
-    values = xv.transpose(1, 2)
-    attention_mask = None
-    attn_output = F.scaled_dot_product_attention(
-        xq, keys, values, attn_mask=attention_mask, is_causal=is_causal
-    )
     attn_output = attn_output.transpose(1, 2).reshape(bs, batch_seq_len, -1)
     return attn_output
 
