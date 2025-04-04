@@ -256,6 +256,7 @@ class AttentionFFNBlock(ThetaLayer):
                     rms_epsilon=1,
                     expert_used_count=1,
                     add_residual=False,
+                    moe_activation=torch.nn.functional.silu,
                     route_scale=route_scale,
                     score_experts=score_experts,
                     normalize_experts=normalize_experts,

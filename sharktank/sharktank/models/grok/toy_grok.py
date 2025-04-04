@@ -6,8 +6,7 @@
 
 from .testing import make_random_grok_theta
 
-from sharktank.layers.configs import LlamaHParams
-from sharktank.models.llama.llama import LlamaModelConfig
+from sharktank.layers.configs import LlamaHParams, LlamaModelConfig
 from sharktank.types import Dataset
 
 import argparse
@@ -50,7 +49,7 @@ def generate(seed):
         block_seq_stride=block_seq_stride,
         activation_dtype=dtype,
         attention_dtype=dtype,
-        attention_kernel="decomposed",
+        attention_kernel="torch",
     )
 
     torch.manual_seed(seed)

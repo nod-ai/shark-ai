@@ -5,13 +5,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import unittest
-from typing import List
 
 import torch
 from iree.turbine.aot import *
 from sharktank.models.llama.testing import make_moe_block_theta, make_rand_torch
 from sharktank.layers.mixture_of_experts_block import MoeBlock
-from sharktank import ops
 
 
 class MoeBlockTest(unittest.TestCase):

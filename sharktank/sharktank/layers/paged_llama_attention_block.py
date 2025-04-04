@@ -35,7 +35,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         head_count_kv: int,
         rms_epsilon: float,
         attention_dtype: Optional[torch.dtype] = None,
-        attention_kernel: str = "decomposed",
+        attention_kernel: str = "torch",
         attention_scale: Optional[float] = None,
         softcap: Optional[float] = None,
         fake_quant: Optional[bool] = True,
@@ -195,62 +195,3 @@ class PagedLlamaAttentionBlock(ThetaLayer):
 
         h = h + attn_output
         return h
-
-    def transact_cache(
-        self,
-        *,
-        xk_cache_update: torch.Tensor,
-        xv_cache_update: torch.Tensor,
-        cache_state: list[torch.Tensor],
-        # [bs, batch_seq_len // block_seq_stride]
-        seq_block_ids: torch.Tensor,
-        kv_seq_len: int,
-        start_positions: Optional[torch.Tensor] = None,
-    ):
-        # Manage the cache.
-        if start_positions is None:
-            # Prefill: Write the entire cache.
-            self.paged_attention.write(
-                cache_state,
-                cache_partitions=[xk_cache_update, xv_cache_update],
-                transformer_block_index=self.block_index,
-                page_ids=seq_block_ids,
-            )
-            return xk_cache_update, xv_cache_update
-
-        # Decode at ragged start positions.
-        # We need to initialize/read the K/V from the cache for the whole
-        # sequence. Note that at this point, it is possible to fork and
-        # use a memory efficient attention kernel that can do indirect
-        # reads, skipping this materialization. This path is taken for
-        # a decode step.
-        assert (
-            kv_seq_len == seq_block_ids.shape[1] * self.paged_attention.block_seq_stride
-        )
-
-        # Write our one updated cache row into the cache.
-        self.paged_attention.write_timestep(
-            cache_state,
-            cache_partitions=[
-                xk_cache_update,
-                xv_cache_update,
-            ],
-            transformer_block_index=self.block_index,
-            seq_positions=start_positions,
-            page_ids=seq_block_ids,
-        )
-
-        # Restore from the cache.
-        xk, xv = self.paged_attention.read(
-            cache_state,
-            transformer_block_index=self.block_index,
-            page_ids=seq_block_ids,
-            seq_len=kv_seq_len,
-        )
-
-        # For computation, we create a subview of the xk/xv tensors to have
-        # a sequence length covering the blocked size. This must include
-        # the newly added row (the caller is responsible for ensuring that
-        # every block has at least one row left). We'll compute on this
-        # ragged view and use an appropriate mask.
-        return xk, xv

@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
-from sharktank.models.llama.llama import PagedLlamaModelV1
+from sharktank.models.llm import *
 from sharktank.models.llama.toy_llama import generate
 
 import pytest
@@ -15,7 +15,7 @@ import torch
 def test_llama():
     torch.set_default_dtype(torch.float32)
     theta, config = generate(12345)
-    model = PagedLlamaModelV1(theta=theta, config=config)
+    model = PagedLlmModelV1(theta=theta, config=config)
 
     ids = [0, 208, 214, 29, 19, 86, 176, 120, 120, 80, 120, 208, 37, 157, 191, 137]
     seq_len = len(ids)
