@@ -35,7 +35,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         head_count_kv: int,
         rms_epsilon: float,
         attention_dtype: Optional[torch.dtype] = None,
-        attention_kernel: str = "decomposed",
+        attention_kernel: str = "torch",
         attention_scale: Optional[float] = None,
         softcap: Optional[float] = None,
         fake_quant: Optional[bool] = True,
