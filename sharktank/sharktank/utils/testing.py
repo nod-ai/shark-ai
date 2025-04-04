@@ -13,15 +13,16 @@ import os
 import shutil
 import tempfile
 import unittest
-import torch
 from typing import Any, Callable
 from operator import eq
 from collections.abc import Iterable
 import gc
-from datasets import load_dataset
 import random
+import torch
 
-from ..types import *
+from datasets import load_dataset
+
+from sharktank.types import *
 from .math import cosine_similarity
 
 is_mi300x = pytest.mark.skipif("config.getoption('iree_hip_target') != 'gfx942'")

@@ -6,7 +6,7 @@
 
 """Specifications describing how blocks/layers of punet are sharded."""
 
-from ...types.sharding import *
+from sharktank.types.sharding import *
 
 
 class ResnetBlock2DSplitOutputChannelsSharding(ThetaLayerSharding):

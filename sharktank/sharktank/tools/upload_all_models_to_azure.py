@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from ..utils.azure import upload_all_models
+from sharktank.utils.azure import upload_all_models
 
 import logging
 import argparse

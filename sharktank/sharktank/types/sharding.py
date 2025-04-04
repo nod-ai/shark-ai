@@ -8,8 +8,8 @@
 sharded."""
 
 from abc import ABC, abstractmethod
-from ..utils import tree
-from ..types.theta import flat_to_nested_dict
+from sharktank.utils import tree
+from sharktank.types.theta import flat_to_nested_dict
 
 
 class Sharding(ABC):

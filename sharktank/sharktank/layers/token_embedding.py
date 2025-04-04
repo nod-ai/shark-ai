@@ -4,11 +4,12 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import torch
 from typing import Optional
+import torch
 
-from .. import ops
-from .base import Theta, ThetaLayer
+from sharktank import ops
+from sharktank.types import Theta
+from .base import ThetaLayer
 
 
 class TokenEmbeddingLayer(ThetaLayer):

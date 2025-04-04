@@ -7,9 +7,9 @@
 import torch
 import torch.nn as nn
 
-from ... import ops
-from ...layers import *
-from ...types import *
+from sharktank import ops
+from sharktank.layers import *
+from sharktank.types import *
 
 from .config import *
 from .layers import *

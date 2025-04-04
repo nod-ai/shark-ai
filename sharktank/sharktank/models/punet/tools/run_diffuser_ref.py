@@ -9,7 +9,8 @@ from pathlib import Path
 import torch
 from diffusers import UNet2DConditionModel
 
-from ....utils.patching import SaveModuleResultTensorsPatch
+from sharktank.utils.patching import SaveModuleResultTensorsPatch
+from sharktank.utils import cli
 from .sample_data import get_random_inputs, load_inputs, save_outputs
 
 
@@ -49,7 +50,6 @@ class ClassifierFreeGuidanceUnetModel(torch.nn.Module):
 
 
 def main():
-    from ....utils import cli
 
     parser = cli.create_parser()
     parser.add_argument("--device", default="cuda:0", help="Torch device to run on")

@@ -4,19 +4,18 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from typing import Optional
+from einops import rearrange
+import math
+
 import torch
 import torch.nn as nn
 
 from sharktank.layers import *
-from sharktank import ops
-from ...types import *
-
+from sharktank.types import *
 from .config import *
 from .layers import *
-from sharktank.models.punet.layers import UpDownBlock2D, GroupNormLayer
-from typing import Optional
-from einops import rearrange
-import math
+from sharktank.models.punet.layers import GroupNormLayer
 
 
 class VaeDecoderModel(ThetaLayer):

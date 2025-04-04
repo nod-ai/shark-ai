@@ -4,14 +4,15 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import torch
 from os import PathLike
 from collections import OrderedDict
 
+import torch
+
 from .flux import FluxParams, FluxModelV1
 from .export import export_flux_transformer, flux_transformer_default_batch_sizes
-from ...types import DefaultPrimitiveTensor, Theta
-from ...layers.testing import (
+from sharktank.types import DefaultPrimitiveTensor, Theta
+from sharktank.layers.testing import (
     make_rand_torch,
     make_mmdit_double_block_random_theta,
     make_mmdit_single_block_random_theta,

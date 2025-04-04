@@ -7,34 +7,24 @@
 """Implementations for op variants that are fully quantized.
 """
 
-from typing import Optional
-
+from types import NoneType
 import math
 import torch
-import warnings
-
-
-from torch import Tensor
 
 from sharktank import kernels
-
-from types import NoneType
-
-from ..types import (
+from sharktank.types import (
     AnyTensor,
     PlanarQuantizedTensor,
 )
-from .. import kernels
+from sharktank import kernels
 
-from ..types.layouts import TensorScaledLayout
+from sharktank.types.layouts import TensorScaledLayout
 
-from ..utils import debugging
+from sharktank.utils import debugging
 
-from ..types.tensors import unbox_tensor
+from sharktank.types.tensors import unbox_tensor
 from .signatures import (
-    IntOrSequenceInt,
     scaled_dot_product_attention,
-    elementwise,
 )
 
 

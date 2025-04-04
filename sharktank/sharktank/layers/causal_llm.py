@@ -8,7 +8,7 @@ from typing import Optional
 
 import torch
 
-from ..types import Theta
+from sharktank.types import Theta
 from .base import (
     ThetaLayer,
 )

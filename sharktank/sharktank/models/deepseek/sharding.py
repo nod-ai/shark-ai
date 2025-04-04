@@ -6,11 +6,9 @@
 
 """Specifications describing how the Llama model is sharded."""
 
-from ...types.sharding import *
-from ...types import Theta
-from ... import ops
-
-from ..llama.llama import LlamaModelConfig
+from sharktank.types.sharding import *
+from sharktank.types import Theta
+from sharktank import ops
 
 
 class LatentAttentionBlockSharding(ThetaLayerSharding):

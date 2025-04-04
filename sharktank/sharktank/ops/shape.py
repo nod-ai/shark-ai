@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from typing import Sequence, Optional
-from ..types.tensors import AnyTensor
+from sharktank.types.tensors import AnyTensor
 
 
 def broadcast_dim(

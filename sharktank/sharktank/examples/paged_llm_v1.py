@@ -12,19 +12,17 @@ from pathlib import Path
 from typing import Optional
 import torch
 import numpy as np
-from ..layers import *
-from ..types import *
 
-from ..ops import replicate, unshard
+from sharktank.layers import *
+from sharktank.types import *
+from sharktank.ops import replicate, unshard
 
 # TODO: Should be using a base class with the protocol supported.
-from ..models.mixtral.mixtral import *
-from ..models.grok.grok import *
-from ..models.llama.llama import *
-from ..models.llama.sharding import shard_theta
-from ..utils.debugging import trace_tensor
-from ..utils.tokenizer import InferenceTokenizer
-from ..utils import cli
+from sharktank.models.llm import *
+from sharktank.models.llama.sharding import shard_theta
+from sharktank.utils.debugging import trace_tensor
+from sharktank.utils.tokenizer import InferenceTokenizer
+from sharktank.utils import cli
 
 
 class TorchGenerator:
@@ -438,7 +436,7 @@ def main():
         model = PagedLlamaModelV1(dataset.root_theta, config)
 
     if args.save_intermediates_path:
-        from ..utils.patching import SaveModuleResultTensorsPatch
+        from sharktank.utils.patching import SaveModuleResultTensorsPatch
 
         intermediates_saver = SaveModuleResultTensorsPatch()
         intermediates_saver.patch_child_modules(model)

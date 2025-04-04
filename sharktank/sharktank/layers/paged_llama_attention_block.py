@@ -8,12 +8,9 @@ from typing import Optional
 
 
 import torch
-from ..types import QuantizerTensor, StaticScaledQuantizer
-from .base import Theta, ThetaLayer
-from .linear import LinearLayer
-from .norm import RMSNormLayer
-from .rotary_embedding import RotaryEmbeddingLayer
-from .paged_attention import PagedAttention
+from sharktank.types import QuantizerTensor, StaticScaledQuantizer, Theta
+from sharktank.layers import *
+
 
 __all__ = [
     "PagedLlamaAttentionBlock",
