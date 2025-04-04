@@ -71,11 +71,13 @@ class LlamaHParams:
         default_expert_used_count = 0
         default_rope_freq_base = 500000.0
         default_rope_dimension_count = 128
+        default_route_scale = 1
         attention_head_count = _int_prop(p, f"{name_prefix}.attention.head_count")
         rope_dimension_count = _optional_int_prop(
             p, f"{name_prefix}.rope.dimension_count", default_rope_dimension_count
         )
 
+        expert_score_func = p.get("score_func", "softmax")
         attention_softcap = 30.0 if name_prefix == "grok" else None
 
         return LlamaHParams(
@@ -101,6 +103,10 @@ class LlamaHParams:
             ),
             expert_used_count=_optional_int_prop(
                 p, f"{name_prefix}.expert_used_count", default_expert_used_count
+            ),
+            expert_score_func=expert_score_func,
+            route_scale=_optional_int_prop(
+                p, f"{name_prefix}.route_scale", default_route_scale
             ),
             attention_softcap=attention_softcap,
         )
