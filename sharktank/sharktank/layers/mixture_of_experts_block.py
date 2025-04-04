@@ -94,8 +94,7 @@ class MoeBlock(ThetaLayer):
 
         expert_gate = expert_gate.to(ffn_input.dtype)
 
-        if self.route_scale is not None:
-            expert_gate = expert_gate * self.route_scale
+        expert_gate = expert_gate * self.route_scale
 
         moe_output = self.experts(ffn_input, top_k_experts, expert_gate)
 
