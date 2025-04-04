@@ -12,8 +12,8 @@ from dataclasses import dataclass
 from typing import Callable, Dict, List, Set
 from uuid import uuid4
 
+from .config import LogitsNormalization
 from ..messages import LlmInferenceExecRequest
-
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,7 @@ class Beam(ABC):
     score: float = 0.0
     accumulated_normalization: float = 0.0
     last_token: int | None = None
+    logits_normalization: LogitsNormalization = LogitsNormalization.NONE
 
     @abstractmethod
     def sample_logits(self):
@@ -79,6 +80,10 @@ class BeamGroup:
         self.active_beams = beams
         self.selection_callback = selection_callback
         self.completed_beams: List[Beam] = []
+
+    @property
+    def active_beam_count(self):
+        return len(self.active_beams)
 
     async def wait(self):
         done_signals = [beam.exec_req.done for beam in self.active_beams]

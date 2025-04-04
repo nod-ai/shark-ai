@@ -95,15 +95,26 @@ class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
             self.select_greedy,
         )
 
+        reservations = beam_group.active_beam_count
+        config.decode_begin_callback(reservations)
         for _ in range(config.max_completion_tokens):
             if not beam_group.active_beams:
                 break
+
+            active_beam_count = len(beam_group.active_beams)
+            if reservations > active_beam_count:
+                config.decode_end_callback(reservations - active_beam_count)
+                reservations = active_beam_count
+
             for beam in beam_group.active_beams:
                 req = beam.exec_req
                 req.reset(InferencePhase.DECODE)
                 config.decode_callback(req)
+
             await beam_group.wait()
             beam_group.process_beams()
+
+        config.decode_end_callback(reservations)
 
         results = [
             beam.exec_req.input_token_ids[exec_req.prompt_length :]
