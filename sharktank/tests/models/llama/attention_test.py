@@ -47,6 +47,7 @@ class AttentionBlockTest(unittest.TestCase):
             model_arch="llama",
             context_length=max_seq_len,
             embedding_length=head_count * head_dim,
+            block_count=1,
             feed_forward_length=ffn_dim,
             attention_head_count=head_count,
             attention_layer_norm_rms_epsilon=rms_epsilon,
@@ -58,7 +59,7 @@ class AttentionBlockTest(unittest.TestCase):
 
         llama_config = LlamaModelConfig(
             hp,
-            attention_kernel="decomposed",
+            attention_kernel="torch",
             block_seq_stride=block_seq_stride,
         )
 
