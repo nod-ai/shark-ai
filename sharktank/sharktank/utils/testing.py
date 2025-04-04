@@ -34,6 +34,7 @@ is_not_cpu_condition = (
     "exec('from sharktank.utils.testing import is_iree_hal_target_device_cpu') or "
     "not is_iree_hal_target_device_cpu(config.getoption('iree_hal_target_device'))"
 )
+is_hip_condition = "config.getoption('iree_hal_target_device') == 'hip'"
 is_cpu = pytest.mark.skipif(is_not_cpu_condition)
 
 
@@ -41,9 +42,16 @@ def is_iree_hal_target_device_cpu(v: str, /) -> bool:
     return v.startswith("local") or v == "llvm-cpu"
 
 
-def get_iree_compiler_flags(o: Any) -> list[str]:
+def get_iree_compiler_flags(o: Any, device_count: int = 1) -> list[str]:
     """Retrieve compiler flags driven by the test configuration."""
-    res = [f"--iree-hal-target-device={o.iree_hal_target_device}"]
+    res = []
+    if device_count == 1:
+        res += [f"--iree-hal-target-device={o.iree_hal_target_device}"]
+    else:
+        res += [
+            f"--iree-hal-target-device={o.iree_hal_target_device}[{i}]"
+            for i in range(device_count)
+        ]
     if o.iree_hal_target_device.startswith("local"):
         res += [
             f"--iree-hal-local-target-device-backends={v}"
@@ -316,6 +324,29 @@ def assert_tensor_close(
         raise AssertionError(msg) from ex
 
 
+def assert_cosine_similarity_close(
+    actual: torch.Tensor,
+    expected: torch.Tensor,
+    atol: float,
+    max_outliers_fraction: Optional[float] = None,
+    inlier_atol: Optional[float] = None,
+    dim: int | None = None,
+):
+    cos_sim = cosine_similarity(
+        actual,
+        expected,
+        dim=dim,
+    )
+
+    assert_tensor_close(
+        actual=cos_sim,
+        expected=torch.ones_like(cos_sim),
+        atol=atol,
+        max_outliers_fraction=max_outliers_fraction,
+        inlier_atol=inlier_atol,
+    )
+
+
 def assert_text_encoder_state_close(
     actual: torch.Tensor,
     expected: torch.Tensor,
@@ -337,18 +368,13 @@ def assert_text_encoder_state_close(
     The functions expects that the last dimension is the features per token.
     It will compute the cosine similarity for each token.
     """
-    cosine_similarity_per_token = cosine_similarity(
-        actual,
-        expected,
-        dim=-1,
-    )
-
-    assert_tensor_close(
-        actual=cosine_similarity_per_token,
-        expected=torch.ones_like(cosine_similarity_per_token),
+    assert_cosine_similarity_close(
+        actual=actual,
+        expected=expected,
         atol=atol,
         max_outliers_fraction=max_outliers_fraction,
         inlier_atol=inlier_atol,
+        dim=-1,
     )
 
 
