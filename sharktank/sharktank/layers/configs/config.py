@@ -17,9 +17,12 @@ if TYPE_CHECKING:
     from ..base import BaseLayer
 
 __all__ = [
-    "ExportFunctionConfig",
+    "configure_default_export_compile",
     "DynamicBatchSize",
+    "ExportFunctionConfig",
+    "model_config_presets",
     "ModelConfig",
+    "register_model_config_preset",
 ]
 
 
@@ -61,6 +64,7 @@ class ModelConfig:
     mlir_path: Path | None = None
     """Export MLIR to this path."""
     iree_module_path: Path | None = None
+    iree_hal_driver: str | None = None
 
     parameters_path: Path | None = None
     """Load parameters from this path. IRPA, GGUF, etc."""
@@ -73,6 +77,7 @@ class ModelConfig:
 
     export_functions: list[ExportFunctionConfig] | None = None
     """function, batch size pairs that are to be exported."""
+    export_sample_inputs_enabled: bool = False
 
     tensor_parallelism: int | None = None
     """If specified exported model parameters will be shard."""
@@ -104,6 +109,9 @@ class ModelConfig:
     @classmethod
     def create(cls, model_type: type["BaseLayer"] | str, **kwargs) -> "ModelConfig":
         """Create a config with type associated with the model_type."""
+        from ..base import register_all_models
+
+        register_all_models()
         model_type_cls = _get_model_type(model_type)
         config_type = model_type_cls.config_type()
         parsed_kwargs = config_type.parse_for_init_kwargs(
@@ -274,6 +282,31 @@ class ModelConfig:
         if path is None or path.is_absolute() or config_dir is None:
             return path
         return Path(os.path.normpath(os.path.relpath(path, config_dir)))
+
+
+def configure_default_export_compile(config: ModelConfig):
+    from ..base import get_model_type_id
+
+    name = get_model_type_id(config.model_type)
+    config.mlir_path = Path(f"{name}.mlir")
+    config.iree_module_path = Path(f"{name}.vmfb")
+    config.export_parameters_path = Path(f"{name}.irpa")
+    config.compile_args = [
+        "--iree-hal-target-device=local",
+        "--iree-hal-local-target-device-backends=llvm-cpu",
+    ]
+    config.iree_hal_driver = "local-task"
+    config.export_sample_inputs_enabled = True
+
+
+model_config_presets: dict[str, ModelConfig] = {}
+"""Presets of named model configurations."""
+
+
+def register_model_config_preset(name: str, config: ModelConfig):
+    if name in model_config_presets:
+        raise ValueError(f'Model config preset with name "{name}" already registered.')
+    model_config_presets[name] = config
 
 
 def _make_optional_path(path: PathLike | None = None) -> Path | None:

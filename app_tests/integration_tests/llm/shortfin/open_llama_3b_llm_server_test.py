@@ -1,18 +1,25 @@
 """Main test module for LLM server functionality."""
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import json
 import logging
 import pytest
 import requests
-from typing import Dict, Any
 import uuid
+
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from shortfin_apps.llm.components.io_struct import (
+    PromptResponse,
+    GeneratedResponse,
+    GenerateReqOutput,
+)
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 from ..model_management import AccuracyValidationException, ModelConfig
 
 
-pytestmark = pytest.mark.parametrize(
+parameterization = pytest.mark.parametrize(
     "model_artifacts,server",
     [
         (ModelConfig.get(name="open_llama_3b"), {"prefix_sharing": "none"}),
@@ -24,6 +31,17 @@ pytestmark = pytest.mark.parametrize(
     ],
     indirect=True,
 )
+
+# Failure:
+# > error: Vector shape: [1, 1, 1, 100] does not match the layout (nested_layout<subgroup_tile = [1, 1, 1, 1], batch_tile = [1, 1, 1, 3], outer_tile = [1, 1, 1, 1], thread_tile = [1, 1, 1, 4], element_tile = [1, 1, 1, 8], subgroup_strides = [0, 0, 0, 0], thread_strides = [0, 0, 0, 16]>) at dim 3. Dimension expected by layout: 96 actual: 100
+# > ...
+# > torch.operator "torch.aten._scaled_dot_product_flash_attention_for_cpu"(%397, %398, %399, %float0.000000e00, %false_224, %266, %none_225) : (!torch.vtensor<[1,32,?,100],f16>, !torch.vtensor<[1,32,?,100],f16>, !torch.vtensor<[1,32,?,100],f16>, !torch.float, !torch.bool, !torch.vtensor<[1,1,?,?],f16>, !torch.none) -> (!torch.vtensor<[1,32,?,100],f16>, !torch.vtensor<[1,32,?],f32>)
+# > error: failed to run translation of source executable to target executable for backend #hal.executable.target<"rocm", "rocm-hsaco-fb", {abi = "hip", iree.gpu.target = #iree_gpu.target<arch = "gfx942", features = "", wgp = <compute =  fp64|fp32|fp16|int64|int32|int16|int8, storage =  b64|b32|b16|b8, subgroup =  shuffle|arithmetic, dot =  dp4xi8toi32, mma = [<MFMA_F32_16x16x4_F32>, <MFMA_F32_16x16x16_F16>, <MFMA_F32_32x32x8_F16>, <MFMA_F64_16x16x4_F64>, <MFMA_F32_16x16x16_BF16>, <MFMA_F32_32x32x8_BF16>, <MFMA_F32_16x16x32_F8E5M2FNUZ>, <MFMA_F32_16x16x32_F8E5M2FNUZ_F8E4M3FNUZ>, <MFMA_F32_16x16x32_F8E4M3FNUZ>, <MFMA_F32_16x16x32_F8E4M3FNUZ_F8E5M2FNUZ>, <MFMA_F32_32x32x16_F8E5M2FNUZ>, <MFMA_F32_32x32x16_F8E5M2FNUZ_F8E4M3FNUZ>, <MFMA_F32_32x32x16_F8E4M3FNUZ>, <MFMA_F32_32x32x16_F8E4M3FNUZ_F8E5M2FNUZ>, <MFMA_I32_16x16x32_I8>, <MFMA_I32_32x32x16_I8>], subgroup_size_choices = [64], max_workgroup_sizes = [1024, 1024, 1024], max_thread_count_per_workgroup = 1024, max_workgroup_memory_bytes = 65536, max_workgroup_counts = [2147483647, 2147483647, 2147483647], max_load_instruction_bits = 128, simds_per_wgp = 4, vgpr_space_bits = 16384>>, ukernels = "none"}>
+ireebump_xfail = pytest.mark.xfail(
+    reason="Compile failure tracked at https://github.com/iree-org/iree/issues/20365",
+)
+
+pytestmark = [parameterization, ireebump_xfail]
 
 
 class TestLLMServer:
@@ -38,8 +56,13 @@ class TestLLMServer:
         process, port = server
         assert process.poll() is None, "Server process terminated unexpectedly"
 
-        response = self._generate("1 2 3 4 5 ", port)
         expected_prefix = "6 7 8"
+        response = self._generate("1 2 3 4 5 ", port)
+        response = json.loads(response)
+        response = GenerateReqOutput(**response)
+        response = PromptResponse(**response.responses[0])
+        response = GeneratedResponse(**response.responses[0])
+        response = response.text
         if not response.startswith(expected_prefix):
             raise AccuracyValidationException(
                 expected=f"{expected_prefix}...",
@@ -59,9 +82,14 @@ class TestLLMServer:
         process, port = server
         assert process.poll() is None, "Server process terminated unexpectedly"
 
-        response = self._generate(encoded_prompt, port, input_ids=True)
         expected_prefix = "6 7 8"
-        if not response.startswith(expected_prefix):
+        response = self._generate(encoded_prompt, port, input_ids=True)
+        response = json.loads(response)
+        response = GenerateReqOutput(**response)
+        response = PromptResponse(**response.responses[0])
+        response = GeneratedResponse(**response.responses[0])
+        response = response.text
+        if not response.text.startswith(expected_prefix):
             raise AccuracyValidationException(
                 expected=f"{expected_prefix}...",
                 actual=response,
@@ -92,6 +120,11 @@ class TestLLMServer:
 
             for future in as_completed(futures):
                 response = future.result()
+                response = json.loads(response)
+                response = GenerateReqOutput(**response)
+                response = PromptResponse(**response.responses[0])
+                response = GeneratedResponse(**response.responses[0])
+                response = response.text
                 if not response.startswith(expected_prefix):
                     raise AccuracyValidationException(
                         expected=f"{expected_prefix}...",
@@ -129,14 +162,4 @@ class TestLLMServer:
             timeout=30,  # Add reasonable timeout
         )
         response.raise_for_status()
-
-        # Parse and validate streaming response format
-        data = response.text
-        if not data.startswith("data: "):
-            raise AccuracyValidationException(
-                expected="Response starting with 'data: '",
-                actual=data,
-                message=f"Invalid response format.\nExpected format starting with 'data: '\nActual response: {data}",
-            )
-
-        return data[6:].rstrip("\n")
+        return response.text

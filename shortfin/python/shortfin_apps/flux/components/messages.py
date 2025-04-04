@@ -10,6 +10,7 @@ from typing import Union
 
 import logging
 
+from PIL.Image import Image
 import shortfin as sf
 import shortfin.array as sfnp
 
@@ -102,7 +103,7 @@ class FluxInferenceExecRequest(InferenceExecRequest):
         # Postprocess.
         self.image_array = image_array
 
-        self.result_image: Union[str | None] = None
+        self.response_image: Union[Image, None] = None
 
         self.done = sf.VoidFuture()
 

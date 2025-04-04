@@ -4,11 +4,9 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import json
 import requests
 import time
 import asyncio
-import base64
 import pytest
 import subprocess
 import os
@@ -17,10 +15,20 @@ import sys
 import copy
 import math
 import tempfile
+import huggingface_hub
 from contextlib import closing
+from pathlib import Path
 
 from datetime import datetime as dt
-from PIL import Image
+from PIL.Image import Image
+
+from shortfin_apps.types.Base64CharacterEncodedByteSequence import (
+    Base64CharacterEncodedByteSequence,
+)
+
+from shortfin_apps.utilities.image import (
+    image_from,
+)
 
 BATCH_SIZES = [1]
 
@@ -31,7 +39,7 @@ sample_request = {
     "neg_prompt": ["blurry, low quality, simplified"],
     "height": [1024],
     "width": [1024],
-    "steps": [20],
+    "steps": [2],
     "guidance_scale": [7.5],
     "seed": [42],
     "output_type": ["base64"],
@@ -39,73 +47,110 @@ sample_request = {
 }
 
 
-def start_server(fibers_per_device=1, isolation="per_fiber"):
+def start_server(pipeline_variant: str, fibers_per_device=1, isolation="per_fiber"):
     # Start the server
+    model_config_path = model_config[pipeline_variant]
     srv_args = [
         "python",
         "-m",
         "shortfin_apps.flux.server",
+        f"--model_config={model_config_path}",
+        f"--fibers_per_device={fibers_per_device}",
+        f"--isolation={isolation}",
     ]
-    with open("flux_config_bf16.json", "wb") as f:
-        r = requests.get(
-            "https://sharkpublic.blob.core.windows.net/sharkpublic/flux.1/configs/flux_config_bf16.json",
-            allow_redirects=True,
-        )
-        f.write(r.content)
-    srv_args.extend(
-        [
-            "--model_config=flux_config_bf16.json",
-            f"--fibers_per_device={fibers_per_device}",
-            f"--isolation={isolation}",
-            "--splat",
-        ]
-    )
     runner = ServerRunner(srv_args)
     # Wait for server to start
     time.sleep(3)
     return runner
 
 
+model_config = {
+    "flux_dev": str(
+        Path(__file__).parent.parent.parent.parent
+        / "python"
+        / "shortfin_apps"
+        / "flux"
+        / "examples"
+        / "flux_dev_config.json"
+    ),
+    "flux_schnell": str(
+        Path(__file__).parent.parent.parent.parent
+        / "python"
+        / "shortfin_apps"
+        / "flux"
+        / "examples"
+        / "flux_schnell_config.json"
+    ),
+}
+
+hf_repo = {
+    "flux_dev": "black-forest-labs/FLUX.1-dev",
+    "flux_schnell": "black-forest-labs/FLUX.1-schnell",
+}
+
+
+@pytest.fixture(scope="module", params=["flux_dev", "flux_schnell"])
+def pipeline_variant(request):
+    yield request.param
+
+
 @pytest.fixture(scope="module")
-def flux_server_fpd1():
-    runner = start_server(fibers_per_device=1)
+def pipeline_parameters(pipeline_variant):
+    """Download and export model parameters."""
+    export_script_path = str(
+        Path(__file__).parent.parent.parent.parent.parent
+        / "sharktank"
+        / "sharktank"
+        / "pipelines"
+        / "flux"
+        / "export_from_hf.sh"
+    )
+    hf_model_dir = huggingface_hub.snapshot_download(hf_repo[pipeline_variant])
+    subprocess.check_call([export_script_path, hf_model_dir, pipeline_variant])
+
+
+@pytest.fixture(scope="module")
+def flux_server_fpd1(pipeline_variant, pipeline_parameters):
+    runner = start_server(pipeline_variant=pipeline_variant, fibers_per_device=1)
     yield runner
     # Teardown: kill the server
     del runner
 
 
 @pytest.fixture(scope="module")
-def flux_server_fpd1_per_call():
-    runner = start_server(fibers_per_device=1, isolation="per_call")
+def flux_server_fpd1_per_call(pipeline_variant, pipeline_parameters):
+    runner = start_server(
+        pipeline_variant=pipeline_variant, fibers_per_device=1, isolation="per_call"
+    )
     yield runner
     # Teardown: kill the server
     del runner
 
 
 @pytest.fixture(scope="module")
-def flux_server_fpd2():
-    runner = start_server(fibers_per_device=2)
+def flux_server_fpd2(pipeline_variant, pipeline_parameters):
+    runner = start_server(pipeline_variant=pipeline_variant, fibers_per_device=2)
     yield runner
     # Teardown: kill the server
     del runner
 
 
-@pytest.mark.system("amdgpu")
-def test_flux_server(flux_server_fpd1):
+@pytest.mark.system("hip")
+def test_smoke_flux_server(flux_server_fpd1):
     imgs, status_code = send_json_file(flux_server_fpd1.url)
     assert len(imgs) == 1
     assert status_code == 200
 
 
-@pytest.mark.system("amdgpu")
-def test_flux_server_bs4_dense(flux_server_fpd1):
+@pytest.mark.system("hip")
+def test_smoke_flux_server_bs4_dense(flux_server_fpd1):
     imgs, status_code = send_json_file(flux_server_fpd1.url, num_copies=4)
     assert len(imgs) == 4
     assert status_code == 200
 
 
-@pytest.mark.system("amdgpu")
-def test_flux_server_bs4_dense_fpd2(flux_server_fpd2):
+@pytest.mark.system("hip")
+def test_smoke_flux_server_bs4_dense_fpd2(flux_server_fpd2):
     imgs, status_code = send_json_file(flux_server_fpd2.url, num_copies=4)
     assert len(imgs) == 4
     assert status_code == 200
@@ -121,7 +166,7 @@ class ServerRunner:
             [
                 *args,
                 "--port=" + port,
-                "--device=amdgpu",
+                "--device=hip",
             ],
             env=env,
             # TODO: Have a more robust way of forking a subprocess.
@@ -154,18 +199,10 @@ class ServerRunner:
             process.wait()
 
 
-def bytes_to_img(bytes, idx=0, width=1024, height=1024):
-    timestamp = dt.now().strftime("%Y-%m-%d_%H-%M-%S")
-    image = Image.frombytes(
-        mode="RGB", size=(width, height), data=base64.b64decode(bytes)
-    )
-    return image
-
-
 def send_json_file(url="http://0.0.0.0:8000", num_copies=1):
     # Read the JSON file
     data = copy.deepcopy(sample_request)
-    imgs = []
+    imgs: list[Image] = []
     # Send the data to the /generate endpoint
     data["prompt"] = (
         [data["prompt"]]
@@ -175,28 +212,20 @@ def send_json_file(url="http://0.0.0.0:8000", num_copies=1):
     try:
         response = requests.post(url + "/generate", json=data)
         response.raise_for_status()  # Raise an error for bad responses
-        request = json.loads(response.request.body.decode("utf-8"))
+        response_body = response.json()
 
-        for idx, item in enumerate(response.json()["images"]):
-            width = getbatched(request, idx, "width")
-            height = getbatched(request, idx, "height")
-            img = bytes_to_img(item.encode("utf-8"), idx, width, height)
-            imgs.append(img)
+        for idx, each_png in enumerate(response_body["images"]):
+            if not isinstance(each_png, str):
+                raise ValueError(
+                    f"Expected string-encoded png at index {idx}, found {each_png}"
+                )
+            each_image = image_from(Base64CharacterEncodedByteSequence(each_png))
+            imgs.append(each_image)
 
     except requests.exceptions.RequestException as e:
         print(f"Error sending the request: {e}")
 
     return imgs, response.status_code
-
-
-def getbatched(req, idx, key):
-    if isinstance(req[key], list):
-        if len(req[key]) == 1:
-            return req[key][0]
-        elif len(req[key]) > idx:
-            return req[key][idx]
-    else:
-        return req[key]
 
 
 def find_free_port():

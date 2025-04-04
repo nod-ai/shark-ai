@@ -212,6 +212,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--iree-device",
         type=str,
+        nargs="+",
         action="store",
         default="local-task",
         help="List an IREE device from 'iree-run-module --list_devices'",
@@ -252,18 +253,22 @@ def pytest_addoption(parser):
     )
 
 
+def set_fixture(request: FixtureRequest, name: str, value: Any):
+    if request.cls is None:
+        return value
+    else:
+        setattr(request.cls, name, value)
+
+
 def set_fixture_from_cli_option(
     request: FixtureRequest,
     cli_option_name: str,
     class_attribute_name: Optional[str] = None,
 ) -> Optional[Any]:
-    res = request.config.getoption(cli_option_name)
-    if request.cls is None:
-        return res
-    else:
-        if class_attribute_name is None:
-            class_attribute_name = cli_option_name
-        setattr(request.cls, class_attribute_name, res)
+    value = request.config.getoption(cli_option_name)
+    if class_attribute_name is None:
+        class_attribute_name = cli_option_name
+    return set_fixture(request, class_attribute_name, value)
 
 
 @pytest.fixture(scope="class")
@@ -357,9 +362,10 @@ def get_model_artifacts(request: FixtureRequest):
 @pytest.fixture(scope="class")
 def get_iree_flags(request: FixtureRequest):
     model_path = {}
-    model_path["iree_device"] = set_fixture_from_cli_option(
-        request, "--iree-device", "iree_device"
-    )
+    iree_device = request.config.getoption("iree_device")
+    if not isinstance(iree_device, str) and len(iree_device) == 1:
+        iree_device = iree_device[0]
+    set_fixture(request, "iree_device", iree_device)
     model_path["iree_hip_target"] = set_fixture_from_cli_option(
         request, "--iree-hip-target", "iree_hip_target"
     )

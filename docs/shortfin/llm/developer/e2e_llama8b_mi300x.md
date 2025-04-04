@@ -89,7 +89,7 @@ look [here](https://iree.dev/guides/deployment-configurations/gpu-rocm/#compile-
 
 ```bash
 iree-compile $MLIR_PATH \
- --iree-hal-target-backends=rocm \
+ --iree-hal-target-device=hip \
  --iree-hip-target=gfx942 \
  -o $VMFB_PATH
 ```

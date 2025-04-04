@@ -21,6 +21,7 @@ class TokenSelectionStrategy(Enum):
 
     GREEDY = auto()
     MULTI_GREEDY = auto()
+    BEAM_SEARCH = auto()
 
 
 def get_strategy_from_str(token_selection_strategy: str) -> TokenSelectionStrategy:
@@ -35,7 +36,10 @@ def get_strategy_from_str(token_selection_strategy: str) -> TokenSelectionStrate
 
 
 def is_ref_counted(token_selection_strategy: TokenSelectionStrategy) -> bool:
-    return token_selection_strategy in {TokenSelectionStrategy.MULTI_GREEDY}
+    return token_selection_strategy in {
+        TokenSelectionStrategy.MULTI_GREEDY,
+        TokenSelectionStrategy.BEAM_SEARCH,
+    }
 
 
 @dataclass_json(undefined=Undefined.RAISE)
@@ -62,6 +66,8 @@ class TokenSelectionStrategyConfig:
     decode_config: DecodeConfig
     prefill_callback: Callable[[LlmInferenceExecRequest], None]
     decode_callback: Callable[[LlmInferenceExecRequest], None]
+    decode_begin_callback: Callable[[], None]
+    decode_end_callback: Callable[[], None]
     results_callback: Callable[[Union[int, List[int]]], None]
     eos_token_id: int
     max_completion_tokens: int
@@ -69,6 +75,20 @@ class TokenSelectionStrategyConfig:
 
 class BaseTokenSelectionStrategy(ABC):
     """Abstract class for implementing token selection strategies."""
+
+    def replicate_inference_exec_requests(
+        self, exec_req: LlmInferenceExecRequest, replicate: int
+    ) -> List[LlmInferenceExecRequest]:
+        """Replicate an LlmInferenceExecRequest for multi_beam strategies.
+
+        Returns:
+            List[LlmInferenceExecRequest]: List of replicated requests, including the original request.
+        """
+        exec_reqs = [exec_req]
+        for _ in range(replicate):
+            exec_reqs.append(LlmInferenceExecRequest.copy_exec_request(exec_req))
+
+        return exec_reqs
 
     @property
     @abstractmethod
