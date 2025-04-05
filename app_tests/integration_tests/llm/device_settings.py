@@ -22,7 +22,10 @@ GFX942 = DeviceSettings(
         "--iree-hal-target-device=hip",
         "--iree-hip-target=gfx942",
     ),
-    server_flags=("--device=hip",),
+    server_flags=(
+        "--device=hip",
+        "--device_ids=0",
+    ),
 )
 
 GFX90A = DeviceSettings(
@@ -30,7 +33,10 @@ GFX90A = DeviceSettings(
         "--iree-hal-target-device=hip",
         "--iree-hip-target=gfx90a",
     ),
-    server_flags=("--device=hip",),
+    server_flags=(
+        "--device=hip",
+        "--device_ids=0",
+    ),
 )
 
 GFX1100 = DeviceSettings(
@@ -38,7 +44,10 @@ GFX1100 = DeviceSettings(
         "--iree-hal-target-device=hip",
         "--iree-hip-target=gfx1100",
     ),
-    server_flags=("--device=hip",),
+    server_flags=(
+        "--device=hip",
+        "--device_ids=0",
+    ),
 )
 
 table = {
