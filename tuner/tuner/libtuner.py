@@ -67,6 +67,7 @@ class CandidateTracker:
     mlir_path: Optional[Path] = None
     compiled_vmfb_path: Optional[Path] = None
     spec_path: Optional[Path] = None
+    starter_td_spec_str : Optional[str] = None
 
 
 @dataclass()
@@ -458,6 +459,26 @@ def create_worker_context_queue(device_ids: list[str]) -> queue.Queue[tuple[int,
 
 def run_iree_compile_command(compile_pack: CompilePack) -> Optional[int]:
     candidate_tracker = compile_pack.candidate_tracker
+    if candidate_tracker.starter_td_spec_str is not None:
+        iree_opt = ireec.binaries.find_tool("iree-opt")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            input_path = os.path.join(tmpdir, "tmp_input.mlir")
+            with open(input_path, "w") as f:
+                f.write(candidate_tracker.starter_td_spec_str)
+            result = subprocess.run(
+                [
+                    iree_opt,
+                    "--iree-codegen-link-tuning-specs",
+                    input_path,
+                    "-o",
+                    candidate_tracker.spec_path,
+                ],
+                capture_output=True,
+                text=True,
+            )
+
+            if result.returncode != 0:
+                raise RuntimeError(f"iree-opt failed: {result.stderr}")
 
     # Compile to vmfb.
     assert candidate_tracker.spec_path, "expected candidate spec path"
@@ -720,6 +741,25 @@ def generate_candidate_specs(
             spec_path = path_config.specs_dir / path_config.get_candidate_spec_filename(
                 candidate_num
             )
+
+            starter_td_spec_str : Optional[str] = None
+            if starter_td_spec is not None:
+                td_specs: list[ir.Module] = []
+                td_specs.append(spec)
+                td_specs.append(starter_td_spec)
+                # Only log duplicate matchers during the first iteration.
+                log_duplicates = candidate_num == 0
+                td_specs_to_link = determine_td_specs_to_link(
+                    td_specs,
+                    log_duplicates=log_duplicates,
+                )
+
+                if len(td_specs_to_link) != 1:
+                    starter_td_spec_str = str(combine_tuning_specs(tuning_client.tuner_context, td_specs_to_link))
+
+                # if determine_td_specs_to_link_flag(td_specs, log_duplicates=log_duplicates):
+                #      starter_td_spec_str = str(starter_td_spec_str)
+
             with open(spec_path, "w") as f:
                 # Write the module with local scope so that compilation info
                 # attributes are inlined. This makes it easier to split up the
@@ -730,6 +770,7 @@ def generate_candidate_specs(
                 mlir_path=path_config.template_mlir,
                 candidate_id=candidate_num,
                 spec_path=spec_path,
+                starter_td_spec_str=starter_td_spec_str,
             )
             candidate_trackers.append(new_candidate)
     except Exception as e:
