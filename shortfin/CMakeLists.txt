@@ -47,12 +47,12 @@ add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 # Prefer to keep the IREE git tag synced with the Python package version in the
 # requirements-iree-pinned.txt file. At a minimum, the compiler from those
 # packages must be compatible with the runtime at this source ref.
-set(SHORTFIN_IREE_GIT_TAG "iree-3.4.0rc20250325")
+set(SHORTFIN_IREE_GIT_TAG "iree-3.4.0rc20250402")
 
 
 # build options
 option(SHORTFIN_BUILD_PYTHON_BINDINGS "Builds Python Bindings" OFF)
-option(SHORTFIN_BUILD_TESTS "Builds C++ tests" ON)
+option(SHORTFIN_BUILD_TESTS "Builds C++ tests" OFF)
 option(SHORTFIN_BUNDLE_DEPS "Download dependencies instead of using system libraries" ON)
 option(SHORTFIN_ENABLE_TRACING "Enable runtime tracing for iree and shortfin" OFF)
 option(SHORTFIN_ENABLE_LTO "Enables LTO if supported" ON)
@@ -245,9 +245,11 @@ if(SHORTFIN_IREE_SOURCE_DIR)
 else()
   message(STATUS "Fetching IREE sources from tag ${SHORTFIN_IREE_GIT_TAG}")
 
-  # TODO: We shouldn't have to pull googletest when we are not building tests.
-  #       This needs to be fixed with IREE.
-  set(IREE_SUBMODULES "third_party/benchmark third_party/cpuinfo third_party/flatcc third_party/hip-build-deps third_party/googletest")
+  set(IREE_SUBMODULES "third_party/benchmark third_party/cpuinfo third_party/flatcc third_party/hip-build-deps")
+  if (SHORTFIN_BUILD_TESTS)
+    set(IREE_BUILD_TESTS ON)
+    set(IREE_SUBMODULES "${IREE_SUBMODULES} third_party/googletest")
+  endif()
   if (SHORTFIN_ENABLE_TRACING)
     set(IREE_SUBMODULES "${IREE_SUBMODULES} third_party/tracy")
   endif()
