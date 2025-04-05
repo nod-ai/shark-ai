@@ -103,6 +103,8 @@ def main():
     with TunerContext(logger=root_logger) as tuner_context:
         tuner_context.logger.addHandler(summary_handler)
         simple_tuner = SimpleTuner(tuner_context)
+        import time
+        start_time = time.time()
         candidates = libtuner.generate_candidate_specs(
             args, path_config, candidate_trackers, simple_tuner
         )
@@ -119,7 +121,7 @@ def main():
         )
         if stop_after_phase == libtuner.ExecutionPhases.compile_dispatches:
             return
-
+        print(f"Time for compiling dispatches: {time.time() - start_time:.2f} seconds\n")
         message = "Benchmarking compiled dispatch candidates..."
         print(message)
         logging.info(message)
