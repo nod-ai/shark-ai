@@ -340,7 +340,7 @@ def parse_arguments(
     general_args.add_argument(
         "--starter-td-spec",
         type=Path,
-        default="",
+        default=None,
         help=(
             "Path to a starter TD spec file to merge with tuning spec files. "
             "Enables incremental merging of td specs across dispatches when tuning real models. "

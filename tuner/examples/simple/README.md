@@ -3,7 +3,7 @@
 Example of tuning a dispatch and a full model.
 
 ## Environments
-Follow instructions in [`/tuner/README.md`](../README.md)
+Follow instructions in [`/tuner/README.md`](../../README.md)
 
 ## Running the Tuner
 
@@ -24,7 +24,7 @@ cp tmp/dump/module_main_dispatch_0_rocm_hsaco_fb_benchmark.mlir tmp/mmt_benchmar
 ```
 
 ### Recommended Trial Run
-For an initial trial to test the tuning loop, use:
+For an initial trial to test the tuning loop, use following command (without --starter-td-spec):
 ```shell
 cd ../../
 python -m examples.simple examples/simple/double_mmt.mlir \
@@ -34,6 +34,7 @@ python -m examples.simple examples/simple/double_mmt.mlir \
     --devices=hip://0 --num-candidates=30 \
     --simple-num-dispatch-candidates=5 --simple-num-model-candidates=3 \
 ```
+Note: a default td spec can be used from the following link: [default_spec](https://github.com/iree-org/iree/blob/main/compiler/plugins/target/ROCM/builtins/tuning/iree_default_tuning_spec_gfx942.mlir)
 
 ### Basic Usage
 ```shell
