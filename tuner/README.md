@@ -11,7 +11,6 @@ that uses the provided `TuningClient` API from `libtuner.py`.
 cd tuner
 python -m venv .venv
 source .venv/bin/activate
-pip install --upgrade pip
 ```
 
 ### Install python dependencies:
