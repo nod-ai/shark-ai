@@ -127,7 +127,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             block_seq_stride=32,
         )
         self.llama8b_fp8_torch_sdpa_artifacts = ExportArtifacts(
-            irpa_path=str(self.irpa_path_fp8_attnf8),
+            irpa_path=str(self.irpa_path_fp8),
             batch_size=4,
             iree_hip_target="gfx942",
             iree_hal_target_device="hip",
@@ -138,7 +138,6 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             activation_dtype="bfloat16",
             attention_dtype="bfloat16",
             kv_cache_dtype="float8_e4m3fnuz",
-            use_attention_mask=True,
         )
         self.llama8b_fp8_attnf8_sdpa_artifacts = ExportArtifacts(
             irpa_path=str(self.irpa_path_fp8_attnf8),
@@ -313,6 +312,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
 
+    @skipif_run_quick_llama_test
     @pytest.mark.xfail(
         reason="Benchmarking Error", strict=True, raises=IreeCompileException
     )
