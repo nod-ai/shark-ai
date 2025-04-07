@@ -8,11 +8,12 @@ import torch
 from sharktank.examples.paged_llm_v1 import *
 from sharktank.utils import tokenizer
 from sharktank.utils import hf_datasets
+from sharktank.utils.testing import TestCase
 import unittest
 from pathlib import Path
 
 
-class BaseLlamaTest(unittest.TestCase):
+class BaseLlamaTest(TestCase):
     def setUp(self):
         raise NotImplementedError("Subclasses should implement this method.")
 

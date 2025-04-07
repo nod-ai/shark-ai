@@ -13,6 +13,7 @@ from sharktank.models.llama.testing import *
 from sharktank.layers.rotary_embedding import RotaryEmbeddingLayer
 from sharktank.models.llama.llama import AttentionFFNBlock, PagedAttention
 from sharktank import ops
+from sharktank.utils.testing import TestCase
 
 from transformers.models.llama.modeling_llama import (
     LlamaAttention,
@@ -23,7 +24,7 @@ from transformers.models.llama.modeling_llama import (
 from transformers.models.llama.configuration_llama import LlamaConfig
 
 
-class AttentionBlockTest(unittest.TestCase):
+class AttentionBlockTest(TestCase):
     def test(self):
         torch.manual_seed(1234567)
         torch.set_default_dtype(torch.float32)

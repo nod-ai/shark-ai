@@ -19,6 +19,7 @@ from sharktank.utils.export_artifacts import (
     IreeBenchmarkException,
     IreeCompileException,
 )
+from sharktank.utils.testing import TestCase
 
 is_mi300x = pytest.mark.skipif("config.getoption('iree_hip_target') != 'gfx942'")
 skipif_run_quick_llama_test = pytest.mark.skipif(
@@ -28,7 +29,7 @@ skipif_run_quick_llama_test = pytest.mark.skipif(
 
 
 @pytest.mark.usefixtures("get_iree_flags")
-class BaseBenchmarkTest(unittest.TestCase):
+class BaseBenchmarkTest(TestCase):
     directory_created = False
     current_date = datetime.now()
     dir_path_suffix = current_date.strftime("%Y-%m-%d")

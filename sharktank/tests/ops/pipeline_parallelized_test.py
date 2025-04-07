@@ -13,9 +13,10 @@ from sharktank.ops.sharded_impls import assert_on_same_devices
 from sharktank import ops
 from sharktank.types import *
 from sharktank.utils import iterables_equal
+from sharktank.utils.testing import TestCase
 
 
-class CheckThatOnSameDevicesTest(unittest.TestCase):
+class CheckThatOnSameDevicesTest(TestCase):
     def testOnSameDevices(self):
         tensor_count = 5
         shard_count = 4
@@ -56,7 +57,7 @@ class CheckThatOnSameDevicesTest(unittest.TestCase):
         assert False  # Should throw and error since the first two tensors are on different devices
 
 
-class AllGatherTest(unittest.TestCase):
+class AllGatherTest(TestCase):
     def testAllGather(self):
         shard_count = 3
         shard_shape = [3, 4]
@@ -77,7 +78,7 @@ class AllGatherTest(unittest.TestCase):
             assert actual_result.devices[i] == devices[i]
 
 
-class AllReduceTest(unittest.TestCase):
+class AllReduceTest(TestCase):
     def testAllReduce(self):
         shard_count = 3
         shard_shape = [3, 4]
@@ -98,7 +99,7 @@ class AllReduceTest(unittest.TestCase):
             assert actual_result.devices[i] == devices[i]
 
 
-class CatTest(unittest.TestCase):
+class CatTest(TestCase):
     def testCatSplitDim(self):
         """Concatenation along the sharded split dimension."""
         shard_dim = 1
@@ -152,7 +153,7 @@ class CatTest(unittest.TestCase):
         assert iterables_equal(expected_result.devices, actual_result.devices)
 
 
-class CloneTest(unittest.TestCase):
+class CloneTest(TestCase):
     def testCloneReplicatedFail(self):
         original = ReplicatedTensor(
             ts=torch.rand(5, 4, dtype=torch.float32), shard_count=4
@@ -188,7 +189,7 @@ class CloneTest(unittest.TestCase):
         ), "Should have thrown an error when passing incorrect keywords to clone"
 
 
-class IndexSelectTest(unittest.TestCase):
+class IndexSelectTest(TestCase):
     def testIndexReplicatedPinned(self):
         shard_count = 5
         shards = [torch.rand(5, 4, dtype=torch.float32) for _ in range(shard_count)]
@@ -209,7 +210,7 @@ class IndexSelectTest(unittest.TestCase):
             assert expected_shard.equal(actual_shards.as_torch())
 
 
-class MatmulTest(unittest.TestCase):
+class MatmulTest(TestCase):
     def testShardedParallelAxesInLhsAndRhs(self):  # matmul_split
         a = torch.rand(2, 12, 5, dtype=torch.float32)
         b = torch.rand(5, 9, dtype=torch.float32)
@@ -239,7 +240,7 @@ class MatmulTest(unittest.TestCase):
         torch.testing.assert_close(actual_result, expected_result)
 
 
-class TransposeTest(unittest.TestCase):
+class TransposeTest(TestCase):
     def testTranspose(self):
         shard_count = 4
         shard_shape = [3, 4]

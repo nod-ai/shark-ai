@@ -4,10 +4,13 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import logging
 from pathlib import Path
 import pytest
 from pytest import FixtureRequest
 from typing import Optional, Any
+
+logger = logging.getLogger(__name__)
 
 
 # Tests under each top-level directory will get a mark.
@@ -269,6 +272,13 @@ def set_fixture_from_cli_option(
     if class_attribute_name is None:
         class_attribute_name = cli_option_name
     return set_fixture(request, class_attribute_name, value)
+
+
+@pytest.fixture(autouse=True, scope="function")
+def log_test_start_finish(request: FixtureRequest):
+    logger.info(f"Test started:  {request.node.name}")
+    yield
+    logger.info(f"Test finished: {request.node.name}")
 
 
 @pytest.fixture(scope="class")

@@ -16,9 +16,10 @@ import torch.nn.functional as F
 
 from iree.turbine import aot
 from sharktank import kernels
+from sharktank.utils.testing import TestCase
 
 
-class pooling_nchw_sum_test(unittest.TestCase):
+class pooling_nchw_sum_test(TestCase):
     def setUp(self):
         torch.manual_seed(42)
 

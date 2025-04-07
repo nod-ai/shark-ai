@@ -15,11 +15,12 @@ from sharktank.models.llama.sharding import PagedLlamaAttentionBlockSharding
 from sharktank.types import SplitPrimitiveTensor, unbox_tensor
 import torch
 from sharktank import ops
+from sharktank.utils.testing import TestCase
 from copy import deepcopy
 import pytest
 
 
-class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
+class ShardedPagedLlamaAttentionBlockTest(TestCase):
     """Verify that the sharded Llama paged attention block behaves in PyTorch as the
     unsharded variant."""
 

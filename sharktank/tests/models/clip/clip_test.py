@@ -16,7 +16,6 @@ import pytest
 import torch
 from torch.utils._pytree import tree_map
 from typing import Optional
-from unittest import TestCase
 from transformers import CLIPTextModel as HfCLIPTextModel, CLIPTokenizer
 from transformers.models.clip.modeling_clip import (
     CLIPAttention as HfCLIPAttention,
@@ -46,6 +45,7 @@ from sharktank.utils.testing import (
     assert_text_encoder_state_close,
     make_rand_torch,
     make_random_mask,
+    TestCase,
     TempDirTestBase,
     get_test_prompts,
 )

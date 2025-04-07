@@ -17,11 +17,12 @@ from iree.turbine import aot
 from sharktank import kernels
 from sharktank.types import layout_utils
 from sharktank.utils import debugging
+from sharktank.utils.testing import TestCase
 from sharktank import ops
 from sharktank.ops.signatures import scaled_dot_product_attention
 
 
-class custom_attention(unittest.TestCase):
+class custom_attention(TestCase):
     def setUp(self):
         torch.manual_seed(420)
 

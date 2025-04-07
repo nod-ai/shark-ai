@@ -9,11 +9,11 @@
 from typing import Optional
 import pytest
 import torch
-from unittest import TestCase
 import numpy
 
 from diffusers import FluxPipeline as ReferenceFluxPipeline
 
+from sharktank.utils.testing import TestCase
 from sharktank.pipelines.flux import FluxPipeline
 
 with_flux_data = pytest.mark.skipif("not config.getoption('with_flux_data')")

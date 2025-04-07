@@ -12,9 +12,10 @@ from copy import deepcopy
 from typing import List, Tuple
 from sharktank import ops
 from sharktank.types import SplitPrimitiveTensor
+from sharktank.utils.testing import TestCase
 
 
-class ShardedPagedKVCacheTest(unittest.TestCase):
+class ShardedPagedKVCacheTest(TestCase):
     """Verify that the sharded paged KV cache behaves as the unsharded variant."""
 
     def setUp(self):

@@ -13,9 +13,10 @@ import unittest
 
 from sharktank import kernels
 from sharktank import ops
+from sharktank.utils.testing import TestCase
 
 
-class rotary_test(unittest.TestCase):
+class rotary_test(TestCase):
     def setUp(self):
         torch.manual_seed(42)
 

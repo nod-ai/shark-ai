@@ -11,6 +11,7 @@ import torch.nn.functional as F
 
 from sharktank import ops
 from sharktank.types import *
+from sharktank.utils.testing import TestCase
 
 
 def _randomize_per_axis(t: torch.Tensor, axis: int, offset_range: float = 0.0):
@@ -38,7 +39,7 @@ def _scale_per_tensor_i8(t: torch.Tensor):
     return scale
 
 
-class QConvTest(unittest.TestCase):
+class QConvTest(TestCase):
     def setUp(self):
         torch.manual_seed(12345)
 

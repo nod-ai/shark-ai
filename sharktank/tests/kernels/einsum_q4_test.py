@@ -16,9 +16,10 @@ import torch
 from iree.turbine import aot
 from sharktank import kernels
 from sharktank.types import layout_utils
+from sharktank.utils.testing import TestCase
 
 
-class einsum_2args_q4_test(unittest.TestCase):
+class einsum_2args_q4_test(TestCase):
     def setUp(self):
         torch.manual_seed(42)
 

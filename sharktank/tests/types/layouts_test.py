@@ -10,9 +10,10 @@ import torch
 
 from sharktank.types import *
 from sharktank.types.tensors import REGISTERED_LAYOUT_CLASSES
+from sharktank.utils.testing import TestCase
 
 
-class BlockScaledLayoutTest(unittest.TestCase):
+class BlockScaledLayoutTest(TestCase):
     def testRegistered(self):
         self.assertIs(
             BlockScaledLayout,
@@ -37,7 +38,7 @@ class BlockScaledLayoutTest(unittest.TestCase):
         self.assertEqual(l.metadata, l_new.metadata)
 
 
-class BlockScaledI4LayoutTest(unittest.TestCase):
+class BlockScaledI4LayoutTest(TestCase):
     def testRegistered(self):
         self.assertIs(
             BlockScaledI4Layout,
@@ -64,7 +65,7 @@ class BlockScaledI4LayoutTest(unittest.TestCase):
         self.assertEqual(l.signed, l_new.signed)
 
 
-class SuperBlockOffsetScaled_4_6_LayoutTest(unittest.TestCase):
+class SuperBlockOffsetScaled_4_6_LayoutTest(TestCase):
     def testRegistered(self):
         self.assertIs(
             SuperBlockOffsetScaled_4_6_Layout,
@@ -97,7 +98,7 @@ class SuperBlockOffsetScaled_4_6_LayoutTest(unittest.TestCase):
         self.assertEqual(l.metadata, l_new.metadata)
 
 
-class TensorScaledLayoutTest(unittest.TestCase):
+class TensorScaledLayoutTest(TestCase):
     def testRegistered(self):
         self.assertIs(
             TensorScaledLayout,

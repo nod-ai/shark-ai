@@ -16,9 +16,10 @@ import torch.nn.functional as F
 
 from iree.turbine import aot
 from sharktank import kernels
+from sharktank.utils.testing import TestCase
 
 
-class conv_2d_nchw_fchw_test(unittest.TestCase):
+class conv_2d_nchw_fchw_test(TestCase):
     def setUp(self):
         torch.manual_seed(42)
 

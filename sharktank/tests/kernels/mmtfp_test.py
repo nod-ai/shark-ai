@@ -15,9 +15,10 @@ import torch
 
 from iree.turbine import aot
 from sharktank import kernels
+from sharktank.utils.testing import TestCase
 
 
-class mmtfp_test(unittest.TestCase):
+class mmtfp_test(TestCase):
     def setUp(self):
         torch.manual_seed(42)
 

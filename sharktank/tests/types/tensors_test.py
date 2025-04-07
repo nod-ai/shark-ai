@@ -13,6 +13,7 @@ import os
 from sharktank.types import *
 from sharktank import ops
 from sharktank.utils import iterables_equal
+from sharktank.utils.testing import TestCase
 
 
 def _createTestLayout():
@@ -28,7 +29,7 @@ def _createTestLayout():
     )
 
 
-class PlanarQuantizedTensorTest(unittest.TestCase):
+class PlanarQuantizedTensorTest(TestCase):
     def testTransform(self):
         pqt1 = PlanarQuantizedTensor(
             name="t1", shape=[128, 1024], layout=_createTestLayout()
@@ -61,7 +62,7 @@ class PlanarQuantizedTensorTest(unittest.TestCase):
         self.assertEqual(new_planes["d"].dtype, torch.float16)
 
 
-class ShardedTensorTest(unittest.TestCase):
+class ShardedTensorTest(TestCase):
     def testReplicatedTensorSaveLoad(self):
         tensor = [torch.rand([2, 3, 4], dtype=torch.float32)] * 3
         replicated_tensor = ReplicatedTensor(ts=tensor, name="the_tensor")

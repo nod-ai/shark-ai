@@ -15,9 +15,10 @@ import torch
 
 from iree.turbine import aot
 from sharktank import kernels
+from sharktank.utils.testing import TestCase
 
 
-class mmt_block_scaled_q8_test(unittest.TestCase):
+class mmt_block_scaled_q8_test(TestCase):
     def setUp(self):
         torch.manual_seed(42)
 

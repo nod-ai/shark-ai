@@ -11,7 +11,7 @@ from parameterized import parameterized
 
 from sharktank.layers import *
 from sharktank.types import *
-from sharktank.utils.testing import make_rand_torch
+from sharktank.utils.testing import make_rand_torch, TestCase
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ def _scale_per_tensor_i8(t: torch.Tensor):
     return scale
 
 
-class LinearQuantTest(unittest.TestCase):
+class LinearQuantTest(TestCase):
     def setUp(self):
         torch.manual_seed(12345)
 

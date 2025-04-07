@@ -11,6 +11,7 @@ import numpy as np
 import gc
 
 from sharktank.evaluate import perplexity_torch
+from sharktank.utils.testing import TestCase
 
 skipif_run_quick_llama_test = pytest.mark.skipif(
     'not config.getoption("run-nightly-llama-tests")',
@@ -25,7 +26,7 @@ skipif_run_quick_llama_test = pytest.mark.skipif(
     "batch_size",
     "device",
 )
-class PerplexityTest(unittest.TestCase):
+class PerplexityTest(TestCase):
     def setUp(self):
         self.current_perplexity_all = {}
         self.delta = 5e-1

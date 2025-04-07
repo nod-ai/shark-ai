@@ -22,9 +22,10 @@ from sharktank.layers import (
 )
 from sharktank.layers.testing import make_llama_attention_block_theta
 from sharktank.types.tensors import DefaultPrimitiveTensor
+from sharktank.utils.testing import TestCase
 
 
-class PagedLlamaAttentionBlockTest(unittest.TestCase):
+class PagedLlamaAttentionBlockTest(TestCase):
     def setUp(self):
         torch.manual_seed(12345)
         self.transformer_block_count = 13

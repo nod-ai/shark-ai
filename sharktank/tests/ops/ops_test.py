@@ -17,7 +17,7 @@ from sharktank import ops
 from sharktank.types import *
 from sharktank.layers import BaseLayer
 from sharktank.utils import debugging
-from sharktank.utils.testing import TempDirTestBase
+from sharktank.utils.testing import TestCase, TempDirTestBase
 from sharktank.utils.iree import (
     with_iree_device_context,
     get_iree_devices,
@@ -28,7 +28,7 @@ from sharktank.utils.iree import (
 )
 
 
-class BroadcastDimsTest(unittest.TestCase):
+class BroadcastDimsTest(TestCase):
     def testBroadcastDimForSmallerRankTensor(self):
         a = torch.empty(2, 5, 1)
         b = torch.empty(4, 2, 5, 1)
@@ -49,7 +49,7 @@ class BroadcastDimsTest(unittest.TestCase):
         assert res[1] == 2
 
 
-class EqualTest(unittest.TestCase):
+class EqualTest(TestCase):
     def testEqualTorchTensors(self):
         a = torch.rand(2, 3, dtype=torch.float32)
         b = torch.clone(a)
@@ -77,7 +77,7 @@ class EqualTest(unittest.TestCase):
         assert not ops.equal(b, a)
 
 
-class EmbeddingLookupTest(unittest.TestCase):
+class EmbeddingLookupTest(TestCase):
     def testTorchImplNoCast(self):
         t1 = torch.tensor([[1, 2, 4, 5], [4, 3, 2, 9]])
         t2 = torch.rand(10, 3, dtype=torch.float32)
@@ -105,7 +105,7 @@ class EmbeddingLookupTest(unittest.TestCase):
         ...
 
 
-class GemmTest(unittest.TestCase):
+class GemmTest(TestCase):
     def testGemm(self):
         a = torch.tensor([[1, 2], [3, 4]])
         b = torch.tensor([[5, 6], [7, 8]])
@@ -117,7 +117,7 @@ class GemmTest(unittest.TestCase):
         torch.testing.assert_close(result, expected)
 
 
-class MatmulTest(unittest.TestCase):
+class MatmulTest(TestCase):
     def tearDown(self):
         ops._registry._test_enable_last_op_dispatch(False)
 
@@ -220,7 +220,7 @@ class MatmulTest(unittest.TestCase):
     # TODO: mmt_super_block_scaled_offset_q4_unsigned
 
 
-class PermuteTest(unittest.TestCase):
+class PermuteTest(TestCase):
     def testPermute(self):
         torch_tensor = torch.rand(3, 4, 5, dtype=torch.float32)
         permutation = [1, 0, 2]
@@ -239,7 +239,7 @@ class PermuteTest(unittest.TestCase):
         assert torch.equal(torch_tensor.T, primitive_tensor.T)
 
 
-class RmsNormTest(unittest.TestCase):
+class RmsNormTest(TestCase):
     def _ref(self, x, weight, epsilon):
         variance = x.pow(2).mean(-1, keepdim=True)
         output = x * torch.rsqrt(variance + epsilon)
@@ -264,7 +264,7 @@ class RmsNormTest(unittest.TestCase):
     # TODO: Quantized tensor
 
 
-class TestOpExport(unittest.TestCase):
+class TestOpExport(TestCase):
     """Tests that the machinery holds up under dynamo torch.export.
 
     Dynamo can be finicky with dynamism, and we've had trouble, so verify.

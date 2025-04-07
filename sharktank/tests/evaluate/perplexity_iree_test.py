@@ -10,7 +10,7 @@ import json
 import numpy as np
 
 from sharktank.evaluate import perplexity_iree
-from sharktank.utils.testing import is_mi300x
+from sharktank.utils.testing import is_mi300x, TestCase
 
 skipif_run_quick_llama_test = pytest.mark.skipif(
     'not config.getoption("run-nightly-llama-tests")',
@@ -26,7 +26,7 @@ skipif_run_quick_llama_test = pytest.mark.skipif(
     "batch_size",
 )
 @is_mi300x
-class PerplexityTest(unittest.TestCase):
+class PerplexityTest(TestCase):
     def setUp(self):
         self.current_perplexity_all = {}
         self.delta = 5e-1

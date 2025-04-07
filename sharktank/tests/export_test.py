@@ -19,13 +19,13 @@ from sharktank.export import (
 )
 from sharktank import ops
 from sharktank.utils.testing import (
+    TestCase,
     assert_equal,
     assert_iterables_equal,
     assert_dicts_equal,
 )
 from iree.turbine.aot import DeviceAffinity, FxProgramsBuilder
 from iree.turbine import aot
-from unittest import TestCase
 import torch
 
 

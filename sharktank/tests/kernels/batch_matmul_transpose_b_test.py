@@ -16,10 +16,10 @@ import torch
 from iree.turbine import aot
 from iree.turbine.support.conversions import TORCH_DTYPE_TO_IREE_TYPE_ASM
 from sharktank import kernels
-from sharktank.utils.testing import skip
+from sharktank.utils.testing import TestCase
 
 
-class batch_matmul_transpose_b_test(unittest.TestCase):
+class batch_matmul_transpose_b_test(TestCase):
     def setUp(self):
         torch.manual_seed(42)
 

@@ -16,9 +16,10 @@ from sharktank.models.llama.llama import (
 from sharktank.models.llama.testing import *
 from sharktank.layers.rotary_embedding import RotaryEmbeddingLayer
 from sharktank.layers import causal_llm
+from sharktank.utils.testing import TestCase
 
 
-class KVCacheTest(unittest.TestCase):
+class KVCacheTest(TestCase):
     def setUp(self):
         torch.set_default_dtype(torch.float32)
         self.block_count = 5

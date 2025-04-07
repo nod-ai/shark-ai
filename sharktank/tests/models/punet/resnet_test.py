@@ -14,9 +14,10 @@ from sharktank.models.punet.layers import ResnetBlock2D
 from sharktank.types import *
 from sharktank.models.punet.sharding import ResnetBlock2DSplitOutputChannelsSharding
 from sharktank import ops
+from sharktank.utils.testing import TestCase
 
 
-class ResnetBlockTest(unittest.TestCase):
+class ResnetBlockTest(TestCase):
     def testResnetBlock2DSplitInputAndOutputChannelsSharding(self):
         torch.set_default_dtype(torch.float32)
         batches = 2

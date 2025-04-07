@@ -9,9 +9,10 @@ import unittest
 import torch
 
 from sharktank.types.layout_utils import *
+from sharktank.utils.testing import TestCase
 
 
-class I4Shuffle(unittest.TestCase):
+class I4Shuffle(TestCase):
     def test_linearize_interleaved_i4_block(self):
         # Linearize.
         input_data = torch.tensor(

@@ -12,6 +12,7 @@ import sharktank.ops as ops
 from sharktank.types import unbox_tensor, Dataset, UnreducedTensor, SplitPrimitiveTensor
 from sharktank.models.llama.testing import make_random_llama_theta
 from sharktank.utils.testing import (
+    TestCase,
     assert_cosine_similarity_close,
     get_iree_compiler_flags,
     is_hip_condition,
@@ -40,7 +41,7 @@ import os
 
 
 @pytest.mark.usefixtures("caching", "path_prefix", "get_iree_flags")
-class ShardedLlamaTest(unittest.TestCase):
+class ShardedLlamaTest(TestCase):
     def setUp(self):
         torch.random.manual_seed(123456)
         self.dtype = torch.float32

@@ -74,7 +74,12 @@ def make_random_mask(shape: tuple[int], dtype: Optional[torch.dtype] = None):
     return mask
 
 
-class TempDirTestBase(unittest.TestCase):
+@pytest.mark.usefixtures("log_test_start_finish")
+class TestCase(unittest.TestCase):
+    pass
+
+
+class TempDirTestBase(TestCase):
     def setUp(self):
         self._temp_dir = Path(tempfile.mkdtemp(type(self).__qualname__))
 

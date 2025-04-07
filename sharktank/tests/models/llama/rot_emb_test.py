@@ -7,6 +7,7 @@
 import torch
 
 from sharktank.layers.rotary_embedding import RotaryEmbeddingLayer
+from sharktank.utils.testing import TestCase
 from transformers.models.llama.modeling_llama import (
     LlamaRotaryEmbedding,
     apply_rotary_pos_emb,
@@ -15,7 +16,7 @@ from transformers import LlamaConfig
 import unittest
 
 
-class HFRotaryComparisonTest(unittest.TestCase):
+class HFRotaryComparisonTest(TestCase):
     def test(self):
         test_dtype = torch.bfloat16
         bs = 2

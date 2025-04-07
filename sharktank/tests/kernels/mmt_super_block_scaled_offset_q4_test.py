@@ -16,9 +16,10 @@ import torch
 from iree.turbine import aot
 from sharktank import kernels
 from sharktank.types import layout_utils
+from sharktank.utils.testing import TestCase
 
 
-class mmt_super_block_scaled_offset_q4_unsigned(unittest.TestCase):
+class mmt_super_block_scaled_offset_q4_unsigned(TestCase):
     def setUp(self):
         torch.manual_seed(42)
 

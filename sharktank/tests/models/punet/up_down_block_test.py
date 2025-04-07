@@ -16,9 +16,10 @@ from sharktank.models.punet.sharding import UpDownBlock2DSplitChannelsSharing
 from sharktank.types import *
 from sharktank import ops
 from sharktank.types.tensors import flatten_tensor_tree
+from sharktank.utils.testing import TestCase
 
 
-class UpBlock2DTest(unittest.TestCase):
+class UpBlock2DTest(TestCase):
     @parameterized.expand(
         [
             (True,),

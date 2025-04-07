@@ -13,6 +13,7 @@ import torch
 
 from iree.turbine.aot import ExternalTensorTrait
 from sharktank.types import *
+from sharktank.utils.testing import TestCase
 
 
 def _t(name: str, *dims: int):
@@ -23,7 +24,7 @@ def _flat_t_dict(*ts):
     return {t.name: t for t in ts}
 
 
-class ThetaTest(unittest.TestCase):
+class ThetaTest(TestCase):
     def testThetaAccess(self):
         # TODO: Make construction of a Theta programatically more natural.
         theta = Theta(
@@ -94,7 +95,7 @@ class ThetaTest(unittest.TestCase):
         self.assertIn("a.b.3", popped.keys())
 
 
-class DatasetTest(unittest.TestCase):
+class DatasetTest(TestCase):
     def setUp(self):
         self.temp_dir = Path(tempfile.mkdtemp("_dstest"))
 

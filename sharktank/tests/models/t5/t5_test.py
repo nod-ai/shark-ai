@@ -25,7 +25,6 @@ import logging
 import pytest
 import torch
 from torch.utils._pytree import tree_map
-from unittest import TestCase
 from parameterized import parameterized
 from sharktank.types import (
     Theta,
@@ -53,6 +52,7 @@ from sharktank.utils.testing import (
     make_rand_torch,
     make_random_mask,
     skip,
+    TestCase,
     TempDirTestBase,
     get_test_prompts,
 )
