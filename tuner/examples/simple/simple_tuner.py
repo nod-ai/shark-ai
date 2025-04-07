@@ -39,7 +39,7 @@ def read_flags_file(flags_file: str) -> list[str]:
         return file.read().splitlines()
 
 
-def arg_parse():
+def arg_parse() -> argparse.Namespace:
     # Custom arguments for the example tuner file.
     parser = argparse.ArgumentParser(description="Autotune sample script")
     client_args = parser.add_argument_group("Simple Example Tuner Options")
@@ -75,7 +75,7 @@ def arg_parse():
     return args
 
 
-def main():
+def main() -> None:
     args = arg_parse()
 
     path_config = libtuner.PathConfig()
