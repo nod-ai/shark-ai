@@ -170,7 +170,7 @@ def export(
         return fx_builder.export_program(
             module_fn_with_flat_signature,
             *transitive_args,
-            args=flat_args,
+            args=tuple(flat_args),
             arg_device=arg_device,
             **amended_kwargs,
         )

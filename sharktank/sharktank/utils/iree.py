@@ -72,7 +72,9 @@ def with_iree_device_context(
 
 
 @overload
-def get_iree_devices(*, driver: str, device_count: int) -> List[iree.runtime.HalDevice]:
+def get_iree_devices(
+    *, driver: str, device_count: int, allow_repeat: bool
+) -> List[iree.runtime.HalDevice]:
     """Gets a list of IREE HAL devices for the given driver.
 
     The first available device_count devices will be created,
@@ -89,15 +91,18 @@ def get_iree_devices(*, driver: str, device_count: int) -> List[iree.runtime.Hal
 
 
 @overload
-def get_iree_devices(*, device: str) -> List[iree.runtime.HalDevice]:
+def get_iree_devices(
+    *, device: str | list[str], device_count: int, allow_repeating: bool
+) -> List[iree.runtime.HalDevice]:
     ...
 
 
 def get_iree_devices(
     *,
-    device: str | None = None,
+    device: str | list[str] | None = None,
     driver: str | None = None,
     device_count: int | None = None,
+    allow_repeating: bool = True,
 ) -> List[iree.runtime.HalDevice]:
     has_device_arg = device is not None
     has_driver_arg = driver is not None
@@ -106,17 +111,17 @@ def get_iree_devices(
         raise ValueError(
             "Could not select overload. Please, provide at least one argument"
         )
-    if has_driver_arg != has_device_count_arg:
-        raise ValueError("driver and device_count args must be provided simultaneously")
-    if has_device_arg and (has_driver_arg or has_device_count_arg):
+    if has_device_arg and has_driver_arg:
         raise ValueError(
             "device arg is mutually exclusive with driver and device_count args"
         )
+    if has_driver_arg and not has_device_count_arg:
+        raise ValueError("When driver is provided, device_count must also be provided")
 
     if has_device_arg:
-        return [iree.runtime.get_device(device, cache=False)]
-
-    if "IREE_DEVICE" in os.environ:
+        if isinstance(device, str):
+            device = [device]
+    elif "IREE_DEVICE" in os.environ:
         device_uris = [d.strip() for d in os.environ["IREE_DEVICE"].split(",")]
         driver_names = [n.split("://")[0] for n in device_uris]
         if driver is not None:
@@ -124,28 +129,27 @@ def get_iree_devices(
                 ValueError(
                     f'Inconsistent IREE driver, expected "{driver}" for all devices f{device_uris}'
                 )
-        if device_count > len(device_uris):
-            raise ValueError(
-                "Environment variable IREE_DEVICE provides less devices than requested."
-            )
-        return [
-            iree.runtime.get_driver(driver_names[i]).create_device_by_uri(
-                device_uris[i]
-            )
-            for i in range(device_count)
+        device = device_uris
+
+    if device is not None:
+        if not has_device_count_arg:
+            device_count = len(device)
+        if device_count < len(device):
+            device = device[:device_count]
+        hal_devices = [iree.runtime.get_device(d, cache=False) for d in device]
+    else:
+        hal_driver = iree.runtime.get_driver(driver)
+        device_infos = hal_driver.query_available_devices()
+        if device_count < len(device_infos):
+            device_infos = device_infos[:device_count]
+        hal_devices = [
+            hal_driver.create_device(device_info) for device_info in device_infos
         ]
 
-    hal_driver = iree.runtime.get_driver(driver)
-    available_devices = hal_driver.query_available_devices()
-    if driver in ["local-task", "local-sync"]:
-        # Use the same actual device for all devices.
-        return [
-            hal_driver.create_device(available_devices[0]) for _ in range(device_count)
-        ]
-    else:
-        return [
-            hal_driver.create_device(available_devices[i]) for i in range(device_count)
-        ]
+    if not allow_repeating and len(hal_devices) < device_count:
+        ValueError("Requested more devices than available or specified")
+
+    return [hal_devices[i % len(hal_devices)] for i in range(device_count)]
 
 
 def load_iree_module(
