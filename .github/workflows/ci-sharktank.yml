@@ -85,7 +85,10 @@ jobs:
       - name: Run sharktank tests
         if: ${{ !cancelled() }}
         run: |
-          pytest -n 4 sharktank/ --durations=10
+          pytest -n 4 sharktank/ \
+            --durations=10 \
+            --log-cli-level=info \
+            -v
 
   test-mi300x:
     name: "Unit Tests (${{ matrix.runs-on }}, ${{ matrix.python-version }}, ${{ matrix.torch-version }})"
@@ -142,6 +145,9 @@ jobs:
         run: |
           pytest sharktank/ \
             --durations=10 \
+            --capture=no \
+            --log-cli-level=info \
+            -v \
             --iree-hal-target-device=hip \
             --iree-hip-target=gfx942 \
             --iree-device=hip://0
