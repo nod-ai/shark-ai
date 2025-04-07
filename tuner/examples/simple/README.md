@@ -38,8 +38,8 @@ python -m examples.simple examples/simple/double_mmt.mlir \
 ```
 
 [!TIP]
-Using --starter-td-spec option, you can pass existing td spec for the run.
-You can use following default td spec: [Default Spec](https://github.com/iree-org/iree/blob/main/compiler/plugins/target/ROCM/builtins/tuning/iree_default_tuning_spec_gfx942.mlir)
+Use the `--starter-td-spec` option to pass an existing td spec for the run.
+You can use following default td spec: [Default Spec](https://github.com/iree-org/iree/blob/main/compiler/plugins/target/ROCM/builtins/tuning/iree_default_tuning_spec_gfx942.mlir).
 
 ### Basic Usage
 

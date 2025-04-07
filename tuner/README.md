@@ -30,14 +30,8 @@ pip install -r requirements-dev.txt
      ```shell
      cmake -G Ninja -B ../iree-build/ -S . \
      -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-     -DIREE_ENABLE_ASSERTIONS=ON \
-     -DIREE_ENABLE_SPLIT_DWARF=ON \
-     -DIREE_ENABLE_THIN_ARCHIVES=ON \
      -DCMAKE_C_COMPILER=clang \
      -DCMAKE_CXX_COMPILER=clang++ \
-     -DIREE_ENABLE_LLD=ON \
-     -DCMAKE_EXPORT_COMPILE_COMMANDS=1 \
-     -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
      -DIREE_HAL_DRIVER_HIP=ON -DIREE_TARGET_BACKEND_ROCM=ON \
      -DIREE_BUILD_PYTHON_BINDINGS=ON \
      -DPython3_EXECUTABLE="$(which python3)"
