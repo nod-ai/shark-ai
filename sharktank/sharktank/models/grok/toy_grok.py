@@ -49,7 +49,7 @@ def generate(seed):
         block_seq_stride=block_seq_stride,
         activation_dtype=dtype,
         attention_dtype=dtype,
-        attention_kernel="torch",
+        attention_kernel="decomposed",
     )
 
     torch.manual_seed(seed)

@@ -288,7 +288,7 @@ class AttentionFFNBlock(ThetaLayer):
             ) = moe_func_map[config.hp.model_arch]
 
             self.add_module(
-                "moe",
+                "ffn",
                 MoeBlock(
                     theta=theta,
                     expert_used_count=config.hp.expert_used_count,
