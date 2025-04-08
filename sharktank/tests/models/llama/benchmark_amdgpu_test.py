@@ -224,6 +224,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             ">>",
         ]
 
+    @skipif_run_quick_llama_test
     @pytest.mark.xfail(
         reason="Iree Compile Error", strict=True, raises=IreeCompileException
     )
@@ -319,6 +320,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
 
+    @skipif_run_quick_llama_test
     @pytest.mark.xfail(
         reason="Benchmarking Error", strict=True, raises=IreeCompileException
     )
