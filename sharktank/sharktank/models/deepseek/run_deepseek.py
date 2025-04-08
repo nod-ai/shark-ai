@@ -6,9 +6,8 @@
 
 
 from sharktank.types.theta import Dataset
-from sharktank.models.deepseek.deepseek import PagedDeepseekModelV1
-from sharktank.models.deepseek.toy_deepseek import generate
-from sharktank.models.llama.llama import LlamaModelConfig, LlamaHParams
+from sharktank.models.llm import *
+from sharktank.layers.configs import *
 
 import argparse
 import math
@@ -34,7 +33,7 @@ if __name__ == "__main__":
         attention_dtype=torch.float32,
     )
 
-    model = PagedDeepseekModelV1(theta=theta, config=config)
+    model = PagedLlmModelV1(theta=theta, config=config)
     ids = torch.from_numpy(numpy.load(args.ids_path))
     results = model.prefill(tokens=ids)
 
