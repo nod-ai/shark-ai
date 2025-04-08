@@ -64,6 +64,8 @@ class T5LayerFF(nn.Module):
         else:
             ffn_theta_dict["ffn_up"] = ffn_theta("wi").tree
         ffn_theta_dict["ffn_down"] = ffn_theta("wo").tree
+        ffn_theta_dict["layer_norm"] = theta("layer_norm").tree
+
         ffn_theta = Theta(ffn_theta_dict)
 
         self.dense_activation_dense = FFN(
