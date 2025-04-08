@@ -1121,12 +1121,13 @@ def _scaled_dot_product_attention(
     q: AnyTensor,
     k: AnyTensor,
     v: AnyTensor,
-    a: Optional[AnyTensor],
+    a: Optional[AnyTensor] = None,
     is_causal: bool = False,
     scale: Optional[float] = None,
 ):
     tensors = (q, k, v, a)
     for override in d.find_overrides(tensors):
+
         if is_causal is not None:
             result = override(q, k, v, a, is_causal=is_causal, scale=scale)
         else:
