@@ -50,7 +50,6 @@ def generate(seed):
             expert_count=expert_count,
             expert_used_count=used_experts,
             model_arch="deepseek2",
-            route_scale=2.0,
         ),
         block_seq_stride=block_seq_stride,
         activation_dtype=dtype,
