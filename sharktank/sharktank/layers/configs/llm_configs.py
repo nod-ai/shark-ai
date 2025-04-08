@@ -58,7 +58,6 @@ class LlamaHParams:
     v_head_dim: Optional[int] = None
 
     # Expert configs - Deep seek Specific
-    expert_score_func: Optional[str] = None
     route_scale: Optional[float] = None
 
     # Grok configurations
@@ -77,7 +76,6 @@ class LlamaHParams:
             p, f"{name_prefix}.rope.dimension_count", default_rope_dimension_count
         )
 
-        expert_score_func = p.get("score_func", "softmax")
         attention_softcap = 30.0 if name_prefix == "grok" else None
 
         return LlamaHParams(
@@ -104,7 +102,6 @@ class LlamaHParams:
             expert_used_count=_optional_int_prop(
                 p, f"{name_prefix}.expert_used_count", default_expert_used_count
             ),
-            expert_score_func=expert_score_func,
             route_scale=_optional_int_prop(
                 p, f"{name_prefix}.route_scale", default_route_scale
             ),
