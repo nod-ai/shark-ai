@@ -7,7 +7,6 @@
 import unittest
 import pytest
 from typing import Any, Tuple, OrderedDict
-from sharktank.layers.configs import *
 from sharktank.models.llm import *
 import sharktank.ops as ops
 from sharktank.types import Dataset, UnreducedTensor, SplitPrimitiveTensor
@@ -18,7 +17,7 @@ from sharktank.utils.testing import (
     is_hip_condition,
 )
 from sharktank.models.llama.sharding import shard_theta
-from sharktank.layers.configs import LlamaHParams
+from sharktank.layers.configs import LlamaHParams, LlamaModelConfig
 from sharktank.utils.math import round_up_to_multiple_of
 from sharktank.utils import iterables_equal
 from sharktank.utils.iree import (
@@ -37,6 +36,7 @@ import tempfile
 import torch
 from copy import deepcopy
 from iree.turbine.aot import FxProgramsBuilder, export
+import iree
 import numpy as np
 import os
 
