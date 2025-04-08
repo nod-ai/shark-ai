@@ -37,7 +37,7 @@ def main():
         help="Return the log softmax of the logits",
         choices=["none", "softmax", "log_softmax"],
     )
- 
+
     cli.add_input_dataset_options(parser)
     cli.add_model_options(parser)
     cli.add_export_artifacts(parser)
