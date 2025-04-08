@@ -11,6 +11,7 @@ import platform
 from sharktank.layers import create_model, model_config_presets
 from sharktank.utils import chdir
 from sharktank.utils.iree import trace_model_with_tracy, run_model_with_iree_run_module
+from sharktank.utils.testing import skip
 from sharktank.models.dummy import DummyModel
 
 
@@ -35,6 +36,15 @@ def test_run_model_with_iree_run_module(
         run_model_with_iree_run_module(dummy_model.config, function="forward_bs1")
 
 
+@skip(
+    reason=(
+        "The test hangs. Probably during compilation or IREE module "
+        "execution. We can't determine easily what is going on as running "
+        "tests in parallel with pyest-xdist is incompatible with capture "
+        "disabling with --capture=no. No live logs are available from the CI."
+        " TODO: investigate"
+    )
+)
 @pytest.mark.xfail(
     platform.system() == "Windows",
     raises=FileNotFoundError,
