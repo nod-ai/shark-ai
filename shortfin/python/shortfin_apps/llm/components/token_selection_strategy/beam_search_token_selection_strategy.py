@@ -58,10 +58,7 @@ class BeamSearchBeam(Beam):
         Returns:
             Tuple[List[int], List[float]]: Tuple containing (top_tokens, top_values)
         """
-        # Take `log_softmax` of the logits.
-        # TODO (1196): Conditionally take `log_softmax` depending on
-        # model configuration.
-        # This is where we'd add an optional call to our `sampling` mechanism.
+        self.apply_temperature()
         if self.logits_normalization == LogitsNormalization.LOG_SOFTMAX:
             log_softmax_logits = self.exec_req.result_logits
         elif self.logits_normalization == LogitsNormalization.NONE:
@@ -145,6 +142,7 @@ class BeamSearchTokenSelectionStrategy(BaseTokenSelectionStrategy):
                     score=beam.score,
                     accumulated_normalization=beam.accumulated_normalization,
                     last_token=token,
+                    temperature=config.decode_config.temperature,
                     logits_normalization=config.decode_config.logits_normalization,
                 )
                 new_beam.update_score(value)
@@ -188,18 +186,24 @@ class BeamSearchTokenSelectionStrategy(BaseTokenSelectionStrategy):
         Args:
             exec_req (LlmInferenceExecRequest): Initial inference request, post prefill.
         """
+        logger.info("Starting `beam_search` decode loop...")
         config = self.token_selection_strategy_config
 
+        beam = BeamSearchBeam(
+            exec_req=exec_req,
+            temperature=config.decode_config.temperature,
+            logits_normalization=config.decode_config.logits_normalization,
+        )
         beam_group = BeamGroup(
             config.eos_token_id,
             config.decode_config.num_beams,
-            [BeamSearchBeam(exec_req)],
+            [beam],
             self.select_top_k,
         )
 
         reservations = beam_group.active_beam_count
         config.decode_begin_callback(reservations)
-        for _ in range(config.max_completion_tokens):
+        for _ in range(config.decode_config.max_completion_tokens):
             if not beam_group.active_beams:
                 break
 

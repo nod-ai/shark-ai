@@ -25,7 +25,6 @@ class TokenSelectionStrategyConfig:
     decode_end_callback: Callable[[int], None]
     results_callback: Callable[[Union[int, List[int]]], None]
     eos_token_id: int
-    max_completion_tokens: int
 
 
 class BaseTokenSelectionStrategy(ABC):
