@@ -531,7 +531,7 @@ class DefaultPrimitiveTensor(PrimitiveTensor):
     def clone(self) -> "InferenceTensor":
         from .. import ops
 
-        # We don't clone due the name to not introduce name aliasing.
+        # We don't clone the name to not introduce name aliasing.
         return DefaultPrimitiveTensor(data=ops.clone(self._data))
 
     @classmethod
