@@ -4,30 +4,29 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import gc
+import iree.compiler
+import iree.runtime
 import pytest
 import sys
-import iree.runtime
-from typing import List
-from pathlib import Path
 import tempfile
 import torch
-import iree.compiler
-import gc
 
+from pathlib import Path
+from sharktank import ops
 from sharktank.models.punet.testing import (
     export_sharded_toy_resnet_block_iree_test_data,
 )
 from sharktank.types import *
-from sharktank import ops
-
 from sharktank.utils.iree import (
-    with_iree_device_context,
     get_iree_devices,
-    load_iree_module,
-    run_iree_module_function,
-    prepare_iree_module_function_args,
     iree_to_torch,
+    load_iree_module,
+    prepare_iree_module_function_args,
+    run_iree_module_function,
+    with_iree_device_context,
 )
+from typing import List
 
 
 def get_compiler_args(target_device_kind: str, shard_count: int) -> List[str]:
