@@ -39,7 +39,7 @@ class MoeBlock(ThetaLayer):
         score_experts=softmax,
         normalize_experts=True,
         add_residual=True,
-        route_scale: Optional[float] = None,
+        route_scale: Optional[float] = 1.0,
     ):
         super().__init__(theta)
         self.expert_used_count = expert_used_count

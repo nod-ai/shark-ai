@@ -241,17 +241,6 @@ class AttentionFFNBlock(ThetaLayer):
     ):
         super().__init__(theta)
 
-        moe_activation_map = {
-            "grok": (torch.nn.functional.gelu, True),
-            "llama": (torch.nn.functional.silu, True),
-            "deepseek": (torch.nn.functional.silu, False),
-        }
-
-        func_map = {
-            "sigmoid": (torch.nn.functional.sigmoid, True),
-            "softmax": (torch.nn.functional.softmax, False),
-        }
-
         self.add_module(
             "attn",
             PagedLlamaAttentionBlock(
@@ -269,9 +258,34 @@ class AttentionFFNBlock(ThetaLayer):
             ),
         )
 
+        moe_func_map = {
+            "llama": (
+                torch.nn.functional.softmax,
+                torch.nn.functional.silu,
+                True,
+                False,
+            ),
+            "grok": (
+                torch.nn.functional.softmax,
+                torch.nn.functional.gelu,
+                True,
+                False,
+            ),
+            "deepseek2": (
+                torch.nn.functional.sigmoid,
+                torch.nn.functional.silu,
+                False,
+                True,
+            ),
+        }
+
         if config.hp.expert_count:
-            score_experts, normalize_experts = func_map[config.hp.expert_score_func]
-            moe_activation, add_residual = moe_activation_map[config.hp.model_arch]
+            (
+                score_experts,
+                moe_activation,
+                add_residual,
+                normalize_experts,
+            ) = moe_func_map[config.hp.model_arch]
 
             self.add_module(
                 "moe",
@@ -281,7 +295,6 @@ class AttentionFFNBlock(ThetaLayer):
                     rms_epsilon=config.hp.attention_layer_norm_rms_epsilon,
                     moe_activation=moe_activation,
                     add_residual=add_residual,
-                    route_scale=config.hp.route_scale,
                     score_experts=score_experts,
                     normalize_experts=normalize_experts,
                 ),
