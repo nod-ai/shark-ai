@@ -38,7 +38,7 @@ def greedy_token_selection_strategy():
     )
 
 
-def batcher_workitem_cb():
+def batcher_workitem_cb(_: int):
     pass
 
 

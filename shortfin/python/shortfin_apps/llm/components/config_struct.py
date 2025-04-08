@@ -12,8 +12,6 @@ Classes:
 - ServerParams: for specifying config keys needed by `python -m shortfin_apps.llm.server`
 """
 
-import json
-import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -23,7 +21,8 @@ from dataclasses_json import dataclass_json, Undefined
 
 import shortfin.array as sfnp
 
-from .token_selection_strategy import DecodeConfig
+from .token_selection_strategy.config import DecodeConfig
+from .token_selection_strategy.config import LogitsNormalization
 
 
 def _decode_dtype(name: str) -> sfnp.DType:
@@ -137,7 +136,7 @@ class ModelParams:
     # ABI of the module.
     module_abi_version: int = 1
 
-    logits_normalization: str = "none"
+    logits_normalization: LogitsNormalization = LogitsNormalization.NONE
 
     # The element type of the attention caches.
     attn_dtype: sfnp.DType = sfnp.float16
