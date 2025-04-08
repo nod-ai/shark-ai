@@ -39,7 +39,7 @@ class GreedyTokenSelectionStrategy(BaseTokenSelectionStrategy):
             exec_req (LlmInferenceExecRequest): Execution request that has had prefill invoked on it.
         """
         config = self.token_selection_strategy_config
-        config.decode_begin_callback()
+        config.decode_begin_callback(1)
         for _ in range(config.max_completion_tokens):
             exec_req.reset(InferencePhase.DECODE)
             config.decode_callback(exec_req)
@@ -51,4 +51,4 @@ class GreedyTokenSelectionStrategy(BaseTokenSelectionStrategy):
                 break
             exec_req.input_token_ids.append(token_int)
             exec_req.start_position += 1
-        config.decode_end_callback()
+        config.decode_end_callback(1)

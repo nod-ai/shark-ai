@@ -270,16 +270,12 @@ def _embedding_lookup_trampoline(
 
 @overridable
 def equal(a: AnyTensor, b: AnyTensor) -> bool:
-    """Compares 2 tensors for equality, such that if one is substituted with the other
-    in sharktank polymorphic calls, the results will be essentially the same.
-    Meaning, they would also compare equal.
+    """Compares 2 tensors for equality, such that they elements and dtype are equal.
 
     Overrides are matched first against both tensor types and failing that,
     then on just the first.
     Therefore, each first-only argument override must internally decide whether
     it can handle an equality check with an arbitrary b tensor.
-
-    torch.Tensor and DefaultPrimitiveTensor with the same contents would compare equal.
     """
     ...
 

@@ -56,7 +56,7 @@ class BatchConsistencyTestProcess(sf.Process):
                     rid=f"test-{batch_size}",
                 )
                 prefill_req.return_host_array = True
-                self.service.batcher.submit(prefill_req)
+                self.service.prefill_batcher.submit(prefill_req)
                 await prefill_req.done
                 first_token = np.argmax(prefill_req.result_logits.items)
                 result_sequence = [first_token]
@@ -66,7 +66,7 @@ class BatchConsistencyTestProcess(sf.Process):
                     decode_req.reset(InferencePhase.DECODE)
                     decode_req.input_token_ids.append(first_token)
                     decode_req.start_position += 1
-                    self.service.batcher.submit(decode_req)
+                    self.service.decode_batcher.submit(decode_req)
                     await decode_req.done
                     next_token = np.argmax(decode_req.result_logits.items)
                     result_sequence.append(next_token)

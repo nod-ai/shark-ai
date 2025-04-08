@@ -526,16 +526,6 @@ def embedding_lookup_default(
     return ReplicatedTensor(ts=shards)
 
 
-@equal.override(ReplicatedTensor)
-def equal_replicated(a: ReplicatedTensor, b: AnyTensor) -> bool:
-    return a.is_deep_equal(b)
-
-
-@equal.override(SplitPrimitiveTensor)
-def equal_split(a: SplitPrimitiveTensor, b: AnyTensor) -> bool:
-    return a.is_deep_equal(b)
-
-
 @expand.override(ReplicatedTensor)
 def expand_replicated(tensor: ReplicatedTensor, shape: List[int]) -> ReplicatedTensor:
     shards = [expand(shard, shape) for shard in tensor.shards]

@@ -8,8 +8,11 @@ from typing import Callable, List, Union
 
 from .base_token_selection_strategy import (
     BaseTokenSelectionStrategy,
-    DecodeConfig,
     TokenSelectionStrategyConfig,
+)
+
+from .config import (
+    DecodeConfig,
     TokenSelectionStrategy,
     get_strategy_from_str,
     is_ref_counted,
@@ -17,8 +20,6 @@ from .base_token_selection_strategy import (
 from .greedy_token_selection_strategy import GreedyTokenSelectionStrategy
 from .multi_greedy_token_selection_strategy import MultiGreedyTokenSelectionStrategy
 from .beam_search_token_selection_strategy import BeamSearchTokenSelectionStrategy
-
-from ..messages import LlmInferenceExecRequest
 
 
 def build_token_selector_config(
