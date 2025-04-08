@@ -4,20 +4,20 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import Any, List
-from pathlib import Path
-import torch
-import functools
 from iree.turbine import aot
-
-from sharktank.types.tensors import *
-from sharktank.types.theta import Theta, Dataset
-from sharktank.utils.testing import make_rand_torch
+from pathlib import Path
+from sharktank import ops
 from sharktank.models.punet.layers import ResnetBlock2D
 from sharktank.models.punet.sharding import ResnetBlock2DSplitOutputChannelsSharding
-from sharktank import ops
 from sharktank.transforms.dataset import set_float_dtype
+from sharktank.types.tensors import *
+from sharktank.types.theta import Theta, Dataset
 from sharktank.utils.iree import flatten_for_iree_signature
+from sharktank.utils.testing import make_rand_torch
+from typing import Any, List
+
+import functools
+import torch
 
 
 def make_conv2d_layer_theta(
