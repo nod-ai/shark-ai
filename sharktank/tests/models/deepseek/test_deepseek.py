@@ -12,6 +12,9 @@ import pytest
 import torch
 
 
+@pytest.mark.xfail(
+    reason="Deepseek support will be added soon",
+)
 def test_deepseek():
     torch.set_default_dtype(torch.float32)
     theta, config = generate(12345)

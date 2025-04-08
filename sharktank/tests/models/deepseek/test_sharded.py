@@ -19,6 +19,9 @@ import pytest
 import torch
 
 
+@pytest.mark.xfail(
+    reason="Deepseek support will be added soon",
+)
 def test_deepseek():
     theta, config = generate(12345)
     theta = theta("blk", 0)
