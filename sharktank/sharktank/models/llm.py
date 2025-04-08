@@ -241,6 +241,10 @@ class AttentionFFNBlock(ThetaLayer):
     ):
         super().__init__(theta)
 
+        attention_kernel = (
+            "decomposed" if config.hp.model_arch == "grok" else config.attention_kernel
+        )
+
         self.add_module(
             "attn",
             PagedLlamaAttentionBlock(
@@ -252,7 +256,7 @@ class AttentionFFNBlock(ThetaLayer):
                 head_count_kv=config.hp.attention_head_count_kv,
                 rms_epsilon=config.hp.attention_layer_norm_rms_epsilon,
                 attention_dtype=config.attention_dtype,
-                attention_kernel=config.attention_kernel,
+                attention_kernel=attention_kernel,
                 fake_quant=fake_quant,
                 softcap=config.hp.attention_softcap,
             ),
