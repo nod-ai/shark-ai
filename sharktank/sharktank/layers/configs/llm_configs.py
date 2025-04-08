@@ -57,9 +57,6 @@ class LlamaHParams:
     kv_latent_dim: Optional[int] = None
     v_head_dim: Optional[int] = None
 
-    # Expert configs - Deep seek Specific
-    route_scale: Optional[float] = None
-
     # Grok configurations
     attention_softcap: Optional[float] = None
 
@@ -70,7 +67,6 @@ class LlamaHParams:
         default_expert_used_count = 0
         default_rope_freq_base = 500000.0
         default_rope_dimension_count = 128
-        default_route_scale = 1
         attention_head_count = _int_prop(p, f"{name_prefix}.attention.head_count")
         rope_dimension_count = _optional_int_prop(
             p, f"{name_prefix}.rope.dimension_count", default_rope_dimension_count
@@ -101,9 +97,6 @@ class LlamaHParams:
             ),
             expert_used_count=_optional_int_prop(
                 p, f"{name_prefix}.expert_used_count", default_expert_used_count
-            ),
-            route_scale=_optional_int_prop(
-                p, f"{name_prefix}.route_scale", default_route_scale
             ),
             attention_softcap=attention_softcap,
         )
