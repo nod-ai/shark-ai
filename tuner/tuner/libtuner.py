@@ -457,30 +457,38 @@ def create_worker_context_queue(device_ids: list[str]) -> queue.Queue[tuple[int,
     return worker_contexts_queue
 
 
+def link_td_specs_with_outpath(starter_td_spec_str: str, output_path: Path) -> None:
+    iree_opt = ireec.binaries.find_tool("iree-opt")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        input_path = os.path.join(tmpdir, "tmp_input.mlir")
+        with open(input_path, "w") as f:
+            f.write(starter_td_spec_str)
+
+        link_result = subprocess.run(
+            [
+                iree_opt,
+                "--iree-codegen-link-tuning-specs",
+                input_path,
+                "-o",
+                output_path,
+            ],
+            capture_output=True,
+            text=True,
+        )
+
+        if link_result.returncode != 0:
+            raise RuntimeError(f"iree-opt failed: {link_result.stderr}")
+
+
 def run_iree_compile_command(compile_pack: CompilePack) -> Optional[int]:
     candidate_tracker = compile_pack.candidate_tracker
     assert candidate_tracker.spec_path, "expected candidate spec path"
 
     if candidate_tracker.starter_td_spec_str is not None:
-        iree_opt = ireec.binaries.find_tool("iree-opt")
-        with tempfile.TemporaryDirectory() as tmpdir:
-            input_path = os.path.join(tmpdir, "tmp_input.mlir")
-            with open(input_path, "w") as f:
-                f.write(candidate_tracker.starter_td_spec_str)
-            link_result = subprocess.run(
-                [
-                    iree_opt,
-                    "--iree-codegen-link-tuning-specs",
-                    input_path,
-                    "-o",
-                    candidate_tracker.spec_path,
-                ],
-                capture_output=True,
-                text=True,
-            )
-
-            if link_result.returncode != 0:
-                raise RuntimeError(f"iree-opt failed: {link_result.stderr}")
+        link_td_specs_with_outpath(
+            candidate_tracker.starter_td_spec_str,
+            candidate_tracker.spec_path,
+        )
 
     # Compile to vmfb.
     td_spec_path = candidate_tracker.spec_path.as_posix()
@@ -744,14 +752,11 @@ def generate_candidate_specs(
 
             starter_td_spec_str: Optional[str] = None
             if starter_td_spec is not None:
-                td_specs: list[ir.Module] = []
-                td_specs.append(spec)
-                td_specs.append(starter_td_spec)
+                td_specs: list[ir.Module] = [spec, starter_td_spec]
                 # Only log duplicate matchers during the first iteration.
-                log_duplicates = candidate_num == 0
                 td_specs_to_link = determine_td_specs_to_link(
                     td_specs,
-                    log_duplicates=log_duplicates,
+                    log_duplicates=(candidate_num == 0),
                 )
 
                 if len(td_specs_to_link) != 1:
