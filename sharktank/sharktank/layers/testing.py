@@ -177,7 +177,7 @@ def make_mmdit_double_block_random_theta(
             ),
             "txt_mod.lin.weight": DefaultPrimitiveTensor(
                 data=make_rand_torch((modulation_size, hidden_size), dtype=dtype)
-            ),
+            )
         }
     )
 
