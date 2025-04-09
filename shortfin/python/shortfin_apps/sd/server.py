@@ -22,6 +22,8 @@ from shortfin.support.logging_setup import native_handler
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
+from shortfin_apps.utilities.artifacts import fetch_modules
+
 from .components.generate import ClientGenerateBatchProcess
 from .components.config_struct import ModelParams
 from .components.io_struct import GenerateReqInput
@@ -29,8 +31,8 @@ from .components.manager import SDXLSystemManager
 from .components.service import SDXLGenerateService
 from .components.tokenizer import Tokenizer
 from .components.config_artifacts import get_configs
-from .components.builders import get_modules
 
+sharktank_installed = True
 
 logger = logging.getLogger("shortfin-sd")
 logger.addHandler(native_handler)
@@ -133,25 +135,13 @@ def configure_sys(args) -> SDXLSystemManager:
     return sysman, artifacts
 
 
-def configure_service(args, sysman, model_config, flagfile, tuning_spec):
+def configure_service(args, vmfbs, params, sysman, model_config, flagfile, tuning_spec):
     # Setup each service we are hosting.
     tokenizers = []
     for idx, tok_name in enumerate(args.tokenizers):
         subfolder = f"tokenizer_{idx + 1}" if idx > 0 else "tokenizer"
         tokenizers.append(Tokenizer.from_pretrained(tok_name, subfolder))
     model_params = ModelParams.load_json(model_config)
-    vmfbs, params = get_modules(
-        args.target,
-        args.device,
-        model_config,
-        flagfile,
-        tuning_spec,
-        args.compile_flags,
-        args.artifacts_dir,
-        args.splat,
-        args.build_preference,
-        args.force_update,
-    )
 
     sm = SDXLGenerateService(
         name="sd",
@@ -202,7 +192,7 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
         "--device",
         type=str,
         required=True,
-        choices=["local-task", "hip", "amdgpu"],
+        choices=["local-task", "amdgpu"],
         help="Primary inferencing device.",
     )
     parser.add_argument(
@@ -336,8 +326,40 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
 
     global sysman
     sysman, artifacts = configure_sys(args)
+
+    vmfbs, params, needed = fetch_modules(
+        args.target,
+        args.device,
+        "sdxl",
+        artifacts["model_config"],
+        args.artifacts_dir,
+        args.splat,
+    )
+    if needed and sharktank_installed:
+        from sharktank.exports.sdxl.builder import get_modules
+
+        vmfbs, params = get_modules(
+            vmfbs,
+            params,
+            args.target,
+            args.device,
+            model_config,
+            flagfile,
+            tuning_spec,
+            args.compile_flags,
+            args.artifacts_dir,
+            args.splat,
+            args.build_preference,
+            args.force_update,
+        )
+
+    elif needed and not sharktank_installed:
+        raise FileNotFoundError(str(needed.values()))
+
     configure_service(
         args,
+        vmfbs,
+        params,
         sysman,
         artifacts["model_config"],
         artifacts["flagfile"],

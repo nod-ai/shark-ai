@@ -72,7 +72,6 @@ def download_configs(artifacts_dir, model):
     ]
     outs = subprocess.check_output(cfg_builder_args).decode()
     outs_paths = outs.splitlines()
-    print(outs_paths)
 
     return outs_paths
 

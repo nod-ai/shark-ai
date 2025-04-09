@@ -213,48 +213,56 @@ def get_params_filename(model_params: ModelParams, model=None, splat: bool = Fal
 
 
 def get_file_stems(model_params: ModelParams) -> list[str]:
+    # TODO: Make this a service-agnostic common utility.
     file_stems = []
-    base = (
-        ["stable_diffusion_xl_base_1_0"]
-        if model_params.base_model_name.lower() == "sdxl"
-        else [create_safe_name(model_params.base_model_name)]
-    )
-    if model_params.use_scheduled_unet:
-        denoise_dict = {
-            "scheduled_unet": "scheduled_unet",
-        }
-    elif model_params.use_punet:
-        denoise_dict = {
-            "unet": "punet",
-            "scheduler": model_params.scheduler_id + "Scheduler",
-        }
-    else:
-        denoise_dict = {
-            "unet": "unet",
-            "scheduler": model_params.scheduler_id + "Scheduler",
-        }
+
+    # Create a dictionary of service components and their filename UIDs.
     mod_names = {
         "clip": "clip",
         "vae": "vae",
     }
-    mod_names.update(denoise_dict)
+    if model_params.use_scheduled_unet:
+        mod_names.update(
+            {
+                "scheduled_unet": "scheduled_unet",
+            }
+        )
+    else:
+        mod_names.update(
+            {
+                "unet": "punet",
+                "scheduler": model_params.scheduler_id + "Scheduler",
+            }
+        )
+
+    base = create_safe_name(model_params.base_model_name)
+
     for mod, modname in mod_names.items():
+        # Given parametrizations from model config, compile an exhaustive list of unique module file stems matching the configuration.
         ord_params = [
             base,
             [modname],
         ]
+
+        # Batch sizes.
         bsizes = []
         for bs in model_params.batch_sizes[mod]:
             bsizes.extend([f"bs{bs}"])
         ord_params.extend([bsizes])
+
+        # Sequence length.
         if mod in ["scheduled_unet", "unet", "clip"]:
             ord_params.extend([[str(model_params.max_seq_len)]])
+
+        # Output image dims.
         if mod in ["scheduled_unet", "unet", "vae", "scheduler"]:
             dims = []
             for dim_pair in model_params.dims:
                 dim_pair_str = [str(d) for d in dim_pair]
                 dims.extend(["x".join(dim_pair_str)])
             ord_params.extend([dims])
+
+        # Precision.
         if mod == "scheduler":
             dtype_str = dtype_to_filetag[model_params.unet_dtype]
         elif "unet" not in modname:
@@ -264,8 +272,11 @@ def get_file_stems(model_params: ModelParams) -> list[str]:
         else:
             dtype_str = model_params.unet_quant_dtype
         ord_params.extend([[dtype_str]])
+
+        # Generate file stems.
         for x in list(itertools.product(*ord_params)):
             file_stems.extend(["_".join(x)])
+
     return file_stems
 
 
