@@ -60,12 +60,15 @@ def get_mlir_filenames(model_params: ModelParams, model=None) -> list:
 
 
 def get_vmfb_filenames(
-    model_params: ModelParams, model=None, target: str = "amdgpu-gfx942"
+    model_params: ModelParams,
+    model=None,
+    target: str = "gfx942",
+    driver: str = "amdgpu",
 ) -> list:
     vmfb_filenames = []
     file_stems = get_file_stems(model_params)
     for stem in file_stems:
-        vmfb_filenames.extend([stem + "_" + target + ".vmfb"])
+        vmfb_filenames.extend([stem + "_" + target + "_" + driver + ".vmfb"])
     return filter_by_model(vmfb_filenames, model)
 
 
@@ -224,8 +227,8 @@ def needs_file(filename, ctx, url=None, namespace=FileNamespace.GEN) -> bool:
     return True
 
 
-def needs_compile(filename, target, ctx) -> bool:
-    vmfb_name = f"{filename}_{target}.vmfb"
+def needs_compile(filename, target, driver, ctx) -> bool:
+    vmfb_name = f"{filename}_{target}_{driver}.vmfb"
     namespace = FileNamespace.BIN
     return needs_file(vmfb_name, ctx, namespace=namespace)
 
@@ -361,15 +364,16 @@ def sdxl(
     model_params = ModelParams.load_json(model_json)
     ctx = executor.BuildContext.current()
     update = needs_update(ctx)
+    driver = "amdgpu" if "gfx" in target else "cpu"
 
     mlir_bucket = SDXL_BUCKET + "mlir/"
     vmfb_bucket = SDXL_BUCKET + "vmfbs/"
-    if "gfx" in target:
-        target = "amdgpu-" + target
 
     params_filename = get_params_filename(model_params, model=model, splat=splat)
     mlir_filenames = get_mlir_filenames(model_params, model)
-    vmfb_filenames = get_vmfb_filenames(model_params, model=model, target=target)
+    vmfb_filenames = get_vmfb_filenames(
+        model_params, model=model, target=target, driver=driver
+    )
 
     if build_preference == "export":
         from iree.turbine.aot.build_actions import turbine_generate
@@ -452,18 +456,19 @@ def sdxl(
     if build_preference != "precompiled":
         for idx, f in enumerate(copy.deepcopy(vmfb_filenames)):
             # We return .vmfb file stems for the compile builder.
-            file_stem = "_".join(f.split("_")[:-1])
-            if needs_compile(file_stem, target, ctx) or force_update:
+            mlir_stem = "_".join(f.split("_")[:-2])
+            vmfb_stem = f.split(f"_{driver}.vmfb")[0]
+            if needs_file(f, ctx, namespace=FileNamespace.BIN) or force_update:
                 for mlirname in mlir_filenames:
-                    if file_stem in mlirname:
+                    if mlir_stem in mlirname:
                         mlir_source = mlirname
                         break
-                obj = compile(name=file_stem, source=mlir_source)
+                if not mlir_source:
+                    raise FileNotFoundError(f"MLIR source for {f} not found.")
+                obj = compile(name=vmfb_stem, source=mlir_source)
                 vmfb_filenames[idx] = obj[0]
             else:
-                vmfb_filenames[idx] = get_cached(
-                    f"{file_stem}_{target}.vmfb", ctx, FileNamespace.BIN
-                )
+                vmfb_filenames[idx] = get_cached(f, ctx, FileNamespace.BIN)
     else:
         vmfb_urls = get_url_map(vmfb_filenames, vmfb_bucket)
         for f, url in vmfb_urls.items():
