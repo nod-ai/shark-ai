@@ -4,7 +4,7 @@ Author: Jakub Kuderski @kuhar
 
 Date: 2024-06-24
 
-Last Update: 2024-11-22
+Last Update: 2025-04-08
 
 ## Introduction
 
@@ -30,6 +30,7 @@ For official documentation, see:
   Whitepaper](https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/white-papers/amd-cdna-3-white-paper.pdf)
 * [ROCm Optimization Guide for LLM
   Inference](https://rocm.docs.amd.com/en/latest/how-to/llm-fine-tuning-optimization/index.html)
+* [MI300 Compute and Memory Partitioning Modes](https://rocm.blogs.amd.com/software-tools-optimization/compute-memory-modes/README.html)
 
 For third-party documentation, see:
 * [Introduction to
@@ -83,6 +84,19 @@ A kernel is dispatched to one or more CUs.
 
 Each XCD has its own L2 cache and is connected to LLC cache (a.k.a. MALL:
 memory-attached last-level, a.k.a 'Infinity Cache') via its IOD.
+
+### MI300X Memory Bandwidth
+
+The GPU comes with 8 stacks of HBM3 memory, with each IOD is connected to two
+HBM stacks. The memory interface width is 8192 bits or 1024 bytes. HBM3 supports
+Quad Data Rate (QDR), which brings the theoretical peak bandwidth to:
+
+```
+1300 MHz * 1024 B * 4 = 5.2 TB/s
+```
+
+To achieve bandwidths close to the peak, the kernel code must, at minimum, engage
+all 4 IODs.
 
 ### MI300X Cache Hierarchy
 

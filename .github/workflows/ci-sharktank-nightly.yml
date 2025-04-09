@@ -136,6 +136,7 @@ jobs:
             -v \
             -s \
             sharktank/tests/evaluate/perplexity_iree_test.py \
+            -m "expensive" \
             --run-nightly-llama-tests \
             --bs=100 \
             --iree-device=hip://0 \

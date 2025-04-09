@@ -23,17 +23,17 @@ concurrency:
 
 jobs:
   test:
-    name: "Unit Tests (${{ matrix.os }}, ${{ matrix.python-version }}, ${{ matrix.torch-version }})"
+    name: "Unit Tests (${{ matrix.runs-on }}, ${{ matrix.python-version }}, ${{ matrix.torch-version }})"
     strategy:
       matrix:
         python-version: ["3.11", "3.12"]
         torch-version: ["2.3.0", "2.4.1", "2.5.1"]
-        os: [ubuntu-24.04]
+        runs-on: [ubuntu-24.04]
         include:
-          - os: windows-2022
+          - runs-on: windows-2022
             python-version: "3.11"
             torch-version: "2.3.0"
-          - os: windows-2022
+          - runs-on: windows-2022
             python-version: "3.12"
             torch-version: "2.4.1"
         exclude:
@@ -41,7 +41,7 @@ jobs:
              # `torch.compile` requires torch>=2.4.0 for Python 3.12+
             torch-version: "2.3.0"
       fail-fast: false
-    runs-on: ${{matrix.os}}
+    runs-on: ${{matrix.runs-on}}
     defaults:
       run:
         shell: bash
@@ -64,7 +64,7 @@ jobs:
           key: pip-${{ steps.setup_python.outputs.python-version }}-${{ hashFiles('*requirements*.txt','sharktank/requirements*.txt') }}
 
       - name: Install numpy
-        if: ${{ matrix.os == 'windows-2022' && matrix.torch-version == '2.3.0' }}
+        if: ${{ matrix.runs-on == 'windows-2022' && matrix.torch-version == '2.3.0' }}
         run: pip install "numpy<2.0"
 
       - name: Install pip deps
@@ -85,8 +85,72 @@ jobs:
       - name: Run sharktank tests
         if: ${{ !cancelled() }}
         run: |
-          pytest -n 4 sharktank/ --durations=10
+          pytest -n 4 sharktank/ \
+            --durations=10 \
+            --log-cli-level=info \
+            -v
 
+  test-mi300x:
+    name: "Unit Tests (${{ matrix.runs-on }}, ${{ matrix.python-version }}, ${{ matrix.torch-version }})"
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+        torch-version: ["2.5.1"]
+        iree-target-args: ["--iree-hip-target=gfx942 --iree-hal-target-device=hip"]
+        runs-on: [linux-mi300-1gpu-ossci-nod-ai]
+      fail-fast: false
+    runs-on: ${{matrix.runs-on}}
+    defaults:
+      run:
+        shell: bash
+    env:
+      PIP_CACHE_DIR: "${{ github.workspace }}/.pip-cache"
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: "Setting up Python"
+        id: setup_python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: ${{matrix.python-version}}
+
+      - name: Cache Pip Packages
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        id: cache-pip
+        with:
+          path: ${{ env.PIP_CACHE_DIR }}
+          key: pip-${{ steps.setup_python.outputs.python-version }}-${{ hashFiles('*requirements*.txt','sharktank/requirements*.txt') }}
+
+      - name: Install numpy
+        if: ${{ matrix.runs-on == 'windows-2022' && matrix.torch-version == '2.3.0' }}
+        run: pip install "numpy<2.0"
+
+      - name: Install pip deps
+        run: |
+          python -m pip install --no-compile --upgrade pip
+
+          # Note: We install in three steps in order to satisfy requirements
+          # from non default locations first.
+          pip install --no-compile \
+            --index-url https://download.pytorch.org/whl/cpu torch==${{matrix.torch-version}}+cpu
+          pip install -r requirements-iree-pinned.txt
+          pip install --no-compile \
+            -r sharktank/requirements-tests.txt \
+            -e sharktank/
+
+          pip freeze
+
+      - name: Run sharktank tests
+        if: ${{ !cancelled() }}
+        run: |
+          pytest sharktank/ \
+            --durations=10 \
+            --capture=no \
+            --log-cli-level=info \
+            -v \
+            --iree-hal-target-device=hip \
+            --iree-hip-target=gfx942 \
+            --iree-device=hip://0
 
   test_with_data:
     name: "Data-dependent Tests"

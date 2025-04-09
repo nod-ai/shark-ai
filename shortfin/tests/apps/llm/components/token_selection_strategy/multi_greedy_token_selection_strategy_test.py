@@ -25,8 +25,8 @@ from shortfin_apps.llm.components.token_selection_strategy import (
     MultiGreedyTokenSelectionStrategy,
     TokenSelectionStrategy,
 )
-from shortfin_apps.llm.components.token_selection_strategy.multi_greedy_token_selection_strategy import (
-    MultiGreedyBeam,
+from shortfin_apps.llm.components.token_selection_strategy.greedy_token_selection_strategy import (
+    GreedyBeam,
 )
 
 logger = logging.getLogger(__name__)
@@ -54,8 +54,8 @@ def multi_greedy_token_selection_strategy():
 
 
 @pytest.fixture(scope="function")
-def multi_greedy_beam(exec_req):
-    yield MultiGreedyBeam(
+def greedy_beam(exec_req):
+    yield GreedyBeam(
         exec_req,
     )
 
@@ -67,35 +67,8 @@ class FakeBatcher:
         self.complete_workitem = workitem_cb
 
 
-def _batcher_workitem_callback():
+def _batcher_workitem_callback(_: int):
     pass
-
-
-def test_multi_greedy_beam_sample_logits(device, multi_greedy_beam):
-    src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
-    data = [float(i) for i in range(math.prod(src.shape))]
-    src.items = data
-
-    multi_greedy_beam.exec_req.result_logits = src
-    token = multi_greedy_beam.sample_logits()
-    assert token == 15
-
-    data[10] = 42.0
-    src.items = data
-    multi_greedy_beam.exec_req.result_logits == src
-    token = multi_greedy_beam.sample_logits()
-    assert token == 10
-
-
-def test_multi_greedy_update_exec_req(multi_greedy_beam):
-    last_token = 42
-    expected_start_position = multi_greedy_beam.exec_req.start_position + 1
-
-    multi_greedy_beam.last_token = last_token
-    multi_greedy_beam.update_exec_req()
-
-    assert multi_greedy_beam.exec_req.input_token_ids[-1] == last_token
-    assert multi_greedy_beam.exec_req.start_position == expected_start_position
 
 
 def test_select_greedy(device, exec_req_list, multi_greedy_token_selection_strategy):
@@ -108,7 +81,7 @@ def test_select_greedy(device, exec_req_list, multi_greedy_token_selection_strat
         exec_req.result_logits = src
         count += 1
 
-    beams = [MultiGreedyBeam(exec_req) for exec_req in exec_req_list]
+    beams = [GreedyBeam(exec_req) for exec_req in exec_req_list]
     selections = multi_greedy_token_selection_strategy.select_greedy(beams, [])
     assert len(selections) == len(beams)
 
@@ -139,6 +112,7 @@ async def test_multi_greedy_decode_single(
     decode_config = DecodeConfig(
         token_selection_strategy=TokenSelectionStrategy.MULTI_GREEDY,
         num_beams=2,
+        max_completion_tokens=1,
     )
     config = build_token_selector_config(
         decode_config,
@@ -146,7 +120,6 @@ async def test_multi_greedy_decode_single(
         decode_batcher=FakeBatcher(_batcher_callback, _batcher_workitem_callback),
         results_callback=_results_callback,
         eos_token_id=-1,
-        max_completion_tokens=1,
     )
 
     allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache)
@@ -211,6 +184,7 @@ async def test_multi_greedy_decode_multiple_completions(
     decode_config = DecodeConfig(
         token_selection_strategy=TokenSelectionStrategy.MULTI_GREEDY,
         num_beams=2,
+        max_completion_tokens=5,
     )
     config = build_token_selector_config(
         decode_config,
@@ -222,7 +196,6 @@ async def test_multi_greedy_decode_multiple_completions(
         ),
         results_callback=_results_callback,
         eos_token_id=-1,
-        max_completion_tokens=5,
     )
 
     allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache)
@@ -286,6 +259,7 @@ async def test_multi_greedy_decode_eos_token(
     decode_config = DecodeConfig(
         token_selection_strategy=TokenSelectionStrategy.MULTI_GREEDY,
         num_beams=2,
+        max_completion_tokens=5,
     )
     config = build_token_selector_config(
         decode_config,
@@ -297,7 +271,6 @@ async def test_multi_greedy_decode_eos_token(
         ),
         results_callback=_results_callback,
         eos_token_id=-1,
-        max_completion_tokens=5,
     )
 
     allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache)

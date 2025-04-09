@@ -13,6 +13,7 @@ from .base_token_selection_strategy import (
     TokenSelectionStrategyConfig,
 )
 from .beam_group import BeamGroup, Beam
+from .config import LogitsNormalization
 from ..messages import LlmInferenceExecRequest, InferencePhase
 
 from shortfin_apps.utils import convert_int_to_float
@@ -57,11 +58,17 @@ class BeamSearchBeam(Beam):
         Returns:
             Tuple[List[int], List[float]]: Tuple containing (top_tokens, top_values)
         """
-        # Take `log_softmax` of the logits.
-        # TODO (1196): Conditionally take `log_softmax` depending on
-        # model configuration.
-        # This is where we'd add an optional call to our `sampling` mechanism.
-        log_softmax_logits = sfnp.log_softmax(self.exec_req.result_logits)
+        self.apply_temperature()
+        if self.logits_normalization == LogitsNormalization.LOG_SOFTMAX:
+            log_softmax_logits = self.exec_req.result_logits
+        elif self.logits_normalization == LogitsNormalization.NONE:
+            log_softmax_logits = sfnp.log_softmax(self.exec_req.result_logits)
+        elif self.logits_normalization == LogitsNormalization.SOFTMAX:
+            log_softmax_logits = sfnp.log(self.exec_req.result_logits)
+        else:
+            raise ValueError(
+                f"Unknown logits normalization {self.logits_normalization}"
+            )
         return self._top_k(log_softmax_logits, -k)
 
     def update_score(self, log_prob: float):
@@ -131,10 +138,12 @@ class BeamSearchTokenSelectionStrategy(BaseTokenSelectionStrategy):
                     min_log_prob = value
 
                 new_beam = BeamSearchBeam(
-                    beam.exec_req,
+                    exec_req=beam.exec_req,
                     score=beam.score,
                     accumulated_normalization=beam.accumulated_normalization,
                     last_token=token,
+                    temperature=config.decode_config.temperature,
+                    logits_normalization=config.decode_config.logits_normalization,
                 )
                 new_beam.update_score(value)
                 selections.append(new_beam)
@@ -177,17 +186,35 @@ class BeamSearchTokenSelectionStrategy(BaseTokenSelectionStrategy):
         Args:
             exec_req (LlmInferenceExecRequest): Initial inference request, post prefill.
         """
+        logger.info("Starting `beam_search` decode loop...")
         config = self.token_selection_strategy_config
 
+        beam = BeamSearchBeam(
+            exec_req=exec_req,
+            temperature=config.decode_config.temperature,
+            logits_normalization=config.decode_config.logits_normalization,
+        )
         beam_group = BeamGroup(
             config.eos_token_id,
             config.decode_config.num_beams,
-            [BeamSearchBeam(exec_req)],
+            [beam],
             self.select_top_k,
         )
-        for _ in range(config.max_completion_tokens):
+
+        reservations = beam_group.active_beam_count
+        config.decode_begin_callback(reservations)
+        for _ in range(config.decode_config.max_completion_tokens):
             if not beam_group.active_beams:
                 break
+
+            active_beam_count = len(beam_group.active_beams)
+            if reservations > active_beam_count:
+                config.decode_end_callback(reservations - active_beam_count)
+                reservations = active_beam_count
+
+            if reservations < active_beam_count:
+                config.decode_begin_callback(active_beam_count - reservations)
+                reservations = active_beam_count
 
             for beam in beam_group.active_beams:
                 req = beam.exec_req
@@ -196,6 +223,7 @@ class BeamSearchTokenSelectionStrategy(BaseTokenSelectionStrategy):
             await beam_group.wait()
             beam_group.process_beams()
 
+        config.decode_end_callback(reservations)
         self.get_results(beam_group)
 
     def get_results(self, beam_group: BeamGroup):
