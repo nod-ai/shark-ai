@@ -259,7 +259,10 @@ def main():
 
                 tokens = ops.replicate(tokens, count=shard_count)
                 if attention_mask is not None:
-                    attention_mask = ops.replicate(attention_mask, count=shard_count)
+                    attention_mask = ReplicatedTensor(
+                        ts=[attention_mask for _ in range(shard_count)]
+                    )
+
                 seq_block_ids = ops.replicate(seq_block_ids, count=shard_count)
                 cache_tensors = repack_cache(cs, cache_shard_dim)
 
