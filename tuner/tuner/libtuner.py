@@ -67,7 +67,7 @@ class CandidateTracker:
     mlir_path: Optional[Path] = None
     compiled_vmfb_path: Optional[Path] = None
     spec_path: Optional[Path] = None
-    starter_td_spec_str: Optional[str] = None
+    td_spec_str: Optional[str] = None
 
 
 @dataclass()
@@ -457,12 +457,12 @@ def create_worker_context_queue(device_ids: list[str]) -> queue.Queue[tuple[int,
     return worker_contexts_queue
 
 
-def link_td_specs_with_outpath(starter_td_spec_str: str, output_path: Path) -> None:
+def flatten_nested_td_spec(td_spec_str: str, output_path: Path) -> None:
     iree_opt = ireec.binaries.find_tool("iree-opt")
     with tempfile.TemporaryDirectory() as tmpdir:
         input_path = os.path.join(tmpdir, "tmp_input.mlir")
         with open(input_path, "w") as f:
-            f.write(starter_td_spec_str)
+            f.write(td_spec_str)
 
         link_result = subprocess.run(
             [
@@ -484,9 +484,9 @@ def run_iree_compile_command(compile_pack: CompilePack) -> Optional[int]:
     candidate_tracker = compile_pack.candidate_tracker
     assert candidate_tracker.spec_path, "expected candidate spec path"
 
-    if candidate_tracker.starter_td_spec_str is not None:
-        link_td_specs_with_outpath(
-            candidate_tracker.starter_td_spec_str,
+    if candidate_tracker.td_spec_str is not None:
+        flatten_nested_td_spec(
+            candidate_tracker.td_spec_str,
             candidate_tracker.spec_path,
         )
 
@@ -750,7 +750,7 @@ def generate_candidate_specs(
                 candidate_num
             )
 
-            starter_td_spec_str: Optional[str] = None
+            td_spec_str: Optional[str] = None
             if starter_td_spec is not None:
                 td_specs: list[ir.Module] = [spec, starter_td_spec]
                 # Only log duplicate matchers during the first iteration.
@@ -760,7 +760,7 @@ def generate_candidate_specs(
                 )
 
                 if len(td_specs_to_link) != 1:
-                    starter_td_spec_str = str(
+                    td_spec_str = str(
                         combine_tuning_specs(
                             tuning_client.tuner_context, td_specs_to_link
                         )
@@ -776,7 +776,7 @@ def generate_candidate_specs(
                 mlir_path=path_config.template_mlir,
                 candidate_id=candidate_num,
                 spec_path=spec_path,
-                starter_td_spec_str=starter_td_spec_str,
+                td_spec_str=td_spec_str,
             )
             candidate_trackers.append(new_candidate)
     except Exception as e:
