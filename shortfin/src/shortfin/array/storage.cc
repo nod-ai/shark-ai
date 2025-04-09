@@ -75,7 +75,7 @@ storage storage::allocate_device(ScopedDevice &device,
       device.raw_device()->hal_device(), device.affinity().queue_affinity(),
       wait_semaphore_list, signal_semaphore_list,
       IREE_HAL_ALLOCATOR_POOL_DEFAULT, params, allocation_size,
-      buffer.for_output()));
+      IREE_HAL_ALLOCA_FLAG_NONE, buffer.for_output()));
   SHORTFIN_SCHED_LOG(
       "storage::allocate_device(device={}, affinity={:x}):[{}, Wait@{}->"
       "Signal:@{}] -> buffer={}",
