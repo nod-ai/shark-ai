@@ -335,7 +335,7 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
         args.artifacts_dir,
         args.splat,
     )
-    if needed and sharktank_installed:
+    if (needed or args.force_update) and sharktank_installed:
         from sharktank.exports.sdxl.builder import get_modules
 
         vmfbs, params = get_modules(
@@ -343,9 +343,9 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
             params,
             args.target,
             args.device,
-            model_config,
-            flagfile,
-            tuning_spec,
+            artifacts["model_config"],
+            artifacts["flagfile"],
+            artifacts["tuning_spec"],
             args.compile_flags,
             args.artifacts_dir,
             args.splat,

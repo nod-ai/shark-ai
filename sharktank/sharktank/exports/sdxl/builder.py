@@ -43,6 +43,8 @@ SDXL_WEIGHTS_BUCKET = (
 
 
 def get_modules(
+    vmfbs,
+    params,
     target,
     device,
     model_config,
@@ -56,17 +58,9 @@ def get_modules(
 ):
     mod_params = ModelParams.load_json(model_config)
 
-    vmfbs = {}
-    params = {}
-    model_flags = {}
-    for submodel in mod_params.module_names.keys():
-        vmfbs[submodel] = {}
-        model_flags[submodel] = []
-        for bs in mod_params.batch_sizes[submodel]:
-            vmfbs[submodel][bs] = []
-        if submodel != "scheduler":
-            params[submodel] = []
-    model_flags["all"] = extra_compile_flags
+    model_flags = {"all": extra_compile_flags}
+    for key in vmfbs.keys():
+        model_flags[key] = []
 
     if flagfile:
         with open(flagfile, "r") as f:
@@ -122,7 +116,7 @@ def get_modules(
         for key in vmfbs.keys():
             for bs in vmfbs[key].keys():
                 if key in name.lower() and f"_bs{bs}_" in name.lower():
-                    if "vmfb" in name:
+                    if "vmfb" in name and (name not in vmfbs[key][bs]):
                         vmfbs[key][bs].extend([name])
     return vmfbs, params
 
@@ -212,7 +206,7 @@ def get_params_filename(model_params: ModelParams, model=None, splat: bool = Fal
             )
 
 
-def get_file_stems(model_params: ModelParams) -> list[str]:
+def get_file_stems(model_params) -> list[str]:
     # TODO: Make this a service-agnostic common utility.
     file_stems = []
 
@@ -240,7 +234,7 @@ def get_file_stems(model_params: ModelParams) -> list[str]:
     for mod, modname in mod_names.items():
         # Given parametrizations from model config, compile an exhaustive list of unique module file stems matching the configuration.
         ord_params = [
-            base,
+            [base],
             [modname],
         ]
 
