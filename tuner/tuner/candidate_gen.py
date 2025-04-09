@@ -181,6 +181,7 @@ def generate_configs_and_td_specs(
     assert len(variant_op_list) == 1, "Expect one executable variant op"
     variant_op = variant_op_list[0]
     mma_list = iree_codegen.query_mma_intrinsics(variant_op)
+
     for i, config in enumerate(
         generate_solutions(
             tuner_context,

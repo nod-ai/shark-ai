@@ -241,7 +241,7 @@ class InferenceTensor(ABC):
         """Adds this tensor to the global archive."""
         ...
 
-    def is_deep_equal(self, other: Any) -> bool:
+    def is_deep_equal(self, other: Any, *, compare_name: bool = True) -> bool:
         """Deep equality including metadata and exact equality of tensor elements.
         It is a representational equality."""
         raise NotImplementedError()
@@ -459,6 +459,13 @@ class InferenceTensor(ABC):
 
         return get_index(self, key)
 
+    def _is_deep_equal(self, other: Any, compare_name: bool = True) -> bool:
+        if self.shape != other.shape:
+            return False
+        if compare_name and self.name != other.name:
+            return False
+        return True
+
 
 REGISTERED_INFERENCE_TENSOR_CLASSES: dict[str, Type[InferenceTensor]] = {}
 
@@ -575,10 +582,10 @@ class DefaultPrimitiveTensor(PrimitiveTensor):
     def __repr__(self):
         return f"PrimitiveTensor({self.name}, {self.shape}, {self._data.dtype})"
 
-    def is_deep_equal(self, other: Any) -> bool:
+    def is_deep_equal(self, other: Any, *, compare_name: bool = True) -> bool:
         if not isinstance(other, DefaultPrimitiveTensor):
             return False
-        if self.shape != other.shape or self.name != other.name:
+        if not self._is_deep_equal(other, compare_name=compare_name):
             return False
         return torch.equal(self.as_torch(), other.as_torch())
 
@@ -812,20 +819,27 @@ class ShardedTensor(InferenceTensor):
     def dtype(self) -> torch.dtype:
         return self.shards[0].dtype
 
+    @staticmethod
     def move_shards_to_new_devices(
-        self, shards: Tuple[torch.Tensor, ...], new_devices: Tuple[int, ...]
-    ) -> Tuple[torch.Tensor, ...]:
+        shards: Tuple[torch.Tensor | DefaultPrimitiveTensor, ...],
+        *,
+        old_devices: Tuple[int, ...],
+        new_devices: Tuple[int, ...],
+    ) -> Tuple[DefaultPrimitiveTensor, ...]:
         from ..ops import transfer_to_logical_device, barrier_on_logical_device
 
-        new_shards = tuple(
+        new_shard_tensors = tuple(
             (
                 transfer_to_logical_device(shard, new_devices[j])
-                if new_devices[j] != self.devices[j]
+                if new_devices[j] != old_devices[j]
                 else barrier_on_logical_device(shard, new_devices[j])
             )
             for j, shard in enumerate(shards)
         )
-        return new_shards
+        return tuple(
+            DefaultPrimitiveTensor(name=orig_dpt.name, data=new_shard_tensor)
+            for orig_dpt, new_shard_tensor in zip(shards, new_shard_tensors)
+        )
 
 
 @register_inference_tensor
@@ -935,15 +949,12 @@ class ShardedTensorBase(ShardedTensor):
             f"of {self.shards[0].shape})"
         )
 
-    def is_deep_equal(self, other: Any) -> bool:
+    def is_deep_equal(self, other: Any, compare_name: bool = True) -> bool:
         if type(self) != type(other):
             return False
-        if (
-            self.shard_count != other.shard_count
-            or self.shard_dim != other.shard_dim
-            or self.name != other.name
-            or self.shape != other.shape
-        ):
+        if self.shard_count != other.shard_count or self.shard_dim != other.shard_dim:
+            return False
+        if not self._is_deep_equal(other, compare_name=compare_name):
             return False
         return all(a.is_deep_equal(b) for a, b in zip(self.shards, other.shards))
 
@@ -1304,17 +1315,13 @@ class ReplicatedTensor(ShardedTensor):
             f"of {self.shards[0].shape})"
         )
 
-    def is_deep_equal(self, other: Any) -> bool:
+    def is_deep_equal(self, other: Any, *, compare_name: bool = True) -> bool:
         if not isinstance(other, ReplicatedTensor):
             return False
-        if (
-            self.shard_count != other.shard_count
-            or self.name != other.name
-            or self.shape != other.shape
-        ):
+        if self.shard_count != other.shard_count:
             return False
-        if self.shard_count == 0:
-            return True
+        if not self._is_deep_equal(other, compare_name=compare_name):
+            return False
         return self.shards[0].is_deep_equal(other.shards[0])
 
 
@@ -1375,6 +1382,10 @@ def unbox_tensor(t: Any) -> Tensor:
         return t.as_torch()
     elif isinstance(t, QuantizedTensor):
         return t.unpack().dequant()
+    elif isinstance(t, ShardedTensor):
+        from .. import ops
+
+        return unbox_tensor(ops.unshard(t))
     raise ValueError(f"Expected a Tensor or PrimitiveTensor but got {type(t)}")
 
 

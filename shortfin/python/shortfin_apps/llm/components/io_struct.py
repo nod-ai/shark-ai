@@ -11,9 +11,29 @@ Portions adapted from API definitions originating in:
 sglang: Copyright 2023-2024 SGLang Team, Licensed under the Apache License, Version 2.0
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Union
 import uuid
+
+# TODO: Should max, min, and default change based on the model being ran?
+MAX_TEMPERATURE = 2.0
+# Source: https://github.com/ggml-org/llama.cpp/blob/master/examples/main/README.md?#temperature
+DEFAULT_TEMPERATURE = 0.8
+MIN_TEMPERATURE = 0.1
+
+
+@dataclass
+class SamplingParams:
+    # Number of parallel samples
+    n: int = 1
+    # Max tokens to generate during decode loop
+    max_completion_tokens: int = 50
+    # Temperature to use during generation
+    temperature: float = DEFAULT_TEMPERATURE
+
+    def __post_init__(self):
+        # Ensure temperature is within acceptable range
+        self.temperature = min(MAX_TEMPERATURE, max(self.temperature, MIN_TEMPERATURE))
 
 
 # Adapted from:
@@ -28,7 +48,9 @@ class GenerateReqInput:
     # See also python/sglang/srt/utils.py:load_image.
     image_data: Optional[Union[List[str], str]] = None
     # The sampling_params. See descriptions below.
-    sampling_params: Union[List[Dict], Dict] = None
+    sampling_params: List[SamplingParams] | SamplingParams = field(
+        default_factory=SamplingParams
+    )
     # The request id.
     rid: Optional[Union[List[str], str]] = None
     # Whether to decode the response before returning it.
@@ -53,10 +75,7 @@ class GenerateReqInput:
             self.text is not None and self.input_ids is not None
         ):
             raise ValueError("Either text or input_ids should be provided.")
-        if (
-            isinstance(self.sampling_params, dict)
-            and self.sampling_params.get("n", 1) != 1
-        ):
+        if isinstance(self.sampling_params, list) or self.sampling_params.n > 1:
             is_single = False
         else:
             if self.text is not None:
@@ -66,8 +85,6 @@ class GenerateReqInput:
         self.is_single = is_single
 
         if is_single:
-            if self.sampling_params is None:
-                self.sampling_params = {}
             if self.rid is None:
                 self.rid = uuid.uuid4().hex
             if self.return_logprob is None:
@@ -78,11 +95,12 @@ class GenerateReqInput:
                 self.top_logprobs_num = 0
         else:
             parallel_sample_num_list = []
-            if isinstance(self.sampling_params, dict):
-                parallel_sample_num = self.sampling_params.get("n", 1)
-            elif isinstance(self.sampling_params, list):
-                for sp in self.sampling_params:
-                    parallel_sample_num = sp.get("n", 1)
+            sampling_params = self.sampling_params
+            if isinstance(sampling_params, SamplingParams):
+                parallel_sample_num = sampling_params.n
+            elif isinstance(sampling_params, list):
+                for sp in sampling_params:
+                    parallel_sample_num = sp.n
                     parallel_sample_num_list.append(parallel_sample_num)
                 parallel_sample_num = max(parallel_sample_num_list)
                 all_equal = all(
@@ -122,9 +140,7 @@ class GenerateReqInput:
             elif not isinstance(self.image_data, list):
                 self.image_data = [self.image_data] * num
 
-            if self.sampling_params is None:
-                self.sampling_params = [{}] * num
-            elif not isinstance(self.sampling_params, list):
+            if not isinstance(self.sampling_params, list):
                 self.sampling_params = [self.sampling_params] * num
 
             if self.rid is None:
@@ -147,3 +163,20 @@ class GenerateReqInput:
                 self.top_logprobs_num = [0] * num
             elif not isinstance(self.top_logprobs_num, list):
                 self.top_logprobs_num = [self.top_logprobs_num] * num
+
+
+@dataclass
+class GeneratedResponse:
+    text: str
+
+
+@dataclass
+class PromptResponse:
+    prompt: str
+
+    responses: list[GeneratedResponse]
+
+
+@dataclass
+class GenerateReqOutput:
+    responses: list[PromptResponse]

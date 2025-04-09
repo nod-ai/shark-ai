@@ -47,7 +47,7 @@ from sharktank.utils.testing import (
     make_rand_torch,
     make_random_mask,
     TempDirTestBase,
-    test_prompts,
+    get_test_prompts,
 )
 from sharktank.models.clip.export import (
     hugging_face_clip_attention_to_theta,
@@ -316,7 +316,7 @@ class ClipTextIreeTest(TempDirTestBase):
 
         tokenizer: CLIPTokenizer = CLIPTokenizer.from_pretrained(huggingface_repo_id)
         input_ids = tokenizer(
-            test_prompts,
+            get_test_prompts(),
             truncation=True,
             max_length=reference_model.config.max_position_embeddings,
             padding="max_length",
@@ -368,7 +368,7 @@ class ClipTextEagerTest(TestCase):
             max_length=reference_model.config.max_position_embeddings,
         )
         input_ids = tokenizer(
-            test_prompts,
+            get_test_prompts(),
             truncation=True,
             max_length=reference_model.config.max_position_embeddings,
             padding="max_length",

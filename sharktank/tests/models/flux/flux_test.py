@@ -187,7 +187,7 @@ class FluxTest(TempDirTestBase):
         parameters_output_path = self._temp_dir / "parameters.irpa"
 
         import_flux_transformer_dataset_from_hugging_face(
-            repo_id="black-forest-labs/FLUX.1-dev/black-forest-labs-transformer",
+            repo_id="black-forest-labs/FLUX.1-dev",
             parameters_output_path=parameters_output_path,
         )
         refrence_dataset = Dataset.load(parameters_output_path)
@@ -296,7 +296,7 @@ class FluxTest(TempDirTestBase):
         )
 
         import_flux_transformer_dataset_from_hugging_face(
-            repo_id="black-forest-labs/FLUX.1-dev/black-forest-labs-transformer",
+            repo_id="black-forest-labs/FLUX.1-dev",
             parameters_output_path=parameters_output_path,
         )
         target_dataset = Dataset.load(parameters_output_path)
@@ -326,7 +326,7 @@ class FluxTest(TempDirTestBase):
         )
 
         import_flux_transformer_dataset_from_hugging_face(
-            repo_id="black-forest-labs/FLUX.1-dev/black-forest-labs-transformer",
+            repo_id="black-forest-labs/FLUX.1-dev",
             parameters_output_path=parameters_output_path,
         )
         target_dataset = Dataset.load(parameters_output_path)
@@ -352,7 +352,7 @@ class FluxTest(TempDirTestBase):
     @pytest.mark.expensive
     def testExportSchnellTransformerFromHuggingFace(self):
         export_flux_transformer_from_hugging_face(
-            "black-forest-labs/FLUX.1-schnell/black-forest-labs-transformer",
+            "black-forest-labs/FLUX.1-schnell",
             mlir_output_path=self._temp_dir / "model.mlir",
             parameters_output_path=self._temp_dir / "parameters.irpa",
         )
@@ -361,7 +361,7 @@ class FluxTest(TempDirTestBase):
     @pytest.mark.expensive
     def testExportDevTransformerFromHuggingFace(self):
         export_flux_transformer_from_hugging_face(
-            "black-forest-labs/FLUX.1-dev/black-forest-labs-transformer",
+            "black-forest-labs/FLUX.1-dev",
             mlir_output_path=self._temp_dir / "model.mlir",
             parameters_output_path=self._temp_dir / "parameters.irpa",
         )
@@ -370,7 +370,7 @@ class FluxTest(TempDirTestBase):
     @pytest.mark.expensive
     def testExportAndCompileFromPreset(self):
         with chdir(self._temp_dir):
-            name = "black-forest-labs--FLUX.1-dev-bf16-1024x1024-hip-gfx942"
+            name = "black-forest-labs--FLUX.1-dev-bf16-1024x1024-hip-gfx942-release"
             config = model_config_presets[name]
             logger.info("Creating model...")
             model = create_model(config)

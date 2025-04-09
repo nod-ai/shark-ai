@@ -19,7 +19,6 @@ from sharktank import ops
 
 # TODO: Should be using a base class with the protocol supported.
 from ..models.llama.llama import LlamaModelConfig, PagedLlamaModelV1
-from ..models.llama.sharding import shard_theta
 from ..models.mixtral.mixtral import *
 from ..models.grok.grok import *
 from .. import ops
@@ -27,6 +26,7 @@ from .. import ops
 
 def main():
     from ..utils import cli
+    import os
 
     parser = cli.create_parser()
     cli.add_input_dataset_options(parser)
@@ -67,10 +67,24 @@ def main():
         help="Generates attention mask during export",
         action="store_true",
     )
+    parser.add_argument(
+        "--logits-normalization",
+        default="none",
+        help="Return the log softmax of the logits",
+        choices=["none", "softmax", "log_softmax"],
+    )
 
     cli.add_quantization_options(parser)
     cli.add_model_options(parser)
     args = cli.parse(parser)
+
+    if args.output_mlir and args.output_mlir != "-":
+        mlir_dir = os.path.dirname(args.output_mlir)
+        if mlir_dir and not os.path.exists(mlir_dir):
+            raise ValueError(
+                f"Parent directory for output MLIR file does not exist: {mlir_dir}"
+            )
+
     if args.attention_kernel == "sharktank":
         ops.attention_impls.register_attention_override_by_name(
             "masked_flash_attention"
@@ -106,7 +120,10 @@ def main():
         model = PagedLlamaModelV1(dataset.root_theta, llama_config)
 
     def generate_params_json(
-        hp: LlamaHParams, prefill_bs: list[int], decode_bs: list[int]
+        hp: LlamaHParams,
+        prefill_bs: list[int],
+        decode_bs: list[int],
+        logits_normalization: str,
     ) -> Dict[str, Any]:
         """
         Generate config.json for shortfin.
@@ -123,6 +140,7 @@ def main():
             "prefill_batch_sizes": prefill_bs,
             "decode_batch_sizes": decode_bs,
             "transformer_block_count": hp.block_count,
+            "logits_normalization": logits_normalization,
             "paged_kv_cache": {
                 "attention_head_count_kv": hp.attention_head_count_kv,
                 "block_seq_stride": llama_config.block_seq_stride,
@@ -255,6 +273,12 @@ def main():
             if llama_config.tensor_parallelism_size != 1:
                 logits = ops.unshard(logits)
 
+            if args.logits_normalization == "softmax":
+                logits = ops.softmax(logits, dim=-1)
+
+            if args.logits_normalization == "log_softmax":
+                logits = ops.elementwise(torch.log, ops.softmax(logits, dim=-1))
+
             return logits
 
     def generate_batch_decode(bs: int):
@@ -343,9 +367,14 @@ def main():
             if llama_config.tensor_parallelism_size != 1:
                 logits = ops.unshard(logits)
 
+            if args.logits_normalization == "softmax":
+                logits = ops.softmax(logits, dim=-1)
+
+            if args.logits_normalization == "log_softmax":
+                logits = ops.elementwise(torch.log, ops.softmax(logits, dim=-1))
+
             return logits
 
-    bsizes = []
     if not args.skip_prefill:
         for bs in args.bs_prefill:
             generate_batch_prefill(bs)
@@ -353,7 +382,9 @@ def main():
         for bs in args.bs_decode:
             generate_batch_decode(bs)
 
-    config = generate_params_json(hp, args.bs_prefill, args.bs_decode)
+    config = generate_params_json(
+        hp, args.bs_prefill, args.bs_decode, args.logits_normalization
+    )
     print("GENERATED!")
 
     if args.verbose:

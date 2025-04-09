@@ -16,22 +16,11 @@ from typing import Generator
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_gpu  # type: ignore
 from iree.compiler.dialects import iree_codegen  # type: ignore
+from iree.compiler.dialects import transform  # type: ignore
+from iree.compiler.dialects import _builtin_ops_gen  # type: ignore
 
-
-@pytest.fixture
-def tuner_ctx() -> Generator[common.TunerContext, None, None]:
-    from logging import Logger
-    from unittest.mock import MagicMock
-
-    mock_logger = MagicMock(spec=Logger)
-    with common.TunerContext(logger=mock_logger) as ctx:
-        yield ctx
-
-
-@pytest.fixture
-def mlir_ctx() -> Generator[ir.Context, None, None]:
-    with ir.Context() as ctx:
-        yield ctx
+from .test_utils import tuner_ctx
+from .test_utils import mlir_ctx
 
 
 def test_get_shaped_type_element_bitwidth(tuner_ctx: common.TunerContext) -> None:
@@ -231,7 +220,7 @@ def test_combine_tuning_specs(tuner_ctx: common.TunerContext) -> None:
 
     inner_ops = list(module.body.operations)
     assert all(
-        op.name == "builtin.module" for op in inner_ops
+        isinstance(op, _builtin_ops_gen.ModuleOp) for op in inner_ops
     ), "Not all ops are builtin.module"
     assert len(inner_ops) == 2, f"Expected 2 inner modules, got {len(inner_ops)}"
     assert (
@@ -264,6 +253,12 @@ def test_link_tuning_specs(tuner_ctx: common.TunerContext) -> None:
         }
     """
 
+    ir_module = ir.Module.parse(module_str, context)
+    linked_module = common.link_tuning_specs(tuner_ctx, [ir_module])
+    assert (
+        linked_module is ir_module
+    ), "Expected single input module to be returned without modification"
+
     first_ir_module = ir.Module.parse(module_str, context)
     second_ir_module = ir.Module.parse(module_str, context)
     second_ir_module.operation.attributes["sym_name"] = ir.StringAttr.get(
@@ -283,13 +278,13 @@ def test_link_tuning_specs(tuner_ctx: common.TunerContext) -> None:
     inner_ops = list(linked_module.body.operations)
     # Check that inner modules have been merged into the top-level module and no inner modules remain.
     assert all(
-        op.name != "builtin.module" for op in inner_ops
+        not isinstance(op, _builtin_ops_gen.ModuleOp) for op in inner_ops
     ), "Unexpected inner builtin.module ops found"
 
     named_sequences = []
     kernel_config_op = None
     for op in linked_module.body.operations:
-        if op.name == "transform.named_sequence":
+        if isinstance(op, transform.NamedSequenceOp):
             sym_name_attr = op.sym_name
             assert sym_name_attr is not None
             named_sequences.append(sym_name_attr.value)
@@ -312,7 +307,143 @@ def test_link_tuning_specs_raises_error(tuner_ctx: common.TunerContext) -> None:
         "iree_codegen.tuning_spec_with_default_entrypoint"
     ] = ir.UnitAttr.get()
     with pytest.raises(RuntimeError) as exc_info:
-        common.link_tuning_specs(tuner_ctx, [module])
+        common.link_tuning_specs(tuner_ctx, [module, module])
         # iree-opt should fail due to missing named sequence @__kernel_config entrypoint required
         # by the `iree_codegen.tuning_spec_with_default_entrypoint` attribute.
         assert "iree-opt failed" in str(exc_info.value)
+
+
+def test_get_matcher_names_from_td_spec(tuner_ctx: common.TunerContext) -> None:
+    context = tuner_ctx.mlir_ctx
+    module_str = """
+        module attributes { transform.with_named_sequence } {
+            transform.named_sequence @apply_op_config(%arg0: !transform.any_op {transform.readonly}) {
+                transform.yield
+            }
+
+            transform.named_sequence @match_foo(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
+                transform.yield %arg0 : !transform.any_op
+            }
+
+            transform.named_sequence @match_bar(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
+                transform.yield %arg0 : !transform.any_op
+            }
+
+            transform.named_sequence @__kernel_config(%arg0: !transform.any_op ) -> !transform.any_op
+                attributes { iree_codegen.tuning_spec_entrypoint } {
+                %0 = transform.foreach_match in %arg0
+                    @match_foo -> @apply_op_config,
+                    @match_bar -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+                transform.yield %0 : !transform.any_op
+            }
+        }
+    """
+
+    module = ir.Module.parse(module_str, context)
+    matcher_names = common.get_matcher_names_from_td_spec(module)
+
+    assert matcher_names == {"match_foo", "match_bar"}
+
+    module_str = """
+        module attributes { transform.with_named_sequence } {
+            transform.named_sequence @__kernel_config(%arg0: !transform.any_op) -> !transform.any_op
+                attributes { iree_codegen.tuning_spec_entrypoint } {
+                transform.yield %arg0 : !transform.any_op
+            }
+        }
+    """
+    module = ir.Module.parse(module_str, context)
+    matcher_names = common.get_matcher_names_from_td_spec(module)
+    assert matcher_names == set()
+
+
+def test_get_matcher_overlap_info(tuner_ctx: common.TunerContext) -> None:
+    starter = {"match_a", "match_b", "match_c"}
+    current = {"match_b", "match_d"}
+
+    overlapping, unique = common.get_matcher_overlap_info(starter, current)
+
+    assert overlapping == {"match_b"}
+    assert unique == {"match_a", "match_c"}
+
+    starter = {"match_x", "match_y"}
+    current = {"match_a", "match_b"}
+    overlapping, unique = common.get_matcher_overlap_info(starter, current)
+    assert overlapping == set()
+    assert unique == {"match_x", "match_y"}
+
+    starter = {"match_a", "match_b"}
+    current = {"match_a", "match_b", "match_c"}
+    overlapping, unique = common.get_matcher_overlap_info(starter, current)
+    assert overlapping == {"match_a", "match_b"}
+    assert unique == set()
+
+
+def test_determine_td_specs_to_link(
+    tuner_ctx: common.TunerContext, caplog: pytest.LogCaptureFixture
+) -> None:
+    context = tuner_ctx.mlir_ctx
+    module_str = """
+        module attributes { transform.with_named_sequence } {
+            transform.named_sequence @apply_op_config(%arg0: !transform.any_op {transform.readonly}) {
+                transform.yield
+            }
+
+            transform.named_sequence @match_foo(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
+                transform.yield %arg0 : !transform.any_op
+            }
+
+            transform.named_sequence @match_bar(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
+                transform.yield %arg0 : !transform.any_op
+            }
+
+            transform.named_sequence @__kernel_config(%arg0: !transform.any_op ) -> !transform.any_op
+                attributes { iree_codegen.tuning_spec_entrypoint } {
+                %0 = transform.foreach_match in %arg0
+                    @match_foo -> @apply_op_config,
+                    @match_bar -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+                transform.yield %0 : !transform.any_op
+            }
+        }
+    """
+    starter_td_spec = ir.Module.parse(module_str, context)
+    current_td_spec = ir.Module.parse(module_str, context)
+
+    td_specs_to_link = common.determine_td_specs_to_link(
+        [current_td_spec, starter_td_spec],
+        log_duplicates=True,
+    )
+
+    assert td_specs_to_link == [current_td_spec]
+    assert "match_foo" in caplog.text
+    assert "match_bar" in caplog.text
+    assert "already been tuned in the starter" in caplog.text
+
+    caplog.clear()
+    module_str = """
+        module attributes { transform.with_named_sequence } {
+            transform.named_sequence @apply_op_config(%arg0: !transform.any_op {transform.readonly}) {
+                transform.yield
+            }
+
+            transform.named_sequence @match_baz(%arg0: !transform.any_op {transform.readonly}) -> (!transform.any_op) {
+                transform.yield %arg0 : !transform.any_op
+            }
+
+            transform.named_sequence @__kernel_config(%arg0: !transform.any_op ) -> !transform.any_op
+                attributes { iree_codegen.tuning_spec_entrypoint } {
+                %0 = transform.foreach_match in %arg0
+                    @match_baz -> @apply_op_config : (!transform.any_op) -> !transform.any_op
+                transform.yield %0 : !transform.any_op
+            }
+        }
+    """
+    current_td_spec = ir.Module.parse(module_str, context)
+    td_specs_to_link = common.determine_td_specs_to_link(
+        [starter_td_spec, current_td_spec],
+        log_duplicates=True,
+    )
+
+    assert td_specs_to_link == [starter_td_spec, current_td_spec]
+    assert "match_baz" not in caplog.text
+    assert "already been tuned" not in caplog.text

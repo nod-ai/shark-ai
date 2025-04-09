@@ -4,15 +4,19 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from copy import deepcopy
 import iree.runtime
-from typing import Any, Callable, List, Tuple, Optional, Union, overload
+from typing import Any, Callable, List, Tuple, Optional, Union, overload, TYPE_CHECKING
 from pathlib import Path
 import torch
 import os
+import sys
+import json
 import numpy as np
 import collections.abc
 from collections import OrderedDict
 from contextlib import contextmanager
+import subprocess
 import gc
 from ..types.tensors import (
     AnyTensor,
@@ -23,6 +27,9 @@ from ..types.tensors import (
     torch_tree_flatten,
 )
 from .tree import Tree
+
+if TYPE_CHECKING:
+    from ..layers import ModelConfig
 
 
 def with_iree_device_context(
@@ -65,7 +72,9 @@ def with_iree_device_context(
 
 
 @overload
-def get_iree_devices(*, driver: str, device_count: int) -> List[iree.runtime.HalDevice]:
+def get_iree_devices(
+    *, driver: str, device_count: int, allow_repeat: bool
+) -> List[iree.runtime.HalDevice]:
     """Gets a list of IREE HAL devices for the given driver.
 
     The first available device_count devices will be created,
@@ -82,15 +91,18 @@ def get_iree_devices(*, driver: str, device_count: int) -> List[iree.runtime.Hal
 
 
 @overload
-def get_iree_devices(*, device: str) -> List[iree.runtime.HalDevice]:
+def get_iree_devices(
+    *, device: str | list[str], device_count: int, allow_repeating: bool
+) -> List[iree.runtime.HalDevice]:
     ...
 
 
 def get_iree_devices(
     *,
-    device: str | None = None,
+    device: str | list[str] | None = None,
     driver: str | None = None,
     device_count: int | None = None,
+    allow_repeating: bool = True,
 ) -> List[iree.runtime.HalDevice]:
     has_device_arg = device is not None
     has_driver_arg = driver is not None
@@ -99,17 +111,17 @@ def get_iree_devices(
         raise ValueError(
             "Could not select overload. Please, provide at least one argument"
         )
-    if has_driver_arg != has_device_count_arg:
-        raise ValueError("driver and device_count args must be provided simultaneously")
-    if has_device_arg and (has_driver_arg or has_device_count_arg):
+    if has_device_arg and has_driver_arg:
         raise ValueError(
             "device arg is mutually exclusive with driver and device_count args"
         )
+    if has_driver_arg and not has_device_count_arg:
+        raise ValueError("When driver is provided, device_count must also be provided")
 
     if has_device_arg:
-        return [iree.runtime.get_device(device, cache=False)]
-
-    if "IREE_DEVICE" in os.environ:
+        if isinstance(device, str):
+            device = [device]
+    elif "IREE_DEVICE" in os.environ:
         device_uris = [d.strip() for d in os.environ["IREE_DEVICE"].split(",")]
         driver_names = [n.split("://")[0] for n in device_uris]
         if driver is not None:
@@ -117,28 +129,27 @@ def get_iree_devices(
                 ValueError(
                     f'Inconsistent IREE driver, expected "{driver}" for all devices f{device_uris}'
                 )
-        if device_count > len(device_uris):
-            raise ValueError(
-                "Environment variable IREE_DEVICE provides less devices than requested."
-            )
-        return [
-            iree.runtime.get_driver(driver_names[i]).create_device_by_uri(
-                device_uris[i]
-            )
-            for i in range(device_count)
+        device = device_uris
+
+    if device is not None:
+        if not has_device_count_arg:
+            device_count = len(device)
+        if device_count < len(device):
+            device = device[:device_count]
+        hal_devices = [iree.runtime.get_device(d, cache=False) for d in device]
+    else:
+        hal_driver = iree.runtime.get_driver(driver)
+        device_infos = hal_driver.query_available_devices()
+        if device_count < len(device_infos):
+            device_infos = device_infos[:device_count]
+        hal_devices = [
+            hal_driver.create_device(device_info) for device_info in device_infos
         ]
 
-    hal_driver = iree.runtime.get_driver(driver)
-    available_devices = hal_driver.query_available_devices()
-    if driver in ["local-task", "local-sync"]:
-        # Use the same actual device for all devices.
-        return [
-            hal_driver.create_device(available_devices[0]) for _ in range(device_count)
-        ]
-    else:
-        return [
-            hal_driver.create_device(available_devices[i]) for i in range(device_count)
-        ]
+    if not allow_repeating and len(hal_devices) < device_count:
+        ValueError("Requested more devices than available or specified")
+
+    return [hal_devices[i % len(hal_devices)] for i in range(device_count)]
 
 
 def load_iree_module(
@@ -397,3 +408,114 @@ def make_hal_buffer_view_trace_default_callback(
             debugging.get_trace_tensor_callback()(key, *tensors)
 
     return Callback(device)
+
+
+def trace_with_tracy(
+    fn: Callable[[int], Any],
+    /,
+    *,
+    output_trace_path: str = None,
+    port: int = None,
+    capture_extra_args: list[str] | None = None,
+) -> Any:
+    """Trace a callable with iree-tracy-capture.
+    The capture process is started before executing the tracing target.and is waited on
+    to finish. The traced target function is started in parallel.
+    If a port is not provided a free one is selected automatically.
+    """
+    capture_cmd = ["iree-tracy-capture", "-f"]
+    if output_trace_path:
+        capture_cmd += ["-o", output_trace_path]
+    if port is None:
+        from .io import find_free_port
+
+        port = find_free_port()
+    if capture_extra_args:
+        capture_cmd += capture_extra_args
+    capture_cmd += ["-p", f"{port}"]
+    with subprocess.Popen(capture_cmd) as capture_proc:
+        try:
+            res = fn(port)
+        except:
+            capture_proc.terminate()
+            raise
+        capture_process_return_code = capture_proc.wait()
+        if capture_process_return_code != 0:
+            raise subprocess.CalledProcessError(
+                f"Tracy capture process {capture_cmd} failed with return code {capture_process_return_code}"
+            )
+        return res
+
+
+def trace_command_with_tracy(
+    cmd: list[str],
+    /,
+    *,
+    output_trace_path: str = None,
+    port: int = None,
+    capture_extra_args: list[str] | None = None,
+    env: dict[str, str] | None = None,
+    **run_kwargs,
+):
+    """Trace an executable with Tracy."""
+
+    def fn(port: int):
+        env2 = env or os.environ
+        env2 = deepcopy(env2)
+        env2["TRACY_PORT"] = str(port)
+        proc = subprocess.run(cmd, env=env2, **run_kwargs)
+        proc.check_returncode()
+
+    trace_with_tracy(
+        fn,
+        output_trace_path=output_trace_path,
+        port=port,
+        capture_extra_args=capture_extra_args,
+    )
+
+
+def trace_model_with_tracy(
+    config: "ModelConfig", function: str, output_trace_path: str = None, **kwargs
+):
+    """Trace an already exported and compiled model with Tracy."""
+    cmd = [
+        sys.executable,
+        "-m",
+        "sharktank.tools.trace_model_with_tracy",
+        f"--function={function}",
+    ]
+    if output_trace_path is None:
+        output_trace_path = f"{config.iree_module_path}.tracy"
+    trace_command_with_tracy(
+        cmd,
+        input=json.dumps(config.asdict_for_saving()).encode(),
+        output_trace_path=output_trace_path,
+        **kwargs,
+    )
+
+
+def run_model_with_iree_run_module(
+    config: "ModelConfig", function: str, **subprocess_run_kwargs
+):
+    """Run an already exported and compiled model with iree-run-module.
+    It is required that is exports its input arguments.
+    """
+    cmd = [
+        "iree-run-module",
+        f"--module={config.iree_module_path}",
+        f"--device={config.iree_hal_driver}",
+        f"--function={function}",
+    ]
+
+    parameters_path = config.export_parameters_path
+    if parameters_path is None:
+        parameters_path = config.parameters_path
+    if parameters_path is not None:
+        cmd.append(f"--parameters=model={parameters_path}")
+
+    input_args_descriptor_path = f"{config.mlir_path.stem}-{function}-arg-desc"
+    with open(input_args_descriptor_path, "r") as f:
+        input_args = f.readlines()
+    input_args = [f"--input={arg.strip()}" for arg in input_args]
+    cmd += input_args
+    subprocess.check_call(cmd, **subprocess_run_kwargs)

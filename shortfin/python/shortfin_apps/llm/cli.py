@@ -15,11 +15,13 @@ import time
 # Import first as it does dep checking and reporting.
 from pathlib import Path
 from shortfin import ProgramIsolation
+from shortfin.support.logging_setup import configure_main_logger
 from shortfin.support.responder import AbstractResponder
 
 from .components.generate import ClientGenerateBatchProcess
-from .components.io_struct import GenerateReqInput
+from .components.io_struct import GenerateReqInput, SamplingParams
 from .components.lifecycle import ShortfinLlmLifecycleManager
+from .components.token_selection_strategy import TokenSelectionStrategy
 from ..utils import get_system_args
 
 
@@ -94,7 +96,7 @@ def add_service_args(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--token_selection_strategy",
         type=str,
-        choices=["greedy", "multi_greedy"],
+        choices=[strategy.name.lower() for strategy in TokenSelectionStrategy],
         default="greedy",
         help="Strategy to use when selecting tokens during generation. Defaults to `greedy`.",
     )
@@ -103,6 +105,12 @@ def add_service_args(parser: argparse.ArgumentParser):
         type=int,
         default=5,
         help="The number of decode steps to execute",
+    )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        required=False,
+        help="Temperature value to use for `offline` generation.",
     )
     parser.add_argument(
         "--workers",
@@ -153,6 +161,8 @@ class Timer:
         self._end = time.perf_counter()
 
     def elapsed(self):
+        if self._end is None:
+            return time.perf_counter() - self._start
         return self._end - self._start
 
 
@@ -195,12 +205,14 @@ async def main(argv):
         )
         args.tokenizer_config_json = inferred_tokenizer_config_path
 
-    logger.info(msg="Setting up service", level=logging.INFO)
+    logger.info(msg="Setting up service")
     lifecycle_manager = ShortfinLlmLifecycleManager(args)
     service = lifecycle_manager.services["default"]
     service.start()
 
-    sampling_params = {"max_completion_tokens": args.decode_steps}
+    sampling_params = SamplingParams(max_completion_tokens=args.decode_steps)
+    if getattr(args, "temperature", None) is not None:
+        sampling_params.temperature = args.temperature
 
     prompts = process_inputs(args)
 
@@ -212,7 +224,7 @@ async def main(argv):
         def runtime(self):
             return self.responder.timer.elapsed()
 
-    logger.log(msg=f"Setting up a tasklist of {len(prompts)} items", level=logging.INFO)
+    logger.info(msg=f"Setting up a tasklist of {len(prompts)} items")
     tasks = []
     for p in prompts:
         task = Task(p)
@@ -231,7 +243,7 @@ async def main(argv):
             task.result = responder.response.result()
             queue.task_done()
 
-    logger.log(msg=f"Setting up {args.workers} workers", level=logging.INFO)
+    logger.info(msg=f"Setting up {args.workers} workers")
     workers = []
     queue = asyncio.Queue()
     for i in range(args.workers):
@@ -241,7 +253,7 @@ async def main(argv):
         w = asyncio.create_task(worker(name, queue, fiber))
         workers.append(w)
 
-    logger.log(msg=f"Processing tasks", level=logging.INFO)
+    logger.info(msg=f"Processing tasks")
 
     global_timer = Timer()
     global_timer.start()
@@ -263,9 +275,10 @@ async def main(argv):
         print(f"Requests per second: {reqs:2f}")
         print(f"AverageLatency:      {latency_avg:2f}")
 
-    logger.log(msg=f"Shutting down service", level=logging.INFO)
+    logger.info(msg=f"Shutting down service")
     service.shutdown()
 
 
 if __name__ == "__main__":
+    configure_main_logger("cli")
     asyncio.run(main(sys.argv[1:]))

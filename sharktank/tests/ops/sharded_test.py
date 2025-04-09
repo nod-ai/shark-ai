@@ -64,7 +64,7 @@ class CatTest(unittest.TestCase):
         sharded_a = ops.reshard_split(a, count=shard_count, dim=shard_dim)
         sharded_b = ops.reshard_split(b, count=shard_count, dim=shard_dim)
         actual_result = ops.cat([sharded_a, sharded_b], dim=cat_dim)
-        assert ops.equal(expected_result, actual_result)
+        assert expected_result.is_deep_equal(actual_result, compare_name=False)
 
     def testCatNonSplitDim(self):
         """Concatenation along a non-split dimension."""
@@ -80,7 +80,7 @@ class CatTest(unittest.TestCase):
         sharded_a = ops.reshard_split(a, count=shard_count, dim=shard_dim)
         sharded_b = ops.reshard_split(b, count=shard_count, dim=shard_dim)
         actual_result = ops.cat([sharded_a, sharded_b], dim=cat_dim)
-        assert ops.equal(expected_result, actual_result)
+        assert expected_result.is_deep_equal(actual_result, compare_name=False)
 
 
 class ConvTest(unittest.TestCase):
@@ -363,7 +363,7 @@ class FlattenTest(unittest.TestCase):
         expected_result = ops.replicate(unsharded_expected_result, count=2)
         sharded_tensor = ops.replicate(tensor, count=2)
         actual_result = ops.flatten(sharded_tensor, start_dim=1, end_dim=2)
-        assert expected_result.is_deep_equal(actual_result)
+        assert expected_result.is_deep_equal(actual_result, compare_name=False)
 
     def testSplitTensorFlattenNonSplitDim(self):
         tensor = torch.rand(2, 3, 4, 5)
@@ -371,7 +371,7 @@ class FlattenTest(unittest.TestCase):
         expected_result = ops.reshard_split(unsharded_expected_result, dim=2, count=2)
         sharded_tensor = ops.reshard_split(tensor, dim=3, count=2)
         actual_result = ops.flatten(sharded_tensor, start_dim=1, end_dim=2)
-        assert expected_result.is_deep_equal(actual_result)
+        assert expected_result.is_deep_equal(actual_result, compare_name=False)
 
     def testSplitTensorSplitDimIsLeadingFlattenDim(self):
         tensor = torch.rand(3, 4, 5, 6)
@@ -379,10 +379,46 @@ class FlattenTest(unittest.TestCase):
         expected_result = ops.reshard_split(unsharded_expected_result, dim=1, count=2)
         sharded_tensor = ops.reshard_split(tensor, dim=1, count=2)
         actual_result = ops.flatten(sharded_tensor, start_dim=1, end_dim=2)
-        assert expected_result.is_deep_equal(actual_result)
+        assert expected_result.is_deep_equal(actual_result, compare_name=False)
 
 
 class ExpandTest(unittest.TestCase):
+    def testExpandSplit(self):
+        sizes = [4, -1, -1]
+        a = torch.rand(1, 2, 5)
+        b = SplitPrimitiveTensor(ts=a.split(1, dim=1), shard_dim=1)
+
+        expected = [torch.Tensor.expand(shard, sizes) for shard in a.split(1, dim=1)]
+        actual = ops.expand(b, sizes)
+
+        for expected_shard, actual_shard in zip(expected, actual.shards):
+            torch.testing.assert_close(actual_shard.as_torch(), expected_shard)
+
+    def testExpandSplitAlongSplit(self):
+        sizes = [-1, 4, -1]
+        a = torch.rand(4, 2, 5)
+        b = SplitPrimitiveTensor(ts=a.split(1, dim=1), shard_dim=1)
+
+        try:
+            ops.expand(b, sizes)
+        except:
+            return
+
+        assert (
+            False
+        ), "Expanding SplitTensor along split dimension should have thrown an error"
+
+    def testExpandSplitAlongSplitNoExand(self):
+        sizes = [-1, 3, -1]
+        a = torch.rand(4, 2, 5)
+        b = torch.rand(4, 1, 5)
+        split = SplitPrimitiveTensor(ts=[a, b], shard_dim=1)
+
+        actual = ops.expand(split, sizes)
+
+        for pre_shard, post_shard in zip(split.shards, actual.shards):
+            torch.testing.assert_close(pre_shard.as_torch(), post_shard.as_torch())
+
     def testExpandReplicated(self):
         sizes = [4, 4, 5]
         shard_count = 2
@@ -685,7 +721,7 @@ class MatmulTest(unittest.TestCase):
         b_sharded = ops.reshard_split(b, dim=1, count=shard_count)
         a_sharded = ops.replicate(a, count=shard_count)
         actual_result = ops.matmul(a_sharded, b_sharded)
-        assert ops.equal(expected_result, actual_result)
+        assert expected_result.is_deep_equal(actual_result, compare_name=False)
 
     def testShardedChainMatmulX2Transposed(self):
         # Computes Z = (XA)B (sharded by 8).
@@ -988,7 +1024,7 @@ class ReshardSplitTest(unittest.TestCase):
         # Test that is a copy.
         tensor[...] = torch.rand_like(tensor)
         result_split2 = ops.reshard_split(tensor, dim=shard_dim, count=shard_count)
-        assert not ops.equal(actual_result, result_split2)
+        assert not result_split2.is_deep_equal(actual_result, compare_name=False)
 
     def testReshardSharded(self):
         tensor = torch.rand(4, 5, 6, dtype=torch.float32)
@@ -1000,7 +1036,7 @@ class ReshardSplitTest(unittest.TestCase):
         actual_result = ops.reshard_split(
             expected_result, dim=shard_dim, count=shard_count
         )
-        assert expected_result.is_deep_equal(actual_result)
+        assert expected_result.is_deep_equal(actual_result, compare_name=False)
 
 
 class ReshardTest(unittest.TestCase):
@@ -1011,7 +1047,7 @@ class ReshardTest(unittest.TestCase):
         expected_result = ops.reshard_split(tensor, count=shard_count, dim=shard_dim)
         split_sharding = sharding.Split(shard_count=shard_count, shard_dim=shard_dim)
         actual_result = ops.reshard(tensor, split_sharding)
-        assert ops.equal(expected_result, actual_result)
+        assert expected_result.is_deep_equal(actual_result, compare_name=False)
 
     def testGroupNormSplitChannelSharding(self):
         channels = 12
@@ -1028,8 +1064,10 @@ class ReshardTest(unittest.TestCase):
         sharded_theta = ops.reshard(theta, sharding_spec)
         expected_weight = ops.reshard_split(weight, dim=0, count=shard_count)
         expected_bias = ops.reshard_split(bias, dim=0, count=shard_count)
-        assert ops.equal(expected_weight, sharded_theta("weight"))
-        assert ops.equal(expected_bias, sharded_theta("bias"))
+        assert expected_weight.is_deep_equal(
+            sharded_theta("weight"), compare_name=False
+        )
+        assert expected_bias.is_deep_equal(sharded_theta("bias"), compare_name=False)
 
 
 class ShardLikeTest(unittest.TestCase):
@@ -1038,7 +1076,7 @@ class ShardLikeTest(unittest.TestCase):
         shard_count = 2
         expected_result = ops.replicate(tensor, count=shard_count)
         actual_result = ops.reshard_like(expected_result, expected_result)
-        assert expected_result.is_deep_equal(actual_result)
+        assert expected_result.is_deep_equal(actual_result, compare_name=False)
 
     def testReshardLikeReplicatedToSharded(self):
         tensor = torch.rand(4, 5, 6, dtype=torch.float32)
@@ -1047,7 +1085,7 @@ class ShardLikeTest(unittest.TestCase):
         expected_result = ops.reshard_split(tensor, dim=shard_dim, count=shard_count)
         replicated_tensor = ops.replicate(tensor, count=shard_count)
         actual_result = ops.reshard_like(replicated_tensor, expected_result)
-        assert expected_result.is_deep_equal(actual_result)
+        assert expected_result.is_deep_equal(actual_result, compare_name=False)
 
     def testReshardLikeReplicatedToUnsharded(self):
         tensor = torch.rand(4, 5, 6, dtype=torch.float32)
@@ -1071,7 +1109,7 @@ class ShardLikeTest(unittest.TestCase):
         shard_count = 3
         expected_result = ops.replicate(tensor, count=shard_count)
         actual_result = ops.reshard_like(tensor, expected_result)
-        assert expected_result.is_deep_equal(actual_result)
+        assert expected_result.is_deep_equal(actual_result, compare_name=False)
 
     def testReshardLikeUnshardedToSharded(self):
         tensor = torch.rand(4, 5, 6, dtype=torch.float32)
@@ -1079,7 +1117,7 @@ class ShardLikeTest(unittest.TestCase):
         shard_count = 3
         expected_result = ops.reshard_split(tensor, dim=shard_dim, count=shard_count)
         actual_result = ops.reshard_like(tensor, expected_result)
-        assert expected_result.is_deep_equal(actual_result)
+        assert expected_result.is_deep_equal(actual_result, compare_name=False)
 
     def testReshardLikeShardedToShared(self):
         tensor = torch.rand(5, 6, dtype=torch.float32)
@@ -1087,7 +1125,7 @@ class ShardLikeTest(unittest.TestCase):
         shard_count = 3
         expected_result = ops.reshard_split(tensor, dim=shard_dim, count=shard_count)
         actual_result = ops.reshard_like(expected_result, expected_result)
-        assert expected_result.is_deep_equal(actual_result)
+        assert expected_result.is_deep_equal(actual_result, compare_name=False)
 
 
 class TransposeTest(unittest.TestCase):

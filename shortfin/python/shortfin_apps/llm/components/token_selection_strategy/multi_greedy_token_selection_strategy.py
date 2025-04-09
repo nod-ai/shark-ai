@@ -7,8 +7,8 @@
 import logging
 from typing import List, Set
 
-from .beam_group import BeamGroup, ExecRequestSelection
-from .greedy_token_selection_strategy import GreedyTokenSelectionStrategy
+from .beam_group import BeamGroup, Beam
+from .greedy_token_selection_strategy import GreedyTokenSelectionStrategy, GreedyBeam
 
 from ..messages import LlmInferenceExecRequest, InferencePhase
 
@@ -20,18 +20,24 @@ logger = logging.getLogger(__name__)
 class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
     def select_greedy(
         self,
-        active_exec_reqs: List[LlmInferenceExecRequest],
-        _: Set[LlmInferenceExecRequest],
-    ):
+        active_beams: List[GreedyBeam],
+        _: List[GreedyBeam],
+    ) -> List[GreedyBeam]:
+        """Greedily select a token for each active beam.
+
+        Args:
+            active_beams (List[GreedyBeam]): Beams that are still active.
+            _ (List[GreedyBeam]): Beams that are completed.
+
+        Returns:
+            List[GreedyBeam]: Beams with new token selected.
+        """
         selections = []
-        for exec_req in active_exec_reqs:
-            token = sfnp.argmax(exec_req.result_logits)
-            token_int = token.items[0]
+        for beam in active_beams:
+            token = beam.sample_logits()
+            beam.last_token = token
             selections.append(
-                ExecRequestSelection(
-                    exec_req,
-                    token_int,
-                )
+                beam,
             )
 
         return selections
@@ -40,40 +46,66 @@ class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
         self,
         exec_req: LlmInferenceExecRequest,
     ):
+        """Orchestrate decode loop for `multi_greedy` selection strategy.
+
+        Args:
+            exec_req (LlmInferenceExecRequest): Initial inference request, post prefill.
+        """
+        logger.info("Starting `multi_greedy` decode loop...")
         config = self.token_selection_strategy_config
 
         exec_req.reset(InferencePhase.DECODE)
 
         # Copy `exec_req` to `num_beams` total requests
-        exec_reqs = [exec_req]
-        for _ in range(config.decode_config.num_beams - 1):
-            exec_reqs.append(LlmInferenceExecRequest.copy_exec_request(exec_req))
+        exec_reqs = self.replicate_inference_exec_requests(
+            exec_req, config.decode_config.num_beams - 1
+        )
 
+        beams = [
+            GreedyBeam(
+                exec_req=exec_req,
+                temperature=config.decode_config.temperature,
+                logits_normalization=config.decode_config.logits_normalization,
+            )
+            for exec_req in exec_reqs
+        ]
         beam_group = BeamGroup(
             config.eos_token_id,
             config.decode_config.num_beams,
-            exec_reqs,
+            beams,
             self.select_greedy,
         )
 
-        for _ in range(config.max_completion_tokens):
-            if not beam_group.active_exec_reqs:
+        reservations = beam_group.active_beam_count
+        config.decode_begin_callback(reservations)
+        for _ in range(config.decode_config.max_completion_tokens):
+            if not beam_group.active_beams:
                 break
-            for req in beam_group.active_exec_reqs:
+
+            active_beam_count = len(beam_group.active_beams)
+            if reservations > active_beam_count:
+                config.decode_end_callback(reservations - active_beam_count)
+                reservations = active_beam_count
+
+            for beam in beam_group.active_beams:
+                req = beam.exec_req
                 req.reset(InferencePhase.DECODE)
                 config.decode_callback(req)
+
             await beam_group.wait()
             beam_group.process_beams()
 
+        config.decode_end_callback(reservations)
+
         results = [
-            exec_req.input_token_ids[exec_req.prompt_length :]
-            for exec_req in beam_group.completed_reqs
+            beam.exec_req.input_token_ids[exec_req.prompt_length :]
+            for beam in beam_group.completed_beams
         ]
         if len(results) < beam_group.num_beams:
             results.extend(
                 [
-                    exec_req.input_token_ids[exec_req.prompt_length :]
-                    for exec_req in beam_group.active_exec_reqs
+                    beam.exec_req.input_token_ids[exec_req.prompt_length :]
+                    for beam in beam_group.active_beams
                 ]
             )
         config.results_callback(results)

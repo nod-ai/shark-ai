@@ -12,8 +12,11 @@ import torch
 
 from ...export import export_model_mlir
 from ...utils.hf import import_hf_dataset_from_hub
+from ...utils import chdir
+from ...utils.iree import trace_model_with_tracy
 from .flux import FluxModelV1, FluxParams
 from ...types import Dataset
+from ...layers import create_model, model_config_presets
 from ...utils.hf_datasets import get_dataset
 from sharktank.transforms.dataset import set_float_dtype
 from iree.turbine.aot import (
@@ -99,36 +102,31 @@ def export_flux_transformer_from_hugging_face(
 
 
 def export_flux_transformer_models(dir: Path):
-    from .testing import export_dev_random_single_layer
+    variants = ["dev", "schnell"]
+    iree_hal_target_device = "hip"
+    iree_hip_target = "gfx942"
+    output_img_height = 1024
+    output_img_width = 1024
+    build_types = ["debug", "release"]
+
+    preset_model_names = [
+        f"black-forest-labs--FLUX.1-{variant}-bf16-{output_img_height}x{output_img_width}-{iree_hal_target_device}-{iree_hip_target}-{build_type}"
+        for variant in variants
+        for build_type in build_types
+    ]
 
     base_dir = dir / "flux" / "transformer"
-    os.makedirs(base_dir)
-
-    file_name_base = "black-forest-labs--FLUX.1-dev--black-forest-labs-transformer-bf16"
-    mlir_path = base_dir / f"{file_name_base}.mlir"
-    parameters_output_path = base_dir / f"{file_name_base}.irpa"
-    export_flux_transformer_from_hugging_face(
-        "black-forest-labs/FLUX.1-dev/black-forest-labs-transformer",
-        mlir_output_path=mlir_path,
-        parameters_output_path=parameters_output_path,
-    )
-
-    file_name_base = (
-        "black-forest-labs--FLUX.1-schnell--black-forest-labs-transformer-bf16"
-    )
-    mlir_path = base_dir / f"{file_name_base}.mlir"
-    parameters_output_path = base_dir / f"{file_name_base}.irpa"
-    export_flux_transformer_from_hugging_face(
-        "black-forest-labs/FLUX.1-schnell/black-forest-labs-transformer",
-        mlir_output_path=mlir_path,
-        parameters_output_path=parameters_output_path,
-    )
-
-    file_name_base = "black-forest-labs--FLUX.1-dev--transformer-single-layer-b16"
-    mlir_path = base_dir / f"{file_name_base}.mlir"
-    parameters_output_path = base_dir / f"{file_name_base}.irpa"
-    export_dev_random_single_layer(
-        dtype=torch.bfloat16,
-        mlir_output_path=mlir_path,
-        parameters_output_path=parameters_output_path,
-    )
+    os.makedirs(base_dir, exist_ok=True)
+    for variant in variants:
+        for build_type in build_types:
+            model_name = f"black-forest-labs--FLUX.1-{variant}-bf16-{output_img_height}x{output_img_width}-{iree_hal_target_device}-{iree_hip_target}-{build_type}"
+            with chdir(base_dir):
+                model = create_model(model_config_presets[model_name])
+                model.export()
+                model.compile()
+                if build_type == "debug":
+                    trace_model_with_tracy(
+                        model.config,
+                        function="forward_bs1",
+                        output_trace_path=f"{model.config.iree_module_path}.tracy",
+                    )

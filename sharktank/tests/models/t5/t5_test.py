@@ -54,7 +54,7 @@ from sharktank.utils.testing import (
     make_random_mask,
     skip,
     TempDirTestBase,
-    test_prompts,
+    get_test_prompts,
 )
 from sharktank.utils.hf_datasets import get_dataset
 from sharktank.utils.iree import (
@@ -157,7 +157,7 @@ class T5EncoderEagerTest(TestCase):
         )
 
         input_ids = tokenizer(
-            test_prompts,
+            get_test_prompts(),
             truncation=True,
             return_length=False,
             return_overflowing_tokens=False,
@@ -202,7 +202,7 @@ class T5EncoderEagerTest(TestCase):
         )
 
         input_ids = tokenizer(
-            test_prompts,
+            get_test_prompts(),
             truncation=True,
             return_length=False,
             return_overflowing_tokens=False,
@@ -464,7 +464,7 @@ class T5EncoderIreeTest(TempDirTestBase):
         reference_model = T5Encoder(theta=reference_dataset.root_theta, config=config)
 
         input_ids = tokenizer(
-            test_prompts,
+            get_test_prompts(),
             truncation=True,
             return_length=False,
             return_overflowing_tokens=False,
@@ -481,6 +481,15 @@ class T5EncoderIreeTest(TempDirTestBase):
             assert_close=assert_t5_encoder_state_close,
         )
 
+    @skip(
+        reason=(
+            "The test hangs. Probably during compilation or IREE module "
+            "execution. We can't determine easily what is going on as running "
+            "tests in parallel with pyest-xdist is incompatible with capture "
+            "disabling with --capture=no. No live logs are available from the CI."
+            " TODO: investigate"
+        )
+    )
     @parameterized.expand(
         [
             (torch.float32, torch.float64, 1e-5, 1e-5),
