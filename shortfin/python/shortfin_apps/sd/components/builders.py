@@ -4,20 +4,23 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from iree.build import *
-from iree.build.executor import FileNamespace, BuildAction, BuildContext, BuildFile
-
 import itertools
 import os
+import sys
+import subprocess
 import urllib
 import shortfin.array as sfnp
 import copy
 import re
 import gc
 import logging
-import urllib
+
+from iree.build import *
+from iree.build.executor import FileNamespace, BuildAction, BuildContext, BuildFile
 
 from shortfin_apps.sd.components.config_struct import ModelParams
+
+logger = logging.getLogger("shortfin-sd")
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
 parent = os.path.dirname(this_dir)
@@ -37,6 +40,91 @@ SDXL_BUCKET = (
 SDXL_WEIGHTS_BUCKET = (
     "https://sharkpublic.blob.core.windows.net/sharkpublic/sdxl/weights/"
 )
+
+
+def get_modules(
+    target,
+    device,
+    model_config,
+    flagfile=None,
+    td_spec=None,
+    extra_compile_flags=[],
+    artifacts_dir=None,
+    splat=False,
+    build_preference="export",
+    force_update=False,
+):
+    mod_params = ModelParams.load_json(model_config)
+
+    vmfbs = {}
+    params = {}
+    model_flags = {}
+    for submodel in mod_params.module_names.keys():
+        vmfbs[submodel] = {}
+        model_flags[submodel] = []
+        for bs in mod_params.batch_sizes[submodel]:
+            vmfbs[submodel][bs] = []
+        if submodel != "scheduler":
+            params[submodel] = []
+    model_flags["all"] = extra_compile_flags
+
+    if flagfile:
+        with open(flagfile, "r") as f:
+            contents = [line.rstrip() for line in f]
+        flagged_model = "all"
+        for elem in contents:
+            match = [keyw in elem for keyw in model_flags.keys()]
+            if any(match) or "--" not in elem:
+                flagged_model = elem
+            elif flagged_model in model_flags:
+                model_flags[flagged_model].extend([elem])
+    if td_spec:
+        for key in model_flags.keys():
+            if key in ["unet", "punet", "scheduled_unet"]:
+                model_flags[key].extend(
+                    [f"--iree-codegen-transform-dialect-library={td_spec}"]
+                )
+    filenames = []
+    builder_env = os.environ.copy()
+    builder_env["IREE_BUILD_MP_CONTEXT"] = "fork"
+    for modelname in vmfbs.keys():
+        ireec_args = model_flags["all"] + model_flags[modelname]
+        ireec_extra_args = " ".join(ireec_args)
+        builder_args = [
+            sys.executable,
+            "-m",
+            "iree.build",
+            str(__file__),
+            f"--model-json={model_config}",
+            f"--target={target}",
+            f"--splat={splat}",
+            f"--build-preference={build_preference}",
+            f"--output-dir={artifacts_dir}",
+            f"--model={modelname}",
+            f"--force-update={force_update}",
+            f"--iree-hal-target-device={device}",
+            f"--iree-hip-target={target}",
+            f"--iree-compile-extra-args={ireec_extra_args}",
+        ]
+        logger.info(f"Preparing runtime artifacts for {modelname}...")
+        logger.info(
+            "COMMAND LINE EQUIVALENT: " + " ".join([str(argn) for argn in builder_args])
+        )
+        output = subprocess.check_output(builder_args, env=builder_env).decode()
+
+        output_paths = output.splitlines()
+        for path in output_paths:
+            if "irpa" in path:
+                params[modelname].append(path)
+                output_paths.remove(path)
+        filenames.extend(output_paths)
+    for name in filenames:
+        for key in vmfbs.keys():
+            for bs in vmfbs[key].keys():
+                if key in name.lower() and f"_bs{bs}_" in name.lower():
+                    if "vmfb" in name:
+                        vmfbs[key][bs].extend([name])
+    return vmfbs, params
 
 
 def filter_by_model(filenames, model) -> list:
