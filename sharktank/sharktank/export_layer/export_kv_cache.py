@@ -65,7 +65,8 @@ def main():
         attn_head_count=attn_head_count,
         attn_head_dim=attn_head_dim,
         shard_count=args.sharding,
-        dtype=torch.float32,
+        cache_dtype=torch.float32,
+        attn_dtype=torch.float32,
         device=None,
     )
 

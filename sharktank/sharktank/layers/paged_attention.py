@@ -60,7 +60,8 @@ class PagedAttention:
         attn_head_dim: int,
         cache_partition_count: int = 2,
         block_seq_stride: int = 16,
-        dtype: torch.dtype = torch.float32,
+        cache_dtype: torch.dtype = torch.float32,
+        attn_dtype: torch.dtype = torch.float32,
         device: Optional[torch.device] = None,
         shard_count: int = 1,
     ):
@@ -85,7 +86,8 @@ class PagedAttention:
         ]
         self.page_slab_flat_dim = math.prod(self.sub_page_dims)
         self.device = device
-        self.dtype = dtype
+        self.cache_dtype = cache_dtype
+        self.attn_dtype = attn_dtype
 
     def unflatten_page_table(
         self, state: list[Union[torch.Tensor, SplitPrimitiveTensor]]
@@ -146,7 +148,7 @@ class PagedAttention:
         shards = [
             torch.empty(
                 [page_count, self.page_slab_flat_dim],
-                dtype=self.dtype,
+                dtype=self.cache_dtype,
                 device=self.device,
             )
             for _ in range(self.shard_count)
@@ -356,18 +358,18 @@ class PagedAttention:
 
         # Fake quant is already dequantized when stored in the cache.
         if cache_quantizer and not fake_quant:
-            k = cache_quantizer.dequantize_raw_tensor(k, self.dtype, name="xk_deq")
-            v = cache_quantizer.dequantize_raw_tensor(v, self.dtype, name="xv_deq")
+            k = cache_quantizer.dequantize_raw_tensor(k, self.attn_dtype, name="xk_deq")
+            v = cache_quantizer.dequantize_raw_tensor(v, self.attn_dtype, name="xv_deq")
 
         q = q.transpose(1, 2)
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)
 
-        q = ops.to(q, dtype=self.dtype)
-        k = ops.to(k, dtype=self.dtype)
-        v = ops.to(v, dtype=self.dtype)
+        q = ops.to(q, dtype=self.attn_dtype)
+        k = ops.to(k, dtype=self.attn_dtype)
+        v = ops.to(v, dtype=self.attn_dtype)
         if mask is not None:
-            mask = ops.to(mask, dtype=self.dtype)
+            mask = ops.to(mask, dtype=self.cache_dtype)
 
         # Decomposed
         if attention_kernel == "decomposed":

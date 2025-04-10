@@ -62,7 +62,8 @@ class PagedLlamaAttentionBlockTest(unittest.TestCase):
             attn_head_dim=self.attention_head_dim,
             cache_partition_count=self.cache_partition_count,
             block_seq_stride=self.block_seq_stride,
-            dtype=dtype,
+            cache_dtype=dtype,
+            attn_dtype=dtype,
         )
 
         cache_state = cache.allocate(self.page_count)
