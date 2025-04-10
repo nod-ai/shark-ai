@@ -257,7 +257,7 @@ class FluxTest(TempDirTestBase):
         is_cpu_condition,
         raises=iree.compiler.CompilerToolError,
         strict=True,
-        reason="error: 'vector.store' op write affecting operations on global resources are restricted to workgroup distributed contexts.",
+        reason="Fails on CPU",
     )
     def testCompareToyIreeF32AgainstEagerF64(self):
         """atol is apparently high because the expected output range is large.
@@ -267,7 +267,7 @@ class FluxTest(TempDirTestBase):
         )
 
     @pytest.mark.xfail(
-        reason="CPU error: Vector shape: [1, 1, 36] does not match the layout. MI300 error: numerics mismatch",
+        reason="Fails on both CPU and MI300",
     )
     def testCompareToyIreeBf16AgainstEagerF64(self):
         """atol is apparently high because the expected output range is large.
