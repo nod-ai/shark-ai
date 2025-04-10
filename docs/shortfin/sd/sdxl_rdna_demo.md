@@ -60,7 +60,6 @@ Device  Node  IDs              Temp    Power  Partitions          SCLK  MCLK   F
 
 Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
 
-
 ### Install SHARK AI and Shortfin
 
 1. Create and activate a Python Virtual Environment:
@@ -90,7 +89,6 @@ Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
     cd shortfin && pip install --editable .
     ```
 
-    
 ### [Install SHARK UI](https://github.com/nod-ai/shark-ui#installation)
 
 ## Usage
