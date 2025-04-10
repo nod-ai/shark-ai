@@ -369,7 +369,7 @@ class PagedAttention:
         k = ops.to(k, dtype=self.attn_dtype)
         v = ops.to(v, dtype=self.attn_dtype)
         if mask is not None:
-            mask = ops.to(mask, dtype=self.cache_dtype)
+            mask = ops.to(mask, dtype=self.attn_dtype)
 
         # Decomposed
         if attention_kernel == "decomposed":
