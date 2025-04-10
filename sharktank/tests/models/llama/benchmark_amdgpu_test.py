@@ -224,6 +224,10 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             ">>",
         ]
 
+    @skipif_run_quick_llama_test
+    @pytest.mark.xfail(
+        reason="Iree Compile Error", strict=True, raises=IreeCompileException
+    )
     def testBenchmark8B_f16_TP1_Non_Decomposed_Input_Len_128(self):
         output_file_name = self.dir_path_8b / "f16_torch_128_tp1"
         output_mlir = self.llama8b_f16_torch_sdpa_artifacts.create_file(
@@ -269,6 +273,9 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         )
 
     @skipif_run_quick_llama_test
+    @pytest.mark.xfail(
+        reason="Iree Compile Error", strict=True, raises=IreeCompileException
+    )
     def testBenchmark8B_f16_TP1_Non_Decomposed_Input_Len_2048(self):
         output_file_name = self.dir_path_8b / "f16_torch_2048_tp1"
         output_mlir = self.llama8b_f16_torch_sdpa_artifacts.create_file(
@@ -313,9 +320,8 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
 
-    @pytest.mark.xfail(
-        reason="Benchmarking Error", strict=True, raises=IreeCompileException
-    )
+    @skipif_run_quick_llama_test
+    @pytest.mark.xfail(reason="Benchmarking Error", raises=IreeBenchmarkException)
     def testBenchmark8B_fp8_TP1_Non_Decomposed(self):
         output_file_name = self.dir_path_8b / "fp8_torch_tp1"
         output_mlir = self.llama8b_fp8_torch_sdpa_artifacts.create_file(
