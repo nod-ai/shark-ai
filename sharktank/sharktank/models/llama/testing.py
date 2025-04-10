@@ -11,7 +11,7 @@ import torch
 from ...types.tensors import *
 from ...types.theta import Theta
 from typing import Optional
-from .llama import LlamaModelConfig
+from sharktank.layers.configs import LlamaModelConfig
 import torch
 from ...utils.testing import make_rand_torch
 from ...layers.testing import make_llama_attention_block_theta

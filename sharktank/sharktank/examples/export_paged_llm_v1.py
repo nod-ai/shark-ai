@@ -18,10 +18,7 @@ from sharktank.utils.math import ceildiv
 from sharktank import ops
 
 # TODO: Should be using a base class with the protocol supported.
-from ..models.llama.llama import LlamaModelConfig, PagedLlamaModelV1
-from ..models.mixtral.mixtral import *
-from ..models.grok.grok import *
-from .. import ops
+from sharktank.models.llm import *
 
 
 def main():
@@ -111,13 +108,7 @@ def main():
     )
     llama_config.fake_quant = args.fake_quant
 
-    if llama_config.hp.expert_count:
-        if llama_config.hp.model_arch == "grok":
-            model = PagedGrokModelV1(dataset.root_theta, llama_config)
-        else:
-            model = PagedMixtralModelV1(dataset.root_theta, llama_config)
-    else:
-        model = PagedLlamaModelV1(dataset.root_theta, llama_config)
+    model = PagedLlmModelV1(dataset.root_theta, llama_config)
 
     def generate_params_json(
         hp: LlamaHParams,
@@ -182,16 +173,6 @@ def main():
                     arg_affinities[i] = DeviceAffinity(str(i))
 
             return unpacked, shard_dim, dynamic_shapes, arg_affinities
-
-        elif model.config.kv_cache_type == "direct":
-            cache_state = model.cache.allocate(bs=1)
-            # Direct cache dimensions:
-            #   2 * transformer_block_count of...
-            #   [bs, seq_length, attn_head_count, attn_head_dim]
-            dynamic_shapes = [None]
-            arg_affinities = {}
-            shard_dim = None
-            return torch.stack(cache_state), shard_dim, dynamic_shapes, arg_affinities
         else:
             raise NotImplementedError(f"Unsupported KV cache type: {type(model.cache)}")
 
@@ -240,13 +221,7 @@ def main():
             arg_device=arg_affinities,
         )
         def _(model, tokens, seq_lens, seq_block_ids, cs):
-            if (
-                model.config.tensor_parallelism_size == 1
-                and model.config.kv_cache_type == "direct"
-            ):
-                cache_tensors = torch.unbind(cs)
-            else:
-                cache_tensors = cs
+            cache_tensors = cs
 
             attention_mask = None
             if args.use_attention_mask:

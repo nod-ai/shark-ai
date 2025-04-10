@@ -105,7 +105,6 @@ if __name__ == "__main__":
         rope_freq_base=modelargs.rope_theta,
         expert_count=modelargs.n_routed_experts,
         expert_used_count=modelargs.n_activated_experts,
-        expert_score_func=modelargs.score_func,
         rope_dimension_count=modelargs.qk_rope_head_dim,
         route_scale=modelargs.route_scale,
     )

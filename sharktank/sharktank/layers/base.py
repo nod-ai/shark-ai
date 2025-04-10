@@ -227,7 +227,7 @@ class BaseLayer(nn.Module, metaclass=BaseLayerMetaClass):
             raise ValueError("Missing MLIR export path.")
 
         function_batch_sizes_map = self._get_function_batch_sizes_map()
-        from ..export import export_model_mlir
+        from sharktank.utils.export import export_model_mlir
 
         export_model_mlir(
             model=self,

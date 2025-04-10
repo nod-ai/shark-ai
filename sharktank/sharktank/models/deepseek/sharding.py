@@ -10,8 +10,6 @@ from ...types.sharding import *
 from ...types import Theta
 from ... import ops
 
-from ..llama.llama import LlamaModelConfig
-
 
 class LatentAttentionBlockSharding(ThetaLayerSharding):
     def __init__(self, shard_count: int):

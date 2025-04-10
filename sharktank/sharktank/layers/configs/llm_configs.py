@@ -57,10 +57,6 @@ class LlamaHParams:
     kv_latent_dim: Optional[int] = None
     v_head_dim: Optional[int] = None
 
-    # Expert configs - Deep seek Specific
-    expert_score_func: Optional[str] = None
-    route_scale: Optional[float] = None
-
     # Grok configurations
     attention_softcap: Optional[float] = None
 
@@ -169,7 +165,7 @@ class LlamaModelConfig:
     # into the context length.
     block_seq_stride: int = 32
 
-    # Either "paged" or "direct".
+    # Sharktank supports only "paged"
     kv_cache_type: str = "paged"
 
     # If None will use attention_dtype.
