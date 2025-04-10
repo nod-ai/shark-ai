@@ -60,7 +60,7 @@ Device  Node  IDs              Temp    Power  Partitions          SCLK  MCLK   F
 
 Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
 
-[### Install SHARK UI](https://github.com/nod-ai/shark-ui#installation)
+### [Install SHARK UI](https://github.com/nod-ai/shark-ui#installation)
 
 ## Usage
 
