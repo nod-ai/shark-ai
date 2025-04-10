@@ -241,6 +241,12 @@ class FluxTest(TempDirTestBase):
             reference_model=reference_model, target_dtype=target_dtype, atol=atol
         )
 
+    @pytest.mark.xfail(
+        is_cpu_condition,
+        raises=iree.compiler.CompilerToolError,
+        strict=True,
+        reason="error: 'vector.store' op write affecting operations on global resources are restricted to workgroup distributed contexts.",
+    )
     def testCompareToyIreeF32AgainstEagerF64(self):
         """atol is apparently high because the expected output range is large.
         Its absolute maximum is 3915. Observed atol is 0.036."""
@@ -248,6 +254,12 @@ class FluxTest(TempDirTestBase):
             reference_dtype=torch.float64, target_dtype=torch.float32, atol=1e-1
         )
 
+    @pytest.mark.xfail(
+        is_mi300x,
+        raises=iree.compiler.CompilerToolError,
+        strict=True,
+        reason="error: Vector shape: [1, 1, 36] does not match the layout",
+    )
     def testCompareToyIreeBf16AgainstEagerF64(self):
         """atol is apparently high because the expected output range is large.
         Its absolute maximum is 3915. Observed atol is 260.6.
