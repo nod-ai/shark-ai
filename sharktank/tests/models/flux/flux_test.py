@@ -29,6 +29,7 @@ from sharktank.models.flux.flux import FluxModelV1, FluxParams
 from sharktank.models.flux.compile import iree_compile_flags
 from sharktank.utils.testing import (
     TempDirTestBase,
+    get_iree_compiler_flags,
     skip,
     is_mi300x,
     is_cpu,
@@ -114,10 +115,9 @@ class FluxTest(TempDirTestBase):
 
         iree_module_path = self._temp_dir / "model.vmfb"
         logger.info("Compiling MLIR file...")
-        compile_flags = iree_compile_flags + [
-            f"--iree-hal-target-device={self.iree_hal_target_device}",
-            f"--iree-hip-target={self.iree_hip_target}",
-        ]
+
+        iree_device_flags = get_iree_compiler_flags(self)
+        compile_flags = iree_compile_flags + iree_device_flags
         iree.compiler.compile_file(
             str(mlir_path),
             output_file=str(iree_module_path),
@@ -241,12 +241,6 @@ class FluxTest(TempDirTestBase):
             reference_model=reference_model, target_dtype=target_dtype, atol=atol
         )
 
-    @pytest.mark.xfail(
-        is_cpu_condition,
-        raises=iree.compiler.CompilerToolError,
-        strict=True,
-        reason="The compiler segfaults https://github.com/iree-org/iree/issues/20283",
-    )
     def testCompareToyIreeF32AgainstEagerF64(self):
         """atol is apparently high because the expected output range is large.
         Its absolute maximum is 3915. Observed atol is 0.036."""
@@ -254,12 +248,6 @@ class FluxTest(TempDirTestBase):
             reference_dtype=torch.float64, target_dtype=torch.float32, atol=1e-1
         )
 
-    @pytest.mark.xfail(
-        is_cpu_condition,
-        raises=iree.compiler.CompilerToolError,
-        strict=True,
-        reason="The compiler segfaults https://github.com/iree-org/iree/issues/20283",
-    )
     def testCompareToyIreeBf16AgainstEagerF64(self):
         """atol is apparently high because the expected output range is large.
         Its absolute maximum is 3915. Observed atol is 260.6.
