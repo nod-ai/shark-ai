@@ -48,7 +48,8 @@ class KVCacheTest(unittest.TestCase):
             cache_partition_count=2,  # One for each of K/V.
             block_seq_stride=self.block_seq_stride,
             device=self.device,
-            dtype=self.attention_dtype,
+            cache_dtype=self.attention_dtype,
+            attn_dtype=self.attention_dtype,
         )
         self.direct_k_cache = [
             torch.empty([self.bs, self.max_seq_len, self.head_count_kv, self.head_dim])
