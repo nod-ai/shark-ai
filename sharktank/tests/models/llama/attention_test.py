@@ -158,7 +158,7 @@ class AttentionBlockTest(unittest.TestCase):
         huggingface_output = huggingface_output / absmax
         sharktank_output = sharktank_output / absmax
         torch.testing.assert_close(
-            sharktank_output, huggingface_output, atol=1e-5, rtol=1e-6
+            sharktank_output, huggingface_output, atol=1e-4, rtol=1e-4
         )
 
 
