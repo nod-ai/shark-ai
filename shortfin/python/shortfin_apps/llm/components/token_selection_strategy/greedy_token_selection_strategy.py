@@ -8,6 +8,7 @@ import logging
 
 import shortfin.array as sfnp
 
+from .beam_group import Beam
 from .base_token_selection_strategy import (
     BaseTokenSelectionStrategy,
     TokenSelectionStrategyConfig,
@@ -16,6 +17,34 @@ from ..messages import LlmInferenceExecRequest, InferencePhase
 
 
 logger = logging.getLogger(__name__)
+
+
+class GreedyBeam(Beam):
+    def sample_logits(self) -> int:
+        """Return the single highest scoring token of the logits.
+
+        Returns:
+            int: The `argmax` of the logits.
+        """
+        self.apply_temperature()
+        exec_req = self.exec_req
+        token = sfnp.argmax(exec_req.result_logits)
+        token_int = token.items[0]
+        return token_int
+
+    def update_exec_req(self):
+        """Update the `LlmInferenceExecRequest` with the selected token."""
+        self.exec_req.input_token_ids.append(self.last_token)
+        self.exec_req.start_position += 1
+
+    def update_score(self, value):
+        raise NotImplementedError("GreedyBeam does not track a score")
+
+    def normalize_score(self, value):
+        raise NotImplementedError("GreedyBeam does not track a score")
+
+    def update_final_score(self):
+        raise NotImplementedError("GreedyBeam does not track a score")
 
 
 class GreedyTokenSelectionStrategy(BaseTokenSelectionStrategy):
@@ -38,17 +67,23 @@ class GreedyTokenSelectionStrategy(BaseTokenSelectionStrategy):
         Args:
             exec_req (LlmInferenceExecRequest): Execution request that has had prefill invoked on it.
         """
+        logger.info("Starting `greedy` decode loop...")
         config = self.token_selection_strategy_config
-        config.decode_begin_callback()
-        for _ in range(config.max_completion_tokens):
+        config.decode_begin_callback(1)
+        beam = GreedyBeam(
+            exec_req=exec_req,
+            temperature=config.decode_config.temperature,
+            logits_normalization=config.decode_config.logits_normalization,
+        )
+        for _ in range(config.decode_config.max_completion_tokens):
+            exec_req = beam.exec_req
             exec_req.reset(InferencePhase.DECODE)
             config.decode_callback(exec_req)
             await exec_req.done
-            token = sfnp.argmax(exec_req.result_logits)
-            token_int = token.items[0]
+            token_int = beam.sample_logits()
+            beam.last_token = token_int
             config.results_callback(token_int)
             if token_int == config.eos_token_id:
                 break
-            exec_req.input_token_ids.append(token_int)
-            exec_req.start_position += 1
-        config.decode_end_callback()
+            beam.update_exec_req()
+        config.decode_end_callback(1)

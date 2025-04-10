@@ -6,57 +6,12 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from enum import Enum, auto
 from typing import List, Callable, Union
 
-from dataclasses_json import dataclass_json, Undefined
-
+from .config import DecodeConfig, TokenSelectionStrategy
 from ..messages import LlmInferenceExecRequest
 
 import shortfin.array as sfnp
-
-
-class TokenSelectionStrategy(Enum):
-    """Supported token selection strategies."""
-
-    GREEDY = auto()
-    MULTI_GREEDY = auto()
-    BEAM_SEARCH = auto()
-
-
-def get_strategy_from_str(token_selection_strategy: str) -> TokenSelectionStrategy:
-    name_to_strategy = {
-        strategy.name.lower(): strategy for strategy in TokenSelectionStrategy
-    }
-    strategy = token_selection_strategy.lower()
-    if strategy not in name_to_strategy:
-        raise KeyError(f"Unknown token_selection_strategy: {token_selection_strategy}")
-
-    return name_to_strategy[strategy]
-
-
-def is_ref_counted(token_selection_strategy: TokenSelectionStrategy) -> bool:
-    return token_selection_strategy in {
-        TokenSelectionStrategy.MULTI_GREEDY,
-        TokenSelectionStrategy.BEAM_SEARCH,
-    }
-
-
-@dataclass_json(undefined=Undefined.RAISE)
-@dataclass
-class DecodeConfig:
-
-    # Number of beams to use during generation
-    num_beams: int = 1
-
-    # Strategy for selecting tokens during generation
-    token_selection_strategy: str | TokenSelectionStrategy = "greedy"
-
-    def __post_init__(self):
-        if isinstance(self.token_selection_strategy, str):
-            self.token_selection_strategy = get_strategy_from_str(
-                self.token_selection_strategy
-            )
 
 
 @dataclass
@@ -66,11 +21,10 @@ class TokenSelectionStrategyConfig:
     decode_config: DecodeConfig
     prefill_callback: Callable[[LlmInferenceExecRequest], None]
     decode_callback: Callable[[LlmInferenceExecRequest], None]
-    decode_begin_callback: Callable[[], None]
-    decode_end_callback: Callable[[], None]
+    decode_begin_callback: Callable[[int], None]
+    decode_end_callback: Callable[[int], None]
     results_callback: Callable[[Union[int, List[int]]], None]
     eos_token_id: int
-    max_completion_tokens: int
 
 
 class BaseTokenSelectionStrategy(ABC):
