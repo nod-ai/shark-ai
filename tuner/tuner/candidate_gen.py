@@ -155,7 +155,6 @@ def generate_configs_and_td_specs(
     allowed_waves_per_eu: list[int] = [2],
     pipeline_options_search_space: PipelineOptionsSearchSpace = PipelineOptionsSearchSpace(),
     codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline = iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
-    starter_td_spec: Optional[ir.Module] = None,
 ) -> list[ir.Module]:
     dispatch_tuner_registry = DispatchTunerRegistry()
     dispatch_tuner_registry.register(
@@ -199,29 +198,6 @@ def generate_configs_and_td_specs(
         tune_logger.debug(f"Solution #{i+1}: {config}")
         td_spec_module = dispatch_tuner.get_td_spec(input_module, config)
         assert td_spec_module, "Failed to generate transform dialect spec"
-
-        # If starter td spec is not provided, use the generated td spec directly.
-        if starter_td_spec is None:
-            config_specs.append(td_spec_module)
-            continue
-
-        td_specs: list[ir.Module] = []
-        td_specs.append(td_spec_module)
-        td_specs.append(starter_td_spec)
-
-        # Only log duplicate matchers during the first iteration.
-        log_duplicates = i == 0
-
-        # The generated candidate spec takes precedence over the starter td spec.
-        # If the candidate spec covers all the ops supported by the starter spec,
-        # a warning will be issued in `determine_td_specs_to_link`, and the starter
-        # spec will be excluded from linking.
-        td_specs_to_link = determine_td_specs_to_link(
-            td_specs,
-            log_duplicates=log_duplicates,
-        )
-
-        td_spec_module = link_tuning_specs(tuner_context, td_specs_to_link)
         config_specs.append(td_spec_module)
 
     tune_logger.debug(f"Generated {len(config_specs)} tuning specs")
