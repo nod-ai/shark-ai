@@ -60,6 +60,37 @@ Device  Node  IDs              Temp    Power  Partitions          SCLK  MCLK   F
 
 Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
 
+
+### Install SHARK AI and Shortfin
+
+1. Create and activate a Python Virtual Environment:
+
+    ```shell
+    python -m venv ./.venv
+    source .venv/bin/activate
+    ```
+
+1. Clone the shark-ai repository:
+
+    ```shell
+    git clone https://github.com/nod-ai/shark-ai && cd shark-ai
+    ```
+
+1. Install dependencies:
+
+    ```shell
+    pip install -r requirements-iree-pinned.txt
+    pip install -r pytorch-cpu-requirements.txt
+    pip install -r requirements.txt
+    ```
+
+1. Install Shortfin
+
+    ```shell
+    cd shortfin && pip install --editable .
+    ```
+
+    
 ### [Install SHARK UI](https://github.com/nod-ai/shark-ui#installation)
 
 ## Usage
