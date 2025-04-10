@@ -57,6 +57,7 @@ def get_iree_compiler_flags(o: Any, device_count: int = 1) -> list[str]:
             f"--iree-hal-local-target-device-backends={v}"
             for v in o.iree_hal_local_target_device_backends
         ]
+        res += ["--iree-llvmcpu-target-cpu=host"]
     elif o.iree_hal_target_device.startswith("hip"):
         res += [f"--iree-hip-target={o.iree_hip_target}"]
     return res
