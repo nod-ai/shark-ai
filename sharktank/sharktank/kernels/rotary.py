@@ -14,11 +14,17 @@ __all__ = [
 @CustomOp.register(library=LIBRARY)
 class apply_rotary_embedding(CustomOp):
 
-    signature = "apply_rotary_embedding(Tensor input, Tensor table) -> (Tensor)"
+    signature = (
+        "apply_rotary_embedding(Tensor input, Tensor table, str mode) -> (Tensor)"
+    )
 
     def select(self, ksel: KernelSelection):
         inputs_desc = ksel.arg_tensor(0)
         table_desc = ksel.arg_tensor(1)
+
+        mode = ksel.attr_str(2).v
+        assert mode in {"interleave", "concat"}
+
         out_desc = ksel.return_new_tensor(
             inputs_desc.t.shape, dtype=inputs_desc.t.dtype
         )
@@ -30,6 +36,7 @@ class apply_rotary_embedding(CustomOp):
 
         input = kb.arg_value(0)
         table = kb.arg_value(1)
+        mode = ksel.arg_descs[2].v
 
         input_tensor_type = RankedTensorType(input.type)
         table_tensor_type = RankedTensorType(table.type)
@@ -47,9 +54,14 @@ class apply_rotary_embedding(CustomOp):
         dims = input.type.shape[3]
 
         template_file = "rotary_embedding.mlir"
-        target_function_name = (
-            f"sharktank_rotary_embedding_{bs}_{sl}_{heads}_{dims}_{input_dtype}"
-        )
+        if mode == "interleave":
+            target_function_name = (
+                f"sharktank_rotary_embedding_{bs}_{sl}_{heads}_{dims}_{input_dtype}"
+            )
+        elif mode == "concat":
+            target_function_name = (
+                f"sharktank_rotary_embedding_hf_{bs}_{sl}_{heads}_{dims}_{input_dtype}"
+            )
 
         # Template params.
         input_tensor_type = input_asm_type

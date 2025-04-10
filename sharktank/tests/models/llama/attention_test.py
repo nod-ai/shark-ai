@@ -19,6 +19,7 @@ from transformers.models.llama.modeling_llama import (
     LlamaMLP,
     LlamaRMSNorm,
     LlamaDecoderLayer,
+    LlamaRotaryEmbedding,
 )
 from transformers.models.llama.configuration_llama import LlamaConfig
 
@@ -68,7 +69,6 @@ class AttentionBlockTest(unittest.TestCase):
             device="cpu",
             use_hf=True,
         )
-        position_embeddings = attention_embedding.rotary_embed_table
         input_tensor = make_rand_torch(
             (1, seq_len, head_count * head_dim), dtype=torch.float32
         )
@@ -139,18 +139,26 @@ class AttentionBlockTest(unittest.TestCase):
         llama_decoder_layer = LlamaDecoderLayer(
             config=llama_config, layer_idx=block_index
         )
+        llama_rotary_embedding = LlamaRotaryEmbedding(config=llama_config)
         llama_decoder_layer.self_attn = llama_attention_block
         llama_decoder_layer.mlp = llama_mlp
         llama_decoder_layer.input_layernorm = llama_input_layernorm
         llama_decoder_layer.post_attention_layernorm = llama_post_attention_layernorm
-        position_embeddings = [x[:seq_len, :].unsqueeze(0) for x in position_embeddings]
+
+        x = torch.tensor(0, device="cpu", dtype=torch.float32)
+        position_ids = torch.arange(seq_len).unsqueeze(0).to(dtype=torch.float32)
+        position_embeddings = llama_rotary_embedding(x=x, position_ids=position_ids)
         huggingface_output = llama_decoder_layer(
             input_tensor,
             position_embeddings=position_embeddings,
         )[0]
         assert sharktank_output.shape == huggingface_output.shape
+
+        absmax = torch.max(torch.abs(sharktank_output))
+        huggingface_output = huggingface_output / absmax
+        sharktank_output = sharktank_output / absmax
         torch.testing.assert_close(
-            sharktank_output, huggingface_output, atol=1e-5, rtol=5e-1
+            sharktank_output, huggingface_output, atol=1e-5, rtol=1e-6
         )
 
 
