@@ -10,7 +10,12 @@ import torch
 
 from .base import BaseLayer
 from sharktank import ops, kernels
-from sharktank.types import SplitPrimitiveTensor, ReplicatedTensor, unbox_tensor
+from sharktank.types import (
+    SplitPrimitiveTensor,
+    ReplicatedTensor,
+    ShardedTensor,
+    unbox_tensor,
+)
 
 
 class RotaryEmbeddingLayer(BaseLayer):
@@ -26,7 +31,9 @@ class RotaryEmbeddingLayer(BaseLayer):
         use_hf: bool = False,
         use_table: bool = True,
         tensor_parallelism_size: int = 1,
+        pipeline_parallelism: bool = False,
         dtype: torch.dtype = torch.float32,
+        devices: tuple[int, ...] | None = None,
     ):
         super().__init__()
         self.device = device
@@ -37,6 +44,12 @@ class RotaryEmbeddingLayer(BaseLayer):
         self.dtype = dtype
         self.rope_freq_base = rope_freq_base if rope_freq_base is not None else 10000.0
         self.tensor_parallelism_size = tensor_parallelism_size
+        self.pipeline_parallelism = pipeline_parallelism
+        self.devices = (
+            devices
+            if devices is not None
+            else tuple(range(self.tensor_parallelism_size))
+        )
 
     @property
     def rotary_embed_table(self):
@@ -45,7 +58,7 @@ class RotaryEmbeddingLayer(BaseLayer):
     def forward(
         self,
         *,
-        xt: Union[torch.Tensor, SplitPrimitiveTensor],
+        xt: Union[torch.Tensor, ShardedTensor],
         start_index: int,
     ):
         table = self.rotary_embed_table
@@ -58,19 +71,18 @@ class RotaryEmbeddingLayer(BaseLayer):
                         rotary_embed_table=unbox_tensor(t),
                     )
                     for s, t in zip(xt.shards, table.shards)
-                ]
+                ],
+                devices=table.devices,
             )
 
-        if not isinstance(xt, SplitPrimitiveTensor):
+        if not isinstance(xt, ShardedTensor):
             return self.forward_unsharded(
                 xt=xt,
                 start_index=start_index,
                 rotary_embed_table=table,
             )
 
-        assert (
-            isinstance(table, ReplicatedTensor) and xt.shard_count == table.shard_count
-        )
+        assert isinstance(table, ShardedTensor) and xt.shard_count == table.shard_count
         rotary_shards = [unbox_tensor(shard) for shard in table.shards]
 
         xt_shards = [
@@ -81,8 +93,7 @@ class RotaryEmbeddingLayer(BaseLayer):
             )
             for xt_shard, rotary_shard in zip(xt.shards, rotary_shards)
         ]
-        xt = SplitPrimitiveTensor(ts=xt_shards, shard_dim=xt.shard_dim)
-        return xt
+        return xt.clone(ts=xt_shards)
 
     def _create_interleaved_tensor(_, dim):
         """Creates a tensor which indexes an tensor such that
@@ -212,10 +223,10 @@ class RotaryEmbeddingLayer(BaseLayer):
     def apply_batched_mask(
         self,
         *,
-        xt: Union[torch.Tensor, SplitPrimitiveTensor],
+        xt: Union[torch.Tensor, SplitPrimitiveTensor, ReplicatedTensor],
         mask: Union[torch.Tensor, ReplicatedTensor],
-    ):
-        if not isinstance(xt, SplitPrimitiveTensor):
+    ) -> Union[SplitPrimitiveTensor, ReplicatedTensor]:
+        if not isinstance(xt, ShardedTensor):
             return self.apply_batched_mask_unsharded(xt=xt, mask=mask)
 
         assert isinstance(mask, ReplicatedTensor) and mask.shard_count == xt.shard_count
@@ -226,8 +237,7 @@ class RotaryEmbeddingLayer(BaseLayer):
             )
             for xt_shard, mask_shard in zip(xt.shards, mask.shards)
         ]
-        xt = SplitPrimitiveTensor(ts=xt_shards, shard_dim=xt.shard_dim)
-        return xt
+        return xt.clone(ts=xt_shards)
 
     def apply_batched_mask_unsharded(self, *, xt: torch.Tensor, mask: torch.Tensor):
         """Applies the embedding to a ragged batch of queries and keys.
@@ -304,8 +314,8 @@ class RotaryEmbeddingLayer(BaseLayer):
         return self._replicate(freqs_cis)
 
     def _replicate(self, t):
-        if self.tensor_parallelism_size > 1:
+        if self.tensor_parallelism_size > 1 or self.pipeline_parallelism:
             # Replicate across all devices, the data is not a lot and the computation is cheap.
-            t = ops.replicate(t, self.tensor_parallelism_size)
+            t = ops.replicate(t, self.tensor_parallelism_size, devices=self.devices)
 
         return t
