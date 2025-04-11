@@ -52,9 +52,12 @@ add = _sfl.array.add
 ceil = _sfl.array.ceil
 convert = _sfl.array.convert
 divide = _sfl.array.divide
+exp = _sfl.array.exp
 fill_randn = _sfl.array.fill_randn
 floor = _sfl.array.floor
+log = _sfl.array.log
 log_softmax = _sfl.array.log_softmax
+softmax = _sfl.array.softmax
 multiply = _sfl.array.multiply
 round = _sfl.array.round
 subtract = _sfl.array.subtract
@@ -105,11 +108,14 @@ __all__ = [
     "ceil",
     "convert",
     "divide",
+    "exp",
     "fill_randn",
     "floor",
+    "log",
     "log_softmax",
     "multiply",
     "round",
+    "softmax",
     "subtract",
     "transpose",
     "trunc",

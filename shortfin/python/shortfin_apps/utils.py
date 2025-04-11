@@ -132,6 +132,31 @@ def convert_int_to_float(value: int, dtype: sfnp.DType) -> float:
     return struct.unpack("<e", packed_val)[0]
 
 
+def convert_float_to_int(value: float, dtype: sfnp.DType) -> int:
+    """Convert a `float` value to its `int` representation.
+
+    Args:
+        value (float): Value to convert.
+        dtype (sfnp.DType): Target dtype.
+
+    Raises:
+        ValueError: Unsupported `dtype`.
+
+    Returns:
+        int: int representation of original float value.
+    """
+    format_specs = {
+        str(sfnp.float16): "<H",
+    }
+    format_spec = format_specs.get(str(dtype))
+    if format_spec is None:
+        raise ValueError(f"Unsupported dtype: {dtype}")
+
+    # Convert float value to bytes
+    packed_val = struct.pack("<e", value)
+    return struct.unpack(format_spec, packed_val)[0]
+
+
 dtype_to_filetag = {
     "bfloat16": "bf16",
     "float32": "f32",

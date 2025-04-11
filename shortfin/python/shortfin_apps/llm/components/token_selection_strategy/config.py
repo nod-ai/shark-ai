@@ -8,7 +8,7 @@ from dataclasses import dataclass, fields
 from dataclasses_json import dataclass_json, Undefined
 from enum import Enum, auto
 
-from ..io_struct import DEFAULT_TEMPERATURE
+from ..io_struct import DEFAULT_MAX_COMPLETION_TOKENS, DEFAULT_TEMPERATURE, NOT_PROVIDED
 
 
 class LogitsNormalization(Enum):
@@ -75,10 +75,13 @@ class DecodeConfig:
     logits_normalization: LogitsNormalization = LogitsNormalization.NONE
 
     # Max number of tokens to generate in decode loop
-    max_completion_tokens: int = 50
+    max_completion_tokens: int = DEFAULT_MAX_COMPLETION_TOKENS
 
     # Flatten or stretch logits to increase variability
     temperature: float = DEFAULT_TEMPERATURE
+
+    # Use `top_k` sampling strategy in decode loop
+    top_k: int | str = NOT_PROVIDED
 
     def __post_init__(self):
         if isinstance(self.token_selection_strategy, str):

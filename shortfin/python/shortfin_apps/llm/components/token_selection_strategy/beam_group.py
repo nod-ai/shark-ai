@@ -8,16 +8,19 @@ import logging
 
 from abc import ABC, abstractmethod
 from asyncio import gather
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Set
 from uuid import uuid4
 
-from .config import LogitsNormalization
+from .base_token_selection_strategy import DecodeConfig
+from .sampler import Sampler
 from ..messages import LlmInferenceExecRequest
-from ..io_struct import DEFAULT_TEMPERATURE
-
 
 import shortfin.array as sfnp
+
+
+from .config import LogitsNormalization
+from ..messages import LlmInferenceExecRequest
 
 logger = logging.getLogger(__name__)
 
@@ -28,12 +31,13 @@ logger = logging.getLogger(__name__)
 class Beam(ABC):
     exec_req: LlmInferenceExecRequest
 
-    temperature: float = DEFAULT_TEMPERATURE
+    decode_config: DecodeConfig
+
+    sampler: Sampler = field(default_factory=Sampler)
 
     score: float = 0.0
     accumulated_normalization: float = 0.0
     last_token: int | None = None
-    logits_normalization: LogitsNormalization = LogitsNormalization.NONE
 
     def apply_temperature(self):
         """Apply temperature to the logits of a decode invocation.
@@ -41,15 +45,57 @@ class Beam(ABC):
         Args:
             temperature (float): Value to use for `temperature`.
         """
-        if self.temperature == 1.0:
+        if self.decode_config.temperature == 1.0:
             return
         self.exec_req.result_logits = sfnp.divide(
-            self.exec_req.result_logits, self.temperature
+            self.exec_req.result_logits, self.decode_config.temperature
         )
+
+    def convert_logits_normalization(
+        self,
+        current: LogitsNormalization,
+        target: LogitsNormalization,
+        logits: sfnp.device_array,
+        **kwargs,
+    ) -> sfnp.device_array:
+        logits_conversion_map = {
+            LogitsNormalization.NONE: {
+                LogitsNormalization.LOG_SOFTMAX: sfnp.log_softmax,
+                LogitsNormalization.SOFTMAX: sfnp.softmax,
+            },
+            LogitsNormalization.SOFTMAX: {
+                LogitsNormalization.LOG_SOFTMAX: sfnp.log,
+            },
+            LogitsNormalization.LOG_SOFTMAX: {
+                LogitsNormalization.SOFTMAX: sfnp.exp,
+            },
+        }
+        if current == target:
+            return logits
+
+        target_conversions = logits_conversion_map.get(current)
+        if target_conversions is None:
+            raise KeyError(f"Cannot convert current normalization: {current}")
+
+        conversion_function = target_conversions.get(target)
+        if conversion_function is None:
+            raise KeyError(f"Cannot convert {current} to {target}")
+
+        if kwargs:
+            converted_logits = conversion_function(logits, **kwargs)
+        else:
+            converted_logits = conversion_function(logits)
+
+        return converted_logits
 
     @abstractmethod
     def sample_logits(self):
         """Define how to sample and select tokens for a give `Beam`"""
+        pass
+
+    @abstractmethod
+    def _sample_logits_top_k(self):
+        """Define how to sample and select tokens with the use of `top_k` sampling"""
         pass
 
     @abstractmethod
