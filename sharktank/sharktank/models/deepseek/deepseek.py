@@ -6,17 +6,17 @@
 
 from typing import Optional
 
-from dataclasses import dataclass
 from typing import Union
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 from ...layers import *
 from ...types import *
 from ...utils.create_cache import *
-from ... import ops
+
 
 __all__ = [
     "PagedDeepseekModelV1",
@@ -56,6 +56,9 @@ class PagedDeepseekModelV1(BaseCausalLMModel):
                 rope_freq_base=hp.rope_freq_base,
                 max_seqlen=hp.context_length,
                 tensor_parallelism_size=config.tensor_parallelism_size,
+                device=self.device,
+                dtype=config.activation_dtype,
+                use_hf=config.use_hf,
             ),
         )
         self.add_module(
@@ -65,6 +68,9 @@ class PagedDeepseekModelV1(BaseCausalLMModel):
             ),
         )
         self.add_module("output_lm_head", LinearLayer(theta("output")))
+        hp.block_count = 1
+        blk_range = range(0, hp.block_count)
+        blk_range = [3]
         self.attn_blocks = nn.ModuleList(
             [
                 AttentionFFNBlock(
@@ -74,12 +80,18 @@ class PagedDeepseekModelV1(BaseCausalLMModel):
                     head_count=hp.attention_head_count,
                     head_dim=hp.attn_head_dim,
                     head_count_kv=hp.attention_head_count_kv,
+                    v_head_dim=hp.v_head_dim,
                     rms_epsilon=hp.attention_layer_norm_rms_epsilon,
                     rope_dimension_count=hp.rope_dimension_count,
+                    expert_used_count=hp.expert_used_count,
+                    expert_count=hp.expert_count,
+                    n_expert_groups=hp.n_expert_groups,
+                    n_limited_groups=hp.n_limited_groups,
+                    n_dense_layers=hp.n_dense_layers,
                     route_scale=hp.route_scale,
-                    score_func=hp.expert_score_func,
+                    model_arch=hp.model_arch,
                 )
-                for n in range(hp.block_count)
+                for n in blk_range
             ]
         )
 
@@ -87,123 +99,82 @@ class PagedDeepseekModelV1(BaseCausalLMModel):
         self,
         # [bs, batch_seq_len]
         tokens: Union[torch.Tensor, ReplicatedTensor],
+        *,
+        # [1, 1, batch_seq_len, batch_seq_len]
+        attention_mask: torch.Tensor,
+        # [bs, batch_seq_len // block_seq_stride]
+        seq_block_ids: torch.Tensor,
+        cache_state: list[torch.Tensor],
     ):
+        self._assert_device(tokens)
+        self._assert_device(attention_mask, dtype=self.activation_dtype)
+        self._assert_device(seq_block_ids)
+        self._assert_device(*cache_state, dtype=self.activation_dtype)
+
         h = self.token_embedding(tokens)
 
         # Iterate over attention blocks.
         for _, block in enumerate(self.attn_blocks):
-            h = block(h, embedding=self.attention_embedding)
+            h = block(
+                h,
+                embedding=self.attention_embedding,
+                start_index=0,
+                attention_mask=attention_mask,
+                cache_state=cache_state,
+                seq_block_ids=seq_block_ids,
+            )
 
         h = self.output_norm(h)
-        h = self.output_lm_head(h)
-        return h
+        logits = self.output_lm_head(h)
+        return logits
+
+    def decode(
+        self,
+        # [bs, 1]
+        tokens: torch.Tensor,
+        *,
+        # [bs, 1, 1, batch_seq_len]
+        attention_mask: torch.Tensor,
+        # [bs] of starting positions
+        start_positions: torch.Tensor,
+        # [bs, batch_seq_len // block_seq_stride]
+        seq_block_ids: torch.Tensor,
+        cache_state: list[torch.Tensor],
+    ):
+        self._assert_device(tokens)
+        self._assert_device(attention_mask, dtype=self.activation_dtype)
+        self._assert_device(start_positions)
+        self._assert_device(*cache_state, dtype=self.activation_dtype)
+
+        bs, _ = tokens.shape
+        # Precompute a position based mask for computing rope embeddings
+        # as it is the same for all blocks.
+        embedding_batch_mask = self.attention_embedding.compute_batch_mask(
+            start_positions, batch_seq_len=1
+        )
+
+        h = self.token_embedding(tokens)
+
+        # Iterate over attention blocks.
+        for _, block in enumerate(self.attn_blocks):
+            h = block(
+                h,
+                embedding=self.attention_embedding,
+                start_positions=start_positions,
+                attention_mask=attention_mask,
+                embedding_batch_mask=embedding_batch_mask,
+                cache_state=cache_state,
+                seq_block_ids=seq_block_ids,
+            )
+
+        h = self.output_norm(h)
+        logits = self.output_lm_head(h)
+        return logits
 
 
 ################################################################################
 # Layers
 ################################################################################
-
-
-class PagedLatentAttentionBlock(ThetaLayer):
-    def __init__(
-        self,
-        theta: Theta,
-        *,
-        block_index: int,
-        cache: PagedAttention,
-        head_count: int,
-        head_dim: int,
-        head_count_kv: int,
-        rms_epsilon: float,
-        rope_dimension_count: int,
-        attention_scale: Optional[float] = None,
-    ):
-        super().__init__(theta)
-
-        self.block_index = block_index
-        self.cache = cache
-        self.head_count = head_count
-        self.head_dim = head_dim
-        self.head_count_kv = head_count_kv
-        self.attention_scale = attention_scale
-        self.rope_dimension_count = rope_dimension_count
-
-        self.add_module(
-            "attn_norm", RMSNormLayer(theta("attn_norm"), epsilon=rms_epsilon)
-        )
-        self.add_module("kv_norm", RMSNormLayer(theta("kv_norm"), epsilon=rms_epsilon))
-
-        self.wq = None
-        if "wq" in theta:
-            self.wq = LinearLayer(theta("wq"))
-        else:
-            self.wq_a = LinearLayer(theta("wq_a"))
-            self.wq_b = LinearLayer(theta("wq_b"))
-            self.q_norm = RMSNormLayer(theta("q_norm"), epsilon=rms_epsilon)
-
-        self.add_module("wkv_a", LinearLayer(theta("wkv_a")))
-        self.add_module("wkv_b", LinearLayer(theta("wkv_b")))
-        self.add_module("wo", LinearLayer(theta("wo")))
-
-    def forward(
-        self,
-        h: torch.Tensor,
-        *,
-        embedding: RotaryEmbeddingLayer,
-    ):
-        h = self.attn_norm(h)
-
-        if self.wq is not None:
-            q = self.wq(h).unflatten(2, (self.head_count, -1))
-        else:
-            q = self.wq_b(self.q_norm(self.wq_a(h)))
-            q = q.unflatten(2, (self.head_count, -1))
-
-        qk_nope_head_dim = q.shape[-1] - self.rope_dimension_count
-        q_nope = q[:, :, :, :qk_nope_head_dim]
-        q_rope = q[:, :, :, qk_nope_head_dim:]
-        q_rope = embedding(xt=q_rope, start_index=0)
-        q = ops.cat((q_nope, q_rope), dim=-1)
-
-        kv = self.wkv_a(h)
-        kv_nope_size = kv.shape[-1] - self.rope_dimension_count
-        kv_nope = kv[:, :, :kv_nope_size]
-        k_rope = kv[:, :, kv_nope_size:]
-        k_rope = embedding(xt=k_rope.unsqueeze(2), start_index=0)
-
-        ## We should restructure this to apply the wkv_b post attention.
-        kv_norm = self.kv_norm(kv_nope)
-        wkv_b = self.wkv_b(kv_norm).unflatten(2, (self.head_count, -1))
-
-        k_nope = wkv_b[:, :, :, :qk_nope_head_dim]
-        v = wkv_b[:, :, :, qk_nope_head_dim:]
-
-        k_rope = ops.repeat(k_rope, (1, 1, k_nope.shape[2] // k_rope.shape[2], 1))
-
-        if isinstance(k_rope, ReplicatedTensor) and isinstance(
-            k_nope, SplitPrimitiveTensor
-        ):
-            k_rope = ops.reshard_split(
-                k_rope, dim=k_nope.shard_dim, count=k_nope.shard_count
-            )
-
-        k = ops.cat((k_nope, k_rope), dim=-1)
-
-        q = q.transpose(1, 2)
-        k = k.transpose(1, 2)
-        v = v.transpose(1, 2)
-
-        attn = ops.scaled_dot_product_attention(
-            q=q,  # [bs, ..., sl, dim]
-            k=k,  # [bs, ..., sl, dim]
-            v=v,  # [bs, ..., sl, dim]
-            a=None,  # [bs, ..., sl, sl]
-            is_causal=True,  # assumes causal masking when true
-            scale=self.attention_scale,  # defaults to 1/sqrt(dim)
-        )
-
-        attn = attn.transpose(1, 2)
-        return self.wo(attn.flatten(2))
 
 
 class AttentionFFNBlock(ThetaLayer):
@@ -219,64 +190,88 @@ class AttentionFFNBlock(ThetaLayer):
         head_count: int,
         head_dim: int,
         head_count_kv: int,
+        v_head_dim: int,
         rms_epsilon: float,
         rope_dimension_count: int,
+        expert_used_count: int,
+        expert_count: int,
+        n_expert_groups: int,
+        n_limited_groups: int,
+        n_dense_layers: int,
         route_scale: Optional[float],
-        score_func: Optional[str],
+        model_arch: str,
     ):
         super().__init__(theta)
         self.add_module(
             "attn",
-            PagedLatentAttentionBlock(
+            PagedLlamaAttentionBlock(
                 theta=theta,
                 block_index=block_index,
                 cache=cache,
                 head_count=head_count,
                 head_dim=head_dim,
                 head_count_kv=head_count_kv,
+                v_head_dim=v_head_dim,
                 rms_epsilon=rms_epsilon,
                 rope_dimension_count=rope_dimension_count,
+                model_arch=model_arch,
             ),
         )
 
         func_map = {
-            "sigmoid": (torch.nn.functional.sigmoid, True),
-            "softmax": (torch.nn.functional.softmax, False),
+            "llama": (F.softmax, False),
+            "grok": (F.softmax, False),
+            "deepseek2": (F.sigmoid, True),
         }
 
-        score_experts, normalize_experts = func_map[score_func]
+        score_experts, normalize_experts = func_map[model_arch]
 
-        if "ffn" in theta:
-            self.add_module("ffn", FFN(theta=theta("ffn")))
-        else:
+        # print('theta.keys', theta.keys)
+
+        if block_index >= n_dense_layers:
+
             self.add_module(
                 "ffn",
                 MoeBlock(
-                    theta=theta("moe"),
-                    rms_epsilon=1,
-                    expert_used_count=1,
+                    theta=theta,
+                    rms_epsilon=rms_epsilon,
+                    expert_count=expert_count,
+                    expert_used_count=expert_used_count,
+                    n_expert_groups=n_expert_groups,
+                    n_limited_groups=n_limited_groups,
                     add_residual=False,
                     route_scale=route_scale,
                     score_experts=score_experts,
                     normalize_experts=normalize_experts,
                 ),
             )
-
-        self.add_module(
-            "ffn_norm", RMSNormLayer(theta("ffn_norm"), epsilon=rms_epsilon)
-        )
+        else:
+            self.add_module("ffn", FFN(theta=theta, rms_epsilon=rms_epsilon))
 
     def forward(
         self,
         h: Union[torch.Tensor, ReplicatedTensor],
         *,
         embedding: RotaryEmbeddingLayer,
+        seq_block_ids: torch.Tensor,
+        start_index: Optional[int] = None,
+        start_positions: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        embedding_batch_mask: Optional[torch.Tensor] = None,
+        cache_state: list[torch.Tensor] = None,
     ):
-        h = h + self.attn(h, embedding=embedding)
+        h = self.attn(
+            h,
+            embedding=embedding,
+            start_index=start_index,
+            start_positions=start_positions,
+            attention_mask=attention_mask,
+            cache_state=cache_state,
+            seq_block_ids=seq_block_ids,
+            embedding_batch_mask=embedding_batch_mask,
+        )
 
         # Feed forward network.
-        ffn_input = self.ffn_norm(h)
-        ffn_down = self.ffn(ffn_input)
-        final_output = h + ffn_down
+        final_output = self.ffn(h)
 
         return final_output

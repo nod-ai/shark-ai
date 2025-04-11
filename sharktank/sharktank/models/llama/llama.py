@@ -113,6 +113,7 @@ class PagedLlamaModelV1(BaseCausalLMModel):
                     attention_dtype=config.attention_dtype,
                     attention_kernel=self.attention_kernel,
                     fake_quant=self.fake_quant,
+                    model_arch=hp.model_arch,
                 )
                 for n in range(hp.block_count)
             ]
@@ -235,6 +236,7 @@ class AttentionFFNBlock(ThetaLayer):
         head_dim: int,
         head_count_kv: int,
         rms_epsilon: float,
+        model_arch: str,
         attention_dtype: Optional[torch.dtype] = None,
         attention_kernel: str = "decomposed",
         fake_quant: bool = True,
@@ -253,17 +255,16 @@ class AttentionFFNBlock(ThetaLayer):
                 attention_dtype=attention_dtype,
                 attention_kernel=attention_kernel,
                 fake_quant=fake_quant,
+                model_arch=model_arch,
             ),
         )
         self.add_module(
             "ffn",
             FFN(
                 theta=theta,
+                rms_epsilon=rms_epsilon,
                 fake_quant=fake_quant,
             ),
-        )
-        self.add_module(
-            "ffn_norm", RMSNormLayer(theta("ffn_norm"), epsilon=rms_epsilon)
         )
 
     def forward(
@@ -291,8 +292,6 @@ class AttentionFFNBlock(ThetaLayer):
         )
 
         # Feed forward network.
-        ffn_input = self.ffn_norm(h)
-        ffn_down = self.ffn(ffn_input)
-        final_output = h + ffn_down
+        final_output = self.ffn(h)
 
         return final_output

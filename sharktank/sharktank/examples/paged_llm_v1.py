@@ -20,6 +20,7 @@ from ..ops import replicate, unshard
 # TODO: Should be using a base class with the protocol supported.
 from ..models.mixtral.mixtral import *
 from ..models.grok.grok import *
+from ..models.deepseek.deepseek import *
 from ..models.llama.llama import *
 from ..models.llama.sharding import shard_theta
 from ..utils.debugging import trace_tensor
@@ -253,11 +254,29 @@ class Batch:
                 phase="prefill", arg_name="cache_state", arg=self.cache_state[0]
             )
 
+        # print("prefill.token_ids", token_ids)
+        # print("prefill.seq_block_ids", seq_block_ids_tensor)
+        # print("prefill.attention_mask", attention_mask)
+
+        print(
+            "prefill cache 1: ",
+            self.cache_state[0].nelement(),
+            self.cache_state[0].nelement()
+            - torch.count_nonzero(self.cache_state[0]).item(),
+        )
+
         logits = model.prefill(
             token_ids,
             attention_mask=attention_mask,
             seq_block_ids=seq_block_ids_tensor,
             cache_state=self.cache_state,
+        )
+
+        print(
+            "prefill cache 2: ",
+            self.cache_state[0].nelement(),
+            self.cache_state[0].nelement()
+            - torch.count_nonzero(self.cache_state[0]).item(),
         )
 
         logits = unshard(logits)
@@ -337,6 +356,13 @@ class Batch:
             start_positions=start_positions,
             seq_block_ids=seq_block_ids_tensor,
             cache_state=self.cache_state,
+        )
+
+        print(
+            "decode cache 2: ",
+            self.cache_state[0].nelement(),
+            self.cache_state[0].nelement()
+            - torch.count_nonzero(self.cache_state[0]).item(),
         )
 
         logits = unshard(logits)
@@ -426,12 +452,17 @@ def main():
         tensor_parallelism_size=args.tensor_parallelism_size,
         fake_quant=args.fake_quant,
     )
+
+    print("config", config)
+
     if config.tensor_parallelism_size > 1:
         dataset.root_theta = shard_theta(dataset.root_theta, config)
 
     if config.hp.expert_count:
         if config.hp.model_arch == "grok":
             model = PagedGrokModelV1(dataset.root_theta, config)
+        elif config.hp.model_arch == "deepseek2":
+            model = PagedDeepseekModelV1(dataset.root_theta, config)
         else:
             model = PagedMixtralModelV1(dataset.root_theta, config)
     else:

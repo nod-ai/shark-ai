@@ -46,44 +46,61 @@ def main():
 
     config = cli.get_input_dataset(args)
 
-    if args.save is not None:
+    # if args.save is not None:
 
-        def report(s):
-            logger.info(f"Save: {s}")
+    #     def report(s):
+    #         logger.info(f"Save: {s}")
 
-        logger.info(f"Saving to: {args.save}")
-        config.save(args.save, io_report_callback=report)
-        return
+    #     logger.info(f"Saving to: {args.save}")
+    #     config.save(args.save, io_report_callback=report)
+    #     return
 
     logger.debug("Properties:")
     for key, value in config.properties.items():
         logger.debug(f"  {key} = {value} (of {type(value)})")
 
     logger.debug("Tensors:")
+    tensors = []
     for tensor in config.root_theta.flatten().values():
-        if args.tensor_regex is not None:
-            if not re.search(args.tensor_regex, tensor.name):
-                continue
 
-        logger.debug(f"  {tensor}")
-        if isinstance(tensor, PrimitiveTensor):
-            torch_tensor = tensor.as_torch()
-            logger.debug(
-                f"    : torch.Tensor({list(torch_tensor.shape)}, "
-                f"dtype={torch_tensor.dtype}) = {tensor.as_torch()}"
-            )
-        elif isinstance(tensor, QuantizedTensor):
-            logger.debug(f"    : QuantizedTensor({tensor.layout_type.__name__})")
-            try:
-                unpacked = tensor.unpack()
-                logger.debug(f"    {unpacked}")
-            except NotImplementedError:
-                logger.warning(f"    Unpacking NOT IMPLEMENTED for {tensor.name}")
-        elif isinstance(tensor, ShardedTensor):
-            for i, pt in enumerate(tensor.shards):
-                logger.debug(f"    {i}: {pt}")
+        # if args.tensor_regex is not None and re.search(args.tensor_regex, tensor.name):
+        if tensor.name.split(".")[1] in ["0"]:
+            logger.debug(f"  {tensor}")
+            print(tensor.name)
+            tensors += [
+                DefaultPrimitiveTensor(data=tensor.as_torch(), name=tensor.name)
+            ]
 
-        _maybe_dump_tensor(args, tensor)
+        if "blk" not in tensor.name:
+            print(tensor.name)
+            tensors += [
+                DefaultPrimitiveTensor(data=tensor.as_torch(), name=tensor.name)
+            ]
+
+        # if isinstance(tensor, PrimitiveTensor):
+        #     torch_tensor = tensor.as_torch()
+        #     logger.debug(
+        #         f"    : torch.Tensor({list(torch_tensor.shape)}, "
+        #         f"dtype={torch_tensor.dtype}) = {tensor.as_torch()}"
+        #     )
+        # elif isinstance(tensor, QuantizedTensor):
+        #     logger.debug(f"    : QuantizedTensor({tensor.layout_type.__name__})")
+        #     try:
+        #         unpacked = tensor.unpack()
+        #         logger.debug(f"    {unpacked}")
+        #     except NotImplementedError:
+        #         logger.warning(f"    Unpacking NOT IMPLEMENTED for {tensor.name}")
+        # elif isinstance(tensor, ShardedTensor):
+        #     for i, pt in enumerate(tensor.shards):
+        #         logger.debug(f"    {i}: {pt}")
+
+        # _maybe_dump_tensor(args, tensor)
+
+    theta = Theta(tensors)
+    props = config.properties
+    dataset = Dataset(props, theta)
+
+    dataset.save(args.save, io_report_callback=logger.debug)
 
 
 def _maybe_dump_tensor(args, t: InferenceTensor):
