@@ -141,7 +141,7 @@ class KVCacheTest(unittest.TestCase):
                 cache_k=self.direct_k_cache[block_idx],
                 cache_v=self.direct_v_cache[block_idx],
             )
-        page_table = self.paged_kv_cache.unflatten_page_table(self.paged_cache_state)
+        page_table = self.paged_kv_cache.unflatten_page_tables(self.paged_cache_state)
         index_written = self.start_positions.item()
         """
             Getting the value of the paged_seq_block_ids, which is the page id we are writing
@@ -249,7 +249,7 @@ class KVCacheTest(unittest.TestCase):
                 cache_v=self.direct_v_cache,
             )
 
-        page_table = self.paged_kv_cache.unflatten_page_table(self.paged_cache_state)
+        page_table = self.paged_kv_cache.unflatten_page_tables(self.paged_cache_state)
         index_written = self.start_positions.item()
         page_id = self.paged_seq_block_ids[0][0].item()
         updated_direct_cache_state_keys = self.direct_k_cache[0][
