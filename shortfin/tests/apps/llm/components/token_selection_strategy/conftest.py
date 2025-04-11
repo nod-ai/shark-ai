@@ -15,6 +15,7 @@ from shortfin_apps.llm.components.messages import (
 )
 from shortfin_apps.llm.components.token_selection_strategy import (
     BaseTokenSelectionStrategy,
+    DecodeConfig,
     TokenSelectionStrategyConfig,
 )
 
@@ -40,6 +41,11 @@ def exec_req():
             input_token_ids=[0, 1, 2, 3, 4, 5],
             rid=str(uuid4()),
         )
+
+
+@pytest.fixture(scope="function")
+def decode_config():
+    yield DecodeConfig()
 
 
 class DummyTokenSelectionStrategy(BaseTokenSelectionStrategy):

@@ -8,13 +8,13 @@ import logging
 
 import shortfin.array as sfnp
 
-from .beam_group import Beam
+from .beam_group import Beam, LogitsNormalization
 from .base_token_selection_strategy import (
     BaseTokenSelectionStrategy,
     TokenSelectionStrategyConfig,
 )
+from ..io_struct import NOT_PROVIDED
 from ..messages import LlmInferenceExecRequest, InferencePhase
-
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +28,36 @@ class GreedyBeam(Beam):
         """
         self.apply_temperature()
         exec_req = self.exec_req
-        token = sfnp.argmax(exec_req.result_logits)
-        token_int = token.items[0]
-        return token_int
+        decode_config = self.decode_config
+        top_k = decode_config.top_k
+        top_p = decode_config.top_p
+
+        # Normal greedy selection based on max value
+        if (top_k, top_p) == (NOT_PROVIDED, NOT_PROVIDED):
+            return self.sampler.select_greedy(exec_req.result_logits)
+
+        # Convert to softmax to obtain probabilities
+        softmax_logits = self.convert_logits_normalization(
+            decode_config.logits_normalization,
+            LogitsNormalization.SOFTMAX,
+            exec_req.result_logits,
+        )
+
+        tokens, probs = softmax_logits, None
+        if top_k != NOT_PROVIDED:
+            num_selections = 1 if top_p == NOT_PROVIDED else top_k
+            tokens, probs = self._sample_logits_top_k(
+                softmax_logits,
+                top_k,
+                num_selections,
+            )
+
+        if top_p != NOT_PROVIDED:
+            if top_k == NOT_PROVIDED:
+                tokens, probs = self.sampler.select_top_k(tokens, -32)
+            tokens, _ = self._sample_logits_top_p(tokens, probs, top_p, 1)
+
+        return tokens[0]
 
     def update_exec_req(self):
         """Update the `LlmInferenceExecRequest` with the selected token."""
@@ -67,14 +94,11 @@ class GreedyTokenSelectionStrategy(BaseTokenSelectionStrategy):
         Args:
             exec_req (LlmInferenceExecRequest): Execution request that has had prefill invoked on it.
         """
-        logger.info("Starting `greedy` decode loop...")
+        self._log_sampling_method()
         config = self.token_selection_strategy_config
+
         config.decode_begin_callback(1)
-        beam = GreedyBeam(
-            exec_req=exec_req,
-            temperature=config.decode_config.temperature,
-            logits_normalization=config.decode_config.logits_normalization,
-        )
+        beam = GreedyBeam(exec_req, decode_config=config.decode_config)
         for _ in range(config.decode_config.max_completion_tokens):
             exec_req = beam.exec_req
             exec_req.reset(InferencePhase.DECODE)

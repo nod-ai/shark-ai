@@ -36,6 +36,40 @@ class SamplingParams:
         self.temperature = min(MAX_TEMPERATURE, max(self.temperature, MIN_TEMPERATURE))
 
 
+NOT_PROVIDED = "NOT_PROVIDED"
+
+# TODO: Should max, min, and default change based on the model being ran?
+# Source: https://github.com/ggml-org/llama.cpp/blob/master/examples/main/README.md?#temperature
+MAX_TEMPERATURE = 2.0
+DEFAULT_TEMPERATURE = 0.8
+MIN_TEMPERATURE = 0.1
+
+DEFAULT_MAX_COMPLETION_TOKENS = 50
+
+MAX_TOP_P = 0.99
+MIN_TOP_P = 0.01
+
+
+@dataclass
+class SamplingParams:
+    # Number of parallel samples
+    n: int = 1
+    # Max tokens to generate during decode loop
+    max_completion_tokens: int = DEFAULT_MAX_COMPLETION_TOKENS
+    # Temperature to use during generation
+    temperature: float = DEFAULT_TEMPERATURE
+    # Use `top_k` sampling during token selection process
+    top_k: int | str = NOT_PROVIDED
+    # Use `top_p` sampling during token selection process
+    top_p: float | str = NOT_PROVIDED
+
+    def __post_init__(self):
+        # Ensure temperature is within acceptable range
+        self.temperature = min(MAX_TEMPERATURE, max(self.temperature, MIN_TEMPERATURE))
+        if self.top_p != NOT_PROVIDED:
+            self.top_p = min(MAX_TOP_P, max(self.top_p, MIN_TOP_P))
+
+
 # Adapted from:
 # https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/managers/io_struct.py
 @dataclass

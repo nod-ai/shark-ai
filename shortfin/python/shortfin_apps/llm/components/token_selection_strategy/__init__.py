@@ -17,9 +17,10 @@ from .config import (
     get_strategy_from_str,
     is_ref_counted,
 )
+from .beam_search_token_selection_strategy import BeamSearchTokenSelectionStrategy
 from .greedy_token_selection_strategy import GreedyTokenSelectionStrategy
 from .multi_greedy_token_selection_strategy import MultiGreedyTokenSelectionStrategy
-from .beam_search_token_selection_strategy import BeamSearchTokenSelectionStrategy
+from .sampler import Sampler
 
 
 def build_token_selector_config(
@@ -105,6 +106,7 @@ __all__ = [
     "BaseTokenSelectionStrategy",
     "TokenSelectionStrategyConfig",
     "TokenSelectionStrategy",
+    "Sampler",
     "BeamSearchTokenSelectionStrategy",
     "GreedyTokenSelectionStrategy",
     "MultiGreedyTokenSelectionStrategy",

@@ -6,12 +6,17 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+import logging
 from typing import List, Callable, Union
 
 from .config import DecodeConfig, TokenSelectionStrategy
+from ..io_struct import NOT_PROVIDED
 from ..messages import LlmInferenceExecRequest
 
 import shortfin.array as sfnp
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -29,6 +34,20 @@ class TokenSelectionStrategyConfig:
 
 class BaseTokenSelectionStrategy(ABC):
     """Abstract class for implementing token selection strategies."""
+
+    def _log_sampling_method(self):
+        """Log the sampling method used for token selection."""
+        decode_config = self.token_selection_strategy_config.decode_config
+        strategy = decode_config.token_selection_strategy
+        if isinstance(strategy, TokenSelectionStrategy):
+            strategy = strategy.name
+        logger.info(f"Using {strategy.lower()} selection method...")
+
+        if decode_config.top_k != NOT_PROVIDED:
+            logger.info(f"Using `top_k` sampling with `top_k == {decode_config.top_k}`")
+
+        if decode_config.top_p != NOT_PROVIDED:
+            logger.info(f"Using `top_p` sampling with `top_p == {decode_config.top_p}`")
 
     def replicate_inference_exec_requests(
         self, exec_req: LlmInferenceExecRequest, replicate: int

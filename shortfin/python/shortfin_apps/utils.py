@@ -7,7 +7,7 @@ import asyncio
 from pathlib import Path
 import struct
 import threading
-from typing import Optional, Union
+from typing import Any, List, Optional, Union
 
 import shortfin.array as sfnp
 import shortfin as sf
@@ -130,6 +130,45 @@ def convert_int_to_float(value: int, dtype: sfnp.DType) -> float:
     packed_val = struct.pack(format_spec, value)
     # Unpack the bytes to a float
     return struct.unpack("<e", packed_val)[0]
+
+
+def convert_float_to_int(value: float, dtype: sfnp.DType) -> int:
+    """Convert a `float` value to its `int` representation.
+
+    Args:
+        value (float): Value to convert.
+        dtype (sfnp.DType): Target dtype.
+
+    Raises:
+        ValueError: Unsupported `dtype`.
+
+    Returns:
+        int: int representation of original float value.
+    """
+    format_specs = {
+        str(sfnp.float16): "<H",
+    }
+    format_spec = format_specs.get(str(dtype))
+    if format_spec is None:
+        raise ValueError(f"Unsupported dtype: {dtype}")
+
+    # Convert float value to bytes
+    packed_val = struct.pack("<e", value)
+    return struct.unpack(format_spec, packed_val)[0]
+
+
+def convert_list_to_device_array(
+    values: List[Any], shape: List[int], device: sf.ScopedDevice, dtype: sfnp.DType
+) -> sfnp.device_array:
+    values_sf = sfnp.device_array.for_host(
+        device,
+        shape,
+        dtype,
+    )
+    with values_sf.map(discard=True) as m:
+        m.items = values
+
+    return values_sf
 
 
 dtype_to_filetag = {

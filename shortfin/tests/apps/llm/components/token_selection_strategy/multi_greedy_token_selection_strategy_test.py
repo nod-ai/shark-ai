@@ -57,9 +57,10 @@ def multi_greedy_token_selection_strategy():
 
 
 @pytest.fixture(scope="function")
-def greedy_beam(exec_req):
+def greedy_beam(exec_req, decode_config):
     yield GreedyBeam(
         exec_req,
+        decode_config=decode_config,
     )
 
 
@@ -74,7 +75,9 @@ def _batcher_workitem_callback(_: int):
     pass
 
 
-def test_select_greedy(device, exec_req_list, multi_greedy_token_selection_strategy):
+def test_select_greedy(
+    decode_config, device, exec_req_list, multi_greedy_token_selection_strategy
+):
     count = 0
     for exec_req in exec_req_list:
         src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
@@ -84,7 +87,9 @@ def test_select_greedy(device, exec_req_list, multi_greedy_token_selection_strat
         exec_req.result_logits = src
         count += 1
 
-    beams = [GreedyBeam(exec_req) for exec_req in exec_req_list]
+    beams = [
+        GreedyBeam(exec_req, decode_config=decode_config) for exec_req in exec_req_list
+    ]
     selections = multi_greedy_token_selection_strategy.select_greedy(beams, [])
     assert len(selections) == len(beams)
 
