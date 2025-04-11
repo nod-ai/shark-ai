@@ -11,7 +11,9 @@ tightly coupled transformer blocks a bit less "stringy" with loose tensors
 and dims floating around everywhere.
 """
 
-from typing import Optional, Union, List
+from typing import Optional, Tuple, Union, List
+
+import abc
 import math
 
 import torch
@@ -64,6 +66,7 @@ class PagedAttention:
         attn_dtype: torch.dtype = torch.float32,
         device: Optional[torch.device] = None,
         shard_count: int = 1,
+        block_to_device_lookup: tuple[tuple[int, ...], ...] | None = None,
     ):
         self.transformer_block_count = transformer_block_count
         self.head_count_kv = attn_head_count
@@ -71,49 +74,103 @@ class PagedAttention:
         self.cache_partition_count = cache_partition_count
         self.block_seq_stride = block_seq_stride
         self.shard_count = shard_count
+
+        if block_to_device_lookup is None:
+            block_to_device_lookup = tuple(
+                tuple(range(self.shard_count))
+                for _ in range(self.transformer_block_count)
+            )
+        assert len(block_to_device_lookup) == transformer_block_count
+        block_to_pipeline_lookup = [0]
+        pipeline_to_device_lookup = [block_to_device_lookup[0]]
+        pipeline = 0
+        for block in range(1, transformer_block_count):
+            ds_prev, ds_curr = (
+                block_to_device_lookup[block - 1],
+                block_to_device_lookup[block],
+            )
+            assert all(d for d in ds_prev) >= 0
+            assert all(d for d in ds_curr) >= 0
+            if not all(d_prev == d_curr for d_prev, d_curr in zip(ds_prev, ds_curr)):
+                pipeline += 1
+                pipeline_to_device_lookup.append(ds_curr)
+            block_to_pipeline_lookup.append(pipeline)
+
+        self.pipeline_to_device_lookup = tuple(pipeline_to_device_lookup)
+        self.block_to_pipeline_lookup = tuple(block_to_pipeline_lookup)
+        self.pipeline_count = len(pipeline_to_device_lookup)
+
         if attn_head_count % shard_count != 0:
             raise ValueError(
                 f"The attention head count {attn_head_count} must be a multiple of the tensor parallelism size {shard_count}."
             )
 
+        self.pipeline_to_block_count = tuple(
+            sum(1 for block in block_to_pipeline_lookup if block == i)
+            for i in range(self.pipeline_count)
+        )
         # Some derived values based on attributes.
         self.sub_page_dims = [
-            self.transformer_block_count,
-            self.cache_partition_count,
-            self.block_seq_stride,
-            self.head_count_kv // self.shard_count,
-            self.attn_head_dim,
+            [
+                self.pipeline_to_block_count[pipeline],
+                self.cache_partition_count,
+                self.block_seq_stride,
+                self.head_count_kv // self.shard_count,
+                self.attn_head_dim,
+            ]
+            for pipeline in range(self.pipeline_count)
         ]
-        self.page_slab_flat_dim = math.prod(self.sub_page_dims)
+        self.page_slab_flat_dims = [
+            math.prod(sub_page_dim) for sub_page_dim in self.sub_page_dims
+        ]
         self.device = device
         self.cache_dtype = cache_dtype
         self.attn_dtype = attn_dtype
 
-    def unflatten_page_table(
-        self, state: list[Union[torch.Tensor, SplitPrimitiveTensor]]
-    ) -> Union[torch.Tensor, SplitPrimitiveTensor]:
-        """Unflattens the 2D page table to a 6D tensor."""
-        assert len(state) == 1, f"Expected 1-element state. Got: {len(state)}"
-        page_slab = state[0]
-        if self.shard_count == 1:
-            assert not isinstance(page_slab, SplitPrimitiveTensor)
-            return page_slab.unflatten(1, self.sub_page_dims)
-        else:
-            assert self.shard_count == page_slab.shard_count
-            shards = [
-                shard.unflatten(1, self.sub_page_dims) for shard in page_slab.shards
+    def unflatten_page_tables(
+        self, state: list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor]
+    ) -> list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor]:
+        """Unflattens the 2D page tables to 6D tensors."""
+        assert (
+            len(state) == self.pipeline_count
+        ), f"Expected {self.pipeline_count}-element state. Got: {len(state)}"
+
+        if self.shard_count == 1 and self.pipeline_count == 1:
+            assert all(
+                not isinstance(page_slab, SplitPrimitiveTensor) for page_slab in state
+            )
+            return [
+                page_slab.unflatten(1, self.sub_page_dims[pipeline])
+                for pipeline, page_slab in enumerate(state)
             ]
-            return SplitPrimitiveTensor(ts=shards, shard_dim=4)
+
+        assert all(page_slab.shard_count == self.shard_count for page_slab in state)
+        unflattened = []
+        for pipeline, page_slab in enumerate(state):
+            shards = [
+                shard.unflatten(1, self.sub_page_dims[pipeline])
+                for shard in page_slab.shards
+            ]
+            unflattened.append(
+                (
+                    SplitPrimitiveTensor(
+                        ts=shards, shard_dim=4, devices=page_slab.devices
+                    )
+                    if len(shards) > 1
+                    else ReplicatedTensor(ts=shards, devices=page_slab.devices)
+                )
+            )
+        return unflattened
 
     def shard_state(
         self, state: List[torch.Tensor]
-    ) -> List[Union[torch.Tensor, SplitPrimitiveTensor]]:
+    ) -> List[torch.Tensor | SplitPrimitiveTensor]:
         """Shard an unsharded state.
         We can't just split the slab on the sub page dims.
         First it needs to be reinterpreted into the actual shape.
         The split the head dimension, then flatten each shard.
         This is a work-around for the lack of block-cyclic sharded tensor type."""
-        if self.shard_count == 1:
+        if self.shard_count == 1 and self.pipeline_count == 1:
             return state
 
         page_table = state[0].reshape(
@@ -126,14 +183,44 @@ class PagedAttention:
                 self.attn_head_dim,
             ]
         )
-        sharded_page_table = ops.reshard_split(
-            page_table, dim=4, count=self.shard_count
-        )
-        shards = [
-            ops.flatten(shard, start_dim=1) for shard in sharded_page_table.shards
-        ]
-        flat_sharded_page_table = SplitPrimitiveTensor(ts=shards, shard_dim=1)
-        return [flat_sharded_page_table]
+
+        flat_sharded_page_tables = []
+        for pipeline in range(self.pipeline_count):
+            # TODO: Do I need to make copies here, or are views enough?
+            assert (
+                self.pipeline_to_block_count[pipeline] != 1
+            ), "1 tensor per pipeline not supported. dim gets collapsed"
+            i_min = sum(self.pipeline_to_block_count[:pipeline])
+            i_max = i_min + self.pipeline_to_block_count[pipeline]
+            if self.shard_count == 1:
+                sharded_page_table = ops.replicate(
+                    page_table[:, i_min:i_max, ...],
+                    count=1,
+                    devices=self.pipeline_to_device_lookup[pipeline],
+                )
+            else:
+                sharded_page_table = ops.reshard_split(
+                    page_table[:, i_min:i_max, ...],
+                    dim=4,
+                    count=self.shard_count,
+                    devices=self.pipeline_to_device_lookup[pipeline],
+                )
+            shards_flattened = [
+                ops.flatten(shard, start_dim=1) for shard in sharded_page_table.shards
+            ]
+            flat_sharded_page_tables.append(
+                SplitPrimitiveTensor(
+                    ts=shards_flattened,
+                    shard_dim=1,
+                    devices=self.pipeline_to_device_lookup[pipeline],
+                )
+                if self.shard_count > 1
+                else ReplicatedTensor(
+                    ts=shards_flattened,
+                    devices=self.pipeline_to_device_lookup[pipeline],
+                )
+            )
+        return flat_sharded_page_tables
 
     @property
     def pad_sequence_stride(self) -> int:
@@ -141,23 +228,33 @@ class PagedAttention:
 
     def allocate(
         self, page_count: int
-    ) -> list[Union[torch.Tensor, SplitPrimitiveTensor]]:
+    ) -> list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor]:
         """Allocates tensor state for a page table for the given capacity in
         pages.
         """
         shards = [
-            torch.empty(
-                [page_count, self.page_slab_flat_dim],
-                dtype=self.cache_dtype,
-                device=self.device,
-            )
-            for _ in range(self.shard_count)
+            [
+                torch.empty(
+                    [page_count, self.page_slab_flat_dims[pipeline]],
+                    dtype=self.cache_dtype,
+                    device=self.device,
+                )
+                for _ in range(self.shard_count)
+            ]
+            for pipeline in range(self.pipeline_count)
         ]
 
-        if self.shard_count == 1:
-            return shards
+        if self.shard_count == 1 and self.pipeline_count == 1:
+            return shards[0]
 
-        return [SplitPrimitiveTensor(ts=shards, shard_dim=1)]
+        return [
+            (
+                SplitPrimitiveTensor(ts=shards[i], shard_dim=1, devices=devices)
+                if len(shards[i]) > 1
+                else ReplicatedTensor(ts=shards[i], devices=devices)
+            )
+            for i, devices in enumerate(self.pipeline_to_device_lookup)
+        ]
 
     def read(
         self,
@@ -180,7 +277,8 @@ class PagedAttention:
         approach to reading by materializing linearly may not be terribly
         efficient unless if the compiler can fuse the gather.
         """
-        page_table = self.unflatten_page_table(state)  # 6D
+        page_tables = self.unflatten_page_tables(state)  # 6D
+        page_table = page_tables[self.block_to_pipeline_lookup[transformer_block_index]]
 
         bs, block_seq_len, *_ = page_ids.shape
         # Blocks dim 1,2 according to the configured block stride.
@@ -196,7 +294,9 @@ class PagedAttention:
         # Gather both partitions and split post gather. This is more
         # computationally efficient without gather fusion:
         subblock_table = page_table.flatten(start_dim=0, end_dim=1)
-        page_stride = self.transformer_block_count
+        page_stride = self.pipeline_to_block_count[
+            self.block_to_pipeline_lookup[transformer_block_index]
+        ]
 
         transformer_block_index = torch.full(
             (bs, block_seq_len), transformer_block_index, device=self.device
@@ -212,9 +312,9 @@ class PagedAttention:
 
     def write_timestep(
         self,
-        state: list[Union[torch.Tensor, SplitPrimitiveTensor]],
+        state: list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
         # List of [bs, 1, attn_head_count, attn_head_dim]
-        cache_partitions: list[Union[torch.Tensor, SplitPrimitiveTensor]],
+        cache_partitions: list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
         *,
         transformer_block_index: int,
         # [bs]
@@ -228,7 +328,8 @@ class PagedAttention:
         dynamic.
         """
         device = self.device
-        page_table = self.unflatten_page_table(state)  # 6D
+        page_tables = self.unflatten_page_tables(state)  # 6D
+        page_table = page_tables[self.block_to_pipeline_lookup[transformer_block_index]]
         page_table = page_table.flatten(0, 3)
         bs, *_ = seq_positions.shape
         assert len(cache_partitions) == self.cache_partition_count
@@ -253,8 +354,13 @@ class PagedAttention:
                     for _ in range(seq_positions.shard_count)
                 ]
 
-                partitions = ReplicatedTensor(ts=partitions)
-                transformer_block = ReplicatedTensor(ts=transformer_block)
+                devices = self.pipeline_to_device_lookup[
+                    self.block_to_pipeline_lookup[transformer_block_index]
+                ]
+                partitions = ReplicatedTensor(ts=partitions, devices=devices)
+                transformer_block = ReplicatedTensor(
+                    ts=transformer_block, devices=devices
+                )
             else:
                 partitions = torch.tensor(idx, device=device).unsqueeze(0)
                 transformer_block = torch.full(
@@ -263,8 +369,12 @@ class PagedAttention:
 
             partitions = partitions.repeat(bs, 1)
 
+            transformer_block_count_in_pipeline = self.pipeline_to_block_count[
+                self.block_to_pipeline_lookup[transformer_block_index]
+            ]
+
             index = page_id
-            index = index * self.transformer_block_count + transformer_block
+            index = index * transformer_block_count_in_pipeline + transformer_block
             index = index * self.cache_partition_count + partitions
             index = index * self.block_seq_stride + page_offset
             values = ops.to(cache_partition, dtype=page_table.dtype)
@@ -291,8 +401,8 @@ class PagedAttention:
         This is the inverse of the linear read. The same caveat applies if the
         in-place scatter cannot be fused.
         """
-        page_table = self.unflatten_page_table(state)  # 6D
-
+        page_tables = self.unflatten_page_tables(state)  # 6D
+        page_table = page_tables[self.block_to_pipeline_lookup[transformer_block_index]]
         bs, block_seq_len, *_ = page_ids.shape
 
         # Reshape the page cache into sub-blocks so that we can index at the
@@ -303,7 +413,10 @@ class PagedAttention:
         #   [page, attn_layer, cache_partition]
         # Where the cache line can be 0 (k) or 1 (v).
         subblock_table = page_table.flatten(start_dim=0, end_dim=2)
-        page_stride = self.transformer_block_count * self.cache_partition_count
+        transformer_block_count_in_pipeline = self.pipeline_to_block_count[
+            self.block_to_pipeline_lookup[transformer_block_index]
+        ]
+        page_stride = transformer_block_count_in_pipeline * self.cache_partition_count
         transformer_block_stride = self.cache_partition_count
         base_subblock_ids = page_ids * page_stride + (
             transformer_block_index * transformer_block_stride
