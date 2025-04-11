@@ -100,12 +100,14 @@ class ShardedLlamaTest(unittest.TestCase):
             size=[self.batch_size, batch_seq_len],
             dtype=torch.int32,
         )
-        attention_mask = model.attention_mask(
-            model.input_mask(self.prefill_seq_lens, batch_seq_len)
-        )
-        seq_block_ids = torch.arange(
-            self.batch_size * batch_seq_len // self.config.block_seq_stride
-        ).view(self.batch_size, -1)
+        attention_mask = [
+            model.attention_mask(model.input_mask(self.prefill_seq_lens, batch_seq_len))
+        ]
+        seq_block_ids = [
+            torch.arange(
+                self.batch_size * batch_seq_len // self.config.block_seq_stride
+            ).view(self.batch_size, -1)
+        ]
         cache_state = model.cache.allocate(page_count=self.cache_page_count)
         cache_state = [torch.rand_like(cache_state[0])]
         return OrderedDict(
@@ -137,14 +139,20 @@ class ShardedLlamaTest(unittest.TestCase):
         for k in sharded_prefill_kwargs:
             if k == "cache_state":
                 continue
-            sharded_prefill_kwargs[k] = ops.replicate(
-                sharded_prefill_kwargs[k], count=sharding
-            )
+            if k == "tokens":
+                sharded_prefill_kwargs[k] = ops.replicate(
+                    sharded_prefill_kwargs[k], count=sharding
+                )
+                continue
+            pre_blocks = sharded_prefill_kwargs[k]
+            sharded_prefill_kwargs[k] = [
+                ops.replicate(block, count=sharding) for block in pre_blocks
+            ]
 
         return prefill_kwargs, sharded_prefill_kwargs
 
     def make_decode_args(self, model: PagedLlmModelV1) -> OrderedDict[str, Any]:
-        start_positions = self.prefill_seq_lens.clone()
+        start_positions = [self.prefill_seq_lens.clone()]
         seq_lens = self.prefill_seq_lens + 1
         batch_seq_len = round_up_to_multiple_of(
             int(torch.max(seq_lens)), model.cache.pad_sequence_stride
@@ -155,12 +163,14 @@ class ShardedLlamaTest(unittest.TestCase):
             size=[self.batch_size, 1],
             dtype=torch.int32,
         )
-        attention_mask = model.decode_attention_mask(
-            model.input_mask(seq_lens, batch_seq_len)
-        )
-        seq_block_ids = torch.arange(
-            self.batch_size * batch_seq_len // self.config.block_seq_stride
-        ).view(self.batch_size, -1)
+        attention_mask = [
+            model.decode_attention_mask(model.input_mask(seq_lens, batch_seq_len))
+        ]
+        seq_block_ids = [
+            torch.arange(
+                self.batch_size * batch_seq_len // self.config.block_seq_stride
+            ).view(self.batch_size, -1)
+        ]
         cache_state = model.cache.allocate(page_count=self.cache_page_count)
         cache_state = [torch.rand_like(cache_state[0])]
         return OrderedDict(
@@ -186,9 +196,15 @@ class ShardedLlamaTest(unittest.TestCase):
         for k in sharded_decode_kwargs:
             if k == "cache_state":
                 continue
-            sharded_decode_kwargs[k] = ops.replicate(
-                sharded_decode_kwargs[k], count=sharding
-            )
+            if k == "tokens":
+                sharded_decode_kwargs[k] = ops.replicate(
+                    sharded_decode_kwargs[k], count=sharding
+                )
+                continue
+            pre_blocks = sharded_decode_kwargs[k]
+            sharded_decode_kwargs[k] = [
+                ops.replicate(block, count=sharding) for block in pre_blocks
+            ]
 
         return decode_kwargs, sharded_decode_kwargs
 
