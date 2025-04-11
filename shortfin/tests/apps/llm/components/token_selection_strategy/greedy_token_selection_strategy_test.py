@@ -7,6 +7,8 @@
 import logging
 import math
 import pytest
+
+from typing import Any
 from unittest.mock import patch
 
 import shortfin.array as sfnp
@@ -19,6 +21,9 @@ from shortfin_apps.llm.components.token_selection_strategy import (
     GreedyTokenSelectionStrategy,
     TokenSelectionStrategy,
     DecodeConfig,
+)
+from shortfin_apps.llm.components.token_selection_strategy.greedy_token_selection_strategy import (
+    GreedyBeam,
 )
 
 logger = logging.getLogger(__name__)
@@ -38,8 +43,70 @@ def greedy_token_selection_strategy():
     )
 
 
-def batcher_workitem_cb():
+@pytest.fixture(scope="function")
+def greedy_beam(exec_req):
+    yield GreedyBeam(
+        exec_req,
+    )
+
+
+def batcher_workitem_cb(_: int):
     pass
+
+
+def approximately_equal(a: Any, b: Any, rel_tol=1e-2, abs_tol=0.0) -> bool:
+    """
+    Recursively checks if two nested lists (or scalar values) are approximately equal.
+
+    Args:
+        a: First list or scalar.
+        b: Second list or scalar.
+        rel_tol: Relative tolerance.
+        abs_tol: Absolute tolerance.
+
+    Returns:
+        True if all corresponding elements are approximately equal.
+    """
+    # If both are lists, iterate element-wise
+    if isinstance(a, list) and isinstance(b, list):
+        if len(a) != len(b):
+            return False
+        return all(
+            approximately_equal(sub_a, sub_b, rel_tol, abs_tol)
+            for sub_a, sub_b in zip(a, b)
+        )
+
+    # Otherwise, assume they are scalars and compare
+    return math.isclose(a, b, rel_tol=rel_tol, abs_tol=abs_tol)
+
+
+def test_greedy_beam_sample_logits(device, greedy_beam):
+    greedy_beam.temperature = 1.0
+
+    src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+    data = [float(i) for i in range(math.prod(src.shape))]
+    src.items = data
+
+    greedy_beam.exec_req.result_logits = src
+    token = greedy_beam.sample_logits()
+    assert token == 15
+
+    data[10] = 42.0
+    src.items = data
+    greedy_beam.exec_req.result_logits == src
+    token = greedy_beam.sample_logits()
+    assert token == 10
+
+
+def test_greedy_update_exec_req(greedy_beam):
+    last_token = 42
+    expected_start_position = greedy_beam.exec_req.start_position + 1
+
+    greedy_beam.last_token = last_token
+    greedy_beam.update_exec_req()
+
+    assert greedy_beam.exec_req.input_token_ids[-1] == last_token
+    assert greedy_beam.exec_req.start_position == expected_start_position
 
 
 @pytest.mark.asyncio
@@ -70,6 +137,7 @@ async def test_greedy_decode_single(
     exec_req.start_position = len(exec_req.input_token_ids) - 1
     decode_config = DecodeConfig(
         token_selection_strategy=TokenSelectionStrategy.GREEDY,
+        max_completion_tokens=1,
     )
     config = build_token_selector_config(
         decode_config,
@@ -77,7 +145,6 @@ async def test_greedy_decode_single(
         decode_batcher=FakeBatcher(_batcher_callback, batcher_workitem_cb),
         results_callback=_results_callback,
         eos_token_id=-1,
-        max_completion_tokens=1,
     )
 
     # Single token generated
@@ -128,6 +195,7 @@ async def test_greedy_decode_multiple_completions(
     exec_req.start_position = len(exec_req.input_token_ids) - 1
     decode_config = DecodeConfig(
         token_selection_strategy=TokenSelectionStrategy.GREEDY,
+        max_completion_tokens=5,
     )
     config = build_token_selector_config(
         decode_config,
@@ -139,7 +207,6 @@ async def test_greedy_decode_multiple_completions(
         ),
         results_callback=_results_callback,
         eos_token_id=-1,
-        max_completion_tokens=5,
     )
 
     # Multiple tokens generated
@@ -190,6 +257,7 @@ async def test_greedy_decode_eos_token(
     exec_req.start_position = len(exec_req.input_token_ids) - 1
     decode_config = DecodeConfig(
         token_selection_strategy=TokenSelectionStrategy.GREEDY,
+        max_completion_tokens=10,
     )
     config = build_token_selector_config(
         decode_config,
@@ -201,7 +269,6 @@ async def test_greedy_decode_eos_token(
         ),
         results_callback=_results_callback,
         eos_token_id=5,
-        max_completion_tokens=10,
     )
 
     # Multiple tokens generated, eos is hit

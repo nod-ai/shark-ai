@@ -76,7 +76,7 @@ class FakeBatcher:
         self.complete_workitem = workitem_cb
 
 
-def _batcher_workitem_callback():
+def _batcher_workitem_callback(_: int):
     pass
 
 
@@ -298,6 +298,7 @@ def test_get_results(beam_search_token_selection_strategy, exec_req_list):
         decode_config=DecodeConfig(
             num_beams=num_beams,
             token_selection_strategy=TokenSelectionStrategy.BEAM_SEARCH,
+            max_completion_tokens=1,
         ),
         prefill_callback=lambda _: None,
         decode_callback=lambda _: None,
@@ -305,7 +306,6 @@ def test_get_results(beam_search_token_selection_strategy, exec_req_list):
         decode_begin_callback=lambda _: None,
         decode_end_callback=lambda _: None,
         eos_token_id=-1,
-        max_completion_tokens=1,
     )
     beam_search_token_selection_strategy._token_selection_strategy_config = config
 
@@ -371,6 +371,7 @@ def test_get_results_extra_reqs(beam_search_token_selection_strategy, exec_req_l
         decode_config=DecodeConfig(
             num_beams=num_beams,
             token_selection_strategy=TokenSelectionStrategy.BEAM_SEARCH,
+            max_completion_tokens=1,
         ),
         prefill_callback=lambda _: None,
         decode_callback=lambda _: None,
@@ -378,7 +379,6 @@ def test_get_results_extra_reqs(beam_search_token_selection_strategy, exec_req_l
         decode_end_callback=lambda _: None,
         results_callback=lambda _: None,
         eos_token_id=-1,
-        max_completion_tokens=1,
     )
     beam_search_token_selection_strategy._token_selection_strategy_config = config
 
@@ -451,6 +451,7 @@ async def test_beam_search_decode_single(
     decode_config = DecodeConfig(
         token_selection_strategy=TokenSelectionStrategy.BEAM_SEARCH,
         num_beams=num_beams,
+        max_completion_tokens=1,
     )
     config = build_token_selector_config(
         decode_config,
@@ -458,7 +459,6 @@ async def test_beam_search_decode_single(
         decode_batcher=FakeBatcher(_batcher_callback, _batcher_workitem_callback),
         results_callback=_results_callback,
         eos_token_id=-1,
-        max_completion_tokens=1,
     )
 
     exec_req._cache = cache_ref_count
@@ -527,6 +527,7 @@ async def test_beam_search_decode_multiple_completions(
     decode_config = DecodeConfig(
         token_selection_strategy=TokenSelectionStrategy.BEAM_SEARCH,
         num_beams=num_beams,
+        max_completion_tokens=5,
     )
     config = build_token_selector_config(
         decode_config,
@@ -538,7 +539,6 @@ async def test_beam_search_decode_multiple_completions(
         ),
         results_callback=_results_callback,
         eos_token_id=-1,
-        max_completion_tokens=5,
     )
     exec_req._cache = cache_ref_count
     allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache_ref_count)
@@ -557,7 +557,7 @@ async def test_beam_search_decode_multiple_completions(
             expected_tail = 0
             results_array = sorted(results_array)
             for result in results_array:
-                assert len(result) == config.max_completion_tokens
+                assert len(result) == config.decode_config.max_completion_tokens
                 assert all(val in expected_tokens for val in result)
                 assert result[-1] == expected_tail
                 expected_tail += 1
@@ -615,6 +615,7 @@ async def test_beam_search_decode_eos_token(
     decode_config = DecodeConfig(
         token_selection_strategy=TokenSelectionStrategy.BEAM_SEARCH,
         num_beams=num_beams,
+        max_completion_tokens=10,
     )
     config = build_token_selector_config(
         decode_config,
@@ -626,7 +627,6 @@ async def test_beam_search_decode_eos_token(
         ),
         results_callback=_results_callback,
         eos_token_id=3,
-        max_completion_tokens=10,
     )
     exec_req._cache = cache_ref_count
     allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache_ref_count)

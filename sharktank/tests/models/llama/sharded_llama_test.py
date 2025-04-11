@@ -11,12 +11,17 @@ from sharktank.models.llama.llama import LlamaModelConfig, PagedLlamaModelV1
 import sharktank.ops as ops
 from sharktank.types import unbox_tensor, Dataset, UnreducedTensor, SplitPrimitiveTensor
 from sharktank.models.llama.testing import make_random_llama_theta
-from sharktank.utils.testing import skip
+from sharktank.utils.testing import (
+    assert_cosine_similarity_close,
+    get_iree_compiler_flags,
+    is_hip_condition,
+)
 from sharktank.models.llama.sharding import shard_theta
 from sharktank.layers.configs import LlamaHParams
 from sharktank.utils.math import round_up_to_multiple_of
 from sharktank.utils import iterables_equal
 from sharktank.utils.iree import (
+    with_iree_device_context,
     get_iree_devices,
     load_iree_module,
     run_iree_module_function,
@@ -34,7 +39,7 @@ import numpy as np
 import os
 
 
-@pytest.mark.usefixtures("caching", "path_prefix")
+@pytest.mark.usefixtures("caching", "path_prefix", "get_iree_flags")
 class ShardedLlamaTest(unittest.TestCase):
     def setUp(self):
         torch.random.manual_seed(123456)
@@ -235,11 +240,12 @@ class ShardedLlamaTest(unittest.TestCase):
             actual_decode_cache_state, expected_decode_cache_state, atol=1e-4, rtol=1e-4
         )
 
-    @skip(
-        (
-            "Before this does not crash at all we need "
-            "https://github.com/iree-org/iree/pull/18663 merged."
-        )
+    @pytest.mark.xfail(
+        is_hip_condition,
+        raises=RuntimeError,
+        match="Compilation failed",
+        strict=True,
+        reason="IREE regression https://github.com/iree-org/iree/issues/20365",
     )
     def testExportAndRunToySizedModelWithIree(self):
         """Test exporting to MLIR and compiling with IREE the sharded Llama model.
@@ -264,7 +270,6 @@ class ShardedLlamaTest(unittest.TestCase):
         sharded_parameters_path = f"{path_prefix}parameters.irpa"
         sharded_dataset.save(sharded_parameters_path)
         sharded_dataset = Dataset.load(sharded_parameters_path, mmap=False)
-        iree_driver = "local-task"
 
         model = PagedLlamaModelV1(self.theta, self.config)
         sharded_model = PagedLlamaModelV1(
@@ -309,99 +314,137 @@ class ShardedLlamaTest(unittest.TestCase):
             if dump_enabled:
                 output.save_mlir(f"{path_prefix}program.mlir")
             output.session.set_flags(
-                "--iree-hal-local-target-device-backends=llvm-cpu",
-                *[
-                    f"--iree-hal-target-device=local[{i}]"
-                    for i in range(self.sharded_config.tensor_parallelism_size)
-                ],
+                *get_iree_compiler_flags(
+                    self, self.sharded_config.tensor_parallelism_size
+                )
             )
             output.compile(
                 save_to=iree_module_path,
                 target_backends=None,
             )
 
-        iree_devices = get_iree_devices(
-            driver=iree_driver,
-            device_count=self.sharded_config.tensor_parallelism_size,
-        )
-        iree_module, vm_context, vm_instance = load_iree_module(
-            module_path=iree_module_path,
-            devices=iree_devices,
-            parameters_path=sharded_parameters_path,
-        )
-
-        # Run prefill step.
-        prefill_iree_args = prepare_iree_module_function_args(
-            args=deepcopy(sharded_prefill_kwargs).values(), devices=iree_devices
-        )
-        for i, arg in enumerate(prefill_iree_args):
-            np.save(f"{path_prefix}prefill_arg{i}.npy", arg.to_host())
-        prefill_iree_result = run_iree_module_function(
-            args=prefill_iree_args,
-            function_name="prefill",
-            module=iree_module,
-            vm_context=vm_context,
-            device=iree_devices[0],
-            trace_path_prefix=path_prefix if dump_enabled else None,
-        )
-        prefill_iree_result = UnreducedTensor(ts=iree_to_torch(*prefill_iree_result))
         expected_prefill_result = call_torch_module_function(
             module=sharded_model,
             function_name="prefill",
             kwargs=sharded_prefill_kwargs,
             trace_path_prefix=f"{path_prefix}expected_" if dump_enabled else None,
         )
-        prefill_iree_cache_state_shards = prefill_iree_args[
-            -self.config.tensor_parallelism_size - 1 :
-        ]
-        prefill_iree_cache_state = SplitPrimitiveTensor(
-            ts=iree_to_torch(*prefill_iree_cache_state_shards),
-            shard_dim=sharded_prefill_kwargs["cache_state"][0].shard_dim,
-        )
-
-        # Run decode step.
-        decode_iree_args = prepare_iree_module_function_args(
-            args=deepcopy(sharded_decode_kwargs).values(), devices=iree_devices
-        )
-        decode_iree_result = run_iree_module_function(
-            args=decode_iree_args,
-            function_name="decode",
-            module=iree_module,
-            vm_context=vm_context,
-            device=iree_devices[0],
-            trace_path_prefix=path_prefix if dump_enabled else None,
-        )
-        decode_iree_result = UnreducedTensor(ts=iree_to_torch(*decode_iree_result))
         expected_decode_result = call_torch_module_function(
             module=sharded_model,
             function_name="decode",
             kwargs=sharded_decode_kwargs,
             trace_path_prefix=f"{path_prefix}expected_" if dump_enabled else None,
         )
-        decode_iree_cache_state_shards = decode_iree_args[
-            -self.config.tensor_parallelism_size - 1 :
-        ]
-        decode_iree_cache_state = SplitPrimitiveTensor(
-            ts=iree_to_torch(*decode_iree_cache_state_shards),
-            shard_dim=sharded_decode_kwargs["cache_state"][0].shard_dim,
+
+        iree_devices = get_iree_devices(
+            device=self.iree_device,
+            device_count=self.sharded_config.tensor_parallelism_size,
         )
 
-        # Check IREE's numerical correctness against PyTorch.
-        # TODO: Although, not entirely wrong, investigate why this accuracy is that
-        # low for fp32 (atol=0.0011, rtol=0.013).
-        torch.testing.assert_close(
+        def run_iree_module(iree_devices: list[iree.runtime.HalDevice]):
+            iree_module, vm_context, vm_instance = load_iree_module(
+                module_path=iree_module_path,
+                devices=iree_devices,
+                parameters_path=sharded_parameters_path,
+            )
+
+            # Run prefill step.
+            prefill_iree_args = prepare_iree_module_function_args(
+                args=deepcopy(sharded_prefill_kwargs).values(), devices=iree_devices
+            )
+            for i, arg in enumerate(prefill_iree_args):
+                np.save(f"{path_prefix}prefill_arg{i}.npy", arg.to_host())
+            prefill_iree_result = run_iree_module_function(
+                args=prefill_iree_args,
+                function_name="prefill",
+                module=iree_module,
+                vm_context=vm_context,
+                device=iree_devices[0],
+                trace_path_prefix=path_prefix if dump_enabled else None,
+            )
+            prefill_iree_result = UnreducedTensor(
+                ts=[t.clone() for t in iree_to_torch(*prefill_iree_result)]
+            )
+            prefill_iree_cache_state_shards = prefill_iree_args[
+                -self.config.tensor_parallelism_size - 1 :
+            ]
+            prefill_iree_cache_state = SplitPrimitiveTensor(
+                ts=[t.clone() for t in iree_to_torch(*prefill_iree_cache_state_shards)],
+                shard_dim=sharded_prefill_kwargs["cache_state"][0].shard_dim,
+            )
+
+            # Run decode step.
+            decode_iree_args = prepare_iree_module_function_args(
+                args=deepcopy(sharded_decode_kwargs).values(), devices=iree_devices
+            )
+            decode_iree_result = run_iree_module_function(
+                args=decode_iree_args,
+                function_name="decode",
+                module=iree_module,
+                vm_context=vm_context,
+                device=iree_devices[0],
+                trace_path_prefix=path_prefix if dump_enabled else None,
+            )
+            decode_iree_result = UnreducedTensor(
+                ts=[t.clone() for t in iree_to_torch(*decode_iree_result)]
+            )
+            decode_iree_cache_state_shards = decode_iree_args[
+                -self.config.tensor_parallelism_size - 1 :
+            ]
+            decode_iree_cache_state = SplitPrimitiveTensor(
+                ts=[t.clone() for t in iree_to_torch(*decode_iree_cache_state_shards)],
+                shard_dim=sharded_decode_kwargs["cache_state"][0].shard_dim,
+            )
+
+            return (
+                prefill_iree_result,
+                prefill_iree_cache_state,
+                decode_iree_result,
+                decode_iree_cache_state,
+            )
+
+        (
+            prefill_iree_result,
+            prefill_iree_cache_state,
+            decode_iree_result,
+            decode_iree_cache_state,
+        ) = with_iree_device_context(run_iree_module, iree_devices)
+
+        atol = 1e-5
+        assert_cosine_similarity_close(
             ops.unshard(prefill_iree_result),
             ops.unshard(expected_prefill_result),
+            dim=-1,
+            atol=atol,
         )
-        torch.testing.assert_close(
-            ops.unshard(prefill_iree_cache_state),
-            ops.unshard(sharded_prefill_kwargs["cache_state"][0]),
+
+        actual_prefill_cache_state = ops.unshard(
+            sharded_model.cache.unflatten_page_table([prefill_iree_cache_state])
         )
-        torch.testing.assert_close(
+        expected_prefill_cache_state = ops.unshard(
+            sharded_model.cache.unflatten_page_table(
+                sharded_prefill_kwargs["cache_state"]
+            )
+        )
+        assert_cosine_similarity_close(
+            actual_prefill_cache_state, expected_prefill_cache_state, dim=-1, atol=atol
+        )
+
+        assert_cosine_similarity_close(
             ops.unshard(decode_iree_result),
             ops.unshard(expected_decode_result),
+            dim=-1,
+            atol=atol,
         )
-        torch.testing.assert_close(
-            ops.unshard(decode_iree_cache_state),
-            ops.unshard(sharded_decode_kwargs["cache_state"][0]),
+
+        actual_decode_cache_state = ops.unshard(
+            sharded_model.cache.unflatten_page_table([decode_iree_cache_state])
+        )
+        expected_decode_cache_state = ops.unshard(
+            sharded_model.cache.unflatten_page_table(
+                sharded_decode_kwargs["cache_state"]
+            )
+        )
+        assert_cosine_similarity_close(
+            actual_decode_cache_state, expected_decode_cache_state, dim=-1, atol=atol
         )
