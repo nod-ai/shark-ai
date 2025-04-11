@@ -51,12 +51,9 @@ def create_theta(dim: int, shard_count: int, num_layers: int, save_path):
 def pipeline_parallelize_theta(
     theta: Theta, pp_count: int
 ) -> tuple[tuple[int, ...], ...]:
-    num_blocks = len(theta.tensor("w"))
     _t = theta.tensor("w", "0")
-    if isinstance(_t, PrimitiveTensor):
-        shard_count = 1
-    else:
-        shard_count = _t.shard_count
+    shard_count = 1 if isinstance(_t, PrimitiveTensor) else _t.shard_count
+    num_blocks = len(theta.tensor("w"))
 
     block_to_device_lookup = []
     block_indices = sorted(theta.tensor("w").keys(), key=lambda item: int(item))
@@ -78,12 +75,10 @@ def pipeline_parallelize_theta(
 
         for i, (old_shard, new_shard) in enumerate(zip(old_shards, new_shards)):
             DeviceTensorTrait(devices[i]).set(new_shard._data)
-
-            old_tensor_trait = ExternalTensorTrait.get(old_shard._data)
-            if old_tensor_trait:
+            if old_ext_tensor_trait := ExternalTensorTrait.get(old_shard._data):
                 ExternalTensorTrait(
-                    old_tensor_trait.external_scope,
-                    old_tensor_trait.external_name,
+                    old_ext_tensor_trait.external_scope,
+                    old_ext_tensor_trait.external_name,
                 ).set(new_shard._data)
 
         if isinstance(weight, PrimitiveTensor):
@@ -133,8 +128,7 @@ class PPFFN(ThetaLayer):
             weight: SplitPrimitiveTensor | ReplicatedTensor = self.theta.tensor(
                 "w", str(block)
             )
-            x: ReplicatedTensor = ops.replicate(ops.linear(x, weight), shard_count)
-
+            x = ops.replicate(ops.linear(x, weight), shard_count)
             x = self._inter_layer_callback(x, block)
 
         return ops.unshard(x)
