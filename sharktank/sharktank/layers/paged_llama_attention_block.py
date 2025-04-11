@@ -8,7 +8,8 @@ from typing import Optional
 
 
 import torch
-from ..types import QuantizerTensor, StaticScaledQuantizer
+
+from ..types import QuantizerTensor, ReplicatedTensor, StaticScaledQuantizer
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
 from .norm import RMSNormLayer
@@ -39,11 +40,13 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         attention_scale: Optional[float] = None,
         softcap: Optional[float] = None,
         fake_quant: Optional[bool] = True,
+        block_to_device_lookup: tuple[tuple[int, ...], ...] | None = None,
     ):
         super().__init__(theta)
 
         self.paged_attention = PagedAttention(
             transformer_block_count=cache.transformer_block_count,
+            block_to_device_lookup=block_to_device_lookup,
             attn_head_count=head_count_kv,
             attn_head_dim=head_dim,
             block_seq_stride=cache.block_seq_stride,
@@ -110,8 +113,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor,
         start_index: Optional[int] = None,
-        start_positions: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
+        start_positions: Optional[torch.Tensor | ReplicatedTensor] = None,
+        attention_mask: Optional[torch.Tensor | ReplicatedTensor] = None,
         embedding_batch_mask: Optional[torch.Tensor] = None,
         cache_state: list[torch.Tensor] = None,
     ):
@@ -203,7 +206,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         xv_cache_update: torch.Tensor,
         cache_state: list[torch.Tensor],
         # [bs, batch_seq_len // block_seq_stride]
-        seq_block_ids: torch.Tensor,
+        seq_block_ids: Optional[torch.Tensor | ReplicatedTensor],
         kv_seq_len: int,
         start_positions: Optional[torch.Tensor] = None,
     ):
