@@ -51,16 +51,18 @@ def create_theta(dim: int, shard_count: int, num_layers: int, save_path):
 def pipeline_parallelize_theta(
     theta: Theta, pp_count: int
 ) -> tuple[tuple[int, ...], ...]:
-    num_layers = len(theta.tensor("w"))
-    if isinstance(theta.tensor("w", "0"), PrimitiveTensor):
+    num_blocks = len(theta.tensor("w"))
+    _t = theta.tensor("w", "0")
+    if isinstance(_t, PrimitiveTensor):
         shard_count = 1
     else:
-        shard_count = theta.tensor("w", "0").shard_count
+        shard_count = _t.shard_count
 
     block_to_device_lookup = []
-    for block in list(theta.tensor("w").keys()):
-        weight: ShardedTensor | PrimitiveTensor = theta.tensor("w", block)
-        pp_group = int(int(block) * pp_count / num_layers)
+    block_indices = sorted(theta.tensor("w").keys(), key=lambda item: int(item))
+    for blk_idx in block_indices:
+        weight: ShardedTensor | PrimitiveTensor = theta.tensor("w", blk_idx)
+        pp_group = int(int(blk_idx) * pp_count / num_blocks)
         zero_4_group = shard_count * pp_group
         devices = tuple(i + zero_4_group for i in range(shard_count))
         block_to_device_lookup.append(devices)
@@ -89,7 +91,7 @@ def pipeline_parallelize_theta(
         else:
             weight = weight.clone(ts=new_shards, devices=devices)
 
-        theta.tensor("w")[block] = weight
+        theta.tensor("w")[blk_idx] = weight
     return block_to_device_lookup
 
 
