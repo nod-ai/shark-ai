@@ -8,16 +8,20 @@
 
 
 ## Precompile the model
-Create and run docker
+Create and run docker.
+
 For more details, refer instructions at [here](https://github.com/nod-ai/SHARK-MLPERF/tree/staging-v5.1/code/stable-diffusion-xl#amd-mlperf-inference-docker-container-setup)
 
 Run precompilation script from docker (you should be at directory: `/mlperf/harness`):
+
 ```shell
 IREE_BUILD_MP_CONTEXT="fork" ./precompile_model_shortfin.sh --td_spec attention_and_matmul_spec_gfx942_MI325.mlir --model_json sdxl_config_fp8_sched_unet_bs2.json --model_weights $PWD/new_weight
 ```
 
-It will generate model and compile it at directory: `new_weight`
+It will generate model and compile it at directory: `new_weight`.
+
 You should see files in directory `new_weight` something similar to following:
+
 ```shell
 ./bin/sdxl/stable_diffusion_xl_base_1_0_scheduled_unet_bs2_64_1024x1024_fp8_amdgpu-gfx942.vmfb
 ./bin/sdxl/stable_diffusion_xl_base_1_0_vae_bs1_1024x1024_fp16_amdgpu-gfx942.vmfb
@@ -37,6 +41,7 @@ Exit from the docker now.
 ## iree build with tracy enabled
 
 Build iree with tracy enabled
+
 ```shell
 git clone  https://github.com/iree-org/iree.git
 cd iree
@@ -76,6 +81,7 @@ Flags that are needed for tuning but not documented in above mentioned link:
 
 
 Set environment
+
 ```shell
 export PATH=<Dir Containing iree-build>/iree-build/tools/:$PATH
 export PYTHONPATH=<Dir Containing iree-build>/iree-build/compiler/bindings/python:<Dir Containing iree-build>/iree-build/runtime/bindings/python
@@ -84,14 +90,15 @@ export GLIBC_TUNABLES=glibc.rtld.optional_static_tls=2048
 
 ### Run tracy
 From a different shell run tracy-capture tool. You can use `iree-tracy-capture` tool from above mentioned `iree` build or from nightly.
+
 ```shell
 TRACY_PORT=8086 iree-tracy-capture -o out1.tracy -p 8086 -f
 ```
 
-
 ### Baseline benchmarking
 Run following command using the files generated during the precompilation step.
 Use tool from the above mentioned `iree` build which is tracy enabled.
+
 ```shell
 IREE_PY_RUNTIME=tracy TRACY_PORT=8086 TRACY_NO_EXIT=1 iree-benchmark-module   --device=hip   --device_allocator=caching  \
 --module=new_weight/bin/sdxl/stable_diffusion_xl_base_1_0_punet_bs16_64_1024x1024_fp8_amdgpu-gfx942.vmfb  \
@@ -112,6 +119,7 @@ Upload generated tracy output file i.e. `out1.tracy` to an online tracy file rea
 Indentify the dispatches either of `MatMul` or `Conv` which are taking time above than 1%. Note down, the dispatch number.
 
 ## IREE compilation to generate dispatches
+
 ```
 iree-compile <IR Path> \
 --iree-config-add-tuner-attributes \
@@ -149,6 +157,7 @@ This will generate benchmark dispatch IR inside `dispatchOutput` directory
 Clone [shark-ai](https://github.com/nod-ai/shark-ai/)
 
 Run commands:
+
 ```
 cd shark-ai/tuner
 pip install -r requirements-tuner.txt
@@ -156,7 +165,9 @@ pip install -r requirements-dev.txt
 ```
 
 Create following files:
+
 `compile_flags.txt`
+
 ```
 --iree-hal-target-backends=rocm
 --iree-hip-target=gfx942
@@ -181,6 +192,7 @@ Create following files:
 ```
 
 `model_benchmark_flags.txt`:
+
 ```
 --device_allocator=caching
 --parameters=model=<IRPA_FILE_PATH>
@@ -193,6 +205,7 @@ Create following files:
 --input=1xsi64
 --input=100xf32
 ```
+
 Update IRPA_FILE_PATH with the `irpa` file generated from `iree-compilation` step.
 Add input sizes as per the arguments of the function to be tuned.
 
@@ -210,6 +223,7 @@ python -m examples.simple \
   --codegen-pipeline=llvmgpu_tile_and_fuse \
   --no-reduce-shared-memory-bank-conflicts-options=True,False
 ```
+
 `<IR_PATH>`: Provide same MLIR path given to iree-compile
 
 You can change `num-candidates`, `simple-num-dispatch-candidates` or `simple-num-model-candidates` as per need.
