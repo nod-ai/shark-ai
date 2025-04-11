@@ -57,7 +57,7 @@ jobs:
           # Note: We install in three steps in order to satisfy requirements
           # from non default locations first.
           pip install --no-compile -r pytorch-cpu-requirements.txt
-          pip install -r requirements-iree-pinned.txt
+          pip install -r requirements-iree-unpinned.txt
           pip install --no-compile \
             -r sharktank/requirements-tests.txt \
             -e sharktank/
@@ -121,7 +121,7 @@ jobs:
           # Note: We install in three steps in order to satisfy requirements
           # from non default locations first.
           pip install --no-compile -r pytorch-cpu-requirements.txt
-          pip install -r requirements-iree-pinned.txt
+          pip install -r requirements-iree-unpinned.txt
           pip install --no-compile \
             -r sharktank/requirements-tests.txt \
             -e sharktank/
@@ -192,7 +192,7 @@ jobs:
           # Note: We install in three steps in order to satisfy requirements
           # from non default locations first.
           pip install --no-compile -r pytorch-rocm-requirements.txt
-          pip install -r requirements-iree-pinned.txt
+          pip install -r requirements-iree-unpinned.txt
           pip install --no-compile \
             -r sharktank/requirements-tests.txt \
             -e sharktank/
