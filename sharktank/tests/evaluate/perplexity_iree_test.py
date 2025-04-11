@@ -71,6 +71,9 @@ class PerplexityTest(unittest.TestCase):
         )
 
     @skipif_run_quick_llama_test
+    @pytest.mark.xfail(
+        reason="Compile hangs. Issue: https://github.com/iree-org/iree/issues/20528"
+    )
     def test_llama3_8B_f8(self):
 
         # Llama 3.1 8B non-decomposed

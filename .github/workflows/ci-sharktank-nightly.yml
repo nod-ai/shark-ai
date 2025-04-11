@@ -89,7 +89,6 @@ jobs:
 
   test_perplexity_iree:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
-    timeout-minutes: 1000
     name: "IREE Perplexity"
     strategy:
       matrix:
@@ -160,7 +159,6 @@ jobs:
 
   test_perplexity_torch:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
-    timeout-minutes: 1000
     name: "Torch Perplexity"
     strategy:
       matrix:
