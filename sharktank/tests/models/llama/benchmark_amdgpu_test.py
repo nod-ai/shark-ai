@@ -321,7 +321,9 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         )
 
     @skipif_run_quick_llama_test
-    @pytest.mark.xfail(reason="Benchmarking Error", raises=IreeBenchmarkException)
+    @pytest.mark.xfail(
+        run=False, reason="Benchmarking Error", raises=IreeBenchmarkException
+    )
     def testBenchmark8B_fp8_TP1_Non_Decomposed(self):
         output_file_name = self.dir_path_8b / "fp8_torch_tp1"
         output_mlir = self.llama8b_fp8_torch_sdpa_artifacts.create_file(
