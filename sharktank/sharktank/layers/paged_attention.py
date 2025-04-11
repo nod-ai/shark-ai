@@ -134,8 +134,7 @@ class PagedAttention:
         assert (
             len(state) == self.pipeline_count
         ), f"Expected {self.pipeline_count}-element state. Got: {len(state)}"
-        if self.shard_count == 1:
-            assert self.pipeline_count == 1
+        if self.shard_count == 1 and self.pipeline_count == 1:
             assert all(
                 not isinstance(page_slab, SplitPrimitiveTensor) for page_slab in state
             )
@@ -152,8 +151,12 @@ class PagedAttention:
                     for shard in page_slab.shards
                 ]
                 unflattened.append(
-                    SplitPrimitiveTensor(
-                        ts=shards, shard_dim=4, devices=page_slab.devices
+                    (
+                        SplitPrimitiveTensor(
+                            ts=shards, shard_dim=4, devices=page_slab.devices
+                        )
+                        if len(shards) > 1
+                        else ReplicatedTensor(ts=shards, devices=page_slab.devices)
                     )
                 )
             return unflattened
@@ -167,6 +170,7 @@ class PagedAttention:
         The split the head dimension, then flatten each shard.
         This is a work-around for the lack of block-cyclic sharded tensor type."""
         if self.shard_count == 1:
+            assert self.pipeline_count == 1, "Unimplemented and/or untested."
             return state
 
         page_table = state[0].reshape(
@@ -225,12 +229,15 @@ class PagedAttention:
             for pipeline in range(self.pipeline_count)
         ]
 
-        if self.shard_count == 1:
-            assert self.pipeline_count == 1
+        if self.shard_count == 1 and self.pipeline_count == 1:
             return shards[0]
 
         return [
-            SplitPrimitiveTensor(ts=shards[i], shard_dim=1, devices=devices)
+            (
+                SplitPrimitiveTensor(ts=shards[i], shard_dim=1, devices=devices)
+                if len(shards[i]) > 1
+                else ReplicatedTensor(ts=shards[i], devices=devices)
+            )
             for i, devices in enumerate(self.pipeline_to_device_lookup)
         ]
 
