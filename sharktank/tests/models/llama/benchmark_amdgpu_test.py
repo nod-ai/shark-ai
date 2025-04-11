@@ -100,7 +100,6 @@ class BaseBenchmarkTest(unittest.TestCase):
 
 
 @is_mi300x
-@pytest.mark.expensive
 class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
     def setUp(self):
         super().setUp()
@@ -414,6 +413,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         )
 
     @skipif_run_quick_llama_test
+    @pytest.mark.xfail(run=False, reason="Compile Error", raises=IreeCompileException)
     def testBenchmark8B_fp8_attnf8_TP1_Non_Decomposed_Input_Len_128(self):
         output_file_name = self.dir_path_8b / "fp8_attnf8_128_tp1"
         output_mlir = self.llama8b_fp8_attnf8_sdpa_artifacts.create_file(
@@ -460,7 +460,6 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
 
 
 @is_mi300x
-@pytest.mark.expensive
 @skipif_run_quick_llama_test
 class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
     def setUp(self):
@@ -816,7 +815,6 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
 
 
 @is_mi300x
-@pytest.mark.expensive
 @skipif_run_quick_llama_test
 class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
     def setUp(self):
