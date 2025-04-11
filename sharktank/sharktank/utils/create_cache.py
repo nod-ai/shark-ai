@@ -15,6 +15,7 @@ def create_paged_kv_cache(config: LlamaModelConfig) -> PagedAttention:
     dtype = config.kv_cache_dtype or config.attention_dtype
     return PagedAttention(
         transformer_block_count=hp.block_count,
+        block_to_device_lookup=config.block_to_device_lookup,
         attn_head_count=hp.attention_head_count_kv,
         attn_head_dim=hp.attn_head_dim,
         cache_partition_count=2,  # One for each of K/V.
