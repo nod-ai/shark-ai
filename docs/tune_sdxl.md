@@ -41,10 +41,11 @@ Build iree with tracy enabled
 git clone  https://github.com/iree-org/iree.git
 cd iree
 git submodule update --init
+
 python3.11 -m venv my_env
-source my_
-env/bin/activate
-pip install numpy
+source my_env/bin/activate
+
+python -m pip install -r runtime/bindings/python/iree/runtime/build_requirements.txt
 
 cmake -G Ninja -B ../iree-build/ -S . \
    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
@@ -56,13 +57,23 @@ cmake -G Ninja -B ../iree-build/ -S . \
    -DIREE_BUILD_PYTHON_BINDINGS=ON \
    -DIREE_HAL_DRIVER_HIP=ON -DIREE_TARGET_BACKEND_ROCM=ON \
    -DIREE_ENABLE_LLD=ON \
-   -DPYTHON3_EXECUTABLE="$(which python3)" \
+   -DPython3_EXECUTABLE="$(which python3)" \
    -DIREE_BUILD_TRACY=ON \
    -DIREE_ENABLE_RUNTIME_TRACING=ON
 
 
 cmake --build ../iree-build/
 ```
+
+Refer IREE build [doc](https://iree.dev/building-from-source/getting-started/#configuration-settings), for more details.
+
+[!IMPORTANT]
+Flags that are needed for tuning but not documented in above mentioned link:
+ - `-DIREE_HAL_DRIVER_HIP=ON`
+ - `-DIREE_TARGET_BACKEND_ROCM=ON`
+ - `-DIREE_BUILD_TRACY=ON`
+ - `-DIREE_ENABLE_RUNTIME_TRACING=ON`
+
 
 Set environment
 ```shell
@@ -202,6 +213,10 @@ python -m examples.simple \
 `<IR_PATH>`: Provide same MLIR path given to iree-compile
 
 You can change `num-candidates`, `simple-num-dispatch-candidates` or `simple-num-model-candidates` as per need.
+ - `num-candidates` sets the number of tuning spec candidates to generate. Increasing this will increase the search space for tuning specs, and could lead to slightly better final tuning specs.
+ - `simple-num-dispatch-candidates` sets the number of top dispatch candidates to tune with the model in the loop. This should be smaller than `num-candidates`.
+ - `simple-num-model-candidates` sets the number of final candidates to report at the end of tuning. This should be smaller or equal to `simple-num-dispatch-candidates`
+
 It will take some time to finish tuner. You should see the final candidates spec that you can include in td_spec for `harness` run to get better SPS.
 
 
