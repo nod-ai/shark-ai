@@ -87,3 +87,4 @@ class GreedyTokenSelectionStrategy(BaseTokenSelectionStrategy):
                 break
             beam.update_exec_req()
         config.decode_end_callback(1)
+        beam.exec_req.free_cache_pages()
