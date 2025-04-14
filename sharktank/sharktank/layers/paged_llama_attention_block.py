@@ -47,7 +47,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             attn_head_count=head_count_kv,
             attn_head_dim=head_dim,
             block_seq_stride=cache.block_seq_stride,
-            dtype=cache.dtype,
+            dtype=attention_dtype,
             device=cache.device,
             shard_count=cache.shard_count,
         )
