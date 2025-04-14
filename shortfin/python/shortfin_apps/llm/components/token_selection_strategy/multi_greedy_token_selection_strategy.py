@@ -96,6 +96,7 @@ class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
             beam_group.process_beams()
 
         config.decode_end_callback(reservations)
+        beam_group.clean_up()
 
         results = [
             beam.exec_req.input_token_ids[exec_req.prompt_length :]

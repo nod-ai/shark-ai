@@ -153,11 +153,16 @@ async def test_greedy_decode_single(
         "_token_selection_strategy_config",
         new=config,
     ):
-        await greedy_token_selection_strategy.decode(exec_req)
+        with patch.object(
+            exec_req,
+            "free_cache_pages",
+        ) as mock_clean_up:
+            await greedy_token_selection_strategy.decode(exec_req)
 
-        assert results_array[0] == 15
-        assert exec_req.input_token_ids[-1] == 15
-        assert exec_req.start_position == 6
+            assert results_array[0] == 15
+            assert exec_req.input_token_ids[-1] == 15
+            assert exec_req.start_position == 6
+            mock_clean_up.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -215,11 +220,16 @@ async def test_greedy_decode_multiple_completions(
         "_token_selection_strategy_config",
         new=config,
     ):
-        await greedy_token_selection_strategy.decode(exec_req)
+        with patch.object(
+            exec_req,
+            "free_cache_pages",
+        ) as mock_clean_up:
+            await greedy_token_selection_strategy.decode(exec_req)
 
-        assert results_array == [0, 1, 2, 3, 4]
-        assert len(exec_req.input_token_ids) == 11
-        assert exec_req.start_position == 10
+            assert results_array == [0, 1, 2, 3, 4]
+            assert len(exec_req.input_token_ids) == 11
+            assert exec_req.start_position == 10
+            mock_clean_up.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -277,8 +287,13 @@ async def test_greedy_decode_eos_token(
         "_token_selection_strategy_config",
         new=config,
     ):
-        await greedy_token_selection_strategy.decode(exec_req)
+        with patch.object(
+            exec_req,
+            "free_cache_pages",
+        ) as mock_clean_up:
+            await greedy_token_selection_strategy.decode(exec_req)
 
-        assert results_array == [0, 1, 2, 3, 4, 5]
-        assert len(exec_req.input_token_ids) == 11
-        assert exec_req.start_position == 10
+            assert results_array == [0, 1, 2, 3, 4, 5]
+            assert len(exec_req.input_token_ids) == 11
+            assert exec_req.start_position == 10
+            mock_clean_up.assert_called_once()

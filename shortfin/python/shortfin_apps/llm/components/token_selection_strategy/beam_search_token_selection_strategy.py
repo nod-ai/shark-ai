@@ -224,6 +224,7 @@ class BeamSearchTokenSelectionStrategy(BaseTokenSelectionStrategy):
             beam_group.process_beams()
 
         config.decode_end_callback(reservations)
+        beam_group.clean_up()
         self.get_results(beam_group)
 
     def get_results(self, beam_group: BeamGroup):
