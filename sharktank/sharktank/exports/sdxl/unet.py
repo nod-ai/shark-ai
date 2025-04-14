@@ -268,7 +268,6 @@ def get_punet_model(hf_model_name, external_weight_path, quant_paths, precision=
     from sharktank.tools.import_hf_dataset import import_hf_dataset
 
     if os.path.exists(external_weight_path):
-        print(f"Loading punet from .irpa located at: {external_weight_path}")
         return sharktank_unet2d.from_irpa(external_weight_path)
 
     if precision in ["fp8", "f8"]:

@@ -39,15 +39,15 @@ def get_configs(
 
     if needed:
         downloads = download_configs(artifacts_dir, model)
-        to_remove = None
+        complete = None
         for d in downloads:
             for a in needed:
                 if str(artifacts[a]) in d:
                     artifacts[a] = d
-                    to_remove = a
-            if to_remove:
-                del needed[to_remove]
-                to_remove = None
+                    complete = a
+            if complete:
+                del needed[complete]
+                complete = None
 
         if needed:
             raise FileNotFoundError(str(needed))
