@@ -17,6 +17,7 @@ Welcome to shortfin's documentation!
    :caption: Reference
 
    reference
+   tracy_python_bindings
 
 
 Indices and tables
