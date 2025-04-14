@@ -19,6 +19,7 @@ from .linear import LinearLayer
 from .modulation import ModulationLayer
 from .norm import RMSNormLayer
 import functools
+from ..types import *
 
 
 def qk_norm(q, k, v, rms_q, rms_k):
@@ -34,9 +35,7 @@ def apply_rope(xq: Tensor, xk: Tensor, freqs_cis: Tensor) -> tuple[Tensor, Tenso
     return xq_out.reshape(*xq.shape).type_as(xq), xk_out.reshape(*xk.shape).type_as(xk)
 
 
-def attention(q, k, v, pe):
-    q, k = apply_rope(q, k, pe)  # todo
-
+def attention(q, k, v):
     x = ops.scaled_dot_product_attention(q=q, k=k, v=v, a=None)
     x = ops.permute(x, (0, 2, 1, 3))
     x = x.reshape(x.shape[0], x.shape[1], -1)
@@ -129,7 +128,44 @@ class MMDITDoubleBlock(ThetaLayer):
         k = torch.cat((txt_k, img_k), dim=2)
         v = torch.cat((txt_v, img_v), dim=2)
 
-        attn = attention(q, k, v, pe)
+        # out_q = self.theta.optional_tensor("attn.out_q")
+        # out_k = self.theta.optional_tensor("attn.out_k")
+        # out_v = self.theta.optional_tensor("attn.out_v")
+        out_q = StaticScaledQuantizer(
+                name="attn.out_q",
+                scale=1.0 / torch.tensor(4.0),
+                reciprocal_scale=torch.tensor(4.0),
+                dtype=torch.float8_e4m3fn,
+            )
+        out_k = StaticScaledQuantizer(
+                name="attn.out_k",
+                scale=1.0 / torch.tensor(4.0),
+                reciprocal_scale=torch.tensor(4.0),
+                dtype=torch.float8_e4m3fn,
+            )
+        out_v = StaticScaledQuantizer(
+                name="attn.out_v",
+                scale=1.0 / torch.tensor(4.0),
+                reciprocal_scale=torch.tensor(4.0),
+                dtype=torch.float8_e4m3fn,
+            )
+        print(out_q)
+        # try:
+        #     out_q = self.theta.optional_tensor("attn.out_q")
+        #     out_k = self.theta.optional_tensor("attn.out_k")
+        #     out_v = self.theta.optional_tensor("attn.out_v")
+        # except:
+        #     out_q, out_k, out_v = None, None, None
+        print(q)
+        q, k = apply_rope(q, k, pe)  # todo
+
+        print(q)
+        q = q if out_q is None else out_q.quantize(q)
+        k = k if out_k is None else out_k.quantize(k)
+        v = v if out_v is None else out_v.quantize(v)
+        print(q,k,v)
+
+        attn = attention(q, k, v)
         txt_attn, img_attn = attn[:, : txt.shape[1]], attn[:, txt.shape[1] :]
 
         # calculate the image blocks
