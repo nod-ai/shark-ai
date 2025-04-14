@@ -70,7 +70,6 @@ jobs:
           pytest \
             sharktank/tests/models/llama/benchmark_amdgpu_test.py \
             -v -s \
-            -m "expensive" \
             --iree-hip-target=gfx942 \
             --iree-device=hip://0 \
             --run-quick-llama-test
