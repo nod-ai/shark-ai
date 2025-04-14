@@ -41,6 +41,7 @@ class DispatchTuner(DispatchParser):
         self,
         ir_module: ir.Module,
         compilation_info: iree_codegen.CompilationInfoAttr,
+        problem_size: Optional[ProblemSize],
     ) -> ir.Module:
         """Generate a transform dialect spec that applies the compilation info attr."""
         pass
@@ -66,6 +67,7 @@ class ContractionOpInterfaceTuner(DispatchTuner, ContractionOpInterfaceParser):
         self,
         ir_module: ir.Module,
         compilation_info: iree_codegen.CompilationInfoAttr,
+        problem_size: Optional[ProblemSize],
     ) -> ir.Module:
         contraction_op: ir.Operation = self.get_contraction_operation(ir_module)
         lhs_type = ir.ShapedType(contraction_op.operands[0].type)
@@ -86,24 +88,25 @@ class ConvolutionOpInterfaceTuner(DispatchTuner, ConvolutionOpInterfaceParser):
         self,
         ir_module: ir.Module,
         compilation_info: iree_codegen.CompilationInfoAttr,
+        problem_size: Optional[ProblemSize],
     ) -> ir.Module:
+        assert problem_size, "Problem size not found"
+
         conv_op: ir.Operation = self.get_conv_operation(ir_module)
-        assert (
-            conv_op.name == "linalg.conv_2d_nhwc_hwcf"
-        ), "expected linalg.conv_2d_nhwc_hwcf"
         lhs_type = ir.ShapedType(conv_op.operands[0].type)
         rhs_type = ir.ShapedType(conv_op.operands[1].type)
         acc_type = ir.ShapedType(conv_op.operands[2].type)
-        N = acc_type.get_dim_size(0)
-        H = acc_type.get_dim_size(1)
-        W = acc_type.get_dim_size(2)
-        C = rhs_type.get_dim_size(2)
-        P = rhs_type.get_dim_size(0)
-        Q = rhs_type.get_dim_size(1)
-        F = rhs_type.get_dim_size(3)
+
+        M_str = "x".join(map(str, problem_size.matmul_size.M))
+        N_str = "x".join(map(str, problem_size.matmul_size.N))
+        K_str = "x".join(map(str, problem_size.matmul_size.K))
+
         conv_type = conv_op.name.split(".")[-1]
         # TODO(Max191): Get the function name from the func.func in the input module.
-        func_name = f"match_{conv_type}_{N}x{H}x{W}x{C}x{P}x{Q}x{F}_{lhs_type.element_type}x{rhs_type.element_type}x{acc_type.element_type}"
+        func_name = f"match_{conv_type}_{M_str}_{N_str}_{K_str}_"
+        f"{lhs_type.element_type}x{rhs_type.element_type}x{acc_type.element_type}"
+        tune_logger.debug(f"func_name: {func_name}")
+
         return build_td_spec(ir_module.context, conv_op, compilation_info, func_name)
 
 
@@ -196,7 +199,7 @@ def generate_configs_and_td_specs(
         if i >= limit:
             break
         tune_logger.debug(f"Solution #{i+1}: {config}")
-        td_spec_module = dispatch_tuner.get_td_spec(input_module, config)
+        td_spec_module = dispatch_tuner.get_td_spec(input_module, config, problem_size)
         assert td_spec_module, "Failed to generate transform dialect spec"
         config_specs.append(td_spec_module)
 
