@@ -19,6 +19,7 @@ from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_gpu  # type: ignore
 from iree.compiler.dialects import transform  # type: ignore
 import iree.compiler as ireec  # type: ignore
+from iree.compiler._mlir_libs._mlir import ir  # type: ignore
 
 
 class CommonTypes:
@@ -142,6 +143,13 @@ class ProblemSize:
     @property
     def MNK(self) -> tuple[list[int], list[int], list[int]]:
         return (self.matmul_size.M, self.matmul_size.N, self.matmul_size.K)
+
+
+def get_map_result_dim_positions(map: ir.AffineMap) -> Optional[list[int]]:
+    if not map.is_projected_permutation:
+        return None
+
+    return [ir.AffineDimExpr(expr).position for expr in map.results]
 
 
 def get_compatible_mfma_intrinsics(

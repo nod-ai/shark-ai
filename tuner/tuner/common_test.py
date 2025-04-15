@@ -63,6 +63,23 @@ def test_gpu_pipeline_options(tuner_ctx: common.TunerContext) -> None:
     )
 
 
+def test_get_map_result_dim_positions(tuner_ctx: common.TunerContext) -> None:
+    dim0 = ir.AffineDimExpr.get(0)
+    dim1 = ir.AffineDimExpr.get(1)
+    dim2 = ir.AffineDimExpr.get(2)
+
+    # Valid projected permutation: (d0, d1, d2) -> (d0, d2).
+    valid_map = ir.AffineMap.get(3, 0, [dim0, dim2])
+    result = common.get_map_result_dim_positions(valid_map)
+    assert result == [0, 2], f"Expected [0, 2], got {result}"
+
+    # Not a projected permutation: (d0, d1, d2) -> (d0 + d1).
+    sum_expr = dim0 + dim1
+    invalid_map = ir.AffineMap.get(3, 0, [sum_expr])
+    result = common.get_map_result_dim_positions(invalid_map)
+    assert result is None, "Expected None for non-projected permutation"
+
+
 def test_get_pipeline_config(tuner_ctx: common.TunerContext) -> None:
     mma_intrinsic = iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16
     mma_attr = iree_gpu.MMAAttr.get(mma_intrinsic)

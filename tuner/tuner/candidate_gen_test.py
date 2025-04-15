@@ -19,9 +19,28 @@ from iree.compiler.dialects import transform  # type: ignore
 
 from . import candidate_gen
 from . import common
-from . import op_matchers
 
 from .test_utils import tuner_ctx
+
+
+def walk_collect_ops(
+    op: ir.Operation,
+    ops: list[ir.Operation],
+    fn,
+) -> ir.WalkResult:
+    if fn(op):
+        ops.append(op)
+    return ir.WalkResult.ADVANCE
+
+
+def get_ops_from_module(module: ir.Module, fn):
+    ops: list[ir.Operation] = []
+    for op in module.body.operations:
+        op.walk(
+            lambda op: walk_collect_ops(op, ops, fn),
+            ir.WalkOrder.POST_ORDER,
+        )
+    return ops
 
 
 def test_get_td_spec_contraction(tuner_ctx: common.TunerContext) -> None:
@@ -75,14 +94,15 @@ def test_get_td_spec_contraction(tuner_ctx: common.TunerContext) -> None:
     )
 
     ir_module = ir.Module.parse(module_str, context)
+    root_op_list = iree_codegen.get_tuner_root_ops(ir_module)
+    assert len(root_op_list) == 1
+    root_op = root_op_list[0]
 
-    tuner = candidate_gen.ContractionOpInterfaceTuner()
-    td_spec_module = tuner.get_td_spec(ir_module, compilation_info)
+    tuner = candidate_gen.ContractionOpInterfaceTuner(root_op)
+    td_spec_module = tuner.get_td_spec(compilation_info)
     assert td_spec_module
 
-    named_sequence_ops: list[
-        transform.NamedSequenceOp
-    ] = op_matchers.get_ops_from_module(
+    named_sequence_ops: list[transform.NamedSequenceOp] = get_ops_from_module(
         module=td_spec_module,
         fn=lambda op: isinstance(op.opview, transform.NamedSequenceOp),
     )
@@ -157,14 +177,14 @@ def test_get_td_spec_convolution(tuner_ctx: common.TunerContext) -> None:
     )
 
     ir_module = ir.Module.parse(module_str, context)
-
-    tuner = candidate_gen.ConvolutionOpInterfaceTuner()
-    td_spec_module = tuner.get_td_spec(ir_module, compilation_info)
+    root_op_list = iree_codegen.get_tuner_root_ops(ir_module)
+    assert len(root_op_list) == 1
+    root_op = root_op_list[0]
+    tuner = candidate_gen.ConvolutionOpInterfaceTuner(root_op)
+    td_spec_module = tuner.get_td_spec(compilation_info)
     assert td_spec_module
 
-    named_sequence_ops: list[
-        transform.NamedSequenceOp
-    ] = op_matchers.get_ops_from_module(
+    named_sequence_ops: list[transform.NamedSequenceOp] = get_ops_from_module(
         module=td_spec_module,
         fn=lambda op: isinstance(op.opview, transform.NamedSequenceOp),
     )

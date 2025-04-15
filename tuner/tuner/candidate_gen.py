@@ -39,7 +39,6 @@ class DispatchTuner(DispatchParser):
     @abstractmethod
     def get_td_spec(
         self,
-        ir_module: ir.Module,
         compilation_info: iree_codegen.CompilationInfoAttr,
     ) -> ir.Module:
         """Generate a transform dialect spec that applies the compilation info attr."""
@@ -62,12 +61,14 @@ class DispatchTunerRegistry:
 
 
 class ContractionOpInterfaceTuner(DispatchTuner, ContractionOpInterfaceParser):
+    def __init__(self, root_op: ir.Operation):
+        super().__init__(root_op)
+
     def get_td_spec(
         self,
-        ir_module: ir.Module,
         compilation_info: iree_codegen.CompilationInfoAttr,
     ) -> ir.Module:
-        contraction_op: ir.Operation = self.get_contraction_operation(ir_module)
+        contraction_op = self.get_root_op()
         lhs_type = ir.ShapedType(contraction_op.operands[0].type)
         rhs_type = ir.ShapedType(contraction_op.operands[1].type)
         acc_type = ir.ShapedType(contraction_op.operands[2].type)
@@ -77,17 +78,16 @@ class ContractionOpInterfaceTuner(DispatchTuner, ContractionOpInterfaceParser):
         # TODO(Max191): Get the function name from the func.func in the input module.
         func_name = f"match_contraction_{M}x{N}x{K}_{lhs_type.element_type}x{rhs_type.element_type}x{acc_type.element_type}"
         return build_td_spec(
-            ir_module.context, contraction_op, compilation_info, func_name
+            contraction_op.context, contraction_op, compilation_info, func_name
         )
 
 
 class ConvolutionOpInterfaceTuner(DispatchTuner, ConvolutionOpInterfaceParser):
     def get_td_spec(
         self,
-        ir_module: ir.Module,
         compilation_info: iree_codegen.CompilationInfoAttr,
     ) -> ir.Module:
-        conv_op: ir.Operation = self.get_conv_operation(ir_module)
+        conv_op = self.get_root_op()
         assert (
             conv_op.name == "linalg.conv_2d_nhwc_hwcf"
         ), "expected linalg.conv_2d_nhwc_hwcf"
@@ -104,7 +104,7 @@ class ConvolutionOpInterfaceTuner(DispatchTuner, ConvolutionOpInterfaceParser):
         conv_type = conv_op.name.split(".")[-1]
         # TODO(Max191): Get the function name from the func.func in the input module.
         func_name = f"match_{conv_type}_{N}x{H}x{W}x{C}x{P}x{Q}x{F}_{lhs_type.element_type}x{rhs_type.element_type}x{acc_type.element_type}"
-        return build_td_spec(ir_module.context, conv_op, compilation_info, func_name)
+        return build_td_spec(conv_op.context, conv_op, compilation_info, func_name)
 
 
 @dataclass
@@ -156,21 +156,24 @@ def generate_configs_and_td_specs(
     pipeline_options_search_space: PipelineOptionsSearchSpace = PipelineOptionsSearchSpace(),
     codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline = iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
 ) -> list[ir.Module]:
-    dispatch_tuner_registry = DispatchTunerRegistry()
-    dispatch_tuner_registry.register(
-        [
-            ContractionOpInterfaceTuner(),
-            ConvolutionOpInterfaceTuner(),
-        ]
-    )
+    dispatch_tuners: list[type[DispatchTuner]] = [
+        ContractionOpInterfaceTuner,
+        ConvolutionOpInterfaceTuner,
+    ]
 
-    walk_result: OpWalkResult = walk_mlir_op(input_module, dispatch_tuner_registry)
+    root_op_list = iree_codegen.get_tuner_root_ops(input_module)
+    assert len(root_op_list) == 1, "only supports one root op in tuner now"
+    root_op = root_op_list[0]
 
-    dispatch_tuner = walk_result.dispatch_tuner
+    dispatch_tuner: Optional[DispatchTuner] = None
+    for tuner_class in dispatch_tuners:
+        tuner = tuner_class(root_op)
+        if tuner.supports():
+            dispatch_tuner = tuner
+            break
+
     assert dispatch_tuner, "No suitable dispatch tuner found"
-    problem_size: ProblemSize = dispatch_tuner.get_shapes(
-        str(input_module).splitlines()
-    )
+    problem_size: ProblemSize = dispatch_tuner.get_shapes()
     tune_logger.debug(str(problem_size))
 
     # Index 0 is reserved for default config, so it gets a placeholder spec.
@@ -196,7 +199,7 @@ def generate_configs_and_td_specs(
         if i >= limit:
             break
         tune_logger.debug(f"Solution #{i+1}: {config}")
-        td_spec_module = dispatch_tuner.get_td_spec(input_module, config)
+        td_spec_module = dispatch_tuner.get_td_spec(config)
         assert td_spec_module, "Failed to generate transform dialect spec"
         config_specs.append(td_spec_module)
 
@@ -263,7 +266,7 @@ def run_command(run_pack: RunPack) -> RunResult:
 # info makes the inputs to compilation consistent, and allows for overwriting
 # the compilation info with generated TD specs during codegen.
 def strip_root_op_attr(module: ir.Module):
-    root_ops: list[ir.Operation] = get_ops_from_module(module, is_root_op)
+    root_ops: list[ir.Operation] = iree_codegen.get_tuner_root_ops(module)
     for root_op in root_ops:
         assert (
             ROOT_OP_ATTR_NAME in root_op.opview.attributes

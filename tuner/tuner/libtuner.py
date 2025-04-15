@@ -39,7 +39,6 @@ from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_codegen  # type: ignore
 from . import candidate_gen
 from . import dispatch_parser
-from .op_matchers import *
 from .common import *
 from .dispatch_constraints import *
 

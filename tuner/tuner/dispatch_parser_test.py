@@ -65,11 +65,11 @@ def test_get_contraction_operation(tuner_ctx: common.TunerContext) -> None:
             iterator_types='["parallel", "parallel", "reduction"]',
         )
     module = ir.Module.parse(transpose_b_str, context)
-    parser = dispatch_parser.ContractionOpInterfaceParser()
-    mmt_op = parser.get_contraction_operation(module)
-    assert mmt_op is not None
-    assert isinstance(mmt_op.opview, linalg.GenericOp)
-    shapes: common.ProblemSize = parser.get_shapes(transpose_b_str.splitlines())
+    root_op_list = iree_codegen.get_tuner_root_ops(module)
+    assert len(root_op_list) == 1
+    root_op = root_op_list[0]
+    parser = dispatch_parser.ContractionOpInterfaceParser(root_op)
+    shapes: common.ProblemSize = parser.get_shapes()
     assert shapes.matmul_size.B == []
     assert shapes.matmul_size.M == [16]
     assert shapes.matmul_size.N == [32]
@@ -92,8 +92,11 @@ def test_get_contraction_operation(tuner_ctx: common.TunerContext) -> None:
             iterator_types='["parallel", "parallel", "parallel", "reduction"]',
         )
     module = ir.Module.parse(bmm_transposed_inputs_str, context)
-    mmt_op = parser.get_contraction_operation(module)
-    shapes = parser.get_shapes(bmm_transposed_inputs_str.splitlines())
+    root_op_list = iree_codegen.get_tuner_root_ops(module)
+    assert len(root_op_list) == 1
+    root_op = root_op_list[0]
+    parser = dispatch_parser.ContractionOpInterfaceParser(root_op)
+    shapes = parser.get_shapes()
     assert shapes.matmul_size.B == [5]
     assert shapes.matmul_size.M == [8]
     assert shapes.matmul_size.N == [40]
@@ -114,8 +117,11 @@ def test_get_contraction_operation(tuner_ctx: common.TunerContext) -> None:
             iterator_types='["parallel", "parallel", "parallel", "reduction", "parallel", "parallel", "parallel", "reduction"]',
         )
     module = ir.Module.parse(bmm_transposed_inputs_str, context)
-    mmt_op = parser.get_contraction_operation(module)
-    shapes = parser.get_shapes(bmm_transposed_inputs_str.splitlines())
+    root_op_list = iree_codegen.get_tuner_root_ops(module)
+    assert len(root_op_list) == 1
+    root_op = root_op_list[0]
+    parser = dispatch_parser.ContractionOpInterfaceParser(root_op)
+    shapes = parser.get_shapes()
     assert shapes.matmul_size.B == [16, 16]
     assert shapes.matmul_size.M == [8, 64]
     assert shapes.matmul_size.N == [9, 128]
@@ -137,10 +143,10 @@ def test_get_conv_operation(tuner_ctx: common.TunerContext) -> None:
             }
         }"""
     module = ir.Module.parse(module_str, context)
-    parser = dispatch_parser.ConvolutionOpInterfaceParser()
-    conv_op = parser.get_conv_operation(module)
-    assert conv_op is not None
-    assert isinstance(conv_op.opview, linalg.Conv2DNhwcHwcfOp)
+    root_op_list = iree_codegen.get_tuner_root_ops(module)
+    assert len(root_op_list) == 1
+    root_op = root_op_list[0]
+    assert isinstance(root_op.opview, linalg.Conv2DNhwcHwcfOp)
 
 
 def test_get_mmt_tile_sizes(tuner_ctx: common.TunerContext) -> None:

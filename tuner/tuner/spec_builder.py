@@ -13,7 +13,8 @@ from iree.compiler.dialects import iree_codegen  # type: ignore
 from .common import *
 from .dispatch_constraints import *
 from .dispatch_parser import *
-from .op_matchers import ROOT_OP_ATTR_NAME
+
+ROOT_OP_ATTR_NAME = "root_op"
 
 
 def get_placeholder_spec(context: ir.Context) -> ir.Module:
