@@ -33,7 +33,8 @@ def test_paged(dtype: torch.dtype):
         transformer_block_count=transformer_block_count,
         attn_head_count=attn_head_count,
         attn_head_dim=attn_head_dim,
-        dtype=dtype,
+        cache_dtype=dtype,
+        attn_dtype=dtype,
         device=None,
     )
 
@@ -142,7 +143,8 @@ def test_sharded_paged():
         attn_head_count=attn_head_count,
         attn_head_dim=attn_head_dim,
         shard_count=shard_count,
-        dtype=torch.float32,
+        cache_dtype=torch.float32,
+        attn_dtype=torch.float32,
         device=None,
     )
 
