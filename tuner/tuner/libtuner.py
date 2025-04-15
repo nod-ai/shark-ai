@@ -851,22 +851,29 @@ def benchmark_baseline(
     tuning_client: TuningClient,
     candidate_tracker: CandidateTracker,
 ) -> list[BenchmarkResult]:
-    task_list = [
-        BenchmarkPack(
-            iree_benchmark_module_flags=tuning_client.get_iree_benchmark_module_flags(),
-            benchmark_timeout=tuning_client.get_benchmark_timeout_s(),
-            candidate_tracker=candidate_tracker,
-        )
-    ] * len(devices)
 
-    worker_context_queue = create_worker_context_queue(devices)
-    baseline_results = multiprocess_progress_wrapper(
-        num_worker=len(devices),
-        task_list=task_list,
-        function=run_iree_benchmark_module_command,
-        initializer=init_worker_context,
-        initializer_inputs=(worker_context_queue,),
-    )
+    global worker_id, device_id
+
+    baseline_results = list()
+    with tqdm(total=len(devices)) as pbar:
+        try:
+            for worker_id_, device_id_ in enumerate(devices):
+                worker_id = worker_id_
+                device_id = device_id_
+                result = run_iree_benchmark_module_command(
+                    BenchmarkPack(
+                        iree_benchmark_module_flags=tuning_client.get_iree_benchmark_module_flags(),
+                        benchmark_timeout=tuning_client.get_benchmark_timeout_s(),
+                        candidate_tracker=candidate_tracker,
+                    )
+                )
+
+                baseline_results.append(result)
+                pbar.update(1)  # Update progress bar
+        except KeyboardInterrupt:
+            # If Ctrl+C is pressed, terminate all child processes
+            sys.exit(1)  # Exit the script
+
     return baseline_results
 
 
