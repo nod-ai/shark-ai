@@ -20,6 +20,7 @@ import dataclasses_json
 from dataclasses_json import dataclass_json, Undefined
 
 import shortfin.array as sfnp
+from shortfin.utils import dtype_map
 
 from .token_selection_strategy.config import DecodeConfig
 from .token_selection_strategy.config import LogitsNormalization
@@ -27,7 +28,9 @@ from .token_selection_strategy.config import LogitsNormalization
 
 def _decode_dtype(name: str) -> sfnp.DType:
     obj = getattr(sfnp, name, None)
-    if not isinstance(obj, sfnp.DType):
+    if name in dtype_map and isinstance(obj, sfnp.DType):
+        return dtype_map[name]
+    else:
         raise ValueError(f"{name} is not a recognized dtype")
 
 
