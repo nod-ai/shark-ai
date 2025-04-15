@@ -24,7 +24,28 @@ import random
 from ..types import *
 from .math import cosine_similarity
 
+
+def get_test_type():
+    # TODO: Remove once pre-submits and nightly tests are unified to single workflow.
+    pre_submit = 'config.getoption("--run-quick-llama-test")'
+    nightly = 'config.getoption("--run-nightly-llama-tests")'
+    if pre_submit or nightly:
+        return False
+
+
 is_mi300x = pytest.mark.skipif("config.getoption('iree_hip_target') != 'gfx942'")
+
+# TODO: ci-sharktank-nightly should run all nightly CIs requiring mi300x in a single workflow, dropping all test specific flags/workflows
+is_nightly = pytest.mark.skipif(
+    'not config.getoption("run-nightly-llama-tests")',
+    reason="Run large tests if --run-nightly-llama-tests is passed",
+)
+
+# TODO: ci-sharktank/test-mi300x should run all pre-submits requiring mi300x in a single workflow, dropping all test specific flags/workflows
+is_pre_submit_nightly = pytest.mark.skipif(
+    get_test_type(),
+    reason="Run large/quick tests if --run-quick-llama-test or --run-nightly-llama-tests is passed",
+)
 
 is_cpu_condition = (
     "exec('from sharktank.utils.testing import is_iree_hal_target_device_cpu') or "

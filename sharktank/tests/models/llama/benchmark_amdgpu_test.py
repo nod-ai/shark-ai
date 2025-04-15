@@ -19,11 +19,10 @@ from sharktank.utils.export_artifacts import (
     IreeBenchmarkException,
     IreeCompileException,
 )
-
-is_mi300x = pytest.mark.skipif("config.getoption('iree_hip_target') != 'gfx942'")
-skipif_run_quick_llama_test = pytest.mark.skipif(
-    'not config.getoption("run-nightly-llama-tests")',
-    reason="Run large tests if --run-nightly-llama-tests is passed",
+from sharktank.utils.testing import (
+    is_mi300x,
+    is_nightly,
+    is_pre_submit_nightly,
 )
 
 
@@ -223,7 +222,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             ">>",
         ]
 
-    @skipif_run_quick_llama_test
+    @is_pre_submit_nightly
     def testBenchmark8B_f16_TP1_Non_Decomposed_Input_Len_128(self):
         output_file_name = self.dir_path_8b / "f16_torch_128_tp1"
         output_mlir = self.llama8b_f16_torch_sdpa_artifacts.create_file(
@@ -268,7 +267,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
 
-    @skipif_run_quick_llama_test
+    @is_nightly
     def testBenchmark8B_f16_TP1_Non_Decomposed_Input_Len_2048(self):
         output_file_name = self.dir_path_8b / "f16_torch_2048_tp1"
         output_mlir = self.llama8b_f16_torch_sdpa_artifacts.create_file(
@@ -313,9 +312,11 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
 
-    @skipif_run_quick_llama_test
+    @is_nightly
     @pytest.mark.xfail(
-        run=False, reason="Benchmarking Error", raises=IreeBenchmarkException
+        run=False,
+        reason="https://github.com/iree-org/iree/issues/20528",
+        raises=IreeCompileException,
     )
     def testBenchmark8B_fp8_TP1_Non_Decomposed(self):
         output_file_name = self.dir_path_8b / "fp8_torch_tp1"
@@ -361,8 +362,12 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
 
-    @skipif_run_quick_llama_test
-    @pytest.mark.xfail(run=False, reason="Compile Error", raises=IreeCompileException)
+    @is_nightly
+    @pytest.mark.xfail(
+        run=False,
+        reason="https://github.com/iree-org/iree/issues/20528",
+        raises=IreeCompileException,
+    )
     def testBenchmark8B_fp8_attnf8_TP1_Non_Decomposed_Input_Len_2048(self):
         output_file_name = self.dir_path_8b / "fp8_attnf8_2048_tp1"
         output_mlir = self.llama8b_fp8_attnf8_sdpa_artifacts.create_file(
@@ -407,8 +412,12 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
 
-    @skipif_run_quick_llama_test
-    @pytest.mark.xfail(run=False, reason="Compile Error", raises=IreeCompileException)
+    @is_nightly
+    @pytest.mark.xfail(
+        run=False,
+        reason="https://github.com/iree-org/iree/issues/20528",
+        raises=IreeCompileException,
+    )
     def testBenchmark8B_fp8_attnf8_TP1_Non_Decomposed_Input_Len_128(self):
         output_file_name = self.dir_path_8b / "fp8_attnf8_128_tp1"
         output_mlir = self.llama8b_fp8_attnf8_sdpa_artifacts.create_file(
@@ -455,7 +464,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
 
 
 @is_mi300x
-@skipif_run_quick_llama_test
+@is_nightly
 class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
     def setUp(self):
         super().setUp()
@@ -810,7 +819,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
 
 
 @is_mi300x
-@skipif_run_quick_llama_test
+@is_nightly
 class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
     def setUp(self):
         super().setUp()
