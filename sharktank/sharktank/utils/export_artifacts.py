@@ -203,7 +203,7 @@ class ExportArtifacts:
             export_args.append(f"--kv-cache-dtype={self.kv_cache_dtype}")
         if skip_decode:
             export_args.append("--skip-decode")
-        if self.attention_kernel in ["decomposed", "torch"]:
+        if self.attention_kernel in ["decomposed", "torch", "sharktank"]:
             export_args.append(f"--attention-kernel={self.attention_kernel}")
         if self.use_attention_mask:
             export_args.append("--use-attention-mask")

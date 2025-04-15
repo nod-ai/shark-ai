@@ -29,6 +29,7 @@ from sharktank.models.flux.flux import FluxModelV1, FluxParams
 from sharktank.models.flux.compile import iree_compile_flags
 from sharktank.utils.testing import (
     TempDirTestBase,
+    get_iree_compiler_flags,
     skip,
     is_mi300x,
     is_cpu,
@@ -114,10 +115,9 @@ class FluxTest(TempDirTestBase):
 
         iree_module_path = self._temp_dir / "model.vmfb"
         logger.info("Compiling MLIR file...")
-        compile_flags = iree_compile_flags + [
-            f"--iree-hal-target-device={self.iree_hal_target_device}",
-            f"--iree-hip-target={self.iree_hip_target}",
-        ]
+
+        iree_device_flags = get_iree_compiler_flags(self)
+        compile_flags = iree_compile_flags + iree_device_flags
         iree.compiler.compile_file(
             str(mlir_path),
             output_file=str(iree_module_path),
@@ -179,7 +179,13 @@ class FluxTest(TempDirTestBase):
         logger.info(
             f"Actual vs expected abs diff {format_tensor_statistics(abs_diff[0])}"
         )
-        torch.testing.assert_close(actual_outputs, expected_outputs, atol=atol, rtol=0)
+        torch.testing.assert_close(
+            actual_outputs,
+            expected_outputs,
+            atol=atol,
+            rtol=0,
+            msg=f"Actual vs expected results diff > {atol}",
+        )
 
     def runTestCompareDevIreeAgainstEager(
         self, reference_dtype: torch.dtype, target_dtype: torch.dtype, atol: float
@@ -229,7 +235,13 @@ class FluxTest(TempDirTestBase):
             target_output, source_dtype=target_model.dtype, target_dtype=reference_dtype
         )
 
-        torch.testing.assert_close(target_output, reference_output, atol=atol, rtol=0)
+        torch.testing.assert_close(
+            target_output,
+            reference_output,
+            atol=atol,
+            rtol=0,
+            msg=f"Target and reference outputs differ > {atol}",
+        )
 
     def runTestCompareToyIreeAgainstEager(
         self, reference_dtype: torch.dtype, target_dtype: torch.dtype, atol: float
@@ -245,7 +257,7 @@ class FluxTest(TempDirTestBase):
         is_cpu_condition,
         raises=iree.compiler.CompilerToolError,
         strict=True,
-        reason="The compiler segfaults https://github.com/iree-org/iree/issues/20283",
+        reason="Fails on CPU. Issue: https://github.com/nod-ai/shark-ai/issues/1244",
     )
     def testCompareToyIreeF32AgainstEagerF64(self):
         """atol is apparently high because the expected output range is large.
@@ -255,10 +267,7 @@ class FluxTest(TempDirTestBase):
         )
 
     @pytest.mark.xfail(
-        is_cpu_condition,
-        raises=iree.compiler.CompilerToolError,
-        strict=True,
-        reason="The compiler segfaults https://github.com/iree-org/iree/issues/20283",
+        reason="Fails on both CPU and MI300. Issue: https://github.com/nod-ai/shark-ai/issues/1244",
     )
     def testCompareToyIreeBf16AgainstEagerF64(self):
         """atol is apparently high because the expected output range is large.

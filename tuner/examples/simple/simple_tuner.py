@@ -84,7 +84,7 @@ def main() -> None:
     candidate_trackers: list[libtuner.CandidateTracker] = []
     stop_after_phase: str = args.stop_after
 
-    print("Setup logging")
+    print("[WARNING] SHARK Tuner is still experimental")
     root_logger = libtuner.setup_logging(args, path_config)
     print(path_config.run_log, end="\n\n")
 

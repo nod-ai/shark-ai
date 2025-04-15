@@ -191,7 +191,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             f"--input=4xi64=@{self.prefill_args_fp8}/seq_lens.bin",
             f"--input=4x4xi64=@{self.prefill_args_fp8}/seq_block_ids.bin",
             f"--input=261x2097152xf8E4M3FNUZ=@{self.prefill_args_fp8}/cs_f8E4M3FNUZ.bin",
-            "--benchmark_repetitions=3",
+            "--benchmark_repetitions=10",
             ">>",
         ]
         self.iree_run_decode_args_fp8 = [
@@ -201,14 +201,14 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             f"--input=4xi64=@{self.decode_args_fp8}/start_positions.bin",
             f"--input=4x5xi64=@{self.decode_args_fp8}/seq_block_ids.bin",
             f"--input=261x2097152xf8E4M3FNUZ=@{self.decode_args_fp8}/cs_f8E4M3FNUZ.bin",
-            "--benchmark_repetitions=3",
+            "--benchmark_repetitions=10",
             ">>",
         ]
         self.iree_run_prefill_args_fp8_2048 = [
             "--function=prefill_bs4",
-            f"--input=4x128xi64=@{self.prefill_args_fp8}/2048/prefill_token_ids_4x2048xi64.bin",
+            f"--input=4x2048xi64=@{self.prefill_args_fp8}/2048/prefill_token_ids_4x2048xi64.bin",
             f"--input=4xi64=@{self.prefill_args_fp8}/2048/prefill_seq_lens_4xi64.bin",
-            f"--input=4x4xi64=@{self.prefill_args_fp8}/2048/prefill_seq_block_ids_4x64xi64.bin",
+            f"--input=4x64xi64=@{self.prefill_args_fp8}/2048/prefill_seq_block_ids_4x64xi64.bin",
             f"--input=261x2097152xf8E4M3FNUZ=@{self.prefill_args_fp8}/2048/prefill_cache_state_261x2097152xf8E4M3FNUZ.bin",
             "--benchmark_repetitions=10",
             ">>",
