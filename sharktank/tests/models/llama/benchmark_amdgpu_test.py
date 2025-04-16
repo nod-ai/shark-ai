@@ -373,11 +373,6 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         )
 
     @is_nightly
-    @pytest.mark.xfail(
-        run=False,
-        reason="https://github.com/iree-org/iree/issues/20528",
-        raises=IreeCompileException,
-    )
     def testBenchmark8B_fp8_attnf8_TP1_Non_Decomposed_Input_Len_2048(self):
         output_file_name = self.dir_path_8b / "fp8_attnf8_2048_tp1"
         output_mlir = self.llama8b_fp8_attnf8_sdpa_artifacts.create_file(
@@ -423,11 +418,6 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         )
 
     @is_nightly
-    @pytest.mark.xfail(
-        run=False,
-        reason="https://github.com/iree-org/iree/issues/20528",
-        raises=IreeCompileException,
-    )
     def testBenchmark8B_fp8_attnf8_TP1_Non_Decomposed_Input_Len_128(self):
         output_file_name = self.dir_path_8b / "fp8_attnf8_128_tp1"
         output_mlir = self.llama8b_fp8_attnf8_sdpa_artifacts.create_file(
