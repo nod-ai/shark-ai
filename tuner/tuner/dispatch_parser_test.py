@@ -69,7 +69,7 @@ def test_get_contraction_operation(tuner_ctx: common.TunerContext) -> None:
     assert len(root_op_list) == 1
     root_op = root_op_list[0]
     parser = dispatch_parser.ContractionOpInterfaceParser(root_op)
-    shapes: common.ProblemSize = parser.get_shapes()
+    shapes: common.ProblemSize = parser.get_problem_size()
     assert shapes.matmul_size.B == []
     assert shapes.matmul_size.M == [16]
     assert shapes.matmul_size.N == [32]
@@ -96,7 +96,7 @@ def test_get_contraction_operation(tuner_ctx: common.TunerContext) -> None:
     assert len(root_op_list) == 1
     root_op = root_op_list[0]
     parser = dispatch_parser.ContractionOpInterfaceParser(root_op)
-    shapes = parser.get_shapes()
+    shapes = parser.get_problem_size()
     assert shapes.matmul_size.B == [5]
     assert shapes.matmul_size.M == [8]
     assert shapes.matmul_size.N == [40]
@@ -121,7 +121,7 @@ def test_get_contraction_operation(tuner_ctx: common.TunerContext) -> None:
     assert len(root_op_list) == 1
     root_op = root_op_list[0]
     parser = dispatch_parser.ContractionOpInterfaceParser(root_op)
-    shapes = parser.get_shapes()
+    shapes = parser.get_problem_size()
     assert shapes.matmul_size.B == [16, 16]
     assert shapes.matmul_size.M == [8, 64]
     assert shapes.matmul_size.N == [9, 128]
@@ -146,7 +146,10 @@ def test_get_conv_operation(tuner_ctx: common.TunerContext) -> None:
     root_op_list = iree_codegen.get_tuner_root_ops(module)
     assert len(root_op_list) == 1
     root_op = root_op_list[0]
-    assert isinstance(root_op.opview, linalg.Conv2DNhwcHwcfOp)
+    parser = dispatch_parser.ConvolutionOpInterfaceParser(root_op)
+    assert (
+        parser.has_valid_root_op()
+    ), f"ConvolutionOpInterfaceParser does not support the op: {root_op.name}"
 
 
 def test_get_mmt_tile_sizes(tuner_ctx: common.TunerContext) -> None:

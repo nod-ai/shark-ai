@@ -162,18 +162,27 @@ def generate_configs_and_td_specs(
     ]
 
     root_op_list = iree_codegen.get_tuner_root_ops(input_module)
-    assert len(root_op_list) == 1, "only supports one root op in tuner now"
+    if len(root_op_list) == 0:
+        tune_logger.error(
+            "No root ops found. Did you forget to pass "
+            "--iree-config-add-tuner-attributes during compilation?"
+        )
+        return []
+    elif len(root_op_list) > 1:
+        tune_logger.error("Multiple root ops found. Only one is currently supported.")
+        return []
+
     root_op = root_op_list[0]
 
     dispatch_tuner: Optional[DispatchTuner] = None
     for tuner_class in dispatch_tuners:
         tuner = tuner_class(root_op)
-        if tuner.supports():
+        if tuner.has_valid_root_op():
             dispatch_tuner = tuner
             break
 
     assert dispatch_tuner, "No suitable dispatch tuner found"
-    problem_size: ProblemSize = dispatch_tuner.get_shapes()
+    problem_size: ProblemSize = dispatch_tuner.get_problem_size()
     tune_logger.debug(str(problem_size))
 
     # Index 0 is reserved for default config, so it gets a placeholder spec.

@@ -34,12 +34,12 @@ class DispatchParser(metaclass=ABCMeta):
         return self._root_op
 
     @abstractmethod
-    def supports(self) -> bool:
-        """Check if the tuner supports the current root op."""
+    def has_valid_root_op(self) -> bool:
+        """Check if the root_op is valid and supported by this tuner."""
         pass
 
     @abstractmethod
-    def get_shapes(self) -> ProblemSize:
+    def get_problem_size(self) -> ProblemSize:
         """Extract problem size of the operation."""
         pass
 
@@ -50,23 +50,18 @@ class ContractionOpInterfaceParser(DispatchParser):
     def __init__(self, root_op: ir.Operation):
         super().__init__(root_op)
 
-    def supports(self) -> bool:
+    def has_valid_root_op(self) -> bool:
         root_op = self.get_root_op()
         if not linalg.isa_contraction_op(root_op):
             return False
-        func_op = root_op.parent
-        func_name = str(func_op.opview.sym_name)
-        return (
-            "matmul_like" in func_name
-            or "batch_matmul" in func_name
-            or "batch_matmul_transpose_b" in func_name
-            or "matmul_transpose_b" in func_name
-        )
+        return root_op.name == "linalg.generic"
 
-    def get_shapes(self) -> ProblemSize:
+    def get_problem_size(self) -> ProblemSize:
         root_op = self.get_root_op()
         contraction_dims = linalg.infer_contraction_dimensions(root_op)
         assert contraction_dims, "no contraction dimensions"
+
+        # TODO(Bangtian): Expose Python bindings for getting indexing maps.
         indexing_maps_attr = None
         for attr in root_op.opview.attributes:
             if attr.name == "indexing_maps" and isinstance(attr.attr, ir.ArrayAttr):
@@ -109,18 +104,19 @@ class ConvolutionOpInterfaceParser(DispatchParser):
         super().__init__(root_op)
         self.supported_ops = ["linalg.conv_2d_nhwc_hwcf"]
 
-    def supports(self) -> bool:
+    def has_valid_root_op(self) -> bool:
         root_op = self.get_root_op()
         if not linalg.isa_convolution_op(root_op):
             return False
-        func_op = root_op.parent
-        func_name = str(func_op.opview.sym_name)
+
+        op_name = root_op.name
         for supported_op_name in self.supported_ops:
-            if supported_op_name.split(".")[-1] in func_name:
+            if op_name == supported_op_name:
                 return True
+
         return False
 
-    def get_shapes(self) -> ProblemSize:
+    def get_problem_size(self) -> ProblemSize:
         root_op = self.get_root_op()
         lhs_type = ir.RankedTensorType(root_op.operands[0].type)
         rhs_type = ir.RankedTensorType(root_op.operands[1].type)
