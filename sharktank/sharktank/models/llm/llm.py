@@ -73,6 +73,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         self.config = config
         self.hp = self.config.hp
         self.cache = create_paged_kv_cache(self.config)
+        # TODO: Add inference_norm as an optional value from config
         self.inference_norm = self.config.hp.model_arch == "grok"
 
         self.add_module(
@@ -130,6 +131,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         h = self.token_embedding(tokens)
         self.trace_tensor("llama.token_embedding", h)
 
+        # TODO: Get the normalization factor via configuration
         if self.inference_norm:
             h *= math.sqrt(h.shape[-1])
 
@@ -195,6 +197,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         h = self.token_embedding(tokens)
         self.trace_tensor("llama.token_embedding", h)
 
+        # TODO: Get the normalization factor via configuration
         if self.inference_norm:
             h *= math.sqrt(h.shape[-1])
 
