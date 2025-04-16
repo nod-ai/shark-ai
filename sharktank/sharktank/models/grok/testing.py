@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import Optional
-
+from sharktank.layers.configs import LlamaModelConfig
 import torch
 
 from sharktank.types.tensors import *

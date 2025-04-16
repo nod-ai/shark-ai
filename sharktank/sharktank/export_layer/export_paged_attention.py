@@ -17,14 +17,11 @@ from iree.turbine.aot import *
 
 from sharktank.layers import *
 from sharktank.types import *
-
 from sharktank.models.llama.testing import *
-from sharktank.layers import causal_llm
-
+from sharktank.utils import cli
 from sharktank.utils.create_cache import *
 
 # TODO: Should be using a base class with the protocol supported.
-from ..models.llama.llama import LlamaModelConfig, PagedLlamaAttentionBlock
 
 
 def paged_attention(
@@ -39,44 +36,38 @@ def paged_attention(
     cache_state: list[torch.Tensor] = None,
 ):
 
+    block_index = attention_block.block_index
+    head_count = attention_block.head_count
     bs, batch_seq_len, _, _ = xq.shape
 
     # Full sequence length.
     kv_seq_len = seq_block_ids.shape[1] * attention_block.cache.block_seq_stride
 
-    xk, xv = attention_block.transact_cache(
-        xk_cache_update=xk,
-        xv_cache_update=xv,
-        seq_block_ids=seq_block_ids,
-        kv_seq_len=kv_seq_len,
-        start_positions=start_positions,
-        cache_state=cache_state,
-    )
+    if start_positions is None:
+        attn_output = paged_attention.forward_prefill(
+            q=xq,
+            k=xk,
+            v=xv,
+            cache_state=cache_state,
+            seq_block_ids=seq_block_ids,
+            block_index=block_index,
+            head_count_attn=head_count,
+            mask=attention_mask,
+        )
+    else:
+        attn_output = paged_attention.forward_decode(
+            q=xq,
+            k=xk,
+            v=xv,
+            cache_state=cache_state,
+            seq_block_ids=seq_block_ids,
+            block_index=block_index,
+            kv_seq_len=kv_seq_len,
+            start_positions=start_positions,
+            head_count_attn=head_count,
+            mask=attention_mask,
+        )
 
-    # Expand kv heads for GQA.
-    gqa_n_rep = attention_block.head_count // attention_block.head_count_kv
-    assert gqa_n_rep > 0
-    if gqa_n_rep > 1:
-
-        def repeat_kv(x: torch.Tensor) -> torch.Tensor:
-            bs, slen, n_kv_heads, head_dim = x.shape
-            return (
-                x.unsqueeze(-2)
-                .expand(bs, slen, n_kv_heads, gqa_n_rep, head_dim)
-                .reshape(bs, slen, n_kv_heads * gqa_n_rep, head_dim)
-            )
-
-        xk = repeat_kv(xk)
-        xv = repeat_kv(xv)
-
-    # Transpose into [bs, heads, sl, dim]
-    xq = xq.transpose(1, 2)
-    keys = xk.transpose(1, 2)
-    values = xv.transpose(1, 2)
-    attention_mask = None
-    attn_output = F.scaled_dot_product_attention(
-        xq, keys, values, attn_mask=attention_mask, is_causal=is_causal
-    )
     attn_output = attn_output.transpose(1, 2).reshape(bs, batch_seq_len, -1)
     return attn_output
 
@@ -116,7 +107,6 @@ def run_llama(
 
 
 def main():
-    from ..utils import cli
 
     parser = cli.create_parser()
     # cli.add_input_dataset_options(parser)
@@ -156,9 +146,6 @@ def main():
 
     args = cli.parse(parser)
 
-    # dataset = cli.get_input_dataset(args)
-    # hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
-
     hp = configs.LlamaHParams(
         context_length=4096,
         embedding_length=4096,
@@ -173,7 +160,7 @@ def main():
     )
 
     llama_config = LlamaModelConfig(hp)
-    llama_config.kv_cache_type = "direct" if args.bs == [1] else "paged"
+    llama_config.kv_cache_type = "paged"
     llama_config.bs = args.bs
     llama_config.is_causal = args.is_causal
 
@@ -229,12 +216,6 @@ def main():
             )
             page_dim = torch.export.Dim("page")
             cache_state_dynamic_shapes = [{0: page_dim}]
-        elif llama_config.kv_cache_type == "direct":
-            cache_state = model.cache.allocate(bs=1)
-            # Direct cache dimensions:
-            #   2 * transformer_block_count of...
-            #   [bs, seq_length, attn_head_count, attn_head_dim]
-            cache_state_dynamic_shapes = (2 * hp.block_count) * [{}]
         else:
             raise NotImplementedError(f"Unsupported KV cache type: {type(model.cache)}")
 
@@ -293,12 +274,6 @@ def main():
             )
             page_dim = torch.export.Dim("page")
             cache_state_dynamic_shapes = [{0: page_dim}]
-        elif llama_config.kv_cache_type == "direct":
-            cache_state = model.cache.allocate(bs=1)
-            # Direct cache dimensions:
-            #   2 * transformer_block_count of...
-            #   [bs, seq_length, attn_head_count, attn_head_dim]
-            cache_state_dynamic_shapes = (2 * hp.block_count) * [{}]
         else:
             raise NotImplementedError(f"Unsupported KV cache type: {type(model.cache)}")
 

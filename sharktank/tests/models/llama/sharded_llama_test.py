@@ -11,7 +11,6 @@ import tempfile
 from copy import deepcopy
 import os
 import numpy as np
-
 import torch
 
 from sharktank.layers.configs import *
@@ -37,10 +36,10 @@ from sharktank.utils.iree import (
     call_torch_module_function,
     iree_to_torch,
 )
-from sharktank.export import export as sharktank_export
+from sharktank.utils.export import export as sharktank_export
 
 from iree.turbine.aot import FxProgramsBuilder, export
-import iree.runtime
+import iree
 
 
 @pytest.mark.usefixtures("caching", "path_prefix", "get_iree_flags")
@@ -87,7 +86,7 @@ class ShardedLlamaTest(unittest.TestCase):
             [14, 9, self.block_seq_stride - 1], dtype=torch.int64
         )
 
-    def make_prefill_args(self, model: PagedLlamaModelV1) -> OrderedDict[str, Any]:
+    def make_prefill_args(self, model: PagedLlmModelV1) -> OrderedDict[str, Any]:
         batch_seq_len = round_up_to_multiple_of(
             int(torch.max(self.prefill_seq_lens)), model.cache.pad_sequence_stride
         )
@@ -115,7 +114,7 @@ class ShardedLlamaTest(unittest.TestCase):
         )
 
     def make_equal_unsharded_and_sharded_prefill_args(
-        self, model: PagedLlamaModelV1, sharded_model: PagedLlamaModelV1
+        self, model: PagedLlmModelV1, sharded_model: PagedLlmModelV1
     ) -> Tuple[OrderedDict[str, Any], OrderedDict[str, Any]]:
         prefill_kwargs = self.make_prefill_args(model)
         sharded_cache_state = sharded_model.cache.allocate(
@@ -140,7 +139,7 @@ class ShardedLlamaTest(unittest.TestCase):
 
         return prefill_kwargs, sharded_prefill_kwargs
 
-    def make_decode_args(self, model: PagedLlamaModelV1) -> OrderedDict[str, Any]:
+    def make_decode_args(self, model: PagedLlmModelV1) -> OrderedDict[str, Any]:
         start_positions = self.prefill_seq_lens.clone()
         seq_lens = self.prefill_seq_lens + 1
         batch_seq_len = round_up_to_multiple_of(
@@ -171,7 +170,7 @@ class ShardedLlamaTest(unittest.TestCase):
         )
 
     def make_equal_unsharded_and_sharded_decode_args(
-        self, model: PagedLlamaModelV1, sharded_model: PagedLlamaModelV1
+        self, model: PagedLlmModelV1, sharded_model: PagedLlmModelV1
     ) -> Tuple[OrderedDict[str, Any], OrderedDict[str, Any]]:
         decode_kwargs = self.make_decode_args(model)
         sharded_decode_kwargs = deepcopy(decode_kwargs)
@@ -192,9 +191,9 @@ class ShardedLlamaTest(unittest.TestCase):
     def testCompareToySizedModelToUnsharded(self):
         """Run a sharded variant of a toy model size and compare it against the
         unsharded variant."""
-        model = PagedLlamaModelV1(self.theta, self.config)
+        model = PagedLlmModelV1(self.theta, self.config)
         sharded_theta = shard_theta(self.theta, self.sharded_config)
-        sharded_model = PagedLlamaModelV1(sharded_theta, self.sharded_config)
+        sharded_model = PagedLlmModelV1(sharded_theta, self.sharded_config)
 
         # Verify prefill step.
         (
@@ -275,10 +274,8 @@ class ShardedLlamaTest(unittest.TestCase):
         sharded_dataset.save(sharded_parameters_path)
         sharded_dataset = Dataset.load(sharded_parameters_path, mmap=False)
 
-        model = PagedLlamaModelV1(self.theta, self.config)
-        sharded_model = PagedLlamaModelV1(
-            sharded_dataset.root_theta, self.sharded_config
-        )
+        model = PagedLlmModelV1(self.theta, self.config)
+        sharded_model = PagedLlmModelV1(sharded_dataset.root_theta, self.sharded_config)
         (
             _,
             sharded_prefill_kwargs,
