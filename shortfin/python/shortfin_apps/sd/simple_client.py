@@ -25,9 +25,6 @@ from shortfin_apps.utilities.image import (
 sample_request = {
     "prompt": [
         " a cat under the snow with blue eyes, covered by snow, cinematic style, medium shot, professional photo, animal",
-        " a cat under the snow with blue eyes, covered by snow, cinematic style, medium shot, professional photo, animal",
-        " a cat under the snow with blue eyes, covered by snow, cinematic style, medium shot, professional photo, animal",
-        " a cat under the snow with blue eyes, covered by snow, cinematic style, medium shot, professional photo, animal",
     ],
     "neg_prompt": ["Watermark, blurry, oversaturated, low resolution, pollution"],
     "height": [1024],
