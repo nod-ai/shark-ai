@@ -28,6 +28,7 @@ class FFN(ThetaLayer):
         rms_epsilon: float,
         is_gated: bool = True,
         activation_fn: Callable[[AnyTensor], AnyTensor] = F.silu,
+        activation_dtype: Optional[torch.dtype] = torch.float16,
         fake_quant: bool = False,
     ):
         super().__init__(theta)
@@ -41,7 +42,14 @@ class FFN(ThetaLayer):
                 "ffn_gate", LinearLayer(theta("ffn_gate"), fake_quant=fake_quant)
             )
         if "ffn_norm" in theta:
+            # Llama & MoE models
             self.ffn_norm = RMSNormLayer(theta("ffn_norm"), epsilon=rms_epsilon)
+        elif "layer_norm" in theta:
+            # T5 model
+            self.ffn_norm = RMSNormLayer(
+                theta("layer_norm"), epsilon=rms_epsilon, dtype=activation_dtype
+            )
+
         self.add_module("ffn_up", LinearLayer(theta("ffn_up"), fake_quant=fake_quant))
         self.add_module(
             "ffn_down", LinearLayer(theta("ffn_down"), fake_quant=fake_quant)
