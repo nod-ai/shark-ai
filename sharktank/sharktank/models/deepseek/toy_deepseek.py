@@ -26,11 +26,13 @@ def generate(seed):
     block_seq_stride = 16
     max_blocks = 8
 
-    attn_head_dim = 16
     rope_dimension_count = 16
     vocabulary_size = 256
     expert_count = 4
     used_experts = 2
+    qk_nope_head_dim = 32
+    qk_rope_head_dim = 16
+    attn_head_dim = qk_nope_head_dim + qk_rope_head_dim
 
     config = LlamaModelConfig(
         hp=LlamaHParams(
@@ -39,19 +41,18 @@ def generate(seed):
             block_count=1,
             feed_forward_length=23,
             rope_dimension_count=rope_dimension_count,
-            rope_freq_base=500000.0,
+            rope_freq_base=10000.0,
             attention_head_count=4,
             attn_head_dim=attn_head_dim,
-            attention_layer_norm_rms_epsilon=0.01,
+            attention_layer_norm_rms_epsilon=9,
             attention_head_count_kv=4,
-            nope_dim=32,
-            kv_latent_dim=16,
+            qk_nope_head_dim=qk_nope_head_dim,
+            qk_rope_head_dim=qk_rope_head_dim,
             v_head_dim=32,
             expert_count=expert_count,
             expert_used_count=used_experts,
-            model_arch="deepseek",
-            expert_score_func="sigmoid",
-            route_scale=2.0,
+            model_arch="deepseek2",
+            route_scale=2.5,
         ),
         block_seq_stride=block_seq_stride,
         activation_dtype=dtype,

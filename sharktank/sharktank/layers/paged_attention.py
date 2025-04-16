@@ -67,6 +67,7 @@ class PagedAttention:
         dtype: torch.dtype = torch.float32,
         device: Optional[torch.device] = None,
         shard_count: int = 1,
+        attn_type: str = "gqa",
     ):
         self.transformer_block_count = transformer_block_count
         self.head_count_kv = attn_head_count
@@ -74,6 +75,7 @@ class PagedAttention:
         self.cache_partition_count = cache_partition_count
         self.block_seq_stride = block_seq_stride
         self.shard_count = shard_count
+        self.attn_type = attn_type
         if attn_head_count % shard_count != 0:
             raise ValueError(
                 f"The attention head count {attn_head_count} must be a multiple of the tensor parallelism size {shard_count}."
@@ -330,6 +332,20 @@ class PagedAttention:
             else:
                 subblock_table.index_copy_(0, subblock_ids, part_block)
 
+    def repeat_kv(self, x: torch.Tensor, n_rep: int) -> torch.Tensor:
+        bs, slen, n_kv_heads, head_dim = x.shape
+        unsq = x.unsqueeze(-2)
+        exp = ops.expand(unsq, (bs, slen, n_kv_heads, n_rep, head_dim))
+        return exp.flatten(2, 3)
+
+    def gqa(self, head_count_attn, k, v):
+        gqa_n_rep = head_count_attn // self.head_count_kv
+        assert gqa_n_rep > 0
+        if gqa_n_rep > 1:
+            k = self.repeat_kv(x=k, n_rep=gqa_n_rep)
+            v = self.repeat_kv(x=v, n_rep=gqa_n_rep)
+        return k, v
+
     def attention(
         self,
         *,
@@ -337,26 +353,17 @@ class PagedAttention:
         k: torch.Tensor,
         v: torch.Tensor,
         head_count_attn: int,
-        attention_kernel: str,
         cache_quantizer: Optional[QuantizerTensor],
+        attention_kernel: str,
         fake_quant: Optional[bool],
         softcap: Optional[float] = None,
         scale: Optional[torch.Tensor] = None,
         mask: Optional[torch.Tensor] = None,
         probs_quantizer: Optional[StaticScaledQuantizer] = None,
     ):
-        gqa_n_rep = head_count_attn // self.head_count_kv
-        assert gqa_n_rep > 0
-        if gqa_n_rep > 1:
-
-            def repeat_kv(x: torch.Tensor) -> torch.Tensor:
-                bs, slen, n_kv_heads, head_dim = x.shape
-                unsq = x.unsqueeze(-2)
-                exp = ops.expand(unsq, (bs, slen, n_kv_heads, gqa_n_rep, head_dim))
-                return exp.flatten(2, 3)
-
-            k = repeat_kv(k)
-            v = repeat_kv(v)
+        print(q.sum(), k.sum(), v.sum())
+        if self.attn_type == "gqa":
+            k, v = self.gqa(head_count_attn, k, v)
 
         # Fake quant is already dequantized when stored in the cache.
         if cache_quantizer and not fake_quant:
@@ -370,10 +377,10 @@ class PagedAttention:
         q = ops.to(q, dtype=self.dtype)
         k = ops.to(k, dtype=self.dtype)
         v = ops.to(v, dtype=self.dtype)
+
         if mask is not None:
             mask = ops.to(mask, dtype=self.dtype)
 
-        # Decomposed
         if attention_kernel == "decomposed":
             if isinstance(q, PlanarQuantizedTensor):
                 q = q.unpack().dequantize()
@@ -412,7 +419,7 @@ class PagedAttention:
                 else:
                     attn_weights = probs_quantizer.quantize(attn_weights).unpack().qs
             attn_weights = ops.to(attn_weights, dtype=q.dtype)
-            return ops.matmul(attn_weights, v)  # (bs, heads, slen, head_dim)
+            attn_output = ops.matmul(attn_weights, v)  # (bs, heads, slen, head_dim)
         elif attention_kernel == "sharktank":
             if mask is not None:
                 attn_output = kernels.masked_flash_attention(
@@ -424,13 +431,12 @@ class PagedAttention:
                 )
             else:
                 attn_output = kernels.flash_attention(q, k, v)
-            return attn_output
         else:
             # Non-decomposed
             if softcap is not None:
                 raise ValueError("softcap not supported yet")
 
-            return ops.scaled_dot_product_attention(
+            attn_output = ops.scaled_dot_product_attention(
                 q=q,  # [bs, ..., sl, dim]
                 k=k,  # [bs, ..., sl, dim]
                 v=v,  # [bs, ..., sl, dim]
@@ -438,6 +444,8 @@ class PagedAttention:
                 is_causal=mask is None,  # assumes causal masking when true
                 scale=None,  # defaults to 1/sqrt(dim)
             )
+
+        return attn_output
 
     def forward_decode(
         self,

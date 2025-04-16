@@ -21,6 +21,7 @@ from sharktank import ops
 from ..models.llama.llama import LlamaModelConfig, PagedLlamaModelV1
 from ..models.mixtral.mixtral import *
 from ..models.grok.grok import *
+from ..models.deepseek.deepseek import *
 from .. import ops
 
 
@@ -98,6 +99,8 @@ def main():
         if "tensor_parallelism_size" in dataset.properties
         else args.tensor_parallelism_size
     )
+
+    # hp.block_count = 1
     llama_config = LlamaModelConfig(
         hp,
         tensor_parallelism_size=tensor_parallelism_size,
@@ -111,9 +114,12 @@ def main():
     )
     llama_config.fake_quant = args.fake_quant
 
+    # print('llama_config', llama_config)
     if llama_config.hp.expert_count:
         if llama_config.hp.model_arch == "grok":
             model = PagedGrokModelV1(dataset.root_theta, llama_config)
+        elif llama_config.hp.model_arch == "deepseek2":
+            model = PagedDeepseekModelV1(dataset.root_theta, llama_config)
         else:
             model = PagedMixtralModelV1(dataset.root_theta, llama_config)
     else:
