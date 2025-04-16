@@ -125,21 +125,20 @@ app.add_middleware(
 
 def configure_sys(args) -> SDXLSystemManager:
     # Setup system (configure devices, etc).
-    # model_config, topology_config, flagfile, tuning_spec, args = get_configs(args)
+    model_config, topology_config, flagfile, tuning_spec, args = get_configs(args)
     sysman = SystemManager(args.device, args.device_ids, args.amdgpu_async_allocations)
-    return sysman
+    return sysman, model_config, flagfile, tuning_spec
 
 
-def configure_service(args, sysman):
+def configure_service(args, sysman, model_config, flagfile, tuning_spec):
     # Setup each service we are hosting.
     tokenizers = []
     for idx, tok_name in enumerate(args.tokenizers):
         subfolder = f"tokenizer_{idx + 1}" if idx > 0 else "tokenizer"
         tokenizers.append(Tokenizer.from_pretrained(tok_name, subfolder))
 
-    model_params = ModelParams.load_json(args.model_config)
-    # vmfbs, params = get_modules(args, model_config, flagfile, tuning_spec)
-    vmfbs, params = find_modules(args)
+    model_params = ModelParams.load_json(model_config)
+    vmfbs, params = get_modules(args, model_config, flagfile, tuning_spec)
 
     sm = SDXLGenerateService(
         name="sd",
@@ -310,29 +309,6 @@ def get_modules(args, model_config, flagfile, td_spec):
                         vmfbs[key][bs].extend([name])
     return vmfbs, params
 
-def find_modules(args):
-    from .components.builders import get_vmfb_filenames, get_params_filename
-
-    mod_params = ModelParams.load_json(args.model_config)
-    vmfbs_dir = os.path.join(args.artifacts_dir, "bin", "sdxl")
-    params_dir = os.path.join(args.artifacts_dir, "genfiles", "sdxl")
-
-    vmfbs = {}
-    params = {}
-    for submodel in mod_params.module_names.keys():
-        vmfb_filenames = get_vmfb_filenames(mod_params, submodel, "amdgpu-" + args.target)
-        vmfbs[submodel] = {}
-        for bs in mod_params.batch_sizes[submodel]:
-            vmfbs[submodel][bs] = [os.path.join(vmfbs_dir, vmfb_filename) for vmfb_filename in vmfb_filenames]
-            for filepath in vmfbs[submodel][bs]:
-                if not os.path.exists(filepath):
-                    raise FileNotFoundError(f"{filepath} not found. Please run precompile_model_shortfin.sh as instructed in the README.")
-        if submodel != "scheduler":
-            params[submodel] = [os.path.join(params_dir, get_params_filename(mod_params, submodel, splat=False))]
-            if not os.path.exists(params[submodel][0]):
-                raise FileNotFoundError(f"{params[submodel][0]} not found. Please run precompile_model_shortfin.sh as instructed in the README.")
-    return vmfbs, params
-
 
 def is_port_valid(port):
     max_port = 65535
@@ -403,7 +379,7 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
     parser.add_argument(
         "--isolation",
         type=str,
-        default="per_fiber",
+        default="per_call",
         choices=["per_fiber", "per_call", "none"],
         help="Concurrency control -- How to isolate programs.",
     )
@@ -488,8 +464,8 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
         args.artifacts_dir = os.path.abspath(args.artifacts_dir)
 
     global sysman
-    sysman = configure_sys(args)
-    configure_service(args, sysman)
+    sysman, model_config, flagfile, tuning_spec = configure_sys(args)
+    configure_service(args, sysman, model_config, flagfile, tuning_spec)
     uvicorn.run(
         app,
         host=args.host,
