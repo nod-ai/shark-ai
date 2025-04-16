@@ -4,14 +4,13 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 from typing import Optional
-from sharktank.layers.configs import LlamaModelConfig
 import torch
 
 from sharktank.types.tensors import *
 from sharktank.types.theta import Theta
-from sharktank.layers.configs import *
 from sharktank.utils.testing import make_rand_torch
 from sharktank.layers.testing import make_llama_attention_block_theta
+from sharktank.layers.configs import LlamaModelConfig
 
 
 def make_attention_block_ffn_theta_v2(

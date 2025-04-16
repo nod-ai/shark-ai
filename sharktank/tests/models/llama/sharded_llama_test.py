@@ -13,7 +13,7 @@ import os
 import numpy as np
 import torch
 
-from sharktank.layers.configs import *
+from sharktank.layers.configs.llm_configs import *
 from sharktank.types import Dataset, UnreducedTensor, SplitPrimitiveTensor
 from sharktank.models.llm import *
 from sharktank.models.llama.testing import make_random_llama_theta
