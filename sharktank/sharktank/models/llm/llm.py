@@ -4,19 +4,20 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import Optional
+from typing import Optional, Union
 
-from typing import Union
+import math
 
 import torch
 import torch.nn as nn
 
-from ...layers import *
-from ...types import *
-from ...utils.create_cache import *
+from sharktank.layers import *
+from sharktank.types import *
+from sharktank.utils.create_cache import *
 
 __all__ = [
-    "PagedLlamaModelV1",
+    "PagedLlmModelV1",
+    "AttentionFFNBlock",
 ]
 
 ################################################################################
@@ -24,8 +25,8 @@ __all__ = [
 ################################################################################
 
 
-class PagedLlamaModelV1(BaseCausalLMModel):
-    """LlamaModel with a paged KV cache and supporting variable sequence
+class PagedLlmModelV1(BaseCausalLMModel):
+    """Causal LLM Model with a paged KV cache and supporting variable sequence
     length batched inference.
 
     As both the caching and batching setup is complicated, this model variant
@@ -60,7 +61,6 @@ class PagedLlamaModelV1(BaseCausalLMModel):
     """
 
     def __init__(self, theta: Theta, config: LlamaModelConfig):
-        hp = config.hp
         super().__init__(
             theta,
             context_length=config.hp.context_length,
@@ -71,11 +71,10 @@ class PagedLlamaModelV1(BaseCausalLMModel):
             static_tables=config.static_tables,
         )
         self.config = config
-        self.hp = hp
+        self.hp = self.config.hp
         self.cache = create_paged_kv_cache(self.config)
-        self.activation_dtype = config.activation_dtype
-        self.use_hf = config.use_hf
-        self.attention_kernel = config.attention_kernel
+        # TODO: Add inference_norm as an optional value from config
+        self.inference_norm = self.config.hp.model_arch == "grok"
 
         self.add_module(
             "token_embedding",
@@ -84,13 +83,13 @@ class PagedLlamaModelV1(BaseCausalLMModel):
         self.add_module(
             "attention_embedding",
             RotaryEmbeddingLayer(
-                rope_dimension_count=hp.rope_dimension_count,
-                rope_freq_base=hp.rope_freq_base,
-                max_seqlen=hp.context_length,
+                rope_dimension_count=self.hp.rope_dimension_count,
+                rope_freq_base=self.hp.rope_freq_base,
+                max_seqlen=self.hp.context_length,
                 device=self.device,
-                use_hf=self.use_hf,
-                tensor_parallelism_size=config.tensor_parallelism_size,
-                dtype=config.activation_dtype,
+                use_hf=self.config.use_hf,
+                tensor_parallelism_size=self.config.tensor_parallelism_size,
+                dtype=self.config.activation_dtype,
             ),
         )
         self.add_module(
@@ -106,15 +105,10 @@ class PagedLlamaModelV1(BaseCausalLMModel):
                     theta("blk", n),
                     block_index=n,
                     cache=self.cache,
-                    head_count=hp.attention_head_count,
-                    head_dim=hp.attn_head_dim,
-                    head_count_kv=hp.attention_head_count_kv,
-                    rms_epsilon=hp.attention_layer_norm_rms_epsilon,
-                    attention_dtype=config.attention_dtype,
-                    attention_kernel=self.attention_kernel,
+                    config=self.config,
                     fake_quant=self.fake_quant,
                 )
-                for n in range(hp.block_count)
+                for n in range(self.hp.block_count)
             ]
         )
 
@@ -137,6 +131,10 @@ class PagedLlamaModelV1(BaseCausalLMModel):
         h = self.token_embedding(tokens)
         self.trace_tensor("llama.token_embedding", h)
 
+        # TODO: Get the normalization factor via configuration
+        if self.inference_norm:
+            h *= math.sqrt(h.shape[-1])
+
         # Iterate over attention blocks.
         for block_idx, block in enumerate(self.attn_blocks):
             if block_idx == 0:
@@ -153,6 +151,9 @@ class PagedLlamaModelV1(BaseCausalLMModel):
 
         h = self.output_norm(h)
         logits = self.output_lm_head(h)
+
+        if self.inference_norm:
+            logits = logits / math.sqrt(3.0)
         return logits
 
     def decode(
@@ -196,6 +197,10 @@ class PagedLlamaModelV1(BaseCausalLMModel):
         h = self.token_embedding(tokens)
         self.trace_tensor("llama.token_embedding", h)
 
+        # TODO: Get the normalization factor via configuration
+        if self.inference_norm:
+            h *= math.sqrt(h.shape[-1])
+
         # Iterate over attention blocks.
         for block_idx, block in enumerate(self.attn_blocks):
             if block_idx == 0:
@@ -213,6 +218,9 @@ class PagedLlamaModelV1(BaseCausalLMModel):
 
         h = self.output_norm(h)
         logits = self.output_lm_head(h)
+
+        if self.inference_norm:
+            logits = logits / math.sqrt(3.0)
         return logits
 
 
@@ -230,41 +238,83 @@ class AttentionFFNBlock(ThetaLayer):
         theta: Theta,
         *,
         block_index: int,
-        cache: PagedAttention,
-        head_count: int,
-        head_dim: int,
-        head_count_kv: int,
-        rms_epsilon: float,
-        attention_dtype: Optional[torch.dtype] = None,
-        attention_kernel: str = "decomposed",
+        cache: PagedAttention,  # TODO: Add deepseek PagedLatentAttention
+        config: LlamaModelConfig,
         fake_quant: bool = True,
     ):
         super().__init__(theta)
+
+        attention_kernel = (
+            "decomposed" if config.hp.model_arch == "grok" else config.attention_kernel
+        )
+
         self.add_module(
             "attn",
             PagedLlamaAttentionBlock(
                 theta=theta,
                 block_index=block_index,
                 cache=cache,
-                head_count=head_count,
-                head_dim=head_dim,
-                head_count_kv=head_count_kv,
-                rms_epsilon=rms_epsilon,
-                attention_dtype=attention_dtype,
+                head_count=config.hp.attention_head_count,
+                head_dim=config.hp.attn_head_dim,
+                head_count_kv=config.hp.attention_head_count_kv,
+                rms_epsilon=config.hp.attention_layer_norm_rms_epsilon,
+                attention_dtype=config.attention_dtype,
                 attention_kernel=attention_kernel,
                 fake_quant=fake_quant,
+                softcap=config.hp.attention_softcap,
             ),
         )
-        self.add_module(
-            "ffn",
-            FFN(
-                theta=theta,
-                fake_quant=fake_quant,
+
+        moe_func_map = {
+            "llama": (
+                torch.nn.functional.softmax,
+                torch.nn.functional.silu,
+                True,
+                False,
             ),
-        )
-        self.add_module(
-            "ffn_norm", RMSNormLayer(theta("ffn_norm"), epsilon=rms_epsilon)
-        )
+            "grok": (
+                torch.nn.functional.softmax,
+                torch.nn.functional.gelu,
+                True,
+                False,
+            ),
+            "deepseek2": (
+                torch.nn.functional.sigmoid,
+                torch.nn.functional.silu,
+                False,
+                True,
+            ),
+        }
+
+        if config.hp.expert_count:
+            (
+                score_experts,
+                moe_activation,
+                add_residual,
+                normalize_experts,
+            ) = moe_func_map[config.hp.model_arch]
+
+            self.add_module(
+                "ffn",
+                MoeBlock(
+                    theta=theta,
+                    expert_used_count=config.hp.expert_used_count,
+                    rms_epsilon=config.hp.attention_layer_norm_rms_epsilon,
+                    moe_activation=moe_activation,
+                    add_residual=add_residual,
+                    score_experts=score_experts,
+                    normalize_experts=normalize_experts,
+                ),
+            )
+        else:
+            self.add_module(
+                "ffn",
+                FFN(
+                    theta=theta,
+                    rms_epsilon=config.hp.attention_layer_norm_rms_epsilon,
+                    fake_quant=fake_quant,
+                ),
+            )
 
     def forward(
         self,
@@ -291,8 +341,6 @@ class AttentionFFNBlock(ThetaLayer):
         )
 
         # Feed forward network.
-        ffn_input = self.ffn_norm(h)
-        ffn_down = self.ffn(ffn_input)
-        final_output = h + ffn_down
+        final_output = self.ffn(h)
 
         return final_output
