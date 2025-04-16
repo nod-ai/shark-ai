@@ -12,9 +12,8 @@ from tqdm import tqdm
 
 import torch
 
-from sharktank.models.llama.llama import *
-from sharktank.models.mixtral.mixtral import *
-from sharktank.models.grok.grok import *
+from sharktank.models.llm import *
+from sharktank.models.llama.sharding import shard_theta
 
 from sharktank.layers import *
 from sharktank.types import *
@@ -149,13 +148,7 @@ class Perplexity_iree:
 
         theta = dataset.root_theta
 
-        if config.hp.expert_count:
-            if config.hp.model_arch == "grok":
-                model = PagedGrokModelV1(theta, config)
-            else:
-                model = PagedMixtralModelV1(theta, config)
-        else:
-            model = PagedLlamaModelV1(theta, config)
+        model = PagedLlmModelV1(theta, self.config)
 
         self.generator = TorchGenerator(model, tokenizer)
 

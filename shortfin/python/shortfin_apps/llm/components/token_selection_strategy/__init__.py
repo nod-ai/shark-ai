@@ -17,9 +17,10 @@ from .config import (
     get_strategy_from_str,
     is_ref_counted,
 )
+from .beam_search_token_selection_strategy import BeamSearchTokenSelectionStrategy
 from .greedy_token_selection_strategy import GreedyTokenSelectionStrategy
 from .multi_greedy_token_selection_strategy import MultiGreedyTokenSelectionStrategy
-from .beam_search_token_selection_strategy import BeamSearchTokenSelectionStrategy
+from .sampler import Sampler
 
 
 def build_token_selector_config(
@@ -28,7 +29,6 @@ def build_token_selector_config(
     decode_batcher,
     results_callback: Callable[[Union[int, List[int]]], None],
     eos_token_id: int,
-    max_completion_tokens: int,
 ) -> TokenSelectionStrategyConfig:
     """Build a configuration class for a given token selection strategy.
 
@@ -61,7 +61,6 @@ def build_token_selector_config(
         decode_end_callback=decode_batcher.complete_workitem,
         results_callback=results_callback,
         eos_token_id=eos_token_id,
-        max_completion_tokens=max_completion_tokens,
     )
 
 
@@ -107,6 +106,7 @@ __all__ = [
     "BaseTokenSelectionStrategy",
     "TokenSelectionStrategyConfig",
     "TokenSelectionStrategy",
+    "Sampler",
     "BeamSearchTokenSelectionStrategy",
     "GreedyTokenSelectionStrategy",
     "MultiGreedyTokenSelectionStrategy",

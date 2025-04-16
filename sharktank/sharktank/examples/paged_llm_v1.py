@@ -9,15 +9,12 @@
 import torch
 
 # TODO: Should be using a base class with the protocol supported.
-from ..models.mixtral.mixtral import *
-from ..models.grok.grok import *
-from ..models.llama.llama import *
+from ..models.llm import *
 from ..models.llama.sharding import shard_theta
 from ..layers import *
 from ..types import *
 from sharktank.utils.load_llm import *
 from sharktank.utils import cli
-
 
 def main():
     """
@@ -66,13 +63,7 @@ def main():
     if config.tensor_parallelism_size > 1:
         dataset.root_theta = shard_theta(dataset.root_theta, config)
 
-    if config.hp.expert_count:
-        if config.hp.model_arch == "grok":
-            model = PagedGrokModelV1(dataset.root_theta, config)
-        else:
-            model = PagedMixtralModelV1(dataset.root_theta, config)
-    else:
-        model = PagedLlamaModelV1(dataset.root_theta, config)
+    model = PagedLlmModelV1(dataset.root_theta, config)
 
     if args.save_intermediates_path:
         from ..utils.patching import SaveModuleResultTensorsPatch

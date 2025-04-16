@@ -12,7 +12,7 @@ import numpy as np
 
 from sharktank.layers import *
 from sharktank.types import *
-from sharktank.models.llama.llama import *
+from sharktank.models.llm import *
 
 from ..ops import replicate, unshard
 from ..utils.debugging import trace_tensor
@@ -24,7 +24,7 @@ class TorchGenerator:
 
     def __init__(
         self,
-        model: PagedLlamaModelV1,
+        model: PagedLlmModelV1,
         tokenizer: InferenceTokenizer,
         # Need to look at the model more for this.
         end_token: int = 2,
@@ -62,6 +62,7 @@ class TorchGenerator:
                 print(
                     f"    prompt_{idx}: \n    {prompt.encode()} \n    {token_ids[idx]}\n"
                 )
+
 
             token_ids, seq_lens = self.tokenizer.pad_tokens(
                 token_ids, pad_to_multiple_of=self.model.cache.pad_sequence_stride

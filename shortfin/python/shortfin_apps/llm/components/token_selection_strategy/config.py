@@ -4,10 +4,11 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
+from dataclasses_json import dataclass_json, Undefined
 from enum import Enum, auto
 
-from dataclasses_json import dataclass_json, Undefined
+from ..io_struct import DEFAULT_MAX_COMPLETION_TOKENS, DEFAULT_TEMPERATURE
 
 
 class LogitsNormalization(Enum):
@@ -73,8 +74,25 @@ class DecodeConfig:
 
     logits_normalization: LogitsNormalization = LogitsNormalization.NONE
 
+    # Max number of tokens to generate in decode loop
+    max_completion_tokens: int = DEFAULT_MAX_COMPLETION_TOKENS
+
+    # Flatten or stretch logits to increase variability
+    temperature: float = DEFAULT_TEMPERATURE
+
+    # Use `top_k` sampling strategy in decode loop
+    top_k: int | None = None
+
+    # Use `top_p` sampling strategy in decode loop
+    top_p: int | None = None
+
     def __post_init__(self):
         if isinstance(self.token_selection_strategy, str):
             self.token_selection_strategy = get_strategy_from_str(
                 self.token_selection_strategy
             )
+
+    def update_from_sampling_params(self, sampling_params):
+        for field in fields(sampling_params):
+            if hasattr(self, field.name):
+                setattr(self, field.name, getattr(sampling_params, field.name))

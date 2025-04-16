@@ -64,25 +64,20 @@ class T5LayerFF(nn.Module):
         else:
             ffn_theta_dict["ffn_up"] = ffn_theta("wi").tree
         ffn_theta_dict["ffn_down"] = ffn_theta("wo").tree
+        ffn_theta_dict["layer_norm"] = theta("layer_norm").tree
+
         ffn_theta = Theta(ffn_theta_dict)
 
         self.dense_activation_dense = FFN(
             theta=ffn_theta,
+            rms_epsilon=layer_norm_epsilon,
+            activation_dtype=activation_dtype,
             is_gated=is_gated_act,
             activation_fn=ACT2FN[dense_act_fn],
         )
 
-        self.layer_norm = RMSNormLayer(
-            theta=theta("layer_norm"),
-            epsilon=layer_norm_epsilon,
-            dtype=activation_dtype,
-        )
-
     def forward(self, hidden_states):
-        forwarded_states = self.layer_norm(hidden_states)
-        forwarded_states = self.dense_activation_dense(forwarded_states)
-        hidden_states = hidden_states + forwarded_states
-        return hidden_states
+        return self.dense_activation_dense(hidden_states)
 
 
 class T5Attention(BaseLayer):

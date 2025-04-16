@@ -12,22 +12,18 @@ and dims floating around everywhere.
 """
 
 from typing import Optional, Union, List
-
-import abc
 import math
 
 import torch
 
-from ..utils.debugging import trace_tensor
-from ..types import (
+from sharktank.types import (
     SplitPrimitiveTensor,
     ReplicatedTensor,
     QuantizerTensor,
     PlanarQuantizedTensor,
     StaticScaledQuantizer,
 )
-from .. import ops
-from .. import kernels
+from sharktank import ops, kernels
 
 __all__ = ["PagedAttention"]
 
