@@ -53,3 +53,24 @@ python -m examples.simple <model_file_path> <benchmark_file_path> \
     --num-candidates=<num_generated_candidates> \
     --codegen-pipeline=<codegen_pipeline>
 ```
+
+## Algorithm of tuner
+### Tuning algorithm
+
+```mermaid
+flowchart TD;
+    A(Generate Candidate Specs)-->B(Compile candidates);
+    B-->C(Benchmark candidates);
+    C-->D(Compile models using top candidates);
+    D-->E(Benchmark models);
+    E-->F(Return top model candidates);
+```
+
+### Benchmark process
+
+```mermaid
+    flowchart TD
+    a1(Baseline benchmark for candidates/models)-->a2(Candidate/Model benchmark);
+    a2-->a3(Second baseline run to check for any regression);
+    a3-->a4(Return top candidate/model candidates);
+```
