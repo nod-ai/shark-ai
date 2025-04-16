@@ -72,7 +72,7 @@ class SDXLGenerateService:
         """Initialize workers and fibers for the service."""
         self.workers = []
         self.meta_fibers = []
-        self.idle_meta_fibers = queue.Queue()
+        self.idle_meta_fibers = []
         # For each worker index we create one on each device, and add their fibers to the idle set.
         # This roughly ensures that the first picked fibers are distributed across available devices.
         for idx, device in enumerate(self.sysman.ls.devices):
@@ -87,7 +87,7 @@ class SDXLGenerateService:
                     raw_fiber, len(self.meta_fibers), worker_idx
                 )
                 self.meta_fibers.append(meta_fiber)
-                self.idle_meta_fibers.put(meta_fiber)
+                self.idle_meta_fibers.append(meta_fiber)
         for idx in range(len(self.workers)):
             self.inference_programs[idx] = {}
             self.inference_functions[idx] = {}
@@ -240,17 +240,16 @@ class SDXLBatcherProcess(BatcherProcess):
         batches = self.sort_batches()
         for batch in batches.values():
             # Assign the batch to the next idle fiber.
-            try:
-                meta_fiber = self.service.idle_meta_fibers.get_nowait()
-            except queue.Empty:
+            if len(self.service.idle_meta_fibers) == 0:
                 logger.debug("Waiting for an idle fiber...")
                 return
+            meta_fiber = self.service.idle_meta_fibers.pop(0)
             logger.debug(
                 f"Sending batch to fiber {meta_fiber.idx} (worker {meta_fiber.worker_idx})"
             )
             await self.board(batch["reqs"][0], meta_fiber=meta_fiber)
             if self.service.prog_isolation != sf.ProgramIsolation.PER_FIBER:
-                self.service.idle_meta_fibers.put(meta_fiber)
+                self.service.idle_meta_fibers.append(meta_fiber)
 
     async def board(self, request, meta_fiber):
         exec_process = InferenceExecutorProcess(self.service, meta_fiber)
@@ -320,7 +319,7 @@ class InferenceExecutorProcess(sf.Process):
         with self.meta_fiber.lock:
             self.meta_fiber.command_buffers.append(self.exec_request.command_buffer)
         if self.service.prog_isolation == sf.ProgramIsolation.PER_FIBER:
-            self.service.idle_meta_fibers.put(self.meta_fiber)
+            self.service.idle_meta_fibers.append(self.meta_fiber)
 
     async def _prepare(self, device):
         # Tokenize prompts and negative prompts. We tokenize in bs1 for now and join later.
