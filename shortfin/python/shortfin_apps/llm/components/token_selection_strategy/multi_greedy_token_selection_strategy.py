@@ -5,59 +5,31 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import logging
-from typing import List, Set
 
-from .beam_group import BeamGroup, Beam
-from .greedy_token_selection_strategy import GreedyTokenSelectionStrategy
+from typing import List
+
+from .beam_group import BeamGroup
+from .greedy_token_selection_strategy import GreedyTokenSelectionStrategy, GreedyBeam
 
 from ..messages import LlmInferenceExecRequest, InferencePhase
 
-import shortfin.array as sfnp
-
 logger = logging.getLogger(__name__)
-
-
-class MultiGreedyBeam(Beam):
-    def sample_logits(self) -> int:
-        """Return the single highest scoring token of the logits.
-
-        Returns:
-            int: The `argmax` of the logits.
-        """
-        exec_req = self.exec_req
-        token = sfnp.argmax(exec_req.result_logits)
-        token_int = token.items[0]
-        return token_int
-
-    def update_exec_req(self):
-        """Update the `LlmInferenceExecRequest` with the selected token."""
-        self.exec_req.input_token_ids.append(self.last_token)
-        self.exec_req.start_position += 1
-
-    def update_score(self, value):
-        raise NotImplementedError("MultiGreedyBeam does not track a score")
-
-    def normalize_score(self, value):
-        raise NotImplementedError("MultiGreedyBeam does not track a score")
-
-    def update_final_score(self):
-        raise NotImplementedError("MultiGreedyBeam does not track a score")
 
 
 class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
     def select_greedy(
         self,
-        active_beams: List[MultiGreedyBeam],
-        _: List[MultiGreedyBeam],
-    ) -> List[MultiGreedyBeam]:
+        active_beams: List[GreedyBeam],
+        _: List[GreedyBeam],
+    ) -> List[GreedyBeam]:
         """Greedily select a token for each active beam.
 
         Args:
-            active_beams (List[MultiGreedyBeam]): Beams that are still active.
-            _ (List[MultiGreedyBeam]): Beams that are completed.
+            active_beams (List[GreedyBeam]): Beams that are still active.
+            _ (List[GreedyBeam]): Beams that are completed.
 
         Returns:
-            List[MultiGreedyBeam]: Beams with new token selected.
+            List[GreedyBeam]: Beams with new token selected.
         """
         selections = []
         for beam in active_beams:
@@ -78,7 +50,18 @@ class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
         Args:
             exec_req (LlmInferenceExecRequest): Initial inference request, post prefill.
         """
+        logger.info("Starting `multi_greedy` decode loop...")
         config = self.token_selection_strategy_config
+
+        if config.decode_config.top_k is not None:
+            logger.info(
+                f"Using `top_k` sampling with `top_k == {config.decode_config.top_k}"
+            )
+
+        if config.decode_config.top_p is not None:
+            logger.info(
+                f"Using `top_p` sampling with `top_p == {config.decode_config.top_p}"
+            )
 
         exec_req.reset(InferencePhase.DECODE)
 
@@ -87,7 +70,10 @@ class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
             exec_req, config.decode_config.num_beams - 1
         )
 
-        beams = [MultiGreedyBeam(exec_req) for exec_req in exec_reqs]
+        beams = [
+            GreedyBeam(exec_req, decode_config=config.decode_config)
+            for exec_req in exec_reqs
+        ]
         beam_group = BeamGroup(
             config.eos_token_id,
             config.decode_config.num_beams,
@@ -95,15 +81,27 @@ class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
             self.select_greedy,
         )
 
-        for _ in range(config.max_completion_tokens):
+        reservations = beam_group.active_beam_count
+        config.decode_begin_callback(reservations)
+        for _ in range(config.decode_config.max_completion_tokens):
             if not beam_group.active_beams:
                 break
+
+            active_beam_count = len(beam_group.active_beams)
+            if reservations > active_beam_count:
+                config.decode_end_callback(reservations - active_beam_count)
+                reservations = active_beam_count
+
             for beam in beam_group.active_beams:
                 req = beam.exec_req
                 req.reset(InferencePhase.DECODE)
                 config.decode_callback(req)
+
             await beam_group.wait()
             beam_group.process_beams()
+
+        config.decode_end_callback(reservations)
+        beam_group.clean_up()
 
         results = [
             beam.exec_req.input_token_ids[exec_req.prompt_length :]

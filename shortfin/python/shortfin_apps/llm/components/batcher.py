@@ -36,11 +36,15 @@ import math
 
 
 class NewWorkItem(sf.Message):
-    ...
+    def __init__(self, count: int = 1):
+        super().__init__()
+        self.count = count
 
 
 class DoneWorkItem(sf.Message):
-    ...
+    def __init__(self, count: int = 1):
+        super().__init__()
+        self.count = count
 
 
 class LlmBatcherProcess(BatcherProcess):
@@ -78,19 +82,19 @@ class LlmBatcherProcess(BatcherProcess):
         """Process batches of requests."""
         await self.board_flights()
 
-    def reserve_workitem(self):
-        self.submit(NewWorkItem())
+    def reserve_workitem(self, count):
+        self.submit(NewWorkItem(count))
 
-    def complete_workitem(self):
-        self.submit(DoneWorkItem())
+    def complete_workitem(self, count):
+        self.submit(DoneWorkItem(count))
 
     def custom_message(self, msg):
         if isinstance(msg, NewWorkItem):
-            self._current_workitems = self._current_workitems + 1
+            self._current_workitems = self._current_workitems + msg.count
             return
 
         if isinstance(msg, DoneWorkItem):
-            self._current_workitems = self._current_workitems - 1
+            self._current_workitems = self._current_workitems - msg.count
             return
 
         super().custom_message(msg)

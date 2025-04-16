@@ -100,6 +100,7 @@ class BaseBenchmarkTest(unittest.TestCase):
 
 
 @is_mi300x
+@pytest.mark.expensive
 class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
     def setUp(self):
         super().setUp()
@@ -190,7 +191,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             f"--input=4xi64=@{self.prefill_args_fp8}/seq_lens.bin",
             f"--input=4x4xi64=@{self.prefill_args_fp8}/seq_block_ids.bin",
             f"--input=261x2097152xf8E4M3FNUZ=@{self.prefill_args_fp8}/cs_f8E4M3FNUZ.bin",
-            "--benchmark_repetitions=3",
+            "--benchmark_repetitions=10",
             ">>",
         ]
         self.iree_run_decode_args_fp8 = [
@@ -200,14 +201,14 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             f"--input=4xi64=@{self.decode_args_fp8}/start_positions.bin",
             f"--input=4x5xi64=@{self.decode_args_fp8}/seq_block_ids.bin",
             f"--input=261x2097152xf8E4M3FNUZ=@{self.decode_args_fp8}/cs_f8E4M3FNUZ.bin",
-            "--benchmark_repetitions=3",
+            "--benchmark_repetitions=10",
             ">>",
         ]
         self.iree_run_prefill_args_fp8_2048 = [
             "--function=prefill_bs4",
-            f"--input=4x128xi64=@{self.prefill_args_fp8}/2048/prefill_token_ids_4x2048xi64.bin",
+            f"--input=4x2048xi64=@{self.prefill_args_fp8}/2048/prefill_token_ids_4x2048xi64.bin",
             f"--input=4xi64=@{self.prefill_args_fp8}/2048/prefill_seq_lens_4xi64.bin",
-            f"--input=4x4xi64=@{self.prefill_args_fp8}/2048/prefill_seq_block_ids_4x64xi64.bin",
+            f"--input=4x64xi64=@{self.prefill_args_fp8}/2048/prefill_seq_block_ids_4x64xi64.bin",
             f"--input=261x2097152xf8E4M3FNUZ=@{self.prefill_args_fp8}/2048/prefill_cache_state_261x2097152xf8E4M3FNUZ.bin",
             "--benchmark_repetitions=10",
             ">>",
@@ -223,6 +224,10 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             ">>",
         ]
 
+    @skipif_run_quick_llama_test
+    @pytest.mark.xfail(
+        reason="Iree Compile Error", strict=True, raises=IreeCompileException
+    )
     def testBenchmark8B_f16_TP1_Non_Decomposed_Input_Len_128(self):
         output_file_name = self.dir_path_8b / "f16_torch_128_tp1"
         output_mlir = self.llama8b_f16_torch_sdpa_artifacts.create_file(
@@ -268,6 +273,9 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         )
 
     @skipif_run_quick_llama_test
+    @pytest.mark.xfail(
+        reason="Iree Compile Error", strict=True, raises=IreeCompileException
+    )
     def testBenchmark8B_f16_TP1_Non_Decomposed_Input_Len_2048(self):
         output_file_name = self.dir_path_8b / "f16_torch_2048_tp1"
         output_mlir = self.llama8b_f16_torch_sdpa_artifacts.create_file(
@@ -312,9 +320,8 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
 
-    @pytest.mark.xfail(
-        reason="Benchmarking Error", strict=True, raises=IreeCompileException
-    )
+    @skipif_run_quick_llama_test
+    @pytest.mark.xfail(reason="Benchmarking Error", raises=IreeBenchmarkException)
     def testBenchmark8B_fp8_TP1_Non_Decomposed(self):
         output_file_name = self.dir_path_8b / "fp8_torch_tp1"
         output_mlir = self.llama8b_fp8_torch_sdpa_artifacts.create_file(
@@ -451,6 +458,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
 
 
 @is_mi300x
+@pytest.mark.expensive
 @skipif_run_quick_llama_test
 class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
     def setUp(self):
@@ -806,6 +814,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
 
 
 @is_mi300x
+@pytest.mark.expensive
 @skipif_run_quick_llama_test
 class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
     def setUp(self):

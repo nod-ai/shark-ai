@@ -49,13 +49,18 @@ class ShortfinLlmLifecycleManager:
 
     def __init__(self, args):
         # Load server configuration with priority: command line > config file > defaults
+        model_params = ModelParams.load_json(args.model_config)
         server_params = ServerParams.load(
             args.server_config if hasattr(args, "server_config") else None
         )
         server_params.update_from_args(args)
 
         if server_params.decode_config is None:
-            decode_config = DecodeConfig(args.num_beams, args.token_selection_strategy)
+            decode_config = DecodeConfig(
+                args.num_beams,
+                args.token_selection_strategy,
+                logits_normalization=model_params.logits_normalization,
+            )
             server_params.decode_config = decode_config
 
         # Setup system (configure devices, etc).
@@ -72,7 +77,6 @@ class ShortfinLlmLifecycleManager:
         tokenizer = Tokenizer.from_tokenizer_json_file(
             args.tokenizer_json, eos_token=eos_token
         )
-        model_params = ModelParams.load_json(args.model_config)
         service = LlmGenerateService(
             name="default",
             sysman=sysman,

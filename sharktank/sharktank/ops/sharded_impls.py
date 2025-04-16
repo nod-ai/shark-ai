@@ -527,16 +527,6 @@ def embedding_lookup_default(
     return ReplicatedTensor(ts=shards)
 
 
-@equal.override(ReplicatedTensor)
-def equal_replicated(a: ReplicatedTensor, b: AnyTensor) -> bool:
-    return a.is_deep_equal(b)
-
-
-@equal.override(SplitPrimitiveTensor)
-def equal_split(a: SplitPrimitiveTensor, b: AnyTensor) -> bool:
-    return a.is_deep_equal(b)
-
-
 @expand.override(ReplicatedTensor)
 def expand_replicated(tensor: ReplicatedTensor, shape: List[int]) -> ReplicatedTensor:
     shards = [expand(shard, shape) for shard in tensor.shards]
@@ -677,6 +667,19 @@ def index_copy__split_replicated_split(
         inout.shards, index.shards, tensor.shards
     ):
         index_copy_(inout_shard, dim, index_shard, tensor_shard)
+    return inout
+
+
+@index_put_.override(AllOfType(ReplicatedTensor))
+def index_put__replicated(
+    inout: ReplicatedTensor,
+    indices: Tuple[ReplicatedTensor],
+    values: ReplicatedTensor,
+) -> ReplicatedTensor:
+    assert inout.shard_count == values.shard_count
+    for i, shard in enumerate(inout.shards):
+        shard_indices = [idx.shards[i] for idx in indices]
+        shard.index_put_(shard_indices, values.shards[i])
     return inout
 
 
