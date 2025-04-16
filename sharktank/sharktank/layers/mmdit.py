@@ -14,7 +14,10 @@ import torch.nn.functional as F
 from torch import Tensor
 
 from sharktank import ops
-from sharktank.layers import *
+from .base import ThetaLayer
+from .linear import LinearLayer
+from .modulation import ModulationLayer
+from .norm import RMSNormLayer
 
 
 def qk_norm(q, k, v, rms_q, rms_k):

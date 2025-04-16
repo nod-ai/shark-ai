@@ -16,10 +16,6 @@ from sharktank.types import Theta
 from .base import ThetaLayer
 from .linear import LinearLayer
 
-__all__ = [
-    "ModulationLayer",
-]
-
 
 class ModulationOut:
     def __init__(self, shift, scale, gate):

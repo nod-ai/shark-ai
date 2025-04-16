@@ -8,9 +8,6 @@
 # programmatically to test the entire interaction. See examples under the
 # examples/ directory.
 
-from pathlib import Path
-import shutil
-import tempfile
 import unittest
 
 import torch
