@@ -17,7 +17,6 @@ from collections import OrderedDict
 from contextlib import contextmanager
 import subprocess
 import gc
-import numpy as np
 import torch
 
 from sharktank.types.tensors import (
