@@ -4,18 +4,15 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-
-from sharktank.models.grok.grok import PagedGrokModelV1
+from sharktank.models.llm import *
 from sharktank.models.grok.toy_grok import generate
-from sharktank.utils.create_cache import create_paged_kv_cache
 
-import pytest
 import torch
 
 
 def test_grok():
     theta, config = generate(12345)
-    model = PagedGrokModelV1(theta=theta, config=config)
+    model = PagedLlmModelV1(theta=theta, config=config)
 
     ids = [0, 102, 133, 192, 153, 26, 172, 3, 41, 193, 78, 204, 38, 30, 11, 62, 192, 38]
     seq_len = len(ids)

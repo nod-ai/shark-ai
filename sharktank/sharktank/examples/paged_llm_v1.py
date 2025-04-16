@@ -18,9 +18,7 @@ from ..types import *
 from ..ops import replicate, unshard
 
 # TODO: Should be using a base class with the protocol supported.
-from ..models.mixtral.mixtral import *
-from ..models.grok.grok import *
-from ..models.llama.llama import *
+from ..models.llm import *
 from ..models.llama.sharding import shard_theta
 from ..utils.debugging import trace_tensor
 from ..utils.tokenizer import InferenceTokenizer
@@ -32,7 +30,7 @@ class TorchGenerator:
 
     def __init__(
         self,
-        model: PagedLlamaModelV1,
+        model: PagedLlmModelV1,
         tokenizer: InferenceTokenizer,
         # Need to look at the model more for this.
         end_token: int = 2,
@@ -118,8 +116,6 @@ class TorchGenerator:
         return self.free_pages.pop()
 
     def release_page(self, index: int):
-        if self.model.config.kv_cache_type == "direct":
-            return
         self.free_pages.append(index)
 
 
@@ -429,13 +425,7 @@ def main():
     if config.tensor_parallelism_size > 1:
         dataset.root_theta = shard_theta(dataset.root_theta, config)
 
-    if config.hp.expert_count:
-        if config.hp.model_arch == "grok":
-            model = PagedGrokModelV1(dataset.root_theta, config)
-        else:
-            model = PagedMixtralModelV1(dataset.root_theta, config)
-    else:
-        model = PagedLlamaModelV1(dataset.root_theta, config)
+    model = PagedLlmModelV1(dataset.root_theta, config)
 
     if args.save_intermediates_path:
         from ..utils.patching import SaveModuleResultTensorsPatch

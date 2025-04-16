@@ -21,11 +21,8 @@ import torch
 from torch.nn import CrossEntropyLoss
 import iree.runtime
 
-from sharktank.models.llama.llama import *
-from sharktank.models.mixtral.mixtral import *
-from sharktank.models.grok.grok import *
-
-from ..models.llama.sharding import shard_theta
+from sharktank.models.llm import *
+from sharktank.models.llama.sharding import shard_theta
 
 from sharktank.layers import *
 from sharktank.types import *
@@ -187,13 +184,7 @@ class Perplexity:
 
         theta = weight_path.root_theta
 
-        if self.config.hp.expert_count:
-            if self.config.hp.model_arch == "grok":
-                model = PagedGrokModelV1(theta, self.config)
-            else:
-                model = PagedMixtralModelV1(theta, self.config)
-        else:
-            model = PagedLlamaModelV1(theta, self.config)
+        model = PagedLlmModelV1(theta, self.config)
 
         self.generator = TorchGenerator(model, tokenizer)
 

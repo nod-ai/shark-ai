@@ -5,16 +5,18 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from typing import Callable, Optional, Any
-import torch
 from os import PathLike
+import functools
+
+import torch
+from torch.utils._pytree import PyTree, _is_leaf
+
 import iree.turbine.aot as aot
 from iree.turbine.aot import DeviceAffinity, FxProgramsBuilder
 from torch.utils._pytree import tree_structure, tree_unflatten, tree_flatten
-from .types.tensors import ShardedTensor
-from .layers import BaseLayer, ThetaLayer
-from .types.theta import mark_export_external_theta
-from torch.utils._pytree import PyTree, _is_leaf
-import functools
+from sharktank.types.tensors import ShardedTensor
+from sharktank.types.theta import mark_export_external_theta
+from sharktank.layers import BaseLayer, ThetaLayer
 
 
 def flatten_signature(
@@ -92,7 +94,6 @@ def get_argument_flat_device_affinities(
         if isinstance(v, ShardedTensor):
             return True
         # TODO: It is sad _is_leaf is private. Find a way not use it.
-        from torch.utils._pytree import _is_leaf
 
         return _is_leaf(v)
 
