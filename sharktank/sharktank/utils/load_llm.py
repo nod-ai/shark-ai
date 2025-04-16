@@ -10,7 +10,7 @@ import torch
 
 from sharktank.layers import *
 from sharktank.types import *
-from sharktank.models.llama.llama import *
+from sharktank.models.llm import *
 
 from ..utils.debugging import trace_tensor
 from ..utils.tokenizer import InferenceTokenizer
@@ -21,7 +21,7 @@ class TorchGenerator:
 
     def __init__(
         self,
-        model: PagedLlamaModelV1,
+        model: PagedLlmModelV1,
         tokenizer: InferenceTokenizer,
         # Need to look at the model more for this.
         end_token: int = 2,
@@ -48,8 +48,6 @@ class TorchGenerator:
         if self.model.config.kv_cache_type == "paged":
             cache_state = self.model.cache.allocate(page_cache_size)
             self.free_pages = list(range(1, page_cache_size))
-        elif self.model.config.kv_cache_type == "direct":
-            cache_state = self.model.cache.allocate(bs=1)
         return Batch(self, token_ids, seq_lens, cache_state)
 
     def begin_eval_batch(
@@ -62,20 +60,12 @@ class TorchGenerator:
         if self.model.config.kv_cache_type == "paged":
             cache_state = self.model.cache.allocate(page_cache_size)
             self.free_pages = list(range(1, page_cache_size))
-        elif self.model.config.kv_cache_type == "direct":
-            cache_state = self.model.cache.allocate(bs=1)
         return Batch(self, token_batch, seq_lens_batch, cache_state)
 
     def alloc_page(self) -> int:
-        if self.model.config.kv_cache_type == "direct":
-            # We don't allocate block ids for the direct cache.
-            return 0
-
         return self.free_pages.pop()
 
     def release_page(self, index: int):
-        if self.model.config.kv_cache_type == "direct":
-            return
         self.free_pages.append(index)
 
 

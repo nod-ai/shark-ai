@@ -7,8 +7,6 @@
 from typing import Optional
 
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
@@ -36,12 +34,12 @@ class MoeBlock(ThetaLayer):
         theta: Theta,
         expert_used_count: int,
         rms_epsilon: float,
-        moe_activation=F.silu,
+        moe_activation=torch.nn.functional.silu,
         *,
         score_experts=softmax,
         normalize_experts=True,
         add_residual=True,
-        route_scale: Optional[float] = None,
+        route_scale: Optional[float] = 1.0,
     ):
         super().__init__(theta)
         self.expert_used_count = expert_used_count
@@ -55,7 +53,7 @@ class MoeBlock(ThetaLayer):
         self.ffn_norm = torch.nn.Identity()
         self.layer_output_norm = torch.nn.Identity()
         self.shared_experts = None
-        self.route_scale = route_scale
+        self.route_scale = route_scale if route_scale > 1 else None
 
         # Add FFN norm
         if "ffn_norm" in theta:

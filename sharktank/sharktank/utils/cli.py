@@ -6,16 +6,13 @@
 
 """Utilities for building command line tools."""
 
-from typing import Dict, Optional, Sequence
+from typing import Optional, Sequence
 
 import argparse
-import logging
 from pathlib import Path
 import torch
-from ..types import Dataset
-from ..types import serialized_name_to_dtype
-from . import hf_datasets
-from . import tokenizer
+from sharktank.types import Dataset, serialized_name_to_dtype
+from . import hf_datasets, tokenizer
 
 
 def create_parser(

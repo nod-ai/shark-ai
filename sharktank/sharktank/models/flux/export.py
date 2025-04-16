@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 import torch
 
-from ...export import export_model_mlir
+from sharktank.utils.export import export_model_mlir
 from ...utils.hf import import_hf_dataset_from_hub
 from ...utils import chdir
 from ...utils.iree import trace_model_with_tracy
