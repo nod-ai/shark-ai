@@ -7,6 +7,7 @@
 name: CI - sharktank nightly
 
 on:
+  pull_request:
   workflow_dispatch:
   schedule:
     # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
@@ -144,6 +145,7 @@ jobs:
             --iree-hal-target-device=hip \
             --llama3-8b-f16-model-path=/shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa \
             --llama3-8b-f8-model-path=/shark-dev/8b/fp8/native_fp8_e4m3fnuz_llama3_8b.irpa \
+            --llama3-8b-f8-attnf8-model-path=/shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
             --llama3-8b-tokenizer-path=/shark-dev/data/llama3.1/weights/8b/fp16/tokenizer_config.json \
             --html=out/llm/llama/perplexity/iree_perplexity/index.html \
             --log-cli-level=INFO

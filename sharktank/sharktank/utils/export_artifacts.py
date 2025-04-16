@@ -341,6 +341,7 @@ class ExportArtifacts:
         assert self.attention_kernel in [
             "decomposed",
             "torch",
+            "sharktank",
         ], "Only torch or decomposed attention_kernel types are supported"
 
         self.dir_path = self.sharktank_dir + "/" + "perplexity_ci_artifacts/"
