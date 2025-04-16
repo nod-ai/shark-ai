@@ -7,6 +7,7 @@
 import logging
 import math
 import pytest
+import random
 
 from typing import Any
 from unittest.mock import patch
@@ -21,6 +22,9 @@ from shortfin_apps.llm.components.token_selection_strategy import (
     GreedyTokenSelectionStrategy,
     TokenSelectionStrategy,
     DecodeConfig,
+)
+from shortfin_apps.llm.components.token_selection_strategy.config import (
+    LogitsNormalization,
 )
 from shortfin_apps.llm.components.token_selection_strategy.greedy_token_selection_strategy import (
     GreedyBeam,
@@ -44,9 +48,10 @@ def greedy_token_selection_strategy():
 
 
 @pytest.fixture(scope="function")
-def greedy_beam(exec_req):
+def greedy_beam(exec_req, decode_config):
     yield GreedyBeam(
         exec_req,
+        decode_config=decode_config,
     )
 
 
@@ -54,34 +59,8 @@ def batcher_workitem_cb(_: int):
     pass
 
 
-def approximately_equal(a: Any, b: Any, rel_tol=1e-2, abs_tol=0.0) -> bool:
-    """
-    Recursively checks if two nested lists (or scalar values) are approximately equal.
-
-    Args:
-        a: First list or scalar.
-        b: Second list or scalar.
-        rel_tol: Relative tolerance.
-        abs_tol: Absolute tolerance.
-
-    Returns:
-        True if all corresponding elements are approximately equal.
-    """
-    # If both are lists, iterate element-wise
-    if isinstance(a, list) and isinstance(b, list):
-        if len(a) != len(b):
-            return False
-        return all(
-            approximately_equal(sub_a, sub_b, rel_tol, abs_tol)
-            for sub_a, sub_b in zip(a, b)
-        )
-
-    # Otherwise, assume they are scalars and compare
-    return math.isclose(a, b, rel_tol=rel_tol, abs_tol=abs_tol)
-
-
 def test_greedy_beam_sample_logits(device, greedy_beam):
-    greedy_beam.temperature = 1.0
+    greedy_beam.decode_config.temperature = 1.0
 
     src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
     data = [float(i) for i in range(math.prod(src.shape))]
@@ -96,6 +75,39 @@ def test_greedy_beam_sample_logits(device, greedy_beam):
     greedy_beam.exec_req.result_logits == src
     token = greedy_beam.sample_logits()
     assert token == 10
+
+    # `top_k` is provided
+    expected_tokens = [13, 14, 15]
+    values = [0.33] * 3
+    greedy_beam.decode_config.top_k = 3
+    with patch.object(
+        greedy_beam, "_sample_logits_top_k", return_value=(expected_tokens, values)
+    ):
+        token = greedy_beam.sample_logits()
+        assert token in expected_tokens
+
+    # `top_p` is provided
+    greedy_beam.decode_config.top_p = 0.95
+    greedy_beam.decode_config.top_k = None
+    with patch.object(
+        greedy_beam, "_sample_logits_top_p", return_value=(expected_tokens, values)
+    ):
+        token = greedy_beam.sample_logits()
+        assert token in expected_tokens
+
+    # `top_k` and `top_p` are provided
+    greedy_beam.decode_config.top_k = 3
+    greedy_beam.decode_config.top_p = 0.95
+    expected_tokens = [13, 14, 15]
+    values = [0.33] * 3
+    with patch.object(
+        greedy_beam, "_sample_logits_top_k", return_value=(expected_tokens, values)
+    ):
+        with patch.object(
+            greedy_beam, "_sample_logits_top_p", return_value=(expected_tokens, values)
+        ):
+            token = greedy_beam.sample_logits()
+            assert token in expected_tokens
 
 
 def test_greedy_update_exec_req(greedy_beam):
