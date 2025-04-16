@@ -5,14 +5,13 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import logging
-from typing import List, Set
 
-from .beam_group import BeamGroup, Beam
+from typing import List
+
+from .beam_group import BeamGroup
 from .greedy_token_selection_strategy import GreedyTokenSelectionStrategy, GreedyBeam
 
 from ..messages import LlmInferenceExecRequest, InferencePhase
-
-import shortfin.array as sfnp
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +53,16 @@ class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
         logger.info("Starting `multi_greedy` decode loop...")
         config = self.token_selection_strategy_config
 
+        if config.decode_config.top_k is not None:
+            logger.info(
+                f"Using `top_k` sampling with `top_k == {config.decode_config.top_k}"
+            )
+
+        if config.decode_config.top_p is not None:
+            logger.info(
+                f"Using `top_p` sampling with `top_p == {config.decode_config.top_p}"
+            )
+
         exec_req.reset(InferencePhase.DECODE)
 
         # Copy `exec_req` to `num_beams` total requests
@@ -62,11 +71,7 @@ class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
         )
 
         beams = [
-            GreedyBeam(
-                exec_req=exec_req,
-                temperature=config.decode_config.temperature,
-                logits_normalization=config.decode_config.logits_normalization,
-            )
+            GreedyBeam(exec_req, decode_config=config.decode_config)
             for exec_req in exec_reqs
         ]
         beam_group = BeamGroup(
@@ -96,6 +101,7 @@ class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
             beam_group.process_beams()
 
         config.decode_end_callback(reservations)
+        beam_group.clean_up()
 
         results = [
             beam.exec_req.input_token_ids[exec_req.prompt_length :]

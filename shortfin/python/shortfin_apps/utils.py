@@ -1,16 +1,19 @@
-from iree.build.executor import FileNamespace, BuildAction, BuildContext, BuildFile
+import math
 import os
 import re
 import urllib
 import logging
 import asyncio
-from pathlib import Path
 import struct
 import threading
-from typing import Optional, Union
+
+from iree.build.executor import FileNamespace, BuildAction, BuildContext, BuildFile
+from pathlib import Path
+from typing import Any, List, Optional, Union
 
 import shortfin.array as sfnp
 import shortfin as sf
+
 from shortfin.interop.support.device_setup import get_selected_devices
 
 
@@ -106,6 +109,32 @@ class SystemManager:
         self.logger.info("System manager command processor stopped")
 
 
+def approximately_equal(a: Any, b: Any, rel_tol=1e-2, abs_tol=0.0) -> bool:
+    """
+    Recursively checks if two nested lists (or scalar values) are approximately equal.
+
+    Args:
+        a: First list or scalar.
+        b: Second list or scalar.
+        rel_tol: Relative tolerance.
+        abs_tol: Absolute tolerance.
+
+    Returns:
+        True if all corresponding elements are approximately equal.
+    """
+    # If both are lists, iterate element-wise
+    if isinstance(a, list) and isinstance(b, list):
+        if len(a) != len(b):
+            return False
+        return all(
+            approximately_equal(sub_a, sub_b, rel_tol, abs_tol)
+            for sub_a, sub_b in zip(a, b)
+        )
+
+    # Otherwise, assume they are scalars and compare
+    return math.isclose(a, b, rel_tol=rel_tol, abs_tol=abs_tol)
+
+
 def convert_int_to_float(value: int, dtype: sfnp.DType) -> float:
     """Convert an `int` representation of a `float` value to float64.
 
@@ -130,6 +159,45 @@ def convert_int_to_float(value: int, dtype: sfnp.DType) -> float:
     packed_val = struct.pack(format_spec, value)
     # Unpack the bytes to a float
     return struct.unpack("<e", packed_val)[0]
+
+
+def convert_float_to_int(value: float, dtype: sfnp.DType) -> int:
+    """Convert a `float` value to its `int` representation.
+
+    Args:
+        value (float): Value to convert.
+        dtype (sfnp.DType): Target dtype.
+
+    Raises:
+        ValueError: Unsupported `dtype`.
+
+    Returns:
+        int: int representation of original float value.
+    """
+    format_specs = {
+        str(sfnp.float16): "<H",
+    }
+    format_spec = format_specs.get(str(dtype))
+    if format_spec is None:
+        raise ValueError(f"Unsupported dtype: {dtype}")
+
+    # Convert float value to bytes
+    packed_val = struct.pack("<e", value)
+    return struct.unpack(format_spec, packed_val)[0]
+
+
+def convert_list_to_device_array(
+    values: List[Any], shape: List[int], device: sf.ScopedDevice, dtype: sfnp.DType
+) -> sfnp.device_array:
+    values_sf = sfnp.device_array.for_host(
+        device,
+        shape,
+        dtype,
+    )
+    with values_sf.map(discard=True) as m:
+        m.items = values
+
+    return values_sf
 
 
 dtype_to_filetag = {

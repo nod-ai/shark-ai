@@ -669,6 +669,19 @@ def index_copy__split_replicated_split(
     return inout
 
 
+@index_put_.override(AllOfType(ReplicatedTensor))
+def index_put__replicated(
+    inout: ReplicatedTensor,
+    indices: Tuple[ReplicatedTensor],
+    values: ReplicatedTensor,
+) -> ReplicatedTensor:
+    assert inout.shard_count == values.shard_count
+    for i, shard in enumerate(inout.shards):
+        shard_indices = [idx.shards[i] for idx in indices]
+        shard.index_put_(shard_indices, values.shards[i])
+    return inout
+
+
 @index_put_.override(
     AllOfExprsVariadic(
         IsOfType(SplitPrimitiveTensor),

@@ -177,6 +177,38 @@ Returns:
   A device_array of dtype=int64, allocated on the host and not visible to the device.
 )";
 
+static const char DOCSTRING_EXP[] =
+    R"(Return the exp of the `input` array.
+
+Implemented for dtypes: float16, float32.
+
+Args:
+  input: An input array.
+  out: Array to write into. If specified, it must have an expected shape and
+    the same dtype as `input`.
+  device_visible: Whether to make the result array visible to devices. Defaults to
+    False.
+
+Returns:
+  A device_array of dtype=input.dtype(), allocated on the host and not visible to the device.
+)";
+
+static const char DOCSTRING_LOG[] =
+    R"(Return the log of the `input` array.
+
+Implemented for dtypes: float16, float32.
+
+Args:
+  input: An input array.
+  out: Array to write into. If specified, it must have an expected shape and
+    the same dtype as `input`.
+  device_visible: Whether to make the result array visible to devices. Defaults to
+    False.
+
+Returns:
+  A device_array of dtype=input.dtype(), allocated on the host and not visible to the device.
+)";
+
 static const char DOCSTRING_LOG_SOFTMAX[] =
     R"(Return the log of the softmax of the `input` array. Written to match
     the behavior of `torch.log_softmax`.
@@ -185,7 +217,25 @@ Implemented for dtypes: float16, float32.
 
 Args:
   input: An input array.
-  axis: Axis along which to sort. Defaults to the last axis.
+  axis: Axis along which to take log_softmax. Defaults to the last axis.
+  out: Array to write into. If specified, it must have an expected shape and
+    the same dtype as `input`.
+  device_visible: Whether to make the result array visible to devices. Defaults to
+    False.
+
+Returns:
+  A device_array of dtype=input.dtype(), allocated on the host and not visible to the device.
+)";
+
+static const char DOCSTRING_SOFTMAX[] =
+    R"(Return the softmax of the `input` array. Written to match
+    the behavior of `torch.softmax`.
+
+Implemented for dtypes: float16, float32.
+
+Args:
+  input: An input array.
+  axis: Axis along which to take softmax. Defaults to the last axis.
   out: Array to write into. If specified, it must have an expected shape and
     the same dtype as `input`.
   device_visible: Whether to make the result array visible to devices. Defaults to
@@ -799,6 +849,7 @@ device_array ElementwiseOperation(py::handle lhs, py::handle rhs,
 
 void BindArrayHostOps(py::module_ &m) {
   // Simple op definitions.
+  // TODO (@stbaione:#1266) Add support for `fp8` model in `array_host_ops`
   m.def(
       "argmax",
       [](device_array &input, int axis, std::optional<device_array> out,
@@ -881,13 +932,89 @@ void BindArrayHostOps(py::module_ &m) {
           SF_UNARY_FUNCTION_CASE(float32, float);
           default:
             throw std::invalid_argument(
-                fmt::format("Unsupported dtype({}) for operator argmax",
+                fmt::format("Unsupported dtype({}) for operator argpartition",
                             input.dtype().name()));
         }
       },
       py::arg("input"), py::arg("k"), py::arg("axis") = -1,
       py::arg("out") = py::none(), py::arg("device_visible") = false,
       DOCSTRING_ARGPARTITION);
+
+  m.def(
+      "exp",
+      [](device_array &input, std::optional<device_array> out,
+         bool device_visible) {
+        SHORTFIN_TRACE_SCOPE_NAMED("PyHostOp::log");
+        if (out && (out->dtype() != input.dtype())) {
+          throw std::invalid_argument(
+              fmt::format("out array must have dtype={} but got {}",
+                          input.dtype().name(), out->dtype().name()));
+        }
+        auto compute = [&]<typename EltTy>() {
+          auto input_t = input.map_xtensor<EltTy>();
+          auto result = xt::exp(*input_t);
+
+          if (!out) {
+            out.emplace(device_array::for_host(input.device(), result.shape(),
+                                               input.dtype(), device_visible));
+          }
+
+          auto out_t = out->map_xtensor_w<EltTy>();
+          *out_t = result;
+
+          return *out;
+        };
+
+        switch (input.dtype()) {
+          SF_UNARY_FUNCTION_CASE(float16, half_float::half);
+          SF_UNARY_FUNCTION_CASE(bfloat16, bfloat16_t);
+          SF_UNARY_FUNCTION_CASE(float32, float);
+          default:
+            throw std::invalid_argument(
+                fmt::format("Unsupported dtype({}) for operator exp",
+                            input.dtype().name()));
+        }
+      },
+      py::arg("input"), py::arg("out") = py::none(),
+      py::arg("device_visible") = false, DOCSTRING_EXP);
+
+  m.def(
+      "log",
+      [](device_array &input, std::optional<device_array> out,
+         bool device_visible) {
+        SHORTFIN_TRACE_SCOPE_NAMED("PyHostOp::log");
+        if (out && (out->dtype() != input.dtype())) {
+          throw std::invalid_argument(
+              fmt::format("out array must have dtype={} but got {}",
+                          input.dtype().name(), out->dtype().name()));
+        }
+        auto compute = [&]<typename EltTy>() {
+          auto input_t = input.map_xtensor<EltTy>();
+          auto result = xt::log(*input_t);
+
+          if (!out) {
+            out.emplace(device_array::for_host(input.device(), result.shape(),
+                                               input.dtype(), device_visible));
+          }
+
+          auto out_t = out->map_xtensor_w<EltTy>();
+          *out_t = result;
+
+          return *out;
+        };
+
+        switch (input.dtype()) {
+          SF_UNARY_FUNCTION_CASE(float16, half_float::half);
+          SF_UNARY_FUNCTION_CASE(bfloat16, bfloat16_t);
+          SF_UNARY_FUNCTION_CASE(float32, float);
+          default:
+            throw std::invalid_argument(
+                fmt::format("Unsupported dtype({}) for operator log",
+                            input.dtype().name()));
+        }
+      },
+      py::arg("input"), py::arg("out") = py::none(),
+      py::arg("device_visible") = false, DOCSTRING_LOG);
 
   m.def(
       "log_softmax",
@@ -935,12 +1062,65 @@ void BindArrayHostOps(py::module_ &m) {
           SF_UNARY_FUNCTION_CASE(float32, float);
           default:
             throw std::invalid_argument(
-                fmt::format("Unsupported dtype({}) for operator argmax",
+                fmt::format("Unsupported dtype({}) for operator log_softmax",
                             input.dtype().name()));
         }
       },
       py::arg("input"), py::arg("axis") = -1, py::arg("out") = py::none(),
       py::arg("device_visible") = false, DOCSTRING_LOG_SOFTMAX);
+
+  m.def(
+      "softmax",
+      [](device_array &input, int axis, std::optional<device_array> out,
+         bool device_visible) {
+        SHORTFIN_TRACE_SCOPE_NAMED("PyHostOp::softmax");
+        if (axis < 0) axis += input.shape().size();
+        if (axis < 0 || axis >= input.shape().size()) {
+          throw std::invalid_argument(
+              fmt::format("Axis out of range: Must be [0, {}) but got {}",
+                          input.shape().size(), axis));
+        }
+        if (out && (out->dtype() != input.dtype())) {
+          throw std::invalid_argument(
+              fmt::format("out array must have dtype={} but got {}",
+                          input.dtype().name(), out->dtype().name()));
+        }
+        auto compute = [&]<typename EltTy>() {
+          auto input_t = input.map_xtensor<EltTy>();
+
+          auto max_vals = xt::amax(*input_t, {axis});
+          xt::xarray<EltTy> max_vals_keep_dim = xt::expand_dims(max_vals, axis);
+
+          xt::xarray<EltTy> input_stable = *input_t - max_vals_keep_dim;
+
+          xt::xarray<EltTy> exp_input = xt::exp(input_stable);
+          auto sum_exp = xt::sum(exp_input, {axis});
+          xt::xarray<EltTy> sum_exp_expanded = xt::expand_dims(sum_exp, axis);
+
+          xt::xarray<EltTy> result = exp_input / sum_exp_expanded;
+
+          if (!out) {
+            out.emplace(device_array::for_host(input.device(), result.shape(),
+                                               input.dtype(), device_visible));
+          }
+
+          auto out_t = out->map_xtensor_w<EltTy>();
+          *out_t = result;
+
+          return *out;
+        };
+
+        switch (input.dtype()) {
+          SF_UNARY_FUNCTION_CASE(float16, half_float::half);
+          SF_UNARY_FUNCTION_CASE(float32, float);
+          default:
+            throw std::invalid_argument(
+                fmt::format("Unsupported dtype({}) for operator softmax",
+                            input.dtype().name()));
+        }
+      },
+      py::arg("input"), py::arg("axis") = -1, py::arg("out") = py::none(),
+      py::arg("device_visible") = false, DOCSTRING_SOFTMAX);
 
   // Random number generation.
   py::class_<PyRandomGenerator>(m, "RandomGenerator")
