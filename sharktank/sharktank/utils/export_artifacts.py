@@ -94,15 +94,15 @@ class ExportArtifacts:
         activation_dtype: str = "float16",
         attention_dtype: str = "float16",
         kv_cache_dtype: Optional[str] = None,
-        mlir_path: Optional[str] = None,
-        json_path: Optional[str] = None,
+        output_mlir: Optional[str] = None,
+        output_config: Optional[str] = None,
     ):
         self.sharktank_dir = str(
             Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent
         )
         self.irpa_path = irpa_path
-        self.mlir_path = mlir_path
-        self.json_path = json_path
+        self.output_mlir = output_mlir
+        self.output_config = output_config
         self.batch_size = batch_size
         self.iree_hip_target = iree_hip_target
         self.iree_hal_target_device = iree_hal_target_device
@@ -178,8 +178,8 @@ class ExportArtifacts:
     def export_to_mlir(
         self,
         *,
-        mlir_path: str,
-        json_path: str,
+        output_mlir: str,
+        output_config: str,
         skip_decode: Optional[bool] = None,
     ):
         export_args = [
@@ -187,8 +187,8 @@ class ExportArtifacts:
             "-m",
             "sharktank.examples.export_paged_llm_v1",
             f"--irpa-file={self.irpa_path}",
-            f"--output-mlir={mlir_path}",
-            f"--output-config={json_path}",
+            f"--output-mlir={output_mlir}",
+            f"--output-config={output_config}",
             f"--bs-prefill={str(self.batch_size)}",
             f"--bs-decode={str(self.batch_size)}",
             f"--block-seq-stride={self.block_seq_stride}",
@@ -230,8 +230,8 @@ class ExportArtifacts:
     def compile_to_vmfb(
         self,
         *,
-        mlir_path,
-        vmfb_path,
+        output_mlir,
+        output_vmfb,
         cwd,
         hal_dump_path: Optional[Path] = None,
         args: Optional[List[str]] = None,
@@ -240,9 +240,9 @@ class ExportArtifacts:
         # TODO: Control flag to enable multiple backends
         compile_args = [
             f"iree-compile",
-            f"{mlir_path}",
+            f"{output_mlir}",
             f"--iree-hip-target={self.iree_hip_target}",
-            f"-o={vmfb_path}",
+            f"-o={output_vmfb}",
         ]
         if self.tensor_parallelism_size > 1:
             iree_hal_target_devices = [
@@ -351,30 +351,30 @@ class ExportArtifacts:
             + self.attention_kernel
         )
 
-        if self.mlir_path is None:
-            self.mlir_path = str(
+        if self.output_mlir is None:
+            self.output_mlir = str(
                 self.create_file(suffix=".mlir", prefix=self.dir_path + model_name)
             )
-            self.json_path = str(
+            self.output_config = str(
                 self.create_file(suffix=".json", prefix=self.dir_path + model_name)
             )
 
             self.export_to_mlir(
-                mlir_path=self.mlir_path,
-                json_path=self.json_path,
+                output_mlir=self.output_mlir,
+                output_config=self.output_config,
             )
         else:
-            logger.info(f" Using pre-exported mlir: {self.mlir_path}")
-            logger.info(f" Using pre-exported config json: {self.json_path}")
+            logger.info(f" Using pre-exported mlir: {self.output_mlir}")
+            logger.info(f" Using pre-exported config json: {self.output_config}")
 
-        vmfb_path = str(
+        output_vmfb = str(
             self.create_file(suffix=".vmfb", prefix=self.dir_path + model_name)
         )
 
         self.compile_to_vmfb(
-            mlir_path=self.mlir_path,
-            vmfb_path=vmfb_path,
+            output_mlir=self.output_mlir,
+            output_vmfb=output_vmfb,
             cwd=self.sharktank_dir,
         )
 
-        return vmfb_path
+        return output_vmfb

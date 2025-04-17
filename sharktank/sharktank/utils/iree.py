@@ -4,13 +4,13 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from copy import deepcopy
-import iree.runtime
 from typing import Any, Callable, List, Tuple, Optional, Union, overload, TYPE_CHECKING
-from pathlib import Path
 import os
 import sys
 import json
+from copy import deepcopy
+from pathlib import Path
+
 import numpy as np
 import collections.abc
 from collections import OrderedDict
@@ -29,11 +29,15 @@ from sharktank.types.tensors import (
 )
 from .tree import Tree
 
-if TYPE_CHECKING:
-    from ..layers import ModelConfig
+import iree.runtime
 
 if TYPE_CHECKING:
     from ..layers import ModelConfig
+
+halelementtype_map = {
+    torch.float8_e4m3fnuz: iree.runtime.HalElementType.FLOAT_8_E4M3_FNUZ,
+    torch.bfloat16: iree.runtime.HalElementType.BFLOAT_16,
+}
 
 
 def with_iree_device_context(
@@ -245,7 +249,7 @@ def device_array_to_host(device_array: iree.runtime.DeviceArray) -> torch.Tensor
 def torch_tensor_to_device_array(
     tensor: torch.Tensor, device: iree.runtime.HalDevice
 ) -> iree.runtime.DeviceArray:
-    if tensor.dtype == torch.bfloat16:
+    if tensor.dtype in halelementtype_map.keys():
         tensor_as_int16 = tensor.view(dtype=torch.int16)
         device_array_as_int16 = iree.runtime.asdevicearray(
             device, unbox_tensor(tensor_as_int16).to("cpu").detach().numpy()
@@ -253,7 +257,7 @@ def torch_tensor_to_device_array(
         buffer_view = iree.runtime.HalBufferView(
             buffer=device_array_as_int16._buffer_view.get_buffer(),
             shape=device_array_as_int16._buffer_view.shape,
-            element_type=iree.runtime.HalElementType.BFLOAT_16,
+            element_type=halelementtype_map[tensor.dtype],
         )
         return iree.runtime.DeviceArray(device, buffer_view)
 
