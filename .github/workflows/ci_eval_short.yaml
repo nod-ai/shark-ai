@@ -65,12 +65,12 @@ jobs:
         run: |
           source ${VENV_DIR}/bin/activate
           pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_iree_test.py \
-            -m "expensive" \
             --bs=4 \
             --iree-device=hip://0 \
             --iree-hip-target=gfx942 \
             --iree-hal-target-device=hip \
             --llama3-8b-f16-model-path=/shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa \
             --llama3-8b-tokenizer-path=/shark-dev/data/llama3.1/weights/8b/fp16/tokenizer_config.json \
+            --run-quick-llama-test \
             --log-cli-level=INFO
           ls -lha ${{ github.workspace }}/perplexity_ci_artifacts

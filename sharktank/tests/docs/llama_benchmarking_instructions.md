@@ -3,7 +3,6 @@ In order to run Llama 3.1 8B F16 Decomposed test:
 ```
 pytest sharktank/tests/models/llama/benchmark_amdgpu_test.py \
     -v -s \
-    -m "expensive" \
     --run-quick-test \
     --iree-hip-target=gfx942 \
     --iree-device=hip://0

@@ -10,11 +10,11 @@ import json
 import numpy as np
 
 from sharktank.evaluate import perplexity_iree
-from sharktank.utils.testing import is_mi300x
-
-skipif_run_quick_llama_test = pytest.mark.skipif(
-    'not config.getoption("run-nightly-llama-tests")',
-    reason="Run large tests if --run-nightly-llama-tests is passed",
+from sharktank.utils.testing import (
+    is_mi300x,
+    is_nightly,
+    is_pre_submit_nightly,
+    is_llama_8b,
 )
 
 
@@ -26,7 +26,6 @@ skipif_run_quick_llama_test = pytest.mark.skipif(
     "batch_size",
 )
 @is_mi300x
-@pytest.mark.expensive
 class PerplexityTest(unittest.TestCase):
     def setUp(self):
         self.current_perplexity_all = {}
@@ -35,6 +34,8 @@ class PerplexityTest(unittest.TestCase):
         with open(self.baseline_perplexity_scores, "r") as f:
             self.baseline_perplexity = json.load(f)
 
+    @is_pre_submit_nightly
+    @is_llama_8b
     def test_llama3_8B_f16(self):
 
         # Llama 3.1 8B non-decomposed
@@ -70,7 +71,11 @@ class PerplexityTest(unittest.TestCase):
             msg=f"Current perplexity deviates baseline by {perplexity_difference}",
         )
 
-    @skipif_run_quick_llama_test
+    @is_nightly
+    @pytest.mark.xfail(
+        run=False,
+        reason="Compile hangs. Issue: https://github.com/iree-org/iree/issues/20528",
+    )
     def test_llama3_8B_f8(self):
 
         # Llama 3.1 8B non-decomposed
@@ -109,7 +114,7 @@ class PerplexityTest(unittest.TestCase):
             msg=f"Current perplexity deviates baseline by {perplexity_difference}",
         )
 
-    @skipif_run_quick_llama_test
+    @is_nightly
     @pytest.mark.xfail(reason="Compile Error")
     def test_llama3_405B_f16(self):
 
@@ -145,7 +150,7 @@ class PerplexityTest(unittest.TestCase):
             msg=f"Current perplexity deviates baseline by {perplexity_difference}",
         )
 
-    @skipif_run_quick_llama_test
+    @is_nightly
     @pytest.mark.xfail(reason="Compile Error")
     def test_llama3_405B_f8(self):
 

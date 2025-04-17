@@ -6,6 +6,7 @@
 
 """Export support for the PagedLLMV1 protocol of models."""
 
+import os
 import json
 from typing import Any, Dict
 import torch
@@ -16,14 +17,13 @@ from sharktank.layers import *
 from sharktank.types import *
 from sharktank.utils.math import ceildiv
 from sharktank import ops
+from sharktank.utils import cli
 
 # TODO: Should be using a base class with the protocol supported.
 from sharktank.models.llm import *
 
 
 def main():
-    from ..utils import cli
-    import os
 
     parser = cli.create_parser()
     cli.add_input_dataset_options(parser)

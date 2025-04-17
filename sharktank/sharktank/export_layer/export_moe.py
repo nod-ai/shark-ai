@@ -11,7 +11,7 @@ from iree.turbine.aot import *
 
 from sharktank.models.llama.testing import make_moe_block_theta, make_rand_torch
 from sharktank.layers.mixture_of_experts_block import MoeBlock
-from ..utils import cli
+from sharktank.utils import cli
 
 
 def main():

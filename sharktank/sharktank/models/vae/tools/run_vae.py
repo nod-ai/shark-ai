@@ -11,12 +11,12 @@ import torch
 
 from iree.turbine import aot
 
-from ..layers import ThetaLayer
-from ..model import VaeDecoderModel
-from ....utils.patching import SaveModuleResultTensorsPatch
-
-from .sample_data import get_random_inputs
+from sharktank.layers import ThetaLayer
+from sharktank.utils.patching import SaveModuleResultTensorsPatch
+from sharktank.utils import cli
 from sharktank.models.punet.tools.sample_data import load_inputs, save_outputs
+from .sample_data import get_random_inputs
+from ..model import VaeDecoderModel
 from iree.turbine.aot import FxProgramsBuilder, export, decompositions
 
 from iree.turbine.dynamo.passes import (
@@ -60,7 +60,6 @@ def export_vae(model: ThetaLayer, sample_inputs, decomp_attn: bool) -> aot.Expor
 
 
 def main(argv):
-    from ....utils import cli
 
     parser = cli.create_parser()
     cli.add_input_dataset_options(parser)

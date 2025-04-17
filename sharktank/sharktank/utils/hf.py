@@ -12,7 +12,7 @@ import logging
 from pathlib import Path
 
 from huggingface_hub import snapshot_download
-from ..types import *
+from sharktank.types import *
 
 logger = logging.getLogger(__name__)
 

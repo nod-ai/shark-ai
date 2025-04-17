@@ -8,11 +8,11 @@ import unittest
 
 import torch
 
-from sharktank.models.llama.testing import *
-from sharktank.layers.configs import *
+from sharktank.layers.configs.llm_configs import *
 from sharktank.layers.rotary_embedding import RotaryEmbeddingLayer
 from sharktank.layers.paged_attention import PagedAttention
 from sharktank.models.llm import AttentionFFNBlock
+from sharktank.models.llama.testing import *
 
 from transformers.models.llama.modeling_llama import (
     LlamaAttention,

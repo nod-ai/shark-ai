@@ -10,13 +10,13 @@ This is an ad-hoc transformation which operates on the layer structure of
 weights of an LLM by converting the RHS of all eligible layers to a sharded
 form.
 """
-from ...models.llama.sharding import shard_theta
-from ...layers import LlamaHParams, LlamaModelConfig
-from ...types import *
+from sharktank.models.llama.sharding import shard_theta
+from sharktank.layers import LlamaHParams, LlamaModelConfig
+from sharktank.types import *
+from sharktank.utils import cli
 
 
 def main(raw_args=None):
-    from ...utils import cli
 
     parser = cli.create_parser()
     cli.add_input_dataset_options(parser)

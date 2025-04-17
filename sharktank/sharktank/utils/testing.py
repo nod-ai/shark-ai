@@ -13,19 +13,45 @@ import os
 import shutil
 import tempfile
 import unittest
-import torch
 from typing import Any, Callable
 from operator import eq
 from collections.abc import Iterable
 import gc
-from datasets import load_dataset
 import random
+import torch
 
-from ..types import *
+from datasets import load_dataset
+
+from sharktank.types import *
 from .math import cosine_similarity
+
+# TODO: Remove once pre-submits and nightly tests are unified to single workflow.
+def get_test_type():
+    pre_submit = 'config.getoption("--run-quick-llama-test")'
+    nightly = 'config.getoption("--run-nightly-llama-tests")'
+    if pre_submit or nightly:
+        return False
+    else:
+        return True
+
 
 is_mi300x = pytest.mark.skipif("config.getoption('iree_hip_target') != 'gfx942'")
 
+# TODO: ci-sharktank-nightly should run all nightly CIs requiring mi300x in a single workflow, dropping all test specific flags/workflows
+is_nightly = pytest.mark.skipif(
+    'not config.getoption("run-nightly-llama-tests")',
+    reason="Run large tests if --run-nightly-llama-tests is passed",
+)
+
+# TODO: ci-sharktank/test-mi300x should run all pre-submits requiring mi300x in a single workflow, dropping all test specific flags/workflows
+is_pre_submit_nightly = pytest.mark.skipif(
+    get_test_type(),
+    reason="Run large/quick tests if --run-quick-llama-test or --run-nightly-llama-tests is passed",
+)
+is_llama_8b = pytest.mark.skipif(
+    'config.getoption("llama3_8b_f16_model_path") is None',
+    reason="Run llama tests if --llama3-8b-f16-model-path is passed",
+)
 is_cpu_condition = (
     "exec('from sharktank.utils.testing import is_iree_hal_target_device_cpu') or "
     "is_iree_hal_target_device_cpu(config.getoption('iree_hal_target_device'))"

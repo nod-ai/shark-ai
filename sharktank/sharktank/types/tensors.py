@@ -4,6 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import os
 from typing import (
     Any,
     Callable,
@@ -19,7 +20,6 @@ from typing import (
 from copy import deepcopy
 from collections.abc import Collection, Sequence
 from numbers import Integral, Number
-import os
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -29,14 +29,14 @@ from torch import Tensor
 import torch._subclasses.functional_tensor
 from torch.utils._pytree import register_pytree_node, SequenceKey
 import torch.utils._pytree
-from ..utils.math import ceildiv
+from sharktank.utils.math import ceildiv
+from sharktank.utils import tree as tree_utils
+from sharktank.utils.io import ShardedArchiveBuilder
 from iree.turbine.aot import (
     DeviceTensorTrait,
     ExternalTensorTrait,
 )
-from ..utils import tree as tree_utils
 
-from ..utils.io import ShardedArchiveBuilder
 
 __all__ = [
     "AnyTensor",
@@ -297,7 +297,7 @@ class InferenceTensor(ABC):
 
     @property
     def T(self) -> "InferenceTensor":
-        from ..ops import permute
+        from sharktank.ops import permute
 
         # Reverse the dimension range.
         rank = len(self.shape)
@@ -311,7 +311,7 @@ class InferenceTensor(ABC):
         raise NotImplementedError()
 
     def expand(self, *args: Union[List[List[int]], List[int]]) -> "AnyTensor":
-        from ..ops import expand
+        from sharktank.ops import expand
 
         if all(isinstance(a, int) for a in args):
             shape = args
@@ -321,21 +321,21 @@ class InferenceTensor(ABC):
         return expand(self, shape)
 
     def flatten(self, start_dim: int = 0, end_dim: int = -1) -> "AnyTensor":
-        from ..ops import flatten
+        from sharktank.ops import flatten
 
         return flatten(self, start_dim, end_dim)
 
     def index_copy_(
         self, dim: int, index: "AnyTensor", tensor: "AnyTensor"
     ) -> "InferenceTensor":
-        from ..ops import index_copy_
+        from sharktank.ops import index_copy_
 
         return index_copy_(self, dim, index, tensor)
 
     def index_put_(
         self, indices: Tuple["AnyTensor"], values: "AnyTensor"
     ) -> "InferenceTensor":
-        from ..ops import index_put_
+        from sharktank.ops import index_put_
 
         return index_put_(self, indices, values)
 
@@ -344,7 +344,7 @@ class InferenceTensor(ABC):
         dim: int,
         index: "AnyTensor",
     ) -> "InferenceTensor":
-        from ..ops import index_select
+        from sharktank.ops import index_select
 
         return index_select(self, dim, index)
 
@@ -355,22 +355,22 @@ class InferenceTensor(ABC):
         *,
         dtype: torch.dtype = None,
     ) -> "AnyTensor":
-        from ..ops import mean
+        from sharktank.ops import mean
 
         return mean(self, dim, keepdim, dtype=None)
 
     def pow(self, exponent: Union["AnyTensor", Number]) -> "AnyTensor":
-        from ..ops import elementwise
+        from sharktank.ops import elementwise
 
         return elementwise(torch.pow, self, exponent)
 
     def repeat(self, *sizes: List[int]) -> "AnyTensor":
-        from ..ops import repeat
+        from sharktank.ops import repeat
 
         return repeat(self, *sizes)
 
     def reshape(self, *args: Union[List[List[int]], List[int]]) -> "AnyTensor":
-        from ..ops import reshape
+        from sharktank.ops import reshape
 
         if all(isinstance(a, int) for a in args):
             shape = args
@@ -385,32 +385,32 @@ class InferenceTensor(ABC):
         return self.shape[dim]
 
     def squeeze(self, dim: Optional[int] = None) -> "AnyTensor":
-        from ..ops import squeeze
+        from sharktank.ops import squeeze
 
         return squeeze(self, dim)
 
     def squeeze(self, dim: Optional[int] = None) -> "AnyTensor":
-        from ..ops import squeeze
+        from sharktank.ops import squeeze
 
         return squeeze(self, dim)
 
     def transpose(self, dim0: int, dim1: int) -> "AnyTensor":
-        from ..ops import transpose
+        from sharktank.ops import transpose
 
         return transpose(self, dim0, dim1)
 
     def unflatten(self, dim: int, sizes: Tuple[int]) -> "AnyTensor":
-        from ..ops import unflatten
+        from sharktank.ops import unflatten
 
         return unflatten(self, dim, sizes)
 
     def unsqueeze(self, dim: int) -> "AnyTensor":
-        from ..ops import unsqueeze
+        from sharktank.ops import unsqueeze
 
         return unsqueeze(self, dim)
 
     def view(self, *args: Union[List[List[int]], List[int]]) -> "AnyTensor":
-        from ..ops import view
+        from sharktank.ops import view
 
         if all(isinstance(a, int) or isinstance(a, torch.SymInt) for a in args):
             shape = args
@@ -420,7 +420,7 @@ class InferenceTensor(ABC):
         return view(self, shape)
 
     def __add__(self, rhs):
-        from ..ops import elementwise
+        from sharktank.ops import elementwise
 
         return elementwise(torch.add, self, rhs)
 
@@ -430,12 +430,12 @@ class InferenceTensor(ABC):
         return self.__add__(lhs)
 
     def __mod__(self, rhs):
-        from ..ops import elementwise
+        from sharktank.ops import elementwise
 
         return elementwise(torch.remainder, self, rhs)
 
     def __mul__(self, rhs):
-        from ..ops import elementwise
+        from sharktank.ops import elementwise
 
         return elementwise(torch.mul, self, rhs)
 
@@ -445,17 +445,17 @@ class InferenceTensor(ABC):
         return self.__mul__(lhs)
 
     def __truediv__(self, rhs):
-        from ..ops import elementwise
+        from sharktank.ops import elementwise
 
         return elementwise(torch.true_divide, self, rhs)
 
     def __floordiv__(self, rhs):
-        from ..ops import elementwise
+        from sharktank.ops import elementwise
 
         return elementwise(torch.floor_divide, self, rhs)
 
     def __getitem__(self, key):
-        from ..ops import get_index
+        from sharktank.ops import get_index
 
         return get_index(self, key)
 
@@ -826,7 +826,7 @@ class ShardedTensor(InferenceTensor):
         old_devices: Tuple[int, ...],
         new_devices: Tuple[int, ...],
     ) -> Tuple[DefaultPrimitiveTensor, ...]:
-        from ..ops import transfer_to_logical_device, barrier_on_logical_device
+        from sharktank.ops import transfer_to_logical_device, barrier_on_logical_device
 
         new_shard_tensors = tuple(
             (
@@ -1035,7 +1035,7 @@ class SplitPrimitiveTensor(ShardedTensorBase):
             devices = tuple(range(num_shards))
 
         if isinstance(ts, torch.Tensor):
-            from ..ops import transfer_to_logical_device
+            from sharktank.ops import transfer_to_logical_device
 
             assert shard_count is not None
             assert (
@@ -1203,7 +1203,7 @@ class ReplicatedTensor(ShardedTensor):
 
         if isinstance(ts, torch.Tensor):
             assert shard_count is not None
-            from ..ops import transfer_to_logical_device
+            from sharktank.ops import transfer_to_logical_device
 
             ts = [
                 transfer_to_logical_device(ts, devices[i]) for i in range(shard_count)

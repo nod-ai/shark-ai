@@ -11,10 +11,9 @@ import numpy as np
 import gc
 
 from sharktank.evaluate import perplexity_torch
-
-skipif_run_quick_llama_test = pytest.mark.skipif(
-    'not config.getoption("run-nightly-llama-tests")',
-    reason="Run large tests if --run-nightly-llama-tests is passed",
+from sharktank.utils.testing import (
+    is_mi300x,
+    is_nightly,
 )
 
 
@@ -25,6 +24,8 @@ skipif_run_quick_llama_test = pytest.mark.skipif(
     "batch_size",
     "device",
 )
+@is_mi300x
+@is_nightly
 class PerplexityTest(unittest.TestCase):
     def setUp(self):
         self.current_perplexity_all = {}
@@ -33,7 +34,6 @@ class PerplexityTest(unittest.TestCase):
         with open(self.baseline_perplexity_scores, "r") as f:
             self.baseline_perplexity = json.load(f)
 
-    @skipif_run_quick_llama_test
     def test_llama3_8B_f16(self):
 
         # Llama 3.1 8B non-decomposed
@@ -66,7 +66,6 @@ class PerplexityTest(unittest.TestCase):
         )
         gc.collect()
 
-    @skipif_run_quick_llama_test
     def test_llama3_8B_f8(self):
 
         # Llama 3.1 8B non-decomposed
@@ -106,7 +105,6 @@ class PerplexityTest(unittest.TestCase):
     @pytest.mark.xfail(
         reason="Non-decomposed attention is not supported yet",
     )
-    @skipif_run_quick_llama_test
     def test_llama3_405B_f16(self):
 
         # Llama 3.1 405B non-decomposed
@@ -143,7 +141,6 @@ class PerplexityTest(unittest.TestCase):
     @pytest.mark.xfail(
         reason="Non-decomposed attention is not supported yet",
     )
-    @skipif_run_quick_llama_test
     def test_llama3_405B_f8(self):
 
         # Llama 3.1 405B non-decomposed
