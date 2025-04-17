@@ -47,12 +47,123 @@ class PerplexityTest(unittest.TestCase):
             [
                 f"--irpa-file={self.llama3_8b_f16_model}",
                 f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
-                f"--iree-device={self.iree_device}",
                 f"--iree-hal-target-device={self.iree_hal_target_device}",
                 f"--iree-hip-target={self.iree_hip_target}",
                 f"--tensor-parallelism-size=1",
                 f"--attention-kernel=torch",
                 f"--num-prompts={self.batch_size}",
+            ]
+        )
+
+        baseline_mean_perplexity = round(
+            np.mean(baseline_perplexity["perplexities"][0 : self.batch_size]), 6
+        )
+        current_mean_perplexity = round(current_perplexity["mean_perplexity"], 6)
+
+        perplexity_difference = current_mean_perplexity - baseline_mean_perplexity
+
+        self.assertAlmostEqual(
+            baseline_mean_perplexity,
+            current_mean_perplexity,
+            delta=self.delta,
+            msg=f"Current perplexity deviates baseline by {perplexity_difference}",
+        )
+
+    @is_nightly
+    def test_llama3_8B_f16_tp2(self):
+
+        # Llama 3.1 8B tensor parallelism
+
+        model_name = "llama3_8B_f16_iree"
+        baseline_perplexity = self.baseline_perplexity[model_name]
+
+        current_perplexity = perplexity_iree.main(
+            [
+                f"--irpa-file={self.llama3_8b_f16_tp2_model}",
+                f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
+                f"--iree-hal-target-device={self.iree_hal_target_device}",
+                f"--iree-hip-target={self.iree_hip_target}",
+                f"--tensor-parallelism-size=2",
+                f"--pipeline-parallelism-size=1",
+                f"--attention-kernel=torch",
+                f"--num-prompts={self.batch_size}",
+                f"--use-attention-mask",
+            ]
+        )
+
+        baseline_mean_perplexity = round(
+            np.mean(baseline_perplexity["perplexities"][0 : self.batch_size]), 6
+        )
+        current_mean_perplexity = round(current_perplexity["mean_perplexity"], 6)
+
+        perplexity_difference = current_mean_perplexity - baseline_mean_perplexity
+
+        self.assertAlmostEqual(
+            baseline_mean_perplexity,
+            current_mean_perplexity,
+            delta=self.delta,
+            msg=f"Current perplexity deviates baseline by {perplexity_difference}",
+        )
+
+    @is_nightly
+    @pytest.mark.xfail(
+        run=False,
+        reason="Affinity analysis issue: https://github.com/iree-org/iree/issues/20551",
+    )
+    def test_llama3_8B_f16_pp2(self):
+
+        # Llama 3.1 8B pipepiline parallelism
+
+        model_name = "llama3_8B_f16_iree"
+        baseline_perplexity = self.baseline_perplexity[model_name]
+
+        current_perplexity = perplexity_iree.main(
+            [
+                f"--irpa-file={self.llama3_8b_f16_model}",
+                f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
+                f"--iree-hal-target-device={self.iree_hal_target_device}",
+                f"--iree-hip-target={self.iree_hip_target}",
+                f"--tensor-parallelism-size=1",
+                f"--pipeline-parallelism-size=2",
+                f"--attention-kernel=torch",
+                f"--num-prompts={self.batch_size}",
+                f"--use-attention-mask",
+            ]
+        )
+
+        baseline_mean_perplexity = round(
+            np.mean(baseline_perplexity["perplexities"][0 : self.batch_size]), 6
+        )
+        current_mean_perplexity = round(current_perplexity["mean_perplexity"], 6)
+
+        perplexity_difference = current_mean_perplexity - baseline_mean_perplexity
+
+        self.assertAlmostEqual(
+            baseline_mean_perplexity,
+            current_mean_perplexity,
+            delta=self.delta,
+            msg=f"Current perplexity deviates baseline by {perplexity_difference}",
+        )
+
+    @is_nightly
+    def test_llama3_8B_f16_tp2(self):
+
+        # Llama 3.1 8B tensor parallelism
+
+        model_name = "llama3_8B_f16_iree"
+        baseline_perplexity = self.baseline_perplexity[model_name]
+
+        current_perplexity = perplexity_iree.main(
+            [
+                f"--irpa-file={self.llama3_8b_f16_tp2_model}",
+                f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
+                f"--iree-hal-target-device={self.iree_hal_target_device}",
+                f"--iree-hip-target={self.iree_hip_target}",
+                f"--tensor-parallelism-size=2",
+                f"--pipeline-parallelism-size=1",
+                f"--attention-kernel=torch",
+                f"--num-prompts={self.batch_size}",
+                f"--use-attention-mask",
             ]
         )
 
@@ -82,7 +193,6 @@ class PerplexityTest(unittest.TestCase):
             [
                 f"--irpa-file={self.llama3_8b_f8_model}",
                 f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
-                f"--iree-device={self.iree_device}",
                 f"--iree-hal-target-device={self.iree_hal_target_device}",
                 f"--iree-hip-target={self.iree_hip_target}",
                 f"--tensor-parallelism-size=1",
@@ -122,7 +232,6 @@ class PerplexityTest(unittest.TestCase):
             [
                 f"--irpa-file={self.llama3_405b_f16_model}",
                 f"--tokenizer-config-json={self.llama3_405b_tokenizer}",
-                f"--iree-device={self.iree_device}",
                 f"--iree-hal-target-device={self.iree_hal_target_device}",
                 f"--iree-hip-target={self.iree_hip_target}",
                 f"--tensor-parallelism-size={self.tensor_parallelism_size}",
@@ -158,7 +267,6 @@ class PerplexityTest(unittest.TestCase):
             [
                 f"--irpa-file={self.llama3_405b_f8_model}",
                 f"--tokenizer-config-json={self.llama3_405b_tokenizer}",
-                f"--iree-device={self.iree_device}",
                 f"--iree-hal-target-device={self.iree_hal_target_device}",
                 f"--iree-hip-target={self.iree_hip_target}",
                 f"--tensor-parallelism-size={self.tensor_parallelism_size}",
