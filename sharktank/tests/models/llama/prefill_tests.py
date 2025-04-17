@@ -32,19 +32,14 @@ class BaseLlamaTest(unittest.TestCase):
         config = self.createConfigModel(kv_cache_type)
         model = PagedLlmModelV1(self.dataset.root_theta, config)
         generator = TorchGenerator(model, self.tokenizer_config)
-        batch = generator.begin_batch(self.prompts)
-        attention_mask = model.attention_mask(
-            model.input_mask(batch.seq_lens, batch.token_ids.shape[1])
+        token_ids, seq_lens = generator.preprocess_prompts(prompts=self.prompts)
+        batch = generator.begin_batch(
+            token_ids=token_ids,
+            seq_lens=seq_lens,
         )
-        seq_block_ids_tensor = batch.pad_block_ids()
-        logits = batch.compute_prefill_logits(
-            model,
-            batch.token_ids,
-            attention_mask=attention_mask,
-            seq_block_ids=seq_block_ids_tensor,
-            cache_state=batch.cache_state,
-        )
-        batch.prefill()
+
+        results = batch.prefill()
+        logits = batch.prefill_logits
 
         bs, *_ = logits.shape
         assert len(batch.seq_lens) == bs
@@ -52,7 +47,7 @@ class BaseLlamaTest(unittest.TestCase):
         step_logits = logits[0, batch.seq_lens[0] - 1]
         greedy_token_logit = step_logits[torch.argmax(step_logits)]
 
-        return batch.results, greedy_token_logit
+        return results, greedy_token_logit
 
     def comparePrefillResults(
         self,

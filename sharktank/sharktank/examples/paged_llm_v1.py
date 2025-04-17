@@ -16,6 +16,7 @@ from sharktank.types import *
 from sharktank.utils.load_llm import *
 from sharktank.utils import cli
 
+
 def main():
     from ..utils import cli
 
@@ -54,19 +55,14 @@ def main():
 
         intermediates_saver = SaveModuleResultTensorsPatch()
         intermediates_saver.patch_child_modules(model)
-    generator = TorchGenerator(model, tokenizer, dump_bins=args.dump_bins)
 
-    print(f":: Prompting:")
-    for prompt in prompts:
-        print(f"    {prompt.encode()}")
+    generator = TorchGenerator(model, tokenizer)
 
-    token_ids, seq_lens = generator.preprocess_prompts(
-        prompts=args.prompt, prompt_seq_len=prompt_seq_len, bs=args.bs
-    )
+    token_ids, seq_lens = generator.preprocess_prompts(prompts=args.prompt)
     batch = generator.begin_batch(
         token_ids=token_ids,
         seq_lens=seq_lens,
-        prompt_seq_len=prompt_seq_len,
+        dump_bins=args.dump_bins,
     )
     results = batch.prefill()
     batch.print_current_results()
@@ -88,6 +84,11 @@ def main():
             print(f":: Result tokens: {batch.results}")
             batch.print_current_results()
             counter += 1
+
+        if len(batch.parent.free_pages) == 0:
+            print(
+                "\n\n:: Out of allocated pages, increase page_cache_size to continue generation.\n"
+            )
 
 
 if __name__ == "__main__":
