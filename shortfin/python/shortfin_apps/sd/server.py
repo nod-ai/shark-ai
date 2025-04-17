@@ -14,6 +14,7 @@ import copy
 import subprocess
 from contextlib import asynccontextmanager
 import uvicorn
+import importlib.util
 
 # Import first as it does dep checking and reporting.
 from shortfin.interop.fastapi import FastAPIResponder
@@ -32,7 +33,11 @@ from .components.service import SDXLGenerateService
 from .components.tokenizer import Tokenizer
 from .components.config_artifacts import get_configs
 
-sharktank_installed = True
+if spec := importlib.util.find_spec("sharktank") is None:
+    sharktank_installed = False
+else:
+    sharktank_installed = True
+
 
 logger = logging.getLogger("shortfin-sd")
 logger.addHandler(native_handler)
@@ -336,7 +341,7 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
         args.splat,
     )
     if (needed or args.force_update) and sharktank_installed:
-        from sharktank.exports.sdxl.builder import get_modules
+        from sharktank.pipelines.sdxl.builder import get_modules
 
         vmfbs, params = get_modules(
             vmfbs,
@@ -353,7 +358,7 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
             args.force_update,
         )
 
-    elif needed and not sharktank_installed:
+    elif (needed or args.force_update) and not sharktank_installed:
         raise FileNotFoundError(str(needed.values()))
 
     configure_service(

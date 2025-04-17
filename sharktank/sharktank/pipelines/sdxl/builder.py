@@ -470,7 +470,7 @@ def sdxl(
 
     if build_preference == "export":
         from iree.turbine.aot.build_actions import turbine_generate
-        from sharktank.exports.sdxl.exporter import export_sdxl_model
+        from sharktank.pipelines.sdxl.exporter import export_sdxl_model
 
         if params_filename is not None:
             params_filepath = ctx.allocate_file(
