@@ -80,8 +80,6 @@ class BeamSearchBeam(Beam):
 
         if (top_k, top_p) == (None, None):
             tokens, probs = self.sampler.select_top_k(logits, -k)
-
-            # TODO: https://github.com/nod-ai/shark-ai/issues/1278 find cleaner way to do these conversions
             if logits.dtype in [sfnp.float16]:
                 probs = [convert_float_to_int(prob, logits.dtype) for prob in probs]
 
