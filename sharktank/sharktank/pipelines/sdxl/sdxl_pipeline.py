@@ -16,8 +16,22 @@ from sharktank.models.clip import ClipTextModel, ClipTextConfig
 from sharktank.models.punet.model import Unet2DConditionModel
 from sharktank.models.vae.model import VaeDecoderModel
 from sharktank.types import Dataset
-from .scheduler import SchedulingModel
+from sharktank.pipelines.sdxl.scheduler import SchedulingModel
 
+def get_random_latents_torch(height: int, width: int, dtype: str, seed: int = 0):
+    latents_shape = (
+        1,
+        4,
+        height // 8,
+        width // 8,
+    )
+    generator = torch.manual_seed(seed)
+    rand_sample = torch.randn(
+        latents_shape,
+        generator=generator,
+        dtype=dtype,
+    ).numpy()
+    return rand_sample
 
 class SdxlPipeline(BaseLayer):
     """Pipeline for text-to-image generation using the SDXL model."""
@@ -27,13 +41,12 @@ class SdxlPipeline(BaseLayer):
         clip_path: PathLike,
         unet_path: PathLike,
         vae_path: PathLike,
-        clip_tokenizer_path: Optional[PathLike] = None,
         device: str = None,
         dtype: torch.dtype = torch.bfloat16,
         base_model_name: str = "stabilityai/stable-diffusion-xl-base-1.0",
         default_num_inference_steps: Optional[int] = None,
     ):
-        """Initialize the Flux pipeline."""
+        """Initialize the SDXL pipeline."""
         super().__init__()
         if device:
             self.device = torch.device(device)
@@ -43,9 +56,10 @@ class SdxlPipeline(BaseLayer):
         if not default_num_inference_steps:
                 self.default_num_inference_steps = 20
 
-        if clip_tokenizer_path:
-            self.clip_tokenizer = CLIPTokenizer.from_pretrained(base_model_name)
-
+        self.clip_tokenizers = [
+            CLIPTokenizer.from_pretrained(base_model_name, subfolder="tokenizer"),
+            CLIPTokenizer.from_pretrained(base_model_name, subfolder="tokenizer_2")
+        ]
         # Load CLIP
         clip_dataset = Dataset.load(clip_path)
         clip_config = ClipTextConfig.from_properties(clip_dataset.properties)
@@ -67,8 +81,6 @@ class SdxlPipeline(BaseLayer):
         self.vae_model = VaeDecoderModel.from_dataset(vae_dataset)
         self.add_module("vae_model", self.vae_model)
         self.vae_model.to(device)
-
-        self._rng = torch.Generator(device="cpu")
 
     def __call__(
         self,
@@ -99,15 +111,9 @@ class SdxlPipeline(BaseLayer):
 
         clip_prompt_ids = self.tokenize_prompt(prompt)
         if not latents:
-            latents = self.transformer_model._get_noise(
-                1,
-                height,
-                width,
-                seed=seed,
-            )
+            latents = get_random_latents_torch(height, width, "fp16", seed, self._rng)
 
         return self.forward(
-            t5_prompt_ids,
             clip_prompt_ids,
             latents,
             height=height,
@@ -140,7 +146,7 @@ class SdxlPipeline(BaseLayer):
 
         # Prepare inputs
         inp = self._prepare(
-            self.t5_model, self.clip_model, t5_prompt_ids, clip_prompt_ids, x
+            self.clip_model, clip_prompt_ids, x
         )
         timesteps = self._get_schedule(
             num_inference_steps, inp["img"].shape[1], shift=True
@@ -154,8 +160,7 @@ class SdxlPipeline(BaseLayer):
         )
 
         # Decode latents
-        x = self._unpack(x.to(dtype=self.dtype), height, width)
-        x = self.ae_model(x)
+        x = self.vae_model(x)
 
         x = x[0]
         x = x.cpu()
@@ -165,9 +170,7 @@ class SdxlPipeline(BaseLayer):
 
     def _prepare(
         self,
-        t5: T5Encoder,
         clip: ClipTextModel,
-        t5_prompt_ids: Tensor,
         clip_prompt_ids: Tensor,
         img: Tensor,
     ) -> dict[str, Tensor]:
@@ -221,7 +224,7 @@ class SdxlPipeline(BaseLayer):
 
         return img
 
-    def tokenize_prompt(self, prompt: str, neg_prompt: str) -> tuple[Tensor, Tensor]:
+    def tokenize_prompt(self, prompt: str, neg_prompt: str) -> tuple[Tensor, Tensor, Tensor, Tensor]:
         """Tokenize a prompt using CLIP tokenizers.
 
         Args:
@@ -234,7 +237,7 @@ class SdxlPipeline(BaseLayer):
         # CLIP tokenization
         input_ids_list = []
         neg_ids_list = []
-        for tokenizer in self.tokenizers:
+        for tokenizer in self.clip_tokenizers:
             input_ids = tokenizer.encode(prompt).input_ids
             input_ids_list.append(input_ids)
             neg_ids = tokenizer.encode(neg_prompt).input_ids
@@ -281,11 +284,11 @@ def main():
     parser.add_argument(
         "--guidance-scale",
         type=float,
-        default=3.5,
+        default=7.5,
         help="Scale for classifier-free guidance",
     )
     parser.add_argument(
-        "--seed", type=int, default=None, help="Random seed for reproducibility"
+        "--seed", type=int, default=0, help="Random seed for reproducibility"
     )
 
     # Other parameters
@@ -294,11 +297,16 @@ def main():
         default="a cat under the snow with blue eyes, covered by snow, cinematic style, medium shot, professional photo, animal",
         help="Text prompt for image generation",
     )
+    parser.add_argument(
+        "--negative-prompt",
+        default="Watermark, blurry, oversaturated, low resolution, pollution",
+        help="Negative conditional prompt for image generation",
+    )
     parser.add_argument("--output", default="output.jpg", help="Output image path")
     parser.add_argument(
         "--dtype",
-        default="bfloat16",
-        choices=["float32", "float16", "bfloat16"],
+        default="float16",
+        choices=["float16"],
         help="Data type for model",
     )
 
