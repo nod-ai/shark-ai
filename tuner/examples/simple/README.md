@@ -56,21 +56,16 @@ python -m examples.simple <model_file_path> <benchmark_file_path> \
 
 ## Algorithm of tuner
 ### Tuning algorithm
-
-```mermaid
-flowchart TD;
-    A(Generate Candidate Specs)-->B(Compile candidates);
-    B-->C(Benchmark candidates);
-    C-->D(Compile models using top candidates);
-    D-->E(Benchmark models);
-    E-->F(Return top model candidates);
-```
-
-### Benchmark process
-
-```mermaid
-    flowchart TD
-    a1(Baseline benchmark for candidates/models)-->a2(Candidate/Model benchmark);
-    a2-->a3(Second baseline run to check for any regression);
-    a3-->a4(Return top candidate/model candidates);
-```
+1. Generate Candidate specs
+2. Compile candidate
+3. Benchmark for candidates
+  - Baseline benchmark for candidates (now serially over all the given devices)
+  - Candidate benchmark (parallel over all the given devices)
+  - Second baseline run to check for any regression.
+  - Return top candidates
+4. Compile models
+5. Benchmark for models
+  - Baseline benchmark for models (now serially over all the given devices)
+  - Model benchmark (parallel over all the given devices)
+  - Second baseline run to check for any regression.
+  - Return top model candidates
