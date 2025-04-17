@@ -109,12 +109,7 @@ class ConvolutionOpInterfaceParser(DispatchParser):
         if not linalg.isa_convolution_op(root_op):
             return False
 
-        op_name = root_op.name
-        for supported_op_name in self.supported_ops:
-            if op_name == supported_op_name:
-                return True
-
-        return False
+        return root_op.name in self.supported_ops
 
     def get_problem_size(self) -> ProblemSize:
         root_op = self.get_root_op()
