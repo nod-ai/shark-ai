@@ -32,11 +32,7 @@ class BaseLlamaTest(unittest.TestCase):
         config = self.createConfigModel(kv_cache_type)
         model = PagedLlmModelV1(self.dataset.root_theta, config)
         generator = TorchGenerator(model, self.tokenizer_config)
-        token_ids, seq_lens = generator.preprocess_prompts(prompts=self.prompts)
-        batch = generator.begin_batch(
-            token_ids=token_ids,
-            seq_lens=seq_lens,
-        )
+        batch = generator.begin_batch(self.prompts)
         attention_mask = model.attention_mask(
             model.input_mask(batch.seq_lens, batch.token_ids.shape[1])
         )
