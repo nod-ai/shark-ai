@@ -18,6 +18,8 @@ import shortfin.array as sfnp
 
 # TODO: Have a generic "Responder" interface vs just the concrete impl.
 from shortfin.interop.fastapi import FastAPIResponder
+from fastapi.responses import JSONResponse
+from fastapi import status
 
 from .config_struct import DecodeConfig
 from .io_struct import (
@@ -130,6 +132,7 @@ class ClientGenerateBatchProcess(sf.Process):
         "responder",
         "tokenizer",
         "decode_config",
+        "service",
     ]
 
     def __init__(
@@ -140,6 +143,7 @@ class ClientGenerateBatchProcess(sf.Process):
         fiber: sf.Fiber | None = None,
     ):
         super().__init__(fiber=service.main_fiber if fiber is None else fiber)
+        self.service = service
         self.gen_req = gen_req
         self.responder = responder
         self.tokenizer = service.tokenizer
@@ -151,21 +155,38 @@ class ClientGenerateBatchProcess(sf.Process):
 
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
-        streaming = self.gen_req.stream
-        self.responder.start_response()
-        if streaming:
-            self.responder.stream_start()
+        
+        # Try to add request to queue
+        if not self.service.add_to_queue():
+            error_response = JSONResponse(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                cogitntent={
+                    "error": "Server queue is full. Please try again later.",
+                    "code": "QUEUE_FULL",
+                    "current_size": self.service.current_queue_size,
+                    "max_size": self.service.max_queue_size
+                }
+            )
+            self.responder.send_response(error_response)
+            self.responder.ensure_response()
+            return
 
         try:
+            streaming = self.gen_req.stream
+            self.responder.start_response()
+            if streaming:
+                self.responder.stream_start()
+
             # Launch all individual generate processes and wait for them to finish.
             gen_processes = []
             input_ids = self.gen_req.input_ids
             is_pretokenized = input_ids is not None
-            # TODO: We should send this to an executor and await the results.
+            
             if is_pretokenized:
                 input_batch = [input_ids] if self.gen_req.is_single else input_ids
             else:
                 input_batch = self.tokenize()
+            
             for index, input_tokens in enumerate(input_batch):
                 decode_config = copy(self.decode_config)
                 decode_config.update_from_sampling_params(
@@ -189,7 +210,10 @@ class ClientGenerateBatchProcess(sf.Process):
 
             await asyncio.gather(*gen_processes)
             self.generate_response(gen_processes, streaming)
+        
         finally:
+            # Remove request from queue when done
+            self.service.remove_from_queue()
             self.responder.ensure_response()
 
     def generate_response(
