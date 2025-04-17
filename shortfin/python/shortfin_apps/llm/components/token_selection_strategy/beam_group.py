@@ -50,7 +50,7 @@ class Beam(ABC):
             temperature (float): Value to use for `temperature`.
         """
         if self.decode_config.temperature == 1.0:
-            return logits
+            return
         return sfnp.divide(logits, self.decode_config.temperature)
 
     def convert_logits_normalization(
