@@ -14,9 +14,9 @@ from sharktank.layers import *
 from sharktank.types import *
 from sharktank.models.llm import *
 
-from ..ops import replicate, unshard
-from ..utils.debugging import trace_tensor
-from ..utils.tokenizer import InferenceTokenizer
+from sharktank.ops import replicate, unshard
+from sharktank.utils.debugging import trace_tensor
+from sharktank.utils.tokenizer import InferenceTokenizer
 
 
 class TorchGenerator:
@@ -62,7 +62,6 @@ class TorchGenerator:
                 print(
                     f"    prompt_{idx}: \n    {prompt.encode()} \n    {token_ids[idx]}\n"
                 )
-
 
             token_ids, seq_lens = self.tokenizer.pad_tokens(
                 token_ids, pad_to_multiple_of=self.model.cache.pad_sequence_stride

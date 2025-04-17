@@ -7,7 +7,6 @@
 from copy import deepcopy
 from typing import Any, Callable, List, Tuple, Optional, Union, overload, TYPE_CHECKING
 from pathlib import Path
-import torch
 import os
 import sys
 import json
@@ -17,7 +16,9 @@ from collections import OrderedDict
 from contextlib import contextmanager
 import subprocess
 import gc
-from ..types.tensors import (
+import torch
+
+from sharktank.types.tensors import (
     AnyTensor,
     InferenceTensor,
     ShardedTensor,
@@ -26,6 +27,7 @@ from ..types.tensors import (
     torch_tree_flatten,
 )
 from .tree import Tree
+
 import iree.runtime
 
 if TYPE_CHECKING:

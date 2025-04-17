@@ -9,12 +9,13 @@
 import torch
 
 # TODO: Should be using a base class with the protocol supported.
-from ..models.llm import *
-from ..models.llama.sharding import shard_theta
-from ..layers import *
-from ..types import *
+from sharktank.models.llm import *
+from sharktank.models.llama.sharding import shard_theta
+from sharktank.layers import *
+from sharktank.types import *
 from sharktank.utils.load_llm import *
 from sharktank.utils import cli
+
 
 def main():
     """
