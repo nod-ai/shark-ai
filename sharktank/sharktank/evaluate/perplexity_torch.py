@@ -32,10 +32,10 @@ logger.root.handlers[0].setFormatter(
     logging.Formatter(fmt="\n%(levelname)s:%(name)-8s %(message)s")
 )
 
-__all__ = ["Perplexity_torch", "run_perplexity_torch"]
+__all__ = ["PerplexityTorch", "run_perplexity_torch"]
 
 
-class Perplexity_torch:
+class PerplexityTorch:
     """
     Perplexity (PPL) is one of the most common metrics for evaluating language models.
     It is defined as the exponentiated average negative log-likelihood of a sequence,
@@ -125,6 +125,7 @@ class Perplexity_torch:
     def get_logits(self, skip_decode: bool) -> torch.tensor:
 
         is_first_token = True
+        # Add context to improve perplexity by starting at 10th token
         self.start = 10
         out_logits = []
         for i in range(self.start, self.max_prompt_length - 1):
@@ -278,7 +279,7 @@ def perplexity_torch(
     skip_decode,
 ):
 
-    perplexity = Perplexity_torch()
+    perplexity = PerplexityTorch()
 
     perplexity.load_model(
         dataset=dataset,

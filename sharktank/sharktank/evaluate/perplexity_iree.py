@@ -13,7 +13,6 @@ from tqdm import tqdm
 import torch
 
 from sharktank.models.llm import *
-from sharktank.models.llama.sharding import shard_theta
 
 from sharktank.layers import *
 from sharktank.types import *
@@ -24,7 +23,11 @@ from sharktank.utils.load_llm import *
 from sharktank.utils.create_cache import *
 from sharktank.utils.export_artifacts import *
 from sharktank.utils.evaluate import *
-from sharktank.utils.iree import iree_to_torch, with_iree_device_context
+from sharktank.utils.iree import (
+    iree_to_torch,
+    with_iree_device_context,
+    torch_tensor_to_device_array,
+)
 
 logger = logging.getLogger("eval")
 
@@ -32,10 +35,10 @@ logger.root.handlers[0].setFormatter(
     logging.Formatter(fmt="\n%(levelname)s:%(name)-8s %(message)s")
 )
 
-__all__ = ["Perplexity_iree", "run_perplexity_iree"]
+__all__ = ["PerplexityIree", "run_perplexity_iree"]
 
 
-class Perplexity_iree:
+class PerplexityIree:
     """
     Perplexity (PPL) is one of the most common metrics for evaluating language models.
     It is defined as the exponentiated average negative log-likelihood of a sequence,
@@ -73,10 +76,6 @@ class Perplexity_iree:
         self.kv_cache_dtype = kv_cache_dtype
         self.use_attention_mask = use_attention_mask
         self.use_hf = use_hf
-        self.halelementtype_map = {
-            torch.float8_e4m3fnuz: ireert.HalElementType.FLOAT_8_E4M3_FNUZ,
-            torch.bfloat16: ireert.HalElementType.BFLOAT_16,
-        }
 
     def print_token_comparison(self, i: int):
         if i <= self.max_prompt_length:
@@ -94,7 +93,6 @@ class Perplexity_iree:
             logger.debug(f"{expected_token}")
             logger.debug(f"{expected_token_id}")
 
-    @timeit
     def compile_model(
         self,
         weight_path_str: str,
@@ -131,7 +129,6 @@ class Perplexity_iree:
             )
             self.output_vmfb = export_artifacts.get_artifacts()
 
-    @timeit
     def load_model(self, dataset: Dataset, tokenizer: InferenceTokenizer):
 
         config = LlamaModelConfig(
@@ -148,7 +145,7 @@ class Perplexity_iree:
 
         theta = dataset.root_theta
 
-        model = PagedLlmModelV1(theta, self.config)
+        model = PagedLlmModelV1(theta, config)
 
         self.generator = TorchGenerator(model, tokenizer)
 
@@ -178,27 +175,9 @@ class Perplexity_iree:
             page_cache_size=self.page_cache_size,
         )
 
-        if self.kv_cache_dtype in self.halelementtype_map.keys():
-
-            cache_state = self.batch.cache_state[0]
-
-            cache_as_int16 = cache_state.to(dtype=torch.int16)
-
-            device_array_as_int16 = ireert.asdevicearray(
-                self.haldevice, unbox_tensor(cache_as_int16).to("cpu").numpy()
-            )
-
-            buffer_view = ireert.HalBufferView(
-                buffer=device_array_as_int16._buffer_view.get_buffer(),
-                shape=device_array_as_int16._buffer_view.shape,
-                element_type=self.halelementtype_map[self.kv_cache_dtype],
-            )
-            self.cache_state = ireert.DeviceArray(self.haldevice, buffer_view)
-
-        else:
-            self.cache_state = ireert.asdevicearray(
-                self.haldevice, self.batch.cache_state[0].to("cpu").numpy()
-            )
+        self.cache_state = torch_tensor_to_device_array(
+            self.batch.cache_state[0], self.haldevice
+        )
         return token_batch
 
     def prefill_vmfb(self, token_batch: torch.tensor, i: int) -> torch.tensor:
@@ -256,9 +235,8 @@ class Perplexity_iree:
         self.print_token_comparison(i)
         return decode_logits
 
-    @timeit
     def get_logits(self, skip_decode: bool) -> torch.tensor:
-
+        # Add context to improve perplexity by starting at 10th token
         self.start = 10
         self.out_logits = []
 
@@ -304,7 +282,6 @@ class Perplexity_iree:
 
         return with_iree_device_context(run_iree_module, [self.runner.config.device])
 
-    @timeit
     def get_perplexity(
         self, test_prompts: list[str], skip_decode: bool
     ) -> dict[str, Any]:
@@ -348,7 +325,7 @@ def run_perplexity_iree(
 
     test_prompts = args.prompt_list or get_prompts(num_prompts=args.num_prompts)
 
-    perplexity = Perplexity_iree(
+    perplexity = PerplexityIree(
         torch_device=torch_device,
         iree_device=args.iree_device,
         iree_hip_target=args.iree_hip_target,

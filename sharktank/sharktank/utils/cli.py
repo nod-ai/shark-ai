@@ -7,9 +7,10 @@
 """Utilities for building command line tools."""
 
 from typing import Optional, Sequence
-
 import argparse
 from pathlib import Path
+import logging
+
 import torch
 from sharktank.types import Dataset, serialized_name_to_dtype
 from . import hf_datasets, tokenizer
