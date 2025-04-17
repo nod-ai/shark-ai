@@ -53,3 +53,19 @@ python -m examples.simple <model_file_path> <benchmark_file_path> \
     --num-candidates=<num_generated_candidates> \
     --codegen-pipeline=<codegen_pipeline>
 ```
+
+## Algorithm of tuner
+### Tuning algorithm
+1. Generate Candidate specs
+2. Compile candidate
+3. Benchmark for candidates
+  - Baseline benchmark for candidates (now serially over all the given devices)
+  - Candidate benchmark (parallel over all the given devices)
+  - Second baseline run to check for any regression.
+  - Return top candidates
+4. Compile models
+5. Benchmark for models
+  - Baseline benchmark for models (now serially over all the given devices)
+  - Model benchmark (parallel over all the given devices)
+  - Second baseline run to check for any regression.
+  - Return top model candidates
