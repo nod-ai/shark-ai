@@ -10,7 +10,7 @@ import json
 import numpy as np
 import gc
 
-from sharktank.evaluate import PerplexityTorch
+from sharktank.evaluate import perplexity_torch
 from sharktank.utils.testing import (
     is_mi300x,
     is_nightly,
@@ -41,7 +41,7 @@ class PerplexityTest(unittest.TestCase):
         model_name = "llama3_8B_f16_torch"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
-        current_perplexity = PerplexityTorch.main(
+        current_perplexity = perplexity_torch.main(
             [
                 f"--irpa-file={self.llama3_8b_f16_model}",
                 f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
@@ -73,7 +73,7 @@ class PerplexityTest(unittest.TestCase):
         model_name = "llama3_8B_f8_torch"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
-        current_perplexity = PerplexityTorch.main(
+        current_perplexity = perplexity_torch.main(
             [
                 f"--irpa-file={self.llama3_8b_f8_model}",
                 f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
@@ -112,7 +112,7 @@ class PerplexityTest(unittest.TestCase):
         model_name = "llama3_405B_f16_torch"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
-        current_perplexity = PerplexityTorch.main(
+        current_perplexity = perplexity_torch.main(
             [
                 f"--irpa-file={self.llama3_405b_f16_model}",
                 f"--tokenizer-config-json={self.llama3_405b_tokenizer}",
@@ -148,7 +148,7 @@ class PerplexityTest(unittest.TestCase):
         model_name = "llama3_405B_f8_torch"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
-        current_perplexity = PerplexityTorch.main(
+        current_perplexity = perplexity_torch.main(
             [
                 f"--irpa-file={self.llama3_405b_f8_model}",
                 f"--tokenizer-config-json={self.llama3_405b_tokenizer}",
