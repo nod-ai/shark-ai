@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 import torch
-from sharktank.layers.configs import *
+from sharktank.layers.configs.llm_configs import *
 from sharktank.examples.paged_llm_v1 import *
 from sharktank.models.llm import *
 from sharktank.utils import tokenizer, hf_datasets

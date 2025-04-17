@@ -14,8 +14,9 @@ from .rotary_embedding import RotaryEmbeddingLayer
 from .token_embedding import TokenEmbeddingLayer
 from .paged_llama_attention_block import PagedLlamaAttentionBlock
 from .ffn_block import FFN
-from .ffn_moe_block import FFNMOE
+from .ffn_moe_block import FFNMOE, PreGatherFFNMOE
 from .mixture_of_experts_block import MoeBlock
 from .mmdit import MMDITDoubleBlock, MMDITSingleBlock
+from .modulation import ModulationLayer
 
 from .configs import *

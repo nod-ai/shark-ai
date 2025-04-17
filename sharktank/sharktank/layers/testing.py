@@ -5,9 +5,9 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import torch
-from ..types.theta import Theta
-from ..types.tensors import DefaultPrimitiveTensor
-from ..utils.testing import make_rand_torch
+from sharktank.types.theta import Theta
+from sharktank.types.tensors import DefaultPrimitiveTensor
+from sharktank.utils.testing import make_rand_torch
 
 
 def make_llama_attention_block_theta(

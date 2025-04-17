@@ -9,6 +9,8 @@ import dataclasses
 import io
 import json
 import logging
+
+from copy import copy
 from typing import List
 
 import shortfin as sf
@@ -146,7 +148,6 @@ class ClientGenerateBatchProcess(sf.Process):
         self.complete_infeed = self.system.create_queue()
 
         self.decode_config = service.server_params.decode_config
-        self.decode_config.update_from_sampling_params(gen_req.sampling_params)
 
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
@@ -166,6 +167,12 @@ class ClientGenerateBatchProcess(sf.Process):
             else:
                 input_batch = self.tokenize()
             for index, input_tokens in enumerate(input_batch):
+                decode_config = copy(self.decode_config)
+                decode_config.update_from_sampling_params(
+                    self.gen_req.sampling_params
+                    if self.gen_req.is_single
+                    else self.gen_req.sampling_params[index]
+                )
                 gen_process = GenerateItemProcess(
                     self,
                     self.gen_req,
@@ -175,7 +182,7 @@ class ClientGenerateBatchProcess(sf.Process):
                     else self.gen_req.text[index],
                     input_tokens if is_pretokenized else input_tokens.ids,
                     eos_token_id=self.tokenizer.eos_token_id,
-                    decode_config=self.decode_config,
+                    decode_config=decode_config,
                 )
                 gen_processes.append(gen_process)
                 gen_process.launch()

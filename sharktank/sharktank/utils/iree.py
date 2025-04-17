@@ -4,12 +4,13 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from copy import deepcopy
 from typing import Any, Callable, List, Tuple, Optional, Union, overload, TYPE_CHECKING
-from pathlib import Path
 import os
 import sys
 import json
+from copy import deepcopy
+from pathlib import Path
+
 import numpy as np
 import collections.abc
 from collections import OrderedDict

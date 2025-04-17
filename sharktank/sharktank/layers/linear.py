@@ -7,15 +7,11 @@
 from typing import Optional
 
 import torch
-from .. import ops
+from sharktank import ops
 from .base import Theta, ThetaLayer
-from ..types import (
-    DynamicScaledQuantizer,
+from sharktank.types import (
     QuantizedTensor,
     QuantizerTensor,
-    StaticScaledQuantizer,
-    TensorScaledLayout,
-    PlanarQuantizedTensor,
 )
 
 __all__ = [

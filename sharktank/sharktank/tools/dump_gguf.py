@@ -9,16 +9,15 @@ import re
 import logging
 
 import numpy as np
-import torch
 
-from ..layers import *
-from ..types import *
+from sharktank.layers import *
+from sharktank.types import *
+from sharktank.utils import cli
 
 logger = logging.getLogger(__name__)
 
 
 def main():
-    from ..utils import cli
 
     # Set up logging
 

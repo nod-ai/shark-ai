@@ -67,7 +67,7 @@ def main():
     model = PagedLlmModelV1(dataset.root_theta, config)
 
     if args.save_intermediates_path:
-        from ..utils.patching import SaveModuleResultTensorsPatch
+        from sharktank.utils.patching import SaveModuleResultTensorsPatch
 
         intermediates_saver = SaveModuleResultTensorsPatch()
         intermediates_saver.patch_child_modules(model)

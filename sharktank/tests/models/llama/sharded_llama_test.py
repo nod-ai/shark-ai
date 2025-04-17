@@ -4,20 +4,27 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from typing import Any, Tuple, OrderedDict
 import unittest
 import pytest
-from typing import Any, Tuple, OrderedDict
-from sharktank.models.llm import *
-import sharktank.ops as ops
+import tempfile
+from copy import deepcopy
+import os
+import numpy as np
+import torch
+
+from sharktank.layers.configs.llm_configs import *
 from sharktank.types import Dataset, UnreducedTensor, SplitPrimitiveTensor
+from sharktank.models.llm import *
 from sharktank.models.llama.testing import make_random_llama_theta
+from sharktank.models.llama.sharding import shard_theta
+import sharktank.ops as ops
+
 from sharktank.utils.testing import (
     assert_cosine_similarity_close,
     get_iree_compiler_flags,
     is_hip_condition,
 )
-from sharktank.models.llama.sharding import shard_theta
-from sharktank.layers.configs import LlamaHParams, LlamaModelConfig
 from sharktank.utils.math import round_up_to_multiple_of
 from sharktank.utils import iterables_equal
 from sharktank.utils.iree import (
@@ -29,16 +36,10 @@ from sharktank.utils.iree import (
     call_torch_module_function,
     iree_to_torch,
 )
-import sharktank.ops as ops
 from sharktank.utils.export import export as sharktank_export
 
-import tempfile
-import torch
-from copy import deepcopy
 from iree.turbine.aot import FxProgramsBuilder, export
 import iree
-import numpy as np
-import os
 
 
 @pytest.mark.usefixtures("caching", "path_prefix", "get_iree_flags")

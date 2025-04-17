@@ -11,8 +11,8 @@ import torch.nn.functional as F
 
 from .base import ThetaLayer
 from .linear import LinearLayer
-from ..types import Theta, DefaultPrimitiveTensor
-from ..ops import einsum_2args, elementwise
+from sharktank.types import Theta, DefaultPrimitiveTensor
+from sharktank.ops import einsum_2args, elementwise
 
 __all__ = [
     "FFNMOE",

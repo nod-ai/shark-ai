@@ -4,8 +4,8 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import functools
 from typing import Optional, Union
+from os import PathLike
 import transformers
 from transformers.models.clip.modeling_clip import (
     CLIPAttention as HfCLIPAttention,
@@ -13,13 +13,9 @@ from transformers.models.clip.modeling_clip import (
     CLIPEncoder as HfCLIPEncoder,
 )
 import torch
-from os import PathLike
 
-from ...types.theta import Theta, Dataset, torch_module_to_theta
-from ...layers.configs import ClipTextConfig
-from .clip import ClipTextModel
-from iree.turbine.aot import FxProgramsBuilder, export
-from sharktank.transforms.dataset import set_float_dtype
+from sharktank.types.theta import Theta, Dataset, torch_module_to_theta
+from sharktank.layers.configs import ClipTextConfig
 
 
 def hugging_face_clip_attention_to_theta(model: HfCLIPAttention) -> Theta:

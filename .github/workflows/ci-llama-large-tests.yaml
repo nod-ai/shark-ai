@@ -70,7 +70,6 @@ jobs:
           source ${VENV_DIR}/bin/activate
           pytest sharktank/tests/models/llama/benchmark_amdgpu_test.py \
             -v -s \
-            -m "expensive" \
             --run-nightly-llama-tests \
             --iree-hip-target=gfx942 \
             --iree-device=hip://0 \
