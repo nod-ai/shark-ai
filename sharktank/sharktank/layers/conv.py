@@ -8,8 +8,8 @@ from typing import Optional, Tuple
 
 import torch
 
-from .. import ops
-from ..types import *
+from sharktank import ops
+from sharktank.types import *
 
 from .base import Theta, ThetaLayer
 

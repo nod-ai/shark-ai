@@ -114,7 +114,7 @@ def upload_all_models(
     Will generate temporary export artifacts.
     If MD5 hashes match with the existing blobs nothing will be uploaded.
     Creates snapshots if files need updating."""
-    from ..models.flux.export import export_flux_transformer_models
+    from sharktank.models.flux.export import export_flux_transformer_models
 
     blob_service_client = create_blob_service_client(account_name, account_key)
 

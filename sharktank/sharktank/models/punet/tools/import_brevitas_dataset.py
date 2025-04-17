@@ -27,7 +27,8 @@ import safetensors
 import sys
 import torch
 
-from ....types import *
+from sharktank.types import *
+from sharktank.utils import cli
 
 # It is possible to import quant params from stock unet weights for testing.
 # Quality won't be great but needs SMOOTHQUANT prescaling disabled to work
@@ -303,7 +304,6 @@ def apply_per_layer_quant(
 
 
 def main(argv):
-    from ....utils import cli
 
     parser = cli.create_parser()
     cli.add_output_dataset_options(parser)

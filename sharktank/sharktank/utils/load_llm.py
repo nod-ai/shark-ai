@@ -12,8 +12,8 @@ from sharktank.layers import *
 from sharktank.types import *
 from sharktank.models.llm import *
 
-from ..utils.debugging import trace_tensor
-from ..utils.tokenizer import InferenceTokenizer
+from sharktank.utils.debugging import trace_tensor
+from sharktank.utils.tokenizer import InferenceTokenizer
 
 
 class TorchGenerator:

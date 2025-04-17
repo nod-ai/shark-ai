@@ -34,7 +34,7 @@ from iree.turbine.runtime.op_reg import (
 
 from iree.turbine.transforms.merger import Merger
 
-from ..utils.logging import get_logger
+from sharktank.utils.logging import get_logger
 
 LIBRARY = def_library("sharktank")
 TEMPLATES_DIR = Path(__file__).parent / "templates"

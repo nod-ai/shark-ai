@@ -9,27 +9,27 @@ https://github.com/huggingface/transformers/blob/v4.40-release/src/transformers/
 """
 
 from typing import Any, Optional, Tuple
-from dataclasses import dataclass, field
 import math
-import torch
-from torch import nn
 import copy
 import logging
 import warnings
 from collections import OrderedDict
+import torch
+from torch import nn
 
-from ...layers import (
+from sharktank.layers import (
     BaseLayer,
     ThetaLayer,
     RMSNormLayer,
     TokenEmbeddingLayer,
     LinearLayer,
+    FFN,
+    T5Config,
 )
-from ... import ops
-from ...types.theta import Theta
-from ...types.tensors import AnyTensor
-from ...layers import FFN, T5Config
-from ...layers.activations import ACT2FN
+from sharktank import ops
+from sharktank.types.theta import Theta
+from sharktank.types.tensors import AnyTensor
+from sharktank.layers.activations import ACT2FN
 
 __all__ = [
     "T5Config",

@@ -9,10 +9,11 @@
 from pathlib import Path
 import sys
 
-import matplotlib
 import matplotlib.pyplot as plt
 from safetensors import safe_open
 import torch
+
+from sharktank.utils import cli
 
 
 class Reporter:
@@ -119,7 +120,6 @@ class Reporter:
 
 
 def main(argv):
-    from ..utils import cli
 
     parser = cli.create_parser()
     parser.add_argument("--dir", type=Path, required=True, help="Output directory")
