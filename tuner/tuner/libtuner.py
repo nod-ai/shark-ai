@@ -874,7 +874,7 @@ def benchmark_baseline(
                 pbar.update(1)  # Update progress bar
         except KeyboardInterrupt:
             # If Ctrl+C is pressed, terminate all child processes.
-            sys.exit(1)  # Exit the script
+            sys.exit(1)  # Exit the script.
 
     return baseline_results
 
