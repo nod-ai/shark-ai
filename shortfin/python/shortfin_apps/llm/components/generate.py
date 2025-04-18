@@ -157,6 +157,7 @@ class ClientGenerateBatchProcess(sf.Process):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
 
         # Try to add request to queue
+        # TODO(@zphoenixrises): Add load testing and integration tests for this.
         if not self.service.add_to_queue():
             error_response = JSONResponse(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
