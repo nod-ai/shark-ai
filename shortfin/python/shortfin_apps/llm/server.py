@@ -68,7 +68,7 @@ def parse_args(argv):
     return parser.parse_args(argv)
 
 
-def main(argv, log_config=uvicorn.config.LOGGING_CONFIG):
+def run_server(argv, log_config=uvicorn.config.LOGGING_CONFIG, port: int | None = None):
     args = parse_args(argv)
     if args.tokenizer_config_json is None:
         # this is only used for the EOS token
@@ -84,7 +84,7 @@ def main(argv, log_config=uvicorn.config.LOGGING_CONFIG):
     uvicorn.run(
         get_app(lifecycle_manager.fastapi_lifespan),
         host=args.host,
-        port=args.port,
+        port=port or args.port,
         log_config=log_config,
         timeout_keep_alive=args.timeout_keep_alive,
     )
@@ -94,7 +94,7 @@ if __name__ == "__main__":
     from shortfin.support.logging_setup import configure_main_logger
 
     logger = configure_main_logger("server")
-    main(
+    run_server(
         sys.argv[1:],
         # Make logging defer to the default shortfin logging config.
         log_config=UVICORN_LOG_CONFIG,

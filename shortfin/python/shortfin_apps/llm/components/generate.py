@@ -160,7 +160,7 @@ class ClientGenerateBatchProcess(sf.Process):
         if not self.service.add_to_queue():
             error_response = JSONResponse(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                cogitntent={
+                content={
                     "error": "Server queue is full. Please try again later.",
                     "code": "QUEUE_FULL",
                     "current_size": self.service.current_queue_size,

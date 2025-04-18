@@ -7,7 +7,6 @@
 """Export support for the PagedLLMV1 protocol of models."""
 
 import os
-import logging
 import json
 from typing import Any, Dict
 import torch

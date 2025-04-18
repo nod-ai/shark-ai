@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from typing import Any, Callable, List, Tuple, Optional, Union, overload, TYPE_CHECKING
+from pathlib import Path
 import os
 import sys
 import json
@@ -34,10 +35,8 @@ import iree.runtime
 if TYPE_CHECKING:
     from ..layers import ModelConfig
 
-halelementtype_map = {
-    torch.float8_e4m3fnuz: iree.runtime.HalElementType.FLOAT_8_E4M3_FNUZ,
-    torch.bfloat16: iree.runtime.HalElementType.BFLOAT_16,
-}
+if TYPE_CHECKING:
+    from ..layers import ModelConfig
 
 
 def with_iree_device_context(
