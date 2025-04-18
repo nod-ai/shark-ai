@@ -7,13 +7,17 @@
 """Compares two safetensors files of expected vs actual results."""
 
 from pathlib import Path
-import sys
-
-import matplotlib.pyplot as plt
 from safetensors import safe_open
-import torch
-
 from sharktank.utils import cli
+
+import json
+import matplotlib.pyplot as plt
+import sys
+import torch
+import yaml
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Reporter:
@@ -23,7 +27,7 @@ class Reporter:
         self.counter = 0
         self.index = open(self.output_dir / "index.html", "wt")
         self.index.write("<html>\n")
-        self.index.write("<body>\n")
+        self.index.write('<body style="background-color:white;">\n')
 
     def close(self):
         self.index.write("</body>\n")
@@ -37,6 +41,8 @@ class Reporter:
             style = ""
             if color:
                 style = f"color: {color}"
+            else:
+                style = f"color: black"
             f.write(f"<div style='font-family: monospace; white-space: pre; {style}'>")
             f.write(line)
             f.write("</div>\n")
@@ -51,6 +57,20 @@ class Reporter:
                 f"MEAN={mean}, STD={std}"
             )
 
+        f.write("<hr>\n")
+        f.write(f"<h3>{name}</h3>\n")
+
+        if expected.shape != actual.shape:
+            print_line(
+                f" Shape mismatch {expected.shape} (expected) != {actual.shape} (actual).",
+                color="red",
+            )
+            logger.warning(
+                f"Shape mismatch for {name}: {expected.shape} (expected) != {actual.shape} (actual)."
+            )
+            if expected.numel() != actual.numel():
+                return
+
         exp_flat = expected.flatten().to(torch.float32)
         act_flat = actual.flatten().to(torch.float32)
         diff_flat = exp_flat - act_flat
@@ -61,8 +81,6 @@ class Reporter:
         exp_min = torch.min(exp_flat)
         bound = torch.abs(exp_max - exp_min) / 2.0
 
-        f.write("<hr>\n")
-        f.write(f"<h3>{name}</h3>\n")
         non_finite_count = (
             torch.nonzero(torch.logical_not(torch.isfinite(diff_flat)))
             .flatten()
@@ -124,12 +142,31 @@ def main(argv):
     parser = cli.create_parser()
     parser.add_argument("--dir", type=Path, required=True, help="Output directory")
     parser.add_argument(
+        "--keys_map_path",
+        type=Path,
+        default=None,
+        help=(
+            "Path to JSON or YAML file that maps an name of expected tensors to name "
+            'of actual tensors. E.g. {"a": "b", "c": "d"}'
+        ),
+    )
+    parser.add_argument(
         "expected_path", type=Path, help="Path to expected safetensors file"
     )
     parser.add_argument(
         "actual_path", type=Path, help="Path to actual safetensors file"
     )
     args = cli.parse(parser, args=argv)
+
+    expected_actual_to_key_map: dict[str, str] = {}
+    if args.keys_map_path is not None:
+        keys_map_path: Path = args.keys_map_path
+        with open(keys_map_path, "r") as f:
+            if keys_map_path.suffix == ".json":
+                expected_actual_to_key_map = json.load(f)
+            else:
+                expected_actual_to_key_map = yaml.safe_load(f)
+        assert isinstance(expected_actual_to_key_map, dict)
 
     reporter = Reporter(args.dir)
     try:
@@ -139,9 +176,14 @@ def main(argv):
             exp_keys = exp_f.keys()
             act_keys = act_f.keys()
             for name in exp_keys:
-                if name not in act_keys:
+                act_name = name
+                if name in expected_actual_to_key_map:
+                    act_name = expected_actual_to_key_map[name]
+                if act_name not in act_keys:
                     continue
-                reporter.compare(name, exp_f.get_tensor(name), act_f.get_tensor(name))
+                reporter.compare(
+                    name, exp_f.get_tensor(name), act_f.get_tensor(act_name)
+                )
     finally:
         reporter.close()
 

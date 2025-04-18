@@ -9,6 +9,7 @@ from typing import Optional
 
 import torch
 
+from .norm import L2Norm
 from sharktank.types import (
     QuantizerTensor,
     ReplicatedTensor,
@@ -42,6 +43,11 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         softcap: Optional[float] = None,
         fake_quant: Optional[bool] = True,
         block_to_device_lookup: tuple[tuple[int, ...], ...] | None = None,
+        use_rope: bool = True,
+        use_qk_norm=False,
+        attn_temperature_tuning: bool = False,
+        floor_scale: Optional[float] = None,
+        attn_scale: Optional[float] = None,
     ):
         super().__init__(theta)
 
@@ -66,6 +72,11 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self.fake_quant = fake_quant
         self.cache_quantizer = None
         self.probs_quantizer = None
+        self.use_rope = use_rope
+        self.use_qk_norm = use_qk_norm
+        self.attn_temperature_tuning = attn_temperature_tuning
+        self.floor_scale = floor_scale
+        self.attn_scale = attn_scale
 
         self.add_module(
             "attn_norm", RMSNormLayer(theta("attn_norm"), epsilon=rms_epsilon)
@@ -79,6 +90,9 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self.add_module(
             "attn_v", LinearLayer(theta("attn_v"), fake_quant=self.fake_quant)
         )
+        if self.use_qk_norm:
+            self.qk_norm = L2Norm(dim=-1, epsilon=rms_epsilon)
+
         self.add_module(
             "attn_output", LinearLayer(theta("attn_output"), fake_quant=self.fake_quant)
         )
@@ -137,12 +151,37 @@ class PagedLlamaAttentionBlock(ThetaLayer):
 
         # Fast path to start_index based embedding lookup if available.
         # Falls back to a slower position based index lookup.
-        if start_index is not None:
-            xq = embedding.forward(xt=xq, start_index=start_index)
-            xk = embedding.forward(xt=xk, start_index=start_index)
-        else:
-            xq = embedding.apply_batched_mask(xt=xq, mask=embedding_batch_mask)
-            xk = embedding.apply_batched_mask(xt=xk, mask=embedding_batch_mask)
+        if self.use_rope:
+            if start_index is not None:
+                xq = embedding.forward(xt=xq, start_index=start_index)
+                xk = embedding.forward(xt=xk, start_index=start_index)
+            else:
+                xq = embedding.apply_batched_mask(xt=xq, mask=embedding_batch_mask)
+                xk = embedding.apply_batched_mask(xt=xk, mask=embedding_batch_mask)
+
+        if self.use_qk_norm:
+            xq = self.qk_norm(xq)
+            xk = self.qk_norm(xk)
+
+        # Use temperature tuning from https://arxiv.org/abs/2501.19399
+        # Ken M. Nakanishi - Scalable-Softmax Is Superior for Attention (2025)
+        if self.attn_temperature_tuning and not self.use_rope:
+            if start_positions is None:
+                cache_position = torch.arange(0, h.shape[1], dtype=torch.long)
+            else:
+                assert False, "TODO: decode step"
+            attn_scales = (
+                torch.log(
+                    torch.floor((cache_position.float() + 1.0) / self.floor_scale) + 1.0
+                )
+                * self.attn_scale
+                + 1.0
+            )
+            input_shape = h.shape[:-1]
+            attn_scales = attn_scales.view((1, input_shape[-1], 1, 1)).expand(
+                (*input_shape, 1, 1)
+            )  # batch size > 1
+            xq = (xq * attn_scales).to(xq.dtype)
 
         # Full sequence length.
         kv_seq_len = seq_block_ids.shape[1] * self.paged_attention.block_seq_stride

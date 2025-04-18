@@ -30,12 +30,14 @@ class FFN(ThetaLayer):
         activation_fn: Callable[[AnyTensor], AnyTensor] = F.silu,
         activation_dtype: Optional[torch.dtype] = torch.float16,
         fake_quant: bool = False,
+        add_residual: bool = True,
     ):
         super().__init__(theta)
 
         self.is_gated = is_gated
         self.activation_fn = activation_fn
         self.ffn_norm = torch.nn.Identity()
+        self.add_residual = add_residual
 
         if self.is_gated:
             self.add_module(
@@ -59,6 +61,8 @@ class FFN(ThetaLayer):
         self,
         h: AnyTensor,
     ) -> AnyTensor:
+        if self.add_residual:
+            residual = h
 
         h_norm = self.ffn_norm(h)
         if self.is_gated:
@@ -70,4 +74,8 @@ class FFN(ThetaLayer):
             ffn_act = ops.elementwise(self.activation_fn, ffn_up)
             ffn_down = self.ffn_down(ffn_act)
 
-        return h + ffn_down
+        h = ffn_down
+        if self.add_residual:
+            h = h + residual
+
+        return h
