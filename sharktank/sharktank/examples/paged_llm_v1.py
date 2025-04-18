@@ -18,16 +18,7 @@ from sharktank.utils import cli
 
 
 def main():
-    """
-    Run LLM inference in torch/eager mode. Use --device='cuda:0' to run on AMD GPU
-    Args:
-        --prompt: list[str] - Custom space separated prompts
-        --prompt-seq-len: int - Generate random token ids for given seq len and bs and save prefill & first decode step input args as npy files
-        --dump-path: str - Path to save prefill and decode input args as npy files
-        --dump-decode-steps: int - Number of decode steps to dump decode args (defaults to 1 decode step)
-        --bs: int - batch size, for custom prompts, bs is number of given prompts (defaults to 4)
-        --save_intermediates_path: str - save module forward outputs to safetensors, ex: run_0 will save to run_0_prefill.savetensors"
-    """
+    from ..utils import cli
 
     parser = cli.create_parser()
     cli.add_input_dataset_options(parser)
@@ -38,13 +29,6 @@ def main():
     cli.add_save_tensor_options(parser)
 
     args = cli.parse(parser)
-
-    prompt_seq_len = args.prompt_seq_len
-
-    assert (
-        args.prompt or prompt_seq_len
-    ), "Pass --prompt for custom prompts or --prompt-seq-len and --bs to generate random token ids"
-
     device = torch.device(args.device) if args.device else None
     dataset = cli.get_input_dataset(args)
     tokenizer = cli.get_tokenizer(args)
@@ -74,15 +58,11 @@ def main():
 
     generator = TorchGenerator(model, tokenizer)
 
-    token_ids, seq_lens = generator.preprocess_prompts(
-        prompts=args.prompt, prompt_seq_len=prompt_seq_len, bs=args.bs
-    )
+    token_ids, seq_lens = generator.preprocess_prompts(prompts=args.prompt)
     batch = generator.begin_batch(
         token_ids=token_ids,
         seq_lens=seq_lens,
-        prompt_seq_len=prompt_seq_len,
-        dump_path=args.dump_path,
-        dump_decode_steps=args.dump_decode_steps,
+        dump_bins=args.dump_bins,
     )
     results = batch.prefill()
     batch.print_current_results()
@@ -101,7 +81,8 @@ def main():
                 intermediates_saver.save_file(
                     args.save_intermediates_path + f"_step_{counter}.safetensors"
                 )
-
+            print(f":: Result tokens: {batch.results}")
+            batch.print_current_results()
             counter += 1
 
         if len(batch.parent.free_pages) == 0:

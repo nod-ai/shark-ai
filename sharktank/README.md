@@ -28,7 +28,8 @@ Note: Use `--device='cuda:0'` to run this inference on an AMD GPU.
 ```shell
 python -m sharktank.examples.paged_llm_v1 \
   --hf-dataset=open_llama_3b_v2_f16_gguf \
-  --prompt "Prompt 1" "Prompt 2" ...
+  "Prompt 1" \
+  "Prompt 2" ...
 ```
 
 ### Export an IREE compilable batched LLM for serving:
@@ -38,17 +39,6 @@ python -m sharktank.examples.export_paged_llm_v1 \
   --hf-dataset=open_llama_3b_v2_f16_gguf \
   --output-mlir=/tmp/open_llama_3b_v2_f16.mlir \
   --output-config=/tmp/open_llama_3b_v2_f16.json
-```
-
-### Generate sample input tokens for IREE inference/tracy:
-
-```shell
-python -m sharktank.examples.paged_llm_v1 \
-  --hf-dataset=open_llama_3b_v2_f16_gguf \
-  --prompt-seq-len=128 \
-  --bs=4 \
-  --dump-decode-steps=1 \
-  --dump-path='/tmp'
 ```
 
 ### Dump parsed information about a model from a gguf file:

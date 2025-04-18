@@ -74,10 +74,6 @@ class InferenceTokenizer(ABC):
 
         return token_ids, lengths
 
-    @property
-    def vocab_size(self):
-        return self._vocab_size()
-
     @abstractmethod
     def _encode(self, texts: list[str]) -> list[list[int]]:
         ...
@@ -132,9 +128,6 @@ def _create_transformers_tokenizer(model_path: os.PathLike) -> InferenceTokenize
 
         def _decode(self, tokens: list[list[int]]) -> list[str]:
             return t.batch_decode(tokens)
-
-        def _vocab_size(self):
-            return t.vocab_size
 
     return _TransformersTokenizer(t)
 
