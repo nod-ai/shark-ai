@@ -181,7 +181,7 @@ class ClientGenerateBatchProcess(sf.Process):
             gen_processes = []
             input_ids = self.gen_req.input_ids
             is_pretokenized = input_ids is not None
-            
+            # TODO: We should send this to an executor and await the results.
             if is_pretokenized:
                 input_batch = [input_ids] if self.gen_req.is_single else input_ids
             else:

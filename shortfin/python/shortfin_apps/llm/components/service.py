@@ -23,7 +23,6 @@ from .tokenizer import Tokenizer
 from .token_selection_strategy import get_strategy_from_str, is_ref_counted
 
 from ...utils import GenerateService
-from multiprocessing import Queue
 
 logger = logging.getLogger(__name__)
 
