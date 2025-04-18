@@ -14,6 +14,7 @@ from sharktank.layers import *
 from sharktank.types import *
 from sharktank.models.llm import *
 
+from sharktank.ops import replicate, unshard
 from sharktank.utils.debugging import trace_tensor
 from sharktank.utils.tokenizer import InferenceTokenizer
 
