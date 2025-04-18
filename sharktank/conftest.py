@@ -142,6 +142,12 @@ def pytest_addoption(parser):
         help="Llama3.1 8b model path, defaults to 30F CI system path",
     )
     parser.addoption(
+        "--llama3-8b-f16-tp2-model-path",
+        type=Path,
+        action="store",
+        help="Llama3.1 8b tp2 model path, defaults to 30F CI system path",
+    )
+    parser.addoption(
         "--llama3-8b-f8-model-path",
         type=Path,
         action="store",
@@ -328,6 +334,9 @@ def get_model_artifacts(request: FixtureRequest):
     )
     model_path["llama3_8b_f16_model_path"] = set_fixture_from_cli_option(
         request, "--llama3-8b-f16-model-path", "llama3_8b_f16_model"
+    )
+    model_path["llama3_8b_f16_tp2_model_path"] = set_fixture_from_cli_option(
+        request, "--llama3-8b-f16-tp2-model-path", "llama3_8b_f16_tp2_model"
     )
     model_path["llama3_8b_f8_model_path"] = set_fixture_from_cli_option(
         request, "--llama3-8b-f8-model-path", "llama3_8b_f8_model"

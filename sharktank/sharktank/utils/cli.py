@@ -114,6 +114,12 @@ def add_model_options(parser: argparse.ArgumentParser):
         help="Number of devices for tensor parallel sharding. Will be overridden by dataset.properties if present",
     )
     parser.add_argument(
+        "--pipeline-parallelism-size",
+        type=int,
+        default=1,
+        help="Number of (roughly) uniform groups of layers to split the model for pipeline parallelism.",
+    )
+    parser.add_argument(
         "--block-seq-stride",
         help="Block sequence stride for paged KV cache, must divide evenly into the context length",
         type=int,
