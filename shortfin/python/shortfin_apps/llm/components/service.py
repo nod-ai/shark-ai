@@ -60,8 +60,6 @@ class LlmGenerateService(GenerateService):
 
     def initialize_queues(self):
         """Initialize request and response queues"""
-        self.request_queue = self.sysman.ls.create_queue(f"{self.name}-request-queue")
-        self.response_queue = self.sysman.ls.create_queue(f"{self.name}-response-queue")
         if self.model_params.decode_batch_sizes:
             self.max_queue_size = max(self.model_params.decode_batch_sizes) + 2
             print(f"Max queue size: {self.max_queue_size}")

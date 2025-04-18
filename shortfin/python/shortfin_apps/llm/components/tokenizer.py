@@ -34,6 +34,7 @@ class Tokenizer:
 
     @staticmethod
     def from_tokenizer_json_file(json_path: Path | str, eos_token: str):
+        print(f"Loading tokenizer from {json_path}")
         return Tokenizer(
             tokenizers.Tokenizer.from_file(str(json_path)), eos_token=eos_token
         )
