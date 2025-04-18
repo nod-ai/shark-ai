@@ -36,6 +36,7 @@ def add_input_args(parser):
 
 
 def add_service_args(parser: argparse.ArgumentParser):
+    # TODO separate the server args from the `offline` args
     get_system_args(parser)
 
     parser.add_argument(
@@ -70,7 +71,7 @@ def add_service_args(parser: argparse.ArgumentParser):
         metavar="FILE",
     )
     parser.add_argument(
-        "--isolation",
+        "--program_isolation",
         type=str,
         default="per_call",
         choices=[isolation.name.lower() for isolation in ProgramIsolation],
@@ -113,10 +114,22 @@ def add_service_args(parser: argparse.ArgumentParser):
         help="Temperature value to use for `offline` generation.",
     )
     parser.add_argument(
+        "--workers_offline",
+        type=int,
+        default=1,
+        help="Number of workers to use when running in `offline` mode.",
+    )
+    parser.add_argument(
         "--workers",
         type=int,
         default=1,
-        help="Number of concurrent requests that should be running",
+        help="Number of workers to use when running in `server` mode.",
+    )
+    parser.add_argument(
+        "--fibers_per_worker",
+        type=int,
+        default=1,
+        help="Number of fibers to use per worker.",
     )
     parser.add_argument(
         "--benchmark",
@@ -243,10 +256,10 @@ async def main(argv):
             task.result = responder.response.result()
             queue.task_done()
 
-    logger.info(msg=f"Setting up {args.workers} workers")
+    logger.info(msg=f"Setting up {args.workers_offline} workers")
     workers = []
     queue = asyncio.Queue()
-    for i in range(args.workers):
+    for i in range(args.workers_offline):
         name = f"worker-{i}"
         workerr = service.sysman.ls.create_worker(name)
         fiber = service.sysman.ls.create_fiber(workerr)
