@@ -57,7 +57,7 @@ class LlmGenerateService(GenerateService):
         self.initialize_worker_and_fiber()
         self.initialize_queues()
         self.initialize_page_cache()
-    
+
     def initialize_queues(self):
         """Initialize request and response queues"""
         self.request_queue = self.sysman.ls.create_queue(f"{self.name}-request-queue")
@@ -79,7 +79,7 @@ class LlmGenerateService(GenerateService):
             self.current_queue_size -= 1
 
     def initialize_worker_and_fiber(self):
-        
+
         self.main_worker = self.sysman.ls.create_worker(f"{self.name}-inference")
         self.main_fiber = self.sysman.ls.create_fiber(self.main_worker)
         self.prefill_fiber = self.sysman.ls.create_fiber(self.main_worker)

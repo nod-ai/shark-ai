@@ -155,7 +155,7 @@ class ClientGenerateBatchProcess(sf.Process):
 
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
-        
+
         # Try to add request to queue
         if not self.service.add_to_queue():
             error_response = JSONResponse(
@@ -164,8 +164,8 @@ class ClientGenerateBatchProcess(sf.Process):
                     "error": "Server queue is full. Please try again later.",
                     "code": "QUEUE_FULL",
                     "current_size": self.service.current_queue_size,
-                    "max_size": self.service.max_queue_size
-                }
+                    "max_size": self.service.max_queue_size,
+                },
             )
             self.responder.send_response(error_response)
             self.responder.ensure_response()
@@ -186,7 +186,7 @@ class ClientGenerateBatchProcess(sf.Process):
                 input_batch = [input_ids] if self.gen_req.is_single else input_ids
             else:
                 input_batch = self.tokenize()
-            
+
             for index, input_tokens in enumerate(input_batch):
                 decode_config = copy(self.decode_config)
                 decode_config.update_from_sampling_params(
@@ -210,7 +210,7 @@ class ClientGenerateBatchProcess(sf.Process):
 
             await asyncio.gather(*gen_processes)
             self.generate_response(gen_processes, streaming)
-        
+
         finally:
             # Remove request from queue when done
             self.service.remove_from_queue()
