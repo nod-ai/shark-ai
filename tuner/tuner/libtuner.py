@@ -858,8 +858,8 @@ def benchmark_baseline(
     # Use tqdm to create a progress bar.
     with tqdm(total=len(devices)) as pbar:
         try:
-            for worker_id_, device_id_ in enumerate(devices):
-                worker_id = worker_id_
+            worker_id = 0
+            for device_id_ in devices:
                 device_id = device_id_
                 result = run_iree_benchmark_module_command(
                     BenchmarkPack(
