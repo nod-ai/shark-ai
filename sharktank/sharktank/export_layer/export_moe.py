@@ -9,7 +9,9 @@ import torch.nn.functional as F
 
 from iree.turbine.aot import *
 
-from sharktank.models.llama.testing import make_moe_block_theta, make_rand_torch
+from sharktank.types import Theta
+from sharktank.layers.testing import make_random_moe_block_theta
+from sharktank.utils.testing import make_rand_torch
 from sharktank.layers.mixture_of_experts_block import MoeBlock
 from sharktank.utils import cli
 
@@ -49,8 +51,10 @@ def main():
 
     bs = args.batch_size
 
+    theta = Theta({"blk.0": make_random_moe_block_theta()})
+    theta.rename_tensors_to_paths()
     model = MoeBlock(
-        theta=make_moe_block_theta()("blk.0"),
+        theta=theta("blk.0"),
         expert_count=8,
         expert_used_count=2,
         rms_epsilon=1e-5,

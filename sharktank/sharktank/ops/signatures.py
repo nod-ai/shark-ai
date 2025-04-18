@@ -45,6 +45,7 @@ __all__ = [
     "gemm",
     "group_norm_affine",
     "layer_norm",
+    "identity",
     "index_copy_",
     "index_put_",
     "index_select",
@@ -500,6 +501,10 @@ def _group_norm_affine_trampoline(
             return override, result
     else:
         d.fail(tensors)
+
+
+def identity(t: AnyTensor) -> AnyTensor:
+    return t
 
 
 @overridable

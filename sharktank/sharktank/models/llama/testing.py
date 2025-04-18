@@ -11,7 +11,10 @@ from sharktank.types.tensors import *
 from sharktank.types.theta import Theta
 from sharktank.layers.configs import LlamaModelConfig
 from sharktank.utils.testing import make_rand_torch
-from sharktank.layers.testing import make_llama_attention_block_theta
+from sharktank.layers.testing import (
+    make_llama_attention_block_theta,
+    make_random_moe_block_theta,
+)
 
 
 def make_attention_block_theta(
@@ -101,38 +104,53 @@ def make_attention_block_ffn_theta_v2(
     return Theta(res_dict)
 
 
-def make_moe_block_theta(feature_dim=1024, ffn_dim=6144, num_experts=8) -> Theta:
-    return Theta(
+def make_attention_moe_block_random_theta(
+    block_idx: int, config: LlamaModelConfig, dtype: torch.dtype
+) -> Theta:
+    res_dict = {}
+    attention_theta = make_llama_attention_block_theta(
+        block_idx=block_idx,
+        head_count=config.hp.attention_head_count,
+        head_count_kv=config.hp.attention_head_count_kv,
+        head_dim=config.hp.attn_head_dim,
+        embedding_length=config.hp.embedding_length,
+        dtype=dtype,
+    )
+    res_dict.update(attention_theta.tree)
+    ffn_norm_theta = Theta(
         {
-            "blk.0.ffn_gate_inp.weight": DefaultPrimitiveTensor(
-                name="blk.0.ffn_gate_inp.weight",
-                data=make_rand_torch((num_experts, ffn_dim)),
-            ),
-            "blk.0.ffn_norm.weight": DefaultPrimitiveTensor(
-                name="blk.0.ffn_norm.weight", data=make_rand_torch((ffn_dim))
-            ),
-            "blk.0.layer_output_norm.weight": DefaultPrimitiveTensor(
-                name="blk.0.layer_output_norm.weight", data=make_rand_torch((ffn_dim))
-            ),
-            "blk.0.ffn_gate_exps.weight": DefaultPrimitiveTensor(
-                name="blk.0.layer_output_norm.weight",
-                data=make_rand_torch((num_experts, feature_dim * num_experts, ffn_dim)),
-            ),
-            "blk.0.ffn_up_exps.weight": DefaultPrimitiveTensor(
-                name="blk.0.ffn_up_exps.weight",
-                data=make_rand_torch((num_experts, feature_dim * num_experts, ffn_dim)),
-            ),
-            "blk.0.ffn_down_exps.weight": DefaultPrimitiveTensor(
-                name="blk.0.ffn_down_exps.weight",
-                data=make_rand_torch((num_experts, ffn_dim, feature_dim * num_experts)),
-            ),
+            "ffn_norm.weight": DefaultPrimitiveTensor(
+                data=make_rand_torch(
+                    (config.hp.attention_head_count * config.hp.attn_head_dim),
+                    dtype=dtype,
+                ),
+            )
         }
     )
+    res_dict.update(ffn_norm_theta.tree)
+    moe_theta = make_random_moe_block_theta(
+        in_dim=config.hp.embedding_length,
+        expert_hidden_dim=config.hp.expert_feed_forward_length,
+        num_experts=config.hp.expert_count,
+        with_ffn_norm=False,
+        num_shared_experts=config.hp.expert_shared_count,
+        shared_expert_hidden_dim=config.hp.expert_shared_feed_forward_length,
+        with_layer_output_norm=False,
+        dtype=dtype,
+    )
+    res_dict.update(moe_theta.tree)
+    return Theta(res_dict)
 
 
 def make_random_llama_theta(
-    config: LlamaModelConfig, vocab_size: int, dtype: Optional[torch.dtype] = None
+    config: LlamaModelConfig,
+    vocab_size: Optional[int] = None,
+    dtype: Optional[torch.dtype] = None,
 ) -> Theta:
+    if vocab_size is None:
+        vocab_size = config.vocabulary_size
+    if dtype is None:
+        dtype = config.dtype
     res = {
         "token_embd.weight": DefaultPrimitiveTensor(
             name="token_embd.weight",
@@ -140,15 +158,23 @@ def make_random_llama_theta(
         )
     }
     for i in range(config.hp.block_count):
-        res[f"blk.{i}"] = make_attention_block_ffn_theta_v2(
-            block_idx=i,
-            head_count=config.hp.attention_head_count,
-            head_count_kv=config.hp.attention_head_count_kv,
-            head_dim=config.hp.attn_head_dim,
-            embedding_length=config.hp.embedding_length,
-            feed_forward_length=config.hp.feed_forward_length,
-            dtype=dtype,
-        ).tree
+        is_moe_block = i in config.moe_layers
+        if is_moe_block:
+            # This is used in Llama 4.
+            block = make_attention_moe_block_random_theta(
+                config=config, block_idx=i, dtype=dtype
+            ).tree
+        else:
+            block = make_attention_block_ffn_theta_v2(
+                block_idx=i,
+                head_count=config.hp.attention_head_count,
+                head_count_kv=config.hp.attention_head_count_kv,
+                head_dim=config.hp.attn_head_dim,
+                embedding_length=config.hp.embedding_length,
+                feed_forward_length=config.hp.feed_forward_length,
+                dtype=dtype,
+            ).tree
+        res[f"blk.{i}"] = block
 
     res[f"output.weight"] = DefaultPrimitiveTensor(
         name="output.weight",

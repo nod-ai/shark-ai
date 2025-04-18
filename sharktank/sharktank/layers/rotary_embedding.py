@@ -28,7 +28,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         max_seqlen: int,
         rope_freq_base: Optional[float],
         device: Optional[torch.device] = None,
-        use_hf: bool = False,
+        rope_type: str | None = None,
         use_table: bool = True,
         tensor_parallelism_size: int = 1,
         pipeline_parallelism: bool = False,
@@ -39,7 +39,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         self.device = device
         self.rope_dimension_count = rope_dimension_count
         self.max_seqlen = max_seqlen
-        self.use_hf = use_hf
+        self.rope_type = rope_type
         self.use_table = use_table
         self.dtype = dtype
         self.rope_freq_base = rope_freq_base if rope_freq_base is not None else 10000.0
@@ -50,6 +50,13 @@ class RotaryEmbeddingLayer(BaseLayer):
             if devices is not None
             else tuple(range(self.tensor_parallelism_size))
         )
+
+        if self.rope_type is not None and self.rope_type not in [
+            "llama3",
+            "llama4",
+            "default",
+        ]:
+            raise ValueError(f"Unknown rope_type {self.rope_type}")
 
     @property
     def rotary_embed_table(self):
@@ -151,7 +158,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         xt_ = xt
         _, sl, _, _ = xt_.shape
 
-        if self.use_hf:
+        if self.rope_type == "llama3":
             freqs_cis = rotary_embed_table
             # Slice from max to current sequence length
             cos, sin = [x[start_index : start_index + sl, :] for x in freqs_cis]
@@ -161,6 +168,22 @@ class RotaryEmbeddingLayer(BaseLayer):
             xt = xt.transpose(1, 2)
             xt_out = (xt_ * cos) + (self.rotate_half(xt_) * sin)
             return xt_out
+
+        if self.rope_type == "llama4":
+            freqs_cis_real = rotary_embed_table[0][
+                :, : rotary_embed_table[0].shape[1] // 2
+            ]
+            freqs_cis_imag = rotary_embed_table[1][
+                :, : rotary_embed_table[0].shape[1] // 2
+            ]
+            # TODO: don't use complex numbers as the compiler does better without them.
+            freqs_cis = torch.view_as_complex(
+                torch.stack([freqs_cis_real, freqs_cis_imag], dim=-1)
+            )
+            freqs_cis = freqs_cis.unsqueeze(0)
+            xt_ = torch.view_as_complex(xt.float().reshape(*xt.shape[:-1], -1, 2))
+            xt_out = torch.view_as_real(xt_ * freqs_cis[:, :, None, :]).flatten(3)
+            return xt_out.type_as(xt)
 
         # Offset the table based on starting position.
         if self.use_table:
@@ -198,8 +221,8 @@ class RotaryEmbeddingLayer(BaseLayer):
         ) + start_positions.unsqueeze(1)
         # Broadcast lookup to [b, ...].
         self.trace_tensor("rope.positions_seq", positions_seq)
-        if self.use_hf:
-            assert self.use_table, "use_hf requires use_table"
+        if self.rope_type == "llama3" or self.rope_type == "llama4":
+            assert self.use_table, "llama3 or llama4 requires use_table"
             freqs_cis = self.rotary_embed_table
             cos, sin = [x[positions_seq.flatten(), :] for x in freqs_cis]
             freqs_cis = (cos[:, None, None, :], sin[:, None, None, :])
@@ -250,7 +273,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         # xq_, xk_ shape: bs, sl, _, dim
         # freqs_cis shape: max_sl, dim
 
-        if self.use_hf:
+        if self.rope_type == "llama3" or self.rope_type == "llama4":
             cos, sin = mask
             xt = xt.transpose(1, 2)
             xt_out = (xt * cos) + (self.rotate_half(xt) * sin)
@@ -262,8 +285,7 @@ class RotaryEmbeddingLayer(BaseLayer):
 
     def _compute_rotary_embed_table(self, t):
         dim = self.rope_dimension_count
-        if self.use_hf:
-
+        if self.rope_type == "llama3" or self.rope_type == "llama4":
             freqs = 1.0 / (
                 self.rope_freq_base
                 ** (torch.arange(0, dim, 2, dtype=torch.int64).float() / dim)

@@ -4,14 +4,17 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import Optional, Union
+from typing import Callable, Optional, Union
 
 import math
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
+from sharktank import ops
 from sharktank.layers import *
+from sharktank.layers.activations import ACT2FN
 from sharktank.types import *
 from sharktank.utils.create_cache import *
 
@@ -87,7 +90,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
                     rope_freq_base=self.hp.rope_freq_base,
                     max_seqlen=self.hp.context_length,
                     device=self.device,
-                    use_hf=self.config.use_hf,
+                    rope_type=self.config.rope_type,
                     tensor_parallelism_size=self.config.tensor_parallelism_size,
                     pipeline_parallelism=config.pipeline_parallelism_size > 1,
                     devices=self.cache.pipeline_to_device_lookup[pipeline],
@@ -139,7 +142,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         # [bs, batch_seq_len]
         tokens: Union[torch.Tensor, ReplicatedTensor],
         *,
-        # [[1, 1, batch_seq_len, batch_seq_len] x self.config.pipeline_parallelism_size]
+        # [[bs|1, 1, batch_seq_len, batch_seq_len] x self.config.pipeline_parallelism_size]
         attention_mask: list[Union[torch.Tensor, ReplicatedTensor]],
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: list[Union[torch.Tensor, ReplicatedTensor]],
@@ -157,19 +160,32 @@ class PagedLlmModelV1(BaseCausalLMModel):
         if self.inference_norm:
             h *= math.sqrt(h.shape[-1])
 
+        if self.config.attention_chunk_size is not None:
+            assert all(
+                self.cache.block_to_pipeline_lookup[block_idx] == 0
+                for block_idx in range(len(self.attn_blocks))
+            ), "TODO: implement pipeline-parallel chunked attention"
+            chunked_attention_mask = [self.chunk_attention_mask(attention_mask[0])]
+
         # Iterate over attention blocks.
         for block_idx, block in enumerate(self.attn_blocks):
             if block_idx == 0:
                 self.trace_tensor(f"llama.attn_block.{block_idx}.input", h)
+            use_chunked_attention = (
+                self.config.attention_chunk_size is not None
+                and (block_idx + 1) % 4 != 0
+            )  # <=> use rope
+            if use_chunked_attention:
+                mask = chunked_attention_mask
+            else:
+                mask = attention_mask
             h = block(
                 h,
                 embedding=self.attention_embedding[
                     self.cache.block_to_pipeline_lookup[block_idx]
                 ],
                 start_index=0,
-                attention_mask=attention_mask[
-                    self.cache.block_to_pipeline_lookup[block_idx]
-                ],
+                attention_mask=mask[self.cache.block_to_pipeline_lookup[block_idx]],
                 cache_state=cache_state,
                 seq_block_ids=seq_block_ids[
                     self.cache.block_to_pipeline_lookup[block_idx]
@@ -304,6 +320,7 @@ class AttentionFFNBlock(ThetaLayer):
         fake_quant: bool = True,
         block_to_device_lookup: tuple[tuple[int, ...], ...] | None = None,
     ):
+        activation_fn = ACT2FN[config.activation_fn]
         super().__init__(theta)
 
         attention_kernel = (
@@ -324,6 +341,11 @@ class AttentionFFNBlock(ThetaLayer):
                 fake_quant=fake_quant,
                 block_to_device_lookup=block_to_device_lookup,
                 softcap=config.hp.attention_softcap,
+                use_rope=block_index in config.rope_layers,
+                use_qk_norm=block_index in config.rope_layers and config.use_qk_norm,
+                attn_temperature_tuning=config.attn_temperature_tuning,
+                floor_scale=config.floor_scale,
+                attn_scale=config.attn_scale,
             ),
         )
 
@@ -346,9 +368,17 @@ class AttentionFFNBlock(ThetaLayer):
                 False,
                 True,
             ),
+            "llama4": (
+                torch.nn.functional.sigmoid,
+                activation_fn,
+                True,
+                False,
+            ),
         }
 
-        if config.hp.expert_count:
+        # TODO: make all models respect config.moe_layers
+        is_moe_block = block_index in config.moe_layers
+        if is_moe_block:
             (
                 score_experts,
                 moe_activation,
@@ -375,6 +405,8 @@ class AttentionFFNBlock(ThetaLayer):
                     theta=theta,
                     rms_epsilon=config.hp.attention_layer_norm_rms_epsilon,
                     fake_quant=fake_quant,
+                    activation_fn=activation_fn,
+                    add_residual=config.ffn_add_residual,
                 ),
             )
 

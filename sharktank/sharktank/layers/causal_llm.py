@@ -112,7 +112,7 @@ class BaseCausalLMModel(ThetaLayer):
         *,
         causal_context_mask: Optional[torch.Tensor] = None,
     ):
-        """Generates a causal attention mask of [1, 1, sl, sl] of activation dtype.
+        """Generates a causal attention mask of [bs, 1, sl, sl] of activation dtype.
 
         All masked positions are -inf and unmasked are 0.0.
 
@@ -137,10 +137,61 @@ class BaseCausalLMModel(ThetaLayer):
         _, batch_seq_len = input_mask.shape
         causal_mask = causal_context_mask[:, :, :batch_seq_len, :batch_seq_len]
         boolean_mask = torch.logical_or(causal_mask, input_mask[:, None, None, :])
+
         numeric_mask = torch.where(
             boolean_mask, self._maximally_negative_value(dtype), 0
         ).to(dtype)
         return numeric_mask.to(self.device)
+
+    def chunk_attention_mask(self, attention_mask: torch.Tensor) -> torch.Tensor:
+        """Apply a chunked attention mask onto a mask."""
+        batch_seq_len = attention_mask.shape[2]
+        # TODO: handle decode step
+        start_index = 0
+        end_index = batch_seq_len
+        chunked_boolean_attention_mask = self.create_boolean_chunked_attention_mask(
+            attention_chunk_size=self.config.attention_chunk_size,
+            # TODO: handle decode step
+            start_index=start_index,
+            end_index=end_index,
+        )
+
+        return torch.where(
+            chunked_boolean_attention_mask,
+            attention_mask,
+            torch.tensor(
+                self._maximally_negative_value(attention_mask.dtype),
+                dtype=attention_mask.dtype,
+            ),
+        )
+
+    def create_boolean_chunked_attention_mask(
+        self, attention_chunk_size: int, start_index: int, end_index: int
+    ) -> torch.Tensor:
+        """
+        Generate the following:
+
+        'What'      :  0 ■ ⬚ ⬚ ⬚ ⬚ ⬚    |
+        '▁is'       :  1 ■ ■ ⬚ ⬚ ⬚ ⬚     |
+        '▁ch'       :  2 ■ ■ ■ ⬚ ⬚ ⬚     |
+        'unked'     :  3 ⬚ ⬚ ⬚ ■ ⬚ ⬚    |
+        '▁attention':  4 ⬚ ⬚ ⬚ ■ ■ ⬚    |
+        '?'         :  5 ⬚ ⬚ ⬚ ■ ■ ■     |
+
+        If the chunk size is 3.
+        This can just be applied over the already created attention mask
+
+        ⬚ - masked (False).
+        ■ - unmasked (True).
+        """
+        arange_vector = torch.arange(start_index, end_index)
+        block_pos = torch.abs(
+            arange_vector.unsqueeze(0) // attention_chunk_size
+            - arange_vector.unsqueeze(1) // attention_chunk_size
+        )
+        token_pos = arange_vector.unsqueeze(0) - arange_vector.unsqueeze(1)
+        mask = (block_pos == 0) & (token_pos <= 0)
+        return mask
 
     def extract_tokens_from_logits(
         self, logits: torch.Tensor, seq_lens: list[int]

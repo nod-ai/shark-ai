@@ -541,7 +541,8 @@ class PagedAttention:
             if softcap is not None:
                 raise ValueError("softcap not supported yet")
 
-            return ops.scaled_dot_product_attention(
+            # mask = mask != float("-inf")
+            output = ops.scaled_dot_product_attention(
                 q=q,  # [bs, ..., sl, dim]
                 k=k,  # [bs, ..., sl, dim]
                 v=v,  # [bs, ..., sl, dim]
@@ -549,6 +550,31 @@ class PagedAttention:
                 is_causal=mask is None,  # assumes causal masking when true
                 scale=None,  # defaults to 1/sqrt(dim)
             )
+
+            #####################################################
+            # Debug tracing
+            # TODO: delete this when done
+            import safetensors.torch
+
+            print(f"Mask dtype = {mask.dtype}")
+            print(f"values = {mask.unique()}")
+            tensor_dict = {
+                "q": q.contiguous(),
+                "k": k.contiguous(),
+                "v": v.contiguous(),
+                "mask": mask,
+                "output": output.contiguous(),
+            }
+            import os
+
+            attention_idx = int(os.environ.get("sharktank_attention_idx", default="0"))
+            safetensors.torch.save_file(
+                tensors=tensor_dict,
+                filename=f"/home/bpetkant/ws/sharktank/experiments/llama4/attention_trace{attention_idx}.safetensors",
+            )
+            os.environ["sharktank_attention_idx"] = str(attention_idx + 1)
+            return output
+            #####################################################
 
     def forward_decode(
         self,

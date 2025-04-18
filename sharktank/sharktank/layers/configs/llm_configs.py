@@ -49,6 +49,14 @@ class LlamaHParams:
     rope_freq_base: Optional[float] = None
     expert_count: Optional[int] = None
     expert_used_count: Optional[int] = None
+    expert_feed_forward_length: Optional[int] = None
+    expert_shared_count: Optional[int] = None
+    expert_shared_feed_forward_length: Optional[int] = None
+    interleave_moe_layer_step: Optional[int] = None
+    """What layer indexes are MoE and what are dense.
+    E.g.
+    1 - all layers are MoE.
+    3 - layers [0, 2, 5 ...] are MoE."""
 
     # Latent Attention Config - Deepseek specific
     nope_dim: Optional[int] = None
@@ -63,6 +71,7 @@ class LlamaHParams:
         name_prefix = p.get("general.architecture", "llama")
         default_expert_count = 0
         default_expert_used_count = 0
+        default_interleave_moe_layer_step = None
         default_rope_freq_base = 500000.0
         default_rope_dimension_count = 128
         attention_head_count = _int_prop(p, f"{name_prefix}.attention.head_count")
@@ -96,6 +105,20 @@ class LlamaHParams:
             expert_used_count=_optional_int_prop(
                 p, f"{name_prefix}.expert_used_count", default_expert_used_count
             ),
+            expert_feed_forward_length=_optional_int_prop(
+                p, f"{name_prefix}.expert_feed_forward_length", None
+            ),
+            expert_shared_count=_optional_int_prop(
+                p, f"{name_prefix}.expert_shared_count", None
+            ),
+            expert_shared_feed_forward_length=_optional_int_prop(
+                p, f"{name_prefix}.expert_shared_feed_forward_length", None
+            ),
+            interleave_moe_layer_step=_optional_int_prop(
+                p,
+                f"{name_prefix}.interleave_moe_layer_step",
+                default_interleave_moe_layer_step,
+            ),
             attention_softcap=attention_softcap,
         )
 
@@ -118,6 +141,20 @@ class LlamaHParams:
             res[f"{self.model_arch}.expert_count"] = self.expert_count
         if self.expert_used_count is not None:
             res[f"{self.model_arch}.expert_used_count"] = self.expert_used_count
+        if self.expert_feed_forward_length is not None:
+            res[
+                f"{self.model_arch}.expert_feed_forward_length"
+            ] = self.expert_feed_forward_length
+        if self.expert_shared_count is not None:
+            res[f"{self.model_arch}.expert_shared_count"] = self.expert_shared_count
+        if self.expert_shared_feed_forward_length is not None:
+            res[
+                f"{self.model_arch}.expert_shared_feed_forward_length"
+            ] = self.expert_shared_feed_forward_length
+        if self.interleave_moe_layer_step is not None:
+            res[
+                f"{self.model_arch}.interleave_moe_layer_step"
+            ] = self.interleave_moe_layer_step
         return res
 
 
@@ -175,6 +212,8 @@ class LlamaModelConfig:
     # Dtype to use for general FP activations not otherwise configured.
     activation_dtype: torch.dtype = torch.float16
 
+    activation_fn: Optional[str] = None
+
     # Dtype to use for attention.
     attention_dtype: torch.dtype = torch.float16
 
@@ -197,10 +236,12 @@ class LlamaModelConfig:
     # Which attention kernel to use.
     attention_kernel: str = "torch"
 
-    # Indicates if running with HuggingFace implementation and ensures
-    # numerical equivalency to HuggingFace's LLaMa if true (by modifying
-    # rotary embedding).
-    use_hf: bool = False
+    rope_type: str | None = None
+    """Implementation of rotary embeddings.
+    E.g. "llama3", "llama4", "default".
+    "llama3" indicates running with HuggingFace implementation and ensures
+    numerical equivalency to HuggingFace's LLaMa.
+    """
 
     # If true, then the model may pre-initialize certain tables during
     # init. This can be better for eager execution but when capturing a program,
@@ -209,6 +250,28 @@ class LlamaModelConfig:
     # be the difference of many gigabytes of static data being embedded in
     # the program and not.
     static_tables: bool = True
+
+    moe_layers: Optional[list[int]] = None
+    """Indices of layers that are MoE."""
+
+    rope_layers: Optional[list[int]] = None
+    """Indices of layers that use RoPE after the attention."""
+
+    use_qk_norm: bool = False
+
+    attention_chunk_size: Optional[int] = None
+    attn_temperature_tuning: Optional[bool] = None
+    """In HF transformers this is an int, but it is used as a bool and does not make
+    sense to be an int."""
+    floor_scale: Optional[int] = None
+    attn_scale: Optional[float] = None
+
+    ffn_add_residual: bool = True
+    """Should the FFN block add the residual at the end."""
+
+    vocabulary_size: Optional[int] = None
+
+    dtype: Optional[torch.dtype] = None
 
     def __post_init__(self):
         if not self.block_to_device_lookup:
@@ -219,6 +282,26 @@ class LlamaModelConfig:
                 tuple(range(self.tensor_parallelism_size))
                 for _ in range(self.hp.block_count)
             )
+
+        if self.moe_layers is None:
+            if self.hp.interleave_moe_layer_step is None:
+                self.moe_layers = []
+            else:
+                self.moe_layers = list(
+                    range(
+                        self.hp.interleave_moe_layer_step - 1,
+                        self.hp.block_count,
+                        self.hp.interleave_moe_layer_step,
+                    )
+                )
+        else:
+            if self.hp.interleave_moe_layer_step is not None:
+                raise ValueError(
+                    "moe_layers and hp.interleave_moe_layer_step are mutually exclusive."
+                )
+
+        if isinstance(self.dtype, str):
+            self.dtype = serialized_name_to_dtype(self.dtype)
 
 
 @dataclass
