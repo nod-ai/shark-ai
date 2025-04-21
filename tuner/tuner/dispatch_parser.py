@@ -57,15 +57,8 @@ class ContractionOpInterfaceParser(DispatchParser):
         contraction_dims = linalg.infer_contraction_dimensions(root_op)
         assert contraction_dims, "no contraction dimensions"
 
-        # TODO(Bangtian): Expose Python bindings for getting indexing maps.
-        indexing_maps_attr = None
-        for attr in root_op.opview.attributes:
-            if attr.name == "indexing_maps" and isinstance(attr.attr, ir.ArrayAttr):
-                indexing_maps_attr = attr.attr
-                break
-
-        assert indexing_maps_attr, "indexing_maps attribute not found"
-        maps = [attr.value for attr in indexing_maps_attr]
+        res_maps = linalg.get_indexing_maps(root_op)
+        maps = [map_attr.value for map_attr in res_maps]
         lhs_dims = get_map_result_dim_positions(maps[0])
         rhs_dims = get_map_result_dim_positions(maps[1])
         res_dims = get_map_result_dim_positions(maps[2])
