@@ -147,21 +147,12 @@ def test_get_matmul_named_op(tuner_ctx: common.TunerContext) -> None:
             b_map = ir.AffineMap.get(3, 0, [dim_k, dim_n])
             c_map = ir.AffineMap.get(3, 0, [dim_m, dim_n])
 
-            @func.FuncOp.from_py_func(a_type, b_type)
-            def named_matmul(a, b):
-                zero = arith.ConstantOp(f32, 0.0).result
-                init = tensor.EmptyOp(c_type.shape, c_type.element_type).result
-
-                filled = linalg.FillOp(
-                    result_tensors=[c_type],
-                    inputs=[zero],
-                    outputs=[init],
-                ).results[0]
-
+            @func.FuncOp.from_py_func(a_type, b_type, c_type)
+            def named_matmul(a, b, c):
                 matmul_op = linalg.MatmulOp(
                     result_tensors=[c_type],
                     inputs=[a, b],
-                    outputs=[filled],
+                    outputs=[c],
                     indexing_maps=[a_map, b_map, c_map],
                 )
                 matmul_op.operation.attributes["root_op"] = ir.UnitAttr.get()
@@ -197,13 +188,6 @@ def test_get_named_contraction_op():
 
             @func.FuncOp.from_py_func(lhs_type, rhs_type, res_type)
             def named_contraction(lhs, rhs, res):
-                zero = arith.ConstantOp(f32, 0.0).result
-                init = tensor.EmptyOp(res_type.shape, res_type.element_type).result
-
-                filled = linalg.FillOp(
-                    result_tensors=[res_type], inputs=[zero], outputs=[init]
-                ).results[0]
-
                 dim_i = ir.AffineDimExpr.get(0)
                 dim_j = ir.AffineDimExpr.get(1)
                 dim_k = ir.AffineDimExpr.get(2)
@@ -215,7 +199,7 @@ def test_get_named_contraction_op():
                 contraction_op = linalg.ContractOp(
                     result_tensors=[res_type],
                     inputs=[lhs, rhs],
-                    outputs=[filled],
+                    outputs=[res],
                     indexing_maps=[lhs_map, rhs_map, res_map],
                 )
                 contraction_op.attributes["root_op"] = ir.UnitAttr.get()
