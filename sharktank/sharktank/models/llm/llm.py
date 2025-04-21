@@ -258,7 +258,6 @@ class AttentionFFNBlock(ThetaLayer):
                 head_dim=config.hp.attn_head_dim,
                 head_count_kv=config.hp.attention_head_count_kv,
                 rms_epsilon=config.hp.attention_layer_norm_rms_epsilon,
-                attention_dtype=config.attention_dtype,
                 attention_kernel=attention_kernel,
                 fake_quant=fake_quant,
                 softcap=config.hp.attention_softcap,

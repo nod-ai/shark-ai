@@ -21,6 +21,6 @@ def create_paged_kv_cache(config: LlamaModelConfig) -> PagedAttention:
         block_seq_stride=config.block_seq_stride,
         device=config.device,
         cache_dtype=dtype,
-        attn_dtype=dtype,
+        attn_dtype=config.attention_dtype,
         shard_count=config.tensor_parallelism_size,
     )
