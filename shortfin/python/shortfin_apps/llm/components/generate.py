@@ -149,7 +149,7 @@ class ClientGenerateBatchProcess(sf.Process):
         self.prefill_batcher = service.prefill_batcher
         self.decode_batcher = service.decode_batcher
         self.complete_infeed = self.system.create_queue()
-
+        self.service = service
         self.decode_config = service.server_params.decode_config
 
     async def run(self):
