@@ -89,6 +89,7 @@ class GenerateItemProcess(sf.Process):
             phase=InferencePhase.PREFILL,
             input_token_ids=self.input_token_ids,
             rid=self.gen_req.rid,
+            decode_bs=self.decode_config.max_decode_batch_size,
         )
         exec_req._cache = self.client.prefill_batcher.page_cache
         try:
@@ -142,7 +143,9 @@ class ClientGenerateBatchProcess(sf.Process):
         responder: FastAPIResponder,
         fiber: sf.Fiber | None = None,
     ):
-        super().__init__(fiber=service.fiber_pool.fibers[0] if fiber is None else fiber)
+        super().__init__(
+            fiber=service.fiber_pool.fibers[0].fiber if fiber is None else fiber
+        )
         self.gen_req = gen_req
         self.responder = responder
         self.tokenizer = service.tokenizer
@@ -154,7 +157,7 @@ class ClientGenerateBatchProcess(sf.Process):
 
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
-        
+
         # Try to add request to queue
         if not self.service.add_to_queue():
             error_response = JSONResponse(
@@ -163,8 +166,8 @@ class ClientGenerateBatchProcess(sf.Process):
                     "error": "Server queue is full. Please try again later.",
                     "code": "QUEUE_FULL",
                     "current_size": self.service.current_queue_size,
-                    "max_size": self.service.max_queue_size
-                }
+                    "max_size": self.service.max_queue_size,
+                },
             )
             self.responder.send_response(error_response)
             self.responder.ensure_response()
@@ -180,7 +183,7 @@ class ClientGenerateBatchProcess(sf.Process):
             gen_processes = []
             input_ids = self.gen_req.input_ids
             is_pretokenized = input_ids is not None
-            
+
             if is_pretokenized:
                 input_batch = [input_ids] if self.gen_req.is_single else input_ids
             else:

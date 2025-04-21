@@ -86,6 +86,8 @@ class DecodeConfig:
     # Use `top_p` sampling strategy in decode loop
     top_p: int | None = None
 
+    max_decode_batch_size: int = 1
+
     def __post_init__(self):
         if isinstance(self.token_selection_strategy, str):
             self.token_selection_strategy = get_strategy_from_str(

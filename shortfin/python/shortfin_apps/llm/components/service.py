@@ -10,9 +10,17 @@ from dataclasses import dataclass
 from typing import List
 
 import shortfin as sf
+import shortfin.array as sfnp
 
 
-from .batcher import PrefillBatcherProcess, DecodeBatcherProcess, FiberPool
+from .batcher import (
+    PrefillBatcherProcess,
+    DecodeBatcherProcess,
+    FiberPool,
+    MetaFiber,
+    initialize_buffer_object,
+    LlmBufferObject,
+)
 from .config_struct import ModelParams, ServerParams
 from .kvcache.base_attention_cache import (
     BasePagedAttentionCache,
@@ -60,13 +68,13 @@ class LlmGenerateService(GenerateService):
         self.initialize_worker_and_fiber()
         self.initialize_queues()
         self.initialize_page_cache()
-    
+
     def initialize_queues(self):
         """Initialize request and response queues"""
         self.request_queue = self.sysman.ls.create_queue(f"{self.name}-request-queue")
         self.response_queue = self.sysman.ls.create_queue(f"{self.name}-response-queue")
         if self.model_params.decode_batch_sizes:
-            self.max_queue_size = max(self.model_params.decode_batch_sizes) + 2
+            self.max_queue_size = max(self.model_params.decode_batch_sizes) + 9
             print(f"Max queue size: {self.max_queue_size}")
 
     def add_to_queue(self) -> bool:
@@ -89,8 +97,8 @@ class LlmGenerateService(GenerateService):
 
     def add_to_queue(self) -> bool:
         """Try to add a request to the queue. Returns True if successful, False if queue is full."""
-        if self.current_queue_size >= self.max_queue_size:
-            return False
+        # if self.current_queue_size >= self.max_queue_size:
+        #     return False
         self.current_queue_size += 1
         return True
 
@@ -113,12 +121,17 @@ class LlmGenerateService(GenerateService):
                 fiber = self.sysman.ls.create_fiber(worker)
                 fibers.append(fiber)
 
-        self.fiber_pool = FiberPool(
-            fibers,
-            fibers,
-        )
-        self.devices = fibers[0].devices_dict.values()
+        meta_fibers = []
+        for fiber in fibers:
+            device_buffer = LlmBufferObject(
+                initialize_buffer_object(fibers[0].device(0), self.model_params)
+            )
+            meta_fiber = MetaFiber(device_buffer, fiber)
+            meta_fibers.append(meta_fiber)
 
+        self.fiber_pool = FiberPool(meta_fibers)
+
+        self.devices = fibers[0].devices_dict.values()
         self.main_worker = self.sysman.ls.create_worker(f"{self.name}-inference")
         self.main_fiber = self.sysman.ls.create_fiber(self.main_worker)
         self.prefill_fiber = self.sysman.ls.create_fiber(self.main_worker)

@@ -54,12 +54,13 @@ class ShortfinLlmLifecycleManager:
             args.server_config if hasattr(args, "server_config") else None
         )
         server_params.update_from_args(args)
-
+        decode_bs = model_params.decode_batch_sizes[-1]
         if server_params.decode_config is None:
             decode_config = DecodeConfig(
                 args.num_beams,
                 args.token_selection_strategy,
                 logits_normalization=model_params.logits_normalization,
+                max_decode_batch_size=decode_bs,
             )
             server_params.decode_config = decode_config
 

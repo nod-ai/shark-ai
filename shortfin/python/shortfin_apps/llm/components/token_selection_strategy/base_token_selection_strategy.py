@@ -89,6 +89,7 @@ class BaseTokenSelectionStrategy(ABC):
 
         token_selection_strategy_config.prefill_callback(exec_req)
         await exec_req.done
+        assert exec_req.result_logits is not None
 
         token = sfnp.argmax(exec_req.result_logits)
         token_int = token.items[0]
