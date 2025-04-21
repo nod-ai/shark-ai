@@ -328,6 +328,8 @@ def prepare_iree_module_function_args(
             )
         elif isinstance(arg, (DefaultPrimitiveTensor, torch.Tensor)):
             res.append(torch_tensor_to_device_array(arg, devices[0]))
+        elif isinstance(arg, iree.runtime.DeviceArray):
+            res.append(arg)
         else:
             assert isinstance(arg, collections.abc.Sequence)
             res.extend(prepare_iree_module_function_args(arg, devices))
