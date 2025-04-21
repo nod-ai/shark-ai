@@ -666,7 +666,9 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         )
 
     @pytest.mark.xfail(
-        reason="Benchmarking Error", strict=True, raises=IreeBenchmarkException
+        run=False,
+        reason="https://github.com/iree-org/iree/issues/20581",
+        raises=IreeCompileException,
     )
     def testBenchmark70B_f16_TP8_Non_Decomposed_Input_Len_128(self):
         output_file_name = self.dir_path_70b / "f16_torch_128_tp8"
@@ -716,7 +718,9 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         )
 
     @pytest.mark.xfail(
-        reason="Benchmarking Error", strict=True, raises=IreeBenchmarkException
+        run=False,
+        reason="https://github.com/iree-org/iree/issues/20581",
+        raises=IreeCompileException,
     )
     def testBenchmark70B_f16_TP8_Non_Decomposed_Input_Len_2048(self):
         output_file_name = self.dir_path_70b / "f16_torch_2048_tp8"
