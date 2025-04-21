@@ -96,7 +96,7 @@ class Batch:
         parent: TorchGenerator,
         token_ids: torch.Tensor,
         seq_lens: torch.Tensor,
-        cache_state: list[torch.Tensor],
+        cache_state: list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
         bs: int,
         dump_bins: bool = False,
     ):
@@ -105,6 +105,7 @@ class Batch:
         self.parent = parent
         self.token_ids = token_ids
         self.seq_lens = seq_lens
+        # TODO: This doesn't appear to handle PP models properly
         self.cache_state = cache_state
         self.results: list[list[int]] = [[] for _ in range(self.bs)]
         self.done_result_indices: set[int] = set()
@@ -173,16 +174,38 @@ class Batch:
         attention_mask = model.attention_mask(
             model.input_mask(self.seq_lens, self.token_ids.shape[1])
         )
-        seq_block_ids_tensor = self.pad_block_ids()
+        seq_block_ids = self.pad_block_ids()
         trace_tensor("prefill.token_ids", self.token_ids)
-        trace_tensor("prefill.seq_block_ids", seq_block_ids_tensor)
+        trace_tensor("prefill.seq_block_ids", seq_block_ids)
         trace_tensor("prefill.attention_mask", attention_mask)
         token_ids = self.token_ids
-        if model.config.tensor_parallelism_size != 1:
-            tp = model.config.tensor_parallelism_size
-            token_ids = replicate(token_ids, tp)
-            attention_mask = replicate(attention_mask, tp)
-            seq_block_ids_tensor = replicate(seq_block_ids_tensor, tp)
+
+        shard_count = model.config.tensor_parallelism_size
+        num_pipelines = model.config.pipeline_parallelism_size
+        if shard_count * num_pipelines == 1:
+            seq_block_ids = [seq_block_ids]
+            attention_mask = [attention_mask]
+        else:
+            token_ids = replicate(
+                token_ids, shard_count, devices=model.config.block_to_device_lookup[0]
+            )
+            _attention_mask, _seq_block_ids = [], []
+            for pipeline in range(model.cache.pipeline_count):
+                _attention_mask.append(
+                    replicate(
+                        attention_mask,
+                        count=shard_count,
+                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                    )
+                )
+                _seq_block_ids.append(
+                    replicate(
+                        seq_block_ids,
+                        count=shard_count,
+                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                    )
+                )
+            attention_mask, seq_block_ids = _attention_mask, _seq_block_ids
 
         if self.dump_bins:
             write_ndarray_to_bin(
@@ -194,8 +217,8 @@ class Batch:
                 f"prefill_seq_lens_1xi64.bin",
             )
             write_ndarray_to_bin(
-                seq_block_ids_tensor.numpy(),
-                f"prefill_seq_block_ids_{'x'.join([str(x) for x in seq_block_ids_tensor.shape])}xi64.bin",
+                seq_block_ids.numpy(),
+                f"prefill_seq_block_ids_{'x'.join([str(x) for x in seq_block_ids.shape])}xi64.bin",
             )
             write_ndarray_to_bin(
                 self.cache_state[0].to(torch.float8_e4m3fnuz).to(torch.uint8).numpy(),
@@ -205,7 +228,7 @@ class Batch:
         self.prefill_logits = model.prefill(
             token_ids,
             attention_mask=attention_mask,
-            seq_block_ids=seq_block_ids_tensor,
+            seq_block_ids=seq_block_ids,
             cache_state=self.cache_state,
         )
 
@@ -227,33 +250,67 @@ class Batch:
         self.seq_lens.add_(1)
         self.allocate_seq_block_ids()
         # TODO: Allocate more blocks on overflow.
-        seq_block_ids_tensor = self.pad_block_ids()
+        seq_block_ids = self.pad_block_ids()
         decode_attention_mask = model.decode_attention_mask(
             model.input_mask(
                 self.seq_lens,
-                seq_block_ids_tensor.shape[1] * self.parent.block_seq_stride,
+                seq_block_ids.shape[1] * self.parent.block_seq_stride,
             )
         )
         trace_tensor("decode.token_ids", token_batch)
         trace_tensor("decode.start_positions", start_positions)
-        trace_tensor("decode.seq_block_ids", seq_block_ids_tensor)
+        trace_tensor("decode.seq_block_ids", seq_block_ids)
         trace_tensor("decode.attention_mask", decode_attention_mask)
 
-        if model.config.tensor_parallelism_size != 1:
-            tp = model.config.tensor_parallelism_size
-            token_batch = replicate(token_batch, tp)
-            start_positions = replicate(start_positions, tp)
-            seq_block_ids_tensor = replicate(seq_block_ids_tensor, tp)
-            decode_attention_mask = replicate(decode_attention_mask, tp)
+        shard_count = model.config.tensor_parallelism_size
+        num_pipelines = model.config.pipeline_parallelism_size
+        if shard_count * num_pipelines == 1:
+            seq_block_ids = [seq_block_ids]
+            decode_attention_mask = [decode_attention_mask]
+        else:
+            token_batch = replicate(
+                token_batch, shard_count, devices=model.config.block_to_device_lookup[0]
+            )
+
+            _start_positions, _seq_block_ids, _decode_attention_mask = [], [], []
+            for pipeline in range(model.cache.pipeline_count):
+                _start_positions.append(
+                    replicate(
+                        start_positions,
+                        count=shard_count,
+                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                    )
+                )
+                _seq_block_ids.append(
+                    replicate(
+                        seq_block_ids,
+                        count=shard_count,
+                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                    )
+                )
+                _decode_attention_mask.append(
+                    replicate(
+                        decode_attention_mask,
+                        count=shard_count,
+                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                    )
+                )
+            start_positions, seq_block_ids, decode_attention_mask = (
+                _start_positions,
+                _seq_block_ids,
+                _decode_attention_mask,
+            )
 
         if self.dump_bins:
             write_ndarray_to_bin(
                 token_batch.numpy(),
                 f"decode_next_tokens_{'x'.join([str(x)for x in token_batch.shape])}xi64.bin",
             )
-            write_ndarray_to_bin(
-                start_positions.numpy(),
-                f"decode_start_positions_{'x'.join([str(x)for x in start_positions.shape])}xi64.bin",
+            self.dump_args(
+                phase="decode",
+                arg_name="start_positions",
+                arg=start_positions,
+                decode_step=self.decode_step,
             )
             write_ndarray_to_bin(
                 seq_block_ids_tensor.numpy(),
@@ -272,7 +329,7 @@ class Batch:
             token_batch,
             attention_mask=decode_attention_mask,
             start_positions=start_positions,
-            seq_block_ids=seq_block_ids_tensor,
+            seq_block_ids=seq_block_ids,
             cache_state=self.cache_state,
         )
 

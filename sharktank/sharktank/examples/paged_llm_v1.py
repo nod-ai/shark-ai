@@ -43,6 +43,7 @@ def main():
         kv_cache_dtype=args.kv_cache_dtype,
         use_hf=args.use_hf,
         tensor_parallelism_size=args.tensor_parallelism_size,
+        pipeline_parallelism_size=args.pipeline_parallelism_size,
         fake_quant=args.fake_quant,
     )
     if config.tensor_parallelism_size > 1:
