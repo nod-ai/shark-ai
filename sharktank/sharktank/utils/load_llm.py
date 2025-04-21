@@ -4,6 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import collections
 import math
 from pathlib import Path
 from typing import Optional
@@ -203,17 +204,28 @@ class Batch:
         self,
         phase: str,
         arg_name: str,
-        arg: torch.tensor,
+        arg: torch.Tensor | ShardedTensor | list[torch.Tensor | ShardedTensor],
         decode_step: Optional[int] = None,
+        rank: Optional[int] = None,
     ):
+        if isinstance(arg, collections.abc.Sequence):
+            for i, a in enumerate(arg):
+                subarg_name = arg_name if len(arg) == 1 else f"{arg_name}_{i}"
+                self.dump_args(phase, subarg_name, a, decode_step, rank)
+        elif isinstance(arg, ShardedTensor):
+            for rank in range(arg.shard_count()):
+                self.dump_args(
+                    phase, arg_name, arg.shards()[rank]._data, decode_step, rank
+                )
+        else:
+            if arg.dtype in [torch.float8_e4m3fnuz, torch.bfloat16]:
+                arg = arg.to(torch.uint8)
+            if phase == "decode":
+                arg_name = f"{arg_name}_{decode_step}"
+            rank_str = f".rank{rank}" if rank else ""
 
-        if arg.dtype in [torch.float8_e4m3fnuz, torch.bfloat16]:
-            arg = arg.to(torch.uint8)
-        if phase == "decode":
-            arg_name = f"{arg_name}_{decode_step}"
-        file_path = Path(self.dump_path, f"{phase}_{arg_name}.npy")
-
-        np.save(file_path, arg.cpu().numpy())
+            file_path = Path(self.dump_path, f"{phase}_{arg_name}{rank_str}.npy")
+            np.save(file_path, arg.cpu().numpy())
 
     def prefill(self):
         model = self.parent.model
