@@ -16,7 +16,7 @@ import shortfin.array as sfnp
 
 from shortfin import Fiber
 
-from ...utils import BatcherProcess
+from ...utils import BatcherProcess, check_host_array
 
 from .config_struct import ModelParams
 from .kvcache.base_attention_cache import (
@@ -40,10 +40,9 @@ def initialize_buffer_object(device, model_params: ModelParams):
         device, [decode_bs], sfnp.int64
     )
     decode_seq_lens = sfnp.device_array.for_device(device, [decode_bs], sfnp.int64)
-    decode_output_devices = [
-        sfnp.device_array.for_device(device, [1, 1, max_seq_len], sfnp.float16)
-        for _ in range(decode_bs)
-    ]
+    decode_output_device = sfnp.device_array.for_device(
+        device, [decode_bs, 1, max_seq_len], sfnp.float16
+    )
 
     prefill_bs = model_params.prefill_batch_sizes[-1]
     # prefill_tokens = sfnp.device_array.for_device(device, [prefill_bs, -1], sfnp.int64)
@@ -53,17 +52,14 @@ def initialize_buffer_object(device, model_params: ModelParams):
     buffer_object_dict: dict[str, sfnp.device_array | list[sfnp.device_array]] = {
         "decode_tokens": decode_tokens,
         "decode_seq_lens": decode_seq_lens,
-        "decode_logits": decode_output_devices,
+        "decode_logits": decode_output_device,
         "decode_start_positions": decode_start_positions,
         "decode_start_positions_host": decode_start_positions.for_transfer(),
         "decode_seq_block_ids": None,
         "decode_seq_block_ids_host": None,
         "decode_tokens_host": decode_tokens.for_transfer(),
         "decode_seq_lens_host": decode_seq_lens.for_transfer(),
-        "decode_logits_host": [
-            decode_output_device.for_transfer()
-            for decode_output_device in decode_output_devices
-        ],
+        "decode_logits_host": decode_output_device.for_transfer(),
         "prefill_seq_lens": prefill_seq_lens,
         "prefill_seq_lens_host": prefill_seq_lens.for_transfer(),
     }
@@ -553,7 +549,8 @@ class PrefillExecutorProcess(LlmExecutorProcess):
             if req.return_host_array:
                 req.result_logits = logits_item.for_transfer()
                 req.result_logits.copy_from(logits_item)
-                await device0
+                # await device0
+                check_host_array(req.result_logits)
             else:
                 req.result_logits = logits_item
             assert req.result_logits is not None
@@ -672,23 +669,14 @@ class DecodeExecutorProcess(LlmExecutorProcess):
 
     async def get_results(self, logits, req_count, device0):
         # Return results.
+        self.meta_request.bo.arrs["decode_logits"] = logits.view(slice(0, req_count), 0)
+        self.meta_request.bo.arrs["decode_logits_host"].copy_from(
+            self.meta_request.bo.arrs["decode_logits"]
+        )
+        check_host_array(self.meta_request.bo.arrs["decode_logits_host"])
         for i in range(req_count):
             req = self.exec_requests[i]
-            sl = 1
-            if req.return_all_logits:
-                self.meta_request.bo.arrs["decode_logits"][i] = logits.view(
-                    i, slice(0, sl)
-                )
-            else:
-                self.meta_request.bo.arrs["decode_logits"][i] = logits.view(i, sl - 1)
-            if req.return_host_array:
-                req.result_logits = self.meta_request.bo.arrs["decode_logits_host"][i]
-                req.result_logits.copy_from(
-                    self.meta_request.bo.arrs["decode_logits"][i]
-                )
-                await device0
-            else:
-                req.result_logits = self.meta_request.bo.arrs["decode_logits"][i]
+            req.result_logits = self.meta_request.bo.arrs["decode_logits_host"].view(i)
             req.done.set_success()
 
         if self.program_isolation == sf.ProgramIsolation.PER_FIBER:
