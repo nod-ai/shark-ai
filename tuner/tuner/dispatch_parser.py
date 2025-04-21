@@ -44,17 +44,13 @@ class DispatchParser(metaclass=ABCMeta):
         pass
 
 
-# TODO(Max191): Support linalg named op versions of contraction ops. The
-# current matchers only work for linalg.generic ops.
 class ContractionOpInterfaceParser(DispatchParser):
     def __init__(self, root_op: ir.Operation):
         super().__init__(root_op)
 
     def has_valid_root_op(self) -> bool:
         root_op = self.get_root_op()
-        if not linalg.isa_contraction_op(root_op):
-            return False
-        return root_op.name == "linalg.generic"
+        return linalg.isa_contraction_op(root_op)
 
     def get_problem_size(self) -> ProblemSize:
         root_op = self.get_root_op()
