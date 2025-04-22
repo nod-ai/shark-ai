@@ -44,32 +44,21 @@ class DispatchParser(metaclass=ABCMeta):
         pass
 
 
-# TODO(Max191): Support linalg named op versions of contraction ops. The
-# current matchers only work for linalg.generic ops.
 class ContractionOpInterfaceParser(DispatchParser):
     def __init__(self, root_op: ir.Operation):
         super().__init__(root_op)
 
     def has_valid_root_op(self) -> bool:
         root_op = self.get_root_op()
-        if not linalg.isa_contraction_op(root_op):
-            return False
-        return root_op.name == "linalg.generic"
+        return linalg.isa_contraction_op(root_op)
 
     def get_problem_size(self) -> ProblemSize:
         root_op = self.get_root_op()
         contraction_dims = linalg.infer_contraction_dimensions(root_op)
         assert contraction_dims, "no contraction dimensions"
 
-        # TODO(Bangtian): Expose Python bindings for getting indexing maps.
-        indexing_maps_attr = None
-        for attr in root_op.opview.attributes:
-            if attr.name == "indexing_maps" and isinstance(attr.attr, ir.ArrayAttr):
-                indexing_maps_attr = attr.attr
-                break
-
-        assert indexing_maps_attr, "indexing_maps attribute not found"
-        maps = [attr.value for attr in indexing_maps_attr]
+        res_maps = linalg.get_indexing_maps(root_op)
+        maps = [map_attr.value for map_attr in res_maps]
         lhs_dims = get_map_result_dim_positions(maps[0])
         rhs_dims = get_map_result_dim_positions(maps[1])
         res_dims = get_map_result_dim_positions(maps[2])

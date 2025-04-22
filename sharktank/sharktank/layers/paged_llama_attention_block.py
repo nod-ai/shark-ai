@@ -31,7 +31,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         head_dim: int,
         head_count_kv: int,
         rms_epsilon: float,
-        attention_dtype: Optional[torch.dtype] = None,
         attention_kernel: str = "torch",
         attention_scale: Optional[float] = None,
         softcap: Optional[float] = None,
@@ -44,7 +43,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             attn_head_count=head_count_kv,
             attn_head_dim=head_dim,
             block_seq_stride=cache.block_seq_stride,
-            dtype=cache.dtype,
+            cache_dtype=cache.cache_dtype,
+            attn_dtype=cache.attn_dtype,
             device=cache.device,
             shard_count=cache.shard_count,
         )
@@ -52,7 +52,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self.head_count = head_count
         self.head_dim = head_dim
         self.head_count_kv = head_count_kv
-        self.attention_dtype = attention_dtype
         self.attention_kernel = attention_kernel
         self.attention_scale = attention_scale
         self.softcap = softcap

@@ -16,7 +16,7 @@ from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import func  # type: ignore
 from iree.compiler.dialects import iree_gpu  # type: ignore
 from iree.compiler.dialects import iree_codegen  # type: ignore
-from iree.compiler.dialects import linalg  # type: ignore
+from iree.compiler.dialects import linalg, arith, tensor, func  # type: ignore
 
 from . import common
 from . import dispatch_parser
@@ -126,6 +126,98 @@ def test_get_contraction_operation(tuner_ctx: common.TunerContext) -> None:
     assert shapes.matmul_size.M == [8, 64]
     assert shapes.matmul_size.N == [9, 128]
     assert shapes.matmul_size.K == [15, 256]
+
+
+def test_get_matmul_named_op(tuner_ctx: common.TunerContext) -> None:
+    context = tuner_ctx.mlir_ctx
+    with ir.Location.unknown(context):
+        module = ir.Module.create()
+        f16 = ir.F16Type.get()
+        f32 = ir.F32Type.get()
+
+        with ir.InsertionPoint(module.body):
+            a_type = ir.RankedTensorType.get((16, 64), f16)
+            b_type = ir.RankedTensorType.get((64, 32), f16)
+            c_type = ir.RankedTensorType.get((16, 32), f32)
+
+            dim_m = ir.AffineDimExpr.get(0)
+            dim_n = ir.AffineDimExpr.get(1)
+            dim_k = ir.AffineDimExpr.get(2)
+            a_map = ir.AffineMap.get(3, 0, [dim_m, dim_k])
+            b_map = ir.AffineMap.get(3, 0, [dim_k, dim_n])
+            c_map = ir.AffineMap.get(3, 0, [dim_m, dim_n])
+
+            @func.FuncOp.from_py_func(a_type, b_type, c_type)
+            def named_matmul(a, b, c):
+                matmul_op = linalg.MatmulOp(
+                    result_tensors=[c_type],
+                    inputs=[a, b],
+                    outputs=[c],
+                    indexing_maps=[a_map, b_map, c_map],
+                )
+                matmul_op.operation.attributes["root_op"] = ir.UnitAttr.get()
+
+        root_op_list = iree_codegen.get_tuner_root_ops(module)
+        assert len(root_op_list) == 1, "Expected one root op"
+        root_op = root_op_list[0]
+
+        parser = dispatch_parser.ContractionOpInterfaceParser(root_op)
+        shapes = parser.get_problem_size()
+
+        assert shapes.matmul_size.B == []
+        assert shapes.matmul_size.M == [16]
+        assert shapes.matmul_size.N == [32]
+        assert shapes.matmul_size.K == [64]
+        assert shapes.lhs_type.shape == [16, 64]
+        assert isinstance(shapes.lhs_type.element_type, ir.F16Type)
+        assert shapes.rhs_type.shape == [64, 32]
+        assert isinstance(shapes.rhs_type.element_type, ir.F16Type)
+        assert shapes.res_type.shape == [16, 32]
+        assert isinstance(shapes.res_type.element_type, ir.F32Type)
+
+
+def test_get_named_contraction_op():
+    with ir.Context(), ir.Location.unknown():
+        module = ir.Module.create()
+        f32 = ir.F32Type.get()
+
+        with ir.InsertionPoint(module.body):
+            lhs_type = ir.RankedTensorType.get((5, 3), f32)
+            rhs_type = ir.RankedTensorType.get((7, 3), f32)
+            res_type = ir.RankedTensorType.get((5, 7), f32)
+
+            @func.FuncOp.from_py_func(lhs_type, rhs_type, res_type)
+            def named_contraction(lhs, rhs, res):
+                dim_i = ir.AffineDimExpr.get(0)
+                dim_j = ir.AffineDimExpr.get(1)
+                dim_k = ir.AffineDimExpr.get(2)
+
+                lhs_map = ir.AffineMap.get(3, 0, [dim_i, dim_k])
+                rhs_map = ir.AffineMap.get(3, 0, [dim_j, dim_k])
+                res_map = ir.AffineMap.get(3, 0, [dim_i, dim_j])
+
+                contraction_op = linalg.ContractOp(
+                    result_tensors=[res_type],
+                    inputs=[lhs, rhs],
+                    outputs=[res],
+                    indexing_maps=[lhs_map, rhs_map, res_map],
+                )
+                contraction_op.attributes["root_op"] = ir.UnitAttr.get()
+
+        root_op_list = iree_codegen.get_tuner_root_ops(module)
+        assert len(root_op_list) == 1
+        root_op = root_op_list[0]
+
+        parser = dispatch_parser.ContractionOpInterfaceParser(root_op)
+        shape = parser.get_problem_size()
+
+        assert shape.matmul_size.B == []
+        assert shape.matmul_size.M == [5]
+        assert shape.matmul_size.N == [7]
+        assert shape.matmul_size.K == [3]
+        assert shape.lhs_type.shape == [5, 3]
+        assert shape.rhs_type.shape == [7, 3]
+        assert shape.res_type.shape == [5, 7]
 
 
 def test_get_conv_operation(tuner_ctx: common.TunerContext) -> None:

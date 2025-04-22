@@ -38,7 +38,7 @@ class BatchConsistencyTestProcess(sf.Process):
     """
 
     def __init__(self, service, input_tokens, batch_sizes, max_response_length):
-        super().__init__(fiber=service.main_fiber)
+        super().__init__(fiber=service.fiber_pool.fibers[0])
         self.service = service
         self.input_tokens = input_tokens
         self.batch_sizes = batch_sizes

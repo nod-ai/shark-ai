@@ -6,7 +6,9 @@
 
 import logging
 import os
-from pathlib import Path
+
+from dataclasses import dataclass
+from typing import List
 
 
 import shortfin as sf
@@ -47,6 +49,22 @@ class DoneWorkItem(sf.Message):
         self.count = count
 
 
+@dataclass
+class FiberPool:
+
+    fibers: List[sf.Fiber]
+    idle_fibers: List[sf.Fiber]
+
+    def get_fiber(self):
+        if len(self.idle_fibers) == 0:
+            return None
+
+        return self.idle_fibers.pop(0)
+
+    def return_fiber(self, fiber: sf.Fiber):
+        self.idle_fibers.append(fiber)
+
+
 class LlmBatcherProcess(BatcherProcess):
     """This batcher provides a high-level mechanism for dispatching LLM tasks."""
 
@@ -56,13 +74,14 @@ class LlmBatcherProcess(BatcherProcess):
     def __init__(
         self,
         name: str,
-        fiber: Fiber,
+        fiber_pool: FiberPool,
         page_cache: BasePagedAttentionCache,
         model_params: ModelParams,
         functions: dict[int, sf.ProgramFunction],
         ideal_batch_size: int,
+        program_isolation: str,
     ):
-        super().__init__(fiber=fiber)
+        super().__init__(fiber=fiber_pool.fibers[0])
         self.name = name
         self.page_cache = page_cache
         self.model_params = model_params
@@ -73,6 +92,9 @@ class LlmBatcherProcess(BatcherProcess):
         self.ideal_batch_size: int = ideal_batch_size
         self.page_seq_stride = self.model_params.paged_kv_cache.block_seq_stride
         self._current_workitems = 0
+
+        self.fiber_pool = fiber_pool
+        self.program_isolation = program_isolation
 
     def handle_inference_request(self, request):
         """Handle an inference request."""
@@ -115,25 +137,32 @@ class LlmBatcherProcess(BatcherProcess):
             logger.info("Waiting a bit longer to fill flight")
             return
 
+        fiber = self.fiber_pool.get_fiber()
+        if fiber is None:
+            logger.info("Waiting for an idle fiber...")
+            return
+
         self.strobes = 0
         cache = self.page_cache
 
-        self.board(cache)
+        self.board(cache, fiber)
         logger.debug("Post boarding cache state: %r", cache)
+        if self.program_isolation != sf.ProgramIsolation.PER_FIBER:
+            self.fiber_pool.return_fiber(fiber)
 
-    def make_process(self, cache: BasePagedAttentionCache):
+    def make_process(self, cache: BasePagedAttentionCache, fiber: Fiber):
         ...
 
     def board_request(self, cache, request: LlmInferenceExecRequest):
         ...
 
-    def board(self, cache: BasePagedAttentionCache):
+    def board(self, cache: BasePagedAttentionCache, fiber: Fiber):
         # Fill prefill flights.
         pending = self.pending
         if len(pending) == 0:
             return
 
-        exec_process = self.make_process(cache)
+        exec_process = self.make_process(cache, fiber)
 
         for request in pending:
             if len(exec_process.exec_requests) >= self.ideal_batch_size:
@@ -164,26 +193,30 @@ class PrefillBatcherProcess(LlmBatcherProcess):
 
     def __init__(
         self,
-        fiber: Fiber,
+        fiber_pool: FiberPool,
         page_cache: BasePagedAttentionCache,
         model_params: ModelParams,
         prefill_functions: dict[int, sf.ProgramFunction],
+        program_isolation: str,
     ):
         super().__init__(
             name="prefill",
-            fiber=fiber,
+            fiber_pool=fiber_pool,
             page_cache=page_cache,
             model_params=model_params,
             functions=prefill_functions,
             ideal_batch_size=max(model_params.prefill_batch_sizes),
+            program_isolation=program_isolation,
         )
 
-    def make_process(self, cache: BasePagedAttentionCache):
+    def make_process(self, cache: BasePagedAttentionCache, fiber: Fiber):
         return PrefillExecutorProcess(
-            self.fiber,
+            fiber,
             self.functions,
             self.page_seq_stride,
             cache.page_pool.page_tables,
+            self.fiber_pool,
+            self.program_isolation,
         )
 
     def board_request(self, cache, request: LlmInferenceExecRequest):
@@ -216,26 +249,30 @@ class DecodeBatcherProcess(LlmBatcherProcess):
 
     def __init__(
         self,
-        fiber: Fiber,
+        fiber_pool: FiberPool,
         page_cache: BasePagedAttentionCache,
         model_params: ModelParams,
         decode_functions: dict[int, sf.ProgramFunction],
+        program_isolation: str,
     ):
         super().__init__(
             name="decode",
-            fiber=fiber,
+            fiber_pool=fiber_pool,
             page_cache=page_cache,
             model_params=model_params,
             functions=decode_functions,
             ideal_batch_size=max(model_params.decode_batch_sizes),
+            program_isolation=program_isolation,
         )
 
-    def make_process(self, cache: BasePagedAttentionCache):
+    def make_process(self, cache: BasePagedAttentionCache, fiber: Fiber):
         return DecodeExecutorProcess(
-            self.fiber,
+            fiber,
             self.functions,
             self.page_seq_stride,
             cache.page_pool.page_tables,
+            self.fiber_pool,
+            self.program_isolation,
         )
 
     def board_request(self, cache, request: LlmInferenceExecRequest):
@@ -260,6 +297,8 @@ class LlmExecutorProcess(sf.Process):
         functions: dict[int, sf.ProgramFunction],
         seq_stride: int,
         page_tables,
+        fiber_pool: FiberPool,
+        program_isolation: sf.ProgramIsolation,
     ):
         super().__init__(fiber=fiber)
         self.name = name
@@ -267,6 +306,8 @@ class LlmExecutorProcess(sf.Process):
         self.exec_requests: list[LlmInferenceExecRequest] = []
         self.page_tables = page_tables
         self.functions = functions
+        self.fiber_pool = fiber_pool
+        self.program_isolation = program_isolation
 
     async def get_args(self, bs, device0):
         ...
@@ -345,6 +386,8 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         functions: dict[int, sf.ProgramFunction],
         seq_stride: int,
         page_tables,
+        fiber_pool: FiberPool,
+        program_isolation: sf.ProgramIsolation,
     ):
         super().__init__(
             name="prefill_process",
@@ -352,6 +395,8 @@ class PrefillExecutorProcess(LlmExecutorProcess):
             functions=functions,
             seq_stride=seq_stride,
             page_tables=page_tables,
+            fiber_pool=fiber_pool,
+            program_isolation=program_isolation,
         )
 
     async def get_args(self, bs, device0):
@@ -432,6 +477,9 @@ class PrefillExecutorProcess(LlmExecutorProcess):
                 req.result_logits = logits_item
             req.done.set_success()
 
+        if self.program_isolation == sf.ProgramIsolation.PER_FIBER:
+            self.fiber_pool.return_fiber(self.fiber)
+
 
 class DecodeExecutorProcess(LlmExecutorProcess):
     """Executes a decode batch."""
@@ -442,6 +490,8 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         functions: dict[int, sf.ProgramFunction],
         seq_stride: int,
         page_tables,
+        fiber_pool: FiberPool,
+        isolation: sf.ProgramIsolation,
     ):
         super().__init__(
             name="decode_process",
@@ -449,6 +499,8 @@ class DecodeExecutorProcess(LlmExecutorProcess):
             functions=functions,
             seq_stride=seq_stride,
             page_tables=page_tables,
+            fiber_pool=fiber_pool,
+            program_isolation=isolation,
         )
 
     async def get_args(self, bs, device0):
@@ -545,3 +597,6 @@ class DecodeExecutorProcess(LlmExecutorProcess):
             else:
                 req.result_logits = logits_item
             req.done.set_success()
+
+        if self.program_isolation == sf.ProgramIsolation.PER_FIBER:
+            self.fiber_pool.return_fiber(self.fiber)

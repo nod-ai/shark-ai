@@ -205,27 +205,9 @@ def add_save_tensor_options(parser: argparse.ArgumentParser):
         help="save module forward outputs to safetensors, ex: run_0 will save to run_0_prefill.savetensors",
     )
     parser.add_argument(
-        "--dump-path",
-        help="Path to dump prefill/decode input tensors to npy files",
-        type=str,
-        default=None,
-    )
-    parser.add_argument(
-        "--dump-decode-steps",
-        help="Number of decode steps to dump decode input tensors",
-        type=int,
-        default=1,
-    )
-    parser.add_argument(
-        "--prompt-seq-len",
-        help="Seq len to generate input prompts for prefill",
-        type=int,
-    )
-    parser.add_argument(
-        "--bs",
-        help="Batch size",
-        type=int,
-        default="4",
+        "--dump-bins",
+        help="dump input tensors to bin files",
+        action="store_true",
     )
 
 
