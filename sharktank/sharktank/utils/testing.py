@@ -20,7 +20,7 @@ import gc
 import random
 import torch
 
-from sysi import platform
+from sys import platform
 from datasets import load_dataset
 
 from sharktank.types import *
