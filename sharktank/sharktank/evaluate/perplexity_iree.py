@@ -47,6 +47,7 @@ class PerplexityIree:
     def __init__(
         self,
         torch_device,
+        iree_devices: list[str],
         iree_hip_target,
         iree_hal_target_device,
         bs,
@@ -62,6 +63,7 @@ class PerplexityIree:
         weight_path_str: str,
     ):
         self.torch_device = torch_device
+        self.iree_devices = iree_devices
         self.iree_hip_target = iree_hip_target
         self.iree_hal_target_device = iree_hal_target_device
         self.bs = bs
@@ -285,7 +287,7 @@ class PerplexityIree:
 
         vm_instance = ireert.VmInstance()
         devices: list[iree.runtime.HalDevice] = get_iree_devices(
-            driver=self.iree_hal_target_device,
+            device=self.iree_devices,
             device_count=self.pipeline_parallelism_size * shard_count,
             allow_repeating=True,
         )
@@ -388,13 +390,13 @@ def run_perplexity_iree(
     tensor_parallelism_size: int,
     pipeline_parallelism_size: int,
 ) -> dict[str, Any]:
-
     start = time.time()
 
     test_prompts = args.prompt_list or get_prompts(num_prompts=args.num_prompts)
 
     perplexity = PerplexityIree(
         torch_device=torch_device,
+        iree_devices=args.iree_device,
         iree_hip_target=args.iree_hip_target,
         iree_hal_target_device=args.iree_hal_target_device,
         tensor_parallelism_size=tensor_parallelism_size,
