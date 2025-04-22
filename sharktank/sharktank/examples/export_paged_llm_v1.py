@@ -29,7 +29,9 @@ def pipeline_parallelize_theta(
 ) -> tuple[tuple[int, ...], ...]:
     """Pipeline parallelize theta."""
     # TODO: Still modifies the shards, but the signature doesn't imply this
-    def f(weight: ShardedTensor, new_devices: Tuple[int, ...]) -> ShardedTensor:
+    def parallelize_weight(
+        weight: ShardedTensor, new_devices: Tuple[int, ...]
+    ) -> ShardedTensor:
         (old_shards, old_devices) = (
             ([weight], (0,))
             if isinstance(weight, PrimitiveTensor)
@@ -70,15 +72,17 @@ def pipeline_parallelize_theta(
 
         block_data = theta.tensor("blk", blk_idx)
         for t_name in block_data.keys():
-            block_data[t_name]["weight"] = f(block_data[t_name]["weight"], devices)
+            block_data[t_name]["weight"] = parallelize_weight(
+                block_data[t_name]["weight"], devices
+            )
 
-    theta.tensor("token_embd")["weight"] = f(
+    theta.tensor("token_embd")["weight"] = parallelize_weight(
         theta.tensor("token_embd")["weight"], block_to_device_lookup[0]
     )
-    theta.tensor("output_norm")["weight"] = f(
+    theta.tensor("output_norm")["weight"] = parallelize_weight(
         theta.tensor("output_norm")["weight"], block_to_device_lookup[-1]
     )
-    theta.tensor("output")["weight"] = f(
+    theta.tensor("output")["weight"] = parallelize_weight(
         theta.tensor("output")["weight"], block_to_device_lookup[-1]
     )
 
