@@ -48,7 +48,8 @@ class PipelinedShardedPagedAttentionTest(unittest.TestCase):
             block_seq_stride=self.block_seq_stride,
             attn_head_dim=self.attn_head_dim,
             cache_partition_count=self.cache_partition_count,
-            dtype=self.dtype,
+            cache_dtype=self.dtype,
+            attn_dtype=self.dtype,
         )
         self.pipelined_sharded_cache = PagedAttention(
             shard_count=self.shard_count,
@@ -58,7 +59,8 @@ class PipelinedShardedPagedAttentionTest(unittest.TestCase):
             block_seq_stride=self.block_seq_stride,
             attn_head_dim=self.attn_head_dim,
             cache_partition_count=self.cache_partition_count,
-            dtype=self.dtype,
+            cache_dtype=self.dtype,
+            attn_dtype=self.dtype,
         )
 
     def make_unsharded_and_sharded_equal_cache_states(
