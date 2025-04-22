@@ -85,7 +85,7 @@ class PipelinedShardedPagedAttentionTest(unittest.TestCase):
                 pipelined_sharded_cache_state
             )
         ]
-        pipelined_sharded_states_as_single = torch.cat(
+        pipelined_sharded_states_as_single = ops.cat(
             pipelined_sharded_states_as_unsharded, dim=1
         )
         assert iterables_equal(
