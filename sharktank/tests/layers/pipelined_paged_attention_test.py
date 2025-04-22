@@ -77,17 +77,13 @@ class PipelinedPagedAttentionTest(unittest.TestCase):
         cache_state: List[torch.Tensor],
         pipelined_cache_state: List[SplitPrimitiveTensor],
     ):
-        pipelined_states_as_unreplicated = [
+        pipelined_states_unreplicated = [
             ops.unshard(unflatted_page).flatten(start_dim=1)
             for unflatted_page in self.pipelined_cache.unflatten_page_tables(
                 pipelined_cache_state
             )
         ]
-        pipelined_states_as_single = (
-            torch.cat(  # TODO cat isn't what we should be doing
-                pipelined_states_as_unreplicated, dim=1
-            )
-        )
+        pipelined_states_as_single = ops.cat(pipelined_states_unreplicated, dim=1)
         assert iterables_equal(cache_state[0].shape, pipelined_states_as_single.shape)
         assert ops.equal(
             cache_state[0],
