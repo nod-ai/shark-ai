@@ -196,7 +196,8 @@ class PerplexityIree:
             ]
         )
         prefill_kwargs_flattened = flatten_for_iree_signature(prefill_kwargs)
-        # TODO: I am not sure that prepare_iree_module_function_args properly handles device placement for pipeline parallelism.
+        # TODO: Does not handle device placement for pipeline parallelism properly.
+        #       Testing blocked by https://github.com/iree-org/iree/issues/20551.
         prefill_iree_args = prepare_iree_module_function_args(
             args=prefill_kwargs_flattened, devices=devices
         )
@@ -242,7 +243,7 @@ class PerplexityIree:
                 (
                     "start_positions",
                     [self.batch.seq_lens.clone()],
-                ),  # TODO: Why clone here and not in prefill
+                ),
                 ("seq_block_ids", [self.batch.pad_block_ids()]),
                 ("cache_state", self.cache_state),
             ]
@@ -337,14 +338,14 @@ class PerplexityIree:
                     decode_logits = self.decode_vmfb(token_batch, i, devices)
                     out_logits.append(decode_logits)
 
-            out_logits = torch.cat(out_logits, dim=1)
+            out_logits = ops.cat(out_logits, dim=1)
             pad_logits_shape = self.token_ids.shape[1] - out_logits.shape[1]
             pad_logits = torch.zeros(
                 out_logits.shape[0], pad_logits_shape, out_logits.shape[2]
             )
 
             self.cache_state = None  # Remove saved reference to iree.runtime.DeviceArray before leaving function
-            return torch.cat((out_logits, pad_logits), 1).to(self.torch_device)
+            return ops.cat((out_logits, pad_logits), 1).to(self.torch_device)
 
         return with_iree_device_context(run_iree_module, devices)
 
