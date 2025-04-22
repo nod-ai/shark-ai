@@ -113,6 +113,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             self.artifacts_dir / "fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa"
         )
         self.tensor_parallelism_size = 1
+        self.pipeline_parallelism_size = 1
         self.dir_path_8b = self.dir_path / "llama-8b"
         self.temp_dir_8b = Path(self.dir_path_8b)
         self.temp_dir_8b.mkdir(parents=True, exist_ok=True)
@@ -123,6 +124,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             iree_hal_target_device="hip",
             attention_kernel="torch",
             tensor_parallelism_size=self.tensor_parallelism_size,
+            pipeline_parallelism_size=self.pipeline_parallelism_size,
             block_seq_stride=32,
         )
         self.llama8b_fp8_torch_sdpa_artifacts = ExportArtifacts(
@@ -132,6 +134,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             iree_hal_target_device="hip",
             attention_kernel="torch",
             tensor_parallelism_size=self.tensor_parallelism_size,
+            pipeline_parallelism_size=self.pipeline_parallelism_size,
             block_seq_stride=32,
             use_hf=True,
             activation_dtype="bfloat16",
@@ -145,6 +148,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             iree_hal_target_device="hip",
             attention_kernel="sharktank",
             tensor_parallelism_size=self.tensor_parallelism_size,
+            pipeline_parallelism_size=self.pipeline_parallelism_size,
             block_seq_stride=32,
             use_hf=True,
             activation_dtype="bfloat16",
@@ -469,6 +473,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             iree_hal_target_device="hip",
             attention_kernel="torch",
             tensor_parallelism_size=1,
+            pipeline_parallelism_size=1,
             block_seq_stride=32,
         )
         self.llama70b_f16_torch_sdpa_artifacts_tp8 = ExportArtifacts(
@@ -478,6 +483,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             iree_hal_target_device="hip",
             attention_kernel="torch",
             tensor_parallelism_size=self.tensor_parallelism_size,
+            pipeline_parallelism_size=1,
             block_seq_stride=32,
         )
         self.llama70b_fp8_torch_sdpa_artifacts_tp1 = ExportArtifacts(
@@ -487,6 +493,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             iree_hal_target_device="hip",
             attention_kernel="torch",
             tensor_parallelism_size=1,
+            pipeline_parallelism_size=1,
             block_seq_stride=32,
             activation_dtype="bfloat16",
             attention_dtype="bfloat16",
@@ -820,6 +827,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         )
         self.irpa_path_fp8 = self.artifacts_dir / "f8/llama3.1_405b_fp8.irpa"
         self.tensor_parallelism_size = 8
+        self.pipeline_parallelism_size = 1
         self.dir_path_405b = self.dir_path / "llama-405b"
         self.temp_dir_405b = Path(self.dir_path_405b)
         self.temp_dir_405b.mkdir(parents=True, exist_ok=True)
@@ -830,6 +838,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             iree_hal_target_device="hip",
             attention_kernel="torch",
             tensor_parallelism_size=self.tensor_parallelism_size,
+            pipeline_parallelism_size=self.pipeline_parallelism_size,
             block_seq_stride=32,
         )
         self.llama405b_fp8_torch_sdpa_artifacts = ExportArtifacts(
@@ -839,6 +848,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             iree_hal_target_device="hip",
             attention_kernel="torch",
             tensor_parallelism_size=self.tensor_parallelism_size,
+            pipeline_parallelism_size=self.pipeline_parallelism_size,
             block_seq_stride=32,
             activation_dtype="bfloat16",
             attention_dtype="bfloat16",
