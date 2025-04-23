@@ -29,10 +29,10 @@ For an initial trial to test the tuning loop, use following command:
 
 ```shell
 cd ../../
-python -m examples.sample examples/sample/double_mmt.mlir \
-    examples/sample/tmp/mmt_benchmark.mlir \
-    --compile-flags-file=examples/sample/compile_flags.txt \
-    --model-benchmark-flags-file=examples/sample/model_benchmark_flags.txt \
+python -m examples.sdxl_baseline examples/sdxl_baseline/double_mmt.mlir \
+    examples/sdxl_baseline/tmp/mmt_benchmark.mlir \
+    --compile-flags-file=examples/sdxl_baseline/compile_flags.txt \
+    --model-benchmark-flags-file=examples/sdxl_baseline/model_benchmark_flags.txt \
     --devices=hip://0 --num-candidates=30 \
     --num-dispatch-candidates=5 --num-model-candidates=3 \
 ```
@@ -44,7 +44,7 @@ You can use following default td spec: [Default Spec](https://github.com/iree-or
 ### Basic Usage
 
 ```shell
-python -m examples.sample <model_file_path> <benchmark_file_path> \
+python -m examples.sdxl_baseline <model_file_path> <benchmark_file_path> \
     --devices=hip://0,hip://1 --num-candidates=1024 \
     --compile-flags-file=<compile_flags_path> \
     --model-benchmark-flags-file=<model_benchmark_flags_path> \

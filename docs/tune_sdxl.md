@@ -213,7 +213,7 @@ Add input sizes as per the arguments of the function to be tuned.
 ### Command to run sharktuner
 
 ```
-python -m examples.sample \
+python -m examples.sdxl_baseline \
   <IR_PATH> \
   --compile-flags-file=compile_flags.txt  \
   --model-benchmark-flags-file=model_benchmark_flags.txt \
@@ -235,4 +235,4 @@ It will take some time to finish sharktuner. You should see the final candidates
 
 
 ## Reference links:
-[Tuner Example](https://github.com/amd-vivekag/shark-ai/blob/main/sharktuner/examples/sample/README.md)
+[Tuner Example](https://github.com/amd-vivekag/shark-ai/blob/main/sharktuner/examples/sdxl_baseline/README.md)
