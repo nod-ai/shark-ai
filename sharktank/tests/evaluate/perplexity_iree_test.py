@@ -33,6 +33,11 @@ class PerplexityTest(unittest.TestCase):
         self.tensor_parallelism_size = 8
         with open(self.baseline_perplexity_scores, "r") as f:
             self.baseline_perplexity = json.load(f)
+        self.iree_devices = (
+            [self.iree_device]
+            if isinstance(self.iree_device, str)
+            else self.iree_device
+        )
 
     @is_pre_submit_nightly
     @is_llama_8b
@@ -52,7 +57,7 @@ class PerplexityTest(unittest.TestCase):
             f"--attention-kernel=torch",
             f"--num-prompts={self.batch_size}",
         ]
-        argv.extend(f"--iree-device={device}" for device in self.iree_device)
+        argv.extend(f"--iree-device={device}" for device in self.iree_devices)
         current_perplexity = perplexity_iree.main(argv)
 
         baseline_mean_perplexity = round(
@@ -87,7 +92,7 @@ class PerplexityTest(unittest.TestCase):
             f"--num-prompts={self.batch_size}",
             f"--use-attention-mask",
         ]
-        argv.extend(f"--iree-device={device}" for device in self.iree_device)
+        argv.extend(f"--iree-device={device}" for device in self.iree_devices)
         current_perplexity = perplexity_iree.main(argv)
 
         baseline_mean_perplexity = round(
@@ -127,7 +132,7 @@ class PerplexityTest(unittest.TestCase):
             f"--num-prompts={self.batch_size}",
             f"--use-attention-mask",
         ]
-        argv.extend(f"--iree-device={device}" for device in self.iree_device)
+        argv.extend(f"--iree-device={device}" for device in self.iree_devices)
         current_perplexity = perplexity_iree.main(argv)
 
         baseline_mean_perplexity = round(
@@ -201,7 +206,7 @@ class PerplexityTest(unittest.TestCase):
             f"--kv-cache-dtype=float8_e4m3fnuz",
             "--use-hf",
         ]
-        argv.extend(f"--iree-device={device}" for device in self.iree_device)
+        argv.extend(f"--iree-device={device}" for device in self.iree_devices)
         current_perplexity = perplexity_iree.main(argv)
 
         baseline_mean_perplexity = round(
@@ -236,7 +241,7 @@ class PerplexityTest(unittest.TestCase):
             f"--attention-kernel=torch",
             f"--num-prompts={self.batch_size}",
         ]
-        argv.extend(f"--iree-device={device}" for device in self.iree_device)
+        argv.extend(f"--iree-device={device}" for device in self.iree_devices)
         current_perplexity = perplexity_iree.main(argv)
 
         baseline_mean_perplexity = round(
@@ -271,7 +276,7 @@ class PerplexityTest(unittest.TestCase):
             f"--attention-kernel=torch",
             f"--num-prompts={self.batch_size}",
         ]
-        argv.extend(f"--iree-device={device}" for device in self.iree_device)
+        argv.extend(f"--iree-device={device}" for device in self.iree_devices)
         current_perplexity = perplexity_iree.main(argv)
 
         baseline_mean_perplexity = round(
