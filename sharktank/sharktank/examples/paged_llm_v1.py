@@ -40,11 +40,6 @@ def main():
 
     args = cli.parse(parser)
 
-    prompt_seq_len = args.prompt_seq_len
-    assert (
-        args.prompt or prompt_seq_len
-    ), "Pass --prompt for custom prompts or --prompt-seq-len and --bs to generate random token ids"
-
     device = torch.device(args.device) if args.device else None
     dataset = cli.get_input_dataset(args)
     tokenizer = cli.get_tokenizer(args)
@@ -79,7 +74,6 @@ def main():
     batch = generator.begin_batch(
         token_ids=token_ids,
         seq_lens=seq_lens,
-        prompt_seq_len=prompt_seq_len,
         dump_path=args.dump_path,
         dump_decode_steps=args.dump_decode_steps,
     )

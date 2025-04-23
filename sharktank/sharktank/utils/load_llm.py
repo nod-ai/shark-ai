@@ -64,15 +64,10 @@ class TorchGenerator:
         token_ids: torch.tensor,
         seq_lens: torch.tensor,
         page_cache_size: int = None,
-        prompt_seq_len: int = None,
         dump_path: Path = None,
         dump_decode_steps: int = None,
     ):
         bs = token_ids.shape[0]
-
-        self.prompt_seq_len = prompt_seq_len
-        if self.prompt_seq_len and not dump_path:
-            dump_path = ""
 
         self.page_cache_size = (
             page_cache_size
