@@ -13,7 +13,7 @@ Generate candidates by tweaking op configuration for tuning.
 It can be invoked in two ways:
     1. From another python script, import and call `generate_configs_and_td_specs()`
     2. Run this script directly from the command
-Usage: python -m tuner.candidate_gen mmt_benchmark.mlir -o spec_dir -l 1024
+Usage: python -m sharktuner.candidate_gen mmt_benchmark.mlir -o spec_dir -l 1024
 """
 
 import argparse
