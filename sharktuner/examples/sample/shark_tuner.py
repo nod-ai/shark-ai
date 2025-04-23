@@ -94,9 +94,7 @@ def main() -> None:
         print("Validation successful!\n")
 
     compile_flags: list[str] = read_flags_file(args.compile_flags_file)
-    model_benchmark_flags: list[str] = read_flags_file(
-        args.model_benchmark_flags_file
-    )
+    model_benchmark_flags: list[str] = read_flags_file(args.model_benchmark_flags_file)
 
     summary_log_file = path_config.base_dir / "summary.log"
     summary_handler = logging.FileHandler(summary_log_file)
