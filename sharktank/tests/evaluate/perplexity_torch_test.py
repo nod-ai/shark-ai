@@ -12,7 +12,6 @@ import gc
 
 from sharktank.evaluate import perplexity_torch
 from sharktank.utils.testing import (
-    is_mi300x,
     is_nightly,
 )
 
@@ -24,7 +23,6 @@ from sharktank.utils.testing import (
     "batch_size",
     "device",
 )
-@is_mi300x
 @is_nightly
 class PerplexityTest(unittest.TestCase):
     def setUp(self):
