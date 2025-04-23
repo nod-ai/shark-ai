@@ -4,10 +4,13 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import collections
 import math
+from pathlib import Path
 
 import numpy as np
 import torch
+import numpy as np
 
 from sharktank.layers import *
 from sharktank.types import *
@@ -61,7 +64,8 @@ class TorchGenerator:
         token_ids: torch.tensor,
         seq_lens: torch.tensor,
         page_cache_size: int = None,
-        dump_bins: bool = False,
+        dump_path: Path = None,
+        dump_decode_steps: int = None,
     ):
         bs = token_ids.shape[0]
 
@@ -80,7 +84,8 @@ class TorchGenerator:
             seq_lens=seq_lens,
             cache_state=cache_state,
             bs=bs,
-            dump_bins=dump_bins,
+            dump_path=dump_path,
+            dump_decode_steps=dump_decode_steps,
         )
 
     def alloc_page(self) -> int:
@@ -96,19 +101,23 @@ class Batch:
         parent: TorchGenerator,
         token_ids: torch.Tensor,
         seq_lens: torch.Tensor,
-        cache_state: list[torch.Tensor],
+        cache_state: list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
         bs: int,
-        dump_bins: bool = False,
+        dump_path: Path,
+        dump_decode_steps: int,
     ):
         self.bs = bs
         assert seq_lens.shape[0] == self.bs
         self.parent = parent
         self.token_ids = token_ids
         self.seq_lens = seq_lens
+        # TODO: This doesn't appear to handle PP models properly
         self.cache_state = cache_state
         self.results: list[list[int]] = [[] for _ in range(self.bs)]
         self.done_result_indices: set[int] = set()
-        self.dump_bins = dump_bins
+        self.dump_path = dump_path
+        self.dump_decode_steps = dump_decode_steps
+        self.decode_step = 0
 
         # Assemble the batch.
         seq_stride = self.parent.block_seq_stride
@@ -168,44 +177,85 @@ class Batch:
                     break
                 block_ids_row.append(self.parent.alloc_page())
 
+    def dump_args(
+        self,
+        phase: str,
+        arg_name: str,
+        arg: torch.Tensor | ShardedTensor | list[torch.Tensor | ShardedTensor],
+        decode_step: int | None = None,
+        rank: int | None = None,
+    ):
+        if isinstance(arg, collections.abc.Sequence):
+            for i, a in enumerate(arg):
+                subarg_name = arg_name if len(arg) == 1 else f"{arg_name}_{i}"
+                self.dump_args(phase, subarg_name, a, decode_step, rank)
+        elif isinstance(arg, ShardedTensor):
+            for rank in range(arg.shard_count):
+                self.dump_args(
+                    phase, arg_name, arg.shards[rank]._data, decode_step, rank
+                )
+        else:
+            if arg.dtype in [torch.float8_e4m3fnuz, torch.bfloat16]:
+                arg = arg.to(torch.uint8)
+            if phase == "decode":
+                arg_name = f"{arg_name}_{decode_step}"
+            rank_str = "" if (rank is None) else f".rank{rank}"
+
+            file_path = Path(self.dump_path, f"{phase}_{arg_name}{rank_str}.npy")
+            np.save(file_path, arg.cpu().numpy())
+
     def prefill(self):
         model = self.parent.model
         attention_mask = model.attention_mask(
             model.input_mask(self.seq_lens, self.token_ids.shape[1])
         )
-        seq_block_ids_tensor = self.pad_block_ids()
+        seq_block_ids = self.pad_block_ids()
         trace_tensor("prefill.token_ids", self.token_ids)
-        trace_tensor("prefill.seq_block_ids", seq_block_ids_tensor)
+        trace_tensor("prefill.seq_block_ids", seq_block_ids)
         trace_tensor("prefill.attention_mask", attention_mask)
         token_ids = self.token_ids
-        if model.config.tensor_parallelism_size != 1:
-            tp = model.config.tensor_parallelism_size
-            token_ids = replicate(token_ids, tp)
-            attention_mask = replicate(attention_mask, tp)
-            seq_block_ids_tensor = replicate(seq_block_ids_tensor, tp)
 
-        if self.dump_bins:
-            write_ndarray_to_bin(
-                token_ids.numpy(),
-                f"prefill_token_ids_{'x'.join([str(x) for x in token_ids.shape])}xi64.bin",
+        shard_count = model.config.tensor_parallelism_size
+        num_pipelines = model.config.pipeline_parallelism_size
+        if shard_count * num_pipelines == 1:
+            seq_block_ids = [seq_block_ids]
+            attention_mask = [attention_mask]
+        else:
+            token_ids = replicate(
+                token_ids, shard_count, devices=model.config.block_to_device_lookup[0]
             )
-            write_ndarray_to_bin(
-                np.array(token_ids.shape[0], dtype=np.int64),
-                f"prefill_seq_lens_1xi64.bin",
-            )
-            write_ndarray_to_bin(
-                seq_block_ids_tensor.numpy(),
-                f"prefill_seq_block_ids_{'x'.join([str(x) for x in seq_block_ids_tensor.shape])}xi64.bin",
-            )
-            write_ndarray_to_bin(
-                self.cache_state[0].to(torch.float8_e4m3fnuz).to(torch.uint8).numpy(),
-                f"prefill_cache_state_{'x'.join([str(x) for x in self.cache_state[0].shape])}xf8E4M3FNUZ.bin",
+            _attention_mask, _seq_block_ids = [], []
+            for pipeline in range(model.cache.pipeline_count):
+                _attention_mask.append(
+                    replicate(
+                        attention_mask,
+                        count=shard_count,
+                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                    )
+                )
+                _seq_block_ids.append(
+                    replicate(
+                        seq_block_ids,
+                        count=shard_count,
+                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                    )
+                )
+            attention_mask, seq_block_ids = _attention_mask, _seq_block_ids
+
+        if self.dump_path:
+            print(f"\nSaving prefill args to {Path(self.dump_path)}\n")
+
+            self.dump_args(phase="prefill", arg_name="token_ids", arg=token_ids)
+            self.dump_args(phase="prefill", arg_name="seq_lens", arg=self.seq_lens)
+            self.dump_args(phase="prefill", arg_name="seq_block_ids", arg=seq_block_ids)
+            self.dump_args(
+                phase="prefill", arg_name="cache_state", arg=self.cache_state
             )
 
         self.prefill_logits = model.prefill(
             token_ids,
             attention_mask=attention_mask,
-            seq_block_ids=seq_block_ids_tensor,
+            seq_block_ids=seq_block_ids,
             cache_state=self.cache_state,
         )
 
@@ -227,52 +277,96 @@ class Batch:
         self.seq_lens.add_(1)
         self.allocate_seq_block_ids()
         # TODO: Allocate more blocks on overflow.
-        seq_block_ids_tensor = self.pad_block_ids()
+        seq_block_ids = self.pad_block_ids()
         decode_attention_mask = model.decode_attention_mask(
             model.input_mask(
                 self.seq_lens,
-                seq_block_ids_tensor.shape[1] * self.parent.block_seq_stride,
+                seq_block_ids.shape[1] * self.parent.block_seq_stride,
             )
         )
         trace_tensor("decode.token_ids", token_batch)
         trace_tensor("decode.start_positions", start_positions)
-        trace_tensor("decode.seq_block_ids", seq_block_ids_tensor)
+        trace_tensor("decode.seq_block_ids", seq_block_ids)
         trace_tensor("decode.attention_mask", decode_attention_mask)
 
-        if model.config.tensor_parallelism_size != 1:
-            tp = model.config.tensor_parallelism_size
-            token_batch = replicate(token_batch, tp)
-            start_positions = replicate(start_positions, tp)
-            seq_block_ids_tensor = replicate(seq_block_ids_tensor, tp)
-            decode_attention_mask = replicate(decode_attention_mask, tp)
+        shard_count = model.config.tensor_parallelism_size
+        num_pipelines = model.config.pipeline_parallelism_size
+        if shard_count * num_pipelines == 1:
+            seq_block_ids = [seq_block_ids]
+            decode_attention_mask = [decode_attention_mask]
+        else:
+            token_batch = replicate(
+                token_batch, shard_count, devices=model.config.block_to_device_lookup[0]
+            )
 
-        if self.dump_bins:
-            write_ndarray_to_bin(
-                token_batch.numpy(),
-                f"decode_next_tokens_{'x'.join([str(x)for x in token_batch.shape])}xi64.bin",
+            _start_positions, _seq_block_ids, _decode_attention_mask = [], [], []
+            for pipeline in range(model.cache.pipeline_count):
+                _start_positions.append(
+                    replicate(
+                        start_positions,
+                        count=shard_count,
+                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                    )
+                )
+                _seq_block_ids.append(
+                    replicate(
+                        seq_block_ids,
+                        count=shard_count,
+                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                    )
+                )
+                _decode_attention_mask.append(
+                    replicate(
+                        decode_attention_mask,
+                        count=shard_count,
+                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                    )
+                )
+            start_positions, seq_block_ids, decode_attention_mask = (
+                _start_positions,
+                _seq_block_ids,
+                _decode_attention_mask,
             )
-            write_ndarray_to_bin(
-                start_positions.numpy(),
-                f"decode_start_positions_{'x'.join([str(x)for x in start_positions.shape])}xi64.bin",
+
+        if self.dump_path is not None:
+            print(f"\nSaving decode args to {Path(self.dump_path)}\n")
+
+            self.dump_args(
+                phase="decode",
+                arg_name="next_tokens",
+                arg=token_batch,
+                decode_step=self.decode_step,
             )
-            write_ndarray_to_bin(
-                seq_block_ids_tensor.numpy(),
-                f"decode_seq_block_ids_tensor_{'x'.join([str(x)for x in seq_block_ids_tensor.shape])}xi64.bin",
+            self.dump_args(
+                phase="decode",
+                arg_name="start_positions",
+                arg=start_positions,
+                decode_step=self.decode_step,
             )
-            write_ndarray_to_bin(
-                torch.tensor(token_batch.shape[0]).to(torch.int64).numpy(),
-                f"decode_seq_lens_1xi64.bin",
+            self.dump_args(
+                phase="decode",
+                arg_name="seq_lens",
+                arg=self.seq_lens,
+                decode_step=self.decode_step,
             )
-            write_ndarray_to_bin(
-                self.cache_state[0].to(torch.float8_e4m3fnuz).to(torch.uint8).numpy(),
-                f"decode_cache_state_{'x'.join([str(x) for x in self.cache_state[0].shape])}xf8E4M3FNUZ.bin",
+            self.dump_args(
+                phase="decode",
+                arg_name="seq_block_ids",
+                arg=seq_block_ids,
+                decode_step=self.decode_step,
+            )
+            self.dump_args(
+                phase="decode",
+                arg_name="cache_state",
+                arg=self.cache_state,
+                decode_step=self.decode_step,
             )
 
         self.decode_logits = model.decode(
             token_batch,
             attention_mask=decode_attention_mask,
             start_positions=start_positions,
-            seq_block_ids=seq_block_ids_tensor,
+            seq_block_ids=seq_block_ids,
             cache_state=self.cache_state,
         )
 
@@ -286,6 +380,7 @@ class Batch:
             device=self.parent.model.device,
         ).unsqueeze(1)
         self.add_result_token(tokens)
+        self.decode_step += 1
         return tokens
 
     def pad_block_ids(self) -> torch.Tensor:

@@ -157,7 +157,7 @@ class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
         actual_result = unbox_tensor(ops.unshard(sharded_result))
         actual_cache_state = unbox_tensor(
             ops.unshard(
-                sharded_cache.unflatten_page_table(sharded_cache_state)
+                sharded_cache.unflatten_page_tables(sharded_cache_state)
             ).flatten(start_dim=1)
         )
 

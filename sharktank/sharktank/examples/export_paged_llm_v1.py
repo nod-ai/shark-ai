@@ -16,6 +16,7 @@ from iree.turbine.aot import *
 
 from sharktank.layers import *
 from sharktank.types import *
+from sharktank.types.pipelining import pipeline_parallelize_theta
 from sharktank.utils.math import ceildiv
 from sharktank import ops
 from sharktank.utils import cli
@@ -63,9 +64,21 @@ def main():
         if "tensor_parallelism_size" in dataset.properties
         else args.tensor_parallelism_size
     )
+
+    if args.pipeline_parallelism_size > 1:
+        block_to_device_lookup = pipeline_parallelize_theta(
+            dataset.root_theta, args.pipeline_parallelism_size
+        )
+    else:
+        block_to_device_lookup = tuple(
+            tuple(range(args.tensor_parallelism_size)) for _ in range(hp.block_count)
+        )
+
     llama_config = LlamaModelConfig(
         hp,
         tensor_parallelism_size=tensor_parallelism_size,
+        pipeline_parallelism_size=args.pipeline_parallelism_size,
+        block_to_device_lookup=block_to_device_lookup,
         use_hf=args.use_hf,
         static_tables=False,  # Rely on the compiler for hoisting tables.
         attention_kernel=args.attention_kernel,
@@ -123,13 +136,18 @@ def main():
             )
             page_dim = torch.export.Dim("page")
 
-            dynamic_shapes = [{0: page_dim}]
+            dynamic_shapes = [
+                {0: page_dim} for _ in range(llama_config.pipeline_parallelism_size)
+            ]
             unpacked = cache_state
             arg_affinities = {}
             shard_dim = None
 
-            # Need to unpacke that state when sharded
-            if llama_config.tensor_parallelism_size > 1:
+            # Need to unpack that state when sharded (for tracing support reasons)
+            if (
+                llama_config.tensor_parallelism_size > 1
+                or llama_config.pipeline_parallelism_size > 1
+            ):
                 shard_dim = cache_state[0].shard_dim
 
                 unpacked = [[shard._data for shard in cs.shards] for cs in cache_state]
@@ -137,15 +155,34 @@ def main():
                     [ds] * llama_config.tensor_parallelism_size for ds in dynamic_shapes
                 ]
 
-                for i in range(llama_config.tensor_parallelism_size):
-                    arg_affinities[i] = DeviceAffinity(str(i))
+                # Cache is unpacked as [[pipeline 0 shards], [pipeline 1 shards], ...]
+                # Therefore pipeline index is in outer loop.
+                for pipeline in range(llama_config.pipeline_parallelism_size):
+                    for tp in range(llama_config.tensor_parallelism_size):
+                        i = pipeline * llama_config.tensor_parallelism_size + tp
+                        arg_affinities[i] = DeviceAffinity(
+                            str(model.cache.pipeline_to_device_lookup[pipeline][tp])
+                        )
 
             return unpacked, shard_dim, dynamic_shapes, arg_affinities
         else:
             raise NotImplementedError(f"Unsupported KV cache type: {type(model.cache)}")
 
-    def repack_cache(cache, shard_dim):
-        return [SplitPrimitiveTensor(ts=c, shard_dim=shard_dim) for c in cache]
+    def repack_cache(
+        cache, shard_dim, pipeline_to_device_lookup: tuple[tuple[int, ...], ...]
+    ) -> list[ShardedTensor]:
+        return [
+            (
+                SplitPrimitiveTensor(
+                    ts=c,
+                    shard_dim=shard_dim,
+                    devices=pipeline_to_device_lookup[pipeline],
+                )
+                if len(c) > 1
+                else ReplicatedTensor(ts=c, devices=pipeline_to_device_lookup[pipeline])
+            )
+            for pipeline, c in enumerate(cache)
+        ]
 
     def generate_batch_prefill(bs: int):
         # torch.export.Dim would make min at least 2
@@ -165,12 +202,15 @@ def main():
             model, llama_config.tensor_parallelism_size
         )
 
-        if llama_config.tensor_parallelism_size > 1:
+        if (
+            llama_config.tensor_parallelism_size > 1
+            or llama_config.pipeline_parallelism_size > 1
+        ):
             # We need to offset the indices for the cache
             arg_affinities = {key + 3: arg_affinities[key] for key in arg_affinities}
 
             for i in range(3):
-                arg_affinities[i] = DeviceAffinity("0")
+                arg_affinities[i] = DeviceAffinity(str(block_to_device_lookup[0][0]))
 
         dynamic_shapes = {
             "tokens": {1: sl_dim},
@@ -197,14 +237,42 @@ def main():
                 input_mask = model.input_mask(seq_lens, sl)
                 attention_mask = model.attention_mask(input_mask)
 
-            if llama_config.tensor_parallelism_size != 1:
+            if (
+                llama_config.tensor_parallelism_size == 1
+                and llama_config.pipeline_parallelism_size == 1
+            ):
+                attention_mask = [attention_mask]
+                seq_block_ids = [seq_block_ids]
+            else:
                 shard_count = llama_config.tensor_parallelism_size
 
-                tokens = ops.replicate(tokens, count=shard_count)
-                if attention_mask is not None:
-                    attention_mask = ops.replicate(attention_mask, count=shard_count)
-                seq_block_ids = ops.replicate(seq_block_ids, count=shard_count)
-                cache_tensors = repack_cache(cs, cache_shard_dim)
+                tokens = ops.replicate(
+                    tokens,
+                    count=shard_count,
+                    devices=llama_config.block_to_device_lookup[0],
+                )
+                if attention_mask is None:
+                    attention_mask = [None] * model.cache.pipeline_count
+                else:
+                    attention_mask = [
+                        ops.replicate(
+                            attention_mask,
+                            count=shard_count,
+                            devices=model.cache.pipeline_to_device_lookup[pipeline],
+                        )
+                        for pipeline in range(model.cache.pipeline_count)
+                    ]
+                seq_block_ids = [
+                    ops.replicate(
+                        seq_block_ids,
+                        count=shard_count,
+                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                    )
+                    for pipeline in range(model.cache.pipeline_count)
+                ]
+                cache_tensors = repack_cache(
+                    cs, cache_shard_dim, model.cache.pipeline_to_device_lookup
+                )
 
             logits = model.prefill(
                 tokens,
@@ -245,13 +313,16 @@ def main():
             arg_affinities,
         ) = setup_cache(model, llama_config.tensor_parallelism_size)
 
-        if llama_config.tensor_parallelism_size > 1:
+        if (
+            llama_config.tensor_parallelism_size > 1
+            or llama_config.pipeline_parallelism_size > 1
+        ):
             # We need to offset the indices for the cache
             arg_affinities = {key + 4: arg_affinities[key] for key in arg_affinities}
 
             # Inputs have default affinity 0
             for i in range(4):
-                arg_affinities[i] = DeviceAffinity("0")
+                arg_affinities[i] = DeviceAffinity(str(block_to_device_lookup[0][0]))
 
         dynamic_shapes = {
             "tokens": {},
@@ -289,15 +360,46 @@ def main():
             )
             attention_mask = model.decode_attention_mask(input_mask)
 
-            if llama_config.tensor_parallelism_size != 1:
+            if (
+                llama_config.tensor_parallelism_size == 1
+                and llama_config.pipeline_parallelism_size == 1
+            ):
+                attention_mask = [attention_mask]
+                seq_block_ids = [seq_block_ids]
+                start_positions = [start_positions]
+            else:
                 shard_count = llama_config.tensor_parallelism_size
 
-                tokens = ops.replicate(tokens, count=shard_count)
-                attention_mask = ops.replicate(attention_mask, count=shard_count)
-                start_positions = ops.replicate(start_positions, count=shard_count)
-                seq_block_ids = ops.replicate(seq_block_ids, count=shard_count)
+                tokens = ops.replicate(
+                    tokens,
+                    count=shard_count,
+                    devices=llama_config.block_to_device_lookup[0],
+                )
+                _attention_mask, _start_positions, _seq_block_ids = [], [], []
+                for pipeline in range(model.cache.pipeline_count):
+                    devices = model.cache.pipeline_to_device_lookup[pipeline]
+                    _attention_mask.append(
+                        ops.replicate(
+                            attention_mask, count=shard_count, devices=devices
+                        )
+                    )
+                    _start_positions.append(
+                        ops.replicate(
+                            start_positions, count=shard_count, devices=devices
+                        )
+                    )
+                    _seq_block_ids.append(
+                        ops.replicate(seq_block_ids, count=shard_count, devices=devices)
+                    )
+                attention_mask, start_positions, seq_block_ids = (
+                    _attention_mask,
+                    _start_positions,
+                    _seq_block_ids,
+                )
 
-                cache_state = repack_cache(cache_state, cache_shard_dim)
+                cache_state = repack_cache(
+                    cache_state, cache_shard_dim, model.cache.pipeline_to_device_lookup
+                )
 
             logits = model.decode(
                 tokens,
