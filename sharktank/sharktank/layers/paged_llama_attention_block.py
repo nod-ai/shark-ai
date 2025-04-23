@@ -8,7 +8,13 @@ from typing import Optional
 
 
 import torch
-from sharktank.types import QuantizerTensor, StaticScaledQuantizer, Theta
+
+from sharktank.types import (
+    QuantizerTensor,
+    ReplicatedTensor,
+    StaticScaledQuantizer,
+    Theta,
+)
 from sharktank.layers import *
 
 
@@ -35,11 +41,13 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         attention_scale: Optional[float] = None,
         softcap: Optional[float] = None,
         fake_quant: Optional[bool] = True,
+        block_to_device_lookup: tuple[tuple[int, ...], ...] | None = None,
     ):
         super().__init__(theta)
 
         self.paged_attention = PagedAttention(
             transformer_block_count=cache.transformer_block_count,
+            block_to_device_lookup=block_to_device_lookup,
             attn_head_count=head_count_kv,
             attn_head_dim=head_dim,
             block_seq_stride=cache.block_seq_stride,
@@ -106,8 +114,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor,
         start_index: Optional[int] = None,
-        start_positions: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
+        start_positions: Optional[torch.Tensor | ReplicatedTensor] = None,
+        attention_mask: Optional[torch.Tensor | ReplicatedTensor] = None,
         embedding_batch_mask: Optional[torch.Tensor] = None,
         cache_state: list[torch.Tensor] = None,
     ):

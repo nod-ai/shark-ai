@@ -20,6 +20,7 @@ import gc
 import random
 import torch
 
+from sys import platform
 from datasets import load_dataset
 
 from sharktank.types import *
@@ -62,6 +63,7 @@ is_not_cpu_condition = (
 )
 is_hip_condition = "config.getoption('iree_hal_target_device') == 'hip'"
 is_cpu = pytest.mark.skipif(is_not_cpu_condition)
+is_cpu_win = pytest.mark.skipif(is_cpu_condition and platform == "win32")
 
 
 def is_iree_hal_target_device_cpu(v: str, /) -> bool:
