@@ -71,10 +71,6 @@ class PerplexityTest(unittest.TestCase):
         )
 
     @is_nightly
-    @pytest.mark.xfail(
-        run=False,
-        reason="Compile hangs. Issue: https://github.com/iree-org/iree/issues/20528",
-    )
     def test_llama3_8B_f8(self):
 
         # Llama 3.1 8B non-decomposed
