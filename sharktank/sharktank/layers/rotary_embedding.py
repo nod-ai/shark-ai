@@ -175,7 +175,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         ), f"Sequence length longer than embedding table ({sl} vs {freqs_cis.shape[0]})"
 
         freqs_cis = ops.repeat(freqs_cis[None, :, :], (xt_.shape[0], 1, 1))
-        xt_out = kernels.apply_rotary_embedding(xt_.to(freqs_cis.dtype), freqs_cis)
+        xt_out = kernels.apply_rotary_embedding(xt_, freqs_cis, dtype=freqs_cis.dtype)
 
         return ops.to(xt_out, xt.dtype)
 
@@ -256,7 +256,7 @@ class RotaryEmbeddingLayer(BaseLayer):
             xt_out = (xt * cos) + (self.rotate_half(xt) * sin)
             return xt_out.transpose(1, 2)
 
-        xt_out = kernels.apply_rotary_embedding(xt.to(mask.dtype), mask)
+        xt_out = kernels.apply_rotary_embedding(xt, mask, dtype=mask.dtype)
 
         return xt_out.type_as(xt)
 
