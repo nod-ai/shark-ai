@@ -887,6 +887,31 @@ class MatmulTest(unittest.TestCase):
             assert ops.equal(shard, unsharded_result)
 
 
+class MeanTest(unittest.TestCase):
+    def testMeanReplicated(self):
+        tensor = torch.rand(4, 5, dtype=torch.float32)
+        shard_count = 3
+        expected_result = ops.mean(tensor, dim=0)
+        actual_result = ops.mean(ops.replicate(tensor, count=shard_count), dim=0)
+        assert ops.equal(expected_result, actual_result)
+
+    def testMeanSplitNotSplitDim(self):
+        tensor = torch.rand(4, 5, dtype=torch.float32)
+        shard_count = 3
+        expected_result = ops.mean(tensor, dim=0)
+        sharded_tensor = ops.reshard_split(tensor, dim=1, count=shard_count)
+        actual_result = ops.mean(sharded_tensor, dim=0)
+        assert ops.equal(expected_result, actual_result)
+
+    def testMeanSplitSplitDim(self):
+        tensor = torch.rand(4, 5, dtype=torch.float32)
+        shard_count = 3
+        expected_result = ops.mean(tensor, dim=1)
+        sharded_tensor = ops.reshard_split(tensor, dim=1, count=shard_count)
+        actual_result = ops.mean(sharded_tensor, dim=1)
+        assert ops.equal(expected_result, actual_result)
+
+
 class ReplicateTest(unittest.TestCase):
     def testReplicateReplicated(self):
         tensor = torch.rand(4, 5, dtype=torch.float32)

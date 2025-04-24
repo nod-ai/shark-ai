@@ -1056,6 +1056,24 @@ def mean_replicated(
     return ReplicatedTensor(ts=shards)
 
 
+@mean.override(SplitPrimitiveTensor)
+def mean_split(
+    x: SplitPrimitiveTensor,
+    dim: Union[int, List[int]],
+    keepdim: bool,
+    *,
+    dtype: torch.dtype,
+) -> None:
+    assert keepdim, "Needs special care"
+    if dim != x.shard_dim:
+        shards = [
+            mean(shard, dim=dim, keepdim=keepdim, dtype=dtype) for shard in x.shards
+        ]
+    else:
+        shards = x.shards  # TODO
+    return SplitPrimitiveTensor(ts=shards, shard_dim=x.shard_dim)
+
+
 @module_register_buffer.override(torch.nn.Module, ShardedTensor)
 def module_register_buffer_sharded(
     module: torch.nn.Module, name: str, tensor: ShardedTensor
