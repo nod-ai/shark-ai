@@ -114,9 +114,7 @@ def main() -> None:
             return
 
         print("Compiling dispatch candidates...")
-        sharktuner.compile_flags = compile_flags + [
-            "--compile-from=executable-sources"
-        ]
+        sharktuner.compile_flags = compile_flags + ["--compile-from=executable-sources"]
         compiled_candidates = libtuner.compile(
             args, path_config, candidates, candidate_trackers, sharktuner
         )
