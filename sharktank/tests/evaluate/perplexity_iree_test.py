@@ -110,10 +110,6 @@ class PerplexityTest(unittest.TestCase):
         )
 
     @is_nightly
-    @pytest.mark.xfail(
-        run=False,
-        reason="Affinity analysis issue: https://github.com/iree-org/iree/issues/20551",
-    )
     def test_llama3_8B_f16_pp2(self):
 
         # Llama 3.1 8B pipepiline parallelism
