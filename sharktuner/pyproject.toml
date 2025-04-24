@@ -22,3 +22,8 @@ dynamic = ["version"]
 
 [project.urls]
 Repository = "https://github.com/nod-ai/shark-ai"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["sharktuner*"]
+namespaces = true
