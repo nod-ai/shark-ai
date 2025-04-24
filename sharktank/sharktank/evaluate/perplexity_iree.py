@@ -235,6 +235,7 @@ class PerplexityIree:
         logger.debug(f"{self.generator.tokenizer.decode(token_batch)}")
         logger.debug(f"{token_batch.tolist()}")
 
+        start_positions = [self.batch.seq_lens.clone()]
         self.batch.seq_lens.add_(1)
         self.batch.allocate_seq_block_ids()
 
@@ -244,7 +245,7 @@ class PerplexityIree:
                 ("seq_lens", [self.batch.seq_lens]),
                 (
                     "start_positions",
-                    [self.batch.seq_lens.clone()],
+                    start_positions,
                 ),
                 ("seq_block_ids", [self.batch.pad_block_ids()]),
                 ("cache_state", self.cache_state),
@@ -276,6 +277,7 @@ class PerplexityIree:
             device=self.generator.model.device,
         ).unsqueeze(1)
         self.batch.add_result_token(tokens)
+
         self.print_token_comparison(i)
         return decode_logits
 
