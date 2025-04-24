@@ -9,7 +9,7 @@
 
 from abc import ABCMeta, abstractmethod
 
-from iree.compiler.dialects import linalg  # type: ignore
+from iree.compiler.dialects import linalg, func  # type: ignore
 
 from .common import *
 
@@ -29,9 +29,11 @@ def parse_mlir(mlir_text: str, ctx: TunerContext) -> ir.Module:
 class DispatchParser(metaclass=ABCMeta):
     def __init__(self, root_op: ir.Operation):
         self._root_op = root_op
-        func_op = self._root_op.parent
-        assert func_op.name == "func.func", f"Expected func.func, got {func_op.name}"
-        func_name_attr = func_op.attributes["sym_name"]
+        func_op = self._root_op.parent.opview
+        assert isinstance(
+            func_op, func.FuncOp
+        ), f"Expected func.func, got {func_op.name}"
+        func_name_attr = func_op.name
         self._func_name = f"match_{ir.StringAttr(func_name_attr).value}"
 
     def get_root_op(self) -> ir.Operation:
