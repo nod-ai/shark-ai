@@ -66,5 +66,5 @@ pip install -r ../requirements-iree-unpinned.txt
 ## Examples
 
 Check the `model_tuner` directory for a sample tuner implemented with `libtuner`.
-The [`dispatch example`](https://github.com/nod-ai/shark-ai/tree/main/sharktuner/model_tuner)
+The [`dispatch example`](model_tuner)
 should be a good starting point for most users.
