@@ -355,7 +355,7 @@ class ExportArtifacts:
             + "_"
             + self.attention_kernel
             + (
-                f"_PP{self.pipeline_parallelism_size}"
+                f"_pp{self.pipeline_parallelism_size}"
                 if self.pipeline_parallelism_size > 1
                 else ""
             )
