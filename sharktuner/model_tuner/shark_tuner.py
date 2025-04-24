@@ -105,20 +105,20 @@ def main() -> None:
     print("Generating candidate tuning specs...")
     with TunerContext(logger=root_logger) as tuner_context:
         tuner_context.logger.addHandler(summary_handler)
-        shark_tuner = SharkTuner(tuner_context)
+        sharktuner = SharkTuner(tuner_context)
         candidates = libtuner.generate_candidate_specs(
-            args, path_config, candidate_trackers, shark_tuner
+            args, path_config, candidate_trackers, sharktuner
         )
         print(f"Stored candidate tuning specs in {path_config.specs_dir}\n")
         if stop_after_phase == libtuner.ExecutionPhases.generate_candidates:
             return
 
         print("Compiling dispatch candidates...")
-        shark_tuner.compile_flags = compile_flags + [
+        sharktuner.compile_flags = compile_flags + [
             "--compile-from=executable-sources"
         ]
         compiled_candidates = libtuner.compile(
-            args, path_config, candidates, candidate_trackers, shark_tuner
+            args, path_config, candidates, candidate_trackers, sharktuner
         )
         if stop_after_phase == libtuner.ExecutionPhases.compile_dispatches:
             return
@@ -126,12 +126,12 @@ def main() -> None:
         message = "Benchmarking compiled dispatch candidates..."
         print(message)
         logging.info(message)
-        shark_tuner.benchmark_flags = ["--input=1", "--benchmark_repetitions=3"]
+        sharktuner.benchmark_flags = ["--input=1", "--benchmark_repetitions=3"]
         top_candidates = libtuner.benchmark(
             args,
             compiled_candidates,
             candidate_trackers,
-            shark_tuner,
+            sharktuner,
             args.num_dispatch_candidates,
         )
         logging.info(f"Top dispatch candidates: {top_candidates}")
@@ -141,14 +141,14 @@ def main() -> None:
             return
 
         print("Compiling models with top candidates...")
-        shark_tuner.compile_flags = compile_flags
-        shark_tuner.compile_timeout = 120
+        sharktuner.compile_flags = compile_flags
+        sharktuner.compile_timeout = 120
         compiled_model_candidates = libtuner.compile(
             args,
             path_config,
             top_candidates,
             candidate_trackers,
-            shark_tuner,
+            sharktuner,
             args.model_file,
         )
         if stop_after_phase == libtuner.ExecutionPhases.compile_models:
@@ -157,13 +157,13 @@ def main() -> None:
         message = "Benchmarking compiled model candidates..."
         print(message)
         logging.info(message)
-        shark_tuner.benchmark_flags = model_benchmark_flags
-        shark_tuner.benchmark_timeout = 60
+        sharktuner.benchmark_flags = model_benchmark_flags
+        sharktuner.benchmark_timeout = 60
         top_model_candidates = libtuner.benchmark(
             args,
             compiled_model_candidates,
             candidate_trackers,
-            shark_tuner,
+            sharktuner,
             args.num_model_candidates,
         )
         logging.info(f"Top model candidates: {top_model_candidates}")
