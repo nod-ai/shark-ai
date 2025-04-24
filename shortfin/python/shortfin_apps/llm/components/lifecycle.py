@@ -25,6 +25,7 @@ from fastapi import FastAPI
 
 from contextlib import asynccontextmanager
 import logging
+import os
 
 
 def get_eos_from_tokenizer_config(json_path):
