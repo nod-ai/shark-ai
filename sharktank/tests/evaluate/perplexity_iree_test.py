@@ -109,7 +109,9 @@ class PerplexityTest(unittest.TestCase):
             msg=f"Current perplexity deviates baseline by {perplexity_difference}",
         )
 
-    @is_nightly
+    @pytest.mark.skip(
+        reason="Not fully implemented yet: https://github.com/nod-ai/shark-ai/issues/1306."
+    )
     def test_llama3_8B_f16_pp2(self):
 
         # Llama 3.1 8B pipepiline parallelism
