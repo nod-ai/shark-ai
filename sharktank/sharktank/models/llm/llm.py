@@ -231,10 +231,10 @@ class PagedLlmModelV1(BaseCausalLMModel):
         # Precompute a position based mask for computing rope embeddings
         # as it is the same for all blocks.
         embedding_batch_masks = []
-        for start_position in start_positions:
-            mask = self.attention_embedding[
-                0  # TODO: This is not right. How to handle this?
-            ].compute_batch_mask(start_position, batch_seq_len=1)
+        for pipeline, start_position in enumerate(start_positions):
+            mask = self.attention_embedding[pipeline].compute_batch_mask(
+                start_position, batch_seq_len=1
+            )
             embedding_batch_masks.append(mask)
             # TODO: How to name and trace this properly
             self.trace_tensor("llama.embedding_batch_mask", mask)
