@@ -216,7 +216,7 @@ class PerplexityIree:
             prefill_logits = ops.unshard(UnreducedTensor(ts=prefill_shards))
         else:  # Replicated or torch.Tensor
             prefill_logits = prefill_shards[0]
-        prefill_logits = torch.tensor(prefill_logits[:, :, :])
+        prefill_logits = prefill_logits.clone().detach()
 
         tokens = torch.as_tensor(
             self.generator.model.extract_tokens_from_logits(
