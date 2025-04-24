@@ -69,14 +69,7 @@ class ContractionOpInterfaceTuner(DispatchTuner, ContractionOpInterfaceParser):
         compilation_info: iree_codegen.CompilationInfoAttr,
     ) -> ir.Module:
         contraction_op = self.get_root_op()
-        lhs_type = ir.ShapedType(contraction_op.operands[0].type)
-        rhs_type = ir.ShapedType(contraction_op.operands[1].type)
-        acc_type = ir.ShapedType(contraction_op.operands[2].type)
-        M = acc_type.get_dim_size(0)
-        N = acc_type.get_dim_size(1)
-        K = lhs_type.get_dim_size(1)
-        # TODO(Max191): Get the function name from the func.func in the input module.
-        func_name = f"match_contraction_{M}x{N}x{K}_{lhs_type.element_type}x{rhs_type.element_type}x{acc_type.element_type}"
+        func_name = self.get_root_op_func_name()
         return build_td_spec(
             contraction_op.context, contraction_op, compilation_info, func_name
         )
@@ -91,19 +84,7 @@ class ConvolutionOpInterfaceTuner(DispatchTuner, ConvolutionOpInterfaceParser):
         assert (
             conv_op.name == "linalg.conv_2d_nhwc_hwcf"
         ), "expected linalg.conv_2d_nhwc_hwcf"
-        lhs_type = ir.ShapedType(conv_op.operands[0].type)
-        rhs_type = ir.ShapedType(conv_op.operands[1].type)
-        acc_type = ir.ShapedType(conv_op.operands[2].type)
-        N = acc_type.get_dim_size(0)
-        H = acc_type.get_dim_size(1)
-        W = acc_type.get_dim_size(2)
-        C = rhs_type.get_dim_size(2)
-        P = rhs_type.get_dim_size(0)
-        Q = rhs_type.get_dim_size(1)
-        F = rhs_type.get_dim_size(3)
-        conv_type = conv_op.name.split(".")[-1]
-        # TODO(Max191): Get the function name from the func.func in the input module.
-        func_name = f"match_{conv_type}_{N}x{H}x{W}x{C}x{P}x{Q}x{F}_{lhs_type.element_type}x{rhs_type.element_type}x{acc_type.element_type}"
+        func_name = self.get_root_op_func_name()
         return build_td_spec(conv_op.context, conv_op, compilation_info, func_name)
 
 
