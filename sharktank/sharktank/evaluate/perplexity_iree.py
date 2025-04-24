@@ -79,7 +79,7 @@ class PerplexityIree:
         self.use_hf = use_hf
         self.weight_path_str = weight_path_str
         self.vm_context: iree.runtime.VmContext = None
-        self.cache_state: None | list[ireert.HalDevice] = None
+        self.cache_state: None | list[ireert.DeviceArray] = None
 
     def print_token_comparison(self, i: int):
         if i <= self.max_prompt_length:
