@@ -133,17 +133,28 @@ class PerplexityIree:
             self.output_vmfb = export_artifacts.get_artifacts()
 
     def load_model(self, dataset: Dataset, tokenizer: InferenceTokenizer):
+        hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
+        block_to_device_lookup = []
+        for i in range(hp.block_count):
+            pp_group = int(i * self.pipeline_parallelism_size / hp.block_count)
+            zero_4_group = self.tensor_parallelism_size * pp_group
+            devices = tuple(
+                i + zero_4_group for i in range(self.tensor_parallelism_size)
+            )
+            block_to_device_lookup.append(devices)
 
         config = LlamaModelConfig(
-            hp=configs.LlamaHParams.from_gguf_props(dataset.properties),
+            hp=hp,
             device=self.torch_device,
             activation_dtype=self.activation_dtype,
             attention_dtype=self.attention_dtype,
             kv_cache_dtype=self.kv_cache_dtype,
             tensor_parallelism_size=self.tensor_parallelism_size,
+            pipeline_parallelism_size=self.pipeline_parallelism_size,
             block_seq_stride=self.block_seq_stride,
             attention_kernel=self.attention_kernel,
             use_hf=self.use_hf,
+            block_to_device_lookup=block_to_device_lookup,
         )
 
         theta = dataset.root_theta
@@ -199,7 +210,6 @@ class PerplexityIree:
         )
         prefill_kwargs_flattened = flatten_for_iree_signature(prefill_kwargs)
         # TODO: Does not handle device placement for pipeline parallelism properly.
-        #       Testing blocked by https://github.com/iree-org/iree/issues/20551.
         prefill_iree_args = prepare_iree_module_function_args(
             args=prefill_kwargs_flattened, devices=devices
         )
