@@ -68,6 +68,7 @@ jobs:
         run: |
           echo "version_suffix=${version_suffix}" >> $GITHUB_OUTPUT
           python3 build_tools/python_deploy/compute_local_version.py --version-suffix=${version_suffix} --write-json sharktank
+          python3 build_tools/python_deploy/compute_local_version.py --version-suffix=${version_suffix} --write-json sharktuner
           python3 build_tools/python_deploy/compute_local_version.py --version-suffix=${version_suffix} --write-json shortfin
           python3 build_tools/python_deploy/compute_common_version.py --version-suffix=${version_suffix} --write-json
 
@@ -77,6 +78,7 @@ jobs:
           name: version_local_files
           path: |
             sharktank/version_local.json
+            sharktuner/version_local.json
             shortfin/version_local.json
             shark-ai/version_local.json
 
@@ -100,6 +102,10 @@ jobs:
           - runs-on: ubuntu-24.04
             platform: linux-x86_64
             package: sharktank
+            python-version: cp311-cp311  # Ignored (generic wheel), set for workflow naming
+          - runs-on: ubuntu-24.04
+            platform: linux-x86_64
+            package: sharktuner
             python-version: cp311-cp311  # Ignored (generic wheel), set for workflow naming
           - runs-on: ubuntu-24.04
             platform: linux-x86_64
@@ -167,6 +173,11 @@ jobs:
       run: |
         [ -e ./bindist/* ] && rm ./bindist/*
         ./c/sharktank/build_tools/build_linux_package.sh
+    - name: Build sharktuner (Linux x86_64)
+      if: "matrix.package == 'sharktuner' && matrix.platform == 'linux-x86_64'"
+      run: |
+        [ -e ./bindist/* ] && rm ./bindist/*
+        ./c/sharktuner/build_tools/build_linux_package.sh
     - name: Build shortfin (Linux x86_64, ${{ matrix.python-version }})
       if: "matrix.package == 'shortfin' && matrix.platform == 'linux-x86_64'"
       env:
