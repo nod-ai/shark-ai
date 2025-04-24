@@ -235,4 +235,4 @@ It will take some time to finish sharktuner. You should see the final candidates
 
 
 ## Reference links:
-[Tuner Example](https://github.com/nod-ai/shark-ai/sharktuner/model_tuner/README.md)
+[Tuner Example](../sharktuner/model_tuner/README.md)
