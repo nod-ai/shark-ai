@@ -209,7 +209,9 @@ class PerplexityIree:
             ]
         )
         prefill_kwargs_flattened = flatten_for_iree_signature(prefill_kwargs)
-        # TODO: Does not handle device placement for pipeline parallelism properly.
+        # NOTE: cache_state must be handled previous to this since
+        #       prepare_iree_module_function_args is unable to know about
+        #       pipeline parallelism.
         prefill_iree_args = prepare_iree_module_function_args(
             args=prefill_kwargs_flattened, devices=devices
         )
