@@ -1066,6 +1066,8 @@ def mean_split(
 ) -> SplitPrimitiveTensor | ReplicatedTensor:
     if not isinstance(dim, (list, tuple)):
         dim = [dim]
+    dim = [d + len(x.shape) if d < 0 else d for d in dim]
+
     if x.shard_dim not in dim:
         # If keepdim == False and any entry in dim is smaller than shard_dim
         # we need to offset shard_dim_new to have it point to the same dimension.

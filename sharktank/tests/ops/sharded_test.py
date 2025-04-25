@@ -921,6 +921,20 @@ class MeanTest(unittest.TestCase):
         )
         torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
 
+    def testMeanSplitNegativeDims(self):
+        if self.mean_dim_delta != -1:
+            self.skipTest(
+                "Using a specifc negative dim, so only running for different versions of 'keepdim'."
+            )
+        mean_dim = [-5, -1, -4]
+        tensor = torch.rand(self.shape, dtype=torch.float32)
+        expected_result = ops.mean(tensor, dim=mean_dim, keepdim=self.keepdim)
+        sharded_tensor = ops.reshard_split(
+            tensor, dim=self.shard_dim, count=self.shard_count
+        )
+        actual_result = ops.mean(sharded_tensor, dim=mean_dim, keepdim=self.keepdim)
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+
     def testMeanSplitMultiDim(self):
         tensor = torch.rand(self.shape, dtype=torch.float32)
         expected_result = ops.mean(
