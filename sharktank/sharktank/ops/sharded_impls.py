@@ -1063,15 +1063,32 @@ def mean_split(
     keepdim: bool,
     *,
     dtype: torch.dtype,
-) -> None:
-    assert keepdim, "Needs special care"
+) -> SplitPrimitiveTensor | ReplicatedTensor:
     if dim != x.shard_dim:
+        # If keepdim == False dim is smaller than shard_dim we need to offset
+        # shard_dim_new by -1 to have it point to the same dimension.
+        shard_dim_new = x.shard_dim
+        if (not keepdim) and dim < x.shard_dim:
+            shard_dim_new -= 1
+
         shards = [
             mean(shard, dim=dim, keepdim=keepdim, dtype=dtype) for shard in x.shards
         ]
+        return SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim_new)
     else:
-        shards = x.shards  # TODO
-    return SplitPrimitiveTensor(ts=shards, shard_dim=x.shard_dim)
+        gathered = cat(
+            [
+                (
+                    transfer_to_logical_device(shard, x.devices[0])
+                    if i != 0
+                    else barrier_on_logical_device(shard, x.devices[0])
+                )
+                for i, shard in enumerate(x.shards)
+            ],
+            dim=dim,
+        )
+        meaned = mean(gathered, dim=dim, keepdim=keepdim, dtype=dtype)
+        return ReplicatedTensor(ts=meaned, shard_count=x.shard_count, devices=x.devices)
 
 
 @module_register_buffer.override(torch.nn.Module, ShardedTensor)
