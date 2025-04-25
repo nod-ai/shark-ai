@@ -1085,7 +1085,7 @@ def mean_split(
                 )
                 for i, shard in enumerate(x.shards)
             ],
-            dim=dim,
+            dim=x.shard_dim,
         )
         meaned = mean(gathered, dim=dim, keepdim=keepdim, dtype=dtype)
         return ReplicatedTensor(ts=meaned, shard_count=x.shard_count, devices=x.devices)
