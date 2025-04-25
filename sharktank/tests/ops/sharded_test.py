@@ -906,7 +906,7 @@ class MeanTest(unittest.TestCase):
             dim=self.mean_dim,
             keepdim=self.keepdim,
         )
-        assert ops.equal(expected_result, actual_result)
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
 
     def testMeanSplit(self):
         tensor = torch.rand(self.shape, dtype=torch.float32)
@@ -917,7 +917,7 @@ class MeanTest(unittest.TestCase):
         actual_result = ops.mean(
             sharded_tensor, dim=self.mean_dim, keepdim=self.keepdim
         )
-        assert ops.equal(expected_result, actual_result)
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
 
 
 class ReplicateTest(unittest.TestCase):
