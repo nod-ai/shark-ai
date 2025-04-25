@@ -1313,7 +1313,22 @@ def reshard_like_replicated_to_replicated(
 def reshard_like_replicated_to_split(
     tensor: ReplicatedTensor, like: SplitPrimitiveTensor
 ) -> SplitPrimitiveTensor:
-    dim = like.shard_dim - max(0, len(like.shape) - len(tensor.shape))
+    """
+    Adjust to handle broadcasting.
+    If `like` has more dims than `tensor`, we meed to decrease dim by the difference.
+    If it has more dims we need to increase dim instead.
+    Conceptually we are right aligning the dims.
+      like.shape     == [1, 2, 3]
+      tensor.shape   == [2, 3]
+    Becomes:
+      like.shape     == [1, 2, 3]
+      tensor.shape   == [   2, 3]
+    """
+    dim = (
+        like.shard_dim
+        - max(0, len(like.shape) - len(tensor.shape))
+        + max(0, len(tensor.shape) - len(like.shape))
+    )
     return reshard_split(tensor, dim=dim, count=like.shard_count)
 
 
