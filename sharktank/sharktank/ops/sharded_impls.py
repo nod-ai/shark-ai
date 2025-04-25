@@ -1051,7 +1051,7 @@ def mean_replicated(
     keepdim: bool,
     *,
     dtype: torch.dtype,
-) -> None:
+) -> ReplicatedTensor:
     shards = [mean(shard, dim=dim, keepdim=keepdim, dtype=dtype) for shard in x.shards]
     return ReplicatedTensor(ts=shards)
 
