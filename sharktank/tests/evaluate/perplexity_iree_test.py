@@ -82,6 +82,7 @@ class PerplexityTest(unittest.TestCase):
         model_name = "llama3_8B_f16_iree"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
+        # NOTE: --use-attention-mask is required until https://github.com/nod-ai/shark-ai/issues/1202 is solved
         argv = [
             f"--irpa-file={self.llama3_8b_f16_tp2_model}",
             f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
@@ -202,6 +203,7 @@ class PerplexityTest(unittest.TestCase):
             f"--tensor-parallelism-size={self.tensor_parallelism_size}",
             f"--attention-kernel=torch",
             f"--num-prompts={self.batch_size}",
+            f"--use-attention-mask",
         ]
         argv.extend(f"--iree-device={device}" for device in self.iree_devices)
         current_perplexity = perplexity_iree.main(argv)
@@ -237,6 +239,7 @@ class PerplexityTest(unittest.TestCase):
             f"--tensor-parallelism-size={self.tensor_parallelism_size}",
             f"--attention-kernel=torch",
             f"--num-prompts={self.batch_size}",
+            f"--use-attention-mask",
         ]
         argv.extend(f"--iree-device={device}" for device in self.iree_devices)
         current_perplexity = perplexity_iree.main(argv)
