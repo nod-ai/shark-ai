@@ -5,7 +5,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import unittest
-from parameterized import parameterized
+import itertools
+from parameterized import parameterized, parameterized_class
 
 import torch
 
@@ -887,28 +888,35 @@ class MatmulTest(unittest.TestCase):
             assert ops.equal(shard, unsharded_result)
 
 
+@parameterized_class(
+    ("keepdim", "mean_dim_delta"), list(itertools.product([True, False], [-1, 0, +1]))
+)
 class MeanTest(unittest.TestCase):
+    def setUp(self):
+        self.shape = (2, 4, 6)
+        self.shard_dim = 1
+        self.mean_dim = self.shard_dim + self.mean_dim_delta
+        self.shard_count = 2
+
     def testMeanReplicated(self):
-        tensor = torch.rand(4, 5, dtype=torch.float32)
-        shard_count = 3
-        expected_result = ops.mean(tensor, dim=0)
-        actual_result = ops.mean(ops.replicate(tensor, count=shard_count), dim=0)
+        tensor = torch.rand(self.shape, dtype=torch.float32)
+        expected_result = ops.mean(tensor, dim=self.mean_dim, keepdim=self.keepdim)
+        actual_result = ops.mean(
+            ops.replicate(tensor, count=self.shard_count),
+            dim=self.mean_dim,
+            keepdim=self.keepdim,
+        )
         assert ops.equal(expected_result, actual_result)
 
-    def testMeanSplitNotSplitDim(self):
-        tensor = torch.rand(4, 5, dtype=torch.float32)
-        shard_count = 3
-        expected_result = ops.mean(tensor, dim=0)
-        sharded_tensor = ops.reshard_split(tensor, dim=1, count=shard_count)
-        actual_result = ops.mean(sharded_tensor, dim=0)
-        assert ops.equal(expected_result, actual_result)
-
-    def testMeanSplitSplitDim(self):
-        tensor = torch.rand(4, 5, dtype=torch.float32)
-        shard_count = 3
-        expected_result = ops.mean(tensor, dim=1)
-        sharded_tensor = ops.reshard_split(tensor, dim=1, count=shard_count)
-        actual_result = ops.mean(sharded_tensor, dim=1)
+    def testMeanSplit(self):
+        tensor = torch.rand(self.shape, dtype=torch.float32)
+        expected_result = ops.mean(tensor, dim=self.mean_dim, keepdim=self.keepdim)
+        sharded_tensor = ops.reshard_split(
+            tensor, dim=self.shard_dim, count=self.shard_count
+        )
+        actual_result = ops.mean(
+            sharded_tensor, dim=self.mean_dim, keepdim=self.keepdim
+        )
         assert ops.equal(expected_result, actual_result)
 
 
