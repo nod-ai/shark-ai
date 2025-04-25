@@ -54,7 +54,7 @@ python -m model_tuner <model_file_path> <benchmark_file_path> \
     --codegen-pipeline=<codegen_pipeline>
 ```
 
-## Algorithm of model_tuner
+## Algorithm of the model tuner
 ### Tuning algorithm
 1. Generate Candidate specs
 2. Compile candidate
