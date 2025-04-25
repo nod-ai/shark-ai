@@ -88,40 +88,6 @@ class ConvolutionOpInterfaceTuner(DispatchTuner, ConvolutionOpInterfaceParser):
         return build_td_spec(conv_op.context, conv_op, compilation_info, func_name)
 
 
-@dataclass
-class OpWalkResult:
-    was_interrupted: bool = False
-    dispatch_tuner: Optional[DispatchTuner] = None
-
-
-def walk_callback_get_fn(
-    op: ir.Operation,
-    walk_result: OpWalkResult,
-    dispatch_tuner_registry: DispatchTunerRegistry,
-) -> ir.WalkResult:
-    if op.name == "util.func":
-        func_name = str(op.opview.sym_name)
-        walk_result.was_interrupted = True
-        walk_result.dispatch_tuner = dispatch_tuner_registry.find_handler(func_name)
-        return ir.WalkResult.INTERRUPT
-    return ir.WalkResult.ADVANCE
-
-
-def walk_mlir_op(
-    mlir_module: ir.Module,
-    dispatch_tuner_registry: DispatchTunerRegistry,
-) -> OpWalkResult:
-    walk_result = OpWalkResult()
-    for op in mlir_module.body.operations:
-        op.walk(
-            lambda op: walk_callback_get_fn(op, walk_result, dispatch_tuner_registry),
-            ir.WalkOrder.POST_ORDER,
-        )
-        if walk_result.was_interrupted:
-            break
-    return walk_result
-
-
 def get_default_output_dir() -> str:
     from datetime import datetime
 
