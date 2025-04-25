@@ -893,9 +893,10 @@ class MatmulTest(unittest.TestCase):
 )
 class MeanTest(unittest.TestCase):
     def setUp(self):
-        self.shape = (2, 4, 6)
-        self.shard_dim = 1
+        self.shape = (2, 4, 6, 8, 10)
+        self.shard_dim = 2
         self.mean_dim = self.shard_dim + self.mean_dim_delta
+        self.mean_dims_multi = tuple(self.mean_dim + i for i in [-1, 0, +1])
         self.shard_count = 2
 
     def testMeanReplicated(self):
@@ -916,6 +917,19 @@ class MeanTest(unittest.TestCase):
         )
         actual_result = ops.mean(
             sharded_tensor, dim=self.mean_dim, keepdim=self.keepdim
+        )
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+
+    def testMeanSplitMultiDim(self):
+        tensor = torch.rand(self.shape, dtype=torch.float32)
+        expected_result = ops.mean(
+            tensor, dim=self.mean_dims_multi, keepdim=self.keepdim
+        )
+        sharded_tensor = ops.reshard_split(
+            tensor, dim=self.shard_dim, count=self.shard_count
+        )
+        actual_result = ops.mean(
+            sharded_tensor, dim=self.mean_dims_multi, keepdim=self.keepdim
         )
         torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
 
