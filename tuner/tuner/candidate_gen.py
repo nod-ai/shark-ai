@@ -69,14 +69,7 @@ class ContractionOpInterfaceTuner(DispatchTuner, ContractionOpInterfaceParser):
         compilation_info: iree_codegen.CompilationInfoAttr,
     ) -> ir.Module:
         contraction_op = self.get_root_op()
-        lhs_type = ir.ShapedType(contraction_op.operands[0].type)
-        rhs_type = ir.ShapedType(contraction_op.operands[1].type)
-        acc_type = ir.ShapedType(contraction_op.operands[2].type)
-        M = acc_type.get_dim_size(0)
-        N = acc_type.get_dim_size(1)
-        K = lhs_type.get_dim_size(1)
-        # TODO(Max191): Get the function name from the func.func in the input module.
-        func_name = f"match_contraction_{M}x{N}x{K}_{lhs_type.element_type}x{rhs_type.element_type}x{acc_type.element_type}"
+        func_name = self.get_root_op_func_name()
         return build_td_spec(
             contraction_op.context, contraction_op, compilation_info, func_name
         )
@@ -91,54 +84,8 @@ class ConvolutionOpInterfaceTuner(DispatchTuner, ConvolutionOpInterfaceParser):
         assert (
             conv_op.name == "linalg.conv_2d_nhwc_hwcf"
         ), "expected linalg.conv_2d_nhwc_hwcf"
-        lhs_type = ir.ShapedType(conv_op.operands[0].type)
-        rhs_type = ir.ShapedType(conv_op.operands[1].type)
-        acc_type = ir.ShapedType(conv_op.operands[2].type)
-        N = acc_type.get_dim_size(0)
-        H = acc_type.get_dim_size(1)
-        W = acc_type.get_dim_size(2)
-        C = rhs_type.get_dim_size(2)
-        P = rhs_type.get_dim_size(0)
-        Q = rhs_type.get_dim_size(1)
-        F = rhs_type.get_dim_size(3)
-        conv_type = conv_op.name.split(".")[-1]
-        # TODO(Max191): Get the function name from the func.func in the input module.
-        func_name = f"match_{conv_type}_{N}x{H}x{W}x{C}x{P}x{Q}x{F}_{lhs_type.element_type}x{rhs_type.element_type}x{acc_type.element_type}"
+        func_name = self.get_root_op_func_name()
         return build_td_spec(conv_op.context, conv_op, compilation_info, func_name)
-
-
-@dataclass
-class OpWalkResult:
-    was_interrupted: bool = False
-    dispatch_tuner: Optional[DispatchTuner] = None
-
-
-def walk_callback_get_fn(
-    op: ir.Operation,
-    walk_result: OpWalkResult,
-    dispatch_tuner_registry: DispatchTunerRegistry,
-) -> ir.WalkResult:
-    if op.name == "util.func":
-        func_name = str(op.opview.sym_name)
-        walk_result.was_interrupted = True
-        walk_result.dispatch_tuner = dispatch_tuner_registry.find_handler(func_name)
-        return ir.WalkResult.INTERRUPT
-    return ir.WalkResult.ADVANCE
-
-
-def walk_mlir_op(
-    mlir_module: ir.Module,
-    dispatch_tuner_registry: DispatchTunerRegistry,
-) -> OpWalkResult:
-    walk_result = OpWalkResult()
-    for op in mlir_module.body.operations:
-        op.walk(
-            lambda op: walk_callback_get_fn(op, walk_result, dispatch_tuner_registry),
-            ir.WalkOrder.POST_ORDER,
-        )
-        if walk_result.was_interrupted:
-            break
-    return walk_result
 
 
 def get_default_output_dir() -> str:
