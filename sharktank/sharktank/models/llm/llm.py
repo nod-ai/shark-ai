@@ -146,9 +146,8 @@ class PagedLlmModelV1(BaseCausalLMModel):
         cache_state: list[Union[torch.Tensor, SplitPrimitiveTensor]],
     ):
         self._assert_device(tokens)
-        for mask in attention_mask:
-            self._assert_device(mask, dtype=self.activation_dtype)
-        self._assert_device(seq_block_ids)
+        self._assert_device(*attention_mask, dtype=self.activation_dtype)
+        self._assert_device(*seq_block_ids)
         self._assert_device(*cache_state, dtype=self.activation_dtype)
 
         h = self.token_embedding(tokens)
@@ -222,19 +221,17 @@ class PagedLlmModelV1(BaseCausalLMModel):
             for mask in attention_mask
         )
         self._assert_device(tokens)
-        for mask in attention_mask:
-            self._assert_device(mask, dtype=self.activation_dtype)
-        for start_position in start_positions:
-            self._assert_device(start_position)
+        self._assert_device(*attention_mask, dtype=self.activation_dtype)
+        self._assert_device(*start_positions)
         self._assert_device(*cache_state, dtype=self.activation_dtype)
 
         # Precompute a position based mask for computing rope embeddings
         # as it is the same for all blocks.
         embedding_batch_masks = []
-        for start_position in start_positions:
-            mask = self.attention_embedding[
-                0  # TODO: This is not right. How to handle this?
-            ].compute_batch_mask(start_position, batch_seq_len=1)
+        for pipeline, start_position in enumerate(start_positions):
+            mask = self.attention_embedding[pipeline].compute_batch_mask(
+                start_position, batch_seq_len=1
+            )
             embedding_batch_masks.append(mask)
             # TODO: How to name and trace this properly
             self.trace_tensor("llama.embedding_batch_mask", mask)

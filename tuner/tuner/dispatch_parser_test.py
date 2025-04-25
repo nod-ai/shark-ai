@@ -16,7 +16,7 @@ from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import func  # type: ignore
 from iree.compiler.dialects import iree_gpu  # type: ignore
 from iree.compiler.dialects import iree_codegen  # type: ignore
-from iree.compiler.dialects import linalg, arith, tensor, func  # type: ignore
+from iree.compiler.dialects import linalg, func  # type: ignore
 
 from . import common
 from . import dispatch_parser
@@ -121,6 +121,7 @@ def test_get_contraction_operation(tuner_ctx: common.TunerContext) -> None:
     assert len(root_op_list) == 1
     root_op = root_op_list[0]
     parser = dispatch_parser.ContractionOpInterfaceParser(root_op)
+    assert parser.get_root_op_func_name() == "match_test"
     shapes = parser.get_problem_size()
     assert shapes.matmul_size.B == [16, 16]
     assert shapes.matmul_size.M == [8, 64]
@@ -162,6 +163,7 @@ def test_get_matmul_named_op(tuner_ctx: common.TunerContext) -> None:
         root_op = root_op_list[0]
 
         parser = dispatch_parser.ContractionOpInterfaceParser(root_op)
+        assert parser.get_root_op_func_name() == "match_named_matmul"
         shapes = parser.get_problem_size()
 
         assert shapes.matmul_size.B == []
@@ -209,6 +211,7 @@ def test_get_named_contraction_op():
         root_op = root_op_list[0]
 
         parser = dispatch_parser.ContractionOpInterfaceParser(root_op)
+        assert parser.get_root_op_func_name() == "match_named_contraction"
         shape = parser.get_problem_size()
 
         assert shape.matmul_size.B == []
@@ -239,6 +242,7 @@ def test_get_conv_operation(tuner_ctx: common.TunerContext) -> None:
     assert len(root_op_list) == 1
     root_op = root_op_list[0]
     parser = dispatch_parser.ConvolutionOpInterfaceParser(root_op)
+    assert parser.get_root_op_func_name() == "match_test"
     assert (
         parser.has_valid_root_op()
     ), f"ConvolutionOpInterfaceParser does not support the op: {root_op.name}"
