@@ -1051,9 +1051,47 @@ def mean_replicated(
     keepdim: bool,
     *,
     dtype: torch.dtype,
-) -> None:
+) -> ReplicatedTensor:
     shards = [mean(shard, dim=dim, keepdim=keepdim, dtype=dtype) for shard in x.shards]
     return ReplicatedTensor(ts=shards)
+
+
+@mean.override(SplitPrimitiveTensor)
+def mean_split(
+    x: SplitPrimitiveTensor,
+    dim: Union[int, List[int]],
+    keepdim: bool,
+    *,
+    dtype: torch.dtype,
+) -> SplitPrimitiveTensor | ReplicatedTensor:
+    if not isinstance(dim, (list, tuple)):
+        dim = [dim]
+    dim = [d + len(x.shape) if d < 0 else d for d in dim]
+
+    if x.shard_dim not in dim:
+        # If keepdim == False and any entry in dim is smaller than shard_dim
+        # we need to offset shard_dim_new to have it point to the same dimension.
+        num_smaller_dims = sum(d < x.shard_dim for d in dim)
+        shard_dim_new = x.shard_dim - (not keepdim) * num_smaller_dims
+
+        shards = [
+            mean(shard, dim=dim, keepdim=keepdim, dtype=dtype) for shard in x.shards
+        ]
+        return SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim_new)
+    else:
+        gathered = cat(
+            [
+                (
+                    transfer_to_logical_device(shard, x.devices[0])
+                    if i != 0
+                    else barrier_on_logical_device(shard, x.devices[0])
+                )
+                for i, shard in enumerate(x.shards)
+            ],
+            dim=x.shard_dim,
+        )
+        meaned = mean(gathered, dim=dim, keepdim=keepdim, dtype=dtype)
+        return ReplicatedTensor(ts=meaned, shard_count=x.shard_count, devices=x.devices)
 
 
 @module_register_buffer.override(torch.nn.Module, ShardedTensor)
