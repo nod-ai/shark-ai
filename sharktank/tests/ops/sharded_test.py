@@ -898,6 +898,7 @@ class MeanTest(unittest.TestCase):
         self.mean_dim = self.shard_dim + self.mean_dim_delta
         self.mean_dims_multi = tuple(self.mean_dim + i for i in [-1, 0, +1])
         self.shard_count = 2
+        torch.random.manual_seed(sum(self.mean_dims_multi) + 13 * self.keepdim)
 
     def testMeanReplicated(self):
         tensor = torch.rand(self.shape, dtype=torch.float32)
