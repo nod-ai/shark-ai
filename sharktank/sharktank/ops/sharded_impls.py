@@ -1064,12 +1064,13 @@ def mean_split(
     *,
     dtype: torch.dtype,
 ) -> SplitPrimitiveTensor | ReplicatedTensor:
-    if dim != x.shard_dim:
-        # If keepdim == False dim is smaller than shard_dim we need to offset
-        # shard_dim_new by -1 to have it point to the same dimension.
-        shard_dim_new = x.shard_dim
-        if (not keepdim) and dim < x.shard_dim:
-            shard_dim_new -= 1
+    if not isinstance(dim, (list, tuple)):
+        dim = [dim]
+    if x.shard_dim not in dim:
+        # If keepdim == False and any entry in dim is smaller than shard_dim
+        # we need to offset shard_dim_new to have it point to the same dimension.
+        num_smaller_dims = sum(d < x.shard_dim for d in dim)
+        shard_dim_new = x.shard_dim - (not keepdim) * num_smaller_dims
 
         shards = [
             mean(shard, dim=dim, keepdim=keepdim, dtype=dtype) for shard in x.shards
