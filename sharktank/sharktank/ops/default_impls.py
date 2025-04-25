@@ -117,7 +117,7 @@ def einsum_2args(input0, input1, einsum_str):
         return me_men_men(input0, input1)
     # Default non-QuantizedTensor einsum
     if not isinstance(input1, QuantizedTensor):
-        return torch.einsum(einsum_str, unbox_tensor(x), unbox_tensor(y))
+        return torch.einsum(einsum_str, unbox_tensor(input0), unbox_tensor(input1))
     # Fallback to other kernels
     return NotImplemented
 
