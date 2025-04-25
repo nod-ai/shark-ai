@@ -536,6 +536,10 @@ class PagedAttention:
             else:
                 attn_output = kernels.flash_attention(q, k, v)
             return attn_output
+        elif attention_kernel == "wave":
+            if mask is None:
+                attn_output = kernels.wave_flash_attention(q, k, v)
+            return attn_output
         else:
             # Non-decomposed
             if softcap is not None:
