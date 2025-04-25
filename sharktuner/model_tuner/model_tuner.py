@@ -114,7 +114,9 @@ def main() -> None:
             return
 
         print("Compiling dispatch candidates...")
-        model_tuner.compile_flags = compile_flags + ["--compile-from=executable-sources"]
+        model_tuner.compile_flags = compile_flags + [
+            "--compile-from=executable-sources"
+        ]
         compiled_candidates = libtuner.compile(
             args, path_config, candidates, candidate_trackers, model_tuner
         )
