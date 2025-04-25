@@ -24,15 +24,26 @@ from typing import Tuple
 def pipeline_parallelize_theta(
     theta: Theta, pipeline_parallelism_size: int
 ) -> tuple[tuple[int, ...], ...]:
-    """Pipeline parallelize theta for Llama."""
-    # TODO: Still modifies the shards, but the signature doesn't imply this
-    def parallelize_weight(
-        weight: ShardedTensor, new_devices: Tuple[int, ...]
-    ) -> ShardedTensor:
+    """
+    Pipeline parallelize theta for LLM.
+    Both DeepSeek and Llama.
+    """
+
+    def parallelize_in_place(
+        block_data: dict[str, ShardedTensor | PrimitiveTensor],
+        new_devices: Tuple[int, ...],
+    ) -> None:
+        """
+        Parallelize the block data in place.
+        """
+        assert len(block_data) == 1
+        key = list(block_data.keys())[0]
+        tensor = block_data[key]
+
         (old_shards, old_devices) = (
-            ([weight], (0,))
-            if isinstance(weight, PrimitiveTensor)
-            else (weight.shards, weight.devices)
+            ([tensor], (0,))
+            if isinstance(tensor, PrimitiveTensor)
+            else (tensor.shards, tensor.devices)
         )
         new_shards = ShardedTensor.move_shards_to_new_devices(
             old_shards, old_devices=old_devices, new_devices=new_devices
@@ -46,10 +57,10 @@ def pipeline_parallelize_theta(
                     old_tensor_trait.external_name,
                 ).set(new_shard._data)
 
-        return (
-            ReplicatedTensor(ts=new_shards, name=weight.name, devices=new_devices)
-            if isinstance(weight, PrimitiveTensor)
-            else weight.clone(ts=new_shards, devices=new_devices)
+        block_data[key] = (
+            ReplicatedTensor(ts=new_shards, name=tensor.name, devices=new_devices)
+            if isinstance(tensor, PrimitiveTensor)
+            else tensor.clone(ts=new_shards, devices=new_devices)
         )
 
     _t = theta.tensor("token_embd")["weight"]
@@ -69,18 +80,10 @@ def pipeline_parallelize_theta(
 
         block_data = theta.tensor("blk", blk_idx)
         for t_name in block_data.keys():
-            block_data[t_name]["weight"] = parallelize_weight(
-                block_data[t_name]["weight"], devices
-            )
+            parallelize_in_place(block_data[t_name], devices)
 
-    theta.tensor("token_embd")["weight"] = parallelize_weight(
-        theta.tensor("token_embd")["weight"], block_to_device_lookup[0]
-    )
-    theta.tensor("output_norm")["weight"] = parallelize_weight(
-        theta.tensor("output_norm")["weight"], block_to_device_lookup[-1]
-    )
-    theta.tensor("output")["weight"] = parallelize_weight(
-        theta.tensor("output")["weight"], block_to_device_lookup[-1]
-    )
+    parallelize_in_place(theta.tensor("token_embd"), block_to_device_lookup[0])
+    parallelize_in_place(theta.tensor("output_norm"), block_to_device_lookup[-1])
+    parallelize_in_place(theta.tensor("output"), block_to_device_lookup[-1])
 
     return tuple(block_to_device_lookup)
