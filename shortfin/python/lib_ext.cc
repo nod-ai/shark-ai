@@ -145,9 +145,9 @@ class Refs {
   }
 
  private:
-  iree::slim_mutex mutex_event_loop_; // thread safe for accessing lazy_PyWorkerEventLoop_
+  iree::slim_mutex mutex_event_loop_;
   py::object lazy_PyWorkerEventLoop_;
-  iree::slim_mutex mu_; // thread safe for accessing default_system_type_
+  iree::slim_mutex mu_;
   std::optional<std::string> default_system_type_;
 };
 
