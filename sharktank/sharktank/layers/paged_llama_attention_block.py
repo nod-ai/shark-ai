@@ -219,7 +219,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
 
     def forward(
         self,
-        h: torch.Tensor,
+        h: torch.Tensor | ShardedTensor,
         *,
         embedding: RotaryEmbeddingLayer,
         # [bs, batch_seq_len // block_seq_stride]
@@ -250,7 +250,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
 
         # Pad final dim of v to match with kv cache
         if self.attn_type == "mla" and self.head_dim != self.v_head_dim:
-            xv = F.pad(xv, [0, self.head_dim - self.v_head_dim])
+            xv = ops.pad(xv, [0, self.head_dim - self.v_head_dim])
 
         if start_positions is None:
             attn_output = self.paged_attention.forward_prefill(
