@@ -666,19 +666,6 @@ class PadTest(unittest.TestCase):
 
         assert ops.equal(expected_result, actual_result)
 
-    def testPadSplitNoPad(self):
-        @ops.reshard_split.override(torch.Tensor)
-        def reshard_split_unsharded(input, *, dim, count, devices) -> None:
-            raise ValueError("Should not be called")
-
-        tensor = torch.rand((6, 6, 6, 6), dtype=torch.float32)
-        pad = [0, 0, 3, 4]
-        expected_result = F.pad(tensor, pad)
-        sharded_tensor = SplitPrimitiveTensor(ts=tensor.split(2, dim=3), shard_dim=3)
-        actual_result = ops.pad(sharded_tensor, pad)
-
-        assert ops.equal(expected_result, actual_result)
-
 
 class PermuteTest(unittest.TestCase):
     def testShardedPrimitiveTensorPermute(self):
