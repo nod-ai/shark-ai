@@ -1103,6 +1103,57 @@ def module_register_buffer_sharded(
     setattr(module, name, tensor)
 
 
+@pad.override(ReplicatedTensor)
+def pad_replicated(
+    input: ReplicatedTensor,
+    _pad: List[int],
+    mode: str = None,
+    value: Optional[float] = None,
+) -> ReplicatedTensor:
+    shards = [pad(shard, _pad=_pad, mode=mode, value=value) for shard in input.shards]
+    return ReplicatedTensor(ts=shards)
+
+
+@pad.override(SplitPrimitiveTensor)
+def pad_replicated(
+    input: SplitPrimitiveTensor,
+    _pad: List[int],
+    mode: str = None,
+    value: Optional[float] = None,
+) -> SplitPrimitiveTensor:
+    assert len(_pad) % 2 == 0, "Pad must be a list of even length"
+    padding_shard_dim = input.shard_dim > (len(input.shape) - 1 - len(_pad) // 2)
+    if padding_shard_dim:
+        # If padding by 0, then it's not really padding and we can avoid transfers.
+        shard_dim_indx_from_back = (len(input.shape) - 1) - input.shard_dim
+        shard_dim_pads = _pad[shard_dim_indx_from_back : shard_dim_indx_from_back + 2]
+        padding_shard_dim &= any(pad > 0 for pad in shard_dim_pads)
+    if not padding_shard_dim:
+        shards = [
+            pad(shard, _pad=_pad, mode=mode, value=value) for shard in input.shards
+        ]
+        return SplitPrimitiveTensor(ts=shards, shard_dim=input.shard_dim)
+    else:
+        gathered = cat(
+            [
+                (
+                    transfer_to_logical_device(shard, input.devices[0])
+                    if i != 0
+                    else barrier_on_logical_device(shard, input.devices[0])
+                )
+                for i, shard in enumerate(input.shards)
+            ],
+            dim=input.shard_dim,
+        )
+        gathered = pad(gathered, _pad=_pad, mode=mode, value=value)
+        return reshard_split(
+            gathered,
+            dim=input.shard_dim,
+            count=input.shard_count,
+            devices=input.devices,
+        )
+
+
 @permute.override(SplitPrimitiveTensor)
 def permute_split(tensor: SplitPrimitiveTensor, dims: List[int]):
     permuted_shards = [permute(shard, dims) for shard in tensor.shards]

@@ -9,6 +9,7 @@ import itertools
 from parameterized import parameterized, parameterized_class
 
 import torch
+import torch.nn.functional as F
 
 from sharktank import ops
 from sharktank.types import *
@@ -637,6 +638,46 @@ class NormalizationTest(unittest.TestCase):
         actual_result = ops.sharded_cat(sharded_result)
 
         torch.testing.assert_close(actual_result, expected_result)
+
+
+class PadTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(0)
+
+    def testPadReplicated(self):
+        tensor = torch.rand(3, 4, 5, dtype=torch.float32)
+        pad = [1, 2, 3, 4]
+        expected_result = F.pad(tensor, pad)
+        sharded_tensor = ops.replicate(tensor, count=2)
+        actual_result = ops.pad(sharded_tensor, pad)
+
+        assert ops.equal(expected_result, actual_result)
+
+    @parameterized.expand(((0,), (1,), (2,), (3,)))
+    def testPadSplit(self, shard_dim: int):
+        tensor = torch.rand((6, 6, 6, 6), dtype=torch.float32)
+        pad = [1, 2, 3, 4]
+        # assert False, "Handle 0"
+        expected_result = F.pad(tensor, pad)
+        sharded_tensor = SplitPrimitiveTensor(
+            ts=tensor.split(2, dim=shard_dim), shard_dim=shard_dim
+        )
+        actual_result = ops.pad(sharded_tensor, pad)
+
+        assert ops.equal(expected_result, actual_result)
+
+    def testPadSplitNoPad(self):
+        @ops.reshard_split.override(torch.Tensor)
+        def reshard_split_unsharded(input, *, dim, count, devices) -> None:
+            raise ValueError("Should not be called")
+
+        tensor = torch.rand((6, 6, 6, 6), dtype=torch.float32)
+        pad = [0, 0, 3, 4]
+        expected_result = F.pad(tensor, pad)
+        sharded_tensor = SplitPrimitiveTensor(ts=tensor.split(2, dim=3), shard_dim=3)
+        actual_result = ops.pad(sharded_tensor, pad)
+
+        assert ops.equal(expected_result, actual_result)
 
 
 class PermuteTest(unittest.TestCase):

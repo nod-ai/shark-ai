@@ -420,6 +420,16 @@ def rms_norm_Tensor_QuantizedTensor(
     return rms_norm_default(x, weight, epsilon=epsilon)
 
 
+@pad.override(Tensor)
+def pad_default(
+    input: Union[Tensor, PrimitiveTensor],
+    _pad: Sequence[int],
+    mode: str = None,
+    value: Optional[float] = None,
+) -> Tensor:
+    return F.pad(unbox_tensor(input), _pad, mode=mode, value=value)
+
+
 @permute.override(Tensor)
 def permute(tensor: Tensor, dims: List[int]):
     torch_tensor = unbox_tensor(tensor)

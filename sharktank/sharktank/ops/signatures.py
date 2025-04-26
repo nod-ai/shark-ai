@@ -52,6 +52,7 @@ __all__ = [
     "matmul",
     "mean",
     "module_register_buffer",
+    "pad",
     "permute",
     "rms_norm",
     "repeat",
@@ -697,6 +698,33 @@ def _matmul_trampoline(
     tensors = (lhs, rhs)
     for override in d.find_overrides(tensors):
         result = override(lhs, rhs, transpose_rhs=transpose_rhs)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
+
+
+@overridable
+def pad(
+    input: AnyTensor, _pad: Sequence[int], mode: str, value: Optional[float]
+) -> AnyTensor:
+    """See torch.nn.functional.pad"""
+    ...
+
+
+@pad.trampoline
+def _pad_trampoline(
+    d: SignatureDispatcher,
+    input: AnyTensor,
+    _pad: Sequence[int],
+    mode: str = "constant",
+    value: Optional[float] = None,
+) -> AnyTensor:
+    if value is None:
+        value = 0
+    tensors = (input,)
+    for override in d.find_overrides(tensors):
+        result = override(input, _pad, mode=mode, value=value)
         if result is not NotImplemented:
             return override, result
     else:
