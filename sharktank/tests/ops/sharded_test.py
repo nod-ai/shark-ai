@@ -6,6 +6,7 @@
 
 import unittest
 import itertools
+import math
 from parameterized import parameterized, parameterized_class
 
 import torch
@@ -48,6 +49,159 @@ class AllReduceTest(unittest.TestCase):
 
         for shard in actual_result.shards:
             torch.testing.assert_close(shard.as_torch(), expected_result)
+
+
+class CalculateViewDimensionMappingTest(unittest.TestCase):
+    # NOTE: Don't have to test dynamic dim versions since `_calculate_view_dimension_mapping`
+    #       Immediately calls `_reshape_infer_dynamic_dim` which collapses the result back to
+    #       a non-dynamic test version.
+    #       `_reshape_infer_dynamic_dim` is already being tested above.
+    def setUp(self):
+        from sharktank.ops.sharded_impls import _calculate_view_dimension_mapping
+
+        self.calc_map = _calculate_view_dimension_mapping
+
+    def _test_mapping(
+        self,
+        from_shape: list[int],
+        to_shape: list[int],
+        expected_mapping: list[int],
+    ):
+        actual_mapping = self.calc_map(from_shape=from_shape, to_shape=to_shape)
+        assert len(actual_mapping) == len(expected_mapping)
+        assert all(
+            sorted(i_to_lst_actual) == sorted(i_to_lst_expected)
+            for i_to_lst_actual, i_to_lst_expected in zip(
+                actual_mapping, expected_mapping
+            )
+        )
+
+    @parameterized.expand(
+        (
+            ([5],),
+            ([1],),
+            ([3, 4],),
+            ([3, 1],),
+            ([1, 4],),
+            ([3, 4, 5],),
+            ([1, 4, 5],),
+            ([3, 4, 1],),
+            ([1, 1, 3, 4, 5],),
+            ([1, 1, 3, 4, 5, 1],),
+            ([1, 1, 3, 4, 5, 1, 1],),
+        )
+    )
+    def testMappingToSelf(self, shape: tuple[int, ...]):
+        self._test_mapping(
+            from_shape=shape,
+            to_shape=shape,
+            expected_mapping=[[i] for i in range(len(shape))],
+        )
+
+    @parameterized.expand(
+        (
+            ([3, 4, 5, 1], [[0], [1], [2]]),
+            ([3, 4, 5, 1, 1], [[0], [1], [2]]),
+            ([1, 3, 4, 5], [[1], [2], [3]]),
+            ([1, 1, 3, 4, 5], [[2], [3], [4]]),
+            ([1, 1, 3, 4, 5, 1], [[2], [3], [4]]),
+            ([1, 1, 3, 4, 5, 1, 1], [[2], [3], [4]]),
+        )
+    )
+    def testMappingAdding1s(
+        self, to_shape: tuple[int, ...], expected_mapping: list[int]
+    ):
+        self._test_mapping(
+            from_shape=[3, 4, 5], to_shape=to_shape, expected_mapping=expected_mapping
+        )
+
+    @parameterized.expand(
+        (
+            (
+                [1, 5, 1, 6, 1, 1, 3, 1, 1],
+                [[0], [1], [1], [2], [3], [4], [5], [6], [7], [8]],
+            ),
+            (
+                [5, 1, 6, 1, 1, 3, 1, 1],
+                [[0], [0], [0], [1], [2], [3], [4], [5], [6], [7]],
+            ),
+            (
+                [1, 1, 5, 6, 1, 1, 3, 1, 1],
+                [[0], [1], [2], [3], [3], [4], [5], [6], [7], [8]],
+            ),
+            (
+                [1, 1, 5, 1, 6, 1, 3, 1, 1],
+                [[0], [1], [2], [3], [4], [5], [6], [6], [7], [8]],
+            ),
+            (
+                [1, 1, 5, 1, 6, 3, 1, 1],
+                [[0], [1], [2], [3], [4], [5], [5], [5], [6], [7]],
+            ),
+            (
+                [1, 1, 5, 1, 6, 1, 1, 3, 1],
+                [[0], [1], [2], [3], [4], [5], [6], [7], [8], [8]],
+            ),
+            (
+                [1, 1, 5, 1, 6, 1, 1, 3],
+                [[0], [1], [2], [3], [4], [5], [6], [7], [7], [7]],
+            ),
+            ([5, 6, 3], [[0], [0], [0], [1], [1], [2], [2], [2], [2], [2]]),
+        )
+    )
+    def testMappingRemoving1s(self, to_shape: list[int], expected_mapping: list[int]):
+        self._test_mapping(
+            from_shape=[1, 1, 5, 1, 6, 1, 1, 3, 1, 1],
+            to_shape=to_shape,
+            expected_mapping=expected_mapping,
+        )
+
+    @parameterized.expand(
+        (
+            ([8], [4, 2], [[0, 1]]),
+            ([5, 4], [5, 2, 2], [[0], [1, 2]]),
+            ([5, 4, 3], [5, 2, 2, 3], [[0], [1, 2], [3]]),
+        )
+    )
+    def testMappingExpand(
+        self,
+        from_shape: list[int],
+        to_shape: list[int],
+        expected_mapping: list[int],
+    ):
+        self._test_mapping(
+            from_shape=from_shape, to_shape=to_shape, expected_mapping=expected_mapping
+        )
+
+    @parameterized.expand(
+        (
+            ([4, 2], [8], [[0], [0]]),
+            ([5, 2, 2], [5, 4], [[0], [1], [1]]),
+            ([5, 2, 2, 3], [5, 4, 3], [[0], [1], [1], [2]]),
+        )
+    )
+    def testMappingCollapse(
+        self, from_shape: list[int], to_shape: list[int], expected_mapping: list[int]
+    ):
+        self._test_mapping(
+            from_shape=from_shape, to_shape=to_shape, expected_mapping=expected_mapping
+        )
+
+    @parameterized.expand(
+        (
+            ([5, 4, 9], [20, 3, 3], [[0], [0], [1, 2]]),
+            ([5, 4, 9], [1, 1, 20, 3, 3, 1, 1], [[2], [2], [3, 4]]),
+            ([7, 5, 4, 9], [7, 20, 3, 3], [[0], [1], [1], [2, 3]]),
+            ([7, 5, 4, 9], [7, 1, 20, 3, 3], [[0], [2], [2], [3, 4]]),
+            ([9, 5, 4, 9], [3, 3, 20, 3, 3], [[0, 1], [2], [2], [3, 4]]),
+            ([9, 5, 4, 9], [3, 3, 1, 20, 3, 1, 3], [[0, 1], [3], [3], [4, 6]]),
+        )
+    )
+    def testMappingExpandCollapse(
+        self, from_shape: list[int], to_shape: list[int], expected_mapping: list[int]
+    ):
+        self._test_mapping(
+            from_shape=from_shape, to_shape=to_shape, expected_mapping=expected_mapping
+        )
 
 
 class CatTest(unittest.TestCase):
@@ -1076,6 +1230,41 @@ class ReshapeTest(unittest.TestCase):
         assert expected_result.is_deep_equal(actual_result)
 
 
+class ReshapeInferDynamicDimTest(unittest.TestCase):
+    def setUp(self):
+        import sharktank.ops.sharded_impls as sharded_impls
+
+        self.infer_dim = sharded_impls._reshape_infer_dynamic_dim
+
+    @parameterized.expand(
+        (
+            ([2, 4, 5], [-1, 10]),
+            ([2, 4, 5], [-1, 5]),
+            (
+                [2, 4, 5],
+                [2, -1],
+            ),
+        )
+    )
+    def testOnlyDynamicDim(self, shape1: list[int], shape2: list[int]):
+        expected_result = list(torch.rand(shape1).view(shape2).shape)
+        _, actual_result = self.infer_dim(shape1, shape2)
+        assert actual_result == expected_result
+
+        actual_result, _ = self.infer_dim(shape2, shape1)
+        assert actual_result == expected_result
+
+    def testExpandCollapseAndDynamicDim(self):
+        shape1 = (4, 5, 7, 4, 2)
+        shape2 = (2, 2, -1, 8)
+        expected_result = list(torch.rand(shape1).view(shape2).shape)
+        _, actual_result = self.infer_dim(shape1, shape2)
+        assert actual_result == expected_result
+
+        actual_result, _ = self.infer_dim(shape2, shape1)
+        assert actual_result == expected_result
+
+
 class ReshardSplitTest(unittest.TestCase):
     def testReshardReplicated(self):
         tensor = torch.rand(4, 5, 6, dtype=torch.float32)
@@ -1238,6 +1427,72 @@ class UnshardTest(unittest.TestCase):
         actual_result = ops.unshard(sharded)
         expected_result = tensor
         assert ops.equal(expected_result, actual_result)
+
+
+class ViewTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(12345)
+
+    @parameterized.expand((([4, 30],), ([-1, 30],), ([20, 6],), ([20, -1],)))
+    def testViewReplicatedCollapse(self, new_shape: list[int]):
+        tensor = torch.rand(4, 5, 6, dtype=torch.float32)
+        tensor_rep = ops.replicate(tensor, count=3)
+
+        expected_result = ops.view(tensor, new_shape)
+        actual_result = tensor_rep.view(new_shape)
+        ops.equal(expected_result, actual_result)
+
+    @parameterized.expand((([8, 5, 3, 2],), ([4, 2, 5, 3, 2],)))
+    def testViewReplicatedExpand(self, new_shape: list[int]):
+        tensor = torch.rand(8, 5, 6, dtype=torch.float32)
+        tensor_rep = ops.replicate(tensor, count=3)
+
+        expected_result = ops.view(tensor, new_shape)
+        actual_result = tensor_rep.view(new_shape)
+        ops.equal(expected_result, actual_result)
+
+    @parameterized.expand(
+        (
+            ([4, 8, 5, 2],),
+            ([-1, 8, 5, 2],),
+            ([4, 8, 10],),
+            ([-1, 8, 10],),
+            ([4, -1, 5, 2],),
+        )
+    )
+    def testViewSplitCollapse(self, new_shape: list[int]):
+        tensor = torch.rand(2, 2, 8, 5, 2, dtype=torch.float32)
+        tensor_split = ops.reshard_split(tensor, dim=2, count=2)
+
+        expected_result = ops.view(tensor, new_shape)
+        actual_result = tensor_split.view(new_shape)
+        ops.equal(expected_result, actual_result)
+
+    @parameterized.expand((([8, 5, 3, 2],), ([4, 2, 5, 3, 2],)))
+    def testViewSplitExpand(self, new_shape: list[int]):
+        tensor = torch.rand(8, 5, 6, dtype=torch.float32)
+        tensor_split = ops.reshard_split(tensor, dim=0, count=2)
+        expected_result = ops.view(tensor, new_shape)
+        actual_result = tensor_split.view(new_shape)
+        ops.equal(expected_result, actual_result)
+
+    @parameterized.expand(
+        (
+            ([16, 8, 40],),
+            ([2, 8, 8, 5, 8],),
+            ([8, 2, 8, 5, 8],),
+            ([-1, 8, 40],),
+            ([2, -1, 8, 5, 8],),
+            ([8, -1, 8, 5, 8],),
+        )
+    )
+    def testViewSplitCollapseExpand(self, new_shape: list[int]):
+        tensor = torch.rand(4, 4, 8, 5, 8, dtype=torch.float32)
+        tensor_split = ops.reshard_split(tensor, dim=2, count=2)
+
+        expected_result = ops.view(tensor, new_shape)
+        actual_result = tensor_split.view(new_shape)
+        ops.equal(expected_result, actual_result)
 
 
 if __name__ == "__main__":

@@ -1484,6 +1484,110 @@ def unshard_unsharded(input: Tensor) -> Tensor:
     return input
 
 
+def _calculate_view_dimension_mapping(
+    from_shape: Sequence[int], to_shape: Sequence[int]
+) -> List[List[int]]:
+    """
+    Calculate a mapping from the dimensions in `from_shape` to those in `to_shape`.
+    """
+    from_shape, to_shape = list(from_shape), list(to_shape)
+    assert len(from_shape) > 0 and len(to_shape) > 0, "Scalars not supported"
+    assert all(d != 0 for d in from_shape + to_shape), "Zero dimensions not supported"
+    from_shape, to_shape = _reshape_infer_dynamic_dim(list(from_shape), list(to_shape))
+
+    # Trivial cases
+    if len(from_shape) == 1:
+        return [[i for i in range(len(to_shape))]]
+    if len(to_shape) == 1:
+        return [[0] for _ in range(len(from_shape))]
+
+    def _get_cumulative_boundaries(shape: Sequence[int]) -> List[int]:
+        """
+        Get the cumulitive number of elements at the start of each dimension.
+        Add an extra 1 at the start to represent the start of the first dimension.
+        For example, for shape (2, 3, 4) it returns [1, 2, 6, 24].
+        """
+        return [1] + list(itertools.accumulate(shape, lambda x, y: x * y))
+
+    bounds_to = _get_cumulative_boundaries(to_shape)
+    bounds_from = _get_cumulative_boundaries(from_shape)
+
+    mapping = [[] for _ in range(len(from_shape))]
+    to_dim_idx_start = 0
+    for from_dim in range(len(from_shape)):
+        from_bound_start = bounds_from[from_dim]
+        from_bound_end = bounds_from[from_dim + 1]
+
+        to_dim = to_dim_idx_start
+        while to_dim < len(to_shape):
+            to_bound_start = bounds_to[to_dim]
+            to_bound_end = bounds_to[to_dim + 1]
+
+            # Check if the two ranges overlap
+            overlap_start = max(to_bound_start, from_bound_start)
+            overlap_end = min(to_bound_end, from_bound_end)
+            range_overlaps = overlap_start < overlap_end
+
+            # Special case for dim of size 1
+            size_one_dim_overlap = False
+            if from_bound_start == from_bound_end:  # `from_dim` is 1
+                if (
+                    from_bound_start >= to_bound_start
+                    and from_bound_start < to_bound_end
+                ):
+                    # `from_dim` is within the range of `to_dim`.
+                    # E.g. [5, 1, 6] to [5, 6]
+                    size_one_dim_overlap = True
+                elif (
+                    from_bound_start == to_bound_start
+                    and from_bound_end == to_bound_start
+                ):
+                    size_one_dim_overlap = True
+
+            if range_overlaps or size_one_dim_overlap:
+                # Overlap exists
+                assert to_dim not in mapping[from_dim]
+                mapping[from_dim].append(to_dim)
+
+                if to_bound_end >= from_bound_end:
+                    # We have exhausted the current `from_dim`
+                    if to_bound_end == from_bound_end:
+                        # This `to_dim` ends *exactly* at the end of the current `from_dim`.
+                        # This `to_dim` is exhausted, start next search with next `to_dim`.
+                        to_dim_idx_start = to_dim + 1
+                    else:  # to_bound_end > from_bound_end
+                        # This `to_dim` ends *after* the current `from_dim` ends.
+                        # We need to check the next `from_dim` for the current `to_dim`;
+                        # This `to_dim` is split across multiple `from_dim`s.
+                        to_dim_idx_start = to_dim
+                    # Found all contributions of this `from_dim`, more to the next.
+                    break
+                else:  # to_bounds_end < from_bounds_end
+                    # This to_dim ends *before* the current `from_dim` ends.
+                    # We need to check the next to_dim for the current `from_dim`.
+                    to_dim += 1
+            elif to_bound_start > from_bound_end:
+                # This `to_dim` starts *after* the current `from_dim` ends.
+                # No further `to_dim`s will overlap this `from_dim`.
+                # The next search should start from this `to_dim`.
+                to_dim_idx_start = to_dim
+                break
+            else:  # to_bounds_end <= from_bounds_start
+                # This `to_dim` ends *before* or *at* the start of the current `from_dim`.
+                # Move to check the next `to_dim` for the current `from_dim`.
+                to_dim += 1
+        # Update search start if inner loop finishes by exhaustion
+        if to_dim == len(to_shape):
+            to_dim_idx_start = to_dim
+
+        # Handle empty mapping for size 1 dimensions that didn't get mapped (happens if this is trailing 1)
+        if from_shape[from_dim] == 1 and not mapping[from_dim]:
+            last_valid_idx = len(to_shape) - 1
+            mapping[from_dim].append(last_valid_idx)
+
+    return mapping
+
+
 def _reshape_get_flatten_dim_range(
     from_shape: List[int], to_shape: List[int]
 ) -> Optional[Tuple[int, int]]:
@@ -1509,7 +1613,11 @@ def _reshape_infer_dynamic_dim(
 
     shape2_dynamic_dims = [i for i, d in enumerate(shape2) if d <= 0]
     if len(shape2_dynamic_dims) == 0:
+        assert math.prod(shape1) == math.prod(
+            shape2
+        ), f"Size mismatch: {shape1} vs {shape2}"
         return shape1, shape2
+
     shape2_dynamic_dim = shape2_dynamic_dims[0]
     shape1_size = math.prod(shape1)
     shape2_size_without_dynamic_dim = math.prod(d for d in shape2 if d > 0)
@@ -1575,11 +1683,6 @@ def unsqueeze_replicated(tensor: ReplicatedTensor, dim: int) -> SplitPrimitiveTe
 
 @view.override(ReplicatedTensor)
 def view_replicated(tensor: ReplicatedTensor, shape: List[int]) -> ReplicatedTensor:
-    view_split_range = _reshape_get_single_split_dim(tensor.shape, shape)
-    if view_split_range is None:
-        raise ValueError(
-            "Only taking a tensor view where splitting a single dimension is supported"
-        )
     shards = [view(shard, shape) for shard in tensor.shards]
     res = ReplicatedTensor(ts=shards)
     assert math.prod(res.shape) == math.prod(tensor.shape)
@@ -1588,28 +1691,45 @@ def view_replicated(tensor: ReplicatedTensor, shape: List[int]) -> ReplicatedTen
 
 @view.override(SplitPrimitiveTensor)
 def view_split(tensor: SplitPrimitiveTensor, shape: List[int]) -> SplitPrimitiveTensor:
-    view_split_range = _reshape_get_single_split_dim(tensor.shape, shape)
-    if view_split_range is None:
-        raise ValueError(
-            "Only taking a tensor view where splitting a single dimension is supported"
-        )
-    view_split_dim = view_split_range[0]
-
-    if view_split_dim == tensor.shard_dim:
-        if tensor.shape[view_split_dim] % tensor.shard_count != 0:
+    shard_dim = tensor.shard_dim
+    mapping = _calculate_view_dimension_mapping(from_shape=tensor.shape, to_shape=shape)
+    if len(mapping[shard_dim]) != 1:
+        if tensor.shape[tensor.shard_dim] % tensor.shard_count != 0:
             raise ValueError(
                 "Only splitting a dimension that is multiple of the shard count is supported"
             )
-        if shape[view_split_dim] % tensor.shard_count != 0:
+        if shape[tensor.shard_dim] % tensor.shard_count != 0:
             raise ValueError(
                 "The resulting leading splitting dimension must be multiple of the shard count"
             )
 
-    shard_dim = tensor.shard_dim
-    if shard_dim > view_split_dim:
-        new_dims_count = len(shape) - len(tensor.shape)
-        shard_dim += new_dims_count
+    # Account for collapsed or expanded dims
+    collapsed_dims = []
+    delta = 0
+    for from_dim, to_dims in enumerate(mapping[: shard_dim + 1]):
+        if len(to_dims) > 1:
+            # Expanded dims move shard_dim to the right by 1 for each new dim.
+            if from_dim == shard_dim:
+                pass  # Do nothing since we want to shard based on the leading dim if the shard_dim is expanded.
+            else:
+                delta += len(to_dims) - 1
+        # A to_dim can be split to be both expand itself and be collapsed with others, must check.
+        for to_dim in to_dims:
+            # Collapsed dims move shard_dim to the left by 1 for each dim after the first.
+            if to_dim in collapsed_dims:
+                delta -= 1
+            collapsed_dims.append(to_dim)
+    # Account for extra dims of size 1
+    dims_not_seen = [i for i in range(min(mapping[shard_dim]))]
+    for to_dims in mapping[:shard_dim]:
+        for to_dim in to_dims:
+            if to_dim in dims_not_seen:
+                dims_not_seen.remove(to_dim)
+
+    shard_dim += delta + len(dims_not_seen)
+
     new_shard_shape = list(shape)
+    # NOTE: dynamic shard_dim is handled implicitly because of int division.
     new_shard_shape[shard_dim] //= tensor.shard_count
     shards = [view(shard, new_shard_shape) for shard in tensor.shards]
     res = SplitPrimitiveTensor(shard_dim=shard_dim, ts=shards)
