@@ -12,7 +12,7 @@ import torch.nn.functional as F
 from sharktank.types import Theta, ShardedTensor
 from sharktank.layers import *
 
-from sharktank.ops import softmax, topk, to
+from sharktank.ops import softmax, topk, to, zeros_like
 
 __all__ = [
     "MoeBlock",
@@ -96,7 +96,7 @@ class MoeBlock(ThetaLayer):
                 .sum(dim=-1)
             )
             group_idx = topk(group_scores, k=self.n_limited_groups, dim=-1)[1]
-            group_mask = torch.zeros_like(group_scores)
+            group_mask = zeros_like(group_scores)
             group_mask.scatter_(1, group_idx, 1)
             score_mask = (
                 group_mask.unsqueeze(-1)
