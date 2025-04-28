@@ -53,12 +53,6 @@ def arg_parse() -> argparse.Namespace:
         help="Number of dispatch candidates to keep for model benchmarks.",
     )
     client_args.add_argument(
-        "--num-model-candidates",
-        type=int,
-        default=None,
-        help="Number of model candidates to produce after tuning.",
-    )
-    client_args.add_argument(
         "--compile-flags-file",
         type=str,
         default="",
