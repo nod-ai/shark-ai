@@ -1078,7 +1078,7 @@ def mean_split(
     if x.shard_dim not in dim:
         # If keepdim == False and any entry in dim is smaller than shard_dim
         # we need to offset shard_dim_new to have it point to the same dimension.
-        num_smaller_dims = sum(d < x.shard_dim for d in dim)
+        num_smaller_dims = __builtins__["sum"](d < x.shard_dim for d in dim)
         shard_dim_new = x.shard_dim - (not keepdim) * num_smaller_dims
 
         shards = [
@@ -1466,6 +1466,60 @@ def softmax_split(
     return SplitPrimitiveTensor(
         ts=shards, shard_dim=tensor.shard_dim, shape=tensor.shape
     )
+
+
+@sum.override(ReplicatedTensor)
+def sum_replicated(
+    input: ReplicatedTensor,
+    dim: Union[int, List[int]],
+    keepdim: bool,
+    *,
+    dtype: torch.dtype,
+) -> ReplicatedTensor:
+    shards = [
+        sum(shard, dim=dim, keepdim=keepdim, dtype=dtype) for shard in input.shards
+    ]
+    return ReplicatedTensor(ts=shards)
+
+
+@sum.override(SplitPrimitiveTensor)
+def sum_split(
+    input: SplitPrimitiveTensor,
+    dim: Union[int, List[int]],
+    keepdim: bool,
+    *,
+    dtype: torch.dtype,
+) -> SplitPrimitiveTensor | ReplicatedTensor:
+    if not isinstance(dim, (list, tuple)):
+        dim = [dim]
+    # Handle negative indexing
+    dim = [d + len(input.shape) if d < 0 else d for d in dim]
+
+    if input.shard_dim not in dim:
+        shard_dim = input.shard_dim
+        # Have to offest `shard_dim` if any of the collapsing dims are "to the left of it".
+        if not keepdim:
+            # `sum` is clobbered by ops.sum, need to access it manually
+            shard_dim -= __builtins__["sum"](d < input.shard_dim for d in dim)
+
+        shards = [
+            sum(shard, dim=dim, keepdim=keepdim, dtype=dtype) for shard in input.shards
+        ]
+        return SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim)
+    else:
+        gathered = cat(
+            [
+                (
+                    transfer_to_logical_device(shard, input.devices[0])
+                    if i != 0
+                    else barrier_on_logical_device(shard, input.devices[0])
+                )
+                for i, shard in enumerate(input.shards)
+            ],
+            dim=input.shard_dim,
+        )
+        summed = sum(gathered, dim=dim, keepdim=keepdim, dtype=dtype)
+        return ReplicatedTensor(ts=summed, shard_count=input.shard_count)
 
 
 @to.override(ReplicatedTensor)

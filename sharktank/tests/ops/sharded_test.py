@@ -1460,6 +1460,27 @@ class SoftmaxTest(unittest.TestCase):
         ops.equal(expected_result, ops.softmax(sharded_tensor, dim=dim + 1))
 
 
+class SumTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(12345)
+
+    @parameterized.expand(((0,), ([0, 1],), ([2, 0],)))
+    def testSumReplicated(self, sum_dim: int | list[int]):
+        tensor = torch.rand(4, 6, 5, dtype=torch.float32)
+        expected_result = ops.sum(tensor, dim=sum_dim)
+        actual_result = ops.sum(ops.replicate(tensor, count=3), dim=sum_dim)
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+
+    @parameterized.expand(((0,), ([0, 1],), ([2, 0],)))
+    def testSumSplit(self, sum_dim: int | list[int]):
+        tensor = torch.rand(4, 6, 5, dtype=torch.float32)
+        dim = 1
+        expected_result = ops.sum(tensor, dim=sum_dim)
+        sharded_tensor = ops.reshard_split(tensor, dim=dim, count=2)
+        actual_result = ops.sum(sharded_tensor, dim=sum_dim)
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+
+
 class TopKTest(unittest.TestCase):
     def setUp(self):
         torch.random.manual_seed(12345)

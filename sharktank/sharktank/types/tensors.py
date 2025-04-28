@@ -406,6 +406,17 @@ class InferenceTensor(ABC):
 
         return squeeze(self, dim)
 
+    def sum(
+        self,
+        dim: Union[int, List[int]],
+        keepdim: bool = False,
+        *,
+        dtype: torch.dtype = None,
+    ) -> "AnyTensor":
+        from sharktank.ops import sum
+
+        return sum(self, dim=dim, keepdim=keepdim, dtype=dtype)
+
     def topk(
         self, k: int, dim: int, largest: bool = True, sorted: bool = True
     ) -> Tuple["AnyTensor"]:
