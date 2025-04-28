@@ -28,7 +28,7 @@ cp tmp/dump/module_main_dispatch_0_rocm_hsaco_fb_benchmark.mlir tmp/mmt_benchmar
 For an initial trial to test the tuning loop, use following command:
 
 ```shell
-cd ../../
+cd ..
 python -m model_tuner model_tuner/double_mmt.mlir \
     model_tuner/tmp/mmt_benchmark.mlir \
     --compile-flags-file=model_tuner/compile_flags.txt \
@@ -37,7 +37,7 @@ python -m model_tuner model_tuner/double_mmt.mlir \
     --num-dispatch-candidates=5 --num-model-candidates=3 \
 ```
 
-[!TIP]
+> [!TIP]
 Use the `--starter-td-spec` option to pass an existing td spec for the run.
 You can use following default td spec: [Default Spec](https://github.com/iree-org/iree/blob/main/compiler/plugins/target/ROCM/builtins/tuning/iree_default_tuning_spec_gfx942.mlir).
 
