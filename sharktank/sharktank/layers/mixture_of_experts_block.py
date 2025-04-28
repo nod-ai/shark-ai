@@ -9,10 +9,10 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 
-from sharktank.types import Theta
+from sharktank.types import Theta, ShardedTensor
 from sharktank.layers import *
 
-from sharktank.ops import softmax, topk
+from sharktank.ops import softmax, topk, to
 
 __all__ = [
     "MoeBlock",
@@ -70,7 +70,7 @@ class MoeBlock(ThetaLayer):
 
     def forward(
         self,
-        h: torch.Tensor,
+        h: torch.Tensor | ShardedTensor,
     ):
         batch_size, sequence_length, feature_dim = h.shape
         ffn_input = h.view(-1, feature_dim)
@@ -78,7 +78,7 @@ class MoeBlock(ThetaLayer):
         # For each token, the router calculates the router weights for all experts
         # router_logits: (batch_size * sequence_length, expert_count)
         router_logits = self.ffn_gate_inp(ffn_input)
-        router_weights = self.score_experts(router_logits.to(torch.float))
+        router_weights = self.score_experts(to(router_logits, torch.float))
 
         # self.n_expert_groups = None
         # self.n_limited_groups = None
