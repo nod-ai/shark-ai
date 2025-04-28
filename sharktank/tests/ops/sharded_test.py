@@ -1366,6 +1366,42 @@ class ReshardTest(unittest.TestCase):
         assert expected_bias.is_deep_equal(sharded_theta("bias"), compare_name=False)
 
 
+class Scatter_Test(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(12345)
+
+    def testScatterReplicatedReplicated(self):
+        tensor = torch.zeros(4, 6, dtype=torch.float32)
+        index = torch.randint(0, 4, (2, 1))
+        value = 1
+        index_sharded = ops.replicate(index, count=3)
+        actual_result = ops.scatter_(
+            ops.replicate(tensor, count=3), 1, index_sharded, value
+        )
+        expected_result = ops.scatter_(tensor, 1, index, value)
+        assert ops.equal(expected_result, actual_result)
+
+    def testScatterSplitSplitShardDim(self):
+        tensor = torch.zeros(4, 6, dtype=torch.float32)
+        index = torch.randint(0, 4, (2, 1))
+        value = 1
+        sharded_tensor = ops.reshard_split(tensor, dim=0, count=2)
+        index_sharded = ops.reshard_split(index, dim=0, count=2)
+        actual_result = ops.scatter_(sharded_tensor, 0, index_sharded, value)
+        expected_result = ops.scatter_(tensor, 0, index, value)
+        assert ops.equal(expected_result, actual_result)
+
+    def testScatterSplitSplitNonShardDim(self):
+        tensor = torch.zeros(4, 6, dtype=torch.float32)
+        index = torch.randint(0, 4, (2, 1))
+        value = 1
+        sharded_tensor = ops.reshard_split(tensor, dim=0, count=2)
+        index_sharded = ops.reshard_split(index, dim=0, count=2)
+        actual_result = ops.scatter_(sharded_tensor, 1, index_sharded, value)
+        expected_result = ops.scatter_(tensor, 1, index, value)
+        assert ops.equal(expected_result, actual_result)
+
+
 class ShardLikeTest(unittest.TestCase):
     def testReshardLikeReplicatedToReplicated(self):
         tensor = torch.rand(4, 5, 6, dtype=torch.float32)

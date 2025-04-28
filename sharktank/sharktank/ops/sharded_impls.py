@@ -26,7 +26,7 @@ from sharktank.types import (
     UnreducedTensor,
 )
 from sharktank.types.tensors import unbox_tensor
-from ._registry import AllOfType, AllOfExprsVariadic, IsOfType
+from ._registry import AllOfType, AllOfExprsVariadic, AnyOfType, IsOfType
 from .shape import broadcast_dims, broadcast_dim, unbroadcast_dim
 from sharktank.utils import longest_equal_range
 from .signatures import *
@@ -1405,6 +1405,48 @@ def reshard_like_unreduced_to_replicated(
     tensor: UnreducedTensor, like: ReplicatedTensor
 ) -> ReplicatedTensor:
     return replicate(tensor, count=like.shard_count)
+
+
+@scatter_.override(ReplicatedTensor, ReplicatedTensor)
+def scatter_replicated_replicated(
+    inout: ReplicatedTensor,
+    dim: int,
+    index: ReplicatedTensor,
+    value,
+    *,
+    reduce: str = None,
+) -> ReplicatedTensor:
+    assert inout.shard_count == index.shard_count
+    shards = [
+        scatter_(shard, dim, index_shard, value, reduce=reduce)
+        for shard, index_shard in zip(inout.shards, index.shards)
+    ]
+    return inout.clone(ts=shards)
+
+
+@scatter_.override(SplitPrimitiveTensor, SplitPrimitiveTensor)
+def scatter_split_split(
+    inout: SplitPrimitiveTensor,
+    dim: int,
+    index: SplitPrimitiveTensor,
+    value,
+    *,
+    reduce: str = None,
+) -> SplitPrimitiveTensor:
+    assert inout.shard_count == index.shard_count
+    assert inout.shard_dim == index.shard_dim
+
+    _inout = sharded_cat(inout)
+    _index = sharded_cat(index)
+
+    _inout = scatter_(_inout, dim, _index, value, reduce=reduce)
+
+    return reshard_split(
+        _inout,
+        dim=inout.shard_dim,
+        count=inout.shard_count,
+        devices=inout.devices,
+    )
 
 
 @sharded_cat.override(SplitPrimitiveTensor)

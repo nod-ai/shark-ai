@@ -62,6 +62,7 @@ __all__ = [
     "reshard_split",
     "reshard_like",
     "scaled_dot_product_attention",
+    "scatter_",
     "sharded_cat",
     "sharded_sum",
     "sigmoid",
@@ -1011,6 +1012,34 @@ def _reshard_like_trampoline(
     )
     for override in d.find_overrides(tensors):
         result = override(input, like)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
+
+
+@overridable
+def scatter_(inout, dim: int, index: AnyTensor, value, *, reduce: str = None):
+    """
+    See torch.Tensor.scatter_
+    NOTE: Does not modify the inout tensor in place for ShardedTensors, will return copy.
+    """
+    ...
+
+
+@scatter_.trampoline
+def _scatter__trampoline(
+    d: SignatureDispatcher,
+    inout,
+    dim: int,
+    index: AnyTensor,
+    value,
+    *,
+    reduce: str = None,
+) -> AnyTensor:
+    tensors = (inout, index)
+    for override in d.find_overrides(tensors):
+        result = override(inout, dim, index, value, reduce=reduce)
         if result is not NotImplemented:
             return override, result
     else:

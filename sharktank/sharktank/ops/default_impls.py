@@ -436,6 +436,24 @@ def permute(tensor: Tensor, dims: List[int]):
     return torch.permute(torch_tensor, dims)
 
 
+@scatter_.override(AllOfType(Tensor, PrimitiveTensor))
+def scatter__default(
+    inout: Tensor | PrimitiveTensor,
+    dim: int,
+    index: Tensor | PrimitiveTensor,
+    value,
+    *,
+    reduce: str | None = None,
+) -> Tensor:
+    inout = unbox_tensor(inout)
+    index = unbox_tensor(index)
+    if reduce is not None:
+        inout.scatter_(dim, index, value, reduce=reduce)
+    else:
+        inout.scatter_(dim, index, value)
+    return inout
+
+
 @sigmoid.override(Tensor)
 def sigmoid_default(tensor: Tensor) -> Tensor:
     return tensor.sigmoid()

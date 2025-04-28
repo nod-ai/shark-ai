@@ -379,6 +379,13 @@ class InferenceTensor(ABC):
             shape = args[0]
         return reshape(self, shape)
 
+    def scatter_(
+        self, dim: int, index: "AnyTensor", value, *, reduce=None
+    ) -> "AnyTensor":
+        from sharktank.ops import scatter_
+
+        return scatter_(self, dim, index, value, reduce=reduce)
+
     def sigmoid(self) -> "AnyTensor":
         from sharktank.ops import sigmoid
 
