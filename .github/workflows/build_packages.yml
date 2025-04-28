@@ -177,7 +177,7 @@ jobs:
       if: "matrix.package == 'sharktuner' && matrix.platform == 'linux-x86_64'"
       run: |
         [ -e ./bindist/* ] && rm ./bindist/*
-        ./c/sharktuner/build_tools/build_linux_package.sh
+        bash ./c/sharktuner/build_tools/build_linux_package.sh
     - name: Build shortfin (Linux x86_64, ${{ matrix.python-version }})
       if: "matrix.package == 'shortfin' && matrix.platform == 'linux-x86_64'"
       env:
