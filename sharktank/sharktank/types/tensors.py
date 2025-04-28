@@ -406,6 +406,13 @@ class InferenceTensor(ABC):
 
         return squeeze(self, dim)
 
+    def topk(
+        self, k: int, dim: int, largest: bool = True, sorted: bool = True
+    ) -> Tuple["AnyTensor"]:
+        from sharktank.ops import topk
+
+        return topk(self, k, dim, largest, sorted)
+
     def transpose(self, dim0: int, dim1: int) -> "AnyTensor":
         from sharktank.ops import transpose
 
