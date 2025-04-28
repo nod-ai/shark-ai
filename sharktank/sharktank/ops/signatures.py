@@ -1258,16 +1258,23 @@ def _squeeze_trampoline(
 
 
 @overridable
-def topk(tensor, k: int, dim: int) -> AnyTensor:
+def topk(tensor, k: int, dim: int, largest: bool, sorted: bool) -> AnyTensor:
     """See torch.topk"""
     ...
 
 
 @topk.trampoline
-def _topk_trampoline(d: SignatureDispatcher, tensor, k: int, dim: int) -> AnyTensor:
+def _topk_trampoline(
+    d: SignatureDispatcher,
+    tensor,
+    k: int,
+    dim: int,
+    largest: bool = True,
+    sorted: bool = True,
+) -> AnyTensor:
     tensors = (tensor,)
-    for override in d.find_overrides(tensor):
-        result = override(tensor, k=k, dim=dim)
+    for override in d.find_overrides(tensors):
+        result = override(tensor, k=k, dim=dim, largest=largest, sorted=sorted)
         if result is not NotImplemented:
             return override, result
     else:

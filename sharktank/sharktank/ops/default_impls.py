@@ -516,9 +516,14 @@ def squeeze_default(tensor, dim: Optional[int] = None) -> AnyTensor:
         return torch.squeeze(unbox_tensor(tensor), dim)
 
 
-@topk.override(AllOfType(AnyTensor, PrimitiveTensor))
-def topk_default(tensor, k: int, dim: int) -> AnyTensor:
-    return torch.topk(tensor, k=k, dim=dim)
+@topk.override(AllOfType(Tensor, PrimitiveTensor))
+def topk_default(
+    tensor, k: int, dim: int, largest: bool, sorted: bool
+) -> tuple[Tensor | PrimitiveTensor, Tensor | PrimitiveTensor]:
+    result = torch.topk(
+        unbox_tensor(tensor), k=k, dim=dim, largest=largest, sorted=sorted
+    )
+    return result.values, result.indices
 
 
 @view.override(Tensor)

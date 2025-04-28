@@ -1460,6 +1460,41 @@ class SoftmaxTest(unittest.TestCase):
         ops.equal(expected_result, ops.softmax(sharded_tensor, dim=dim + 1))
 
 
+class TopKTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(12345)
+        self.devices = (4, 5, 6)
+
+    def testTopKReplicated(self):
+        tensor = torch.rand(4, 6, 5, dtype=torch.float32)
+        sharded_tensor = ops.replicate(tensor, count=3, devices=self.devices)
+        k = 3
+        expected_result = ops.topk(tensor, k=k, dim=0)
+        actual_result = ops.topk(sharded_tensor, k=k, dim=0)
+
+        for expected_subresult, actual_subresult in zip(expected_result, actual_result):
+            assert ops.equal(expected_subresult, actual_subresult)
+            assert (
+                d_act == d_exp
+                for d_act, d_exp in zip(actual_subresult.devices, self.devices)
+            )
+
+    @parameterized.expand(((0,), (1,), (2,)))
+    def testTopKSplit(self, dim: int):
+        tensor = torch.rand(4, 12, 5, dtype=torch.float32)
+        sharded_tensor = ops.reshard_split(tensor, dim=1, count=3, devices=self.devices)
+        k = 3
+        expected_result = ops.topk(tensor, k=k, dim=dim)
+        actual_result = ops.topk(sharded_tensor, k=k, dim=dim)
+
+        for expected_subresult, actual_subresult in zip(expected_result, actual_result):
+            assert ops.equal(expected_subresult, actual_subresult)
+            assert (
+                d_act == d_exp
+                for d_act, d_exp in zip(actual_subresult.devices, self.devices)
+            )
+
+
 class TransposeTest(unittest.TestCase):
     def testTransposeReplicated(self):
         a = torch.randn(3, 4, 1)

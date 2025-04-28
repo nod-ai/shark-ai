@@ -69,8 +69,15 @@ def sharded_wrap_override():
 
             assert_on_same_devices(*sharded_tensors)
             res = f(*args, **kwargs)
-            if isinstance(res, ShardedTensor) and len(sharded_tensors) > 0:
-                res = res.clone(devices=sharded_tensors[0].devices)
+            if len(sharded_tensors) > 0:
+                if isinstance(res, ShardedTensor):
+                    res = res.clone(devices=sharded_tensors[0].devices)
+                elif isinstance(res, Iterable) and all(
+                    isinstance(r, ShardedTensor) for r in res
+                ):
+                    res = type(res)(
+                        r.clone(devices=sharded_tensors[0].devices) for r in res
+                    )
             return res
 
         return func_wrapper
@@ -1471,6 +1478,58 @@ def to_replicated(tensor: ReplicatedTensor, *args, **kwargs):
 def to_split(tensor: SplitPrimitiveTensor, *args, **kwargs):
     shards = [to(shard, *args, **kwargs) for shard in tensor.shards]
     return SplitPrimitiveTensor(ts=shards, shard_dim=tensor.shard_dim)
+
+
+@topk.override(ReplicatedTensor)
+def topk_replicated(
+    input: ReplicatedTensor, k: int, dim: int, largest: bool, sorted: bool
+) -> tuple[ReplicatedTensor, ReplicatedTensor]:
+    values, indices = zip(
+        *(
+            topk(shard, k=k, dim=dim, largest=largest, sorted=sorted)
+            for shard in input.shards
+        )
+    )
+    return ReplicatedTensor(ts=values), ReplicatedTensor(ts=indices)
+
+
+@topk.override(SplitPrimitiveTensor)
+def topk_split(
+    input: SplitPrimitiveTensor, k: int, dim: int, largest: bool, sorted: bool
+) -> tuple[SplitPrimitiveTensor, SplitPrimitiveTensor]:
+    if dim != input.shard_dim:
+        values, indices = zip(
+            *(
+                topk(shard, k=k, dim=dim, largest=largest, sorted=sorted)
+                for shard in input.shards
+            )
+        )
+        values_split = SplitPrimitiveTensor(ts=values, shard_dim=input.shard_dim)
+        indices_split = SplitPrimitiveTensor(ts=indices, shard_dim=input.shard_dim)
+        return values_split, indices_split
+    else:
+        # TODO: Implement more efficient version which does a
+        #       topk on each shard before transferring and then adjusts
+        #       the indices.
+        gathered = cat(
+            [
+                (
+                    transfer_to_logical_device(shard, input.devices[0])
+                    if i != 0
+                    else barrier_on_logical_device(shard, input.devices[0])
+                )
+                for i, shard in enumerate(input.shards)
+            ],
+            dim=input.shard_dim,
+        )
+        values, indices = topk(gathered, k=k, dim=dim, largest=largest, sorted=sorted)
+        values_split = SplitPrimitiveTensor(
+            ts=values, shard_count=input.shard_count, shard_dim=input.shard_dim
+        )
+        indices_split = SplitPrimitiveTensor(
+            ts=indices, shard_count=input.shard_count, shard_dim=input.shard_dim
+        )
+        return values_split, indices_split
 
 
 @transpose.override(ReplicatedTensor)
