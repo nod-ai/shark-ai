@@ -79,6 +79,7 @@ __all__ = [
     "view",
     "view_as_complex",
     "view_as_real",
+    "zeros_like",
 ]
 
 IntOrSequenceInt = Union[int, Sequence[int]]
@@ -1359,6 +1360,47 @@ def _view_as_real_trampoline(d: SignatureDispatcher, tensor: AnyTensor) -> AnyTe
     tensors = (tensor,)
     for override in d.find_overrides(tensors):
         result = override(tensor)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
+
+
+@overridable
+def zeros_like(
+    tensor: AnyTensor,
+    *,
+    dtype: torch.dtype | None = None,
+    layout: torch.layout | None = None,
+    device: torch.device | None = None,
+    requires_grad: bool = False,
+    memory_format: torch.memory_format = torch.preserve_format,
+) -> AnyTensor:
+    """See torch.zeros_like"""
+    ...
+
+
+@zeros_like.trampoline
+def _zeros_like_trampoline(
+    d: SignatureDispatcher,
+    tensor: AnyTensor,
+    *,
+    dtype: torch.dtype | None = None,
+    layout: torch.layout | None = None,
+    device: torch.device | None = None,
+    requires_grad: bool = False,
+    memory_format: torch.memory_format = torch.preserve_format,
+) -> AnyTensor:
+    tensors = (tensor,)
+    for override in d.find_overrides(tensors):
+        result = override(
+            tensor,
+            dtype=dtype,
+            layout=layout,
+            device=device,
+            requires_grad=requires_grad,
+            memory_format=memory_format,
+        )
         if result is not NotImplemented:
             return override, result
     else:

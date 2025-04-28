@@ -566,3 +566,23 @@ def view_as_complex_default(tensor: Union[Tensor, PrimitiveTensor]) -> Tensor:
 @view_as_real.override(Tensor)
 def view_as_real_default(tensor: Union[Tensor, PrimitiveTensor]) -> Tensor:
     return torch.view_as_real(unbox_tensor(tensor))
+
+
+@zeros_like.override(AllOfType(Tensor, PrimitiveTensor))
+def zeros_like_default(
+    tensor: Union[Tensor, PrimitiveTensor],
+    *,
+    dtype: torch.dtype | None,
+    layout: torch.layout | None,
+    device: torch.device | None,
+    requires_grad: bool,
+    memory_format: torch.memory_format,
+) -> Tensor:
+    return torch.zeros_like(
+        unbox_tensor(tensor),
+        dtype=dtype,
+        layout=layout,
+        device=device,
+        requires_grad=requires_grad,
+        memory_format=memory_format,
+    )

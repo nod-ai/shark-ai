@@ -1635,5 +1635,26 @@ class ViewTest(unittest.TestCase):
         assert ops.equal(expected_result, actual_result)
 
 
+class ZerosLikeTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(12345)
+
+    def testZerosLikeReplicated(self):
+        tensor = torch.rand(9, 5, 6, dtype=torch.float32)
+        shard_count = 3
+        expected_result = ops.zeros_like(tensor)
+        actual_result = ops.zeros_like(ops.replicate(tensor, count=shard_count))
+        assert ops.equal(expected_result, actual_result)
+
+    def testZerosLikeSplit(self):
+        tensor = torch.rand(9, 5, 6, dtype=torch.float32)
+        shard_count = 3
+        expected_result = ops.zeros_like(tensor)
+        actual_result = ops.zeros_like(
+            ops.reshard_split(tensor, dim=0, count=shard_count)
+        )
+        assert ops.equal(expected_result, actual_result)
+
+
 if __name__ == "__main__":
     unittest.main()

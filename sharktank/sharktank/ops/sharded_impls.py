@@ -1940,5 +1940,29 @@ def view_as_real_rep(tensor: ReplicatedTensor) -> ReplicatedTensor:
     return ReplicatedTensor(ts=shards)
 
 
+@zeros_like.override(AllOfType(ReplicatedTensor, SplitPrimitiveTensor))
+def zeros_like_replicated(
+    tensor: ReplicatedTensor | SplitPrimitiveTensor,
+    *,
+    dtype: torch.dtype | None,
+    layout: torch.layout | None,
+    device: torch.device | None,
+    requires_grad: bool,
+    memory_format: torch.memory_format,
+) -> ReplicatedTensor | SplitPrimitiveTensor:
+    shards = [
+        zeros_like(
+            unbox_tensor(shard),
+            dtype=dtype,
+            layout=layout,
+            device=device,
+            requires_grad=requires_grad,
+            memory_format=memory_format,
+        )
+        for shard in tensor.shards
+    ]
+    return tensor.clone(ts=shards)
+
+
 # Note: Must be last thing in file
 sharded_unwrap_override()
