@@ -87,6 +87,11 @@ def test_generate_solutions_tile_and_fuse(tuner_ctx: common.TunerContext) -> Non
     assert all(
         "padding =" in str(sol.lowering_config) for sol in solutions
     ), "Not all lowering configs have padding option"
+    assert all(
+        [int(x) for x in sol.lowering_config.attributes["promote_operands"]]
+        == [0, 1, 2]
+        for sol in solutions
+    ), "Not all lowering configs have promote_operands = [0, 1, 2]"
 
 
 def test_calculate_shared_memory_usage_in_bytes(tuner_ctx: common.TunerContext) -> None:

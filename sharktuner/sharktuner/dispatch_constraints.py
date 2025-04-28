@@ -307,7 +307,7 @@ def generate_compilation_infos(
     codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline,
     pipeline_options_search_space: PipelineOptionsSearchSpace,
     allowed_waves_per_eu: list[int],
-    required_padding: bool,
+    padding: Optional[list[int]] = None,
 ) -> list[iree_codegen.CompilationInfoAttr]:
     # Create the LoweringConfigAttr.
     lowering_config_args = {
@@ -320,15 +320,8 @@ def generate_compilation_infos(
         "promote_operands": promote_operands,
     }
 
-    if required_padding:
-        workgroup_tile_m, workgroup_tile_n, _ = workgroup_tile_sizes
-        _, _, reduction_tile_k = reduction_tile_sizes
-        _, _, intrinsic_k = mma_attr.mnk_shape
-        lowering_config_args["padding"] = (
-            workgroup_tile_m,
-            workgroup_tile_n,
-            reduction_tile_k * intrinsic_k,
-        )
+    if padding is not None:
+        lowering_config_args["padding"] = padding
 
     if codegen_pipeline == iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse:
         lowering_config_args["subgroup"] = subgroup_tile_sizes
@@ -527,7 +520,18 @@ def generate_solutions(
         )
         promote_operands = [0, 1]
         if required_padding:
+            # TODO: Remove promotion of operand 2 once codegen supports handling padded outputs without promotion.
             promote_operands = [0, 1, 2]
+            workgroup_tile_m, workgroup_tile_n, _ = workgroup_tile_sizes
+            _, _, reduction_tile_k = reduction_tile_sizes
+            _, _, mma_intrinsic_k = mma_attr.mnk_shape
+            padding = [
+                workgroup_tile_m,
+                workgroup_tile_n,
+                reduction_tile_k * mma_intrinsic_k,
+            ]
+        else:
+            padding = None
 
         compilation_infos = generate_compilation_infos(
             tuner_ctx,
@@ -543,7 +547,7 @@ def generate_solutions(
             codegen_pipeline,
             pipeline_options_search_space,
             allowed_waves_per_eu,
-            required_padding=required_padding,
+            padding=padding,
         )
 
         solver.add(z3.simplify(z3.Not(z3.And(list(x == model[x] for x in all_vars)))))
