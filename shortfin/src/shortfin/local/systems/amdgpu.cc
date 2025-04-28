@@ -232,8 +232,8 @@ SystemPtr AMDGPUSystemBuilder::CreateSystem() {
           /*logical_device_class=*/LOGICAL_DEVICE_CLASS,
           /*hal_driver_prefix=*/HAL_DRIVER_PREFIX,
           /*instance_ordinal=*/instance_ordinal,
-          /*queue_ordinal=*/0,
-          /*instance_topology_address=*/{logical_index});
+          /*queue_ordinal=*/static_cast<uint32_t>(logical_index),
+          /*instance_topology_address=*/{0});
       ConfigureAllocators(amdgpu_allocator_specs_, device, address.device_name);
       lsys->InitializeHalDevice(std::make_unique<AMDGPUDevice>(
           address,
