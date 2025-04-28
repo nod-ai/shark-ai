@@ -379,6 +379,11 @@ class InferenceTensor(ABC):
             shape = args[0]
         return reshape(self, shape)
 
+    def sigmoid(self) -> "AnyTensor":
+        from sharktank.ops import sigmoid
+
+        return sigmoid(self)
+
     def size(self, dim: Optional[int] = None) -> tuple[int]:
         if dim is None:
             return tuple(self.shape)
