@@ -1445,19 +1445,24 @@ class SoftmaxTest(unittest.TestCase):
         torch.random.manual_seed(12345)
 
     def testSoftmaxReplicated(self):
-        tensor = torch.rand(4, 6, 5, dtype=torch.float32)
+        tensor = torch.rand(2, 4, 3, dtype=torch.float32)
         dim = 1
         expected_result = ops.softmax(tensor, dim=dim)
         actual_result = ops.softmax(ops.replicate(tensor, count=3), dim=dim)
-        ops.equal(expected_result, actual_result)
+        assert ops.equal(expected_result, actual_result)
 
     def testSoftmaxSplit(self):
-        tensor = torch.rand(4, 6, 5, dtype=torch.float32)
+        tensor = torch.rand(2, 2, 2, dtype=torch.float32)
         dim = 1
-        expected_result = ops.softmax(tensor, dim=dim)
         sharded_tensor = ops.reshard_split(tensor, dim=dim, count=2)
-        ops.equal(expected_result, ops.softmax(sharded_tensor, dim=dim - 1))
-        ops.equal(expected_result, ops.softmax(sharded_tensor, dim=dim + 1))
+
+        expected_result = ops.softmax(tensor, dim=dim - 1)
+        actual_result = ops.softmax(sharded_tensor, dim=dim - 1)
+        assert ops.equal(expected_result, actual_result)
+
+        expected_result = ops.softmax(tensor, dim=dim + 1)
+        actual_result = ops.softmax(sharded_tensor, dim=dim + 1)
+        assert ops.equal(expected_result, actual_result)
 
 
 class TopKTest(unittest.TestCase):
