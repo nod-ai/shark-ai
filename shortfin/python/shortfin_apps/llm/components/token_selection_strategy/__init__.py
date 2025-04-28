@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import Callable, List, Union
+from typing import Callable, Dict, List, Union
 
 from .base_token_selection_strategy import (
     BaseTokenSelectionStrategy,
@@ -22,6 +22,8 @@ from .greedy_token_selection_strategy import GreedyTokenSelectionStrategy
 from .multi_greedy_token_selection_strategy import MultiGreedyTokenSelectionStrategy
 from .sampler import Sampler
 
+import shortfin as sf
+
 
 def build_token_selector_config(
     decode_config: DecodeConfig,
@@ -29,6 +31,7 @@ def build_token_selector_config(
     decode_batcher,
     results_callback: Callable[[Union[int, List[int]]], None],
     eos_token_id: int,
+    post_processing_kernels: Dict[str, sf.ProgramInvocation],
 ) -> TokenSelectionStrategyConfig:
     """Build a configuration class for a given token selection strategy.
 
@@ -61,6 +64,7 @@ def build_token_selector_config(
         decode_end_callback=decode_batcher.complete_workitem,
         results_callback=results_callback,
         eos_token_id=eos_token_id,
+        post_processing_kernels=post_processing_kernels,
     )
 
 

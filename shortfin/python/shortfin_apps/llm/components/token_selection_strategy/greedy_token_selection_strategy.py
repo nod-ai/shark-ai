@@ -11,6 +11,8 @@ from .base_token_selection_strategy import (
     BaseTokenSelectionStrategy,
     TokenSelectionStrategyConfig,
 )
+from .sampler import Sampler
+
 from ..messages import LlmInferenceExecRequest, InferencePhase
 
 logger = logging.getLogger(__name__)
@@ -20,7 +22,7 @@ TOP_P_DEFAULT_SELECTION = 32
 
 
 class GreedyBeam(Beam):
-    def sample_logits(self) -> int:
+    async def sample_logits(self) -> int:
         """Return the single highest scoring token of the logits.
 
         Returns:
@@ -33,7 +35,9 @@ class GreedyBeam(Beam):
 
         # Normal greedy selection based on max value
         if (top_k, top_p) == (None, None):
-            return self.sampler.select_greedy(exec_req.result_logits)
+            return await self.sampler.select_greedy(
+                exec_req.result_logits, exec_req.inference_fiber
+            )
 
         logits = self.exec_req.result_logits
 
@@ -80,6 +84,9 @@ class GreedyTokenSelectionStrategy(BaseTokenSelectionStrategy):
         token_selection_strategy_config: TokenSelectionStrategyConfig,
     ):
         self._token_selection_strategy_config = token_selection_strategy_config
+        self.sampler = Sampler(
+            self.token_selection_strategy_config.post_processing_kernels,
+        )
 
     @property
     def token_selection_strategy_config(self):
@@ -98,13 +105,15 @@ class GreedyTokenSelectionStrategy(BaseTokenSelectionStrategy):
         config = self.token_selection_strategy_config
 
         config.decode_begin_callback(1)
-        beam = GreedyBeam(exec_req, decode_config=config.decode_config)
+        beam = GreedyBeam(
+            exec_req, decode_config=config.decode_config, sampler=self.sampler
+        )
         for _ in range(config.decode_config.max_completion_tokens):
             exec_req = beam.exec_req
             exec_req.reset(InferencePhase.DECODE)
             config.decode_callback(exec_req)
             await exec_req.done
-            token_int = beam.sample_logits()
+            token_int = await beam.sample_logits()
             beam.last_token = token_int
             logger.info(f"greedy beam token: {token_int}")
             logger.info(f"callback: {config.results_callback}")

@@ -7,11 +7,13 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import logging
-from typing import List, Callable, Union
+from typing import List, Callable, Union, Dict
 
 from .config import DecodeConfig, TokenSelectionStrategy
 from ..messages import LlmInferenceExecRequest
+from .sampler import Sampler
 
+import shortfin as sf
 import shortfin.array as sfnp
 import numpy as np
 
@@ -29,10 +31,14 @@ class TokenSelectionStrategyConfig:
     decode_end_callback: Callable[[int], None]
     results_callback: Callable[[Union[int, List[int]]], None]
     eos_token_id: int
+    post_processing_kernels: Dict[str, sf.ProgramInvocation]
 
 
+@dataclass
 class BaseTokenSelectionStrategy(ABC):
     """Abstract class for implementing token selection strategies."""
+
+    sampler: Sampler
 
     def _log_sampling_method(self):
         """Log the sampling method used for token selection."""
@@ -86,14 +92,15 @@ class BaseTokenSelectionStrategy(ABC):
             int: Token generated from prefill.
         """
         token_selection_strategy_config = self.token_selection_strategy_config
+        sampler = self.sampler
 
         token_selection_strategy_config.prefill_callback(exec_req)
         await exec_req.done
         assert exec_req.result_logits is not None
-
-        token_int = np.argmax(
-            np.frombuffer(exec_req.result_logits.items, dtype=np.float16)
+        token_int = await sampler.select_greedy(
+            exec_req.result_logits, fiber=exec_req.inference_fiber
         )
+
         decode_config = token_selection_strategy_config.decode_config
         # TODO: This is only temporary until streaming is enabled for `MultiGreedy`
         if decode_config.token_selection_strategy == TokenSelectionStrategy.GREEDY:

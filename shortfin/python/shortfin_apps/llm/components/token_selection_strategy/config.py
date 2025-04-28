@@ -4,7 +4,8 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, field
+from typing import Dict
 from dataclasses_json import dataclass_json, Undefined
 from enum import Enum, auto
 

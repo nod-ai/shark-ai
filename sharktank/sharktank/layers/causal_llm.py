@@ -157,5 +157,9 @@ class BaseCausalLMModel(ThetaLayer):
         results = []
         for batch, seq_len in enumerate(seq_lens):
             step_logits = logits[batch, seq_len - 1]
-            results.append(torch.argmax(step_logits))
+            if step_logits.dtype == torch.float8_e4m3fnuz:
+                step_logits_as_int8 = step_logits.view(dtype=torch.int8)
+                results.append(torch.argmax(step_logits_as_int8))
+            else:
+                results.append(torch.argmax(step_logits))
         return results

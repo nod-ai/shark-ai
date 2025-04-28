@@ -11,7 +11,7 @@ import json
 import logging
 
 from copy import copy
-from typing import List
+from typing import Dict, List
 
 import shortfin as sf
 import shortfin.array as sfnp
@@ -60,6 +60,7 @@ class GenerateItemProcess(sf.Process):
         input_token_ids: list[int],
         eos_token_id: int,
         decode_config: DecodeConfig,
+        post_processing_kernels: Dict[str, sf.ProgramInvocation],
     ):
         super().__init__(fiber=client.fiber)
         self.client = client
@@ -77,6 +78,7 @@ class GenerateItemProcess(sf.Process):
                 decode_batcher=self.client.decode_batcher,
                 results_callback=self.results_callback,
                 eos_token_id=self.eos_token_id,
+                post_processing_kernels=post_processing_kernels,
             )
         )
         self.token_selector: BaseTokenSelectionStrategy = build_token_selector(
@@ -159,11 +161,6 @@ class ClientGenerateBatchProcess(sf.Process):
         self.complete_infeed = self.system.create_queue()
         self.service = service
         self.decode_config = service.server_params.decode_config
-        self.decode_config.token_selection_strategy = (
-            TokenSelectionStrategy.MULTI_GREEDY
-            if self.gen_req.sampling_params.b_of_n > 1
-            else TokenSelectionStrategy.GREEDY
-        )
 
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
@@ -200,6 +197,7 @@ class ClientGenerateBatchProcess(sf.Process):
                     input_tokens if is_pretokenized else input_tokens.ids,
                     eos_token_id=self.tokenizer.eos_token_id,
                     decode_config=decode_config,
+                    post_processing_kernels=self.service.post_processing_kernels,
                 )
                 gen_processes.append(gen_process)
                 gen_process.launch()

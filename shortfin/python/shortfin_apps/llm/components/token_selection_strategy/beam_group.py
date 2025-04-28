@@ -37,7 +37,7 @@ class Beam(ABC):
 
     decode_config: DecodeConfig
 
-    sampler: Sampler = field(default_factory=Sampler)
+    sampler: Sampler
 
     score: float = 0.0
     accumulated_normalization: float = 0.0

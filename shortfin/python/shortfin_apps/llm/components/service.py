@@ -37,6 +37,9 @@ from ...utils import GenerateService
 logger = logging.getLogger(__name__)
 
 
+POST_PROCESSING_KERNELS = {"argmax"}
+
+
 class LlmGenerateService(GenerateService):
     """Top level service interface for generating text against a model."""
 
@@ -52,7 +55,7 @@ class LlmGenerateService(GenerateService):
         tokenizer: Tokenizer,
         model_params: ModelParams,
         server_params: "ServerParams",
-        program_isolation: str = "per_fiber",
+        program_isolation: str = "per_call",
         max_queue_size: int = 3,  # Maximum number of requests in queue
     ):
         super().__init__(sysman)
@@ -171,12 +174,18 @@ class LlmGenerateService(GenerateService):
         self.decode_batcher.launch()
 
     def initialize_function_references(self):
+        self.post_processing_kernels = {}
+        for kernel in POST_PROCESSING_KERNELS:
+            self.post_processing_kernels[kernel] = self.inference_program[
+                f"{self.model_params.module_name}.{kernel}"
+            ]
+
         self.prefill_functions = {}
         for bs in self.model_params.prefill_batch_sizes:
             self.prefill_functions[bs] = self.inference_program[
                 f"{self.model_params.module_name}.prefill_bs{bs}"
             ]
-        # Resolve decode entrypoints.
+
         self.decode_functions = {}
         for bs in self.model_params.decode_batch_sizes:
             self.decode_functions[bs] = self.inference_program[

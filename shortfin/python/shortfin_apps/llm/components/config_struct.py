@@ -139,7 +139,7 @@ class ModelParams:
     logits_normalization: LogitsNormalization = LogitsNormalization.NONE
 
     # The element type of the attention caches.
-    attn_dtype: sfnp.DType = sfnp.float16
+    attn_dtype: sfnp.DType = sfnp.bfloat16
 
     # Cache parameters.
     paged_kv_cache: PagedKVCacheParams | None = None

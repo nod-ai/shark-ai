@@ -104,7 +104,7 @@ class PagePool:
                 device,
             )
             page_table = sf.array.device_array.for_device(
-                device, page_table_shape, self.config.dtype
+                device, page_table_shape, sfnp.float8_e4m3_fnuz
             )
             page_table_host = page_table.for_transfer()
             with page_table_host.map(discard=True) as m:

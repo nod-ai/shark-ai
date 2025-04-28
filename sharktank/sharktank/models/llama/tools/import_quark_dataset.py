@@ -104,16 +104,15 @@ def apply_per_layer_quant(
     and create InferenceTensors out of them, converting their names to gguf format
     in the process.
     """
-
     layer_theta = root_theta(layer_name)
-
     weight_quant_scale = layer_theta.tensor("weight_scale").as_torch()
-
+    if weight_quant_scale.dtype == torch.bfloat16:
+        weight_quant_scale = weight_quant_scale.to(torch.float32)
     weight = layer_theta.tensor("weight").as_torch()
 
     # It looks dumb but, this step is required for numerical correctness against quark.
     # weight = weight.view(torch.float8_e4m3fn)
-    weight = (weight.to(torch.float64) * weight_quant_scale).to(torch.bfloat16)
+    weight = (weight.to(torch.float64) * weight_quant_scale).to(torch.float16)
 
     weight_quant_zero_point = layer_theta.optional_tensor("weight_zero_point")
     if weight_quant_zero_point == None:
@@ -121,8 +120,11 @@ def apply_per_layer_quant(
     else:
         weight_quant_zero_point = weight_quant_zero_point.as_torch()
     input_quant_scale = as_torch_or_none(layer_theta.optional_tensor("input_scale"))
+    if input_quant_scale.dtype is torch.bfloat16:
+        input_quant_scale = input_quant_scale.to(torch.float32)
     output_quant_scale = as_torch_or_none(layer_theta.optional_tensor("output_scale"))
-
+    if output_quant_scale and output_quant_scale.dtype is torch.bfloat16:
+        output_quant_scale = output_quant_scale.to(torch.float32)
     if weight_quant_scale is None:
         print("weight quant scale not found for layer ", layer_name)
         return
@@ -233,9 +235,9 @@ def apply_per_layer_quant(
 def convert_hf_hparams_to_gguf(hf_hparams: dict[str, any]) -> dict[str, any]:
     hp = hf_hparams["hparams"]
     attention_head_count = _int_prop(hp, "num_attention_heads")
-    attn_head_dim = int(
-        _int_prop(hp, "hidden_size") // _int_prop(hp, "num_attention_heads")
-    )
+    attn_head_dim = int(_int_prop(hp, "head_dim"))
+    #    _int_prop(hp, "hidden_size") // _int_prop(hp, "num_attention_heads")
+    #)
 
     return {
         "llama.context_length": _int_prop(hp, "max_position_embeddings"),
@@ -260,6 +262,7 @@ def update_norm_layer(
         new_name = hf_to_gguf(sub_name) + ".weight"
         single_replace(quant_theta, sub_name, new_name, updated_tensors)
     layer_idx = layer_name.split(".")[-1]
+    """
     if "kv_cache_scale" in quant_theta(layer_name, "self_attn").keys:
         kv_cache_scale = (
             quant_theta(layer_name, "self_attn").tensor("kv_scale").as_torch()
@@ -280,7 +283,7 @@ def update_norm_layer(
         updated_tensors[new_name] = DefaultPrimitiveTensor(
             name=new_name, data=prob_output_scale
         )
-
+    """
 
 def single_replace(
     quant_theta: Theta,
@@ -375,8 +378,9 @@ def main(argv):
     new_theta = Theta(updated_tensors)
     # Make a new Dataset from the updated properties and tensors.
     new_ds = Dataset(updated_properties, new_theta)
-
     new_ds.save(args.output_irpa_file, io_report_callback=print)
+
+
 
 
 if __name__ == "__main__":

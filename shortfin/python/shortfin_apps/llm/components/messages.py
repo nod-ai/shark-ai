@@ -54,6 +54,8 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         # sl is either 1 (not return_all_logits) or >=1 (return_all_logits).
         self.result_logits: sfnp.device_array | None = None
 
+        self.inference_fiber: sf.Fiber | None = None
+
         self.decode_batch_size = decode_bs
 
         # Cache pages that have been locked for this request.
@@ -86,6 +88,7 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         self.return_all_logits = False
         self.return_host_array = True
         self.result_logits = None
+        self.inference_fiber = None
 
     def cache_page_indices(self, max_len: int) -> list[int]:
         if not self.allocation:

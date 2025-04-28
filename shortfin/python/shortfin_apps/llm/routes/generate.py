@@ -8,6 +8,8 @@ import logging
 import time
 from fastapi import APIRouter, Request
 
+import asyncio
+
 from shortfin.interop.fastapi import FastAPIResponder
 
 from ..components.generate import ClientGenerateBatchProcess
@@ -28,12 +30,12 @@ async def generate_request(gen_req: GenerateReqInput, request: Request):
     service: LlmGenerateService = request.app.state.services[
         request.app.state.current_instance
     ]
-    while not service.add_to_queue():
+    if not service.add_to_queue():
         request.app.state.current_instance = (
             request.app.state.current_instance + 1
         ) % len(request.app.state.services)
         service = request.app.state.services[request.app.state.current_instance]
-        time.sleep(0.001)
+        await asyncio.sleep(0.001)
     print(
         f"Generating with service: {request.app.state.current_instance} current queue size: {service.current_queue_size} max queue size: {service.max_queue_size}"
     )

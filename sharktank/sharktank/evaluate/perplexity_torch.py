@@ -98,7 +98,7 @@ class PerplexityTorch:
 
         theta = dataset.root_theta
 
-        model = PagedLlmModelV1(theta, self.config)
+        model = PagedLlmModelV1(theta, config)
 
         self.generator = TorchGenerator(model, tokenizer)
 

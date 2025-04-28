@@ -7,7 +7,7 @@
 from dataclasses import dataclass
 
 import random
-from typing import List
+from typing import Dict, List
 
 import numpy as np
 import shortfin.array as sfnp
@@ -15,8 +15,14 @@ import shortfin.array as sfnp
 from shortfin_apps.utils import convert_int_to_float
 
 
+import shortfin as sf
+
+
 @dataclass
 class Sampler:
+
+    post_processing_kernels: Dict[str, sf.ProgramInvocation]
+
     def sample_top_k(self, tokens: List[int], probs: List[float], k: int):
         choices: List[int] = random.choices(tokens, weights=probs, k=k)
         token_prob_map = dict(zip(tokens, probs))
@@ -63,7 +69,7 @@ class Sampler:
 
         return top_tokens, top_values
 
-    def select_greedy(self, logits: sfnp.device_array) -> int:
+    async def select_greedy(self, logits: sfnp.device_array, fiber: sf.Fiber) -> int:
         """Greedily select a single token using `argmax`.
 
         Args:
@@ -72,5 +78,10 @@ class Sampler:
         Returns:
             int: Max token.
         """
-        token_int = np.argmax(np.frombuffer(logits.items, dtype=np.float16))
-        return token_int
+        argmax_kernel = self.post_processing_kernels["argmax"]
+        (argmax_logits,) = await argmax_kernel(logits, fiber=fiber)
+        argmax_logits_host = argmax_logits.for_transfer()
+        argmax_logits_host.copy_from(argmax_logits)
+
+        await logits.device
+        return argmax_logits_host.items.tolist()[-1]

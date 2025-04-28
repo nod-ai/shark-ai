@@ -223,6 +223,10 @@ class PagedLlmModelV1(BaseCausalLMModel):
             logits = logits / math.sqrt(3.0)
         return logits
 
+    def argmax(self, result_logits: torch.Tensor) -> torch.Tensor:
+        self._assert_device(result_logits, dtype=result_logits.dtype)
+        return torch.argmax(result_logits, dim=-1)
+
 
 ################################################################################
 # Layers
