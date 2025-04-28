@@ -1254,6 +1254,11 @@ def replicate_unsharded(input, *, count: int, devices: Tuple[int]) -> Replicated
     return ReplicatedTensor(ts=torch_input, shard_count=count, devices=devices)
 
 
+@reshape.override(ReplicatedTensor)
+def reshape_replicated(tensor: ReplicatedTensor, shape: List[int]) -> ReplicatedTensor:
+    return ReplicatedTensor(ts=[reshape(shard, shape) for shard in tensor.shards])
+
+
 @reshape.override(SplitPrimitiveTensor)
 def reshape_split(
     tensor: SplitPrimitiveTensor, shape: List[int]
