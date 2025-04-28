@@ -1546,7 +1546,7 @@ class ViewTest(unittest.TestCase):
 
         expected_result = ops.view(tensor, new_shape)
         actual_result = tensor_rep.view(new_shape)
-        ops.equal(expected_result, actual_result)
+        assert ops.equal(expected_result, actual_result)
 
     @parameterized.expand((([8, 5, 3, 2],), ([4, 2, 5, 3, 2],)))
     def testViewReplicatedExpand(self, new_shape: list[int]):
@@ -1555,7 +1555,7 @@ class ViewTest(unittest.TestCase):
 
         expected_result = ops.view(tensor, new_shape)
         actual_result = tensor_rep.view(new_shape)
-        ops.equal(expected_result, actual_result)
+        assert ops.equal(expected_result, actual_result)
 
     @parameterized.expand(
         (
@@ -1572,7 +1572,7 @@ class ViewTest(unittest.TestCase):
 
         expected_result = ops.view(tensor, new_shape)
         actual_result = tensor_split.view(new_shape)
-        ops.equal(expected_result, actual_result)
+        assert ops.equal(expected_result, actual_result)
 
     @parameterized.expand((([8, 5, 3, 2],), ([4, 2, 5, 3, 2],)))
     def testViewSplitExpand(self, new_shape: list[int]):
@@ -1580,7 +1580,7 @@ class ViewTest(unittest.TestCase):
         tensor_split = ops.reshard_split(tensor, dim=0, count=2)
         expected_result = ops.view(tensor, new_shape)
         actual_result = tensor_split.view(new_shape)
-        ops.equal(expected_result, actual_result)
+        assert ops.equal(expected_result, actual_result)
 
     @parameterized.expand(
         (
@@ -1598,7 +1598,7 @@ class ViewTest(unittest.TestCase):
 
         expected_result = ops.view(tensor, new_shape)
         actual_result = tensor_split.view(new_shape)
-        ops.equal(expected_result, actual_result)
+        assert ops.equal(expected_result, actual_result)
 
 
 if __name__ == "__main__":
