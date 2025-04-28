@@ -144,9 +144,14 @@ def main() -> None:
         for id in top_candidates:
             logging.info(f"{candidate_trackers[id].spec_path.resolve()}")
         if stop_after_phase == libtuner.ExecutionPhases.benchmark_dispatches:
-            top_spec_path = path_config.specs_dir / path_config.get_candidate_spec_filename(top_candidates[0])
+            top_spec_path = (
+                path_config.specs_dir
+                / path_config.get_candidate_spec_filename(top_candidates[0])
+            )
             shutil.copy(top_spec_path, args.simple_best_spec_output_path)
-            print(f"Saved top spec ({top_spec_path}) to {args.simple_best_spec_output_path}")
+            print(
+                f"Saved top spec ({top_spec_path}) to {args.simple_best_spec_output_path}"
+            )
             return
 
         print("Compiling models with top candidates...")
@@ -180,9 +185,13 @@ def main() -> None:
             logging.info(f"{candidate_trackers[id].spec_path.resolve()}")
         print(f"Top model candidates: {top_model_candidates}")
 
-        top_spec_path = path_config.specs_dir / path_config.get_candidate_spec_filename(top_model_candidates[0])
+        top_spec_path = path_config.specs_dir / path_config.get_candidate_spec_filename(
+            top_model_candidates[0]
+        )
         shutil.copy(top_spec_path, args.simple_best_spec_output_path)
-        print(f"Saved top spec ({top_spec_path}) to {args.simple_best_spec_output_path}")
+        print(
+            f"Saved top spec ({top_spec_path}) to {args.simple_best_spec_output_path}"
+        )
 
         print("Check the detailed execution logs in:")
         print(path_config.run_log.resolve())
