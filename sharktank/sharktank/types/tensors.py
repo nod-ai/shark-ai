@@ -384,6 +384,13 @@ class InferenceTensor(ABC):
             return tuple(self.shape)
         return self.shape[dim]
 
+    def softmax(
+        self, dim: Optional[int] = None, dtype: Optional[torch.dtype] = None
+    ) -> "AnyTensor":
+        from sharktank.ops import softmax
+
+        return softmax(self, dim, dtype=dtype)
+
     def squeeze(self, dim: Optional[int] = None) -> "AnyTensor":
         from sharktank.ops import squeeze
 
