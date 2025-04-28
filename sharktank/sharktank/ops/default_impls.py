@@ -496,6 +496,17 @@ def sharded_sum_unsharded(maybe_sharded):
     return unbox_tensor(maybe_sharded)
 
 
+@sum.override(AllOfType(Tensor, PrimitiveTensor))
+def sum_default(
+    input: Tensor | PrimitiveTensor,
+    dim: Union[int, List[int]] | None = None,
+    keepdim: bool = False,
+    *,
+    dtype: torch.dtype,
+) -> Tensor:
+    return torch.sum(unbox_tensor(input), dim=dim, keepdim=keepdim, dtype=dtype)
+
+
 @unflatten.override(Tensor)
 def unflatten_default(
     input: Union[Tensor, PrimitiveTensor], dim: int, sizes: Tuple[int]

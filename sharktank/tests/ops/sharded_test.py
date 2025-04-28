@@ -4,6 +4,8 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from collections.abc import Iterable
+from typing import Callable
 import unittest
 import itertools
 import math
@@ -1445,19 +1447,56 @@ class SoftmaxTest(unittest.TestCase):
         torch.random.manual_seed(12345)
 
     def testSoftmaxReplicated(self):
-        tensor = torch.rand(4, 6, 5, dtype=torch.float32)
+        tensor = torch.rand(2, 4, 3, dtype=torch.float32)
         dim = 1
         expected_result = ops.softmax(tensor, dim=dim)
         actual_result = ops.softmax(ops.replicate(tensor, count=3), dim=dim)
-        ops.equal(expected_result, actual_result)
+        assert ops.equal(expected_result, actual_result)
 
     def testSoftmaxSplit(self):
+        tensor = torch.rand(2, 2, 2, dtype=torch.float32)
+        dim = 1
+        sharded_tensor = ops.reshard_split(tensor, dim=dim, count=2)
+
+        expected_result = ops.softmax(tensor, dim=dim - 1)
+        actual_result = ops.softmax(sharded_tensor, dim=dim - 1)
+        assert ops.equal(expected_result, actual_result)
+
+        expected_result = ops.softmax(tensor, dim=dim + 1)
+        actual_result = ops.softmax(sharded_tensor, dim=dim + 1)
+        assert ops.equal(expected_result, actual_result)
+
+
+class SumTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(12345)
+
+    @parameterized.expand(list(itertools.product((0, [0, 1], [2, 0]), [True, False])))
+    def testSumReplicated(self, sum_dim: int | list[int], keepdim: bool):
+        tensor = torch.rand(4, 6, 5, dtype=torch.float32)
+        expected_result = ops.sum(tensor, dim=sum_dim, keepdim=keepdim)
+        actual_result = ops.sum(
+            ops.replicate(tensor, count=3), dim=sum_dim, keepdim=keepdim
+        )
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+
+    @parameterized.expand(list(itertools.product((0, [0, 1], [2, 0]), [True, False])))
+    def testSumSplit(self, sum_dim: int | list[int], keepdim: bool):
         tensor = torch.rand(4, 6, 5, dtype=torch.float32)
         dim = 1
-        expected_result = ops.softmax(tensor, dim=dim)
+        expected_result = ops.sum(tensor, dim=sum_dim, keepdim=keepdim)
         sharded_tensor = ops.reshard_split(tensor, dim=dim, count=2)
-        ops.equal(expected_result, ops.softmax(sharded_tensor, dim=dim - 1))
-        ops.equal(expected_result, ops.softmax(sharded_tensor, dim=dim + 1))
+        actual_result = ops.sum(sharded_tensor, dim=sum_dim, keepdim=keepdim)
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+
+    @parameterized.expand(((list,), (tuple,), (reversed,)))
+    def testSumBuiltinFunction(
+        self, iterable_transform: Callable[[Iterable], Iterable]
+    ):
+        values = list(range(1, 10))
+        expected_result = __builtins__["sum"](values)
+        actual_result = ops.sum(iterable_transform(values))
+        assert expected_result == actual_result
 
 
 class TopKTest(unittest.TestCase):
@@ -1541,7 +1580,7 @@ class ViewTest(unittest.TestCase):
 
         expected_result = ops.view(tensor, new_shape)
         actual_result = tensor_rep.view(new_shape)
-        ops.equal(expected_result, actual_result)
+        assert ops.equal(expected_result, actual_result)
 
     @parameterized.expand((([8, 5, 3, 2],), ([4, 2, 5, 3, 2],)))
     def testViewReplicatedExpand(self, new_shape: list[int]):
@@ -1550,7 +1589,7 @@ class ViewTest(unittest.TestCase):
 
         expected_result = ops.view(tensor, new_shape)
         actual_result = tensor_rep.view(new_shape)
-        ops.equal(expected_result, actual_result)
+        assert ops.equal(expected_result, actual_result)
 
     @parameterized.expand(
         (
@@ -1567,7 +1606,7 @@ class ViewTest(unittest.TestCase):
 
         expected_result = ops.view(tensor, new_shape)
         actual_result = tensor_split.view(new_shape)
-        ops.equal(expected_result, actual_result)
+        assert ops.equal(expected_result, actual_result)
 
     @parameterized.expand((([8, 5, 3, 2],), ([4, 2, 5, 3, 2],)))
     def testViewSplitExpand(self, new_shape: list[int]):
@@ -1575,7 +1614,7 @@ class ViewTest(unittest.TestCase):
         tensor_split = ops.reshard_split(tensor, dim=0, count=2)
         expected_result = ops.view(tensor, new_shape)
         actual_result = tensor_split.view(new_shape)
-        ops.equal(expected_result, actual_result)
+        assert ops.equal(expected_result, actual_result)
 
     @parameterized.expand(
         (
@@ -1593,7 +1632,7 @@ class ViewTest(unittest.TestCase):
 
         expected_result = ops.view(tensor, new_shape)
         actual_result = tensor_split.view(new_shape)
-        ops.equal(expected_result, actual_result)
+        assert ops.equal(expected_result, actual_result)
 
 
 if __name__ == "__main__":

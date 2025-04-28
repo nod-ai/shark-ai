@@ -1468,6 +1468,62 @@ def softmax_split(
     )
 
 
+@sum.override(ReplicatedTensor)
+def sum_replicated(
+    input: ReplicatedTensor,
+    dim: int | List[int] | None,
+    keepdim: bool,
+    *,
+    dtype: torch.dtype,
+) -> ReplicatedTensor:
+    assert dim is not None, "sum dim must be specified"
+    shards = [
+        sum(shard, dim=dim, keepdim=keepdim, dtype=dtype) for shard in input.shards
+    ]
+    return ReplicatedTensor(ts=shards)
+
+
+@sum.override(SplitPrimitiveTensor)
+def sum_split(
+    input: SplitPrimitiveTensor,
+    dim: int | List[int] | None,
+    keepdim: bool,
+    *,
+    dtype: torch.dtype,
+) -> SplitPrimitiveTensor | ReplicatedTensor:
+    assert dim is not None, "sum dim must be specified"
+    if not isinstance(dim, (list, tuple)):
+        dim = [dim]
+    # Handle negative indexing
+    dim = [d + len(input.shape) if d < 0 else d for d in dim]
+
+    if input.shard_dim not in dim:
+        shard_dim = input.shard_dim
+        # Have to offest `shard_dim` if any of the collapsing dims are "to the left of it".
+        if not keepdim:
+            # `sum` is clobbered by ops.sum, need to access it manually
+            shard_dim -= sum(d < input.shard_dim for d in dim)
+
+        shards = [
+            sum(shard, dim=dim, keepdim=keepdim, dtype=dtype) for shard in input.shards
+        ]
+        return SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim)
+    else:
+        gathered = cat(
+            [
+                (
+                    transfer_to_logical_device(shard, input.devices[0])
+                    if i != 0
+                    else barrier_on_logical_device(shard, input.devices[0])
+                )
+                for i, shard in enumerate(input.shards)
+            ],
+            dim=input.shard_dim,
+        )
+        summed = sum(gathered, dim=dim, keepdim=keepdim, dtype=dtype)
+        return ReplicatedTensor(ts=summed, shard_count=input.shard_count)
+
+
 @to.override(ReplicatedTensor)
 def to_replicated(tensor: ReplicatedTensor, *args, **kwargs):
     shards = [to(shard, *args, **kwargs) for shard in tensor.shards]

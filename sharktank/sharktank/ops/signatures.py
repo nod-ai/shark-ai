@@ -67,6 +67,7 @@ __all__ = [
     "sigmoid",
     "softmax",
     "squeeze",
+    "sum",
     "to",
     "topk",
     "trace_tensor",
@@ -1251,6 +1252,36 @@ def _squeeze_trampoline(
     tensors = (tensor,)
     for override in d.find_overrides(tensor):
         result = override(tensor, dim)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
+
+
+@overridable
+def sum(
+    input,
+    dim: Union[int, List[int]],
+    keepdim: bool = False,
+    *,
+    dtype: torch.dtype = None,
+) -> AnyTensor:
+    """See torch.sum"""
+    ...
+
+
+@sum.trampoline
+def _sum_trampoline(
+    d: SignatureDispatcher,
+    input,
+    dim: int | List[int] | None = None,
+    keepdim: bool = False,
+    *,
+    dtype: torch.dtype = None,
+) -> AnyTensor:
+    tensors = (input,)
+    for override in d.find_overrides(tensors):
+        result = override(input, dim=dim, keepdim=keepdim, dtype=dtype)
         if result is not NotImplemented:
             return override, result
     else:
