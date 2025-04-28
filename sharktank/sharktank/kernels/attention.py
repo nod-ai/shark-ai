@@ -214,12 +214,15 @@ class flash_attention(CustomOp):
 @CustomOp.register(library=LIBRARY)
 class wave_flash_attention(CustomOp):
 
-    signature = "wave_flash_attention(Tensor q, Tensor k, Tensor v) -> (Tensor)"
+    signature = (
+        "wave_flash_attention(Tensor q, Tensor k, Tensor v, Tensor output) -> (Tensor)"
+    )
 
     def select(self, ksel: KernelSelection):
         q_desc = ksel.arg_tensor(0)  # Shape b, l, d
         k_desc = ksel.arg_tensor(1)  # Shape b, s, d
         v_desc = ksel.arg_tensor(2)  # Shape b, s, e
+        o_desc = ksel.arg_tensor(3)
 
         q_bs = q_desc.t.shape[:-2]
         k_bs = k_desc.t.shape[:-2]
