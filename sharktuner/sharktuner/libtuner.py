@@ -279,12 +279,6 @@ def parse_arguments(
         help="Stop execution after specified phase",
     )
     general_args.add_argument(
-        "--num-model-candidates",
-        help="Maximum number of stage 2 candidates",
-        type=int,
-        default=50,
-    )
-    general_args.add_argument(
         "--dry-run",
         action="store_true",
         help="Do not attempt to run any modules or initialize the IREE runtime",
