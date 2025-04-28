@@ -14,6 +14,7 @@ import torch.nn as nn
 from sharktank.layers import *
 from sharktank.types import *
 from sharktank.utils.create_cache import *
+from sharktank import ops
 
 __all__ = [
     "PagedLlmModelV1",
@@ -331,19 +332,19 @@ class AttentionFFNBlock(ThetaLayer):
 
         moe_func_map = {
             "llama": (
-                torch.nn.functional.softmax,
+                ops.softmax,
                 torch.nn.functional.silu,
                 True,
                 False,
             ),
             "grok": (
-                torch.nn.functional.softmax,
+                ops.softmax,
                 torch.nn.functional.gelu,
                 True,
                 False,
             ),
             "deepseek2": (
-                torch.nn.functional.sigmoid,
+                ops.sigmoid,
                 torch.nn.functional.silu,
                 False,
                 True,
