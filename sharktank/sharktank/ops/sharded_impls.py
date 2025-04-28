@@ -1434,6 +1434,14 @@ def sharded_sum_unreduced(maybe_sharded: UnreducedTensor) -> Tensor:
     return _sharded_sum_sharded(maybe_sharded)
 
 
+@softmax.override(ReplicatedTensor)
+def softmax_replicated(
+    tensor: ReplicatedTensor, dim: Optional[int], dtype: Optional[torch.dtype]
+) -> ReplicatedTensor:
+    shards = [softmax(shard, dim=dim, dtype=dtype) for shard in tensor.shards]
+    return tensor.clone(ts=shards)
+
+
 @softmax.override(SplitPrimitiveTensor)
 def softmax_split(
     tensor: SplitPrimitiveTensor, dim: Optional[int], dtype: Optional[torch.dtype]
