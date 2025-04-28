@@ -1078,7 +1078,7 @@ def mean_split(
     if x.shard_dim not in dim:
         # If keepdim == False and any entry in dim is smaller than shard_dim
         # we need to offset shard_dim_new to have it point to the same dimension.
-        num_smaller_dims = __builtins__["sum"](d < x.shard_dim for d in dim)
+        num_smaller_dims = sum(d < x.shard_dim for d in dim)
         shard_dim_new = x.shard_dim - (not keepdim) * num_smaller_dims
 
         shards = [
@@ -1471,11 +1471,12 @@ def softmax_split(
 @sum.override(ReplicatedTensor)
 def sum_replicated(
     input: ReplicatedTensor,
-    dim: Union[int, List[int]],
+    dim: int | List[int] | None,
     keepdim: bool,
     *,
     dtype: torch.dtype,
 ) -> ReplicatedTensor:
+    assert dim is not None, "sum dim must be specified"
     shards = [
         sum(shard, dim=dim, keepdim=keepdim, dtype=dtype) for shard in input.shards
     ]
@@ -1485,11 +1486,12 @@ def sum_replicated(
 @sum.override(SplitPrimitiveTensor)
 def sum_split(
     input: SplitPrimitiveTensor,
-    dim: Union[int, List[int]],
+    dim: int | List[int] | None,
     keepdim: bool,
     *,
     dtype: torch.dtype,
 ) -> SplitPrimitiveTensor | ReplicatedTensor:
+    assert dim is not None, "sum dim must be specified"
     if not isinstance(dim, (list, tuple)):
         dim = [dim]
     # Handle negative indexing
@@ -1500,7 +1502,7 @@ def sum_split(
         # Have to offest `shard_dim` if any of the collapsing dims are "to the left of it".
         if not keepdim:
             # `sum` is clobbered by ops.sum, need to access it manually
-            shard_dim -= __builtins__["sum"](d < input.shard_dim for d in dim)
+            shard_dim -= sum(d < input.shard_dim for d in dim)
 
         shards = [
             sum(shard, dim=dim, keepdim=keepdim, dtype=dtype) for shard in input.shards

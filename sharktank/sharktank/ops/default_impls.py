@@ -498,13 +498,13 @@ def sharded_sum_unsharded(maybe_sharded):
 
 @sum.override(AllOfType(Tensor, PrimitiveTensor))
 def sum_default(
-    tensor: Tensor | PrimitiveTensor,
+    input: Tensor | PrimitiveTensor,
     dim: Union[int, List[int]] | None = None,
     keepdim: bool = False,
     *,
     dtype: torch.dtype,
 ) -> Tensor:
-    return torch.sum(unbox_tensor(tensor), dim=dim, keepdim=keepdim, dtype=dtype)
+    return torch.sum(unbox_tensor(input), dim=dim, keepdim=keepdim, dtype=dtype)
 
 
 @unflatten.override(Tensor)

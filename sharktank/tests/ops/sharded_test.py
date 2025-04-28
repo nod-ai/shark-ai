@@ -4,6 +4,8 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from collections.abc import Iterable
+from typing import Callable
 import unittest
 import itertools
 import math
@@ -1479,6 +1481,15 @@ class SumTest(unittest.TestCase):
         sharded_tensor = ops.reshard_split(tensor, dim=dim, count=2)
         actual_result = ops.sum(sharded_tensor, dim=sum_dim)
         torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+
+    @parameterized.expand(((list,), (tuple,), (reversed,)))
+    def testSumBuiltinFunction(
+        self, iterable_transform: Callable[[Iterable], Iterable]
+    ):
+        values = list(range(1, 10))
+        expected_result = __builtins__["sum"](values)
+        actual_result = ops.sum(iterable_transform(values))
+        assert expected_result == actual_result
 
 
 class TopKTest(unittest.TestCase):

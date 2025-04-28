@@ -1274,7 +1274,7 @@ def sum(
 def _sum_trampoline(
     d: SignatureDispatcher,
     input,
-    dim: Union[int, List[int]],
+    dim: int | List[int] | None = None,
     keepdim: bool = False,
     *,
     dtype: torch.dtype = None,
