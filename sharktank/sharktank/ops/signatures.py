@@ -52,6 +52,7 @@ __all__ = [
     "matmul",
     "mean",
     "module_register_buffer",
+    "pad",
     "permute",
     "rms_norm",
     "repeat",
@@ -63,6 +64,7 @@ __all__ = [
     "scaled_dot_product_attention",
     "sharded_cat",
     "sharded_sum",
+    "sigmoid",
     "softmax",
     "squeeze",
     "to",
@@ -704,6 +706,33 @@ def _matmul_trampoline(
 
 
 @overridable
+def pad(
+    input: AnyTensor, _pad: Sequence[int], mode: str, value: Optional[float]
+) -> AnyTensor:
+    """See torch.nn.functional.pad"""
+    ...
+
+
+@pad.trampoline
+def _pad_trampoline(
+    d: SignatureDispatcher,
+    input: AnyTensor,
+    _pad: Sequence[int],
+    mode: str = "constant",
+    value: Optional[float] = None,
+) -> AnyTensor:
+    if value is None:
+        value = 0
+    tensors = (input,)
+    for override in d.find_overrides(tensors):
+        result = override(input, _pad, mode=mode, value=value)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
+
+
+@overridable
 def permute(tensor: AnyTensor, dims: List[int]) -> AnyTensor:
     """Permute the tensor dimensions according to the permutation `dims` in line
     notation.
@@ -1023,6 +1052,23 @@ def _sharded_sum_trampoline(d: SignatureDispatcher, maybe_sharded: AnyTensor):
 
 
 @overridable
+def sigmoid(tensoir: AnyTensor) -> AnyTensor:
+    """See torch.sigmoid"""
+    ...
+
+
+@sigmoid.trampoline
+def _sigmoid_trampoline(d: SignatureDispatcher, tensor: AnyTensor) -> AnyTensor:
+    dispatch_args = (tensor,)
+    for override in d.find_overrides(dispatch_args):
+        result = override(tensor)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(dispatch_args)
+
+
+@overridable
 def softmax(
     tensor: AnyTensor, dim: Optional[int] = None, dtype: Optional[torch.dtype] = None
 ) -> AnyTensor:
@@ -1212,16 +1258,23 @@ def _squeeze_trampoline(
 
 
 @overridable
-def topk(tensor, k: int, dim: int) -> AnyTensor:
+def topk(tensor, k: int, dim: int, largest: bool, sorted: bool) -> AnyTensor:
     """See torch.topk"""
     ...
 
 
 @topk.trampoline
-def _topk_trampoline(d: SignatureDispatcher, tensor, k: int, dim: int) -> AnyTensor:
+def _topk_trampoline(
+    d: SignatureDispatcher,
+    tensor,
+    k: int,
+    dim: int,
+    largest: bool = True,
+    sorted: bool = True,
+) -> AnyTensor:
     tensors = (tensor,)
-    for override in d.find_overrides(tensor):
-        result = override(tensor, k=k, dim=dim)
+    for override in d.find_overrides(tensors):
+        result = override(tensor, k=k, dim=dim, largest=largest, sorted=sorted)
         if result is not NotImplemented:
             return override, result
     else:

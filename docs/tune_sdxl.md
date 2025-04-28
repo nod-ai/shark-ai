@@ -151,7 +151,7 @@ iree-compile <IR Path> \
 This will generate benchmark dispatch IR inside `dispatchOutput` directory
 
 
-## Run tuner
+## Run sharktuner
 
 ### Setting up
 Clone [shark-ai](https://github.com/nod-ai/shark-ai/)
@@ -159,7 +159,7 @@ Clone [shark-ai](https://github.com/nod-ai/shark-ai/)
 Run commands:
 
 ```
-cd shark-ai/tuner
+cd shark-ai/sharktuner
 pip install -r requirements-tuner.txt
 pip install -r requirements-dev.txt
 ```
@@ -210,29 +210,29 @@ Update IRPA_FILE_PATH with the `irpa` file generated from `iree-compilation` ste
 Add input sizes as per the arguments of the function to be tuned.
 
 
-### Command to run tuner
+### Command to run sharktuner
 
 ```
-python -m examples.simple \
+python -m model_tuner \
   <IR_PATH> \
-  --simple-compile-flags-file=compile_flags.txt  \
-  --simple-model-benchmark-flags-file=model_benchmark_flags.txt \
+  --compile-flags-file=compile_flags.txt  \
+  --model-benchmark-flags-file=model_benchmark_flags.txt \
   --devices=hip://0 --num-candidates=9000  \
-  --simple-num-dispatch-candidates=256 \
-  --simple-num-model-candidates=200 \
+  --num-dispatch-candidates=256 \
+  --num-model-candidates=200 \
   --codegen-pipeline=llvmgpu_tile_and_fuse \
   --no-reduce-shared-memory-bank-conflicts-options=True,False
 ```
 
 `<IR_PATH>`: Provide same MLIR path given to iree-compile
 
-You can change `num-candidates`, `simple-num-dispatch-candidates` or `simple-num-model-candidates` as per need.
+You can change `num-candidates`, `num-dispatch-candidates` or `num-model-candidates` as per need.
  - `num-candidates` sets the number of tuning spec candidates to generate. Increasing this will increase the search space for tuning specs, and could lead to slightly better final tuning specs.
- - `simple-num-dispatch-candidates` sets the number of top dispatch candidates to tune with the model in the loop. This should be smaller than `num-candidates`.
- - `simple-num-model-candidates` sets the number of final candidates to report at the end of tuning. This should be smaller or equal to `simple-num-dispatch-candidates`
+ - `num-dispatch-candidates` sets the number of top dispatch candidates to tune with the model in the loop. This should be smaller than `num-candidates`.
+ - `num-model-candidates` sets the number of final candidates to report at the end of tuning. This should be smaller or equal to `num-dispatch-candidates`
 
-It will take some time to finish tuner. You should see the final candidates spec that you can include in td_spec for `harness` run to get better SPS.
+It will take some time to finish sharktuner. You should see the final candidates spec that you can include in td_spec for `harness` run to get better SPS.
 
 
 ## Reference links:
-[Tuner Example](https://github.com/amd-vivekag/shark-ai/blob/main/tuner/examples/simple/README.md)
+[Tuner Example](../sharktuner/model_tuner/README.md)

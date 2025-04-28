@@ -294,6 +294,7 @@ class Batch:
         if shard_count * num_pipelines == 1:
             seq_block_ids = [seq_block_ids]
             decode_attention_mask = [decode_attention_mask]
+            start_positions = [start_positions]
         else:
             token_batch = replicate(
                 token_batch, shard_count, devices=model.config.block_to_device_lookup[0]

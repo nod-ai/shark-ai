@@ -3,7 +3,7 @@
 Example of tuning a dispatch and a full model.
 
 ## Environments
-Follow instructions in [`/tuner/README.md`](../../README.md)
+Follow instructions in [`/sharktuner/README.md`](../../README.md)
 
 ## Running the Tuner
 
@@ -29,12 +29,12 @@ For an initial trial to test the tuning loop, use following command:
 
 ```shell
 cd ../../
-python -m examples.simple examples/simple/double_mmt.mlir \
-    examples/simple/tmp/mmt_benchmark.mlir \
-    --simple-compile-flags-file=examples/simple/compile_flags.txt \
-    --simple-model-benchmark-flags-file=examples/simple/model_benchmark_flags.txt \
+python -m model_tuner model_tuner/double_mmt.mlir \
+    model_tuner/tmp/mmt_benchmark.mlir \
+    --compile-flags-file=model_tuner/compile_flags.txt \
+    --model-benchmark-flags-file=model_tuner/model_benchmark_flags.txt \
     --devices=hip://0 --num-candidates=30 \
-    --simple-num-dispatch-candidates=5 --simple-num-model-candidates=3 \
+    --num-dispatch-candidates=5 --num-model-candidates=3 \
 ```
 
 [!TIP]
@@ -44,17 +44,17 @@ You can use following default td spec: [Default Spec](https://github.com/iree-or
 ### Basic Usage
 
 ```shell
-python -m examples.simple <model_file_path> <benchmark_file_path> \
+python -m model_tuner <model_file_path> <benchmark_file_path> \
     --devices=hip://0,hip://1 --num-candidates=1024 \
-    --simple-compile-flags-file=<compile_flags_path> \
-    --simple-model-benchmark-flags-file=<model_benchmark_flags_path> \
-    --simple-num-dispatch-candidates=<num_dispatch_candidates> \
-    --simple-num-model-candidates=<num_model_candidates> \
+    --compile-flags-file=<compile_flags_path> \
+    --model-benchmark-flags-file=<model_benchmark_flags_path> \
+    --num-dispatch-candidates=<num_dispatch_candidates> \
+    --num-model-candidates=<num_model_candidates> \
     --num-candidates=<num_generated_candidates> \
     --codegen-pipeline=<codegen_pipeline>
 ```
 
-## Algorithm of tuner
+## Algorithm of the model tuner
 ### Tuning algorithm
 1. Generate Candidate specs
 2. Compile candidate

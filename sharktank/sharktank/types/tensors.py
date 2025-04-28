@@ -379,11 +379,23 @@ class InferenceTensor(ABC):
             shape = args[0]
         return reshape(self, shape)
 
+    def sigmoid(self) -> "AnyTensor":
+        from sharktank.ops import sigmoid
+
+        return sigmoid(self)
+
     def size(self, dim: Optional[int] = None) -> tuple[int]:
         if dim is None:
             return tuple(self.shape)
         return self.shape[dim]
 
+    def softmax(
+        self, dim: Optional[int] = None, dtype: Optional[torch.dtype] = None
+    ) -> "AnyTensor":
+        from sharktank.ops import softmax
+
+        return softmax(self, dim, dtype=dtype)
+
     def squeeze(self, dim: Optional[int] = None) -> "AnyTensor":
         from sharktank.ops import squeeze
 
@@ -393,6 +405,13 @@ class InferenceTensor(ABC):
         from sharktank.ops import squeeze
 
         return squeeze(self, dim)
+
+    def topk(
+        self, k: int, dim: int, largest: bool = True, sorted: bool = True
+    ) -> Tuple["AnyTensor"]:
+        from sharktank.ops import topk
+
+        return topk(self, k, dim, largest, sorted)
 
     def transpose(self, dim0: int, dim1: int) -> "AnyTensor":
         from sharktank.ops import transpose
