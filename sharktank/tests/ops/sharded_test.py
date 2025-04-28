@@ -1422,6 +1422,24 @@ class ShardLikeTest(unittest.TestCase):
         assert expected_result.is_deep_equal(actual_result, compare_name=False)
 
 
+class SigmoidTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(12345)
+
+    def testSigmoidReplicated(self):
+        tensor = torch.rand(4, 6, dtype=torch.float32)
+        expected_result = ops.sigmoid(tensor)
+        actual_result = ops.sigmoid(ops.replicate(tensor, count=3))
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+
+    @parameterized.expand(((0,), (1,)))
+    def testSigmoidSplit(self, shard_dim: int):
+        tensor = torch.rand(4, 6, dtype=torch.float32)
+        expected_result = ops.sigmoid(tensor)
+        actual_result = ops.sigmoid(ops.reshard_split(tensor, dim=shard_dim, count=2))
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+
+
 class SoftmaxTest(unittest.TestCase):
     def setUp(self):
         torch.random.manual_seed(12345)

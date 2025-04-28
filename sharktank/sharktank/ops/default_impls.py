@@ -436,6 +436,11 @@ def permute(tensor: Tensor, dims: List[int]):
     return torch.permute(torch_tensor, dims)
 
 
+@sigmoid.override(Tensor)
+def sigmoid_default(tensor: Tensor) -> Tensor:
+    return tensor.sigmoid()
+
+
 @softmax.override(Tensor)
 def softmax_default(
     tensor: Union[Tensor, PrimitiveTensor],

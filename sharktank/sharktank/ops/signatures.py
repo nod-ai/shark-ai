@@ -64,6 +64,7 @@ __all__ = [
     "scaled_dot_product_attention",
     "sharded_cat",
     "sharded_sum",
+    "sigmoid",
     "softmax",
     "squeeze",
     "to",
@@ -1048,6 +1049,23 @@ def _sharded_sum_trampoline(d: SignatureDispatcher, maybe_sharded: AnyTensor):
             return override, result
     else:
         d.fail(tensors)
+
+
+@overridable
+def sigmoid(tensoir: AnyTensor) -> AnyTensor:
+    """See torch.sigmoid"""
+    ...
+
+
+@sigmoid.trampoline
+def _sigmoid_trampoline(d: SignatureDispatcher, tensor: AnyTensor) -> AnyTensor:
+    dispatch_args = (tensor,)
+    for override in d.find_overrides(dispatch_args):
+        result = override(tensor)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(dispatch_args)
 
 
 @overridable

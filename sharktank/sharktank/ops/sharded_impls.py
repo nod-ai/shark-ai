@@ -1434,6 +1434,11 @@ def sharded_sum_unreduced(maybe_sharded: UnreducedTensor) -> Tensor:
     return _sharded_sum_sharded(maybe_sharded)
 
 
+@sigmoid.override(ShardedTensor)
+def sigmoid_sharded(tensor: ShardedTensor) -> ShardedTensor:
+    return elementwise(torch.sigmoid, tensor)
+
+
 @softmax.override(ReplicatedTensor)
 def softmax_replicated(
     tensor: ReplicatedTensor, dim: Optional[int], dtype: Optional[torch.dtype]
