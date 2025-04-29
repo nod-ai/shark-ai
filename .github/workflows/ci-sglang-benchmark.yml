@@ -38,22 +38,30 @@ jobs:
     name: "SGLang Serving Benchmark With Shortfin"
     strategy:
       matrix:
-        version: [3.11]
+        include:
+          - name: amdgpu_rocm_mi300_gfx942
+            runs-on: linux-mi300-1gpu-ossci-nod-ai
+            test_device: gfx942
+            python-version: 3.11
       fail-fast: false
-    runs-on: linux-mi300-1gpu-ossci-nod-ai
+    runs-on: ${{ matrix.runs-on }}
     defaults:
       run:
         shell: bash
     env:
       VENV_DIR: ${{ github.workspace }}/.venv
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Run rocminfo
+        if: contains(matrix.test_device, 'gfx')
+        run: rocminfo
+      - name: "Checkout Code"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: "Setting up Python"
         id: setup_python
         uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
         with:
-          python-version: ${{matrix.version}}
+          python-version: ${{matrix.python-version}}
       - name: Create Python venv
         run: python -m venv ${VENV_DIR}
 
@@ -89,7 +97,7 @@ jobs:
       - name: Run Shortfin Benchmark Tests
         run: |
           source ${VENV_DIR}/bin/activate
-          pytest -v app_tests/benchmark_tests/llm/sglang_benchmarks/shortfin_benchmark_test.py --log-cli-level=INFO --html=shortfin_index.html --self-contained-html
+          pytest -v --test_device=${{ matrix.test_device }} app_tests/benchmark_tests/llm/sglang_benchmarks/shortfin_benchmark_test.py --log-cli-level=INFO --html=shortfin_index.html --self-contained-html
 
       - name: Upload pytest report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

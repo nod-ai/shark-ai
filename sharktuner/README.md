@@ -8,7 +8,7 @@ that uses the provided `TuningClient` API from `libtuner.py`.
 ### [Optional] Using virtual environments:
 
 ```shell
-cd tuner
+cd sharktuner
 python -m venv .venv
 source .venv/bin/activate
 ```
@@ -65,6 +65,6 @@ pip install -r ../requirements-iree-unpinned.txt
 
 ## Examples
 
-Check the `examples` directory for sample tuners implemented with `libtuner`.
-The [`dispatch example`](https://github.com/nod-ai/shark-ai/tree/main/tuner/examples/simple)
+Check the `model_tuner` directory for a sample tuner implemented with `libtuner`.
+The [`dispatch example`](model_tuner)
 should be a good starting point for most users.

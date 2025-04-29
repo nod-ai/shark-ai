@@ -151,7 +151,12 @@ def add_model_input_options(parser: argparse.ArgumentParser):
 def add_iree_flags(parser: argparse.ArgumentParser):
     """Adds IREE device flag options"""
 
-    parser.add_argument("--iree-device", help="List an IREE device (e.g., 'hip://0')")
+    parser.add_argument(
+        "--iree-device",
+        type=str,
+        action="append",
+        help="List an IREE device from 'iree-run-module --list_devices'",
+    )
     parser.add_argument(
         "--iree-hip-target",
         action="store",

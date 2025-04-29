@@ -11,23 +11,20 @@ import time
 from tqdm import tqdm
 
 import torch
+import iree.runtime as ireert
 
 from sharktank.models.llm import *
 
 from sharktank.layers import *
 from sharktank.types import *
+import sharktank.ops as ops
 
 from sharktank.utils import cli
-from sharktank.utils.vmfb_runner import *
 from sharktank.utils.load_llm import *
 from sharktank.utils.create_cache import *
 from sharktank.utils.export_artifacts import *
 from sharktank.utils.evaluate import *
-from sharktank.utils.iree import (
-    iree_to_torch,
-    with_iree_device_context,
-    torch_tensor_to_device_array,
-)
+from sharktank.utils.iree import *
 
 logger = logging.getLogger("eval")
 
@@ -50,11 +47,12 @@ class PerplexityIree:
     def __init__(
         self,
         torch_device,
-        iree_device,
+        iree_devices: list[str],
         iree_hip_target,
         iree_hal_target_device,
         bs,
         tensor_parallelism_size,
+        pipeline_parallelims_size,
         attention_kernel,
         block_seq_stride,
         activation_dtype,
@@ -62,9 +60,10 @@ class PerplexityIree:
         kv_cache_dtype,
         use_attention_mask,
         use_hf,
+        weight_path_str: str,
     ):
         self.torch_device = torch_device
-        self.iree_device = iree_device
+        self.iree_devices = iree_devices
         self.iree_hip_target = iree_hip_target
         self.iree_hal_target_device = iree_hal_target_device
         self.bs = bs
@@ -74,8 +73,13 @@ class PerplexityIree:
         self.activation_dtype = activation_dtype
         self.attention_dtype = attention_dtype
         self.kv_cache_dtype = kv_cache_dtype
+        self.pipeline_parallelism_size = pipeline_parallelims_size
+        self.attention_kernel = attention_kernel
         self.use_attention_mask = use_attention_mask
         self.use_hf = use_hf
+        self.weight_path_str = weight_path_str
+        self.vm_context: iree.runtime.VmContext = None
+        self.cache_state: None | list[ireert.DeviceArray] = None
 
     def print_token_comparison(self, i: int):
         if i <= self.max_prompt_length:
@@ -95,12 +99,10 @@ class PerplexityIree:
 
     def compile_model(
         self,
-        weight_path_str: str,
         output_mlir: str,
         output_config: str,
         output_vmfb: str,
     ):
-        self.weight_path_str = weight_path_str
 
         logger.info(f" Model: {self.weight_path_str}")
 
@@ -118,6 +120,7 @@ class PerplexityIree:
                 iree_hal_target_device=self.iree_hal_target_device,
                 attention_kernel=self.attention_kernel,
                 tensor_parallelism_size=self.tensor_parallelism_size,
+                pipeline_parallelism_size=self.pipeline_parallelism_size,
                 block_seq_stride=self.block_seq_stride,
                 use_attention_mask=self.use_attention_mask,
                 activation_dtype=str(self.activation_dtype).split(".")[-1],
@@ -130,17 +133,28 @@ class PerplexityIree:
             self.output_vmfb = export_artifacts.get_artifacts()
 
     def load_model(self, dataset: Dataset, tokenizer: InferenceTokenizer):
+        hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
+        block_to_device_lookup = []
+        for i in range(hp.block_count):
+            pp_group = int(i * self.pipeline_parallelism_size / hp.block_count)
+            zero_4_group = self.tensor_parallelism_size * pp_group
+            devices = tuple(
+                i + zero_4_group for i in range(self.tensor_parallelism_size)
+            )
+            block_to_device_lookup.append(devices)
 
         config = LlamaModelConfig(
-            hp=configs.LlamaHParams.from_gguf_props(dataset.properties),
+            hp=hp,
             device=self.torch_device,
             activation_dtype=self.activation_dtype,
             attention_dtype=self.attention_dtype,
             kv_cache_dtype=self.kv_cache_dtype,
             tensor_parallelism_size=self.tensor_parallelism_size,
+            pipeline_parallelism_size=self.pipeline_parallelism_size,
             block_seq_stride=self.block_seq_stride,
             attention_kernel=self.attention_kernel,
             use_hf=self.use_hf,
+            block_to_device_lookup=block_to_device_lookup,
         )
 
         theta = dataset.root_theta
@@ -149,15 +163,7 @@ class PerplexityIree:
 
         self.generator = TorchGenerator(model, tokenizer)
 
-        self.runner = vmfbRunner(
-            device=self.iree_device,
-            vmfb_path=self.output_vmfb,
-            external_weight_path=self.weight_path_str,
-        )
-
-        self.haldevice = self.runner.config.device
-
-    def assemble_batch(self, token_batch: torch.tensor) -> torch.tensor:
+    def assemble_batch(self, token_batch: torch.tensor, devices) -> torch.tensor:
 
         token_batch, seq_lens_batch = self.generator.tokenizer.pad_tokens(
             token_ids=token_batch.tolist(),
@@ -175,26 +181,54 @@ class PerplexityIree:
             page_cache_size=self.page_cache_size,
         )
 
-        self.cache_state = torch_tensor_to_device_array(
-            self.batch.cache_state[0], self.haldevice
-        )
+        self.cache_state = []
+        for i in range(self.pipeline_parallelism_size):
+            self.cache_state.extend(
+                prepare_iree_module_function_args(
+                    args=[self.batch.cache_state[i]],
+                    devices=devices[i : (i + 1) * self.tensor_parallelism_size],
+                )
+            )
+
         return token_batch
 
-    def prefill_vmfb(self, token_batch: torch.tensor, i: int) -> torch.tensor:
-
+    def prefill_vmfb(
+        self, token_batch: torch.tensor, i: int, devices: list[iree.runtime.HalDevice]
+    ) -> torch.tensor:
         logger.debug(f"Prefill input:")
         logger.debug(f"{self.generator.tokenizer.decode(token_batch)}")
 
-        token_batch = self.assemble_batch(token_batch)
+        token_batch = self.assemble_batch(token_batch, devices)
 
-        seq_block_ids = self.batch.pad_block_ids()
-        prefill_logits = self.runner.ctx.modules.module[f"prefill_bs{self.bs}"](
-            token_batch,
-            self.batch.seq_lens,
-            seq_block_ids,
-            self.cache_state,
+        prefill_kwargs = OrderedDict(
+            [
+                ("tokens", token_batch),
+                ("seq_lens", [self.batch.seq_lens]),
+                ("seq_block_ids", [self.batch.pad_block_ids()]),
+                ("cache_state", self.cache_state),
+            ]
         )
-        prefill_logits = torch.as_tensor(iree_to_torch(prefill_logits)[0][:, :, :])
+        prefill_kwargs_flattened = flatten_for_iree_signature(prefill_kwargs)
+        # NOTE: cache_state must be handled previous to this since
+        #       prepare_iree_module_function_args is unable to know about
+        #       pipeline parallelism.
+        prefill_iree_args = prepare_iree_module_function_args(
+            args=prefill_kwargs_flattened, devices=devices
+        )
+
+        prefill_iree_result = run_iree_module_function(
+            args=prefill_iree_args,
+            function_name=f"prefill_bs{self.bs}",
+            module=self.vm_module,
+            vm_context=self.vm_context,
+            device=devices[0],
+        )
+        prefill_shards = iree_to_torch(*prefill_iree_result)
+        if self.tensor_parallelism_size > 1:
+            prefill_logits = ops.unshard(UnreducedTensor(ts=prefill_shards))
+        else:  # Replicated or torch.Tensor
+            prefill_logits = prefill_shards[0]
+        prefill_logits = prefill_logits.clone().detach()
 
         tokens = torch.as_tensor(
             self.generator.model.extract_tokens_from_logits(
@@ -206,24 +240,47 @@ class PerplexityIree:
         self.print_token_comparison(i)
         return prefill_logits
 
-    def decode_vmfb(self, token_batch: torch.tensor, i: int) -> torch.tensor:
+    def decode_vmfb(
+        self, token_batch: torch.tensor, i: int, devices: list[iree.runtime.HalDevice]
+    ) -> torch.tensor:
         logger.debug("Decode input:")
         logger.debug(f"{self.generator.tokenizer.decode(token_batch)}")
         logger.debug(f"{token_batch.tolist()}")
 
-        start_positions = self.batch.seq_lens.clone()
+        start_positions = [self.batch.seq_lens.clone()]
         self.batch.seq_lens.add_(1)
         self.batch.allocate_seq_block_ids()
-        seq_block_ids = self.batch.pad_block_ids()
 
-        decode_logits = self.runner.ctx.modules.module[f"decode_bs{self.bs}"](
-            token_batch,
-            self.batch.seq_lens,
-            start_positions,
-            seq_block_ids,
-            self.cache_state,
+        decode_kwargs = OrderedDict(
+            [
+                ("tokens", token_batch),
+                ("seq_lens", [self.batch.seq_lens]),
+                (
+                    "start_positions",
+                    start_positions,
+                ),
+                ("seq_block_ids", [self.batch.pad_block_ids()]),
+                ("cache_state", self.cache_state),
+            ]
         )
-        decode_logits = torch.as_tensor(iree_to_torch(decode_logits)[0][:, :, :])
+        decode_kwargs_flattened = flatten_for_iree_signature(decode_kwargs)
+        decode_iree_args = prepare_iree_module_function_args(
+            args=decode_kwargs_flattened, devices=devices
+        )
+        decode_iree_result = run_iree_module_function(
+            args=decode_iree_args,
+            function_name=f"decode_bs{self.bs}",
+            module=self.vm_module,
+            vm_context=self.vm_context,
+            device=devices[0],
+        )
+
+        decode_shards = iree_to_torch(*decode_iree_result)
+        if self.tensor_parallelism_size > 1:
+            decode_logits = ops.unshard(UnreducedTensor(ts=decode_shards))
+        else:  # Replicated or torch.Tensor
+            decode_logits = decode_shards[0]
+        decode_logits = torch.as_tensor(decode_logits[:, :, :])
 
         tokens = torch.as_tensor(
             self.generator.model.extract_tokens_from_logits(
@@ -232,55 +289,81 @@ class PerplexityIree:
             device=self.generator.model.device,
         ).unsqueeze(1)
         self.batch.add_result_token(tokens)
+
         self.print_token_comparison(i)
         return decode_logits
 
-    def get_logits(self, skip_decode: bool) -> torch.tensor:
+    @timeit
+    def get_logits(self, skip_decode: bool) -> torch.Tensor:
         # Add context to improve perplexity by starting at 10th token
         self.start = 10
-        self.out_logits = []
+        shard_count = self.tensor_parallelism_size
 
-        def run_iree_module(iree_devices: list[ireert.HalDevice]):
-            iter = 0
-            is_first_token = True
+        vm_instance = ireert.VmInstance()
+        devices: list[iree.runtime.HalDevice] = get_iree_devices(
+            device=self.iree_devices,
+            device_count=self.pipeline_parallelism_size * shard_count,
+            allow_repeating=True,
+        )
+
+        def run_iree_module(devices: list[iree.runtime.HalDevice]):
+            hal_module = iree.runtime.create_hal_module(
+                instance=vm_instance, devices=devices
+            )
+            weight_path = Path(self.weight_path_str)
+            parameter_index = iree.runtime.ParameterIndex()
+            if shard_count == 1:
+                parameter_index.load(file_path=str(Path(weight_path)))
+            else:
+                for i in range(shard_count):
+                    parameter_index.load(
+                        file_path=str(
+                            Path(weight_path).with_suffix(
+                                f".rank{i}{weight_path.suffix}"
+                            )
+                        )
+                    )
+
+            parameter_provider = parameter_index.create_provider(scope="model")
+            parameters_module = iree.runtime.create_io_parameters_module(
+                vm_instance, parameter_provider
+            )
+            self.vm_module = iree.runtime.VmModule.mmap(
+                vm_instance, str(self.output_vmfb)
+            )
+            self.vm_context = iree.runtime.VmContext(
+                instance=vm_instance,
+                modules=(hal_module, parameters_module, self.vm_module),
+            )
+
+            out_logits = []
             for i in tqdm(
                 range(self.start, self.max_prompt_length - 1),
                 mininterval=300,
                 desc="eval: Calculating logits",
             ):
-                logger.debug(f"Iteration: {iter}")
+                logger.debug(f"Iteration: {i - self.start}")
 
-                if is_first_token:
-
+                if skip_decode or len(out_logits) == 0:
                     token_batch = self.token_ids[:, : i + 1]
 
-                    prefill_logits = self.prefill_vmfb(token_batch, i)
-
-                    self.out_logits.append(prefill_logits[:, -1:, :])
-
-                    if not skip_decode:
-                        is_first_token = False
-
+                    prefill_logits = self.prefill_vmfb(token_batch, i, devices).clone()
+                    out_logits.append(prefill_logits[:, -1:, :])
                 else:
                     token_batch = self.token_ids[:, i : i + 1]
-                    decode_logits = self.decode_vmfb(token_batch, i)
-                    self.out_logits.append(decode_logits)
+                    decode_logits = self.decode_vmfb(token_batch, i, devices)
+                    out_logits.append(decode_logits)
 
-                iter += 1
-
-            out_logits = torch.cat(self.out_logits, dim=1)
-
+            out_logits = ops.cat(out_logits, dim=1)
             pad_logits_shape = self.token_ids.shape[1] - out_logits.shape[1]
-
             pad_logits = torch.zeros(
                 out_logits.shape[0], pad_logits_shape, out_logits.shape[2]
             )
 
-            out_logits = torch.cat((out_logits, pad_logits), 1).to(self.torch_device)
+            self.cache_state = None  # Remove saved reference to iree.runtime.DeviceArray before leaving function
+            return ops.cat((out_logits, pad_logits), 1).to(self.torch_device)
 
-            return out_logits
-
-        return with_iree_device_context(run_iree_module, [self.runner.config.device])
+        return with_iree_device_context(run_iree_module, devices)
 
     def get_perplexity(
         self, test_prompts: list[str], skip_decode: bool
@@ -319,18 +402,19 @@ def run_perplexity_iree(
     tokenizer: InferenceTokenizer,
     torch_device: torch.device,
     tensor_parallelism_size: int,
+    pipeline_parallelism_size: int,
 ) -> dict[str, Any]:
-
     start = time.time()
 
     test_prompts = args.prompt_list or get_prompts(num_prompts=args.num_prompts)
 
     perplexity = PerplexityIree(
         torch_device=torch_device,
-        iree_device=args.iree_device,
+        iree_devices=args.iree_device,
         iree_hip_target=args.iree_hip_target,
         iree_hal_target_device=args.iree_hal_target_device,
         tensor_parallelism_size=tensor_parallelism_size,
+        pipeline_parallelims_size=pipeline_parallelism_size,
         attention_kernel=args.attention_kernel,
         block_seq_stride=args.block_seq_stride,
         use_attention_mask=args.use_attention_mask,
@@ -339,17 +423,15 @@ def run_perplexity_iree(
         kv_cache_dtype=args.kv_cache_dtype,
         use_hf=args.use_hf,
         bs=len(test_prompts),
+        weight_path_str=str(args.irpa_file),
     )
 
     perplexity.compile_model(
-        weight_path_str=str(args.irpa_file),
         output_mlir=args.output_mlir,
         output_config=args.output_config,
         output_vmfb=args.output_vmfb,
     )
-
     perplexity.load_model(dataset=dataset, tokenizer=tokenizer)
-
     perplexity_batch = perplexity.get_perplexity(
         test_prompts, skip_decode=args.skip_decode
     )
@@ -406,6 +488,7 @@ def main(argv):
         tokenizer=tokenizer,
         torch_device=torch_device,
         tensor_parallelism_size=tensor_parallelism_size,
+        pipeline_parallelism_size=args.pipeline_parallelism_size,
     )
 
     logger.info(f"\n{json.dumps(ppl, indent=2)}")

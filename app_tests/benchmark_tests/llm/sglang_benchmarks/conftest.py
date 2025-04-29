@@ -24,6 +24,7 @@ from integration_tests.llm.server_management import ServerInstance, ServerConfig
 
 from integration_tests.llm import device_settings
 from integration_tests.llm.logging_utils import start_log_group, end_log_group
+from integration_tests.llm.device_settings import get_device_settings_by_name
 
 logger = logging.getLogger(__name__)
 
@@ -43,10 +44,19 @@ TEST_MODELS = {
 }
 
 
+@pytest.fixture(scope="session")
+def test_device(request):
+    ret = request.config.getoption("--test_device")
+    if ret is None:
+        raise ValueError("--test_device not specified")
+    return ret
+
+
 @pytest.fixture(scope="module")
-def model_artifacts(tmp_path_factory, request):
+def model_artifacts(tmp_path_factory, request, test_device):
     """Prepares model artifacts in a cached directory."""
     model_config = request.param
+    model_config.device_settings = get_device_settings_by_name(test_device)
     cache_key = hashlib.md5(str(model_config).encode()).hexdigest()
 
     cache_dir = tmp_path_factory.mktemp("model_cache")
@@ -93,6 +103,13 @@ def pytest_addoption(parser):
         action="store",
         default="30000",
         help="Port that SGLang server is running on",
+    )
+    parser.addoption(
+        "--test_device",
+        action="store",
+        metavar="NAME",
+        default=None,  # you must specify a device to test on
+        help="Select device name to compile models to and run tests on ('cpu', 'gfx90a', 'gfx942', ...); see app_tests/integration_tests/llm/device_settings.py for full list of options.",
     )
 
 
