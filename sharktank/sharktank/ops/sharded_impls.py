@@ -1431,20 +1431,59 @@ def scatter_split_split(
     *,
     reduce: str = None,
 ) -> SplitPrimitiveTensor:
-    assert inout.shard_count == index.shard_count
-    assert inout.shard_dim == index.shard_dim
+    if dim == inout.shard_dim:
+        # `index` can contain indices into any of `inout`s shards in any of its entries.
+        # Can't know ahead of time how to seperate out its values based on sliices.
+        tmp_tensor = all_gather(inout)
+        index = all_gather(index)
+        tmp_tensor.scatter_(dim, index, value, reduce=reduce)
+        tmp_tensor = reshard_like(tmp_tensor, inout)
 
-    _inout = sharded_cat(inout)
-    _index = sharded_cat(index)
+        for inout_shard, tmp_shard in zip(inout.shards, tmp_tensor.shards):
+            inout_shard.as_torch().copy_(tmp_shard.as_torch())
+        return inout
 
-    _inout = scatter_(_inout, dim, _index, value, reduce=reduce)
+    shard_dim = inout.shard_dim
+    if index.shape[shard_dim] == inout.shape[shard_dim]:
+        assert index.shard_dim == inout.shard_dim
+        index_shards = index.shards
+        last_shard_idx = inout.shard_count - 1
+    else:
+        # Not all slices along dim will be used.
+        index = all_gather(index)
 
-    return reshard_split(
-        _inout,
-        dim=inout.shard_dim,
-        count=inout.shard_count,
-        devices=inout.devices,
-    )
+        # Find the last shard that needs to be updated.
+        slice_indices_inout = [shard.shape[shard_dim] for shard in inout.shards]
+        cumulative_slice_idx = list(itertools.accumulate(slice_indices_inout))
+        final_slice_idx = index.shards[0].shape[shard_dim]  # Replicated, all the same
+        last_shard_idx = max(
+            i for i, val in enumerate(cumulative_slice_idx) if val <= final_slice_idx
+        )
+
+        # Manually re-shard and re-scatter index
+        # NOTE: index will not have the same number of shards as inout.
+        size_along_shard_dim = []
+        num_slices_left = final_slice_idx
+        for i in range(last_shard_idx + 1):
+            size_along_shard_dim.append(min(num_slices_left, slice_indices_inout[i]))
+            num_slices_left -= size_along_shard_dim[-1]
+        assert num_slices_left == 0
+        index_shards = unbox_tensor(index).split(size_along_shard_dim, dim=shard_dim)
+        index_shards = [
+            transfer_to_logical_device(shard, index.devices[i])
+            for i, shard in enumerate(index_shards)
+        ]
+        assert len(index_shards) == last_shard_idx + 1
+
+    for i in range(last_shard_idx + 1):
+        inout.shards[i].scatter_(
+            dim,
+            unbox_tensor(index_shards[i]),
+            value,
+            reduce=reduce,
+        )
+
+    return inout
 
 
 @sharded_cat.override(SplitPrimitiveTensor)
