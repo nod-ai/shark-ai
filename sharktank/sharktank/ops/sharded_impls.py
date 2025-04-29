@@ -1451,10 +1451,13 @@ def scatter_split_split(
         index_shards = index.shards
         last_shard_idx = inout.shard_count - 1
     else:
-        # Not all slices along dim will be used.
+        # If the shapes are not the same it means that:
+        #   1. Not all slices along dim inside `inout` will be accessed (so we can decrease computation)
+        #   2. Slices indo shards of `index` and `inout` will not line up,
+        #      i.e. The slice index_shard_i[j] will not match up to inout_shard_i[j]
         index = all_gather(index)
 
-        # Find the last shard that needs to be updated.
+        # Find the last shard of `inout` that will be accessed.
         slice_indices_inout = [shard.shape[shard_dim] for shard in inout.shards]
         cumulative_slice_idx = list(itertools.accumulate(slice_indices_inout))
         final_slice_idx = index.shards[0].shape[shard_dim]  # Replicated, all the same
@@ -1463,7 +1466,7 @@ def scatter_split_split(
         )
 
         # Manually re-shard and re-scatter index
-        # NOTE: index will not have the same number of shards as inout.
+        # NOTE: index may not have the same number of shards as inout.
         size_along_shard_dim = []
         num_slices_left = final_slice_idx
         for i in range(last_shard_idx + 1):
