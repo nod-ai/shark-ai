@@ -1633,7 +1633,9 @@ def topk_replicated(
 @topk.override(SplitPrimitiveTensor)
 def topk_split(
     input: SplitPrimitiveTensor, k: int, dim: int, largest: bool, sorted: bool
-) -> tuple[SplitPrimitiveTensor, SplitPrimitiveTensor]:
+) -> tuple[
+    SplitPrimitiveTensor | ReplicatedTensor, SplitPrimitiveTensor | ReplicatedTensor
+]:
     if dim != input.shard_dim:
         values, indices = zip(
             *(
@@ -1648,25 +1650,11 @@ def topk_split(
         # TODO: Implement more efficient version which does a
         #       topk on each shard before transferring and then adjusts
         #       the indices.
-        gathered = cat(
-            [
-                (
-                    transfer_to_logical_device(shard, input.devices[0])
-                    if i != 0
-                    else barrier_on_logical_device(shard, input.devices[0])
-                )
-                for i, shard in enumerate(input.shards)
-            ],
-            dim=input.shard_dim,
-        )
+        gathered = sharded_cat(input)
         values, indices = topk(gathered, k=k, dim=dim, largest=largest, sorted=sorted)
-        values_split = SplitPrimitiveTensor(
-            ts=values, shard_count=input.shard_count, shard_dim=input.shard_dim
-        )
-        indices_split = SplitPrimitiveTensor(
-            ts=indices, shard_count=input.shard_count, shard_dim=input.shard_dim
-        )
-        return values_split, indices_split
+        values = replicate(values, count=input.shard_count, devices=input.devices)
+        indices = replicate(indices, count=input.shard_count, devices=input.devices)
+        return values, indices
 
 
 @transpose.override(ReplicatedTensor)
