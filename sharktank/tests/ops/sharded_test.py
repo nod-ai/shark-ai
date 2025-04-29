@@ -1084,7 +1084,7 @@ class MatmulTest(unittest.TestCase):
         b_sharded = ops.replicate(b, count=shard_count)
         actual_result = ops.matmul(a_sharded, b_sharded)
         for shard in actual_result.shards:
-            assert ops.equal(shard, unsharded_result)
+            torch.testing.assert_close(unsharded_result, unbox_tensor(shard))
 
 
 @parameterized_class(
@@ -1487,7 +1487,7 @@ class SoftmaxTest(unittest.TestCase):
         dim = 1
         expected_result = ops.softmax(tensor, dim=dim)
         actual_result = ops.softmax(ops.replicate(tensor, count=3), dim=dim)
-        assert ops.equal(expected_result, actual_result)
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
 
     def testSoftmaxSplit(self):
         tensor = torch.rand(2, 2, 2, dtype=torch.float32)
@@ -1496,11 +1496,11 @@ class SoftmaxTest(unittest.TestCase):
 
         expected_result = ops.softmax(tensor, dim=dim - 1)
         actual_result = ops.softmax(sharded_tensor, dim=dim - 1)
-        assert ops.equal(expected_result, actual_result)
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
 
         expected_result = ops.softmax(tensor, dim=dim + 1)
         actual_result = ops.softmax(sharded_tensor, dim=dim + 1)
-        assert ops.equal(expected_result, actual_result)
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
 
 
 class SumTest(unittest.TestCase):
