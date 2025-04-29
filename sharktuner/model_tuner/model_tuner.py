@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import argparse
+import shutil
 from pathlib import Path
 from sharktuner import libtuner
 from sharktuner.common import *
@@ -71,9 +72,9 @@ def arg_parse() -> argparse.Namespace:
         help="Path to the flags file for iree-benchmark-module for model benchmarking.",
     )
     client_args.add_argument(
-        "--spec-output-path",
+        "--output-td-spec",
         type=Path,
-        help="Path to write the best tuned spec after",
+        help="Path to write the best tuned spec. Dumps the best tuned model spec by default, and the best tuned dispatch spec when --stop-after is set to 'benchmark-dispatches'.",
         default="tuning-spec.mlir",
     )
     # Remaining arguments come from libtuner
@@ -148,10 +149,8 @@ def main() -> None:
                 path_config.specs_dir
                 / path_config.get_candidate_spec_filename(top_candidates[0])
             )
-            shutil.copy(top_spec_path, args.simple_best_spec_output_path)
-            print(
-                f"Saved top spec ({top_spec_path}) to {args.simple_best_spec_output_path}"
-            )
+            shutil.copy(top_spec_path, args.output_td_spec)
+            print(f"Saved top spec ({top_spec_path}) to {args.output_td_spec}")
             return
 
         print("Compiling models with top candidates...")
@@ -188,10 +187,8 @@ def main() -> None:
         top_spec_path = path_config.specs_dir / path_config.get_candidate_spec_filename(
             top_model_candidates[0]
         )
-        shutil.copy(top_spec_path, args.simple_best_spec_output_path)
-        print(
-            f"Saved top spec ({top_spec_path}) to {args.simple_best_spec_output_path}"
-        )
+        shutil.copy(top_spec_path, args.output_td_spec)
+        print(f"Saved top spec ({top_spec_path}) to {args.output_td_spec}")
 
         print("Check the detailed execution logs in:")
         print(path_config.run_log.resolve())
