@@ -2031,7 +2031,7 @@ def zeros_like_replicated(
 ) -> ReplicatedTensor | SplitPrimitiveTensor:
     shards = [
         zeros_like(
-            unbox_tensor(shard),
+            shard,
             dtype=dtype,
             layout=layout,
             device=device,
