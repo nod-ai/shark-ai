@@ -47,13 +47,13 @@ def arg_parse() -> argparse.Namespace:
         "model_file", type=Path, help="Path to the model file to tune (.mlir)"
     )
     client_args.add_argument(
-        "--num-dispatch-candidates",
+        "--model-tuner-num-dispatch-candidates",
         type=int,
         default=None,
         help="Number of dispatch candidates to keep for model benchmarks.",
     )
     client_args.add_argument(
-        "--num-model-candidates",
+        "--model-tuner-num-model-candidates",
         type=int,
         default=None,
         help="Number of model candidates to produce after tuning.",
@@ -132,7 +132,7 @@ def main() -> None:
             compiled_candidates,
             candidate_trackers,
             model_tuner,
-            args.num_dispatch_candidates,
+            args.model_tuner_num_dispatch_candidates,
         )
         logging.info(f"Top dispatch candidates: {top_candidates}")
         for id in top_candidates:
@@ -164,7 +164,7 @@ def main() -> None:
             compiled_model_candidates,
             candidate_trackers,
             model_tuner,
-            args.num_model_candidates,
+            args.model_tuner_num_model_candidates,
         )
         logging.info(f"Top model candidates: {top_model_candidates}")
         for id in top_model_candidates:
