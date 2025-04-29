@@ -433,6 +433,18 @@ def split_elementwise_binary(
     )
 
 
+@einsum_2args.override(AllOfType(ReplicatedTensor))
+def einsum_2args_replicated(
+    input0: ReplicatedTensor, input1: ReplicatedTensor, einsum_str: str
+) -> ReplicatedTensor:
+    assert input0.shard_count == input1.shard_count
+    shards = [
+        einsum_2args(input0_shard, input1_shard, einsum_str)
+        for input0_shard, input1_shard in zip(input0.shards, input1.shards)
+    ]
+    return ReplicatedTensor(ts=shards)
+
+
 @elementwise.override(SplitPrimitiveTensor, Number)
 def elementwise_binary_split_lhs_scalar_rhs(
     operator, x: SplitPrimitiveTensor, y: Number, *args, **kwargs
