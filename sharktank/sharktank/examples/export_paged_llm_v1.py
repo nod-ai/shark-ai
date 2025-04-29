@@ -71,7 +71,7 @@ def main():
         )
     else:
         block_to_device_lookup = tuple(
-            tuple(range(args.tensor_parallelism_size)) for _ in range(hp.block_count)
+            tuple(range(tensor_parallelism_size)) for _ in range(hp.block_count)
         )
 
     llama_config = LlamaModelConfig(
