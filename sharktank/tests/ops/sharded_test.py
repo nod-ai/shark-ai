@@ -1390,14 +1390,17 @@ class Scatter_Test(unittest.TestCase):
         ops.scatter_(tensor, 0, index, value)
         assert ops.equal(tensor, sharded_tensor)
 
-    def testScatterSplitSplitNonShardDim(self):
-        tensor = torch.zeros(4, 6, dtype=torch.float32)
-        index = torch.randint(0, 4, (2, 1))
+    @parameterized.expand((([3, 1],), ([3, 2],), ([9, 1],), ([9, 6],)))
+    def testScatterSplitSplitNonShardDim(self, index_shape: list[int]):
+        scatter_dim = 1
         value = 1
-        sharded_tensor = ops.reshard_split(tensor, dim=0, count=2)
-        index_sharded = ops.reshard_split(index, dim=0, count=2)
-        ops.scatter_(sharded_tensor, 1, index_sharded, value)
-        ops.scatter_(tensor, 1, index, value)
+        tensor = torch.zeros(9, 6, dtype=torch.float32)
+        index = torch.randint(0, tensor.shape[scatter_dim], index_shape)
+
+        sharded_tensor = ops.reshard_split(tensor, dim=0, count=3)
+        index_sharded = ops.reshard_split(index, dim=0, count=3)
+        ops.scatter_(tensor, scatter_dim, index, value)
+        ops.scatter_(sharded_tensor, scatter_dim, index_sharded, value)
         assert ops.equal(tensor, sharded_tensor)
 
 
