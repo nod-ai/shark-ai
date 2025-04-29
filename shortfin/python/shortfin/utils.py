@@ -1,0 +1,30 @@
+import shortfin.array as sfnp
+
+# Dictionary that maps string types to their respective sfnp dtype
+dtype_map = {
+    "opaque8": sfnp.opaque8,
+    "opaque16": sfnp.opaque16,
+    "opaque32": sfnp.opaque32,
+    "opaque64": sfnp.opaque64,
+    "bool8": sfnp.bool8,
+    "int4": sfnp.int4,
+    "sint4": sfnp.sint4,
+    "uint4": sfnp.uint4,
+    "int8": sfnp.int8,
+    "sint8": sfnp.sint8,
+    "uint8": sfnp.uint8,
+    "int16": sfnp.int16,
+    "sint16": sfnp.sint16,
+    "uint16": sfnp.uint16,
+    "int32": sfnp.int32,
+    "sint32": sfnp.sint32,
+    "uint32": sfnp.uint32,
+    "int64": sfnp.int64,
+    "sint64": sfnp.sint64,
+    "uint64": sfnp.uint64,
+    "float8_e4m3fnuz": sfnp.float8_e4m3fnuz,
+    "float16": sfnp.float16,
+    "float32": sfnp.float32,
+    "float64": sfnp.float64,
+    "bfloat16": sfnp.bfloat16,
+}
