@@ -71,7 +71,7 @@ class PreGatherFFNMOE(ThetaLayer):
             ffn_gate * ffn_up, self.ffn_down, experts, einstring="mek,menk->men"
         )
         ffn_down = einsum_2args(expert_gate, ffn_down, "me,men->men")
-        return torch.sum(ffn_down, dim=1)
+        return ffn_down.sum(dim=1)
 
 
 class FFNMOE(ThetaLayer):
