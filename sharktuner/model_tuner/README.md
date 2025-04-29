@@ -34,7 +34,7 @@ python -m model_tuner model_tuner/double_mmt.mlir \
     --compile-flags-file=model_tuner/compile_flags.txt \
     --model-benchmark-flags-file=model_tuner/model_benchmark_flags.txt \
     --devices=hip://0 --num-candidates=30 \
-    --model-num-dispatch-candidates=5 --model-tuner-num-model-candidates=3 \
+    --model-tuner-num-dispatch-candidates=5 --model-tuner-num-model-candidates=3 \
 ```
 
 [!TIP]
