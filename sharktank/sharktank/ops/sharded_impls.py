@@ -1417,11 +1417,9 @@ def scatter_replicated_replicated(
     reduce: str = None,
 ) -> ReplicatedTensor:
     assert inout.shard_count == index.shard_count
-    shards = [
+    for shard, index_shard in zip(inout.shards, index.shards):
         scatter_(shard, dim, index_shard, value, reduce=reduce)
-        for shard, index_shard in zip(inout.shards, index.shards)
-    ]
-    return inout.clone(ts=shards)
+    return inout
 
 
 @scatter_.override(SplitPrimitiveTensor, SplitPrimitiveTensor)
