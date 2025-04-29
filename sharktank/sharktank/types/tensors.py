@@ -348,6 +348,11 @@ class InferenceTensor(ABC):
 
         return index_select(self, dim, index)
 
+    def masked_fill(self, mask: "AnyTensor", value: Number) -> "InferenceTensor":
+        from sharktank.ops import masked_fill
+
+        return masked_fill(self, mask, value)
+
     def mean(
         self,
         dim: Union[int, List[int]],

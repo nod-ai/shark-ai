@@ -833,6 +833,34 @@ for types in itertools.product([Tensor, ShardedTensor], repeat=2):
         linear.override(*types, auto_dequant=True)(linear_sharded)
 
 
+@masked_fill.override(AllOfType(ReplicatedTensor))
+def masked_fill_replicated(
+    tensor: ReplicatedTensor,
+    mask: ReplicatedTensor,
+    value: Number,
+) -> ReplicatedTensor:
+    assert tensor.shard_count == mask.shard_count
+    shards = [
+        shard.masked_fill(mask_shard, value)
+        for shard, mask_shard in zip(tensor.shards, mask.shards)
+    ]
+    return ReplicatedTensor(ts=shards)
+
+
+@masked_fill.override(AllOfType(SplitPrimitiveTensor))
+def masked_fill_split(
+    tensor: SplitPrimitiveTensor,
+    mask: SplitPrimitiveTensor,
+    value: Number,
+) -> SplitPrimitiveTensor:
+    assert tensor.shard_count == mask.shard_count
+    shards = [
+        shard.masked_fill(mask_shard, value)
+        for shard, mask_shard in zip(tensor.shards, mask.shards)
+    ]
+    return SplitPrimitiveTensor(ts=shards, shard_dim=tensor.shard_dim)
+
+
 # Sharded matmuls.
 
 
