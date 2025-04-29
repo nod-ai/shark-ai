@@ -526,13 +526,14 @@ def generate_solutions(
         if required_padding:
             # TODO: Remove promotion of operand 2 once codegen supports handling padded outputs without promotion.
             promote_operands = [0, 1, 2]
-            workgroup_tile_m, workgroup_tile_n, _ = workgroup_tile_sizes
-            _, _, reduction_tile_k = reduction_tile_sizes
             _, _, mma_intrinsic_k = mma_attr.mnk_shape
             padding = [
-                workgroup_tile_m,
-                workgroup_tile_n,
-                reduction_tile_k * mma_intrinsic_k,
+                *(workgroup_tile_sizes[d] for d in problem_size.contraction_dims.m),
+                *(workgroup_tile_sizes[d] for d in problem_size.contraction_dims.n),
+                *(
+                    reduction_tile_sizes[d] * mma_intrinsic_k
+                    for d in problem_size.contraction_dims.k
+                ),
             ]
 
         compilation_infos = generate_compilation_infos(
