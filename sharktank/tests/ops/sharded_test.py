@@ -1368,12 +1368,16 @@ class ReshardTest(unittest.TestCase):
 
 class Scatter_Test(unittest.TestCase):
     def setUp(self):
-        torch.random.manual_seed(12345)
+        import numpy as np
+
+        np.random.seed(12345)
+        self.rng = np.random.default_rng()
 
     def testScatterReplicatedReplicated(self):
         tensor = torch.zeros(4, 6, dtype=torch.float32)
         sharded_tensor = ops.replicate(tensor, count=3)
-        index = torch.randint(0, 4, (2, 1))
+
+        index = torch.tensor(self.rng.choice(4, (2, 1), replace=False))
         value = 1
         index_sharded = ops.replicate(index, count=3)
         ops.scatter_(sharded_tensor, 1, index_sharded, value)
@@ -1382,7 +1386,7 @@ class Scatter_Test(unittest.TestCase):
 
     def testScatterSplitSplitShardDim(self):
         tensor = torch.zeros(4, 6, dtype=torch.float32)
-        index = torch.randint(0, 4, (2, 1))
+        index = torch.tensor(self.rng.choice(4, (2, 1), replace=False))
         value = 1
         sharded_tensor = ops.reshard_split(tensor, dim=0, count=2)
         index_sharded = ops.reshard_split(index, dim=0, count=2)
@@ -1395,7 +1399,14 @@ class Scatter_Test(unittest.TestCase):
         scatter_dim = 1
         value = 1
         tensor = torch.zeros(9, 6, dtype=torch.float32)
-        index = torch.randint(0, tensor.shape[scatter_dim], index_shape)
+        index = torch.tensor(
+            [
+                self.rng.choice(
+                    tensor.shape[scatter_dim], index_shape[1], replace=False
+                )
+                for _ in range(index_shape[0])
+            ]
+        )
 
         sharded_tensor = ops.reshard_split(tensor, dim=0, count=3)
         index_sharded = ops.reshard_split(index, dim=0, count=3)
