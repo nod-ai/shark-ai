@@ -16,10 +16,10 @@ from typing import Generator
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_gpu, iree_codegen  # type: ignore
 
-from . import common
-from . import dispatch_constraints
+from sharktuner import common
+from sharktuner import dispatch_constraints
 
-from .test_utils import tuner_ctx
+from sharktuner.test_utils import tuner_ctx
 
 
 def test_generate_solutions(tuner_ctx: common.TunerContext) -> None:

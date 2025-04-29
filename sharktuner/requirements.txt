@@ -1,5 +1,5 @@
+iree-base-compiler
+iree-base-runtime
 numpy
-pytest
 tqdm>=4.66.4
-types-tqdm>=4.66.0.20240417
 z3_solver>=4.13.0.0

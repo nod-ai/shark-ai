@@ -9,7 +9,7 @@ Usage: python -m pytest common_test.py
 """
 
 import pytest
-from . import common
+from sharktuner import common
 
 from typing import Generator
 
@@ -19,8 +19,8 @@ from iree.compiler.dialects import iree_codegen  # type: ignore
 from iree.compiler.dialects import transform  # type: ignore
 from iree.compiler.dialects import _builtin_ops_gen  # type: ignore
 
-from .test_utils import tuner_ctx
-from .test_utils import mlir_ctx
+from sharktuner.test_utils import tuner_ctx
+from sharktuner.test_utils import mlir_ctx
 
 
 def test_get_shaped_type_element_bitwidth(tuner_ctx: common.TunerContext) -> None:
