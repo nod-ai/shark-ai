@@ -16,7 +16,6 @@
 # * iree-turbine
 # * sharktank
 # * shortfin
-# * sharktuner
 # get pinned to the corresponding `X.Y.*` version.
 
 import argparse
@@ -35,10 +34,9 @@ args = parser.parse_args()
 THIS_DIR = Path(__file__).parent
 REPO_ROOT = THIS_DIR.parent.parent
 
-VERSION_FILE_LOCAL = REPO_ROOT / "shark-ai/version_local.json"
 VERSION_FILE_SHARKTANK = REPO_ROOT / "sharktank/version_local.json"
-VERSION_FILE_SHARKTUNER = REPO_ROOT / "sharktuner/version_local.json"
 VERSION_FILE_SHORTFIN = REPO_ROOT / "shortfin/version_local.json"
+VERSION_FILE_LOCAL = REPO_ROOT / "shark-ai/version_local.json"
 REQUIREMENTS_TXT = REPO_ROOT / "shark-ai/requirements.txt"
 
 
@@ -58,9 +56,6 @@ PACKAGE_VERSION = metapackage_version.get("package-version")
 sharktank_version = load_version_info(VERSION_FILE_SHARKTANK)
 SHARKTANK_PACKAGE_VERSION = sharktank_version.get("package-version")
 
-sharktuner_version = load_version_info(VERSION_FILE_SHARKTUNER)
-SHARKTUNER_PACKAGE_VERSION = sharktuner_version.get("package-version")
-
 shortfin_version = load_version_info(VERSION_FILE_SHORTFIN)
 SHORTFIN_PACKAGE_VERSION = shortfin_version.get("package-version")
 
@@ -73,12 +68,6 @@ if Version(PACKAGE_VERSION).is_prerelease:
     requirements = (
         "sharktank=="
         + Version(SHARKTANK_PACKAGE_VERSION).base_version
-        + args.version_suffix
-        + "\n"
-    )
-    requirements += (
-        "sharktuner=="
-        + Version(SHARKTUNER_PACKAGE_VERSION).base_version
         + args.version_suffix
         + "\n"
     )
@@ -101,9 +90,6 @@ else:
         requirements += package + "==" + STABLE_VERSION_TO_PIN + "\n"
     requirements += (
         "sharktank==" + Version(SHARKTANK_PACKAGE_VERSION).base_version + "\n"
-    )
-    requirements += (
-        "sharktuner==" + Version(SHARKTUNER_PACKAGE_VERSION).base_version + "\n"
     )
     requirements += "shortfin==" + Version(SHORTFIN_PACKAGE_VERSION).base_version
 
