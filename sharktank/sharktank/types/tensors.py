@@ -464,6 +464,9 @@ class InferenceTensor(ABC):
 
         return elementwise(torch.add, self, rhs)
 
+    def __invert__(self):
+        pass
+
     def __radd__(self, lhs):
         # Assumes commutative addition due to torch elementwise ops not handling
         # numbers on the lhs.
@@ -607,6 +610,9 @@ class DefaultPrimitiveTensor(PrimitiveTensor):
         self, new_globals: dict[str, torch.Tensor]
     ) -> "InferenceTensor":
         return DefaultPrimitiveTensor(name=self.name, data=new_globals[self.name])
+
+    def __invert__(self):
+        return DefaultPrimitiveTensor(data=~self._data, name=self.name)
 
     def __getitem__(self, key):
         keys = [key]
@@ -820,6 +826,9 @@ class ShardedTensor(InferenceTensor):
             else t
             for i, t in enumerate(ts)
         )
+
+    def __invert__(self):
+        return self.clone(ts=[~t for t in self._shards])
 
     @property
     def devices(self) -> Tuple[int]:
