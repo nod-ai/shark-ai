@@ -1372,14 +1372,13 @@ class Scatter_Test(unittest.TestCase):
 
     def testScatterReplicatedReplicated(self):
         tensor = torch.zeros(4, 6, dtype=torch.float32)
+        sharded_tensor = ops.replicate(tensor, count=3)
         index = torch.randint(0, 4, (2, 1))
         value = 1
         index_sharded = ops.replicate(index, count=3)
-        actual_result = ops.scatter_(
-            ops.replicate(tensor, count=3), 1, index_sharded, value
-        )
-        expected_result = ops.scatter_(tensor, 1, index, value)
-        assert ops.equal(expected_result, actual_result)
+        ops.scatter_(sharded_tensor, 1, index_sharded, value)
+        ops.scatter_(tensor, 1, index, value)
+        assert ops.equal(tensor, sharded_tensor)
 
     def testScatterSplitSplitShardDim(self):
         tensor = torch.zeros(4, 6, dtype=torch.float32)
@@ -1387,9 +1386,9 @@ class Scatter_Test(unittest.TestCase):
         value = 1
         sharded_tensor = ops.reshard_split(tensor, dim=0, count=2)
         index_sharded = ops.reshard_split(index, dim=0, count=2)
-        actual_result = ops.scatter_(sharded_tensor, 0, index_sharded, value)
-        expected_result = ops.scatter_(tensor, 0, index, value)
-        assert ops.equal(expected_result, actual_result)
+        ops.scatter_(sharded_tensor, 0, index_sharded, value)
+        ops.scatter_(tensor, 0, index, value)
+        assert ops.equal(tensor, sharded_tensor)
 
     def testScatterSplitSplitNonShardDim(self):
         tensor = torch.zeros(4, 6, dtype=torch.float32)
@@ -1397,9 +1396,9 @@ class Scatter_Test(unittest.TestCase):
         value = 1
         sharded_tensor = ops.reshard_split(tensor, dim=0, count=2)
         index_sharded = ops.reshard_split(index, dim=0, count=2)
-        actual_result = ops.scatter_(sharded_tensor, 1, index_sharded, value)
-        expected_result = ops.scatter_(tensor, 1, index, value)
-        assert ops.equal(expected_result, actual_result)
+        ops.scatter_(sharded_tensor, 1, index_sharded, value)
+        ops.scatter_(tensor, 1, index, value)
+        assert ops.equal(tensor, sharded_tensor)
 
 
 class ShardLikeTest(unittest.TestCase):
