@@ -519,6 +519,7 @@ def generate_solutions(
             for p, i in zip(problem_size.MNK, intrinsic_mnk_shape, strict=True)
         )
         promote_operands = [0, 1]
+        padding = None
         if required_padding:
             # TODO: Remove promotion of operand 2 once codegen supports handling padded outputs without promotion.
             promote_operands = [0, 1, 2]
@@ -530,8 +531,6 @@ def generate_solutions(
                 workgroup_tile_n,
                 reduction_tile_k * mma_intrinsic_k,
             ]
-        else:
-            padding = None
 
         compilation_infos = generate_compilation_infos(
             tuner_ctx,
