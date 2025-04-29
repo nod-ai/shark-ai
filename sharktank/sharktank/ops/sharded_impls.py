@@ -1524,16 +1524,10 @@ def sum_split(
         return ReplicatedTensor(ts=summed, shard_count=input.shard_count)
 
 
-@to.override(ReplicatedTensor)
-def to_replicated(tensor: ReplicatedTensor, *args, **kwargs):
+@to.override(ShardedTensor)
+def to_sharded(tensor: ShardedTensor, *args, **kwargs):
     shards = [to(shard, *args, **kwargs) for shard in tensor.shards]
-    return ReplicatedTensor(ts=shards)
-
-
-@to.override(SplitPrimitiveTensor)
-def to_split(tensor: SplitPrimitiveTensor, *args, **kwargs):
-    shards = [to(shard, *args, **kwargs) for shard in tensor.shards]
-    return SplitPrimitiveTensor(ts=shards, shard_dim=tensor.shard_dim)
+    return tensor.clone(ts=shards)
 
 
 @topk.override(ReplicatedTensor)

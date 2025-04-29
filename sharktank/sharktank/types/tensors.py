@@ -16,6 +16,7 @@ from typing import (
     Iterable,
     List,
     Tuple,
+    overload,
 )
 from copy import deepcopy
 from collections.abc import Collection, Sequence
@@ -274,18 +275,64 @@ class InferenceTensor(ABC):
             prev_globals = next_globals
         return self._clone_with_globals(prev_globals)
 
+    @overload
     def to(
         self,
+        device: str | torch.device | None = None,
+        dtype: torch.dtype | None = None,
+        non_blocking: bool = False,
+        copy: bool = False,
         *,
-        device: Optional[Union[str, torch.device]] = None,
+        memory_format: torch.memory_format = torch.preserve_format,
     ) -> "InferenceTensor":
-        # TODO: reconcile with ops.to(...) and torch.Tensor.to(...).
-        # Do we always want to clone with globals?
-        # This makes our type inconsistent with torch tensors.
-        # If we use this to transform a theta we want to change the theta.
-        # If we want to use this in a computation we don't want to change the theta.
-        return self.transform_globals(
-            lambda d: {k: t.to(device=device) for k, t in d.items()}
+        ...
+
+    @overload
+    def to(
+        self,
+        other: "AnyTensor",
+        non_blocking: bool = False,
+        copy: bool = False,
+        *,
+        memory_format: torch.memory_format = torch.preserve_format,
+    ) -> "InferenceTensor":
+        ...
+
+    @overload
+    def to(
+        self,
+        dtype: torch.dtype,
+        non_blocking: bool = False,
+        copy: bool = False,
+        *,
+        memory_format: torch.memory_format = torch.preserve_format,
+    ) -> "InferenceTensor":
+        ...
+
+    def to(self, *args, **kwargs) -> "InferenceTensor":
+        arg0 = args[0] if len(args) > 0 else None
+        device_overload = ("device" in kwargs) or isinstance(arg0, (str, torch.device))
+        other_overload = ("other" in kwargs) or isinstance(arg0, AnyTensor)
+        memory_overload = ("memory_format" in kwargs) or isinstance(arg0, torch.dtype)
+
+        if device_overload:
+            # Do we always want to clone with globals?
+            # This makes our type inconsistent with torch tensors.
+            # If we use this to transform a theta we want to change the theta.
+            # If we want to use this in a computation we don't want to change the theta.
+            return self.transform_globals(
+                lambda d: {k: t.to(*args, **kwargs) for k, t in d.items()}
+            )
+        elif other_overload:
+            args = tuple([arg0.device, arg0.dtype] + list(args[1:]))
+            return self.to(*args, **kwargs)
+        elif memory_overload:
+            from sharktank.ops import to
+
+            return to(self, *args, **kwargs)
+
+        raise ValueError(
+            f"Could not idenify which overload to use given args, and kwargs: {args}{kwargs}"
         )
 
     def _clone_with_globals(
@@ -925,13 +972,12 @@ class ShardedTensorBase(ShardedTensor):
             extra_properties=extra_properties,
         )
 
-    @classmethod
     def _clone_with_globals(
         self, new_globals: dict[str, torch.Tensor]
     ) -> "InferenceTensor":
         ts = []
         for k in self.globals.keys():
-            ts.append(new_globals[ts[k]])
+            ts.append(new_globals[k])
         return self.__class__(
             name=self.name,
             shape=self.shape,
@@ -1290,10 +1336,9 @@ class ReplicatedTensor(ShardedTensor):
     ) -> "InferenceTensor":
         ts = []
         for k in self.globals.keys():
-            ts.append(new_globals[ts[k]])
+            ts.append(new_globals[k])
         return ReplicatedTensor(
             name=self.name,
-            shape=self.shape,
             ts=ts,
             devices=self.devices,
         )

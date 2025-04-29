@@ -1499,6 +1499,44 @@ class SumTest(unittest.TestCase):
         assert expected_result == actual_result
 
 
+class ToTest(unittest.TestCase):
+    @parameterized.expand(
+        (
+            (("cuda:0", torch.float64), {}),  # device
+            ((torch.tensor([1], dtype=torch.int, device="cuda:0")), {}),  # other
+            ((torch.int64,), {}),  # memory
+        )
+    )
+    def testToReplicated(self, args: dict, kwargs: dict):
+        tensor = torch.ones(3, 2, dtype=torch.int32)
+        expected_result = tensor.to(*args, **kwargs)
+        actual_result = ReplicatedTensor(ts=tensor, shard_count=2).to(*args, **kwargs)
+        actual_result = unbox_tensor(actual_result)
+
+        assert ops.equal(expected_result, actual_result)
+        assert actual_result.dtype == expected_result.dtype
+        assert actual_result.device == expected_result.device
+
+    @parameterized.expand(
+        (
+            (("cuda:0", torch.float64), {}),  # device
+            ((torch.tensor([1], dtype=torch.int, device="cuda:0")), {}),  # other
+            ((torch.int64,), {}),  # memory
+        )
+    )
+    def testToSplit(self, args: dict, kwargs: dict):
+        tensor = torch.ones(3, 2, dtype=torch.int32)
+        expected_result = tensor.to(*args, **kwargs)
+        actual_result = SplitPrimitiveTensor(ts=tensor, shard_count=2, shard_dim=1).to(
+            *args, **kwargs
+        )
+        actual_result = unbox_tensor(actual_result)
+
+        assert ops.equal(expected_result, actual_result)
+        assert actual_result.dtype == expected_result.dtype
+        assert actual_result.device == expected_result.device
+
+
 class TopKTest(unittest.TestCase):
     def setUp(self):
         torch.random.manual_seed(12345)

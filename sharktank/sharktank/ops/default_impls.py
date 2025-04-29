@@ -451,7 +451,7 @@ def softmax_default(
 
 
 @to.override(Tensor)
-def to_default(tensor: Tensor, *args, **kwargs):
+def to_default(tensor: Tensor, *args, **kwargs) -> Tensor:
     return unbox_tensor(tensor).to(*args, **kwargs)
 
 
