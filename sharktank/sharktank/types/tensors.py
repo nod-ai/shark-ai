@@ -382,7 +382,7 @@ class InferenceTensor(ABC):
     def reshape(self, *args: Union[List[List[int]], List[int]]) -> "AnyTensor":
         from sharktank.ops import reshape
 
-        if all(isinstance(a, int) for a in args):
+        if all(isinstance(a, (int, torch.SymInt)) for a in args):
             shape = args
         else:
             assert len(args) == 1
