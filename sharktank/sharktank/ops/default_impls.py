@@ -445,6 +445,7 @@ def scatter__default(
     *,
     reduce: str | None = None,
 ) -> Tensor:
+    assert isinstance(value, Number), "Tensor version of this op not implemented"
     inout = unbox_tensor(inout)
     index = unbox_tensor(index)
     if reduce is not None:

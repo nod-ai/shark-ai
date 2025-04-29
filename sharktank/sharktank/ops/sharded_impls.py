@@ -1412,10 +1412,11 @@ def scatter_replicated_replicated(
     inout: ReplicatedTensor,
     dim: int,
     index: ReplicatedTensor,
-    value,
+    value: Number,
     *,
     reduce: str = None,
 ) -> ReplicatedTensor:
+    assert isinstance(value, Number), "Tensor version of this op not implemented"
     assert inout.shard_count == index.shard_count
     for shard, index_shard in zip(inout.shards, index.shards):
         scatter_(shard, dim, index_shard, value, reduce=reduce)
@@ -1427,10 +1428,11 @@ def scatter_split_split(
     inout: SplitPrimitiveTensor,
     dim: int,
     index: SplitPrimitiveTensor,
-    value,
+    value: Number,
     *,
     reduce: str = None,
 ) -> SplitPrimitiveTensor:
+    assert isinstance(value, Number), "Tensor version of this op not implemented"
     if dim == inout.shard_dim:
         # `index` can contain indices into any of `inout`s shards in any of its entries.
         # Can't know ahead of time how to seperate out its values based on sliices.
