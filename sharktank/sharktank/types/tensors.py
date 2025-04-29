@@ -306,6 +306,11 @@ class InferenceTensor(ABC):
 
         return permute(self, dims=dims)
 
+    def bool(self) -> "InferenceTensor":
+        from sharktank.ops import to
+
+        return to(self, dtype=torch.bool)
+
     @property
     def dtype(self) -> torch.dtype:
         raise NotImplementedError()
