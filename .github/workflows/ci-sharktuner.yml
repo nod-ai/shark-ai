@@ -45,7 +45,7 @@ jobs:
 
       - name: Install sharktuner dependencies
         run: |
-          pip install -r sharktuner/requirements-tuner.txt
+          pip install -r sharktuner/requirements.txt
           pip install -r requirements-iree-unpinned.txt
 
       - name: Run sharktuner tests

@@ -36,7 +36,7 @@ namespaces = true
 sharktank = ["py.typed"]
 
 [tool.setuptools.dynamic.dependencies]
-file = ["requirements-tuner.txt"]
+file = ["requirements.txt"]
 
 [tool.setuptools.dynamic.optional-dependencies]
 dev = {file = ["requirements-dev.txt"]}
