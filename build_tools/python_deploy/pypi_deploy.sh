@@ -59,6 +59,8 @@ function download_wheels() {
   #   * https://py-free-threading.github.io/installing_cpython/
   #   * https://pip.pypa.io/en/stable/installation/
   python3.13t -m pip download shortfin==${RELEASE} --no-deps -f ${ASSETS_PAGE}
+
+  # sharktuner
   python -m pip download sharktuner==${RELEASE} \
     --no-deps --python-version 3.11 -f ${ASSETS_PAGE}
   # TODO: shark-ai meta package when it is published to nightlies
