@@ -25,7 +25,7 @@ def generate(seed):
     block_seq_stride = 32
     max_blocks = 8
 
-    rope_dimension_count = 16
+    rope_dimension_count = 64
     vocabulary_size = 256
     expert_count = 4
     used_experts = 2
