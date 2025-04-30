@@ -668,7 +668,9 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         )
 
     @pytest.mark.xfail(
-        reason="Benchmarking Error", strict=True, raises=IreeBenchmarkException
+        reason="https://github.com/nod-ai/shark-ai/issues/1355",
+        strict=True,
+        raises=IreeBenchmarkException,
     )
     def testBenchmark70B_f16_TP8_Non_Decomposed_Input_Len_128(self):
         output_file_name = self.dir_path_70b / "f16_torch_128_tp8"
@@ -718,7 +720,9 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         )
 
     @pytest.mark.xfail(
-        reason="Benchmarking Error", strict=True, raises=IreeBenchmarkException
+        reason="https://github.com/nod-ai/shark-ai/issues/1355",
+        strict=True,
+        raises=IreeBenchmarkException,
     )
     def testBenchmark70B_f16_TP8_Non_Decomposed_Input_Len_2048(self):
         output_file_name = self.dir_path_70b / "f16_torch_2048_tp8"
