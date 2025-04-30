@@ -17,11 +17,8 @@ t5xxl
 --iree-preprocessing-pass-pipeline='builtin.module(util.func(iree-global-opt-raise-special-ops, iree-flow-canonicalize), iree-preprocessing-transpose-convolution-pipeline, util.func(iree-preprocessing-generalize-linalg-matmul-experimental))'
 sampler
 --iree-dispatch-creation-enable-aggressive-fusion
---iree-opt-outer-dim-concat=1
 --iree-hal-memoization=1
---iree-codegen-llvmgpu-use-vector-distribution=1
 --iree-codegen-llvmgpu-early-tile-and-fuse-matmul=1
---iree-llvmgpu-enable-prefetch=1
 --iree-preprocessing-pass-pipeline='builtin.module(util.func(iree-global-opt-raise-special-ops, iree-flow-canonicalize),iree-preprocessing-transpose-convolution-pipeline, iree-preprocessing-pad-to-intrinsics, util.func(iree-dispatch-creation-bubble-up-expand-shapes, canonicalize, cse, canonicalize), util.func(iree-preprocessing-generalize-linalg-matmul-experimental))'
 vae
 --iree-dispatch-creation-enable-aggressive-fusion
