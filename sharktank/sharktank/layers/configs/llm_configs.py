@@ -85,7 +85,14 @@ class LlamaHParams:
         default_expert_used_count = 0
         default_rope_freq_base = 500000.0
         default_rope_dimension_count = 128
+        default_n_expert_groups = 8
         defaut_n_dense_layers = 0
+        default_n_limited_groups = 4
+
+        default_qk_rope_head_dim = 64
+        default_qk_nope_head_dim = 128
+        default_v_head_dim = 128
+
         attention_head_count = _int_prop(p, f"{name_prefix}.attention.head_count")
         rope_dimension_count = _optional_int_prop(
             p, f"{name_prefix}.rope.dimension_count", default_rope_dimension_count
@@ -94,10 +101,25 @@ class LlamaHParams:
         attention_softcap = 30.0 if name_prefix == "grok" else None
 
         if name_prefix == "deepseek2":
+            qk_rope_head_dim = _optional_int_prop(
+                p, f"{name_prefix}.attention.qk_rope_head_dim", default_qk_rope_head_dim
+            )
+            qk_nope_head_dim = _optional_int_prop(
+                p, f"{name_prefix}.attention.qk_nope_head_dim", default_qk_nope_head_dim
+            )
+            v_head_dim = _optional_int_prop(
+                p, f"{name_prefix}.attention.v_head_dim", default_v_head_dim
+            )
             q_lora_rank = _int_prop(p, f"{name_prefix}.attention.q_lora_rank")
             kv_lora_rank = _int_prop(p, f"{name_prefix}.attention.kv_lora_rank")
             route_scale = _float_prop(p, f"{name_prefix}.expert_weights_scale")
             expert_shared_count = _int_prop(p, f"{name_prefix}.expert_shared_count")
+            n_expert_groups = _optional_int_prop(
+                p, f"{name_prefix}.n_expert_groups", default_n_expert_groups
+            )
+            n_limited_groups = _optional_int_prop(
+                p, f"{name_prefix}.n_limited_groups", default_n_limited_groups
+            )
 
             rope_scaling_type = _str_prop(p, f"{name_prefix}.rope.scaling.type")
             rope_scaling_factor = _float_prop(p, f"{name_prefix}.rope.scaling.factor")
@@ -108,11 +130,6 @@ class LlamaHParams:
                 p, f"{name_prefix}.rope.scaling.yarn_log_multiplier"
             )
 
-            qk_nope_head_dim = 128
-            qk_rope_head_dim = 64
-            v_head_dim = 128
-            n_expert_groups = 8
-            n_limited_groups = 4
             attn_head_dim = qk_nope_head_dim + qk_rope_head_dim
         else:
             attn_head_dim = rope_dimension_count
@@ -185,6 +202,12 @@ class LlamaHParams:
             f"{self.model_arch}.attention.layer_norm_rms_epsilon": self.attention_layer_norm_rms_epsilon,
             f"{self.model_arch}.attention.head_count_kv": self.attention_head_count_kv,
         }
+        if self.qk_rope_head_dim is not None:
+            res[f"{self.model_arch}.attention.qk_rope_head_dim"] = self.qk_rope_head_dim
+        if self.qk_nope_head_dim is not None:
+            res[f"{self.model_arch}.attention.qk_nope_head_dim"] = self.qk_nope_head_dim
+        if self.v_head_dim is not None:
+            res[f"{self.model_arch}.attention.v_head_dim"] = self.v_head_dim
         if self.q_lora_rank is not None:
             res[f"{self.model_arch}.attention.q_lora_rank"] = self.q_lora_rank
         if self.kv_lora_rank is not None:
@@ -199,6 +222,10 @@ class LlamaHParams:
             res[f"{self.model_arch}.expert_used_count"] = self.expert_used_count
         if self.expert_shared_count is not None:
             res[f"{self.model_arch}.expert_shared_count"] = self.expert_shared_count
+        if self.n_expert_groups is not None:
+            res[f"{self.model_arch}.n_expert_groups"] = self.n_expert_groups
+        if self.n_limited_groups is not None:
+            res[f"{self.model_arch}.n_limited_groups"] = self.n_limited_groups
         if self.rope_dimension_count is not None:
             res[f"{self.model_arch}.rope.dimension_count"] = self.rope_dimension_count
         if self.rope_freq_base is not None:
