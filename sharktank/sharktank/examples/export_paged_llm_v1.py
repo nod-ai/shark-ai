@@ -104,6 +104,12 @@ def main():
         For shortfin, we only write attention_head_count_kv because that's all shortfin needs.
         Note that this is different from hp.attn_head_count when grouped attention shares kvcache between heads.
         """
+        kv_cache_dtype = (
+            str(llama_config.kv_cache_dtype).split(".")[-1]
+            if llama_config.kv_cache_dtype is not None
+            else str(llama_config.attention_dtype).split(".")[-1]
+        )
+
         return {
             "module_name": "module",
             "module_abi_version": 1,
@@ -117,6 +123,7 @@ def main():
                 "attention_head_count_kv": hp.attention_head_count_kv,
                 "block_seq_stride": llama_config.block_seq_stride,
                 "device_block_count": args.device_block_count,  # so that this makes its way into the config file & can be edited.
+                "kv_cache_dtype": kv_cache_dtype,
             },
         }
 

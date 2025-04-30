@@ -30,6 +30,8 @@ def _decode_dtype(name: str) -> sfnp.DType:
     if not isinstance(obj, sfnp.DType):
         raise ValueError(f"{name} is not a recognized dtype")
 
+    return obj
+
 
 dataclasses_json.cfg.global_config.encoders[sfnp.DType] = lambda dt: dt.name
 dataclasses_json.cfg.global_config.decoders[sfnp.DType] = _decode_dtype
@@ -98,6 +100,9 @@ class PagedKVCacheParams:
     # Size of the cache on each device.
     # Default: 256
     device_block_count: int
+
+    # Element type of the KVCache
+    kv_cache_dtype: sfnp.DType
 
 
 @dataclass_json(undefined=Undefined.RAISE)

@@ -546,7 +546,7 @@ def unflatten_default(
 
 @unsqueeze.override(Tensor)
 def unsqueeze_default(tensor: Union[Tensor, PrimitiveTensor], dim: int) -> Tensor:
-    return torch.unsqueeze(tensor, dim)
+    return torch.unsqueeze(unbox_tensor(tensor), dim)
 
 
 @squeeze.override(AllOfType(AnyTensor, PrimitiveTensor))

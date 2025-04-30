@@ -29,6 +29,7 @@ uint32 = _sfl.array.uint32
 int64 = _sfl.array.int64
 sint64 = _sfl.array.sint64
 uint64 = _sfl.array.uint64
+float8_e4m3fnuz = _sfl.array.float8_e4m3fnuz
 float16 = _sfl.array.float16
 float32 = _sfl.array.float32
 float64 = _sfl.array.float64
