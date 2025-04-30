@@ -8,7 +8,6 @@ from collections.abc import Iterable
 from typing import Callable
 import unittest
 import itertools
-import pytest
 from parameterized import parameterized, parameterized_class
 
 import torch
@@ -1579,18 +1578,31 @@ class SumTest(unittest.TestCase):
         assert expected_result == actual_result
 
 
-@pytest.mark.skipif(
-    not torch.cuda.is_available(),
-    reason="Not all runners have pytorch with GPU support",
-)
-class ToDeviceTest(unittest.TestCase):
+class ToTest(unittest.TestCase):
+    def skipIfNeeded(self):
+        if not torch.cuda.is_available():
+            self.skipTest("Pytorch not build with GPU support.")
+
     @parameterized.expand(
         (
-            (("cuda:0", torch.float64), {}),  # device
-            ((torch.tensor([1], dtype=torch.int, device="cuda:0")), {}),  # other
+            ("device",),
+            ("other",),
+            ("dtype",),
         )
     )
-    def testToReplicated(self, args: dict, kwargs: dict):
+    def testToReplicated(self, mode: str):
+        kwargs = {}
+        if mode == "device":
+            self.skipIfNeeded()
+            args = ("cuda:0", torch.float64)
+        elif mode == "other":
+            self.skipIfNeeded()
+            args = torch.tensor([1], dtype=torch.int, device="cuda:0")
+        elif mode == "dtype":
+            args, kwargs = (torch.int64,), {}
+        else:
+            raise ValueError(f"Unknown mode: {mode}")
+
         tensor = torch.ones(3, 2, dtype=torch.int32)
         expected_result = tensor.to(*args, **kwargs)
         actual_result = ReplicatedTensor(ts=tensor, shard_count=2).to(*args, **kwargs)
@@ -1602,36 +1614,23 @@ class ToDeviceTest(unittest.TestCase):
 
     @parameterized.expand(
         (
-            (("cuda:0", torch.float64), {}),  # device
-            ((torch.tensor([1], dtype=torch.int, device="cuda:0")), {}),  # other
+            ("device",),
+            ("other",),
+            ("dtype",),
         )
     )
-    def testToSplit(self, args: dict, kwargs: dict):
-        tensor = torch.ones(3, 2, dtype=torch.int32)
-        expected_result = tensor.to(*args, **kwargs)
-        actual_result = SplitPrimitiveTensor(ts=tensor, shard_count=2, shard_dim=1).to(
-            *args, **kwargs
-        )
-        actual_result = unbox_tensor(actual_result)
-
-        assert ops.equal(expected_result, actual_result)
-        assert actual_result.dtype == expected_result.dtype
-        assert actual_result.device == expected_result.device
-
-
-class ToDTypeTest(unittest.TestCase):
-    def testToReplicated(self):
-        args, kwargs = (torch.int64,), {}
-        tensor = torch.ones(3, 2, dtype=torch.int32)
-        expected_result = tensor.to(*args, **kwargs)
-        actual_result = ReplicatedTensor(ts=tensor, shard_count=2).to(*args, **kwargs)
-        actual_result = unbox_tensor(actual_result)
-
-        assert ops.equal(expected_result, actual_result)
-        assert actual_result.dtype == expected_result.dtype
-        assert actual_result.device == expected_result.device
-
-    def testToSplit(self):
+    def testToSplit(self, mode: str):
+        kwargs = {}
+        if mode == "device":
+            if not torch.cuda.is_available():
+                self.skipTest("Pytorch not build with GPU support.")
+            args = ("cuda:0", torch.float64)
+        elif mode == "other":
+            if not torch.cuda.is_available():
+                self.skipTest("Pytorch not build with GPU support.")
+            args = torch.tensor([1], dtype=torch.int, device="cuda:0")
+        elif mode == "dtype":
+            args, kwargs = (torch.int64,), {}
         args, kwargs = (torch.int64,), {}
         tensor = torch.ones(3, 2, dtype=torch.int32)
         expected_result = tensor.to(*args, **kwargs)
