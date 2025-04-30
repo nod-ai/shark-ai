@@ -124,7 +124,7 @@ def make_ffn_block_theta(
         {
             "ffn_norm.weight": DefaultPrimitiveTensor(
                 name=f"blk.{block_idx}.ffn_norm.weight",
-                data=make_rand_torch((head_count * head_dim), dtype=dtype),
+                data=make_rand_torch((embedding_length), dtype=dtype),
             ),
             "ffn_gate.weight": DefaultPrimitiveTensor(
                 name=f"blk.{block_idx}.ffn_gate.weight",
