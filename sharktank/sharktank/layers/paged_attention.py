@@ -26,8 +26,77 @@ from sharktank.types import (
     StaticScaledQuantizer,
 )
 from sharktank import ops, kernels
+from sharktank.kernels.mlir_kernel import *
 
 __all__ = ["PagedAttention"]
+
+# Paged Attention Kernels
+#
+# Each kernel is put into its own class to create a namespace for it
+
+
+def KVCacheGatherKernel():
+    CACHE_SIZE = DynDim.CACHE_SIZE
+    PAGES = DynDim.PAGES
+    BLOCK_SEQ_STRIDE = StaticDim.BLOCK_SEQ_STRIDE
+    HEAD_COUNT_KV = StaticDim.HEAD_COUNT_KV
+    ATTN_HEAD_DIM = StaticDim.ATTN_HEAD_DIM
+    BATCH = DynDim.BATCH
+
+    SOURCE_TY = Dtype.SOURCE_TY
+    I64 = Dtype.I64
+
+    @mlir_kernel(
+        inputs=(
+            MLIRTensor[
+                CACHE_SIZE, BLOCK_SEQ_STRIDE, HEAD_COUNT_KV, ATTN_HEAD_DIM, SOURCE_TY
+            ],
+            MLIRTensor[BATCH, PAGES, I64],
+        ),
+        results=(
+            MLIRTensor[
+                BATCH, PAGES, BLOCK_SEQ_STRIDE, HEAD_COUNT_KV, ATTN_HEAD_DIM, SOURCE_TY
+            ],
+        ),
+    )
+    def paged_attention_kv_cache_gather(source, indices, result):
+        # We generate the tensor.extract version for now, but once we have
+        # iree_linalg_ext.gather, we should be generating that instead.
+        mlir = """
+        module {
+        util.func @{{kernel_name}}(%source: !source, %indices: !indices) -> !result {
+          %c0 = arith.constant 0 : index
+          %c1 = arith.constant 1 : index
+          %batches = tensor.dim %indices, %c0 : !indices
+          %pages = tensor.dim %indices, %c1 : !indices
+          %empty = tensor.empty(%batches, %pages) : !result
+          %result = linalg.generic {
+            indexing_maps = [
+            affine_map<(b, p, stride, head_count, head_dim) -> (b, p)>,
+            affine_map<(b, p, stride, head_count, head_dim) -> (b, p, stride, head_count, head_dim)>],
+            iterator_types = ["parallel", "parallel", "parallel", "parallel", "parallel"]}
+            ins(%indices : !indices)
+            outs(%empty : !result) {
+            ^bb0(%in: !indices_dtype, %o: !source_dtype):
+              %p = arith.index_cast %in : !indices_dtype to index
+              %stride = linalg.index 2 : index
+              %head_count = linalg.index 3 : index
+              %head_dim = linalg.index 4 : index
+              %extracted = tensor.extract %source[%p, %stride, %head_count, %head_dim] : !source
+              linalg.yield %extracted : !source_dtype
+            } -> !result
+            util.return %result : !result
+        }
+        }
+        """
+        return MLIRSpec(mlir)
+
+    return paged_attention_kv_cache_gather
+
+
+kv_cache_gather = KVCacheGatherKernel()
+
+# Paged Attention Implementation
 
 
 class PagedAttention:
@@ -184,7 +253,7 @@ class PagedAttention:
             ]
         )
 
-        flat_sharded_page_tables = []
+        flat_sharded_jage_tables = []
         for pipeline in range(self.pipeline_count):
             # TODO: Do I need to make copies here, or are views enough?
             assert (
@@ -280,33 +349,47 @@ class PagedAttention:
         page_tables = self.unflatten_page_tables(state)  # 6D
         page_table = page_tables[self.block_to_pipeline_lookup[transformer_block_index]]
 
-        bs, block_seq_len, *_ = page_ids.shape
-        # Blocks dim 1,2 according to the configured block stride.
-        blocked_shape = [
-            bs,
-            block_seq_len,
-            self.cache_partition_count,
-            self.block_seq_stride,
-            self.head_count_kv // self.shard_count,
-            self.attn_head_dim,
-        ]
+        # TODO: IREE codegen cannot handle strided gathers properly today.
+        # vector.gather codegen for IREE is simply broken for strided gathers.
+        # This is sad, but to work around it, we flatten the strides into the
+        # gather indices. This is okay, because we aren't exactly linearizing
+        # two indices vectors into one, but only adding strides to it.
+        #
+        # The page table layout is organized as:
+        #   [page_id, attn_layer, cache_partition, page]
+        # Where the cache line can be 0 (k) or 1 (v).
+        #
+        # For a particular attention layer, attn_layer and cache_partition are
+        # fixed, and we are gathering over the page_id dimension. We flatten
+        # page_id, attn_layer, cache_partition into a single dimension, and
+        # gather over it, allowing us to bypass IREE's strided gather codegen.
 
-        # Gather both partitions and split post gather. This is more
-        # computationally efficient without gather fusion:
-        subblock_table = page_table.flatten(start_dim=0, end_dim=1)
-        page_stride = self.pipeline_to_block_count[
-            self.block_to_pipeline_lookup[transformer_block_index]
-        ]
-
-        transformer_block_index = torch.full(
-            (bs, block_seq_len), transformer_block_index, device=self.device
+        # Get strided k/v page ids.
+        k_strided_page_ids = (
+            (page_ids * self.transformer_block_count * self.cache_partition_count)
+            + (transformer_block_index * self.cache_partition_count)
+            + 0
         )
-        subblock_ids = page_ids * page_stride + transformer_block_index
-        selected = ops.index_select(subblock_table, 0, subblock_ids.flatten(0, 1))
+        v_strided_page_ids = (
+            (page_ids * self.transformer_block_count * self.cache_partition_count)
+            + (transformer_block_index * self.cache_partition_count)
+            + 1
+        )
+        strided_page_table = page_table.flatten(0, 2)
 
-        selected = selected.unflatten(0, blocked_shape[:2])
-        key = selected[:, :, 0, :seq_len].flatten(1, 2)[:, :seq_len]
-        value = selected[:, :, 1, :seq_len].flatten(1, 2)[:, :seq_len]
+        # In another world where torch.tensor __getitem__ did not generate
+        # negative indexing checks, we would directly index the tensor, which
+        # is a much better way of indexing into tensors. Maybe one day we will
+        # have a range analysis to remove those checks. But today, we use
+        # inline mlir to generate a gather without the negative indexing checks.
+        key = kv_cache_gather(strided_page_table, k_strided_page_ids)
+        value = kv_cache_gather(strided_page_table, v_strided_page_ids)
+
+        # Unflatten sequence length and block_seq_stride. This is again useless
+        # reshapes that the compiler will eliminate because we don't have an
+        # actual paged attention kernel yet.
+        key = key.flatten(1, 2)
+        value = value.flatten(1, 2)
 
         return key, value
 
