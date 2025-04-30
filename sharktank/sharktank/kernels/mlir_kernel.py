@@ -11,19 +11,13 @@ import logging
 from dataclasses import dataclass
 
 import torch
-import sympy
 from jinja2 import Environment, BaseLoader
 
 from sharktank.kernels.base import *
 from sharktank.types.tensors import dtype_to_serialized_short_name
 from sharktank.utils.logging import get_logger
 from iree.turbine.transforms.merger import Merger
-from iree.turbine.support.ir_imports import (
-    Operation,
-    MLIRError,
-)
-
-DataType = torch.dtype
+from iree.turbine.support.ir_imports import Operation, MLIRError, IrType
 
 logger = get_logger("sharktank.ops")
 _JINJA2_ENVIRONMENT: Optional[Environment] = None
@@ -39,29 +33,39 @@ def _get_jinja2_env() -> Environment:
 @dataclass
 class _Dim:
     dynamic: bool
-    dim: sympy.Symbol
+    name: str
 
 
-class _StaticDim:
+@dataclass
+class _Dtype:
+    name: str
+
+
+class _StaticDimExpando:
     def __getattr__(self, n: str) -> "_Dim":
-        return _Dim(False, sympy.Symbol(n, integer=True, nonnegative=True))
+        return _Dim(False, n)
 
 
-class _DynDim:
+class _DynDimExpando:
     def __getattr__(self, n) -> "_Dim":
-        return _Dim(True, sympy.Symbol(n, integer=True, nonnegative=True))
+        return _Dim(True, n)
+
+
+class _DtypeExpando:
+    def __getattr__(self, n) -> "_Dtype":
+        return _Dtype(n)
 
 
 class MLIRTensor:
     shapes: ClassVar[tuple[_Dim, ...]]
-    dtype: ClassVar[torch.dtype]
+    dtype: ClassVar[_Dtype]
     tensor: Optional[torch.Tensor]
 
     def __init__(self, t: Optional[torch.Tensor] = None):
         self.tensor = t
 
     def __class_getitem__(
-        cls, shape_and_dtype: tuple[_Dim | DataType, ...]
+        cls, shape_and_dtype: tuple[_Dim | _Dtype, ...]
     ) -> Type["MLIRTensor"]:
         """Syntax: `KernelBuffer[shape1, shape2, ..., shapeN, dtype]`"""
 
@@ -73,11 +77,11 @@ class MLIRTensor:
 
         if not all(isinstance(s, _Dim) for s in shape):
             raise TypeError(f"Expected shape to be a tuple of _Dim, got {shape}")
-        if not isinstance(ty, DataType):
-            raise TypeError(f"Expected dtype to be a DataType, got {ty}")
+        if not isinstance(ty, _Dtype):
+            raise TypeError(f"Expected dtype to be a _Dtype, got {ty}")
 
         shape = cast(tuple[_Dim, ...], shape)
-        ty = cast(DataType, ty)
+        ty = cast(_Dtype, ty)
 
         class SubType(cls):
             shapes = shape
@@ -98,7 +102,7 @@ class MLIRSpec:
 def mlir_kernel(
     *, inputs: tuple[type[MLIRTensor], ...], results: tuple[type[MLIRTensor], ...]
 ):
-    def fun(func: Callable[..., MLIRSpec]):
+    def fun(func: Callable[..., MLIRSpec]) -> Callable:
         sig = inspect.signature(func)
         params = sig.parameters
         args = list(params.keys())
@@ -111,7 +115,7 @@ def mlir_kernel(
         input_args = args[: len(inputs)]
         result_args = args[len(inputs) :]
 
-        # Create a sympy dimension mapping to input dimensions
+        # Create a dimension mapping to input dimensions
 
         @CustomOp.register(library=LIBRARY)
         class kernel(CustomOp):
@@ -132,21 +136,30 @@ def mlir_kernel(
                     ]
                     desc.specialize_dims(*static_dims)
 
-                # Create a verifier for static dimensions.
+                # Resolve shape and dtype symbols.
                 dims = {}
+                dtypes = {}
                 for sym_ty, ty in zip(inputs, input_descs):
+                    # Resolve shape symbols.
                     for sym_dim, dim in zip(sym_ty.shapes, ty.t.shape):
-                        if sym_dim.dim in dims:
-                            if not sym_dim.dynamic and dims[sym_dim.dim] != dim:
+                        if sym_dim.name in dims:
+                            if not sym_dim.dynamic and dims[sym_dim.name] != dim:
                                 raise ValueError("Mismatched dim error")
                         else:
-                            dims[sym_dim.dim] = dim
+                            dims[sym_dim.name] = dim
+                    # Resolve dtype symbols.
+                    if sym_ty.dtype.name in dtypes:
+                        if dtypes[sym_ty.dtype.name] != ty.t.dtype:
+                            raise ValueError("Mismatched dtype error")
+                    else:
+                        dtypes[sym_ty.dtype.name] = ty.t.dtype
 
                 # Specialize static dimensions on return type.
                 for sym_ty in results:
-                    resolved_shape = [dims[dim.dim] for dim in sym_ty.shapes]
+                    resolved_shape = [dims[dim.name] for dim in sym_ty.shapes]
+                    resolved_dtype = dtypes[sym_ty.dtype.name]
                     desc = sel.return_new_tensor(
-                        size=resolved_shape, dtype=sym_ty.dtype
+                        size=resolved_shape, dtype=resolved_dtype
                     )
                     static_dims = [
                         i for i, dim in enumerate(sym_ty.shapes) if not dim.dynamic
@@ -158,28 +171,36 @@ def mlir_kernel(
                 input_values = [kb.arg_value(i) for i in range(len(input_args))]
                 input_types = [RankedTensorType(val.type) for val in input_values]
 
-                # Resolve dimensions for type aliasing.
+                # Resolve shape and dtype symbols.
                 dims = {}
+                dtypes = {}
                 for sym_ty, ty in zip(inputs, input_types):
+                    # Resolve shape symbols.
                     for sym_dim, dim in zip(sym_ty.shapes, ty.shape):
                         if sym_dim.dynamic:
                             # For dynamic dimensions, map the dim to None.
                             dim = None
 
-                        if sym_dim.dim in dims:
-                            if dims[sym_dim.dim] != dim:
+                        if sym_dim.name in dims:
+                            if dims[sym_dim.name] != dim:
                                 raise ValueError("Mismatched dim error")
                         else:
-                            dims[sym_dim.dim] = dim
+                            dims[sym_dim.name] = dim
+                    # Resolve dtype symbols.
+                    if sym_ty.dtype.name in dtypes:
+                        if dtypes[sym_ty.dtype.name] != ty.element_type:
+                            raise ValueError("Mismatched dtype error")
+                    else:
+                        dtypes[sym_ty.dtype.name] = ty.element_type
 
                 # Get the MLIR spec.
                 mlir_spec = func(*input_values, *([None] * len(result_args)))
 
                 # Insert type aliases to the mlir_spec.
-                mlir = self._get_type_aliases(dims) + mlir_spec.mlir
+                mlir = self._get_type_aliases(dims, dtypes) + mlir_spec.mlir
 
-                # Generate kernel name
-                kernel_name = self._get_kernel_name(func.__name__, dims)
+                # Generate kernel name.
+                kernel_name = self._get_kernel_name(func.__name__, dims, dtypes)
 
                 # Generate the MLIR spec using jinja.
                 asm = (
@@ -211,28 +232,33 @@ def mlir_kernel(
                 symbol_name = kb.symbol_table[kernel_name]
                 kb.yield_results(*call_function(symbol_name, *kb.arg_bindings))
 
-            def _get_type_aliases(self, dims: Dict[sympy.Symbol, Optional[int]]) -> str:
+            def _get_type_aliases(
+                self, dims: Dict[str, Optional[int]], dtypes: Dict[str, IrType]
+            ) -> str:
                 aliases = ""
                 for arg, sym_ty in zip(input_args, inputs):
                     mlir_shapes = [
-                        "?" if dims[dim.dim] == None else str(dims[dim.dim])
+                        "?" if dims[dim.name] == None else str(dims[dim.name])
                         for dim in sym_ty.shapes
                     ]
-                    dtype = dtype_to_serialized_short_name(sym_ty.dtype)
+                    dtype = dtypes[sym_ty.dtype.name]
                     aliases += f'!{arg} = tensor<{"x".join(mlir_shapes)}x{dtype}>\n'
                     aliases += f"!{arg}_dtype = {dtype}\n"
                 for arg, sym_ty in zip(result_args, results):
                     mlir_shapes = [
-                        "?" if dims[dim.dim] == None else str(dims[dim.dim])
+                        "?" if dims[dim.name] == None else str(dims[dim.name])
                         for dim in sym_ty.shapes
                     ]
-                    dtype = dtype_to_serialized_short_name(sym_ty.dtype)
+                    dtype = dtypes[sym_ty.dtype.name]
                     aliases += f'!{arg} = tensor<{"x".join(mlir_shapes)}x{dtype}>\n'
                     aliases += f"!{arg}_dtype = {dtype}\n"
                 return aliases
 
             def _get_kernel_name(
-                self, prefix: str, dims: Dict[sympy.Symbol, Optional[int]]
+                self,
+                prefix: str,
+                dims: Dict[str, Optional[int]],
+                dtypes: Dict[str, IrType],
             ) -> str:
                 kernel_name = prefix
 
@@ -242,14 +268,12 @@ def mlir_kernel(
                 for sym_ty in inputs:
                     input_dims = []
                     for sym_dim in sym_ty.shapes:
-                        input_dim = sym_dim.dim.name
+                        input_dim = sym_dim.name
                         if not sym_dim.dynamic:
-                            input_dim += f"_{dims[sym_dim.dim]}"
+                            input_dim += f"_{dims[sym_dim.name]}"
                         input_dims.append(input_dim)
                     input_name = (
-                        "_".join(input_dims)
-                        + "_"
-                        + dtype_to_serialized_short_name(sym_ty.dtype)
+                        "_".join(input_dims) + "_" + str(dtypes[sym_ty.dtype.name])
                     )
                     input_names.append(input_name)
                 kernel_name += "_".join(input_names)
@@ -260,14 +284,12 @@ def mlir_kernel(
                 for sym_ty in results:
                     result_dims = []
                     for sym_dim in sym_ty.shapes:
-                        result_dim = sym_dim.dim.name
+                        result_dim = sym_dim.name
                         if not sym_dim.dynamic:
-                            result_dim += f"_{dims[sym_dim.dim]}"
+                            result_dim += f"_{dims[sym_dim.name]}"
                         result_dims.append(result_dim)
                     result_name = (
-                        "_".join(result_dims)
-                        + "_"
-                        + dtype_to_serialized_short_name(sym_ty.dtype)
+                        "_".join(result_dims) + "_" + str(dtypes[sym_ty.dtype.name])
                     )
                     result_names.append(result_name)
                 kernel_name += "_".join(result_names)
@@ -279,7 +301,8 @@ def mlir_kernel(
     return fun
 
 
-StaticDim = _StaticDim()
-DynDim = _DynDim()
+StaticDim = _StaticDimExpando()
+DynDim = _DynDimExpando()
+Dtype = _DtypeExpando()
 
-__all__ = ["StaticDim", "DynDim", "MLIRTensor", "mlir_kernel", "MLIRSpec"]
+__all__ = ["StaticDim", "DynDim", "Dtype", "MLIRTensor", "mlir_kernel", "MLIRSpec"]
