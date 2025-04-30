@@ -433,6 +433,18 @@ def split_elementwise_binary(
     )
 
 
+@einsum_2args.override(AllOfType(ReplicatedTensor))
+def einsum_2args_replicated(
+    input0: ReplicatedTensor, input1: ReplicatedTensor, einsum_str: str
+) -> ReplicatedTensor:
+    assert input0.shard_count == input1.shard_count
+    shards = [
+        einsum_2args(input0_shard, input1_shard, einsum_str)
+        for input0_shard, input1_shard in zip(input0.shards, input1.shards)
+    ]
+    return ReplicatedTensor(ts=shards)
+
+
 @elementwise.override(SplitPrimitiveTensor, Number)
 def elementwise_binary_split_lhs_scalar_rhs(
     operator, x: SplitPrimitiveTensor, y: Number, *args, **kwargs
@@ -831,6 +843,34 @@ for types in itertools.product([Tensor, ShardedTensor], repeat=3):
 for types in itertools.product([Tensor, ShardedTensor], repeat=2):
     if tuple(types) != (Tensor,) * 2:
         linear.override(*types, auto_dequant=True)(linear_sharded)
+
+
+@masked_fill.override(AllOfType(ReplicatedTensor))
+def masked_fill_replicated(
+    tensor: ReplicatedTensor,
+    mask: ReplicatedTensor,
+    value: Number,
+) -> ReplicatedTensor:
+    assert tensor.shard_count == mask.shard_count
+    shards = [
+        shard.masked_fill(mask_shard, value)
+        for shard, mask_shard in zip(tensor.shards, mask.shards)
+    ]
+    return ReplicatedTensor(ts=shards)
+
+
+@masked_fill.override(AllOfType(SplitPrimitiveTensor))
+def masked_fill_split(
+    tensor: SplitPrimitiveTensor,
+    mask: SplitPrimitiveTensor,
+    value: Number,
+) -> SplitPrimitiveTensor:
+    assert tensor.shard_count == mask.shard_count
+    shards = [
+        shard.masked_fill(mask_shard, value)
+        for shard, mask_shard in zip(tensor.shards, mask.shards)
+    ]
+    return SplitPrimitiveTensor(ts=shards, shard_dim=tensor.shard_dim)
 
 
 # Sharded matmuls.

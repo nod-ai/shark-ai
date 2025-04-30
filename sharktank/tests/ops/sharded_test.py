@@ -892,6 +892,37 @@ class AttentionTest(unittest.TestCase):
         torch.testing.assert_close(unsharded_result, expected_result)
 
 
+class MaskedFillTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(0)
+
+    @parameterized.expand((([3, 4, 5],), ([1, 4, 5],), ([1, 1, 5],), ([1, 1, 1],)))
+    def testMaskedFillReplicatedReplicated(self, mask_shape: list[int]):
+        tensor = torch.zeros(3, 4, 5, dtype=torch.float32)
+        mask = torch.rand(mask_shape) > 0.5
+        value = 1
+        expected_result = tensor.masked_fill(mask, value)
+
+        sharded_tensor = ops.replicate(tensor, count=2)
+        sharded_mask = ops.replicate(mask, count=2)
+        actual_result = ops.masked_fill(sharded_tensor, sharded_mask, value)
+
+        assert ops.equal(expected_result, actual_result)
+
+    @parameterized.expand((([3, 4, 5],), ([1, 4, 5],)))
+    def testMaskedFillSplitSplit(self, mask_shape: list[int]):
+        tensor = torch.zeros(3, 4, 5, dtype=torch.float32)
+        mask = torch.rand(mask_shape) > 0.5
+        value = 1
+        expected_result = tensor.masked_fill(mask, value)
+
+        sharded_tensor = SplitPrimitiveTensor(ts=tensor.split(2, dim=1), shard_dim=1)
+        sharded_mask = SplitPrimitiveTensor(ts=mask.split(2, dim=1), shard_dim=1)
+        actual_result = ops.masked_fill(sharded_tensor, sharded_mask, value)
+
+        assert ops.equal(expected_result, actual_result)
+
+
 class MatmulTest(unittest.TestCase):
     def testTorchRHSColumnShardedTransposed(self):
         t1 = torch.rand(4, 32, 16, dtype=torch.float32)

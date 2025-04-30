@@ -49,6 +49,7 @@ __all__ = [
     "index_select",
     "interpolate",
     "linear",
+    "masked_fill",
     "matmul",
     "mean",
     "module_register_buffer",
@@ -670,6 +671,28 @@ def _linear_trampoline(
     tensors = (input, weight) if bias is None else (input, weight, bias)
     for override in d.find_overrides(tensors):
         result = override(input, weight, bias, accum_dtype=accum_dtype)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
+
+
+@overridable
+def masked_fill(input: AnyTensor, mask: AnyTensor, value: Number) -> AnyTensor:
+    """See torch.masked_fill"""
+    ...
+
+
+@masked_fill.trampoline
+def _masked_fill_trampoline(
+    d: SignatureDispatcher,
+    input: AnyTensor,
+    mask: AnyTensor,
+    value: Number,
+) -> AnyTensor:
+    tensors = (input, mask)
+    for override in d.find_overrides(tensors):
+        result = override(input, mask, value)
         if result is not NotImplemented:
             return override, result
     else:
