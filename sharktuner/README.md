@@ -60,7 +60,7 @@ pip install -r requirements-dev.txt
 #### Using nightly IREE's Python bindings:
 
 ```shell
-pip install -r ../requirements-iree-unpinned.txt
+pip install --upgrade -r ../requirements-iree-unpinned.txt
 ```
 
 ## Examples
