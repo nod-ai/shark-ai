@@ -26,7 +26,7 @@ from sharktank.types import (
     UnreducedTensor,
 )
 from sharktank.types.tensors import unbox_tensor
-from ._registry import AllOfType, AllOfExprsVariadic, IsOfType
+from ._registry import AllOfType, AllOfExprsVariadic, AnyOfType, IsOfType
 from .shape import broadcast_dims, broadcast_dim, unbroadcast_dim
 from sharktank.utils import longest_equal_range
 from .signatures import *
@@ -1407,6 +1407,90 @@ def reshard_like_unreduced_to_replicated(
     return replicate(tensor, count=like.shard_count)
 
 
+@scatter_.override(ReplicatedTensor, ReplicatedTensor)
+def scatter_replicated_replicated(
+    inout: ReplicatedTensor,
+    dim: int,
+    index: ReplicatedTensor,
+    value: Number,
+    *,
+    reduce: str = None,
+) -> ReplicatedTensor:
+    assert isinstance(value, Number), "Tensor version of this op not implemented"
+    assert inout.shard_count == index.shard_count
+    for shard, index_shard in zip(inout.shards, index.shards):
+        scatter_(shard, dim, index_shard, value, reduce=reduce)
+    return inout
+
+
+@scatter_.override(SplitPrimitiveTensor, SplitPrimitiveTensor)
+def scatter_split_split(
+    inout: SplitPrimitiveTensor,
+    dim: int,
+    index: SplitPrimitiveTensor,
+    value: Number,
+    *,
+    reduce: str = None,
+) -> SplitPrimitiveTensor:
+    assert isinstance(value, Number), "Tensor version of this op not implemented"
+    if dim == inout.shard_dim:
+        # `index` can contain indices into any of `inout`s shards in any of its entries.
+        # Can't know ahead of time how to seperate out its values based on sliices.
+        tmp_tensor = all_gather(inout)
+        index = all_gather(index)
+        tmp_tensor.scatter_(dim, index, value, reduce=reduce)
+        tmp_tensor = reshard_like(tmp_tensor, inout)
+
+        for inout_shard, tmp_shard in zip(inout.shards, tmp_tensor.shards):
+            inout_shard.as_torch().copy_(tmp_shard.as_torch())
+        return inout
+
+    shard_dim = inout.shard_dim
+    if index.shape[shard_dim] == inout.shape[shard_dim]:
+        assert index.shard_dim == inout.shard_dim
+        index_shards = index.shards
+        last_shard_idx = inout.shard_count - 1
+    else:
+        # If the shapes are not the same it means that:
+        #   1. Not all slices along dim inside `inout` will be accessed (so we can decrease computation)
+        #   2. Slices indo shards of `index` and `inout` will not line up,
+        #      i.e. The slice index_shard_i[j] will not match up to inout_shard_i[j]
+        index = all_gather(index)
+
+        # Find the last shard of `inout` that will be accessed.
+        slice_indices_inout = [shard.shape[shard_dim] for shard in inout.shards]
+        cumulative_slice_idx = list(itertools.accumulate(slice_indices_inout))
+        final_slice_idx = index.shards[0].shape[shard_dim]  # Replicated, all the same
+        last_shard_idx = max(
+            i for i, val in enumerate(cumulative_slice_idx) if val <= final_slice_idx
+        )
+
+        # Manually re-shard and re-scatter index
+        # NOTE: index may not have the same number of shards as inout.
+        size_along_shard_dim = []
+        num_slices_left = final_slice_idx
+        for i in range(last_shard_idx + 1):
+            size_along_shard_dim.append(min(num_slices_left, slice_indices_inout[i]))
+            num_slices_left -= size_along_shard_dim[-1]
+        assert num_slices_left == 0
+        index_shards = unbox_tensor(index).split(size_along_shard_dim, dim=shard_dim)
+        index_shards = [
+            transfer_to_logical_device(shard, index.devices[i])
+            for i, shard in enumerate(index_shards)
+        ]
+        assert len(index_shards) == last_shard_idx + 1
+
+    for i in range(last_shard_idx + 1):
+        inout.shards[i].scatter_(
+            dim,
+            unbox_tensor(index_shards[i]),
+            value,
+            reduce=reduce,
+        )
+
+    return inout
+
+
 @sharded_cat.override(SplitPrimitiveTensor)
 def sharded_cat_unsharded(tensor: SplitPrimitiveTensor):
     shard_ts = [
@@ -1546,7 +1630,9 @@ def topk_replicated(
 @topk.override(SplitPrimitiveTensor)
 def topk_split(
     input: SplitPrimitiveTensor, k: int, dim: int, largest: bool, sorted: bool
-) -> tuple[SplitPrimitiveTensor, SplitPrimitiveTensor]:
+) -> tuple[
+    SplitPrimitiveTensor | ReplicatedTensor, SplitPrimitiveTensor | ReplicatedTensor
+]:
     if dim != input.shard_dim:
         values, indices = zip(
             *(
@@ -1561,25 +1647,11 @@ def topk_split(
         # TODO: Implement more efficient version which does a
         #       topk on each shard before transferring and then adjusts
         #       the indices.
-        gathered = cat(
-            [
-                (
-                    transfer_to_logical_device(shard, input.devices[0])
-                    if i != 0
-                    else barrier_on_logical_device(shard, input.devices[0])
-                )
-                for i, shard in enumerate(input.shards)
-            ],
-            dim=input.shard_dim,
-        )
+        gathered = sharded_cat(input)
         values, indices = topk(gathered, k=k, dim=dim, largest=largest, sorted=sorted)
-        values_split = SplitPrimitiveTensor(
-            ts=values, shard_count=input.shard_count, shard_dim=input.shard_dim
-        )
-        indices_split = SplitPrimitiveTensor(
-            ts=indices, shard_count=input.shard_count, shard_dim=input.shard_dim
-        )
-        return values_split, indices_split
+        values = replicate(values, count=input.shard_count, devices=input.devices)
+        indices = replicate(indices, count=input.shard_count, devices=input.devices)
+        return values, indices
 
 
 @transpose.override(ReplicatedTensor)
@@ -1932,6 +2004,30 @@ def view_as_real_split(tensor: SplitPrimitiveTensor) -> SplitPrimitiveTensor:
 def view_as_real_rep(tensor: ReplicatedTensor) -> ReplicatedTensor:
     shards = [view_as_real(shard) for shard in tensor.shards]
     return ReplicatedTensor(ts=shards)
+
+
+@zeros_like.override(AllOfType(ReplicatedTensor, SplitPrimitiveTensor))
+def zeros_like_replicated(
+    tensor: ReplicatedTensor | SplitPrimitiveTensor,
+    *,
+    dtype: torch.dtype | None,
+    layout: torch.layout | None,
+    device: torch.device | None,
+    requires_grad: bool,
+    memory_format: torch.memory_format,
+) -> ReplicatedTensor | SplitPrimitiveTensor:
+    shards = [
+        zeros_like(
+            shard,
+            dtype=dtype,
+            layout=layout,
+            device=device,
+            requires_grad=requires_grad,
+            memory_format=memory_format,
+        )
+        for shard in tensor.shards
+    ]
+    return tensor.clone(ts=shards)
 
 
 # Note: Must be last thing in file

@@ -1,5 +1,0 @@
-pytest==8.2.2
-tqdm==4.66.4
-z3_solver==4.13.0.0
-types-tqdm==4.66.0.20240417
-numpy==2.2.4

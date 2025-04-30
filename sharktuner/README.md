@@ -16,7 +16,7 @@ source .venv/bin/activate
 ### Install python dependencies:
 
 ```shell
-pip install -r requirements-tuner.txt
+pip install -r requirements.txt
 pip install -r requirements-dev.txt
 ```
 

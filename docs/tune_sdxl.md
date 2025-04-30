@@ -160,7 +160,7 @@ Run commands:
 
 ```
 cd shark-ai/sharktuner
-pip install -r requirements-tuner.txt
+pip install -r requirements.txt
 pip install -r requirements-dev.txt
 ```
 

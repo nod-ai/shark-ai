@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 """
-Usage: python -m pytest candidate_gen_test.py
+Usage: python -m pytest dispatch_constraints_test.py
 """
 
 import pytest
@@ -16,10 +16,10 @@ from typing import Generator
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_gpu, iree_codegen  # type: ignore
 
-from . import common
-from . import dispatch_constraints
+from sharktuner import common
+from sharktuner import dispatch_constraints
 
-from .test_utils import tuner_ctx
+from sharktuner.test_utils import tuner_ctx
 
 
 def test_generate_solutions(tuner_ctx: common.TunerContext) -> None:
@@ -49,6 +49,49 @@ def test_generate_solutions(tuner_ctx: common.TunerContext) -> None:
     )
 
     assert configs is not None
+
+
+def test_generate_solutions_tile_and_fuse(tuner_ctx: common.TunerContext) -> None:
+    matmul_size = common.ContractionSizes([5369], [112], [112])
+    contraction_dims = common.ContractionDimensions([0], [1], [2])
+    lhs_type = common.ShapedType([5369, 112], tuner_ctx.type.f16)
+    rhs_type = common.ShapedType([112, 112], tuner_ctx.type.f16)
+    res_type = common.ShapedType([5369, 112], tuner_ctx.type.f32)
+    problem_size = common.ProblemSize(
+        matmul_size,
+        lhs_type,
+        rhs_type,
+        res_type,
+        common.DispatchKind.contraction,
+        contraction_dims,
+    )
+
+    mma_intrinsics = [
+        iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
+    ]
+
+    solutions = list(
+        dispatch_constraints.generate_solutions(
+            tuner_ctx=tuner_ctx,
+            problem_size=problem_size,
+            num_subgrups=4,
+            mma_intrinsics=mma_intrinsics,
+            allowed_waves_per_eu=[2],
+            pipeline_options_search_space=dispatch_constraints.PipelineOptionsSearchSpace(),
+            codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
+        )
+    )
+
+    assert len(solutions) > 0, "No solutions generated with TileAndFuse pipeline."
+    assert all(isinstance(sol, iree_codegen.CompilationInfoAttr) for sol in solutions)
+    assert all(
+        "padding =" in str(sol.lowering_config) for sol in solutions
+    ), "Not all lowering configs have padding option"
+    assert all(
+        [int(x) for x in sol.lowering_config.attributes["promote_operands"]]
+        == [0, 1, 2]
+        for sol in solutions
+    ), "Not all lowering configs have promote_operands = [0, 1, 2]"
 
 
 def test_calculate_shared_memory_usage_in_bytes(tuner_ctx: common.TunerContext) -> None:
