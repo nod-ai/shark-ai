@@ -51,7 +51,9 @@ class MoeBlock(ThetaLayer):
         self.ffn_norm = torch.nn.Identity()
         self.layer_output_norm = torch.nn.Identity()
         self.shared_experts = None
-        self.route_scale = route_scale if route_scale > 1 else None
+        self.route_scale = None
+        if route_scale is not None and route_scale != 1:
+            self.route_scale = route_scale
 
         # Add FFN norm
         if "ffn_norm" in theta:

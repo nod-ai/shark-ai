@@ -27,7 +27,7 @@ class FFN(ThetaLayer):
         theta: Theta,
         rms_epsilon: float | None = None,
         is_gated: bool = True,
-        activation_fn: Callable[[AnyTensor], AnyTensor] = F.silu,
+        activation_fn: Callable[[torch.Tensor], torch.Tensor] = F.silu,
         activation_dtype: Optional[torch.dtype] = torch.float16,
         fake_quant: bool = False,
         add_residual: bool = True,

@@ -86,8 +86,8 @@ class MoeBlockTest(unittest.TestCase):
             ),
             param(
                 dtype=torch.float32,
-                feature_dim=1,
-                expert_hidden_dim=1,
+                feature_dim=2,
+                expert_hidden_dim=3,
                 num_experts=3,
                 expert_used_count=2,
                 num_shared_experts=2,
@@ -96,9 +96,9 @@ class MoeBlockTest(unittest.TestCase):
                 sequence_length=3,
                 rms_epsilon=0.03,
                 moe_activation_fn=torch.nn.functional.gelu,
-                score_experts_fn=torch.nn.functional.relu,
+                score_experts_fn=torch.nn.functional.softmax,
                 normalize_experts=True,
-                add_residual=False,
+                add_residual=True,
                 route_scale=3.21,
             ),
             param(
@@ -114,9 +114,9 @@ class MoeBlockTest(unittest.TestCase):
                 rms_epsilon=0.01,
                 moe_activation_fn=torch.nn.functional.silu,
                 score_experts_fn=torch.nn.functional.sigmoid,
-                normalize_experts=True,
+                normalize_experts=False,
                 add_residual=False,
-                route_scale=1.5,
+                route_scale=None,
             ),
         ]
     )

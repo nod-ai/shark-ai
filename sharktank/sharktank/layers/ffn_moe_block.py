@@ -14,6 +14,7 @@ from .linear import LinearLayer
 from . import FFN
 from sharktank.types import AnyTensor, DefaultPrimitiveTensor, Theta
 from sharktank.ops import einsum_2args, elementwise
+from sharktank import ops
 
 __all__ = [
     "DenseFFNMOE",
@@ -91,7 +92,7 @@ class DenseFFNMOE(ThetaLayer):
         theta: Theta,
         rms_epsilon: float | None = None,
         is_gated: bool = True,
-        activation_fn: Callable[[AnyTensor], AnyTensor] = F.silu,
+        activation_fn: Callable[[torch.Tensor], torch.Tensor] = F.silu,
         activation_dtype: Optional[torch.dtype] = None,
         fake_quant: bool = False,
     ):
@@ -154,7 +155,7 @@ class DenseFFNMOE(ThetaLayer):
         router_indices = router_indices.reshape(-1, 1).expand(-1, input_feature_dim)
 
         # (self.num_experts * num_tokens, input_feature_dim)
-        routed_in = torch.gather(
+        routed_in = ops.gather(
             input=h,
             dim=0,
             index=router_indices,
@@ -169,7 +170,7 @@ class DenseFFNMOE(ThetaLayer):
         routed_out = routed_out * router_scores.reshape(-1, 1)
 
         # (num_tokens, input_feature_dim)
-        return torch.zeros_like(h).scatter_add(
+        return ops.zeros_like(h).scatter_add(
             dim=0, index=router_indices, src=routed_out
         )
 
