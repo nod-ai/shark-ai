@@ -1126,19 +1126,33 @@ def mean_split(
         ]
         return SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim_new)
     else:
-        gathered = cat(
-            [
-                (
-                    transfer_to_logical_device(shard, x.devices[0])
-                    if i != 0
-                    else barrier_on_logical_device(shard, x.devices[0])
-                )
-                for i, shard in enumerate(x.shards)
-            ],
-            dim=x.shard_dim,
+        partial_sums = [
+            torch.sum(unbox_tensor(sh), dim=dim, keepdim=keepdim, dtype=dtype)
+            for sh in x.shards
+        ]
+        partial_cnts = [
+            torch.tensor(
+                math.prod(unbox_tensor(sh).shape[d] for d in dim),
+                device=unbox_tensor(sh).device,
+                dtype=dtype,
+            )
+            for sh in x.shards
+        ]
+
+        sums_on_hub = [barrier_on_logical_device(partial_sums[0], x.devices[0])] + [
+            transfer_to_logical_device(ps, x.devices[0]) for ps in partial_sums[1:]
+        ]
+        cnts_on_hub = [barrier_on_logical_device(partial_cnts[0], x.devices[0])] + [
+            transfer_to_logical_device(ct, x.devices[0]) for ct in partial_cnts[1:]
+        ]
+
+        global_sum = torch.stack(sums_on_hub).sum(dim=0)
+        global_cnt = torch.stack(cnts_on_hub).sum(dim=0)
+        global_mean = global_sum / global_cnt
+
+        return ReplicatedTensor(
+            ts=global_mean, shard_count=x.shard_count, devices=x.devices
         )
-        meaned = mean(gathered, dim=dim, keepdim=keepdim, dtype=dtype)
-        return ReplicatedTensor(ts=meaned, shard_count=x.shard_count, devices=x.devices)
 
 
 @module_register_buffer.override(torch.nn.Module, ShardedTensor)
