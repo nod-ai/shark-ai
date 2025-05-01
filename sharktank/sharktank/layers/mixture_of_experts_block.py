@@ -33,6 +33,7 @@ class MoeBlock(ThetaLayer):
         rms_epsilon: float,
         moe_activation=torch.nn.functional.silu,
         *,
+        experts_ffn_moe_block: PreGatherFFNMOE | DenseFFNMOE | str = "DenseFFNMOE",
         score_experts=softmax,
         normalize_experts=True,
         add_residual=True,
@@ -56,6 +57,19 @@ class MoeBlock(ThetaLayer):
         if "ffn_norm" in theta:
             self.ffn_norm = RMSNormLayer(theta("ffn_norm"), epsilon=rms_epsilon)
 
+        # Add expert_count x FFN
+        if isinstance(experts_ffn_moe_block, str):
+            if experts_ffn_moe_block == "PreGatherFFNMOE":
+                self.experts = PreGatherFFNMOE(theta, activation=moe_activation)
+            elif experts_ffn_moe_block == "DenseFFNMOE":
+                self.experts = DenseFFNMOE(theta, activation_fn=moe_activation)
+            else:
+                raise ValueError(
+                    f'Unknown experts_ffn_moe_block "{experts_ffn_moe_block}"'
+                )
+        else:
+            self.experts = experts_ffn_moe_block
+
         if "shared_experts" in theta:
             self.shared_experts = FFN(theta("shared_experts"))
 
@@ -64,9 +78,6 @@ class MoeBlock(ThetaLayer):
             self.layer_output_norm = RMSNormLayer(
                 theta("layer_output_norm"), epsilon=rms_epsilon
             )
-
-        # Add expert_count x FFN
-        self.experts = PreGatherFFNMOE(theta, activation=moe_activation)
 
     def forward(
         self,
