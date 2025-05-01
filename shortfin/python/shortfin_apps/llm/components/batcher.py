@@ -455,8 +455,8 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         #    seq_block_ids: [bs, blocks]
         #    cache_slabs: ...
         args = [tokens, seq_lens, seq_block_ids]
-        for page_table in self.page_tables:
-            args.append(sfnp.disable_barrier(page_table))
+        page_table=self.page_tables[0]
+        args.append(sfnp.disable_barrier(page_table))
 
         return args, req_count
 
@@ -576,8 +576,8 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         #    seq_block_ids: [bs, blocks]
         #    cache_slabs: ...
         args = [tokens, seq_lens, start_positions, seq_block_ids]
-        for page_table in self.page_tables:
-            args.append(sfnp.disable_barrier(page_table))
+        page_table=self.page_tables[0]
+        args.append(sfnp.disable_barrier(page_table))
 
         return args, req_count
 
