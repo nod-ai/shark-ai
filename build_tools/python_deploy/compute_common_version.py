@@ -37,6 +37,7 @@ THIS_DIR = Path(__file__).parent
 REPO_ROOT = THIS_DIR.parent.parent
 
 VERSION_FILE_SHARKTANK_PATH = REPO_ROOT / "sharktank/version.json"
+VERSION_FILE_SHARKTUNER_PATH = REPO_ROOT / "sharktuner/version.json"
 VERSION_FILE_SHORTFIN_PATH = REPO_ROOT / "shortfin/version.json"
 VERSION_FILE_LOCAL_PATH = REPO_ROOT / "shark-ai/version_local.json"
 
@@ -56,14 +57,20 @@ sharktank_version = load_version_info(VERSION_FILE_SHARKTANK_PATH)
 sharktank_package_version = sharktank_version.get("package-version")
 sharktank_base_version = Version(sharktank_package_version).base_version
 
+sharktuner_version = load_version_info(VERSION_FILE_SHARKTUNER_PATH)
+sharktuner_package_version = sharktuner_version.get("package-version")
+sharktuner_base_version = Version(sharktuner_package_version).base_version
+
 shortfin_version = load_version_info(VERSION_FILE_SHORTFIN_PATH)
 shortfin_package_version = shortfin_version.get("package-version")
 shortfin_base_version = Version(shortfin_package_version).base_version
 
-if sharktank_base_version > shortfin_base_version:
+common_version = shortfin_base_version
+if sharktank_base_version > common_version:
     common_version = sharktank_base_version
-else:
-    common_version = shortfin_base_version
+
+if sharktuner_base_version > common_version:
+    common_version = sharktuner_base_version
 
 if args.nightly_release:
     common_version += "rc" + datetime.today().strftime("%Y%m%d")

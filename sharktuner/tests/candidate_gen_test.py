@@ -17,10 +17,10 @@ from iree.compiler.dialects import iree_gpu  # type: ignore
 from iree.compiler.dialects import iree_codegen  # type: ignore
 from iree.compiler.dialects import transform  # type: ignore
 
-from . import candidate_gen
-from . import common
+from sharktuner import candidate_gen
+from sharktuner import common
 
-from .test_utils import tuner_ctx
+from sharktuner.test_utils import tuner_ctx
 
 
 def walk_collect_ops(

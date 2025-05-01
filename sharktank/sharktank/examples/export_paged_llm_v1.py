@@ -59,11 +59,17 @@ def main():
     dataset_type = "irpa" if "irpa" in dataset_type else "gguf"
     dataset = cli.get_input_dataset(args)
     hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
-    tensor_parallelism_size = (
-        dataset.properties["tensor_parallelism_size"]
-        if "tensor_parallelism_size" in dataset.properties
-        else args.tensor_parallelism_size
-    )
+    if "tensor_parallelism_size" in dataset.properties:
+        dataset_tensor_parallelism_size = dataset.properties["tensor_parallelism_size"]
+        if dataset_tensor_parallelism_size != args.tensor_parallelism_size:
+            raise ValueError(
+                f"Tensor parallelism size mismatch: dataset={dataset_tensor_parallelism_size} while arg={args.tensor_parallelism_size}. Wrong value for --tensor-parallelism-size."
+            )
+    else:
+        if args.tensor_parallelism_size != 1:
+            raise ValueError(
+                f"Unsharded dataset file provided, but specified --tensor-parallelism-size={args.tensor_parallelism_size}. Likely wrong dataset provided."
+            )
 
     if args.pipeline_parallelism_size > 1:
         block_to_device_lookup = pipeline_parallelize_theta(
@@ -76,7 +82,7 @@ def main():
 
     llama_config = LlamaModelConfig(
         hp,
-        tensor_parallelism_size=tensor_parallelism_size,
+        tensor_parallelism_size=args.tensor_parallelism_size,
         pipeline_parallelism_size=args.pipeline_parallelism_size,
         block_to_device_lookup=block_to_device_lookup,
         use_hf=args.use_hf,
@@ -104,6 +110,12 @@ def main():
         For shortfin, we only write attention_head_count_kv because that's all shortfin needs.
         Note that this is different from hp.attn_head_count when grouped attention shares kvcache between heads.
         """
+        kv_cache_dtype = (
+            str(llama_config.kv_cache_dtype).split(".")[-1]
+            if llama_config.kv_cache_dtype is not None
+            else str(llama_config.attention_dtype).split(".")[-1]
+        )
+
         return {
             "module_name": "module",
             "module_abi_version": 1,
@@ -113,10 +125,12 @@ def main():
             "decode_batch_sizes": decode_bs,
             "transformer_block_count": hp.block_count,
             "logits_normalization": logits_normalization,
+            "top_k": args.top_k,
             "paged_kv_cache": {
                 "attention_head_count_kv": hp.attention_head_count_kv,
                 "block_seq_stride": llama_config.block_seq_stride,
                 "device_block_count": args.device_block_count,  # so that this makes its way into the config file & can be edited.
+                "kv_cache_dtype": kv_cache_dtype,
             },
         }
 
@@ -420,12 +434,40 @@ def main():
 
             return logits
 
+    def generate_argmax():
+        logits: torch.Tensor = torch.empty(
+            1,
+            1,
+            hp.context_length,
+            dtype=llama_config.activation_dtype,
+        )
+
+        arg_affinities = [DeviceAffinity("0")]
+
+        @fxb.export_program(
+            name="argmax",
+            args=(logits,),
+            dynamic_shapes={},
+            strict=args.strict,
+            arg_device=arg_affinities,
+        )
+        def _(
+            _,
+            logits=logits,
+            axis=-1,
+        ):
+            return ops.argmax(logits, axis)
+
     if not args.skip_prefill:
         for bs in args.bs_prefill:
             generate_batch_prefill(bs)
     if not args.skip_decode:
         for bs in args.bs_decode:
             generate_batch_decode(bs)
+
+    if args.top_k is not None:
+        if args.top_k == 1:
+            generate_argmax()
 
     config = generate_params_json(
         hp, args.bs_prefill, args.bs_decode, args.logits_normalization

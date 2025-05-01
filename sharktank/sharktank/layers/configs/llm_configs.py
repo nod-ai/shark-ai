@@ -14,7 +14,7 @@ When in question, we draw from the vocabulary and normalization they have done
 (and indeed, can bootstrap these off of GGUF files).
 """
 
-from typing import TYPE_CHECKING, ClassVar, Any, Optional
+from typing import TYPE_CHECKING, ClassVar, Any, Optional, List
 from os import PathLike
 from dataclasses import asdict, dataclass, field, fields
 import torch

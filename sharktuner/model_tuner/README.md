@@ -1,9 +1,9 @@
-# Simple Example Tuner
+# Getting Started with Model Tuner
 
-Example of tuning a dispatch and a full model.
+Example of tuning a dispatch and a full model using `model_tuner`
 
 ## Environments
-Follow instructions in [`/sharktuner/README.md`](../../README.md)
+Follow instructions in [`/sharktuner/README.md`](../README.md)
 
 ## Running the Tuner
 
@@ -28,13 +28,13 @@ cp tmp/dump/module_main_dispatch_0_rocm_hsaco_fb_benchmark.mlir tmp/mmt_benchmar
 For an initial trial to test the tuning loop, use following command:
 
 ```shell
-cd ../../
+cd ../
 python -m model_tuner model_tuner/double_mmt.mlir \
     model_tuner/tmp/mmt_benchmark.mlir \
     --compile-flags-file=model_tuner/compile_flags.txt \
     --model-benchmark-flags-file=model_tuner/model_benchmark_flags.txt \
     --devices=hip://0 --num-candidates=30 \
-    --model-tuner-num-dispatch-candidates=5 --model-tuner-num-model-candidates=3 \
+    --model-tuner-num-dispatch-candidates=5 --model-tuner-num-model-candidates=3
 ```
 
 [!TIP]

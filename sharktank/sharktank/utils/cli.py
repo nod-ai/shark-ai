@@ -136,6 +136,12 @@ def add_model_options(parser: argparse.ArgumentParser):
         help="Generates attention mask during export",
         action="store_true",
     )
+    parser.add_argument(
+        "--top-k",
+        help="Export with a `top_k` kernel. If `top_k` == 1, argmax is exported.",
+        type=int,
+        default=None,
+    )
 
 
 def add_model_input_options(parser: argparse.ArgumentParser):

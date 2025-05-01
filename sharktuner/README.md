@@ -16,7 +16,7 @@ source .venv/bin/activate
 ### Install python dependencies:
 
 ```shell
-pip install -r requirements-tuner.txt
+pip install -r requirements.txt
 pip install -r requirements-dev.txt
 ```
 
@@ -60,7 +60,7 @@ pip install -r requirements-dev.txt
 #### Using nightly IREE's Python bindings:
 
 ```shell
-pip install -r ../requirements-iree-unpinned.txt
+pip install --upgrade -r ../requirements-iree-unpinned.txt
 ```
 
 ## Examples
