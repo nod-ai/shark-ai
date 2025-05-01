@@ -59,11 +59,18 @@ def main():
     dataset_type = "irpa" if "irpa" in dataset_type else "gguf"
     dataset = cli.get_input_dataset(args)
     hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
-    tensor_parallelism_size = (
-        dataset.properties["tensor_parallelism_size"]
-        if "tensor_parallelism_size" in dataset.properties
-        else args.tensor_parallelism_size
-    )
+    if "tensor_parallelism_size" in dataset.properties:
+        dataset_tensor_parallelism_size = dataset.properties["tensor_parallelism_size"]
+        if dataset_tensor_parallelism_size != args.tensor_parallelism_size:
+            raise ValueError(
+                f"Tensor parallelism size mismatch: dataset={dataset_tensor_parallelism_size} while arg={args.tensor_parallelism_size}. Wrong value for --tensor-parallelism-size."
+            )
+    else:
+        if args.tensor_parallelism_size != 1:
+            raise ValueError(
+                f"Unsharded dataset file provided, but specified --tensor-parallelism-size={args.tensor_parallelism_size}. Likely wrong dataset provided."
+            )
+        tensor_parallelism_size = 1
 
     if args.pipeline_parallelism_size > 1:
         block_to_device_lookup = pipeline_parallelize_theta(
