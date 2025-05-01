@@ -628,6 +628,18 @@ def transpose_default(
 ) -> Tensor:
     return torch.transpose(unbox_tensor(tensor), dim0, dim1)
 
+@transpose.override(QuantizedTensor)
+def transpose_QuantizedTensor(tensor: QuantizedTensor, dim0: int, dim1: int):
+    unpacked = tensor.unpack()
+    if isinstance(unpacked, TensorScaledLayout):
+        shape = list(unpacked._shape)
+        tmp = shape[dim0]
+        shape[dim0] = shape[dim1]
+        shape[dim1] = tmp
+        new_qs = unpacked._qs.transpose(dim0, dim1)
+        layout = TensorScaledLayout(shape=shape, d=unpacked._d, qs=new_qs, m=unpacked._m)
+        return PlanarQuantizedTensor(shape=shape, layout=layout)
+    return NotImplemented
 
 @transpose.override(QuantizedTensor)
 def transpose_QuantizedTensor(tensor: QuantizedTensor, dim0: int, dim1: int):
