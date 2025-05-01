@@ -478,6 +478,7 @@ class PagedAttention:
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)
 
+        breakpoint()
         q = ops.to(q, dtype=self.attn_dtype)
         k = ops.to(k, dtype=self.attn_dtype)
         v = ops.to(v, dtype=self.attn_dtype)
@@ -538,7 +539,11 @@ class PagedAttention:
             return attn_output
         elif attention_kernel == "wave":
             if mask is None:
-                attn_output = kernels.wave_flash_attention(q, k, v)
+                output = torch.zeros(
+                    [q.shape[0], q.shape[1], q.shape[2], v.shape[3]],
+                    dtype=self.attn_dtype,
+                )
+                attn_output = kernels.wave_flash_attention(q, k, v, output)
             return attn_output
         else:
             # Non-decomposed

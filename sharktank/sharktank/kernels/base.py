@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import Optional, Sequence, Tuple
+from typing import Optional, Sequence, Tuple, List
 
 import logging
 from pathlib import Path
@@ -193,9 +193,9 @@ def load_jinja_asm(kb: KernelBuilder, asm: str, **kwargs) -> Operation:
 def inline_wave_function(
     kb: KernelBuilder,
     asm: str,
-    function_name: str,
+    function_name: List[str],
     # template_type: str = "format",
-    **kwargs,
+    # **kwargs,
 ) -> Operation:
     """Inlines a Wave kernel's ASM using wave_compile.
 
@@ -206,7 +206,7 @@ def inline_wave_function(
         return kb.symbol_table[function_name]
     except KeyError:
         pass
-    source_module_op = load_jinja_asm(kb, asm, **kwargs)
+    source_module_op = load_jinja_asm(kb, asm)
     if logger.isEnabledFor(logging.DEBUG):
         logger.debug(
             "Generated kernel IR %s:\n%s", function_name, str(source_module_op)

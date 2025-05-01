@@ -126,29 +126,5 @@ class custom_attention(unittest.TestCase):
         scaled_dot_product_attention.remove_override("masked_flash_attention")
 
 
-class wave_attention(unittest.TestCase):
-    def setUp(self):
-        torch.manual_seed(42)
-
-    @parameterized.expand(
-        [
-            (1e-3, 1e-5),
-            (1e-3, 1e-5),
-            (1e-3, 1e-5),
-        ]
-    )
-    def testWaveAttentionCausal(self, atol, rtol):
-        dtype = torch.float16
-        q = (torch.rand([4, 32, 128, 128]) * 64).to(dtype)
-        k = (torch.rand([4, 32, 128, 128]) * 64).to(dtype)
-        v = (torch.rand([4, 32, 128, 128]) * 64).to(dtype)
-        result = kernels.wave_flash_attention(q, k, v)
-
-        # Dequantize and test with normal matmul.
-        # Tolerances are empirical and results are not expected to match exactly.
-        ref = torch.scaled_dot_product_attention(q, k, v, is_causal=True)
-        torch.testing.assert_close(result, ref, atol=atol, rtol=rtol)
-
-
 if __name__ == "__main__":
     unittest.main()

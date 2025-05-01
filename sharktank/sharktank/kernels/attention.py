@@ -5,6 +5,19 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from sharktank.kernels.base import *
+from iree.turbine.kernel.wave.templates.vanilla_attention import (
+    get_bhsd_attention_kernel,
+)
+from iree.turbine.kernel.wave.scheduling.schedule import SchedulingType
+from iree.turbine.kernel.wave.compile import wave_compile, WaveCompileOptions
+from iree.turbine.kernel.wave.templates.attention_common import AttentionShape
+from iree.turbine.kernel.wave.constraints import MMAType
+from iree.turbine.kernel.wave.utils.general_utils import (
+    get_default_scheduling_params,
+)
+from iree.turbine.kernel.wave.utils.run_utils import (
+    set_default_run_config,
+)
 
 import torch
 
@@ -219,10 +232,10 @@ class wave_flash_attention(CustomOp):
     )
 
     def select(self, ksel: KernelSelection):
-        q_desc = ksel.arg_tensor(0)  # Shape b, l, d
-        k_desc = ksel.arg_tensor(1)  # Shape b, s, d
-        v_desc = ksel.arg_tensor(2)  # Shape b, s, e
-        o_desc = ksel.arg_tensor(3)
+        q_desc = ksel.arg_tensor(0)  # Shape b, h, qs, qd
+        k_desc = ksel.arg_tensor(1)  # Shape b, h, ks, kd
+        v_desc = ksel.arg_tensor(2)  # Shape b, h, vs, vd
+        o_desc = ksel.arg_tensor(3)  # Shape b, h, qs, vd
 
         q_bs = q_desc.t.shape[:-2]
         k_bs = k_desc.t.shape[:-2]
@@ -233,9 +246,9 @@ class wave_flash_attention(CustomOp):
         # Note: kernel does collapse dims to get to a single batch/head dim
         torch._check(len(q_bs) == 2, lambda: f"TODO: batch dims {bs} not supported")
 
-        q_l, q_d = q_desc.t.shape[-2:]
+        q_s, q_d = q_desc.t.shape[-2:]
         k_s, k_d = k_desc.t.shape[-2:]
-        v_s, v_e = v_desc.t.shape[-2:]
+        v_s, v_d = v_desc.t.shape[-2:]
 
         torch._check(
             q_desc.t.dtype.is_floating_point
@@ -258,13 +271,13 @@ class wave_flash_attention(CustomOp):
 
         torch._check(k_s == v_s, lambda: f"expected matching kv length: {q_d}, {k_d}")
 
-        q_desc.specialize_dims(0, 1, -1)
-        k_desc.specialize_dims(0, 1, -1)
-        v_desc.specialize_dims(0, 1, -1)
+        q_desc.specialize_dims(0, 1, 2, -1)
+        k_desc.specialize_dims(0, 1, 2, -1)
+        v_desc.specialize_dims(0, 1, 2, -1)
 
-        # Result 0: Shape batch..., m, n
-        ksel.return_new_tensor((*q_bs, q_l, v_e), dtype=torch.float32).specialize_dims(
-            0, 1, -1
+        # Result 0: Shape batch, num_heads, m, n
+        ksel.return_new_tensor((*q_bs, q_s, v_d), dtype=torch.float32).specialize_dims(
+            0, 1, 2, -1
         )
 
     def generate(self, ksel: KernelSelection, kb: KernelBuilder):
@@ -275,38 +288,77 @@ class wave_flash_attention(CustomOp):
         q_tensor_type = RankedTensorType(q.type)
         v_tensor_type = RankedTensorType(v.type)
 
-        b1, b2, l, d = q_tensor_type.shape
-        _, _, s, e = v_tensor_type.shape
+        batch_size, num_heads, q_s, q_d = q_tensor_type.shape
+        v_batch_size, num_heads_kv, v_s, v_d = v_tensor_type.shape
 
         # Unspecialized dims will be negative
-        l = l if l >= 0 else "?"
-        s = s if s >= 0 else "?"
-        b = str(int(b1) * int(b2))
+        # q_s = q_s if q_s >= 0 else "?"
+        # v_s = v_s if v_s >= 0 else "?"
         i_type_str = str(q_tensor_type.element_type)
         # TODO: enable f16 output type via arg
         o_type_str = "f32"
 
-        target_function_name = (
-            f"wave_flash_attention_{b1}_{b2}_{d}_{e}_{i_type_str}_{o_type_str}"
-        )
-        kwargs = {
-            "b": b,
-            "b1": b1,
-            "b2": b2,
-            "l": l,
-            "d": d,
-            "s": s,
-            "e": e,
-            "i_dtype": i_type_str,
-            "o_dtype": o_type_str,
-            "func_name": target_function_name,
-        }
+        target_function_name = f"wave_flash_attention_{batch_size}_{num_heads}_{q_s}_{v_d}_{i_type_str}_{o_type_str}"
 
-        target_function = inline_template_function(
+        shape = AttentionShape(
+            batch_size=batch_size,
+            num_query_heads=num_heads,
+            num_kv_heads=num_heads_kv,
+            query_seq_len=q_s,
+            head_size_kv=v_d,
+            head_size=q_d,
+            kv_seq_len=v_s,
+        )
+
+        mfma_variant = (MMAType.F32_32x32x8_F16, MMAType.F32_32x32x8_F16)
+        dynamic_dims = False
+        is_causal = True
+        is_custom_mask = False
+
+        (
+            base_attention_func,
+            hyperparams,
+            dynamic_symbols,
+            dynamic_symbols_map,
+        ) = get_bhsd_attention_kernel(
+            shape,
+            mfma_variant,
+            dynamic_dims,
+            is_causal=is_causal,
+            is_custom_mask=is_custom_mask,
+        )
+        q_shape = q.type.shape
+        k_shape = k.type.shape
+        v_shape = v.type.shape
+        hyperparams.update(get_default_scheduling_params())
+        options = WaveCompileOptions(
+            subs=hyperparams,
+            schedule=SchedulingType.NONE,
+            # use_scheduling_barriers=enable_scheduling_barriers,
+            dynamic_symbols=dynamic_symbols,
+            dynamic_symbols_map=dynamic_symbols_map,
+            waves_per_eu=2,
+            denorm_fp_math_f32="preserve-sign",
+            func_name=target_function_name,
+        )
+        options = set_default_run_config(options)
+        base_attention = wave_compile(options, base_attention_func)
+
+        # This variant of wave kernel is BHSD
+        o_shape = (
+            batch_size,
+            shape.num_query_heads,
+            shape.query_seq_len,
+            shape.head_size_kv,
+        )
+        output = torch.zeros(o_shape, dtype=torch.float32)
+
+        asm = base_attention.asm
+
+        target_function = inline_wave_function(
             kb,
-            template_file,
+            asm,
             target_function_name,
-            **kwargs,
         )
         kb.yield_results(*call_function(target_function, q, k, v))
         pass
