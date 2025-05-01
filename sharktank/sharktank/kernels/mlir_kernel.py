@@ -202,34 +202,48 @@ def mlir_kernel(
                 # Generate kernel name.
                 kernel_name = self._get_kernel_name(func.__name__, dims, dtypes)
 
-                # Generate the MLIR spec using jinja.
-                asm = (
-                    _get_jinja2_env()
-                    .from_string(mlir)
-                    .render({"kernel_name": kernel_name, **mlir_spec.subs})
-                )
+                # Try to check if the symbol table already has a generated
+                # kernel for this specialization.
+                symbol_name = None
                 try:
-                    module_op = Operation.parse(asm, context=kb.context)
-                except MLIRError as e:
-                    lines = asm.splitlines()
-                    lines_numbered = "\n".join(
-                        [f"      {str(i+1):>5}: {l}" for i, l in enumerate(lines)]
-                    )
-                    raise RuntimeError(
-                        f"Error parsing generated op template:"
-                        f"\n{textwrap.indent(str(e), '  ')}"
-                        f"\n{lines_numbered}"
-                    )
-                op = module_op.operation
+                    symbol_name = kb.symbol_table[kernel_name]
+                except KeyError:
+                    pass
 
-                if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug("Generated kernel IR %s:\n%s", kernel_name, str(op))
-                merger = Merger(
-                    op, kb.module_body.owner, target_symbol_table=kb.symbol_table
-                )
-                merger.merge()
+                # If this kernel is not already generated, generate it using
+                # the mlir spec.
+                if symbol_name is None:
+                    # Generate the MLIR spec using jinja.
+                    asm = (
+                        _get_jinja2_env()
+                        .from_string(mlir)
+                        .render({"kernel_name": kernel_name, **mlir_spec.subs})
+                    )
+                    try:
+                        module_op = Operation.parse(asm, context=kb.context)
+                    except MLIRError as e:
+                        lines = asm.splitlines()
+                        lines_numbered = "\n".join(
+                            [f"      {str(i+1):>5}: {l}" for i, l in enumerate(lines)]
+                        )
+                        raise RuntimeError(
+                            f"Error parsing generated op template:"
+                            f"\n{textwrap.indent(str(e), '  ')}"
+                            f"\n{lines_numbered}"
+                        )
+                    op = module_op.operation
 
-                symbol_name = kb.symbol_table[kernel_name]
+                    if logger.isEnabledFor(logging.DEBUG):
+                        logger.debug(
+                            "Generated kernel IR %s:\n%s", kernel_name, str(op)
+                        )
+                    merger = Merger(
+                        op, kb.module_body.owner, target_symbol_table=kb.symbol_table
+                    )
+                    merger.merge()
+
+                    symbol_name = kb.symbol_table[kernel_name]
+
                 kb.yield_results(*call_function(symbol_name, *kb.arg_bindings))
 
             def _get_type_aliases(
@@ -238,7 +252,7 @@ def mlir_kernel(
                 aliases = ""
                 for arg, sym_ty in zip(input_args, inputs):
                     mlir_shapes = [
-                        "?" if dims[dim.name] == None else str(dims[dim.name])
+                        "?" if dims[dim.name] is None else str(dims[dim.name])
                         for dim in sym_ty.shapes
                     ]
                     dtype = dtypes[sym_ty.dtype.name]
@@ -246,7 +260,7 @@ def mlir_kernel(
                     aliases += f"!{arg}_dtype = {dtype}\n"
                 for arg, sym_ty in zip(result_args, results):
                     mlir_shapes = [
-                        "?" if dims[dim.name] == None else str(dims[dim.name])
+                        "?" if dims[dim.name] is None else str(dims[dim.name])
                         for dim in sym_ty.shapes
                     ]
                     dtype = dtypes[sym_ty.dtype.name]
