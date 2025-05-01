@@ -102,6 +102,20 @@ class MLIRSpec:
 def mlir_kernel(
     *, inputs: tuple[type[MLIRTensor], ...], results: tuple[type[MLIRTensor], ...]
 ):
+    """
+    A decorator that allows a user to inject inline mlir kernels directly into
+    the model.
+
+    TODO:
+        - Add user guide with examples.
+        - Allow constant dimensions and dtypes for results, currently we only
+          support result dimensions to be derived symbolically from inputs.
+        - Add more input signature types (other than MLIRTensor) like MLIRInt,
+          MLIRFloat, MLIRListOfTensor.
+        - Add more default substitutions like passing the value of a resolved
+          symbol as a substitution to jinja generator.
+    """
+
     def fun(func: Callable[..., MLIRSpec]) -> Callable:
         sig = inspect.signature(func)
         params = sig.parameters
