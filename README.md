@@ -45,13 +45,13 @@ conversion tools to produce inference-optimized programs.
 
 ### [`sharktuner/`](./sharktuner/)
 
-[![CI - sharktuner](https://github.com/nod-ai/shark-ai/actions/workflows/ci-tuner.yml/badge.svg?event=push)](https://github.com/nod-ai/shark-ai/actions/workflows/ci-tuner.yml?query=event%3Apush)
+[![CI - sharktuner](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharktuner.yml/badge.svg?event=push)](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharktuner.yml?query=event%3Apush)
 
-The Tuner sub-project assists with tuning program performance by searching for
+The Shark Tuner sub-project assists with tuning program performance by searching for
 optimal parameter configurations to use during model compilation.
 
 > [!WARNING]
-> SHARK Tuner is still in early development. Interested users may want
+> SHARK Tuner is still under development. Interested users may want
 > to try it out, but the tuner is not ready for general use yet. Check out
 > [the readme](sharktuner/README.md) for more details.
 

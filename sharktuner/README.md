@@ -65,6 +65,5 @@ pip install --upgrade -r ../requirements-iree-unpinned.txt
 
 ## Examples
 
-Check the `model_tuner` directory for a sample tuner implemented with `libtuner`.
-The [`dispatch example`](model_tuner)
-should be a good starting point for most users.
+For a concrete example, check the `model_tuner` directory for a sample tuner implemented with `libtuner`.
+The [`dispatch example`](model_tuner/README.md) should be a good starting point for most users.
