@@ -251,24 +251,15 @@ class PagedLlmModelV1(BaseCausalLMModel):
         for block_idx, block in enumerate(self.attn_blocks):
             if block_idx == 0:
                 self.trace_tensor(f"llama.attn_block.{block_idx}.input", h)
+            pipeline = self.cache.block_to_pipeline_map[block_idx]
             h = block(  # TODO: Should we index into attention_mask and cache here?
                 h,  # TODO: Hacky, shouldn't need to read info out of self.cache
-                start_positions=start_positions[
-                    self.cache.block_to_pipeline_lookup[block_idx]
-                ],
-                embedding=self.attention_embedding[
-                    self.cache.block_to_pipeline_lookup[block_idx]
-                ],
-                embedding_batch_mask=embedding_batch_masks[
-                    self.cache.block_to_pipeline_lookup[block_idx]
-                ],
-                attention_mask=attention_mask[
-                    self.cache.block_to_pipeline_lookup[block_idx]
-                ],
+                start_positions=start_positions[pipeline],
+                embedding=self.attention_embedding[pipeline],
+                embedding_batch_mask=embedding_batch_masks[pipeline],
+                attention_mask=attention_mask[pipeline],
                 cache_state=cache_state,
-                seq_block_ids=seq_block_ids[
-                    self.cache.block_to_pipeline_lookup[block_idx]
-                ],
+                seq_block_ids=seq_block_ids[pipeline],
             )
             h = self._inter_layer_callback(h, block_idx)
             self.trace_tensor(f"llama.attn_block.{block_idx}.output", h)

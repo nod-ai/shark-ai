@@ -67,16 +67,23 @@ def pipeline_parallelize_theta(
     shard_count = 1 if isinstance(_t, DefaultPrimitiveTensor) else _t.shard_count
     num_blocks = len(theta.tensor("blk"))
 
-    block_to_device_lookup = []
-    block_indices = sorted(theta.tensor("blk").keys(), key=lambda item: int(item))
+    block_indices = theta.tensor("blk").keys()
+    block_count = len(block_indices)
+
+    block_to_pipeline = [
+        i * pipeline_parallelism_size // block_count for i in range(block_count)
+    ]
+    pipeline_to_devices = [
+        (p + d for d in range(shard_count)) for p in range(pipeline_parallelism_size)
+    ]
+
     assert (
         bi == i for i, bi in enumerate(block_indices)
     ), "Blocks assumed to be numbered contiguously from [0, N-1]"
     for blk_idx in block_indices:
-        pp_group = int(int(blk_idx) * pipeline_parallelism_size / num_blocks)
-        zero_4_group = shard_count * pp_group
-        devices = tuple(i + zero_4_group for i in range(shard_count))
-        block_to_device_lookup.append(devices)
+        blk_idx = int(blk_idx)
+        pipeline = block_to_pipeline[blk_idx]
+        devices = pipeline_to_devices[pipeline]
 
         block_data = theta.tensor("blk", blk_idx)
         for t_name in block_data.keys():
@@ -86,4 +93,4 @@ def pipeline_parallelize_theta(
     parallelize_in_place(theta.tensor("output_norm"), block_to_device_lookup[-1])
     parallelize_in_place(theta.tensor("output"), block_to_device_lookup[-1])
 
-    return tuple(block_to_device_lookup)
+    return tuple(block_to_pipeline), tuple(pipeline_to_devices)

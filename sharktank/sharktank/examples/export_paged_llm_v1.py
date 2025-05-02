@@ -72,18 +72,19 @@ def main():
             )
 
     if args.pipeline_parallelism_size > 1:
-        block_to_device_lookup = pipeline_parallelize_theta(
+        block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
             dataset.root_theta, args.pipeline_parallelism_size
         )
     else:
-        block_to_device_lookup = tuple(
-            tuple(range(args.tensor_parallelism_size)) for _ in range(hp.block_count)
-        )
+        block_to_pipeline = tuple([0] * hp.block_count)
+        pipeline_to_devices = tuple([tuple([0])])
 
     llama_config = LlamaModelConfig(
         hp,
         tensor_parallelism_size=args.tensor_parallelism_size,
         pipeline_parallelism_size=args.pipeline_parallelism_size,
+        block_to_pipeline_map=block_to_pipeline,
+        pipeline_to_device_map=pipeline_to_devices,
         block_to_device_lookup=block_to_device_lookup,
         use_hf=args.use_hf,
         static_tables=False,  # Rely on the compiler for hoisting tables.
