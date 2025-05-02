@@ -135,7 +135,7 @@ class PerplexityIree:
     def load_model(self, dataset: Dataset, tokenizer: InferenceTokenizer):
         hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
 
-        pp = self.pipeline_parallelims_size
+        pp = self.pipeline_parallelism_size
         tp = self.tensor_parallelism_size
         block_count = hp.block_count
         block_to_pipeline = [i * pp // block_count for i in range(block_count)]
