@@ -85,7 +85,6 @@ def main():
         pipeline_parallelism_size=args.pipeline_parallelism_size,
         block_to_pipeline_map=block_to_pipeline,
         pipeline_to_device_map=pipeline_to_devices,
-        block_to_device_lookup=block_to_device_lookup,
         use_hf=args.use_hf,
         static_tables=False,  # Rely on the compiler for hoisting tables.
         attention_kernel=args.attention_kernel,
