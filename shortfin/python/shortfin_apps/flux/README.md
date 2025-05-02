@@ -23,7 +23,7 @@ Steps to follow to export flux data for further steps:
 ./sharktank/sharktank/pipelines/flux/export_from_hf.sh <flux_snapshot_path> <flux_dev | flux_schnell>
 ```
 
-Here, path can be replaced with the path where snapshot got downloaded in Step 2. The path will look like this:
+Here, `flux_snapshot_path` will be the path where snapshot got downloaded in Step 2. The path will look like this:
  - For Flux-dev: `/home/<user>/.cache/huggingface/hub/models--black-forest-labs--FLUX.1-dev/snapshots/0ef5fff789c832c5c7f4e127f94c8b54bbcced44/`
  - For Flux-schnell: `/home/<user>/.cache/huggingface/hub/models--black-forest-labs--FLUX.1-schnell/snapshots/741f7c3ce8b383c54771c7003378a50191e9efe9/`
 
@@ -43,7 +43,7 @@ python -m shortfin_apps.flux.server --model_config=<config_path> --device=hip --
 
 ```
 
-Here, config_path will be:
+Here, `config_path` will be:
  - For Flux-dev: `./python/shortfin_apps/flux/examples/flux_dev_config.json`
  - For Flux-schnell: `./python/shortfin_apps/flux/examples/flux_schnell_config.json`
 
