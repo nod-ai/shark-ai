@@ -175,7 +175,7 @@ def main():
                     for tp in range(llama_config.tensor_parallelism_size):
                         i = pipeline * llama_config.tensor_parallelism_size + tp
                         arg_affinities[i] = DeviceAffinity(
-                            str(model.cache.pipeline_to_device_lookup[pipeline][tp])
+                            str(model.cache.pipeline_to_devices[pipeline][tp])
                         )
 
             return unpacked, shard_dim, dynamic_shapes, arg_affinities
@@ -224,7 +224,8 @@ def main():
             arg_affinities = {key + 3: arg_affinities[key] for key in arg_affinities}
 
             for i in range(3):
-                arg_affinities[i] = DeviceAffinity(str(block_to_device_lookup[0][0]))
+                device = str(pipeline_to_devices[0])
+                arg_affinities[i] = DeviceAffinity(device)
 
         dynamic_shapes = {
             "tokens": {1: sl_dim},
@@ -263,7 +264,7 @@ def main():
                 tokens = ops.replicate(
                     tokens,
                     count=shard_count,
-                    devices=llama_config.block_to_device_lookup[0],
+                    devices=llama_config.pipeline_to_devices[0],
                 )
                 if attention_mask is None:
                     attention_mask = [None] * model.cache.pipeline_count
@@ -336,7 +337,7 @@ def main():
 
             # Inputs have default affinity 0
             for i in range(4):
-                arg_affinities[i] = DeviceAffinity(str(block_to_device_lookup[0][0]))
+                arg_affinities[i] = DeviceAffinity(str(pipeline_to_devices[0][0]))
 
         dynamic_shapes = {
             "tokens": {},
@@ -387,7 +388,7 @@ def main():
                 tokens = ops.replicate(
                     tokens,
                     count=shard_count,
-                    devices=llama_config.block_to_device_lookup[0],
+                    devices=llama_config.pipeline_to_devices[0],
                 )
                 _attention_mask, _start_positions, _seq_block_ids = [], [], []
                 for pipeline in range(model.cache.pipeline_count):
