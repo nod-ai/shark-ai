@@ -88,7 +88,7 @@ __all__ = [
 IntOrSequenceInt = Union[int, Sequence[int]]
 
 
-@overridable
+@overridable(is_trivially_replicable=False)
 def all_gather(maybe_sharded: AnyTensor, *, dim: int | None = None) -> AnyTensor:
     "Gather/concatenate on all devices along dimension `dim`."
     ...
@@ -107,7 +107,7 @@ def _all_gather_trampoline(
         d.fail(tensors)
 
 
-@overridable
+@overridable(is_trivially_replicable=False)
 def all_reduce(tensor: AnyTensor) -> AnyTensor:
     "Reduce on all devices."
     ...
@@ -303,7 +303,7 @@ def _embedding_lookup_trampoline(
         d.fail(tensors)
 
 
-@overridable
+@overridable(is_trivially_replicable=False)
 def equal(a: AnyTensor, b: AnyTensor) -> bool:
     """Compares 2 tensors for equality, such that they elements and dtype are equal.
 
@@ -836,7 +836,7 @@ def _mean_trampoline(
         d.fail(tensors)
 
 
-@overridable
+@overridable(is_trivially_replicable=False)
 def module_register_buffer(
     module: torch.nn.Module, name: str, tensor: AnyTensor
 ) -> None:
@@ -988,7 +988,7 @@ def _reshape_trampoline(d: SignatureDispatcher, input, shape) -> AnyTensor:
         d.fail(dispatch_args)
 
 
-@overridable
+@overridable(is_trivially_replicable=False)
 def reshard(
     input: AnyTensor | Theta,
     spec: (
@@ -1013,7 +1013,7 @@ def _reshard_trampoline(d: SignatureDispatcher, input, spec) -> ShardedTensor:
         d.fail(dispatch_args)
 
 
-@overridable
+@overridable(is_trivially_replicable=False)
 def reshard_split(
     input: AnyTensor, *, dim: int, count: int, devices: tuple[int, ...] | None
 ) -> ShardedTensor:
@@ -1046,7 +1046,7 @@ def _reshard_split_trampoline(
         d.fail(tensors)
 
 
-@overridable
+@overridable(is_trivially_replicable=False)
 def reshard_like(input: AnyTensor, like: AnyTensor) -> AnyTensor:
     """Shard `input` the same way as `like`.
 
@@ -1098,7 +1098,7 @@ def _scatter__trampoline(
         d.fail(tensors)
 
 
-@overridable
+@overridable(is_trivially_replicable=False)
 def sharded_cat(maybe_sharded: AnyTensor):
     """Concats all shards along the sharding dimension.
 
@@ -1118,7 +1118,7 @@ def _sharded_cat_trampoline(d: SignatureDispatcher, maybe_sharded: AnyTensor):
         d.fail(tensors)
 
 
-@overridable
+@overridable(is_trivially_replicable=False)
 def sharded_sum(maybe_sharded: AnyTensor):
     ...
 
@@ -1209,7 +1209,7 @@ def _transfer_to_logical_device_trampoline(
         d.fail(tensors)
 
 
-@overridable
+@overridable(is_trivially_replicable=False)
 def barrier_on_logical_device(tensor: AnyTensor, ordinal: int) -> AnyTensor:
     """Transfer the tensor to a device with ordinal `ordinal`."""
     ...
@@ -1228,7 +1228,7 @@ def _barrier_on_logical_device_trampoline(
         d.fail(tensors)
 
 
-@overridable
+@overridable(is_trivially_replicable=False)
 def transfer_to_logical_device(tensor: AnyTensor, ordinal: int) -> AnyTensor:
     """Transfer the tensor to a device with ordinal `ordinal`."""
     ...
@@ -1285,7 +1285,7 @@ def _unflatten_trampoline(
         d.fail(dispatch_args)
 
 
-@overridable
+@overridable(is_trivially_replicable=False)
 def unshard(tensor: AnyTensor) -> AnyTensor:
     """Return the tensor that has the same elements and shape, but is not sharded."""
     ...

@@ -20,7 +20,7 @@ __all__ = [
     "AllOfType",
     "AnyOfType",
     "IsOfType",
-    "NotOfType",
+    "AllNotOfType",
     "overridable",
     "SignatureDispatcher",
     "BoolTypeExpr",
@@ -167,15 +167,15 @@ class AnyOfType(BoolTypeExpr):
         super().__init__(expr)
 
 
-class NotOfType(BoolTypeExpr):
+class AllNotOfType(BoolTypeExpr):
     """Returns True if none of the types are from a set of types.
 
     ```python
     # False. int is in (int, float).
-    NotOfType(int, float)(int, str)
+    AllNotOfType(int, float)(int, str)
 
      # True. str is not in (int, float).
-    NotOfType(int, float)(str, str)
+    AllNotOfType(int, float)(str, str)
     ```
     """
 
@@ -338,12 +338,34 @@ class SignatureDispatcher:
         return targets
 
 
-def overridable(f):
+def overridable(
+    f: Callable[..., Any] | None = None, is_trivially_replicable: bool = True
+):
     """Decorator to apply to overridable ops.
 
     Such ops can then have specializations stacked against them with the
     @override decorator.
+
+    is_trivially_replicable:
+        If True will automatically register a wrapper variant with all tensor
+        arguments and results as replicated. This replicated op variant will call the
+        underlying unreplicated variant with for all shards correspondingly. Then
+        construct replicated results from all corresponding shards.
     """
+    if f is None:
+        return functools.partial(
+            overridable, is_trivially_replicable=is_trivially_replicable
+        )
+
     dispatcher = SignatureDispatcher(f)
     functools.update_wrapper(dispatcher, f)
+
+    if is_trivially_replicable:
+        from sharktank.ops.utils import trivially_replicable
+        from sharktank.types import ReplicatedTensor
+
+        dispatcher.override(AllOfType(ReplicatedTensor))(
+            trivially_replicable(dispatcher)
+        )
+
     return dispatcher

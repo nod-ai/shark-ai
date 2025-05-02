@@ -1747,6 +1747,114 @@ class TransposeTest(unittest.TestCase):
             assert ops.equal(shard, expected)
 
 
+class TriviallyReplicableTest(unittest.TestCase):
+    def testOneArgOneResult(self):
+        @ops.trivially_replicable
+        def fn(a: torch.Tensor) -> torch.Tensor:
+            return a
+
+        arg = torch.Tensor([1, 2, 3])
+        shard_count = 2
+        replicated_arg = ReplicatedTensor(
+            ts=arg, shard_count=shard_count, devices=(1, 2)
+        )
+        replicated_result = fn(replicated_arg)
+        replicated_arg.is_deep_equal(replicated_result)
+
+    @parameterized.expand(
+        (
+            [1],
+            [2],
+        )
+    )
+    def testMultipleArgumentsAndResults(self, shard_count: int):
+        @ops.trivially_replicable
+        def fn(a: torch.Tensor, b: torch.Tensor) -> tuple[torch.Tensor, ...]:
+            # Swap order
+            return b, a
+
+        args = [torch.Tensor([1, 2, 3]), torch.Tensor([4, 5])]
+        replicated_args = [
+            ReplicatedTensor(ts=arg, shard_count=shard_count) for arg in args
+        ]
+        replicated_result = fn(*replicated_args)
+        replicated_args[0].is_deep_equal(replicated_result[1])
+        replicated_args[1].is_deep_equal(replicated_result[0])
+
+    def testListOfTensorsAsArgumentsAndResults(self):
+        @ops.trivially_replicable
+        def fn(a: list[torch.Tensor]) -> list[torch.Tensor]:
+            return a
+
+        arg = torch.Tensor([1, 2, 3])
+        shard_count = 2
+        replicated_arg = ReplicatedTensor(
+            ts=arg, shard_count=shard_count, devices=(1, 2)
+        )
+        replicated_result = fn(replicated_arg)
+        replicated_arg.is_deep_equal(replicated_result)
+
+    def testNestedTreeOfTensorsAsArgumentsAndResults(self):
+        @ops.trivially_replicable
+        def fn(a: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+            return a
+
+        arg = torch.Tensor([1, 2, 3])
+        shard_count = 2
+        replicated_arg = {
+            "a": [ReplicatedTensor(ts=arg, shard_count=shard_count, devices=(1, 2))]
+        }
+        replicated_result = fn(replicated_arg)
+        replicated_arg["a"][0].is_deep_equal(replicated_result["a"][0])
+
+    def testNonTensorArgumentsAndResults(self):
+        @ops.trivially_replicable
+        def fn(a: str, b: torch.Tensor, c: int) -> tuple[str, torch.Tensor, int]:
+            return a, b, c
+
+        args = ("a", torch.Tensor([1, 2, 3]), 1)
+        shard_count = 2
+        replicated_args = (
+            args[0],
+            ReplicatedTensor(ts=args[1], shard_count=shard_count),
+            args[2],
+        )
+        replicated_result = fn(*replicated_args)
+        replicated_args[0] == replicated_result[0]
+        replicated_args[1].is_deep_equal(replicated_result[1])
+        replicated_args[2] == replicated_result[2]
+
+    def testSignatureRegistration(self):
+        from sharktank.ops._registry import overridable, SignatureDispatcher
+
+        @overridable(is_trivially_replicable=True)
+        def f(a: torch.Tensor) -> torch.Tensor:
+            ...
+
+        @f.override(torch.Tensor)
+        def f_unsharded(a: torch.Tensor) -> torch.Tensor:
+            return a
+
+        @f.trampoline
+        def trampoline(
+            d: SignatureDispatcher,
+            a: AnyTensor,
+        ) -> AnyTensor:
+            tensors = (a,)
+            for override in d.find_overrides(tensors):
+                result = override(a)
+                if result is not NotImplemented:
+                    return override, result
+            else:
+                d.fail(tensors)
+
+        arg = torch.Tensor([1, 2, 3])
+        shard_count = 2
+        replicated_arg = ReplicatedTensor(ts=arg, shard_count=shard_count)
+        replicated_result = f(replicated_arg)
+        replicated_arg.is_deep_equal(replicated_result)
+
+
 class UnflattenTest(unittest.TestCase):
     def testUnflattenReplicated(self):
         a = torch.randn(3, 4, 1)
