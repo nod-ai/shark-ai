@@ -8,9 +8,8 @@ from typing import Optional
 
 import torch
 
-from sharktank import ops
 from sharktank.layers import *
-from sharktank.ops import softmax, topk
+from sharktank.ops import softmax, topk, zeros_like
 from sharktank.types import Theta
 
 __all__ = [
@@ -116,7 +115,7 @@ class MoeBlock(ThetaLayer):
                 .sum(dim=-1)
             )
             group_idx = topk(group_scores, k=self.n_limited_groups, dim=-1)[1]
-            group_mask = ops.zeros_like(group_scores)
+            group_mask = zeros_like(group_scores)
             group_mask.scatter_(1, group_idx, 1)
             score_mask = (
                 group_mask.unsqueeze(-1)
