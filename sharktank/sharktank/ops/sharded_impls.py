@@ -715,7 +715,7 @@ def linear_sharded(
     accum_dtype,
 ) -> SplitPrimitiveTensor:
     # TODO: handle different dtypes
-    result = matmul(input, weight.T)
+    result = matmul(input, weight.mT)
     if bias is not None:
         result = elementwise(torch.add, result, bias)
     return result
@@ -754,19 +754,26 @@ def matmul_replicated_lhs_split_rhs(
     lhs: ReplicatedTensor, rhs: SplitPrimitiveTensor, *, transpose_rhs: bool
 ) -> SplitPrimitiveTensor | UnreducedTensor:
     assert lhs.shard_count == rhs.shard_count
-    assert len(rhs.shape) == 2
 
     if transpose_rhs:
-        return matmul(lhs, rhs.T)
+        return matmul(lhs, rhs.mT)
 
-    rhs_reduction_dim = 1
-    if rhs_reduction_dim != rhs.shard_dim:
+    rhs_reduction_dim = len(rhs.shape) - 2 if len(rhs.shape) > 1 else 0
+    if rhs_reduction_dim == rhs.shard_dim:
         lhs_reduction_dimension = len(lhs.shape) - 1
         lhs_split = reshard_split(
             lhs, dim=lhs_reduction_dimension, count=lhs.shard_count
         )
         return matmul(lhs_split, rhs)
 
+    is_batched_rhs = len(rhs.shape) > 2
+    is_rhs_batch_dim_split = is_batched_rhs and rhs.shard_dim < len(rhs.shape) - 2
+    if is_rhs_batch_dim_split:
+        assert len(lhs.shape) == len(rhs.shape), "TODO: implement general case"
+        lhs_split = reshard_split(lhs, dim=rhs.shard_dim, count=lhs.shard_count)
+        return matmul(lhs_split, rhs)
+
+    # The RHS parallel dimension is split.
     shards = [
         matmul(lhs_shard, rhs_shard)
         for (lhs_shard, rhs_shard) in zip(lhs.shards, rhs.shards)
@@ -818,7 +825,7 @@ def matmul_split_lhs_replicated_rhs(
     lhs_reduction_dim = len(lhs.shape) - 1
     assert lhs_reduction_dim != lhs.shard_dim
     if transpose_rhs:
-        rhs = rhs.T
+        rhs = rhs.mT
     shards = [
         matmul(lhs_shard, rhs_shard)
         for (lhs_shard, rhs_shard) in zip(lhs.shards, rhs.shards)
@@ -836,7 +843,7 @@ def matmul_split(
             f"({lhs.shard_count} vs {rhs.shard_count})"
         )
     if transpose_rhs:
-        return matmul(lhs, rhs.T)
+        return matmul(lhs, rhs.mT)
 
     lhs_reduction_dim = len(lhs.shape) - 1
     rhs_reduction_dim = len(rhs.shape) - 2 if len(rhs.shape) > 1 else len(rhs.shape) - 1
@@ -1166,6 +1173,11 @@ def reshard_split_replicated(
     return SplitPrimitiveTensor(ts=shards, shard_dim=dim, devices=input.devices)
 
 
+@reshard_like.override(Tensor, Tensor)
+def reshard_like_unsharded_to_unsharded(input, like: Tensor) -> Tensor:
+    return input
+
+
 @reshard_like.override(Tensor, SplitPrimitiveTensor)
 def reshard_like_unsharded_to_split(
     input, like: SplitPrimitiveTensor
@@ -1224,6 +1236,13 @@ def reshard_like_replicated_to_split(
         + max(0, len(tensor.shape) - len(like.shape))
     )
     return reshard_split(tensor, dim=dim, count=like.shard_count)
+
+
+@reshard_like.override(SplitPrimitiveTensor, ReplicatedTensor)
+def reshard_like_split_to_replicated(
+    tensor: SplitPrimitiveTensor, like: ReplicatedTensor
+) -> ReplicatedTensor:
+    return all_gather(tensor)
 
 
 @reshard_like.override(SplitPrimitiveTensor, SplitPrimitiveTensor)
@@ -1444,6 +1463,10 @@ def transpose_split(
 ) -> SplitPrimitiveTensor:
     shards = [transpose(shard, dim0, dim1) for shard in tensor.shards]
     shard_dim = tensor.shard_dim
+    if dim0 < 0:
+        dim0 = len(tensor.shape) + dim0
+    if dim1 < 0:
+        dim1 = len(tensor.shape) + dim1
     if shard_dim == dim0:
         shard_dim = dim1
     elif shard_dim == dim1:

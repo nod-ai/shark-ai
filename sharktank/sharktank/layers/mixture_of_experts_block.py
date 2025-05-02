@@ -9,7 +9,7 @@ from typing import Optional
 import torch
 
 from sharktank.layers import *
-from sharktank.ops import softmax, topk, zeros_like
+from sharktank.ops import replicate, softmax, topk, zeros_like
 from sharktank.types import Theta
 
 __all__ = [
@@ -36,11 +36,18 @@ class MoeBlock(ThetaLayer):
         score_experts=softmax,
         normalize_experts=True,
         add_residual=True,
+        tensor_parallel_devices: Optional[tuple[int, ...]] = None,
         expert_count: Optional[int] = None,
         n_expert_groups: Optional[int] = None,
         n_limited_groups: Optional[int] = None,
         route_scale: Optional[float] = 1.0,
     ):
+        """
+        tensor_parallel_devices:
+            The devices that would be involved in tensor parallel distribution.
+            Supports the degenerate case of 1 device, where sharded tensors would also
+            be employed. If None then no distribution would be done.
+        """
         super().__init__(theta)
         if n_expert_groups is not None and expert_count % n_expert_groups != 0:
             raise ValueError(
@@ -60,6 +67,7 @@ class MoeBlock(ThetaLayer):
         self.ffn_norm = torch.nn.Identity()
         self.layer_output_norm = torch.nn.Identity()
         self.shared_experts = None
+        self.tensor_parallel_devices = tensor_parallel_devices
         self.route_scale = None
         if route_scale is not None and route_scale != 1:
             self.route_scale = route_scale
@@ -102,6 +110,11 @@ class MoeBlock(ThetaLayer):
         # router_logits: (batch_size * sequence_length, expert_count)
         router_logits = self.ffn_gate_inp(ffn_input)
         router_weights = self.score_experts(router_logits.to(torch.float))
+
+        if self.tensor_parallel_devices is not None:
+            router_weights = replicate(
+                router_weights, count=len(self.tensor_parallel_devices)
+            )
 
         # Select top k experts from router weights
         if self.n_expert_groups is not None and self.n_limited_groups is not None:

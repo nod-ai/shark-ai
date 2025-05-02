@@ -354,6 +354,12 @@ class InferenceTensor(ABC):
 
         return permute(self, dims=dims)
 
+    @property
+    def mT(self) -> "AnyTensor":
+        from sharktank.ops import transpose
+
+        return transpose(self, -2, -1)
+
     def bool(self) -> "InferenceTensor":
         from sharktank.ops import to
 
@@ -444,6 +450,13 @@ class InferenceTensor(ABC):
 
         return scatter_(self, dim, index, value, reduce=reduce)
 
+    def scatter_add(
+        self, dim: int, index: "AnyTensor", src: Union["AnyTensor", Number]
+    ) -> "AnyTensor":
+        from sharktank.ops import scatter_add
+
+        return scatter_add(self, dim, index, src)
+
     def sigmoid(self) -> "AnyTensor":
         from sharktank.ops import sigmoid
 
@@ -513,6 +526,12 @@ class InferenceTensor(ABC):
             assert len(args) == 1
             shape = args[0]
         return view(self, shape)
+
+    def __gt__(self, lhs: Union["AnyTensor", Number]) -> "AnyTensor":
+        from sharktank.ops import elementwise
+        from operator import gt
+
+        return elementwise(gt, self, lhs)
 
     def __add__(self, rhs):
         from sharktank.ops import elementwise

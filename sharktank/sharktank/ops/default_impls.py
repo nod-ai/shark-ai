@@ -500,14 +500,31 @@ def scatter__default(
     *,
     reduce: str | None = None,
 ) -> Tensor:
-    assert isinstance(value, Number), "Tensor version of this op not implemented"
     inout = unbox_tensor(inout)
     index = unbox_tensor(index)
+    if isinstance(value, (torch.Tensor, InferenceTensor)):
+        assert isinstance(value, (torch.Tensor, PrimitiveTensor))
+        value = unbox_tensor(value)
     if reduce is not None:
         inout.scatter_(dim, index, value, reduce=reduce)
     else:
         inout.scatter_(dim, index, value)
     return inout
+
+
+@scatter_add.override(AllOfType(Tensor, PrimitiveTensor))
+def scatter_add_default(
+    input: Tensor | PrimitiveTensor,
+    dim: int,
+    index: Tensor | PrimitiveTensor,
+    src: Tensor | PrimitiveTensor | Number,
+) -> Tensor:
+    input = unbox_tensor(input)
+    index = unbox_tensor(index)
+    if isinstance(src, (torch.Tensor, InferenceTensor)):
+        assert isinstance(src, (torch.Tensor, PrimitiveTensor))
+        src = unbox_tensor(src)
+    return torch.scatter_add(input, dim, index, src)
 
 
 @sigmoid.override(Tensor)
