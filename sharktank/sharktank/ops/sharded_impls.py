@@ -1127,27 +1127,24 @@ def mean_split(
         return SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim_new)
     else:
         partial_sums = [
-            torch.sum(unbox_tensor(sh), dim=dim, keepdim=keepdim, dtype=dtype)
-            for sh in x.shards
-        ]
-        partial_cnts = [
-            torch.tensor(
-                math.prod(unbox_tensor(sh).shape[d] for d in dim),
-                device=unbox_tensor(sh).device,
-                dtype=dtype,
-            )
-            for sh in x.shards
+            sum(shard, dim=dim, keepdim=keepdim, dtype=dtype) for shard in x.shards
         ]
 
-        sums_on_hub = [barrier_on_logical_device(partial_sums[0], x.devices[0])] + [
-            transfer_to_logical_device(ps, x.devices[0]) for ps in partial_sums[1:]
+        partial_cnts = [
+            torch.tensor(
+                math.prod(shard.shape[d] for d in dim),
+                device=unbox_tensor(shard).device,
+                dtype=dtype,
+            )
+            for shard in x.shards
         ]
+        sums_spt = SplitPrimitiveTensor(ts=partial_sums, shard_dim=0, devices=x.devices)
         cnts_on_hub = [barrier_on_logical_device(partial_cnts[0], x.devices[0])] + [
             transfer_to_logical_device(ct, x.devices[0]) for ct in partial_cnts[1:]
         ]
 
-        global_sum = torch.stack(sums_on_hub).sum(dim=0)
-        global_cnt = torch.stack(cnts_on_hub).sum(dim=0)
+        global_sum = sharded_sum(sums_spt)
+        global_cnt = torch.stack(cnts_on_hub).sum()
         global_mean = global_sum / global_cnt
 
         return ReplicatedTensor(
@@ -1574,9 +1571,19 @@ def _sharded_sum_sharded(tensor: ShardedTensor) -> Tensor:
 
 
 @sharded_sum.override(SplitPrimitiveTensor)
-def sharded_sum_split(maybe_sharded: SplitPrimitiveTensor) -> Tensor:
-    # TODO: Should implement as an all reduce.
-    return _sharded_sum_sharded(maybe_sharded)
+def sharded_sum_split(input: SplitPrimitiveTensor) -> Tensor:
+    reduced = functools.reduce(
+        lambda x, y: elementwise(torch.add, x, y),
+        [
+            (
+                transfer_to_logical_device(shard, input.devices[0])
+                if i != 0
+                else barrier_on_logical_device(shard, input.devices[0])
+            )
+            for i, shard in enumerate(input.shards)
+        ],
+    )
+    return reduced
 
 
 @sharded_sum.override(UnreducedTensor)
