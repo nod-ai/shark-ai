@@ -308,6 +308,7 @@ class LlmExecutorProcess(sf.Process):
         self.functions = functions
         self.fiber_pool = fiber_pool
         self.program_isolation = program_isolation
+        self.worker_index = 0
 
     async def get_args(self, bs, device0):
         ...
@@ -319,7 +320,7 @@ class LlmExecutorProcess(sf.Process):
         try:
             req_bs = len(self.exec_requests)
             seq_stride = self.seq_stride
-            device0 = self.fiber.device(0)
+            device0 = self.fiber.device(self.worker_index)
             # Select an entrypoint for the batch.
             entrypoints = self.functions
             for bs, fn in entrypoints.items():
@@ -455,7 +456,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         #    seq_block_ids: [bs, blocks]
         #    cache_slabs: ...
         args = [tokens, seq_lens, seq_block_ids]
-        page_table=self.page_tables[0]
+        page_table=self.page_tables[self.worker_index]
         args.append(sfnp.disable_barrier(page_table))
 
         return args, req_count
@@ -576,7 +577,7 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         #    seq_block_ids: [bs, blocks]
         #    cache_slabs: ...
         args = [tokens, seq_lens, start_positions, seq_block_ids]
-        page_table=self.page_tables[0]
+        page_table=self.page_tables[self.worker_index]
         args.append(sfnp.disable_barrier(page_table))
 
         return args, req_count
