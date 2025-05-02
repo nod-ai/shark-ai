@@ -310,10 +310,10 @@ class LlmExecutorProcess(sf.Process):
         self.program_isolation = program_isolation
         self.worker_index = 0
 
-    async def get_args(self, bs, device0):
+    async def get_args(self, bs, device_index):
         ...
 
-    async def get_results(self, logits, req_count, device0):
+    async def get_results(self, logits, req_count, device_index):
         ...
 
     async def run(self):
@@ -329,7 +329,7 @@ class LlmExecutorProcess(sf.Process):
             else:
                 raise RuntimeError(f"No available entry point for bs {req_bs}")
 
-            args, req_count = await self.get_args(bs, device0)
+            args, req_count = await self.get_args(bs, self.worker_index)
 
             logger.info(
                 "INVOKE %r: %s",
@@ -367,7 +367,7 @@ class LlmExecutorProcess(sf.Process):
                 r.publish_allocated_pages(number_of_complete_pages)
 
             # Return results.
-            await self.get_results(logits, req_count, device0)
+            await self.get_results(logits, req_count, self.worker_index)
 
         except Exception:
             logger.exception("Fatal error in prefetch invocation")
@@ -400,7 +400,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
             program_isolation=program_isolation,
         )
 
-    async def get_args(self, bs, device0):
+    async def get_args(self, bs, device_index):
         seq_stride = self.seq_stride
 
         # Compute block sequence length as maximum sequence length, rounded
@@ -418,6 +418,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         # TODO: Better support in shortfin for h2d. The best way to do it is
         # device dependent.
         int_dtype = sfnp.int64
+        device0 = self.fiber.device(device_index)
         tokens = sfnp.device_array.for_device(device0, [bs, bsl], int_dtype)
         seq_lens = sfnp.device_array.for_device(device0, [bs], int_dtype)
         seq_block_ids = sfnp.device_array.for_device(
@@ -456,13 +457,14 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         #    seq_block_ids: [bs, blocks]
         #    cache_slabs: ...
         args = [tokens, seq_lens, seq_block_ids]
-        page_table=self.page_tables[self.worker_index]
+        page_table=self.page_tables[device_index]
         args.append(sfnp.disable_barrier(page_table))
 
         return args, req_count
 
-    async def get_results(self, logits, req_count, device0):
-        # Return results.
+    async def get_results(self, logits, req_count, device_index):
+        # Return results
+        device0 = self.fiber.device(device_index)
         for i in range(req_count):
             req = self.exec_requests[i]
             sl = len(req.input_token_ids)
@@ -504,7 +506,7 @@ class DecodeExecutorProcess(LlmExecutorProcess):
             program_isolation=isolation,
         )
 
-    async def get_args(self, bs, device0):
+    async def get_args(self, bs, device_index):
         # Compute block sequence length as maximum sequence length, rounded
         # up to the seq_stride.
         seq_stride = self.seq_stride
@@ -518,6 +520,7 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         # TODO: Better support in shortfin for h2d. The best way to do it is
         # device dependent.
         int_dtype = sfnp.int64
+        device0 = self.fiber.device(device_index)
         tokens = sfnp.device_array.for_device(device0, [bs, 1], int_dtype)
         start_positions = sfnp.device_array.for_device(device0, [bs], int_dtype)
         seq_lens = sfnp.device_array.for_device(device0, [bs], int_dtype)
@@ -577,13 +580,14 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         #    seq_block_ids: [bs, blocks]
         #    cache_slabs: ...
         args = [tokens, seq_lens, start_positions, seq_block_ids]
-        page_table=self.page_tables[self.worker_index]
+        page_table=self.page_tables[device_index]
         args.append(sfnp.disable_barrier(page_table))
 
         return args, req_count
 
-    async def get_results(self, logits, req_count, device0):
+    async def get_results(self, logits, req_count, device_index):
         # Return results.
+        device0 = self.fiber.device(device_index)
         for i in range(req_count):
             req = self.exec_requests[i]
             sl = 1
