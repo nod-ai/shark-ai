@@ -41,13 +41,15 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         attention_scale: Optional[float] = None,
         softcap: Optional[float] = None,
         fake_quant: Optional[bool] = True,
-        block_to_device_lookup: tuple[tuple[int, ...], ...] | None = None,
+        block_to_pipeline_map: tuple[tuple[int, ...], ...] | None = None,
+        pipeline_to_device_map: tuple[tuple[int, ...], ...] | None = None,
     ):
         super().__init__(theta)
 
         self.paged_attention = PagedAttention(
             transformer_block_count=cache.transformer_block_count,
-            block_to_device_lookup=block_to_device_lookup,
+            block_to_pipeline_map=block_to_pipeline_map,
+            pipeline_to_device_map=pipeline_to_device_map,
             attn_head_count=head_count_kv,
             attn_head_dim=head_dim,
             block_seq_stride=cache.block_seq_stride,
