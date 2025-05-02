@@ -1,5 +1,9 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "SHARK Tuner"
+name = "sharktuner"
 authors = [
   {name = "SHARK Authors"},
 ]
@@ -18,7 +22,21 @@ classifiers = [
 requires-python = ">= 3.10"
 
 # Version is set via the `setup.py`.
-dynamic = ["version"]
+dynamic = ["version", "dependencies", "optional-dependencies"]
 
 [project.urls]
 Repository = "https://github.com/nod-ai/shark-ai"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["sharktuner", "model_tuner"]
+namespaces = true
+
+[tool.setuptools.package-data]
+sharktuner = ["py.typed"]
+
+[tool.setuptools.dynamic.dependencies]
+file = ["requirements.txt"]
+
+[tool.setuptools.dynamic.optional-dependencies]
+dev = {file = ["requirements-dev.txt"]}

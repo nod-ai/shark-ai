@@ -28,6 +28,21 @@ from sharktank.utils.iree import (
 )
 
 
+class ArgmaxTest(unittest.TestCase):
+    def testArgmax(self):
+        for dtype in [torch.float16, torch.float32]:
+            a = torch.zeros(1, 1, 256, dtype=dtype)
+            a[0][0][42] = 42
+            assert ops.argmax(a, -1) == 42
+
+    def testArgmaxDim0(self):
+        for dtype in [torch.float16, torch.float32]:
+            a = torch.zeros(3, 1, 256, dtype=dtype)
+            a[1][0][42] = 42
+            result = ops.argmax(a, 0)
+            assert result[0][42] == 1
+
+
 class BroadcastDimsTest(unittest.TestCase):
     def testBroadcastDimForSmallerRankTensor(self):
         a = torch.empty(2, 5, 1)
