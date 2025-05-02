@@ -65,6 +65,7 @@ Model name | Model recipes | Serving apps | Guide |
 ---------- | ------------- | ------------ | ----- |
 SDXL       | [`sharktank/sharktank/models/punet/`](https://github.com/nod-ai/shark-ai/tree/main/sharktank/sharktank/models/punet) | [`shortfin/python/shortfin_apps/sd/`](https://github.com/nod-ai/shark-ai/tree/main/shortfin/python/shortfin_apps/sd) | [shortfin/python/shortfin_apps/sd/README.md](shortfin/python/shortfin_apps/sd/README.md)
 llama      | [`sharktank/sharktank/models/llama/`](https://github.com/nod-ai/shark-ai/tree/main/sharktank/sharktank/models/llama) | [`shortfin/python/shortfin_apps/llm/`](https://github.com/nod-ai/shark-ai/tree/main/shortfin/python/shortfin_apps/llm) | [docs/shortfin/llm/user/llama_serving.md](docs/shortfin/llm/user/llama_serving.md)
+Flux       | [`sharktank/sharktank/models/flux/`](https://github.com/nod-ai/shark-ai/tree/main/sharktank/sharktank/models/flux) | [`shortfin/python/shortfin_apps/flux/`](https://github.com/nod-ai/shark-ai/tree/main/shortfin/python/shortfin_apps/flux) | [`shortfin/python/shortfin_apps/flux/README.md`](https://github.com/nod-ai/shark-ai/blob/main/shortfin/python/shortfin_apps/flux/README.md)
 
 ## SHARK Developers
 
