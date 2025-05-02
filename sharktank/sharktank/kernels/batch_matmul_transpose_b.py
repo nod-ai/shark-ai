@@ -106,57 +106,19 @@ class _batch_matmul_transpose_b(CustomOp):
         result_desc = ksel.result_descs[0]
 
         # Generate specialization signature and types.
-        a_asm_type, a_ident, a_dims, _ = unpack_tensor_type(lhs.type)
-        b_asm_type, b_ident, b_dims, _ = unpack_tensor_type(rhs.type)
+        a_asm_type, a_ident, _ = unpack_tensor_type(lhs.type)
+        b_asm_type, b_ident, _ = unpack_tensor_type(rhs.type)
         accum_type = Type.parse(accum_type_str)
         spec_sig = f"L{a_ident}_R{b_ident}_{accum_type_str}"
         template_file = "batch_matmul_transpose_b.mlir"
-        target_function_name = f"wave_batch_matmul_transpose_b_{spec_sig}"
-        # target_function_name = "base_attention"
+        target_function_name = f"sharktank_batch_matmul_transpose_b_{spec_sig}"
         cst_zero = "0" if IntegerType.isinstance(accum_type) else "0."
         # Template params.
         c_asm_type = f"tensor<{'x'.join('?' if d is None else str(d) for d in result_desc.spec_dims)}x{accum_type}>"
-        # target_function = inline_template_function(
-        #     kb,
-        #     template_file,
-        #     target_function_name,
-        #     spec_sig=spec_sig,
-        #     a_asm_type=a_asm_type,
-        #     b_asm_type=b_asm_type,
-        #     c_asm_type=c_asm_type,
-        #     dtype=str(accum_type),
-        #     cst_zero=cst_zero,
-        # )
 
-        from iree.turbine.kernel.wave.nn.linear import (
-            get_linear_kernel,
-        )
-        from iree.turbine.kernel.wave.scheduling.schedule import SchedulingType
-        from iree.turbine.kernel.wave.compile import wave_compile, WaveCompileOptions
-
-        shape = (
-            8,
-            2,
-        )
-        base_linear = get_linear_kernel(
-            shape,
-            func_name=target_function_name,
-            dynamic_dims=False,
-        )
-
-        # This variant of wave kernel is BHSD
-        o_shape = (
-            4,
-            16,
-            8,
-        )
-        output = torch.zeros(o_shape, dtype=torch.float32)
-
-        asm = base_linear.asm
-
-        target_function = inline_wave_function(
+        target_function = inline_template_function(
             kb,
-            asm,
+            template_file,
             target_function_name,
             spec_sig=spec_sig,
             a_asm_type=a_asm_type,

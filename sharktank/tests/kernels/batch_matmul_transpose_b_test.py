@@ -114,9 +114,8 @@ class batch_matmul_transpose_b_test(unittest.TestCase):
 
     @parameterized.expand(
         [
-            (torch.float16, torch.float32),
-            # (torch.int32, None),
-            # (torch.float8_e4m3fnuz, torch.float32),
+            (torch.int32, None),
+            (torch.float8_e4m3fnuz, torch.float32),
         ]
     )
     def testExportStaticDims(
