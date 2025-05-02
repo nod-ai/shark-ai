@@ -25,17 +25,23 @@ class FFN(ThetaLayer):
     def __init__(
         self,
         theta: Theta,
-        rms_epsilon: float,
+        rms_epsilon: float | None = None,
         is_gated: bool = True,
-        activation_fn: Callable[[AnyTensor], AnyTensor] = F.silu,
+        activation_fn: Callable[[torch.Tensor], torch.Tensor] = F.silu,
         activation_dtype: Optional[torch.dtype] = torch.float16,
         fake_quant: bool = False,
+        add_residual: bool = True,
     ):
+        """
+        add_residual:
+            At the end of the block add to the input.
+        """
         super().__init__(theta)
 
         self.is_gated = is_gated
         self.activation_fn = activation_fn
         self.ffn_norm = torch.nn.Identity()
+        self.add_residual = add_residual
 
         if self.is_gated:
             self.add_module(
@@ -70,4 +76,6 @@ class FFN(ThetaLayer):
             ffn_act = ops.elementwise(self.activation_fn, ffn_up)
             ffn_down = self.ffn_down(ffn_act)
 
-        return h + ffn_down
+        if self.add_residual:
+            return h + ffn_down
+        return ffn_down
