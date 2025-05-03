@@ -261,7 +261,6 @@ class PagedAttention:
         state: list[Union[torch.Tensor, SplitPrimitiveTensor]],
         *,
         transformer_block_index: int,
-        seq_len: int,
         page_ids: Optional[Union[torch.Tensor, ReplicatedTensor]] = None,
     ):
         """Reads K/V caches the page table for the given page_ids.
@@ -305,8 +304,8 @@ class PagedAttention:
         selected = ops.index_select(subblock_table, 0, subblock_ids.flatten(0, 1))
 
         selected = selected.unflatten(0, blocked_shape[:2])
-        key = selected[:, :, 0, :seq_len].flatten(1, 2)[:, :seq_len]
-        value = selected[:, :, 1, :seq_len].flatten(1, 2)[:, :seq_len]
+        key = selected[:, :, 0, :].flatten(1, 2)
+        value = selected[:, :, 1, :].flatten(1, 2)
 
         return key, value
 
@@ -558,7 +557,6 @@ class PagedAttention:
         v: torch.Tensor,
         cache_state: list[torch.Tensor],
         seq_block_ids: torch.Tensor,
-        kv_seq_len: int,
         block_index: int,
         start_positions: torch.Tensor,
         attention_kernel: str,
@@ -586,7 +584,6 @@ class PagedAttention:
             cache_state,
             transformer_block_index=block_index,
             page_ids=seq_block_ids,
-            seq_len=kv_seq_len,
         )
 
         return self.attention(

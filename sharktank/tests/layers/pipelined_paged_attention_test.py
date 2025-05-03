@@ -142,14 +142,12 @@ class PipelinedPagedAttentionTest(unittest.TestCase):
             state=cache_state,
             transformer_block_index=transformer_block_index,
             page_ids=page_ids,
-            seq_len=self.block_seq_len * self.block_seq_stride,
         )
         pipelined_page_ids = ops.replicate(page_ids, count=self.shard_count)
         pipelined_read = self.pipelined_cache.read(
             state=pipelined_cache_state,
             transformer_block_index=transformer_block_index,
             page_ids=pipelined_page_ids,
-            seq_len=self.block_seq_len * self.block_seq_stride,
         )
         for unpipelined, pipelined in zip(unpipelined_read, pipelined_read):
             assert ops.equal(unpipelined, ops.unshard(pipelined))

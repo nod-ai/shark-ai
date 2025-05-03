@@ -144,9 +144,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             xq = embedding.apply_batched_mask(xt=xq, mask=embedding_batch_mask)
             xk = embedding.apply_batched_mask(xt=xk, mask=embedding_batch_mask)
 
-        # Full sequence length.
-        kv_seq_len = seq_block_ids.shape[1] * self.paged_attention.block_seq_stride
-
         # Used by fp8_e4m3fnuz model
         if self.cache_quantizer is not None:
             if not self.fake_quant:
@@ -180,7 +177,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 cache_state=cache_state,
                 seq_block_ids=seq_block_ids,
                 block_index=self.block_index,
-                kv_seq_len=kv_seq_len,
                 start_positions=start_positions,
                 head_count_attn=self.head_count,
                 cache_quantizer=self.cache_quantizer,
