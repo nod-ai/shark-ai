@@ -173,6 +173,7 @@ class ClientGenerateBatchProcess(sf.Process):
             return
 
         try:
+            logger.debug("dezhi: add_to_queue good")
             streaming = self.gen_req.stream
             self.responder.start_response()
             if streaming:
@@ -215,6 +216,7 @@ class ClientGenerateBatchProcess(sf.Process):
         finally:
             # Remove request from queue when done
             self.service.remove_from_queue()
+            logger.debug("dezhi: remove_from_queue good")
             self.responder.ensure_response()
 
     def generate_response(
