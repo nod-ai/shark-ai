@@ -11,7 +11,6 @@ from pathlib import Path
 import sys
 import multiprocessing as mp
 from queue import Empty
-from threading import Timer
 import time
 from typing import Dict, Any, Optional
 import json
@@ -125,6 +124,23 @@ class RequestQueueManager:
             logger.error(f"No response queue found for request {request_id}")
 
 
+class Timer:
+    def __init__(self):
+        self._start = None
+        self._end = None
+
+    def start(self):
+        self._start = time.perf_counter()
+
+    def end(self):
+        self._end = time.perf_counter()
+
+    def elapsed(self):
+        if self._end is None:
+            return time.perf_counter() - self._start
+        return self._end - self._start
+
+
 class CliResponder(AbstractResponder):
     def __init__(self):
         super().__init__()
@@ -153,9 +169,7 @@ class CliResponder(AbstractResponder):
         raise Exception("Streaming not supported")
 
 
-def lifecycle_manager_process(queue_manager: RequestQueueManager, args):
-    """Process that runs the simulated LLM service"""
-    logger.info("Starting simulated LLM service process")
+async def runner(queue_manager: RequestQueueManager, args):
     lifecycle_manager = ShortfinLlmLifecycleManager(args)
     service = lifecycle_manager.services["default"]
     service.start()
@@ -173,11 +187,14 @@ def lifecycle_manager_process(queue_manager: RequestQueueManager, args):
             )
             try:
                 # Process the request
-                # response = llm_service.generate(request_data)
                 responder = CliResponder()
                 ClientGenerateBatchProcess(service, gen_req, responder).launch()
-                asyncio.run(responder.response)
+                await responder.response
                 response = responder.response.result()
+                print("LLM response: ", response)
+                # Decode bytes response to string and parse as JSON
+                if isinstance(response, bytes):
+                    response = json.loads(response.decode("utf-8"))
                 queue_manager.put_response(request_id, response)
             except Exception as e:
                 logger.error(f"Error processing request {request_id}: {str(e)}")
@@ -188,6 +205,12 @@ def lifecycle_manager_process(queue_manager: RequestQueueManager, args):
         except Exception as e:
             logger.error(f"Error in LLM service process: {str(e)}")
             time.sleep(1)  # Prevent tight loop on errors
+
+
+def lifecycle_manager_process(queue_manager: RequestQueueManager, args):
+    """Process that runs the simulated LLM service"""
+    logger.info("Starting simulated LLM service process")
+    asyncio.run(runner(queue_manager, args))
 
 
 def create_fastapi_app(queue_manager: RequestQueueManager) -> FastAPI:
