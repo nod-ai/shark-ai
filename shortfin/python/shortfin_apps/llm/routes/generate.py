@@ -34,8 +34,8 @@ async def generate_request(gen_req: GenerateReqInput, request: Request):
         ) % len(request.app.state.services)
         service = request.app.state.services[request.app.state.current_instance]
         time.sleep(0.001)
-    print(
-        f"Generating with service: {request.app.state.current_instance} current queue size: {service.current_queue_size} max queue size: {service.max_queue_size}"
+    logger.info(
+        f"Generating with service: {request.app.state.current_instance}, current queue size: {service.current_queue_size}, max queue size: {service.max_queue_size}"
     )
     gen_req.post_init()
     responder = FastAPIResponder(request)
