@@ -72,11 +72,15 @@ class LlmGenerateService(GenerateService):
         """Initialize request and response queues"""
         if self.model_params.decode_batch_sizes:
             self.max_queue_size = max(self.model_params.decode_batch_sizes)
-            print(f"Max queue size: {self.max_queue_size}")
+            logger.info(
+                f"Max queue size for instance {self.name}: {self.max_queue_size}"
+            )
 
     def add_to_queue(self) -> bool:
         """Try to add a request to the queue. Returns True if successful, False if queue is full."""
-        print(f"Adding to queue: {self.current_queue_size} >= {self.max_queue_size}")
+        logger.info(
+            f"Adding to queue: {self.current_queue_size} >= {self.max_queue_size}"
+        )
         if self.current_queue_size >= self.max_queue_size:
             return False
         self.current_queue_size += 1
