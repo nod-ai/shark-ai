@@ -8,10 +8,9 @@ from typing import Optional
 
 import torch
 
-from sharktank.types import Theta
 from sharktank.layers import *
-
-from sharktank.ops import softmax, topk
+from sharktank.ops import softmax, topk, zeros_like
+from sharktank.types import Theta
 
 __all__ = [
     "MoeBlock",
@@ -37,10 +36,20 @@ class MoeBlock(ThetaLayer):
         score_experts=softmax,
         normalize_experts=True,
         add_residual=True,
+        expert_count: Optional[int] = None,
+        n_expert_groups: Optional[int] = None,
+        n_limited_groups: Optional[int] = None,
         route_scale: Optional[float] = 1.0,
     ):
         super().__init__(theta)
+        if n_expert_groups is not None and expert_count % n_expert_groups != 0:
+            raise ValueError(
+                f"Number of experts {expert_count} must be divisible by the number of expert groups {n_expert_groups}."
+            )
         self.expert_used_count = expert_used_count
+        self.expert_count = expert_count
+        self.n_expert_groups = n_expert_groups
+        self.n_limited_groups = n_limited_groups
         self.score_experts = score_experts
         self.normalize_experts = normalize_experts
         self.add_residual = add_residual
@@ -95,9 +104,34 @@ class MoeBlock(ThetaLayer):
         router_weights = self.score_experts(router_logits.to(torch.float))
 
         # Select top k experts from router weights
-        expert_gate, top_k_experts = topk(
-            router_weights, self.expert_used_count, dim=-1
-        )
+        if self.n_expert_groups is not None and self.n_limited_groups is not None:
+            scores_for_choice = router_weights.view(-1, self.expert_count)
+
+            group_scores = (
+                router_weights.view(
+                    -1, self.n_expert_groups, self.expert_count // self.n_expert_groups
+                )
+                .topk(2, dim=-1)[0]
+                .sum(dim=-1)
+            )
+            group_idx = topk(group_scores, k=self.n_limited_groups, dim=-1)[1]
+            group_mask = zeros_like(group_scores)
+            group_mask.scatter_(1, group_idx, 1)
+            score_mask = (
+                group_mask.unsqueeze(-1)
+                .expand(
+                    -1, self.n_expert_groups, self.expert_count // self.n_expert_groups
+                )
+                .reshape(-1, self.expert_count)
+            )
+            scores_for_choice = scores_for_choice.masked_fill(~score_mask.bool(), 0.0)
+            expert_gate, top_k_experts = topk(
+                scores_for_choice, k=self.expert_used_count, dim=-1
+            )
+        else:
+            expert_gate, top_k_experts = topk(
+                router_weights, self.expert_used_count, dim=-1
+            )
 
         if self.normalize_experts:
             expert_gate /= expert_gate.sum(dim=-1, keepdim=True)
