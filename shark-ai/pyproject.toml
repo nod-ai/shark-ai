@@ -9,7 +9,7 @@ authors = [
 ]
 description = "SHARK AI meta package"
 readme = "README.md"
-license = {text = "Apache-2.0"}
+license = "Apache-2.0"
 classifiers = [
   "Development Status :: 3 - Alpha",
   "License :: OSI Approved :: Apache Software License",
