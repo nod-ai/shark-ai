@@ -210,10 +210,11 @@ class SignatureDispatcher:
         "_trampoline",
     ]
 
-    def __init__(self, sigf: Callable):
+    def __init__(self, sigf: Callable, is_trivially_replicable: bool = True):
         self._target_cache = dict()
         self._trampoline: Optional[Callable] = None
         self._overrides: list[_TargetOverride] = []
+        self.is_trivially_replicable = is_trivially_replicable
 
     def __call__(self, *args, **kwargs):
         trampoline = self._trampoline
@@ -357,15 +358,7 @@ def overridable(
             overridable, is_trivially_replicable=is_trivially_replicable
         )
 
-    dispatcher = SignatureDispatcher(f)
+    dispatcher = SignatureDispatcher(f, is_trivially_replicable=is_trivially_replicable)
     functools.update_wrapper(dispatcher, f)
-
-    if is_trivially_replicable:
-        from sharktank.ops.utils import trivially_replicable
-        from sharktank.types import ReplicatedTensor
-
-        dispatcher.override(AllOfType(ReplicatedTensor))(
-            trivially_replicable(dispatcher)
-        )
 
     return dispatcher

@@ -1461,7 +1461,7 @@ class UnreducedTensor(ShardedTensorBase):
 
 
 def is_any_tensor(x: Any) -> bool:
-    return isinstance(x, InferenceTensor) or isinstance(x, torch.Tensor)
+    return isinstance(x, (InferenceTensor, torch.Tensor))
 
 
 def flatten_tensor_tree(

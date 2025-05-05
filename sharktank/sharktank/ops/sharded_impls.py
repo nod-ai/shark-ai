@@ -26,7 +26,13 @@ from sharktank.types import (
     UnreducedTensor,
 )
 from sharktank.types.tensors import unbox_tensor
-from ._registry import AllOfType, AllOfExprsVariadic, AnyOfType, IsOfType
+from ._registry import (
+    AllOfType,
+    AllOfExprsVariadic,
+    AnyOfType,
+    IsOfType,
+    SignatureDispatcher,
+)
 from .shape import broadcast_dims, broadcast_dim, unbroadcast_dim
 from sharktank.utils import longest_equal_range
 from .signatures import *
@@ -131,7 +137,19 @@ def sharded_unwrap_override():
             del func.override_orig
 
 
+def _register_trivially_replicable():
+    from . import signatures
+    from .utils import trivially_replicable
+
+    for func_name in signatures.__all__:
+        func = globals()[func_name]
+        if isinstance(func, SignatureDispatcher) and func.is_trivially_replicable:
+            func.override(AllOfType(ReplicatedTensor))(trivially_replicable(func))
+
+
 sharded_wrap_override()
+
+_register_trivially_replicable()
 
 
 @all_gather.override(SplitPrimitiveTensor)

@@ -8,6 +8,7 @@ from collections.abc import Iterable
 from typing import Callable
 import unittest
 import itertools
+import pytest
 from parameterized import parameterized, parameterized_class
 
 import torch
@@ -263,6 +264,9 @@ class CalculateViewDimensionMappingTest(unittest.TestCase):
 
 
 class CatTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(0)
+
     def testCatSplitDim(self):
         """Concatenation along the sharded split dimension."""
         shard_dim = 1
@@ -294,6 +298,26 @@ class CatTest(unittest.TestCase):
         sharded_b = ops.reshard_split(b, count=shard_count, dim=shard_dim)
         actual_result = ops.cat([sharded_a, sharded_b], dim=cat_dim)
         assert expected_result.is_deep_equal(actual_result, compare_name=False)
+
+    def testCatReplicatedShouldFail(self):
+        """Concatenation of replicated tensors."""
+        shard_count = 2
+        cat_dim = 0
+        # Done to ensure no overlap with default devices so incorrect placement is caught
+        devices = tuple(range(shard_count, 2 * shard_count))
+
+        a = torch.rand(5, 4, dtype=torch.float32)
+        b = torch.rand(3, 4, dtype=torch.float32)
+
+        sharded_a = ReplicatedTensor(ts=a, shard_count=shard_count, devices=devices)
+        sharded_b = ReplicatedTensor(
+            ts=b, shard_count=shard_count, devices=tuple(range(shard_count))
+        )
+
+        with pytest.raises(
+            ValueError, match="All tensors must be placed on the same devices"
+        ):
+            ops.cat([sharded_a, sharded_b], dim=cat_dim)
 
 
 class ConvTest(unittest.TestCase):
@@ -1824,6 +1848,20 @@ class TriviallyReplicableTest(unittest.TestCase):
         replicated_args[1].is_deep_equal(replicated_result[1])
         replicated_args[2] == replicated_result[2]
 
+    @pytest.mark.xfail(
+        reason=(
+            "The composition of trivially replicable and the wrapping of"
+            " SignatureDispatcher.override for sharded ops needs some"
+            " refactoring. Right now we can't declare ops outside of"
+            " sharktank.ops.signatures."
+        ),
+        strict=True,
+        raises=NotImplementedError,
+        match=(
+            "does not have an implementation for argument types:"
+            " [<class 'sharktank.types.tensors.ReplicatedTensor'>]"
+        ),
+    )
     def testSignatureRegistration(self):
         from sharktank.ops._registry import overridable, SignatureDispatcher
 

@@ -33,15 +33,12 @@ def call_trivially_replicable(
         is_any_tensor,
     )
 
-    def is_leaf(v: Any) -> bool:
-        return is_any_tensor(v) or tree.is_leaf_default(v)
-
     flat_args = tree.flatten(
         (
             args,
             kwargs,
         ),
-        is_leaf=is_leaf,
+        is_leaf=_is_leaf,
     )
     first_replicated_tensor_arg = [
         arg for arg in flat_args if isinstance(arg, ReplicatedTensor)
@@ -71,26 +68,24 @@ def call_trivially_replicable(
         a.append(b)
         return a
 
-    def tensor_to_empty_list(x: Any) -> list:
-        if is_any_tensor(x):
-            return []
-        return x
+    def tensor_to_empty_list_if_tensor(x: Any) -> Any:
+        return [] if is_any_tensor(x) else x
 
     reduce_initial = tree.map_leaves(
-        per_shard_results[0], f=tensor_to_empty_list, is_leaf=is_leaf
+        per_shard_results[0], f=tensor_to_empty_list_if_tensor, is_leaf=_is_leaf
     )
 
     # Make a lists of tensor shards that correspond to the same replicated tensor.
     reduced_results = tree.reduce_horizontal(
         fn=reduce_to_list_of_tensors_fn,
         trees=per_shard_results,
-        is_leaf=is_leaf,
+        is_leaf=_is_leaf,
         initial=reduce_initial,
     )
 
     def make_replicated_tensor_if_tensor_collection(x: Any) -> Any:
         if _is_tensor_collection(x):
-            return ReplicatedTensor(ts=x, devices=first_replicated_tensor_arg.devices)
+            return ReplicatedTensor(ts=x)
         return x
 
     result_with_replicated_tensor = tree.map_leaves(
@@ -156,9 +151,7 @@ def _extract_tensor_shard_if_replicate(v: Any, shard_index: int) -> Any:
 
 
 def _is_leaf(v: Any) -> bool:
-    from sharktank.types import (
-        is_any_tensor,
-    )
+    from sharktank.types import is_any_tensor
 
     return is_any_tensor(v) or tree.is_leaf_default(v)
 
@@ -168,8 +161,6 @@ def _is_leaf_or_tensor_collection(x: Any) -> bool:
 
 
 def _is_tensor_collection(x: Any) -> bool:
-    from sharktank.types import (
-        is_any_tensor,
-    )
+    from sharktank.types import is_any_tensor
 
     return isinstance(x, Sequence) and all(is_any_tensor(v) for v in x)
