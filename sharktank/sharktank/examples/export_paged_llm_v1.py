@@ -77,7 +77,7 @@ def main():
         )
     else:
         block_to_pipeline = tuple([0] * hp.block_count)
-        pipeline_to_devices = tuple([tuple([0])])
+        pipeline_to_devices = tuple([tuple(range(args.tensor_parallelism_size))])
 
     llama_config = LlamaModelConfig(
         hp,
