@@ -250,7 +250,7 @@ def torch_tensor_to_device_array(
     tensor: torch.Tensor, device: iree.runtime.HalDevice
 ) -> iree.runtime.DeviceArray:
     if tensor.dtype in halelementtype_map.keys():
-        tensor_as_int16 = tensor.view(dtype=torch.int16)
+        tensor_as_int16 = tensor.to(dtype=torch.int16)
         device_array_as_int16 = iree.runtime.asdevicearray(
             device, unbox_tensor(tensor_as_int16).to("cpu").detach().numpy()
         )
@@ -328,6 +328,8 @@ def prepare_iree_module_function_args(
             )
         elif isinstance(arg, (DefaultPrimitiveTensor, torch.Tensor)):
             res.append(torch_tensor_to_device_array(arg, devices[0]))
+        elif isinstance(arg, iree.runtime.DeviceArray):
+            res.append(arg)
         else:
             assert isinstance(arg, collections.abc.Sequence)
             res.extend(prepare_iree_module_function_args(arg, devices))

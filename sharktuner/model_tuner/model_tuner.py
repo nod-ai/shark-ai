@@ -5,12 +5,13 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import argparse
+import shutil
 from pathlib import Path
-from tuner import libtuner
-from tuner.common import *
+from sharktuner import libtuner
+from sharktuner.common import *
 
 
-class SimpleTuner(libtuner.TuningClient):
+class ModelTuner(libtuner.TuningClient):
     def __init__(self, tuner_context: libtuner.TunerContext):
         super().__init__(tuner_context)
         self.compile_flags: list[str] = []
@@ -42,33 +43,39 @@ def read_flags_file(flags_file: str) -> list[str]:
 def arg_parse() -> argparse.Namespace:
     # Custom arguments for the example tuner file.
     parser = argparse.ArgumentParser(description="Autotune sample script")
-    client_args = parser.add_argument_group("Simple Example Tuner Options")
+    client_args = parser.add_argument_group("Shark Tuner Options")
     client_args.add_argument(
-        "simple_model_file", type=Path, help="Path to the model file to tune (.mlir)"
+        "model_file", type=Path, help="Path to the model file to tune (.mlir)"
     )
     client_args.add_argument(
-        "--simple-num-dispatch-candidates",
+        "--model-tuner-num-dispatch-candidates",
         type=int,
         default=None,
         help="Number of dispatch candidates to keep for model benchmarks.",
     )
     client_args.add_argument(
-        "--simple-num-model-candidates",
+        "--model-tuner-num-model-candidates",
         type=int,
         default=None,
         help="Number of model candidates to produce after tuning.",
     )
     client_args.add_argument(
-        "--simple-compile-flags-file",
+        "--compile-flags-file",
         type=str,
         default="",
         help="Path to the flags file for iree-compile.",
     )
     client_args.add_argument(
-        "--simple-model-benchmark-flags-file",
+        "--model-benchmark-flags-file",
         type=str,
         default="",
         help="Path to the flags file for iree-benchmark-module for model benchmarking.",
+    )
+    client_args.add_argument(
+        "--output-td-spec",
+        type=Path,
+        help="Path to write the best tuned spec. Dumps the best tuned model spec by default, and the best tuned dispatch spec when --stop-after is set to 'benchmark-dispatches'.",
+        default="tuning-spec.mlir",
     )
     # Remaining arguments come from libtuner
     args = libtuner.parse_arguments(parser)
@@ -93,10 +100,8 @@ def main() -> None:
         libtuner.validate_devices(args.devices)
         print("Validation successful!\n")
 
-    compile_flags: list[str] = read_flags_file(args.simple_compile_flags_file)
-    model_benchmark_flags: list[str] = read_flags_file(
-        args.simple_model_benchmark_flags_file
-    )
+    compile_flags: list[str] = read_flags_file(args.compile_flags_file)
+    model_benchmark_flags: list[str] = read_flags_file(args.model_benchmark_flags_file)
 
     summary_log_file = path_config.base_dir / "summary.log"
     summary_handler = logging.FileHandler(summary_log_file)
@@ -107,20 +112,20 @@ def main() -> None:
     print("Generating candidate tuning specs...")
     with TunerContext(logger=root_logger) as tuner_context:
         tuner_context.logger.addHandler(summary_handler)
-        simple_tuner = SimpleTuner(tuner_context)
+        model_tuner = ModelTuner(tuner_context)
         candidates = libtuner.generate_candidate_specs(
-            args, path_config, candidate_trackers, simple_tuner
+            args, path_config, candidate_trackers, model_tuner
         )
         print(f"Stored candidate tuning specs in {path_config.specs_dir}\n")
         if stop_after_phase == libtuner.ExecutionPhases.generate_candidates:
             return
 
         print("Compiling dispatch candidates...")
-        simple_tuner.compile_flags = compile_flags + [
+        model_tuner.compile_flags = compile_flags + [
             "--compile-from=executable-sources"
         ]
         compiled_candidates = libtuner.compile(
-            args, path_config, candidates, candidate_trackers, simple_tuner
+            args, path_config, candidates, candidate_trackers, model_tuner
         )
         if stop_after_phase == libtuner.ExecutionPhases.compile_dispatches:
             return
@@ -128,30 +133,36 @@ def main() -> None:
         message = "Benchmarking compiled dispatch candidates..."
         print(message)
         logging.info(message)
-        simple_tuner.benchmark_flags = ["--input=1", "--benchmark_repetitions=3"]
+        model_tuner.benchmark_flags = ["--input=1", "--benchmark_repetitions=3"]
         top_candidates = libtuner.benchmark(
             args,
             compiled_candidates,
             candidate_trackers,
-            simple_tuner,
-            args.simple_num_dispatch_candidates,
+            model_tuner,
+            args.model_tuner_num_dispatch_candidates,
         )
         logging.info(f"Top dispatch candidates: {top_candidates}")
         for id in top_candidates:
             logging.info(f"{candidate_trackers[id].spec_path.resolve()}")
         if stop_after_phase == libtuner.ExecutionPhases.benchmark_dispatches:
+            top_spec_path = (
+                path_config.specs_dir
+                / path_config.get_candidate_spec_filename(top_candidates[0])
+            )
+            shutil.copy(top_spec_path, args.output_td_spec)
+            print(f"Saved top spec ({top_spec_path}) to {args.output_td_spec}")
             return
 
         print("Compiling models with top candidates...")
-        simple_tuner.compile_flags = compile_flags
-        simple_tuner.compile_timeout = 120
+        model_tuner.compile_flags = compile_flags
+        model_tuner.compile_timeout = 120
         compiled_model_candidates = libtuner.compile(
             args,
             path_config,
             top_candidates,
             candidate_trackers,
-            simple_tuner,
-            args.simple_model_file,
+            model_tuner,
+            args.model_file,
         )
         if stop_after_phase == libtuner.ExecutionPhases.compile_models:
             return
@@ -159,19 +170,25 @@ def main() -> None:
         message = "Benchmarking compiled model candidates..."
         print(message)
         logging.info(message)
-        simple_tuner.benchmark_flags = model_benchmark_flags
-        simple_tuner.benchmark_timeout = 60
+        model_tuner.benchmark_flags = model_benchmark_flags
+        model_tuner.benchmark_timeout = 60
         top_model_candidates = libtuner.benchmark(
             args,
             compiled_model_candidates,
             candidate_trackers,
-            simple_tuner,
-            args.simple_num_model_candidates,
+            model_tuner,
+            args.model_tuner_num_model_candidates,
         )
         logging.info(f"Top model candidates: {top_model_candidates}")
         for id in top_model_candidates:
             logging.info(f"{candidate_trackers[id].spec_path.resolve()}")
         print(f"Top model candidates: {top_model_candidates}")
+
+        top_spec_path = path_config.specs_dir / path_config.get_candidate_spec_filename(
+            top_model_candidates[0]
+        )
+        shutil.copy(top_spec_path, args.output_td_spec)
+        print(f"Saved top spec ({top_spec_path}) to {args.output_td_spec}")
 
         print("Check the detailed execution logs in:")
         print(path_config.run_log.resolve())

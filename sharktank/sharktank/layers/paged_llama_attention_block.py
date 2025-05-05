@@ -8,7 +8,13 @@ from typing import Optional
 
 
 import torch
-from sharktank.types import QuantizerTensor, StaticScaledQuantizer, Theta
+
+from sharktank.types import (
+    QuantizerTensor,
+    ReplicatedTensor,
+    StaticScaledQuantizer,
+    Theta,
+)
 from sharktank.layers import *
 
 
@@ -31,20 +37,22 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         head_dim: int,
         head_count_kv: int,
         rms_epsilon: float,
-        attention_dtype: Optional[torch.dtype] = None,
         attention_kernel: str = "torch",
         attention_scale: Optional[float] = None,
         softcap: Optional[float] = None,
         fake_quant: Optional[bool] = True,
+        block_to_device_lookup: tuple[tuple[int, ...], ...] | None = None,
     ):
         super().__init__(theta)
 
         self.paged_attention = PagedAttention(
             transformer_block_count=cache.transformer_block_count,
+            block_to_device_lookup=block_to_device_lookup,
             attn_head_count=head_count_kv,
             attn_head_dim=head_dim,
             block_seq_stride=cache.block_seq_stride,
-            dtype=cache.dtype,
+            cache_dtype=cache.cache_dtype,
+            attn_dtype=cache.attn_dtype,
             device=cache.device,
             shard_count=cache.shard_count,
         )
@@ -52,7 +60,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self.head_count = head_count
         self.head_dim = head_dim
         self.head_count_kv = head_count_kv
-        self.attention_dtype = attention_dtype
         self.attention_kernel = attention_kernel
         self.attention_scale = attention_scale
         self.softcap = softcap
@@ -107,8 +114,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor,
         start_index: Optional[int] = None,
-        start_positions: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
+        start_positions: Optional[torch.Tensor | ReplicatedTensor] = None,
+        attention_mask: Optional[torch.Tensor | ReplicatedTensor] = None,
         embedding_batch_mask: Optional[torch.Tensor] = None,
         cache_state: list[torch.Tensor] = None,
     ):

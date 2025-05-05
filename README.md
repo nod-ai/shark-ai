@@ -43,9 +43,9 @@ conversion tools to produce inference-optimized programs.
 * See [Direct Quantization with SHARK Tank](./docs/quantization.md)
   for information about quantization support.
 
-### [`tuner/`](./tuner/)
+### [`sharktuner/`](./sharktuner/)
 
-[![CI - Tuner](https://github.com/nod-ai/shark-ai/actions/workflows/ci-tuner.yml/badge.svg?event=push)](https://github.com/nod-ai/shark-ai/actions/workflows/ci-tuner.yml?query=event%3Apush)
+[![CI - sharktuner](https://github.com/nod-ai/shark-ai/actions/workflows/ci-tuner.yml/badge.svg?event=push)](https://github.com/nod-ai/shark-ai/actions/workflows/ci-tuner.yml?query=event%3Apush)
 
 The Tuner sub-project assists with tuning program performance by searching for
 optimal parameter configurations to use during model compilation.
@@ -53,7 +53,7 @@ optimal parameter configurations to use during model compilation.
 > [!WARNING]
 > SHARK Tuner is still in early development. Interested users may want
 > to try it out, but the tuner is not ready for general use yet. Check out
-> [the readme](tuner/README.md) for more details.
+> [the readme](sharktuner/README.md) for more details.
 
 ## Support matrix
 
@@ -65,6 +65,7 @@ Model name | Model recipes | Serving apps | Guide |
 ---------- | ------------- | ------------ | ----- |
 SDXL       | [`sharktank/sharktank/models/punet/`](https://github.com/nod-ai/shark-ai/tree/main/sharktank/sharktank/models/punet) | [`shortfin/python/shortfin_apps/sd/`](https://github.com/nod-ai/shark-ai/tree/main/shortfin/python/shortfin_apps/sd) | [shortfin/python/shortfin_apps/sd/README.md](shortfin/python/shortfin_apps/sd/README.md)
 llama      | [`sharktank/sharktank/models/llama/`](https://github.com/nod-ai/shark-ai/tree/main/sharktank/sharktank/models/llama) | [`shortfin/python/shortfin_apps/llm/`](https://github.com/nod-ai/shark-ai/tree/main/shortfin/python/shortfin_apps/llm) | [docs/shortfin/llm/user/llama_serving.md](docs/shortfin/llm/user/llama_serving.md)
+Flux       | [`sharktank/sharktank/models/flux/`](https://github.com/nod-ai/shark-ai/tree/main/sharktank/sharktank/models/flux) | [`shortfin/python/shortfin_apps/flux/`](https://github.com/nod-ai/shark-ai/tree/main/shortfin/python/shortfin_apps/flux) | [`shortfin/python/shortfin_apps/flux/README.md`](https://github.com/nod-ai/shark-ai/blob/main/shortfin/python/shortfin_apps/flux/README.md)
 
 ## SHARK Developers
 

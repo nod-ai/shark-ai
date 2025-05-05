@@ -28,6 +28,7 @@ def main():
         --bs: int - batch size, for custom prompts, bs is number of given prompts (defaults to 4)
         --save_intermediates_path: str - save module forward outputs to safetensors, ex: run_0 will save to run_0_prefill.savetensors"
     """
+    from ..utils import cli
 
     parser = cli.create_parser()
     cli.add_input_dataset_options(parser)
@@ -38,12 +39,6 @@ def main():
     cli.add_save_tensor_options(parser)
 
     args = cli.parse(parser)
-
-    prompt_seq_len = args.prompt_seq_len
-
-    assert (
-        args.prompt or prompt_seq_len
-    ), "Pass --prompt for custom prompts or --prompt-seq-len and --bs to generate random token ids"
 
     device = torch.device(args.device) if args.device else None
     dataset = cli.get_input_dataset(args)
@@ -59,6 +54,7 @@ def main():
         kv_cache_dtype=args.kv_cache_dtype,
         use_hf=args.use_hf,
         tensor_parallelism_size=args.tensor_parallelism_size,
+        pipeline_parallelism_size=args.pipeline_parallelism_size,
         fake_quant=args.fake_quant,
     )
     if config.tensor_parallelism_size > 1:
@@ -74,13 +70,10 @@ def main():
 
     generator = TorchGenerator(model, tokenizer)
 
-    token_ids, seq_lens = generator.preprocess_prompts(
-        prompts=args.prompt, prompt_seq_len=prompt_seq_len, bs=args.bs
-    )
+    token_ids, seq_lens = generator.preprocess_prompts(prompts=args.prompt)
     batch = generator.begin_batch(
         token_ids=token_ids,
         seq_lens=seq_lens,
-        prompt_seq_len=prompt_seq_len,
         dump_path=args.dump_path,
         dump_decode_steps=args.dump_decode_steps,
     )
@@ -101,7 +94,8 @@ def main():
                 intermediates_saver.save_file(
                     args.save_intermediates_path + f"_step_{counter}.safetensors"
                 )
-
+            print(f":: Result tokens: {batch.results}")
+            batch.print_current_results()
             counter += 1
 
         if len(batch.parent.free_pages) == 0:

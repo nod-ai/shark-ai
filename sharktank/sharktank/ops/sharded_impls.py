@@ -26,7 +26,7 @@ from sharktank.types import (
     UnreducedTensor,
 )
 from sharktank.types.tensors import unbox_tensor
-from ._registry import AllOfType, AllOfExprsVariadic, IsOfType
+from ._registry import AllOfType, AllOfExprsVariadic, AnyOfType, IsOfType
 from .shape import broadcast_dims, broadcast_dim, unbroadcast_dim
 from sharktank.utils import longest_equal_range
 from .signatures import *
@@ -69,8 +69,15 @@ def sharded_wrap_override():
 
             assert_on_same_devices(*sharded_tensors)
             res = f(*args, **kwargs)
-            if isinstance(res, ShardedTensor) and len(sharded_tensors) > 0:
-                res = res.clone(devices=sharded_tensors[0].devices)
+            if len(sharded_tensors) > 0:
+                if isinstance(res, ShardedTensor):
+                    res = res.clone(devices=sharded_tensors[0].devices)
+                elif isinstance(res, Iterable) and all(
+                    isinstance(r, ShardedTensor) for r in res
+                ):
+                    res = type(res)(
+                        r.clone(devices=sharded_tensors[0].devices) for r in res
+                    )
             return res
 
         return func_wrapper
@@ -182,6 +189,28 @@ def all_reduce_split_or_unreduced(
         for i in range(input.shard_count)
     ]
     return ReplicatedTensor(ts=shards, devices=input.devices)
+
+
+@argmax.override(ReplicatedTensor)
+def argmax_replicated(
+    tensor: ReplicatedTensor,
+    dim: Optional[int] = None,
+    keepdim: bool = False,
+    chunk_size: Optional[int] = None,
+):
+    shards = [argmax(shard, dim, keepdim, chunk_size) for shard in tensor.shards]
+    return ReplicatedTensor(ts=shards)
+
+
+@argmax.override(SplitPrimitiveTensor)
+def argmax_split(
+    tensor: SplitPrimitiveTensor,
+    dim: Optional[int] = None,
+    keepdim: bool = False,
+    chunk_size: Optional[int] = None,
+):
+    shards = [argmax(shard, dim, keepdim, chunk_size) for shard in tensor.shards]
+    return SplitPrimitiveTensor(ts=shards, shard_dim=tensor.shard_dim)
 
 
 @cat.override(AllOfType(ReplicatedTensor))
@@ -420,10 +449,22 @@ def split_elementwise_binary(
         operator(pt_x, pt_y, *args, **kwargs) for pt_x, pt_y in zip(pt_xs, pt_ys)
     ]
     return SplitPrimitiveTensor(
-        shard_dim=x.shard_dim,
+        shard_dim=x_shard_dim,
         shape=torch.broadcast_shapes(x.shape, y.shape),
         ts=partials,
     )
+
+
+@einsum_2args.override(AllOfType(ReplicatedTensor))
+def einsum_2args_replicated(
+    input0: ReplicatedTensor, input1: ReplicatedTensor, einsum_str: str
+) -> ReplicatedTensor:
+    assert input0.shard_count == input1.shard_count
+    shards = [
+        einsum_2args(input0_shard, input1_shard, einsum_str)
+        for input0_shard, input1_shard in zip(input0.shards, input1.shards)
+    ]
+    return ReplicatedTensor(ts=shards)
 
 
 @elementwise.override(SplitPrimitiveTensor, Number)
@@ -826,6 +867,34 @@ for types in itertools.product([Tensor, ShardedTensor], repeat=2):
         linear.override(*types, auto_dequant=True)(linear_sharded)
 
 
+@masked_fill.override(AllOfType(ReplicatedTensor))
+def masked_fill_replicated(
+    tensor: ReplicatedTensor,
+    mask: ReplicatedTensor,
+    value: Number,
+) -> ReplicatedTensor:
+    assert tensor.shard_count == mask.shard_count
+    shards = [
+        shard.masked_fill(mask_shard, value)
+        for shard, mask_shard in zip(tensor.shards, mask.shards)
+    ]
+    return ReplicatedTensor(ts=shards)
+
+
+@masked_fill.override(AllOfType(SplitPrimitiveTensor))
+def masked_fill_split(
+    tensor: SplitPrimitiveTensor,
+    mask: SplitPrimitiveTensor,
+    value: Number,
+) -> SplitPrimitiveTensor:
+    assert tensor.shard_count == mask.shard_count
+    shards = [
+        shard.masked_fill(mask_shard, value)
+        for shard, mask_shard in zip(tensor.shards, mask.shards)
+    ]
+    return SplitPrimitiveTensor(ts=shards, shard_dim=tensor.shard_dim)
+
+
 # Sharded matmuls.
 
 
@@ -1051,9 +1120,47 @@ def mean_replicated(
     keepdim: bool,
     *,
     dtype: torch.dtype,
-) -> None:
+) -> ReplicatedTensor:
     shards = [mean(shard, dim=dim, keepdim=keepdim, dtype=dtype) for shard in x.shards]
     return ReplicatedTensor(ts=shards)
+
+
+@mean.override(SplitPrimitiveTensor)
+def mean_split(
+    x: SplitPrimitiveTensor,
+    dim: Union[int, List[int]],
+    keepdim: bool,
+    *,
+    dtype: torch.dtype,
+) -> SplitPrimitiveTensor | ReplicatedTensor:
+    if not isinstance(dim, (list, tuple)):
+        dim = [dim]
+    dim = [d + len(x.shape) if d < 0 else d for d in dim]
+
+    if x.shard_dim not in dim:
+        # If keepdim == False and any entry in dim is smaller than shard_dim
+        # we need to offset shard_dim_new to have it point to the same dimension.
+        num_smaller_dims = sum(d < x.shard_dim for d in dim)
+        shard_dim_new = x.shard_dim - (not keepdim) * num_smaller_dims
+
+        shards = [
+            mean(shard, dim=dim, keepdim=keepdim, dtype=dtype) for shard in x.shards
+        ]
+        return SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim_new)
+    else:
+        gathered = cat(
+            [
+                (
+                    transfer_to_logical_device(shard, x.devices[0])
+                    if i != 0
+                    else barrier_on_logical_device(shard, x.devices[0])
+                )
+                for i, shard in enumerate(x.shards)
+            ],
+            dim=x.shard_dim,
+        )
+        meaned = mean(gathered, dim=dim, keepdim=keepdim, dtype=dtype)
+        return ReplicatedTensor(ts=meaned, shard_count=x.shard_count, devices=x.devices)
 
 
 @module_register_buffer.override(torch.nn.Module, ShardedTensor)
@@ -1063,6 +1170,57 @@ def module_register_buffer_sharded(
     for i, shard in enumerate(tensor.shards):
         module_register_buffer(module, f"{name}__shard__{i}", shard)
     setattr(module, name, tensor)
+
+
+@pad.override(ReplicatedTensor)
+def pad_replicated(
+    input: ReplicatedTensor,
+    _pad: List[int],
+    mode: str = None,
+    value: Optional[float] = None,
+) -> ReplicatedTensor:
+    shards = [pad(shard, _pad=_pad, mode=mode, value=value) for shard in input.shards]
+    return ReplicatedTensor(ts=shards)
+
+
+@pad.override(SplitPrimitiveTensor)
+def pad_replicated(
+    input: SplitPrimitiveTensor,
+    _pad: List[int],
+    mode: str = None,
+    value: Optional[float] = None,
+) -> SplitPrimitiveTensor:
+    assert len(_pad) % 2 == 0, "Pad must be a list of even length"
+    padding_shard_dim = input.shard_dim > (len(input.shape) - 1 - len(_pad) // 2)
+    if padding_shard_dim:
+        # If padding by 0, then it's not really padding and we can avoid transfers.
+        shard_dim_indx_from_back = (len(input.shape) - 1) - input.shard_dim
+        shard_dim_pads = _pad[shard_dim_indx_from_back : shard_dim_indx_from_back + 2]
+        padding_shard_dim &= any(pad > 0 for pad in shard_dim_pads)
+    if not padding_shard_dim:
+        shards = [
+            pad(shard, _pad=_pad, mode=mode, value=value) for shard in input.shards
+        ]
+        return SplitPrimitiveTensor(ts=shards, shard_dim=input.shard_dim)
+    else:
+        gathered = cat(
+            [
+                (
+                    transfer_to_logical_device(shard, input.devices[0])
+                    if i != 0
+                    else barrier_on_logical_device(shard, input.devices[0])
+                )
+                for i, shard in enumerate(input.shards)
+            ],
+            dim=input.shard_dim,
+        )
+        gathered = pad(gathered, _pad=_pad, mode=mode, value=value)
+        return reshard_split(
+            gathered,
+            dim=input.shard_dim,
+            count=input.shard_count,
+            devices=input.devices,
+        )
 
 
 @permute.override(SplitPrimitiveTensor)
@@ -1116,6 +1274,11 @@ def replicate_unsharded(input, *, count: int, devices: Tuple[int]) -> Replicated
     torch_input = unbox_tensor(input)
     assert count == len(devices)
     return ReplicatedTensor(ts=torch_input, shard_count=count, devices=devices)
+
+
+@reshape.override(ReplicatedTensor)
+def reshape_replicated(tensor: ReplicatedTensor, shape: List[int]) -> ReplicatedTensor:
+    return ReplicatedTensor(ts=[reshape(shard, shape) for shard in tensor.shards])
 
 
 @reshape.override(SplitPrimitiveTensor)
@@ -1275,7 +1438,23 @@ def reshard_like_replicated_to_replicated(
 def reshard_like_replicated_to_split(
     tensor: ReplicatedTensor, like: SplitPrimitiveTensor
 ) -> SplitPrimitiveTensor:
-    return reshard_split(tensor, dim=like.shard_dim, count=like.shard_count)
+    """
+    Adjust to handle broadcasting.
+    If `like` has more dims than `tensor`, we meed to decrease dim by the difference.
+    If it has more dims we need to increase dim instead.
+    Conceptually we are right aligning the dims.
+      like.shape     == [1, 2, 3]
+      tensor.shape   == [2, 3]
+    Becomes:
+      like.shape     == [1, 2, 3]
+      tensor.shape   == [   2, 3]
+    """
+    dim = (
+        like.shard_dim
+        - max(0, len(like.shape) - len(tensor.shape))
+        + max(0, len(tensor.shape) - len(like.shape))
+    )
+    return reshard_split(tensor, dim=dim, count=like.shard_count)
 
 
 @reshard_like.override(SplitPrimitiveTensor, SplitPrimitiveTensor)
@@ -1293,6 +1472,90 @@ def reshard_like_unreduced_to_replicated(
     tensor: UnreducedTensor, like: ReplicatedTensor
 ) -> ReplicatedTensor:
     return replicate(tensor, count=like.shard_count)
+
+
+@scatter_.override(ReplicatedTensor, ReplicatedTensor)
+def scatter_replicated_replicated(
+    inout: ReplicatedTensor,
+    dim: int,
+    index: ReplicatedTensor,
+    value: Number,
+    *,
+    reduce: str = None,
+) -> ReplicatedTensor:
+    assert isinstance(value, Number), "Tensor version of this op not implemented"
+    assert inout.shard_count == index.shard_count
+    for shard, index_shard in zip(inout.shards, index.shards):
+        scatter_(shard, dim, index_shard, value, reduce=reduce)
+    return inout
+
+
+@scatter_.override(SplitPrimitiveTensor, SplitPrimitiveTensor)
+def scatter_split_split(
+    inout: SplitPrimitiveTensor,
+    dim: int,
+    index: SplitPrimitiveTensor,
+    value: Number,
+    *,
+    reduce: str = None,
+) -> SplitPrimitiveTensor:
+    assert isinstance(value, Number), "Tensor version of this op not implemented"
+    if dim == inout.shard_dim:
+        # `index` can contain indices into any of `inout`s shards in any of its entries.
+        # Can't know ahead of time how to seperate out its values based on sliices.
+        tmp_tensor = all_gather(inout)
+        index = all_gather(index)
+        tmp_tensor.scatter_(dim, index, value, reduce=reduce)
+        tmp_tensor = reshard_like(tmp_tensor, inout)
+
+        for inout_shard, tmp_shard in zip(inout.shards, tmp_tensor.shards):
+            inout_shard.as_torch().copy_(tmp_shard.as_torch())
+        return inout
+
+    shard_dim = inout.shard_dim
+    if index.shape[shard_dim] == inout.shape[shard_dim]:
+        assert index.shard_dim == inout.shard_dim
+        index_shards = index.shards
+        last_shard_idx = inout.shard_count - 1
+    else:
+        # If the shapes are not the same it means that:
+        #   1. Not all slices along dim inside `inout` will be accessed (so we can decrease computation)
+        #   2. Slices indo shards of `index` and `inout` will not line up,
+        #      i.e. The slice index_shard_i[j] will not match up to inout_shard_i[j]
+        index = all_gather(index)
+
+        # Find the last shard of `inout` that will be accessed.
+        slice_indices_inout = [shard.shape[shard_dim] for shard in inout.shards]
+        cumulative_slice_idx = list(itertools.accumulate(slice_indices_inout))
+        final_slice_idx = index.shards[0].shape[shard_dim]  # Replicated, all the same
+        last_shard_idx = max(
+            i for i, val in enumerate(cumulative_slice_idx) if val <= final_slice_idx
+        )
+
+        # Manually re-shard and re-scatter index
+        # NOTE: index may not have the same number of shards as inout.
+        size_along_shard_dim = []
+        num_slices_left = final_slice_idx
+        for i in range(last_shard_idx + 1):
+            size_along_shard_dim.append(min(num_slices_left, slice_indices_inout[i]))
+            num_slices_left -= size_along_shard_dim[-1]
+        assert num_slices_left == 0
+        index_shards = unbox_tensor(index).split(size_along_shard_dim, dim=shard_dim)
+        index_shards = [
+            transfer_to_logical_device(shard, index.devices[i])
+            for i, shard in enumerate(index_shards)
+        ]
+        assert len(index_shards) == last_shard_idx + 1
+
+    for i in range(last_shard_idx + 1):
+        inout.shards[i].scatter_(
+            dim,
+            unbox_tensor(index_shards[i]),
+            value,
+            reduce=reduce,
+        )
+
+    return inout
 
 
 @sharded_cat.override(SplitPrimitiveTensor)
@@ -1329,6 +1592,19 @@ def sharded_sum_unreduced(maybe_sharded: UnreducedTensor) -> Tensor:
     return _sharded_sum_sharded(maybe_sharded)
 
 
+@sigmoid.override(ShardedTensor)
+def sigmoid_sharded(tensor: ShardedTensor) -> ShardedTensor:
+    return elementwise(torch.sigmoid, tensor)
+
+
+@softmax.override(ReplicatedTensor)
+def softmax_replicated(
+    tensor: ReplicatedTensor, dim: Optional[int], dtype: Optional[torch.dtype]
+) -> ReplicatedTensor:
+    shards = [softmax(shard, dim=dim, dtype=dtype) for shard in tensor.shards]
+    return tensor.clone(ts=shards)
+
+
 @softmax.override(SplitPrimitiveTensor)
 def softmax_split(
     tensor: SplitPrimitiveTensor, dim: Optional[int], dtype: Optional[torch.dtype]
@@ -1343,16 +1619,106 @@ def softmax_split(
     )
 
 
-@to.override(ReplicatedTensor)
-def to_replicated(tensor: ReplicatedTensor, *args, **kwargs):
-    shards = [to(shard, *args, **kwargs) for shard in tensor.shards]
+@sum.override(ReplicatedTensor)
+def sum_replicated(
+    input: ReplicatedTensor,
+    dim: int | List[int] | None,
+    keepdim: bool,
+    *,
+    dtype: torch.dtype,
+) -> ReplicatedTensor:
+    assert dim is not None, "sum dim must be specified"
+    shards = [
+        sum(shard, dim=dim, keepdim=keepdim, dtype=dtype) for shard in input.shards
+    ]
     return ReplicatedTensor(ts=shards)
 
 
-@to.override(SplitPrimitiveTensor)
-def to_split(tensor: SplitPrimitiveTensor, *args, **kwargs):
+@sum.override(SplitPrimitiveTensor)
+def sum_split(
+    input: SplitPrimitiveTensor,
+    dim: int | List[int] | None,
+    keepdim: bool,
+    *,
+    dtype: torch.dtype,
+) -> SplitPrimitiveTensor | ReplicatedTensor:
+    assert dim is not None, "sum dim must be specified"
+    if not isinstance(dim, (list, tuple)):
+        dim = [dim]
+    # Handle negative indexing
+    dim = [d + len(input.shape) if d < 0 else d for d in dim]
+
+    if input.shard_dim not in dim:
+        shard_dim = input.shard_dim
+        # Have to offest `shard_dim` if any of the collapsing dims are "to the left of it".
+        if not keepdim:
+            # `sum` is clobbered by ops.sum, need to access it manually
+            shard_dim -= sum(d < input.shard_dim for d in dim)
+
+        shards = [
+            sum(shard, dim=dim, keepdim=keepdim, dtype=dtype) for shard in input.shards
+        ]
+        return SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim)
+    else:
+        gathered = cat(
+            [
+                (
+                    transfer_to_logical_device(shard, input.devices[0])
+                    if i != 0
+                    else barrier_on_logical_device(shard, input.devices[0])
+                )
+                for i, shard in enumerate(input.shards)
+            ],
+            dim=input.shard_dim,
+        )
+        summed = sum(gathered, dim=dim, keepdim=keepdim, dtype=dtype)
+        return ReplicatedTensor(ts=summed, shard_count=input.shard_count)
+
+
+@to.override(ShardedTensor)
+def to_sharded(tensor: ShardedTensor, *args, **kwargs):
     shards = [to(shard, *args, **kwargs) for shard in tensor.shards]
-    return SplitPrimitiveTensor(ts=shards, shard_dim=tensor.shard_dim)
+    return tensor.clone(ts=shards)
+
+
+@topk.override(ReplicatedTensor)
+def topk_replicated(
+    input: ReplicatedTensor, k: int, dim: int, largest: bool, sorted: bool
+) -> tuple[ReplicatedTensor, ReplicatedTensor]:
+    values, indices = zip(
+        *(
+            topk(shard, k=k, dim=dim, largest=largest, sorted=sorted)
+            for shard in input.shards
+        )
+    )
+    return ReplicatedTensor(ts=values), ReplicatedTensor(ts=indices)
+
+
+@topk.override(SplitPrimitiveTensor)
+def topk_split(
+    input: SplitPrimitiveTensor, k: int, dim: int, largest: bool, sorted: bool
+) -> tuple[
+    SplitPrimitiveTensor | ReplicatedTensor, SplitPrimitiveTensor | ReplicatedTensor
+]:
+    if dim != input.shard_dim:
+        values, indices = zip(
+            *(
+                topk(shard, k=k, dim=dim, largest=largest, sorted=sorted)
+                for shard in input.shards
+            )
+        )
+        values_split = SplitPrimitiveTensor(ts=values, shard_dim=input.shard_dim)
+        indices_split = SplitPrimitiveTensor(ts=indices, shard_dim=input.shard_dim)
+        return values_split, indices_split
+    else:
+        # TODO: Implement more efficient version which does a
+        #       topk on each shard before transferring and then adjusts
+        #       the indices.
+        gathered = sharded_cat(input)
+        values, indices = topk(gathered, k=k, dim=dim, largest=largest, sorted=sorted)
+        values = replicate(values, count=input.shard_count, devices=input.devices)
+        indices = replicate(indices, count=input.shard_count, devices=input.devices)
+        return values, indices
 
 
 @transpose.override(ReplicatedTensor)
@@ -1430,6 +1796,110 @@ def unshard_unsharded(input: Tensor) -> Tensor:
     return input
 
 
+def _calculate_view_dimension_mapping(
+    from_shape: Sequence[int], to_shape: Sequence[int]
+) -> List[List[int]]:
+    """
+    Calculate a mapping from the dimensions in `from_shape` to those in `to_shape`.
+    """
+    from_shape, to_shape = list(from_shape), list(to_shape)
+    assert len(from_shape) > 0 and len(to_shape) > 0, "Scalars not supported"
+    assert all(d != 0 for d in from_shape + to_shape), "Zero dimensions not supported"
+    from_shape, to_shape = _reshape_infer_dynamic_dim(list(from_shape), list(to_shape))
+
+    # Trivial cases
+    if len(from_shape) == 1:
+        return [[i for i in range(len(to_shape))]]
+    if len(to_shape) == 1:
+        return [[0] for _ in range(len(from_shape))]
+
+    def _get_cumulative_boundaries(shape: Sequence[int]) -> List[int]:
+        """
+        Get the cumulitive number of elements at the start of each dimension.
+        Add an extra 1 at the start to represent the start of the first dimension.
+        For example, for shape (2, 3, 4) it returns [1, 2, 6, 24].
+        """
+        return [1] + list(itertools.accumulate(shape, lambda x, y: x * y))
+
+    bounds_to = _get_cumulative_boundaries(to_shape)
+    bounds_from = _get_cumulative_boundaries(from_shape)
+
+    mapping = [[] for _ in range(len(from_shape))]
+    to_dim_idx_start = 0
+    for from_dim in range(len(from_shape)):
+        from_bound_start = bounds_from[from_dim]
+        from_bound_end = bounds_from[from_dim + 1]
+
+        to_dim = to_dim_idx_start
+        while to_dim < len(to_shape):
+            to_bound_start = bounds_to[to_dim]
+            to_bound_end = bounds_to[to_dim + 1]
+
+            # Check if the two ranges overlap
+            overlap_start = max(to_bound_start, from_bound_start)
+            overlap_end = min(to_bound_end, from_bound_end)
+            range_overlaps = overlap_start < overlap_end
+
+            # Special case for dim of size 1
+            size_one_dim_overlap = False
+            if from_bound_start == from_bound_end:  # `from_dim` is 1
+                if (
+                    from_bound_start >= to_bound_start
+                    and from_bound_start < to_bound_end
+                ):
+                    # `from_dim` is within the range of `to_dim`.
+                    # E.g. [5, 1, 6] to [5, 6]
+                    size_one_dim_overlap = True
+                elif (
+                    from_bound_start == to_bound_start
+                    and from_bound_end == to_bound_start
+                ):
+                    size_one_dim_overlap = True
+
+            if range_overlaps or size_one_dim_overlap:
+                # Overlap exists
+                assert to_dim not in mapping[from_dim]
+                mapping[from_dim].append(to_dim)
+
+                if to_bound_end >= from_bound_end:
+                    # We have exhausted the current `from_dim`
+                    if to_bound_end == from_bound_end:
+                        # This `to_dim` ends *exactly* at the end of the current `from_dim`.
+                        # This `to_dim` is exhausted, start next search with next `to_dim`.
+                        to_dim_idx_start = to_dim + 1
+                    else:  # to_bound_end > from_bound_end
+                        # This `to_dim` ends *after* the current `from_dim` ends.
+                        # We need to check the next `from_dim` for the current `to_dim`;
+                        # This `to_dim` is split across multiple `from_dim`s.
+                        to_dim_idx_start = to_dim
+                    # Found all contributions of this `from_dim`, more to the next.
+                    break
+                else:  # to_bounds_end < from_bounds_end
+                    # This to_dim ends *before* the current `from_dim` ends.
+                    # We need to check the next to_dim for the current `from_dim`.
+                    to_dim += 1
+            elif to_bound_start > from_bound_end:
+                # This `to_dim` starts *after* the current `from_dim` ends.
+                # No further `to_dim`s will overlap this `from_dim`.
+                # The next search should start from this `to_dim`.
+                to_dim_idx_start = to_dim
+                break
+            else:  # to_bounds_end <= from_bounds_start
+                # This `to_dim` ends *before* or *at* the start of the current `from_dim`.
+                # Move to check the next `to_dim` for the current `from_dim`.
+                to_dim += 1
+        # Update search start if inner loop finishes by exhaustion
+        if to_dim == len(to_shape):
+            to_dim_idx_start = to_dim
+
+        # Handle empty mapping for size 1 dimensions that didn't get mapped (happens if this is trailing 1)
+        if from_shape[from_dim] == 1 and not mapping[from_dim]:
+            last_valid_idx = len(to_shape) - 1
+            mapping[from_dim].append(last_valid_idx)
+
+    return mapping
+
+
 def _reshape_get_flatten_dim_range(
     from_shape: List[int], to_shape: List[int]
 ) -> Optional[Tuple[int, int]]:
@@ -1455,7 +1925,11 @@ def _reshape_infer_dynamic_dim(
 
     shape2_dynamic_dims = [i for i, d in enumerate(shape2) if d <= 0]
     if len(shape2_dynamic_dims) == 0:
+        assert math.prod(shape1) == math.prod(
+            shape2
+        ), f"Size mismatch: {shape1} vs {shape2}"
         return shape1, shape2
+
     shape2_dynamic_dim = shape2_dynamic_dims[0]
     shape1_size = math.prod(shape1)
     shape2_size_without_dynamic_dim = math.prod(d for d in shape2 if d > 0)
@@ -1521,11 +1995,6 @@ def unsqueeze_replicated(tensor: ReplicatedTensor, dim: int) -> SplitPrimitiveTe
 
 @view.override(ReplicatedTensor)
 def view_replicated(tensor: ReplicatedTensor, shape: List[int]) -> ReplicatedTensor:
-    view_split_range = _reshape_get_single_split_dim(tensor.shape, shape)
-    if view_split_range is None:
-        raise ValueError(
-            "Only taking a tensor view where splitting a single dimension is supported"
-        )
     shards = [view(shard, shape) for shard in tensor.shards]
     res = ReplicatedTensor(ts=shards)
     assert math.prod(res.shape) == math.prod(tensor.shape)
@@ -1534,28 +2003,45 @@ def view_replicated(tensor: ReplicatedTensor, shape: List[int]) -> ReplicatedTen
 
 @view.override(SplitPrimitiveTensor)
 def view_split(tensor: SplitPrimitiveTensor, shape: List[int]) -> SplitPrimitiveTensor:
-    view_split_range = _reshape_get_single_split_dim(tensor.shape, shape)
-    if view_split_range is None:
-        raise ValueError(
-            "Only taking a tensor view where splitting a single dimension is supported"
-        )
-    view_split_dim = view_split_range[0]
-
-    if view_split_dim == tensor.shard_dim:
-        if tensor.shape[view_split_dim] % tensor.shard_count != 0:
+    shard_dim = tensor.shard_dim
+    mapping = _calculate_view_dimension_mapping(from_shape=tensor.shape, to_shape=shape)
+    if len(mapping[shard_dim]) != 1:
+        if tensor.shape[tensor.shard_dim] % tensor.shard_count != 0:
             raise ValueError(
                 "Only splitting a dimension that is multiple of the shard count is supported"
             )
-        if shape[view_split_dim] % tensor.shard_count != 0:
+        if shape[tensor.shard_dim] % tensor.shard_count != 0:
             raise ValueError(
                 "The resulting leading splitting dimension must be multiple of the shard count"
             )
 
-    shard_dim = tensor.shard_dim
-    if shard_dim > view_split_dim:
-        new_dims_count = len(shape) - len(tensor.shape)
-        shard_dim += new_dims_count
+    # Account for collapsed or expanded dims
+    collapsed_dims = []
+    delta = 0
+    for from_dim, to_dims in enumerate(mapping[: shard_dim + 1]):
+        if len(to_dims) > 1:
+            # Expanded dims move shard_dim to the right by 1 for each new dim.
+            if from_dim == shard_dim:
+                pass  # Do nothing since we want to shard based on the leading dim if the shard_dim is expanded.
+            else:
+                delta += len(to_dims) - 1
+        # A to_dim can be split to be both expand itself and be collapsed with others, must check.
+        for to_dim in to_dims:
+            # Collapsed dims move shard_dim to the left by 1 for each dim after the first.
+            if to_dim in collapsed_dims:
+                delta -= 1
+            collapsed_dims.append(to_dim)
+    # Account for extra dims of size 1
+    dims_not_seen = [i for i in range(min(mapping[shard_dim]))]
+    for to_dims in mapping[:shard_dim]:
+        for to_dim in to_dims:
+            if to_dim in dims_not_seen:
+                dims_not_seen.remove(to_dim)
+
+    shard_dim += delta + len(dims_not_seen)
+
     new_shard_shape = list(shape)
+    # NOTE: dynamic shard_dim is handled implicitly because of int division.
     new_shard_shape[shard_dim] //= tensor.shard_count
     shards = [view(shard, new_shard_shape) for shard in tensor.shards]
     res = SplitPrimitiveTensor(shard_dim=shard_dim, ts=shards)
@@ -1585,6 +2071,30 @@ def view_as_real_split(tensor: SplitPrimitiveTensor) -> SplitPrimitiveTensor:
 def view_as_real_rep(tensor: ReplicatedTensor) -> ReplicatedTensor:
     shards = [view_as_real(shard) for shard in tensor.shards]
     return ReplicatedTensor(ts=shards)
+
+
+@zeros_like.override(AllOfType(ReplicatedTensor, SplitPrimitiveTensor))
+def zeros_like_replicated(
+    tensor: ReplicatedTensor | SplitPrimitiveTensor,
+    *,
+    dtype: torch.dtype | None,
+    layout: torch.layout | None,
+    device: torch.device | None,
+    requires_grad: bool,
+    memory_format: torch.memory_format,
+) -> ReplicatedTensor | SplitPrimitiveTensor:
+    shards = [
+        zeros_like(
+            shard,
+            dtype=dtype,
+            layout=layout,
+            device=device,
+            requires_grad=requires_grad,
+            memory_format=memory_format,
+        )
+        for shard in tensor.shards
+    ]
+    return tensor.clone(ts=shards)
 
 
 # Note: Must be last thing in file

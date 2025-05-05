@@ -70,7 +70,8 @@ class AttentionBlockTest(unittest.TestCase):
             cache_partition_count=2,  # One for each of K/V.
             block_seq_stride=block_seq_stride,
             device="cpu",
-            dtype=torch.float32,
+            cache_dtype=torch.float32,
+            attn_dtype=torch.float32,
         )
         attention_block = AttentionFFNBlock(
             theta=attention_block_theta,

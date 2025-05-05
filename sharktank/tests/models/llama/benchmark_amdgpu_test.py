@@ -113,6 +113,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             self.artifacts_dir / "fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa"
         )
         self.tensor_parallelism_size = 1
+        self.pipeline_parallelism_size = 1
         self.dir_path_8b = self.dir_path / "llama-8b"
         self.temp_dir_8b = Path(self.dir_path_8b)
         self.temp_dir_8b.mkdir(parents=True, exist_ok=True)
@@ -123,6 +124,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             iree_hal_target_device="hip",
             attention_kernel="torch",
             tensor_parallelism_size=self.tensor_parallelism_size,
+            pipeline_parallelism_size=self.pipeline_parallelism_size,
             block_seq_stride=32,
         )
         self.llama8b_fp8_torch_sdpa_artifacts = ExportArtifacts(
@@ -132,6 +134,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             iree_hal_target_device="hip",
             attention_kernel="torch",
             tensor_parallelism_size=self.tensor_parallelism_size,
+            pipeline_parallelism_size=self.pipeline_parallelism_size,
             block_seq_stride=32,
             use_hf=True,
             activation_dtype="bfloat16",
@@ -145,6 +148,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             iree_hal_target_device="hip",
             attention_kernel="sharktank",
             tensor_parallelism_size=self.tensor_parallelism_size,
+            pipeline_parallelism_size=self.pipeline_parallelism_size,
             block_seq_stride=32,
             use_hf=True,
             activation_dtype="bfloat16",
@@ -313,11 +317,6 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         )
 
     @is_nightly
-    @pytest.mark.xfail(
-        run=False,
-        reason="https://github.com/iree-org/iree/issues/20528",
-        raises=IreeCompileException,
-    )
     def testBenchmark8B_fp8_TP1_Non_Decomposed(self):
         output_file_name = self.dir_path_8b / "fp8_torch_tp1"
         output_mlir = self.llama8b_fp8_torch_sdpa_artifacts.create_file(
@@ -378,12 +377,12 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             suffix=".txt", prefix=output_file_name
         )
         export_return_code = self.llama8b_fp8_attnf8_sdpa_artifacts.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
+            output_mlir=output_mlir,
+            output_config=output_json,
         )
         self.llama8b_fp8_attnf8_sdpa_artifacts.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
+            output_mlir=str(output_mlir),
+            output_vmfb=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
             args=self.compile_args,
@@ -423,12 +422,12 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             suffix=".txt", prefix=output_file_name
         )
         export_return_code = self.llama8b_fp8_attnf8_sdpa_artifacts.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
+            output_mlir=output_mlir,
+            output_config=output_json,
         )
         self.llama8b_fp8_attnf8_sdpa_artifacts.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
+            output_mlir=str(output_mlir),
+            output_vmfb=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
             args=self.compile_args,
@@ -474,6 +473,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             iree_hal_target_device="hip",
             attention_kernel="torch",
             tensor_parallelism_size=1,
+            pipeline_parallelism_size=1,
             block_seq_stride=32,
         )
         self.llama70b_f16_torch_sdpa_artifacts_tp8 = ExportArtifacts(
@@ -483,6 +483,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             iree_hal_target_device="hip",
             attention_kernel="torch",
             tensor_parallelism_size=self.tensor_parallelism_size,
+            pipeline_parallelism_size=1,
             block_seq_stride=32,
         )
         self.llama70b_fp8_torch_sdpa_artifacts_tp1 = ExportArtifacts(
@@ -492,6 +493,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             iree_hal_target_device="hip",
             attention_kernel="torch",
             tensor_parallelism_size=1,
+            pipeline_parallelism_size=1,
             block_seq_stride=32,
             activation_dtype="bfloat16",
             attention_dtype="bfloat16",
@@ -666,7 +668,9 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         )
 
     @pytest.mark.xfail(
-        reason="Benchmarking Error", strict=True, raises=IreeBenchmarkException
+        reason="https://github.com/nod-ai/shark-ai/issues/1355",
+        strict=True,
+        raises=IreeBenchmarkException,
     )
     def testBenchmark70B_f16_TP8_Non_Decomposed_Input_Len_128(self):
         output_file_name = self.dir_path_70b / "f16_torch_128_tp8"
@@ -716,7 +720,9 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         )
 
     @pytest.mark.xfail(
-        reason="Benchmarking Error", strict=True, raises=IreeBenchmarkException
+        reason="https://github.com/nod-ai/shark-ai/issues/1355",
+        strict=True,
+        raises=IreeBenchmarkException,
     )
     def testBenchmark70B_f16_TP8_Non_Decomposed_Input_Len_2048(self):
         output_file_name = self.dir_path_70b / "f16_torch_2048_tp8"
@@ -821,6 +827,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         )
         self.irpa_path_fp8 = self.artifacts_dir / "f8/llama3.1_405b_fp8.irpa"
         self.tensor_parallelism_size = 8
+        self.pipeline_parallelism_size = 1
         self.dir_path_405b = self.dir_path / "llama-405b"
         self.temp_dir_405b = Path(self.dir_path_405b)
         self.temp_dir_405b.mkdir(parents=True, exist_ok=True)
@@ -831,6 +838,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             iree_hal_target_device="hip",
             attention_kernel="torch",
             tensor_parallelism_size=self.tensor_parallelism_size,
+            pipeline_parallelism_size=self.pipeline_parallelism_size,
             block_seq_stride=32,
         )
         self.llama405b_fp8_torch_sdpa_artifacts = ExportArtifacts(
@@ -840,6 +848,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             iree_hal_target_device="hip",
             attention_kernel="torch",
             tensor_parallelism_size=self.tensor_parallelism_size,
+            pipeline_parallelism_size=self.pipeline_parallelism_size,
             block_seq_stride=32,
             activation_dtype="bfloat16",
             attention_dtype="bfloat16",
@@ -912,7 +921,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             suffix=".vmfb", prefix=output_file_name
         )
         output_shard_file_name = (
-            self.artifacts_dir
+            self.weights_dir
             / f"tp8/llama3_405b_instruct_fp16_tp{self.tensor_parallelism_size}.irpa"
         )
         if output_shard_file_name.exists():
@@ -953,7 +962,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             suffix=".vmfb", prefix=output_file_name
         )
         output_shard_file_name = (
-            self.artifacts_dir
+            self.weights_dir
             / f"tp8/llama3_405b_instruct_fp16_tp{self.tensor_parallelism_size}.irpa"
         )
         if output_shard_file_name.exists():

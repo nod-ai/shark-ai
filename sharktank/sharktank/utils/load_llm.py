@@ -4,15 +4,18 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import collections
 import math
 from pathlib import Path
-from typing import Optional
+
+import numpy as np
 import torch
 import numpy as np
 
 from sharktank.layers import *
 from sharktank.types import *
 from sharktank.models.llm import *
+from sharktank.models.llama.tools.data_utils import write_ndarray_to_bin
 
 from sharktank.ops import replicate, unshard
 from sharktank.utils.debugging import trace_tensor
@@ -40,35 +43,19 @@ class TorchGenerator:
     def preprocess_prompts(
         self,
         prompts: list[str],
-        prompt_seq_len: int = None,
-        bs=int,
     ):
-        if prompt_seq_len is not None:
-            vocab_size = self.tokenizer.vocab_size
-            token_ids = torch.randint(
-                low=0,
-                high=vocab_size,
-                size=(bs, prompt_seq_len),
-                device=self.model.device,
-            )
-            seq_lens = torch.tensor([prompt_seq_len] * bs, device=self.model.device)
+        token_ids = self.tokenizer._encode(texts=prompts, add_start_token=False)
 
-            print(f":: Prompt tokens shape [bs, seq_len]: {token_ids.shape}")
-        else:
-            token_ids = self.tokenizer._encode(texts=prompts, add_start_token=False)
+        print(f":: Prompt tokens:")
+        for idx, prompt in enumerate(prompts):
+            print(f"    prompt_{idx}: \n    {prompt.encode()} \n    {token_ids[idx]}\n")
 
-            print(f":: Prompt tokens:")
-            for idx, prompt in enumerate(prompts):
-                print(
-                    f"    prompt_{idx}: \n    {prompt.encode()} \n    {token_ids[idx]}\n"
-                )
+        token_ids, seq_lens = self.tokenizer.pad_tokens(
+            token_ids, pad_to_multiple_of=self.model.cache.pad_sequence_stride
+        )
 
-            token_ids, seq_lens = self.tokenizer.pad_tokens(
-                token_ids, pad_to_multiple_of=self.model.cache.pad_sequence_stride
-            )
-
-            token_ids = torch.tensor(token_ids, device=self.model.device)
-            seq_lens = torch.tensor(seq_lens, device=self.model.device)
+        token_ids = torch.tensor(token_ids, device=self.model.device)
+        seq_lens = torch.tensor(seq_lens, device=self.model.device)
 
         return token_ids, seq_lens
 
@@ -77,15 +64,10 @@ class TorchGenerator:
         token_ids: torch.tensor,
         seq_lens: torch.tensor,
         page_cache_size: int = None,
-        prompt_seq_len: int = None,
         dump_path: Path = None,
         dump_decode_steps: int = None,
     ):
         bs = token_ids.shape[0]
-
-        self.prompt_seq_len = prompt_seq_len
-        if self.prompt_seq_len and not dump_path:
-            dump_path = ""
 
         self.page_cache_size = (
             page_cache_size
@@ -119,7 +101,7 @@ class Batch:
         parent: TorchGenerator,
         token_ids: torch.Tensor,
         seq_lens: torch.Tensor,
-        cache_state: list[torch.Tensor],
+        cache_state: list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
         bs: int,
         dump_path: Path,
         dump_decode_steps: int,
@@ -129,6 +111,7 @@ class Batch:
         self.parent = parent
         self.token_ids = token_ids
         self.seq_lens = seq_lens
+        # TODO: This doesn't appear to handle PP models properly
         self.cache_state = cache_state
         self.results: list[list[int]] = [[] for _ in range(self.bs)]
         self.done_result_indices: set[int] = set()
@@ -151,12 +134,7 @@ class Batch:
     @property
     def done(self) -> bool:
         return (
-            len(self.done_result_indices) == self.bs
-            or len(self.parent.free_pages) == 0
-            or (
-                self.parent.prompt_seq_len
-                and self.decode_step == self.dump_decode_steps
-            )
+            len(self.done_result_indices) == self.bs or len(self.parent.free_pages) == 0
         )
 
     def detokenize(self) -> list[str]:
@@ -203,50 +181,81 @@ class Batch:
         self,
         phase: str,
         arg_name: str,
-        arg: torch.tensor,
-        decode_step: Optional[int] = None,
+        arg: torch.Tensor | ShardedTensor | list[torch.Tensor | ShardedTensor],
+        decode_step: int | None = None,
+        rank: int | None = None,
     ):
+        if isinstance(arg, collections.abc.Sequence):
+            for i, a in enumerate(arg):
+                subarg_name = arg_name if len(arg) == 1 else f"{arg_name}_{i}"
+                self.dump_args(phase, subarg_name, a, decode_step, rank)
+        elif isinstance(arg, ShardedTensor):
+            for rank in range(arg.shard_count):
+                self.dump_args(
+                    phase, arg_name, arg.shards[rank]._data, decode_step, rank
+                )
+        else:
+            if arg.dtype in [torch.float8_e4m3fnuz, torch.bfloat16]:
+                arg = arg.to(torch.uint8)
+            if phase == "decode":
+                arg_name = f"{arg_name}_{decode_step}"
+            rank_str = "" if (rank is None) else f".rank{rank}"
 
-        if arg.dtype in [torch.float8_e4m3fnuz, torch.bfloat16]:
-            arg = arg.to(torch.uint8)
-        if phase == "decode":
-            arg_name = f"{arg_name}_{decode_step}"
-        file_path = Path(self.dump_path, f"{phase}_{arg_name}.npy")
-
-        np.save(file_path, arg.cpu().numpy())
+            file_path = Path(self.dump_path, f"{phase}_{arg_name}{rank_str}.npy")
+            np.save(file_path, arg.cpu().numpy())
 
     def prefill(self):
         model = self.parent.model
         attention_mask = model.attention_mask(
             model.input_mask(self.seq_lens, self.token_ids.shape[1])
         )
-        seq_block_ids_tensor = self.pad_block_ids()
+        seq_block_ids = self.pad_block_ids()
         trace_tensor("prefill.token_ids", self.token_ids)
-        trace_tensor("prefill.seq_block_ids", seq_block_ids_tensor)
+        trace_tensor("prefill.seq_block_ids", seq_block_ids)
         trace_tensor("prefill.attention_mask", attention_mask)
         token_ids = self.token_ids
-        if model.config.tensor_parallelism_size != 1:
-            tp = model.config.tensor_parallelism_size
-            token_ids = replicate(token_ids, tp)
-            attention_mask = replicate(attention_mask, tp)
-            seq_block_ids_tensor = replicate(seq_block_ids_tensor, tp)
 
-        if self.dump_path is not None:
+        shard_count = model.config.tensor_parallelism_size
+        num_pipelines = model.config.pipeline_parallelism_size
+        if shard_count * num_pipelines == 1:
+            seq_block_ids = [seq_block_ids]
+            attention_mask = [attention_mask]
+        else:
+            token_ids = replicate(
+                token_ids, shard_count, devices=model.config.block_to_device_lookup[0]
+            )
+            _attention_mask, _seq_block_ids = [], []
+            for pipeline in range(model.cache.pipeline_count):
+                _attention_mask.append(
+                    replicate(
+                        attention_mask,
+                        count=shard_count,
+                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                    )
+                )
+                _seq_block_ids.append(
+                    replicate(
+                        seq_block_ids,
+                        count=shard_count,
+                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                    )
+                )
+            attention_mask, seq_block_ids = _attention_mask, _seq_block_ids
+
+        if self.dump_path:
             print(f"\nSaving prefill args to {Path(self.dump_path)}\n")
 
             self.dump_args(phase="prefill", arg_name="token_ids", arg=token_ids)
             self.dump_args(phase="prefill", arg_name="seq_lens", arg=self.seq_lens)
+            self.dump_args(phase="prefill", arg_name="seq_block_ids", arg=seq_block_ids)
             self.dump_args(
-                phase="prefill", arg_name="seq_block_ids", arg=seq_block_ids_tensor
-            )
-            self.dump_args(
-                phase="prefill", arg_name="cache_state", arg=self.cache_state[0]
+                phase="prefill", arg_name="cache_state", arg=self.cache_state
             )
 
         self.prefill_logits = model.prefill(
             token_ids,
             attention_mask=attention_mask,
-            seq_block_ids=seq_block_ids_tensor,
+            seq_block_ids=seq_block_ids,
             cache_state=self.cache_state,
         )
 
@@ -268,24 +277,57 @@ class Batch:
         self.seq_lens.add_(1)
         self.allocate_seq_block_ids()
         # TODO: Allocate more blocks on overflow.
-        seq_block_ids_tensor = self.pad_block_ids()
+        seq_block_ids = self.pad_block_ids()
         decode_attention_mask = model.decode_attention_mask(
             model.input_mask(
                 self.seq_lens,
-                seq_block_ids_tensor.shape[1] * self.parent.block_seq_stride,
+                seq_block_ids.shape[1] * self.parent.block_seq_stride,
             )
         )
         trace_tensor("decode.token_ids", token_batch)
         trace_tensor("decode.start_positions", start_positions)
-        trace_tensor("decode.seq_block_ids", seq_block_ids_tensor)
+        trace_tensor("decode.seq_block_ids", seq_block_ids)
         trace_tensor("decode.attention_mask", decode_attention_mask)
 
-        if model.config.tensor_parallelism_size != 1:
-            tp = model.config.tensor_parallelism_size
-            token_batch = replicate(token_batch, tp)
-            start_positions = replicate(start_positions, tp)
-            seq_block_ids_tensor = replicate(seq_block_ids_tensor, tp)
-            decode_attention_mask = replicate(decode_attention_mask, tp)
+        shard_count = model.config.tensor_parallelism_size
+        num_pipelines = model.config.pipeline_parallelism_size
+        if shard_count * num_pipelines == 1:
+            seq_block_ids = [seq_block_ids]
+            decode_attention_mask = [decode_attention_mask]
+            start_positions = [start_positions]
+        else:
+            token_batch = replicate(
+                token_batch, shard_count, devices=model.config.block_to_device_lookup[0]
+            )
+
+            _start_positions, _seq_block_ids, _decode_attention_mask = [], [], []
+            for pipeline in range(model.cache.pipeline_count):
+                _start_positions.append(
+                    replicate(
+                        start_positions,
+                        count=shard_count,
+                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                    )
+                )
+                _seq_block_ids.append(
+                    replicate(
+                        seq_block_ids,
+                        count=shard_count,
+                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                    )
+                )
+                _decode_attention_mask.append(
+                    replicate(
+                        decode_attention_mask,
+                        count=shard_count,
+                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                    )
+                )
+            start_positions, seq_block_ids, decode_attention_mask = (
+                _start_positions,
+                _seq_block_ids,
+                _decode_attention_mask,
+            )
 
         if self.dump_path is not None:
             print(f"\nSaving decode args to {Path(self.dump_path)}\n")
@@ -311,13 +353,13 @@ class Batch:
             self.dump_args(
                 phase="decode",
                 arg_name="seq_block_ids",
-                arg=seq_block_ids_tensor,
+                arg=seq_block_ids,
                 decode_step=self.decode_step,
             )
             self.dump_args(
                 phase="decode",
                 arg_name="cache_state",
-                arg=self.cache_state[0],
+                arg=self.cache_state,
                 decode_step=self.decode_step,
             )
 
@@ -325,7 +367,7 @@ class Batch:
             token_batch,
             attention_mask=decode_attention_mask,
             start_positions=start_positions,
-            seq_block_ids=seq_block_ids_tensor,
+            seq_block_ids=seq_block_ids,
             cache_state=self.cache_state,
         )
 

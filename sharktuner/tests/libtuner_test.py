@@ -7,7 +7,7 @@
 import argparse
 import math
 from unittest.mock import call, patch, MagicMock
-from . import libtuner
+from sharktuner import libtuner
 
 """
 Usage: python -m pytest libtuner_test.py

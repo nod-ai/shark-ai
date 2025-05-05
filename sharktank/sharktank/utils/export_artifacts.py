@@ -87,6 +87,7 @@ class ExportArtifacts:
         iree_hip_target: str,
         attention_kernel: str,
         tensor_parallelism_size: int,
+        pipeline_parallelism_size: int,
         block_seq_stride: int,
         iree_hal_target_device: str,
         use_attention_mask: bool = False,
@@ -108,6 +109,10 @@ class ExportArtifacts:
         self.iree_hal_target_device = iree_hal_target_device
         self.attention_kernel = attention_kernel
         self.tensor_parallelism_size = tensor_parallelism_size
+        self.pipeline_parallelism_size = pipeline_parallelism_size
+        self.parallelism_size = (
+            self.tensor_parallelism_size * self.pipeline_parallelism_size
+        )
         self.block_seq_stride = block_seq_stride
         self.use_attention_mask = use_attention_mask
         self.activation_dtype = activation_dtype
@@ -194,6 +199,8 @@ class ExportArtifacts:
             f"--block-seq-stride={self.block_seq_stride}",
             f"--attention-dtype={self.attention_dtype}",
             f"--activation-dtype={self.activation_dtype}",
+            f"--tensor-parallelism-size={self.tensor_parallelism_size}",
+            f"--pipeline-parallelism-size={self.pipeline_parallelism_size}",
         ]
 
         assert self.attention_kernel in [
@@ -244,10 +251,10 @@ class ExportArtifacts:
             f"--iree-hip-target={self.iree_hip_target}",
             f"-o={output_vmfb}",
         ]
-        if self.tensor_parallelism_size > 1:
+        if self.parallelism_size > 1:
             iree_hal_target_devices = [
                 f"--iree-hal-target-device={self.iree_hal_target_device}[{i}]"
-                for i in range(self.tensor_parallelism_size)
+                for i in range(self.parallelism_size)
             ]
         else:
             iree_hal_target_devices = [
@@ -297,19 +304,17 @@ class ExportArtifacts:
         Raises Exception if running fails for some reason.
         """
         benchmark_args = []
-        if self.tensor_parallelism_size > 1:
+        if self.parallelism_size > 1:
             base_irpa_path, _ = os.path.splitext(irpa_path)
             rocr_visible_devices = [
-                f"ROCR_VISIBLE_DEVICES={','.join(str(i) for i in range(self.tensor_parallelism_size))}"
+                f"ROCR_VISIBLE_DEVICES={','.join(str(i) for i in range(self.parallelism_size))}"
             ]
             params = [f"--parameters=model={base_irpa_path}.irpa"]
             params += [
                 f"--parameters=model={base_irpa_path}.rank{i}.irpa"
                 for i in range(self.tensor_parallelism_size)
             ]
-            devices = [
-                f"--device=hip://{i}" for i in range(self.tensor_parallelism_size)
-            ]
+            devices = [f"--device=hip://{i}" for i in range(self.parallelism_size)]
         else:
             hip_device_arg = int(hip_device_id.split("://")[1])
             rocr_visible_devices = [
@@ -349,6 +354,11 @@ class ExportArtifacts:
             str(self.irpa_path).split("/")[-1].rsplit(".", 1)[0].replace(".", "_")
             + "_"
             + self.attention_kernel
+            + (
+                f"_pp{self.pipeline_parallelism_size}"
+                if self.pipeline_parallelism_size > 1
+                else ""
+            )
         )
 
         if self.output_mlir is None:

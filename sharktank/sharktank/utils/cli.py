@@ -114,6 +114,12 @@ def add_model_options(parser: argparse.ArgumentParser):
         help="Number of devices for tensor parallel sharding. Will be overridden by dataset.properties if present",
     )
     parser.add_argument(
+        "--pipeline-parallelism-size",
+        type=int,
+        default=1,
+        help="Number of (roughly) uniform groups of layers to split the model for pipeline parallelism.",
+    )
+    parser.add_argument(
         "--block-seq-stride",
         help="Block sequence stride for paged KV cache, must divide evenly into the context length",
         type=int,
@@ -130,6 +136,12 @@ def add_model_options(parser: argparse.ArgumentParser):
         help="Generates attention mask during export",
         action="store_true",
     )
+    parser.add_argument(
+        "--top-k",
+        help="Export with a `top_k` kernel. If `top_k` == 1, argmax is exported.",
+        type=int,
+        default=None,
+    )
 
 
 def add_model_input_options(parser: argparse.ArgumentParser):
@@ -145,7 +157,12 @@ def add_model_input_options(parser: argparse.ArgumentParser):
 def add_iree_flags(parser: argparse.ArgumentParser):
     """Adds IREE device flag options"""
 
-    parser.add_argument("--iree-device", help="List an IREE device (e.g., 'hip://0')")
+    parser.add_argument(
+        "--iree-device",
+        type=str,
+        action="append",
+        help="List an IREE device from 'iree-run-module --list_devices'",
+    )
     parser.add_argument(
         "--iree-hip-target",
         action="store",

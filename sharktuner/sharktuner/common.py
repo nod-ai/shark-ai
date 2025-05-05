@@ -5,7 +5,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import logging
-from dataclasses import astuple, dataclass, field
+from collections.abc import Sequence
+from dataclasses import dataclass, field
 from enum import Enum
 from types import TracebackType
 from typing import Optional
@@ -187,8 +188,8 @@ def get_lowering_config(
         # A local variable to hold the transformed value.
         promoted_value = value
         match key:
-            case "workgroup" | "reduction" | "subgroup" | "promote_operands":
-                if isinstance(value, list):
+            case "workgroup" | "reduction" | "subgroup" | "promote_operands" | "padding":
+                if isinstance(value, Sequence):
                     promoted_value = ir.ArrayAttr.get(
                         [tuner_ctx.type.getI64(x) for x in value]
                     )
