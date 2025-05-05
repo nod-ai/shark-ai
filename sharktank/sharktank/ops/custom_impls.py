@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
+from collections.abc import Iterable
 from typing import Union
 from torch import Tensor
 
@@ -26,8 +27,9 @@ from sharktank.types import (
     SuperBlockOffsetScaled_4_6_Layout,
 )
 
-from sharktank.types.tensors import unbox_tensor
+from sharktank.types.tensors import AnyTensor, unbox_tensor
 from .signatures import *
+from ._registry import NotOfType
 
 
 # Fused FP matmul.
@@ -124,6 +126,25 @@ def matmul_generic_tensor_super_block_offset_scaled_4_6_i4(
         sb_mins_low,
         rhs_unpacked.qs_bit_packed,
     )
+
+
+@sum.override(NotOfType(AnyTensor))
+def sum_iterable(
+    input: Iterable,
+    dim: int | list[int] | None = None,
+    keepdim: bool = False,
+    *,
+    dtype,
+):
+    """Sum over an iterable of tensors."""
+    assert isinstance(input, Iterable), "argument must be an iterable"
+    if dim is not None:
+        raise NotImplementedError("dim is not supported for iterable sum")
+    if keepdim:
+        raise NotImplementedError("keepdim is not supported for iterable sum")
+    if dtype is not None:
+        raise NotImplementedError("dtype is not supported for iterable sum")
+    return __builtins__["sum"](input)
 
 
 @view_as_complex.override(Union[Tensor, PrimitiveTensor])

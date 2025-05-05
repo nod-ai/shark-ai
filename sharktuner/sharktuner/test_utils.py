@@ -13,7 +13,7 @@ from unittest.mock import MagicMock
 
 from iree.compiler import ir  # type: ignore
 
-from . import common
+from sharktuner import common
 
 
 @pytest.fixture

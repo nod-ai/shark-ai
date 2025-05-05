@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import argparse
+import shutil
 from pathlib import Path
 from sharktuner import libtuner
 from sharktuner.common import *
@@ -47,13 +48,13 @@ def arg_parse() -> argparse.Namespace:
         "model_file", type=Path, help="Path to the model file to tune (.mlir)"
     )
     client_args.add_argument(
-        "--num-dispatch-candidates",
+        "--model-tuner-num-dispatch-candidates",
         type=int,
         default=None,
         help="Number of dispatch candidates to keep for model benchmarks.",
     )
     client_args.add_argument(
-        "--num-model-candidates",
+        "--model-tuner-num-model-candidates",
         type=int,
         default=None,
         help="Number of model candidates to produce after tuning.",
@@ -69,6 +70,12 @@ def arg_parse() -> argparse.Namespace:
         type=str,
         default="",
         help="Path to the flags file for iree-benchmark-module for model benchmarking.",
+    )
+    client_args.add_argument(
+        "--output-td-spec",
+        type=Path,
+        help="Path to write the best tuned spec. Dumps the best tuned model spec by default, and the best tuned dispatch spec when --stop-after is set to 'benchmark-dispatches'.",
+        default="tuning-spec.mlir",
     )
     # Remaining arguments come from libtuner
     args = libtuner.parse_arguments(parser)
@@ -132,12 +139,18 @@ def main() -> None:
             compiled_candidates,
             candidate_trackers,
             model_tuner,
-            args.num_dispatch_candidates,
+            args.model_tuner_num_dispatch_candidates,
         )
         logging.info(f"Top dispatch candidates: {top_candidates}")
         for id in top_candidates:
             logging.info(f"{candidate_trackers[id].spec_path.resolve()}")
         if stop_after_phase == libtuner.ExecutionPhases.benchmark_dispatches:
+            top_spec_path = (
+                path_config.specs_dir
+                / path_config.get_candidate_spec_filename(top_candidates[0])
+            )
+            shutil.copy(top_spec_path, args.output_td_spec)
+            print(f"Saved top spec ({top_spec_path}) to {args.output_td_spec}")
             return
 
         print("Compiling models with top candidates...")
@@ -164,12 +177,18 @@ def main() -> None:
             compiled_model_candidates,
             candidate_trackers,
             model_tuner,
-            args.num_model_candidates,
+            args.model_tuner_num_model_candidates,
         )
         logging.info(f"Top model candidates: {top_model_candidates}")
         for id in top_model_candidates:
             logging.info(f"{candidate_trackers[id].spec_path.resolve()}")
         print(f"Top model candidates: {top_model_candidates}")
+
+        top_spec_path = path_config.specs_dir / path_config.get_candidate_spec_filename(
+            top_model_candidates[0]
+        )
+        shutil.copy(top_spec_path, args.output_td_spec)
+        print(f"Saved top spec ({top_spec_path}) to {args.output_td_spec}")
 
         print("Check the detailed execution logs in:")
         print(path_config.run_log.resolve())

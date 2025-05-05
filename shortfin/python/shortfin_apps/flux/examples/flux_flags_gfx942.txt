@@ -6,22 +6,20 @@ all
 --iree-opt-const-eval=0
 --iree-opt-outer-dim-concat=1
 --iree-opt-aggressively-propagate-transposes=1
---iree-dispatch-creation-enable-aggressive-fusion
 --iree-codegen-llvmgpu-use-vector-distribution=1
 --iree-llvmgpu-enable-prefetch=1
---iree-codegen-gpu-native-math-precision=1
 --iree-opt-data-tiling=0
 --iree-vm-target-truncate-unsupported-floats
 clip
---iree-hal-force-indirect-command-buffers
+--iree-dispatch-creation-enable-aggressive-fusion
 --iree-preprocessing-pass-pipeline='builtin.module(util.func(iree-global-opt-raise-special-ops, iree-flow-canonicalize), iree-preprocessing-transpose-convolution-pipeline, iree-preprocessing-pad-to-intrinsics, util.func(iree-preprocessing-generalize-linalg-matmul-experimental))'
 t5xxl
 --iree-preprocessing-pass-pipeline='builtin.module(util.func(iree-global-opt-raise-special-ops, iree-flow-canonicalize), iree-preprocessing-transpose-convolution-pipeline, util.func(iree-preprocessing-generalize-linalg-matmul-experimental))'
 sampler
---iree-hal-force-indirect-command-buffers
---iree-preprocessing-pass-pipeline='builtin.module(util.func(iree-global-opt-raise-special-ops, iree-flow-canonicalize), iree-preprocessing-transpose-convolution-pipeline, iree-preprocessing-pad-to-intrinsics, util.func(iree-preprocessing-generalize-linalg-matmul-experimental))'
---iree-dispatch-creation-enable-fuse-horizontal-contractions=1
+--iree-dispatch-creation-enable-aggressive-fusion
+--iree-hal-memoization=1
+--iree-codegen-llvmgpu-early-tile-and-fuse-matmul=1
+--iree-preprocessing-pass-pipeline='builtin.module(util.func(iree-global-opt-raise-special-ops, iree-flow-canonicalize),iree-preprocessing-transpose-convolution-pipeline, iree-preprocessing-pad-to-intrinsics, util.func(iree-dispatch-creation-bubble-up-expand-shapes, canonicalize, cse, canonicalize), util.func(iree-preprocessing-generalize-linalg-matmul-experimental))'
 vae
---iree-hal-force-indirect-command-buffers
---iree-preprocessing-pass-pipeline='builtin.module(util.func(iree-global-opt-raise-special-ops, iree-flow-canonicalize), iree-preprocessing-transpose-convolution-pipeline, iree-preprocessing-pad-to-intrinsics, util.func(iree-preprocessing-generalize-linalg-matmul-experimental))'
---iree-dispatch-creation-enable-fuse-horizontal-contractions=1
+--iree-dispatch-creation-enable-aggressive-fusion
+--iree-preprocessing-pass-pipeline='builtin.module(util.func(iree-global-opt-raise-special-ops, iree-flow-canonicalize), iree-preprocessing-pad-to-intrinsics, util.func(iree-preprocessing-generalize-linalg-matmul-experimental))'

@@ -102,6 +102,7 @@ def test_argmax_axis0(device):
 @pytest.mark.parametrize(
     "dtype",
     [
+        sfnp.float8_e4m3fnuz,
         sfnp.bfloat16,
         sfnp.float16,
         sfnp.float32,
@@ -547,6 +548,7 @@ def test_fill_randn_explicit_generator(device, dtype):
         sfnp.int16,
         sfnp.int32,
         sfnp.int64,
+        sfnp.float8_e4m3fnuz,
         sfnp.bfloat16,
         sfnp.float16,
         sfnp.float32,
@@ -588,6 +590,7 @@ def round_half_away_from_zero(n):
         (sfnp.bfloat16, sfnp.trunc, math.trunc),
         (sfnp.float16, sfnp.trunc, math.trunc),
         (sfnp.float32, sfnp.trunc, math.trunc),
+        (sfnp.float8_e4m3fnuz, sfnp.trunc, math.trunc),
     ],
 )
 def test_nearest_int_no_conversion(device, dtype, sfnp_func, ref_round_func):
@@ -709,6 +712,8 @@ def test_elementwise_promotion(device, lhs_dtype, rhs_dtype, promoted_dtype):
     assert result.dtype == promoted_dtype
 
 
+# TODO(vinayakdsci): Check why sfnp.float8_e4m3fnuz
+# fails elementwise correctness tests.
 @pytest.mark.parametrize(
     "dtype,op,check_value",
     [

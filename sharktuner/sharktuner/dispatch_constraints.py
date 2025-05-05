@@ -160,9 +160,12 @@ def generate_tile_and_fuse_constraints(
     subgroup_n_count: z3.ArithRef,
     mma_intrinsics: list[iree_gpu.MMAIntrinsic],
 ):
-    M, N, K = problem_size.MNK
+    M, N, K = map(list, problem_size.MNK)
     m_tiles, n_tiles, k_tiles, subgroup_m_tiles, subgroup_n_tiles = tile_sizes
     intrinsic_mn, intrinsic_k = intrinsic_size
+    M[-1] = ((M[-1] + intrinsic_mn - 1) / intrinsic_mn) * intrinsic_mn
+    N[-1] = ((N[-1] + intrinsic_mn - 1) / intrinsic_mn) * intrinsic_mn
+    K[-1] = ((K[-1] + intrinsic_k - 1) / intrinsic_k) * intrinsic_k
     wg_x, wg_y, wg_z = workgroup_size
     wg_threads = wg_x
     constraints = [wg_y == 1, wg_z == 1]
@@ -300,9 +303,11 @@ def generate_compilation_infos(
     subgroup_size: int,
     subgroup_m_count: int,
     subgroup_n_count: int,
+    promote_operands: list[int],
     codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline,
     pipeline_options_search_space: PipelineOptionsSearchSpace,
     allowed_waves_per_eu: list[int],
+    padding: Optional[list[int]] = None,
 ) -> list[iree_codegen.CompilationInfoAttr]:
     # Create the LoweringConfigAttr.
     lowering_config_args = {
@@ -312,8 +317,12 @@ def generate_compilation_infos(
         "reduction": reduction_tile_sizes,
         "subgroup_m_count": subgroup_m_count,
         "subgroup_n_count": subgroup_n_count,
-        "promote_operands": [0, 1],
+        "promote_operands": promote_operands,
     }
+
+    if padding is not None:
+        lowering_config_args["padding"] = padding
+
     if codegen_pipeline == iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse:
         lowering_config_args["subgroup"] = subgroup_tile_sizes
 
@@ -382,7 +391,7 @@ def generate_solutions(
     k_vars = [z3.Int(f"k{i}") for i in range(len(K))]
     subgroup_m_vars = [z3.Int(f"subgroup_m{i}") for i in range(len(M))]
     subgroup_n_vars = [z3.Int(f"subgroup_n{i}") for i in range(len(N))]
-    # m, n, k = z3.Int("m"), z3.Int("n"), z3.Int("k")
+
     subgroup_size = z3.Int("subgroup_size")
     intrinsic_mn = z3.Int("intrinsic_mn")
     intrinsic_k = z3.Int("intrinsic_k")
@@ -439,11 +448,14 @@ def generate_solutions(
     while solver.check() == z3.sat:
         model = solver.model()
         lookup = lambda var: model[var].as_long()
-        mma_attr = getMMAAttr(
-            problem_size.res_type.element_type,
+        intrinsic_mnk_shape = (
             lookup(intrinsic_mn),
             lookup(intrinsic_mn),
             lookup(intrinsic_k),
+        )
+        mma_attr = getMMAAttr(
+            problem_size.res_type.element_type,
+            *intrinsic_mnk_shape,
             problem_size.lhs_type.element_type,
             problem_size.rhs_type.element_type,
         )
@@ -502,6 +514,24 @@ def generate_solutions(
             [lookup(v) for v in k_vars],
         )
 
+        required_padding = any(
+            p[-1] % i != 0
+            for p, i in zip(problem_size.MNK, intrinsic_mnk_shape, strict=True)
+        )
+        promote_operands = [0, 1]
+        padding = None
+        if required_padding:
+            # TODO: Remove promotion of operand 2 once codegen supports handling padded outputs without promotion.
+            promote_operands = [0, 1, 2]
+            workgroup_tile_m, workgroup_tile_n, _ = workgroup_tile_sizes
+            _, _, reduction_tile_k = reduction_tile_sizes
+            _, _, mma_intrinsic_k = mma_attr.mnk_shape
+            padding = [
+                workgroup_tile_m,
+                workgroup_tile_n,
+                reduction_tile_k * mma_intrinsic_k,
+            ]
+
         compilation_infos = generate_compilation_infos(
             tuner_ctx,
             mma_attr,
@@ -512,9 +542,11 @@ def generate_solutions(
             lookup(subgroup_size),
             lookup(sg_m_cnt),
             lookup(sg_n_cnt),
+            promote_operands,
             codegen_pipeline,
             pipeline_options_search_space,
             allowed_waves_per_eu,
+            padding=padding,
         )
 
         solver.add(z3.simplify(z3.Not(z3.And(list(x == model[x] for x in all_vars)))))
