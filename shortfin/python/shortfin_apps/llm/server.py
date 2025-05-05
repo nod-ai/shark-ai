@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import argparse
+from argparse import BooleanOptionalAction
 import logging
 from pathlib import Path
 import sys
@@ -67,6 +68,12 @@ def parse_args(argv):
     )
     parser.add_argument(
         "--instances", type=int, default=1, help="Number of shortfin instances to run"
+    )
+    parser.add_argument(
+        "--enable_multiple_hip_streams",
+        action=BooleanOptionalAction,
+        default=False,
+        help="Isolate the execution of each service instance to a distinct hip stream. The weights will be replicated.",
     )
     return parser.parse_args(argv)
 

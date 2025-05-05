@@ -22,6 +22,7 @@ from .tokenizer import Tokenizer
 from typing import TYPE_CHECKING
 from fastapi import FastAPI
 
+import os
 
 from contextlib import asynccontextmanager
 import logging
@@ -49,6 +50,10 @@ class ShortfinLlmLifecycleManager:
 
     def __init__(self, args):
         # Load server configuration with priority: command line > config file > defaults
+        if args.enable_multiple_hip_streams:
+            os.environ["SHORTFIN_AMDGPU_LOGICAL_DEVICES_PER_PHYSICAL_DEVICE"] = str(
+                args.instances
+            )
         model_params = ModelParams.load_json(args.model_config)
         server_params = ServerParams.load(
             args.server_config if hasattr(args, "server_config") else None
@@ -73,6 +78,12 @@ class ShortfinLlmLifecycleManager:
             amdgpu_allow_device_reuse=server_params.amdgpu_allow_device_reuse,
         )
 
+        if (
+            args.enable_multiple_hip_streams
+            and len(sysman.ls.devices) != args.instances
+        ):
+            raise RuntimeError("Failed to start multiple HIP streams for execution.")
+
         # Setup each service we are hosting.
         eos_token = get_eos_from_tokenizer_config(args.tokenizer_config_json)
         tokenizer = Tokenizer.from_tokenizer_json_file(
@@ -89,6 +100,7 @@ class ShortfinLlmLifecycleManager:
                 model_params=model_params,
                 server_params=server_params,
                 program_isolation=server_params.program_isolation,
+                service_idx=i if args.enable_multiple_hip_streams else 0,
             )
             service.load_inference_module(args.vmfb)
             service.load_inference_parameters(*args.parameters, parameter_scope="model")

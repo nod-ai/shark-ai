@@ -54,6 +54,7 @@ class LlmGenerateService(GenerateService):
         server_params: "ServerParams",
         program_isolation: str = "per_fiber",
         max_queue_size: int = 3,  # Maximum number of requests in queue
+        service_idx: int = 0,
     ):
         super().__init__(sysman)
         self.name = name
@@ -62,6 +63,7 @@ class LlmGenerateService(GenerateService):
         self.server_params = server_params
         self.max_queue_size = max_queue_size
         self.current_queue_size = 0
+        self.service_idx = service_idx
 
         self.set_isolation(program_isolation)
         self.initialize_worker_and_fiber()
@@ -94,11 +96,15 @@ class LlmGenerateService(GenerateService):
         logger.info(
             f"Creating {num_workers} workers, with {fibers_per_worker} fibers per worker..."
         )
+
         fibers = []
+        assigned_hal_device = self.sysman.ls.devices[self.service_idx]
         for i in range(num_workers):
             worker = self.sysman.ls.create_worker(f"{self.name}-inference-{i}")
             for _ in range(fibers_per_worker):
-                fiber = self.sysman.ls.create_fiber(worker)
+                fiber = self.sysman.ls.create_fiber(
+                    worker, devices=[assigned_hal_device]
+                )
                 fibers.append(fiber)
 
         meta_fibers = []
@@ -113,9 +119,9 @@ class LlmGenerateService(GenerateService):
 
         self.devices = fibers[0].devices_dict.values()
         self.main_worker = self.sysman.ls.create_worker(f"{self.name}-inference")
-        self.main_fiber = self.sysman.ls.create_fiber(self.main_worker)
-        self.prefill_fiber = self.sysman.ls.create_fiber(self.main_worker)
-        self.decode_fiber = self.sysman.ls.create_fiber(self.main_worker)
+        self.main_fiber = self.fiber_pool.fibers[0]
+        self.prefill_fiber = self.fiber_pool.fibers[0]
+        self.decode_fiber = self.fiber_pool.fibers[0]
 
     def initialize_page_cache(self):
         """Initialize page pool and attention cache."""
@@ -146,8 +152,9 @@ class LlmGenerateService(GenerateService):
 
     def start(self):
         component_modules = self.initialize_program_modules("main")
+        assigned_hal_device = self.sysman.ls.devices[self.service_idx]
         self.inference_program = self.create_program(
-            modules=component_modules, devices=self.sysman.ls.devices
+            modules=component_modules, devices=[assigned_hal_device]
         )
         self.initialize_function_references()
 
