@@ -1126,6 +1126,7 @@ def mean_split(
         ]
         return SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim_new)
     else:
+
         partial_sums = [
             sum(shard, dim=dim, keepdim=keepdim, dtype=dtype) for shard in x.shards
         ]
@@ -1138,14 +1139,17 @@ def mean_split(
             )
             for shard in x.shards
         ]
-        sums_spt = SplitPrimitiveTensor(ts=partial_sums, shard_dim=0, devices=x.devices)
-        cnts_on_hub = [barrier_on_logical_device(partial_cnts[0], x.devices[0])] + [
-            transfer_to_logical_device(ct, x.devices[0]) for ct in partial_cnts[1:]
-        ]
+        local_means = [s / c for s, c in zip(partial_sums, partial_cnts)]
+        weighted_sum = barrier_on_logical_device(
+            local_means[0] * partial_cnts[0], x.devices[0]
+        )
+        global_cnt = barrier_on_logical_device(partial_cnts[0], x.devices[0])
 
-        global_sum = sharded_sum(sums_spt)
-        global_cnt = torch.stack(cnts_on_hub).sum()
-        global_mean = global_sum / global_cnt
+        for mean_i, cnt_i in zip(local_means[1:], partial_cnts[1:]):
+            weighted_sum += transfer_to_logical_device(mean_i * cnt_i, x.devices[0])
+            global_cnt += transfer_to_logical_device(cnt_i, x.devices[0])
+
+        global_mean = weighted_sum / global_cnt
 
         return ReplicatedTensor(
             ts=global_mean, shard_count=x.shard_count, devices=x.devices
