@@ -251,6 +251,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         for block_idx, block in enumerate(self.attn_blocks):
             if block_idx == 0:
                 self.trace_tensor(f"llama.attn_block.{block_idx}.input", h)
+            # TODO: Hacky, shouldn't need to read info out of self.cache
             pipeline = self.cache.block_to_pipeline_map[block_idx]
             h = block(  # TODO: Should we index into attention_mask and cache here?
                 h,
