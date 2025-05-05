@@ -28,7 +28,7 @@ async def generate_request(gen_req: GenerateReqInput, request: Request):
     service: LlmGenerateService = request.app.state.services[
         request.app.state.current_instance
     ]
-    while not service.add_to_queue():
+    if not service.add_to_queue():
         request.app.state.current_instance = (
             request.app.state.current_instance + 1
         ) % len(request.app.state.services)
