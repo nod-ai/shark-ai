@@ -280,6 +280,9 @@ class ExportArtifacts:
 
         logger.info(f" Launching compile command:\n" f"cd {cwd} && {cmd}")
         proc = subprocess.run(cmd, shell=True, capture_output=True, cwd=cwd)
+        print("PROC: ", proc)
+        print("proc.stdout: ", proc.stdout)
+        print("proc.stderr: ", proc.stderr)
         return_code = proc.returncode
         if return_code != 0:
             raise IreeCompileException(proc, cwd)
@@ -335,6 +338,9 @@ class ExportArtifacts:
         cmd = subprocess.list2cmdline(benchmark_args)
         logger.info(f" Launching run command:\n" f"cd {cwd} && {cmd}")
         proc = subprocess.run(cmd, shell=True, stdout=sys.stdout, cwd=cwd)
+        print("PROC: ", proc)
+        print("proc.stdout: ", proc.stdout)
+        print("proc.stderr: ", proc.stderr)
         return_code = proc.returncode
         if return_code != 0:
             raise IreeBenchmarkException(proc, cwd)
