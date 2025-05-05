@@ -53,12 +53,15 @@ def get_dispatch_constraints(
     if problem_size.dispatch_kind != DispatchKind.conv:
         return []
 
-    dim_info = ConvDimInfo.from_problem_size(problem_size)
-    conv_constraints = []
-    # WARNING: This sometimes makes the constraints UNSAT for some reason.
-    conv_constraints += [tile_m <= dim_info.ow]
-    conv_constraints += [tile_n <= dim_info.oc]
-    conv_constraints += [tile_k <= dim_info.ic]
+    max_tile_m = problem_size.matmul_size.M[-1]
+    [max_tile_n] = problem_size.matmul_size.N
+    max_tile_k = problem_size.matmul_size.K[-1]
+    conv_constraints = [
+        # WARNING: This sometimes makes the constraints UNSAT for some reason.
+        tile_m <= max_tile_m,
+        tile_n <= max_tile_n,
+        tile_k <= max_tile_k,
+    ]
     return conv_constraints
 
 
