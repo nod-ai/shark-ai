@@ -68,6 +68,11 @@ def parse_args(argv):
     parser.add_argument(
         "--instances", type=int, default=1, help="Number of shortfin instances to run"
     )
+    parser.add_argument(
+        "--in-process",
+        action="store_true",
+        help="Run services in a single process instead of using multiple processes.",
+    )
     return parser.parse_args(argv)
 
 

@@ -14,17 +14,14 @@ def lifecycle(app: FastApi):
 ```
 """
 
-from .config_struct import ModelParams, ServerParams
-from .token_selection_strategy import DecodeConfig
-from .manager import LlmSystemManager
-from .service import LlmGenerateService
-from .tokenizer import Tokenizer
-from typing import TYPE_CHECKING
-from fastapi import FastAPI
-
+from .service_manager import (
+    LlmServiceManager,
+    LlmMultiProcessServiceManager,
+    LlmSingleProcessServiceManager,
+)
 
 from contextlib import asynccontextmanager
-import logging
+from fastapi import FastAPI
 
 
 def get_eos_from_tokenizer_config(json_path):
@@ -48,69 +45,18 @@ class ShortfinLlmLifecycleManager:
     """
 
     def __init__(self, args):
-        # Load server configuration with priority: command line > config file > defaults
-        model_params = ModelParams.load_json(args.model_config)
-        server_params = ServerParams.load(
-            args.server_config if hasattr(args, "server_config") else None
+        self.service_manager: LlmServiceManager = (
+            LlmSingleProcessServiceManager(args)
+            if args.in_process
+            else LlmMultiProcessServiceManager(args)
         )
-        server_params.update_from_args(args)
-        decode_bs = model_params.decode_batch_sizes[-1]
-        if server_params.decode_config is None:
-            decode_config = DecodeConfig(
-                args.num_beams,
-                args.token_selection_strategy,
-                logits_normalization=model_params.logits_normalization,
-                max_decode_batch_size=decode_bs,
-            )
-            server_params.decode_config = decode_config
-
-        # Setup system (configure devices, etc).
-        sysman = LlmSystemManager(
-            device=args.device,
-            device_ids=server_params.device_ids,
-            async_allocs=server_params.amdgpu_async_allocations,
-            amdgpu_allocators=server_params.amdgpu_allocators,
-            amdgpu_allow_device_reuse=server_params.amdgpu_allow_device_reuse,
-        )
-
-        # Setup each service we are hosting.
-        eos_token = get_eos_from_tokenizer_config(args.tokenizer_config_json)
-        tokenizer = Tokenizer.from_tokenizer_json_file(
-            args.tokenizer_json, eos_token=eos_token
-        )
-        print(f"Creating {server_params.instances} instances")
-        # Create a list of LLM instances
-        services = {}
-        for i in range(server_params.instances):
-            service = LlmGenerateService(
-                name=f"instance{i}",
-                sysman=sysman,
-                tokenizer=tokenizer,
-                model_params=model_params,
-                server_params=server_params,
-                program_isolation=server_params.program_isolation,
-            )
-            service.load_inference_module(args.vmfb)
-            service.load_inference_parameters(*args.parameters, parameter_scope="model")
-            services[i] = service
-
-        self.sysman = sysman
-        self.services = services
-        self.request_counter = 0
-        self.current_instance = 0
 
     def __enter__(self):
-        self.sysman.start()
-        for service_name, service in self.services.items():
-            logging.info("Initializing service '%s': %r", service_name, service)
-            service.start()
+        self.service_manager.start()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        for service_name, service in self.services.items():
-            logging.info("Shutting down service '%s'", service_name)
-            service.shutdown()
-        self.sysman.shutdown()
+        self.service_manager.shutdown()
         return False
 
     @asynccontextmanager
@@ -127,7 +73,5 @@ class ShortfinLlmLifecycleManager:
         See `server.py` for a usage example.
         """
         with self:
-            app.state.services = self.services
-            app.state.request_counter = self.request_counter
-            app.state.current_instance = self.current_instance
+            app.state.service_manager = self.service_manager
             yield

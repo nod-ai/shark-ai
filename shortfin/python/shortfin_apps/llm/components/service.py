@@ -7,7 +7,6 @@
 import logging
 
 from dataclasses import dataclass
-from typing import List
 
 import shortfin as sf
 import shortfin.array as sfnp
@@ -28,7 +27,6 @@ from .kvcache.base_attention_cache import (
 from .kvcache.trie_attention_cache import TriePagedAttentionCache
 from .kvcache.page_pool import PagePoolConfig, PagePool
 from .manager import LlmSystemManager
-from .service_debug_dumper import SERVICE_DEBUG_DUMPER
 from .tokenizer import Tokenizer
 from .token_selection_strategy import get_strategy_from_str, is_ref_counted
 
@@ -48,6 +46,7 @@ class LlmGenerateService(GenerateService):
         self,
         *,
         name: str,
+        instance_num: int,  # Instance number within the service manager
         sysman: LlmSystemManager,
         tokenizer: Tokenizer,
         model_params: ModelParams,
@@ -57,6 +56,7 @@ class LlmGenerateService(GenerateService):
     ):
         super().__init__(sysman)
         self.name = name
+        self.instance_num = instance_num
         self.tokenizer = tokenizer
         self.model_params = model_params
         self.server_params = server_params
@@ -76,7 +76,7 @@ class LlmGenerateService(GenerateService):
 
     def add_to_queue(self) -> bool:
         """Try to add a request to the queue. Returns True if successful, False if queue is full."""
-        print(f"Adding to queue: {self.current_queue_size} >= {self.max_queue_size}")
+        # print(f"Instance {self.instance_num} adding to queue: {self.current_queue_size} of {self.max_queue_size}")
         if self.current_queue_size >= self.max_queue_size:
             return False
         self.current_queue_size += 1

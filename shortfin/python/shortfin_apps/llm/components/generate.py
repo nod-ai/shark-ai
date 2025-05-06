@@ -135,7 +135,8 @@ class ClientGenerateBatchProcess(sf.Process):
         "decode_batcher",
         "gen_req",
         "prefill_batcher",
-        "responder",
+        # "responder",
+        "response_handler",
         "tokenizer",
         "decode_config",
         "service",
@@ -145,14 +146,18 @@ class ClientGenerateBatchProcess(sf.Process):
         self,
         service: LlmGenerateService,
         gen_req: GenerateReqInput,
-        responder: FastAPIResponder,
+        # responder: FastAPIResponder,
+        response_handler: callable,
+        # takes a single arg which is bytes/None, or a list of bytes/None
+        # for streaming
         fiber: sf.Fiber | None = None,
     ):
         super().__init__(
             fiber=service.fiber_pool.fibers[0].fiber if fiber is None else fiber
         )
         self.gen_req = gen_req
-        self.responder = responder
+        # self.responder = responder
+        self.response_handler = response_handler
         self.tokenizer = service.tokenizer
         self.prefill_batcher = service.prefill_batcher
         self.decode_batcher = service.decode_batcher
@@ -168,54 +173,70 @@ class ClientGenerateBatchProcess(sf.Process):
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
 
-        try:
-            streaming = self.gen_req.stream
-            self.responder.start_response()
-            if streaming:
-                self.responder.stream_start()
-
-            # Launch all individual generate processes and wait for them to finish.
-            gen_processes = []
-            input_ids = self.gen_req.input_ids
-            is_pretokenized = input_ids is not None
-
-            if is_pretokenized:
-                input_batch = [input_ids] if self.gen_req.is_single else input_ids
-            else:
-                input_batch = self.tokenize()
-            for index, input_tokens in enumerate(input_batch):
-                decode_config = copy(self.decode_config)
-                decode_config.update_from_sampling_params(
-                    self.gen_req.sampling_params
-                    if self.gen_req.is_single
-                    else self.gen_req.sampling_params[index]
-                )
-                gen_process = GenerateItemProcess(
-                    self,
-                    self.gen_req,
-                    index,
-                    self.gen_req.text
-                    if self.gen_req.is_single
-                    else self.gen_req.text[index],
-                    input_tokens if is_pretokenized else input_tokens.ids,
-                    eos_token_id=self.tokenizer.eos_token_id,
-                    decode_config=decode_config,
-                )
-                gen_processes.append(gen_process)
-                gen_process.launch()
-
-            await asyncio.gather(*gen_processes)
-            self.generate_response(gen_processes, streaming)
-        finally:
+        # Try to add request to queue
+        if not self.service.add_to_queue():
+            error_response = JSONResponse(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                content={
+                    "error": "Server queue is full. Please try again later.",
+                    "code": "QUEUE_FULL",
+                    "current_size": self.service.current_queue_size,
+                    "max_size": self.service.max_queue_size,
+                },
+            )
+            self.responder.send_response(error_response)
             self.responder.ensure_response()
+            return
+
+        # try:
+        streaming = self.gen_req.stream
+        # self.responder.start_response()
+        # if streaming:
+        #     self.responder.stream_start()
+
+        # Launch all individual generate processes and wait for them to finish.
+        gen_processes = []
+        input_ids = self.gen_req.input_ids
+        is_pretokenized = input_ids is not None
+
+        if is_pretokenized:
+            input_batch = [input_ids] if self.gen_req.is_single else input_ids
+        else:
+            input_batch = self.tokenize()
+        for index, input_tokens in enumerate(input_batch):
+            decode_config = copy(self.decode_config)
+            decode_config.update_from_sampling_params(
+                self.gen_req.sampling_params
+                if self.gen_req.is_single
+                else self.gen_req.sampling_params[index]
+            )
+            gen_process = GenerateItemProcess(
+                self,
+                self.gen_req,
+                index,
+                self.gen_req.text
+                if self.gen_req.is_single
+                else self.gen_req.text[index],
+                input_tokens if is_pretokenized else input_tokens.ids,
+                eos_token_id=self.tokenizer.eos_token_id,
+                decode_config=decode_config,
+            )
+            gen_processes.append(gen_process)
+            gen_process.launch()
+
+        await asyncio.gather(*gen_processes)
+        self.generate_response(gen_processes, streaming)
+        # finally:
+        #     self.responder.ensure_response()
 
     def generate_response(
         self, gen_processes: List[GenerateItemProcess], streaming: bool
     ):
         if streaming:
             logger.info("Responding to streaming batch")
-            self.responder.stream_part(b"data: [DONE]\n\n")
-            self.responder.stream_part(None)
+            # self.responder.stream_part(b"data: [DONE]\n\n")
+            # self.responder.stream_part(None)
+            self.response_handler([b"data: [DONE]\n\n", None])
             return
 
         logging.debug("Responding to one shot batch")
@@ -225,7 +246,8 @@ class ClientGenerateBatchProcess(sf.Process):
                 result_tokens = result_tokens[0]
             out = io.BytesIO()
             out.write(bytes(json.dumps(result_tokens), "utf-8"))
-            self.responder.send_response(out.getvalue())
+            # self.responder.send_response(out.getvalue())
+            self.response_handler(out.getvalue())
             return
 
         response_map = {}
@@ -254,7 +276,8 @@ class ClientGenerateBatchProcess(sf.Process):
         response = json.dumps(response)
         out = io.BytesIO()
         out.write(response.encode())
-        self.responder.send_response(out.getvalue())
+        # self.responder.send_response(out.getvalue())
+        self.response_handler(out.getvalue())
 
     def _respond_multi_responses(
         self, result_token_ids: List[List[int]], out: io.BytesIO
@@ -292,7 +315,8 @@ class ClientGenerateBatchProcess(sf.Process):
             out.write(f"data({rid}): ".encode())
             out.write(str(result_tokens[0]).encode())
             out.write(b"\n\n")
-        self.responder.stream_part(out.getvalue())
+        # self.responder.stream_part(out.getvalue())
+        self.response_handler(out.getvalue())
         gen_process.streamed_tokens_index += len(result_tokens)
 
     def tokenize(self) -> list[Encoding]:

@@ -265,10 +265,10 @@ async def run_benchmark(
     num_concurrent_requests: int = 64,
     token_selection_strategy: str = "multi_greedy",
     endpoint: str = "http://localhost:8080",
-    streaming = False,
-    multi_hypothesis = False,
-    best_of_n = 8,
-    top_p = 0.95
+    streaming=False,
+    multi_hypothesis=False,
+    best_of_n=8,
+    top_p=0.95,
 ):
     """Execute the benchmark and return raw data."""
     client = LLMClient(base_url=endpoint, stream=streaming)
@@ -281,9 +281,9 @@ async def run_benchmark(
     }
 
     params = {
-            "max_completion_tokens": output_token_length,
-            "token_selection_strategy": token_selection_strategy,
-            "num_beams": 8,
+        "max_completion_tokens": output_token_length,
+        "token_selection_strategy": token_selection_strategy,
+        "num_beams": 8,
     }
 
     if multi_hypothesis:
@@ -342,10 +342,10 @@ async def continuous_load_test(
     token_selection_strategy: str,
     endpoint: str,
     duration: int = 60,  # Run for 60 seconds by default
-    streaming = False,
-    multi_hypothesis = False,
-    best_of_n = 8,
-    top_p = 0.95
+    streaming=False,
+    multi_hypothesis=False,
+    best_of_n=8,
+    top_p=0.95,
 ) -> Dict[str, Any]:
     """Run a continuous load test with a single client sending requests continuously."""
     client = LLMClient(base_url=endpoint, stream=streaming)
@@ -357,15 +357,14 @@ async def continuous_load_test(
     num_requests = 0
 
     params = {
-            "max_completion_tokens": output_token_length,
-            "token_selection_strategy": token_selection_strategy,
-            "num_beams": 8,
+        "max_completion_tokens": output_token_length,
+        "token_selection_strategy": token_selection_strategy,
+        "num_beams": 8,
     }
 
     if multi_hypothesis:
         params["b_of_n"] = best_of_n
         params["top_p"] = top_p
-
 
     while time.perf_counter() < end_time:
         try:
@@ -399,10 +398,10 @@ async def calculate_throughput(
     token_selection_strategy: str,
     endpoint: str,
     duration: int = 60,  # Run for 60 seconds by default
-    streaming = False,
-    multi_hypothesis = False,
-    best_of_n = 8,
-    top_p = 0.95
+    streaming=False,
+    multi_hypothesis=False,
+    best_of_n=8,
+    top_p=0.95,
 ):
     """Calculate throughput by running continuous load tests with multiple concurrent clients."""
     print(
@@ -422,7 +421,7 @@ async def calculate_throughput(
                 streaming=streaming,
                 multi_hypothesis=multi_hypothesis,
                 best_of_n=best_of_n,
-                top_p=top_p
+                top_p=top_p,
             )
         )
 
@@ -477,10 +476,10 @@ async def run_all_benchmarks(
     endpoint: str = "http://localhost:8080",
     num_throughput_runs: int = 20,
     results_dir: str = "results",
-    multi_hypothesis = False,
-    streaming = False,
-    best_of_n = 8,
-    top_p = 0.95
+    multi_hypothesis=False,
+    streaming=False,
+    best_of_n=8,
+    top_p=0.95,
 ):
     all_results = []
     throughput_results = []
@@ -509,7 +508,7 @@ async def run_all_benchmarks(
                     streaming=streaming,
                     multi_hypothesis=multi_hypothesis,
                     best_of_n=best_of_n,
-                    top_p=top_p
+                    top_p=top_p,
                 )
                 result = compute_benchmark_results(benchmark_data)
                 all_results.append(result)
@@ -655,12 +654,12 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--multi-hypothesis",
-        action='store_true',
+        action="store_true",
         help="Enable multi hypothesis",
     )
     parser.add_argument(
         "--stream",
-        action='store_true',
+        action="store_true",
         help="Enable streaming",
     )
     parser.add_argument(
@@ -694,6 +693,6 @@ if __name__ == "__main__":
             streaming=args.stream,
             multi_hypothesis=args.multi_hypothesis,
             best_of_n=args.best_of_n,
-            top_p = args.top_p
+            top_p=args.top_p,
         )
     )
