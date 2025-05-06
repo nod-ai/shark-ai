@@ -20,8 +20,10 @@ import math
 import torch
 
 from sharktank.types import (
+    DefaultPrimitiveTensor,
     SplitPrimitiveTensor,
     ReplicatedTensor,
+    ShardedTensor,
     QuantizerTensor,
     PlanarQuantizedTensor,
     StaticScaledQuantizer,
@@ -126,6 +128,23 @@ class PagedAttention:
         self.cache_dtype = cache_dtype
         self.attn_dtype = attn_dtype
 
+    def unflatten_page_table(
+        self,
+        state: Union[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
+        pipeline: int,
+    ) -> list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor]:
+        """Unflattens the 2D page tables to 6D tensors."""
+        shards = [state] if self.shard_count == 1 else state.shards
+        shards = [shard.unflatten(1, self.sub_page_dims[pipeline]) for shard in shards]
+
+        if self.shard_count > 1:
+            return SplitPrimitiveTensor(ts=shards, shard_dim=4, devices=state.devices)
+
+        if pipeline > 1:
+            return ReplicatedTensor(ts=shards, devices=state.devices)
+
+        return shards[0]
+
     def unflatten_page_tables(
         self, state: list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor]
     ) -> list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor]:
@@ -136,19 +155,7 @@ class PagedAttention:
 
         unflattened = []
         for pipeline, page_slab in enumerate(state):
-            shards = [page_slab] if self.shard_count == 1 else page_slab.shards
-            shards = [
-                shard.unflatten(1, self.sub_page_dims[pipeline]) for shard in shards
-            ]
-
-            result = shards[0]
-            if self.shard_count > 1:
-                result = SplitPrimitiveTensor(
-                    ts=shards, shard_dim=4, devices=page_slab.devices
-                )
-            elif pipeline > 1:
-                result = ReplicatedTensor(ts=shards, devices=page_slab.devices)
-
+            result = self.unflatten_page_table(page_slab, pipeline=pipeline)
             unflattened.append(result)
 
         return unflattened
@@ -283,20 +290,30 @@ class PagedAttention:
 
         # Gather both partitions and split post gather. This is more
         # computationally efficient without gather fusion:
-        subblock_table = page_table.flatten(start_dim=0, end_dim=1)
+        page_table = page_table.flatten(start_dim=0, end_dim=1)
         page_stride = self.pipeline_to_block_count[pipeline]
 
         transformer_block_index = torch.full(
             (bs, block_seq_len), transformer_block_index, device=self.device
         )
         subblock_ids = page_ids * page_stride + transformer_block_index
-        selected = ops.index_select(subblock_table, 0, subblock_ids.flatten(0, 1))
+        selected = ops.index_select(page_table, 0, subblock_ids.flatten(0, 1))
 
         selected = selected.unflatten(0, blocked_shape[:2])
         key = selected[:, :, 0, :].flatten(1, 2)
         value = selected[:, :, 1, :].flatten(1, 2)
 
         return key, value
+
+    @staticmethod
+    def deshard_arg(arg0, arg1):
+        devices = arg0.devices
+
+        if isinstance(arg1, SplitPrimitiveTensor):
+            assert all([a == b for a, b in zip(devices, arg1.devices)])
+
+        device_map = {d: i for i, d in enumerate(arg1.devices)}
+        return [arg1.shards[device_map[d]] for d in devices]
 
     def write_timestep(
         self,
@@ -315,66 +332,182 @@ class PagedAttention:
         Note that this internally loops over the batch size, which cannot be
         dynamic.
         """
-        device = self.device
-        page_tables = self.unflatten_page_tables(state)  # 6D
         pipeline = self.block_to_pipeline_map[transformer_block_index]
         devices = self.pipeline_to_device_map[pipeline]
         transformer_block_count = self.pipeline_to_block_count[pipeline]
         block_offset = self.pipeline_to_block_offset[pipeline]
-
-        page_table = page_tables[pipeline]
-        page_table = page_table.flatten(0, 3)
-        bs, *_ = seq_positions.shape
-        assert len(cache_partitions) == self.cache_partition_count
-
         transformer_block_index = transformer_block_index - block_offset
 
-        # [bs, 1, atten_head_count, attn_head_dim]
-        for idx, cache_partition in enumerate(cache_partitions):
-            # [bs, 1]
-            page_index = seq_positions // self.block_seq_stride
+        page_tables = self.unflatten_page_tables(state)
+        page_table = page_tables[pipeline]
+        page_table = page_table.flatten(0, 3)
+        assert len(cache_partitions) == self.cache_partition_count
 
-            page_id = ops.gather(page_ids, dim=1, index=page_index.unsqueeze(1))
-            page_offset = (seq_positions % self.block_seq_stride).unsqueeze(1)
-
-            # [1, 1]
-            partitions = torch.tensor(idx, device=device).unsqueeze(0)
-            transformer_block = torch.full(
-                (bs, 1), transformer_block_index, device=device
-            )
-            if isinstance(seq_positions, ReplicatedTensor):
-                partitions = [partitions] * seq_positions.shard_count
-                transformer_block = [transformer_block] * seq_positions.shard_count
-
-                partitions = ReplicatedTensor(ts=partitions, devices=devices)
-                transformer_block = ReplicatedTensor(
-                    ts=transformer_block, devices=devices
+        for p, partition in enumerate(cache_partitions):
+            if not isinstance(page_table, ShardedTensor):
+                self.write_timestep_shard(
+                    page_table=page_table,
+                    partition_id=p,
+                    cache_partition=partition,
+                    transformer_block_index=transformer_block_index,
+                    transformer_block_count=transformer_block_count,
+                    seq_positions=seq_positions,
+                    page_ids=page_ids,
                 )
+                continue
 
-            partitions = partitions.repeat(bs, 1)
+            if (
+                isinstance(page_table, ShardedTensor)
+                and isinstance(partition, ShardedTensor)
+                and isinstance(seq_positions, ReplicatedTensor)
+                and isinstance(page_ids, ReplicatedTensor)
+            ):
 
-            index = page_id
-            index = index * transformer_block_count + transformer_block
-            index = index * self.cache_partition_count + partitions
-            index = index * self.block_seq_stride + page_offset
+                page_table_split = isinstance(page_table, SplitPrimitiveTensor)
+                partition_split = isinstance(partition, SplitPrimitiveTensor)
+                assert page_table_split == partition_split
 
-            values = ops.to(cache_partition, dtype=page_table.dtype)
-            if page_table.dtype == torch.float8_e4m3fnuz:
-                # Workaround for Torch not supporting torch.Tensor.index_copy_ for f8.
-                page_table_as_int8 = page_table.view(dtype=torch.int8)
-                values_int8 = values.view(dtype=torch.int8)
-                page_table_as_int8.index_put_(indices=(index,), values=values_int8)
-            else:
-                page_table.index_put_(indices=(index,), values=values)
+                def build_map(t):
+                    return {d: i for i, d in enumerate(t.devices)}
 
-        return
+                page_table_shards = page_table.shards
+                partition_shards = self.deshard_arg(page_table, partition)
+                seq_shards = self.deshard_arg(page_table, seq_positions)
+                page_ids_shards = self.deshard_arg(page_table, page_ids)
+
+                for i in range(page_table.shard_count):
+                    device = page_table.devices[i]
+
+                    self.write_timestep_shard(
+                        page_table=page_table_shards[i],
+                        partition_id=p,
+                        cache_partition=partition_shards[i],
+                        transformer_block_index=transformer_block_index,
+                        transformer_block_count=transformer_block_count,
+                        seq_positions=seq_shards[i],
+                        page_ids=page_ids_shards[i],
+                    )
+                continue
+
+            assert False
+
+    def write_timestep_shard(
+        self,
+        *,
+        page_table: torch.Tensor,
+        # List of [bs, 1, attn_head_count, attn_head_dim]
+        partition_id: int,
+        cache_partition: torch.Tensor,
+        transformer_block_index: int,
+        transformer_block_count: int,
+        # [bs]
+        seq_positions: torch.Tensor,
+        # [bs, max_seqlen // block_pos_stride]
+        page_ids: torch.Tensor,
+    ):
+        device = self.device
+        bs, *_ = seq_positions.shape
+
+        page_index = seq_positions // self.block_seq_stride
+        page_id = ops.gather(page_ids, dim=1, index=page_index.unsqueeze(1))
+        page_offset = (seq_positions % self.block_seq_stride).unsqueeze(1)
+
+        # [1, 1]
+        partitions = torch.tensor(partition_id, device=device).unsqueeze(0)
+        partitions = partitions.repeat(bs, 1)
+
+        index = page_id
+        index = index * transformer_block_count + transformer_block_index
+        index = index * self.cache_partition_count + partitions
+        index = index * self.block_seq_stride + page_offset
+
+        values = ops.to(cache_partition, dtype=page_table.dtype)
+        if page_table.dtype == torch.float8_e4m3fnuz:
+            # Workaround for Torch not supporting torch.Tensor.index_copy_ for f8.
+            page_table_as_int8 = page_table.view(dtype=torch.int8)
+            values_int8 = values.view(dtype=torch.int8)
+            page_table_as_int8.index_put_(indices=(index,), values=values_int8)
+        else:
+            page_table.index_put_(indices=(index,), values=values)
 
     def write(
         self,
-        state: list[Union[torch.Tensor, SplitPrimitiveTensor]],
-        cache_partitions: list[Union[torch.Tensor, SplitPrimitiveTensor]],
+        state: list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
+        # List of [bs, 1, attn_head_count, attn_head_dim]
+        cache_partitions: list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
         *,
         transformer_block_index: int,
+        # [bs, max_seqlen // block_pos_stride]
+        page_ids: Union[torch.Tensor, ReplicatedTensor],
+    ):
+        """Writes a single batched timestep across all cache partitions.
+
+        Note that this internally loops over the batch size, which cannot be
+        dynamic.
+        """
+        pipeline = self.block_to_pipeline_map[transformer_block_index]
+        devices = self.pipeline_to_device_map[pipeline]
+        transformer_block_count = self.pipeline_to_block_count[pipeline]
+        block_offset = self.pipeline_to_block_offset[pipeline]
+        transformer_block_index = transformer_block_index - block_offset
+
+        page_tables = self.unflatten_page_tables(state)
+        page_table = page_tables[pipeline]
+        page_table = page_table.flatten(0, 2)
+        assert len(cache_partitions) == self.cache_partition_count
+
+        for p, partition in enumerate(cache_partitions):
+            if not isinstance(page_table, ShardedTensor):
+                self.write_shard(
+                    page_table=page_table,
+                    cache_partition=partition,
+                    cache_partition_id=p,
+                    transformer_block_index=transformer_block_index,
+                    transformer_block_count=transformer_block_count,
+                    page_ids=page_ids,
+                )
+                continue
+
+            if (
+                isinstance(page_table, ShardedTensor)
+                and isinstance(partition, ShardedTensor)
+                and isinstance(page_ids, ReplicatedTensor)
+            ):
+
+                page_table_split = isinstance(page_table, SplitPrimitiveTensor)
+                partition_split = isinstance(partition, SplitPrimitiveTensor)
+                assert page_table_split == partition_split
+
+                def build_map(t):
+                    return {d: i for i, d in enumerate(t.devices)}
+
+                page_table_shards = page_table.shards
+                partition_shards = self.deshard_arg(page_table, partition)
+                page_ids_shards = self.deshard_arg(page_table, page_ids)
+
+                for i in range(page_table.shard_count):
+                    device = page_table.devices[i]
+
+                    self.write_shard(
+                        page_table=page_table_shards[i],
+                        cache_partition=partition_shards[i],
+                        cache_partition_id=p,
+                        transformer_block_index=transformer_block_index,
+                        transformer_block_count=transformer_block_count,
+                        page_ids=page_ids_shards[i],
+                    )
+                continue
+
+            assert False
+
+    def write_shard(
+        self,
+        page_table: torch.Tensor,
+        cache_partition: torch.Tensor,
+        *,
+        cache_partition_id: int,
+        transformer_block_index: int,
+        transformer_block_count: int,
         page_ids: Union[torch.Tensor, ReplicatedTensor],
     ):
         """Writes cache partitions from a linear layout to the page table.
@@ -382,49 +515,26 @@ class PagedAttention:
         This is the inverse of the linear read. The same caveat applies if the
         in-place scatter cannot be fused.
         """
-        page_tables = self.unflatten_page_tables(state)  # 6D
-        page_table = page_tables[self.block_to_pipeline_map[transformer_block_index]]
-        bs, block_seq_len, *_ = page_ids.shape
+        _, block_seq_len, *_ = page_ids.shape
 
-        # Reshape the page cache into sub-blocks so that we can index at the
-        # granularity of the transformer_block and cache partition.
-        # This requires us to recompute indices to the sub-block reference
-        # frame.
-        # The subblock slab is organized as:
-        #   [page, attn_layer, cache_partition]
-        # Where the cache line can be 0 (k) or 1 (v).
-        subblock_table = page_table.flatten(start_dim=0, end_dim=2)
-        pipeline = self.block_to_pipeline_map[transformer_block_index]
+        index = page_ids
+        index = index * transformer_block_count + transformer_block_index
+        index = index * self.cache_partition_count + cache_partition_id
+        index = index.flatten(0, 1)
 
-        # We have to offset according to the pipeline sharding:
-        block_offset = self.pipeline_to_block_offset[pipeline]
-        transformer_block_index = transformer_block_index - block_offset
-
-        transformer_block_count = self.pipeline_to_block_count[pipeline]
-        page_stride = transformer_block_count * self.cache_partition_count
-        transformer_block_stride = self.cache_partition_count
-        base_subblock_ids = page_ids * page_stride + (
-            transformer_block_index * transformer_block_stride
+        cache_partition = cache_partition.unflatten(
+            1, (block_seq_len, self.block_seq_stride)
         )
+        cache_partition = cache_partition.flatten(0, 1)
 
-        for index, partition in enumerate(cache_partitions):
-            part_block_view = partition.unflatten(
-                1, (block_seq_len, self.block_seq_stride)
-            )
-            part_block_view = part_block_view.flatten(0, 1)
-
-            subblock_ids = (
-                (base_subblock_ids + index) if index > 0 else base_subblock_ids
-            ).flatten(0, 1)
-
-            part_block = ops.to(part_block_view, dtype=subblock_table.dtype)
-            if subblock_table.dtype == torch.float8_e4m3fnuz:
-                # Workaround for Torch not supporting torch.Tensor.index_copy_ for f8.
-                subblock_table_as_int8 = subblock_table.view(dtype=torch.int8)
-                part_block_as_int8 = part_block.view(dtype=torch.int8)
-                subblock_table_as_int8.index_copy_(0, subblock_ids, part_block_as_int8)
-            else:
-                subblock_table.index_copy_(0, subblock_ids, part_block)
+        part_block = ops.to(cache_partition, dtype=page_table.dtype)
+        if page_table.dtype == torch.float8_e4m3fnuz:
+            # Workaround for Torch not supporting torch.Tensor.index_copy_ for f8.
+            page_table_as_int8 = page_table.view(dtype=torch.int8)
+            part_block_as_int8 = part_block.view(dtype=torch.int8)
+            page_table_as_int8.index_copy_(0, index, part_block_as_int8)
+        else:
+            page_table.index_copy_(0, index, part_block)
 
     def attention(
         self,
