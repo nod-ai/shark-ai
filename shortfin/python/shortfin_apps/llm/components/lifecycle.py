@@ -65,7 +65,7 @@ class ShortfinLlmLifecycleManager:
             server_params.decode_config = decode_config
 
         # use number of workers as number of logical device per physical device
-        os.environ['SHORTFIN_AMDGPU_LOGICAL_DEVICES_PER_PHYSICAL_DEVICE'] = str(
+        os.environ["SHORTFIN_AMDGPU_LOGICAL_DEVICES_PER_PHYSICAL_DEVICE"] = str(
             server_params.workers
         )
 
