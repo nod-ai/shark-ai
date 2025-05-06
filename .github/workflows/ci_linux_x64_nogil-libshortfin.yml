@@ -10,14 +10,14 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
-      - '.github/workflows/ci_linux_x64-libshortfin.yml'
+      - '.github/workflows/ci_linux_x64_nogil-libshortfin.yml'
       - 'shortfin/**'
 
   push:
     branches:
       - main
     paths:
-      - '.github/workflows/ci_linux_x64-libshortfin.yml'
+      - '.github/workflows/ci_linux_x64_nogil-libshortfin.yml'
       - 'shortfin/**'
 
 permissions:
@@ -48,10 +48,9 @@ jobs:
         sudo apt install clang lld cmake ninja-build
 
     - name: Setup Python
-      uses: deadsnakes/action@e640ac8743173a67cca4d7d77cd837e514bf98e8 # v3.2.0
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
       with:
-        python-version: "3.13-dev"
-        nogil : true
+        python-version: "3.13t"
     - name: Install Python packages
       run: |
         pip install -r ${{ env.LIBSHORTFIN_DIR }}/requirements-tests-nogil.txt

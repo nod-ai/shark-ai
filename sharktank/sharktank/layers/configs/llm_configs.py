@@ -14,16 +14,14 @@ When in question, we draw from the vocabulary and normalization they have done
 (and indeed, can bootstrap these off of GGUF files).
 """
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, Any, Optional, List
+from os import PathLike
 from dataclasses import asdict, dataclass, field, fields
-from typing import Any, Optional
 import torch
 from transformers import T5Config as T5ConfigHf
 from .config import ModelConfig
-from ...utils import parse_version
-from os import PathLike
-
-from ...types.tensors import serialized_name_to_dtype, dtype_to_serialized_name
+from sharktank.utils import parse_version
+from sharktank.types.tensors import serialized_name_to_dtype, dtype_to_serialized_name
 
 if TYPE_CHECKING:
     import transformers
@@ -56,10 +54,6 @@ class LlamaHParams:
     nope_dim: Optional[int] = None
     kv_latent_dim: Optional[int] = None
     v_head_dim: Optional[int] = None
-
-    # Expert configs - Deep seek Specific
-    expert_score_func: Optional[str] = None
-    route_scale: Optional[float] = None
 
     # Grok configurations
     attention_softcap: Optional[float] = None
@@ -169,7 +163,7 @@ class LlamaModelConfig:
     # into the context length.
     block_seq_stride: int = 32
 
-    # Either "paged" or "direct".
+    # Sharktank supports only "paged"
     kv_cache_type: str = "paged"
 
     # If None will use attention_dtype.
@@ -191,6 +185,16 @@ class LlamaModelConfig:
     # If greater than 1, the model will expect sharded model parameters and function
     # arguments.
     tensor_parallelism_size: int = 1
+
+    # How many groups of (roughly) uniform size to
+    # If greater than 1, the model will re-wrap all non-sharded tensors as sharded over 1 device.
+    pipeline_parallelism_size: int = 1
+
+    # Mapping between a transformer block and the corresponding pipeline
+    block_to_pipeline_map: tuple[int, ...] = None
+
+    # Mapping between a pipeline and the corresponding devices
+    pipeline_to_device_map: tuple[tuple[int, ...], ...] = None
 
     # Which attention kernel to use.
     attention_kernel: str = "torch"
@@ -312,7 +316,7 @@ class ClipTextConfig(ModelConfig):
     dtype: torch.dtype = torch.float32
 
     def __post_init__(self):
-        from ...models.clip import ClipTextModel
+        from sharktank.models.clip import ClipTextModel
 
         self.model_type = ClipTextModel
         super().__post_init__()
@@ -325,8 +329,8 @@ class ClipTextConfig(ModelConfig):
     def from_hugging_face_clip_text_model_config(
         config: "transformers.CLIPTextConfig",
     ) -> "ClipTextConfig":
-        from ...models.clip import ClipTextModel
-        from ..base import get_model_type_id
+        from sharktank.models.clip import ClipTextModel
+        from sharktank.layers.base import get_model_type_id
 
         return ClipTextConfig(
             model_type=get_model_type_id(ClipTextModel),

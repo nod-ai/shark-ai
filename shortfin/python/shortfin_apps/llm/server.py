@@ -68,8 +68,29 @@ def parse_args(argv):
     return parser.parse_args(argv)
 
 
-def main(argv, log_config=uvicorn.config.LOGGING_CONFIG):
+def _check_for_per_fiber_bug(args):
+    """This is a temporary check to enable multi-worker and multi-fiber-per-worker
+    for performance benefits.
+
+    TODO: https://github.com/nod-ai/shark-ai/issues/1284
+
+    Raises:
+        NotImplementedError: Raises if per fiber isolation is used with multiple fibers per worker.
+    """
+    isolation = args.program_isolation
+    fibers_per_worker = args.fibers_per_worker
+
+    if isolation == ProgramIsolation.PER_FIBER.name.lower() and fibers_per_worker > 1:
+        raise NotImplementedError(
+            "Per fiber isolation does not currently support multiple fibers per worker. "
+            "Please set `--fibers_per_worker` to 1.\n"
+            "See: https://github.com/nod-ai/shark-ai/issues/1284"
+        )
+
+
+def run_server(argv, log_config=uvicorn.config.LOGGING_CONFIG, port: int | None = None):
     args = parse_args(argv)
+    _check_for_per_fiber_bug(args)
     if args.tokenizer_config_json is None:
         # this is only used for the EOS token
         logging.info("Argument `--tokenizer_config_json` is not provided")
@@ -84,7 +105,7 @@ def main(argv, log_config=uvicorn.config.LOGGING_CONFIG):
     uvicorn.run(
         get_app(lifecycle_manager.fastapi_lifespan),
         host=args.host,
-        port=args.port,
+        port=port or args.port,
         log_config=log_config,
         timeout_keep_alive=args.timeout_keep_alive,
     )
@@ -94,7 +115,7 @@ if __name__ == "__main__":
     from shortfin.support.logging_setup import configure_main_logger
 
     logger = configure_main_logger("server")
-    main(
+    run_server(
         sys.argv[1:],
         # Make logging defer to the default shortfin logging config.
         log_config=UVICORN_LOG_CONFIG,

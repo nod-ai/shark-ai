@@ -6,7 +6,7 @@
 
 import logging
 
-from typing import List, Set, Tuple
+from typing import List
 
 from .base_token_selection_strategy import (
     BaseTokenSelectionStrategy,
@@ -16,41 +16,55 @@ from .beam_group import BeamGroup, Beam
 from .config import LogitsNormalization
 from ..messages import LlmInferenceExecRequest, InferencePhase
 
-from shortfin_apps.utils import convert_int_to_float
-
 import shortfin.array as sfnp
+
+from shortfin_apps.utils import (
+    convert_float_to_int,
+    convert_int_to_float,
+    convert_list_to_device_array,
+)
+
 
 logger = logging.getLogger(__name__)
 
 
+TOP_P_DEFAULT_SELECTION = 32
+
+
 class BeamSearchBeam(Beam):
-    def _top_k(
-        self, log_softmax_logits: sfnp.device_array, k: int
-    ) -> Tuple[List[int], List[float]]:
-        """Select the top `k` tokens and values from the logits.
+    def _convert_results_to_log_probs(
+        self,
+        probs: List,
+    ):
+        device = self.exec_req.result_logits.device
+        dtype = self.exec_req.result_logits.dtype
+        probs_sf = convert_list_to_device_array(
+            probs,
+            [len(probs)],
+            device,
+            dtype,
+        )
+        log_probs = self.convert_logits_normalization(
+            LogitsNormalization.SOFTMAX,
+            LogitsNormalization.LOG_SOFTMAX,
+            probs_sf,
+            **{"device_visible": True},
+        )
 
-        Args:
-            log_softmax_logits (sfnp.device_array): log_softmax of inference result_logits.
-            k (int): Number of max elements to return.
+        log_probs_dtype = log_probs.dtype
 
-        Returns:
-            Tuple[List[int], List[float]]: Tuple containing (top_tokens, top_values)
-        """
-        partitioned_tokens = sfnp.argpartition(log_softmax_logits, k)
-        top_tokens = partitioned_tokens.view(0, 0, slice(k, None)).items.tolist()
-        values_view = log_softmax_logits.view(0, 0).items
-        top_values = []
-        for token in top_tokens:
-            value = values_view[token]
-            if isinstance(value, int):
-                top_values.append(convert_int_to_float(value, log_softmax_logits.dtype))
-            else:
-                top_values.append(value)
+        if log_probs_dtype in [sfnp.float16]:
+            log_probs = [
+                convert_int_to_float(value, log_probs_dtype)
+                for value in log_probs.items.tolist()
+            ]
+        else:
+            log_probs = log_probs.items.tolist()
 
-        return top_tokens, top_values
+        return log_probs
 
     def sample_logits(self, k: int):
-        """Apply `log_softmax` and take the `top_k` token and values of the logits.
+        """Obtain tokens and log_probs from beam_search or beam_search with sampling.
 
         Args:
             k (int): Number of max elements to return.
@@ -58,18 +72,72 @@ class BeamSearchBeam(Beam):
         Returns:
             Tuple[List[int], List[float]]: Tuple containing (top_tokens, top_values)
         """
-        self.apply_temperature()
-        if self.logits_normalization == LogitsNormalization.LOG_SOFTMAX:
-            log_softmax_logits = self.exec_req.result_logits
-        elif self.logits_normalization == LogitsNormalization.NONE:
-            log_softmax_logits = sfnp.log_softmax(self.exec_req.result_logits)
-        elif self.logits_normalization == LogitsNormalization.SOFTMAX:
-            log_softmax_logits = sfnp.log(self.exec_req.result_logits)
-        else:
-            raise ValueError(
-                f"Unknown logits normalization {self.logits_normalization}"
+        logits = self.exec_req.result_logits
+        decode_config = self.decode_config
+        num_beams = decode_config.num_beams
+        top_k = decode_config.top_k
+        top_p = decode_config.top_p
+
+        if (top_k, top_p) == (None, None):
+            tokens, probs = self.sampler.select_top_k(logits, -k)
+
+            # TODO: https://github.com/nod-ai/shark-ai/issues/1278 find cleaner way to do these conversions
+            if logits.dtype in [sfnp.float16]:
+                probs = [convert_float_to_int(prob, logits.dtype) for prob in probs]
+
+            probs_sf = convert_list_to_device_array(
+                probs,
+                [len(probs)],
+                logits.device,
+                logits.dtype,
             )
-        return self._top_k(log_softmax_logits, -k)
+
+            if self.decode_config.logits_normalization == LogitsNormalization.NONE:
+                probs_sf = self.apply_temperature(probs_sf)
+
+            log_probs = self.convert_logits_normalization(
+                self.decode_config.logits_normalization,
+                LogitsNormalization.LOG_SOFTMAX,
+                probs_sf,
+            ).items.tolist()
+
+            if logits.dtype in [sfnp.float16]:
+                log_probs = [
+                    convert_int_to_float(log_prob, logits.dtype)
+                    for log_prob in log_probs
+                ]
+
+            return tokens, log_probs
+
+        if top_k is not None:
+            # Sample from `top_k` tokens
+            tokens, probs = self._sample_logits_top_k(
+                logits,
+                top_k,
+                num_selections=top_k,
+            )
+
+        if top_p is not None:
+            if top_k is None:
+                top_p_selection = min(logits.shape[-1], TOP_P_DEFAULT_SELECTION)
+                tokens, values = self.sampler.select_top_k(logits, -top_p_selection)
+                probs = self._to_softmax(
+                    values,
+                    logits.dtype,
+                    logits.device,
+                    self.decode_config.logits_normalization,
+                )
+
+            tokens, probs = self._sample_logits_top_p(tokens, probs, top_p, num_beams)
+
+        if logits.dtype in [sfnp.float16]:
+            probs = [convert_float_to_int(prob, logits.dtype) for prob in probs]
+
+        log_probs = self._convert_results_to_log_probs(
+            probs,
+        )
+
+        return tokens, log_probs
 
     def update_score(self, log_prob: float):
         """Increment the cumulative_log_prob of the beam.
@@ -129,6 +197,8 @@ class BeamSearchTokenSelectionStrategy(BaseTokenSelectionStrategy):
 
         global_min_log_prob = 0.0
 
+        top_score = None
+        top_beam = None
         selections: List[BeamSearchBeam] = []
         for beam in active_beams:
             min_log_prob = 0.0
@@ -142,14 +212,29 @@ class BeamSearchTokenSelectionStrategy(BaseTokenSelectionStrategy):
                     score=beam.score,
                     accumulated_normalization=beam.accumulated_normalization,
                     last_token=token,
-                    temperature=config.decode_config.temperature,
-                    logits_normalization=config.decode_config.logits_normalization,
+                    decode_config=config.decode_config,
                 )
                 new_beam.update_score(value)
                 selections.append(new_beam)
 
+                if top_score is None or new_beam.score > top_score:
+                    top_score = new_beam.score
+                    top_beam = new_beam
+
             if min_log_prob < global_min_log_prob:
                 global_min_log_prob = min_log_prob
+
+        if len(selections) < config.decode_config.num_beams:
+            beams_to_add = config.decode_config.num_beams - len(selections)
+            for _ in range(beams_to_add):
+                new_beam = BeamSearchBeam(
+                    exec_req=top_beam.exec_req,
+                    score=top_beam.score,
+                    accumulated_normalization=top_beam.accumulated_normalization,
+                    last_token=top_beam.last_token,
+                    decode_config=config.decode_config,
+                )
+                selections.append(new_beam)
 
         sorted_selections = sorted(
             selections, key=lambda beam: beam.score, reverse=True
@@ -186,18 +271,13 @@ class BeamSearchTokenSelectionStrategy(BaseTokenSelectionStrategy):
         Args:
             exec_req (LlmInferenceExecRequest): Initial inference request, post prefill.
         """
-        logger.info("Starting `beam_search` decode loop...")
+        self._log_sampling_method()
         config = self.token_selection_strategy_config
 
-        beam = BeamSearchBeam(
-            exec_req=exec_req,
-            temperature=config.decode_config.temperature,
-            logits_normalization=config.decode_config.logits_normalization,
-        )
         beam_group = BeamGroup(
             config.eos_token_id,
             config.decode_config.num_beams,
-            [beam],
+            [BeamSearchBeam(exec_req, decode_config=config.decode_config)],
             self.select_top_k,
         )
 
@@ -224,6 +304,7 @@ class BeamSearchTokenSelectionStrategy(BaseTokenSelectionStrategy):
             beam_group.process_beams()
 
         config.decode_end_callback(reservations)
+        beam_group.clean_up()
         self.get_results(beam_group)
 
     def get_results(self, beam_group: BeamGroup):

@@ -6,9 +6,10 @@
 
 """Specifications describing how the Llama model is sharded."""
 
-from ...types.sharding import *
-from ...types import Theta
-from ... import ops
+from sharktank.layers.configs import LlamaModelConfig
+from sharktank.types.sharding import *
+from sharktank.types import Theta
+from sharktank import ops
 
 
 class PagedLlamaAttentionBlockSharding(ThetaLayerSharding):
@@ -102,9 +103,7 @@ class LlamaSharding(ThetaLayerSharding):
         return result
 
 
-def shard_theta(
-    theta: Theta, config: "sharktank.models.llama.llama.LlamaModelConfig"
-) -> Theta:
+def shard_theta(theta: Theta, config: LlamaModelConfig) -> Theta:
     return ops.reshard(
         theta,
         LlamaSharding(

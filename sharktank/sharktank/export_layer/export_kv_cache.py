@@ -5,14 +5,13 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import torch
-import torch.nn.functional as F
 
 from iree.turbine.aot import *
 
 from sharktank.types import SplitPrimitiveTensor
 from sharktank.ops import reshard_split, replicate
 from sharktank.layers.paged_attention import PagedAttention
-from ..utils import cli
+from sharktank.utils import cli
 
 
 def main():
@@ -66,7 +65,8 @@ def main():
         attn_head_count=attn_head_count,
         attn_head_dim=attn_head_dim,
         shard_count=args.sharding,
-        dtype=torch.float32,
+        cache_dtype=torch.float32,
+        attn_dtype=torch.float32,
         device=None,
     )
 

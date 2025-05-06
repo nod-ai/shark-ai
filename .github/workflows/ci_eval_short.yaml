@@ -40,7 +40,7 @@ jobs:
 
       - name: "Setting up Python"
         id: setup_python
-        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: ${{matrix.version}}
       - name: Create Python venv
@@ -65,12 +65,12 @@ jobs:
         run: |
           source ${VENV_DIR}/bin/activate
           pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_iree_test.py \
-            -m "expensive" \
             --bs=4 \
             --iree-device=hip://0 \
             --iree-hip-target=gfx942 \
             --iree-hal-target-device=hip \
             --llama3-8b-f16-model-path=/shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa \
             --llama3-8b-tokenizer-path=/shark-dev/data/llama3.1/weights/8b/fp16/tokenizer_config.json \
+            --run-quick-llama-test \
             --log-cli-level=INFO
           ls -lha ${{ github.workspace }}/perplexity_ci_artifacts

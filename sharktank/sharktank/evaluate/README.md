@@ -34,13 +34,13 @@ pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_torch_test.py -k test_llam
 ##### IREE mode
 ```bash
 pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_iree_test.py -k test_llama3_8B_f16 \
-  -m "expensive" \
   --llama3-8b-f16-model-path=llama3.1_8b_instruct_fp16.irpa  \
   --llama3-8b-tokenizer-path=tokenizer_config.json \
   --bs=4 \
   --iree-device=hip://0 \
   --iree-hip-target=gfx942 \
-  --iree-hal-target-device=hip
+  --iree-hal-target-device=hip \
+  --run-nightly-llama-tests
 ```
 
 For a new model:
@@ -84,10 +84,10 @@ python -m sharktank.evaluate.perplexity_iree  -h
 
 | CPU            | GPU        | Num of prompts   |
 |:-------------: |:----------:|:----------------:|
-| AMD EPYC 9554  | MI300X     |      100         |
+| AMD EPYC 9554  | MI300X     |      128         |
 
 #### LLaMA 3.1
 
 |Models                          |Torch score   |IREE score    | Model size (GB) |
 |:-------------------------------|:-------------|:-------------|:----------------|
-|8B FP16 Instruct TP1            |20.223236     |19.786807     |16.07            |
+|8B FP16 Instruct TP1            |17.555018       |14.6294       |16.07            |

@@ -6,16 +6,14 @@
 
 """Utilities for building command line tools."""
 
-from typing import Dict, Optional, Sequence
-
+from typing import Optional, Sequence
 import argparse
-import logging
 from pathlib import Path
+import logging
+
 import torch
-from ..types import Dataset
-from ..types import serialized_name_to_dtype
-from . import hf_datasets
-from . import tokenizer
+from sharktank.types import Dataset, serialized_name_to_dtype
+from . import hf_datasets, tokenizer
 
 
 def create_parser(
@@ -116,6 +114,12 @@ def add_model_options(parser: argparse.ArgumentParser):
         help="Number of devices for tensor parallel sharding. Will be overridden by dataset.properties if present",
     )
     parser.add_argument(
+        "--pipeline-parallelism-size",
+        type=int,
+        default=1,
+        help="Number of (roughly) uniform groups of layers to split the model for pipeline parallelism.",
+    )
+    parser.add_argument(
         "--block-seq-stride",
         help="Block sequence stride for paged KV cache, must divide evenly into the context length",
         type=int,
@@ -127,9 +131,124 @@ def add_model_options(parser: argparse.ArgumentParser):
         type=int,
         default=512,
     )
+    parser.add_argument(
+        "--use-attention-mask",
+        help="Generates attention mask during export",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--top-k",
+        help="Export with a `top_k` kernel. If `top_k` == 1, argmax is exported.",
+        type=int,
+        default=None,
+    )
+
+
+def add_model_input_options(parser: argparse.ArgumentParser):
+    """Adds input options for LLMs"""
+
+    parser.add_argument(
+        "--prompt",
+        nargs="+",
+        help="Custom prompt strings to run LLM or perplexity",
+    )
+
+
+def add_iree_flags(parser: argparse.ArgumentParser):
+    """Adds IREE device flag options"""
+
+    parser.add_argument(
+        "--iree-device",
+        type=str,
+        action="append",
+        help="List an IREE device from 'iree-run-module --list_devices'",
+    )
+    parser.add_argument(
+        "--iree-hip-target",
+        action="store",
+        default="gfx942",
+        help="Specify the iree-hip target version (e.g., gfx942)",
+    )
+    parser.add_argument(
+        "--iree-hal-target-device",
+        action="store",
+        default="hip",
+        help="Specify the iree-hal target device (e.g., hip, cpu)",
+    )
+
+
+def add_export_artifacts(parser: argparse.ArgumentParser):
+    """Adds export & compile artifacts path options"""
+
+    parser.add_argument(
+        "--bs-prefill",
+        help="Comma-separated batch size(s) to generate, e.g. `4` or `2,4`",
+        type=lambda arg: [int(bs) for bs in arg.split(",")],
+        default="4",
+    )
+    parser.add_argument(
+        "--bs-decode",
+        help="Comma-separated batch size(s) to generate, e.g. `4` or `2,4`",
+        type=lambda arg: [int(bs) for bs in arg.split(",")],
+        default="4",
+    )
+    parser.add_argument(
+        "--strict",
+        help="Enables strictness during export",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--output-mlir",
+        help="Output file path for exported MLIR file",
+        type=str,
+    )
+    parser.add_argument(
+        "--output-config",
+        help="Output file path for exported config file",
+        type=str,
+    )
+    parser.add_argument(
+        "--output-vmfb",
+        help="Output file path for compiled vmfb file",
+        type=str,
+    )
+
+
+def add_save_tensor_options(parser: argparse.ArgumentParser):
+    """Adds options to save input and intermediate tensors to separate files"""
+
+    parser.add_argument(
+        "--save_intermediates_path",
+        help="save module forward outputs to safetensors, ex: run_0 will save to run_0_prefill.savetensors",
+    )
+    parser.add_argument(
+        "--dump-path",
+        help="Path to dump prefill/decode input tensors to npy files",
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
+        "--dump-decode-steps",
+        help="Number of decode steps to dump decode input tensors",
+        type=int,
+        default=1,
+    )
+    parser.add_argument(
+        "--prompt-seq-len",
+        help="Seq len to generate input prompts for prefill",
+        type=int,
+    )
+    parser.add_argument(
+        "--bs",
+        help="Batch size",
+        type=int,
+        default="4",
+    )
 
 
 def add_quantization_options(parser: argparse.ArgumentParser):
+    """Adds quantization options"""
+
     parser.add_argument(
         "--fake-quant",
         action=argparse.BooleanOptionalAction,
@@ -150,6 +269,36 @@ def add_tokenizer_options(parser: argparse.ArgumentParser):
         "--tokenizer-config-json",
         help="Direct path to a tokenizer_config.json file",
         type=Path,
+    )
+
+
+def add_log_options(parser: argparse.ArgumentParser):
+    """Adds log options"""
+
+    parser.add_argument(
+        "--verbose",
+        help="Include verbose logging",
+        action="store_const",
+        dest="loglevel",
+        const=logging.DEBUG,
+        default=logging.INFO,
+    )
+
+
+def add_evaluate_options(parser: argparse.ArgumentParser):
+    """Adds input text options for evaluate/perplexity"""
+
+    parser.add_argument(
+        "--num-prompts",
+        type=int,
+        default=128,
+        help="Number of prompts/batch size for perplexity test (1 to 128)",
+    )
+    parser.add_argument(
+        "--prompt-list",
+        nargs="+",
+        type=str,
+        help="Custom prompts to run perplexity",
     )
 
 

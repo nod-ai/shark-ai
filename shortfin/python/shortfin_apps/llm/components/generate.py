@@ -9,6 +9,8 @@ import dataclasses
 import io
 import json
 import logging
+
+from copy import copy
 from typing import List
 
 import shortfin as sf
@@ -16,6 +18,8 @@ import shortfin.array as sfnp
 
 # TODO: Have a generic "Responder" interface vs just the concrete impl.
 from shortfin.interop.fastapi import FastAPIResponder
+from fastapi.responses import JSONResponse
+from fastapi import status
 
 from .config_struct import DecodeConfig
 from .io_struct import (
@@ -128,6 +132,7 @@ class ClientGenerateBatchProcess(sf.Process):
         "responder",
         "tokenizer",
         "decode_config",
+        "service",
     ]
 
     def __init__(
@@ -137,7 +142,8 @@ class ClientGenerateBatchProcess(sf.Process):
         responder: FastAPIResponder,
         fiber: sf.Fiber | None = None,
     ):
-        super().__init__(fiber=service.main_fiber if fiber is None else fiber)
+        super().__init__(fiber=service.fiber_pool.fibers[0] if fiber is None else fiber)
+        self.service = service
         self.gen_req = gen_req
         self.responder = responder
         self.tokenizer = service.tokenizer
@@ -146,16 +152,32 @@ class ClientGenerateBatchProcess(sf.Process):
         self.complete_infeed = self.system.create_queue()
 
         self.decode_config = service.server_params.decode_config
-        self.decode_config.update_from_sampling_params(gen_req.sampling_params)
 
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
-        streaming = self.gen_req.stream
-        self.responder.start_response()
-        if streaming:
-            self.responder.stream_start()
+
+        # Try to add request to queue
+        # TODO(@zphoenixrises): Add load testing and integration tests for this.
+        if not self.service.add_to_queue():
+            error_response = JSONResponse(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                content={
+                    "error": "Server queue is full. Please try again later.",
+                    "code": "QUEUE_FULL",
+                    "current_size": self.service.current_queue_size,
+                    "max_size": self.service.max_queue_size,
+                },
+            )
+            self.responder.send_response(error_response)
+            self.responder.ensure_response()
+            return
 
         try:
+            streaming = self.gen_req.stream
+            self.responder.start_response()
+            if streaming:
+                self.responder.stream_start()
+
             # Launch all individual generate processes and wait for them to finish.
             gen_processes = []
             input_ids = self.gen_req.input_ids
@@ -165,7 +187,14 @@ class ClientGenerateBatchProcess(sf.Process):
                 input_batch = [input_ids] if self.gen_req.is_single else input_ids
             else:
                 input_batch = self.tokenize()
+
             for index, input_tokens in enumerate(input_batch):
+                decode_config = copy(self.decode_config)
+                decode_config.update_from_sampling_params(
+                    self.gen_req.sampling_params
+                    if self.gen_req.is_single
+                    else self.gen_req.sampling_params[index]
+                )
                 gen_process = GenerateItemProcess(
                     self,
                     self.gen_req,
@@ -175,14 +204,17 @@ class ClientGenerateBatchProcess(sf.Process):
                     else self.gen_req.text[index],
                     input_tokens if is_pretokenized else input_tokens.ids,
                     eos_token_id=self.tokenizer.eos_token_id,
-                    decode_config=self.decode_config,
+                    decode_config=decode_config,
                 )
                 gen_processes.append(gen_process)
                 gen_process.launch()
 
             await asyncio.gather(*gen_processes)
             self.generate_response(gen_processes, streaming)
+
         finally:
+            # Remove request from queue when done
+            self.service.remove_from_queue()
             self.responder.ensure_response()
 
     def generate_response(

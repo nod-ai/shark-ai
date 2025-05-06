@@ -6,6 +6,8 @@
 
 """Export support for the PagedLLMV1 protocol of models."""
 
+import os
+import logging
 import json
 from typing import Any, Dict
 import torch
@@ -14,59 +16,19 @@ from iree.turbine.aot import *
 
 from sharktank.layers import *
 from sharktank.types import *
+from sharktank.types.pipelining import pipeline_parallelize_theta
 from sharktank.utils.math import ceildiv
 from sharktank import ops
+from sharktank.utils import cli
 
 # TODO: Should be using a base class with the protocol supported.
-from ..models.llama.llama import LlamaModelConfig, PagedLlamaModelV1
-from ..models.mixtral.mixtral import *
-from ..models.grok.grok import *
-from .. import ops
+from sharktank.models.llm import *
 
 
 def main():
-    from ..utils import cli
-    import os
 
     parser = cli.create_parser()
-    cli.add_input_dataset_options(parser)
-    parser.add_argument(
-        "--output-mlir",
-        help="Output file path for exported MLIR file",
-        default="/tmp/batch_llama_v1.mlir",
-    )
-    parser.add_argument(
-        "--output-config",
-        help="Output file path for exported config file",
-        default="/tmp/batch_llama_v1.json",
-    )
-    parser.add_argument(
-        "--bs-prefill",
-        help="Comma-separated batch size(s) to generate, e.g. `4` or `2,4`",
-        type=lambda arg: [int(bs) for bs in arg.split(",")],
-        default="4",
-    )
-    parser.add_argument(
-        "--bs-decode",
-        help="Comma-separated batch size(s) to generate, e.g. `4` or `2,4`",
-        type=lambda arg: [int(bs) for bs in arg.split(",")],
-        default="4",
-    )
-    parser.add_argument(
-        "--verbose",
-        help="Include verbose logging",
-        action="store_true",
-    )
-    parser.add_argument(
-        "--strict",
-        help="Enables strictness during export",
-        action="store_true",
-    )
-    parser.add_argument(
-        "--use-attention-mask",
-        help="Generates attention mask during export",
-        action="store_true",
-    )
+
     parser.add_argument(
         "--logits-normalization",
         default="none",
@@ -74,8 +36,12 @@ def main():
         choices=["none", "softmax", "log_softmax"],
     )
 
-    cli.add_quantization_options(parser)
+    cli.add_input_dataset_options(parser)
     cli.add_model_options(parser)
+    cli.add_export_artifacts(parser)
+    cli.add_quantization_options(parser)
+    cli.add_log_options(parser)
+
     args = cli.parse(parser)
 
     if args.output_mlir and args.output_mlir != "-":
@@ -93,14 +59,32 @@ def main():
     dataset_type = "irpa" if "irpa" in dataset_type else "gguf"
     dataset = cli.get_input_dataset(args)
     hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
-    tensor_parallelism_size = (
-        dataset.properties["tensor_parallelism_size"]
-        if "tensor_parallelism_size" in dataset.properties
-        else args.tensor_parallelism_size
-    )
+    if "tensor_parallelism_size" in dataset.properties:
+        dataset_tensor_parallelism_size = dataset.properties["tensor_parallelism_size"]
+        if dataset_tensor_parallelism_size != args.tensor_parallelism_size:
+            raise ValueError(
+                f"Tensor parallelism size mismatch: dataset={dataset_tensor_parallelism_size} while arg={args.tensor_parallelism_size}. Wrong value for --tensor-parallelism-size."
+            )
+    else:
+        if args.tensor_parallelism_size != 1:
+            raise ValueError(
+                f"Unsharded dataset file provided, but specified --tensor-parallelism-size={args.tensor_parallelism_size}. Likely wrong dataset provided."
+            )
+
+    if args.pipeline_parallelism_size > 1:
+        block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
+            dataset.root_theta, args.pipeline_parallelism_size
+        )
+    else:
+        block_to_pipeline = tuple([0] * hp.block_count)
+        pipeline_to_devices = tuple([tuple(range(args.tensor_parallelism_size))])
+
     llama_config = LlamaModelConfig(
         hp,
-        tensor_parallelism_size=tensor_parallelism_size,
+        tensor_parallelism_size=args.tensor_parallelism_size,
+        pipeline_parallelism_size=args.pipeline_parallelism_size,
+        block_to_pipeline_map=block_to_pipeline,
+        pipeline_to_device_map=pipeline_to_devices,
         use_hf=args.use_hf,
         static_tables=False,  # Rely on the compiler for hoisting tables.
         attention_kernel=args.attention_kernel,
@@ -111,13 +95,7 @@ def main():
     )
     llama_config.fake_quant = args.fake_quant
 
-    if llama_config.hp.expert_count:
-        if llama_config.hp.model_arch == "grok":
-            model = PagedGrokModelV1(dataset.root_theta, llama_config)
-        else:
-            model = PagedMixtralModelV1(dataset.root_theta, llama_config)
-    else:
-        model = PagedLlamaModelV1(dataset.root_theta, llama_config)
+    model = PagedLlmModelV1(dataset.root_theta, llama_config)
 
     def generate_params_json(
         hp: LlamaHParams,
@@ -132,6 +110,12 @@ def main():
         For shortfin, we only write attention_head_count_kv because that's all shortfin needs.
         Note that this is different from hp.attn_head_count when grouped attention shares kvcache between heads.
         """
+        kv_cache_dtype = (
+            str(llama_config.kv_cache_dtype).split(".")[-1]
+            if llama_config.kv_cache_dtype is not None
+            else str(llama_config.attention_dtype).split(".")[-1]
+        )
+
         return {
             "module_name": "module",
             "module_abi_version": 1,
@@ -141,10 +125,12 @@ def main():
             "decode_batch_sizes": decode_bs,
             "transformer_block_count": hp.block_count,
             "logits_normalization": logits_normalization,
+            "top_k": args.top_k,
             "paged_kv_cache": {
                 "attention_head_count_kv": hp.attention_head_count_kv,
                 "block_seq_stride": llama_config.block_seq_stride,
                 "device_block_count": args.device_block_count,  # so that this makes its way into the config file & can be edited.
+                "kv_cache_dtype": kv_cache_dtype,
             },
         }
 
@@ -164,13 +150,18 @@ def main():
             )
             page_dim = torch.export.Dim("page")
 
-            dynamic_shapes = [{0: page_dim}]
+            dynamic_shapes = [
+                {0: page_dim} for _ in range(llama_config.pipeline_parallelism_size)
+            ]
             unpacked = cache_state
             arg_affinities = {}
             shard_dim = None
 
-            # Need to unpacke that state when sharded
-            if llama_config.tensor_parallelism_size > 1:
+            # Need to unpack that state when sharded (for tracing support reasons)
+            if (
+                llama_config.tensor_parallelism_size > 1
+                or llama_config.pipeline_parallelism_size > 1
+            ):
                 shard_dim = cache_state[0].shard_dim
 
                 unpacked = [[shard._data for shard in cs.shards] for cs in cache_state]
@@ -178,25 +169,34 @@ def main():
                     [ds] * llama_config.tensor_parallelism_size for ds in dynamic_shapes
                 ]
 
-                for i in range(llama_config.tensor_parallelism_size):
-                    arg_affinities[i] = DeviceAffinity(str(i))
+                # Cache is unpacked as [[pipeline 0 shards], [pipeline 1 shards], ...]
+                # Therefore pipeline index is in outer loop.
+                for pipeline in range(llama_config.pipeline_parallelism_size):
+                    for tp in range(llama_config.tensor_parallelism_size):
+                        i = pipeline * llama_config.tensor_parallelism_size + tp
+                        arg_affinities[i] = DeviceAffinity(
+                            str(model.cache.pipeline_to_devices[pipeline][tp])
+                        )
 
             return unpacked, shard_dim, dynamic_shapes, arg_affinities
-
-        elif model.config.kv_cache_type == "direct":
-            cache_state = model.cache.allocate(bs=1)
-            # Direct cache dimensions:
-            #   2 * transformer_block_count of...
-            #   [bs, seq_length, attn_head_count, attn_head_dim]
-            dynamic_shapes = [None]
-            arg_affinities = {}
-            shard_dim = None
-            return torch.stack(cache_state), shard_dim, dynamic_shapes, arg_affinities
         else:
             raise NotImplementedError(f"Unsupported KV cache type: {type(model.cache)}")
 
-    def repack_cache(cache, shard_dim):
-        return [SplitPrimitiveTensor(ts=c, shard_dim=shard_dim) for c in cache]
+    def repack_cache(
+        cache, shard_dim, pipeline_to_device_lookup: tuple[tuple[int, ...], ...]
+    ) -> list[ShardedTensor]:
+        return [
+            (
+                SplitPrimitiveTensor(
+                    ts=c,
+                    shard_dim=shard_dim,
+                    devices=pipeline_to_device_lookup[pipeline],
+                )
+                if len(c) > 1
+                else ReplicatedTensor(ts=c, devices=pipeline_to_device_lookup[pipeline])
+            )
+            for pipeline, c in enumerate(cache)
+        ]
 
     def generate_batch_prefill(bs: int):
         # torch.export.Dim would make min at least 2
@@ -216,12 +216,16 @@ def main():
             model, llama_config.tensor_parallelism_size
         )
 
-        if llama_config.tensor_parallelism_size > 1:
+        if (
+            llama_config.tensor_parallelism_size > 1
+            or llama_config.pipeline_parallelism_size > 1
+        ):
             # We need to offset the indices for the cache
             arg_affinities = {key + 3: arg_affinities[key] for key in arg_affinities}
 
             for i in range(3):
-                arg_affinities[i] = DeviceAffinity("0")
+                device = str(pipeline_to_devices[0])
+                arg_affinities[i] = DeviceAffinity(device)
 
         dynamic_shapes = {
             "tokens": {1: sl_dim},
@@ -240,13 +244,7 @@ def main():
             arg_device=arg_affinities,
         )
         def _(model, tokens, seq_lens, seq_block_ids, cs):
-            if (
-                model.config.tensor_parallelism_size == 1
-                and model.config.kv_cache_type == "direct"
-            ):
-                cache_tensors = torch.unbind(cs)
-            else:
-                cache_tensors = cs
+            cache_tensors = cs
 
             attention_mask = None
             if args.use_attention_mask:
@@ -254,14 +252,42 @@ def main():
                 input_mask = model.input_mask(seq_lens, sl)
                 attention_mask = model.attention_mask(input_mask)
 
-            if llama_config.tensor_parallelism_size != 1:
+            if (
+                llama_config.tensor_parallelism_size == 1
+                and llama_config.pipeline_parallelism_size == 1
+            ):
+                attention_mask = [attention_mask]
+                seq_block_ids = [seq_block_ids]
+            else:
                 shard_count = llama_config.tensor_parallelism_size
 
-                tokens = ops.replicate(tokens, count=shard_count)
-                if attention_mask is not None:
-                    attention_mask = ops.replicate(attention_mask, count=shard_count)
-                seq_block_ids = ops.replicate(seq_block_ids, count=shard_count)
-                cache_tensors = repack_cache(cs, cache_shard_dim)
+                tokens = ops.replicate(
+                    tokens,
+                    count=shard_count,
+                    devices=llama_config.pipeline_to_devices[0],
+                )
+                if attention_mask is None:
+                    attention_mask = [None] * model.cache.pipeline_count
+                else:
+                    attention_mask = [
+                        ops.replicate(
+                            attention_mask,
+                            count=shard_count,
+                            devices=model.cache.pipeline_to_device_lookup[pipeline],
+                        )
+                        for pipeline in range(model.cache.pipeline_count)
+                    ]
+                seq_block_ids = [
+                    ops.replicate(
+                        seq_block_ids,
+                        count=shard_count,
+                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                    )
+                    for pipeline in range(model.cache.pipeline_count)
+                ]
+                cache_tensors = repack_cache(
+                    cs, cache_shard_dim, model.cache.pipeline_to_device_lookup
+                )
 
             logits = model.prefill(
                 tokens,
@@ -302,13 +328,16 @@ def main():
             arg_affinities,
         ) = setup_cache(model, llama_config.tensor_parallelism_size)
 
-        if llama_config.tensor_parallelism_size > 1:
+        if (
+            llama_config.tensor_parallelism_size > 1
+            or llama_config.pipeline_parallelism_size > 1
+        ):
             # We need to offset the indices for the cache
             arg_affinities = {key + 4: arg_affinities[key] for key in arg_affinities}
 
             # Inputs have default affinity 0
             for i in range(4):
-                arg_affinities[i] = DeviceAffinity("0")
+                arg_affinities[i] = DeviceAffinity(str(pipeline_to_devices[0][0]))
 
         dynamic_shapes = {
             "tokens": {},
@@ -346,15 +375,46 @@ def main():
             )
             attention_mask = model.decode_attention_mask(input_mask)
 
-            if llama_config.tensor_parallelism_size != 1:
+            if (
+                llama_config.tensor_parallelism_size == 1
+                and llama_config.pipeline_parallelism_size == 1
+            ):
+                attention_mask = [attention_mask]
+                seq_block_ids = [seq_block_ids]
+                start_positions = [start_positions]
+            else:
                 shard_count = llama_config.tensor_parallelism_size
 
-                tokens = ops.replicate(tokens, count=shard_count)
-                attention_mask = ops.replicate(attention_mask, count=shard_count)
-                start_positions = ops.replicate(start_positions, count=shard_count)
-                seq_block_ids = ops.replicate(seq_block_ids, count=shard_count)
+                tokens = ops.replicate(
+                    tokens,
+                    count=shard_count,
+                    devices=llama_config.pipeline_to_devices[0],
+                )
+                _attention_mask, _start_positions, _seq_block_ids = [], [], []
+                for pipeline in range(model.cache.pipeline_count):
+                    devices = model.cache.pipeline_to_device_lookup[pipeline]
+                    _attention_mask.append(
+                        ops.replicate(
+                            attention_mask, count=shard_count, devices=devices
+                        )
+                    )
+                    _start_positions.append(
+                        ops.replicate(
+                            start_positions, count=shard_count, devices=devices
+                        )
+                    )
+                    _seq_block_ids.append(
+                        ops.replicate(seq_block_ids, count=shard_count, devices=devices)
+                    )
+                attention_mask, start_positions, seq_block_ids = (
+                    _attention_mask,
+                    _start_positions,
+                    _seq_block_ids,
+                )
 
-                cache_state = repack_cache(cache_state, cache_shard_dim)
+                cache_state = repack_cache(
+                    cache_state, cache_shard_dim, model.cache.pipeline_to_device_lookup
+                )
 
             logits = model.decode(
                 tokens,
@@ -375,6 +435,36 @@ def main():
 
             return logits
 
+    def generate_argmax():
+        # TODO: Remove this when the corresponding `dtype` conversion is
+        # removed in `PagedLlmModelV1.prefill/decode`
+        dtype = llama_config.activation_dtype
+        if "float8" in str(dtype) or dtype == torch.bfloat16:
+            dtype = torch.float16
+
+        logits: torch.Tensor = torch.empty(
+            1,
+            1,
+            hp.context_length,
+            dtype=dtype,
+        )
+
+        arg_affinities = [DeviceAffinity("0")]
+
+        @fxb.export_program(
+            name="argmax",
+            args=(logits,),
+            dynamic_shapes={},
+            strict=args.strict,
+            arg_device=arg_affinities,
+        )
+        def _(
+            _,
+            logits=logits,
+            axis=-1,
+        ):
+            return ops.argmax(logits, axis, chunk_size=hp.context_length // 1024)
+
     if not args.skip_prefill:
         for bs in args.bs_prefill:
             generate_batch_prefill(bs)
@@ -382,12 +472,16 @@ def main():
         for bs in args.bs_decode:
             generate_batch_decode(bs)
 
+    if args.top_k is not None:
+        if args.top_k == 1:
+            generate_argmax()
+
     config = generate_params_json(
         hp, args.bs_prefill, args.bs_decode, args.logits_normalization
     )
     print("GENERATED!")
 
-    if args.verbose:
+    if args.loglevel == logging.DEBUG:
         for name, ep in fxb.programs.items():
             print(f"EXPORT {name}:\n{ep}")
 

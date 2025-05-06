@@ -42,7 +42,7 @@ jobs:
 
       - name: "Setting up Python"
         id: setup_python
-        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: ${{matrix.python-version}}
 
@@ -89,7 +89,6 @@ jobs:
 
   test_perplexity_iree:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
-    timeout-minutes: 1000
     name: "IREE Perplexity"
     strategy:
       matrix:
@@ -107,7 +106,7 @@ jobs:
 
       - name: "Setting up Python"
         id: setup_python
-        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: ${{matrix.version}}
       - name: Create Python venv
@@ -136,9 +135,8 @@ jobs:
             -v \
             -s \
             sharktank/tests/evaluate/perplexity_iree_test.py \
-            -m "expensive" \
             --run-nightly-llama-tests \
-            --bs=100 \
+            --bs=128 \
             --iree-device=hip://0 \
             --iree-hip-target=gfx942 \
             --iree-hal-target-device=hip \
@@ -160,7 +158,6 @@ jobs:
 
   test_perplexity_torch:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
-    timeout-minutes: 1000
     name: "Torch Perplexity"
     strategy:
       matrix:
@@ -178,7 +175,7 @@ jobs:
 
       - name: "Setting up Python"
         id: setup_python
-        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: ${{matrix.version}}
       - name: Create Python venv

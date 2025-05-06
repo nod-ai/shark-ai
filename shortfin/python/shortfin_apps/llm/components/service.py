@@ -6,11 +6,13 @@
 
 import logging
 
+from dataclasses import dataclass
+from typing import List
 
 import shortfin as sf
 
 
-from .batcher import PrefillBatcherProcess, DecodeBatcherProcess
+from .batcher import PrefillBatcherProcess, DecodeBatcherProcess, FiberPool
 from .config_struct import ModelParams, ServerParams
 from .kvcache.base_attention_cache import (
     BasePagedAttentionCache,
@@ -23,7 +25,6 @@ from .tokenizer import Tokenizer
 from .token_selection_strategy import get_strategy_from_str, is_ref_counted
 
 from ...utils import GenerateService
-
 
 logger = logging.getLogger(__name__)
 
@@ -44,33 +45,67 @@ class LlmGenerateService(GenerateService):
         model_params: ModelParams,
         server_params: "ServerParams",
         program_isolation: str = "per_call",
+        max_queue_size: int = 3,  # Maximum number of requests in queue
     ):
         super().__init__(sysman)
         self.name = name
         self.tokenizer = tokenizer
         self.model_params = model_params
         self.server_params = server_params
+        self.max_queue_size = max_queue_size
+        self.current_queue_size = 0
 
         self.set_isolation(program_isolation)
         self.initialize_worker_and_fiber()
+        self.initialize_queues()
         self.initialize_page_cache()
 
+    def initialize_queues(self):
+        """Initialize request and response queues"""
+        if self.model_params.decode_batch_sizes:
+            self.max_queue_size = max(self.model_params.decode_batch_sizes) + 2
+            print(f"Max queue size: {self.max_queue_size}")
+
+    def add_to_queue(self) -> bool:
+        """Try to add a request to the queue. Returns True if successful, False if queue is full."""
+        if self.current_queue_size >= self.max_queue_size:
+            return False
+        self.current_queue_size += 1
+        return True
+
+    def remove_from_queue(self):
+        """Remove a request from the queue."""
+        if self.current_queue_size > 0:
+            self.current_queue_size -= 1
+
     def initialize_worker_and_fiber(self):
-        self.main_worker = self.sysman.ls.create_worker(f"{self.name}-inference")
-        self.main_fiber = self.sysman.ls.create_fiber(self.main_worker)
-        self.prefill_fiber = self.sysman.ls.create_fiber(self.main_worker)
-        self.decode_fiber = self.sysman.ls.create_fiber(self.main_worker)
+        num_workers = self.server_params.workers
+        fibers_per_worker = self.server_params.fibers_per_worker
+
+        logger.info(
+            f"Creating {num_workers} workers, with {fibers_per_worker} fibers per worker..."
+        )
+        fibers = []
+        for i in range(num_workers):
+            worker = self.sysman.ls.create_worker(f"{self.name}-inference-{i}")
+            for _ in range(fibers_per_worker):
+                fiber = self.sysman.ls.create_fiber(worker)
+                fibers.append(fiber)
+
+        self.fiber_pool = FiberPool(
+            fibers,
+            fibers,
+        )
+        self.devices = fibers[0].devices_dict.values()
 
     def initialize_page_cache(self):
         """Initialize page pool and attention cache."""
         page_pool_config = PagePoolConfig(
-            dtype=self.model_params.attn_dtype,
+            dtype=self.model_params.paged_kv_cache.kv_cache_dtype,
             alloc_page_count=self.model_params.paged_kv_cache.device_block_count,
             paged_kv_block_size_elements=self.model_params.paged_kv_block_size_elements,
         )
-        page_pool = PagePool(
-            devices=self.main_fiber.devices_dict.values(), config=page_pool_config
-        )
+        page_pool = PagePool(devices=self.devices, config=page_pool_config)
 
         if self.server_params.prefix_sharing_algorithm == "trie":
             self.page_cache = TriePagedAttentionCache(
@@ -98,17 +133,19 @@ class LlmGenerateService(GenerateService):
         self.initialize_function_references()
 
         self.prefill_batcher = PrefillBatcherProcess(
-            self.prefill_fiber,
+            self.fiber_pool,
             self.page_cache,
             self.model_params,
             self.prefill_functions,
+            self.prog_isolation,
         )
 
         self.decode_batcher = DecodeBatcherProcess(
-            self.decode_fiber,
+            self.fiber_pool,
             self.page_cache,
             self.model_params,
             self.decode_functions,
+            self.prog_isolation,
         )
 
         self.prefill_batcher.launch()

@@ -8,12 +8,15 @@ from typing import Optional
 
 
 import torch
-from ..types import QuantizerTensor, StaticScaledQuantizer
-from .base import Theta, ThetaLayer
-from .linear import LinearLayer
-from .norm import RMSNormLayer
-from .rotary_embedding import RotaryEmbeddingLayer
-from .paged_attention import PagedAttention
+
+from sharktank.types import (
+    QuantizerTensor,
+    ReplicatedTensor,
+    StaticScaledQuantizer,
+    Theta,
+)
+from sharktank.layers import *
+
 
 __all__ = [
     "PagedLlamaAttentionBlock",
@@ -34,20 +37,24 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         head_dim: int,
         head_count_kv: int,
         rms_epsilon: float,
-        attention_dtype: Optional[torch.dtype] = None,
-        attention_kernel: str = "decomposed",
+        attention_kernel: str = "torch",
         attention_scale: Optional[float] = None,
         softcap: Optional[float] = None,
         fake_quant: Optional[bool] = True,
+        block_to_pipeline_map: tuple[tuple[int, ...], ...] | None = None,
+        pipeline_to_device_map: tuple[tuple[int, ...], ...] | None = None,
     ):
         super().__init__(theta)
 
         self.paged_attention = PagedAttention(
             transformer_block_count=cache.transformer_block_count,
+            block_to_pipeline_map=block_to_pipeline_map,
+            pipeline_to_device_map=pipeline_to_device_map,
             attn_head_count=head_count_kv,
             attn_head_dim=head_dim,
             block_seq_stride=cache.block_seq_stride,
-            dtype=cache.dtype,
+            cache_dtype=cache.cache_dtype,
+            attn_dtype=cache.attn_dtype,
             device=cache.device,
             shard_count=cache.shard_count,
         )
@@ -55,7 +62,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self.head_count = head_count
         self.head_dim = head_dim
         self.head_count_kv = head_count_kv
-        self.attention_dtype = attention_dtype
         self.attention_kernel = attention_kernel
         self.attention_scale = attention_scale
         self.softcap = softcap
@@ -110,8 +116,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor,
         start_index: Optional[int] = None,
-        start_positions: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
+        start_positions: Optional[torch.Tensor | ReplicatedTensor] = None,
+        attention_mask: Optional[torch.Tensor | ReplicatedTensor] = None,
         embedding_batch_mask: Optional[torch.Tensor] = None,
         cache_state: list[torch.Tensor] = None,
     ):
@@ -139,9 +145,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         else:
             xq = embedding.apply_batched_mask(xt=xq, mask=embedding_batch_mask)
             xk = embedding.apply_batched_mask(xt=xk, mask=embedding_batch_mask)
-
-        # Full sequence length.
-        kv_seq_len = seq_block_ids.shape[1] * self.paged_attention.block_seq_stride
 
         # Used by fp8_e4m3fnuz model
         if self.cache_quantizer is not None:
@@ -176,7 +179,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 cache_state=cache_state,
                 seq_block_ids=seq_block_ids,
                 block_index=self.block_index,
-                kv_seq_len=kv_seq_len,
                 start_positions=start_positions,
                 head_count_attn=self.head_count,
                 cache_quantizer=self.cache_quantizer,
@@ -195,62 +197,3 @@ class PagedLlamaAttentionBlock(ThetaLayer):
 
         h = h + attn_output
         return h
-
-    def transact_cache(
-        self,
-        *,
-        xk_cache_update: torch.Tensor,
-        xv_cache_update: torch.Tensor,
-        cache_state: list[torch.Tensor],
-        # [bs, batch_seq_len // block_seq_stride]
-        seq_block_ids: torch.Tensor,
-        kv_seq_len: int,
-        start_positions: Optional[torch.Tensor] = None,
-    ):
-        # Manage the cache.
-        if start_positions is None:
-            # Prefill: Write the entire cache.
-            self.paged_attention.write(
-                cache_state,
-                cache_partitions=[xk_cache_update, xv_cache_update],
-                transformer_block_index=self.block_index,
-                page_ids=seq_block_ids,
-            )
-            return xk_cache_update, xv_cache_update
-
-        # Decode at ragged start positions.
-        # We need to initialize/read the K/V from the cache for the whole
-        # sequence. Note that at this point, it is possible to fork and
-        # use a memory efficient attention kernel that can do indirect
-        # reads, skipping this materialization. This path is taken for
-        # a decode step.
-        assert (
-            kv_seq_len == seq_block_ids.shape[1] * self.paged_attention.block_seq_stride
-        )
-
-        # Write our one updated cache row into the cache.
-        self.paged_attention.write_timestep(
-            cache_state,
-            cache_partitions=[
-                xk_cache_update,
-                xv_cache_update,
-            ],
-            transformer_block_index=self.block_index,
-            seq_positions=start_positions,
-            page_ids=seq_block_ids,
-        )
-
-        # Restore from the cache.
-        xk, xv = self.paged_attention.read(
-            cache_state,
-            transformer_block_index=self.block_index,
-            page_ids=seq_block_ids,
-            seq_len=kv_seq_len,
-        )
-
-        # For computation, we create a subview of the xk/xv tensors to have
-        # a sequence length covering the blocked size. This must include
-        # the newly added row (the caller is responsible for ensuring that
-        # every block has at least one row left). We'll compute on this
-        # ragged view and use an appropriate mask.
-        return xk, xv

@@ -4,14 +4,13 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import torch
 
-from torch import Tensor, dtype
+from collections.abc import Iterable
 from typing import Union
+from torch import Tensor
 
-import torch.nn.functional as F
 
-from ..kernels import (
+from sharktank.kernels import (
     einsum_2args_q4,
     mmt_block_scaled_offset_q4_unsigned,
     mmt_block_scaled_q8,
@@ -20,7 +19,7 @@ from ..kernels import (
     bitcast_to_real,
 )
 
-from ..types import (
+from sharktank.types import (
     BlockScaledLayout,
     BlockScaledI4Layout,
     PrimitiveTensor,
@@ -28,8 +27,9 @@ from ..types import (
     SuperBlockOffsetScaled_4_6_Layout,
 )
 
-from ..types.tensors import unbox_tensor
+from sharktank.types.tensors import AnyTensor, unbox_tensor
 from .signatures import *
+from ._registry import NotOfType
 
 
 # Fused FP matmul.
@@ -126,6 +126,25 @@ def matmul_generic_tensor_super_block_offset_scaled_4_6_i4(
         sb_mins_low,
         rhs_unpacked.qs_bit_packed,
     )
+
+
+@sum.override(NotOfType(AnyTensor))
+def sum_iterable(
+    input: Iterable,
+    dim: int | list[int] | None = None,
+    keepdim: bool = False,
+    *,
+    dtype,
+):
+    """Sum over an iterable of tensors."""
+    assert isinstance(input, Iterable), "argument must be an iterable"
+    if dim is not None:
+        raise NotImplementedError("dim is not supported for iterable sum")
+    if keepdim:
+        raise NotImplementedError("keepdim is not supported for iterable sum")
+    if dtype is not None:
+        raise NotImplementedError("dtype is not supported for iterable sum")
+    return __builtins__["sum"](input)
 
 
 @view_as_complex.override(Union[Tensor, PrimitiveTensor])

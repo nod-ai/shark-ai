@@ -8,12 +8,9 @@ import sys
 import subprocess
 import logging
 import time
-import re
 from pathlib import Path
 from datetime import timedelta
 from typing import List, Optional
-
-import iree.compiler as ireec
 
 logger = logging.getLogger("eval")
 
@@ -90,6 +87,7 @@ class ExportArtifacts:
         iree_hip_target: str,
         attention_kernel: str,
         tensor_parallelism_size: int,
+        pipeline_parallelism_size: int,
         block_seq_stride: int,
         iree_hal_target_device: str,
         use_attention_mask: bool = False,
@@ -97,20 +95,24 @@ class ExportArtifacts:
         activation_dtype: str = "float16",
         attention_dtype: str = "float16",
         kv_cache_dtype: Optional[str] = None,
-        mlir_path: Optional[str] = None,
-        json_path: Optional[str] = None,
+        output_mlir: Optional[str] = None,
+        output_config: Optional[str] = None,
     ):
         self.sharktank_dir = str(
             Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent
         )
         self.irpa_path = irpa_path
-        self.mlir_path = mlir_path
-        self.json_path = json_path
+        self.output_mlir = output_mlir
+        self.output_config = output_config
         self.batch_size = batch_size
         self.iree_hip_target = iree_hip_target
         self.iree_hal_target_device = iree_hal_target_device
         self.attention_kernel = attention_kernel
         self.tensor_parallelism_size = tensor_parallelism_size
+        self.pipeline_parallelism_size = pipeline_parallelism_size
+        self.parallelism_size = (
+            self.tensor_parallelism_size * self.pipeline_parallelism_size
+        )
         self.block_seq_stride = block_seq_stride
         self.use_attention_mask = use_attention_mask
         self.activation_dtype = activation_dtype
@@ -124,8 +126,8 @@ class ExportArtifacts:
             result = func(*args, **kwargs)
             end = time.time()
             total_seconds = end - start
-            time_taken = abs(timedelta(seconds=total_seconds))
-            hours, minutes, seconds = re.split(":", str(time_taken))
+            time_taken = str(abs(timedelta(seconds=total_seconds)))
+            hours, minutes, seconds = time_taken.split(":")
 
             if total_seconds < 1:
                 time_taken = f" {round(total_seconds * 1000, 3)} ms"
@@ -181,8 +183,8 @@ class ExportArtifacts:
     def export_to_mlir(
         self,
         *,
-        mlir_path: str,
-        json_path: str,
+        output_mlir: str,
+        output_config: str,
         skip_decode: Optional[bool] = None,
     ):
         export_args = [
@@ -190,21 +192,29 @@ class ExportArtifacts:
             "-m",
             "sharktank.examples.export_paged_llm_v1",
             f"--irpa-file={self.irpa_path}",
-            f"--output-mlir={mlir_path}",
-            f"--output-config={json_path}",
+            f"--output-mlir={output_mlir}",
+            f"--output-config={output_config}",
             f"--bs-prefill={str(self.batch_size)}",
             f"--bs-decode={str(self.batch_size)}",
             f"--block-seq-stride={self.block_seq_stride}",
             f"--attention-dtype={self.attention_dtype}",
             f"--activation-dtype={self.activation_dtype}",
+            f"--tensor-parallelism-size={self.tensor_parallelism_size}",
+            f"--pipeline-parallelism-size={self.pipeline_parallelism_size}",
         ]
+
+        assert self.attention_kernel in [
+            "decomposed",
+            "torch",
+            "sharktank",
+        ], "Only torch (sdpa), decomposed or sharktank --attention-kernel types are supported"
+
+        export_args.append(f"--attention-kernel={self.attention_kernel}")
 
         if self.kv_cache_dtype is not None:
             export_args.append(f"--kv-cache-dtype={self.kv_cache_dtype}")
         if skip_decode:
             export_args.append("--skip-decode")
-        if self.attention_kernel in ["decomposed", "torch"]:
-            export_args.append(f"--attention-kernel={self.attention_kernel}")
         if self.use_attention_mask:
             export_args.append("--use-attention-mask")
         if self.use_hf:
@@ -227,8 +237,8 @@ class ExportArtifacts:
     def compile_to_vmfb(
         self,
         *,
-        mlir_path,
-        vmfb_path,
+        output_mlir,
+        output_vmfb,
         cwd,
         hal_dump_path: Optional[Path] = None,
         args: Optional[List[str]] = None,
@@ -237,14 +247,14 @@ class ExportArtifacts:
         # TODO: Control flag to enable multiple backends
         compile_args = [
             f"iree-compile",
-            f"{mlir_path}",
+            f"{output_mlir}",
             f"--iree-hip-target={self.iree_hip_target}",
-            f"-o={vmfb_path}",
+            f"-o={output_vmfb}",
         ]
-        if self.tensor_parallelism_size > 1:
+        if self.parallelism_size > 1:
             iree_hal_target_devices = [
                 f"--iree-hal-target-device={self.iree_hal_target_device}[{i}]"
-                for i in range(self.tensor_parallelism_size)
+                for i in range(self.parallelism_size)
             ]
         else:
             iree_hal_target_devices = [
@@ -294,19 +304,17 @@ class ExportArtifacts:
         Raises Exception if running fails for some reason.
         """
         benchmark_args = []
-        if self.tensor_parallelism_size > 1:
+        if self.parallelism_size > 1:
             base_irpa_path, _ = os.path.splitext(irpa_path)
             rocr_visible_devices = [
-                f"ROCR_VISIBLE_DEVICES={','.join(str(i) for i in range(self.tensor_parallelism_size))}"
+                f"ROCR_VISIBLE_DEVICES={','.join(str(i) for i in range(self.parallelism_size))}"
             ]
             params = [f"--parameters=model={base_irpa_path}.irpa"]
             params += [
                 f"--parameters=model={base_irpa_path}.rank{i}.irpa"
                 for i in range(self.tensor_parallelism_size)
             ]
-            devices = [
-                f"--device=hip://{i}" for i in range(self.tensor_parallelism_size)
-            ]
+            devices = [f"--device=hip://{i}" for i in range(self.parallelism_size)]
         else:
             hip_device_arg = int(hip_device_id.split("://")[1])
             rocr_visible_devices = [
@@ -338,11 +346,6 @@ class ExportArtifacts:
 
     def get_artifacts(self):
 
-        assert self.attention_kernel in [
-            "decomposed",
-            "torch",
-        ], "Only torch or decomposed attention_kernel types are supported"
-
         self.dir_path = self.sharktank_dir + "/" + "perplexity_ci_artifacts/"
         temp_dir = Path(self.dir_path)
         temp_dir.mkdir(parents=True, exist_ok=True)
@@ -351,32 +354,37 @@ class ExportArtifacts:
             str(self.irpa_path).split("/")[-1].rsplit(".", 1)[0].replace(".", "_")
             + "_"
             + self.attention_kernel
+            + (
+                f"_pp{self.pipeline_parallelism_size}"
+                if self.pipeline_parallelism_size > 1
+                else ""
+            )
         )
 
-        if self.mlir_path is None:
-            self.mlir_path = str(
+        if self.output_mlir is None:
+            self.output_mlir = str(
                 self.create_file(suffix=".mlir", prefix=self.dir_path + model_name)
             )
-            self.json_path = str(
+            self.output_config = str(
                 self.create_file(suffix=".json", prefix=self.dir_path + model_name)
             )
 
             self.export_to_mlir(
-                mlir_path=self.mlir_path,
-                json_path=self.json_path,
+                output_mlir=self.output_mlir,
+                output_config=self.output_config,
             )
         else:
-            logger.info(f" Using pre-exported mlir: {self.mlir_path}")
-            logger.info(f" Using pre-exported config json: {self.json_path}")
+            logger.info(f" Using pre-exported mlir: {self.output_mlir}")
+            logger.info(f" Using pre-exported config json: {self.output_config}")
 
-        vmfb_path = str(
+        output_vmfb = str(
             self.create_file(suffix=".vmfb", prefix=self.dir_path + model_name)
         )
 
         self.compile_to_vmfb(
-            mlir_path=self.mlir_path,
-            vmfb_path=vmfb_path,
+            output_mlir=self.output_mlir,
+            output_vmfb=output_vmfb,
             cwd=self.sharktank_dir,
         )
 
-        return vmfb_path
+        return output_vmfb

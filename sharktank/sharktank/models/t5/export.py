@@ -7,13 +7,13 @@
 import functools
 from typing import Any, Optional, Union
 from pathlib import Path
-import torch
 from copy import copy
 import transformers
+import torch
 
 from .t5 import T5Config, T5Encoder
-from ...types import Dataset, Theta, DefaultPrimitiveTensor
-from ...transforms.dataset import set_float_dtype
+from sharktank.types import Dataset, Theta, DefaultPrimitiveTensor
+from sharktank.transforms.dataset import set_float_dtype
 from iree.turbine.aot import FxProgramsBuilder, export, ExternalTensorTrait
 
 __all__ = [

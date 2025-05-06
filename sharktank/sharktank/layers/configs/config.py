@@ -10,11 +10,11 @@ from os import PathLike
 import json
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from ...types.theta import load_properties
-from ...utils import tree, parse_version
+from sharktank.types.theta import load_properties
+from sharktank.utils import tree, parse_version
 
 if TYPE_CHECKING:
-    from ..base import BaseLayer
+    from sharktank.layers.base import BaseLayer
 
 __all__ = [
     "configure_default_export_compile",

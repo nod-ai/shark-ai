@@ -203,6 +203,7 @@ class Refs {
     add_type(DType::sint64(), "q", sizeof(signed long long));
     add_type(DType::uint64(), "Q", sizeof(unsigned long long));
     add_type(DType::bfloat16(), "H", sizeof(unsigned short));
+    add_type(DType::float8_e4m3fnuz(), "B", sizeof(unsigned char));
     add_type(DType::float16(), "H", sizeof(unsigned short));
     add_type(DType::float32(), "f", sizeof(float));
     add_type(DType::float64(), "d", sizeof(double));

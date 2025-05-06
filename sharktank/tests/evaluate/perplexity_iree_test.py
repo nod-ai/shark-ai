@@ -10,11 +10,11 @@ import json
 import numpy as np
 
 from sharktank.evaluate import perplexity_iree
-from sharktank.utils.testing import is_mi300x
-
-skipif_run_quick_llama_test = pytest.mark.skipif(
-    'not config.getoption("run-nightly-llama-tests")',
-    reason="Run large tests if --run-nightly-llama-tests is passed",
+from sharktank.utils.testing import (
+    is_mi300x,
+    is_nightly,
+    is_pre_submit_nightly,
+    is_llama_8b,
 )
 
 
@@ -26,7 +26,6 @@ skipif_run_quick_llama_test = pytest.mark.skipif(
     "batch_size",
 )
 @is_mi300x
-@pytest.mark.expensive
 class PerplexityTest(unittest.TestCase):
     def setUp(self):
         self.current_perplexity_all = {}
@@ -34,7 +33,14 @@ class PerplexityTest(unittest.TestCase):
         self.tensor_parallelism_size = 8
         with open(self.baseline_perplexity_scores, "r") as f:
             self.baseline_perplexity = json.load(f)
+        self.iree_devices = (
+            [self.iree_device]
+            if isinstance(self.iree_device, str)
+            else self.iree_device
+        )
 
+    @is_pre_submit_nightly
+    @is_llama_8b
     def test_llama3_8B_f16(self):
 
         # Llama 3.1 8B non-decomposed
@@ -42,19 +48,17 @@ class PerplexityTest(unittest.TestCase):
         model_name = "llama3_8B_f16_iree"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
-        current_perplexity = perplexity_iree.main(
-            [
-                f"--irpa-file={self.llama3_8b_f16_model}",
-                f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
-                f"--iree-device={self.iree_device}",
-                f"--iree-hal-target-device={self.iree_hal_target_device}",
-                f"--iree-hip-target={self.iree_hip_target}",
-                f"--tensor-parallelism-size=1",
-                f"--attention-kernel=torch",
-                f"--num-prompts={self.batch_size}",
-                f"--use-attention-mask",
-            ]
-        )
+        argv = [
+            f"--irpa-file={self.llama3_8b_f16_model}",
+            f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
+            f"--iree-hal-target-device={self.iree_hal_target_device}",
+            f"--iree-hip-target={self.iree_hip_target}",
+            f"--tensor-parallelism-size=1",
+            f"--attention-kernel=torch",
+            f"--num-prompts={self.batch_size}",
+        ]
+        argv.extend(f"--iree-device={device}" for device in self.iree_devices)
+        current_perplexity = perplexity_iree.main(argv)
 
         baseline_mean_perplexity = round(
             np.mean(baseline_perplexity["perplexities"][0 : self.batch_size]), 6
@@ -70,7 +74,81 @@ class PerplexityTest(unittest.TestCase):
             msg=f"Current perplexity deviates baseline by {perplexity_difference}",
         )
 
-    @skipif_run_quick_llama_test
+    @is_nightly
+    def test_llama3_8B_f16_tp2(self):
+
+        # Llama 3.1 8B tensor parallelism
+
+        model_name = "llama3_8B_f16_iree"
+        baseline_perplexity = self.baseline_perplexity[model_name]
+
+        # NOTE: --use-attention-mask is required until https://github.com/nod-ai/shark-ai/issues/1202 is solved
+        argv = [
+            f"--irpa-file={self.llama3_8b_f16_tp2_model}",
+            f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
+            f"--iree-hal-target-device={self.iree_hal_target_device}",
+            f"--iree-hip-target={self.iree_hip_target}",
+            f"--tensor-parallelism-size=2",
+            f"--attention-kernel=torch",
+            f"--num-prompts={self.batch_size}",
+            f"--use-attention-mask",
+        ]
+        argv.extend(f"--iree-device={device}" for device in self.iree_devices)
+        current_perplexity = perplexity_iree.main(argv)
+
+        baseline_mean_perplexity = round(
+            np.mean(baseline_perplexity["perplexities"][0 : self.batch_size]), 6
+        )
+        current_mean_perplexity = round(current_perplexity["mean_perplexity"], 6)
+
+        perplexity_difference = current_mean_perplexity - baseline_mean_perplexity
+
+        self.assertAlmostEqual(
+            baseline_mean_perplexity,
+            current_mean_perplexity,
+            delta=self.delta,
+            msg=f"Current perplexity deviates baseline by {perplexity_difference}",
+        )
+
+    @pytest.mark.skip(
+        reason="Not fully implemented yet: https://github.com/nod-ai/shark-ai/issues/1306."
+    )
+    def test_llama3_8B_f16_pp2(self):
+
+        # Llama 3.1 8B pipepiline parallelism
+
+        model_name = "llama3_8B_f16_iree"
+        baseline_perplexity = self.baseline_perplexity[model_name]
+
+        argv = [
+            f"--irpa-file={self.llama3_8b_f16_model}",
+            f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
+            f"--iree-hal-target-device={self.iree_hal_target_device}",
+            f"--iree-hip-target={self.iree_hip_target}",
+            f"--tensor-parallelism-size=1",
+            f"--pipeline-parallelism-size=2",
+            f"--attention-kernel=torch",
+            f"--num-prompts={self.batch_size}",
+            f"--use-attention-mask",
+        ]
+        argv.extend(f"--iree-device={device}" for device in self.iree_devices)
+        current_perplexity = perplexity_iree.main(argv)
+
+        baseline_mean_perplexity = round(
+            np.mean(baseline_perplexity["perplexities"][0 : self.batch_size]), 6
+        )
+        current_mean_perplexity = round(current_perplexity["mean_perplexity"], 6)
+
+        perplexity_difference = current_mean_perplexity - baseline_mean_perplexity
+
+        self.assertAlmostEqual(
+            baseline_mean_perplexity,
+            current_mean_perplexity,
+            delta=self.delta,
+            msg=f"Current perplexity deviates baseline by {perplexity_difference}",
+        )
+
+    @is_nightly
     def test_llama3_8B_f8(self):
 
         # Llama 3.1 8B non-decomposed
@@ -78,22 +156,21 @@ class PerplexityTest(unittest.TestCase):
         model_name = "llama3_8B_f8_iree"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
-        current_perplexity = perplexity_iree.main(
-            [
-                f"--irpa-file={self.llama3_8b_f8_model}",
-                f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
-                f"--iree-device={self.iree_device}",
-                f"--iree-hal-target-device={self.iree_hal_target_device}",
-                f"--iree-hip-target={self.iree_hip_target}",
-                f"--tensor-parallelism-size=1",
-                f"--attention-kernel=torch",
-                f"--num-prompts={self.batch_size}",
-                f"--attention-dtype=bfloat16",
-                f"--activation-dtype=bfloat16",
-                f"--kv-cache-dtype=float8_e4m3fnuz",
-                "--use-hf",
-            ]
-        )
+        argv = [
+            f"--irpa-file={self.llama3_8b_f8_model}",
+            f"--tokenizer-config-json={self.llama3_8b_tokenizer}",
+            f"--iree-hal-target-device={self.iree_hal_target_device}",
+            f"--iree-hip-target={self.iree_hip_target}",
+            f"--tensor-parallelism-size=1",
+            f"--attention-kernel=torch",
+            f"--num-prompts={self.batch_size}",
+            f"--attention-dtype=bfloat16",
+            f"--activation-dtype=bfloat16",
+            f"--kv-cache-dtype=float8_e4m3fnuz",
+            "--use-hf",
+        ]
+        argv.extend(f"--iree-device={device}" for device in self.iree_devices)
+        current_perplexity = perplexity_iree.main(argv)
 
         baseline_mean_perplexity = round(
             np.mean(baseline_perplexity["perplexities"][0 : self.batch_size]), 6
@@ -109,7 +186,7 @@ class PerplexityTest(unittest.TestCase):
             msg=f"Current perplexity deviates baseline by {perplexity_difference}",
         )
 
-    @skipif_run_quick_llama_test
+    @is_nightly
     @pytest.mark.xfail(reason="Compile Error")
     def test_llama3_405B_f16(self):
 
@@ -118,18 +195,18 @@ class PerplexityTest(unittest.TestCase):
         model_name = "llama3_405B_f16_iree"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
-        current_perplexity = perplexity_iree.main(
-            [
-                f"--irpa-file={self.llama3_405b_f16_model}",
-                f"--tokenizer-config-json={self.llama3_405b_tokenizer}",
-                f"--iree-device={self.iree_device}",
-                f"--iree-hal-target-device={self.iree_hal_target_device}",
-                f"--iree-hip-target={self.iree_hip_target}",
-                f"--tensor-parallelism-size={self.tensor_parallelism_size}",
-                f"--attention-kernel=torch",
-                f"--num-prompts={self.batch_size}",
-            ]
-        )
+        argv = [
+            f"--irpa-file={self.llama3_405b_f16_model}",
+            f"--tokenizer-config-json={self.llama3_405b_tokenizer}",
+            f"--iree-hal-target-device={self.iree_hal_target_device}",
+            f"--iree-hip-target={self.iree_hip_target}",
+            f"--tensor-parallelism-size={self.tensor_parallelism_size}",
+            f"--attention-kernel=torch",
+            f"--num-prompts={self.batch_size}",
+            f"--use-attention-mask",
+        ]
+        argv.extend(f"--iree-device={device}" for device in self.iree_devices)
+        current_perplexity = perplexity_iree.main(argv)
 
         baseline_mean_perplexity = round(
             np.mean(baseline_perplexity["perplexities"][0 : self.batch_size]), 6
@@ -145,7 +222,7 @@ class PerplexityTest(unittest.TestCase):
             msg=f"Current perplexity deviates baseline by {perplexity_difference}",
         )
 
-    @skipif_run_quick_llama_test
+    @is_nightly
     @pytest.mark.xfail(reason="Compile Error")
     def test_llama3_405B_f8(self):
 
@@ -154,18 +231,18 @@ class PerplexityTest(unittest.TestCase):
         model_name = "llama3_405B_f8_iree"
         baseline_perplexity = self.baseline_perplexity[model_name]
 
-        current_perplexity = perplexity_iree.main(
-            [
-                f"--irpa-file={self.llama3_405b_f8_model}",
-                f"--tokenizer-config-json={self.llama3_405b_tokenizer}",
-                f"--iree-device={self.iree_device}",
-                f"--iree-hal-target-device={self.iree_hal_target_device}",
-                f"--iree-hip-target={self.iree_hip_target}",
-                f"--tensor-parallelism-size={self.tensor_parallelism_size}",
-                f"--attention-kernel=torch",
-                f"--num-prompts={self.batch_size}",
-            ]
-        )
+        argv = [
+            f"--irpa-file={self.llama3_405b_f8_model}",
+            f"--tokenizer-config-json={self.llama3_405b_tokenizer}",
+            f"--iree-hal-target-device={self.iree_hal_target_device}",
+            f"--iree-hip-target={self.iree_hip_target}",
+            f"--tensor-parallelism-size={self.tensor_parallelism_size}",
+            f"--attention-kernel=torch",
+            f"--num-prompts={self.batch_size}",
+            f"--use-attention-mask",
+        ]
+        argv.extend(f"--iree-device={device}" for device in self.iree_devices)
+        current_perplexity = perplexity_iree.main(argv)
 
         baseline_mean_perplexity = round(
             np.mean(baseline_perplexity["perplexities"][0 : self.batch_size]), 6

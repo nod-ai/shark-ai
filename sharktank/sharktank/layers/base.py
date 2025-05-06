@@ -4,20 +4,22 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from os import PathLike
 from typing import Any, Dict, Optional
 from collections import OrderedDict
 from collections.abc import Mapping
 from abc import ABCMeta
+from pathlib import Path
+import logging
+
 import torch
 import torch.nn as nn
-from os import PathLike
-import logging
-from pathlib import Path
 
-from ..types import InferenceTensor, Theta, AnyTensor, Dataset
-from ..utils import debugging, chdir
+from sharktank.types import InferenceTensor, Theta, AnyTensor, Dataset
+from sharktank.utils import debugging, chdir
+from sharktank.utils.iree import flatten_for_iree_signature
 from .configs import ModelConfig, ExportFunctionConfig, DynamicBatchSize
-from ..utils.iree import flatten_for_iree_signature
+
 from iree.turbine.support.tools import iree_tool_prepare_input_args
 
 __all__ = [
@@ -227,7 +229,7 @@ class BaseLayer(nn.Module, metaclass=BaseLayerMetaClass):
             raise ValueError("Missing MLIR export path.")
 
         function_batch_sizes_map = self._get_function_batch_sizes_map()
-        from ..export import export_model_mlir
+        from sharktank.utils.export import export_model_mlir
 
         export_model_mlir(
             model=self,

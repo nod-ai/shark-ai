@@ -64,16 +64,17 @@ class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
                 attn_head_dim=self.attention_head_dim,
                 cache_partition_count=self.cache_partition_count,
                 block_seq_stride=self.block_seq_stride,
-                dtype=dtype,
+                cache_dtype=dtype,
+                attn_dtype=dtype,
                 shard_count=shard_count,
             )
 
         cache = make_paged_kv_cache(shard_count=1)
         sharded_cache = make_paged_kv_cache(shard_count=self.shard_count)
 
-        def make_unsharded_and_sharded_equal_cache_states() -> tuple[
-            list[torch.Tensor], list[SplitPrimitiveTensor]
-        ]:
+        def make_unsharded_and_sharded_equal_cache_states() -> (
+            tuple[list[torch.Tensor], list[SplitPrimitiveTensor]]
+        ):
             cache_state = cache.allocate(self.page_count)
             cache_state[0] = make_rand_torch(cache_state[0].shape, dtype=dtype)
             sharded_cache_state = sharded_cache.shard_state(deepcopy(cache_state))
@@ -156,7 +157,7 @@ class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
         actual_result = unbox_tensor(ops.unshard(sharded_result))
         actual_cache_state = unbox_tensor(
             ops.unshard(
-                sharded_cache.unflatten_page_table(sharded_cache_state)
+                sharded_cache.unflatten_page_tables(sharded_cache_state)
             ).flatten(start_dim=1)
         )
 
