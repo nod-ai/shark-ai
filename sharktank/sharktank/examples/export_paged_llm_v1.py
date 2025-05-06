@@ -436,11 +436,17 @@ def main():
             return logits
 
     def generate_argmax():
+        # TODO: Remove this when the corresponding `dtype` conversion is
+        # removed in `PagedLlmModelV1.prefill/decode`
+        dtype = llama_config.activation_dtype
+        if "float8" in str(dtype) or dtype == torch.bfloat16:
+            dtype = torch.float16
+
         logits: torch.Tensor = torch.empty(
             1,
             1,
             hp.context_length,
-            dtype=llama_config.activation_dtype,
+            dtype=dtype,
         )
 
         arg_affinities = [DeviceAffinity("0")]
@@ -457,7 +463,7 @@ def main():
             logits=logits,
             axis=-1,
         ):
-            return ops.argmax(logits, axis)
+            return ops.argmax(logits, axis, chunk_size=hp.context_length // 1024)
 
     if not args.skip_prefill:
         for bs in args.bs_prefill:

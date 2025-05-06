@@ -191,6 +191,28 @@ def all_reduce_split_or_unreduced(
     return ReplicatedTensor(ts=shards, devices=input.devices)
 
 
+@argmax.override(ReplicatedTensor)
+def argmax_replicated(
+    tensor: ReplicatedTensor,
+    dim: Optional[int] = None,
+    keepdim: bool = False,
+    chunk_size: Optional[int] = None,
+):
+    shards = [argmax(shard, dim, keepdim, chunk_size) for shard in tensor.shards]
+    return ReplicatedTensor(ts=shards)
+
+
+@argmax.override(SplitPrimitiveTensor)
+def argmax_split(
+    tensor: SplitPrimitiveTensor,
+    dim: Optional[int] = None,
+    keepdim: bool = False,
+    chunk_size: Optional[int] = None,
+):
+    shards = [argmax(shard, dim, keepdim, chunk_size) for shard in tensor.shards]
+    return SplitPrimitiveTensor(ts=shards, shard_dim=tensor.shard_dim)
+
+
 @cat.override(AllOfType(ReplicatedTensor))
 def cat_replicated(tensors: Sequence[ReplicatedTensor], dim: int) -> ReplicatedTensor:
     assert len(tensors) > 0
