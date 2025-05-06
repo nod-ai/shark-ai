@@ -23,13 +23,9 @@ from sharktank.utils import cli
 from sharktank.layers import *
 from sharktank import ops
 from sharktank.types import *
+from sharktank.types.pipelining import pipeline_parallelize_theta
 
-from iree.turbine.aot import (
-    DeviceAffinity,
-    DeviceTensorTrait,
-    export,
-    ExternalTensorTrait,
-)
+from iree.turbine.aot import DeviceAffinity, export
 
 
 def create_theta(dim: int, shard_count: int, num_layers: int, save_path):
@@ -48,62 +44,33 @@ def create_theta(dim: int, shard_count: int, num_layers: int, save_path):
     ds.save(save_path)
 
 
-def pipeline_parallelize_theta(
-    theta: Theta, pp_count: int
-) -> tuple[tuple[int, ...], ...]:
-    _t = theta.tensor("w", "0")
-    shard_count = 1 if isinstance(_t, PrimitiveTensor) else _t.shard_count
-    num_blocks = len(theta.tensor("w"))
-
-    block_to_device_lookup = []
-    block_indices = sorted(theta.tensor("w").keys(), key=lambda item: int(item))
-    for blk_idx in block_indices:
-        weight: ShardedTensor | PrimitiveTensor = theta.tensor("w", blk_idx)
-        pp_group = int(int(blk_idx) * pp_count / num_blocks)
-        zero_4_group = shard_count * pp_group
-        devices = tuple(i + zero_4_group for i in range(shard_count))
-        block_to_device_lookup.append(devices)
-
-        (old_shards, old_devices) = (
-            ([weight], (0,))
-            if isinstance(weight, PrimitiveTensor)
-            else (weight.shards, weight.devices)
-        )
-        new_shards = ShardedTensor.move_shards_to_new_devices(
-            old_shards, old_devices=old_devices, new_devices=devices
-        )
-
-        for i, (old_shard, new_shard) in enumerate(zip(old_shards, new_shards)):
-            DeviceTensorTrait(devices[i]).set(new_shard._data)
-            if old_ext_tensor_trait := ExternalTensorTrait.get(old_shard._data):
-                ExternalTensorTrait(
-                    old_ext_tensor_trait.external_scope,
-                    old_ext_tensor_trait.external_name,
-                ).set(new_shard._data)
-
-        if isinstance(weight, PrimitiveTensor):
-            weight = ReplicatedTensor(ts=new_shards, name=weight.name, devices=devices)
-        else:
-            weight = weight.clone(ts=new_shards, devices=devices)
-
-        theta.tensor("w")[blk_idx] = weight
-    return block_to_device_lookup
-
-
 class PPFFN(ThetaLayer):
-    block_to_device_loopukp: tuple[tuple[int, ...], ...]
+    block_to_pipeline: tuple[int, ...]
+    pipeline_to_devices: tuple[list[int], ...]
 
-    def __init__(self, theta, block_to_device_lookup):
+    def __init__(
+        self,
+        theta,
+        block_to_pipeline: tuple[int, ...],
+        pipeline_to_devices: tuple[list[int], ...],
+    ):
         super().__init__(theta)
-        assert len(self.theta.tensor("w")) == len(block_to_device_lookup)
-        self.block_to_device_lookup = block_to_device_lookup
+        self.block_to_pipeline = block_to_pipeline
+        self.pipeline_to_devices = pipeline_to_devices
 
     def _inter_layer_callback(self, x: ShardedTensor, curr_block: int):
-        if curr_block == len(self.block_to_device_lookup) - 1:
+        if self.config.block_to_pipeline_map is None:
             return x
 
-        curr_devices = self.block_to_device_lookup[curr_block]
-        next_devices = self.block_to_device_lookup[curr_block + 1]
+        if curr_block >= len(self.config.block_to_pipeline_map) - 1:
+            return x
+
+        pipeline_0 = self.config.block_to_pipeline_map[curr_block]
+        pipeline_1 = self.config.block_to_pipeline_map[curr_block + 1]
+
+        curr_devices = self.config.pipeline_to_device_map[pipeline_0]
+        next_devices = self.config.pipeline_to_device_map[pipeline_1]
+
         if all(d_curr == d_next for d_curr, d_next in zip(curr_devices, next_devices)):
             return x
 
@@ -118,11 +85,11 @@ class PPFFN(ThetaLayer):
         return x.clone(ts=shards, devices=next_devices)
 
     def forward(self, x: torch.Tensor):
-        num_blocks = len(self.block_to_device_lookup)
+        num_blocks = len(self.block_to_pipeline)
         shard_count = self.theta.tensor("w", "0").shard_count
 
         x = ReplicatedTensor(
-            ts=x, shard_count=shard_count, devices=self.block_to_device_lookup[0]
+            ts=x, shard_count=shard_count, devices=self.pipeline_to_devices[0]
         )
         for block in range(num_blocks):
             weight: SplitPrimitiveTensor | ReplicatedTensor = self.theta.tensor(
@@ -168,13 +135,15 @@ def main(raw_args=None):
 
     pp_count = 4
     ds = Dataset.load(args.output_irpa_file)
-    block_to_device_lookup = pipeline_parallelize_theta(ds.root_theta, pp_count)
+    block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
+        ds.root_theta, pp_count
+    )
 
-    mdl = PPFFN(ds.root_theta, block_to_device_lookup)
+    mdl = PPFFN(ds.root_theta, block_to_pipeline, pipeline_to_devices)
 
     example_arg = torch.empty(bs, sl, primary_dim, dtype=torch.float16)
     ep = torch.export.export(mdl, (example_arg,), strict=False)
-    cm = export(ep, arg_device={0: DeviceAffinity(0)})
+    cm = export(ep, arg_device={0: DeviceAffinity(str(pipeline_to_devices[0][0]))})
 
     if args.output_file == "-":
         print(cm.mlir_module)

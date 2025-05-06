@@ -175,7 +175,7 @@ def main():
                     for tp in range(llama_config.tensor_parallelism_size):
                         i = pipeline * llama_config.tensor_parallelism_size + tp
                         arg_affinities[i] = DeviceAffinity(
-                            str(model.cache.pipeline_to_devices[pipeline][tp])
+                            str(model.cache.pipeline_to_device_map[pipeline][tp])
                         )
 
             return unpacked, shard_dim, dynamic_shapes, arg_affinities
@@ -183,17 +183,17 @@ def main():
             raise NotImplementedError(f"Unsupported KV cache type: {type(model.cache)}")
 
     def repack_cache(
-        cache, shard_dim, pipeline_to_device_lookup: tuple[tuple[int, ...], ...]
+        cache, shard_dim, pipeline_to_device_map: tuple[tuple[int, ...], ...]
     ) -> list[ShardedTensor]:
         return [
             (
                 SplitPrimitiveTensor(
                     ts=c,
                     shard_dim=shard_dim,
-                    devices=pipeline_to_device_lookup[pipeline],
+                    devices=pipeline_to_device_map[pipeline],
                 )
                 if len(c) > 1
-                else ReplicatedTensor(ts=c, devices=pipeline_to_device_lookup[pipeline])
+                else ReplicatedTensor(ts=c, devices=pipeline_to_device_map[pipeline])
             )
             for pipeline, c in enumerate(cache)
         ]
@@ -264,7 +264,7 @@ def main():
                 tokens = ops.replicate(
                     tokens,
                     count=shard_count,
-                    devices=llama_config.pipeline_to_devices[0],
+                    devices=llama_config.pipeline_to_device_map[0],
                 )
                 if attention_mask is None:
                     attention_mask = [None] * model.cache.pipeline_count
@@ -273,7 +273,7 @@ def main():
                         ops.replicate(
                             attention_mask,
                             count=shard_count,
-                            devices=model.cache.pipeline_to_device_lookup[pipeline],
+                            devices=model.cache.pipeline_to_device_map[pipeline],
                         )
                         for pipeline in range(model.cache.pipeline_count)
                     ]
@@ -281,12 +281,12 @@ def main():
                     ops.replicate(
                         seq_block_ids,
                         count=shard_count,
-                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                        devices=model.cache.pipeline_to_device_map[pipeline],
                     )
                     for pipeline in range(model.cache.pipeline_count)
                 ]
                 cache_tensors = repack_cache(
-                    cs, cache_shard_dim, model.cache.pipeline_to_device_lookup
+                    cs, cache_shard_dim, model.cache.pipeline_to_device_map
                 )
 
             logits = model.prefill(
@@ -388,11 +388,11 @@ def main():
                 tokens = ops.replicate(
                     tokens,
                     count=shard_count,
-                    devices=llama_config.pipeline_to_devices[0],
+                    devices=llama_config.pipeline_to_device_map[0],
                 )
                 _attention_mask, _start_positions, _seq_block_ids = [], [], []
                 for pipeline in range(model.cache.pipeline_count):
-                    devices = model.cache.pipeline_to_device_lookup[pipeline]
+                    devices = model.cache.pipeline_to_device_map[pipeline]
                     _attention_mask.append(
                         ops.replicate(
                             attention_mask, count=shard_count, devices=devices
@@ -413,7 +413,7 @@ def main():
                 )
 
                 cache_state = repack_cache(
-                    cache_state, cache_shard_dim, model.cache.pipeline_to_device_lookup
+                    cache_state, cache_shard_dim, model.cache.pipeline_to_device_map
                 )
 
             logits = model.decode(
