@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 def add_input_args(parser):
     group = parser.add_argument_group("Input Source", "Inputs to select from")
-    group = group.add_mutually_exclusive_group(required=True)
+    group = group.add_mutually_exclusive_group(required=False)
     group.add_argument("--prompt")
     group.add_argument("--prompt-file")
 
@@ -153,8 +153,8 @@ def parse_args(argv):
 
 
 def process_inputs(args):
-    if args.prompt:
-        prompts = [args.prompt]
+    if args.benchmark:
+        prompts = " ".join(["one" for _ in range(1024)])
         if args.benchmark and args.benchmark_tasks is not None:
             prompts = prompts * args.benchmark_tasks
         return prompts
