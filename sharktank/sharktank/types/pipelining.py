@@ -74,7 +74,8 @@ def pipeline_parallelize_theta(
         i * pipeline_parallelism_size // block_count for i in range(block_count)
     ]
     pipeline_to_devices = [
-        (p + d for d in range(shard_count)) for p in range(pipeline_parallelism_size)
+        [p * shard_count + d for d in range(shard_count)]
+        for p in range(pipeline_parallelism_size)
     ]
 
     assert (
