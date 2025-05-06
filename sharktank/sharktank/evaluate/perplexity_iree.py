@@ -139,7 +139,7 @@ class PerplexityIree:
         tp = self.tensor_parallelism_size
         block_count = hp.block_count
         block_to_pipeline = [i * pp // block_count for i in range(block_count)]
-        pipeline_to_devices = [(p + d for d in range(tp)) for p in range(pp)]
+        pipeline_to_devices = [[d + p * tp for d in range(tp)] for p in range(pp)]
 
         config = LlamaModelConfig(
             hp=hp,

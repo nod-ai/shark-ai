@@ -68,7 +68,7 @@ class PagedAttention:
         device: Optional[torch.device] = None,
         shard_count: int = 1,
         block_to_pipeline_map: list[int] | None = None,
-        pipeline_to_device_map: list[int] | None = None,
+        pipeline_to_device_map: list[list[int]] | None = None,
     ):
         self.transformer_block_count = transformer_block_count
         self.head_count_kv = attn_head_count
