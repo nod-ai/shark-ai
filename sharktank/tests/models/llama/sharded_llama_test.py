@@ -78,10 +78,12 @@ class ShardedLlamaTest(unittest.TestCase):
         )
         self.sharded_config = deepcopy(self.config)
         self.sharded_config.tensor_parallelism_size = 2
-        self.sharded_config.block_to_device_lookup = tuple(
+        self.sharded_config.block_to_pipeline_map = [
+            0
+        ] * self.sharded_config.hp.block_count
+        self.sharded_config.pipeline_to_device_map = [
             tuple(range(self.sharded_config.tensor_parallelism_size))
-            for _ in range(self.sharded_config.hp.block_count)
-        )
+        ]
         self.theta = make_random_llama_theta(
             config=self.config,
             vocab_size=self.vocabulary_size,
