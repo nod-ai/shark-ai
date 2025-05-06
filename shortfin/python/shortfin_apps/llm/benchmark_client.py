@@ -84,7 +84,8 @@ class LLMClient:
                     timeout=1000,
                 )
                 if response.status_code != 200:
-                    print(f"Error in response: {response.status_code} {response.text}")
+                    print(
+                        f"Error in response: {response.status_code} {response.text}")
                     return start_time, [], []
                 else:
                     # print(f"Received response from {self.base_url}/generate")
@@ -156,7 +157,8 @@ def calculate_metrics(
         time_to_first_token = [
             result["metrics"]["time_to_first_token"] for result in results
         ]
-        num_generated_tokens = [result["metrics"]["num_tokens"] for result in results]
+        num_generated_tokens = [result["metrics"]
+                                ["num_tokens"] for result in results]
 
         # Calculate token-level metrics
         flattened_token_times = sorted(
@@ -168,13 +170,16 @@ def calculate_metrics(
             for i in range(1, len(flattened_token_times))
         ]
         TPOT_times = [
-            [token_times[i] - token_times[i - 1] for i in range(1, len(token_times))]
+            [token_times[i] - token_times[i - 1]
+                for i in range(1, len(token_times))]
             for token_times in token_generation_times
         ]
         TPOT_times = [item for sublist in TPOT_times for item in sublist]
 
-    start_times = [result["metrics"]["start_time"] - start_time for result in results]
-    end_times = [result["metrics"]["end_time"] - start_time for result in results]
+    start_times = [result["metrics"]["start_time"] -
+                   start_time for result in results]
+    end_times = [result["metrics"]["end_time"] -
+                 start_time for result in results]
     time_per_request = [
         end_times[i] - start_times[i] for i in range(num_concurrent_requests)
     ]
@@ -212,8 +217,10 @@ def print_benchmark_results(metrics: Dict[str, Any], config: Dict[str, Any]):
 
     print("\nPerformance Metrics:")
     print(f"E2E latency: {metrics['E2E_latency']:.2f} seconds")
-    print(f"Requests per second: {num_concurrent_requests/metrics['E2E_latency']:.2f}")
-    print(f"Average latency: {np.mean(metrics['time_per_request']):.2f} seconds")
+    print(
+        f"Requests per second: {num_concurrent_requests/metrics['E2E_latency']:.2f}")
+    print(
+        f"Average latency: {np.mean(metrics['time_per_request']):.2f} seconds")
 
     print("\nDetailed Metrics:")
     metric_names = {
@@ -265,10 +272,10 @@ async def run_benchmark(
     num_concurrent_requests: int = 64,
     token_selection_strategy: str = "multi_greedy",
     endpoint: str = "http://localhost:8080",
-    streaming = False,
-    multi_hypothesis = False,
-    best_of_n = 8,
-    top_p = 0.95
+    streaming=False,
+    multi_hypothesis=False,
+    best_of_n=8,
+    top_p=0.95
 ):
     """Execute the benchmark and return raw data."""
     client = LLMClient(base_url=endpoint, stream=streaming)
@@ -281,9 +288,9 @@ async def run_benchmark(
     }
 
     params = {
-            "max_completion_tokens": output_token_length,
-            "token_selection_strategy": token_selection_strategy,
-            "num_beams": 8,
+        "max_completion_tokens": output_token_length,
+        "token_selection_strategy": token_selection_strategy,
+        "num_beams": 8,
     }
 
     if multi_hypothesis:
@@ -342,10 +349,10 @@ async def continuous_load_test(
     token_selection_strategy: str,
     endpoint: str,
     duration: int = 60,  # Run for 60 seconds by default
-    streaming = False,
-    multi_hypothesis = False,
-    best_of_n = 8,
-    top_p = 0.95
+    streaming=False,
+    multi_hypothesis=False,
+    best_of_n=8,
+    top_p=0.95
 ) -> Dict[str, Any]:
     """Run a continuous load test with a single client sending requests continuously."""
     client = LLMClient(base_url=endpoint, stream=streaming)
@@ -357,15 +364,14 @@ async def continuous_load_test(
     num_requests = 0
 
     params = {
-            "max_completion_tokens": output_token_length,
-            "token_selection_strategy": token_selection_strategy,
-            "num_beams": 8,
+        "max_completion_tokens": output_token_length,
+        "token_selection_strategy": token_selection_strategy,
+        "num_beams": 8,
     }
 
     if multi_hypothesis:
         params["b_of_n"] = best_of_n
         params["top_p"] = top_p
-
 
     while time.perf_counter() < end_time:
         try:
@@ -399,10 +405,10 @@ async def calculate_throughput(
     token_selection_strategy: str,
     endpoint: str,
     duration: int = 60,  # Run for 60 seconds by default
-    streaming = False,
-    multi_hypothesis = False,
-    best_of_n = 8,
-    top_p = 0.95
+    streaming=False,
+    multi_hypothesis=False,
+    best_of_n=8,
+    top_p=0.95
 ):
     """Calculate throughput by running continuous load tests with multiple concurrent clients."""
     print(
@@ -438,7 +444,8 @@ async def calculate_throughput(
     all_latencies = []
     for r in results:
         if r["avg_latency"] > 0:  # Only include clients that successfully made requests
-            all_latencies.extend([r["min_latency"], r["avg_latency"], r["max_latency"]])
+            all_latencies.extend(
+                [r["min_latency"], r["avg_latency"], r["max_latency"]])
 
     if all_latencies:
         avg_latency = np.mean(all_latencies)
@@ -477,10 +484,10 @@ async def run_all_benchmarks(
     endpoint: str = "http://localhost:8080",
     num_throughput_runs: int = 20,
     results_dir: str = "results",
-    multi_hypothesis = False,
-    streaming = False,
-    best_of_n = 8,
-    top_p = 0.95
+    multi_hypothesis=False,
+    streaming=False,
+    best_of_n=8,
+    top_p=0.95
 ):
     all_results = []
     throughput_results = []
@@ -520,7 +527,8 @@ async def run_all_benchmarks(
                         f"Reached target latency of {target_latency}s with {current_requests} concurrent requests"
                     )
                     optimal_requests = current_requests
-                    print(f"Optimal number of concurrent requests: {optimal_requests}")
+                    print(
+                        f"Optimal number of concurrent requests: {optimal_requests}")
                     break
 
                 # Increase concurrent requests for next iteration
@@ -694,6 +702,6 @@ if __name__ == "__main__":
             streaming=args.stream,
             multi_hypothesis=args.multi_hypothesis,
             best_of_n=args.best_of_n,
-            top_p = args.top_p
+            top_p=args.top_p
         )
     )
