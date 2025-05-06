@@ -92,6 +92,7 @@ class LlmBatcherProcess(BatcherProcess):
         self.ideal_batch_size: int = ideal_batch_size
         self.page_seq_stride = self.model_params.paged_kv_cache.block_seq_stride
         self._current_workitems = 0
+        self.worker_index = 0
 
         self.fiber_pool = fiber_pool
         self.program_isolation = program_isolation
@@ -217,6 +218,7 @@ class PrefillBatcherProcess(LlmBatcherProcess):
             cache.page_pool.page_tables,
             self.fiber_pool,
             self.program_isolation,
+            self.worker_index
         )
 
     def board_request(self, cache, request: LlmInferenceExecRequest):
@@ -273,6 +275,7 @@ class DecodeBatcherProcess(LlmBatcherProcess):
             cache.page_pool.page_tables,
             self.fiber_pool,
             self.program_isolation,
+            self.worker_index,
         )
 
     def board_request(self, cache, request: LlmInferenceExecRequest):
@@ -299,6 +302,7 @@ class LlmExecutorProcess(sf.Process):
         page_tables,
         fiber_pool: FiberPool,
         program_isolation: sf.ProgramIsolation,
+        worker_index: int,
     ):
         super().__init__(fiber=fiber)
         self.name = name
@@ -308,7 +312,7 @@ class LlmExecutorProcess(sf.Process):
         self.functions = functions
         self.fiber_pool = fiber_pool
         self.program_isolation = program_isolation
-        self.worker_index = 0
+        self.worker_index = worker_index
 
     async def get_args(self, bs, device_index):
         ...
@@ -320,7 +324,8 @@ class LlmExecutorProcess(sf.Process):
         try:
             req_bs = len(self.exec_requests)
             seq_stride = self.seq_stride
-            device0 = self.fiber.device(self.worker_index)
+            current_worker_index = self.worker_index
+            device0 = self.fiber.device(current_worker_index)
             # Select an entrypoint for the batch.
             entrypoints = self.functions
             for bs, fn in entrypoints.items():
@@ -329,7 +334,7 @@ class LlmExecutorProcess(sf.Process):
             else:
                 raise RuntimeError(f"No available entry point for bs {req_bs}")
 
-            args, req_count = await self.get_args(bs, self.worker_index)
+            args, req_count = await self.get_args(bs, current_worker_index)
 
             logger.info(
                 "INVOKE %r: %s",
@@ -367,7 +372,7 @@ class LlmExecutorProcess(sf.Process):
                 r.publish_allocated_pages(number_of_complete_pages)
 
             # Return results.
-            await self.get_results(logits, req_count, self.worker_index)
+            await self.get_results(logits, req_count, current_worker_index)
 
         except Exception:
             logger.exception("Fatal error in prefetch invocation")
@@ -389,6 +394,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         page_tables,
         fiber_pool: FiberPool,
         program_isolation: sf.ProgramIsolation,
+        worker_index: int,
     ):
         super().__init__(
             name="prefill_process",
@@ -398,6 +404,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
             page_tables=page_tables,
             fiber_pool=fiber_pool,
             program_isolation=program_isolation,
+            worker_index=worker_index,
         )
 
     async def get_args(self, bs, device_index):
@@ -495,6 +502,7 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         page_tables,
         fiber_pool: FiberPool,
         isolation: sf.ProgramIsolation,
+        worker_index: int,
     ):
         super().__init__(
             name="decode_process",
@@ -504,6 +512,7 @@ class DecodeExecutorProcess(LlmExecutorProcess):
             page_tables=page_tables,
             fiber_pool=fiber_pool,
             program_isolation=isolation,
+            worker_index=worker_index,
         )
 
     async def get_args(self, bs, device_index):

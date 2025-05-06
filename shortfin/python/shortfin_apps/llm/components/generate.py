@@ -158,6 +158,8 @@ class ClientGenerateBatchProcess(sf.Process):
 
         # Try to add request to queue
         # TODO(@zphoenixrises): Add load testing and integration tests for this.
+        self.prefill_batcher.worker_index = (self.prefill_batcher.worker_index + 1) % len(self.fiber.device_names);
+        self.decode_batcher.worker_index = (self.decode_batcher.worker_index + 1) % len(self.fiber.device_names);
         if not self.service.add_to_queue():
             error_response = JSONResponse(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -173,7 +175,7 @@ class ClientGenerateBatchProcess(sf.Process):
             return
 
         try:
-            logger.debug("dezhi: add_to_queue good")
+            logger.debug(f"Dezhi add_to_queue, use device {self.prefill_batcher.worker_index} for pre_fill use device {self.decode_batcher.worker_index} for decode")
             streaming = self.gen_req.stream
             self.responder.start_response()
             if streaming:
