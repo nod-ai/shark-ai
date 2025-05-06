@@ -53,6 +53,62 @@ class AllReduceTest(unittest.TestCase):
             torch.testing.assert_close(shard.as_torch(), expected_result)
 
 
+class ArgmaxTest(unittest.TestCase):
+    def testArgmax(self):
+        shard_count = 3
+        shard_shape = [3, 4]
+        shard_dim = 0
+        shards = [
+            torch.rand(shard_shape, dtype=torch.float32) for _ in range(shard_count)
+        ]
+        expected_results = [torch.argmax(shard, 0, False) for shard in shards]
+
+        sharded = SplitPrimitiveTensor(shard_dim=shard_dim, ts=shards)
+        actual_result = ops.argmax(sharded, 0, False)
+
+        for i, shard in enumerate(actual_result.shards):
+            torch.testing.assert_close(shard.as_torch(), expected_results[i])
+
+    def testArgmaxReplicated(self):
+        shard_count = 3
+        shard_shape = [3, 4]
+        test = torch.rand(shard_shape, dtype=torch.float32)
+        expected_result = torch.argmax(test, 0, False)
+
+        sharded_test = ops.replicate(test, count=shard_count)
+        actual_result = ops.argmax(sharded_test, 0, False)
+
+        for shard in actual_result.shards:
+            torch.testing.assert_close(shard.as_torch(), expected_result)
+
+    def testSplitArgmax(self):
+        shard_count = 3
+        shard_shape = [3, 4]
+        shard_dim = 0
+        shards = [
+            torch.rand(shard_shape, dtype=torch.float32) for _ in range(shard_count)
+        ]
+        expected_results = [torch.argmax(shard, 0, False) for shard in shards]
+
+        sharded = SplitPrimitiveTensor(shard_dim=shard_dim, ts=shards)
+        actual_result = ops.argmax(sharded, 0, False, 1)
+
+        for i, shard in enumerate(actual_result.shards):
+            torch.testing.assert_close(shard.as_torch(), expected_results[i])
+
+    def testSplitArgmaxReplicated(self):
+        shard_count = 3
+        shard_shape = [3, 4]
+        test = torch.rand(shard_shape, dtype=torch.float32)
+        expected_result = torch.argmax(test, 0, False)
+
+        sharded_test = ops.replicate(test, count=shard_count)
+        actual_result = ops.argmax(sharded_test, 0, False, 1)
+
+        for shard in actual_result.shards:
+            torch.testing.assert_close(shard.as_torch(), expected_result)
+
+
 class CalculateViewDimensionMappingTest(unittest.TestCase):
     # NOTE: Don't have to test dynamic dim versions since `_calculate_view_dimension_mapping`
     #       Immediately calls `_reshape_infer_dynamic_dim` which collapses the result back to
