@@ -1130,9 +1130,8 @@ def mean_split(
         partial_sums = [
             sum(shard, dim=dim, keepdim=keepdim, dtype=dtype) for shard in x.shards
         ]
-        total_sum = sharded_sum(
-            SplitPrimitiveTensor(ts=partial_sums, shard_dim=0, devices=x.devices)
-        )
+        # reduce to x.devices[0] for now - TODO: use all_reduce once IREE supports it
+        total_sum = sharded_sum(UnreducedTensor(ts=partial_sums, devices=x.devices))
 
         total_cnt = math.prod(x.shape[d] for d in dim)
 
@@ -1555,26 +1554,23 @@ def sharded_cat_unsharded(tensor: SplitPrimitiveTensor):
 
 
 def _sharded_sum_sharded(tensor: ShardedTensor) -> Tensor:
-    accum = tensor.shards[0].as_torch()
-    for shard in tensor.shards[1:]:
-        accum = torch.add(accum, shard.as_torch())
-    return accum
-
-
-@sharded_sum.override(SplitPrimitiveTensor)
-def sharded_sum_split(input: SplitPrimitiveTensor) -> Tensor:
     reduced = functools.reduce(
         lambda x, y: elementwise(torch.add, x, y),
         [
             (
-                transfer_to_logical_device(shard, input.devices[0])
+                transfer_to_logical_device(shard, tensor.devices[0])
                 if i != 0
-                else barrier_on_logical_device(shard, input.devices[0])
+                else barrier_on_logical_device(shard, tensor.devices[0])
             )
-            for i, shard in enumerate(input.shards)
+            for i, shard in enumerate(tensor.shards)
         ],
     )
     return reduced
+
+
+@sharded_sum.override(SplitPrimitiveTensor)
+def sharded_sum_split(input: SplitPrimitiveTensor) -> Tensor:
+    return _sharded_sum_sharded(input)
 
 
 @sharded_sum.override(UnreducedTensor)
