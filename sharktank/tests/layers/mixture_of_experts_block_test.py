@@ -225,6 +225,26 @@ class MoeBlockTest(unittest.TestCase):
                 route_scale=None,
                 tensor_parallelism_size=2,
             ),
+            param(
+                dtype=torch.bfloat16,
+                feature_dim=2,
+                expert_hidden_dim=6,
+                num_experts=9,
+                n_expert_groups=3,
+                n_limited_groups=3,
+                expert_used_count=7,
+                num_shared_experts=8,
+                shared_expert_hidden_dim=10,
+                batch_size=2,
+                sequence_length=3,
+                rms_epsilon=0.02,
+                moe_activation_fn=torch.nn.functional.gelu,
+                score_experts_fn=torch.nn.functional.sigmoid,
+                normalize_experts=True,
+                add_residual=False,
+                route_scale=1.1,
+                tensor_parallelism_size=3,
+            ),
         ]
     )
     def testTensorParallel(
@@ -250,8 +270,6 @@ class MoeBlockTest(unittest.TestCase):
     ):
         from sharktank.layers.testing import make_random_moe_block_theta
         from sharktank.layers import MoeBlock
-
-        devices = [i for i in range(tensor_parallelism_size)]
 
         theta = make_random_moe_block_theta(
             in_dim=feature_dim,
@@ -291,7 +309,6 @@ class MoeBlockTest(unittest.TestCase):
             normalize_experts=normalize_experts,
             add_residual=add_residual,
             route_scale=route_scale,
-            tensor_parallel_devices=devices,
         )
 
         input = (

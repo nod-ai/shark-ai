@@ -444,14 +444,19 @@ class InferenceTensor(ABC):
         return reshape(self, shape)
 
     def scatter_(
-        self, dim: int, index: "AnyTensor", value, *, reduce=None
+        self,
+        dim: int,
+        index: "AnyTensor",
+        src: Union["AnyTensor", Number],
+        *,
+        reduce=None,
     ) -> "AnyTensor":
         from sharktank.ops import scatter_
 
-        return scatter_(self, dim, index, value, reduce=reduce)
+        return scatter_(self, dim, index, src, reduce=reduce)
 
     def scatter_add(
-        self, dim: int, index: "AnyTensor", src: Union["AnyTensor", Number]
+        self, dim: int, index: "AnyTensor", src: "AnyTensor"
     ) -> "AnyTensor":
         from sharktank.ops import scatter_add
 

@@ -122,19 +122,19 @@ class DenseFFNMOE(ThetaLayer):
         expert_gate: torch.Tensor,
     ) -> torch.Tensor:
         """
-        h:
-            Input tokens.
-            Shape of (batch_size * sequence_length, input_feature_dim).
-        top_experts_index:
-            indexes of selected top experts for each token.
-            Shape of (batch_size * sequence_length, num_top_experts).
-            Value range is [0, num_of_experts)
-        expert_gate:
-            router weights of selected top experts for each token.
-            Shape of (batch_size * sequence_length, num_top_experts).
+            h:
+                Input tokens.
+                Shape of (batch_size * sequence_length, input_feature_dim).
+            top_experts_index:
+                indexes of selected top experts for each token.
+                Shape of (batch_size * sequence_length, num_top_experts).
+                Value range is [0, num_of_experts)
+            expert_gate:
+                router weights of selected top experts for each token.
+                Shape of (batch_size * sequence_length, num_top_experts).
 
         Returns:
-            Tensor of shape (batch_size * sequence_length, expert_feature_dim)
+                Tensor of shape (batch_size * sequence_length, expert_feature_dim)
         """
         num_tokens, input_feature_dim = h.shape
 

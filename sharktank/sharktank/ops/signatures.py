@@ -319,7 +319,7 @@ def empty_like(
 
 
 @empty_like.trampoline
-def _zeros_like_trampoline(
+def _empty_like_trampoline(
     d: SignatureDispatcher,
     tensor: AnyTensor,
     *,
@@ -1111,7 +1111,14 @@ def _reshard_like_trampoline(
 
 
 @overridable
-def scatter_(inout, dim: int, index: AnyTensor, value, *, reduce: str = None):
+def scatter_(
+    inout: AnyTensor,
+    dim: int,
+    index: AnyTensor,
+    src: AnyTensor | Number,
+    *,
+    reduce: str = None,
+):
     """
     See torch.Tensor.scatter_
     NOTE: Does not modify the inout tensor in place for ShardedTensors, will return copy.
@@ -1122,29 +1129,28 @@ def scatter_(inout, dim: int, index: AnyTensor, value, *, reduce: str = None):
 @scatter_.trampoline
 def _scatter__trampoline(
     d: SignatureDispatcher,
-    inout,
+    inout: AnyTensor,
     dim: int,
     index: AnyTensor,
-    value,
+    src: AnyTensor | Number,
     *,
     reduce: str = None,
 ) -> AnyTensor:
-    tensors = (inout, index)
-    for override in d.find_overrides(tensors):
-        result = override(inout, dim, index, value, reduce=reduce)
+    dispatch_args = (inout, index, src)
+    for override in d.find_overrides(dispatch_args):
+        result = override(inout, dim, index, src, reduce=reduce)
         if result is not NotImplemented:
             return override, result
     else:
-        d.fail(tensors)
+        d.fail(dispatch_args)
 
 
 @overridable
 def scatter_add(
-    input: AnyTensor, dim: int, index: AnyTensor, src: AnyTensor | Number
+    input: AnyTensor, dim: int, index: AnyTensor, src: AnyTensor
 ) -> AnyTensor:
     """
     See torch.scatter_add
-    NOTE: Does not modify the inout tensor in place for ShardedTensors, will return copy.
     """
     ...
 
@@ -1155,7 +1161,7 @@ def _scatter_add_trampoline(
     input: AnyTensor,
     dim: int,
     index: AnyTensor,
-    src: AnyTensor | Number,
+    src: AnyTensor,
 ) -> AnyTensor:
     tensors = (input, index, src)
     for override in d.find_overrides(tensors):

@@ -9,8 +9,8 @@ from typing import Optional
 import torch
 
 from sharktank.layers import *
-from sharktank.ops import replicate, softmax, topk, zeros_like
-from sharktank.types import Theta
+from sharktank.ops import softmax, topk, zeros_like, reshard_like
+from sharktank.types import ShardedTensor, Theta
 
 __all__ = [
     "MoeBlock",
@@ -36,23 +36,28 @@ class MoeBlock(ThetaLayer):
         score_experts=softmax,
         normalize_experts=True,
         add_residual=True,
-        tensor_parallel_devices: Optional[tuple[int, ...]] = None,
         expert_count: Optional[int] = None,
         n_expert_groups: Optional[int] = None,
         n_limited_groups: Optional[int] = None,
         route_scale: Optional[float] = 1.0,
     ):
-        """
-        tensor_parallel_devices:
-            The devices that would be involved in tensor parallel distribution.
-            Supports the degenerate case of 1 device, where sharded tensors would also
-            be employed. If None then no distribution would be done.
-        """
         super().__init__(theta)
-        if n_expert_groups is not None and expert_count % n_expert_groups != 0:
-            raise ValueError(
-                f"Number of experts {expert_count} must be divisible by the number of expert groups {n_expert_groups}."
-            )
+        if n_expert_groups is not None:
+            if expert_count % n_expert_groups != 0:
+                raise ValueError(
+                    (
+                        f"Number of experts {expert_count} must be divisible by the "
+                        f"number of expert groups {n_expert_groups}."
+                    )
+                )
+            n_experts_per_group = expert_count // n_expert_groups
+            if n_experts_per_group < n_limited_groups:
+                raise ValueError(
+                    (
+                        f"Number of limited expert groups {n_limited_groups} must be at "
+                        f"most the number of experts per group {n_experts_per_group}."
+                    )
+                )
         self.expert_used_count = expert_used_count
         self.expert_count = expert_count
         self.n_expert_groups = n_expert_groups
@@ -67,7 +72,6 @@ class MoeBlock(ThetaLayer):
         self.ffn_norm = torch.nn.Identity()
         self.layer_output_norm = torch.nn.Identity()
         self.shared_experts = None
-        self.tensor_parallel_devices = tensor_parallel_devices
         self.route_scale = None
         if route_scale is not None and route_scale != 1:
             self.route_scale = route_scale
@@ -111,10 +115,7 @@ class MoeBlock(ThetaLayer):
         router_logits = self.ffn_gate_inp(ffn_input)
         router_weights = self.score_experts(router_logits.to(torch.float))
 
-        if self.tensor_parallel_devices is not None:
-            router_weights = replicate(
-                router_weights, count=len(self.tensor_parallel_devices)
-            )
+        router_weights = reshard_like(router_weights, like=ffn_input)
 
         # Select top k experts from router weights
         if self.n_expert_groups is not None and self.n_limited_groups is not None:

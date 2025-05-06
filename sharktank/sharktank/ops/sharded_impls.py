@@ -25,11 +25,12 @@ from sharktank.types import (
     Theta,
     UnreducedTensor,
 )
-from sharktank.types.tensors import unbox_tensor
+from sharktank.types.tensors import unbox_tensor, is_any_tensor
 from ._registry import (
     AllOfType,
     AllOfExprsVariadic,
     AnyOfType,
+    BoolTypeExpr,
     IsOfType,
     SignatureDispatcher,
 )
@@ -141,10 +142,25 @@ def _register_trivially_replicable():
     from . import signatures
     from .utils import trivially_replicable
 
+    def replicated_if_tensor(t: type) -> bool:
+        if issubclass(t, ReplicatedTensor):
+            return True
+        if not issubclass(t, (torch.Tensor, InferenceTensor)):
+            return True
+        return False
+
+    def should_override(*types: tuple[type]) -> bool:
+        at_least_one_replicated_tensor = any(
+            issubclass(t, ReplicatedTensor) for t in types
+        )
+        if not at_least_one_replicated_tensor:
+            return False
+        return all(replicated_if_tensor(t) for t in types)
+
     for func_name in signatures.__all__:
         func = globals()[func_name]
         if isinstance(func, SignatureDispatcher) and func.is_trivially_replicable:
-            func.override(AllOfType(ReplicatedTensor))(trivially_replicable(func))
+            func.override(BoolTypeExpr(should_override))(trivially_replicable(func))
 
 
 sharded_wrap_override()
@@ -1262,7 +1278,7 @@ def reshard_like_unreduced_to_replicated(
     return replicate(tensor, count=like.shard_count)
 
 
-@scatter_.override(SplitPrimitiveTensor, SplitPrimitiveTensor)
+@scatter_.override(SplitPrimitiveTensor, SplitPrimitiveTensor, Number)
 def scatter_split_split(
     inout: SplitPrimitiveTensor,
     dim: int,
