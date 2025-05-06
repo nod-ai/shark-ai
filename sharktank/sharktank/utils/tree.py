@@ -118,8 +118,17 @@ def reduce_horizontal(
 
     E.g.
     ```
-    {"a": a1, {"b": b1}}
-    {"a": a2, {"b": b2}}
+    trees = [
+        {"a": "a1", "b": ["b1"]},
+        {"a": "a2", "b": ["b2"]}
+    ]
+    reduce_horizontal(str.__add__, trees)
+    ```
+
+    results in
+
+    ```
+    {"a": "a1a2", "b": ["b1b2"]}
     ```
     """
     if initial is _initial_missing:
