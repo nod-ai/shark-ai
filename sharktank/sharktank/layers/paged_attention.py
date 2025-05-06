@@ -88,7 +88,7 @@ class PagedAttention:
         )
 
         self.pipeline_to_device_map = (
-            [range(self.shard_count)]
+            [list(range(self.shard_count))]
             if pipeline_to_device_map is None
             else pipeline_to_device_map
         )
