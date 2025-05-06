@@ -178,7 +178,6 @@ class PagedAttention:
         flat_sharded_page_tables = []
         for pipeline in range(self.pipeline_count):
             devices = self.pipeline_to_device_map[pipeline]
-            devices = self.pipeline_to_device_map[pipeline]
 
             block_min = self.pipeline_to_block_offset[pipeline]
             block_sz = self.pipeline_to_block_count[pipeline]
