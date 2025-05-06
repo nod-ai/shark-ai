@@ -474,19 +474,25 @@ def main(argv):
             args.output_config is not None and args.output_mlir is not None
         ), "If using pre-exported mlir, both --mlir-path and --json-path must be passed"
 
-    # Override flag if dataset disagrees
-    tensor_parallelism_size = (
-        dataset.properties["tensor_parallelism_size"]
-        if "tensor_parallelism_size" in dataset.properties
-        else args.tensor_parallelism_size
-    )
+    # Ensure tensor parallelism flag agrees with dataset properties
+    if "tensor_parallelism_size" in dataset.properties:
+        dataset_tensor_parallelism_size = dataset.properties["tensor_parallelism_size"]
+        if dataset_tensor_parallelism_size != args.tensor_parallelism_size:
+            raise ValueError(
+                f"Tensor parallelism size mismatch: dataset={dataset_tensor_parallelism_size} while arg={args.tensor_parallelism_size}. Wrong value for --tensor-parallelism-size."
+            )
+    else:
+        if args.tensor_parallelism_size != 1:
+            raise ValueError(
+                f"Unsharded dataset file provided, but specified --tensor-parallelism-size={args.tensor_parallelism_size}. Likely wrong dataset provided."
+            )
 
     ppl = run_perplexity_iree(
         args,
         dataset=dataset,
         tokenizer=tokenizer,
         torch_device=torch_device,
-        tensor_parallelism_size=tensor_parallelism_size,
+        tensor_parallelism_size=args.tensor_parallelism_size,
         pipeline_parallelism_size=args.pipeline_parallelism_size,
     )
 
