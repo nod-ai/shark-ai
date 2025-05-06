@@ -33,14 +33,14 @@ class PipelinedShardedPagedAttentionTest(unittest.TestCase):
         self.block_seq_len = 2
         self.max_seq_len = self.block_seq_len * self.block_seq_stride
 
-        block_to_device_lookup = []
-        for block in range(self.transformer_block_count):
-            pp_group = int(block * self.pipeline_count / self.transformer_block_count)
-            zero_4_group = self.shard_count * pp_group
-            block_to_device_lookup.append(
-                tuple(i + zero_4_group for i in range(self.shard_count))
-            )
-        self.block_to_device_lookup = tuple(block_to_device_lookup)
+        self.block_to_pipeline_map = [
+            block * self.pipeline_count // self.transformer_block_count
+            for block in range(self.transformer_block_count)
+        ]
+        self.pipeline_to_device_map = [
+            tuple(i + pipeline * self.shard_count for i in range(self.shard_count))
+            for pipeline in range(self.pipeline_count)
+        ]
 
         self.cache = PagedAttention(
             transformer_block_count=self.transformer_block_count,
@@ -53,7 +53,8 @@ class PipelinedShardedPagedAttentionTest(unittest.TestCase):
         )
         self.pipelined_sharded_cache = PagedAttention(
             shard_count=self.shard_count,
-            block_to_device_lookup=self.block_to_device_lookup,
+            block_to_pipeline_map=self.block_to_pipeline_map,
+            pipeline_to_device_map=self.pipeline_to_device_map,
             transformer_block_count=self.transformer_block_count,
             attn_head_count=self.attn_head_count,
             block_seq_stride=self.block_seq_stride,
@@ -81,21 +82,13 @@ class PipelinedShardedPagedAttentionTest(unittest.TestCase):
         cache_state: List[torch.Tensor],
         pipelined_sharded_cache_state: List[SplitPrimitiveTensor],
     ):
-        pipelined_sharded_states_as_unsharded = [
-            ops.unshard(unflatted_page).flatten(start_dim=1)
-            for unflatted_page in self.pipelined_sharded_cache.unflatten_page_tables(
-                pipelined_sharded_cache_state
-            )
-        ]
-        pipelined_sharded_states_as_single = ops.cat(
-            pipelined_sharded_states_as_unsharded, dim=1
+        pipelined_states_as_single = self.pipelined_sharded_cache.unshard_state(
+            pipelined_sharded_cache_state
         )
-        assert iterables_equal(
-            cache_state[0].shape, pipelined_sharded_states_as_single.shape
-        )
+        assert iterables_equal(cache_state[0].shape, pipelined_states_as_single.shape)
         assert ops.equal(
             cache_state[0],
-            pipelined_sharded_states_as_single,
+            pipelined_states_as_single,
         )
 
     def testAllocate(self):
@@ -159,7 +152,7 @@ class PipelinedShardedPagedAttentionTest(unittest.TestCase):
             sharded_cache_state,
         ) = self.make_unsharded_and_sharded_equal_cache_states()
 
-        transformer_block_index = 1
+        transformer_block_index = 3
         page_ids = torch.randint(
             low=0, high=self.page_count, size=[self.batch_size, self.block_seq_len]
         ).reshape([self.batch_size, self.block_seq_len])
@@ -167,14 +160,16 @@ class PipelinedShardedPagedAttentionTest(unittest.TestCase):
             state=cache_state,
             transformer_block_index=transformer_block_index,
             page_ids=page_ids,
-            seq_len=self.block_seq_len * self.block_seq_stride,
         )
-        sharded_page_ids = ops.replicate(page_ids, count=self.shard_count)
+        pipeline = self.block_to_pipeline_map[transformer_block_index]
+        devices = self.pipeline_to_device_map[pipeline]
+        sharded_page_ids = ops.replicate(
+            page_ids, count=self.shard_count, devices=devices
+        )
         sharded_read = self.pipelined_sharded_cache.read(
             state=sharded_cache_state,
             transformer_block_index=transformer_block_index,
             page_ids=sharded_page_ids,
-            seq_len=self.block_seq_len * self.block_seq_stride,
         )
         for unsharded, sharded in zip(unsharded_read, sharded_read):
             assert ops.equal(unsharded, ops.unshard(sharded))
@@ -194,7 +189,7 @@ class PipelinedShardedPagedAttentionTest(unittest.TestCase):
             )
             for _ in range(self.cache_partition_count)
         ]
-        transformer_block_index = 1
+        transformer_block_index = 3
         seq_positions = torch.randint(
             low=0, high=self.max_seq_len, size=[self.batch_size]
         )
@@ -214,8 +209,14 @@ class PipelinedShardedPagedAttentionTest(unittest.TestCase):
                 for t in cache_partitions
             ]
         )
-        sharded_seq_positions = ops.replicate(seq_positions, count=self.shard_count)
-        sharded_page_ids = ops.replicate(page_ids, count=self.shard_count)
+        pipeline = self.block_to_pipeline_map[transformer_block_index]
+        devices = self.pipeline_to_device_map[pipeline]
+        sharded_seq_positions = ops.replicate(
+            seq_positions, count=self.shard_count, devices=devices
+        )
+        sharded_page_ids = ops.replicate(
+            page_ids, count=self.shard_count, devices=devices
+        )
         self.pipelined_sharded_cache.write_timestep(
             state=sharded_cache_state,
             cache_partitions=sharded_cache_partitions,
@@ -259,7 +260,11 @@ class PipelinedShardedPagedAttentionTest(unittest.TestCase):
                 for t in cache_partitions
             ]
         )
-        sharded_page_ids = ops.replicate(page_ids, count=self.shard_count)
+        pipeline = self.block_to_pipeline_map[transformer_block_index]
+        devices = self.pipeline_to_device_map[pipeline]
+        sharded_page_ids = ops.replicate(
+            page_ids, count=self.shard_count, devices=devices
+        )
         self.pipelined_sharded_cache.write(
             state=sharded_cache_state,
             cache_partitions=sharded_cache_partitions,

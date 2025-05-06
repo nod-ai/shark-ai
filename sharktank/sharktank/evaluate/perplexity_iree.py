@@ -134,14 +134,12 @@ class PerplexityIree:
 
     def load_model(self, dataset: Dataset, tokenizer: InferenceTokenizer):
         hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
-        block_to_device_lookup = []
-        for i in range(hp.block_count):
-            pp_group = int(i * self.pipeline_parallelism_size / hp.block_count)
-            zero_4_group = self.tensor_parallelism_size * pp_group
-            devices = tuple(
-                i + zero_4_group for i in range(self.tensor_parallelism_size)
-            )
-            block_to_device_lookup.append(devices)
+
+        pp = self.pipeline_parallelism_size
+        tp = self.tensor_parallelism_size
+        block_count = hp.block_count
+        block_to_pipeline = [i * pp // block_count for i in range(block_count)]
+        pipeline_to_devices = [[d + p * tp for d in range(tp)] for p in range(pp)]
 
         config = LlamaModelConfig(
             hp=hp,
@@ -154,7 +152,8 @@ class PerplexityIree:
             block_seq_stride=self.block_seq_stride,
             attention_kernel=self.attention_kernel,
             use_hf=self.use_hf,
-            block_to_device_lookup=block_to_device_lookup,
+            block_to_pipeline_map=block_to_pipeline,
+            pipeline_to_device_map=pipeline_to_devices,
         )
 
         theta = dataset.root_theta

@@ -46,6 +46,7 @@ __all__ = [
     "dtype_to_serialized_short_name",
     "flatten_tensor_tree",
     "InferenceTensor",
+    "is_any_tensor",
     "MetaDataValueType",
     "PlanarQuantizedTensor",
     "PrimitiveTensor",
@@ -1457,6 +1458,10 @@ class UnreducedTensor(ShardedTensorBase):
         kwargs["shape"] = kwargs.get("shape", self.shape)
         kwargs["devices"] = kwargs.get("devices", self.devices)
         return UnreducedTensor(**kwargs)
+
+
+def is_any_tensor(x: Any) -> bool:
+    return isinstance(x, (InferenceTensor, torch.Tensor))
 
 
 def flatten_tensor_tree(

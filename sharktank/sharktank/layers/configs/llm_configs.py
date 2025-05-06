@@ -190,9 +190,11 @@ class LlamaModelConfig:
     # If greater than 1, the model will re-wrap all non-sharded tensors as sharded over 1 device.
     pipeline_parallelism_size: int = 1
 
-    # Mapping between a transformer block and the device(s) it is on.
-    # None for no pipeline parallelism. If not none, must also account for sharding.
-    block_to_device_lookup: tuple[tuple[int, ...], ...] = None
+    # Mapping between a transformer block and the corresponding pipeline
+    block_to_pipeline_map: tuple[int, ...] = None
+
+    # Mapping between a pipeline and the corresponding devices
+    pipeline_to_device_map: tuple[tuple[int, ...], ...] = None
 
     # Which attention kernel to use.
     attention_kernel: str = "torch"
@@ -209,16 +211,6 @@ class LlamaModelConfig:
     # be the difference of many gigabytes of static data being embedded in
     # the program and not.
     static_tables: bool = True
-
-    def __post_init__(self):
-        if not self.block_to_device_lookup:
-            assert (
-                self.pipeline_parallelism_size == 1
-            ), "Must specify block_to_device_lookup if pipeline parallelism is used"
-            self.block_to_device_lookup = tuple(
-                tuple(range(self.tensor_parallelism_size))
-                for _ in range(self.hp.block_count)
-            )
 
 
 @dataclass

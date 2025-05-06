@@ -90,7 +90,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
                     use_hf=self.config.use_hf,
                     tensor_parallelism_size=self.config.tensor_parallelism_size,
                     pipeline_parallelism=config.pipeline_parallelism_size > 1,
-                    devices=self.cache.pipeline_to_device_lookup[pipeline],
+                    devices=self.cache.pipeline_to_device_map[pipeline],
                     dtype=self.config.activation_dtype,
                 )
                 for pipeline in range(self.config.pipeline_parallelism_size)
@@ -112,7 +112,6 @@ class PagedLlmModelV1(BaseCausalLMModel):
                     cache=self.cache,
                     config=self.config,
                     fake_quant=self.fake_quant,
-                    block_to_device_lookup=self.config.block_to_device_lookup,
                 )
                 for n in range(self.hp.block_count)
             ]
@@ -121,11 +120,17 @@ class PagedLlmModelV1(BaseCausalLMModel):
     def _inter_layer_callback(self, x: ShardedTensor, curr_block: int) -> ShardedTensor:
         from ... import ops
 
-        if curr_block == len(self.config.block_to_device_lookup) - 1:
+        if self.config.block_to_pipeline_map is None:
             return x
 
-        curr_devices = self.config.block_to_device_lookup[curr_block]
-        next_devices = self.config.block_to_device_lookup[curr_block + 1]
+        if curr_block >= len(self.config.block_to_pipeline_map) - 1:
+            return x
+
+        pipeline_0 = self.config.block_to_pipeline_map[curr_block]
+        pipeline_1 = self.config.block_to_pipeline_map[curr_block + 1]
+
+        curr_devices = self.config.pipeline_to_device_map[pipeline_0]
+        next_devices = self.config.pipeline_to_device_map[pipeline_1]
         if all(d_curr == d_next for d_curr, d_next in zip(curr_devices, next_devices)):
             return x
 
@@ -161,19 +166,14 @@ class PagedLlmModelV1(BaseCausalLMModel):
         for block_idx, block in enumerate(self.attn_blocks):
             if block_idx == 0:
                 self.trace_tensor(f"llama.attn_block.{block_idx}.input", h)
+            pipeline = self.cache.block_to_pipeline_map[block_idx]
             h = block(
                 h,
-                embedding=self.attention_embedding[
-                    self.cache.block_to_pipeline_lookup[block_idx]
-                ],
+                embedding=self.attention_embedding[pipeline],
                 start_index=0,
-                attention_mask=attention_mask[
-                    self.cache.block_to_pipeline_lookup[block_idx]
-                ],
+                attention_mask=attention_mask[pipeline],
                 cache_state=cache_state,
-                seq_block_ids=seq_block_ids[
-                    self.cache.block_to_pipeline_lookup[block_idx]
-                ],
+                seq_block_ids=seq_block_ids[pipeline],
             )
             h = self._inter_layer_callback(h, block_idx)
             self.trace_tensor(f"llama.attn_block.{block_idx}.output", h)
@@ -251,24 +251,16 @@ class PagedLlmModelV1(BaseCausalLMModel):
         for block_idx, block in enumerate(self.attn_blocks):
             if block_idx == 0:
                 self.trace_tensor(f"llama.attn_block.{block_idx}.input", h)
+            # TODO: Hacky, shouldn't need to read info out of self.cache
+            pipeline = self.cache.block_to_pipeline_map[block_idx]
             h = block(  # TODO: Should we index into attention_mask and cache here?
-                h,  # TODO: Hacky, shouldn't need to read info out of self.cache
-                start_positions=start_positions[
-                    self.cache.block_to_pipeline_lookup[block_idx]
-                ],
-                embedding=self.attention_embedding[
-                    self.cache.block_to_pipeline_lookup[block_idx]
-                ],
-                embedding_batch_mask=embedding_batch_masks[
-                    self.cache.block_to_pipeline_lookup[block_idx]
-                ],
-                attention_mask=attention_mask[
-                    self.cache.block_to_pipeline_lookup[block_idx]
-                ],
+                h,
+                start_positions=start_positions[pipeline],
+                embedding=self.attention_embedding[pipeline],
+                embedding_batch_mask=embedding_batch_masks[pipeline],
+                attention_mask=attention_mask[pipeline],
                 cache_state=cache_state,
-                seq_block_ids=seq_block_ids[
-                    self.cache.block_to_pipeline_lookup[block_idx]
-                ],
+                seq_block_ids=seq_block_ids[pipeline],
             )
             h = self._inter_layer_callback(h, block_idx)
             self.trace_tensor(f"llama.attn_block.{block_idx}.output", h)
@@ -302,7 +294,6 @@ class AttentionFFNBlock(ThetaLayer):
         cache: PagedAttention,  # TODO: Add deepseek PagedLatentAttention
         config: LlamaModelConfig,
         fake_quant: bool = True,
-        block_to_device_lookup: tuple[tuple[int, ...], ...] | None = None,
     ):
         super().__init__(theta)
 
@@ -322,8 +313,9 @@ class AttentionFFNBlock(ThetaLayer):
                 rms_epsilon=config.hp.attention_layer_norm_rms_epsilon,
                 attention_kernel=attention_kernel,
                 fake_quant=fake_quant,
-                block_to_device_lookup=block_to_device_lookup,
                 softcap=config.hp.attention_softcap,
+                block_to_pipeline_map=config.block_to_pipeline_map,
+                pipeline_to_device_map=config.pipeline_to_device_map,
             ),
         )
 

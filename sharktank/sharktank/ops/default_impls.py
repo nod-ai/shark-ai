@@ -27,6 +27,50 @@ from .signatures import *
 import iree.turbine.ops.iree
 
 
+@argmax.override(Tensor)
+def argmax_default(
+    x: Tensor,
+    dim: Optional[int] = None,
+    keepdim: bool = False,
+    chunk_size: Optional[int] = None,
+) -> None:
+    if chunk_size is None:
+        return torch.argmax(unbox_tensor(x), dim=dim, keepdim=keepdim)
+
+    return _split_argmax(
+        unbox_tensor(x),
+        dim=dim,
+        keepdim=keepdim,
+        chunk_size=chunk_size,
+    )
+
+
+def _split_argmax(input_tensor, dim, keepdim: bool = False, chunk_size: int = 128):
+    input_tensor = unbox_tensor(input_tensor)
+    dim = dim if dim >= 0 else input_tensor.dim() + dim
+
+    tensor_split = unflatten(input_tensor, dim, (chunk_size, -1))
+
+    argmax_1 = argmax(tensor_split, dim + 1)
+    argmax_expanded = unsqueeze(argmax_1, dim + 1)
+
+    max_vals = gather(tensor_split, dim + 1, argmax_expanded)
+    max_vals = squeeze(max_vals, dim + 1)
+
+    argmax_2 = argmax(max_vals, dim)
+    argmax_2_expanded = unsqueeze(argmax_2, 0)
+
+    final_index_in_chunk = gather(argmax_1, dim, argmax_2_expanded)
+    final_index = argmax_2 * tensor_split.shape[dim + 1] + final_index_in_chunk
+
+    final_index = squeeze(final_index, 0)
+
+    if keepdim:
+        final_index = unsqueeze(final_index, dim)
+
+    return final_index
+
+
 @cat.override(AllOfType(Tensor, PrimitiveTensor))
 def cat_default(tensors: Sequence[Tensor | PrimitiveTensor], dim: int):
     return torch.cat([unbox_tensor(t) for t in tensors], dim)
@@ -383,14 +427,6 @@ def scaled_dot_product_attention_torch(q, k, v, a, is_causal, scale) -> Tensor:
     return torch.nn.functional.scaled_dot_product_attention(
         q, k, v, attn_mask=a, dropout_p=0.0, is_causal=is_causal, scale=scale
     )
-
-
-@argmax.override(Tensor)
-def argmax_default(
-    x: Tensor,
-    axis: int,
-) -> None:
-    return torch.argmax(unbox_tensor(x), dim=axis)
 
 
 @mean.override(Tensor)
