@@ -1713,7 +1713,8 @@ def topk_split(
     else:
         # TODO: implement using all_reduce_topk when IREE supports it
 
-        all_pair = []
+        all_v_loc = []
+        all_i_glob = []
         offset = 0
         running_vals, running_inds = None, None
         for i, shard in enumerate(input.shards):
@@ -1729,24 +1730,19 @@ def topk_split(
             else:
                 v_loc = barrier_on_logical_device(v_loc, input.devices[0])
                 i_glob = barrier_on_logical_device(i_glob, input.devices[0])
+            all_v_loc.append(v_loc)
+            all_i_glob.append(i_glob)
 
-            if running_vals is None:
-                running_vals, running_inds = v_loc, i_glob
-            else:
-                cand_vals = torch.cat([running_vals, v_loc], dim=dim)
-                cand_inds = torch.cat([running_inds, i_glob], dim=dim)
+        cat_i_glob = torch.cat(all_i_glob, dim=dim)
+        cat_v_loc = torch.cat(all_v_loc, dim=dim)
 
-                running_vals, pos = torch.topk(
-                    cand_vals, k=k, dim=dim, largest=largest, sorted=sorted
-                )
-                running_inds = torch.take_along_dim(cand_inds, pos, dim=dim)
-
-        top_vals = ReplicatedTensor(
-            ts=running_vals, shard_count=input.shard_count, devices=input.devices
+        running_vals, pos = torch.topk(
+            cat_v_loc, k=k, dim=dim, largest=largest, sorted=sorted
         )
-        top_inds = ReplicatedTensor(
-            ts=running_inds, shard_count=input.shard_count, devices=input.devices
-        )
+        running_inds = torch.take_along_dim(cat_i_glob, pos, dim=dim)
+
+        top_vals = ReplicatedTensor(ts=running_vals, shard_count=input.shard_count)
+        top_inds = ReplicatedTensor(ts=running_inds, shard_count=input.shard_count)
 
         return top_vals, top_inds
 
