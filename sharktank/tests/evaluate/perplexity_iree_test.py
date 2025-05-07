@@ -50,13 +50,14 @@ class PerplexityTest(unittest.TestCase):
             f"--iree-hip-target={self.iree_hip_target}",
             f"--tensor-parallelism-size={self.tensor_parallelism_size}",
             f"--pipeline-parallelism-size={self.pipeline_parallelism_size}",
-            f"--attention-kernel=torch",
             f"--num-prompts={self.batch_size}",
-            f"--use-attention-mask",
         ]
+        self.argv.extend(f"--iree-device={device}" for device in self.iree_devices)
+
+        if self.tensor_parallelism_size * self.pipeline_parallelism_size > 1:
+            self.argv.append(f"--use-attention-mask")
         if extra_args:
             self.argv.extend(extra_args)
-        self.argv.extend(f"--iree-device={device}" for device in self.iree_devices)
 
     def run_and_check_perplexity(self):
         current_perplexity = perplexity_iree.main(self.argv)
@@ -85,7 +86,6 @@ class PerplexityTest(unittest.TestCase):
         self.tokenizer = self.llama3_8b_tokenizer
 
         self.prepare_argv()
-        self.current_perplexity = perplexity_iree.main(self.argv)
         self.run_and_check_perplexity()
 
     @is_nightly
