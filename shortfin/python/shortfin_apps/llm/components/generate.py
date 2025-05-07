@@ -114,6 +114,7 @@ class GenerateItemProcess(sf.Process):
 
 
 class ClientGenerateBatchProcess(sf.Process):
+    generate_count = 0
     """Process instantiated for handling a batch from a client.
 
     This takes care of several responsibilities:
@@ -143,6 +144,7 @@ class ClientGenerateBatchProcess(sf.Process):
         fiber: sf.Fiber | None = None,
     ):
         super().__init__(fiber=service.fiber_pool.fibers[0] if fiber is None else fiber)
+        ClientGenerateBatchProcess.generate_count += 1
         self.service = service
         self.gen_req = gen_req
         self.responder = responder
@@ -158,8 +160,8 @@ class ClientGenerateBatchProcess(sf.Process):
 
         # Try to add request to queue
         # TODO(@zphoenixrises): Add load testing and integration tests for this.
-        self.prefill_batcher.worker_index = (self.prefill_batcher.worker_index + 1) % len(self.fiber.device_names);
-        self.decode_batcher.worker_index = (self.decode_batcher.worker_index + 1) % len(self.fiber.device_names);
+        self.prefill_batcher.worker_index = ClientGenerateBatchProcess.generate_count % len(self.fiber.device_names);
+        self.decode_batcher.worker_index = ClientGenerateBatchProcess.generate_count % len(self.fiber.device_names);
         if not self.service.add_to_queue():
             error_response = JSONResponse(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -175,7 +177,7 @@ class ClientGenerateBatchProcess(sf.Process):
             return
 
         try:
-            logger.debug(f"Dezhi add_to_queue, use device {self.prefill_batcher.worker_index} for pre_fill use device {self.decode_batcher.worker_index} for decode")
+            logger.debug(f"add_to_queue, use device {self.prefill_batcher.worker_index} for pre_fill use device {self.decode_batcher.worker_index} for decode")
             streaming = self.gen_req.stream
             self.responder.start_response()
             if streaming:
@@ -218,7 +220,6 @@ class ClientGenerateBatchProcess(sf.Process):
         finally:
             # Remove request from queue when done
             self.service.remove_from_queue()
-            logger.debug("dezhi: remove_from_queue good")
             self.responder.ensure_response()
 
     def generate_response(
