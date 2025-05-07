@@ -25,6 +25,7 @@ from fastapi import FastAPI
 
 from contextlib import asynccontextmanager
 import logging
+import os
 
 
 def get_eos_from_tokenizer_config(json_path):
@@ -62,6 +63,11 @@ class ShortfinLlmLifecycleManager:
                 logits_normalization=model_params.logits_normalization,
             )
             server_params.decode_config = decode_config
+
+        # use number of workers as number of logical device per physical device
+        os.environ["SHORTFIN_AMDGPU_LOGICAL_DEVICES_PER_PHYSICAL_DEVICE"] = str(
+            server_params.workers
+        )
 
         # Setup system (configure devices, etc).
         sysman = LlmSystemManager(
