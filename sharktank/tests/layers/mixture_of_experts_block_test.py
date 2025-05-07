@@ -12,6 +12,9 @@ import torch
 from iree.turbine.aot import *
 from sharktank.models.llama.testing import make_moe_block_theta, make_rand_torch
 from sharktank.layers.mixture_of_experts_block import MoeBlock
+from sharktank.types.sharding import MoeBlockSharding
+from sharktank.ops import reshard, reshard_like, replicate
+from sharktank.types import unbox_tensor
 
 
 class MoeBlockTest(unittest.TestCase):
@@ -199,6 +202,123 @@ class MoeBlockTest(unittest.TestCase):
         res_pre_gather = moe_with_pre_gather_ffn(input)
         res_dense = moe_with_dense_ffn(input)
         torch.testing.assert_close(res_pre_gather, res_dense)
+
+    @parameterized.expand(
+        [
+            param(
+                dtype=torch.float32,
+                feature_dim=7,
+                expert_hidden_dim=3,
+                num_experts=12,
+                n_expert_groups=4,
+                n_limited_groups=2,
+                expert_used_count=2,
+                num_shared_experts=5,
+                shared_expert_hidden_dim=6,
+                batch_size=8,
+                sequence_length=9,
+                rms_epsilon=0.01,
+                moe_activation_fn=torch.nn.functional.silu,
+                score_experts_fn=torch.nn.functional.sigmoid,
+                normalize_experts=True,
+                add_residual=False,
+                route_scale=None,
+                tensor_parallelism_size=2,
+            ),
+            param(
+                dtype=torch.bfloat16,
+                feature_dim=2,
+                expert_hidden_dim=6,
+                num_experts=9,
+                n_expert_groups=3,
+                n_limited_groups=3,
+                expert_used_count=7,
+                num_shared_experts=8,
+                shared_expert_hidden_dim=10,
+                batch_size=2,
+                sequence_length=3,
+                rms_epsilon=0.02,
+                moe_activation_fn=torch.nn.functional.gelu,
+                score_experts_fn=torch.nn.functional.sigmoid,
+                normalize_experts=True,
+                add_residual=False,
+                route_scale=1.1,
+                tensor_parallelism_size=3,
+            ),
+        ]
+    )
+    def testTensorParallel(
+        self,
+        dtype: torch.dtype,
+        feature_dim: int,
+        expert_hidden_dim: int,
+        num_experts: int,
+        n_expert_groups: int | None,
+        n_limited_groups: int | None,
+        expert_used_count: int,
+        num_shared_experts: int,
+        shared_expert_hidden_dim: int,
+        batch_size: int,
+        sequence_length: int,
+        rms_epsilon: float,
+        moe_activation_fn: Callable[[torch.Tensor], torch.Tensor],
+        score_experts_fn: Callable[[torch.Tensor], torch.Tensor],
+        normalize_experts: bool,
+        add_residual: bool,
+        route_scale: float,
+        tensor_parallelism_size: int,
+    ):
+        from sharktank.layers.testing import make_random_moe_block_theta
+        from sharktank.layers import MoeBlock
+
+        theta = make_random_moe_block_theta(
+            in_dim=feature_dim,
+            expert_hidden_dim=expert_hidden_dim,
+            num_experts=num_experts,
+            with_ffn_norm=False,
+            num_shared_experts=num_shared_experts,
+            shared_expert_hidden_dim=shared_expert_hidden_dim,
+            with_layer_output_norm=True,
+            dtype=dtype,
+        )
+        theta_sharding_spec = MoeBlockSharding(shard_count=tensor_parallelism_size)
+        sharded_theta = reshard(theta, spec=theta_sharding_spec)
+
+        block = MoeBlock(
+            theta=theta,
+            expert_count=num_experts,
+            n_expert_groups=n_expert_groups,
+            n_limited_groups=n_limited_groups,
+            expert_used_count=expert_used_count,
+            rms_epsilon=rms_epsilon,
+            moe_activation=moe_activation_fn,
+            score_experts=score_experts_fn,
+            normalize_experts=normalize_experts,
+            add_residual=add_residual,
+            route_scale=route_scale,
+        )
+        sharded_block = MoeBlock(
+            theta=sharded_theta,
+            expert_count=num_experts,
+            n_expert_groups=n_expert_groups,
+            n_limited_groups=n_limited_groups,
+            expert_used_count=expert_used_count,
+            rms_epsilon=rms_epsilon,
+            moe_activation=moe_activation_fn,
+            score_experts=score_experts_fn,
+            normalize_experts=normalize_experts,
+            add_residual=add_residual,
+            route_scale=route_scale,
+        )
+
+        input = (
+            torch.rand([batch_size, sequence_length, feature_dim], dtype=dtype) - 0.5
+        )
+        sharded_input = replicate(input, count=tensor_parallelism_size)
+        expected = block(input)
+        actual = sharded_block(sharded_input)
+        actual = unbox_tensor(reshard_like(actual, like=expected))
+        torch.testing.assert_close(actual, expected)
 
 
 if __name__ == "__main__":

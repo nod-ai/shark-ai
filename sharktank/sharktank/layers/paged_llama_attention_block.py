@@ -41,13 +41,15 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         attention_scale: Optional[float] = None,
         softcap: Optional[float] = None,
         fake_quant: Optional[bool] = True,
-        block_to_device_lookup: tuple[tuple[int, ...], ...] | None = None,
+        block_to_pipeline_map: tuple[tuple[int, ...], ...] | None = None,
+        pipeline_to_device_map: tuple[tuple[int, ...], ...] | None = None,
     ):
         super().__init__(theta)
 
         self.paged_attention = PagedAttention(
             transformer_block_count=cache.transformer_block_count,
-            block_to_device_lookup=block_to_device_lookup,
+            block_to_pipeline_map=block_to_pipeline_map,
+            pipeline_to_device_map=pipeline_to_device_map,
             attn_head_count=head_count_kv,
             attn_head_dim=head_dim,
             block_seq_stride=cache.block_seq_stride,
@@ -144,9 +146,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             xq = embedding.apply_batched_mask(xt=xq, mask=embedding_batch_mask)
             xk = embedding.apply_batched_mask(xt=xk, mask=embedding_batch_mask)
 
-        # Full sequence length.
-        kv_seq_len = seq_block_ids.shape[1] * self.paged_attention.block_seq_stride
-
         # Used by fp8_e4m3fnuz model
         if self.cache_quantizer is not None:
             if not self.fake_quant:
@@ -180,7 +179,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 cache_state=cache_state,
                 seq_block_ids=seq_block_ids,
                 block_index=self.block_index,
-                kv_seq_len=kv_seq_len,
                 start_positions=start_positions,
                 head_count_attn=self.head_count,
                 cache_quantizer=self.cache_quantizer,

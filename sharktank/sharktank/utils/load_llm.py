@@ -222,7 +222,7 @@ class Batch:
             attention_mask = [attention_mask]
         else:
             token_ids = replicate(
-                token_ids, shard_count, devices=model.config.block_to_device_lookup[0]
+                token_ids, shard_count, devices=model.config.pipeline_to_device_map[0]
             )
             _attention_mask, _seq_block_ids = [], []
             for pipeline in range(model.cache.pipeline_count):
@@ -230,14 +230,14 @@ class Batch:
                     replicate(
                         attention_mask,
                         count=shard_count,
-                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                        devices=model.cache.pipeline_to_device_map[pipeline],
                     )
                 )
                 _seq_block_ids.append(
                     replicate(
                         seq_block_ids,
                         count=shard_count,
-                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                        devices=model.cache.pipeline_to_device_map[pipeline],
                     )
                 )
             attention_mask, seq_block_ids = _attention_mask, _seq_block_ids
@@ -297,7 +297,7 @@ class Batch:
             start_positions = [start_positions]
         else:
             token_batch = replicate(
-                token_batch, shard_count, devices=model.config.block_to_device_lookup[0]
+                token_batch, shard_count, devices=model.config.pipeline_to_device_map[0]
             )
 
             _start_positions, _seq_block_ids, _decode_attention_mask = [], [], []
@@ -306,21 +306,21 @@ class Batch:
                     replicate(
                         start_positions,
                         count=shard_count,
-                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                        devices=model.cache.pipeline_to_device_map[pipeline],
                     )
                 )
                 _seq_block_ids.append(
                     replicate(
                         seq_block_ids,
                         count=shard_count,
-                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                        devices=model.cache.pipeline_to_device_map[pipeline],
                     )
                 )
                 _decode_attention_mask.append(
                     replicate(
                         decode_attention_mask,
                         count=shard_count,
-                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                        devices=model.cache.pipeline_to_device_map[pipeline],
                     )
                 )
             start_positions, seq_block_ids, decode_attention_mask = (

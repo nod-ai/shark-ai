@@ -1,4 +1,4 @@
-# IREE dispatch auto-tuning scripts
+# SHARK Tuner
 `libtuner.py` is the core Python script that provides the fundamental functions
 for the tuning loop. It imports `candidate_gen.py` for candidate generation. To
 implement the full tuning loop, `libtuner.py` requires a separate Python script
@@ -43,9 +43,9 @@ pip install -r requirements-dev.txt
      cmake --build ../iree-build/
      ```
 
-     [!IMPORTANT]
-     Make sure to enable the ROCM and HIP in your cmake configuration.
-     See [IREE documentation](https://iree.dev/building-from-source/getting-started/#python-bindings) for the details.
+> [!IMPORTANT]
+> Make sure to enable the ROCM and HIP in your cmake configuration.
+> See [IREE documentation](https://iree.dev/building-from-source/getting-started/#python-bindings) for the details.
 
    - Set environment
 
@@ -65,6 +65,5 @@ pip install --upgrade -r ../requirements-iree-unpinned.txt
 
 ## Examples
 
-Check the `model_tuner` directory for a sample tuner implemented with `libtuner`.
-The [`dispatch example`](model_tuner)
-should be a good starting point for most users.
+For a concrete example, check the [`model_tuner` directory](./model_tuner/) for a sample tuner implemented with `libtuner`.
+The [`dispatch example`](model_tuner/README.md) should be a good starting point for most users.

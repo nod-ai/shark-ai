@@ -27,19 +27,12 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.11", "3.12"]
-        torch-version: ["2.3.0", "2.4.1", "2.5.1"]
+        torch-version: ["2.4.1", "2.5.1"]
         runs-on: [ubuntu-24.04]
         include:
           - runs-on: windows-2022
-            python-version: "3.11"
-            torch-version: "2.3.0"
-          - runs-on: windows-2022
             python-version: "3.12"
             torch-version: "2.4.1"
-        exclude:
-          - python-version: "3.12"
-             # `torch.compile` requires torch>=2.4.0 for Python 3.12+
-            torch-version: "2.3.0"
       fail-fast: false
     runs-on: ${{matrix.runs-on}}
     defaults:
@@ -62,10 +55,6 @@ jobs:
         with:
           path: ${{ env.PIP_CACHE_DIR }}
           key: pip-${{ steps.setup_python.outputs.python-version }}-${{ hashFiles('*requirements*.txt','sharktank/requirements*.txt') }}
-
-      - name: Install numpy
-        if: ${{ matrix.runs-on == 'windows-2022' && matrix.torch-version == '2.3.0' }}
-        run: pip install "numpy<2.0"
 
       - name: Install pip deps
         run: |
@@ -120,10 +109,6 @@ jobs:
         with:
           path: ${{ env.PIP_CACHE_DIR }}
           key: pip-${{ steps.setup_python.outputs.python-version }}-${{ hashFiles('*requirements*.txt','sharktank/requirements*.txt') }}
-
-      - name: Install numpy
-        if: ${{ matrix.runs-on == 'windows-2022' && matrix.torch-version == '2.3.0' }}
-        run: pip install "numpy<2.0"
 
       - name: Install pip deps
         run: |
