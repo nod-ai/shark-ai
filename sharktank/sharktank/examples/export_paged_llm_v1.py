@@ -224,7 +224,7 @@ def main():
             arg_affinities = {key + 3: arg_affinities[key] for key in arg_affinities}
 
             for i in range(3):
-                device = str(pipeline_to_devices[0])
+                device = str(pipeline_to_devices[0][0])
                 arg_affinities[i] = DeviceAffinity(device)
 
         dynamic_shapes = {
