@@ -132,7 +132,7 @@ class PagedAttention:
         self,
         state: Union[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
         pipeline: int,
-    ) -> list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor]:
+    ) -> torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor:
         """Unflattens the 2D page tables to 6D tensors."""
         shards = [state] if self.shard_count == 1 else state.shards
         shards = [shard.unflatten(1, self.sub_page_dims[pipeline]) for shard in shards]
