@@ -221,9 +221,10 @@ class Batch:
             seq_block_ids = [seq_block_ids]
             attention_mask = [attention_mask]
         else:
-            token_ids = replicate(
-                token_ids, shard_count, devices=model.config.pipeline_to_device_map[0]
-            )
+            devices = None
+            if model.config.pipeline_to_device_map is not None:
+                devices = model.config.pipeline_to_device_map[0]
+            token_ids = replicate(token_ids, shard_count, devices=devices)
             _attention_mask, _seq_block_ids = [], []
             for pipeline in range(model.cache.pipeline_count):
                 _attention_mask.append(

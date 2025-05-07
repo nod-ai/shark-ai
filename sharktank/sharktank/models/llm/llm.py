@@ -180,6 +180,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
             self.trace_tensor(f"llama.attn_block.{block_idx}.output", h)
 
         h = self.output_norm(h)
+        print(f"h = {h}, self.output_lm_head.weight = {self.output_lm_head.weight}")
         logits = self.output_lm_head(h)
 
         if self.inference_norm:

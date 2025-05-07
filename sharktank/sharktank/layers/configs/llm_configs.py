@@ -73,6 +73,7 @@ class LlamaHParams:
 
     # Deepseek MoE config
     expert_shared_count: Optional[int] = None
+    moe_intermediate_size: Optional[int] = None
     n_expert_groups: Optional[int] = None
     n_limited_groups: Optional[int] = None
     n_dense_layers: Optional[int] = None
@@ -178,6 +179,9 @@ class LlamaHParams:
             expert_used_count=_optional_int_prop(
                 p, f"{name_prefix}.expert_used_count", default_expert_used_count
             ),
+            moe_intermediate_size=_optional_int_prop(
+                p, f"{name_prefix}.moe_intermediate_size", None
+            ),
             route_scale=route_scale,
             n_dense_layers=n_dense_layers,
             expert_shared_count=expert_shared_count,
@@ -228,6 +232,8 @@ class LlamaHParams:
             res[f"{self.model_arch}.n_expert_groups"] = self.n_expert_groups
         if self.n_limited_groups is not None:
             res[f"{self.model_arch}.n_limited_groups"] = self.n_limited_groups
+        if self.moe_intermediate_size is not None:
+            res[f"{self.model_arch}.moe_intermediate_size"] = self.moe_intermediate_size
         if self.rope_dimension_count is not None:
             res[f"{self.model_arch}.rope.dimension_count"] = self.rope_dimension_count
         if self.rope_freq_base is not None:

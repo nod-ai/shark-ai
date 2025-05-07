@@ -143,19 +143,24 @@ class PagedLlamaAttentionBlock(ThetaLayer):
 
     def pre_process_attention(
         self,
-        x: torch.Tensor,
+        x: torch.Tensor | ReplicatedTensor,
         start_index: int,
         embedding: RotaryEmbeddingLayer,
         embedding_batch_mask: torch.Tensor,
     ):
-
+        """
+        x:
+            input token embeddings.
+            shape is (batch_size, sequence_length, embedding_length)
+        """
         if self.attn_type == "mla":
             if self.wq is not None:
                 q = self.wq(x).unflatten(2, (self.head_count, -1))
             else:
+                # (n_batches, seq_len, n_heads * (qk_nope_head_dim + qk_rope_head_dim))
                 q = self.wq_b(self.q_norm(self.wq_a(x)))
-                if isinstance(q, ShardedTensor) and not isinstance(q, ReplicatedTensor):
-                    q = ops.replicate(q, count=self.shard_count)
+                if isinstance(q, UnreducedTensor):
+                    q = ops.reduce_scatter(q, scatter_dim=2)
                 q = q.unflatten(2, (self.head_count, -1))
 
             qk_nope_head_dim = q.shape[-1] - self.rope_dimension_count
@@ -164,8 +169,12 @@ class PagedLlamaAttentionBlock(ThetaLayer):
 
             kv = self.wkv_a(x)
             kv_nope_size = kv.shape[-1] - self.rope_dimension_count
+            if isinstance(kv, SplitPrimitiveTensor):
+                kv = ops.replicate(kv, count=x.shard_count)
             kv_nope = kv[:, :, :kv_nope_size]
             k_rope = kv[:, :, kv_nope_size:]
+            # if isinstance(k_rope, ReplicatedTensor):
+            #     k_rope = ops.reshard_split(k_rope, count=x.shard_count, dim=-1)
 
             if start_index is not None:
                 q_rope = embedding(xt=q_rope, start_index=start_index)
@@ -182,24 +191,18 @@ class PagedLlamaAttentionBlock(ThetaLayer):
 
             ##TODO: Restructure this to apply the wkv_b post attention instead of here
             kv_norm = self.kv_norm(kv_nope)
+            # (n_batches, seq_len, n_heads * (v_head_dim + qk_nope_head_dim))
             wkv_b = self.wkv_b(kv_norm)
-            if isinstance(wkv_b, ShardedTensor) and not isinstance(
-                wkv_b, ReplicatedTensor
-            ):
-                wkv_b = ops.replicate(wkv_b, count=self.shard_count)
-            wkv_b = wkv_b.unflatten(2, (self.head_count, -1))
+            # if isinstance(wkv_b, ShardedTensor):
+            #     wkv_b = ops.reduce_scatter(wkv_b, scatter_dim=2)
+            wkv_b = wkv_b.unflatten(2, (self.head_count_kv, -1))
 
             k_nope = wkv_b[:, :, :, :qk_nope_head_dim]
             xv = wkv_b[:, :, :, qk_nope_head_dim:]
 
             k_rope = ops.repeat(k_rope, (1, 1, k_nope.shape[2] // k_rope.shape[2], 1))
-
-            if isinstance(k_rope, ReplicatedTensor) and isinstance(
-                k_nope, SplitPrimitiveTensor
-            ):
-                k_rope = ops.reshard_split(
-                    k_rope, dim=k_nope.shard_dim, count=k_nope.shard_count
-                )
+            if isinstance(k_rope, ShardedTensor):
+                k_rope = ops.reshard_like(k_rope, like=k_nope)
 
             xk = ops.cat((k_nope, k_rope), dim=-1)
 

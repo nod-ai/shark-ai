@@ -34,7 +34,12 @@ from ._registry import (
     IsOfType,
     SignatureDispatcher,
 )
-from .shape import broadcast_dims, broadcast_dim, unbroadcast_dim
+from .shape import (
+    broadcast_dims,
+    broadcast_dim,
+    unbroadcast_dim,
+    normalize_negative_dim,
+)
 from sharktank.utils import longest_equal_range
 from sharktank.utils.math import ceildiv
 from .signatures import *
@@ -1170,6 +1175,7 @@ def reshard_all_to_replicated(
 def reshard_split_unsharded(
     input, *, dim: int, count: int, devices: tuple[int, ...]
 ) -> SplitPrimitiveTensor:
+    dim = normalize_negative_dim(input, dim)
     torch_input = unbox_tensor(input)
     return SplitPrimitiveTensor(
         ts=torch_input, shard_dim=dim, shard_count=count, devices=devices
@@ -1180,6 +1186,7 @@ def reshard_split_unsharded(
 def reshard_split_split(
     input: SplitPrimitiveTensor, *, dim: int, count: int, devices: None
 ) -> SplitPrimitiveTensor:
+    dim = normalize_negative_dim(input, dim)
     if input.shard_count != count:
         raise ValueError(f"Number of shards not equal ({input.shard_count} != {count})")
     if input.shard_dim != dim:
@@ -1191,8 +1198,15 @@ def reshard_split_split(
 def reshard_split_replicated(
     input: ReplicatedTensor, *, dim: int, count: int, devices: None
 ) -> SplitPrimitiveTensor:
+    dim = normalize_negative_dim(input, dim)
     if input.shard_count != count:
         raise ValueError(f"Number of shards not equal ({input.shard_count} != {count})")
+    if input.shape[dim] % count != 0:
+        raise ValueError(
+            f"Split resharding with uneven splits not supported."
+            f" Dimension size {input.shape[dim]} must be divisible by"
+            f" {count}"
+        )
 
     def slice_range_along_dim(dim: int, start: int, end: int):
         res = [slice(None)] * len(input.shape)

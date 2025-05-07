@@ -13,6 +13,7 @@ from sharktank.utils.testing import make_rand_torch
 from sharktank.layers.testing import (
     make_latent_attention_block_theta,
     make_ffn_block_theta,
+    make_random_moe_block_theta,
 )
 from sharktank.layers.configs.llm_configs import LlamaModelConfig
 
@@ -21,6 +22,7 @@ def make_deepseek_attention_block(
     *,
     block_idx: int,
     head_count: int,
+    head_count_kv: int,
     head_dim: int,
     embedding_length: int,
     feed_forward_length: int,
@@ -30,11 +32,15 @@ def make_deepseek_attention_block(
     q_lora_rank: int,
     v_head_dim: int,
     n_dense_layers: int,
+    expert_count: int,
+    expert_shared_count: int,
+    moe_intermediate_size: int,
     dtype: torch.dtype | None = None,
 ) -> Theta:
     attention_theta = make_latent_attention_block_theta(
         block_idx=block_idx,
         head_count=head_count,
+        head_count_kv=head_count_kv,
         embedding_length=embedding_length,
         qk_rope_head_dim=qk_rope_head_dim,
         qk_nope_head_dim=qk_nope_head_dim,
@@ -45,7 +51,14 @@ def make_deepseek_attention_block(
     )
 
     if block_idx >= n_dense_layers:
-        ffn_theta = make_moe_block_theta(block_idx=block_idx)
+        ffn_theta = make_random_moe_block_theta(
+            ffn_dim=embedding_length,
+            expert_hidden_dim=moe_intermediate_size,
+            num_experts=expert_count,
+            num_shared_experts=expert_shared_count,
+            with_layer_output_norm=False,
+            dtype=dtype,
+        )
     else:
         ffn_theta = make_ffn_block_theta(
             block_idx=block_idx,
@@ -56,48 +69,6 @@ def make_deepseek_attention_block(
     res_dict = attention_theta.tree
     res_dict.update(ffn_theta.tree)
     return Theta(res_dict)
-
-
-def make_moe_block_theta(
-    block_idx=0, expert_hidden_dim=16, ffn_dim=32, num_experts=4, shared_experts=1
-) -> Theta:
-    return Theta(
-        {
-            f"ffn_norm.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.ffn_norm.weight", data=make_rand_torch((ffn_dim))
-            ),
-            # Routed experts tensors
-            f"ffn_gate_inp.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.ffn_gate_inp.weight",
-                data=make_rand_torch((num_experts, ffn_dim)),
-            ),
-            f"ffn_gate_exps.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.ffn_gate_exps.weight",
-                data=make_rand_torch((num_experts, expert_hidden_dim, ffn_dim)),
-            ),
-            f"ffn_up_exps.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.ffn_up_exps.weight",
-                data=make_rand_torch((num_experts, expert_hidden_dim, ffn_dim)),
-            ),
-            f"ffn_down_exps.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.ffn_down_exps.weight",
-                data=make_rand_torch((num_experts, ffn_dim, expert_hidden_dim)),
-            ),
-            # Shared experts tensors
-            f"ffn_gate_shexp.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.ffn_gate_shexp.weight",
-                data=make_rand_torch((shared_experts * expert_hidden_dim, ffn_dim)),
-            ),
-            f"ffn_up_shexp.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.ffn_up_shexp.weight",
-                data=make_rand_torch((shared_experts * expert_hidden_dim, ffn_dim)),
-            ),
-            f"ffn_down_shexp.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.ffn_down_shexp.weight",
-                data=make_rand_torch((ffn_dim, shared_experts * expert_hidden_dim)),
-            ),
-        }
-    )
 
 
 def make_random_deepseek_theta(
@@ -113,6 +84,7 @@ def make_random_deepseek_theta(
         res[f"blk.{i}"] = make_deepseek_attention_block(
             block_idx=i,
             head_count=config.hp.attention_head_count,
+            head_count_kv=config.hp.attention_head_count_kv,
             head_dim=config.hp.attn_head_dim,
             embedding_length=config.hp.embedding_length,
             feed_forward_length=config.hp.feed_forward_length,
@@ -122,6 +94,9 @@ def make_random_deepseek_theta(
             kv_latent_dim=config.hp.kv_lora_rank,
             v_head_dim=config.hp.v_head_dim,
             n_dense_layers=config.hp.n_dense_layers,
+            expert_count=config.hp.expert_count,
+            expert_shared_count=config.hp.expert_shared_count,
+            moe_intermediate_size=config.hp.moe_intermediate_size,
             dtype=dtype,
         ).tree
 

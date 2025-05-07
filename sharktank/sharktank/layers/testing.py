@@ -56,6 +56,7 @@ def make_latent_attention_block_theta(
     *,
     block_idx: int,
     head_count: int,
+    head_count_kv: int,
     embedding_length: int,
     qk_rope_head_dim: int,
     qk_nope_head_dim: int,
@@ -75,7 +76,7 @@ def make_latent_attention_block_theta(
             "attn_kv_b.weight": DefaultPrimitiveTensor(
                 name=f"blk.{block_idx}.attn_kv_b.weight",
                 data=make_rand_torch(
-                    (head_count * (v_head_dim + qk_nope_head_dim), kv_latent_dim),
+                    (head_count_kv * (v_head_dim + qk_nope_head_dim), kv_latent_dim),
                     dtype=dtype,
                 ),
             ),
