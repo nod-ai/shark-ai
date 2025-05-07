@@ -66,12 +66,14 @@ jobs:
       run: |
         pip install -r requirements-tests.txt
         pip install -r ../requirements-iree-pinned.txt
+        pip install -r ../pytorch-rocm-requirements.txt
+        pip install -r ../sharktank/requirements-tests.txt
         pip freeze
 
-    - name: Install shortfin
+    - name: Install shortfin and sharktank
       working-directory: ${{ env.LIBSHORTFIN_DIR }}
       run: |
-        pip install --no-compile -e .
+        pip install --no-compile -e . -e ../sharktank
 
     - name: Test apps/sd/e2e_test
       working-directory: ${{ env.LIBSHORTFIN_DIR }}

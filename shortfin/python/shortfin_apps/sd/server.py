@@ -14,6 +14,7 @@ import copy
 import subprocess
 from contextlib import asynccontextmanager
 import uvicorn
+import importlib.util
 
 # Import first as it does dep checking and reporting.
 from shortfin.interop.fastapi import FastAPIResponder
@@ -22,12 +23,20 @@ from shortfin.support.logging_setup import native_handler
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
+from shortfin_apps.utilities.artifacts import fetch_modules
+
 from .components.generate import ClientGenerateBatchProcess
 from .components.config_struct import ModelParams
 from .components.io_struct import GenerateReqInput
 from .components.manager import SDXLSystemManager
 from .components.service import SDXLGenerateService
 from .components.tokenizer import Tokenizer
+from .components.config_artifacts import get_configs
+
+if spec := importlib.util.find_spec("sharktank") is None:
+    sharktank_installed = False
+else:
+    sharktank_installed = True
 
 
 logger = logging.getLogger("shortfin-sd")
@@ -117,21 +126,27 @@ app.add_middleware(
 
 def configure_sys(args) -> SDXLSystemManager:
     # Setup system (configure devices, etc).
-    model_config, topology_config, flagfile, tuning_spec, args = get_configs(args)
+    artifacts = get_configs(
+        args.service,
+        args.target,
+        args.artifacts_dir,
+        args.model_config,
+        args.tuning_spec,
+        args.flagfile,
+    )
     sysman = SDXLSystemManager(
         args.device, args.device_ids, args.amdgpu_async_allocations
     )
-    return sysman, model_config, flagfile, tuning_spec
+    return sysman, artifacts
 
 
-def configure_service(args, sysman, model_config, flagfile, tuning_spec):
+def configure_service(args, vmfbs, params, sysman, model_config, flagfile, tuning_spec):
     # Setup each service we are hosting.
     tokenizers = []
     for idx, tok_name in enumerate(args.tokenizers):
         subfolder = f"tokenizer_{idx + 1}" if idx > 0 else "tokenizer"
         tokenizers.append(Tokenizer.from_pretrained(tok_name, subfolder))
     model_params = ModelParams.load_json(model_config)
-    vmfbs, params = get_modules(args, model_config, flagfile, tuning_spec)
 
     sm = SDXLGenerateService(
         name="sd",
@@ -155,154 +170,6 @@ def configure_service(args, sysman, model_config, flagfile, tuning_spec):
     return sysman
 
 
-def get_configs(args):
-    # Returns one set of config artifacts.
-    modelname = "sdxl"
-    model_config = args.model_config if args.model_config else None
-    topology_config = None
-    tuning_spec = None
-    flagfile = args.flagfile if args.flagfile else None
-    topology_inp = args.topology if args.topology else "spx_single"
-    cfg_builder_args = [
-        sys.executable,
-        "-m",
-        "iree.build",
-        os.path.join(THIS_DIR, "components", "config_artifacts.py"),
-        f"--target={args.target}",
-        f"--output-dir={args.artifacts_dir}",
-        f"--model={modelname}",
-        f"--topology={topology_inp}",
-    ]
-    outs = subprocess.check_output(cfg_builder_args).decode()
-    outs_paths = outs.splitlines()
-    for i in outs_paths:
-        if model_config:
-            if str(model_config) in i and not os.path.exists(model_config):
-                model_config = i
-        elif not model_config and "sdxl_config" in i:
-            model_config = i
-        elif "topology" in i and args.topology:
-            topology_config = i
-        elif "flagfile" in i and not args.flagfile:
-            flagfile = i
-        elif "attention_and_matmul_spec" in i and args.use_tuned:
-            tuning_spec = i
-
-    if not os.path.exists(model_config):
-        raise ValueError(f"Model config not found at {model_config}.")
-
-    if args.use_tuned and args.tuning_spec:
-        tuning_spec = os.path.abspath(args.tuning_spec)
-
-    if topology_config:
-        with open(topology_config, "r") as f:
-            contents = [line.rstrip() for line in f]
-        for spec in contents:
-            if "--" in spec:
-                arglist = spec.strip("--").split("=")
-                arg = arglist[0]
-                if len(arglist) > 2:
-                    value = arglist[1:]
-                    for val in value:
-                        try:
-                            val = int(val)
-                        except ValueError:
-                            val = val
-                elif len(arglist) == 2:
-                    value = arglist[-1]
-                    try:
-                        value = int(value)
-                    except ValueError:
-                        value = value
-                else:
-                    # It's a boolean arg.
-                    value = True
-                setattr(args, arg, value)
-            else:
-                # It's an env var.
-                arglist = spec.split("=")
-                os.environ[arglist[0]] = arglist[1]
-    return model_config, topology_config, flagfile, tuning_spec, args
-
-
-def get_modules(args, model_config, flagfile, td_spec):
-    # TODO: Move this out of server entrypoint
-    mod_params = ModelParams.load_json(model_config)
-
-    vmfbs = {}
-    params = {}
-    model_flags = {}
-    for submodel in mod_params.module_names.keys():
-        vmfbs[submodel] = {}
-        model_flags[submodel] = []
-        for bs in mod_params.batch_sizes[submodel]:
-            vmfbs[submodel][bs] = []
-        if submodel != "scheduler":
-            params[submodel] = []
-    model_flags["all"] = args.compile_flags
-
-    if flagfile:
-        with open(flagfile, "r") as f:
-            contents = [line.rstrip() for line in f]
-        flagged_model = "all"
-        for elem in contents:
-            match = [keyw in elem for keyw in model_flags.keys()]
-            if any(match) or "--" not in elem:
-                flagged_model = elem
-            elif flagged_model in model_flags:
-                model_flags[flagged_model].extend([elem])
-    if td_spec:
-        for key in model_flags.keys():
-            if key in ["unet", "punet", "scheduled_unet"]:
-                model_flags[key].extend(
-                    [f"--iree-codegen-transform-dialect-library={td_spec}"]
-                )
-    filenames = []
-    builder_env = os.environ.copy()
-    builder_env["IREE_BUILD_MP_CONTEXT"] = "fork"
-    for modelname in vmfbs.keys():
-        ireec_args = model_flags["all"] + model_flags[modelname]
-        ireec_extra_args = " ".join(ireec_args)
-        builder_args = [
-            sys.executable,
-            "-m",
-            "iree.build",
-            os.path.join(THIS_DIR, "components", "builders.py"),
-            f"--model-json={model_config}",
-            f"--target={args.target}",
-            f"--splat={args.splat}",
-            f"--build-preference={args.build_preference}",
-            f"--output-dir={args.artifacts_dir}",
-            f"--model={modelname}",
-            f"--force-update={args.force_update}",
-            f"--iree-hal-target-device={args.device}",
-            f"--iree-hip-target={args.target}",
-            f"--iree-compile-extra-args={ireec_extra_args}",
-        ]
-        logger.info(f"Preparing runtime artifacts for {modelname}...")
-        logger.info(f"Builder args: {' '.join(builder_args)}")
-        logger.debug(
-            "COMMAND LINE EQUIVALENT: " + " ".join([str(argn) for argn in builder_args])
-        )
-        output = subprocess.check_output(builder_args, env=builder_env).decode()
-
-        output_paths = output.splitlines()
-        for path in output_paths:
-            if not any(x in path for x in [".mlir", ".vmfb", ".irpa"]):
-                output_paths.remove(path)
-            if "irpa" in path:
-                params[modelname].append(path)
-                output_paths.remove(path)
-        filenames.extend(output_paths)
-    for name in filenames:
-        for key in vmfbs.keys():
-            for bs in vmfbs[key].keys():
-                if key in name.lower() and f"_bs{bs}_" in name.lower():
-                    if "vmfb" in name:
-                        vmfbs[key][bs].extend([name])
-    return vmfbs, params
-
-
 def is_port_valid(port):
     max_port = 65535
     if port < 1 or port > max_port:
@@ -321,10 +188,16 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
         "--timeout-keep-alive", type=int, default=5, help="Keep alive timeout"
     )
     parser.add_argument(
+        "--service",
+        type=str,
+        default="sdxl",
+        choices=["sdxl"],
+    )
+    parser.add_argument(
         "--device",
         type=str,
         required=True,
-        choices=["local-task", "hip", "amdgpu"],
+        choices=["local-task", "amdgpu"],
         help="Primary inferencing device.",
     )
     parser.add_argument(
@@ -457,8 +330,46 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
         args.artifacts_dir = os.path.abspath(args.artifacts_dir)
 
     global sysman
-    sysman, model_config, flagfile, tuning_spec = configure_sys(args)
-    configure_service(args, sysman, model_config, flagfile, tuning_spec)
+    sysman, artifacts = configure_sys(args)
+
+    vmfbs, params, needed = fetch_modules(
+        args.target,
+        args.device,
+        "sdxl",
+        artifacts["model_config"],
+        args.artifacts_dir,
+        args.splat,
+    )
+    if (needed or args.force_update) and sharktank_installed:
+        from sharktank.pipelines.sdxl.builder import get_modules
+
+        vmfbs, params = get_modules(
+            vmfbs,
+            params,
+            args.target,
+            args.device,
+            artifacts["model_config"],
+            artifacts["flagfile"],
+            artifacts["tuning_spec"],
+            args.compile_flags,
+            args.artifacts_dir,
+            args.splat,
+            args.build_preference,
+            args.force_update,
+        )
+
+    elif (needed or args.force_update) and not sharktank_installed:
+        raise FileNotFoundError(str(needed))
+
+    configure_service(
+        args,
+        vmfbs,
+        params,
+        sysman,
+        artifacts["model_config"],
+        artifacts["flagfile"],
+        artifacts["tuning_spec"],
+    )
     uvicorn.run(
         app,
         host=args.host,

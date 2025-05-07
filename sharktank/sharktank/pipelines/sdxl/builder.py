@@ -4,20 +4,23 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from iree.build import *
-from iree.build.executor import FileNamespace, BuildAction, BuildContext, BuildFile
-
 import itertools
 import os
+import sys
+import subprocess
 import urllib
 import shortfin.array as sfnp
 import copy
 import re
 import gc
 import logging
-import urllib
+
+from iree.build import *
+from iree.build.executor import FileNamespace, BuildAction, BuildContext, BuildFile
 
 from shortfin_apps.sd.components.config_struct import ModelParams
+
+logger = logging.getLogger("shortfin-sd")
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
 parent = os.path.dirname(this_dir)
@@ -37,6 +40,85 @@ SDXL_BUCKET = (
 SDXL_WEIGHTS_BUCKET = (
     "https://sharkpublic.blob.core.windows.net/sharkpublic/sdxl/weights/"
 )
+
+
+def get_modules(
+    vmfbs,
+    params,
+    target,
+    device,
+    model_config,
+    flagfile=None,
+    td_spec=None,
+    extra_compile_flags=[],
+    artifacts_dir=None,
+    splat=False,
+    build_preference="export",
+    force_update=False,
+):
+    mod_params = ModelParams.load_json(model_config)
+
+    model_flags = {"all": extra_compile_flags}
+    for key in vmfbs.keys():
+        model_flags[key] = []
+
+    if flagfile:
+        with open(flagfile, "r") as f:
+            contents = [line.rstrip() for line in f]
+        flagged_model = "all"
+        for elem in contents:
+            match = [keyw in elem for keyw in model_flags.keys()]
+            if any(match) or "--" not in elem:
+                flagged_model = elem
+            elif flagged_model in model_flags:
+                model_flags[flagged_model].extend([elem])
+    if td_spec:
+        for key in model_flags.keys():
+            if key in ["unet", "punet", "scheduled_unet"]:
+                model_flags[key].extend(
+                    [f"--iree-codegen-transform-dialect-library={td_spec}"]
+                )
+    filenames = []
+    builder_env = os.environ.copy()
+    builder_env["IREE_BUILD_MP_CONTEXT"] = "fork"
+    for modelname in vmfbs.keys():
+        ireec_args = model_flags["all"] + model_flags[modelname]
+        ireec_extra_args = " ".join(ireec_args)
+        builder_args = [
+            sys.executable,
+            "-m",
+            "iree.build",
+            str(__file__),
+            f"--model-json={model_config}",
+            f"--target={target}",
+            f"--splat={splat}",
+            f"--build-preference={build_preference}",
+            f"--output-dir={artifacts_dir}",
+            f"--model={modelname}",
+            f"--force-update={force_update}",
+            f"--iree-hal-target-device={device}",
+            f"--iree-hip-target={target}",
+            f"--iree-compile-extra-args={ireec_extra_args}",
+        ]
+        logger.info(f"Preparing runtime artifacts for {modelname}...")
+        logger.info(
+            "COMMAND LINE EQUIVALENT: " + " ".join([str(argn) for argn in builder_args])
+        )
+        output = subprocess.check_output(builder_args, env=builder_env).decode()
+
+        output_paths = output.splitlines()
+        for path in output_paths:
+            if "irpa" in path:
+                params[modelname].append(path)
+                output_paths.remove(path)
+        filenames.extend(output_paths)
+    for name in filenames:
+        for key in vmfbs.keys():
+            for bs in vmfbs[key].keys():
+                if key in name.lower() and f"_bs{bs}_" in name.lower():
+                    if "vmfb" in name and (name not in vmfbs[key][bs]):
+                        vmfbs[key][bs].extend([name])
+    return vmfbs, params
 
 
 def filter_by_model(filenames, model) -> list:
@@ -124,49 +206,57 @@ def get_params_filename(model_params: ModelParams, model=None, splat: bool = Fal
             )
 
 
-def get_file_stems(model_params: ModelParams) -> list[str]:
+def get_file_stems(model_params) -> list[str]:
+    # TODO: Make this a service-agnostic common utility.
     file_stems = []
-    base = (
-        ["stable_diffusion_xl_base_1_0"]
-        if model_params.base_model_name.lower() == "sdxl"
-        else [create_safe_name(model_params.base_model_name)]
-    )
-    if model_params.use_scheduled_unet:
-        denoise_dict = {
-            "scheduled_unet": "scheduled_unet",
-        }
-    elif model_params.use_punet:
-        denoise_dict = {
-            "unet": "punet",
-            "scheduler": model_params.scheduler_id + "Scheduler",
-        }
-    else:
-        denoise_dict = {
-            "unet": "unet",
-            "scheduler": model_params.scheduler_id + "Scheduler",
-        }
+
+    # Create a dictionary of service components and their filename UIDs.
     mod_names = {
         "clip": "clip",
         "vae": "vae",
     }
-    mod_names.update(denoise_dict)
+    if model_params.use_scheduled_unet:
+        mod_names.update(
+            {
+                "scheduled_unet": "scheduled_unet",
+            }
+        )
+    else:
+        mod_names.update(
+            {
+                "unet": "punet",
+                "scheduler": model_params.scheduler_id + "Scheduler",
+            }
+        )
+
+    base = create_safe_name(model_params.base_model_name)
+
     for mod, modname in mod_names.items():
+        # Given parametrizations from model config, compile an exhaustive list of unique module file stems matching the configuration.
         ord_params = [
-            base,
+            [base],
             [modname],
         ]
+
+        # Batch sizes.
         bsizes = []
         for bs in model_params.batch_sizes[mod]:
             bsizes.extend([f"bs{bs}"])
         ord_params.extend([bsizes])
+
+        # Sequence length.
         if mod in ["scheduled_unet", "unet", "clip"]:
             ord_params.extend([[str(model_params.max_seq_len)]])
+
+        # Output image dims.
         if mod in ["scheduled_unet", "unet", "vae", "scheduler"]:
             dims = []
             for dim_pair in model_params.dims:
                 dim_pair_str = [str(d) for d in dim_pair]
                 dims.extend(["x".join(dim_pair_str)])
             ord_params.extend([dims])
+
+        # Precision.
         if mod == "scheduler":
             dtype_str = dtype_to_filetag[model_params.unet_dtype]
         elif "unet" not in modname:
@@ -176,8 +266,11 @@ def get_file_stems(model_params: ModelParams) -> list[str]:
         else:
             dtype_str = model_params.unet_quant_dtype
         ord_params.extend([[dtype_str]])
+
+        # Generate file stems.
         for x in list(itertools.product(*ord_params)):
             file_stems.extend(["_".join(x)])
+
     return file_stems
 
 
@@ -377,7 +470,7 @@ def sdxl(
 
     if build_preference == "export":
         from iree.turbine.aot.build_actions import turbine_generate
-        from shortfin_apps.sd.components.exports import export_sdxl_model
+        from sharktank.pipelines.sdxl.exporter import export_sdxl_model
 
         if params_filename is not None:
             params_filepath = ctx.allocate_file(
