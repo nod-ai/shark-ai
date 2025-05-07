@@ -8,6 +8,7 @@ from collections.abc import Iterable
 from typing import Callable
 import unittest
 import itertools
+import pytest
 from parameterized import parameterized, parameterized_class
 
 import torch
@@ -48,6 +49,62 @@ class AllReduceTest(unittest.TestCase):
 
         sharded = SplitPrimitiveTensor(shard_dim=shard_dim, ts=shards)
         actual_result = ops.all_reduce(sharded)
+
+        for shard in actual_result.shards:
+            torch.testing.assert_close(shard.as_torch(), expected_result)
+
+
+class ArgmaxTest(unittest.TestCase):
+    def testArgmax(self):
+        shard_count = 3
+        shard_shape = [3, 4]
+        shard_dim = 0
+        shards = [
+            torch.rand(shard_shape, dtype=torch.float32) for _ in range(shard_count)
+        ]
+        expected_results = [torch.argmax(shard, 0, False) for shard in shards]
+
+        sharded = SplitPrimitiveTensor(shard_dim=shard_dim, ts=shards)
+        actual_result = ops.argmax(sharded, 0, False)
+
+        for i, shard in enumerate(actual_result.shards):
+            torch.testing.assert_close(shard.as_torch(), expected_results[i])
+
+    def testArgmaxReplicated(self):
+        shard_count = 3
+        shard_shape = [3, 4]
+        test = torch.rand(shard_shape, dtype=torch.float32)
+        expected_result = torch.argmax(test, 0, False)
+
+        sharded_test = ops.replicate(test, count=shard_count)
+        actual_result = ops.argmax(sharded_test, 0, False)
+
+        for shard in actual_result.shards:
+            torch.testing.assert_close(shard.as_torch(), expected_result)
+
+    def testSplitArgmax(self):
+        shard_count = 3
+        shard_shape = [3, 4]
+        shard_dim = 0
+        shards = [
+            torch.rand(shard_shape, dtype=torch.float32) for _ in range(shard_count)
+        ]
+        expected_results = [torch.argmax(shard, 0, False) for shard in shards]
+
+        sharded = SplitPrimitiveTensor(shard_dim=shard_dim, ts=shards)
+        actual_result = ops.argmax(sharded, 0, False, 1)
+
+        for i, shard in enumerate(actual_result.shards):
+            torch.testing.assert_close(shard.as_torch(), expected_results[i])
+
+    def testSplitArgmaxReplicated(self):
+        shard_count = 3
+        shard_shape = [3, 4]
+        test = torch.rand(shard_shape, dtype=torch.float32)
+        expected_result = torch.argmax(test, 0, False)
+
+        sharded_test = ops.replicate(test, count=shard_count)
+        actual_result = ops.argmax(sharded_test, 0, False, 1)
 
         for shard in actual_result.shards:
             torch.testing.assert_close(shard.as_torch(), expected_result)
@@ -207,6 +264,9 @@ class CalculateViewDimensionMappingTest(unittest.TestCase):
 
 
 class CatTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(0)
+
     def testCatSplitDim(self):
         """Concatenation along the sharded split dimension."""
         shard_dim = 1
@@ -923,6 +983,9 @@ class MaskedFillTest(unittest.TestCase):
 
 
 class MatmulTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(0)
+
     def testTorchRHSColumnShardedTransposed(self):
         t1 = torch.rand(4, 32, 16, dtype=torch.float32)
         t2 = torch.rand(48, 16, dtype=torch.float16)
@@ -948,10 +1011,22 @@ class MatmulTest(unittest.TestCase):
         shard_count = 3
         unsharded_result = torch.matmul(a, b)
         expected_result = ops.reshard_split(unsharded_result, dim=2, count=shard_count)
-        b_sharded = ops.reshard_split(b, dim=1, count=shard_count)
         a_sharded = ops.replicate(a, count=shard_count)
+        b_sharded = ops.reshard_split(b, dim=1, count=shard_count)
         actual_result = ops.matmul(a_sharded, b_sharded)
         assert expected_result.is_deep_equal(actual_result, compare_name=False)
+
+    def testReplicatedLhsShardedReductionDimRhs(self):
+        a = torch.randint(low=0, high=10, size=[2, 5, 3], dtype=torch.int32)
+        b = torch.randint(low=0, high=10, size=[3, 6], dtype=torch.int32)
+        shard_count = 3
+        unsharded_result = torch.matmul(a, b)
+        expected_result = ops.reshard_split(unsharded_result, dim=2, count=shard_count)
+        a_sharded = ops.replicate(a, count=shard_count)
+        b_sharded = ops.reshard_split(b, dim=0, count=shard_count)
+        actual_result = ops.matmul(a_sharded, b_sharded)
+        assert isinstance(actual_result, UnreducedTensor)
+        assert ops.equal(actual_result, expected_result)
 
     def testShardedChainMatmulX2Transposed(self):
         # Computes Z = (XA)B (sharded by 8).
@@ -1115,6 +1190,20 @@ class MatmulTest(unittest.TestCase):
         actual_result = ops.matmul(a_sharded, b_sharded)
         for shard in actual_result.shards:
             torch.testing.assert_close(unsharded_result, unbox_tensor(shard))
+
+    def testReplicated3DLhsAndSplitBatchDim3DRhs(self):
+        """Both LHS and RHS are 3D tensors and RHS is split along the batch dimension."""
+        a = torch.randint(low=0, high=10, size=[4, 3, 5], dtype=torch.int32)
+        b = torch.randint(low=0, high=10, size=[4, 5, 7], dtype=torch.int32)
+        shard_count = 2
+        expected_result = torch.matmul(a, b)
+
+        a_sharded = ops.replicate(a, count=shard_count)
+        b_sharded = ops.reshard_split(b, count=shard_count, dim=0)
+        actual_result = ops.matmul(a_sharded, b_sharded)
+        assert isinstance(actual_result, SplitPrimitiveTensor)
+        assert actual_result.shard_dim == 0
+        ops.equal(expected_result, actual_result)
 
 
 @parameterized_class(
@@ -1680,6 +1769,9 @@ class TopKTest(unittest.TestCase):
 
 
 class TransposeTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(0)
+
     def testTransposeReplicated(self):
         a = torch.randn(3, 4, 1)
         expected = torch.transpose(a, 1, 2)
@@ -1689,6 +1781,136 @@ class TransposeTest(unittest.TestCase):
         assert all(s_a == s_e for (s_a, s_e) in zip(actual.shape, expected.shape))
         for shard in actual.shards:
             assert ops.equal(shard, expected)
+
+    def testTransposeSplitNegativeDims(self):
+        a = torch.randn(3, 4, 1)
+        expected = torch.transpose(a, -1, -2)
+        a_sharded = ops.reshard_split(a, count=2, dim=1)
+        actual = ops.transpose(a_sharded, -1, -2)
+
+        assert ops.equal(actual, expected)
+
+
+class TriviallyReplicableTest(unittest.TestCase):
+    def testOneArgOneResult(self):
+        @ops.trivially_replicable
+        def fn(a: torch.Tensor) -> torch.Tensor:
+            return a
+
+        arg = torch.Tensor([1, 2, 3])
+        shard_count = 2
+        replicated_arg = ReplicatedTensor(
+            ts=arg, shard_count=shard_count, devices=(1, 2)
+        )
+        replicated_result = fn(replicated_arg)
+        replicated_arg.is_deep_equal(replicated_result)
+
+    @parameterized.expand(
+        (
+            [1],
+            [2],
+        )
+    )
+    def testMultipleArgumentsAndResults(self, shard_count: int):
+        @ops.trivially_replicable
+        def fn(a: torch.Tensor, b: torch.Tensor) -> tuple[torch.Tensor, ...]:
+            # Swap order
+            return b, a
+
+        args = [torch.Tensor([1, 2, 3]), torch.Tensor([4, 5])]
+        replicated_args = [
+            ReplicatedTensor(ts=arg, shard_count=shard_count) for arg in args
+        ]
+        replicated_result = fn(*replicated_args)
+        replicated_args[0].is_deep_equal(replicated_result[1])
+        replicated_args[1].is_deep_equal(replicated_result[0])
+
+    def testListOfTensorsAsArgumentsAndResults(self):
+        @ops.trivially_replicable
+        def fn(a: list[torch.Tensor]) -> list[torch.Tensor]:
+            return a
+
+        arg = torch.Tensor([1, 2, 3])
+        shard_count = 2
+        replicated_arg = ReplicatedTensor(
+            ts=arg, shard_count=shard_count, devices=(1, 2)
+        )
+        replicated_result = fn(replicated_arg)
+        replicated_arg.is_deep_equal(replicated_result)
+
+    def testNestedTreeOfTensorsAsArgumentsAndResults(self):
+        @ops.trivially_replicable
+        def fn(a: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+            return a
+
+        arg = torch.Tensor([1, 2, 3])
+        shard_count = 2
+        replicated_arg = {
+            "a": [ReplicatedTensor(ts=arg, shard_count=shard_count, devices=(1, 2))]
+        }
+        replicated_result = fn(replicated_arg)
+        replicated_arg["a"][0].is_deep_equal(replicated_result["a"][0])
+
+    def testNonTensorArgumentsAndResults(self):
+        @ops.trivially_replicable
+        def fn(a: str, b: torch.Tensor, c: int) -> tuple[str, torch.Tensor, int]:
+            return a, b, c
+
+        args = ("a", torch.Tensor([1, 2, 3]), 1)
+        shard_count = 2
+        replicated_args = (
+            args[0],
+            ReplicatedTensor(ts=args[1], shard_count=shard_count),
+            args[2],
+        )
+        replicated_result = fn(*replicated_args)
+        replicated_args[0] == replicated_result[0]
+        replicated_args[1].is_deep_equal(replicated_result[1])
+        replicated_args[2] == replicated_result[2]
+
+    @pytest.mark.xfail(
+        reason=(
+            "The composition of trivially replicable and the wrapping of"
+            " SignatureDispatcher.override for sharded ops needs some"
+            " refactoring. Right now we can't declare ops outside of"
+            " sharktank.ops.signatures."
+        ),
+        strict=True,
+        raises=NotImplementedError,
+        match=(
+            "does not have an implementation for argument types:"
+            " [<class 'sharktank.types.tensors.ReplicatedTensor'>]"
+        ),
+    )
+    def testSignatureRegistration(self):
+        from sharktank.ops._registry import overridable, SignatureDispatcher
+
+        @overridable(is_trivially_replicable=True)
+        def f(a: torch.Tensor) -> torch.Tensor:
+            ...
+
+        @f.override(torch.Tensor)
+        def f_unsharded(a: torch.Tensor) -> torch.Tensor:
+            return a
+
+        @f.trampoline
+        def trampoline(
+            d: SignatureDispatcher,
+            a: AnyTensor,
+        ) -> AnyTensor:
+            tensors = (a,)
+            for override in d.find_overrides(tensors):
+                result = override(a)
+                if result is not NotImplemented:
+                    return override, result
+            else:
+                d.fail(tensors)
+
+        arg = torch.Tensor([1, 2, 3])
+        shard_count = 2
+        replicated_arg = ReplicatedTensor(ts=arg, shard_count=shard_count)
+        replicated_result = f(replicated_arg)
+        replicated_arg.is_deep_equal(replicated_result)
 
 
 class UnflattenTest(unittest.TestCase):

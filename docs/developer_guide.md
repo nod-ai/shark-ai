@@ -92,7 +92,7 @@ Follow these commands to install the appropriate torch version:
 
 ```bash
 # Install editable local projects.
-pip install -r requirements.txt -e sharktank/ shortfin/
+pip install -r requirements.txt -e sharktank/ -e shortfin/
 
 # Install the latest nightly release of iree-turbine, alond with
 # nightly versions of iree-base-compiler and iree-base-runtime.

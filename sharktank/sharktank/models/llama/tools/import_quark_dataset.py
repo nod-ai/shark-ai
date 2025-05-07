@@ -104,16 +104,15 @@ def apply_per_layer_quant(
     and create InferenceTensors out of them, converting their names to gguf format
     in the process.
     """
-
     layer_theta = root_theta(layer_name)
-
     weight_quant_scale = layer_theta.tensor("weight_scale").as_torch()
-
+    if weight_quant_scale.dtype == torch.bfloat16:
+        weight_quant_scale = weight_quant_scale.to(torch.float32)
     weight = layer_theta.tensor("weight").as_torch()
 
     # It looks dumb but, this step is required for numerical correctness against quark.
     # weight = weight.view(torch.float8_e4m3fn)
-    weight = (weight.to(torch.float64) * weight_quant_scale).to(torch.bfloat16)
+    weight = (weight.to(torch.float64) * weight_quant_scale).to(torch.float32)
 
     weight_quant_zero_point = layer_theta.optional_tensor("weight_zero_point")
     if weight_quant_zero_point == None:
@@ -121,8 +120,11 @@ def apply_per_layer_quant(
     else:
         weight_quant_zero_point = weight_quant_zero_point.as_torch()
     input_quant_scale = as_torch_or_none(layer_theta.optional_tensor("input_scale"))
+    if input_quant_scale.dtype is torch.bfloat16:
+        input_quant_scale = input_quant_scale.to(torch.float32)
     output_quant_scale = as_torch_or_none(layer_theta.optional_tensor("output_scale"))
-
+    if output_quant_scale and output_quant_scale.dtype is torch.bfloat16:
+        output_quant_scale = output_quant_scale.to(torch.float32)
     if weight_quant_scale is None:
         print("weight quant scale not found for layer ", layer_name)
         return
@@ -236,6 +238,7 @@ def convert_hf_hparams_to_gguf(hf_hparams: dict[str, any]) -> dict[str, any]:
     attn_head_dim = int(
         _int_prop(hp, "hidden_size") // _int_prop(hp, "num_attention_heads")
     )
+    attn_head_dim = int(_optional_int_prop(hp, "head_dim", attn_head_dim))
 
     return {
         "llama.context_length": _int_prop(hp, "max_position_embeddings"),
@@ -259,27 +262,38 @@ def update_norm_layer(
         sub_name = layer_name + "." + sub
         new_name = hf_to_gguf(sub_name) + ".weight"
         single_replace(quant_theta, sub_name, new_name, updated_tensors)
-    layer_idx = layer_name.split(".")[-1]
-    if "kv_cache_scale" in quant_theta(layer_name, "self_attn").keys:
-        kv_cache_scale = (
-            quant_theta(layer_name, "self_attn").tensor("kv_scale").as_torch()
-        )
-        new_name = f"blk.{layer_idx}.kv_cache"
-        updated_tensors[new_name] = StaticScaledQuantizer(
-            name=new_name + ".quantizer",
-            scale=1.0 / (kv_cache_scale * 2.0),
-            reciprocal_scale=kv_cache_scale * 2.0,
-            dtype=torch.float8_e4m3fnuz,
-        )
-    if "prob_output_scale" in quant_theta(layer_name, "self_attn").keys:
-        prob_output_scale = (
-            quant_theta(layer_name, "self_attn").tensor("prob_output_scale").as_torch()
-            * 2.0
-        )
-        new_name = f"blk.{layer_idx}.attn_scale"
-        updated_tensors[new_name] = DefaultPrimitiveTensor(
-            name=new_name, data=prob_output_scale
-        )
+
+    if "self_attn" in quant_theta(layer_name).keys:
+        layer_idx = layer_name.split(".")[-1]
+        if "kv_cache_scale" in quant_theta(layer_name, "self_attn").keys:
+            kv_cache_scale = (
+                quant_theta(layer_name, "self_attn")
+                .tensor("kv_cache_scale")
+                .as_torch()
+                .to(torch.float32)
+            )
+            new_name = f"blk.{layer_idx}.kv_cache"
+            updated_tensors[new_name] = StaticScaledQuantizer(
+                name=new_name + ".quantizer",
+                scale=1.0 / (kv_cache_scale * 2.0),
+                reciprocal_scale=kv_cache_scale * 2.0,
+                dtype=torch.float8_e4m3fnuz,
+            )
+
+        if "prob_output_scale" in quant_theta(layer_name, "self_attn").keys:
+            prob_output_scale = (
+                quant_theta(layer_name, "self_attn")
+                .tensor("prob_output_scale")
+                .as_torch()
+                .to(torch.float32)
+                * 2.0
+            )
+            new_name = f"blk.{layer_idx}.attn_scale"
+            updated_tensors[new_name] = DefaultPrimitiveTensor(
+                name=new_name, data=prob_output_scale
+            )
+    else:
+        assert False
 
 
 def single_replace(
@@ -323,8 +337,36 @@ def main(argv):
     num_layers = layers_per_base[args.model_base]
     # Construct the pre-transform dataset.
     dataset_props = _get_dataset_props(_load_json(config_json_path))
+    OVERRIDE_OUTSCALE_NAME = False
+    overridden = []
     with safetensors.safe_open(params_path, framework="pt", device="cpu") as st:
         quant_theta = _load_theta(st)
+        OVERRIDE_OUTSCALE_NAME = "prob_output_scale" not in [
+            key.split(".")[-1] for key in st.keys()
+        ]
+        if OVERRIDE_OUTSCALE_NAME:
+            overridden = [
+                key for key in st.keys() if "output_scale" in key.split(".")[-1]
+            ]
+    updates = {}
+    if OVERRIDE_OUTSCALE_NAME:
+        print(
+            "WARNING: overriding name of k and v output scales to make them kv_cache_quantizer scales instead of linear output quantizers"
+        )
+        for o in overridden:
+            theta_name = o
+            # theta_name looks like: model.layers.9.self_attn.k_proj.output_scale
+            # we want: model.layers.9.self_attn
+            prefix = ".".join(theta_name.split(".")[:-2])
+            value = quant_theta.tensor(o)
+            # remove unwanted theta subtree
+            quant_theta.pop(o)
+            new_name = prefix + ".kv_cache_scale"
+            updates[new_name] = value
+        for key, value in quant_theta.flatten().items():
+            updates[key] = value
+        quant_theta = Theta(updates)
+
     ds = Dataset(dataset_props, quant_theta)
 
     # Convert hyperparams to gguf format
@@ -375,7 +417,6 @@ def main(argv):
     new_theta = Theta(updated_tensors)
     # Make a new Dataset from the updated properties and tensors.
     new_ds = Dataset(updated_properties, new_theta)
-
     new_ds.save(args.output_irpa_file, io_report_callback=print)
 
 
