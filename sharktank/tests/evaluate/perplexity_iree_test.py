@@ -151,6 +151,30 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
+    @is_nightly
+    @pytest.mark.skip(reason="https://github.com/iree-org/iree/issues/20699")
+    def test_deepseek_v3_tp(self):
+        # DeepSeek v3 tensor parallelism
+        self.model_name = "deepseek_v3_iree"
+        self.irpa_file = self.deepseek_v3_tp8_model
+        self.tokenizer = self.deepseek_v3_tokenizer
+        self.tensor_parallelism_size = 8
+
+        self.prepare_argv()
+        self.run_and_check_perplexity()
+
+    @is_nightly
+    @pytest.mark.skip(reason="https://github.com/iree-org/iree/issues/20699")
+    def test_deepseek_v3_pp(self):
+        # DeepSeek v3 pipeline parallelism
+        self.model_name = "deepseek_v3_iree"
+        self.irpa_file = self.deepseek_v3_model
+        self.tokenizer = self.deepseek_v3_tokenizer
+        self.pipeline_parallelism_size = 8
+
+        self.prepare_argv()
+        self.run_and_check_perplexity()
+
 
 if __name__ == "__main__":
     unittest.main()
