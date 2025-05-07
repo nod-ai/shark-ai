@@ -83,7 +83,7 @@ class LinearLayer(ThetaLayer):
                 y = self.q_output.quantize(y.unpack().qs)
                 if self.fake_quant:
                     return y.unpack().dequant()
-                return y.unpack().qs
+                return y#.unpack().qs
 
         if isinstance(y, QuantizedTensor):
             y = y.unpack().dequant()
