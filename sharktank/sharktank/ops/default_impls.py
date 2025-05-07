@@ -491,23 +491,43 @@ def permute(tensor: Tensor, dims: List[int]):
     return torch.permute(torch_tensor, dims)
 
 
-@scatter_.override(AllOfType(Tensor, PrimitiveTensor))
+@scatter_.override(
+    AllOfExprs(
+        IsOfType(Tensor, PrimitiveTensor),
+        IsOfType(Tensor, PrimitiveTensor),
+        IsOfType(Tensor, PrimitiveTensor, Number),
+    )
+)
 def scatter__default(
     inout: Tensor | PrimitiveTensor,
     dim: int,
     index: Tensor | PrimitiveTensor,
-    value,
+    src: Tensor | PrimitiveTensor | Number,
     *,
     reduce: str | None = None,
 ) -> Tensor:
-    assert isinstance(value, Number), "Tensor version of this op not implemented"
     inout = unbox_tensor(inout)
     index = unbox_tensor(index)
+    if isinstance(src, (torch.Tensor, PrimitiveTensor)):
+        src = unbox_tensor(src)
     if reduce is not None:
-        inout.scatter_(dim, index, value, reduce=reduce)
+        inout.scatter_(dim, index, src, reduce=reduce)
     else:
-        inout.scatter_(dim, index, value)
+        inout.scatter_(dim, index, src)
     return inout
+
+
+@scatter_add.override(AllOfType(Tensor, PrimitiveTensor))
+def scatter_add_default(
+    input: Tensor | PrimitiveTensor,
+    dim: int,
+    index: Tensor | PrimitiveTensor,
+    src: Tensor | PrimitiveTensor,
+) -> Tensor:
+    input = unbox_tensor(input)
+    index = unbox_tensor(index)
+    src = unbox_tensor(src)
+    return torch.scatter_add(input, dim, index, src)
 
 
 @sigmoid.override(Tensor)

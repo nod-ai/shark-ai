@@ -65,6 +65,7 @@ __all__ = [
     "reshard_like",
     "scaled_dot_product_attention",
     "scatter_",
+    "scatter_add",
     "sharded_cat",
     "sharded_sum",
     "sigmoid",
@@ -297,6 +298,47 @@ def _embedding_lookup_trampoline(
     tensors = (input, embedding_matrix)
     for override in d.find_overrides(tensors):
         result = override(input, embedding_matrix, dtype)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
+
+
+@overridable
+def empty_like(
+    tensor: AnyTensor,
+    *,
+    dtype: torch.dtype | None = None,
+    layout: torch.layout | None = None,
+    device: torch.device | None = None,
+    requires_grad: bool = False,
+    memory_format: torch.memory_format = torch.preserve_format,
+) -> AnyTensor:
+    """See torch.zeros_like"""
+    ...
+
+
+@empty_like.trampoline
+def _empty_like_trampoline(
+    d: SignatureDispatcher,
+    tensor: AnyTensor,
+    *,
+    dtype: torch.dtype | None = None,
+    layout: torch.layout | None = None,
+    device: torch.device | None = None,
+    requires_grad: bool = False,
+    memory_format: torch.memory_format = torch.preserve_format,
+) -> AnyTensor:
+    tensors = (tensor,)
+    for override in d.find_overrides(tensors):
+        result = override(
+            tensor,
+            dtype=dtype,
+            layout=layout,
+            device=device,
+            requires_grad=requires_grad,
+            memory_format=memory_format,
+        )
         if result is not NotImplemented:
             return override, result
     else:
@@ -674,7 +716,7 @@ def linear(
 
     Equivalent to:
     ```
-    y = torch.matmul(input, weight.T) + bias
+    y = torch.matmul(input, weight.mT) + bias
     ```
 
     This operator is defined to operate on a limited number of quantized types.
@@ -733,10 +775,8 @@ def matmul(lhs: AnyTensor, rhs: AnyTensor, *, transpose_rhs: bool = False):
     """Performs a matmul where the RHS may be an InferenceTensor.
 
     Unlike torch.matmul, this variant is optimized for emission of a fused
-    `matmul(lhs, rhs.T)` and the `transpose_rhs=` defaults to True, indicating
-    the the RHS is expected to have been transposed already (by some outside
-    force). Most inference optimizers will store their weights in this way
-    and assume fusions that operate on them, so we just make it the default.
+    `matmul(lhs, rhs.mT)` when `transpose_rhs=True`. Most inference optimizers
+    will store their weights in this way and assume fusions that operate on them.
 
     Args:
     lhs: Left hand side tensor. Can have dimensionality > 2 for batch.
@@ -1071,7 +1111,14 @@ def _reshard_like_trampoline(
 
 
 @overridable
-def scatter_(inout, dim: int, index: AnyTensor, value, *, reduce: str = None):
+def scatter_(
+    inout: AnyTensor,
+    dim: int,
+    index: AnyTensor,
+    src: AnyTensor | Number,
+    *,
+    reduce: str = None,
+):
     """
     See torch.Tensor.scatter_
     NOTE: Does not modify the inout tensor in place for ShardedTensors, will return copy.
@@ -1082,16 +1129,43 @@ def scatter_(inout, dim: int, index: AnyTensor, value, *, reduce: str = None):
 @scatter_.trampoline
 def _scatter__trampoline(
     d: SignatureDispatcher,
-    inout,
+    inout: AnyTensor,
     dim: int,
     index: AnyTensor,
-    value,
+    src: AnyTensor | Number,
     *,
     reduce: str = None,
 ) -> AnyTensor:
-    tensors = (inout, index)
+    dispatch_args = (inout, index, src)
+    for override in d.find_overrides(dispatch_args):
+        result = override(inout, dim, index, src, reduce=reduce)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(dispatch_args)
+
+
+@overridable
+def scatter_add(
+    input: AnyTensor, dim: int, index: AnyTensor, src: AnyTensor
+) -> AnyTensor:
+    """
+    See torch.scatter_add
+    """
+    ...
+
+
+@scatter_add.trampoline
+def _scatter_add_trampoline(
+    d: SignatureDispatcher,
+    input: AnyTensor,
+    dim: int,
+    index: AnyTensor,
+    src: AnyTensor,
+) -> AnyTensor:
+    tensors = (input, index, src)
     for override in d.find_overrides(tensors):
-        result = override(inout, dim, index, value, reduce=reduce)
+        result = override(input, dim, index, src)
         if result is not NotImplemented:
             return override, result
     else:

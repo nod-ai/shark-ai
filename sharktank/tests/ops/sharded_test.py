@@ -983,6 +983,9 @@ class MaskedFillTest(unittest.TestCase):
 
 
 class MatmulTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(0)
+
     def testTorchRHSColumnShardedTransposed(self):
         t1 = torch.rand(4, 32, 16, dtype=torch.float32)
         t2 = torch.rand(48, 16, dtype=torch.float16)
@@ -1008,10 +1011,22 @@ class MatmulTest(unittest.TestCase):
         shard_count = 3
         unsharded_result = torch.matmul(a, b)
         expected_result = ops.reshard_split(unsharded_result, dim=2, count=shard_count)
-        b_sharded = ops.reshard_split(b, dim=1, count=shard_count)
         a_sharded = ops.replicate(a, count=shard_count)
+        b_sharded = ops.reshard_split(b, dim=1, count=shard_count)
         actual_result = ops.matmul(a_sharded, b_sharded)
         assert expected_result.is_deep_equal(actual_result, compare_name=False)
+
+    def testReplicatedLhsShardedReductionDimRhs(self):
+        a = torch.randint(low=0, high=10, size=[2, 5, 3], dtype=torch.int32)
+        b = torch.randint(low=0, high=10, size=[3, 6], dtype=torch.int32)
+        shard_count = 3
+        unsharded_result = torch.matmul(a, b)
+        expected_result = ops.reshard_split(unsharded_result, dim=2, count=shard_count)
+        a_sharded = ops.replicate(a, count=shard_count)
+        b_sharded = ops.reshard_split(b, dim=0, count=shard_count)
+        actual_result = ops.matmul(a_sharded, b_sharded)
+        assert isinstance(actual_result, UnreducedTensor)
+        assert ops.equal(actual_result, expected_result)
 
     def testShardedChainMatmulX2Transposed(self):
         # Computes Z = (XA)B (sharded by 8).
@@ -1175,6 +1190,20 @@ class MatmulTest(unittest.TestCase):
         actual_result = ops.matmul(a_sharded, b_sharded)
         for shard in actual_result.shards:
             torch.testing.assert_close(unsharded_result, unbox_tensor(shard))
+
+    def testReplicated3DLhsAndSplitBatchDim3DRhs(self):
+        """Both LHS and RHS are 3D tensors and RHS is split along the batch dimension."""
+        a = torch.randint(low=0, high=10, size=[4, 3, 5], dtype=torch.int32)
+        b = torch.randint(low=0, high=10, size=[4, 5, 7], dtype=torch.int32)
+        shard_count = 2
+        expected_result = torch.matmul(a, b)
+
+        a_sharded = ops.replicate(a, count=shard_count)
+        b_sharded = ops.reshard_split(b, count=shard_count, dim=0)
+        actual_result = ops.matmul(a_sharded, b_sharded)
+        assert isinstance(actual_result, SplitPrimitiveTensor)
+        assert actual_result.shard_dim == 0
+        ops.equal(expected_result, actual_result)
 
 
 @parameterized_class(
@@ -1740,6 +1769,9 @@ class TopKTest(unittest.TestCase):
 
 
 class TransposeTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(0)
+
     def testTransposeReplicated(self):
         a = torch.randn(3, 4, 1)
         expected = torch.transpose(a, 1, 2)
@@ -1749,6 +1781,14 @@ class TransposeTest(unittest.TestCase):
         assert all(s_a == s_e for (s_a, s_e) in zip(actual.shape, expected.shape))
         for shard in actual.shards:
             assert ops.equal(shard, expected)
+
+    def testTransposeSplitNegativeDims(self):
+        a = torch.randn(3, 4, 1)
+        expected = torch.transpose(a, -1, -2)
+        a_sharded = ops.reshard_split(a, count=2, dim=1)
+        actual = ops.transpose(a_sharded, -1, -2)
+
+        assert ops.equal(actual, expected)
 
 
 class TriviallyReplicableTest(unittest.TestCase):
