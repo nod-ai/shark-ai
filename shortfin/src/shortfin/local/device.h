@@ -118,7 +118,7 @@ struct SHORTFIN_API DeviceAddress {
   uint64_t device_id_for_queue(uint32_t alternate_queue_ordinal) const {
     return static_cast<uint64_t>(instance_ordinal) << 32 |
            static_cast<uint64_t>(alternate_queue_ordinal) << 16 |
-           static_cast<uint64_t>(instance_topology_address[0]);;
+           static_cast<uint64_t>(instance_topology_address[0]);
   }
 };
 
