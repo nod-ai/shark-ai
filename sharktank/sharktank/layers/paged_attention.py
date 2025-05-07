@@ -153,12 +153,10 @@ class PagedAttention:
             len(state) == self.pipeline_count
         ), f"Expected {self.pipeline_count}-element state. Got: {len(state)}"
 
-        unflattened = []
-        for pipeline, page_slab in enumerate(state):
-            result = self.unflatten_page_table(page_slab, pipeline=pipeline)
-            unflattened.append(result)
-
-        return unflattened
+        return [
+            self.unflatten_page_table(page_slab, pipeline=pipeline)
+            for pipeline, page_slab in enumerate(state)
+        ]
 
     def shard_state(
         self, state: List[torch.Tensor]
@@ -306,12 +304,13 @@ class PagedAttention:
         return key, value
 
     @staticmethod
-    def deshard_arg(arg0, arg1):
+    def deshard_like(arg0, arg1):
         devices = arg0.devices
 
         if isinstance(arg1, SplitPrimitiveTensor):
             assert all([a == b for a, b in zip(devices, arg1.devices)])
 
+        assert len(set(arg1.devices)) == len(arg1.devices)
         device_map = {d: i for i, d in enumerate(arg1.devices)}
         return [arg1.shards[device_map[d]] for d in devices]
 
@@ -367,17 +366,12 @@ class PagedAttention:
                 partition_split = isinstance(partition, SplitPrimitiveTensor)
                 assert page_table_split == partition_split
 
-                def build_map(t):
-                    return {d: i for i, d in enumerate(t.devices)}
-
                 page_table_shards = page_table.shards
-                partition_shards = self.deshard_arg(page_table, partition)
-                seq_shards = self.deshard_arg(page_table, seq_positions)
-                page_ids_shards = self.deshard_arg(page_table, page_ids)
+                partition_shards = self.deshard_like(page_table, partition)
+                seq_shards = self.deshard_like(page_table, seq_positions)
+                page_ids_shards = self.deshard_like(page_table, page_ids)
 
                 for i in range(page_table.shard_count):
-                    device = page_table.devices[i]
-
                     self.write_timestep_shard(
                         page_table=page_table_shards[i],
                         partition_id=p,
@@ -478,12 +472,9 @@ class PagedAttention:
                 partition_split = isinstance(partition, SplitPrimitiveTensor)
                 assert page_table_split == partition_split
 
-                def build_map(t):
-                    return {d: i for i, d in enumerate(t.devices)}
-
                 page_table_shards = page_table.shards
-                partition_shards = self.deshard_arg(page_table, partition)
-                page_ids_shards = self.deshard_arg(page_table, page_ids)
+                partition_shards = self.deshard_like(page_table, partition)
+                page_ids_shards = self.deshard_like(page_table, page_ids)
 
                 for i in range(page_table.shard_count):
                     device = page_table.devices[i]
