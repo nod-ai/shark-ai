@@ -6,6 +6,7 @@
 
 import unittest
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 import iree.turbine.aot as aot
@@ -350,6 +351,50 @@ class TestOpExport(unittest.TestCase):
         ep = torch.export.export(my_module, (a, d, qs, m))
         s = str(ep)
         self.assertIn("mmt_block_scaled_offset_q4_unsigned.default", s)
+
+
+class TestScatter(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(0)
+        self.rng = np.random.default_rng(0)
+
+    def testInplaceSourceAsNumber(self):
+        dim = 1
+        input = torch.randint(low=0, high=10, size=[3, 8, 5], dtype=torch.int32)
+        index = torch.tensor(
+            self.rng.choice(input.shape[dim], size=[2, 2, 2], replace=False)
+        )
+        src = 2
+        expected = input.scatter_(dim, index, src)
+        actual = DefaultPrimitiveTensor(data=input).scatter_(dim, index, src)
+        assert ops.equal(actual, expected)
+
+    def testInplaceSourceAsTensor(self):
+        dim = 1
+        input = torch.randint(low=0, high=10, size=[3, 8, 5], dtype=torch.int32)
+        index = torch.tensor(
+            self.rng.choice(input.shape[dim], size=[2, 2, 2], replace=False)
+        )
+        src = torch.randint_like(index, low=0, high=10, dtype=torch.int32)
+        expected = input.scatter_(dim, index, src)
+        actual = DefaultPrimitiveTensor(data=input).scatter_(dim, index, src)
+        assert ops.equal(actual, expected)
+
+
+class TestScatterAdd(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(0)
+
+    def test(self):
+        dim = 1
+        input = torch.randint(low=0, high=10, size=[3, 4, 5], dtype=torch.int32)
+        index = torch.randint(
+            low=0, high=input.shape[dim], size=[3, 10, 5], dtype=torch.int64
+        )
+        src = torch.randint_like(index, low=0, high=10, dtype=torch.int32)
+        expected = input.scatter_add(dim, index, src)
+        actual = DefaultPrimitiveTensor(data=input).scatter_add(dim, index, src)
+        assert ops.equal(actual, expected)
 
 
 class TestTraceTensors(TempDirTestBase):

@@ -9,8 +9,8 @@ from typing import Optional
 import torch
 
 from sharktank.layers import *
-from sharktank.ops import softmax, topk, zeros_like
-from sharktank.types import Theta
+from sharktank.ops import softmax, topk, zeros_like, reshard_like
+from sharktank.types import ShardedTensor, Theta
 
 __all__ = [
     "MoeBlock",
@@ -42,10 +42,22 @@ class MoeBlock(ThetaLayer):
         route_scale: Optional[float] = 1.0,
     ):
         super().__init__(theta)
-        if n_expert_groups is not None and expert_count % n_expert_groups != 0:
-            raise ValueError(
-                f"Number of experts {expert_count} must be divisible by the number of expert groups {n_expert_groups}."
-            )
+        if n_expert_groups is not None:
+            if expert_count % n_expert_groups != 0:
+                raise ValueError(
+                    (
+                        f"Number of experts {expert_count} must be divisible by the "
+                        f"number of expert groups {n_expert_groups}."
+                    )
+                )
+            n_experts_per_group = expert_count // n_expert_groups
+            if n_experts_per_group < n_limited_groups:
+                raise ValueError(
+                    (
+                        f"Number of limited expert groups {n_limited_groups} must be at "
+                        f"most the number of experts per group {n_experts_per_group}."
+                    )
+                )
         self.expert_used_count = expert_used_count
         self.expert_count = expert_count
         self.n_expert_groups = n_expert_groups
@@ -102,6 +114,8 @@ class MoeBlock(ThetaLayer):
         # router_logits: (batch_size * sequence_length, expert_count)
         router_logits = self.ffn_gate_inp(ffn_input)
         router_weights = self.score_experts(router_logits.to(torch.float))
+
+        router_weights = reshard_like(router_weights, like=ffn_input)
 
         # Select top k experts from router weights
         if self.n_expert_groups is not None and self.n_limited_groups is not None:

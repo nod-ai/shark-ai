@@ -122,32 +122,35 @@ class DenseFFNMOE(ThetaLayer):
         expert_gate: torch.Tensor,
     ) -> torch.Tensor:
         """
-        h:
-            Input tokens.
-            Shape of (batch_size * sequence_length, input_feature_dim).
-        top_experts_index:
-            indexes of selected top experts for each token.
-            Shape of (batch_size * sequence_length, num_top_experts).
-            Value range is [0, num_of_experts)
-        expert_gate:
-            router weights of selected top experts for each token.
-            Shape of (batch_size * sequence_length, num_top_experts).
+            h:
+                Input tokens.
+                Shape of (batch_size * sequence_length, input_feature_dim).
+            top_experts_index:
+                indexes of selected top experts for each token.
+                Shape of (batch_size * sequence_length, num_top_experts).
+                Value range is [0, num_of_experts)
+            expert_gate:
+                router weights of selected top experts for each token.
+                Shape of (batch_size * sequence_length, num_top_experts).
 
         Returns:
-            Tensor of shape (batch_size * sequence_length, expert_feature_dim)
+                Tensor of shape (batch_size * sequence_length, expert_feature_dim)
         """
         num_tokens, input_feature_dim = h.shape
 
+        router_scores = ops.reshard_like(
+            torch.empty([num_tokens, self.num_experts]), like=h
+        )
         # (self.num_experts, num_tokens)
         router_scores = (
-            torch.full([num_tokens, self.num_experts], 0, dtype=h.dtype)
+            ops.zeros_like(router_scores, dtype=h.dtype)
             .scatter_(1, top_experts_index, expert_gate)
             .transpose(0, 1)
         )
 
         # (self.num_experts, num_tokens)
         router_indices = (
-            torch.arange(num_tokens, device=h.device)
+            ops.reshard_like(torch.arange(num_tokens), router_scores)
             .view(1, -1)
             .expand(self.num_experts, -1)
         )
@@ -168,6 +171,7 @@ class DenseFFNMOE(ThetaLayer):
             self.num_experts * num_tokens, input_feature_dim
         )
         routed_out = routed_out * router_scores.reshape(-1, 1)
+        routed_out = ops.reshard_like(routed_out, like=h)
 
         # (num_tokens, input_feature_dim)
         return ops.zeros_like(h).scatter_add(
