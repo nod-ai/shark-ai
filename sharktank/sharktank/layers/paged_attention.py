@@ -310,7 +310,7 @@ class PagedAttention:
         if isinstance(arg, SplitPrimitiveTensor):
             assert all([a == b for a, b in zip(devices, arg.devices)])
 
-        assert len(set(arg.devices)) == len(arg1.devices)
+        assert len(set(arg.devices)) == len(arg.devices)
         device_map = {d: i for i, d in enumerate(arg.devices)}
         return [arg.shards[device_map[d]] for d in devices]
 
