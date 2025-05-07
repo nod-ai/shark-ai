@@ -130,7 +130,7 @@ class PagedAttention:
 
     def unflatten_page_table(
         self,
-        state: Union[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
+        state: torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor,
         pipeline: int,
     ) -> torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor:
         """Unflattens the 2D page tables to 6D tensors."""
