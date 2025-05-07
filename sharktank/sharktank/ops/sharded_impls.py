@@ -1716,33 +1716,30 @@ def topk_split(
         all_v_loc = []
         all_i_glob = []
         offset = 0
-        running_vals, running_inds = None, None
         for i, shard in enumerate(input.shards):
             v_loc, i_loc = topk(shard, k=k, dim=dim, largest=largest, sorted=sorted)
 
             i_glob = i_loc + offset
             offset += shard.shape[dim]
 
-            if i != 0:
+            if i == 0:
+                v_loc = barrier_on_logical_device(v_loc, input.devices[0])
+                i_glob = barrier_on_logical_device(i_glob, input.devices[0])
+            else:
                 v_loc = transfer_to_logical_device(v_loc, input.devices[0])
                 i_glob = transfer_to_logical_device(i_glob, input.devices[0])
 
-            else:
-                v_loc = barrier_on_logical_device(v_loc, input.devices[0])
-                i_glob = barrier_on_logical_device(i_glob, input.devices[0])
             all_v_loc.append(v_loc)
             all_i_glob.append(i_glob)
 
-        cat_i_glob = torch.cat(all_i_glob, dim=dim)
-        cat_v_loc = torch.cat(all_v_loc, dim=dim)
+        cat_i_glob = cat(all_i_glob, dim=dim)
+        cat_v_loc = cat(all_v_loc, dim=dim)
 
-        running_vals, pos = torch.topk(
-            cat_v_loc, k=k, dim=dim, largest=largest, sorted=sorted
-        )
-        running_inds = torch.take_along_dim(cat_i_glob, pos, dim=dim)
+        total_vals, pos = topk(cat_v_loc, k=k, dim=dim, largest=largest, sorted=sorted)
+        total_inds = torch.take_along_dim(cat_i_glob, pos, dim=dim)
 
-        top_vals = ReplicatedTensor(ts=running_vals, shard_count=input.shard_count)
-        top_inds = ReplicatedTensor(ts=running_inds, shard_count=input.shard_count)
+        top_vals = ReplicatedTensor(ts=total_vals, shard_count=input.shard_count)
+        top_inds = ReplicatedTensor(ts=total_inds, shard_count=input.shard_count)
 
         return top_vals, top_inds
 
