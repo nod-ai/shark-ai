@@ -304,15 +304,15 @@ class PagedAttention:
         return key, value
 
     @staticmethod
-    def deshard_like(arg0, arg1):
-        devices = arg0.devices
+    def deshard_like(like, arg):
+        devices = like.devices
 
-        if isinstance(arg1, SplitPrimitiveTensor):
-            assert all([a == b for a, b in zip(devices, arg1.devices)])
+        if isinstance(arg, SplitPrimitiveTensor):
+            assert all([a == b for a, b in zip(devices, arg.devices)])
 
-        assert len(set(arg1.devices)) == len(arg1.devices)
-        device_map = {d: i for i, d in enumerate(arg1.devices)}
-        return [arg1.shards[device_map[d]] for d in devices]
+        assert len(set(arg.devices)) == len(arg1.devices)
+        device_map = {d: i for i, d in enumerate(arg.devices)}
+        return [arg.shards[device_map[d]] for d in devices]
 
     def write_timestep(
         self,
