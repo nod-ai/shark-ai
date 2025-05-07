@@ -161,10 +161,10 @@ class ClientGenerateBatchProcess(sf.Process):
         # Try to add request to queue
         # TODO(@zphoenixrises): Add load testing and integration tests for this.
         self.prefill_batcher.worker_index = (
-            ClientGenerateBatchProcess.generate_count % len(self.fiber.device_names);
+            ClientGenerateBatchProcess.generate_count % len(self.fiber.device_names)
         )
         self.decode_batcher.worker_index = (
-            ClientGenerateBatchProcess.generate_count % len(self.fiber.device_names);
+            ClientGenerateBatchProcess.generate_count % len(self.fiber.device_names)
         )
         if not self.service.add_to_queue():
             error_response = JSONResponse(
