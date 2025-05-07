@@ -112,7 +112,7 @@ def apply_per_layer_quant(
 
     # It looks dumb but, this step is required for numerical correctness against quark.
     # weight = weight.view(torch.float8_e4m3fn)
-    weight = (weight.to(torch.float64) * weight_quant_scale).to(torch.float16)
+    weight = (weight.to(torch.float64) * weight_quant_scale).to(torch.float32)
 
     weight_quant_zero_point = layer_theta.optional_tensor("weight_zero_point")
     if weight_quant_zero_point == None:
@@ -235,9 +235,10 @@ def apply_per_layer_quant(
 def convert_hf_hparams_to_gguf(hf_hparams: dict[str, any]) -> dict[str, any]:
     hp = hf_hparams["hparams"]
     attention_head_count = _int_prop(hp, "num_attention_heads")
-    attn_head_dim = int(_int_prop(hp, "head_dim"))
-    #    _int_prop(hp, "hidden_size") // _int_prop(hp, "num_attention_heads")
-    # )
+    attn_head_dim = int(
+        _int_prop(hp, "hidden_size") // _int_prop(hp, "num_attention_heads")
+    )
+    attn_head_dim = int(_optional_int_prop(hp, "head_dim", attn_head_dim))
 
     return {
         "llama.context_length": _int_prop(hp, "max_position_embeddings"),
@@ -347,8 +348,6 @@ def main(argv):
             overridden = [
                 key for key in st.keys() if "output_scale" in key.split(".")[-1]
             ]
-            for o in overridden:
-                print(st.get_tensor(o))
     updates = {}
     if OVERRIDE_OUTSCALE_NAME:
         print(
@@ -363,11 +362,9 @@ def main(argv):
             # remove unwanted theta subtree
             quant_theta.pop(o)
             new_name = prefix + ".kv_cache_scale"
-            print(new_name)
             updates[new_name] = value
         for key, value in quant_theta.flatten().items():
             updates[key] = value
-        # print("\n".join([x for x in updates.keys()]))
         quant_theta = Theta(updates)
 
     ds = Dataset(dataset_props, quant_theta)
