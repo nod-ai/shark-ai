@@ -218,7 +218,7 @@ class PrefillBatcherProcess(LlmBatcherProcess):
             cache.page_pool.page_tables,
             self.fiber_pool,
             self.program_isolation,
-            self.worker_index
+            self.worker_index,
         )
 
     def board_request(self, cache, request: LlmInferenceExecRequest):
@@ -464,7 +464,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         #    seq_block_ids: [bs, blocks]
         #    cache_slabs: ...
         args = [tokens, seq_lens, seq_block_ids]
-        page_table=self.page_tables[device_index]
+        page_table = self.page_tables[device_index]
         args.append(sfnp.disable_barrier(page_table))
 
         return args, req_count
@@ -589,7 +589,7 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         #    seq_block_ids: [bs, blocks]
         #    cache_slabs: ...
         args = [tokens, seq_lens, start_positions, seq_block_ids]
-        page_table=self.page_tables[device_index]
+        page_table = self.page_tables[device_index]
         args.append(sfnp.disable_barrier(page_table))
 
         return args, req_count
