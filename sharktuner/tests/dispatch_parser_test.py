@@ -276,13 +276,12 @@ def test_get_group_conv_operation(tuner_ctx: common.TunerContext) -> None:
     }
     """
     module = ir.Module.parse(module_str, context)
-    module = ir.Module.parse(module_str, context)
     root_op_list = iree_codegen.get_tuner_root_ops(module)
     assert len(root_op_list) == 1
     root_op = root_op_list[0]
     parser = dispatch_parser.ConvolutionOpInterfaceParser(root_op)
     assert parser.get_root_op_func_name() == "match_test"
-    assert parser.has_valid_root_op()
+    assert parser.has_valid_root_op() is False, "group convs aren't supported yet"
 
     problem_size = parser.get_problem_size()
     assert problem_size.contraction_dims.batch == [3]
@@ -298,13 +297,13 @@ def test_get_group_conv_operation(tuner_ctx: common.TunerContext) -> None:
 def test_get_generic_conv_operation(tuner_ctx: common.TunerContext) -> None:
     context = tuner_ctx.mlir_ctx
     with ir.Location.name("generic_conv"):
-        # nhwc_fhwc
+        # nhwc_hwcf
         module_str = GENERIC_TEMPLATE.format(
             lhs_type=ir.RankedTensorType.get([2, 7, 7, 32], ir.F16Type.get()),
-            rhs_type=ir.RankedTensorType.get([64, 3, 3, 32], ir.F16Type.get()),
+            rhs_type=ir.RankedTensorType.get([3, 3, 32, 64], ir.F16Type.get()),
             res_type=ir.RankedTensorType.get([2, 5, 5, 64], ir.F32Type.get()),
             lhs_map="affine_map<(d0, d1, d2, d3, d4, d5, d6) -> (d0, d1 + d4, d2 + d5, d6)>",
-            rhs_map="affine_map<(d0, d1, d2, d3, d4, d5, d6) -> (d3, d4, d5, d6)>",
+            rhs_map="affine_map<(d0, d1, d2, d3, d4, d5, d6) -> (d4, d5, d6, d3)>",
             res_map="affine_map<(d0, d1, d2, d3, d4, d5, d6) -> (d0, d1, d2, d3)>",
             iterator_types='["parallel", "parallel", "parallel", "parallel", "reduction", "reduction", "reduction"]',
         )

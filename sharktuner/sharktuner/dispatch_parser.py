@@ -102,7 +102,21 @@ class ConvolutionOpInterfaceParser(DispatchParser):
 
     def has_valid_root_op(self) -> bool:
         root_op = self.get_root_op()
-        return linalg.isa_convolution_op(root_op)
+        if not linalg.isa_convolution_op(root_op):
+            return False
+        convolution_dims = linalg.infer_convolution_dimensions(root_op)
+        assert convolution_dims, "no convolution dimensions"
+        # Only allow 'nhwc_hwcf' convs.
+        if (
+            list(convolution_dims.batch) != [0]
+            or list(convolution_dims.output_image) != [1, 2]
+            or list(convolution_dims.output_channel) != [3]
+            or list(convolution_dims.filter_loop) != [4, 5]
+            or list(convolution_dims.input_channel) != [6]
+            or list(convolution_dims.depth) != []
+        ):
+            return False
+        return True
 
     def get_problem_size(self) -> ProblemSize:
         root_op = self.get_root_op()
