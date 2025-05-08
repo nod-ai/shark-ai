@@ -274,6 +274,7 @@ class wave_flash_attention(CustomOp):
         q_desc.specialize_dims(0, 1, 2, -1)
         k_desc.specialize_dims(0, 1, 2, -1)
         v_desc.specialize_dims(0, 1, 2, -1)
+        o_desc.specialize_dims(0, 1, 2, -1)
 
         # Result 0: Shape batch, num_heads, m, n
         ksel.return_new_tensor((*q_bs, q_s, v_d), dtype=torch.float32).specialize_dims(
@@ -284,6 +285,7 @@ class wave_flash_attention(CustomOp):
         q = kb.arg_value(0)
         k = kb.arg_value(1)
         v = kb.arg_value(2)
+        output = kb.arg_value(3)
 
         q_tensor_type = RankedTensorType(q.type)
         v_tensor_type = RankedTensorType(v.type)
@@ -327,9 +329,6 @@ class wave_flash_attention(CustomOp):
             is_causal=is_causal,
             is_custom_mask=is_custom_mask,
         )
-        q_shape = q.type.shape
-        k_shape = k.type.shape
-        v_shape = v.type.shape
         hyperparams.update(get_default_scheduling_params())
         options = WaveCompileOptions(
             subs=hyperparams,
@@ -344,15 +343,6 @@ class wave_flash_attention(CustomOp):
         options = set_default_run_config(options)
         base_attention = wave_compile(options, base_attention_func)
 
-        # This variant of wave kernel is BHSD
-        o_shape = (
-            batch_size,
-            shape.num_query_heads,
-            shape.query_seq_len,
-            shape.head_size_kv,
-        )
-        output = torch.zeros(o_shape, dtype=torch.float32)
-
         asm = base_attention.asm
 
         target_function = inline_wave_function(
@@ -360,5 +350,5 @@ class wave_flash_attention(CustomOp):
             asm,
             target_function_name,
         )
-        kb.yield_results(*call_function(target_function, q, k, v))
+        kb.yield_results(*call_function(target_function, q, k, v, output))
         pass
