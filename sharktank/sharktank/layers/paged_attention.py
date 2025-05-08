@@ -478,7 +478,6 @@ class PagedAttention:
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)
 
-        breakpoint()
         q = ops.to(q, dtype=self.attn_dtype)
         k = ops.to(k, dtype=self.attn_dtype)
         v = ops.to(v, dtype=self.attn_dtype)
