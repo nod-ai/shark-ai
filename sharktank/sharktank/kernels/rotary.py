@@ -34,8 +34,8 @@ class apply_rotary_embedding(CustomOp):
         input_tensor_type = RankedTensorType(input.type)
         table_tensor_type = RankedTensorType(table.type)
 
-        input_asm_type, input_ident, input_dtype = unpack_tensor_type(input.type)
-        table_asm_type, table_ident, table_dtype = unpack_tensor_type(table.type)
+        input_asm_type, input_ident, dims, input_dtype = unpack_tensor_type(input.type)
+        table_asm_type, table_ident, dims, table_dtype = unpack_tensor_type(table.type)
 
         assert input_dtype == table_dtype
 
