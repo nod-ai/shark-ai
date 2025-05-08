@@ -10,7 +10,7 @@ from shortfin.interop.fastapi import FastAPIResponder
 
 from ..components.generate import ClientGenerateBatchProcess
 from ..components.io_struct import GenerateReqInput
-from ..components.service import GenerateService
+from ..components.service import GenerateService, LlmGenerateMultipleStreamService
 
 generation_router = APIRouter()
 
@@ -23,5 +23,14 @@ async def generate_request(gen_req: GenerateReqInput, request: Request):
     service: GenerateService = request.app.state.services["default"]
     gen_req.post_init()
     responder = FastAPIResponder(request)
-    ClientGenerateBatchProcess(service, gen_req, responder).launch()
+    ClientGenerateBatchProcess(
+        service,
+        gen_req,
+        responder,
+        fiber=(
+            service.main_fiber
+            if isinstance(service, LlmGenerateMultipleStreamService)
+            else None
+        ),
+    ).launch()
     return await responder.response
