@@ -279,6 +279,26 @@ class MatmulTest(unittest.TestCase):
     # TODO: mmt_super_block_scaled_offset_q4_unsigned
 
 
+class InvertTest(unittest.TestCase):
+    def testInvertPrimitiveTensor(self):
+        tensor = torch.rand(2, 3).bool()
+        expected_result = ~tensor
+        actual_result = ~DefaultPrimitiveTensor(data=tensor)
+        assert ops.equal(actual_result, expected_result)
+
+    def testInvertReplicatedTensor(self):
+        tensor = torch.rand(2, 3).bool()
+        expected_result = ~tensor
+        actual_result = ~ReplicatedTensor(ts=tensor, shard_count=2)
+        assert ops.equal(actual_result, expected_result)
+
+    def testInvertSplitTensor(self):
+        tensor = torch.rand(2, 3).bool()
+        expected_result = ~tensor
+        actual_result = ~SplitPrimitiveTensor(ts=tensor, shard_dim=0, shard_count=2)
+        assert ops.equal(actual_result, expected_result)
+
+
 class PermuteTest(unittest.TestCase):
     def testPermute(self):
         torch_tensor = torch.rand(3, 4, 5, dtype=torch.float32)
