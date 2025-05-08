@@ -1635,6 +1635,12 @@ class SoftmaxTest(unittest.TestCase):
         torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
 
 
+class ShardedGatherTest(unittest.TestCase):
+    """TODO:placeholder for Test gather on sharded tensors."""
+
+    pass
+
+
 class SumTest(unittest.TestCase):
     def setUp(self):
         torch.random.manual_seed(12345)
