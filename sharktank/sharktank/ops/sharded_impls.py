@@ -963,19 +963,20 @@ def mean_split(
         ]
         return SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim_new)
     else:
-        gathered = cat(
-            [
-                (
-                    transfer_to_logical_device(shard, x.devices[0])
-                    if i != 0
-                    else barrier_on_logical_device(shard, x.devices[0])
-                )
-                for i, shard in enumerate(x.shards)
-            ],
-            dim=x.shard_dim,
+
+        partial_sums = [
+            sum(shard, dim=dim, keepdim=keepdim, dtype=dtype) for shard in x.shards
+        ]
+        # reduce to x.devices[0] for now - TODO: use all_reduce once IREE supports it
+        total_sum = sharded_sum(UnreducedTensor(ts=partial_sums, devices=x.devices))
+
+        total_cnt = math.prod(x.shape[d] for d in dim)
+
+        global_mean = total_sum / total_cnt
+
+        return ReplicatedTensor(
+            ts=global_mean, shard_count=x.shard_count, devices=x.devices
         )
-        meaned = mean(gathered, dim=dim, keepdim=keepdim, dtype=dtype)
-        return ReplicatedTensor(ts=meaned, shard_count=x.shard_count, devices=x.devices)
 
 
 @module_register_buffer.override(torch.nn.Module, ShardedTensor)
@@ -1363,16 +1364,23 @@ def sharded_cat_unsharded(tensor: SplitPrimitiveTensor):
 
 
 def _sharded_sum_sharded(tensor: ShardedTensor) -> Tensor:
-    accum = tensor.shards[0].as_torch()
-    for shard in tensor.shards[1:]:
-        accum = torch.add(accum, shard.as_torch())
-    return accum
+    reduced = functools.reduce(
+        lambda x, y: elementwise(torch.add, x, y),
+        [
+            (
+                transfer_to_logical_device(shard, tensor.devices[0])
+                if i != 0
+                else barrier_on_logical_device(shard, tensor.devices[0])
+            )
+            for i, shard in enumerate(tensor.shards)
+        ],
+    )
+    return reduced
 
 
 @sharded_sum.override(SplitPrimitiveTensor)
-def sharded_sum_split(maybe_sharded: SplitPrimitiveTensor) -> Tensor:
-    # TODO: Should implement as an all reduce.
-    return _sharded_sum_sharded(maybe_sharded)
+def sharded_sum_split(input: SplitPrimitiveTensor) -> Tensor:
+    return _sharded_sum_sharded(input)
 
 
 @sharded_sum.override(UnreducedTensor)
