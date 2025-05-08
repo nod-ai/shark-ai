@@ -68,7 +68,7 @@ class LlmGenerateMultipleStreamService(GenerateService):
         self.decode_functions = []
         self.fibers = []
         self.inference_program_list: list[sf.Program] = []
-
+        self.distribution_idx = 0
         self.main_worker = self.sysman.ls.create_worker("main_worker")
         self.main_fiber = self.sysman.ls.create_fiber(
             self.main_worker, devices=[self.sysman.ls.devices[0]]
@@ -137,6 +137,7 @@ class LlmGenerateMultipleStreamService(GenerateService):
             self.inference_program_list.append(
                 self.create_program(component_modules, devices=[device])
             )
+            print(self.inference_program_list[idx])
 
         for idx in range(self.num_gpu_streams):
             self.initialize_function_references(idx)
@@ -232,7 +233,7 @@ class LlmGenerateService(GenerateService):
         self.server_params = server_params
         self.max_queue_size = max_queue_size
         self.current_queue_size = 0
-
+        self.distribution_idx = 0
         self.set_isolation(program_isolation)
         self.initialize_worker_and_fiber()
         self.initialize_queues()

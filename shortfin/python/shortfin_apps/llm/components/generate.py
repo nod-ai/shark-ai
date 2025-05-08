@@ -135,7 +135,6 @@ class ClientGenerateBatchProcess(sf.Process):
         "tokenizer",
         "decode_config",
         "service",
-        "distribution_idx",
     ]
 
     def __init__(
@@ -161,7 +160,6 @@ class ClientGenerateBatchProcess(sf.Process):
             else [service.decode_batcher]
         )
         self.complete_infeed = self.system.create_queue()
-        self.distribution_idx = 0
         self.decode_config = service.server_params.decode_config
 
     async def run(self):
@@ -208,8 +206,8 @@ class ClientGenerateBatchProcess(sf.Process):
             for index, input_tokens in enumerate(input_batch):
                 # Truncate distribution_idx to prevent it from growing too large.
                 # We set it to 0 here once we've sent 128 requests on each stream.
-                if self.distribution_idx == 128 * num_streams:
-                    self.distribution_idx = 0
+                if self.service.distribution_idx == 128 * num_streams:
+                    self.service.distribution_idx = 0
                 decode_config = copy(self.decode_config)
                 decode_config.update_from_sampling_params(
                     self.gen_req.sampling_params
@@ -228,9 +226,9 @@ class ClientGenerateBatchProcess(sf.Process):
                     input_tokens if is_pretokenized else input_tokens.ids,
                     eos_token_id=self.tokenizer.eos_token_id,
                     decode_config=decode_config,
-                    stream_idx=(self.distribution_idx % num_streams),
+                    stream_idx=(self.service.distribution_idx % num_streams),
                 )
-                self.distribution_idx += 1
+                self.service.distribution_idx += 1
                 gen_processes.append(gen_process)
                 gen_process.launch()
 
