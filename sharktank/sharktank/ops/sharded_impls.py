@@ -36,6 +36,7 @@ from ._registry import (
 )
 from .shape import broadcast_dims, broadcast_dim, unbroadcast_dim
 from sharktank.utils import longest_equal_range
+from sharktank.utils.math import ceildiv
 from .signatures import *
 
 
@@ -1035,6 +1036,28 @@ def permute_split(tensor: SplitPrimitiveTensor, dims: List[int]):
     return SplitPrimitiveTensor(ts=permuted_shards, shard_dim=permuted_shard_dim)
 
 
+@reduce_scatter.override(UnreducedTensor)
+def reduce_scatter(tensor: UnreducedTensor, scatter_dim: int) -> SplitPrimitiveTensor:
+    # The performance here is contingent on the ability to have multiple transfers in
+    # flight between devices.
+    # Another approach is to reduce into a single device and then scatter.
+    # The approach here moves strictly less data between devices but it would have
+    # higher overhead due to having more transfer ops. What is better would depend
+    # on the size of the tensor. For a 2-device case this should be better.
+
+    if scatter_dim < 0:
+        scatter_dim = len(tensor.shape) + scatter_dim
+    assert scatter_dim < len(tensor.shape)
+
+    unreduced_pieces: tuple[UnreducedTensor, ...] = split(
+        tensor, ceildiv(tensor.shape[scatter_dim], tensor.shard_count), dim=scatter_dim
+    )
+    reduced_shards = [
+        sharded_sum(t, root_rank=i) for i, t in enumerate(unreduced_pieces)
+    ]
+    return SplitPrimitiveTensor(ts=reduced_shards, shard_dim=scatter_dim)
+
+
 @replicate.override(ReplicatedTensor)
 def replicate_replicated(
     input: ReplicatedTensor, *, count: int, devices: None
@@ -1363,14 +1386,18 @@ def sharded_cat_unsharded(tensor: SplitPrimitiveTensor):
 # Sharded sum.
 
 
-def _sharded_sum_sharded(tensor: ShardedTensor) -> Tensor:
+def _sharded_sum_sharded(tensor: ShardedTensor, root_rank: int) -> Tensor:
+    if root_rank < 0 or root_rank >= tensor.shard_count:
+        raise ValueError(
+            f"Root rank {root_rank} must be in the range [0, {tensor.shard_count})"
+        )
     reduced = functools.reduce(
         lambda x, y: elementwise(torch.add, x, y),
         [
             (
-                transfer_to_logical_device(shard, tensor.devices[0])
-                if i != 0
-                else barrier_on_logical_device(shard, tensor.devices[0])
+                transfer_to_logical_device(shard, tensor.devices[root_rank])
+                if i != root_rank
+                else barrier_on_logical_device(shard, tensor.devices[root_rank])
             )
             for i, shard in enumerate(tensor.shards)
         ],
@@ -1379,13 +1406,13 @@ def _sharded_sum_sharded(tensor: ShardedTensor) -> Tensor:
 
 
 @sharded_sum.override(SplitPrimitiveTensor)
-def sharded_sum_split(input: SplitPrimitiveTensor) -> Tensor:
-    return _sharded_sum_sharded(input)
+def sharded_sum_split(input: SplitPrimitiveTensor, root_rank: int) -> Tensor:
+    return _sharded_sum_sharded(input, root_rank)
 
 
 @sharded_sum.override(UnreducedTensor)
-def sharded_sum_unreduced(maybe_sharded: UnreducedTensor) -> Tensor:
-    return _sharded_sum_sharded(maybe_sharded)
+def sharded_sum_unreduced(maybe_sharded: UnreducedTensor, root_rank: int) -> Tensor:
+    return _sharded_sum_sharded(maybe_sharded, root_rank)
 
 
 @sigmoid.override(ShardedTensor)
@@ -1405,6 +1432,17 @@ def softmax_split(
     return SplitPrimitiveTensor(
         ts=shards, shard_dim=tensor.shard_dim, shape=tensor.shape
     )
+
+
+@split.override(UnreducedTensor)
+def split_unreduced(
+    tensor: UnreducedTensor, split_size_or_sections: int | list[int], dim: int = 0
+) -> tuple[UnreducedTensor, ...]:
+    splits_per_shard = [
+        split(shard, split_size_or_sections, dim) for shard in tensor.shards
+    ]
+    shards_per_split = list(zip(*splits_per_shard))
+    return [UnreducedTensor(ts=shards) for shards in shards_per_split]
 
 
 @sum.override(SplitPrimitiveTensor)

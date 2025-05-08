@@ -544,6 +544,15 @@ def softmax_default(
     return F.softmax(unbox_tensor(tensor), dim=dim, dtype=dtype)
 
 
+@split.override(Tensor)
+def split_default(
+    tensor: Tensor | PrimitiveTensor,
+    split_size_or_sections: int | list[int],
+    dim: int = 0,
+) -> tuple[Tensor, ...]:
+    return torch.split(unbox_tensor(tensor), split_size_or_sections, dim)
+
+
 @to.override(Tensor)
 def to_default(tensor: Tensor, *args, **kwargs) -> Tensor:
     return unbox_tensor(tensor).to(*args, **kwargs)
@@ -580,14 +589,26 @@ def transpose_default(
 # Sharded default impls (do nothing).
 
 
+@reduce_scatter.override(Tensor)
+def reduce_scatter_unsharded(
+    tensor: AnyTensor, scatter_dim: int
+) -> Tensor | InferenceTensor:
+    return tensor
+
+
 @sharded_cat.override(Tensor)
 def sharded_cat_unsharded(maybe_sharded):
     return unbox_tensor(maybe_sharded)
 
 
 @sharded_sum.override(Tensor)
-def sharded_sum_unsharded(maybe_sharded):
-    return unbox_tensor(maybe_sharded)
+def sharded_sum_unsharded(tensor: Tensor, root_rank: int) -> Tensor:
+    if root_rank != 0:
+        raise ValueError(
+            f"sharded_sum destination rank {root_rank} is invalid for"
+            f" tensor of type {type(tensor)}. Only rank of 0 is allowed"
+        )
+    return unbox_tensor(tensor)
 
 
 @sum.override(AllOfType(Tensor, PrimitiveTensor))
