@@ -465,6 +465,35 @@ def main():
         ):
             return ops.argmax(logits, axis, chunk_size=hp.context_length // 1024)
 
+    def generate_top_k(k: int):
+        dtype = llama_config.activation_dtype
+        if "float8" in str(dtype) or dtype == torch.bfloat16:
+            dtype = torch.float16
+
+        logits: torch.Tensor = torch.empty(
+            1,
+            1,
+            131072,
+            dtype=dtype,
+        )
+
+        @fxb.export_program(
+            name=f"topk_k{k}",
+            args=(logits,),
+            dynamic_shapes={},
+            strict=args.strict,
+            arg_device={},
+        )
+        def _(
+            _,
+            logits=logits,
+            k=k,
+            dim=-1,
+            largest=True,
+            _sorted=True,
+        ):
+            return ops.topk(logits, k, dim, largest, _sorted, chunk_size=1024)
+
     if not args.skip_prefill:
         for bs in args.bs_prefill:
             generate_batch_prefill(bs)
@@ -472,9 +501,14 @@ def main():
         for bs in args.bs_decode:
             generate_batch_decode(bs)
 
-    if args.top_k is not None:
-        if args.top_k == 1:
-            generate_argmax()
+    top_k = args.top_k
+    if top_k is not None:
+        for k in top_k:
+            if k == 1:
+                generate_argmax()
+
+            elif k > 1:
+                generate_top_k(k)
 
     config = generate_params_json(
         hp, args.bs_prefill, args.bs_decode, args.logits_normalization

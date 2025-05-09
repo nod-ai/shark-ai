@@ -150,8 +150,9 @@ class ModelParams:
     # TODO(stbaione): Update comment when export with `top_k > 1` is enabled.
     # Define the `top_k` kernel that model was exported with.
     # If `top_k` is None, no `top_k` kernels were exported.
-    # If `top_k == 1`, argmax is exported.
-    top_k: int | None = None
+    # If `top_k == 1`, `argmax` is exported.
+    # If `top_k` > 1, `topk_k{k}` is exported.
+    top_k: List[int] | None = None
 
     # Cache parameters.
     paged_kv_cache: PagedKVCacheParams | None = None
