@@ -89,10 +89,14 @@ class LlmGenerateService(GenerateService):
         self.main_worker = self.sysman.ls.create_worker(f"{self.name}-inference-main-0")
         self.main_fiber = self.sysman.ls.create_fiber(self.main_worker)
 
-        self.prefill_worker = self.sysman.ls.create_worker(f"{self.name}-inference-prefill-0")
+        self.prefill_worker = self.sysman.ls.create_worker(
+            f"{self.name}-inference-prefill-0"
+        )
         self.prefill_fiber = self.sysman.ls.create_fiber(self.prefill_worker)
 
-        self.decode_worker = self.sysman.ls.create_worker(f"{self.name}-inference-decode-0")
+        self.decode_worker = self.sysman.ls.create_worker(
+            f"{self.name}-inference-decode-0"
+        )
         self.decode_fiber = self.sysman.ls.create_fiber(self.decode_worker)
 
         self.devices = self.prefill_fiber.devices_dict.values()
