@@ -11,8 +11,18 @@ from shortfin.interop.fastapi import FastAPIResponder
 from ..components.generate import ClientGenerateBatchProcess
 from ..components.io_struct import GenerateReqInput
 from ..components.service import GenerateService
+from ..components.pool import PoolTask
 
 generation_router = APIRouter()
+
+
+class LLMTask(PoolTask):
+    def __init__(self, process):
+        self.process = process
+
+    async def do_work(self):
+        self.process.launch()
+        await self.process.responder.response
 
 
 @generation_router.post("/generate")
@@ -23,5 +33,8 @@ async def generate_request(gen_req: GenerateReqInput, request: Request):
     service: GenerateService = request.app.state.services["default"]
     gen_req.post_init()
     responder = FastAPIResponder(request)
-    ClientGenerateBatchProcess(service, gen_req, responder, fiber=service.main_fiber).launch()
+    process = ClientGenerateBatchProcess(
+        service, gen_req, responder, fiber=service.main_fiber
+    )
+    service.pool.enqueue(LLMTask(process))
     return await responder.response

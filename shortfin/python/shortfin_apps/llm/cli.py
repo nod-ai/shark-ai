@@ -17,6 +17,7 @@ from pathlib import Path
 from shortfin import ProgramIsolation
 from shortfin.support.logging_setup import configure_main_logger
 from shortfin.support.responder import AbstractResponder
+from shortfin_apps.llm.components.pool import Pool, PoolTask
 
 from .components.generate import ClientGenerateBatchProcess
 from .components.io_struct import GenerateReqInput, SamplingParams
@@ -243,41 +244,38 @@ async def main(argv):
         task = Task(p)
         tasks.append(task)
 
-    async def worker(name, queue, fiber):
-        while True:
-            task = await queue.get()
+    pool = Pool(worker_count=args.workers_offline)
+
+    class LLMTask(PoolTask):
+        def __init__(self, task, sampling, fiber):
+            self.task = task
+            self.sampling = sampling
+            self.fiber = fiber
+
+        async def do_work(self):
             responder = CliResponder()
             gen_req = GenerateReqInput(
-                text=task.prompt, sampling_params=sampling_params
+                text=self.task.prompt, sampling_params=self.sampling
             )
-            ClientGenerateBatchProcess(service, gen_req, responder, fiber=fiber).launch()
+            ClientGenerateBatchProcess(
+                service, gen_req, responder, fiber=self.fiber
+            ).launch()
             await responder.response
-            task.responder = responder
-            task.result = responder.response.result()
-            queue.task_done()
-
-    logger.info(msg=f"Setting up {args.workers_offline} workers")
-    workers = []
-    queue = asyncio.Queue()
-    for i in range(args.workers_offline):
-        name = f"worker-{i}"
-        workerr = service.sysman.ls.create_worker(name)
-        fiber = service.sysman.ls.create_fiber(workerr)
-        w = asyncio.create_task(worker(name, queue, fiber))
-        workers.append(w)
+            self.task.responder = responder
+            self.task.result = responder.response.result()
 
     logger.info(msg=f"Processing tasks")
 
+    for t in tasks:
+        pool.enqueue(LLMTask(t, sampling_params, service.main_fiber))
+
     global_timer = Timer()
     global_timer.start()
-    for t in tasks:
-        queue.put_nowait(t)
+    pool.start()
 
-    await queue.join()
+    await pool.wait()
     global_timer.end()
-
-    for w in workers:
-        w.cancel()
+    pool.shutdown()
 
     if args.benchmark:
         latency_sum = sum([s.runtime() for s in tasks])

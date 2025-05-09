@@ -11,7 +11,7 @@ from typing import List
 
 import shortfin as sf
 
-
+from .pool import Pool
 from .batcher import PrefillBatcherProcess, DecodeBatcherProcess
 from .config_struct import ModelParams, ServerParams
 from .kvcache.base_attention_cache import (
@@ -80,19 +80,20 @@ class LlmGenerateService(GenerateService):
 
     def initialize_worker_and_fiber(self):
         num_workers = self.server_params.workers
-        fibers_per_worker = self.server_params.fibers_per_worker
-
-        logger.info(
-            f"Creating {num_workers} workers, with {fibers_per_worker} fibers per worker..."
-        )
+        logger.info(f"Creating {num_workers} workers")
+        self.pool = Pool(worker_count=32)
 
         self.main_worker = self.sysman.ls.create_worker(f"{self.name}-inference-main-0")
         self.main_fiber = self.sysman.ls.create_fiber(self.main_worker)
 
-        self.prefill_worker = self.sysman.ls.create_worker(f"{self.name}-inference-prefill-0")
+        self.prefill_worker = self.sysman.ls.create_worker(
+            f"{self.name}-inference-prefill-0"
+        )
         self.prefill_fiber = self.sysman.ls.create_fiber(self.prefill_worker)
 
-        self.decode_worker = self.sysman.ls.create_worker(f"{self.name}-inference-decode-0")
+        self.decode_worker = self.sysman.ls.create_worker(
+            f"{self.name}-inference-decode-0"
+        )
         self.decode_fiber = self.sysman.ls.create_fiber(self.decode_worker)
 
         self.devices = self.prefill_fiber.devices_dict.values()
@@ -147,8 +148,14 @@ class LlmGenerateService(GenerateService):
             self.prog_isolation,
         )
 
+        self.pool.start()
         self.prefill_batcher.launch()
         self.decode_batcher.launch()
+
+    def shutdown(self):
+        self.pool.shutdown()
+        self.prefill_batcher.shutdown()
+        self.decode_batcher.shutdown()
 
     def initialize_function_references(self):
         self.prefill_functions = {}
