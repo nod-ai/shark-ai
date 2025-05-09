@@ -4,7 +4,9 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import Callable, List, Union
+from typing import Callable, Dict, List, Tuple, Union
+
+import shortfin as sf
 
 from .base_token_selection_strategy import (
     BaseTokenSelectionStrategy,
@@ -13,14 +15,15 @@ from .base_token_selection_strategy import (
 
 from .config import (
     DecodeConfig,
-    TokenSelectionStrategy,
     get_strategy_from_str,
     is_ref_counted,
+    SamplingKernels,
+    TokenSelectionStrategy,
 )
 from .beam_search_token_selection_strategy import BeamSearchTokenSelectionStrategy
 from .greedy_token_selection_strategy import GreedyTokenSelectionStrategy
 from .multi_greedy_token_selection_strategy import MultiGreedyTokenSelectionStrategy
-from .sampler import Sampler
+from .sampler import GPUSampler, CPUSampler
 
 
 def build_token_selector_config(
@@ -29,6 +32,7 @@ def build_token_selector_config(
     decode_batcher,
     results_callback: Callable[[Union[int, List[int]]], None],
     eos_token_id: int,
+    sampling_kernels: Dict[str, sf.ProgramFunction] | None = None,
 ) -> TokenSelectionStrategyConfig:
     """Build a configuration class for a given token selection strategy.
 
@@ -61,7 +65,17 @@ def build_token_selector_config(
         decode_end_callback=decode_batcher.complete_workitem,
         results_callback=results_callback,
         eos_token_id=eos_token_id,
+        sampling_kernels=sampling_kernels,
     )
+
+
+def _get_samplers(
+    config: TokenSelectionStrategyConfig,
+) -> Tuple[CPUSampler, GPUSampler | None]:
+    if config.sampling_kernels is None:
+        return CPUSampler(), None
+
+    return CPUSampler(), GPUSampler(config.sampling_kernels)
 
 
 def build_token_selector(
@@ -90,7 +104,13 @@ def build_token_selector(
             f"Supported strategies: {','.join([strategy.name for strategy in TokenSelectionStrategy])}"
         )
 
-    return strategy_map[config.decode_config.token_selection_strategy](config)
+    cpu_sampler, gpu_sampler = _get_samplers(config)
+
+    return strategy_map[config.decode_config.token_selection_strategy](
+        config,
+        cpu_sampler=cpu_sampler,
+        gpu_sampler=gpu_sampler,
+    )
 
 
 def is_multi_response(token_selection_strategy: TokenSelectionStrategy):
@@ -106,7 +126,9 @@ __all__ = [
     "BaseTokenSelectionStrategy",
     "TokenSelectionStrategyConfig",
     "TokenSelectionStrategy",
-    "Sampler",
+    "CPUSampler",
+    "GPUSampler",
+    "SamplingKernels",
     "BeamSearchTokenSelectionStrategy",
     "GreedyTokenSelectionStrategy",
     "MultiGreedyTokenSelectionStrategy",

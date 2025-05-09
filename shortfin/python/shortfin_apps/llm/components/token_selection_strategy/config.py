@@ -27,6 +27,12 @@ class LogitsNormalization(Enum):
         raise KeyError(f"Unknown token_selection_strategy: {value}")
 
 
+class SamplingKernels(Enum):
+    """Supported kernels for sampling on the GPU."""
+
+    ARGMAX = "argmax"
+
+
 def get_normalization_from_str(token_selection_strategy: str) -> LogitsNormalization:
     name_to_strategy = {
         strategy.name.lower(): strategy for strategy in LogitsNormalization

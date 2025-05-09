@@ -89,6 +89,7 @@ class ModelConfig:
     tensor_parallelism_size: Optional[
         int
     ] = None  # Number of shards for tensor parallelism
+    top_k: Optional[int] = None
 
     def __post_init__(self):
         if self.source == ModelSource.HUGGINGFACE_FROM_GGUF:
@@ -193,6 +194,15 @@ _PREDEFINED_MODELS = {
         tokenizer_id="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
         batch_sizes=(4,),
         device_settings=None,
+    ),
+    "tinystories_llama2_25m_gpu_argmax": ModelConfig(
+        source=ModelSource.HUGGINGFACE_FROM_SAFETENSORS,
+        dataset_name="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
+        model_file="model.irpa",  # This will be the final converted file name
+        tokenizer_id="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
+        batch_sizes=(4,),
+        device_settings=None,
+        top_k=1,
     ),
 }
 
@@ -476,6 +486,9 @@ class ModelStageManager:
             export_cmd.append(
                 f"--tensor-parallelism-size={self.config.tensor_parallelism_size}"
             )
+
+        if self.config.top_k is not None:
+            export_cmd.append(f"--top-k={self.config.top_k}")
 
         logger.info(f"Running export command: {' '.join(export_cmd)}")
 

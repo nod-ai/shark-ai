@@ -4,18 +4,46 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from dataclasses import dataclass
-
 import random
-from typing import List
 
+from dataclasses import dataclass
+from typing import Dict, List
+
+import shortfin as sf
 import shortfin.array as sfnp
 
 from shortfin_apps.utils import convert_int_to_float
 
+from .config import SamplingKernels
+
 
 @dataclass
-class Sampler:
+class GPUSampler:
+
+    sampling_kernels: Dict[str, sf.ProgramFunction]
+
+    async def select_greedy(self, logits: sfnp.device_array, fiber: sf.Fiber) -> int:
+        """Greedily select a single token using `argmax`.
+
+        Args:
+            logits (sfnp.device_array): Logits from decode.
+            beam_id (int): Beam ID.
+
+        Returns:
+            int: Max token.
+        """
+        argmax_fn = self.sampling_kernels[SamplingKernels.ARGMAX.value]
+
+        (argmax_result,) = await argmax_fn(logits, fiber=fiber)
+        argmax_result_host = argmax_result.for_transfer()
+        argmax_result_host.copy_from(argmax_result)
+
+        await logits.device
+        return argmax_result_host.items.tolist()[0]
+
+
+@dataclass
+class CPUSampler:
     def sample_top_k(self, tokens: List[int], probs: List[float], k: int):
         choices: List[int] = random.choices(tokens, weights=probs, k=k)
         token_prob_map = dict(zip(tokens, probs))

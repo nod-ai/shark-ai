@@ -17,7 +17,7 @@ import shortfin.array as sfnp
 
 from .base_token_selection_strategy import DecodeConfig
 from .config import LogitsNormalization
-from .sampler import Sampler
+from .sampler import GPUSampler, CPUSampler
 from ..messages import LlmInferenceExecRequest
 
 from shortfin_apps.utils import (
@@ -37,7 +37,8 @@ class Beam(ABC):
 
     decode_config: DecodeConfig
 
-    sampler: Sampler = field(default_factory=Sampler)
+    cpu_sampler: CPUSampler
+    gpu_sampler: GPUSampler | None
 
     score: float = 0.0
     accumulated_normalization: float = 0.0
@@ -129,7 +130,7 @@ class Beam(ABC):
         return probs
 
     def _sample_logits_top_k(self, logits: sfnp.device_array, top_k, num_selections):
-        tokens, values = self.sampler.select_top_k(logits, -top_k)
+        tokens, values = self.cpu_sampler.select_top_k(logits, -top_k)
 
         probs = self._to_softmax(
             values,
@@ -138,19 +139,25 @@ class Beam(ABC):
             self.decode_config.logits_normalization,
         )
 
-        return self.sampler.sample_top_k(
+        return self.cpu_sampler.sample_top_k(
             tokens,
             probs,
             k=num_selections,
         )
 
     def _sample_logits_top_p(self, tokens, probs, top_p, num_selections):
-        return self.sampler.sample_top_p(
+        return self.cpu_sampler.sample_top_p(
             tokens=tokens,
             probs=probs,
             p=top_p,
             k=num_selections,
         )
+
+    async def _transfer_logits_to_host(self, logits: sfnp.device_array):
+        logits_host = logits.for_transfer()
+        logits_host.copy_from(logits)
+        await logits.device
+        return logits_host
 
     @abstractmethod
     def update_score(self, value: float):
@@ -207,10 +214,11 @@ class BeamGroup:
         done_signals = [beam.exec_req.done for beam in self.active_beams]
         return await gather(*done_signals)
 
-    def process_beams(self):
-        beam_selections = self.selection_callback(
+    async def process_beams(self):
+        beam_selections = await self.selection_callback(
             self.active_beams, self.completed_beams
         )
+
         visited_reqs: Dict[str, LlmInferenceExecRequest] = {}
         active_beams: List[Beam] = []
         active_reqs: Set[LlmInferenceExecRequest] = set()

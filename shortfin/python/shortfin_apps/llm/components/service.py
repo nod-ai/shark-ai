@@ -22,7 +22,11 @@ from .kvcache.page_pool import PagePoolConfig, PagePool
 from .manager import LlmSystemManager
 from .service_debug_dumper import SERVICE_DEBUG_DUMPER
 from .tokenizer import Tokenizer
-from .token_selection_strategy import get_strategy_from_str, is_ref_counted
+from .token_selection_strategy import (
+    get_strategy_from_str,
+    is_ref_counted,
+    SamplingKernels,
+)
 
 from ...utils import GenerateService
 
@@ -35,6 +39,7 @@ class LlmGenerateService(GenerateService):
     inference_program: sf.Program
     prefill_functions: dict[int, sf.ProgramFunction]
     decode_functions: dict[int, sf.ProgramFunction]
+    sampling_kernels: dict[str, sf.ProgramFunction] | None
 
     def __init__(
         self,
@@ -165,6 +170,18 @@ class LlmGenerateService(GenerateService):
         for bs in self.model_params.decode_batch_sizes:
             self.decode_functions[bs] = self.inference_program[
                 f"{self.model_params.module_name}.decode_bs{bs}"
+            ]
+
+        top_k = self.model_params.top_k
+        if top_k is None:
+            return
+
+        self.sampling_kernels = {}
+        if top_k == 1:
+            self.sampling_kernels[
+                SamplingKernels.ARGMAX.value
+            ] = self.inference_program[
+                f"{self.model_params.module_name}.{SamplingKernels.ARGMAX.value}"
             ]
 
     def __repr__(self):

@@ -232,6 +232,9 @@ class ServerParams:
 
     decode_config: DecodeConfig | None = None
 
+    # Enable using GPU kernels for sampling, if they are available.
+    enable_gpu_sampling: bool = False
+
     # Device configuration
     device_ids: list[str] = field(default_factory=list)
     amdgpu_async_allocations: bool = False

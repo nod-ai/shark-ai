@@ -15,6 +15,7 @@ from shortfin_apps.llm.components.messages import (
 )
 from shortfin_apps.llm.components.token_selection_strategy import (
     BaseTokenSelectionStrategy,
+    CPUSampler,
     DecodeConfig,
     TokenSelectionStrategyConfig,
 )
@@ -49,9 +50,16 @@ def decode_config():
 
 
 class DummyTokenSelectionStrategy(BaseTokenSelectionStrategy):
-    def __init__(self, token_selection_strategy_config: TokenSelectionStrategyConfig):
+    def __init__(
+        self,
+        token_selection_strategy_config: TokenSelectionStrategyConfig,
+        cpu_sampler: CPUSampler,
+        gpu_sampler=None,
+    ):
         # Initialize with a dummy config instance.
         self._token_selection_strategy_config = token_selection_strategy_config
+        self.cpu_sampler = cpu_sampler
+        self.gpu_sampler = gpu_sampler
 
     @property
     def token_selection_strategy_config(self):
@@ -65,4 +73,6 @@ class DummyTokenSelectionStrategy(BaseTokenSelectionStrategy):
 def dummy_token_selection_strategy():
     yield DummyTokenSelectionStrategy(
         None,
+        cpu_sampler=CPUSampler(),
+        gpu_sampler=None,
     )

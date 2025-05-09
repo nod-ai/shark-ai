@@ -69,6 +69,12 @@ class GenerateItemProcess(sf.Process):
         self.result_token_ids: list[int] = []
         self.eos_token_id = eos_token_id
         self.decode_config = decode_config
+
+        sampling_kernels = (
+            self.client.service.sampling_kernels
+            if self.client.service.server_params.enable_gpu_sampling
+            else None
+        )
         self.token_selector_config: TokenSelectionStrategyConfig = (
             build_token_selector_config(
                 decode_config,
@@ -76,6 +82,7 @@ class GenerateItemProcess(sf.Process):
                 decode_batcher=self.client.decode_batcher,
                 results_callback=self.results_callback,
                 eos_token_id=self.eos_token_id,
+                sampling_kernels=sampling_kernels,
             )
         )
         self.token_selector: BaseTokenSelectionStrategy = build_token_selector(

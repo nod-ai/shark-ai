@@ -28,7 +28,7 @@ from shortfin_apps.llm.components.kvcache.base_attention_cache import (
 from shortfin_apps.llm.components.kvcache.page_pool import PagePool, PageInfo
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def lsys():
     sc = sf.host.CPUSystemBuilder()
     lsys = sc.create_system()
@@ -36,12 +36,12 @@ def lsys():
     lsys.shutdown()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def fiber(lsys):
     return lsys.create_fiber()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def device(fiber):
     return fiber.device(0)
 
