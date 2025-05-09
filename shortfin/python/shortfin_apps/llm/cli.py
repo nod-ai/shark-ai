@@ -244,7 +244,7 @@ async def main(argv):
         task = Task(p)
         tasks.append(task)
 
-    pool = Pool(worker_count=args.workers_offline)
+    pool = Pool(worker_count=args.workers_offline, service=service)
 
     class LLMTask(PoolTask):
         def __init__(self, task, sampling, fiber):

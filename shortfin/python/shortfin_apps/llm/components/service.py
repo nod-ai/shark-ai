@@ -79,9 +79,9 @@ class LlmGenerateService(GenerateService):
             self.current_queue_size -= 1
 
     def initialize_worker_and_fiber(self):
-        num_workers = self.server_params.workers
-        logger.info(f"Creating {num_workers} workers")
-        self.pool = Pool(worker_count=32)
+        # num_workers = self.server_params.workers
+        # logger.info(f"Creating {num_workers} workers")
+        # self.pool = Pool(worker_count=32)
 
         self.main_worker = self.sysman.ls.create_worker(f"{self.name}-inference-main-0")
         self.main_fiber = self.sysman.ls.create_fiber(self.main_worker)
@@ -148,12 +148,12 @@ class LlmGenerateService(GenerateService):
             self.prog_isolation,
         )
 
-        self.pool.start()
+        # self.pool.start()
         self.prefill_batcher.launch()
         self.decode_batcher.launch()
 
     def shutdown(self):
-        self.pool.shutdown()
+        # self.pool.shutdown()
         self.prefill_batcher.shutdown()
         self.decode_batcher.shutdown()
 
