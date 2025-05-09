@@ -17,7 +17,7 @@ def lifecycle(app: FastApi):
 from .config_struct import ModelParams, ServerParams
 from .token_selection_strategy import DecodeConfig
 from .manager import LlmSystemManager
-from .service import LlmGenerateService
+from .service import LlmGenerateService, LlmGenerateMultipleStreamService
 from .tokenizer import Tokenizer
 from typing import TYPE_CHECKING
 from fastapi import FastAPI
@@ -25,6 +25,7 @@ from fastapi import FastAPI
 
 from contextlib import asynccontextmanager
 import logging
+import os
 
 
 def get_eos_from_tokenizer_config(json_path):
@@ -54,7 +55,9 @@ class ShortfinLlmLifecycleManager:
             args.server_config if hasattr(args, "server_config") else None
         )
         server_params.update_from_args(args)
-
+        os.environ["SHORTFIN_AMDGPU_LOGICAL_DEVICES_PER_PHYSICAL_DEVICE"] = str(
+            args.num_hip_streams
+        )
         if server_params.decode_config is None:
             decode_config = DecodeConfig(
                 args.num_beams,
@@ -78,13 +81,19 @@ class ShortfinLlmLifecycleManager:
         tokenizer = Tokenizer.from_tokenizer_json_file(
             args.tokenizer_json, eos_token=eos_token
         )
-        service = LlmGenerateService(
+        service_cls = (
+            LlmGenerateService
+            if args.num_hip_streams == 1
+            else LlmGenerateMultipleStreamService
+        )
+        service = service_cls(
             name="default",
             sysman=sysman,
             tokenizer=tokenizer,
             model_params=model_params,
             server_params=server_params,
             program_isolation=server_params.program_isolation,
+            num_gpu_streams=args.num_hip_streams,
         )
         service.load_inference_module(args.vmfb)
         service.load_inference_parameters(*args.parameters, parameter_scope="model")

@@ -142,6 +142,12 @@ def add_service_args(parser: argparse.ArgumentParser):
         default=None,
         help="Workload size to benchmark with",
     )
+    parser.add_argument(
+        "--num_hip_streams",
+        type=int,
+        default=1,
+        help="When running on one physical device, open more than one HIP stream to queue up work parallely on the GPU.",
+    )
 
 
 def parse_args(argv):

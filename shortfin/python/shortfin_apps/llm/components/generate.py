@@ -29,7 +29,7 @@ from .io_struct import (
     PromptResponse,
 )
 from .messages import LlmInferenceExecRequest, InferencePhase
-from .service import LlmGenerateService
+from .service import LlmGenerateService, LlmGenerateMultipleStreamService
 from .token_selection_strategy import (
     BaseTokenSelectionStrategy,
     TokenSelectionStrategyConfig,
@@ -59,6 +59,7 @@ class GenerateItemProcess(sf.Process):
         input_token_ids: list[int],
         eos_token_id: int,
         decode_config: DecodeConfig,
+        stream_idx: int,
     ):
         super().__init__(fiber=client.fiber)
         self.client = client
@@ -69,11 +70,12 @@ class GenerateItemProcess(sf.Process):
         self.result_token_ids: list[int] = []
         self.eos_token_id = eos_token_id
         self.decode_config = decode_config
+        self.stream_idx = stream_idx
         self.token_selector_config: TokenSelectionStrategyConfig = (
             build_token_selector_config(
                 decode_config,
-                prefill_batcher=self.client.prefill_batcher,
-                decode_batcher=self.client.decode_batcher,
+                prefill_batcher=self.client.prefill_batchers[stream_idx],
+                decode_batcher=self.client.decode_batchers[stream_idx],
                 results_callback=self.results_callback,
                 eos_token_id=self.eos_token_id,
             )
@@ -90,7 +92,7 @@ class GenerateItemProcess(sf.Process):
             input_token_ids=self.input_token_ids,
             rid=self.gen_req.rid,
         )
-        exec_req._cache = self.client.prefill_batcher.page_cache
+        exec_req._cache = self.client.prefill_batchers[self.stream_idx].page_cache
         try:
             # Prefill result.
             await self.token_selector.prefill(exec_req)
@@ -126,9 +128,9 @@ class ClientGenerateBatchProcess(sf.Process):
 
     __slots__ = [
         "complete_infeed",
-        "decode_batcher",
+        "decode_batchers",
         "gen_req",
-        "prefill_batcher",
+        "prefill_batchers",
         "responder",
         "tokenizer",
         "decode_config",
@@ -137,7 +139,7 @@ class ClientGenerateBatchProcess(sf.Process):
 
     def __init__(
         self,
-        service: LlmGenerateService,
+        service: LlmGenerateService | LlmGenerateMultipleStreamService,
         gen_req: GenerateReqInput,
         responder: FastAPIResponder,
         fiber: sf.Fiber | None = None,
@@ -147,15 +149,24 @@ class ClientGenerateBatchProcess(sf.Process):
         self.gen_req = gen_req
         self.responder = responder
         self.tokenizer = service.tokenizer
-        self.prefill_batcher = service.prefill_batcher
-        self.decode_batcher = service.decode_batcher
+        self.prefill_batchers = (
+            service.prefill_batchers
+            if isinstance(service, LlmGenerateMultipleStreamService)
+            else [service.prefill_batcher]
+        )
+        self.decode_batchers = (
+            service.decode_batchers
+            if isinstance(service, LlmGenerateMultipleStreamService)
+            else [service.decode_batcher]
+        )
         self.complete_infeed = self.system.create_queue()
-
         self.decode_config = service.server_params.decode_config
 
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
-
+        have_multiple_streams = isinstance(
+            self.service, LlmGenerateMultipleStreamService
+        )
         # Try to add request to queue
         # TODO(@zphoenixrises): Add load testing and integration tests for this.
         if not self.service.add_to_queue():
@@ -188,7 +199,15 @@ class ClientGenerateBatchProcess(sf.Process):
             else:
                 input_batch = self.tokenize()
 
+            num_streams = self.service.num_gpu_streams if have_multiple_streams else 1
+
+            # This is the point where we split requests into batchers. When we have mulitple streams
+            # running, we maintain a distribution index that decides where to send the current request.
             for index, input_tokens in enumerate(input_batch):
+                # Truncate distribution_idx to prevent it from growing too large.
+                # We set it to 0 here once we've sent 128 requests on each stream.
+                if self.service.distribution_idx == 128 * num_streams:
+                    self.service.distribution_idx = 0
                 decode_config = copy(self.decode_config)
                 decode_config.update_from_sampling_params(
                     self.gen_req.sampling_params
@@ -199,13 +218,17 @@ class ClientGenerateBatchProcess(sf.Process):
                     self,
                     self.gen_req,
                     index,
-                    self.gen_req.text
-                    if self.gen_req.is_single
-                    else self.gen_req.text[index],
+                    (
+                        self.gen_req.text
+                        if self.gen_req.is_single
+                        else self.gen_req.text[index]
+                    ),
                     input_tokens if is_pretokenized else input_tokens.ids,
                     eos_token_id=self.tokenizer.eos_token_id,
                     decode_config=decode_config,
+                    stream_idx=(self.service.distribution_idx % num_streams),
                 )
+                self.service.distribution_idx += 1
                 gen_processes.append(gen_process)
                 gen_process.launch()
 
