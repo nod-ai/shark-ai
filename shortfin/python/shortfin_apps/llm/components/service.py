@@ -85,18 +85,26 @@ class LlmGenerateService(GenerateService):
         logger.info(
             f"Creating {num_workers} workers, with {fibers_per_worker} fibers per worker..."
         )
-        fibers = []
+        prefill_fibers = []
+        decode_fibers = []
         for i in range(num_workers):
-            worker = self.sysman.ls.create_worker(f"{self.name}-inference-{i}")
+            prefill_worker = self.sysman.ls.create_worker(f"{self.name}-prefill_inference-{i}")
+            decode_worker = self.sysman.ls.create_worker(f"{self.name}-decode_inference-{i}")
             for _ in range(fibers_per_worker):
-                fiber = self.sysman.ls.create_fiber(worker)
-                fibers.append(fiber)
+                prefill_fiber = self.sysman.ls.create_fiber(prefill_worker)
+                prefill_fibers.append(prefill_fiber)
+                decode_fiber = self.sysman.ls.create_fiber(decode_worker)
+                decode_fibers.append(decode_fiber)
 
-        self.fiber_pool = FiberPool(
-            fibers,
-            fibers,
+        self.prefill_fiber_pool = FiberPool(
+            prefill_fibers,
+            prefill_fibers,
         )
-        self.devices = fibers[0].devices_dict.values()
+        self.decode_fiber_pool = FiberPool(
+            decode_fibers,
+            decode_fibers,
+        )
+        self.devices = prefill_fibers[0].devices_dict.values()
 
     def initialize_page_cache(self):
         """Initialize page pool and attention cache."""
@@ -133,7 +141,7 @@ class LlmGenerateService(GenerateService):
         self.initialize_function_references()
 
         self.prefill_batcher = PrefillBatcherProcess(
-            self.fiber_pool,
+            self.prefill_fiber_pool,
             self.page_cache,
             self.model_params,
             self.prefill_functions,
@@ -141,7 +149,7 @@ class LlmGenerateService(GenerateService):
         )
 
         self.decode_batcher = DecodeBatcherProcess(
-            self.fiber_pool,
+            self.decode_fiber_pool,
             self.page_cache,
             self.model_params,
             self.decode_functions,
