@@ -585,6 +585,11 @@ def sharded_cat_unsharded(maybe_sharded):
     return unbox_tensor(maybe_sharded)
 
 
+@sharded_gather.override(Tensor)
+def sharded_gather_unsharded(input):
+    return unbox_tensor(input)
+
+
 @sharded_sum.override(Tensor)
 def sharded_sum_unsharded(maybe_sharded):
     return unbox_tensor(maybe_sharded)

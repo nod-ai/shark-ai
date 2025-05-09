@@ -1636,9 +1636,53 @@ class SoftmaxTest(unittest.TestCase):
 
 
 class ShardedGatherTest(unittest.TestCase):
-    """TODO:placeholder for Test gather on sharded tensors."""
+    def setUp(self):
+        torch.random.manual_seed(12345)
 
-    pass
+    def testGatherSplit(self):
+        shard_dim = 1
+        shard_count = 3
+        shards = [torch.rand(2, 5, 4) for _ in range(3)]
+        tensor_sp = SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim)
+
+        # Gather without concat
+        actual = ops.sharded_gather(tensor_sp, device_ordinal=0, concat=False)
+        self.assertEqual(len(actual), 3)
+        self.assertEqual(actual[0].shape, (2, 5, 4))
+
+        for i, g in enumerate(actual):
+            torch.testing.assert_close(g, shards[i])
+
+        # Gather with Concat
+        actual_concat = ops.sharded_gather(tensor_sp, device_ordinal=0, concat=True)
+        expected = torch.cat(shards, dim=shard_dim)
+
+        torch.testing.assert_close(actual_concat, expected)
+
+    def testGatherReplicated(self):
+        shard_count = 3
+        device_ordinal = 1
+        base_tensor = torch.rand(2, 5, 4)
+
+        # Create a replicated tensor
+        replicated = ReplicatedTensor(
+            ts=[base_tensor.clone() for _ in range(shard_count)]
+        )
+
+        # Gather without concat
+        actual = ops.sharded_gather(
+            replicated, device_ordinal=device_ordinal, concat=False
+        )
+        self.assertEqual(len(actual), shard_count)
+        self.assertEqual(actual[0].shape, (2, 5, 4))
+        for i, g in enumerate(actual):
+            torch.testing.assert_close(g, base_tensor)
+
+        # Gather with Concat
+        actual_concat = ops.sharded_gather(
+            replicated, device_ordinal=device_ordinal, concat=True
+        )
+        torch.testing.assert_close(actual_concat, base_tensor)
 
 
 class SumTest(unittest.TestCase):

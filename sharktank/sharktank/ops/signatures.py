@@ -1203,10 +1203,7 @@ def sharded_gather(input: AnyTensor, device_ordinal: int, concat: bool) -> AnyTe
 def _sharded_gather_trampoline(
     d: SignatureDispatcher, input: AnyTensor, device_ordinal: int, concat: bool
 ) -> AnyTensor:
-    dispatch_args = (
-        input,
-        device_ordinal,
-    )
+    dispatch_args = (input,)
     for override in d.find_overrides(dispatch_args):
         result = override(input, device_ordinal, concat)
         if result is not NotImplemented:
