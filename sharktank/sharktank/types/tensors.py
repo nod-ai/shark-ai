@@ -543,9 +543,6 @@ class InferenceTensor(ABC):
 
         return elementwise(torch.add, self, rhs)
 
-    def __invert__(self):
-        pass
-
     def __radd__(self, lhs):
         # Assumes commutative addition due to torch elementwise ops not handling
         # numbers on the lhs.
