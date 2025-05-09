@@ -68,6 +68,7 @@ class ShortfinLlmLifecycleManager:
             device=args.device,
             device_ids=server_params.device_ids,
             async_allocs=server_params.amdgpu_async_allocations,
+            async_caching=server_params.amdgpu_async_caching,
             amdgpu_allocators=server_params.amdgpu_allocators,
             amdgpu_allow_device_reuse=server_params.amdgpu_allow_device_reuse,
         )

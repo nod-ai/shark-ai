@@ -51,7 +51,9 @@ def test_generate_solutions(tuner_ctx: common.TunerContext) -> None:
     assert configs is not None
 
 
-def test_generate_solutions_tile_and_fuse(tuner_ctx: common.TunerContext) -> None:
+def test_generate_solutions_tile_and_fuse_contraction_padding(
+    tuner_ctx: common.TunerContext,
+) -> None:
     matmul_size = common.ContractionSizes([5369], [112], [112])
     contraction_dims = common.ContractionDimensions([0], [1], [2])
     lhs_type = common.ShapedType([5369, 112], tuner_ctx.type.f16)
@@ -78,6 +80,47 @@ def test_generate_solutions_tile_and_fuse(tuner_ctx: common.TunerContext) -> Non
             mma_intrinsics=mma_intrinsics,
             allowed_waves_per_eu=[2],
             pipeline_options_search_space=dispatch_constraints.PipelineOptionsSearchSpace(),
+            codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
+        )
+    )
+
+    assert len(solutions) > 0, "No solutions generated with TileAndFuse pipeline."
+    assert all(isinstance(sol, iree_codegen.CompilationInfoAttr) for sol in solutions)
+    assert all(
+        "padding =" in str(sol.lowering_config) for sol in solutions
+    ), "Not all lowering configs have padding option"
+    assert all(
+        [int(x) for x in sol.lowering_config.attributes["promote_operands"]]
+        == [0, 1, 2]
+        for sol in solutions
+    ), "Not all lowering configs have promote_operands = [0, 1, 2]"
+
+
+def test_generate_solutions_tile_and_fuse_conv_padding(
+    tuner_ctx: common.TunerContext,
+) -> None:
+    matmul_size = common.ContractionSizes(B=[], M=[2, 5, 5], N=[64], K=[3, 3, 32])
+    lhs_type = common.ShapedType([2, 7, 7, 32], tuner_ctx.type.f16)
+    rhs_type = common.ShapedType([64, 3, 3, 32], tuner_ctx.type.f16)
+    res_type = common.ShapedType([2, 5, 5, 64], tuner_ctx.type.f32)
+    contraction_dims = common.ContractionDimensions(
+        batch=[], m=[0, 1, 2], n=[3], k=[4, 5, 6]
+    )
+    problem_size = common.ProblemSize(
+        matmul_size,
+        lhs_type,
+        rhs_type,
+        res_type,
+        common.DispatchKind.conv,
+        contraction_dims,
+    )
+
+    solutions = list(
+        dispatch_constraints.generate_solutions(
+            tuner_ctx=tuner_ctx,
+            problem_size=problem_size,
+            num_subgrups=4,
+            mma_intrinsics=[iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16],
             codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
         )
     )
