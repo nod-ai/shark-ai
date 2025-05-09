@@ -6,7 +6,7 @@ numpy
 
 # Model deps.
 huggingface-hub
-transformers==4.48.0
+transformers==4.50.0
 datasets
 einops
 
