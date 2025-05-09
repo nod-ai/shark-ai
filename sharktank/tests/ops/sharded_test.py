@@ -1668,19 +1668,27 @@ class SplitTest(unittest.TestCase):
             torch.rand(2, 5, 3, dtype=torch.float32) for _ in range(shard_count)
         ]
         split_size = 2
-        expected_shards = [
+
+        # Split each shard
+        expected_splits_per_shard = [
             torch.split(shard, split_size, dim=split_dim) for shard in input_shards
         ]
+        # transpose nested list of lists.
+        expected_shards_per_split = list(zip(*expected_splits_per_shard, strict=True))
 
         unreduced_input = UnreducedTensor(ts=input_shards)
         actual_result = ops.split(unreduced_input, split_size, dim=split_dim)
-        assert len(actual_result) == len(expected_shards[0])
+        assert len(actual_result) == len(expected_shards_per_split)
         for t in actual_result:
             assert isinstance(t, UnreducedTensor)
 
-        for i in range(len(expected_shards)):
-            for j in range(len(expected_shards[i])):
-                ops.equal(actual_result[j].shards[i], expected_shards[i][j])
+        for actual_split, expected_split in zip(
+            actual_result, expected_shards_per_split, strict=True
+        ):
+            for actual_shard, expected_shard in zip(
+                actual_split.shards, expected_split, strict=True
+            ):
+                ops.equal(actual_shard, expected_shard)
 
 
 class SumTest(unittest.TestCase):

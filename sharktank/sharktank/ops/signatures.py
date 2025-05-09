@@ -1215,9 +1215,7 @@ def _sharded_cat_trampoline(d: SignatureDispatcher, maybe_sharded: AnyTensor):
 
 
 @overridable(is_trivially_replicable=False)
-def sharded_sum(
-    maybe_sharded: AnyTensor, root_rank: int = 0
-) -> InferenceTensor | Tensor:
+def sharded_sum(maybe_sharded: AnyTensor, root_rank: int = 0) -> AnyTensor:
     """Reduce across the shards into a single device.
 
     root_rank:

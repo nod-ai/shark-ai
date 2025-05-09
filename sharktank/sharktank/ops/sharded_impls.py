@@ -1405,14 +1405,11 @@ def _sharded_sum_sharded(tensor: ShardedTensor, root_rank: int) -> Tensor:
     return reduced
 
 
-@sharded_sum.override(SplitPrimitiveTensor)
-def sharded_sum_split(input: SplitPrimitiveTensor, root_rank: int) -> Tensor:
+@sharded_sum.override(IsOfType(SplitPrimitiveTensor, UnreducedTensor))
+def sharded_sum_split(
+    input: SplitPrimitiveTensor | UnreducedTensor, root_rank: int
+) -> Tensor:
     return _sharded_sum_sharded(input, root_rank)
-
-
-@sharded_sum.override(UnreducedTensor)
-def sharded_sum_unreduced(maybe_sharded: UnreducedTensor, root_rank: int) -> Tensor:
-    return _sharded_sum_sharded(maybe_sharded, root_rank)
 
 
 @sigmoid.override(ShardedTensor)
@@ -1438,10 +1435,33 @@ def softmax_split(
 def split_unreduced(
     tensor: UnreducedTensor, split_size_or_sections: int | list[int], dim: int = 0
 ) -> tuple[UnreducedTensor, ...]:
+    # Example of splitting in 3 pieces a tensor distributed over 2
+    # devices.
+    # Device placement before split:
+    # +---+ +---+
+    # |   | |   |
+    # |   | |   |
+    # | 0 | | 1 |
+    # |   | |   |
+    # |   | |   |
+    # +---+ +---+
+    #
+    # after split:
+    # +---+ +---+
+    # | 0 | | 1 | <- shards of result tensor 0
+    # |---| |---|
+    # | 0 | | 1 | <- shards of result tensor 1
+    # |---| |---|
+    # | 0 | | 1 | <- shards of result tensor 2
+    # +---+ +---+
+    #
+    # No transfering is required, just reinterpretation of the pieces.
+
     splits_per_shard = [
         split(shard, split_size_or_sections, dim) for shard in tensor.shards
     ]
-    shards_per_split = list(zip(*splits_per_shard))
+    # transpose nested list of lists.
+    shards_per_split = list(zip(*splits_per_shard, strict=True))
     return [UnreducedTensor(ts=shards) for shards in shards_per_split]
 
 
