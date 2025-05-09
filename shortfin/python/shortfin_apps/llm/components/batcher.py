@@ -92,6 +92,7 @@ class LlmBatcherProcess(BatcherProcess):
         self.ideal_batch_size: int = ideal_batch_size
         self.page_seq_stride = self.model_params.paged_kv_cache.block_seq_stride
         self._current_workitems = 0
+        self.worker_index = 0
 
         self.fiber_pool = fiber_pool
         self.program_isolation = program_isolation
@@ -217,6 +218,7 @@ class PrefillBatcherProcess(LlmBatcherProcess):
             cache.page_pool.page_tables,
             self.fiber_pool,
             self.program_isolation,
+            self.worker_index,
         )
 
     def board_request(self, cache, request: LlmInferenceExecRequest):
@@ -273,6 +275,7 @@ class DecodeBatcherProcess(LlmBatcherProcess):
             cache.page_pool.page_tables,
             self.fiber_pool,
             self.program_isolation,
+            self.worker_index,
         )
 
     def board_request(self, cache, request: LlmInferenceExecRequest):
@@ -299,6 +302,7 @@ class LlmExecutorProcess(sf.Process):
         page_tables,
         fiber_pool: FiberPool,
         program_isolation: sf.ProgramIsolation,
+        worker_index: int,
     ):
         super().__init__(fiber=fiber)
         self.name = name
@@ -308,18 +312,20 @@ class LlmExecutorProcess(sf.Process):
         self.functions = functions
         self.fiber_pool = fiber_pool
         self.program_isolation = program_isolation
+        self.worker_index = worker_index
 
-    async def get_args(self, bs, device0):
+    async def get_args(self, bs, device_index):
         ...
 
-    async def get_results(self, logits, req_count, device0):
+    async def get_results(self, logits, req_count, device_index):
         ...
 
     async def run(self):
         try:
             req_bs = len(self.exec_requests)
             seq_stride = self.seq_stride
-            device0 = self.fiber.device(0)
+            current_worker_index = self.worker_index
+            device0 = self.fiber.device(current_worker_index)
             # Select an entrypoint for the batch.
             entrypoints = self.functions
             for bs, fn in entrypoints.items():
@@ -328,7 +334,7 @@ class LlmExecutorProcess(sf.Process):
             else:
                 raise RuntimeError(f"No available entry point for bs {req_bs}")
 
-            args, req_count = await self.get_args(bs, device0)
+            args, req_count = await self.get_args(bs, current_worker_index)
 
             logger.info(
                 "INVOKE %r: %s",
@@ -366,7 +372,7 @@ class LlmExecutorProcess(sf.Process):
                 r.publish_allocated_pages(number_of_complete_pages)
 
             # Return results.
-            await self.get_results(logits, req_count, device0)
+            await self.get_results(logits, req_count, current_worker_index)
 
         except Exception:
             logger.exception("Fatal error in prefetch invocation")
@@ -388,6 +394,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         page_tables,
         fiber_pool: FiberPool,
         program_isolation: sf.ProgramIsolation,
+        worker_index: int,
     ):
         super().__init__(
             name="prefill_process",
@@ -397,9 +404,10 @@ class PrefillExecutorProcess(LlmExecutorProcess):
             page_tables=page_tables,
             fiber_pool=fiber_pool,
             program_isolation=program_isolation,
+            worker_index=worker_index,
         )
 
-    async def get_args(self, bs, device0):
+    async def get_args(self, bs, device_index):
         seq_stride = self.seq_stride
 
         # Compute block sequence length as maximum sequence length, rounded
@@ -417,6 +425,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         # TODO: Better support in shortfin for h2d. The best way to do it is
         # device dependent.
         int_dtype = sfnp.int64
+        device0 = self.fiber.device(device_index)
         tokens = sfnp.device_array.for_device(device0, [bs, bsl], int_dtype)
         seq_lens = sfnp.device_array.for_device(device0, [bs], int_dtype)
         seq_block_ids = sfnp.device_array.for_device(
@@ -455,13 +464,14 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         #    seq_block_ids: [bs, blocks]
         #    cache_slabs: ...
         args = [tokens, seq_lens, seq_block_ids]
-        for page_table in self.page_tables:
-            args.append(sfnp.disable_barrier(page_table))
+        page_table = self.page_tables[device_index]
+        args.append(sfnp.disable_barrier(page_table))
 
         return args, req_count
 
-    async def get_results(self, logits, req_count, device0):
-        # Return results.
+    async def get_results(self, logits, req_count, device_index):
+        # Return results
+        device0 = self.fiber.device(device_index)
         for i in range(req_count):
             req = self.exec_requests[i]
             sl = len(req.input_token_ids)
@@ -492,6 +502,7 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         page_tables,
         fiber_pool: FiberPool,
         isolation: sf.ProgramIsolation,
+        worker_index: int,
     ):
         super().__init__(
             name="decode_process",
@@ -501,9 +512,10 @@ class DecodeExecutorProcess(LlmExecutorProcess):
             page_tables=page_tables,
             fiber_pool=fiber_pool,
             program_isolation=isolation,
+            worker_index=worker_index,
         )
 
-    async def get_args(self, bs, device0):
+    async def get_args(self, bs, device_index):
         # Compute block sequence length as maximum sequence length, rounded
         # up to the seq_stride.
         seq_stride = self.seq_stride
@@ -517,6 +529,7 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         # TODO: Better support in shortfin for h2d. The best way to do it is
         # device dependent.
         int_dtype = sfnp.int64
+        device0 = self.fiber.device(device_index)
         tokens = sfnp.device_array.for_device(device0, [bs, 1], int_dtype)
         start_positions = sfnp.device_array.for_device(device0, [bs], int_dtype)
         seq_lens = sfnp.device_array.for_device(device0, [bs], int_dtype)
@@ -576,13 +589,14 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         #    seq_block_ids: [bs, blocks]
         #    cache_slabs: ...
         args = [tokens, seq_lens, start_positions, seq_block_ids]
-        for page_table in self.page_tables:
-            args.append(sfnp.disable_barrier(page_table))
+        page_table = self.page_tables[device_index]
+        args.append(sfnp.disable_barrier(page_table))
 
         return args, req_count
 
-    async def get_results(self, logits, req_count, device0):
+    async def get_results(self, logits, req_count, device_index):
         # Return results.
+        device0 = self.fiber.device(device_index)
         for i in range(req_count):
             req = self.exec_requests[i]
             sl = 1
