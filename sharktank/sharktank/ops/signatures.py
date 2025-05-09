@@ -16,6 +16,7 @@ from torch import Tensor, dtype
 from sharktank.types import (
     AnyTensor,
     ShardedTensor,
+    SplitPrimitiveTensor,
     Theta,
     sharding,
     InferenceTensor,
@@ -57,6 +58,7 @@ __all__ = [
     "pad",
     "permute",
     "rms_norm",
+    "reduce_scatter",
     "repeat",
     "replicate",
     "reshape",
@@ -70,6 +72,7 @@ __all__ = [
     "sharded_sum",
     "sigmoid",
     "softmax",
+    "split",
     "squeeze",
     "sum",
     "to",
@@ -897,6 +900,25 @@ def _module_register_buffer_trampoline(
         d.fail(args)
 
 
+@overridable(is_trivially_replicable=False)
+def reduce_scatter(tensor: AnyTensor, scatter_dim: int) -> AnyTensor:
+    """Reduces then splits/scatters across the devices."""
+    ...
+
+
+@reduce_scatter.trampoline
+def _reduce_scatter_trampoline(
+    d: SignatureDispatcher, tensor: AnyTensor, scatter_dim: int
+):
+    tensors = (tensor,)
+    for override in d.find_overrides(tensors):
+        result = override(tensor, scatter_dim)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
+
+
 @overridable
 def rms_norm(
     x: AnyTensor, weight: AnyTensor, *, epsilon: float, orig_dtype: torch.dtype
@@ -1193,15 +1215,23 @@ def _sharded_cat_trampoline(d: SignatureDispatcher, maybe_sharded: AnyTensor):
 
 
 @overridable(is_trivially_replicable=False)
-def sharded_sum(maybe_sharded: AnyTensor):
+def sharded_sum(maybe_sharded: AnyTensor, root_rank: int = 0) -> AnyTensor:
+    """Reduce across the shards into a single device.
+
+    root_rank:
+        Rank of receiving device within the tensor devices.
+        If sharded, `maybe_sharded.devices[root_rank]` is the destination.
+    """
     ...
 
 
 @sharded_sum.trampoline
-def _sharded_sum_trampoline(d: SignatureDispatcher, maybe_sharded: AnyTensor):
+def _sharded_sum_trampoline(
+    d: SignatureDispatcher, maybe_sharded: AnyTensor, root_rank: int = 0
+):
     tensors = (maybe_sharded,)
     for override in d.find_overrides(tensors):
-        result = override(maybe_sharded)
+        result = override(maybe_sharded, root_rank)
         if result is not NotImplemented:
             return override, result
     else:
@@ -1209,7 +1239,7 @@ def _sharded_sum_trampoline(d: SignatureDispatcher, maybe_sharded: AnyTensor):
 
 
 @overridable
-def sigmoid(tensoir: AnyTensor) -> AnyTensor:
+def sigmoid(tensor: AnyTensor) -> AnyTensor:
     """See torch.sigmoid"""
     ...
 
@@ -1243,6 +1273,30 @@ def _softmax_trampoline(
     dispatch_args = [tensor]
     for override in d.find_overrides(dispatch_args):
         result = override(tensor, dim=dim, dtype=dtype)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(dispatch_args)
+
+
+@overridable
+def split(
+    tensor: AnyTensor, split_size_or_sections: int | list[int], dim: int = 0
+) -> tuple[AnyTensor, ...]:
+    """See torch.split"""
+    ...
+
+
+@split.trampoline
+def _split_trampoline(
+    d: SignatureDispatcher,
+    tensor: AnyTensor,
+    split_size_or_sections: int | list[int],
+    dim: int,
+) -> tuple[AnyTensor, ...]:
+    dispatch_args = [tensor]
+    for override in d.find_overrides(dispatch_args):
+        result = override(tensor, split_size_or_sections, dim)
         if result is not NotImplemented:
             return override, result
     else:

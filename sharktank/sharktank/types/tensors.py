@@ -479,6 +479,13 @@ class InferenceTensor(ABC):
 
         return softmax(self, dim, dtype=dtype)
 
+    def split(
+        self, split_size_or_sections: int | list[int], dim: int = 0
+    ) -> tuple["AnyTensor", ...]:
+        from sharktank.ops import split
+
+        return split(self, split_size_or_sections, dim)
+
     def squeeze(self, dim: Optional[int] = None) -> "AnyTensor":
         from sharktank.ops import squeeze
 
