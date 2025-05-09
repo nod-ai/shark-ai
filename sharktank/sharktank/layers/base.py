@@ -28,6 +28,7 @@ __all__ = [
     "create_model",
     "get_model_type_id",
     "model_registry",
+    "register_all_models",
 ]
 
 logger = logging.getLogger(__name__)
