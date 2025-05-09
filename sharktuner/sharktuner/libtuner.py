@@ -656,7 +656,7 @@ def calculate_md5(file_path: Path) -> str:
 
 
 def find_collisions(
-    hash_list: list[tuple[int, str]]
+    hash_list: list[tuple[int, str]],
 ) -> tuple[bool, list[tuple[str, list[int]]]]:
     """
     Detect hash value collisions
@@ -1119,6 +1119,13 @@ def benchmark(
     all_candidates_with_speedup = baseline_handler.get_candidates_ordered_by_speedup(
         candidate_results
     )
+    if all(speedup >= 1 for _, speedup in all_candidates_with_speedup):
+        logging.warning(
+            "No tuner configs provided a speedup, including baseline config in results"
+        )
+        all_candidates_with_speedup = [
+            (first_baseline_result[0], 1.0)
+        ] + all_candidates_with_speedup
     top_candidates_with_speedup = all_candidates_with_speedup[:num_candidates]
     top_candidate_ids = []
     if baseline_handler.is_valid():
