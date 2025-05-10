@@ -12,7 +12,7 @@ import torch.nn.functional as F
 from .base import ThetaLayer
 from .linear import LinearLayer
 from . import FFN
-from sharktank.types import AnyTensor, DefaultPrimitiveTensor, Theta
+from sharktank.types import DefaultPrimitiveTensor, Theta
 from sharktank.ops import einsum_2args, elementwise
 from sharktank import ops
 
@@ -74,7 +74,7 @@ class PreGatherFFNMOE(ThetaLayer):
             ffn_gate * ffn_up, self.ffn_down, experts, einstring="mek,menk->men"
         )
         ffn_down = einsum_2args(expert_gate, ffn_down, "me,men->men")
-        return torch.sum(ffn_down, dim=1)
+        return ffn_down.sum(dim=1)
 
 
 class DenseFFNMOE(ThetaLayer):
@@ -90,10 +90,8 @@ class DenseFFNMOE(ThetaLayer):
     def __init__(
         self,
         theta: Theta,
-        rms_epsilon: float | None = None,
         is_gated: bool = True,
         activation_fn: Callable[[torch.Tensor], torch.Tensor] = F.silu,
-        activation_dtype: Optional[torch.dtype] = None,
         fake_quant: bool = False,
     ):
         super().__init__(theta)
@@ -107,12 +105,9 @@ class DenseFFNMOE(ThetaLayer):
         )
         self.ffn = FFN(
             ffn_theta,
-            rms_epsilon=rms_epsilon,
             is_gated=is_gated,
             activation_fn=activation_fn,
-            activation_dtype=activation_dtype,
             fake_quant=fake_quant,
-            add_residual=False,
         )
 
     def forward(
@@ -139,7 +134,7 @@ class DenseFFNMOE(ThetaLayer):
         num_tokens, input_feature_dim = h.shape
 
         router_scores = ops.reshard_like(
-            torch.empty([num_tokens, self.num_experts]), like=h
+            torch.empty([num_tokens, self.num_experts], device=h.device), like=h
         )
         # (self.num_experts, num_tokens)
         router_scores = (
@@ -150,7 +145,7 @@ class DenseFFNMOE(ThetaLayer):
 
         # (self.num_experts, num_tokens)
         router_indices = (
-            ops.reshard_like(torch.arange(num_tokens), router_scores)
+            ops.reshard_like(torch.arange(num_tokens, device=h.device), router_scores)
             .view(1, -1)
             .expand(self.num_experts, -1)
         )

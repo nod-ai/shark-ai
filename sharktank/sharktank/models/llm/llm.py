@@ -14,6 +14,7 @@ import torch.nn as nn
 from sharktank.layers import *
 from sharktank.types import *
 from sharktank.utils.create_cache import *
+from sharktank import ops
 
 __all__ = [
     "PagedLlmModelV1",
@@ -310,54 +311,70 @@ class AttentionFFNBlock(ThetaLayer):
                 head_count=config.hp.attention_head_count,
                 head_dim=config.hp.attn_head_dim,
                 head_count_kv=config.hp.attention_head_count_kv,
+                v_head_dim=config.hp.v_head_dim,
                 rms_epsilon=config.hp.attention_layer_norm_rms_epsilon,
+                rope_dimension_count=config.hp.rope_dimension_count,
                 attention_kernel=attention_kernel,
                 fake_quant=fake_quant,
                 softcap=config.hp.attention_softcap,
+                model_arch=config.hp.model_arch,
                 block_to_pipeline_map=config.block_to_pipeline_map,
                 pipeline_to_device_map=config.pipeline_to_device_map,
             ),
         )
 
+        # Add FFN norm
+        self.ffn_norm = torch.nn.Identity()
+        if theta.optional_tensor("ffn_norm") is not None:
+            self.ffn_norm = RMSNormLayer(
+                theta("ffn_norm"), epsilon=config.hp.attention_layer_norm_rms_epsilon
+            )
+
         moe_func_map = {
             "llama": (
-                torch.nn.functional.softmax,
+                ops.softmax,
                 torch.nn.functional.silu,
                 True,
                 False,
             ),
             "grok": (
-                torch.nn.functional.softmax,
+                ops.softmax,
                 torch.nn.functional.gelu,
                 True,
                 False,
             ),
             "deepseek2": (
-                torch.nn.functional.sigmoid,
+                ops.sigmoid,
                 torch.nn.functional.silu,
-                False,
+                True,
                 True,
             ),
         }
 
-        if config.hp.expert_count:
-            (
-                score_experts,
-                moe_activation,
-                add_residual,
-                normalize_experts,
-            ) = moe_func_map[config.hp.model_arch]
+        (
+            score_experts,
+            moe_activation,
+            self.add_residual,
+            normalize_experts,
+        ) = moe_func_map[config.hp.model_arch]
 
+        n_dense_layers = config.hp.n_dense_layers
+
+        if n_dense_layers is not None and block_index >= n_dense_layers:
             self.add_module(
                 "ffn",
                 MoeBlock(
                     theta=theta,
+                    expert_count=config.hp.expert_count,
                     expert_used_count=config.hp.expert_used_count,
                     rms_epsilon=config.hp.attention_layer_norm_rms_epsilon,
+                    n_expert_groups=config.hp.n_expert_groups,
+                    n_limited_groups=config.hp.n_limited_groups,
+                    route_scale=config.hp.route_scale,
                     moe_activation=moe_activation,
-                    add_residual=add_residual,
                     score_experts=score_experts,
                     normalize_experts=normalize_experts,
+                    shard_count=config.tensor_parallelism_size,
                 ),
             )
         else:
@@ -365,7 +382,6 @@ class AttentionFFNBlock(ThetaLayer):
                 "ffn",
                 FFN(
                     theta=theta,
-                    rms_epsilon=config.hp.attention_layer_norm_rms_epsilon,
                     fake_quant=fake_quant,
                 ),
             )
@@ -395,6 +411,9 @@ class AttentionFFNBlock(ThetaLayer):
         )
 
         # Feed forward network.
-        final_output = self.ffn(h)
+        final_output = self.ffn(self.ffn_norm(h))
+
+        if self.add_residual:
+            final_output = h + final_output
 
         return final_output
