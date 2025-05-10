@@ -22,7 +22,6 @@ def main():
     # Set up logging
 
     parser = cli.create_parser()
-    cli.add_input_dataset_options(parser)
     parser.add_argument(
         "--dump-tensor-dir", type=Path, help="Dump tensor contents to a directory"
     )
@@ -30,46 +29,63 @@ def main():
         "--tensor-regex", type=str, help="Only dumps tensors matching a regex"
     )
     parser.add_argument(
-        "--save", type=Path, help="Save the GGUF dataset to an IRPA file"
+        "--output-irpa", type=Path, help="Save the GGUF dataset to an IRPA file"
     )
     parser.add_argument(
-        "--verbose", "-v", action="store_true", help="Enable verbose output"
+        "--num-blocks", type=int, help="Number of tensors to save to an IRPA file"
     )
+    parser.add_argument(
+        "--save-input-output-blocks",
+        action="store_true",
+        help="Save input and output tensors",
+    )
+
+    cli.add_input_dataset_options(parser)
+    cli.add_log_options(parser)
+
     args = cli.parse(parser)
-
-    # Configure logging based on verbosity
-    if args.verbose:
-        logger.setLevel(logging.DEBUG)
-    else:
-        logger.setLevel(logging.INFO)
-
     config = cli.get_input_dataset(args)
 
-    if args.save is not None:
+    logger.setLevel(args.loglevel)
 
-        def report(s):
-            logger.info(f"Save: {s}")
+    model_arch = config.properties.get("general.architecture", "llama")
+    if args.num_blocks:
+        config.properties[f"{model_arch}.block_count"] = args.num_blocks
+        num_blocks = list(range(0, args.num_blocks))
+        logger.info(f"  Saving {num_blocks} blocks")
+    else:
+        num_blocks = range(0, config.properties[f"{model_arch}.block_count"])
 
-        logger.info(f"Saving to: {args.save}")
-        config.save(args.save, io_report_callback=report)
-        return
-
-    logger.debug("Properties:")
+    logger.info("  Properties:")
     for key, value in config.properties.items():
-        logger.debug(f"  {key} = {value} (of {type(value)})")
+        logger.info(f"  {key} = {value} (of {type(value)})")
 
-    logger.debug("Tensors:")
+    tensors = []
+    logger.info("  Tensors:")
     for tensor in config.root_theta.flatten().values():
-        if args.tensor_regex is not None:
-            if not re.search(args.tensor_regex, tensor.name):
-                continue
+        save = False
+        # Save tensors of if name in tensor_regex
+        if args.tensor_regex is not None and re.search(args.tensor_regex, tensor.name):
+            save = True
 
-        logger.debug(f"  {tensor}")
+        # Save input/output layer tensors
+        if "blk" not in tensor.name and args.save_input_output_blocks:
+            save = True
+        elif int(tensor.name.split(".")[1]) in num_blocks:
+            # Save tensors if in num_blocks
+            save = True
+
+        if save:
+            logger.info(f"  {tensor.name}: {tensor.shape}")
+            tensors += [
+                DefaultPrimitiveTensor(data=tensor.as_torch(), name=tensor.name)
+            ]
+
         if isinstance(tensor, PrimitiveTensor):
             torch_tensor = tensor.as_torch()
             logger.debug(
                 f"    : torch.Tensor({list(torch_tensor.shape)}, "
-                f"dtype={torch_tensor.dtype}) = {tensor.as_torch()}"
+                f"dtype={torch_tensor.dtype})"
             )
         elif isinstance(tensor, QuantizedTensor):
             logger.debug(f"    : QuantizedTensor({tensor.layout_type.__name__})")
@@ -83,6 +99,13 @@ def main():
                 logger.debug(f"    {i}: {pt}")
 
         _maybe_dump_tensor(args, tensor)
+
+    theta = Theta(tensors)
+    props = config.properties
+    dataset = Dataset(props, theta)
+
+    if args.output_irpa:
+        dataset.save(args.output_irpa, io_report_callback=logger.debug)
 
 
 def _maybe_dump_tensor(args, t: InferenceTensor):
