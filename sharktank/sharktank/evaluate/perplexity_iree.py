@@ -9,6 +9,7 @@ import logging
 import json
 import time
 from tqdm import tqdm
+from typing import Any
 
 import torch
 import iree.runtime as ireert
@@ -164,7 +165,7 @@ class PerplexityIree:
 
     def assemble_batch(self, token_batch: torch.tensor, devices) -> torch.tensor:
 
-        token_batch, seq_lens_batch = self.generator.tokenizer.pad_tokens(
+        token_batch, seq_lens_batch = pad_tokens(
             token_ids=token_batch.tolist(),
             pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
         )

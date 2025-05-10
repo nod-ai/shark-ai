@@ -4,12 +4,12 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import Any, Optional
+from typing import Optional
 import time
 import random
 import re
+import math
 from datetime import timedelta
-import numpy as np
 from datasets import load_dataset
 
 import torch
@@ -76,6 +76,35 @@ def get_prompts(num_prompts: Optional[int] = None) -> list[str]:
         test_prompts = test_prompts[0:num_prompts]
 
     return test_prompts
+
+
+def get_prompt_lengths(
+    token_ids: list[list[int]],
+):
+    max_length = 0
+    lengths: list[int] = []
+    for row in token_ids:
+        lengths.append(len(row))
+        max_length = max(max_length, len(row))
+
+    return lengths, max_length
+
+
+def pad_tokens(
+    token_ids: list[list[int]],
+    pad_to_multiple_of: int,
+    pad_token: int = 0,
+):
+    lengths, max_length = get_prompt_lengths(token_ids)
+    if pad_to_multiple_of > 1:
+        max_length = int(
+            pad_to_multiple_of * math.ceil(max_length / pad_to_multiple_of)
+        )
+    for row in token_ids:
+        pad_count = max_length - len(row)
+        row.extend(pad_count * [pad_token])
+
+    return token_ids, lengths
 
 
 def timeit(func):

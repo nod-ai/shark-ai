@@ -4,22 +4,22 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from typing import Optional
 import collections
 import math
 from pathlib import Path
 
 import numpy as np
 import torch
-import numpy as np
 
 from sharktank.layers import *
 from sharktank.types import *
 from sharktank.models.llm import *
-from sharktank.models.llama.tools.data_utils import write_ndarray_to_bin
 
 from sharktank.ops import replicate, unshard
 from sharktank.utils.debugging import trace_tensor
 from sharktank.utils.tokenizer import InferenceTokenizer
+from sharktank.utils.evaluate import *
 
 
 class TorchGenerator:
@@ -28,7 +28,7 @@ class TorchGenerator:
     def __init__(
         self,
         model: PagedLlmModelV1,
-        tokenizer: InferenceTokenizer,
+        tokenizer: Optional[InferenceTokenizer] = None,
         # Need to look at the model more for this.
         end_token: int = 2,
     ):
@@ -50,7 +50,7 @@ class TorchGenerator:
         for idx, prompt in enumerate(prompts):
             print(f"    prompt_{idx}: \n    {prompt.encode()} \n    {token_ids[idx]}\n")
 
-        token_ids, seq_lens = self.tokenizer.pad_tokens(
+        token_ids, seq_lens = pad_tokens(
             token_ids, pad_to_multiple_of=self.model.cache.pad_sequence_stride
         )
 

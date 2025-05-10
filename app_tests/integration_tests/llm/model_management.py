@@ -315,8 +315,8 @@ class ModelStageManager:
                     "-m",
                     "sharktank.tools.dump_gguf",
                     f"--gguf-file={gguf_path}",
-                    "--save",
-                    str(irpa_path),
+                    f"--output-irpa={str(irpa_path)}",
+                    "--save-input-output-blocks",
                 ],
                 check=True,
             )
