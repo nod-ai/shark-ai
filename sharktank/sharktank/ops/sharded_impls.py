@@ -1383,7 +1383,24 @@ def sharded_cat_unsharded(tensor: SplitPrimitiveTensor):
     return torch.cat(shard_ts, dim=tensor.shard_dim)
 
 
-# Sharded sum.
+@sharded_gather.override(IsOfType(SplitPrimitiveTensor, ReplicatedTensor))
+def sharded_gather_split(
+    input: SplitPrimitiveTensor | ReplicatedTensor, root_rank: int
+) -> List[Tensor]:
+    # if input is SplitPrimitiveTensor
+    if type(input) == SplitPrimitiveTensor:
+        shard_ts = [
+            (
+                transfer_to_logical_device(shard, input.devices[root_rank])
+                if i != root_rank
+                else barrier_on_logical_device(shard, input.devices[root_rank])
+            )
+            for i, shard in enumerate(input.shards)
+        ]
+        return shard_ts
+    else:
+        shard = input.shards[root_rank]
+        return [shard.as_torch().clone() for _ in range(input.shard_count)]
 
 
 def _sharded_sum_sharded(tensor: ShardedTensor, root_rank: int) -> Tensor:

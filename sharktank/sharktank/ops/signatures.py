@@ -70,6 +70,7 @@ __all__ = [
     "scatter_add",
     "sharded_cat",
     "sharded_sum",
+    "sharded_gather",
     "sigmoid",
     "softmax",
     "split",
@@ -1212,6 +1213,25 @@ def _sharded_cat_trampoline(d: SignatureDispatcher, maybe_sharded: AnyTensor):
             return override, result
     else:
         d.fail(tensors)
+
+
+@overridable(is_trivially_replicable=False)
+def sharded_gather(input: AnyTensor, root_rank: int) -> list[AnyTensor]:
+    """Gather the input tensor from all devices to the given device ordinal."""
+    ...
+
+
+@sharded_gather.trampoline
+def _sharded_gather_trampoline(
+    d: SignatureDispatcher, input: AnyTensor, root_rank: int
+) -> AnyTensor:
+    dispatch_args = (input,)
+    for override in d.find_overrides(dispatch_args):
+        result = override(input, root_rank)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(dispatch_args)
 
 
 @overridable(is_trivially_replicable=False)
