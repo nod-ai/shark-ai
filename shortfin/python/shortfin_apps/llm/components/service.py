@@ -62,26 +62,22 @@ class LlmGenerateService(GenerateService):
 
     def initialize_queues(self):
         """Initialize request and response queues"""
-        # TODO: This needs to be updated when we pass num beams as a request parameter
         if self.model_params.decode_batch_sizes:
-            self.max_queue_size = (
-                max(self.model_params.decode_batch_sizes)
-                / self.server_params.decode_config.num_beams
-                + 2
-            )
+            self.max_queue_size = max(self.model_params.decode_batch_sizes) + 2
             logger.info(f"Max queue size: {self.max_queue_size}")
 
-    def add_to_queue(self) -> bool:
+    def add_to_queue(self, num_beams: int) -> bool:
         """Try to add a request to the queue. Returns True if successful, False if queue is full."""
+        # Modify
         if self.current_queue_size >= self.max_queue_size:
             return False
-        self.current_queue_size += 1
+        self.current_queue_size += num_beams
         return True
 
-    def remove_from_queue(self):
+    def remove_from_queue(self, num_beams: int):
         """Remove a request from the queue."""
         if self.current_queue_size > 0:
-            self.current_queue_size -= 1
+            self.current_queue_size -= num_beams
 
     def initialize_worker_and_fiber(self):
         num_workers = self.server_params.workers
