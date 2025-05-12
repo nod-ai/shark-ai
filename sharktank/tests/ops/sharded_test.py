@@ -1632,6 +1632,41 @@ class SigmoidTest(unittest.TestCase):
         torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
 
 
+class ShardedGatherTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(12345)
+
+    def testGatherSplit(self):
+        shard_dim = 1
+        shard_count = 3
+        root_rank = 0
+        shards = [torch.rand(2, 5, 4) for _ in range(shard_count)]
+        tensor_sp = SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim)
+
+        actual = ops.sharded_gather(tensor_sp, root_rank=root_rank)
+        self.assertEqual(len(actual), 3)
+        self.assertEqual(actual[0].shape, (2, 5, 4))
+
+        for i, shard in enumerate(actual):
+            assert ops.equal(shard, shards[i])
+
+    def testGatherReplicated(self):
+        shard_count = 3
+        root_rank = 1
+        base_tensor = torch.rand(2, 5, 4)
+
+        # Create a replicated tensor
+        replicated = ReplicatedTensor(
+            ts=[base_tensor.clone() for _ in range(shard_count)]
+        )
+
+        actual = ops.sharded_gather(replicated, root_rank=root_rank)
+        self.assertEqual(len(actual), shard_count)
+        self.assertEqual(actual[0].shape, (2, 5, 4))
+        for i, shard in enumerate(actual):
+            assert ops.equal(shard, base_tensor)
+
+
 class SoftmaxTest(unittest.TestCase):
     def setUp(self):
         torch.random.manual_seed(12345)
