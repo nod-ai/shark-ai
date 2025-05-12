@@ -62,13 +62,14 @@ class LlmGenerateService(GenerateService):
 
     def initialize_queues(self):
         """Initialize request and response queues"""
+        # TODO: This needs to be updated when we pass num beams as a request parameter
         if self.model_params.decode_batch_sizes:
             self.max_queue_size = (
                 max(self.model_params.decode_batch_sizes)
                 / self.server_params.decode_config.num_beams
                 + 2
             )
-            print(f"Max queue size: {self.max_queue_size}")
+            logger.info(f"Max queue size: {self.max_queue_size}")
 
     def add_to_queue(self) -> bool:
         """Try to add a request to the queue. Returns True if successful, False if queue is full."""
