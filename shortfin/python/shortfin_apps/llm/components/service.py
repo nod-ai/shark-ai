@@ -12,7 +12,7 @@ from typing import List
 import shortfin as sf
 
 
-from .batcher import PrefillBatcherProcess, DecodeBatcherProcess, FiberPool
+from .batcher import PrefillBatcherProcess, DecodeBatcherProcess
 from .config_struct import ModelParams, ServerParams
 from .kvcache.base_attention_cache import (
     BasePagedAttentionCache,
@@ -85,18 +85,21 @@ class LlmGenerateService(GenerateService):
         logger.info(
             f"Creating {num_workers} workers, with {fibers_per_worker} fibers per worker..."
         )
-        fibers = []
-        for i in range(num_workers):
-            worker = self.sysman.ls.create_worker(f"{self.name}-inference-{i}")
-            for _ in range(fibers_per_worker):
-                fiber = self.sysman.ls.create_fiber(worker)
-                fibers.append(fiber)
 
-        self.fiber_pool = FiberPool(
-            fibers,
-            fibers,
+        self.main_worker = self.sysman.ls.create_worker(f"{self.name}-inference-main-0")
+        self.main_fiber = self.sysman.ls.create_fiber(self.main_worker)
+
+        self.prefill_worker = self.sysman.ls.create_worker(
+            f"{self.name}-inference-prefill-0"
         )
-        self.devices = fibers[0].devices_dict.values()
+        self.prefill_fiber = self.sysman.ls.create_fiber(self.prefill_worker)
+
+        self.decode_worker = self.sysman.ls.create_worker(
+            f"{self.name}-inference-decode-0"
+        )
+        self.decode_fiber = self.sysman.ls.create_fiber(self.decode_worker)
+
+        self.devices = self.prefill_fiber.devices_dict.values()
 
     def initialize_page_cache(self):
         """Initialize page pool and attention cache."""
@@ -133,7 +136,7 @@ class LlmGenerateService(GenerateService):
         self.initialize_function_references()
 
         self.prefill_batcher = PrefillBatcherProcess(
-            self.fiber_pool,
+            self.prefill_fiber,
             self.page_cache,
             self.model_params,
             self.prefill_functions,
@@ -141,7 +144,7 @@ class LlmGenerateService(GenerateService):
         )
 
         self.decode_batcher = DecodeBatcherProcess(
-            self.fiber_pool,
+            self.decode_fiber,
             self.page_cache,
             self.model_params,
             self.decode_functions,

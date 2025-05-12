@@ -140,9 +140,9 @@ class ClientGenerateBatchProcess(sf.Process):
         service: LlmGenerateService,
         gen_req: GenerateReqInput,
         responder: FastAPIResponder,
-        fiber: sf.Fiber | None = None,
+        fiber: sf.Fiber,
     ):
-        super().__init__(fiber=service.fiber_pool.fibers[0] if fiber is None else fiber)
+        super().__init__(fiber=fiber)
         self.service = service
         self.gen_req = gen_req
         self.responder = responder

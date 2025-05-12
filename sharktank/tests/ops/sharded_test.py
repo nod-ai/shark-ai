@@ -11,6 +11,7 @@ import itertools
 import pytest
 from parameterized import parameterized, parameterized_class
 
+import functools
 import torch
 import torch.nn.functional as F
 
@@ -1267,6 +1268,27 @@ class MeanTest(unittest.TestCase):
         torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
 
 
+class ReduceScatter(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(0)
+
+    def testUnreduced(self):
+        dtype = torch.float32
+        shard_count = 3
+        shape = [2, shard_count * 5, 7]
+        scatter_dim = 1
+        input_shards = [torch.rand(shape, dtype=dtype) for _ in range(shard_count)]
+
+        expected = functools.reduce(torch.add, input_shards)
+
+        unreduced_input = UnreducedTensor(ts=input_shards)
+        actual = ops.reduce_scatter(unreduced_input, scatter_dim)
+        assert isinstance(actual, SplitPrimitiveTensor)
+        assert actual.shard_dim == scatter_dim
+        assert actual.shard_count == shard_count
+        assert ops.equal(expected, actual)
+
+
 class ReplicateTest(unittest.TestCase):
     def testReplicateReplicated(self):
         tensor = torch.rand(4, 5, dtype=torch.float32)
@@ -1610,6 +1632,41 @@ class SigmoidTest(unittest.TestCase):
         torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
 
 
+class ShardedGatherTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(12345)
+
+    def testGatherSplit(self):
+        shard_dim = 1
+        shard_count = 3
+        root_rank = 0
+        shards = [torch.rand(2, 5, 4) for _ in range(shard_count)]
+        tensor_sp = SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim)
+
+        actual = ops.sharded_gather(tensor_sp, root_rank=root_rank)
+        self.assertEqual(len(actual), 3)
+        self.assertEqual(actual[0].shape, (2, 5, 4))
+
+        for i, shard in enumerate(actual):
+            assert ops.equal(shard, shards[i])
+
+    def testGatherReplicated(self):
+        shard_count = 3
+        root_rank = 1
+        base_tensor = torch.rand(2, 5, 4)
+
+        # Create a replicated tensor
+        replicated = ReplicatedTensor(
+            ts=[base_tensor.clone() for _ in range(shard_count)]
+        )
+
+        actual = ops.sharded_gather(replicated, root_rank=root_rank)
+        self.assertEqual(len(actual), shard_count)
+        self.assertEqual(actual[0].shape, (2, 5, 4))
+        for i, shard in enumerate(actual):
+            assert ops.equal(shard, base_tensor)
+
+
 class SoftmaxTest(unittest.TestCase):
     def setUp(self):
         torch.random.manual_seed(12345)
@@ -1633,6 +1690,40 @@ class SoftmaxTest(unittest.TestCase):
         expected_result = ops.softmax(tensor, dim=dim + 1)
         actual_result = ops.softmax(sharded_tensor, dim=dim + 1)
         torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+
+
+class SplitTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(0)
+
+    def testUnreduced(self):
+        split_dim = 2
+        shard_count = 3
+        input_shards = [
+            torch.rand(2, 5, 3, dtype=torch.float32) for _ in range(shard_count)
+        ]
+        split_size = 2
+
+        # Split each shard
+        expected_splits_per_shard = [
+            torch.split(shard, split_size, dim=split_dim) for shard in input_shards
+        ]
+        # transpose nested list of lists.
+        expected_shards_per_split = list(zip(*expected_splits_per_shard, strict=True))
+
+        unreduced_input = UnreducedTensor(ts=input_shards)
+        actual_result = ops.split(unreduced_input, split_size, dim=split_dim)
+        assert len(actual_result) == len(expected_shards_per_split)
+        for t in actual_result:
+            assert isinstance(t, UnreducedTensor)
+
+        for actual_split, expected_split in zip(
+            actual_result, expected_shards_per_split, strict=True
+        ):
+            for actual_shard, expected_shard in zip(
+                actual_split.shards, expected_split, strict=True
+            ):
+                ops.equal(actual_shard, expected_shard)
 
 
 class SumTest(unittest.TestCase):

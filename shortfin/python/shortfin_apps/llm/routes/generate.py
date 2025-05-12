@@ -23,5 +23,7 @@ async def generate_request(gen_req: GenerateReqInput, request: Request):
     service: GenerateService = request.app.state.services["default"]
     gen_req.post_init()
     responder = FastAPIResponder(request)
-    ClientGenerateBatchProcess(service, gen_req, responder).launch()
+    ClientGenerateBatchProcess(
+        service, gen_req, responder, fiber=service.main_fiber
+    ).launch()
     return await responder.response
