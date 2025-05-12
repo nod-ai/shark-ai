@@ -26,6 +26,29 @@
 #define SHORTFIN_REQUIRES_LOCK(...) \
   SHORTFIN_THREAD_ANNOTATION_ATTRIBUTE(requires_capability(__VA_ARGS__))
 
+#include <thread>
+#if defined(_WIN32)
+    #include <windows.h>
+#elif defined(__linux__) || defined(__APPLE__)
+    #include <unistd.h>
+    #include <sys/syscall.h>
+    #include <sys/types.h>
+#else
+    #error "Unsupported platform"
+#endif
+
+inline unsigned long get_thread_id() {
+#if defined(_WIN32)
+    return static_cast<unsigned long>(GetCurrentThreadId());
+#elif defined(__linux__)
+    return static_cast<unsigned long>(pthread_self());
+#elif defined(__APPLE__)
+    uint64_t tid;
+    pthread_threadid_np(NULL, &tid);
+    return static_cast<unsigned long>(tid);
+#endif
+}
+
 namespace shortfin::iree {
 
 SHORTFIN_IREE_DEF_PTR(thread);

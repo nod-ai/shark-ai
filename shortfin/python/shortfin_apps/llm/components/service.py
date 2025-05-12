@@ -127,8 +127,15 @@ class LlmGenerateService(GenerateService):
 
     def start(self):
         component_modules = self.initialize_program_modules("main")
+        device1=[]
+        device1.append(self.sysman.ls.devices[0])
         self.inference_program = self.create_program(
-            modules=component_modules, devices=self.sysman.ls.devices
+            modules=component_modules, devices=device1
+        )
+        device2=[]
+        device2.append(self.sysman.ls.devices[1])
+        self.inference_program = self.create_program(
+            modules=component_modules, devices=device2
         )
         self.initialize_function_references()
 
