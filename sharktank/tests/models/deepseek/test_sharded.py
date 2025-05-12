@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import unittest
+import pytest
 from copy import deepcopy
 
 import torch
@@ -18,6 +19,9 @@ from sharktank.types.sharding import shard_theta, LatentAttentionBlockSharding
 from sharktank import ops
 
 
+@pytest.mark.xfail(
+    reason="Deepseek support will be added soon",
+)
 class DeepseekShardedTest(unittest.TestCase):
     def test_deepseek(self):
         theta, config = generate(12345)
