@@ -131,7 +131,9 @@ class AttentionFFNBlockSharding(ThetaLayerSharding):
                     ).theta_sharding()
                 }
             )
-            result.update(MoeBlockSharding(self.shard_count).theta_sharding())
+            result.update(
+                MoeBlockSharding(self.shard_count, self.model_arch).theta_sharding()
+            )
         elif self.model_arch == "grok":
             result = PagedLlamaAttentionBlockSharding(self.shard_count).theta_sharding()
             result.update(
@@ -143,7 +145,9 @@ class AttentionFFNBlockSharding(ThetaLayerSharding):
                     ).theta_sharding()
                 }
             )
-            result.update(MoeBlockSharding(self.shard_count).theta_sharding())
+            result.update(
+                MoeBlockSharding(self.shard_count, self.model_arch).theta_sharding()
+            )
         return result
 
 
@@ -226,9 +230,10 @@ class SharedExpertsSharding(ThetaLayerSharding):
 
 
 class MoeBlockSharding(ThetaLayerSharding):
-    def __init__(self, shard_count: int):
+    def __init__(self, shard_count: int, model_arch: str):
         super().__init__()
         self.shard_count = shard_count
+        self.model_arch = model_arch
 
     def theta_sharding(self) -> ThetaSharding:
         result = ThetaSharding(
@@ -238,7 +243,8 @@ class MoeBlockSharding(ThetaLayerSharding):
                 ).theta_sharding(),
             }
         )
-        result.update(SharedExpertsSharding(self.shard_count).theta_sharding())
+        if self.model_arch == "deepseek2":
+            result.update(SharedExpertsSharding(self.shard_count).theta_sharding())
         result.update(
             ExpertParallelRoutedExpertsSharding(self.shard_count).theta_sharding()
         )
