@@ -21,6 +21,11 @@ class Unet2DConditionModel(ThetaLayer):
         hp = HParams.from_dict(ds.properties["hparams"])
         return cls(hp, ds.root_theta)
 
+    @classmethod
+    def from_irpa(cls, irpa_path: str) -> "Unet2DConditionModel":
+        ds = Dataset.load(irpa_path, file_type="irpa")
+        return cls.from_dataset(ds)
+
     def __init__(self, hp: HParams, theta: Theta):
         super().__init__(theta)
         self.hp = hp
