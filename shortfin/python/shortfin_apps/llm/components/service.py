@@ -79,7 +79,7 @@ class LlmGenerateService(GenerateService):
             self.current_queue_size -= 1
 
     def initialize_worker_and_fiber(self):
-        num_workers = self.server_params.workers
+        num_workers = self.server_params.shortfin_workers
         fibers_per_worker = self.server_params.fibers_per_worker
 
         logger.info(

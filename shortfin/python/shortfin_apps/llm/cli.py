@@ -120,7 +120,7 @@ def add_service_args(parser: argparse.ArgumentParser):
         help="Number of workers to use when running in `offline` mode.",
     )
     parser.add_argument(
-        "--workers",
+        "--shortfin_workers",
         type=int,
         default=1,
         help="Number of workers to use when running in `server` mode.",
