@@ -1673,7 +1673,7 @@ class ShardedGatherTest(unittest.TestCase):
         self.assertEqual(actual[0].shape, (2, 5, 4))
 
         for i, shard in enumerate(actual):
-            ops.equal(shard, shards[i])
+            assert ops.equal(shard, shards[i])
 
     def testGatherReplicated(self):
         shard_count = 3
@@ -1689,7 +1689,7 @@ class ShardedGatherTest(unittest.TestCase):
         self.assertEqual(len(actual), shard_count)
         self.assertEqual(actual[0].shape, (2, 5, 4))
         for i, shard in enumerate(actual):
-            ops.equal(shard, base_tensor)
+            assert ops.equal(shard, base_tensor)
 
 
 class SplitTest(unittest.TestCase):

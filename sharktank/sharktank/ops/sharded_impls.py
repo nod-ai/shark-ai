@@ -1384,9 +1384,7 @@ def sharded_cat_unsharded(tensor: SplitPrimitiveTensor):
 
 
 @sharded_gather.override(SplitPrimitiveTensor)
-def sharded_gather_split(
-    input: SplitPrimitiveTensor, root_rank: int, dim: int | None
-) -> List[Tensor]:
+def sharded_gather_split(input: SplitPrimitiveTensor, root_rank: int) -> List[Tensor]:
 
     shard_ts = [
         (
@@ -1400,9 +1398,7 @@ def sharded_gather_split(
 
 
 @sharded_gather.override(ReplicatedTensor)
-def sharded_gather_replicated(
-    input: ReplicatedTensor, root_rank: int, dim: int | None
-) -> List[Tensor]:
+def sharded_gather_replicated(input: ReplicatedTensor, root_rank: int) -> List[Tensor]:
     shard = input.shards[root_rank]
     return [shard.as_torch().clone() for _ in range(input.shard_count)]
 
