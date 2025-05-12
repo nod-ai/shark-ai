@@ -1632,31 +1632,6 @@ class SigmoidTest(unittest.TestCase):
         torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
 
 
-class SoftmaxTest(unittest.TestCase):
-    def setUp(self):
-        torch.random.manual_seed(12345)
-
-    def testSoftmaxReplicated(self):
-        tensor = torch.rand(2, 4, 3, dtype=torch.float32)
-        dim = 1
-        expected_result = ops.softmax(tensor, dim=dim)
-        actual_result = ops.softmax(ops.replicate(tensor, count=3), dim=dim)
-        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
-
-    def testSoftmaxSplit(self):
-        tensor = torch.rand(2, 2, 2, dtype=torch.float32)
-        dim = 1
-        sharded_tensor = ops.reshard_split(tensor, dim=dim, count=2)
-
-        expected_result = ops.softmax(tensor, dim=dim - 1)
-        actual_result = ops.softmax(sharded_tensor, dim=dim - 1)
-        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
-
-        expected_result = ops.softmax(tensor, dim=dim + 1)
-        actual_result = ops.softmax(sharded_tensor, dim=dim + 1)
-        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
-
-
 class ShardedGatherTest(unittest.TestCase):
     def setUp(self):
         torch.random.manual_seed(12345)
@@ -1690,6 +1665,31 @@ class ShardedGatherTest(unittest.TestCase):
         self.assertEqual(actual[0].shape, (2, 5, 4))
         for i, shard in enumerate(actual):
             assert ops.equal(shard, base_tensor)
+
+
+class SoftmaxTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(12345)
+
+    def testSoftmaxReplicated(self):
+        tensor = torch.rand(2, 4, 3, dtype=torch.float32)
+        dim = 1
+        expected_result = ops.softmax(tensor, dim=dim)
+        actual_result = ops.softmax(ops.replicate(tensor, count=3), dim=dim)
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+
+    def testSoftmaxSplit(self):
+        tensor = torch.rand(2, 2, 2, dtype=torch.float32)
+        dim = 1
+        sharded_tensor = ops.reshard_split(tensor, dim=dim, count=2)
+
+        expected_result = ops.softmax(tensor, dim=dim - 1)
+        actual_result = ops.softmax(sharded_tensor, dim=dim - 1)
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+
+        expected_result = ops.softmax(tensor, dim=dim + 1)
+        actual_result = ops.softmax(sharded_tensor, dim=dim + 1)
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
 
 
 class SplitTest(unittest.TestCase):

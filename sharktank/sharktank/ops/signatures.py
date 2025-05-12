@@ -1216,7 +1216,7 @@ def _sharded_cat_trampoline(d: SignatureDispatcher, maybe_sharded: AnyTensor):
 
 
 @overridable(is_trivially_replicable=False)
-def sharded_gather(input: AnyTensor, root_rank: int) -> AnyTensor:
+def sharded_gather(input: AnyTensor, root_rank: int) -> list[AnyTensor]:
     """Gather the input tensor from all devices to the given device ordinal."""
     ...
 
