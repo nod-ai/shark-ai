@@ -250,7 +250,9 @@ async def main(argv):
             gen_req = GenerateReqInput(
                 text=task.prompt, sampling_params=sampling_params
             )
-            ClientGenerateBatchProcess(service, gen_req, responder).launch()
+            ClientGenerateBatchProcess(
+                service, gen_req, responder, fiber=fiber
+            ).launch()
             await responder.response
             task.responder = responder
             task.result = responder.response.result()
