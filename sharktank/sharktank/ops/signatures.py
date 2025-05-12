@@ -1216,18 +1216,20 @@ def _sharded_cat_trampoline(d: SignatureDispatcher, maybe_sharded: AnyTensor):
 
 
 @overridable(is_trivially_replicable=False)
-def sharded_gather(input: AnyTensor, device_ordinal: int, concat: bool) -> AnyTensor:
+def sharded_gather(
+    input: AnyTensor, root_rank: int, dim: int | None = None
+) -> AnyTensor:
     """Gather the input tensor from all devices to the given device ordinal."""
     ...
 
 
 @sharded_gather.trampoline
 def _sharded_gather_trampoline(
-    d: SignatureDispatcher, input: AnyTensor, device_ordinal: int, concat: bool
+    d: SignatureDispatcher, input: AnyTensor, root_rank: int, dim: int | None = None
 ) -> AnyTensor:
     dispatch_args = (input,)
     for override in d.find_overrides(dispatch_args):
-        result = override(input, device_ordinal, concat)
+        result = override(input, root_rank, dim)
         if result is not NotImplemented:
             return override, result
     else:

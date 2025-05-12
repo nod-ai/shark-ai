@@ -1664,26 +1664,20 @@ class ShardedGatherTest(unittest.TestCase):
     def testGatherSplit(self):
         shard_dim = 1
         shard_count = 3
-        shards = [torch.rand(2, 5, 4) for _ in range(3)]
+        root_rank = 0
+        shards = [torch.rand(2, 5, 4) for _ in range(shard_count)]
         tensor_sp = SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim)
 
-        # Gather without concat
-        actual = ops.sharded_gather(tensor_sp, device_ordinal=0, concat=False)
+        actual = ops.sharded_gather(tensor_sp, root_rank=root_rank)
         self.assertEqual(len(actual), 3)
         self.assertEqual(actual[0].shape, (2, 5, 4))
 
-        for i, g in enumerate(actual):
-            torch.testing.assert_close(g, shards[i])
-
-        # Gather with Concat
-        actual_concat = ops.sharded_gather(tensor_sp, device_ordinal=0, concat=True)
-        expected = torch.cat(shards, dim=shard_dim)
-
-        torch.testing.assert_close(actual_concat, expected)
+        for i, shard in enumerate(actual):
+            ops.equal(shard, shards[i])
 
     def testGatherReplicated(self):
         shard_count = 3
-        device_ordinal = 1
+        root_rank = 1
         base_tensor = torch.rand(2, 5, 4)
 
         # Create a replicated tensor
@@ -1691,20 +1685,11 @@ class ShardedGatherTest(unittest.TestCase):
             ts=[base_tensor.clone() for _ in range(shard_count)]
         )
 
-        # Gather without concat
-        actual = ops.sharded_gather(
-            replicated, device_ordinal=device_ordinal, concat=False
-        )
+        actual = ops.sharded_gather(replicated, root_rank=root_rank)
         self.assertEqual(len(actual), shard_count)
         self.assertEqual(actual[0].shape, (2, 5, 4))
-        for i, g in enumerate(actual):
-            torch.testing.assert_close(g, base_tensor)
-
-        # Gather with Concat
-        actual_concat = ops.sharded_gather(
-            replicated, device_ordinal=device_ordinal, concat=True
-        )
-        torch.testing.assert_close(actual_concat, base_tensor)
+        for i, shard in enumerate(actual):
+            ops.equal(shard, base_tensor)
 
 
 class SplitTest(unittest.TestCase):

@@ -1385,29 +1385,25 @@ def sharded_cat_unsharded(tensor: SplitPrimitiveTensor):
 
 @sharded_gather.override(SplitPrimitiveTensor)
 def sharded_gather_split(
-    input: SplitPrimitiveTensor, device_ordinal: int, concat: bool = False
-) -> Union[List[Tensor], Tensor]:
+    input: SplitPrimitiveTensor, root_rank: int, dim: int | None
+) -> List[Tensor]:
+
     shard_ts = [
         (
-            transfer_to_logical_device(shard, device_ordinal)
-            if i != 0
-            else barrier_on_logical_device(shard, device_ordinal)
+            transfer_to_logical_device(shard, input.devices[root_rank])
+            if i != root_rank
+            else barrier_on_logical_device(shard, input.devices[root_rank])
         )
         for i, shard in enumerate(input.shards)
     ]
-    if concat:
-        return torch.cat(shard_ts, dim=input.shard_dim)
     return shard_ts
 
 
 @sharded_gather.override(ReplicatedTensor)
 def sharded_gather_replicated(
-    input: ReplicatedTensor, device_ordinal: int, concat: bool = False
-) -> Union[List[Tensor], Tensor]:
-    shard = input.shards[device_ordinal]
-    if concat:
-        return shard.as_torch()
-
+    input: ReplicatedTensor, root_rank: int, dim: int | None
+) -> List[Tensor]:
+    shard = input.shards[root_rank]
     return [shard.as_torch().clone() for _ in range(input.shard_count)]
 
 
