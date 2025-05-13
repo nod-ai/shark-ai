@@ -77,7 +77,7 @@ class LlmBatcherProcess(BatcherProcess):
         fiber_pool: FiberPool,
         page_cache: BasePagedAttentionCache,
         model_params: ModelParams,
-        functions: dict[int, sf.ProgramFunction],
+        functions: list[dict[int, sf.ProgramFunction]],
         ideal_batch_size: int,
         program_isolation: str,
     ):
@@ -197,7 +197,7 @@ class PrefillBatcherProcess(LlmBatcherProcess):
         fiber_pool: FiberPool,
         page_cache: BasePagedAttentionCache,
         model_params: ModelParams,
-        prefill_functions: dict[int, sf.ProgramFunction],
+        prefill_functions: list[dict[int, sf.ProgramFunction]],
         program_isolation: str,
     ):
         super().__init__(
@@ -213,7 +213,7 @@ class PrefillBatcherProcess(LlmBatcherProcess):
     def make_process(self, cache: BasePagedAttentionCache, fiber: Fiber):
         return PrefillExecutorProcess(
             fiber,
-            self.functions,
+            self.functions[self.worker_index],
             self.page_seq_stride,
             cache.page_pool.page_tables,
             self.fiber_pool,
@@ -254,7 +254,7 @@ class DecodeBatcherProcess(LlmBatcherProcess):
         fiber_pool: FiberPool,
         page_cache: BasePagedAttentionCache,
         model_params: ModelParams,
-        decode_functions: dict[int, sf.ProgramFunction],
+        decode_functions: list[dict[int, sf.ProgramFunction]],
         program_isolation: str,
     ):
         super().__init__(
@@ -270,7 +270,7 @@ class DecodeBatcherProcess(LlmBatcherProcess):
     def make_process(self, cache: BasePagedAttentionCache, fiber: Fiber):
         return DecodeExecutorProcess(
             fiber,
-            self.functions,
+            self.functions[self.worker_index],
             self.page_seq_stride,
             cache.page_pool.page_tables,
             self.fiber_pool,
