@@ -21,9 +21,6 @@ class QuarkParityTest(TempDirTestBase):
         super().setUp()
         self.path_prefix = Path("/shark-cache/quark_test")
 
-    @pytest.mark.xfail(
-        reason="Known accuracy validation issues with quark parity. See https://github.com/nod-ai/shark-ai/issues/1051"
-    )
     @with_quark_data
     def test_compare_against_quark(self):
         sharktank_dir = str(
@@ -56,7 +53,7 @@ class QuarkParityTest(TempDirTestBase):
             "python",
             "-m",
             "sharktank.examples.paged_llm_v1",
-            "The capitol of Texas is",
+            "--prompt=The capitol of Texas is",
             f"--irpa-file={self.path_prefix}/fp8_bf16_weight.irpa",
             f"--tokenizer-config-json=/shark-dev/data/llama3.1/8b/tokenizer.json",
             "--fake-quant",
