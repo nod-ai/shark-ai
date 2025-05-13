@@ -270,6 +270,7 @@ class MoeBlockTest(unittest.TestCase):
             with_layer_output_norm=True,
             dtype=dtype,
         )
+        model_arch = "grok"
         if num_shared_experts > 0:
             model_arch = "deepseek2"
         theta_sharding_spec = MoeBlockSharding(
