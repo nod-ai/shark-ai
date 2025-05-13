@@ -96,11 +96,11 @@ def test_beam_search_beam_sample_logits(device, beam_search_beam):
     assert len(top_tokens) == 3
     assert len(top_values) == 3
 
-    assert top_tokens == [13, 14, 15]
+    assert top_tokens.tolist() == [13, 14, 15]
 
     # `top_k` is provided
     beam_search_beam.decode_config.top_k = 3
-    expected_tokens = top_tokens
+    expected_tokens = top_tokens.tolist()
     values = [0.33] * 3
     expected_values = [math.log(0.33)] * 3
     with patch.object(
@@ -114,7 +114,7 @@ def test_beam_search_beam_sample_logits(device, beam_search_beam):
     # `top_p` is provided
     beam_search_beam.decode_config.top_p = 0.95
     beam_search_beam.decode_config.top_k = None
-    expected_tokens = top_tokens
+    expected_tokens = top_tokens.tolist()
     values = [0.33] * 3
     expected_values = [math.log(0.33)] * 3
     with patch.object(
@@ -128,9 +128,9 @@ def test_beam_search_beam_sample_logits(device, beam_search_beam):
     # `top_k` and `top_p` is provided
     beam_search_beam.decode_config.top_k = 5
     beam_search_beam.decode_config.top_p = 0.95
-    top_k_tokens = top_tokens + [12, 11]
+    top_k_tokens = top_tokens.tolist() + [12, 11]
     top_k_values = ([0.33] * 3) + [0.0, 0.0]
-    expected_tokens = top_tokens
+    expected_tokens = top_tokens.tolist()
     values = [0.33] * 3
     expected_values = [math.log(0.33)] * 3
 
@@ -161,11 +161,11 @@ def test_beam_search_beam_sample_logits_fp16(device, beam_search_beam):
     assert len(top_tokens) == 3
     assert len(top_values) == 3
 
-    assert top_tokens == [13, 14, 15]
+    assert top_tokens.tolist() == [13, 14, 15]
 
     # `top_k` is provided
     beam_search_beam.decode_config.top_k = 42
-    expected_tokens = top_tokens
+    expected_tokens = top_tokens.tolist()
     values = [0.33] * 3
     expected_values = [math.log(0.33)] * 3
     with patch.object(
@@ -179,7 +179,7 @@ def test_beam_search_beam_sample_logits_fp16(device, beam_search_beam):
     # `top_p` is provided
     beam_search_beam.decode_config.top_p = 0.95
     beam_search_beam.decode_config.top_k = None
-    expected_tokens = top_tokens
+    expected_tokens = top_tokens.tolist()
     values = [0.33] * 3
     expected_values = [math.log(0.33)] * 3
     with patch.object(
@@ -193,9 +193,9 @@ def test_beam_search_beam_sample_logits_fp16(device, beam_search_beam):
     # `top_k` and `top_p` is provided
     beam_search_beam.decode_config.top_k = 5
     beam_search_beam.decode_config.top_p = 0.95
-    top_k_tokens = top_tokens + [12, 11]
+    top_k_tokens = top_tokens.tolist() + [12, 11]
     top_k_values = ([0.33] * 3) + [0.0, 0.0]
-    expected_tokens = top_tokens
+    expected_tokens = top_tokens.tolist()
     values = [0.33] * 3
     expected_values = [math.log(0.33)] * 3
 

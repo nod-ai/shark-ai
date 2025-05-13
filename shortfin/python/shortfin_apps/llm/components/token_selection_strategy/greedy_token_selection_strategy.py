@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import logging
+import numpy as np
 
 from .beam_group import Beam
 from .base_token_selection_strategy import (
@@ -31,11 +32,11 @@ class GreedyBeam(Beam):
         top_k = decode_config.top_k
         top_p = decode_config.top_p
 
+        logits = np.array(exec_req.result_logits)
+
         # Normal greedy selection based on max value
         if (top_k, top_p) == (None, None):
-            return self.sampler.select_greedy(exec_req.result_logits)
-
-        logits = self.exec_req.result_logits
+            return self.sampler.select_greedy(logits)
 
         if top_k is not None:
             num_selections = 1 if top_p is None else top_k
@@ -51,10 +52,13 @@ class GreedyBeam(Beam):
                 tokens, values = self.sampler.select_top_k(logits, -top_p_selection)
                 probs = self._to_softmax(
                     values,
-                    exec_req.result_logits.dtype,
-                    exec_req.result_logits.device,
                     self.decode_config.logits_normalization,
                 )
+
+                sorted_order = np.argsort(probs)[::-1]
+                tokens = tokens[sorted_order]
+                probs = probs[sorted_order]
+
             tokens, _ = self._sample_logits_top_p(tokens, probs, top_p, 1)
 
         return tokens[0]
