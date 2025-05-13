@@ -1,0 +1,8 @@
+{
+  "name": "sdxl",
+  "modules": {
+    "0": "sdxl_clip_config_fp16.json",
+    "1": "sdxl_punet_config_fp8_ocp.json",
+    "2": "sdxl_vae_config_fp16.json"
+  }
+}
