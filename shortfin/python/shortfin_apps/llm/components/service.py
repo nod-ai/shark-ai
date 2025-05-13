@@ -127,16 +127,23 @@ class LlmGenerateService(GenerateService):
 
     def start(self):
         component_modules = self.initialize_program_modules("main")
-        device1=[]
-        device1.append(self.sysman.ls.devices[0])
-        self.inference_program = self.create_program(
-            modules=component_modules, devices=device1
-        )
-        device2=[]
-        device2.append(self.sysman.ls.devices[1])
-        self.inference_program = self.create_program(
-            modules=component_modules, devices=device2
-        )
+        logical_device_num = 1
+
+        # Get environment variable and convert to int if valid
+        env_var_value = os.getenv("SHORTFIN_AMDGPU_LOGICAL_DEVICES_PER_PHYSICAL_DEVICE")
+        if env_var_value is not None:
+            try:
+                logical_device_num = int(env_var_value)
+            except ValueError:
+                print("Invalid value for SHORTFIN_AMDGPU_LOGICAL_DEVICES_PER_PHYSICAL_DEVICE. Using default of 1.")
+
+        for index in range(logical_device_num):
+            logical_device=[]
+            logical_device.append(self.sysman.ls.devices[index])
+            self.inference_program = self.create_program(
+                modules=component_modules, devices=logical_device
+            )
+
         self.initialize_function_references()
 
         self.prefill_batcher = PrefillBatcherProcess(
