@@ -51,6 +51,10 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         self._cache: BasePagedAttentionCache | None = None
         self.allocation: PageAllocation | None = None
 
+        # The fiber that was used for the last prefill or decode invocation.
+        # This is needed to support GPU sampling kernels.
+        self.invocation_fiber: sf.Fiber | None = None
+
     @classmethod
     def copy_exec_request(
         cls, exec_req: "LlmInferenceExecRequest"
@@ -76,6 +80,7 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         self.return_all_logits = False
         self.return_host_array = True
         self.result_logits = None
+        self.invocation_fiber = None
 
     def cache_page_indices(self, max_len: int) -> list[int]:
         if not self.allocation:

@@ -132,6 +132,12 @@ def add_service_args(parser: argparse.ArgumentParser):
         help="Number of fibers to use per worker.",
     )
     parser.add_argument(
+        "--enable_gpu_sampling",
+        action="store_true",
+        help="Disable using GPU kernels for sampling, if they are available.",
+        default=False,
+    )
+    parser.add_argument(
         "--benchmark",
         action="store_true",
         help="Perform a benchmarking run for throughput",

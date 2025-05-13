@@ -11,6 +11,8 @@ from .base_token_selection_strategy import (
     BaseTokenSelectionStrategy,
     TokenSelectionStrategyConfig,
 )
+from .sampler import GPUSampler, CPUSampler
+
 from ..messages import LlmInferenceExecRequest, InferencePhase
 
 logger = logging.getLogger(__name__)
@@ -20,7 +22,7 @@ TOP_P_DEFAULT_SELECTION = 32
 
 
 class GreedyBeam(Beam):
-    def sample_logits(self) -> int:
+    async def sample_logits(self) -> int:
         """Return the single highest scoring token of the logits.
 
         Returns:
@@ -31,11 +33,19 @@ class GreedyBeam(Beam):
         top_k = decode_config.top_k
         top_p = decode_config.top_p
 
+        logits = self.exec_req.result_logits
+
         # Normal greedy selection based on max value
         if (top_k, top_p) == (None, None):
-            return self.sampler.select_greedy(exec_req.result_logits)
+            if self.gpu_sampler is not None:
+                return await self.gpu_sampler.select_greedy(
+                    logits, exec_req.invocation_fiber
+                )
 
-        logits = self.exec_req.result_logits
+            logits = await self._transfer_logits_to_host(logits)
+            return self.cpu_sampler.select_greedy(logits)
+
+        logits = await self._transfer_logits_to_host(logits)
 
         if top_k is not None:
             num_selections = 1 if top_p is None else top_k
@@ -48,7 +58,7 @@ class GreedyBeam(Beam):
         if top_p is not None:
             if top_k is None:
                 top_p_selection = min(logits.shape[-1], TOP_P_DEFAULT_SELECTION)
-                tokens, values = self.sampler.select_top_k(logits, -top_p_selection)
+                tokens, values = self.cpu_sampler.select_top_k(logits, -top_p_selection)
                 probs = self._to_softmax(
                     values,
                     exec_req.result_logits.dtype,
@@ -78,8 +88,12 @@ class GreedyTokenSelectionStrategy(BaseTokenSelectionStrategy):
     def __init__(
         self,
         token_selection_strategy_config: TokenSelectionStrategyConfig,
+        cpu_sampler: CPUSampler,
+        gpu_sampler: GPUSampler,
     ):
         self._token_selection_strategy_config = token_selection_strategy_config
+        self.cpu_sampler = cpu_sampler
+        self.gpu_sampler = gpu_sampler
 
     @property
     def token_selection_strategy_config(self):
@@ -98,13 +112,18 @@ class GreedyTokenSelectionStrategy(BaseTokenSelectionStrategy):
         config = self.token_selection_strategy_config
 
         config.decode_begin_callback(1)
-        beam = GreedyBeam(exec_req, decode_config=config.decode_config)
+        beam = GreedyBeam(
+            exec_req,
+            decode_config=config.decode_config,
+            cpu_sampler=self.cpu_sampler,
+            gpu_sampler=self.gpu_sampler,
+        )
         for _ in range(config.decode_config.max_completion_tokens):
             exec_req = beam.exec_req
             exec_req.reset(InferencePhase.DECODE)
             config.decode_callback(exec_req)
             await exec_req.done
-            token_int = beam.sample_logits()
+            token_int = await beam.sample_logits()
             beam.last_token = token_int
             config.results_callback(token_int)
             if token_int == config.eos_token_id:

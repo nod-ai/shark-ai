@@ -14,6 +14,7 @@ from .base_token_selection_strategy import (
 )
 from .beam_group import BeamGroup, Beam
 from .config import LogitsNormalization
+from .sampler import CPUSampler, GPUSampler
 from ..messages import LlmInferenceExecRequest, InferencePhase
 
 import shortfin.array as sfnp
@@ -63,7 +64,7 @@ class BeamSearchBeam(Beam):
 
         return log_probs
 
-    def sample_logits(self, k: int):
+    async def sample_logits(self, k: int):
         """Obtain tokens and log_probs from beam_search or beam_search with sampling.
 
         Args:
@@ -73,13 +74,15 @@ class BeamSearchBeam(Beam):
             Tuple[List[int], List[float]]: Tuple containing (top_tokens, top_values)
         """
         logits = self.exec_req.result_logits
+        logits = await self._transfer_logits_to_host(logits)
+
         decode_config = self.decode_config
         num_beams = decode_config.num_beams
         top_k = decode_config.top_k
         top_p = decode_config.top_p
 
         if (top_k, top_p) == (None, None):
-            tokens, probs = self.sampler.select_top_k(logits, -k)
+            tokens, probs = self.cpu_sampler.select_top_k(logits, -k)
 
             # TODO: https://github.com/nod-ai/shark-ai/issues/1278 find cleaner way to do these conversions
             if logits.dtype in [sfnp.float16]:
@@ -120,7 +123,7 @@ class BeamSearchBeam(Beam):
         if top_p is not None:
             if top_k is None:
                 top_p_selection = min(logits.shape[-1], TOP_P_DEFAULT_SELECTION)
-                tokens, values = self.sampler.select_top_k(logits, -top_p_selection)
+                tokens, values = self.cpu_sampler.select_top_k(logits, -top_p_selection)
                 probs = self._to_softmax(
                     values,
                     logits.dtype,
@@ -169,8 +172,15 @@ class BeamSearchBeam(Beam):
 
 
 class BeamSearchTokenSelectionStrategy(BaseTokenSelectionStrategy):
-    def __init__(self, token_selection_strategy_config: TokenSelectionStrategyConfig):
+    def __init__(
+        self,
+        token_selection_strategy_config: TokenSelectionStrategyConfig,
+        cpu_sampler: CPUSampler,
+        gpu_sampler: GPUSampler,
+    ):
         self._token_selection_strategy_config = token_selection_strategy_config
+        self.cpu_sampler = cpu_sampler
+        self.gpu_sampler = gpu_sampler
 
         self.min_log_prob = 0.0
 
@@ -178,7 +188,7 @@ class BeamSearchTokenSelectionStrategy(BaseTokenSelectionStrategy):
     def token_selection_strategy_config(self):
         return self._token_selection_strategy_config
 
-    def select_top_k(
+    async def select_top_k(
         self,
         active_beams: List[BeamSearchBeam],
         completed_beams: List[BeamSearchBeam],
@@ -202,7 +212,7 @@ class BeamSearchTokenSelectionStrategy(BaseTokenSelectionStrategy):
         selections: List[BeamSearchBeam] = []
         for beam in active_beams:
             min_log_prob = 0.0
-            top_tokens, top_values = beam.sample_logits(k)
+            top_tokens, top_values = await beam.sample_logits(k)
             for token, value in zip(top_tokens, top_values):
                 if value < min_log_prob:
                     min_log_prob = value
@@ -213,6 +223,8 @@ class BeamSearchTokenSelectionStrategy(BaseTokenSelectionStrategy):
                     accumulated_normalization=beam.accumulated_normalization,
                     last_token=token,
                     decode_config=config.decode_config,
+                    cpu_sampler=self.cpu_sampler,
+                    gpu_sampler=self.gpu_sampler,
                 )
                 new_beam.update_score(value)
                 selections.append(new_beam)
@@ -233,6 +245,8 @@ class BeamSearchTokenSelectionStrategy(BaseTokenSelectionStrategy):
                     accumulated_normalization=top_beam.accumulated_normalization,
                     last_token=top_beam.last_token,
                     decode_config=config.decode_config,
+                    cpu_sampler=self.cpu_sampler,
+                    gpu_sampler=self.gpu_sampler,
                 )
                 selections.append(new_beam)
 
@@ -277,7 +291,14 @@ class BeamSearchTokenSelectionStrategy(BaseTokenSelectionStrategy):
         beam_group = BeamGroup(
             config.eos_token_id,
             config.decode_config.num_beams,
-            [BeamSearchBeam(exec_req, decode_config=config.decode_config)],
+            [
+                BeamSearchBeam(
+                    exec_req,
+                    decode_config=config.decode_config,
+                    cpu_sampler=self.cpu_sampler,
+                    gpu_sampler=self.gpu_sampler,
+                )
+            ],
             self.select_top_k,
         )
 
@@ -301,7 +322,7 @@ class BeamSearchTokenSelectionStrategy(BaseTokenSelectionStrategy):
                 req.reset(InferencePhase.DECODE)
                 config.decode_callback(req)
             await beam_group.wait()
-            beam_group.process_beams()
+            await beam_group.process_beams()
 
         config.decode_end_callback(reservations)
         beam_group.clean_up()

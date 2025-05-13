@@ -97,51 +97,53 @@ def test_build_token_selector():
         token_selection_strategy.build_token_selector(config)
 
 
-@pytest.mark.asyncio
-async def test_prefill(
-    device, exec_req: LlmInferenceExecRequest, dummy_token_selection_strategy
+def test_prefill(
+    lsys, device, exec_req: LlmInferenceExecRequest, dummy_token_selection_strategy
 ):
-    def _batcher_callback(request: LlmInferenceExecRequest):
-        """Mock the batcher function to isolate `TokenSelectionStrategy.prefill`.
+    async def _test():
+        def _batcher_callback(request: LlmInferenceExecRequest):
+            """Mock the batcher function to isolate `TokenSelectionStrategy.prefill`.
 
-        This adds a `device_array` to the `LlmInferenceExecRequest's` result_logits.
-        Then we set the request to done, effectively simulating what would
-        happen under the hood.
+            This adds a `device_array` to the `LlmInferenceExecRequest's` result_logits.
+            Then we set the request to done, effectively simulating what would
+            happen under the hood.
 
-        Args:
-            request (LlmInferenceExecRequest): Request that would be submitted to batcher.
-        """
-        result_logits = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
-        data = [float(i) for i in range(math.prod(result_logits.shape))]
-        result_logits.items = data
-        request.result_logits = result_logits
-        request.done.set_success()
+            Args:
+                request (LlmInferenceExecRequest): Request that would be submitted to batcher.
+            """
+            result_logits = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+            data = [float(i) for i in range(math.prod(result_logits.shape))]
+            result_logits.items = data
+            request.result_logits = result_logits
+            request.done.set_success()
 
-    results_array = []
+        results_array = []
 
-    def _results_callback(token: int):
-        results_array.append(token)
+        def _results_callback(token: int):
+            results_array.append(token)
 
-    strategy = token_selection_strategy.TokenSelectionStrategy.GREEDY
+        strategy = token_selection_strategy.TokenSelectionStrategy.GREEDY
 
-    decode_config = token_selection_strategy.DecodeConfig(
-        token_selection_strategy=strategy,
-        max_completion_tokens=1,
-    )
+        decode_config = token_selection_strategy.DecodeConfig(
+            token_selection_strategy=strategy,
+            max_completion_tokens=1,
+        )
 
-    config = token_selection_strategy.build_token_selector_config(
-        decode_config,
-        prefill_batcher=FakeBatcher(_batcher_callback, _batcher_workitem_callback),
-        decode_batcher=FakeBatcher(_batcher_callback, _batcher_workitem_callback),
-        results_callback=_results_callback,
-        eos_token_id=0,
-    )
-    dummy_token_selection_strategy._token_selection_strategy_config = config
-    await dummy_token_selection_strategy.prefill(exec_req)
+        config = token_selection_strategy.build_token_selector_config(
+            decode_config,
+            prefill_batcher=FakeBatcher(_batcher_callback, _batcher_workitem_callback),
+            decode_batcher=FakeBatcher(_batcher_callback, _batcher_workitem_callback),
+            results_callback=_results_callback,
+            eos_token_id=0,
+        )
+        dummy_token_selection_strategy._token_selection_strategy_config = config
+        await dummy_token_selection_strategy.prefill(exec_req)
 
-    assert results_array[0] == 15
-    assert exec_req.input_token_ids[-1] == 15
-    assert exec_req.start_position == 6
+        assert results_array[0] == 15
+        assert exec_req.input_token_ids[-1] == 15
+        assert exec_req.start_position == 6
+
+    lsys.run(_test())
 
 
 def test_decode_config():

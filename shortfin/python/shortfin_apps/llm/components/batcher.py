@@ -439,12 +439,8 @@ class PrefillExecutorProcess(LlmExecutorProcess):
                 logits_item = logits.view(i, slice(0, sl))
             else:
                 logits_item = logits.view(i, sl - 1)
-            if req.return_host_array:
-                req.result_logits = logits_item.for_transfer()
-                req.result_logits.copy_from(logits_item)
-                await device0
-            else:
-                req.result_logits = logits_item
+            req.invocation_fiber = self.fiber
+            req.result_logits = logits_item
             req.done.set_success()
 
 
@@ -555,10 +551,6 @@ class DecodeExecutorProcess(LlmExecutorProcess):
                 logits_item = logits.view(i, slice(0, sl))
             else:
                 logits_item = logits.view(i, sl - 1)
-            if req.return_host_array:
-                req.result_logits = logits_item.for_transfer()
-                req.result_logits.copy_from(logits_item)
-                await device0
-            else:
-                req.result_logits = logits_item
+            req.result_logits = logits_item
+            req.invocation_fiber = self.fiber
             req.done.set_success()

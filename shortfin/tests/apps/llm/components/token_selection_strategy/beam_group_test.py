@@ -16,6 +16,9 @@ from shortfin_apps.llm.components.token_selection_strategy.beam_group import (
 from shortfin_apps.llm.components.token_selection_strategy.config import (
     LogitsNormalization,
 )
+from shortfin_apps.llm.components.token_selection_strategy.sampler import (
+    CPUSampler,
+)
 
 from shortfin_apps.utils import approximately_equal
 
@@ -71,6 +74,8 @@ def test_beam_apply_temperature(device, exec_req, decode_config):
     beam = DummyBeam(
         exec_req,
         decode_config=decode_config,
+        cpu_sampler=CPUSampler(),
+        gpu_sampler=None,
     )
 
     with patch.object(sfnp, "divide") as temp_mock:
@@ -108,6 +113,8 @@ def test_convert_logits_normalization_none(device, exec_req, decode_config):
     beam = DummyBeam(
         exec_req,
         decode_config=decode_config,
+        cpu_sampler=CPUSampler(),
+        gpu_sampler=None,
     )
 
     # No conversion
@@ -155,6 +162,8 @@ def test_convert_logits_normalization_softmax(device, exec_req, decode_config):
     beam = DummyBeam(
         exec_req,
         decode_config=decode_config,
+        cpu_sampler=CPUSampler(),
+        gpu_sampler=None,
     )
 
     # No conversion
@@ -192,6 +201,8 @@ def test_convert_logits_normalization_log_softmax(device, exec_req, decode_confi
     beam = DummyBeam(
         exec_req,
         decode_config=decode_config,
+        cpu_sampler=CPUSampler(),
+        gpu_sampler=None,
     )
 
     # No conversion
@@ -224,7 +235,9 @@ def test__sample_logits_top_k(decode_config, device, exec_req):
         data[i] = 1.0
     logits.items = data
 
-    beam = DummyBeam(exec_req, decode_config)
+    beam = DummyBeam(
+        exec_req, decode_config, cpu_sampler=CPUSampler(), gpu_sampler=None
+    )
     top_k = len(random_hot_tokens)
     tokens, probs = beam._sample_logits_top_k(logits, top_k, top_k)
 
@@ -236,7 +249,9 @@ def test__sample_logits_top_k(decode_config, device, exec_req):
 
 
 def test__sample_logits_top_p(decode_config, exec_req):
-    beam = DummyBeam(exec_req, decode_config)
+    beam = DummyBeam(
+        exec_req, decode_config, cpu_sampler=CPUSampler(), gpu_sampler=None
+    )
     top_p = 0.9
 
     tokens = [i for i in range(16)]
@@ -265,7 +280,9 @@ def test__to_softmax(decode_config, device, exec_req):
         data[i] = 1.0
 
     # float32
-    beam = DummyBeam(exec_req, decode_config)
+    beam = DummyBeam(
+        exec_req, decode_config, cpu_sampler=CPUSampler(), gpu_sampler=None
+    )
     expected_probs = [0.33] * 3
     results_probs = beam._to_softmax(
         data,
@@ -297,7 +314,13 @@ async def test_wait(exec_req_list, decode_config):
             req.done.set_success()
 
     beams = [
-        DummyBeam(exec_req, decode_config=decode_config) for exec_req in exec_req_list
+        DummyBeam(
+            exec_req,
+            decode_config=decode_config,
+            cpu_sampler=CPUSampler(),
+            gpu_sampler=None,
+        )
+        for exec_req in exec_req_list
     ]
     beam_groups = BeamGroup(
         eos_token_id=-1,
@@ -310,8 +333,9 @@ async def test_wait(exec_req_list, decode_config):
         assert req.done._event.is_set()
 
 
-def test_process_beams_one_req(exec_req, decode_config):
-    def selection_callback(active_beams: List[DummyBeam], _: List[DummyBeam]):
+@pytest.mark.asyncio
+async def test_process_beams_one_req(exec_req, decode_config):
+    async def selection_callback(active_beams: List[DummyBeam], _: List[DummyBeam]):
         selections = []
         for beam in active_beams:
             token = 0
@@ -320,7 +344,14 @@ def test_process_beams_one_req(exec_req, decode_config):
 
         return selections
 
-    beams = [DummyBeam(exec_req, decode_config=decode_config)]
+    beams = [
+        DummyBeam(
+            exec_req,
+            decode_config=decode_config,
+            cpu_sampler=CPUSampler(),
+            gpu_sampler=None,
+        )
+    ]
     beam_groups = BeamGroup(
         eos_token_id=-1,
         num_beams=1,
@@ -329,21 +360,22 @@ def test_process_beams_one_req(exec_req, decode_config):
     )
 
     # Active
-    beam_groups.process_beams()
+    await beam_groups.process_beams()
     assert beam_groups.active_beams == beams
     assert len(beam_groups.completed_beams) == 0
 
     # Completed
     beam_groups.eos_token_id = 0
     with patch.object(LlmInferenceExecRequest, "free_cache_pages") as free_cache_mock:
-        beam_groups.process_beams()
+        await beam_groups.process_beams()
         assert len(beam_groups.active_beams) == 0
         assert beam_groups.completed_beams == beams
         free_cache_mock.assert_called_once()
 
 
-def test_process_beams_multiple_reqs(exec_req_list, decode_config):
-    def selection_callback_no_completed(active_beams, _):
+@pytest.mark.asyncio
+async def test_process_beams_multiple_reqs(exec_req_list, decode_config):
+    async def selection_callback_no_completed(active_beams, _):
         selections = []
         for beam in active_beams:
             token = 0
@@ -351,7 +383,7 @@ def test_process_beams_multiple_reqs(exec_req_list, decode_config):
             selections.append(beam)
         return selections
 
-    def selection_callback_one_completed(active_beams, _):
+    async def selection_callback_one_completed(active_beams, _):
         active_beams[0].last_token = 1
         selections = [active_beams[0]]
         for beam in active_beams[1:]:
@@ -361,7 +393,7 @@ def test_process_beams_multiple_reqs(exec_req_list, decode_config):
             )
         return selections
 
-    def selection_callback_all_completed(active_beams, _):
+    async def selection_callback_all_completed(active_beams, _):
         selections = []
         for beam in active_beams:
             beam.last_token = 1
@@ -371,19 +403,29 @@ def test_process_beams_multiple_reqs(exec_req_list, decode_config):
         return selections
 
     req_list = exec_req_list.copy()
-    beams = [DummyBeam(req, decode_config=decode_config) for req in req_list]
+    beams = [
+        DummyBeam(
+            req, decode_config=decode_config, cpu_sampler=CPUSampler(), gpu_sampler=None
+        )
+        for req in req_list
+    ]
     beam_group = BeamGroup(
         eos_token_id=1,
         num_beams=len(req_list),
         beams=beams,
         selection_callback=selection_callback_no_completed,
     )
-    beam_group.process_beams()
+    await beam_group.process_beams()
     assert beam_group.active_beams == beams
     assert len(beam_group.completed_beams) == 0
 
     req_list = exec_req_list.copy()
-    beams = [DummyBeam(req, decode_config=decode_config) for req in req_list]
+    beams = [
+        DummyBeam(
+            req, decode_config=decode_config, cpu_sampler=CPUSampler(), gpu_sampler=None
+        )
+        for req in req_list
+    ]
     beam_group = BeamGroup(
         eos_token_id=1,
         num_beams=len(req_list),
@@ -394,7 +436,7 @@ def test_process_beams_multiple_reqs(exec_req_list, decode_config):
     active = beam_group.active_beams[1:]
     with patch.object(LlmInferenceExecRequest, "free_cache_pages") as free_cache_mock:
         beam_group.selection_callback = selection_callback_one_completed
-        beam_group.process_beams()
+        await beam_group.process_beams()
         assert beam_group.active_beams == active
         assert beam_group.completed_beams == expected
         free_cache_mock.assert_called_once()
@@ -402,13 +444,18 @@ def test_process_beams_multiple_reqs(exec_req_list, decode_config):
         # Complete another req
         expected.append(beam_group.active_beams[0])
         active.remove(beam_group.active_beams[0])
-        beam_group.process_beams()
+        await beam_group.process_beams()
         assert beam_group.active_beams == active
         assert beam_group.completed_beams == expected
         assert free_cache_mock.call_count == 2
 
     req_list = exec_req_list.copy()
-    beams = [DummyBeam(req, decode_config=decode_config) for req in req_list]
+    beams = [
+        DummyBeam(
+            req, decode_config=decode_config, cpu_sampler=CPUSampler(), gpu_sampler=None
+        )
+        for req in req_list
+    ]
     beam_group = BeamGroup(
         eos_token_id=1,
         num_beams=len(req_list),
@@ -417,7 +464,7 @@ def test_process_beams_multiple_reqs(exec_req_list, decode_config):
     )
     # All completed
     with patch.object(LlmInferenceExecRequest, "free_cache_pages") as free_cache_mock:
-        beam_group.process_beams()
+        await beam_group.process_beams()
         assert len(beam_group.active_beams) == 0
         assert beam_group.completed_beams == beams
         assert free_cache_mock.call_count == len(beams)
@@ -425,7 +472,12 @@ def test_process_beams_multiple_reqs(exec_req_list, decode_config):
 
 @pytest.mark.asyncio
 async def test_clean_up(exec_req_list, decode_config):
-    beams = [DummyBeam(req, decode_config=decode_config) for req in exec_req_list]
+    beams = [
+        DummyBeam(
+            req, decode_config=decode_config, cpu_sampler=CPUSampler(), gpu_sampler=None
+        )
+        for req in exec_req_list
+    ]
     beam_group = BeamGroup(
         eos_token_id=-1,
         num_beams=len(exec_req_list),

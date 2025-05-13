@@ -9,12 +9,15 @@ import random
 
 import shortfin.array as sfnp
 
-from shortfin_apps.llm.components.token_selection_strategy.sampler import Sampler
+from shortfin_apps.llm.components.token_selection_strategy.sampler import (
+    GPUSampler,
+    CPUSampler,
+)
 from shortfin_apps.utils import convert_int_to_float, convert_float_to_int
 
 
 def test_sampler_select_top_k(device):
-    sampler = Sampler()
+    sampler = CPUSampler()
 
     # Sorted ascending
     src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
@@ -45,7 +48,7 @@ def test_sampler_select_top_k(device):
 
 
 def test_sampler_select_top_k_one_dim(device):
-    sampler = Sampler()
+    sampler = CPUSampler()
 
     src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
 
@@ -76,7 +79,7 @@ def test_sampler_select_top_k_one_dim(device):
 
 
 def test_sampler_select_top_k_float16(device):
-    sampler = Sampler()
+    sampler = CPUSampler()
 
     src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float16)
     data = [
@@ -105,7 +108,7 @@ def test_sampler_select_top_k_float16(device):
 
 
 def test_sampler_sample_top_k(device):
-    sampler = Sampler()
+    sampler = CPUSampler()
 
     src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
     data = [float(i) for i in range(math.prod(src.shape))]

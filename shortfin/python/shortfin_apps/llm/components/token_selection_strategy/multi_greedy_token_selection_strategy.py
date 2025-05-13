@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
-    def select_greedy(
+    async def select_greedy(
         self,
         active_beams: List[GreedyBeam],
         _: List[GreedyBeam],
@@ -33,7 +33,7 @@ class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
         """
         selections = []
         for beam in active_beams:
-            token = beam.sample_logits()
+            token = await beam.sample_logits()
             beam.last_token = token
             selections.append(
                 beam,
@@ -71,7 +71,12 @@ class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
         )
 
         beams = [
-            GreedyBeam(exec_req, decode_config=config.decode_config)
+            GreedyBeam(
+                exec_req,
+                decode_config=config.decode_config,
+                cpu_sampler=self.cpu_sampler,
+                gpu_sampler=self.gpu_sampler,
+            )
             for exec_req in exec_reqs
         ]
         beam_group = BeamGroup(
@@ -98,7 +103,7 @@ class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
                 config.decode_callback(req)
 
             await beam_group.wait()
-            beam_group.process_beams()
+            await beam_group.process_beams()
 
         config.decode_end_callback(reservations)
         beam_group.clean_up()

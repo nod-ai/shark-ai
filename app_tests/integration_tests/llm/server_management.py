@@ -21,6 +21,7 @@ class ServerConfig:
     artifacts: ModelArtifacts
     device_settings: DeviceSettings
     prefix_sharing_algorithm: str = "none"
+    enable_gpu_sampling: bool = False
 
 
 class ServerInstance:
@@ -71,6 +72,10 @@ class ServerInstance:
             f"--prefix_sharing_algorithm={self.config.prefix_sharing_algorithm}",
         ]
         argv.extend(self.config.device_settings.server_flags)
+
+        if self.config.enable_gpu_sampling:
+            argv.append("--enable_gpu_sampling")
+
         return argv
 
     @contextmanager
