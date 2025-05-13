@@ -54,6 +54,8 @@ class LlmGenerateService(GenerateService):
         self.server_params = server_params
         self.max_queue_size = max_queue_size
         self.current_queue_size = 0
+        self.main_fiber_pool = []
+        self.extra_fibers_created = 0
 
         self.set_isolation(program_isolation)
         self._initialize_worker_and_fiber()
@@ -92,6 +94,14 @@ class LlmGenerateService(GenerateService):
         logger.info(
             f"Creating {num_workers} workers, with {fibers_per_worker} fibers per worker..."
         )
+
+        # Create a fiber pool of size `max_queue_size` so that fibers can be pulled out of this
+        # pool on a per-need basis. This prevents the main thread stalling when doing CPU work
+        # and consequently starving the GPU of stuff to do.
+        for idx in range(self.max_queue_size):
+            worker = self.sysman.ls.create_worker(f"{self.name}-inference-main-{idx+1}")
+            fiber = self.sysman.ls.create_fiber(worker)
+            self.main_fiber_pool.append(fiber)
 
         self.main_worker = self.sysman.ls.create_worker(f"{self.name}-inference-main-0")
         self.main_fiber = self.sysman.ls.create_fiber(self.main_worker)
