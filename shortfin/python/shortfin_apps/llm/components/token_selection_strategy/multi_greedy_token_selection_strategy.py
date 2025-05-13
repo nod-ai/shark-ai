@@ -90,7 +90,9 @@ class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
             active_beam_count = len(beam_group.active_beams)
             if reservations > active_beam_count:
                 release_amount = reservations - active_beam_count
-                config.decode_end_callback(rid=exec_req.orig_instance_id, count=release_amount)
+                config.decode_end_callback(
+                    rid=exec_req.orig_instance_id, count=release_amount
+                )
                 reservations = active_beam_count
 
             for beam in beam_group.active_beams:
