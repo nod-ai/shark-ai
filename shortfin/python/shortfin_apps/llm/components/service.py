@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import logging
+import os
 
 from dataclasses import dataclass
 from typing import List
