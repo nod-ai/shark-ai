@@ -33,6 +33,8 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         # Unique `instance_id` for token selection strategies that may need
         # to differentiate between an original req and a copy of a req.
         self.instance_id = str(uuid4())
+
+        # Unique ID for an InferenceExecRequest shared between copies and executions.
         self.orig_instance_id = self.instance_id if orig_instance_id is None else orig_instance_id
 
         # Response control.
