@@ -8,9 +8,12 @@
 from collections.abc import Iterable
 from typing import Union
 from torch import Tensor
+import torch
 
 
 from sharktank.kernels import (
+    elementwise_tensor_tensor,
+    elementwise_tensor,
     einsum_2args_q4,
     mmt_block_scaled_offset_q4_unsigned,
     mmt_block_scaled_q8,
@@ -22,10 +25,15 @@ from sharktank.kernels import (
 from sharktank.types import (
     BlockScaledLayout,
     BlockScaledI4Layout,
+    TensorScaledLayout,
     PrimitiveTensor,
     QuantizedTensor,
+    PlanarQuantizedTensor,
     SuperBlockOffsetScaled_4_6_Layout,
 )
+
+from numbers import Number
+from ._registry import AllOfType, AllOfExprs, AllOfExprsVariadic, IsOfType
 
 from sharktank.types.tensors import AnyTensor, unbox_tensor
 from .signatures import *
@@ -46,6 +54,57 @@ from ._registry import AllNotOfType
 #         # Only 2d or 3d batch matmuls currently supported.
 #         return NotImplemented
 #     return mmtfp(lhs, rhs)
+
+# Elementwise
+
+operator_map = {
+    torch.add: "add",
+    torch.mul: "mul",
+    torch.square: "square",
+    torch.rsqrt: "rsqrt",
+    torch.sqrt: "sqrt",
+
+}
+
+@elementwise.override(QuantizedTensor)
+def elementwise_unary(operator, x, *args, **kwargs):
+    if operator not in operator_map.keys():
+        return NotImplemented
+    unpacked_x = x.unpack()
+    scale = unpacked_x._d
+    # Currently only supports TensorScaledLayouts 
+    if not isinstance(unpacked_x, TensorScaledLayout) or unpacked_x._m:
+        return NotImplemented
+    new_qs = elementwise_tensor(unpacked_x._qs, operator_map[operator])
+    # Only correct for square, rsqrt, and sqrt
+    d = operator(scale)
+    layout = TensorScaledLayout(shape=x.shape, qs=new_qs, d=d)
+    return PlanarQuantizedTensor(shape=x.shape, layout=layout)
+
+@elementwise.override(
+    AllOfExprs(IsOfType(QuantizedTensor), IsOfType(Tensor, QuantizedTensor))
+)
+def elementwise_binary(operator, x, y, *args, **kwargs):
+    # These two ops commute with scale, this is not true for all ops.
+    if operator not in operator_map.keys():
+        return NotImplemented
+
+    unpacked_x = x.unpack()
+    scale = unpacked_x._d
+    inp_y = y
+    # Only supporting TensorScaledLayouts atm
+    if not isinstance(unpacked_x, TensorScaledLayout) or unpacked_x._m:
+        return NotImplemented
+    if isinstance(y, QuantizedTensor):
+        unpacked_y = y.unpack()
+        inp_y = unpacked_y.qs
+        scale *= unpacked_y.d
+        if not isinstance(unpacked_y, TensorScaledLayout) or unpacked_y._m:
+            return NotImplemented
+
+    new_qs = elementwise_tensor_tensor(unpacked_x._qs, inp_y, operator_map[operator])
+    layout = TensorScaledLayout(shape=x.shape, qs=new_qs, d=scale)
+    return PlanarQuantizedTensor(shape=x.shape, layout=layout)
 
 
 # Einsum

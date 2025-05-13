@@ -465,6 +465,18 @@ def rms_norm_default(
     output = elementwise(torch.mul, weight, to(output, orig_dtype))
     return output
 
+@rms_norm.override(QuantizedTensor, QuantizedTensor)
+def rms_norm_QuantizedTensor(x, weight, *, epsilon: float, orig_dtype: Union[None, torch.dtype]) -> QuantizedTensor:
+    variance = x.pow(2).mean(-1, keepdim=True)
+    output = x * elementwise(torch.rsqrt, variance + epsilon)
+    output = elementwise(torch.mul, weight, to(output, orig_dtype))
+
+    unpacked = tensor.unpack()
+    if not isinstance(unpacked, TensorScaledLayout):
+        new_qs = unpacked._qs.view(shape)
+        layout = TensorScaledLayout(shape=shape, d=unpacked._d, qs=new_qs, m=unpacked._m)
+        return PlanarQuantizedTensor(shape=shape, layout=layout)
+    return NotImplemented
 
 @rms_norm.override(Tensor, QuantizedTensor)
 def rms_norm_Tensor_QuantizedTensor(
