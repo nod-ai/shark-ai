@@ -432,7 +432,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
 
     async def get_results(self, logits, req_count, device0):
         # Return results.
-        to_wait = False
+        await_device = False
         for i in range(req_count):
             req = self.exec_requests[i]
             sl = len(req.input_token_ids)
@@ -443,11 +443,11 @@ class PrefillExecutorProcess(LlmExecutorProcess):
             if req.return_host_array:
                 req.result_logits = logits_item.for_transfer()
                 req.result_logits.copy_from(logits_item)
-                to_wait = True
+                await_device = True
             else:
                 req.result_logits = logits_item
 
-        if to_wait:
+        if await_device:
             await device0
 
         for req in self.exec_requests:
