@@ -8,7 +8,7 @@ import logging
 
 from dataclasses import dataclass
 from typing import List
-
+from threading import Lock
 import shortfin as sf
 
 
@@ -56,29 +56,36 @@ class LlmGenerateService(GenerateService):
         self.current_queue_size = 0
 
         self.set_isolation(program_isolation)
-        self.initialize_worker_and_fiber()
-        self.initialize_queues()
-        self.initialize_page_cache()
+        self._initialize_worker_and_fiber()
+        self._initialize_queues()
+        self._initialize_page_cache()
+        self._lock = Lock()
 
-    def initialize_queues(self):
+    def _initialize_queues(self):
         """Initialize request and response queues"""
         if self.model_params.decode_batch_sizes:
-            self.max_queue_size = max(self.model_params.decode_batch_sizes) + 2
-            print(f"Max queue size: {self.max_queue_size}")
+            self.max_queue_size = max(self.model_params.decode_batch_sizes) * 2
+            logger.info(f"Max queue size: {self.max_queue_size}")
 
-    def add_to_queue(self) -> bool:
+    def add_to_queue(self, num_beams: int) -> bool:
         """Try to add a request to the queue. Returns True if successful, False if queue is full."""
-        if self.current_queue_size >= self.max_queue_size:
-            return False
-        self.current_queue_size += 1
-        return True
+        with self._lock:
+            if self.current_queue_size >= self.max_queue_size:
+                return False
+            self.current_queue_size += num_beams
+            logger.info(f"Adding to queue, queue size: {self.current_queue_size}")
+            return True
 
-    def remove_from_queue(self):
+    def remove_from_queue(self, num_beams: int):
         """Remove a request from the queue."""
-        if self.current_queue_size > 0:
-            self.current_queue_size -= 1
+        with self._lock:
+            if self.current_queue_size >= num_beams:
+                self.current_queue_size -= num_beams
+                logger.info(
+                    f"Removing from queue, queue size: {self.current_queue_size}"
+                )
 
-    def initialize_worker_and_fiber(self):
+    def _initialize_worker_and_fiber(self):
         num_workers = self.server_params.workers
         fibers_per_worker = self.server_params.fibers_per_worker
 
@@ -101,7 +108,7 @@ class LlmGenerateService(GenerateService):
 
         self.devices = self.prefill_fiber.devices_dict.values()
 
-    def initialize_page_cache(self):
+    def _initialize_page_cache(self):
         """Initialize page pool and attention cache."""
         page_pool_config = PagePoolConfig(
             dtype=self.model_params.paged_kv_cache.kv_cache_dtype,
