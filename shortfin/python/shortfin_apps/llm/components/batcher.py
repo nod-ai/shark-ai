@@ -442,9 +442,12 @@ class PrefillExecutorProcess(LlmExecutorProcess):
             if req.return_host_array:
                 req.result_logits = logits_item.for_transfer()
                 req.result_logits.copy_from(logits_item)
-                await device0
             else:
                 req.result_logits = logits_item
+
+        await device0
+        del logits
+        for req in self.exec_requests:
             req.done.set_success()
 
 
@@ -558,7 +561,11 @@ class DecodeExecutorProcess(LlmExecutorProcess):
             if req.return_host_array:
                 req.result_logits = logits_item.for_transfer()
                 req.result_logits.copy_from(logits_item)
-                await device0
+
             else:
                 req.result_logits = logits_item
+
+        await device0
+        del logits
+        for req in self.exec_requests:
             req.done.set_success()
