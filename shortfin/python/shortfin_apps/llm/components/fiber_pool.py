@@ -7,6 +7,7 @@
 
 import shortfin as sf
 from .manager import LlmSystemManager
+import asyncio
 
 
 class FiberPool:
@@ -40,22 +41,28 @@ class FiberPool:
 
         self.__initialize_pool()
 
-    def get(self) -> sf.Fiber | None:
+    async def get(self) -> sf.Fiber | None:
         if len(self.__fiber_pool) > 0:
             return self.__fiber_pool.pop()
 
-        if not self.resizable:
-            return None
+        if self.resizable:
+            # Resize the fiber pool by adding a new fiber.
+            new_worker = self.sysman.ls.create_worker(
+                f"{self.name}-new-worker-{self.__extra_fibers}"
+            )
+            self.__workers.append(new_worker)
 
-        # Resize the fiber pool by adding a new fiber.
-        new_worker = self.sysman.ls.create_worker(
-            f"{self.name}-new-worker-{self.__extra_fibers}"
-        )
-        self.__workers.append(new_worker)
+            fiber = self.sysman.ls.create_fiber(new_worker)
+            self.__extra_fibers += 1
+            return fiber
 
-        fiber = self.sysman.ls.create_fiber(new_worker)
-        self.__extra_fibers += 1
-        return fiber
+        # TODO(vinayakdsci): This is a rather inelegant solution to waiting for a fiber
+        # to become available, because of the spin loop. Figure out a cleaner way to block
+        # until fibers are available, and recommend using a resizable FiberPool.
+        while self.size() < 1:
+            await asyncio.sleep(0.001)
+
+        return self.__fiber_pool.pop()
 
     def pool(self) -> list[sf.Fiber]:
         return self.__fiber_pool

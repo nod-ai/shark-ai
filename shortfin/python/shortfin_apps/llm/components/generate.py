@@ -200,7 +200,7 @@ class ClientGenerateBatchProcess(sf.Process):
                     else self.gen_req.sampling_params[index]
                 )
 
-                fiber = self.service.main_fiber_pool.get()
+                fiber = await self.service.main_fiber_pool.get()
                 gen_process = GenerateItemProcess(
                     self,
                     self.gen_req,
