@@ -71,13 +71,9 @@ def main():
                 f"Unsharded dataset file provided, but specified --tensor-parallelism-size={args.tensor_parallelism_size}. Likely wrong dataset provided."
             )
 
-    if args.pipeline_parallelism_size > 1:
-        block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
-            dataset.root_theta, args.pipeline_parallelism_size
-        )
-    else:
-        block_to_pipeline = tuple([0] * hp.block_count)
-        pipeline_to_devices = tuple([tuple(range(args.tensor_parallelism_size))])
+    block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
+        dataset.root_theta, args.pipeline_parallelism_size
+    )
 
     llama_config = LlamaModelConfig(
         hp,

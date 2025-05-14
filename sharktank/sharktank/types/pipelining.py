@@ -23,7 +23,7 @@ from typing import Tuple
 
 def pipeline_parallelize_theta(
     theta: Theta, pipeline_parallelism_size: int
-) -> tuple[tuple[int, ...], tuple[list[int], ...]]:
+) -> tuple[tuple[int, ...], tuple[tuple[int, ...], ...]]:
     """
     Pipeline parallelize theta for LLM.
     Both DeepSeek and Llama.
@@ -69,13 +69,18 @@ def pipeline_parallelize_theta(
     block_indices = theta.tensor("blk").keys()
     block_count = len(block_indices)
 
-    block_to_pipeline = [
+    if pipeline_parallelism_size == 1:
+        block_to_pipeline = (0,) * block_count
+        pipeline_to_devices = tuple([tuple(range(shard_count))])
+        return tuple(block_to_pipeline), tuple(pipeline_to_devices)
+
+    block_to_pipeline = tuple(
         i * pipeline_parallelism_size // block_count for i in range(block_count)
-    ]
-    pipeline_to_devices = [
-        [p * shard_count + d for d in range(shard_count)]
+    )
+    pipeline_to_devices = tuple(
+        tuple(p * shard_count + d for d in range(shard_count))
         for p in range(pipeline_parallelism_size)
-    ]
+    )
 
     assert (
         bi == i for i, bi in enumerate(block_indices)
@@ -93,4 +98,4 @@ def pipeline_parallelize_theta(
     parallelize_in_place(theta.tensor("output_norm"), pipeline_to_devices[-1])
     parallelize_in_place(theta.tensor("output"), pipeline_to_devices[-1])
 
-    return tuple(block_to_pipeline), tuple(pipeline_to_devices)
+    return block_to_pipeline, pipeline_to_devices
