@@ -141,7 +141,7 @@ class LlmGenerateService(GenerateService):
         self.inference_programs = {}
 
         for index in range(logical_device_num):
-            logical_device=[]
+            logical_device = []
             logical_device.append(self.sysman.ls.devices[index])
             program = self.create_program(
                 modules=component_modules, devices=logical_device
