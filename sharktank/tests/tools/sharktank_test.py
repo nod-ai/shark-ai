@@ -8,7 +8,7 @@ from subprocess import check_call
 from pathlib import Path
 import pytest
 
-from sharktank.layers import model_config_presets
+from sharktank.layers import model_config_presets, register_all_models, ModelConfig
 from sharktank.utils import chdir
 
 
@@ -31,6 +31,8 @@ def test_export_compile(dummy_model_path: Path):
         check_call(["shark", "model", "compile", "dummy-model-local-llvm-cpu"])
         from .. import models
 
-        assert model_config_presets[
-            "dummy-model-local-llvm-cpu"
-        ].export_parameters_path.exists()
+        register_all_models()
+        config = ModelConfig.create(
+            **model_config_presets["dummy-model-local-llvm-cpu"]
+        )
+        assert config.export_parameters_path.exists()

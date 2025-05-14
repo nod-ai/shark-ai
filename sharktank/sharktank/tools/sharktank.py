@@ -51,9 +51,7 @@ class Model:
     def show(self, config: str):
         """Show model config."""
         model_config = self._resolve_config(config)
-        json.dump(
-            model_config.asdict_for_saving(), fp=sys.stdout, indent=2, sort_keys=True
-        )
+        json.dump(model_config, fp=sys.stdout, indent=2, sort_keys=True)
         print()
 
     def tracy_trace(self, config: str, /, function: str | None = None):

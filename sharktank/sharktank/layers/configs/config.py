@@ -95,6 +95,9 @@ class ModelConfig:
         self.parameters_path = self._config_relative_to_cwd_relative_path(
             self.parameters_path
         )
+        self.export_parameters_path = self._config_relative_to_cwd_relative_path(
+            self.export_parameters_path
+        )
         self.iree_module_path = self._config_relative_to_cwd_relative_path(
             self.iree_module_path
         )
