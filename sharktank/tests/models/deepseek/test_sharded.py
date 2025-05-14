@@ -13,10 +13,12 @@ import torch
 import unittest
 from copy import deepcopy
 
+from parameterized import parameterized
 import torch
 
 from sharktank.models.deepseek.toy_deepseek import generate
 from sharktank.models.llm import PagedLlmModelV1
+from sharktank.types.pipelining import pipeline_parallelize_theta
 from sharktank.types.sharding import shard_theta
 from sharktank.utils.evaluate import pad_tokens
 from sharktank.utils.load_llm import TorchGenerator
@@ -27,13 +29,31 @@ from sharktank.utils.create_cache import *
     reason="Deepseek support will be added soon",
 )
 class DeepseekShardedTest(unittest.TestCase):
-    def testTensorParallelToySizedModelEagerVsUnsharded(self):
+    @parameterized.expand(
+        [
+            (2, 1),
+            (1, 2),
+            (2, 2),
+        ]
+    )
+    def testParallelToySizedModelEagerVsUnsharded(
+        self, tensor_parallelism_size: int, pipeline_parallelism_size: int
+    ):
         theta, config = generate(12345)
-        tensor_parallelism_size = 2
 
         sharded_config = deepcopy(config)
         sharded_config.tensor_parallelism_size = tensor_parallelism_size
-        sharded_theta = shard_theta(theta=theta, config=sharded_config)
+        sharded_config.pipeline_parallelism_size = pipeline_parallelism_size
+        if tensor_parallelism_size > 1:
+            sharded_theta = shard_theta(theta=theta, config=sharded_config)
+        else:
+            sharded_theta = deepcopy(theta)
+
+        block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
+            sharded_theta, pipeline_parallelism_size
+        )
+        sharded_config.block_to_pipeline_map = block_to_pipeline
+        sharded_config.pipeline_to_device_map = pipeline_to_devices
 
         reference_model = PagedLlmModelV1(theta=theta, config=config)
         target_model = PagedLlmModelV1(theta=sharded_theta, config=sharded_config)
