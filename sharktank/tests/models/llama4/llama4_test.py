@@ -100,9 +100,9 @@ class Llama4Test(TempDirTestBase):
         )
 
         hf_intermediates_saver.save_file(
-            "hf_trace.safetensors", skip_unsupported_dtypes=True
+            "/home/sonbol/experiments/llama4/hf_trace.safetensors", skip_unsupported_dtypes=True
         )
-        intermediates_saver.save_file("trace.safetensors", skip_unsupported_dtypes=True)
+        intermediates_saver.save_file("/home/sonbol/experiments/llama4/trace.safetensors", skip_unsupported_dtypes=True)
 
     def test_moe(self):
         from sharktank.layers.testing import make_random_moe_block_theta
