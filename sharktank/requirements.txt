@@ -1,6 +1,7 @@
 iree-turbine
 
 # Runtime deps.
+fire>=0.7
 gguf>=0.11.0
 numpy
 

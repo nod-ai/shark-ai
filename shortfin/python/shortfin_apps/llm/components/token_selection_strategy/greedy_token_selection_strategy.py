@@ -101,7 +101,7 @@ class GreedyTokenSelectionStrategy(BaseTokenSelectionStrategy):
         self._log_sampling_method()
         config = self.token_selection_strategy_config
 
-        config.decode_begin_callback(1)
+        config.decode_begin_callback(rid=exec_req.orig_instance_id, count=1)
         beam = GreedyBeam(exec_req, decode_config=config.decode_config)
         for _ in range(config.decode_config.max_completion_tokens):
             exec_req = beam.exec_req
@@ -114,5 +114,5 @@ class GreedyTokenSelectionStrategy(BaseTokenSelectionStrategy):
             if token_int == config.eos_token_id:
                 break
             beam.update_exec_req()
-        config.decode_end_callback(1)
+        config.decode_end_callback(rid=exec_req.orig_instance_id, count=1)
         beam.exec_req.free_cache_pages()
