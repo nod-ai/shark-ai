@@ -38,7 +38,6 @@ logger = logging.getLogger(__name__)
 import math
 
 
-
 class LlmBatcherProcess(BatcherProcess):
     """This batcher provides a high-level mechanism for dispatching LLM tasks."""
 
@@ -104,7 +103,7 @@ class LlmBatcherProcess(BatcherProcess):
         rids = set([j.orig_instance_id for j in pending])
 
         # Group jobs together under their rid
-        rid_map = {rid : [] for rid in rids}
+        rid_map = {rid: [] for rid in rids}
         for j in pending:
             rid_map[j.orig_instance_id].append(j)
 
@@ -120,11 +119,9 @@ class LlmBatcherProcess(BatcherProcess):
         pending = set(pending) - set(scheduled)
         self.pending = self.pending | pending
 
-    def make_process(self, cache: BasePagedAttentionCache, fiber: Fiber):
-        ...
+    def make_process(self, cache: BasePagedAttentionCache, fiber: Fiber): ...
 
-    def board_request(self, cache, request: LlmInferenceExecRequest):
-        ...
+    def board_request(self, cache, request: LlmInferenceExecRequest): ...
 
     def board(self, cache: BasePagedAttentionCache, fiber: Fiber, to_schedule: set):
         # Fill prefill flights.
@@ -269,11 +266,9 @@ class LlmExecutorProcess(sf.Process):
         self.functions = functions
         self.program_isolation = program_isolation
 
-    async def get_args(self, bs, device0):
-        ...
+    async def get_args(self, bs, device0): ...
 
-    async def get_results(self, logits, req_count, device0):
-        ...
+    async def get_results(self, logits, req_count, device0): ...
 
     async def run(self):
         try:
