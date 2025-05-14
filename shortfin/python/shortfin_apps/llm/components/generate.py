@@ -175,6 +175,7 @@ class ClientGenerateBatchProcess(sf.Process):
             self.responder.ensure_response()
             return
 
+        fiber = None
         try:
             streaming = self.gen_req.stream
             self.responder.start_response()
@@ -198,19 +199,8 @@ class ClientGenerateBatchProcess(sf.Process):
                     if self.gen_req.is_single
                     else self.gen_req.sampling_params[index]
                 )
-                # Get a fiber from the main_fiber_pool.
-                fiber = None
-                if len(self.service.main_fiber_pool) > 0:
-                    fiber = self.service.main_fiber_pool.pop()
-                else:
-                    # If there are no fibers, create one on the fly.
-                    # We'll push it back later.
-                    worker = self.service.sysman.ls.create_worker(
-                        f"{self.service.name}-inference-new-{self.service.extra_fibers_created}"
-                    )
-                    fiber = self.service.sysman.ls.create_fiber(worker)
-                    self.service.extra_fibers_created += 1
 
+                fiber = self.service.main_fiber_pool.get()
                 gen_process = GenerateItemProcess(
                     self,
                     self.gen_req,
@@ -235,7 +225,7 @@ class ClientGenerateBatchProcess(sf.Process):
         finally:
             # Remove request from queue when done
             self.service.remove_from_queue(self.decode_config.num_beams)
-            self.service.main_fiber_pool.append(self.fiber)
+            self.service.main_fiber_pool.return_fiber(fiber)
             self.responder.ensure_response()
 
         # Remove request from queue when done
