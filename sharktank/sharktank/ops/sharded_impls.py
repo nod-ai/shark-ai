@@ -1615,7 +1615,7 @@ def unflatten_split(
 
 @unshard.override(ReplicatedTensor)
 def unshard_replicated(input: ReplicatedTensor) -> Tensor:
-    return input.shards[0]
+    return unbox_tensor(input.shards[0])
 
 
 @unshard.override(SplitPrimitiveTensor)
