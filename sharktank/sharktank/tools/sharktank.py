@@ -16,10 +16,9 @@ from ..layers import (
     BaseLayer,
     register_all_models,
 )
-from ..utils import chdir
 
 
-class Cli:
+class Model:
     """Command line tool for performing operations on Sharktank models.
 
     Common parameters:
@@ -71,6 +70,11 @@ class Cli:
     def _resolve_model(self, config: str) -> BaseLayer:
         config = self._resolve_config(config)
         return create_model(config)
+
+
+class Cli:
+    def __init__(self):
+        self.model = Model()
 
 
 def main():

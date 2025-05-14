@@ -18,17 +18,17 @@ def dummy_model_path(tmp_path_factory) -> Path:
 
 
 def test_list():
-    check_call(["sharktank", "list"])
+    check_call(["shark", "model", "list"])
 
 
 def test_show():
-    check_call(["sharktank", "show", "dummy-model-local-llvm-cpu"])
+    check_call(["shark", "model", "show", "dummy-model-local-llvm-cpu"])
 
 
 def test_export_compile(dummy_model_path: Path):
     with chdir(dummy_model_path):
-        check_call(["sharktank", "export", "dummy-model-local-llvm-cpu"])
-        check_call(["sharktank", "compile", "dummy-model-local-llvm-cpu"])
+        check_call(["shark", "model", "export", "dummy-model-local-llvm-cpu"])
+        check_call(["shark", "model", "compile", "dummy-model-local-llvm-cpu"])
         from .. import models
 
         assert model_config_presets[
