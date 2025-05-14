@@ -141,9 +141,9 @@ class ClientGenerateBatchProcess(sf.Process):
         service: LlmGenerateService,
         gen_req: GenerateReqInput,
         responder: FastAPIResponder,
-        fiber: sf.Fiber | None = None,
+        fiber: sf.Fiber,
     ):
-        super().__init__(fiber=service.fiber_pool.fibers[0] if fiber is None else fiber)
+        super().__init__(fiber=fiber)
         ClientGenerateBatchProcess.generate_count += 1
         self.service = service
         self.gen_req = gen_req
@@ -166,7 +166,7 @@ class ClientGenerateBatchProcess(sf.Process):
         self.decode_batcher.worker_index = (
             ClientGenerateBatchProcess.generate_count % len(self.fiber.device_names)
         )
-        if not self.service.add_to_queue():
+        if not self.service.add_to_queue(self.decode_config.num_beams):
             error_response = JSONResponse(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 content={
@@ -225,7 +225,7 @@ class ClientGenerateBatchProcess(sf.Process):
 
         finally:
             # Remove request from queue when done
-            self.service.remove_from_queue()
+            self.service.remove_from_queue(self.decode_config.num_beams)
             self.responder.ensure_response()
 
     def generate_response(

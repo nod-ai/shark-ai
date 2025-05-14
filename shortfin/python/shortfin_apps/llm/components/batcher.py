@@ -49,22 +49,6 @@ class DoneWorkItem(sf.Message):
         self.count = count
 
 
-@dataclass
-class FiberPool:
-
-    fibers: List[sf.Fiber]
-    idle_fibers: List[sf.Fiber]
-
-    def get_fiber(self):
-        if len(self.idle_fibers) == 0:
-            return None
-
-        return self.idle_fibers.pop(0)
-
-    def return_fiber(self, fiber: sf.Fiber):
-        self.idle_fibers.append(fiber)
-
-
 class LlmBatcherProcess(BatcherProcess):
     """This batcher provides a high-level mechanism for dispatching LLM tasks."""
 
@@ -74,14 +58,14 @@ class LlmBatcherProcess(BatcherProcess):
     def __init__(
         self,
         name: str,
-        fiber_pool: FiberPool,
+        fiber: Fiber,
         page_cache: BasePagedAttentionCache,
         model_params: ModelParams,
         functions: list[dict[int, sf.ProgramFunction]],
         ideal_batch_size: int,
         program_isolation: str,
     ):
-        super().__init__(fiber=fiber_pool.fibers[0])
+        super().__init__(fiber=fiber)
         self.name = name
         self.page_cache = page_cache
         self.model_params = model_params
@@ -94,7 +78,6 @@ class LlmBatcherProcess(BatcherProcess):
         self._current_workitems = 0
         self.worker_index = 0
 
-        self.fiber_pool = fiber_pool
         self.program_isolation = program_isolation
 
     def handle_inference_request(self, request):
@@ -138,18 +121,11 @@ class LlmBatcherProcess(BatcherProcess):
             logger.info("Waiting a bit longer to fill flight")
             return
 
-        fiber = self.fiber_pool.get_fiber()
-        if fiber is None:
-            logger.info("Waiting for an idle fiber...")
-            return
-
         self.strobes = 0
         cache = self.page_cache
 
-        self.board(cache, fiber)
+        self.board(cache, self.fiber)
         logger.debug("Post boarding cache state: %r", cache)
-        if self.program_isolation != sf.ProgramIsolation.PER_FIBER:
-            self.fiber_pool.return_fiber(fiber)
 
     def make_process(self, cache: BasePagedAttentionCache, fiber: Fiber):
         ...
@@ -194,7 +170,7 @@ class PrefillBatcherProcess(LlmBatcherProcess):
 
     def __init__(
         self,
-        fiber_pool: FiberPool,
+        fiber: Fiber,
         page_cache: BasePagedAttentionCache,
         model_params: ModelParams,
         prefill_functions: list[dict[int, sf.ProgramFunction]],
@@ -202,7 +178,7 @@ class PrefillBatcherProcess(LlmBatcherProcess):
     ):
         super().__init__(
             name="prefill",
-            fiber_pool=fiber_pool,
+            fiber=fiber,
             page_cache=page_cache,
             model_params=model_params,
             functions=prefill_functions,
@@ -216,7 +192,6 @@ class PrefillBatcherProcess(LlmBatcherProcess):
             self.functions[self.worker_index],
             self.page_seq_stride,
             cache.page_pool.page_tables,
-            self.fiber_pool,
             self.program_isolation,
             self.worker_index,
         )
@@ -251,7 +226,7 @@ class DecodeBatcherProcess(LlmBatcherProcess):
 
     def __init__(
         self,
-        fiber_pool: FiberPool,
+        fiber: Fiber,
         page_cache: BasePagedAttentionCache,
         model_params: ModelParams,
         decode_functions: list[dict[int, sf.ProgramFunction]],
@@ -259,7 +234,7 @@ class DecodeBatcherProcess(LlmBatcherProcess):
     ):
         super().__init__(
             name="decode",
-            fiber_pool=fiber_pool,
+            fiber=fiber,
             page_cache=page_cache,
             model_params=model_params,
             functions=decode_functions,
@@ -273,7 +248,6 @@ class DecodeBatcherProcess(LlmBatcherProcess):
             self.functions[self.worker_index],
             self.page_seq_stride,
             cache.page_pool.page_tables,
-            self.fiber_pool,
             self.program_isolation,
             self.worker_index,
         )
@@ -300,7 +274,6 @@ class LlmExecutorProcess(sf.Process):
         functions: dict[int, sf.ProgramFunction],
         seq_stride: int,
         page_tables,
-        fiber_pool: FiberPool,
         program_isolation: sf.ProgramIsolation,
         worker_index: int,
     ):
@@ -310,7 +283,6 @@ class LlmExecutorProcess(sf.Process):
         self.exec_requests: list[LlmInferenceExecRequest] = []
         self.page_tables = page_tables
         self.functions = functions
-        self.fiber_pool = fiber_pool
         self.program_isolation = program_isolation
         self.worker_index = worker_index
 
@@ -392,7 +364,6 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         functions: dict[int, sf.ProgramFunction],
         seq_stride: int,
         page_tables,
-        fiber_pool: FiberPool,
         program_isolation: sf.ProgramIsolation,
         worker_index: int,
     ):
@@ -402,7 +373,6 @@ class PrefillExecutorProcess(LlmExecutorProcess):
             functions=functions,
             seq_stride=seq_stride,
             page_tables=page_tables,
-            fiber_pool=fiber_pool,
             program_isolation=program_isolation,
             worker_index=worker_index,
         )
@@ -487,9 +457,6 @@ class PrefillExecutorProcess(LlmExecutorProcess):
                 req.result_logits = logits_item
             req.done.set_success()
 
-        if self.program_isolation == sf.ProgramIsolation.PER_FIBER:
-            self.fiber_pool.return_fiber(self.fiber)
-
 
 class DecodeExecutorProcess(LlmExecutorProcess):
     """Executes a decode batch."""
@@ -500,7 +467,6 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         functions: dict[int, sf.ProgramFunction],
         seq_stride: int,
         page_tables,
-        fiber_pool: FiberPool,
         isolation: sf.ProgramIsolation,
         worker_index: int,
     ):
@@ -510,7 +476,6 @@ class DecodeExecutorProcess(LlmExecutorProcess):
             functions=functions,
             seq_stride=seq_stride,
             page_tables=page_tables,
-            fiber_pool=fiber_pool,
             program_isolation=isolation,
             worker_index=worker_index,
         )
@@ -611,6 +576,3 @@ class DecodeExecutorProcess(LlmExecutorProcess):
             else:
                 req.result_logits = logits_item
             req.done.set_success()
-
-        if self.program_isolation == sf.ProgramIsolation.PER_FIBER:
-            self.fiber_pool.return_fiber(self.fiber)

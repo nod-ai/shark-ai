@@ -5,6 +5,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import logging
+import numpy as np
+from typing import Union
+
+import shortfin.array as sfnp
 
 from abc import ABC, abstractmethod
 from asyncio import gather
@@ -12,19 +16,10 @@ from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Set
 from uuid import uuid4
 
-import shortfin as sf
-import shortfin.array as sfnp
-
 from .base_token_selection_strategy import DecodeConfig
 from .config import LogitsNormalization
 from .sampler import Sampler
 from ..messages import LlmInferenceExecRequest
-
-from shortfin_apps.utils import (
-    convert_int_to_float,
-    convert_float_to_int,
-    convert_list_to_device_array,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +38,7 @@ class Beam(ABC):
     accumulated_normalization: float = 0.0
     last_token: int | None = None
 
-    def apply_temperature(self, logits: sfnp.device_array):
+    def apply_temperature(self, logits: np.array) -> np.array:
         """Apply temperature to the logits of a decode invocation.
 
         Args:
@@ -51,27 +46,44 @@ class Beam(ABC):
         """
         if self.decode_config.temperature == 1.0:
             return logits
-        return sfnp.divide(logits, self.decode_config.temperature)
+        return np.divide(logits, self.decode_config.temperature)
+
+    def _softmax(self, logits: Union[np.array, sfnp.device_array]) -> np.array:
+        if isinstance(logits, sfnp.device_array):
+            logits = np.array(logits)
+
+        x_max = np.max(logits)
+        e_x = np.exp(logits - x_max)
+        return e_x / np.sum(e_x)
+
+    def _log_softmax(self, logits: Union[np.array, sfnp.device_array]) -> np.array:
+        if isinstance(logits, sfnp.device_array):
+            logits = np.array(logits)
+
+        c = logits.max()
+        shifted_logits = logits - c
+        sumexp = np.log(np.exp(shifted_logits).sum())
+        return shifted_logits - sumexp
 
     def convert_logits_normalization(
         self,
         current: LogitsNormalization,
         target: LogitsNormalization,
-        logits: sfnp.device_array,
+        logits: np.array,
         **kwargs,
-    ) -> sfnp.device_array:
+    ) -> np.array:
         logits_conversion_map = {
             LogitsNormalization.NONE: {
-                LogitsNormalization.LOG_SOFTMAX: sfnp.log_softmax,
-                LogitsNormalization.SOFTMAX: sfnp.softmax,
+                LogitsNormalization.LOG_SOFTMAX: self._log_softmax,
+                LogitsNormalization.SOFTMAX: self._softmax,
                 LogitsNormalization.NONE: lambda logits: logits,
             },
             LogitsNormalization.SOFTMAX: {
-                LogitsNormalization.LOG_SOFTMAX: sfnp.log,
+                LogitsNormalization.LOG_SOFTMAX: np.log,
                 LogitsNormalization.SOFTMAX: lambda logits: logits,
             },
             LogitsNormalization.LOG_SOFTMAX: {
-                LogitsNormalization.SOFTMAX: sfnp.exp,
+                LogitsNormalization.SOFTMAX: np.exp,
                 LogitsNormalization.LOG_SOFTMAX: lambda logits: logits,
             },
         }
@@ -98,58 +110,43 @@ class Beam(ABC):
 
     def _to_softmax(
         self,
-        values: List,
-        dtype: sfnp.DType,
-        device: sf.ScopedDevice,
+        values: np.array,
         logits_normalization: LogitsNormalization,
     ):
-        if dtype in [sfnp.float16]:
-            values = [convert_float_to_int(value, dtype) for value in values]
-
-        probs_sf = convert_list_to_device_array(
-            values,
-            [len(values)],
-            device,
-            dtype,
-        )
-
-        if logits_normalization == LogitsNormalization.NONE:
-            probs_sf = self.apply_temperature(probs_sf)
-
         probs = self.convert_logits_normalization(
             logits_normalization,
             LogitsNormalization.SOFTMAX,
-            probs_sf,
-            **{"device_visible": True},
-        ).items.tolist()
-
-        if dtype in [sfnp.float16]:
-            probs = [convert_int_to_float(prob, dtype) for prob in probs]
+            values,
+        )
 
         return probs
 
-    def _sample_logits_top_k(self, logits: sfnp.device_array, top_k, num_selections):
+    def _sample_logits_top_k(self, logits: np.array, top_k: int, num_selections: int):
         tokens, values = self.sampler.select_top_k(logits, -top_k)
 
         probs = self._to_softmax(
             values,
-            logits.dtype,
-            logits.device,
             self.decode_config.logits_normalization,
         )
 
+        sorted_order = np.argsort(probs)[::-1]
+        tokens = tokens[sorted_order]
+        probs = probs[sorted_order]
         return self.sampler.sample_top_k(
-            tokens,
-            probs,
+            tokens=tokens,
+            probs=probs,
             k=num_selections,
         )
 
-    def _sample_logits_top_p(self, tokens, probs, top_p, num_selections):
+    def _sample_logits_top_p(
+        self, tokens, probs, top_p, num_selections, return_probs: bool = False
+    ):
         return self.sampler.sample_top_p(
             tokens=tokens,
             probs=probs,
             p=top_p,
             k=num_selections,
+            return_probs=return_probs,
         )
 
     @abstractmethod

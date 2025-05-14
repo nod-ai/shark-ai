@@ -96,41 +96,66 @@ class ContractionOpInterfaceParser(DispatchParser):
         )
 
 
-# TODO(Max191): Support more convolution types. Only NHWC convs are supported.
 class ConvolutionOpInterfaceParser(DispatchParser):
     def __init__(self, root_op: ir.Operation):
         super().__init__(root_op)
-        self.supported_ops = ["linalg.conv_2d_nhwc_hwcf"]
 
     def has_valid_root_op(self) -> bool:
         root_op = self.get_root_op()
         if not linalg.isa_convolution_op(root_op):
             return False
-
-        return root_op.name in self.supported_ops
+        convolution_dims = linalg.infer_convolution_dimensions(root_op)
+        assert convolution_dims, "no convolution dimensions"
+        # Only allow 'nhwc_hwcf' convs.
+        # TODO: This dispatch parser class supports more layouts, but constraint
+        #       generation is not tested. Relax this check as support is verified.
+        if (
+            list(convolution_dims.batch) != [0]
+            or list(convolution_dims.output_image) != [1, 2]
+            or list(convolution_dims.output_channel) != [3]
+            or list(convolution_dims.filter_loop) != [4, 5]
+            or list(convolution_dims.input_channel) != [6]
+            or list(convolution_dims.depth) != []
+        ):
+            return False
+        return True
 
     def get_problem_size(self) -> ProblemSize:
         root_op = self.get_root_op()
-        lhs_type = ir.RankedTensorType(root_op.operands[0].type)
-        rhs_type = ir.RankedTensorType(root_op.operands[1].type)
-        res_type = ir.RankedTensorType(root_op.operands[2].type)
-        dim_info = ConvDimInfo.from_rhs_res(rhs_type, res_type)
+
+        def find_iter_dim_size(iter_dim: int, operand: int):
+            operand_type = root_op.operands[operand].type
+            indexing_map = linalg.get_indexing_maps(root_op)[operand]
+            tensor_dim = list(indexing_map.value.results).index(
+                ir.AffineExpr.get_dim(iter_dim)
+            )
+            return operand_type.shape[tensor_dim]
+
         convolution_dims = linalg.infer_convolution_dimensions(root_op)
         assert convolution_dims, "no convolution dimensions"
+        contraction_dims = ContractionDimensions(
+            batch=list(convolution_dims.depth),
+            m=list(convolution_dims.batch) + list(convolution_dims.output_image),
+            n=list(convolution_dims.output_channel),
+            k=list(convolution_dims.filter_loop) + list(convolution_dims.input_channel),
+        )
+        # Parallel dimension sizes come from the output operand, and reduction
+        # dimension sizes come from filter.
+        matmul_size = ContractionSizes(
+            B=[find_iter_dim_size(d, operand=2) for d in contraction_dims.batch],
+            M=[find_iter_dim_size(d, operand=2) for d in contraction_dims.m],
+            N=[find_iter_dim_size(d, operand=2) for d in contraction_dims.n],
+            K=[find_iter_dim_size(d, operand=1) for d in contraction_dims.k],
+        )
+
+        lhs_type = root_op.operands[0].type
+        rhs_type = root_op.operands[1].type
+        res_type = root_op.operands[2].type
         return ProblemSize(
-            matmul_size=ContractionSizes(
-                M=[dim_info.n, dim_info.oh, dim_info.ow],
-                N=[dim_info.oc],
-                K=[dim_info.fh, dim_info.fw, dim_info.ic],
-            ),
+            matmul_size=matmul_size,
             lhs_type=ShapedType(lhs_type.shape, lhs_type.element_type),
             rhs_type=ShapedType(rhs_type.shape, rhs_type.element_type),
             res_type=ShapedType(res_type.shape, res_type.element_type),
             dispatch_kind=DispatchKind.conv,
-            contraction_dims=ContractionDimensions(
-                m=list(convolution_dims.batch) + list(convolution_dims.output_image),
-                n=list(convolution_dims.output_channel),
-                k=list(convolution_dims.filter_loop)
-                + list(convolution_dims.input_channel),
-            ),
+            contraction_dims=contraction_dims,
         )

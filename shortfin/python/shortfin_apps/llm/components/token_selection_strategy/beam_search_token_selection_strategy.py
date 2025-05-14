@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import logging
+import numpy as np
 
 from typing import List
 
@@ -16,14 +17,6 @@ from .beam_group import BeamGroup, Beam
 from .config import LogitsNormalization
 from ..messages import LlmInferenceExecRequest, InferencePhase
 
-import shortfin.array as sfnp
-
-from shortfin_apps.utils import (
-    convert_float_to_int,
-    convert_int_to_float,
-    convert_list_to_device_array,
-)
-
 
 logger = logging.getLogger(__name__)
 
@@ -34,34 +27,15 @@ TOP_P_DEFAULT_SELECTION = 32
 class BeamSearchBeam(Beam):
     def _convert_results_to_log_probs(
         self,
-        probs: List,
+        probs: np.array,
     ):
-        device = self.exec_req.result_logits.device
-        dtype = self.exec_req.result_logits.dtype
-        probs_sf = convert_list_to_device_array(
-            probs,
-            [len(probs)],
-            device,
-            dtype,
-        )
         log_probs = self.convert_logits_normalization(
             LogitsNormalization.SOFTMAX,
             LogitsNormalization.LOG_SOFTMAX,
-            probs_sf,
-            **{"device_visible": True},
+            probs,
         )
 
-        log_probs_dtype = log_probs.dtype
-
-        if log_probs_dtype in [sfnp.float16]:
-            log_probs = [
-                convert_int_to_float(value, log_probs_dtype)
-                for value in log_probs.items.tolist()
-            ]
-        else:
-            log_probs = log_probs.items.tolist()
-
-        return log_probs
+        return log_probs.tolist()
 
     def sample_logits(self, k: int):
         """Obtain tokens and log_probs from beam_search or beam_search with sampling.
@@ -78,34 +52,19 @@ class BeamSearchBeam(Beam):
         top_k = decode_config.top_k
         top_p = decode_config.top_p
 
+        logits = np.array(logits)
+
         if (top_k, top_p) == (None, None):
             tokens, probs = self.sampler.select_top_k(logits, -k)
 
-            # TODO: https://github.com/nod-ai/shark-ai/issues/1278 find cleaner way to do these conversions
-            if logits.dtype in [sfnp.float16]:
-                probs = [convert_float_to_int(prob, logits.dtype) for prob in probs]
-
-            probs_sf = convert_list_to_device_array(
-                probs,
-                [len(probs)],
-                logits.device,
-                logits.dtype,
-            )
-
             if self.decode_config.logits_normalization == LogitsNormalization.NONE:
-                probs_sf = self.apply_temperature(probs_sf)
+                probs = self.apply_temperature(probs)
 
             log_probs = self.convert_logits_normalization(
                 self.decode_config.logits_normalization,
                 LogitsNormalization.LOG_SOFTMAX,
-                probs_sf,
-            ).items.tolist()
-
-            if logits.dtype in [sfnp.float16]:
-                log_probs = [
-                    convert_int_to_float(log_prob, logits.dtype)
-                    for log_prob in log_probs
-                ]
+                probs,
+            ).tolist()
 
             return tokens, log_probs
 
@@ -123,15 +82,12 @@ class BeamSearchBeam(Beam):
                 tokens, values = self.sampler.select_top_k(logits, -top_p_selection)
                 probs = self._to_softmax(
                     values,
-                    logits.dtype,
-                    logits.device,
                     self.decode_config.logits_normalization,
                 )
 
-            tokens, probs = self._sample_logits_top_p(tokens, probs, top_p, num_beams)
-
-        if logits.dtype in [sfnp.float16]:
-            probs = [convert_float_to_int(prob, logits.dtype) for prob in probs]
+            tokens, probs = self._sample_logits_top_p(
+                tokens, probs, top_p, num_beams, return_probs=True
+            )
 
         log_probs = self._convert_results_to_log_probs(
             probs,
