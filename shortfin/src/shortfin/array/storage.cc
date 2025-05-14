@@ -164,8 +164,7 @@ void storage::copy_from(storage &source_storage) {
         // And depend on our own use and mutations dependencies.
         account.active_deps_extend(timeline_resource_->use_barrier());
 
-        logging::debug("Thread {}  : CopyBuffer({} -> {})",
-                           get_thread_id(),
+        SHORTFIN_SCHED_LOG("  : CopyBuffer({} -> {})",
                            static_cast<void *>(source_storage.buffer_.get()),
                            static_cast<void *>(buffer_.get()));
         SHORTFIN_THROW_IF_ERROR(iree_hal_command_buffer_copy_buffer(
