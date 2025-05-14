@@ -6,7 +6,7 @@
 
 
 import shortfin as sf
-from .utils import SystemManager
+from .manager import LlmSystemManager
 
 
 class FiberPool:
@@ -21,14 +21,14 @@ class FiberPool:
 
     def __init__(
         self,
-        sysman: SystemManager,
+        sysman: LlmSystemManager,
         init_size: int,
         resizable: bool = True,
         name: str = "default-fiber-pool",
     ):
         self.init_size: int = init_size
         self.resizable: bool = resizable
-        self.sysman: SystemManager = sysman
+        self.sysman: LlmSystemManager = sysman
         self.name: str = name
 
         # Name mangle to make outside access harder.

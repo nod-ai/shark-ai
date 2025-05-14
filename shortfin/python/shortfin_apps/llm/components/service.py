@@ -25,7 +25,7 @@ from .tokenizer import Tokenizer
 from .token_selection_strategy import get_strategy_from_str, is_ref_counted
 
 from ...utils import GenerateService
-from ...fiber_pool import FiberPool
+from .fiber_pool import FiberPool
 
 logger = logging.getLogger(__name__)
 
