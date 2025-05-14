@@ -140,9 +140,9 @@ class ClientGenerateBatchProcess(sf.Process):
         service: LlmGenerateService,
         gen_req: GenerateReqInput,
         responder: FastAPIResponder,
-        fiber: sf.Fiber | None = None,
+        fiber: sf.Fiber,
     ):
-        super().__init__(fiber=service.fiber_pool.fibers[0] if fiber is None else fiber)
+        super().__init__(fiber=fiber)
         self.service = service
         self.gen_req = gen_req
         self.responder = responder
@@ -158,7 +158,7 @@ class ClientGenerateBatchProcess(sf.Process):
 
         # Try to add request to queue
         # TODO(@zphoenixrises): Add load testing and integration tests for this.
-        if not self.service.add_to_queue():
+        if not self.service.add_to_queue(self.decode_config.num_beams):
             error_response = JSONResponse(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 content={
@@ -214,7 +214,7 @@ class ClientGenerateBatchProcess(sf.Process):
 
         finally:
             # Remove request from queue when done
-            self.service.remove_from_queue()
+            self.service.remove_from_queue(self.decode_config.num_beams)
             self.responder.ensure_response()
 
     def generate_response(

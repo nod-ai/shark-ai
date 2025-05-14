@@ -34,7 +34,10 @@ else()
 endif()
 
 target_link_libraries(shortfin_python_extension
-  PRIVATE ${SHORTFIN_LINK_LIBRARY_NAME}
+  PUBLIC
+    iree_base_base
+  PRIVATE
+    ${SHORTFIN_LINK_LIBRARY_NAME}
 )
 
 function(shortfin_python_stubs build_type)

@@ -253,27 +253,6 @@ def read_input_mlir(filename: str) -> list[str]:
 
 
 @dataclass
-class ConvDimInfo:
-    n: int
-    oh: int
-    ow: int
-    oc: int
-    fh: int
-    fw: int
-    ic: int
-
-    @staticmethod
-    def from_rhs_res(rhs_shaped_type: ShapedType, res_shaped_type: ShapedType):
-        n, oh, ow, oc = res_shaped_type.shape
-        fh, fw, ic, _ = rhs_shaped_type.shape
-        return ConvDimInfo(n, oh, ow, oc, fh, fw, ic)
-
-    @staticmethod
-    def from_problem_size(problem_size: ProblemSize):
-        return ConvDimInfo.from_rhs_res(problem_size.rhs_type, problem_size.res_type)
-
-
-@dataclass
 class MLIRTransformation:
     """Transformation of MLIR context"""
 
