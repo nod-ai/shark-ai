@@ -94,9 +94,6 @@ class PerplexityTorch:
 
         self.device = device
 
-        if config.tensor_parallelism_size > 1:
-            dataset.root_theta = shard_theta(dataset.root_theta, config)
-
         theta = dataset.root_theta
 
         model = PagedLlmModelV1(theta, config)
