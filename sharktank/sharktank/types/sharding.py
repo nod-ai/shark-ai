@@ -207,22 +207,6 @@ class ExpertParallelRoutedExpertsSharding(ThetaLayerSharding):
             }
         )
 
-
-class SharedExpertsSharding(ThetaLayerSharding):
-    def __init__(self, shard_count: int):
-        super().__init__()
-        self.shard_count = shard_count
-
-    def theta_sharding(self) -> ThetaSharding:
-        return ThetaSharding(
-            {
-                "shared_experts": FFNSharding(
-                    shard_count=self.shard_count
-                ).theta_sharding()
-            }
-        )
-
-
 class MoeBlockSharding(ThetaLayerSharding):
     def __init__(self, shard_count: int, model_arch: str):
         super().__init__()
@@ -238,7 +222,7 @@ class MoeBlockSharding(ThetaLayerSharding):
             }
         )
         if self.model_arch == "deepseek2":
-            result.update(SharedExpertsSharding(self.shard_count).theta_sharding())
+            result.update(FFNSharding(self.shard_count).theta_sharding())
         result.update(
             ExpertParallelRoutedExpertsSharding(self.shard_count).theta_sharding()
         )
