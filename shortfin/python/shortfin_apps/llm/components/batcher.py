@@ -41,8 +41,8 @@ import math
 class LlmBatcherProcess(BatcherProcess):
     """This batcher provides a high-level mechanism for dispatching LLM tasks."""
 
-    STROBE_SHORT_DELAY = 0.010
-    STROBE_LONG_DELAY = 0.010
+    STROBE_SHORT_DELAY = 0.065
+    STROBE_LONG_DELAY = 0.065
 
     def __init__(
         self,
@@ -151,8 +151,8 @@ class PrefillBatcherProcess(LlmBatcherProcess):
     committed cache state).
     """
 
-    STROBE_SHORT_DELAY = 0.010
-    STROBE_LONG_DELAY = 0.010
+    STROBE_SHORT_DELAY = 0.065
+    STROBE_LONG_DELAY = 0.065
 
     def __init__(
         self,
@@ -206,8 +206,8 @@ class DecodeBatcherProcess(LlmBatcherProcess):
     committed cache state).
     """
 
-    STROBE_SHORT_DELAY = 0.0001
-    STROBE_LONG_DELAY = 0.0001
+    STROBE_SHORT_DELAY = 0.0006
+    STROBE_LONG_DELAY = 0.0006
 
     def __init__(
         self,
