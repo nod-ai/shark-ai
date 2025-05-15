@@ -70,7 +70,7 @@ class KVCache:
 
         self.page_slab_flat_dims = math.prod(self.sub_page_dims)
 
-    def allocate(self, page_count: int) -> List[torch.Tensor]:
+    def allocate(self, page_count: int) -> List[torch.Tensor | ReplicatedTensor]:
         tensors = [
             torch.empty(
                 [page_count, self.page_slab_flat_dims],
@@ -317,11 +317,6 @@ class ShardedCache:
 
         return [ops.unshard(state)]
 
-    def unflatten_page_table(
-        self, state: List[SplitPrimitiveTensor]
-    ) -> List[SplitPrimitiveTensor]:
-        assert False
-
     def read(
         self,
         state: List[SplitPrimitiveTensor],
@@ -425,6 +420,7 @@ class PipelinedCache:
 
         pipeline_count = len(pipeline_to_device_map)
 
+        # Determine the mapping from each unsharded transformer block to the corresponding block in the pipeline sharded cache.
         transformer_block_map = []
         pipeline_block_counts = [0] * pipeline_count
         for pipeline in block_to_pipeline_map:
@@ -530,11 +526,6 @@ class PipelinedCache:
         sharded_version = SplitPrimitiveTensor(ts=selected_tensors, shard_dim=1)
         unsharded_version = ops.unshard(sharded_version).flatten(1)
         return [unsharded_version]
-
-    def unflatten_page_table(
-        self, state: List[SplitPrimitiveTensor]
-    ) -> List[SplitPrimitiveTensor]:
-        assert False
 
     @staticmethod
     def unwrap_pipelining(state):
