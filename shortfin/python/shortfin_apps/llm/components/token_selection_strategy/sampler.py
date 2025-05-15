@@ -4,42 +4,54 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from dataclasses import dataclass
-
+import logging
 import numpy as np
-import random
-from typing import List
+
+from dataclasses import dataclass
+from typing import Tuple
 
 import shortfin.array as sfnp
 
-from shortfin_apps.utils import convert_int_to_float
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
 class Sampler:
-    def sample_top_k(self, tokens: List[int], probs: List[float], k: int):
-        choices: List[int] = random.choices(tokens, weights=probs, k=k)
-        token_prob_map = dict(zip(tokens, probs))
-        return choices, [token_prob_map[token] for token in choices]
+    def sample_top_k(self, tokens: np.array, probs: np.array, k: int):
+        p = probs / probs.sum()
 
-    def sample_top_p(self, tokens: List[int], probs: List[float], p: float, k: int):
-        token_prob_map = dict(zip(tokens, probs))
-        sorted_probs = sorted(token_prob_map.items(), key=lambda x: x[1], reverse=True)
+        choices = np.random.choice(tokens, size=k, replace=True, p=p)
 
-        cumulative_prob = 0.0
-        selected_tokens = []
-        selected_probs = []
-        for token, prob in sorted_probs:
-            cumulative_prob += prob
-            selected_tokens.append(token)
-            selected_probs.append(prob)
-            if cumulative_prob > p:
-                break
+        token_to_p = {int(t): float(p_) for t, p_ in zip(tokens, p)}
+        chosen_probs = np.array([token_to_p[int(t)] for t in choices])
 
-        choices: List[int] = random.choices(tokens, weights=probs, k=k)
-        return choices, [token_prob_map[token] for token in choices]
+        return choices, chosen_probs
 
-    def select_top_k(self, logits: sfnp.device_array, k: int):
+    def sample_top_p(
+        self,
+        tokens: np.array,
+        probs: np.array,
+        p: float,
+        k: int,
+        return_probs=False,
+    ):
+        cum = np.cumsum(probs)
+        idx = np.searchsorted(cum, p, side="right") + 1
+
+        tokens, probs = tokens[:idx], probs[:idx]
+
+        weights = probs / probs.sum()
+
+        choices = np.random.choice(tokens, size=k, p=weights)
+        chosen_probs = None
+        if return_probs:
+            prob_map = {tok: pr for tok, pr in zip(tokens, probs)}
+            chosen_probs = np.array([prob_map[t] for t in choices])
+
+        return choices, chosen_probs
+
+    def select_top_k(self, logits: np.array, k: int) -> Tuple[np.array, np.array]:
         """
         This function is used to get the top k tokens and their cumulative probabilities.
         """
@@ -48,16 +60,8 @@ class Sampler:
         zero_indices = (0,) * (partitioned_tokens.ndim - 1)
 
         # Obtain tokens & values from partition
-        top_tokens = partitioned_tokens[zero_indices + (slice(k, None),)].tolist()
-        values_view = logits.view(*zero_indices).items
-
-        top_values = []
-        for token in top_tokens:
-            value = values_view[token]
-            if isinstance(value, int):
-                value = convert_int_to_float(value, logits.dtype)
-
-            top_values.append(value)
+        top_tokens = partitioned_tokens[zero_indices + (slice(k, None),)]
+        top_values = np.take(logits, top_tokens, axis=-1)[zero_indices]
 
         return top_tokens, top_values
 
@@ -70,6 +74,5 @@ class Sampler:
         Returns:
             int: Max token.
         """
-        token = sfnp.argmax(logits)
-        token_int = token.items[0]
-        return token_int
+        token = np.argmax(logits).item()
+        return token

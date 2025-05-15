@@ -16,6 +16,7 @@ import shortfin.array as sfnp
 
 from shortfin import Fiber
 
+from .scheduler import Scheduler
 from ...utils import BatcherProcess
 
 from .config_struct import ModelParams
@@ -35,18 +36,6 @@ logger = logging.getLogger(__name__)
 ########################################################################################
 
 import math
-
-
-class NewWorkItem(sf.Message):
-    def __init__(self, count: int = 1):
-        super().__init__()
-        self.count = count
-
-
-class DoneWorkItem(sf.Message):
-    def __init__(self, count: int = 1):
-        super().__init__()
-        self.count = count
 
 
 class LlmBatcherProcess(BatcherProcess):
@@ -75,7 +64,7 @@ class LlmBatcherProcess(BatcherProcess):
         # batching in the scheduling algo.
         self.ideal_batch_size: int = ideal_batch_size
         self.page_seq_stride = self.model_params.paged_kv_cache.block_seq_stride
-        self._current_workitems = 0
+        self.scheduler = Scheduler(ideal_batch_size=self.ideal_batch_size)
 
         self.program_isolation = program_isolation
 
@@ -87,19 +76,14 @@ class LlmBatcherProcess(BatcherProcess):
         """Process batches of requests."""
         await self.board_flights()
 
-    def reserve_workitem(self, count):
-        self.submit(NewWorkItem(count))
+    def reserve_workitem(self, *, rid, count):
+        return self.scheduler.reserve_workitem(batcher=self, count=count, rid=rid)
 
-    def complete_workitem(self, count):
-        self.submit(DoneWorkItem(count))
+    def complete_workitem(self, *, rid, count):
+        return self.scheduler.release_workitem(batcher=self, count=count, rid=rid)
 
     def custom_message(self, msg):
-        if isinstance(msg, NewWorkItem):
-            self._current_workitems = self._current_workitems + msg.count
-            return
-
-        if isinstance(msg, DoneWorkItem):
-            self._current_workitems = self._current_workitems - msg.count
+        if self.scheduler.handle_scheduler(msg):
             return
 
         super().custom_message(msg)
@@ -108,23 +92,32 @@ class LlmBatcherProcess(BatcherProcess):
         await super().board_flights()
 
     async def board_flights(self):
-        waiting_count = len(self.pending)
-        if waiting_count == 0:
-            self.strobes = 0
-            return
-        target_size = min(self._current_workitems, self.ideal_batch_size)
-        if waiting_count < target_size:
-            logger.info("Pending workitems to be enqueued")
-            return
-        if waiting_count < self.ideal_batch_size and self.strobes < 2:
-            logger.info("Waiting a bit longer to fill flight")
+        # TODO: Add lock on self.pending
+        pending = self.pending
+        self.pending = set()
+
+        if len(pending) == 0:
             return
 
-        self.strobes = 0
+        # Determine the requested requests these jobs are for
+        rids = set([j.orig_instance_id for j in pending])
+
+        # Group jobs together under their rid
+        rid_map = {rid: [] for rid in rids}
+        for j in pending:
+            rid_map[j.orig_instance_id].append(j)
+
+        to_schedule = self.scheduler.should_execute(rid_map, self.strobes)
+
         cache = self.page_cache
+        scheduled = []
+        for job in to_schedule:
+            scheduled = scheduled + job
+            self.board(cache, self.fiber, job)
+            logger.debug("Post boarding cache state: %r", cache)
 
-        self.board(cache, self.fiber)
-        logger.debug("Post boarding cache state: %r", cache)
+        pending = set(pending) - set(scheduled)
+        self.pending = self.pending | pending
 
     def make_process(self, cache: BasePagedAttentionCache, fiber: Fiber):
         ...
@@ -132,18 +125,14 @@ class LlmBatcherProcess(BatcherProcess):
     def board_request(self, cache, request: LlmInferenceExecRequest):
         ...
 
-    def board(self, cache: BasePagedAttentionCache, fiber: Fiber):
+    def board(self, cache: BasePagedAttentionCache, fiber: Fiber, to_schedule: set):
         # Fill prefill flights.
-        pending = self.pending
-        if len(pending) == 0:
-            return
+        assert len(to_schedule) > 0
+        assert len(to_schedule) <= self.ideal_batch_size
 
         exec_process = self.make_process(cache, fiber)
 
-        for request in pending:
-            if len(exec_process.exec_requests) >= self.ideal_batch_size:
-                break
-
+        for request in to_schedule:
             request = self.board_request(cache, request)
 
             # Can flight this request.
@@ -152,8 +141,6 @@ class LlmBatcherProcess(BatcherProcess):
 
         # We've filled our flight. Remove from the boarding area.
         if exec_process.exec_requests:
-            for flighted_request in exec_process.exec_requests:
-                self.pending.remove(flighted_request)
             # And takeoff.
             exec_process.launch()
 
@@ -432,6 +419,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
 
     async def get_results(self, logits, req_count, device0):
         # Return results.
+        await_device = False
         for i in range(req_count):
             req = self.exec_requests[i]
             sl = len(req.input_token_ids)
@@ -442,9 +430,14 @@ class PrefillExecutorProcess(LlmExecutorProcess):
             if req.return_host_array:
                 req.result_logits = logits_item.for_transfer()
                 req.result_logits.copy_from(logits_item)
-                await device0
+                await_device = True
             else:
                 req.result_logits = logits_item
+
+        if await_device:
+            await device0
+
+        for req in self.exec_requests:
             req.done.set_success()
 
 
@@ -548,6 +541,7 @@ class DecodeExecutorProcess(LlmExecutorProcess):
 
     async def get_results(self, logits, req_count, device0):
         # Return results.
+        await_device = False
         for i in range(req_count):
             req = self.exec_requests[i]
             sl = 1
@@ -558,7 +552,12 @@ class DecodeExecutorProcess(LlmExecutorProcess):
             if req.return_host_array:
                 req.result_logits = logits_item.for_transfer()
                 req.result_logits.copy_from(logits_item)
-                await device0
+                await_device = True
             else:
                 req.result_logits = logits_item
+
+        if await_device:
+            await device0
+
+        for req in self.exec_requests:
             req.done.set_success()

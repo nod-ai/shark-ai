@@ -21,6 +21,9 @@ dynamic = ["version", "dependencies", "optional-dependencies"]
 [project.urls]
 Repository = "https://github.com/nod-ai/shark-ai"
 
+[project.scripts]
+shark = "sharktank.tools.sharktank:main"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["sharktank*"]
