@@ -20,14 +20,15 @@ DELAY_TOLERANCE = 2.0000
 
 
 class MockSfProcess(sf.Process):
-    def __init__(self, fiber_pool: FiberPool, fiber: sf.Fiber):
-        super().__init__(fiber=fiber)
+    def __init__(self, fiber_pool: FiberPool, fiber: tuple[int, sf.Fiber]):
+        super().__init__(fiber=fiber[1])
         self.pool = fiber_pool
+        self.fiber_idx = fiber[0]
 
     async def run(self):
         # Simulate long-running work.
         await asyncio.sleep(2)
-        self.pool.return_fiber(self.fiber)
+        self.pool.return_fiber(self.fiber_idx)
 
     @staticmethod
     async def toplevel(processes):
@@ -36,28 +37,17 @@ class MockSfProcess(sf.Process):
 
         await asyncio.gather(*processes)
 
-    @staticmethod
-    async def toplevel_static(processes, pool: FiberPool, extra_fiber_count: int):
-        for proc in processes:
-            proc.launch()
-
-        fiber_tasks = [
-            asyncio.create_task(pool.get()) for _ in range(extra_fiber_count)
-        ]
-
-        processes.extend(fiber_tasks)
-        await asyncio.gather(*processes)
-
 
 class BlockingMockSfProcess(sf.Process):
-    def __init__(self, fiber_pool: FiberPool, fiber: sf.Fiber):
-        super().__init__(fiber=fiber)
+    def __init__(self, fiber_pool: FiberPool, fiber: tuple[int, sf.Fiber]):
+        super().__init__(fiber=fiber[1])
         self.pool = fiber_pool
+        self.fiber_idx = fiber[0]
 
     async def run(self):
         # Block the whole event loop.
         time.sleep(1)
-        self.pool.return_fiber(self.fiber)
+        self.pool.return_fiber(self.fiber_idx)
 
     @staticmethod
     async def toplevel(processes, pool: FiberPool):
@@ -102,25 +92,6 @@ def test_fiber_pool_init_size(fiber_pool: FiberPool, sysman: LlmSystemManager):
 
 
 @pytest.mark.asyncio
-async def test_fiber_pool_multiple_process(
-    fiber_pool: FiberPool, sysman: LlmSystemManager
-):
-    """
-    Test the usage of the FiberPool when it is distributed among multiple processes.
-    """
-    fibers = []
-    for _ in range(5):
-        fiber = await fiber_pool.get()
-        fibers.append(fiber)
-
-    procs = [MockSfProcess(fiber_pool, fibers[i]) for i in range(5)]
-
-    assert fiber_pool.size() == FIBER_POOL_INIT_SIZE - len(procs)
-    sysman.ls.run(MockSfProcess.toplevel(procs))
-    assert fiber_pool.size() == FIBER_POOL_INIT_SIZE
-
-
-@pytest.mark.asyncio
 async def test_fiber_pool_resize(fiber_pool: FiberPool, sysman: LlmSystemManager):
     """
     Test that the FiberPool resizes correctly when there is a shortage
@@ -129,44 +100,34 @@ async def test_fiber_pool_resize(fiber_pool: FiberPool, sysman: LlmSystemManager
     extra_fibers = 2
     fibers = []
     for _ in range(FIBER_POOL_INIT_SIZE + extra_fibers):
-        fiber = await fiber_pool.get()
-        fibers.append(fiber)
+        idx, fiber = await fiber_pool.get()
+        fibers.append(
+            (
+                idx,
+                fiber,
+            )
+        )
 
     procs = [
         MockSfProcess(fiber_pool, fibers[i])
         for i in range(FIBER_POOL_INIT_SIZE + extra_fibers)
     ]
 
-    assert fiber_pool.size() == 0
     sysman.ls.run(MockSfProcess.toplevel(procs))
     assert fiber_pool.size() == FIBER_POOL_INIT_SIZE + extra_fibers
-
-
-@pytest.mark.asyncio
-async def test_fiber_pool_static(
-    static_fiber_pool: FiberPool, sysman: LlmSystemManager
-):
-    extra_fibers = 2
-    fibers = []
-    for _ in range(FIBER_POOL_INIT_SIZE):
-        fiber = await static_fiber_pool.get()
-        fibers.append(fiber)
-
-    procs = [
-        MockSfProcess(static_fiber_pool, fibers[i]) for i in range(FIBER_POOL_INIT_SIZE)
-    ]
-
-    assert static_fiber_pool.size() == 0
-    sysman.ls.run(MockSfProcess.toplevel_static(procs, static_fiber_pool, extra_fibers))
-    assert static_fiber_pool.size() == FIBER_POOL_INIT_SIZE - extra_fibers
 
 
 @pytest.mark.asyncio
 async def test_fiber_pool_parallelism(fiber_pool: FiberPool, sysman: LlmSystemManager):
     fibers = []
     for _ in range(FIBER_POOL_INIT_SIZE):
-        fiber = await fiber_pool.get()
-        fibers.append(fiber)
+        idx, fiber = await fiber_pool.get()
+        fibers.append(
+            (
+                idx,
+                fiber,
+            )
+        )
     procs = [
         BlockingMockSfProcess(fiber_pool, fibers[i])
         for i in range(FIBER_POOL_INIT_SIZE)

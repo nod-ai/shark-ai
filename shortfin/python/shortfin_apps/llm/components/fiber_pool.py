@@ -38,31 +38,32 @@ class FiberPool:
         # Keep track of how many extra fibers were created
         # during runtime if `resizable` is set to True.
         self.__extra_fibers: int = 0
+        self.__index_queue = asyncio.Queue()
 
         self.__initialize_pool()
 
-    async def get(self) -> sf.Fiber | None:
-        if len(self.__fiber_pool) > 0:
-            return self.__fiber_pool.pop()
-
-        if self.resizable:
-            # Resize the fiber pool by adding a new fiber.
-            new_worker = self.sysman.ls.create_worker(
-                f"{self.name}-new-worker-{self.__extra_fibers}"
+    async def get(self) -> tuple[int, sf.Fiber]:
+        try:
+            idx = self.__index_queue.get_nowait()
+            return (
+                idx,
+                self.__fiber_pool[idx],
             )
-            self.__workers.append(new_worker)
+        except asyncio.QueueEmpty:
+            if self.resizable:
+                # Resize the fiber pool by adding a new fiber.
+                new_worker = self.sysman.ls.create_worker(
+                    f"{self.name}-new-worker-{self.__extra_fibers}"
+                )
+                self.__workers.append(new_worker)
 
-            fiber = self.sysman.ls.create_fiber(new_worker)
-            self.__extra_fibers += 1
-            return fiber
+                fiber = self.sysman.ls.create_fiber(new_worker)
+                self.__fiber_pool.append(fiber)
+                self.__extra_fibers += 1
+                return [self.size() - 1, fiber]
 
-        # TODO(vinayakdsci): This is a rather inelegant solution to waiting for a fiber
-        # to become available, because of the spin loop. Figure out a cleaner way to block
-        # until fibers are available, and recommend using a resizable FiberPool.
-        while self.size() < 1:
-            await asyncio.sleep(0.001)
-
-        return self.__fiber_pool.pop()
+            available_index = await self.__index_queue.get()
+            return (available_index, self.__fiber_pool[available_index])
 
     def pool(self) -> list[sf.Fiber]:
         return self.__fiber_pool
@@ -74,12 +75,15 @@ class FiberPool:
 
             fiber = self.sysman.ls.create_fiber(worker)
             self.__fiber_pool.append(fiber)
+            assert idx < self.size()
+            self.__index_queue.put_nowait(idx)
 
-    def return_fiber(self, fibers: sf.Fiber | list[sf.Fiber]):
+    def return_fiber(self, fibers: tuple[int, sf.Fiber] | list[tuple[int, sf.Fiber]]):
         if not isinstance(fibers, list):
             fibers = [fibers]
-        for fiber in fibers:
+        for idx, fiber in fibers:
             self.__fiber_pool.append(fiber)
+            self.__index_queue.put_nowait(idx)
 
     def size(self) -> int:
         return len(self.__fiber_pool)
