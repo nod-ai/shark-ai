@@ -207,6 +207,7 @@ class ExpertParallelRoutedExpertsSharding(ThetaLayerSharding):
             }
         )
 
+
 class MoeBlockSharding(ThetaLayerSharding):
     def __init__(self, shard_count: int, model_arch: str):
         super().__init__()
