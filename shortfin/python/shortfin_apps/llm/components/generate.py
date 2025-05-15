@@ -60,8 +60,9 @@ class GenerateItemProcess(sf.Process):
         eos_token_id: int,
         decode_config: DecodeConfig,
         status_tracker: RequestStatusTracker,
+        fiber: sf.Fiber,
     ):
-        super().__init__(fiber=client.fiber)
+        super().__init__(fiber=fiber)
         self.client = client
         self.gen_req = gen_req
         self.index = index
@@ -174,6 +175,7 @@ class ClientGenerateBatchProcess(sf.Process):
             self.responder.ensure_response()
             return
 
+        fibers = []
         try:
             streaming = self.gen_req.stream
             self.responder.start_response()
@@ -197,17 +199,28 @@ class ClientGenerateBatchProcess(sf.Process):
                     if self.gen_req.is_single
                     else self.gen_req.sampling_params[index]
                 )
+
+                idx, fiber = await self.service.main_fiber_pool.get()
+                fibers.append(
+                    (
+                        idx,
+                        fiber,
+                    )
+                )
                 gen_process = GenerateItemProcess(
                     self,
                     self.gen_req,
                     index,
-                    self.gen_req.text
-                    if self.gen_req.is_single
-                    else self.gen_req.text[index],
+                    (
+                        self.gen_req.text
+                        if self.gen_req.is_single
+                        else self.gen_req.text[index]
+                    ),
                     input_tokens if is_pretokenized else input_tokens.ids,
                     eos_token_id=self.tokenizer.eos_token_id,
                     decode_config=decode_config,
                     status_tracker=self.responder.get_status_tracker(),
+                    fiber=fiber,
                 )
                 gen_processes.append(gen_process)
                 gen_process.launch()
@@ -216,6 +229,9 @@ class ClientGenerateBatchProcess(sf.Process):
             if not self.responder.is_disconnected():
                 self.generate_response(gen_processes, streaming)
         finally:
+            # Remove request from queue when done
+            self.service.remove_from_queue(self.decode_config.num_beams)
+            self.service.main_fiber_pool.return_fiber(fibers)
             self.responder.ensure_response()
 
         # Remove request from queue when done
