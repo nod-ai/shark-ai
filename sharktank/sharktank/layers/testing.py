@@ -287,7 +287,6 @@ def make_random_moe_block_theta(
             hidden_dim=expert_hidden_dim * num_shared_experts,
             out_dim=in_dim,
             dtype=dtype,
-            shared_experts=True,
         )
         res.update(shared_ffn_theta.tree)
     if with_layer_output_norm:
