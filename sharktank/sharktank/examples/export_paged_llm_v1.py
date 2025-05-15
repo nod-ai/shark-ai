@@ -305,6 +305,14 @@ def main():
             if args.logits_normalization == "log_softmax":
                 logits = ops.elementwise(torch.log, ops.softmax(logits, dim=-1))
 
+            if args.top_k is not None:
+                if args.top_k == 1:
+                    max_logits, indices = model.argmax(
+                        logits, chunk_size=hp.context_length // 128
+                    )
+
+                return max_logits, indices
+
             return logits
 
     def generate_batch_decode(bs: int):
@@ -432,6 +440,14 @@ def main():
 
             if args.logits_normalization == "log_softmax":
                 logits = ops.elementwise(torch.log, ops.softmax(logits, dim=-1))
+
+            if args.top_k is not None:
+                if args.top_k == 1:
+                    max_logits, indices = model.argmax(
+                        logits, chunk_size=hp.context_length // 128
+                    )
+
+                return max_logits, indices
 
             return logits
 

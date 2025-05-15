@@ -11,6 +11,7 @@ import math
 import torch
 import torch.nn as nn
 
+from sharktank import ops
 from sharktank.layers import *
 from sharktank.types import *
 from sharktank.utils.create_cache import *
@@ -138,6 +139,19 @@ class PagedLlmModelV1(BaseCausalLMModel):
             x.shards, old_devices=curr_devices, new_devices=next_devices
         )
         return x.clone(ts=shards, devices=next_devices)
+
+    def argmax(
+        self,
+        logits: torch.Tensor,
+        chunk_size: int,
+    ):
+        indices = ops.argmax(logits, -1, chunk_size=chunk_size)
+        indices_expanded = indices.unsqueeze(-1)
+
+        max_logits = ops.gather(logits, dim=-1, index=indices_expanded)
+        max_logits = max_logits.squeeze(-1)
+
+        return max_logits, indices
 
     def prefill(
         self,

@@ -28,9 +28,14 @@ pytestmark = pytest.mark.parametrize(
     "model_artifacts,server",
     [
         (ModelConfig.get(name="tinystories_llama2_25m"), {"prefix_sharing": "none"}),
+        (
+            ModelConfig.get(name="tinystories_llama2_25m_gpu_argmax"),
+            {"prefix_sharing": "none"},
+        ),
     ],
     ids=[
         "tinystories_llama2_25m_none",
+        "tinystories_llama2_25m_gpu_argmax_none",
     ],
     indirect=True,
 )
