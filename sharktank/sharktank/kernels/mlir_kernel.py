@@ -78,12 +78,8 @@ class MLIRTensor:
         if not isinstance(shape_and_dtype, tuple):
             shape_and_dtype = tuple([shape_and_dtype])
 
-        if len(shape_and_dtype) == 1:
-            raise TypeError(
-                f"0D tensors disallowed because torch behaves weirdly with 0D tensors, treating them as tensor<0xdtype>"
-            )
-        if len(shape_and_dtype) < 2:
-            raise TypeError(f"Expected at least 2 argument, got: {shape_and_dtype}")
+        if len(shape_and_dtype) < 1:
+            raise TypeError(f"Expected at least 1 argument, got: {shape_and_dtype}")
 
         shape = shape_and_dtype[:-1]
         ty = shape_and_dtype[-1]
@@ -157,6 +153,7 @@ def mlir_kernel(
                 input_descs = [sel.arg_tensor(i) for i in range(len(input_args))]
 
                 # Specialize static dimensions.
+                print(input_descs)
                 for sym_ty, desc in zip(inputs, input_descs):
                     static_dims = [
                         i for i, dim in enumerate(sym_ty.shapes) if not dim.dynamic
@@ -167,7 +164,9 @@ def mlir_kernel(
                 dims = {}
                 dtypes = {}
                 for sym_ty, ty in zip(inputs, input_descs):
-                    if len(sym_ty.shapes) != len(ty.t.shape):
+                    if len(sym_ty.shapes) != 0 and len(sym_ty.shapes) != len(
+                        ty.t.shape
+                    ):
                         raise ValueError(
                             f"Mismatched input rank. Expected: {sym_ty.shapes}, got: {ty.t.shape}"
                         )
@@ -184,6 +183,8 @@ def mlir_kernel(
                             raise ValueError("Mismatched dtype error")
                     else:
                         dtypes[sym_ty.dtype.name] = ty.t.dtype
+
+                print(input_descs)
 
                 # Specialize static dimensions on return type.
                 for sym_ty in results:
