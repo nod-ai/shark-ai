@@ -236,7 +236,7 @@ class ShardedCache:
         transformer_block_count: int,
         attn_head_count: int,
         attn_head_dim: int,
-        devices: list | None = None,
+        devices: List[int] | None = None,
         cache_partition_count: int = 2,
         block_seq_stride: int = 16,
         cache_dtype: torch.dtype = torch.float32,
@@ -284,7 +284,7 @@ class ShardedCache:
         return 1
 
     def allocate(
-        self, page_count: int, devices: None = None
+        self, page_count: int, devices: List[int] | None = None
     ) -> List[SplitPrimitiveTensor]:
         assert devices is None
         shards = [cache.allocate(page_count)[0] for cache in self.caches]
@@ -417,19 +417,19 @@ class PipelinedCache:
         cache_partition_count: int = 2,
         block_seq_stride: int = 16,
         cache_dtype: torch.dtype = torch.float32,
-        block_to_pipeline_map: list[int],
-        pipeline_to_device_map: list[list[int]],
+        block_to_pipeline_map: List[int],
+        pipeline_to_device_map: List[List[int]],
         device: Optional[torch.device] = None,
     ):
         assert transformer_block_count == len(block_to_pipeline_map)
 
         pipeline_count = len(pipeline_to_device_map)
 
-        transformer_block_map = {}
+        transformer_block_map = []
         pipeline_block_counts = [0] * pipeline_count
-        for block, pipeline in enumerate(block_to_pipeline_map):
+        for pipeline in block_to_pipeline_map:
             assert pipeline >= 0 and pipeline < pipeline_count
-            transformer_block_map[block] = pipeline_block_counts[pipeline]
+            transformer_block_map.append(pipeline_block_counts[pipeline])
             pipeline_block_counts[pipeline] += 1
 
         caches = []
@@ -667,12 +667,12 @@ def build_cache(
     transformer_block_count: int,
     attn_head_count: int,
     attn_head_dim: int,
-    devices: list | None = None,
+    devices: List[int] | None = None,
     cache_partition_count: int = 2,
     block_seq_stride: int = 16,
     cache_dtype: torch.dtype = torch.float32,
-    block_to_pipeline_map: list[int] | None = None,
-    pipeline_to_device_map: list[list[int]] | None = None,
+    block_to_pipeline_map: List[int] | None = None,
+    pipeline_to_device_map: List[List[int]] | None = None,
     device: Optional[torch.device] = None,
 ):
     if pipeline_to_device_map is not None:
@@ -750,8 +750,8 @@ class PagedAttention:
         attn_dtype: torch.dtype = torch.float32,
         device: Optional[torch.device] = None,
         shard_count: int = 1,
-        block_to_pipeline_map: list[int] | None = None,
-        pipeline_to_device_map: list[list[int]] | None = None,
+        block_to_pipeline_map: List[int] | None = None,
+        pipeline_to_device_map: List[List[int]] | None = None,
     ):
         self.transformer_block_count = transformer_block_count
         self.head_count_kv = attn_head_count
@@ -768,9 +768,7 @@ class PagedAttention:
 
         self.block_to_pipeline_map = block_to_pipeline_map
         if self.block_to_pipeline_map is None:
-            self.block_to_pipeline_map = {
-                i: 0 for i in range(self.transformer_block_count)
-            }
+            self.block_to_pipeline_map = [0] * self.transformer_block_count
 
         self.kv_cache = build_cache(
             shard_count=shard_count,
@@ -797,12 +795,12 @@ class PagedAttention:
 
     def allocate(
         self, page_count: int
-    ) -> list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor]:
+    ) -> List[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor]:
         return self.kv_cache.allocate(page_count=page_count)
 
     def read(
         self,
-        state: list[Union[torch.Tensor, SplitPrimitiveTensor]],
+        state: List[Union[torch.Tensor, SplitPrimitiveTensor]],
         *,
         transformer_block_index: int,
         page_ids: Optional[Union[torch.Tensor, ReplicatedTensor]] = None,
@@ -815,8 +813,8 @@ class PagedAttention:
 
     def write_timestep(
         self,
-        state: list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
-        cache_partitions: list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
+        state: List[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
+        cache_partitions: List[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
         transformer_block_index: int,
         seq_positions: Union[torch.Tensor, ReplicatedTensor],
         page_ids: Union[torch.Tensor, ReplicatedTensor],
@@ -832,7 +830,7 @@ class PagedAttention:
     def write(
         self,
         state: List[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
-        cache_partitions: list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
+        cache_partitions: List[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
         *,
         transformer_block_index: int,
         page_ids: Union[torch.Tensor, ReplicatedTensor],
@@ -959,7 +957,7 @@ class PagedAttention:
         q: torch.Tensor,
         k: torch.Tensor,
         v: torch.Tensor,
-        cache_state: list[torch.Tensor],
+        cache_state: List[torch.Tensor],
         seq_block_ids: torch.Tensor,
         block_index: int,
         start_positions: torch.Tensor,
@@ -1009,7 +1007,7 @@ class PagedAttention:
         q: torch.Tensor,
         k: torch.Tensor,
         v: torch.Tensor,
-        cache_state: list[torch.Tensor],
+        cache_state: List[torch.Tensor],
         seq_block_ids: torch.Tensor,
         block_index: int,
         attention_kernel: str,
