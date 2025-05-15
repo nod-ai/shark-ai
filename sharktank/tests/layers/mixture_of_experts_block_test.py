@@ -45,7 +45,6 @@ class MoeBlockTest(unittest.TestCase):
                 n_expert_groups=None,
                 n_limited_groups=None,
                 num_shared_experts=1,
-                shared_expert_hidden_dim=1,
                 batch_size=1,
                 sequence_length=1,
                 rms_epsilon=0.02,
@@ -64,7 +63,6 @@ class MoeBlockTest(unittest.TestCase):
                 n_limited_groups=None,
                 expert_used_count=1,
                 num_shared_experts=1,
-                shared_expert_hidden_dim=1,
                 batch_size=1,
                 sequence_length=1,
                 rms_epsilon=0.02,
@@ -83,7 +81,6 @@ class MoeBlockTest(unittest.TestCase):
                 n_limited_groups=None,
                 expert_used_count=2,
                 num_shared_experts=1,
-                shared_expert_hidden_dim=1,
                 batch_size=1,
                 sequence_length=1,
                 rms_epsilon=0.02,
@@ -102,7 +99,6 @@ class MoeBlockTest(unittest.TestCase):
                 n_limited_groups=2,
                 expert_used_count=2,
                 num_shared_experts=2,
-                shared_expert_hidden_dim=3,
                 batch_size=2,
                 sequence_length=3,
                 rms_epsilon=0.03,
@@ -121,7 +117,6 @@ class MoeBlockTest(unittest.TestCase):
                 n_limited_groups=2,
                 expert_used_count=2,
                 num_shared_experts=11,
-                shared_expert_hidden_dim=13,
                 batch_size=17,
                 sequence_length=19,
                 rms_epsilon=0.01,
@@ -143,7 +138,6 @@ class MoeBlockTest(unittest.TestCase):
         n_limited_groups: int | None,
         expert_used_count: int,
         num_shared_experts: int,
-        shared_expert_hidden_dim: int,
         batch_size: int,
         sequence_length: int,
         rms_epsilon: float,
@@ -162,7 +156,6 @@ class MoeBlockTest(unittest.TestCase):
             num_experts=num_experts,
             with_ffn_norm=True,
             num_shared_experts=num_shared_experts,
-            shared_expert_hidden_dim=shared_expert_hidden_dim,
             with_layer_output_norm=True,
             dtype=dtype,
         )
@@ -214,7 +207,6 @@ class MoeBlockTest(unittest.TestCase):
                 n_limited_groups=2,
                 expert_used_count=2,
                 num_shared_experts=5,
-                shared_expert_hidden_dim=6,
                 batch_size=8,
                 sequence_length=9,
                 rms_epsilon=0.01,
@@ -234,7 +226,6 @@ class MoeBlockTest(unittest.TestCase):
                 n_limited_groups=3,
                 expert_used_count=7,
                 num_shared_experts=8,
-                shared_expert_hidden_dim=10,
                 batch_size=2,
                 sequence_length=3,
                 rms_epsilon=0.02,
@@ -257,7 +248,6 @@ class MoeBlockTest(unittest.TestCase):
         n_limited_groups: int | None,
         expert_used_count: int,
         num_shared_experts: int,
-        shared_expert_hidden_dim: int,
         batch_size: int,
         sequence_length: int,
         rms_epsilon: float,
@@ -277,11 +267,15 @@ class MoeBlockTest(unittest.TestCase):
             num_experts=num_experts,
             with_ffn_norm=False,
             num_shared_experts=num_shared_experts,
-            shared_expert_hidden_dim=shared_expert_hidden_dim,
             with_layer_output_norm=True,
             dtype=dtype,
         )
-        theta_sharding_spec = MoeBlockSharding(shard_count=tensor_parallelism_size)
+        model_arch = "grok"
+        if num_shared_experts > 0:
+            model_arch = "deepseek2"
+        theta_sharding_spec = MoeBlockSharding(
+            shard_count=tensor_parallelism_size, model_arch=model_arch
+        )
         sharded_theta = reshard(theta, spec=theta_sharding_spec)
 
         block = MoeBlock(
