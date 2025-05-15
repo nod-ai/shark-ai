@@ -8,6 +8,7 @@ import torch
 from sharktank.types.theta import Theta
 from sharktank.types.tensors import DefaultPrimitiveTensor
 from sharktank.utils.testing import make_rand_torch
+from sharktank.types.sharding import *
 
 
 def make_llama_attention_block_theta(
@@ -231,19 +232,23 @@ def make_mmdit_single_block_random_theta(
 
 
 def make_random_ffn_theta(
-    in_dim: int, hidden_dim: int, dtype: torch.dtype, out_dim: int | None = None
+    in_dim: int,
+    hidden_dim: int,
+    dtype: torch.dtype,
+    out_dim: int | None = None,
 ):
     if out_dim is None:
         out_dim = in_dim
+
     return Theta(
         {
-            "ffn_gate.weight": DefaultPrimitiveTensor(
+            f"ffn_gate.weight": DefaultPrimitiveTensor(
                 data=make_rand_torch((hidden_dim, in_dim), dtype=dtype)
             ),
-            "ffn_up.weight": DefaultPrimitiveTensor(
+            f"ffn_up.weight": DefaultPrimitiveTensor(
                 data=make_rand_torch((hidden_dim, in_dim), dtype=dtype)
             ),
-            "ffn_down.weight": DefaultPrimitiveTensor(
+            f"ffn_down.weight": DefaultPrimitiveTensor(
                 data=make_rand_torch((out_dim, hidden_dim), dtype=dtype)
             ),
         }
@@ -256,7 +261,6 @@ def make_random_moe_block_theta(
     num_experts: int,
     with_ffn_norm: bool = True,
     num_shared_experts: int = 0,
-    shared_expert_hidden_dim: int | None = None,
     with_layer_output_norm: bool = True,
     dtype: torch.dtype | None = None,
 ) -> Theta:
@@ -280,11 +284,11 @@ def make_random_moe_block_theta(
     if num_shared_experts > 0:
         shared_ffn_theta = make_random_ffn_theta(
             in_dim=in_dim,
-            hidden_dim=shared_expert_hidden_dim * num_shared_experts,
+            hidden_dim=expert_hidden_dim * num_shared_experts,
             out_dim=in_dim,
             dtype=dtype,
         )
-        res["shared_experts"] = shared_ffn_theta.tree
+        res.update(shared_ffn_theta.tree)
     if with_layer_output_norm:
         res["layer_output_norm.weight"] = DefaultPrimitiveTensor(
             data=make_rand_torch((in_dim), dtype=dtype)

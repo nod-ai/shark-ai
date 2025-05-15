@@ -289,7 +289,7 @@ class LlmExecutorProcess(sf.Process):
 
             args, req_count = await self.get_args(bs, device0)
 
-            logger.info(
+            logger.debug(
                 "INVOKE %r: %s",
                 fn,
                 "".join(
