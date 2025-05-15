@@ -14,10 +14,10 @@ import numpy as np
 import torch
 
 from sharktank.layers.configs.llm_configs import *
-from sharktank.types import Dataset, UnreducedTensor, SplitPrimitiveTensor
 from sharktank.models.llm import *
 from sharktank.models.llama.testing import make_random_llama_theta
-from sharktank.models.llama.sharding import shard_theta
+from sharktank.types import Dataset, UnreducedTensor, SplitPrimitiveTensor
+from sharktank.types.sharding import shard_theta
 import sharktank.ops as ops
 
 from sharktank.utils.testing import (

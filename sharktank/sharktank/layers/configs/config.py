@@ -95,6 +95,9 @@ class ModelConfig:
         self.parameters_path = self._config_relative_to_cwd_relative_path(
             self.parameters_path
         )
+        self.export_parameters_path = self._config_relative_to_cwd_relative_path(
+            self.export_parameters_path
+        )
         self.iree_module_path = self._config_relative_to_cwd_relative_path(
             self.iree_module_path
         )
@@ -135,7 +138,9 @@ class ModelConfig:
         if config_path is None:
             raise ValueError("Could not save config, missing save path")
         with open(config_path, "w") as f:
-            json.dump(self.asdict_for_saving(config_path), f)
+            json.dump(
+                self.asdict_for_saving(config_path), fp=f, indent=2, sort_keys=True
+            )
 
     def asdict_for_saving(
         self, config_path: PathLike | None = None, /

@@ -77,7 +77,7 @@ class FakeBatcher:
         self.complete_workitem = workitem_cb
 
 
-def _batcher_workitem_callback(_: int):
+def _batcher_workitem_callback(rid: int, count: int):
     pass
 
 
