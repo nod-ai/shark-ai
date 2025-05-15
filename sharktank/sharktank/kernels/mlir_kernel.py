@@ -35,6 +35,12 @@ class _Dim:
     dynamic: bool
     name: str
 
+    def __str__(self) -> str:
+        return ("dyn_" if self.dynamic else " ") + self.name
+
+    def __repr__(self) -> str:
+        return ("dyn_" if self.dynamic else " ") + self.name
+
 
 @dataclass
 class _Dtype:
@@ -65,12 +71,19 @@ class MLIRTensor:
         self.tensor = t
 
     def __class_getitem__(
-        cls, shape_and_dtype: tuple[_Dim | _Dtype, ...]
+        cls, shape_and_dtype: _Dtype | tuple[_Dim | _Dtype, ...]
     ) -> Type["MLIRTensor"]:
         """Syntax: `KernelBuffer[shape1, shape2, ..., shapeN, dtype]`"""
 
-        if not isinstance(shape_and_dtype, tuple) or len(shape_and_dtype) < 2:
-            raise TypeError(f"Expected at least 2 arguments, got: {shape_and_dtype}")
+        if not isinstance(shape_and_dtype, tuple):
+            shape_and_dtype = tuple([shape_and_dtype])
+
+        if len(shape_and_dtype) == 1:
+            raise TypeError(
+                f"0D tensors disallowed because torch behaves weirdly with 0D tensors, treating them as tensor<0xdtype>"
+            )
+        if len(shape_and_dtype) < 2:
+            raise TypeError(f"Expected at least 2 argument, got: {shape_and_dtype}")
 
         shape = shape_and_dtype[:-1]
         ty = shape_and_dtype[-1]
@@ -154,6 +167,10 @@ def mlir_kernel(
                 dims = {}
                 dtypes = {}
                 for sym_ty, ty in zip(inputs, input_descs):
+                    if len(sym_ty.shapes) != len(ty.t.shape):
+                        raise ValueError(
+                            f"Mismatched input rank. Expected: {sym_ty.shapes}, got: {ty.t.shape}"
+                        )
                     # Resolve shape symbols.
                     for sym_dim, dim in zip(sym_ty.shapes, ty.t.shape):
                         if sym_dim.name in dims:
@@ -270,7 +287,9 @@ def mlir_kernel(
                         for dim in sym_ty.shapes
                     ]
                     dtype = dtypes[sym_ty.dtype.name]
-                    aliases += f'!{arg} = tensor<{"x".join(mlir_shapes)}x{dtype}>\n'
+                    aliases += (
+                        f'!{arg} = tensor<{"x".join(mlir_shapes + [str(dtype)])}>\n'
+                    )
                     aliases += f"!{arg}_dtype = {dtype}\n"
                 for arg, sym_ty in zip(result_args, results):
                     mlir_shapes = [
@@ -278,7 +297,9 @@ def mlir_kernel(
                         for dim in sym_ty.shapes
                     ]
                     dtype = dtypes[sym_ty.dtype.name]
-                    aliases += f'!{arg} = tensor<{"x".join(mlir_shapes)}x{dtype}>\n'
+                    aliases += (
+                        f'!{arg} = tensor<{"x".join(mlir_shapes + [str(dtype)])}>\n'
+                    )
                     aliases += f"!{arg}_dtype = {dtype}\n"
                 return aliases
 
