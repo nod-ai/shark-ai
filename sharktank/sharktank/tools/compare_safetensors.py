@@ -145,8 +145,7 @@ def main(argv):
         type=Path,
         default=None,
         help=(
-            "Path to JSON or YAML file that maps an name of expected tensors to name "
-            'of actual tensors. E.g. {"a": "b", "c": "d"}'
+            "Path to JSON or YAML file that maps names of expected tensors to names of actual tensors."
         ),
     )
     parser.add_argument(
