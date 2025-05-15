@@ -13,8 +13,10 @@ from concurrent.futures import ThreadPoolExecutor
 
 import shortfin as sf
 import asyncio
+import time
 
 FIBER_POOL_INIT_SIZE: int = 16
+DELAY_TOLERANCE = 2.0000
 
 
 class MockSfProcess(sf.Process):
@@ -44,6 +46,24 @@ class MockSfProcess(sf.Process):
         ]
 
         processes.extend(fiber_tasks)
+        await asyncio.gather(*processes)
+
+
+class BlockingMockSfProcess(sf.Process):
+    def __init__(self, fiber_pool: FiberPool, fiber: sf.Fiber):
+        super().__init__(fiber=fiber)
+        self.pool = fiber_pool
+
+    async def run(self):
+        # Block the whole event loop.
+        time.sleep(1)
+        self.pool.return_fiber(self.fiber)
+
+    @staticmethod
+    async def toplevel(processes, pool: FiberPool):
+        for proc in processes:
+            proc.launch()
+
         await asyncio.gather(*processes)
 
 
@@ -139,3 +159,27 @@ async def test_fiber_pool_static(
     assert static_fiber_pool.size() == 0
     sysman.ls.run(MockSfProcess.toplevel_static(procs, static_fiber_pool, extra_fibers))
     assert static_fiber_pool.size() == FIBER_POOL_INIT_SIZE - extra_fibers
+
+
+@pytest.mark.asyncio
+async def test_fiber_pool_parallelism(fiber_pool: FiberPool, sysman: LlmSystemManager):
+    fibers = []
+    for _ in range(FIBER_POOL_INIT_SIZE):
+        fiber = await fiber_pool.get()
+        fibers.append(fiber)
+    procs = [
+        BlockingMockSfProcess(fiber_pool, fibers[i])
+        for i in range(FIBER_POOL_INIT_SIZE)
+    ]
+
+    # If there were true parallelism in the fiber pool, and the fibers are not holding
+    # the GIL, we should see them running blocking tasks in parallel. time.sleep() should
+    # block the whole event loop of the Process, which means that unless there was true parallelism
+    # we would see the time of execution come out to be somewhere near FIBER_POOL_INIT_SIZE when
+    # each process waits for 1.0 second. We assert that it is less than 2 seconds, allowing 1 second
+    # as tolerance.
+    start = time.time()
+    sysman.ls.run(BlockingMockSfProcess.toplevel(procs, fiber_pool))
+    end = time.time()
+    diff = end - start
+    assert diff < DELAY_TOLERANCE
