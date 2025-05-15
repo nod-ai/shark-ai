@@ -216,15 +216,9 @@ class SharedExpertsSharding(ThetaLayerSharding):
     def theta_sharding(self) -> ThetaSharding:
         return ThetaSharding(
             {
-                "ffn_gate_shexp": LinearSplitParallelWeightAndBiasSharding(
+                "shared_experts": FFNSharding(
                     shard_count=self.shard_count
-                ).theta_sharding(),
-                "ffn_up_shexp": LinearSplitParallelWeightAndBiasSharding(
-                    shard_count=self.shard_count
-                ).theta_sharding(),
-                "ffn_down_shexp": LinearSplitReductionDimSharding(
-                    shard_count=self.shard_count
-                ).theta_sharding(),
+                ).theta_sharding()
             }
         )
 
