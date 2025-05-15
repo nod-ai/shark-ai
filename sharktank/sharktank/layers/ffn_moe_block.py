@@ -12,7 +12,7 @@ import torch.nn.functional as F
 from .base import ThetaLayer
 from .linear import LinearLayer
 from . import FFN
-from sharktank.types import AnyTensor, DefaultPrimitiveTensor, Theta
+from sharktank.types import DefaultPrimitiveTensor, Theta
 from sharktank.ops import einsum_2args, elementwise
 from sharktank import ops
 

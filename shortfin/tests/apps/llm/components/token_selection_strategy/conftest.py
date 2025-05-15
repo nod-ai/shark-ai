@@ -9,6 +9,7 @@ import pytest
 from unittest.mock import patch
 from uuid import uuid4
 
+from shortfin.support.status_tracker import AbstractStatusTracker
 from shortfin_apps.llm.components.messages import (
     LlmInferenceExecRequest,
     InferencePhase,
@@ -36,10 +37,19 @@ def exec_req():
     with patch(
         "shortfin_apps.llm.components.messages.sf.VoidFuture", new=MockVoidFuture
     ):
+
+        class MockStatusTracker(AbstractStatusTracker):
+            def __init__(self):
+                pass
+
+            def is_disconnected(self):
+                return False
+
         yield LlmInferenceExecRequest(
             phase=InferencePhase.PREFILL,
             input_token_ids=[0, 1, 2, 3, 4, 5],
             rid=str(uuid4()),
+            status_tracker=MockStatusTracker(),
         )
 
 

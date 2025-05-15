@@ -93,8 +93,10 @@ class MoeBlock(ThetaLayer):
         else:
             self.experts = experts_ffn_moe_block
 
-        if "shared_experts" in theta:
-            self.shared_experts = FFN(theta("shared_experts"))
+        if theta.optional_tensor("ffn_gate_shexp") is not None:
+            self.shared_experts = FFN(
+                theta=theta, activation_fn=moe_activation, rms_epsilon=rms_epsilon
+            )
 
         # Add optional FFN output norm layer
         if theta.optional_tensor("layer_output_norm") is not None:

@@ -25,6 +25,7 @@ from .tokenizer import Tokenizer
 from .token_selection_strategy import get_strategy_from_str, is_ref_counted
 
 from ...utils import GenerateService
+from .fiber_pool import FiberPool
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,9 @@ class LlmGenerateService(GenerateService):
         self.server_params = server_params
         self.max_queue_size = max_queue_size
         self.current_queue_size = 0
+        self.main_fiber_pool = FiberPool(
+            self.sysman, self.max_queue_size, resizable=True
+        )
 
         self.set_isolation(program_isolation)
         self._initialize_worker_and_fiber()
@@ -64,7 +68,7 @@ class LlmGenerateService(GenerateService):
     def _initialize_queues(self):
         """Initialize request and response queues"""
         if self.model_params.decode_batch_sizes:
-            self.max_queue_size = max(self.model_params.decode_batch_sizes) * 2
+            self.max_queue_size = max(self.model_params.decode_batch_sizes)
             logger.info(f"Max queue size: {self.max_queue_size}")
 
     def add_to_queue(self, num_beams: int) -> bool:

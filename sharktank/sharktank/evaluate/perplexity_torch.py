@@ -19,7 +19,8 @@ from sharktank.layers import *
 from sharktank.types import *
 
 from sharktank.models.llm import *
-from sharktank.models.llama.sharding import shard_theta
+from sharktank.types.sharding import shard_theta
+
 
 from sharktank.utils import cli
 from sharktank.utils.load_llm import *

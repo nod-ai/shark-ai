@@ -10,7 +10,7 @@ import torch
 
 # TODO: Should be using a base class with the protocol supported.
 from sharktank.models.llm import *
-from sharktank.models.llama.sharding import shard_theta
+from sharktank.types.sharding import shard_theta
 from sharktank.layers import *
 from sharktank.types import *
 from sharktank.utils.load_llm import *
@@ -57,6 +57,7 @@ def main():
         pipeline_parallelism_size=args.pipeline_parallelism_size,
         fake_quant=args.fake_quant,
     )
+
     if config.tensor_parallelism_size > 1:
         dataset.root_theta = shard_theta(dataset.root_theta, config)
 

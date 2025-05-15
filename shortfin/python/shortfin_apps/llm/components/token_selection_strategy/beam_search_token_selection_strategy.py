@@ -240,6 +240,8 @@ class BeamSearchTokenSelectionStrategy(BaseTokenSelectionStrategy):
         reservations = beam_group.active_beam_count
         config.decode_begin_callback(rid=exec_req.orig_instance_id, count=reservations)
         for _ in range(config.decode_config.max_completion_tokens):
+            if exec_req.status_tracker.is_disconnected():
+                break
             if not beam_group.active_beams:
                 break
 
