@@ -330,9 +330,12 @@ class ShardedCache:
         for device in state[0].devices:
             assert device in page_ids.devices
 
+        page_id_map = {d : i for i, d in enumerate(page_ids.devices)}
+        page_id_shards = [page_ids.shards[page_id_map[d]] for d in state[0].devices]
+
         shards = []
         for shard_state, cache, shard_page_ids in zip(
-            state[0].shards, self.caches, page_ids.shards
+            state[0].shards, self.caches, page_id_shards
         ):
             read = cache.read(
                 state=[shard_state],
