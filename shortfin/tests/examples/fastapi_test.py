@@ -29,7 +29,7 @@ def server():
     print("Sending kill signal")
     runner.process.terminate()
     print("Waiting for server to exit")
-    runner.process.wait(20)
+    runner.process.wait(30)
 
 
 # Test error first to make sure it doesn't mess up the server.
@@ -53,6 +53,36 @@ def test_stream_response(server):
     print(full_contents)
     exp_contents = ("".join(['{"answer": %s}\n\x00' % i for i in range(21)])).encode()
     assert full_contents == exp_contents
+
+
+def test_cancel_long_request(server):
+    def make_request(timeout: float = 1):
+        response = None
+        error = None
+        try:
+            response = requests.get(f"{server.url}/predict?value=2", timeout=timeout)
+        except requests.exceptions.Timeout as e:
+            print(f"Timeout error: {e}")
+            error = e
+        except Exception as e:
+            print(f"Other error: {e}")
+            error = e
+        return response, error
+
+    response, error = make_request(1)
+    # Verify that the request timed out
+    assert error is not None, "Request should have timed out"
+    assert isinstance(error, requests.exceptions.Timeout), "Expected Timeout error"
+
+    # Verify server is still responsive
+    health_resp = requests.get(f"{server.url}/health")
+    assert health_resp.status_code == 200
+
+    # Test that request is successful if timeout is increased
+    response, error = make_request(20)
+    assert response is not None, "Request should be successful"
+    assert response.content == b'{"answer":2}'
+    assert error is None, "Request should not have an error"
 
 
 class ServerRunner:
