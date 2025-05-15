@@ -175,7 +175,7 @@ class ClientGenerateBatchProcess(sf.Process):
             self.responder.ensure_response()
             return
 
-        fiber = None
+        fibers = []
         try:
             streaming = self.gen_req.stream
             self.responder.start_response()
@@ -201,6 +201,7 @@ class ClientGenerateBatchProcess(sf.Process):
                 )
 
                 fiber = await self.service.main_fiber_pool.get()
+                fibers.append(fiber)
                 gen_process = GenerateItemProcess(
                     self,
                     self.gen_req,
@@ -225,7 +226,7 @@ class ClientGenerateBatchProcess(sf.Process):
         finally:
             # Remove request from queue when done
             self.service.remove_from_queue(self.decode_config.num_beams)
-            self.service.main_fiber_pool.return_fiber(fiber)
+            self.service.main_fiber_pool.return_fiber(fibers)
             self.responder.ensure_response()
 
         # Remove request from queue when done

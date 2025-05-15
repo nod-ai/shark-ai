@@ -75,8 +75,11 @@ class FiberPool:
             fiber = self.sysman.ls.create_fiber(worker)
             self.__fiber_pool.append(fiber)
 
-    def return_fiber(self, fiber: sf.Fiber):
-        self.__fiber_pool.append(fiber)
+    def return_fiber(self, fibers: sf.Fiber | list[sf.Fiber]):
+        if not isinstance(fibers, list):
+            fibers = [fibers]
+        for fiber in fibers:
+            self.__fiber_pool.append(fiber)
 
     def size(self) -> int:
         return len(self.__fiber_pool)
