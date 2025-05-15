@@ -85,10 +85,12 @@ class PipelinedShardedPagedAttentionTest(unittest.TestCase):
         pipelined_states_as_single = self.pipelined_sharded_cache.unshard_state(
             pipelined_sharded_cache_state
         )
-        assert iterables_equal(cache_state[0].shape, pipelined_states_as_single.shape)
+        assert iterables_equal(
+            cache_state[0].shape, pipelined_states_as_single[0].shape
+        )
         assert ops.equal(
             cache_state[0],
-            pipelined_states_as_single,
+            pipelined_states_as_single[0],
         )
 
     def testAllocate(self):

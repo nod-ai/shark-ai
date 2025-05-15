@@ -524,13 +524,12 @@ class PipelinedCache:
             current_state = unsharded_states[pipeline]
 
             selected = current_state[0]
-            print(selected.shape)
             selected = selected[:, new_block].unsqueeze(1)
             selected_tensors.append(selected)
 
         sharded_version = SplitPrimitiveTensor(ts=selected_tensors, shard_dim=1)
         unsharded_version = ops.unshard(sharded_version).flatten(1)
-        return unsharded_version
+        return [unsharded_version]
 
     def unflatten_page_table(
         self, state: List[SplitPrimitiveTensor]
@@ -754,12 +753,24 @@ class PagedAttention:
         block_to_pipeline_map: list[int] | None = None,
         pipeline_to_device_map: list[list[int]] | None = None,
     ):
+        self.transformer_block_count = transformer_block_count
         self.head_count_kv = attn_head_count
         self.attn_head_dim = attn_head_dim
         self.block_seq_stride = block_seq_stride
-
         self.device = device
         self.attn_dtype = attn_dtype
+        self.cache_dtype = cache_dtype
+        self.shard_count = shard_count
+
+        self.pipeline_to_device_map = pipeline_to_device_map
+        if self.pipeline_to_device_map is None:
+            self.pipeline_to_device_map = [list(range(shard_count))]
+
+        self.block_to_pipeline_map = block_to_pipeline_map
+        if self.block_to_pipeline_map is None:
+            self.block_to_pipeline_map = {
+                i: 0 for i in range(self.transformer_block_count)
+            }
 
         self.kv_cache = build_cache(
             shard_count=shard_count,
