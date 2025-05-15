@@ -236,23 +236,19 @@ def make_random_ffn_theta(
     hidden_dim: int,
     dtype: torch.dtype,
     out_dim: int | None = None,
-    shared_experts: bool = False,
 ):
-    suffix = ""
     if out_dim is None:
         out_dim = in_dim
-    if shared_experts:
-        suffix = "_shexp"
 
     return Theta(
         {
-            f"ffn_gate{suffix}.weight": DefaultPrimitiveTensor(
+            f"ffn_gate.weight": DefaultPrimitiveTensor(
                 data=make_rand_torch((hidden_dim, in_dim), dtype=dtype)
             ),
-            f"ffn_up{suffix}.weight": DefaultPrimitiveTensor(
+            f"ffn_up.weight": DefaultPrimitiveTensor(
                 data=make_rand_torch((hidden_dim, in_dim), dtype=dtype)
             ),
-            f"ffn_down{suffix}.weight": DefaultPrimitiveTensor(
+            f"ffn_down.weight": DefaultPrimitiveTensor(
                 data=make_rand_torch((out_dim, hidden_dim), dtype=dtype)
             ),
         }
