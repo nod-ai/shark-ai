@@ -52,12 +52,16 @@ class FiberPool:
         except asyncio.QueueEmpty:
             if self.resizable:
                 # Resize the fiber pool by adding a new fiber.
+                devices = self.sysman.ls.devices
+                num_devices = len(devices)
                 new_worker = self.sysman.ls.create_worker(
                     f"{self.name}-new-worker-{self.__extra_fibers}"
                 )
                 self.__workers.append(new_worker)
 
-                fiber = self.sysman.ls.create_fiber(new_worker)
+                fiber = self.sysman.ls.create_fiber(
+                    new_worker, devices=[devices[self.size() % num_devices]]
+                )
                 self.__fiber_pool.append(fiber)
                 self.__extra_fibers += 1
                 return [self.size() - 1, fiber]
@@ -69,11 +73,15 @@ class FiberPool:
         return self.__fiber_pool
 
     def __initialize_pool(self):
+        devices = self.sysman.ls.devices
+        num_devices = len(devices)
         for idx in range(self.init_size):
             worker = self.sysman.ls.create_worker(f"{self.name}-init-worker-{idx}")
             self.__workers.append(worker)
 
-            fiber = self.sysman.ls.create_fiber(worker)
+            fiber = self.sysman.ls.create_fiber(
+                worker, devices=[devices[idx % num_devices]]
+            )
             self.__fiber_pool.append(fiber)
             assert idx < self.size()
             self.__index_queue.put_nowait(idx)

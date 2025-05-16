@@ -53,6 +53,7 @@ class LlmBatcherProcess(BatcherProcess):
         functions: dict[int, sf.ProgramFunction],
         ideal_batch_size: int,
         program_isolation: str,
+        exec_fiber: Fiber,
     ):
         super().__init__(fiber=fiber)
         self.name = name
@@ -65,7 +66,7 @@ class LlmBatcherProcess(BatcherProcess):
         self.ideal_batch_size: int = ideal_batch_size
         self.page_seq_stride = self.model_params.paged_kv_cache.block_seq_stride
         self.scheduler = Scheduler(ideal_batch_size=self.ideal_batch_size)
-
+        self.exec_fiber = exec_fiber
         self.program_isolation = program_isolation
 
     def handle_inference_request(self, request):
@@ -161,6 +162,7 @@ class PrefillBatcherProcess(LlmBatcherProcess):
         model_params: ModelParams,
         prefill_functions: dict[int, sf.ProgramFunction],
         program_isolation: str,
+        exec_fiber: Fiber,
     ):
         super().__init__(
             name="prefill",
@@ -170,11 +172,12 @@ class PrefillBatcherProcess(LlmBatcherProcess):
             functions=prefill_functions,
             ideal_batch_size=max(model_params.prefill_batch_sizes),
             program_isolation=program_isolation,
+            exec_fiber=exec_fiber,
         )
 
     def make_process(self, cache: BasePagedAttentionCache, fiber: Fiber):
         return PrefillExecutorProcess(
-            fiber,
+            self.exec_fiber,
             self.functions,
             self.page_seq_stride,
             cache.page_pool.page_tables,
@@ -216,6 +219,7 @@ class DecodeBatcherProcess(LlmBatcherProcess):
         model_params: ModelParams,
         decode_functions: dict[int, sf.ProgramFunction],
         program_isolation: str,
+        exec_fiber: Fiber,
     ):
         super().__init__(
             name="decode",
@@ -225,11 +229,12 @@ class DecodeBatcherProcess(LlmBatcherProcess):
             functions=decode_functions,
             ideal_batch_size=max(model_params.decode_batch_sizes),
             program_isolation=program_isolation,
+            exec_fiber=exec_fiber,
         )
 
     def make_process(self, cache: BasePagedAttentionCache, fiber: Fiber):
         return DecodeExecutorProcess(
-            fiber,
+            self.exec_fiber,
             self.functions,
             self.page_seq_stride,
             cache.page_pool.page_tables,
