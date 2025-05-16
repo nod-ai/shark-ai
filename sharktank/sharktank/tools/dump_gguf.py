@@ -69,8 +69,9 @@ def main():
             save = True
 
         # Save input/output layer tensors
-        if "blk" not in tensor.name and args.save_input_output_blocks:
-            save = True
+        if "blk" not in tensor.name:
+            if args.save_input_output_blocks:
+                save = True
         elif int(tensor.name.split(".")[1]) in num_blocks:
             # Save tensors if in num_blocks
             save = True
