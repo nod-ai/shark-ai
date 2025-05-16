@@ -336,6 +336,11 @@ class InferenceTensor(ABC):
             f"Could not idenify which overload to use given args, and kwargs: {args}{kwargs}"
         )
 
+    def clone(self) -> "InferenceTensor":
+        raise NotImplementedError(
+            f"InferenceTensor {type(self)} does not implement clone."
+        )
+
     def _clone_with_globals(
         self, new_globals: dict[str, torch.Tensor]
     ) -> "InferenceTensor":
@@ -664,6 +669,12 @@ class DefaultPrimitiveTensor(PrimitiveTensor):
     ):
         super().__init__(name=name, shape=list(data.shape))
         self._data = data
+
+    def clone(self) -> "InferenceTensor":
+        from .. import ops
+
+        # We don't clone the name to not introduce name aliasing.
+        return DefaultPrimitiveTensor(data=ops.clone(self._data))
 
     @classmethod
     def serialized_name(cls) -> str:
@@ -1230,7 +1241,7 @@ class SplitPrimitiveTensor(ShardedTensorBase):
         )
 
     def clone(self, **kwargs) -> "SplitPrimitiveTensor":
-        kwargs["name"] = kwargs.get("name", self.name)
+        # We don't copy the name to not introduce name aliasing.
         kwargs["devices"] = kwargs.get("devices", self.devices)
         kwargs["shape"] = kwargs.get("shape", self.shape)
         kwargs["shard_dim"] = kwargs.get("shard_dim", self.shard_dim)
@@ -1240,7 +1251,7 @@ class SplitPrimitiveTensor(ShardedTensorBase):
             if isinstance(kwargs["ts"], torch.Tensor):
                 kwargs["shard_count"] = kwargs.get("shard_count", self.shard_count)
         else:
-            kwargs["ts"] = self.shards
+            kwargs["ts"] = [shard.clone() for shard in self.shards]
         return SplitPrimitiveTensor(**kwargs)
 
     def _is_slicing_split_dim(self, key):
@@ -1372,8 +1383,8 @@ class ReplicatedTensor(ShardedTensor):
         )
 
     def clone(self, **kwargs) -> "ReplicatedTensor":
+        # We don't copy the name to not introduce name aliasing.
         kwargs["ts"] = kwargs.get("ts", self.shards)
-        kwargs["name"] = kwargs.get("name", self.name)
         kwargs["devices"] = kwargs.get("devices", self.devices)
 
         if "ts" in kwargs:
@@ -1381,7 +1392,7 @@ class ReplicatedTensor(ShardedTensor):
             if isinstance(kwargs["ts"], torch.Tensor):
                 kwargs["shard_count"] = kwargs.get("shard_count", self.shard_count)
         else:
-            kwargs["ts"] = self.shards
+            kwargs["ts"] = [shard.clone() for shard in self.shards]
         return ReplicatedTensor(**kwargs)
 
     @property

@@ -32,6 +32,7 @@ __all__ = [
     "argmax",
     "barrier_on_logical_device",
     "cat",
+    "clone",
     "conv2d",
     "einsum_2args",
     "elementwise",
@@ -168,6 +169,26 @@ def _cat_trampoline(
 ):
     for override in d.find_overrides(tensors):
         result = override(tensors, dim)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
+
+
+@overridable
+def clone(tensor: AnyTensor) -> AnyTensor:
+    """Insert a tensor copy in the graph. The resulting tensor has a new copy of the data.
+    No name cloning to avoid name aliasing, etc. Cloning should thought as equivalent
+    to `b = a + 0`.
+    For more info see torch.clone."""
+    ...
+
+
+@clone.trampoline
+def _clone_trampoline(d: SignatureDispatcher, tensor: AnyTensor):
+    tensors = [tensor]
+    for override in d.find_overrides(tensors):
+        result = override(tensor)
         if result is not NotImplemented:
             return override, result
     else:
