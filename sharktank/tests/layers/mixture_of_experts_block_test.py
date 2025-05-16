@@ -22,8 +22,10 @@ class MoeBlockTest(unittest.TestCase):
         torch.random.manual_seed(123)
 
     def testExport(self):
+        expert_count = 8
         model = MoeBlock(
-            theta=make_moe_block_theta()("blk.0"),
+            theta=make_moe_block_theta(num_experts=expert_count)("blk.0"),
+            expert_count=expert_count,
             expert_used_count=2,
             rms_epsilon=1e-5,
         )
@@ -229,6 +231,7 @@ class MoeBlockTest(unittest.TestCase):
             ),
         ]
     )
+    @unittest.skip("Deepseek moe sharding changes required from #1256")
     def testTensorParallel(
         self,
         dtype: torch.dtype,

@@ -7,7 +7,6 @@
 from typing import Optional
 
 import torch
-import torch.nn.functional as F
 
 from sharktank.layers import *
 from sharktank.ops import softmax, topk, zeros_like, reshard_like
@@ -78,6 +77,7 @@ class MoeBlock(ThetaLayer):
                 "ffn_down": theta("ffn_down_exps").tree,
             }
         )
+
         # Add router gate
         if theta.optional_tensor("ffn_gate_inp") is not None:
             self.add_module("ffn_gate_inp", LinearLayer(theta("ffn_gate_inp")))

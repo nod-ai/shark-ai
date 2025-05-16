@@ -367,6 +367,7 @@ class AttentionFFNBlock(ThetaLayer):
                     theta=theta,
                     expert_count=config.hp.expert_count,
                     expert_used_count=config.hp.expert_used_count,
+                    expert_shared_count=config.hp.expert_shared_count,
                     rms_epsilon=config.hp.attention_layer_norm_rms_epsilon,
                     n_expert_groups=config.hp.n_expert_groups,
                     n_limited_groups=config.hp.n_limited_groups,
@@ -374,7 +375,6 @@ class AttentionFFNBlock(ThetaLayer):
                     moe_activation=moe_activation,
                     score_experts=score_experts,
                     normalize_experts=normalize_experts,
-                    shard_count=config.tensor_parallelism_size,
                 ),
             )
         else:
