@@ -83,10 +83,12 @@ class PipelinedPagedAttentionTest(unittest.TestCase):
         pipelined_states_as_single = self.pipelined_cache.unshard_state(
             pipelined_cache_state
         )
-        assert iterables_equal(cache_state[0].shape, pipelined_states_as_single.shape)
+        assert iterables_equal(
+            cache_state[0].shape, pipelined_states_as_single[0].shape
+        )
         assert ops.equal(
             cache_state[0],
-            pipelined_states_as_single,
+            pipelined_states_as_single[0],
         )
 
     def testAllocate(self):
@@ -97,32 +99,6 @@ class PipelinedPagedAttentionTest(unittest.TestCase):
         assert all(t.shape[0] == self.page_count for t in cache_state)
         assert cache_state[0].shape[1] == sum(
             t.shape[1] for t in pipelined_cache_allocation
-        )
-
-    def testUnflattenPageTable(self):
-        cache_state = self.cache.allocate(self.page_count)
-        assert len(cache_state) == 1
-        pipelined_cache_state = self.pipelined_cache.allocate(self.page_count)
-
-        unflattened_state = self.cache.unflatten_page_tables(cache_state)
-        pipelined_unflattened_state = self.pipelined_cache.unflatten_page_tables(
-            pipelined_cache_state
-        )
-        # [0] is page count
-        assert all(
-            pipelined_page_slab.shape[0] == self.page_count
-            for pipelined_page_slab in pipelined_unflattened_state
-        )
-        # [1] is for block count, and split across pipelines
-        assert unflattened_state[0].shape[1] == self.transformer_block_count
-        assert (
-            sum(page_slab.shape[1] for page_slab in pipelined_unflattened_state)
-            == self.transformer_block_count
-        )
-        # [2:] should be the same
-        assert all(
-            iterables_equal(page_slab.shape[2:], unflattened_state[0].shape[2:])
-            for page_slab in pipelined_unflattened_state
         )
 
     def testRead(self):
@@ -182,11 +158,14 @@ class PipelinedPagedAttentionTest(unittest.TestCase):
             seq_positions=seq_positions,
             page_ids=page_ids,
         )
-        pipelined_cache_partitions = deepcopy(
-            [ops.replicate(t, count=self.shard_count) for t in cache_partitions]
-        )
         pipeline = self.block_to_pipeline_map[transformer_block_index]
         devices = self.pipeline_to_device_map[pipeline]
+        pipelined_cache_partitions = deepcopy(
+            [
+                ops.replicate(t, count=self.shard_count, devices=devices)
+                for t in cache_partitions
+            ]
+        )
         pipelined_seq_positions = ops.replicate(
             seq_positions, count=self.shard_count, devices=devices
         )
@@ -230,11 +209,14 @@ class PipelinedPagedAttentionTest(unittest.TestCase):
             transformer_block_index=transformer_block_index,
             page_ids=page_ids,
         )
-        pipelined_cache_partitions = deepcopy(
-            [ops.replicate(t, count=self.shard_count) for t in cache_partitions]
-        )
         pipeline = self.block_to_pipeline_map[transformer_block_index]
         devices = self.pipeline_to_device_map[pipeline]
+        pipelined_cache_partitions = deepcopy(
+            [
+                ops.replicate(t, count=self.shard_count, devices=devices)
+                for t in cache_partitions
+            ]
+        )
         pipelined_page_ids = ops.replicate(
             page_ids, count=self.shard_count, devices=devices
         )
