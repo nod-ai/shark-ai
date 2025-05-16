@@ -23,7 +23,7 @@ from typing import Tuple
 
 def pipeline_parallelize_theta(
     theta: Theta, pipeline_parallelism_size: int
-) -> tuple[list[int] | None, list[tuple[int]] | None]:
+) -> tuple[list[int] | None, list[list[int]] | None]:
     """
     Pipeline parallelize theta for LLM.
     Both DeepSeek and Llama.
