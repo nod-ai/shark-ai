@@ -1195,7 +1195,7 @@ def reshard_split_replicated(
         raise ValueError(f"Number of shards not equal ({input.shard_count} != {count})")
 
     assert (
-        input.shape[dim] > count
+        input.shape[dim] >= count
     ), f"Cannot split dimension {dim} of size {input.shape[dim]} into {count} shards"
 
     def slice_range_along_dim(dim: int, start: int, end: int):
