@@ -8,7 +8,10 @@ from typing import Optional
 
 import torch
 
-from sharktank.types import Theta
+from sharktank.types import (
+    ReplicatedTensor,
+    Theta,
+)
 from .base import (
     ThetaLayer,
 )
@@ -142,7 +145,9 @@ class BaseCausalLMModel(ThetaLayer):
         ).to(dtype)
         return numeric_mask.to(self.device)
 
-    def chunked_attention_mask(self, attention_mask: torch.Tensor) -> torch.Tensor:
+    def chunked_attention_mask(
+        self, attention_mask: torch.Tensor | ReplicatedTensor
+    ) -> torch.Tensor:
         """Apply a chunked attention mask onto a mask."""
         batch_seq_len = attention_mask.shape[2]
         # TODO: handle decode step
