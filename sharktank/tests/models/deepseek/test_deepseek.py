@@ -17,7 +17,6 @@ from sharktank.utils.evaluate import *
 
 class DeepseekShardedTest(unittest.TestCase):
     def test_deepseek(self):
-        torch.set_default_dtype(torch.float32)
         theta, config = generate(12345)
         model = PagedLlmModelV1(theta=theta, config=config)
 

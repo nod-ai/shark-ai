@@ -82,6 +82,7 @@ class MoeBlock(ThetaLayer):
         if theta.optional_tensor("ffn_gate_inp") is not None:
             self.add_module("ffn_gate_inp", LinearLayer(theta("ffn_gate_inp")))
 
+        # Add expert_count x FFN
         if isinstance(experts_ffn_moe_block, str):
             if experts_ffn_moe_block == "PreGatherFFNMOE":
                 self.routed_experts = PreGatherFFNMOE(

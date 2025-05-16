@@ -18,11 +18,6 @@ from sharktank import ops
 
 if TYPE_CHECKING:
     from sharktank.layers.configs import LlamaModelConfig
-from sharktank.types.theta import Theta, flat_to_nested_dict
-from sharktank import ops
-
-if TYPE_CHECKING:
-    from sharktank.layers.configs import LlamaModelConfig
 
 
 class Sharding(ABC):
@@ -138,7 +133,9 @@ class AttentionFFNBlockSharding(ThetaLayerSharding):
                     ).theta_sharding()
                 }
             )
-            result.update(MoeBlockSharding(self.shard_count).theta_sharding())
+            result.update(
+                MoeBlockSharding(self.shard_count, self.model_arch).theta_sharding()
+            )
         elif self.model_arch == "grok":
             result = PagedLlamaAttentionBlockSharding(self.shard_count).theta_sharding()
             result.update(
@@ -150,7 +147,9 @@ class AttentionFFNBlockSharding(ThetaLayerSharding):
                     ).theta_sharding()
                 }
             )
-            result.update(MoeBlockSharding(self.shard_count).theta_sharding())
+            result.update(
+                MoeBlockSharding(self.shard_count, self.model_arch).theta_sharding()
+            )
         return result
 
 
