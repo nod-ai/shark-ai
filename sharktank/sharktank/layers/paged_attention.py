@@ -283,18 +283,22 @@ class PagedAttention:
 
         # Gather both partitions and split post gather. This is more
         # computationally efficient without gather fusion:
-        subblock_table = page_table.flatten(start_dim=0, end_dim=1)
-        page_stride = self.pipeline_to_block_count[pipeline]
-
+        page_table = page_table.flatten(start_dim=0, end_dim=1)
         transformer_block_index = torch.full(
             (bs, block_seq_len), transformer_block_index, device=self.device
         )
-        subblock_ids = page_ids * page_stride + transformer_block_index
-        selected = ops.index_select(subblock_table, 0, subblock_ids.flatten(0, 1))
+        subblock_ids = page_ids * self.transformer_block_count + transformer_block_index
+        selected = ops.index_select(page_table, 0, subblock_ids.flatten(0, 1))
 
-        selected = selected.unflatten(0, blocked_shape[:2])
-        key = selected[:, :, 0, :].flatten(1, 2)
-        value = selected[:, :, 1, :].flatten(1, 2)
+        selected = selected.transpose(0, 1)
+        key = selected[0]
+        value = selected[1]
+
+        key = key.unflatten(0, blocked_shape[:2])
+        value = value.unflatten(0, blocked_shape[:2])
+
+        key = key.flatten(1, 2)
+        value = value.flatten(1, 2)
 
         return key, value
 
