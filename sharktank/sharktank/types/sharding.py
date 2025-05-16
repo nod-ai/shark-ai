@@ -9,8 +9,15 @@ sharded."""
 
 from typing import TYPE_CHECKING, Optional
 
+from typing import TYPE_CHECKING, Optional
+
 from abc import ABC, abstractmethod
 from sharktank.utils import tree
+from sharktank.types.theta import Theta, flat_to_nested_dict
+from sharktank import ops
+
+if TYPE_CHECKING:
+    from sharktank.layers.configs import LlamaModelConfig
 from sharktank.types.theta import Theta, flat_to_nested_dict
 from sharktank import ops
 
@@ -204,31 +211,11 @@ class ExpertParallelRoutedExpertsSharding(ThetaLayerSharding):
         )
 
 
-class SharedExpertsSharding(ThetaLayerSharding):
-    def __init__(self, shard_count: int):
-        super().__init__()
-        self.shard_count = shard_count
-
-    def theta_sharding(self) -> ThetaSharding:
-        return ThetaSharding(
-            {
-                "ffn_gate_shexp": LinearSplitParallelWeightAndBiasSharding(
-                    shard_count=self.shard_count
-                ).theta_sharding(),
-                "ffn_up_shexp": LinearSplitParallelWeightAndBiasSharding(
-                    shard_count=self.shard_count
-                ).theta_sharding(),
-                "ffn_down_shexp": LinearSplitReductionDimSharding(
-                    shard_count=self.shard_count
-                ).theta_sharding(),
-            }
-        )
-
-
 class MoeBlockSharding(ThetaLayerSharding):
-    def __init__(self, shard_count: int):
+    def __init__(self, shard_count: int, model_arch: str):
         super().__init__()
         self.shard_count = shard_count
+        self.model_arch = model_arch
 
     def theta_sharding(self) -> ThetaSharding:
         result = ThetaSharding(
@@ -238,7 +225,8 @@ class MoeBlockSharding(ThetaLayerSharding):
                 ).theta_sharding(),
             }
         )
-        result.update(SharedExpertsSharding(self.shard_count).theta_sharding())
+        if self.model_arch == "deepseek2":
+            result.update(FFNSharding(self.shard_count).theta_sharding())
         result.update(
             ExpertParallelRoutedExpertsSharding(self.shard_count).theta_sharding()
         )

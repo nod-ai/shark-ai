@@ -29,15 +29,15 @@ class MoeBlock(ThetaLayer):
     def __init__(
         self,
         theta: Theta,
-        expert_used_count: int,
         rms_epsilon: float,
         moe_activation=torch.nn.functional.silu,
         *,
         experts_ffn_moe_block: PreGatherFFNMOE | DenseFFNMOE | str = "DenseFFNMOE",
         score_experts=softmax,
         normalize_experts=True,
-        shard_count: int = 1,
         expert_count: Optional[int] = None,
+        expert_used_count: int,
+        expert_shared_count: Optional[int] = None,
         n_expert_groups: Optional[int] = None,
         n_limited_groups: Optional[int] = None,
         route_scale: Optional[float] = None,
@@ -61,25 +61,38 @@ class MoeBlock(ThetaLayer):
                 )
         self.expert_used_count = expert_used_count
         self.expert_count = expert_count
+        self.expert_shared_count = expert_shared_count
         self.n_expert_groups = n_expert_groups
         self.n_limited_groups = n_limited_groups
         self.score_experts = score_experts
         self.normalize_experts = normalize_experts
         self.route_scale = route_scale
-        self.ffn_gate_inp = torch.nn.Identity()
-        self.layer_output_norm = torch.nn.Identity()
-        self.shared_experts = None
-        self.shard_count = shard_count
 
+        self.layer_output_norm = torch.nn.Identity()
+        self.ffn_gate_inp = torch.nn.Identity()
+
+        routed_ffn_theta = Theta(
+            {
+                "ffn_gate": theta("ffn_gate_exps").tree,
+                "ffn_up": theta("ffn_up_exps").tree,
+                "ffn_down": theta("ffn_down_exps").tree,
+            }
+        )
         # Add router gate
         if theta.optional_tensor("ffn_gate_inp") is not None:
             self.add_module("ffn_gate_inp", LinearLayer(theta("ffn_gate_inp")))
 
         if isinstance(experts_ffn_moe_block, str):
             if experts_ffn_moe_block == "PreGatherFFNMOE":
-                self.routed_experts = PreGatherFFNMOE(theta, activation=moe_activation)
+                self.routed_experts = PreGatherFFNMOE(
+                    routed_ffn_theta, activation_fn=moe_activation
+                )
             elif experts_ffn_moe_block == "DenseFFNMOE":
-                self.routed_experts = DenseFFNMOE(theta, activation_fn=moe_activation)
+                self.routed_experts = DenseFFNMOE(
+                    routed_ffn_theta,
+                    expert_count=expert_count,
+                    activation_fn=moe_activation,
+                )
             else:
                 raise ValueError(
                     f'Unknown experts_ffn_moe_block "{experts_ffn_moe_block}"'
@@ -87,8 +100,17 @@ class MoeBlock(ThetaLayer):
         else:
             self.routed_experts = experts_ffn_moe_block
 
-        if theta.optional_tensor("ffn_gate_shexp") is not None:
-            self.shared_experts = FFN(theta=theta, activation_fn=moe_activation)
+        if self.expert_shared_count is not None:
+            shared_ffn_theta = Theta(
+                {
+                    "ffn_gate": theta("ffn_gate_shexp").tree,
+                    "ffn_up": theta("ffn_up_shexp").tree,
+                    "ffn_down": theta("ffn_down_shexp").tree,
+                }
+            )
+            self.shared_experts = FFN(
+                theta=shared_ffn_theta, activation_fn=moe_activation
+            )
 
         # Add optional FFN output norm layer
         if theta.optional_tensor("layer_output_norm") is not None:
@@ -150,7 +172,7 @@ class MoeBlock(ThetaLayer):
 
         moe_output = self.routed_experts(ffn_input, top_k_experts, expert_gate)
 
-        if self.shared_experts:
+        if self.expert_shared_count is not None:
             moe_output = moe_output + self.shared_experts(ffn_input)
 
         moe_output = moe_output.reshape(batch_size, sequence_length, feature_dim)

@@ -261,7 +261,12 @@ class MoeBlockTest(unittest.TestCase):
             with_layer_output_norm=True,
             dtype=dtype,
         )
-        theta_sharding_spec = MoeBlockSharding(shard_count=tensor_parallelism_size)
+        model_arch = "grok"
+        if num_shared_experts > 0:
+            model_arch = "deepseek2"
+        theta_sharding_spec = MoeBlockSharding(
+            shard_count=tensor_parallelism_size, model_arch=model_arch
+        )
         sharded_theta = reshard(theta, spec=theta_sharding_spec)
 
         block = MoeBlock(

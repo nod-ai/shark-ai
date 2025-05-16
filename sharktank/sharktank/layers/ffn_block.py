@@ -37,21 +37,15 @@ class FFN(ThetaLayer):
         self.is_gated = is_gated
         self.activation_fn = activation_fn
 
-        ffn_suffix = ""
-        if theta.optional_tensor("ffn_gate_shexp") is not None:
-            ffn_suffix = "_shexp"
-
-        ffn_gate = "ffn_gate" + ffn_suffix
-        ffn_up = "ffn_up" + ffn_suffix
-        ffn_down = "ffn_down" + ffn_suffix
-
         if self.is_gated:
             self.add_module(
-                "ffn_gate", LinearLayer(theta(ffn_gate), fake_quant=fake_quant)
+                "ffn_gate", LinearLayer(theta("ffn_gate"), fake_quant=fake_quant)
             )
 
-        self.add_module("ffn_up", LinearLayer(theta(ffn_up), fake_quant=fake_quant))
-        self.add_module("ffn_down", LinearLayer(theta(ffn_down), fake_quant=fake_quant))
+        self.add_module("ffn_up", LinearLayer(theta("ffn_up"), fake_quant=fake_quant))
+        self.add_module(
+            "ffn_down", LinearLayer(theta("ffn_down"), fake_quant=fake_quant)
+        )
 
     def forward(
         self,

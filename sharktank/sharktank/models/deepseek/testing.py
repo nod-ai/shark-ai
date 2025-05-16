@@ -52,7 +52,7 @@ def make_deepseek_attention_block(
     if block_idx >= n_dense_layers:
         ffn_theta = make_random_moe_block_theta(
             block_idx=block_idx,
-            ffn_dim=embedding_length,
+            in_dim=embedding_length,
             expert_hidden_dim=moe_intermediate_size,
             num_experts=expert_count,
             num_shared_experts=expert_shared_count,

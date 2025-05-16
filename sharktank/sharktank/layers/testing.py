@@ -9,6 +9,7 @@ from sharktank.types.theta import Theta
 from sharktank.types.tensors import DefaultPrimitiveTensor
 from sharktank.utils.testing import make_rand_torch
 from sharktank.types.sharding import *
+from sharktank.types.sharding import *
 
 
 def make_llama_attention_block_theta(
@@ -286,30 +287,25 @@ def make_mmdit_single_block_random_theta(
 
 def make_random_ffn_theta(
     block_idx: int,
-    ffn_dim: int,
+    in_dim: int,
     hidden_dim: int,
     dtype: torch.dtype,
     out_dim: int | None = None,
-    shared_experts: bool = False,
 ):
-    suffix = ""
     if out_dim is None:
-        out_dim = ffn_dim
-    if shared_experts:
-        suffix = "_shexp"
-
+        out_dim = in_dim
     return Theta(
         {
-            f"ffn_gate{suffix}.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.ffn_gate{suffix}.weight",
-                data=make_rand_torch((hidden_dim, ffn_dim), dtype=dtype),
+            "ffn_gate.weight": DefaultPrimitiveTensor(
+                name=f"blk.{block_idx}.ffn_gate.weight",
+                data=make_rand_torch((hidden_dim, in_dim), dtype=dtype),
             ),
-            f"ffn_up{suffix}.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.ffn_up{suffix}.weight",
-                data=make_rand_torch((hidden_dim, ffn_dim), dtype=dtype),
+            "ffn_up.weight": DefaultPrimitiveTensor(
+                name=f"blk.{block_idx}.ffn_up.weight",
+                data=make_rand_torch((hidden_dim, in_dim), dtype=dtype),
             ),
-            f"ffn_down{suffix}.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.ffn_down{suffix}.weight",
+            "ffn_down.weight": DefaultPrimitiveTensor(
+                name=f"blk.{block_idx}.ffn_down.weight",
                 data=make_rand_torch((out_dim, hidden_dim), dtype=dtype),
             ),
         }
@@ -318,7 +314,7 @@ def make_random_ffn_theta(
 
 def make_random_moe_block_theta(
     block_idx: int,
-    ffn_dim: int,
+    in_dim: int,
     expert_hidden_dim: int,
     num_experts: int,
     with_ffn_norm: bool = True,
@@ -330,32 +326,31 @@ def make_random_moe_block_theta(
     if with_ffn_norm:
         res["ffn_norm.weight"] = DefaultPrimitiveTensor(
             name=f"blk.{block_idx}.ffn_norm.weight",
-            data=make_rand_torch((ffn_dim), dtype=dtype),
+            data=make_rand_torch((in_dim), dtype=dtype),
         )
     res["ffn_gate_inp.weight"] = DefaultPrimitiveTensor(
         name=f"blk.{block_idx}.ffn_gate_inp.weight",
-        data=make_rand_torch((num_experts, ffn_dim), dtype=dtype),
+        data=make_rand_torch((num_experts, in_dim), dtype=dtype),
     )
     res["ffn_gate_exps.weight"] = DefaultPrimitiveTensor(
         name=f"blk.{block_idx}.ffn_gate_exps.weight",
-        data=make_rand_torch((num_experts, expert_hidden_dim, ffn_dim), dtype=dtype),
+        data=make_rand_torch((num_experts, expert_hidden_dim, in_dim), dtype=dtype),
     )
     res["ffn_up_exps.weight"] = DefaultPrimitiveTensor(
         name=f"blk.{block_idx}.ffn_up_exps.weight",
-        data=make_rand_torch((num_experts, expert_hidden_dim, ffn_dim), dtype=dtype),
+        data=make_rand_torch((num_experts, expert_hidden_dim, in_dim), dtype=dtype),
     )
     res["ffn_down_exps.weight"] = DefaultPrimitiveTensor(
         name=f"blk.{block_idx}.ffn_down_exps.weight",
-        data=make_rand_torch((num_experts, ffn_dim, expert_hidden_dim), dtype=dtype),
+        data=make_rand_torch((num_experts, in_dim, expert_hidden_dim), dtype=dtype),
     )
     if num_shared_experts > 0:
         shared_ffn_theta = make_random_ffn_theta(
             block_idx=block_idx,
-            ffn_dim=ffn_dim,
+            in_dim=in_dim,
             hidden_dim=expert_hidden_dim * num_shared_experts,
-            out_dim=ffn_dim,
+            out_dim=in_dim,
             dtype=dtype,
-            shared_experts=True,
         )
 
         res.update(shared_ffn_theta.tree)
@@ -363,6 +358,6 @@ def make_random_moe_block_theta(
     if with_layer_output_norm:
         res["layer_output_norm.weight"] = DefaultPrimitiveTensor(
             name=f"blk.{block_idx}.layer_output_norm.weight",
-            data=make_rand_torch((ffn_dim), dtype=dtype),
+            data=make_rand_torch((in_dim), dtype=dtype),
         )
     return Theta(res)
