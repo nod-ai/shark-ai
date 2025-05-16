@@ -29,7 +29,6 @@ def test_export_compile(dummy_model_path: Path):
     with chdir(dummy_model_path):
         check_call(["shark", "model", "export", "dummy-model-local-llvm-cpu"])
         check_call(["shark", "model", "compile", "dummy-model-local-llvm-cpu"])
-        from .. import models
 
         register_all_models()
         config = ModelConfig.create(
