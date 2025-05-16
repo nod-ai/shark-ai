@@ -4,13 +4,12 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Example program to export a sharded FFN network like what is found in
-a typical transformer layer. This is used for developing and testing various
-tooling flows with a scaled down example.
+"""Example program to export a sharded and pipeline parallized set FFN networks.
+This is used for developing and testing various tooling flows with a scaled down example.
 
 Generate MLIR and a random inited IRPA file with:
 
-    python -m sharktank.examples.sharding.export_ffn_net \
+    python -m sharktank.examples.sharding.export_pffn_net \
         --output-irpa-file=/tmp/ffn.irpa /tmp/ffn.mlir
 """
 
@@ -35,11 +34,44 @@ def create_theta(dim: int, shard_count: int, num_layers: int, save_path):
         _shard = torch.rand(dim, dim, dtype=torch.float16) / math.sqrt(dim)
         weights.append(
             SplitPrimitiveTensor(
-                name=f"w.{layer}", shard_dim=1, ts=_shard.split(split_size, dim=1)
+                name=f"blk.{layer}.ffn.weight",
+                shard_dim=1,
+                ts=_shard.split(split_size, dim=1),
             )
             if shard_count > 1
-            else DefaultPrimitiveTensor(name=f"w.{layer}", data=_shard)
+            else DefaultPrimitiveTensor(name=f"block.{layer}.ffn.weight", data=_shard)
         )
+
+    ones = torch.ones(dim, dim, dtype=torch.float16)
+    weights.append(
+        SplitPrimitiveTensor(
+            name="token_embd.weight",
+            shard_dim=1,
+            ts=ones.split(split_size, dim=1),
+        )
+        if shard_count > 1
+        else DefaultPrimitiveTensor(name="token_embd.weight", data=ones)
+    )
+    weights.append(
+        SplitPrimitiveTensor(
+            name="output.weight",
+            shard_dim=1,
+            ts=ones.split(split_size, dim=1),
+        )
+        if shard_count > 1
+        else DefaultPrimitiveTensor(name="output.weight", data=ones)
+    )
+    ones = torch.ones(1, dim, dtype=torch.float16)
+    weights.append(
+        SplitPrimitiveTensor(
+            name="output_norm.weight",
+            shard_dim=1,
+            ts=ones.split(split_size, dim=1),
+        )
+        if shard_count > 1
+        else DefaultPrimitiveTensor(name="output_norm.weight", data=ones)
+    )
+
     ds = Dataset({}, Theta(weights))
     ds.save(save_path)
 
@@ -59,17 +91,17 @@ class PPFFN(ThetaLayer):
         self.pipeline_to_devices = pipeline_to_devices
 
     def _inter_layer_callback(self, x: ShardedTensor, curr_block: int):
-        if self.config.block_to_pipeline_map is None:
+        if self.block_to_pipeline is None:
             return x
 
-        if curr_block >= len(self.config.block_to_pipeline_map) - 1:
+        if curr_block >= len(self.block_to_pipeline) - 1:
             return x
 
-        pipeline_0 = self.config.block_to_pipeline_map[curr_block]
-        pipeline_1 = self.config.block_to_pipeline_map[curr_block + 1]
+        curr_pipeline = self.block_to_pipeline[curr_block]
+        next_pipeline = self.block_to_pipeline[curr_block + 1]
 
-        curr_devices = self.config.pipeline_to_device_map[pipeline_0]
-        next_devices = self.config.pipeline_to_device_map[pipeline_1]
+        curr_devices = self.pipeline_to_devices[curr_pipeline]
+        next_devices = self.pipeline_to_devices[next_pipeline]
 
         if all(d_curr == d_next for d_curr, d_next in zip(curr_devices, next_devices)):
             return x
@@ -86,15 +118,13 @@ class PPFFN(ThetaLayer):
 
     def forward(self, x: torch.Tensor):
         num_blocks = len(self.block_to_pipeline)
-        shard_count = self.theta.tensor("w", "0").shard_count
+        shard_count = self.theta.tensor("blk.0.ffn.weight").shard_count
 
         x = ReplicatedTensor(
             ts=x, shard_count=shard_count, devices=self.pipeline_to_devices[0]
         )
         for block in range(num_blocks):
-            weight: SplitPrimitiveTensor | ReplicatedTensor = self.theta.tensor(
-                "w", str(block)
-            )
+            weight = self.theta.tensor(f"blk.{block}.ffn.weight")
             x = ops.replicate(ops.linear(x, weight), shard_count)
             x = self._inter_layer_callback(x, block)
 

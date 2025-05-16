@@ -26,5 +26,20 @@ class ShardingTests(MainRunnerTestBase):
         self.assertFileWritten(output_path)
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="https://github.com/nod-ai/shark-ai/issues/698"
+)
+class PipelineTests(MainRunnerTestBase):
+    def testExportFfnNet(self):
+        from sharktank.examples.pipeline.export_ppffn_net import main
+
+        irpa_path = self.get_irpa_path("ppffn")
+        output_path = self.get_file_path("output_ppffn.mlir")
+
+        self.run_main(main, "--output-irpa-file", irpa_path, output_path)
+        self.assertFileWritten(irpa_path)
+        self.assertFileWritten(output_path)
+
+
 if __name__ == "__main__":
     unittest.main()
