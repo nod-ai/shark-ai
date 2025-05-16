@@ -9,8 +9,6 @@ sharded."""
 
 from typing import TYPE_CHECKING, Optional
 
-from typing import TYPE_CHECKING, Optional
-
 from abc import ABC, abstractmethod
 from sharktank.utils import tree
 from sharktank.types.theta import Theta, flat_to_nested_dict
