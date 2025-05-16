@@ -11,6 +11,7 @@ import math
 import torch
 import torch.nn as nn
 
+from sharktank import ops
 from sharktank.layers import *
 from sharktank.types import *
 from sharktank.utils.create_cache import *
@@ -163,11 +164,14 @@ class PagedLlmModelV1(BaseCausalLMModel):
             h *= math.sqrt(h.shape[-1])
 
         if self.config.attention_chunk_size is not None:
-            assert all(
-                self.cache.block_to_pipeline_map[block_idx] == 0
-                for block_idx in range(len(self.attn_blocks))
-            ), "TODO: implement pipeline-parallel chunked attention"
-            chunked_attention_mask = [self.chunked_attention_mask(attention_mask[0])]
+            chunked_attention_mask = [
+                ops.replicate(
+                    self.chunked_attention_mask(attention_mask[0]),
+                    count=len(self.cache.pipeline_to_device_map),
+                    devices=self.cache.pipeline_to_device_map[pipeline],
+                )
+                for pipeline in range(self.cache.pipeline_count)
+            ]
 
         # Iterate over attention blocks.
         for block_idx, block in enumerate(self.attn_blocks):
@@ -175,7 +179,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
                 self.trace_tensor(f"llama.attn_block.{block_idx}.input", h)
             use_chunked_attention = (
                 self.config.attention_chunk_size is not None
-                and (block_idx + 1) % 4 != 0
+                and (block_idx + 1) % len(self.config.chunked_attention_layers) != 0
             )  # <=> use rope
             if use_chunked_attention:
                 mask = chunked_attention_mask
