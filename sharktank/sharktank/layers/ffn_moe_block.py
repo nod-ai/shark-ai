@@ -27,15 +27,15 @@ class PreGatherFFNMOE(ThetaLayer):
     def __init__(
         self,
         theta: Theta,
-        activation=F.silu,
+        activation_fn=F.silu,
     ):
 
         super().__init__(theta)
 
-        self.ffn_gate = theta.tensor("ffn_gate_exps", "weight")
-        self.ffn_up = theta.tensor("ffn_up_exps", "weight")
-        self.ffn_down = theta.tensor("ffn_down_exps", "weight")
-        self.activation = activation
+        self.ffn_gate = theta.tensor("ffn_gate", "weight")
+        self.ffn_up = theta.tensor("ffn_up", "weight")
+        self.ffn_down = theta.tensor("ffn_down", "weight")
+        self.activation_fn = activation_fn
 
     def pre_matmul_gather(self, inputs, weights, experts, einstring="mk,menk->men"):
         inputs = inputs[:, :]
@@ -67,14 +67,14 @@ class PreGatherFFNMOE(ThetaLayer):
         expert_gate: torch.Tensor,
     ):
         ffn_gate = self.pre_matmul_gather(h, self.ffn_gate, experts)
-        ffn_gate = elementwise(self.activation, ffn_gate)
+        ffn_gate = elementwise(self.activation_fn, ffn_gate)
 
         ffn_up = self.pre_matmul_gather(h, self.ffn_up, experts)
         ffn_down = self.pre_matmul_gather(
             ffn_gate * ffn_up, self.ffn_down, experts, einstring="mek,menk->men"
         )
         ffn_down = einsum_2args(expert_gate, ffn_down, "me,men->men")
-        return torch.sum(ffn_down, dim=1)
+        return ffn_down.sum(dim=1)
 
 
 class DenseFFNMOE(ThetaLayer):
@@ -90,29 +90,18 @@ class DenseFFNMOE(ThetaLayer):
     def __init__(
         self,
         theta: Theta,
-        rms_epsilon: float | None = None,
+        expert_count: int,
         is_gated: bool = True,
         activation_fn: Callable[[torch.Tensor], torch.Tensor] = F.silu,
-        activation_dtype: Optional[torch.dtype] = None,
         fake_quant: bool = False,
     ):
         super().__init__(theta)
-        self.num_experts = theta("ffn_gate_exps", "weight").shape[0]
-        ffn_theta = Theta(
-            {
-                "ffn_gate": theta("ffn_gate_exps").tree,
-                "ffn_up": theta("ffn_up_exps").tree,
-                "ffn_down": theta("ffn_down_exps").tree,
-            }
-        )
+        self.num_experts = expert_count
         self.ffn = FFN(
-            ffn_theta,
-            rms_epsilon=rms_epsilon,
+            theta,
             is_gated=is_gated,
             activation_fn=activation_fn,
-            activation_dtype=activation_dtype,
             fake_quant=fake_quant,
-            add_residual=False,
         )
 
     def forward(
@@ -139,7 +128,7 @@ class DenseFFNMOE(ThetaLayer):
         num_tokens, input_feature_dim = h.shape
 
         router_scores = ops.reshard_like(
-            torch.empty([num_tokens, self.num_experts]), like=h
+            torch.empty([num_tokens, self.num_experts], device=h.device), like=h
         )
         # (self.num_experts, num_tokens)
         router_scores = (
@@ -150,7 +139,7 @@ class DenseFFNMOE(ThetaLayer):
 
         # (self.num_experts, num_tokens)
         router_indices = (
-            ops.reshard_like(torch.arange(num_tokens), router_scores)
+            ops.reshard_like(torch.arange(num_tokens, device=h.device), router_scores)
             .view(1, -1)
             .expand(self.num_experts, -1)
         )
