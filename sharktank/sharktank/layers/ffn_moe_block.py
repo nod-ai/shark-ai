@@ -32,9 +32,9 @@ class PreGatherFFNMOE(ThetaLayer):
 
         super().__init__(theta)
 
-        self.ffn_gate = theta.tensor("ffn_gate_exps", "weight")
-        self.ffn_up = theta.tensor("ffn_up_exps", "weight")
-        self.ffn_down = theta.tensor("ffn_down_exps", "weight")
+        self.ffn_gate = theta.tensor("ffn_gate", "weight")
+        self.ffn_up = theta.tensor("ffn_up", "weight")
+        self.ffn_down = theta.tensor("ffn_down", "weight")
         self.activation_fn = activation_fn
 
     def pre_matmul_gather(self, inputs, weights, experts, einstring="mk,menk->men"):

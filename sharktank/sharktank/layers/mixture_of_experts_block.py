@@ -86,7 +86,7 @@ class MoeBlock(ThetaLayer):
         if isinstance(experts_ffn_moe_block, str):
             if experts_ffn_moe_block == "PreGatherFFNMOE":
                 self.routed_experts = PreGatherFFNMOE(
-                    theta, activation_fn=moe_activation
+                    routed_ffn_theta, activation_fn=moe_activation
                 )
             elif experts_ffn_moe_block == "DenseFFNMOE":
                 self.routed_experts = DenseFFNMOE(
