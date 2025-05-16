@@ -931,6 +931,14 @@ class PagedAttention:
             else:
                 attn_output = kernels.flash_attention(q, k, v)
             return attn_output
+        elif attention_kernel == "wave":
+            if mask is None:
+                output = torch.zeros(
+                    [q.shape[0], q.shape[1], q.shape[2], v.shape[3]],
+                    dtype=self.attn_dtype,
+                )
+                attn_output = kernels.wave_flash_attention(q, k, v, output)
+            return attn_output
         else:
             # Non-decomposed
             if softcap is not None:
