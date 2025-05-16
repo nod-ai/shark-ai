@@ -5,6 +5,9 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
+from shortfin.support.status_tracker import AbstractStatusTracker
+
+
 class AbstractResponder:
     """Interface for a responder to"""
 
@@ -25,3 +28,9 @@ class AbstractResponder:
 
     def stream_part(self, content: bytes | None):
         pass
+
+    def get_status_tracker(self):
+        return AbstractStatusTracker()
+
+    def is_disconnected(self):
+        return False
