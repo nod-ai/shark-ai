@@ -1519,7 +1519,14 @@ def _sum_trampoline(
 
 
 @overridable
-def topk(tensor, k: int, dim: int, largest: bool, sorted: bool) -> AnyTensor:
+def topk(
+    tensor,
+    k: int,
+    dim: int,
+    largest: bool,
+    sorted: bool,
+    chunk_size: Optional[int] = None,
+) -> AnyTensor:
     """See torch.topk"""
     ...
 
@@ -1532,10 +1539,28 @@ def _topk_trampoline(
     dim: int,
     largest: bool = True,
     sorted: bool = True,
+    chunk_size: Optional[int] = None,
 ) -> AnyTensor:
     tensors = (tensor,)
     for override in d.find_overrides(tensors):
-        result = override(tensor, k=k, dim=dim, largest=largest, sorted=sorted)
+        if isinstance(tensor, SplitPrimitiveTensor):
+            result = override(
+                tensor,
+                k=k,
+                dim=dim,
+                largest=largest,
+                sorted=sorted,
+            )
+
+        else:
+            result = override(
+                tensor,
+                k=k,
+                dim=dim,
+                largest=largest,
+                sorted=sorted,
+                chunk_size=chunk_size,
+            )
         if result is not NotImplemented:
             return override, result
     else:
