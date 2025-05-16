@@ -238,10 +238,21 @@ def device_array_to_host(device_array: iree.runtime.DeviceArray) -> torch.Tensor
         torch_tensor_as_int16 = torch.tensor(device_array_as_int16.to_host())
         return torch_tensor_as_int16.view(dtype=torch.bfloat16)
 
+    def float8_device_array_to_torch(
+        device_array: iree.runtime.DeviceArray,
+    ) -> torch.Tensor:
+        device_array_as_int8 = reinterpret_device_array_dtype(device_array, np.int8)
+        torch_tensor_as_int8 = torch.tensor(device_array_as_int8.to_host())
+        return torch_tensor_as_int8.view(dtype=torch.float8_e4m3fnuz)
+
     if device_array._buffer_view.element_type == int(
         iree.runtime.HalElementType.BFLOAT_16
     ):
         return bfloat16_device_array_to_torch(device_array)
+    elif device_array._buffer_view.element_type == int(
+        iree.runtime.HalElementType.FLOAT_8_E4M3_FNUZ
+    ):
+        return float8_device_array_to_torch(device_array)
     else:
         return torch.tensor(device_array.to_host())
 
@@ -250,6 +261,8 @@ def torch_tensor_to_device_array(
     tensor: torch.Tensor, device: iree.runtime.HalDevice
 ) -> iree.runtime.DeviceArray:
     if tensor.dtype in halelementtype_map.keys():
+        print("branch 1")
+        print(tensor.dtype)
         tensor_as_int16 = tensor.to(dtype=torch.int16)
         device_array_as_int16 = iree.runtime.asdevicearray(
             device, unbox_tensor(tensor_as_int16).to("cpu").detach().numpy()
@@ -260,7 +273,7 @@ def torch_tensor_to_device_array(
             element_type=halelementtype_map[tensor.dtype],
         )
         return iree.runtime.DeviceArray(device, buffer_view)
-
+    print("branch 2")
     return iree.runtime.asdevicearray(
         device, unbox_tensor(tensor).to("cpu").detach().numpy()
     )
@@ -328,8 +341,6 @@ def prepare_iree_module_function_args(
             )
         elif isinstance(arg, (DefaultPrimitiveTensor, torch.Tensor)):
             res.append(torch_tensor_to_device_array(arg, devices[0]))
-        elif isinstance(arg, iree.runtime.DeviceArray):
-            res.append(arg)
         else:
             assert isinstance(arg, collections.abc.Sequence)
             res.extend(prepare_iree_module_function_args(arg, devices))
