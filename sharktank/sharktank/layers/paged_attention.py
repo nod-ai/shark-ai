@@ -63,8 +63,8 @@ class KVCache:
         self.sub_page_dims = [
             self.transformer_block_count,
             self.cache_partition_count,
-            self.block_seq_stride,
             self.attn_head_count,
+            self.block_seq_stride,
             self.attn_head_dim,
         ]
 
@@ -126,8 +126,8 @@ class KVCache:
             bs,
             block_seq_len,
             self.cache_partition_count,
-            self.block_seq_stride,
             self.attn_head_count,
+            self.block_seq_stride,
             self.attn_head_dim,
         ]
 
@@ -141,6 +141,7 @@ class KVCache:
         selected = ops.index_select(page_table, 0, subblock_ids.flatten(0, 1))
 
         selected = selected.unflatten(0, blocked_shape[:2])
+        selected = selected.transpose(3, 4)
         key = selected[:, :, 0, :].flatten(1, 2)
         value = selected[:, :, 1, :].flatten(1, 2)
 
@@ -176,6 +177,7 @@ class KVCache:
                 1, (block_seq_len, self.block_seq_stride)
             )
             cache_partition = cache_partition.flatten(0, 1)
+            cache_partition = cache_partition.transpose(1, 2)
 
             part_block = ops.to(cache_partition, dtype=page_table.dtype)
             if page_table.dtype == torch.float8_e4m3fnuz:
@@ -199,25 +201,30 @@ class KVCache:
         assert len(cache_partitions) == self.cache_partition_count
 
         page_table = self.unflatten_page_table(state)[0]
-        page_table = page_table.flatten(0, 3)
+        page_table = page_table.flatten(0, 4)
 
         device = self.device
         bs, *_ = seq_positions.shape
 
         page_index = seq_positions // self.block_seq_stride
-        page_id = ops.gather(page_ids, dim=1, index=page_index.unsqueeze(1))
-        page_offset = (seq_positions % self.block_seq_stride).unsqueeze(1)
+        page_index = page_index.unsqueeze(1)
+        page_id = ops.gather(page_ids, dim=1, index=page_index).view((bs, 1, 1))
+        page_offset = (seq_positions % self.block_seq_stride).view((bs, 1, 1))
+        head_offset = torch.arange(self.attn_head_count).view(
+            (1, 1, self.attn_head_count)
+        )
 
         for cache_partition_id, cache_partition in enumerate(cache_partitions):
             # [1, 1]
-            partitions = torch.tensor(cache_partition_id, device=device).unsqueeze(0)
-            partitions = partitions.repeat(bs, 1)
+            partitions = torch.tensor(cache_partition_id, device=device).view((1, 1, 1))
 
             index = page_id
             index = index * self.transformer_block_count + transformer_block_index
             index = index * self.cache_partition_count + partitions
+            index = index * self.attn_head_count + head_offset
             index = index * self.block_seq_stride + page_offset
 
+            cache_partition.transpose(1, 2)
             values = ops.to(cache_partition, dtype=page_table.dtype)
             if page_table.dtype == torch.float8_e4m3fnuz:
                 # Workaround for Torch not supporting torch.Tensor.index_copy_ for f8.
@@ -271,8 +278,8 @@ class ShardedCache:
         self.unsharded_page_dims = [
             self.transformer_block_count,
             self.cache_partition_count,
-            self.block_seq_stride,
             self.attn_head_count,
+            self.block_seq_stride,
             self.attn_head_dim,
         ]
 
@@ -298,7 +305,7 @@ class ShardedCache:
         head_start = 0
         for cache in self.caches:
             head_end = head_start + cache.attn_head_count
-            shard = page_table[:, :, :, :, head_start:head_end]
+            shard = page_table[:, :, :, head_start:head_end]
             shard = shard.flatten(1)
             shards.append(shard)
             head_start = head_end
@@ -313,7 +320,7 @@ class ShardedCache:
             cache.unshard_state([shard])[0]
             for cache, shard in zip(self.caches, state[0].shards)
         ]
-        state = SplitPrimitiveTensor(ts=state, shard_dim=4, devices=self.devices)
+        state = SplitPrimitiveTensor(ts=state, shard_dim=3, devices=self.devices)
 
         return [ops.unshard(state)]
 
