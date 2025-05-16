@@ -150,33 +150,33 @@ def main():
             )
             page_dim = torch.export.Dim("page")
 
-            dynamic_shapes = [
-                {0: page_dim} for _ in range(llama_config.pipeline_parallelism_size)
-            ]
+            pipeline_parallelism_size = len(cache_state)
+            tensor_parallelism_size = (
+                cache_state[0].shard_count
+                if isinstance(cache_state[0], ShardedTensor)
+                else 1
+            )
+
+            dynamic_shapes = [{0: page_dim} for _ in range(pipeline_parallelism_size)]
             unpacked = cache_state
             arg_affinities = {}
             shard_dim = None
 
             # Need to unpack that state when sharded (for tracing support reasons)
-            if (
-                llama_config.tensor_parallelism_size > 1
-                or llama_config.pipeline_parallelism_size > 1
-            ):
+            if tensor_parallelism_size > 1 or pipeline_parallelism_size > 1:
                 shard_dim = cache_state[0].shard_dim
 
                 unpacked = [[shard._data for shard in cs.shards] for cs in cache_state]
                 dynamic_shapes = [
-                    [ds] * llama_config.tensor_parallelism_size for ds in dynamic_shapes
+                    [ds] * tensor_parallelism_size for ds in dynamic_shapes
                 ]
 
                 # Cache is unpacked as [[pipeline 0 shards], [pipeline 1 shards], ...]
                 # Therefore pipeline index is in outer loop.
-                for pipeline in range(llama_config.pipeline_parallelism_size):
-                    for tp in range(llama_config.tensor_parallelism_size):
-                        i = pipeline * llama_config.tensor_parallelism_size + tp
-                        arg_affinities[i] = DeviceAffinity(
-                            str(model.cache.pipeline_to_device_map[pipeline][tp])
-                        )
+                for pipeline, cache_state_for_pipeline in enumerate(cache_state):
+                    for shard, device in enumerate(cache_state_for_pipeline.devices):
+                        i = pipeline * tensor_parallelism_size + shard
+                        arg_affinities[i] = DeviceAffinity(device)
 
             return unpacked, shard_dim, dynamic_shapes, arg_affinities
         else:
