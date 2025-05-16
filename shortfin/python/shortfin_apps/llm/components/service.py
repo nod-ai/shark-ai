@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 class LlmGenerateService(GenerateService):
     """Top level service interface for generating text against a model."""
 
-    inference_program: sf.Program
+    inference_program: list[sf.Program]
     prefill_functions: dict[int, sf.ProgramFunction]
     decode_functions: dict[int, sf.ProgramFunction]
 
@@ -54,6 +54,7 @@ class LlmGenerateService(GenerateService):
         self.tokenizer = tokenizer
         self.model_params = model_params
         self.server_params = server_params
+        self.disaggregate = server_params.disaggregate
         self.max_queue_size = max_queue_size
         # Use model_params.decode_batch_sizes to decide actual max_queue_size
         self._initialize_max_queue_size()
@@ -75,23 +76,30 @@ class LlmGenerateService(GenerateService):
     def _initialize_worker_and_fiber(self):
         num_workers = self.server_params.workers
         fibers_per_worker = self.server_params.fibers_per_worker
+        devices = self.sysman.ls.devices
 
         logger.info(
             f"Creating {num_workers} workers, with {fibers_per_worker} fibers per worker..."
         )
 
         self.main_worker = self.sysman.ls.create_worker(f"{self.name}-inference-main-0")
-        self.main_fiber = self.sysman.ls.create_fiber(self.main_worker)
+        self.main_fiber = self.sysman.ls.create_fiber(
+            self.main_worker, devices=[devices[0]]
+        )
 
         self.prefill_worker = self.sysman.ls.create_worker(
             f"{self.name}-inference-prefill-0"
         )
-        self.prefill_fiber = self.sysman.ls.create_fiber(self.prefill_worker)
+        self.prefill_fiber = self.sysman.ls.create_fiber(
+            self.prefill_worker, devices=[devices[0]]
+        )
 
         self.decode_worker = self.sysman.ls.create_worker(
             f"{self.name}-inference-decode-0"
         )
-        self.decode_fiber = self.sysman.ls.create_fiber(self.decode_worker)
+        self.decode_fiber = self.sysman.ls.create_fiber(
+            self.decode_worker, devices=[devices[1 % len(devices)]]
+        )
 
         self.devices = self.prefill_fiber.devices_dict.values()
 
@@ -121,10 +129,28 @@ class LlmGenerateService(GenerateService):
 
     def start(self):
         component_modules = self.initialize_program_modules("main")
-        self.inference_program = self.create_program(
-            modules=component_modules, devices=self.sysman.ls.devices
-        )
+        print(f"{self.disaggregate=}")
+        self.inference_program = [
+            self.create_program(
+                modules=component_modules, devices=[self.sysman.ls.devices[idx]]
+            )
+            for idx in range(len(self.sysman.ls.devices))
+        ]
         self.initialize_function_references()
+
+        task_list = [
+            "prefill-exec",
+            "decode-exec",
+        ]
+
+        devices = self.sysman.ls.devices
+        workers = [self.sysman.ls.create_worker(f"{task}-worker") for task in task_list]
+        fibers = [
+            self.sysman.ls.create_fiber(
+                workers[idx], devices=[devices[idx % len(devices)]]
+            )
+            for idx in range(len(workers))
+        ]
 
         self.prefill_batcher = PrefillBatcherProcess(
             self.prefill_fiber,
@@ -132,6 +158,7 @@ class LlmGenerateService(GenerateService):
             self.model_params,
             self.prefill_functions,
             self.prog_isolation,
+            fibers[0],
         )
 
         self.decode_batcher = DecodeBatcherProcess(
@@ -140,21 +167,24 @@ class LlmGenerateService(GenerateService):
             self.model_params,
             self.decode_functions,
             self.prog_isolation,
+            fibers[1],
         )
 
         self.prefill_batcher.launch()
         self.decode_batcher.launch()
 
     def initialize_function_references(self):
+        devices = self.sysman.ls.devices
+        num_devices = len(devices)
         self.prefill_functions = {}
         for bs in self.model_params.prefill_batch_sizes:
-            self.prefill_functions[bs] = self.inference_program[
+            self.prefill_functions[bs] = self.inference_program[0][
                 f"{self.model_params.module_name}.prefill_bs{bs}"
             ]
         # Resolve decode entrypoints.
         self.decode_functions = {}
         for bs in self.model_params.decode_batch_sizes:
-            self.decode_functions[bs] = self.inference_program[
+            self.decode_functions[bs] = self.inference_program[1 % num_devices][
                 f"{self.model_params.module_name}.decode_bs{bs}"
             ]
 
