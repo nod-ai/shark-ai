@@ -7,9 +7,15 @@
 """Specifications describing how a tensor, ops, layers and blocks are
 sharded."""
 
+from typing import TYPE_CHECKING, Optional
+
 from abc import ABC, abstractmethod
 from sharktank.utils import tree
-from sharktank.types.theta import flat_to_nested_dict
+from sharktank.types.theta import Theta, flat_to_nested_dict
+from sharktank import ops
+
+if TYPE_CHECKING:
+    from sharktank.layers.configs import LlamaModelConfig
 
 
 class Sharding(ABC):
@@ -94,6 +100,57 @@ class ThetaLayerSharding(Sharding):
         ...
 
 
+class AttentionFFNBlockSharding(ThetaLayerSharding):
+    def __init__(self, shard_count: int, model_arch: str):
+        super().__init__()
+        self.shard_count = shard_count
+        self.model_arch = model_arch
+
+    def theta_sharding(self) -> ThetaSharding:
+        if self.model_arch == "llama":
+            result = PagedLlamaAttentionBlockSharding(self.shard_count).theta_sharding()
+            result.update(FFNSharding(self.shard_count).theta_sharding())
+            result.update(
+                {
+                    # The size of this is the token embedding length, which is not a memory
+                    # space concern if replicated.
+                    "ffn_norm": RmsNormReplicatedSharding(
+                        self.shard_count
+                    ).theta_sharding()
+                }
+            )
+        elif self.model_arch == "deepseek2":
+            result = LatentAttentionBlockSharding(self.shard_count).theta_sharding()
+            result.update(FFNSharding(self.shard_count).theta_sharding())
+            result.update(
+                {
+                    # The size of this is the token embedding length, which is not a memory
+                    # space concern if replicated.
+                    "ffn_norm": RmsNormReplicatedSharding(
+                        self.shard_count
+                    ).theta_sharding()
+                }
+            )
+            result.update(
+                MoeBlockSharding(self.shard_count, self.model_arch).theta_sharding()
+            )
+        elif self.model_arch == "grok":
+            result = PagedLlamaAttentionBlockSharding(self.shard_count).theta_sharding()
+            result.update(
+                {
+                    # The size of this is the token embedding length, which is not a memory
+                    # space concern if replicated.
+                    "ffn_norm": RmsNormReplicatedSharding(
+                        self.shard_count
+                    ).theta_sharding()
+                }
+            )
+            result.update(
+                MoeBlockSharding(self.shard_count, self.model_arch).theta_sharding()
+            )
+        return result
+
+
 class Conv2DSplitOutputChannelSharding(ThetaLayerSharding):
     def __init__(self, shard_count: int):
         super().__init__()
@@ -151,25 +208,11 @@ class ExpertParallelRoutedExpertsSharding(ThetaLayerSharding):
         )
 
 
-class SharedExpertsSharding(ThetaLayerSharding):
-    def __init__(self, shard_count: int):
-        super().__init__()
-        self.shard_count = shard_count
-
-    def theta_sharding(self) -> ThetaSharding:
-        return ThetaSharding(
-            {
-                "shared_experts": FFNSharding(
-                    shard_count=self.shard_count
-                ).theta_sharding()
-            }
-        )
-
-
 class MoeBlockSharding(ThetaLayerSharding):
-    def __init__(self, shard_count: int):
+    def __init__(self, shard_count: int, model_arch: str):
         super().__init__()
         self.shard_count = shard_count
+        self.model_arch = model_arch
 
     def theta_sharding(self) -> ThetaSharding:
         result = ThetaSharding(
@@ -179,7 +222,8 @@ class MoeBlockSharding(ThetaLayerSharding):
                 ).theta_sharding(),
             }
         )
-        result.update(SharedExpertsSharding(self.shard_count).theta_sharding())
+        if self.model_arch == "deepseek2":
+            result.update(FFNSharding(self.shard_count).theta_sharding())
         result.update(
             ExpertParallelRoutedExpertsSharding(self.shard_count).theta_sharding()
         )
@@ -203,6 +247,46 @@ class GroupNormSplitChannelSharding(ThetaLayerSharding):
             {
                 "weight": Split(shard_count=self.shard_count, shard_dim=0),
                 "bias": Split(shard_count=self.shard_count, shard_dim=0),
+            }
+        )
+
+
+class LatentAttentionBlockSharding(ThetaLayerSharding):
+    def __init__(self, shard_count: int):
+        super().__init__()
+        self.shard_count = shard_count
+
+    def theta_sharding(self) -> ThetaSharding:
+        return ThetaSharding(
+            {
+                # The size of this is the token embedding length, which is not a memory
+                # space concern if replicated even for all attention blocks.
+                "attn_norm": RmsNormReplicatedSharding(
+                    self.shard_count
+                ).theta_sharding(),
+                "attn_q_a_norm": RmsNormReplicatedSharding(
+                    self.shard_count
+                ).theta_sharding(),
+                "attn_kv_a_norm": RmsNormReplicatedSharding(
+                    self.shard_count
+                ).theta_sharding(),
+                "attn_q_a": LinearReplicatedWeightAndBiasSharding(
+                    shard_count=self.shard_count
+                ).theta_sharding(),
+                "attn_q_b": LinearSplitReductionDimSharding(
+                    shard_count=self.shard_count,
+                    reduction_dim=1,
+                ).theta_sharding(),
+                "attn_kv_a_mqa": LinearReplicatedWeightAndBiasSharding(
+                    shard_count=self.shard_count
+                ).theta_sharding(),
+                "attn_kv_b": LinearSplitReductionDimSharding(
+                    shard_count=self.shard_count,
+                    reduction_dim=1,
+                ).theta_sharding(),
+                "attn_output": LinearSplitReductionDimSharding(
+                    shard_count=self.shard_count
+                ).theta_sharding(),
             }
         )
 
@@ -268,6 +352,81 @@ class LinearSplitReductionDimSharding(LinearLayerSharding):
         )
 
 
+class LlamaSharding(ThetaLayerSharding):
+    """Shards the input channel and output channels of the convolutions."""
+
+    def __init__(self, shard_count: int, attention_block_count: int, model_arch: str):
+        super().__init__()
+        self.shard_count = shard_count
+        self.attention_block_count = attention_block_count
+        self.model_arch = model_arch
+
+    def theta_sharding(self) -> ThetaSharding:
+        result = ThetaSharding(
+            {
+                # Replicate the vocabulary. For llama 1-3 this will require 0.5 GiB.
+                # For devices with large memory this may be an acceptable tradeoff where
+                # we save on communication by not all-gathering the result afterwards.
+                # The computation is just indexing and replication is not a concern.
+                # Alternatively, we can try splitting the index dimension,
+                # this would require custom logic for indexing partitioning and gathering.
+                "token_embd": TokenEmbeddingLayerReplicatedSharding(
+                    self.shard_count
+                ).theta_sharding(),
+                "rope_freqs": Ignore(),
+                "output_norm": RmsNormReplicatedSharding(
+                    self.shard_count
+                ).theta_sharding(),
+                "output": LinearSplitReductionDimSharding(
+                    self.shard_count
+                ).theta_sharding(),
+            }
+        )
+        result.update(
+            {
+                "blk": ThetaSharding(
+                    {
+                        f"{i}": AttentionFFNBlockSharding(
+                            self.shard_count,
+                            model_arch=self.model_arch,
+                        ).theta_sharding()
+                        for i in range(self.attention_block_count)
+                    }
+                )
+            }
+        )
+        return result
+
+
+class PagedLlamaAttentionBlockSharding(ThetaLayerSharding):
+    def __init__(self, shard_count: int):
+        super().__init__()
+        self.shard_count = shard_count
+
+    def theta_sharding(self) -> ThetaSharding:
+        return ThetaSharding(
+            {
+                # The size of this is the token embedding length, which is not a memory
+                # space concern if replicated even for all attention blocks.
+                "attn_norm": RmsNormReplicatedSharding(
+                    self.shard_count
+                ).theta_sharding(),
+                "attn_q": LinearSplitParallelWeightAndBiasSharding(
+                    shard_count=self.shard_count
+                ).theta_sharding(),
+                "attn_k": LinearSplitParallelWeightAndBiasSharding(
+                    shard_count=self.shard_count
+                ).theta_sharding(),
+                "attn_v": LinearSplitParallelWeightAndBiasSharding(
+                    shard_count=self.shard_count
+                ).theta_sharding(),
+                "attn_output": LinearSplitReductionDimSharding(
+                    shard_count=self.shard_count
+                ).theta_sharding(),
+            }
+        )
+
+
 class RmsNormReplicatedSharding(ThetaLayerSharding):
     def __init__(self, shard_count: int):
         super().__init__()
@@ -292,3 +451,21 @@ class TokenEmbeddingLayerReplicatedSharding(ThetaLayerSharding):
                 "weight": Replicated(shard_count=self.shard_count),
             }
         )
+
+
+def shard_theta(
+    theta: Theta,
+    config: Optional["LlamaModelConfig"] = None,
+    sharding: ThetaLayerSharding = None,
+) -> Theta:
+    assert config or sharding, "shard_theta requires config or sharding"
+    if sharding is None:
+        sharding = LlamaSharding(
+            shard_count=config.tensor_parallelism_size,
+            attention_block_count=config.hp.block_count,
+            model_arch=config.hp.model_arch,
+        )
+    return ops.reshard(
+        theta,
+        spec=sharding,
+    )

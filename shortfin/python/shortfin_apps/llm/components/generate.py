@@ -17,7 +17,7 @@ import shortfin as sf
 import shortfin.array as sfnp
 
 # TODO: Have a generic "Responder" interface vs just the concrete impl.
-from shortfin.interop.fastapi import FastAPIResponder
+from shortfin.interop.fastapi import FastAPIResponder, RequestStatusTracker
 from fastapi.responses import JSONResponse
 from fastapi import status
 
@@ -59,8 +59,10 @@ class GenerateItemProcess(sf.Process):
         input_token_ids: list[int],
         eos_token_id: int,
         decode_config: DecodeConfig,
+        status_tracker: RequestStatusTracker,
+        fiber: sf.Fiber,
     ):
-        super().__init__(fiber=client.fiber)
+        super().__init__(fiber=fiber)
         self.client = client
         self.gen_req = gen_req
         self.index = index
@@ -81,14 +83,15 @@ class GenerateItemProcess(sf.Process):
         self.token_selector: BaseTokenSelectionStrategy = build_token_selector(
             self.token_selector_config,
         )
-
         self.streamed_tokens_index = 0
+        self._status_tracker = status_tracker
 
     async def run(self):
         exec_req = LlmInferenceExecRequest(
             phase=InferencePhase.PREFILL,
             input_token_ids=self.input_token_ids,
             rid=self.gen_req.rid,
+            status_tracker=self._status_tracker,
         )
         exec_req._cache = self.client.prefill_batcher.page_cache
         try:
@@ -180,6 +183,7 @@ class ClientGenerateBatchProcess(sf.Process):
             self.responder.ensure_response()
             return
 
+        fibers = []
         try:
             logger.debug(
                 f"add_to_queue, use device {self.prefill_batcher.worker_index} for pre_fill use device {self.decode_batcher.worker_index} for decode"
@@ -206,27 +210,43 @@ class ClientGenerateBatchProcess(sf.Process):
                     if self.gen_req.is_single
                     else self.gen_req.sampling_params[index]
                 )
+
+                idx, fiber = await self.service.main_fiber_pool.get()
+                fibers.append(
+                    (
+                        idx,
+                        fiber,
+                    )
+                )
                 gen_process = GenerateItemProcess(
                     self,
                     self.gen_req,
                     index,
-                    self.gen_req.text
-                    if self.gen_req.is_single
-                    else self.gen_req.text[index],
+                    (
+                        self.gen_req.text
+                        if self.gen_req.is_single
+                        else self.gen_req.text[index]
+                    ),
                     input_tokens if is_pretokenized else input_tokens.ids,
                     eos_token_id=self.tokenizer.eos_token_id,
                     decode_config=decode_config,
+                    status_tracker=self.responder.get_status_tracker(),
+                    fiber=fiber,
                 )
                 gen_processes.append(gen_process)
                 gen_process.launch()
 
             await asyncio.gather(*gen_processes)
-            self.generate_response(gen_processes, streaming)
-
+            if not self.responder.is_disconnected():
+                self.generate_response(gen_processes, streaming)
         finally:
             # Remove request from queue when done
             self.service.remove_from_queue(self.decode_config.num_beams)
+            self.service.main_fiber_pool.return_fiber(fibers)
             self.responder.ensure_response()
+
+        # Remove request from queue when done
+        self.service.remove_from_queue(self.decode_config.num_beams)
 
     def generate_response(
         self, gen_processes: List[GenerateItemProcess], streaming: bool
