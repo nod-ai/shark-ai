@@ -8,7 +8,8 @@ import asyncio
 import logging
 
 from shortfin.support.deps import ShortfinDepNotFoundError
-from ...support.responder import AbstractResponder
+from shortfin.support.responder import AbstractResponder
+from shortfin.support.status_tracker import AbstractStatusTracker
 
 try:
     from fastapi import Request, Response
@@ -22,6 +23,24 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
+
+
+class RequestStatusTracker(AbstractStatusTracker):
+    def __init__(self, request: Request):
+        super().__init__()
+        self._request = request
+        self._is_disconnected = False
+        self._loop.create_task(self._monitor_disconnection())
+
+    def is_disconnected(self) -> bool:
+        return self._is_disconnected
+
+    async def _monitor_disconnection(self):
+        while not self._is_disconnected:
+            if await self._request.is_disconnected():
+                self._is_disconnected = True
+                break
+            await asyncio.sleep(1)
 
 
 class FastAPIResponder(AbstractResponder):
@@ -53,7 +72,13 @@ class FastAPIResponder(AbstractResponder):
         self.response = asyncio.Future(loop=self._loop)
         self.responded = False
         self._streaming_queue: asyncio.Queue | None = None
-        self.is_disconnected = False
+        self._status_tracker = RequestStatusTracker(request)
+
+    def is_disconnected(self) -> bool:
+        return self._status_tracker.is_disconnected()
+
+    def get_status_tracker(self) -> RequestStatusTracker:
+        return self._status_tracker
 
     def ensure_response(self):
         """Called as part of some finally type block to ensure responses are made."""
@@ -97,7 +122,7 @@ class FastAPIResponder(AbstractResponder):
         async def gen(request, streaming_queue):
             while True:
                 if await request.is_disconnected():
-                    self.is_disconnected = True
+                    self._is_disconnected = True
                 part = await streaming_queue.get()
                 if part is None:
                     break
