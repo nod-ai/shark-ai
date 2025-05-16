@@ -76,8 +76,8 @@ def main():
             dataset.root_theta, args.pipeline_parallelism_size
         )
     else:
-        block_to_pipeline = tuple([0] * hp.block_count)
-        pipeline_to_devices = tuple([tuple(range(args.tensor_parallelism_size))])
+        block_to_pipeline = None
+        pipeline_to_devices = None
 
     llama_config = LlamaModelConfig(
         hp,

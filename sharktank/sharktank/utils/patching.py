@@ -70,7 +70,7 @@ class SaveModuleResultTensorsPatch(Patch):
         self.with_before_forward = with_before_forward
         self.tensors: dict[str, torch.Tensor] = {}
         # Map of module_name to last used index for duplicated tensors.
-        self.duplicate_tensors = dict[str, torch.Tensor] = {}
+        self.duplicate_tensors: dict[str, torch.Tensor] = {}
 
     def before_forward(
         self,
