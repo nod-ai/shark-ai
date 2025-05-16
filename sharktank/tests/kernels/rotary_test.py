@@ -20,11 +20,18 @@ class rotary_test(unittest.TestCase):
     def setUp(self):
         torch.manual_seed(42)
 
-    @parameterized.expand([(1, 1), (4, 1), (1, 64), (4, 64)])
-    def test_rotary(self, bs, seq_len):
+    @parameterized.expand(
+        [
+            (1, 16, 1, 32),
+            (1, 16, 1, 7),
+            (1, 16, 64, 1),
+            (4, 16, 64, 32),
+        ]
+    )
+    def test_rotary(self, bs, heads, seq_len, dims):
         dtype = torch.float32
-        a = torch.rand([bs, 128, seq_len, 64], dtype=dtype)
-        rot = torch.rand([bs, 128, 32], dtype=dtype)
+        a = torch.rand([bs, heads, seq_len, dims * 2], dtype=dtype)
+        rot = torch.rand([bs, heads, dims], dtype=dtype)
         res_b = ops.view_as_real(torch.complex(rot, rot))
         ref_b = torch.complex(torch.cos(rot), torch.sin(rot))
 
