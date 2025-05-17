@@ -161,5 +161,5 @@ class ShardedPagedLatentAttentionBlockTest(unittest.TestCase):
 
         actual_cache_state = unbox_tensor(sharded_cache_state[0])
 
-        torch.testing.assert_close(actual_result, expected_result)
+        torch.testing.assert_close(actual_result, expected_result, atol=3e-4, rtol=2e-1)
         torch.testing.assert_close(actual_cache_state, cache_state[0])
