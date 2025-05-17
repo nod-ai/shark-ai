@@ -215,6 +215,10 @@ class LlamaModelConfig:
     # the program and not.
     static_tables: bool = True
 
+    attention_chunk_size: Optional[int] = None
+
+    chunked_attention_layers: Optional[set[int]] = None
+
 
 @dataclass
 class T5Config:
