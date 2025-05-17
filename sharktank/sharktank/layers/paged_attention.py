@@ -741,6 +741,7 @@ class PagedAttention:
         transformer_block_count: int,
         attn_head_count: int,
         attn_head_dim: int,
+        attn_type: str = "gqa",
         cache_partition_count: int = 2,
         block_seq_stride: int = 16,
         cache_dtype: torch.dtype = torch.float32,
@@ -758,6 +759,7 @@ class PagedAttention:
         self.attn_dtype = attn_dtype
         self.cache_dtype = cache_dtype
         self.shard_count = shard_count
+        self.attn_type = attn_type
 
         self.pipeline_to_device_map = pipeline_to_device_map
         if self.pipeline_to_device_map is None:
