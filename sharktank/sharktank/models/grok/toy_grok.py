@@ -45,6 +45,7 @@ def generate(seed):
             expert_used_count=used_experts,
             model_arch="grok",
             attention_softcap=15.0,
+            n_dense_layers=0,
         ),
         block_seq_stride=block_seq_stride,
         activation_dtype=dtype,

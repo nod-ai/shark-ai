@@ -11,7 +11,10 @@ from sharktank.types.tensors import *
 from sharktank.types.theta import Theta
 from sharktank.layers.configs import LlamaModelConfig
 from sharktank.utils.testing import make_rand_torch
-from sharktank.layers.testing import make_llama_attention_block_theta
+from sharktank.layers.testing import (
+    make_llama_attention_block_theta,
+    make_ffn_block_theta,
+)
 
 
 def make_attention_block_theta(
@@ -70,31 +73,11 @@ def make_attention_block_ffn_theta_v2(
         embedding_length=embedding_length,
         dtype=dtype,
     )
-    ffn_theta = Theta(
-        {
-            "ffn_norm.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.ffn_norm.weight",
-                data=make_rand_torch((head_count * head_dim), dtype=dtype),
-            ),
-            "ffn_gate.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.ffn_gate.weight",
-                data=make_rand_torch(
-                    (feed_forward_length, embedding_length), dtype=dtype
-                ),
-            ),
-            "ffn_up.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.ffn_up.weight",
-                data=make_rand_torch(
-                    (feed_forward_length, embedding_length), dtype=dtype
-                ),
-            ),
-            "ffn_down.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.ffn_down.weight",
-                data=make_rand_torch(
-                    (embedding_length, feed_forward_length), dtype=dtype
-                ),
-            ),
-        }
+    ffn_theta = make_ffn_block_theta(
+        block_idx=block_idx,
+        embedding_length=embedding_length,
+        feed_forward_length=feed_forward_length,
+        dtype=dtype,
     )
     res_dict = attention_theta.tree
     res_dict.update(ffn_theta.tree)

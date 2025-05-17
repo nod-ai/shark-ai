@@ -267,7 +267,7 @@ def main():
                     devices=llama_config.pipeline_to_device_map[0],
                 )
                 if attention_mask is None:
-                    attention_mask = [None] * model.cache.pipeline_count
+                    attention_mask = [None] * len(model.cache.pipeline_to_device_map)
                 else:
                     attention_mask = [
                         ops.replicate(
@@ -275,7 +275,7 @@ def main():
                             count=shard_count,
                             devices=model.cache.pipeline_to_device_map[pipeline],
                         )
-                        for pipeline in range(model.cache.pipeline_count)
+                        for pipeline in range(len(model.cache.pipeline_to_device_map))
                     ]
                 seq_block_ids = [
                     ops.replicate(
@@ -283,7 +283,7 @@ def main():
                         count=shard_count,
                         devices=model.cache.pipeline_to_device_map[pipeline],
                     )
-                    for pipeline in range(model.cache.pipeline_count)
+                    for pipeline in range(len(model.cache.pipeline_to_device_map))
                 ]
                 cache_tensors = repack_cache(
                     cs, cache_shard_dim, model.cache.pipeline_to_device_map
@@ -391,7 +391,7 @@ def main():
                     devices=llama_config.pipeline_to_device_map[0],
                 )
                 _attention_mask, _start_positions, _seq_block_ids = [], [], []
-                for pipeline in range(model.cache.pipeline_count):
+                for pipeline in range(len(model.cache.pipeline_to_device_map)):
                     devices = model.cache.pipeline_to_device_map[pipeline]
                     _attention_mask.append(
                         ops.replicate(
