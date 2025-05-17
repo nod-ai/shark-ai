@@ -155,6 +155,7 @@ class MoeBlockTest(unittest.TestCase):
             num_shared_experts=num_shared_experts,
             with_layer_output_norm=True,
             dtype=dtype,
+            block_idx=0,
         )
 
         moe_with_pre_gather_ffn = MoeBlock(
@@ -263,6 +264,7 @@ class MoeBlockTest(unittest.TestCase):
             num_shared_experts=num_shared_experts,
             with_layer_output_norm=True,
             dtype=dtype,
+            block_idx=0,
         )
         model_arch = "grok"
         if num_shared_experts > 0:
