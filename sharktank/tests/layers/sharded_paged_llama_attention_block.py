@@ -11,7 +11,7 @@ from sharktank.layers import (
     RotaryEmbeddingLayer,
 )
 from sharktank.layers.testing import make_llama_attention_block_theta, make_rand_torch
-from sharktank.models.llama.sharding import PagedLlamaAttentionBlockSharding
+from sharktank.types.sharding import PagedLlamaAttentionBlockSharding
 from sharktank.types import SplitPrimitiveTensor, unbox_tensor
 import torch
 from sharktank import ops
@@ -25,6 +25,7 @@ class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
 
     def setUp(self):
         torch.manual_seed(12345)
+        self.model_arch = "llama"
         self.transformer_block_count = 13
         self.block_index = 1
         self.shard_count = 3
@@ -117,6 +118,7 @@ class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
             head_dim=self.attention_head_dim,
             head_count_kv=self.head_count_kv,
             rms_epsilon=self.rms_epsilon,
+            model_arch=self.model_arch,
         )
         expected_result = attention_block(
             input_tensor,
@@ -145,6 +147,7 @@ class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
             head_dim=self.attention_head_dim,
             head_count_kv=self.head_count_kv,
             rms_epsilon=self.rms_epsilon,
+            model_arch=self.model_arch,
         )
         sharded_result = sharded_attention_block(
             sharded_input_tensor,
@@ -155,9 +158,7 @@ class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
         )
 
         actual_result = unbox_tensor(ops.unshard(sharded_result))
-        actual_cache_state = unbox_tensor(
-            sharded_cache.unshard_state(sharded_cache_state)
-        )
+        actual_cache_state = unbox_tensor(sharded_cache_state[0])
 
         torch.testing.assert_close(actual_result, expected_result)
         torch.testing.assert_close(actual_cache_state, cache_state[0])
