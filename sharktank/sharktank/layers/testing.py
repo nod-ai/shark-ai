@@ -9,7 +9,6 @@ from sharktank.types.theta import Theta
 from sharktank.types.tensors import DefaultPrimitiveTensor
 from sharktank.utils.testing import make_rand_torch
 from sharktank.types.sharding import *
-from sharktank.types.sharding import *
 
 
 def make_llama_attention_block_theta(

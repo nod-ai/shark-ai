@@ -1647,7 +1647,7 @@ _DTYPE_TO_SHORT_NAME: dict[torch.dtype, str] = {
     v: k for k, v in _SHORT_NAME_TO_DTYPE.items()
 }
 
-AnyTensor = Union[torch.Tensor, InferenceTensor, ReplicatedTensor]
+AnyTensor = Union[torch.Tensor, InferenceTensor]
 
 ########################################################################################
 # Tensor types registration with PyTorch.
