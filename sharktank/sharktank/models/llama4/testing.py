@@ -110,6 +110,12 @@ def theta_to_hugging_face_state_dict(
 
 
 def make_toy_model_config(dtype: torch.dtype) -> LlamaModelConfig:
+    attention_chunk_size = 2
+    attn_temperature_tuning = False
+    floor_scale = None
+    attn_scale = None
+    use_qk_norm = True 
+
     attention_head_count_kv = 4
     attention_head_count = attention_head_count_kv * 5
     vocabulary_size = 19
@@ -147,13 +153,13 @@ def make_toy_model_config(dtype: torch.dtype) -> LlamaModelConfig:
         activation_fn="silu",
         attention_dtype=dtype,
         dtype=dtype,
-        use_qk_norm=True,
+        use_qk_norm=use_qk_norm,
         rope_type="llama4",
         rope_layers=rope_layers,
         vocabulary_size=vocabulary_size,
-        attention_chunk_size=37,
-        attn_temperature_tuning=True,
-        floor_scale=31,
-        attn_scale=0.2,
+        attention_chunk_size=attention_chunk_size,
+        attn_temperature_tuning=attn_temperature_tuning,
+        floor_scale=floor_scale,
+        attn_scale=attn_scale,
         ffn_add_residual=True,
     )

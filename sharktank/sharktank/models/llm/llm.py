@@ -171,12 +171,15 @@ class PagedLlmModelV1(BaseCausalLMModel):
         for block_idx, block in enumerate(self.attn_blocks):
             if block_idx == 0:
                 self.trace_tensor(f"llama.attn_block.{block_idx}.input", h)
+            
             use_chunked_attention = (
                 self.config.attention_chunk_size is not None
                 and (block_idx + 1) % 4 != 0
             )  # <=> use rope
+           
             if use_chunked_attention:
                 mask = chunked_attention_mask
+                if block_idx==0: print("ST boolean mask", (mask[0] == float("-inf")).int())
             else:
                 mask = attention_mask
             h = block(

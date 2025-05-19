@@ -155,15 +155,28 @@ class BaseCausalLMModel(ThetaLayer):
             start_index=start_index,
             end_index=end_index,
         )
+        numeric_chunked_mask = torch.where(
+        chunked_boolean_attention_mask,
+        torch.tensor(0.0, dtype=attention_mask.dtype, device=attention_mask.device),
+        torch.tensor(self._maximally_negative_value(attention_mask.dtype),
+                     dtype=attention_mask.dtype, device=attention_mask.device),
+        )
+        combined_mask = attention_mask + numeric_chunked_mask
 
-        return torch.where(
+        ''' return torch.where(
             chunked_boolean_attention_mask,
             attention_mask,
             torch.tensor(
                 self._maximally_negative_value(attention_mask.dtype),
                 dtype=attention_mask.dtype,
             ),
+        )'''
+        combined_mask = torch.clamp(
+        combined_mask,
+        min=self._maximally_negative_value(attention_mask.dtype),
+        max=0.0,
         )
+        return combined_mask
 
     def create_boolean_chunked_attention_mask(
         self, attention_chunk_size: int, start_index: int, end_index: int
@@ -191,6 +204,7 @@ class BaseCausalLMModel(ThetaLayer):
         )
         token_pos = arange_vector.unsqueeze(0) - arange_vector.unsqueeze(1)
         mask = (block_pos == 0) & (token_pos <= 0)
+        print(mask.int())
         return mask
 
     def extract_tokens_from_logits(
