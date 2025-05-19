@@ -166,8 +166,11 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         # Use temperature tuning from https://arxiv.org/abs/2501.19399
         # Ken M. Nakanishi - Scalable-Softmax Is Superior for Attention (2025)
         if self.attn_temperature_tuning and not self.use_rope:
+            batch_size, seq_len = h.shape[0], h.shape[1]
             if start_positions is None:
-                cache_position = torch.arange(0, h.shape[1], dtype=torch.long)
+                #cache_position = torch.arange(0, h.shape[1], dtype=torch.long)
+                
+                cache_position = torch.arange(0, seq_len, dtype=torch.long).unsqueeze(0).expand(batch_size, seq_len)
             else:
                 assert False, "TODO: decode step"
             attn_scales = (
@@ -178,10 +181,12 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 + 1.0
             )
             input_shape = h.shape[:-1]
-            attn_scales = attn_scales.view((1, input_shape[-1], 1, 1)).expand(
+            attn_scales = attn_scales.view((batch_size, input_shape[-1], 1, 1)).expand(
                 (*input_shape, 1, 1)
             )  # batch size > 1
             xq = (xq * attn_scales).to(xq.dtype)
+
+            print("inside paged attn: ", attn_scales)
 
         # Full sequence length.
         kv_seq_len = seq_block_ids.shape[1] * self.paged_attention.block_seq_stride

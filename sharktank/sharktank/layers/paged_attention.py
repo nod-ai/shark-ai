@@ -570,7 +570,7 @@ class PagedAttention:
             attention_idx = int(os.environ.get("sharktank_attention_idx", default="0"))
             safetensors.torch.save_file(
                 tensors=tensor_dict,
-                filename=f"/home/bpetkant/ws/sharktank/experiments/llama4/attention_trace{attention_idx}.safetensors",
+                filename=f"/home/sonbol/experiments/llama4/attention_trace{attention_idx}.safetensors",
             )
             os.environ["sharktank_attention_idx"] = str(attention_idx + 1)
             return output

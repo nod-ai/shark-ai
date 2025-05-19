@@ -19,6 +19,20 @@ def convert_hf_2D_input_mask_to_4D_attention_mask(
     inverted_mask = mask == 0
     return model.attention_mask(inverted_mask)
 
+def compare_logits(hf_logits: torch.Tensor, shark_logits: torch.Tensor, atol: 1e-5, rtol: 1e-4):
+    print("HF logits shape:", hf_logits.shape)
+    print("SHARK logits shape:", shark_logits.shape)
+    assert hf_logits.shape == shark_logits.shape, f"Shape mismatch: {hf_logits.shape} vs {shark_logits.shape}"
+    if torch.allclose(hf_logits, shark_logits, atol=atol, rtol=rtol):
+        return   
+    if not torch.allclose(hf_logits, shark_logits, atol=atol, rtol=rtol):
+        diff=(hf_logits - shark_logits).abs()
+        max_diff = diff.max().item()
+        idx=diff.argmax()
+        print(f"Max diff: {max_diff} at index {idx}")
+        b,t,v=torch.unravel_index(idx, hf_logits.shape)
+        print(f"HF logits: {hf_logits[b,t,v]}, Sharktank logits: {shark_logits[b,t,v]}")
+        raise AssertionError("logits mismatch")
 
 class Llama4Test(TempDirTestBase):
     def setUp(self):
@@ -39,6 +53,8 @@ class Llama4Test(TempDirTestBase):
         theta = make_random_llama_theta(config, dtype=dtype)
         hf_config = config_to_hugging_face_text_config(config)
 
+        print(hf_config.attention_chunk_size)
+
         model = PagedLlmModelV1(theta=theta, config=config)
         hf_model = transformers.models.llama4.Llama4ForCausalLM(hf_config)
 
@@ -46,14 +62,18 @@ class Llama4Test(TempDirTestBase):
         hf_state_dict = theta_to_hugging_face_state_dict(theta, config)
         hf_model.load_state_dict(hf_state_dict)
 
-        batch_size = 41
+        batch_size =41
         batch_seq_len = config.hp.context_length
+        print("here is batch seq len: ",batch_seq_len)
         input_ids = torch.randint(
             low=0,
             high=config.vocabulary_size,
             size=[batch_size, batch_seq_len],
             dtype=torch.long,
         )
+        print("here is batch seq len: ",batch_seq_len)
+        print("max_batch_size",input_ids.shape[0])
+        print("max_cache_len",input_ids.shape[1])
         # inputs_embeds = torch.rand(size=[batch_size, batch_seq_len, config.hp.embedding_length], dtype=dtype)
         # We need to create the cache ourselves as HF would create it always in bf16.
         hf_past_key_values = transformers.cache_utils.HybridChunkedCache(
@@ -63,7 +83,8 @@ class Llama4Test(TempDirTestBase):
             dtype=dtype,
         )
 
-        hf_2d_attention_mask = torch.randint_like(input_ids, low=0, high=2)
+        #hf_2d_attention_mask = torch.randint_like(input_ids, low=0, high=2)
+        hf_2d_attention_mask = torch.ones_like(input_ids) 
         attention_mask = convert_hf_2D_input_mask_to_4D_attention_mask(
             mask=hf_2d_attention_mask, model=model
         )
@@ -78,10 +99,11 @@ class Llama4Test(TempDirTestBase):
             return hf_model(
                 input_ids=input_ids,
                 attention_mask=hf_2d_attention_mask,
-                past_key_values=hf_past_key_values,
+                use_cache=False,
             )
 
         hf_output = run_hf_model()
+        hf_logits = hf_output.logits
 
         page_count = (len(input_ids[0]) // config.block_seq_stride) * batch_size
         kv_cache_state = model.cache.allocate(page_count)
@@ -92,17 +114,19 @@ class Llama4Test(TempDirTestBase):
         intermediates_saver = SaveModuleResultTensorsPatch(with_before_forward=True)
         intermediates_saver.patch_child_modules(model)
 
-        model.prefill(
+        shark_logits=model.prefill(
             tokens=input_ids,
             attention_mask=[attention_mask],
             cache_state=kv_cache_state,
             seq_block_ids=[seq_block_ids],
         )
 
-        hf_intermediates_saver.save_file(
-            "hf_trace.safetensors", skip_unsupported_dtypes=True
+        '''hf_intermediates_saver.save_file(
+            "/home/sonbol/experiments/llama4/hf_trace.safetensors", skip_unsupported_dtypes=True
         )
-        intermediates_saver.save_file("trace.safetensors", skip_unsupported_dtypes=True)
+        intermediates_saver.save_file("/home/sonbol/experiments/llama4/trace.safetensors", skip_unsupported_dtypes=True)'''
+
+        compare_logits(shark_logits,hf_logits,atol=1e-4, rtol=1e-3)
 
     def test_moe(self):
         from sharktank.layers.testing import make_random_moe_block_theta
