@@ -166,8 +166,8 @@ class PagedLlmModelV1(BaseCausalLMModel):
         if self.config.attention_chunk_size is not None:
             chunked_attention_mask = [
                 ops.replicate(
-                    self.chunked_attention_mask(attention_mask[0]),
-                    count=len(self.cache.pipeline_to_device_map),
+                    self.chunked_attention_mask(attention_mask[pipeline]),
+                    count=len(self.cache.pipeline_to_device_map[pipeline]),
                     devices=self.cache.pipeline_to_device_map[pipeline],
                 )
                 for pipeline in range(self.cache.pipeline_count)
@@ -178,8 +178,8 @@ class PagedLlmModelV1(BaseCausalLMModel):
             if block_idx == 0:
                 self.trace_tensor(f"llama.attn_block.{block_idx}.input", h)
             use_chunked_attention = (
-                self.config.attention_chunk_size is not None
-                and (block_idx + 1) % len(self.config.chunked_attention_layers) != 0
+                self.config.chunked_attention_layers is not None
+                and block_idx in self.config.chunked_attention_layers
             )  # <=> use rope
             if use_chunked_attention:
                 mask = chunked_attention_mask
