@@ -10,10 +10,11 @@ import json
 import logging
 import sys
 import time
-
+import numpy as np
 
 # Import first as it does dep checking and reporting.
 from pathlib import Path
+from typing import List, Optional
 from shortfin import ProgramIsolation
 from shortfin.support.logging_setup import configure_main_logger
 from shortfin.support.responder import AbstractResponder
@@ -154,7 +155,9 @@ def parse_args(argv):
 
 def process_inputs(args):
     if args.prompt:
-        prompts = [args.prompt]
+        # Leaving this here as it helps with debugging differences in
+        # performance between the CLI and the server.
+        # prompts = ["".join(["one " * 2500])]
         if args.benchmark and args.benchmark_tasks is not None:
             prompts = prompts * args.benchmark_tasks
         return prompts
@@ -163,15 +166,18 @@ def process_inputs(args):
 
 
 class Timer:
-    def __init__(self):
+    def __init__(self, name: str):
+        self._name = name
         self._start = None
         self._end = None
 
     def start(self):
         self._start = time.perf_counter()
+        logger.info(f"{self._name} start time: {self._start}")
 
     def end(self):
         self._end = time.perf_counter()
+        logger.info(f"{self._name} end time: {self._end}")
 
     def elapsed(self):
         if self._end is None:
@@ -185,7 +191,16 @@ class CliResponder(AbstractResponder):
         self._loop = asyncio.get_running_loop()
         self.response = asyncio.Future(loop=self._loop)
         self.responded = False
-        self.timer = Timer()
+        self.idx = self._get_idx()
+        self.name = f"CliResponder-{self.idx}"
+        self.timer = Timer(self.name)
+
+    @classmethod
+    def _get_idx(cls):
+        if not hasattr(cls, "_idx"):
+            cls._idx = 0
+        cls._idx += 1
+        return cls._idx
 
     def start_response(self):
         self.timer.start()
@@ -194,6 +209,7 @@ class CliResponder(AbstractResponder):
         self.timer.end()
 
     def send_response(self, response):
+        logger.info(f"{self.name} Sending response")
         assert not self.responded, "Response already sent"
         if self._loop.is_closed():
             raise IOError("Web server is shut down")
@@ -232,20 +248,20 @@ async def main(argv):
     class Task:
         def __init__(self, prompt):
             self.prompt = prompt
-            self.responder = None
+            self.responder: Optional[CliResponder] = None
 
         def runtime(self):
             return self.responder.timer.elapsed()
 
     logger.info(msg=f"Setting up a tasklist of {len(prompts)} items")
-    tasks = []
+    tasks: List[Task] = []
     for p in prompts:
         task = Task(p)
         tasks.append(task)
 
     async def worker(name, queue, fiber):
         while True:
-            task = await queue.get()
+            task: Task = await queue.get()
             responder = CliResponder()
             gen_req = GenerateReqInput(
                 text=task.prompt, sampling_params=sampling_params
@@ -270,7 +286,7 @@ async def main(argv):
 
     logger.info(msg=f"Processing tasks")
 
-    global_timer = Timer()
+    global_timer = Timer("global")
     global_timer.start()
     for t in tasks:
         queue.put_nowait(t)
@@ -282,13 +298,14 @@ async def main(argv):
         w.cancel()
 
     if args.benchmark:
-        latency_sum = sum([s.runtime() for s in tasks])
-        latency_avg = latency_sum / len(tasks)
         total_time = global_timer.elapsed()
         reqs = len(prompts) / total_time
 
         print(f"Requests per second: {reqs:2f}")
-        print(f"AverageLatency:      {latency_avg:2f}")
+        latencies = [s.runtime() for s in tasks]
+        print(
+            f"Latencies: av: {np.mean(latencies)}, min: {np.min(latencies)}, max: {np.max(latencies)}, median: {np.median(latencies)}, sd: {np.std(latencies)}"
+        )
 
     logger.info(msg=f"Shutting down service")
     service.shutdown()

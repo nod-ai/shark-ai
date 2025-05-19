@@ -20,4 +20,4 @@ class AbstractStatusTracker:
 
     def is_disconnected(self) -> bool:
         """Returns True if the connection/request is considered disconnected."""
-        raise NotImplementedError()
+        return False
