@@ -8,7 +8,7 @@
 # generic primitive/quantized types.
 
 from typing import Optional, List, Sequence, Union, Tuple
-
+from copy import deepcopy
 import torch
 from torch import Tensor, dtype
 import torch.nn.functional as F
@@ -25,6 +25,7 @@ from sharktank.types.tensors import unbox_tensor, AnyTensor
 from ._registry import AllOfType, AllOfExprs, AllOfExprsVariadic, IsOfType
 from .signatures import *
 import iree.turbine.ops.iree
+from iree.turbine.aot import DeviceTensorTrait
 
 
 @argmax.override(Tensor)
@@ -74,6 +75,25 @@ def _split_argmax(input_tensor, dim, keepdim: bool = False, chunk_size: int = 12
 @cat.override(AllOfType(Tensor, PrimitiveTensor))
 def cat_default(tensors: Sequence[Tensor | PrimitiveTensor], dim: int):
     return torch.cat([unbox_tensor(t) for t in tensors], dim)
+
+
+@clone.override(IsOfType(InferenceTensor))
+def clone_default(tensor: InferenceTensor):
+    return tensor.clone()
+
+
+@clone.override(IsOfType(Tensor))
+def clone_torch(tensor: Tensor):
+    # Clone introduces a tensor copy operation in the graph. It does not make sense to
+    # clone also the ExternalTensorTrait. The expectation is that when a user clones a
+    # tensor if they modify in-place the result this should not affect the original
+    # tensor. If we are to clone also the ExternalTensorTrait then we would have
+    # external_name aliasing, but the expectation is that there is no data aliasing.
+    res = tensor.clone()
+    device_trait = DeviceTensorTrait.get(tensor)
+    if device_trait is not None:
+        deepcopy(device_trait).set(res)
+    return res
 
 
 # conv2d
