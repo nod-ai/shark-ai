@@ -141,6 +141,7 @@ jobs:
             --iree-hip-target=gfx942 \
             --iree-hal-target-device=hip \
             --llama3-8b-f16-model-path=/shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa \
+            --llama3-8b-f16-tp2-model-path=/shark-dev/data/llama3.1/weights/8b/fp16/tp2/llama3.1_8b_instruct_fp16_tp2.irpa \
             --llama3-8b-f8-model-path=/shark-dev/8b/fp8/native_fp8_e4m3fnuz_llama3_8b.irpa \
             --llama3-8b-tokenizer-path=/shark-dev/data/llama3.1/weights/8b/fp16/tokenizer_config.json \
             --html=out/llm/llama/perplexity/iree_perplexity/index.html \

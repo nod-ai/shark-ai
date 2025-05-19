@@ -81,9 +81,6 @@ class ConvolutionOpInterfaceTuner(DispatchTuner, ConvolutionOpInterfaceParser):
         compilation_info: iree_codegen.CompilationInfoAttr,
     ) -> ir.Module:
         conv_op = self.get_root_op()
-        assert (
-            conv_op.name == "linalg.conv_2d_nhwc_hwcf"
-        ), "expected linalg.conv_2d_nhwc_hwcf"
         func_name = self.get_root_op_func_name()
         return build_td_spec(conv_op.context, conv_op, compilation_info, func_name)
 

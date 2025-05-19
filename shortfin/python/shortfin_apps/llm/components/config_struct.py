@@ -156,6 +156,12 @@ class ModelParams:
     # Cache parameters.
     paged_kv_cache: PagedKVCacheParams | None = None
 
+    def __post_init__(self):
+        if self.top_k is None or self.top_k == 1:
+            return
+
+        raise ValueError(f"Currently, only `top_k == 1` is supported.")
+
     # Size in bytes of the KV cache dtype.
     @property
     def attn_dtype_size(self) -> int:
@@ -235,6 +241,7 @@ class ServerParams:
     # Device configuration
     device_ids: list[str] = field(default_factory=list)
     amdgpu_async_allocations: bool = False
+    amdgpu_async_caching: bool = False
     amdgpu_allocators: Optional[str] = None
     amdgpu_allow_device_reuse: bool = False
 

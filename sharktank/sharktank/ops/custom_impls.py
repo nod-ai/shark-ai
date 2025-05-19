@@ -29,7 +29,7 @@ from sharktank.types import (
 
 from sharktank.types.tensors import AnyTensor, unbox_tensor
 from .signatures import *
-from ._registry import NotOfType
+from ._registry import AllNotOfType
 
 
 # Fused FP matmul.
@@ -128,7 +128,7 @@ def matmul_generic_tensor_super_block_offset_scaled_4_6_i4(
     )
 
 
-@sum.override(NotOfType(AnyTensor))
+@sum.override(AllNotOfType(AnyTensor))
 def sum_iterable(
     input: Iterable,
     dim: int | list[int] | None = None,

@@ -58,6 +58,9 @@ class LlamaHParams:
     # Grok configurations
     attention_softcap: Optional[float] = None
 
+    # Deepseek MoE config
+    expert_shared_count: Optional[int] = None
+
     @staticmethod
     def from_gguf_props(p: dict[str, Any]):
         name_prefix = p.get("general.architecture", "llama")

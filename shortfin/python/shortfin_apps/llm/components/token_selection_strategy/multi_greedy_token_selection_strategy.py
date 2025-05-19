@@ -54,12 +54,12 @@ class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
         config = self.token_selection_strategy_config
 
         if config.decode_config.top_k is not None:
-            logger.info(
+            logger.debug(
                 f"Using `top_k` sampling with `top_k == {config.decode_config.top_k}"
             )
 
         if config.decode_config.top_p is not None:
-            logger.info(
+            logger.debug(
                 f"Using `top_p` sampling with `top_p == {config.decode_config.top_p}"
             )
 
@@ -82,14 +82,18 @@ class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
         )
 
         reservations = beam_group.active_beam_count
-        config.decode_begin_callback(reservations)
+        config.decode_begin_callback(rid=exec_req.orig_instance_id, count=reservations)
         for _ in range(config.decode_config.max_completion_tokens):
+            if exec_req.status_tracker.is_disconnected():
+                break
             if not beam_group.active_beams:
                 break
-
             active_beam_count = len(beam_group.active_beams)
             if reservations > active_beam_count:
-                config.decode_end_callback(reservations - active_beam_count)
+                release_amount = reservations - active_beam_count
+                config.decode_end_callback(
+                    rid=exec_req.orig_instance_id, count=release_amount
+                )
                 reservations = active_beam_count
 
             for beam in beam_group.active_beams:
@@ -100,7 +104,7 @@ class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
             await beam_group.wait()
             beam_group.process_beams()
 
-        config.decode_end_callback(reservations)
+        config.decode_end_callback(rid=exec_req.orig_instance_id, count=reservations)
         beam_group.clean_up()
 
         results = [
