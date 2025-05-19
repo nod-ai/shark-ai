@@ -33,9 +33,9 @@ logger = logging.getLogger(__name__)
 class LlmGenerateService(GenerateService):
     """Top level service interface for generating text against a model."""
 
-    inference_program: sf.Program
-    prefill_functions: dict[int, sf.ProgramFunction]
-    decode_functions: dict[int, sf.ProgramFunction]
+    inference_programs: dict[int, sf.Program]
+    prefill_functions: list[dict[int, sf.ProgramFunction]]
+    decode_functions: list[dict[int, sf.ProgramFunction]]
 
     def __init__(
         self,
@@ -141,9 +141,17 @@ class LlmGenerateService(GenerateService):
 
     def start(self):
         component_modules = self.initialize_program_modules("main")
-        self.inference_program = self.create_program(
-            modules=component_modules, devices=self.sysman.ls.devices
-        )
+        logical_device_num = self.server_params.workers
+        self.inference_programs = {}
+
+        for index in range(logical_device_num):
+            logical_device = []
+            logical_device.append(self.sysman.ls.devices[index])
+            program = self.create_program(
+                modules=component_modules, devices=logical_device
+            )
+            self.inference_programs[index] = program
+
         self.initialize_function_references()
 
         self.prefill_batcher = PrefillBatcherProcess(
@@ -166,17 +174,28 @@ class LlmGenerateService(GenerateService):
         self.decode_batcher.launch()
 
     def initialize_function_references(self):
-        self.prefill_functions = {}
-        for bs in self.model_params.prefill_batch_sizes:
-            self.prefill_functions[bs] = self.inference_program[
-                f"{self.model_params.module_name}.prefill_bs{bs}"
-            ]
+        logical_device_num = self.server_params.workers
+        self.prefill_functions = []
+
+        for index in range(logical_device_num):
+            for bs in self.model_params.prefill_batch_sizes:
+                func_dict = {
+                    bs: self.inference_programs[index][
+                        f"{self.model_params.module_name}.prefill_bs{bs}"
+                    ]
+                }
+            self.prefill_functions.append(func_dict)
+
         # Resolve decode entrypoints.
-        self.decode_functions = {}
-        for bs in self.model_params.decode_batch_sizes:
-            self.decode_functions[bs] = self.inference_program[
-                f"{self.model_params.module_name}.decode_bs{bs}"
-            ]
+        self.decode_functions = []
+        for index in range(logical_device_num):
+            for bs in self.model_params.decode_batch_sizes:
+                func_dict = {
+                    bs: self.inference_programs[index][
+                        f"{self.model_params.module_name}.decode_bs{bs}"
+                    ]
+                }
+            self.decode_functions.append(func_dict)
 
     def __repr__(self):
         return (

@@ -117,6 +117,7 @@ class GenerateItemProcess(sf.Process):
 
 
 class ClientGenerateBatchProcess(sf.Process):
+    generate_count = 0
     """Process instantiated for handling a batch from a client.
 
     This takes care of several responsibilities:
@@ -146,6 +147,7 @@ class ClientGenerateBatchProcess(sf.Process):
         fiber: sf.Fiber,
     ):
         super().__init__(fiber=fiber)
+        ClientGenerateBatchProcess.generate_count += 1
         self.service = service
         self.gen_req = gen_req
         self.responder = responder
@@ -161,6 +163,12 @@ class ClientGenerateBatchProcess(sf.Process):
 
         # Try to add request to queue
         # TODO(@zphoenixrises): Add load testing and integration tests for this.
+        self.prefill_batcher.worker_index = (
+            ClientGenerateBatchProcess.generate_count % len(self.fiber.device_names)
+        )
+        self.decode_batcher.worker_index = (
+            ClientGenerateBatchProcess.generate_count % len(self.fiber.device_names)
+        )
         if not self.service.add_to_queue(self.decode_config.num_beams):
             error_response = JSONResponse(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -177,6 +185,9 @@ class ClientGenerateBatchProcess(sf.Process):
 
         fibers = []
         try:
+            logger.debug(
+                f"add_to_queue, use device {self.prefill_batcher.worker_index} for pre_fill use device {self.decode_batcher.worker_index} for decode"
+            )
             streaming = self.gen_req.stream
             self.responder.start_response()
             if streaming:

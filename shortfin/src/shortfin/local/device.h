@@ -108,7 +108,8 @@ struct SHORTFIN_API DeviceAddress {
   // Can be used as a map key to uniquely identify this device.
   uint64_t device_id() const {
     return static_cast<uint64_t>(instance_ordinal) << 32 |
-           static_cast<uint64_t>(queue_ordinal);
+           static_cast<uint64_t>(queue_ordinal) << 16 |
+           static_cast<uint64_t>(instance_topology_address[0]);
   }
 
   // Creates a device_id() as if this device was for a different queue ordinal.
@@ -116,7 +117,8 @@ struct SHORTFIN_API DeviceAddress {
   // using it to look up in a map.
   uint64_t device_id_for_queue(uint32_t alternate_queue_ordinal) const {
     return static_cast<uint64_t>(instance_ordinal) << 32 |
-           static_cast<uint64_t>(alternate_queue_ordinal);
+           static_cast<uint64_t>(alternate_queue_ordinal) << 16 |
+           static_cast<uint64_t>(instance_topology_address[0]);
   }
 };
 
