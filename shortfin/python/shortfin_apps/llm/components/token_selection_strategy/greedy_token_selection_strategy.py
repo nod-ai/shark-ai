@@ -33,9 +33,13 @@ class GreedyBeam(Beam):
         top_p = decode_config.top_p
 
         logits = np.array(exec_req.result_logits)
+        indices = exec_req.result_indices
 
         # Normal greedy selection based on max value
         if (top_k, top_p) == (None, None):
+            if indices is not None:
+                return indices.items[0]
+
             return self.sampler.select_greedy(logits)
 
         if top_k is not None:
