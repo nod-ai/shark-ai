@@ -20,7 +20,7 @@ from sharktank.types import (
     InferenceTensor,
     PlanarQuantizedTensor,
     BlockScaledI4Layout,
-    TensorScaledLayout
+    TensorScaledLayout,
 )
 from sharktank.types.tensors import unbox_tensor, AnyTensor
 from ._registry import AllOfType, AllOfExprs, AllOfExprsVariadic, IsOfType
@@ -603,6 +603,7 @@ def transpose_default(
 ) -> Tensor:
     return torch.transpose(unbox_tensor(tensor), dim0, dim1)
 
+
 @transpose.override(QuantizedTensor)
 def transpose_QuantizedTensor(tensor: QuantizedTensor, dim0: int, dim1: int):
     unpacked = tensor.unpack()
@@ -612,7 +613,9 @@ def transpose_QuantizedTensor(tensor: QuantizedTensor, dim0: int, dim1: int):
         shape[dim0] = shape[dim1]
         shape[dim1] = tmp
         new_qs = unpacked._qs.transpose(dim0, dim1)
-        layout = TensorScaledLayout(shape=shape, d=unpacked._d, qs=new_qs, m=unpacked._m)
+        layout = TensorScaledLayout(
+            shape=shape, d=unpacked._d, qs=new_qs, m=unpacked._m
+        )
         return PlanarQuantizedTensor(shape=shape, layout=layout)
     return NotImplemented
 
@@ -697,7 +700,9 @@ def view_QuantizedTensor(tensor: QuantizedTensor, shape):
     unpacked = tensor.unpack()
     if isinstance(unpacked, TensorScaledLayout):
         new_qs = unpacked._qs.view(shape)
-        layout = TensorScaledLayout(shape=shape, d=unpacked._d, qs=new_qs, m=unpacked._m)
+        layout = TensorScaledLayout(
+            shape=shape, d=unpacked._d, qs=new_qs, m=unpacked._m
+        )
         return PlanarQuantizedTensor(shape=shape, layout=layout)
     elif isinstance(unpacked, BlockScaledI4Layout):
         bs = 16
