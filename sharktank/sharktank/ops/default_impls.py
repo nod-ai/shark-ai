@@ -236,6 +236,18 @@ def expand_default(tensor: AnyTensor, shape: List[int]) -> AnyTensor:
     return unbox_tensor(tensor).expand(*shape)
 
 
+@expand.override(QuantizedTensor)
+def expand_quantized(tensor: QuantizedTensor, shape: List[int]) -> AnyTensor:
+    unpacked = tensor.unpack()
+    if isinstance(unpacked, TensorScaledLayout):
+        new_qs = unpacked._qs.expand(*shape)
+        layout = TensorScaledLayout(
+            shape=tensor.shape, d=unpacked._d, qs=new_qs, m=unpacked._m
+        )
+        return PlanarQuantizedTensor(shape=tensor.shape, layout=layout)
+    return NotImplemented
+
+
 @flatten.override(Tensor)
 def flatten_default(
     input: Union[Tensor, PrimitiveTensor], start_dim: int, end_dim: int
@@ -672,8 +684,8 @@ def unsqueeze_default(tensor: Union[Tensor, PrimitiveTensor], dim: int) -> Tenso
     return torch.unsqueeze(unbox_tensor(tensor), dim)
 
 
-@unsqueeze.override(Tensor)
-def unsqueeze_quantizedt(tensor: QuantizedTensor, dim: int) -> QuantizedTensor:
+@unsqueeze.override(QuantizedTensor)
+def unsqueeze_quantized(tensor: QuantizedTensor, dim: int) -> QuantizedTensor:
     unpacked = tensor.unpack()
     if isinstance(unpacked, TensorScaledLayout):
         new_qs = unpacked._qs.unsqueeze(dim)
@@ -681,7 +693,6 @@ def unsqueeze_quantizedt(tensor: QuantizedTensor, dim: int) -> QuantizedTensor:
             shape=tensor.shape, d=unpacked._d, qs=new_qs, m=unpacked._m
         )
         return PlanarQuantizedTensor(shape=tensor.shape, layout=layout)
-
     return NotImplemented
 
 
