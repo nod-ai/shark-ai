@@ -278,7 +278,7 @@ def get_index_QuantizedTensor(tensor: QuantizedTensor, key: slice):
         layout = TensorScaledLayout(shape=shape, d=d, qs=qs, m=m)
         return PlanarQuantizedTensor(shape=shape, layout=layout)
     return NotImplemented
-    
+
 
 @gemm.override(AllOfType(Tensor, InferenceTensor))
 def gemm(
@@ -670,6 +670,19 @@ def unflatten_default(
 @unsqueeze.override(Tensor)
 def unsqueeze_default(tensor: Union[Tensor, PrimitiveTensor], dim: int) -> Tensor:
     return torch.unsqueeze(unbox_tensor(tensor), dim)
+
+
+@unsqueeze.override(Tensor)
+def unsqueeze_quantizedt(tensor: QuantizedTensor, dim: int) -> QuantizedTensor:
+    unpacked = tensor.unpack()
+    if isinstance(unpacked, TensorScaledLayout):
+        new_qs = unpacked._qs.unsqueeze(dim)
+        layout = TensorScaledLayout(
+            shape=tensor.shape, d=unpacked._d, qs=new_qs, m=unpacked._m
+        )
+        return PlanarQuantizedTensor(shape=tensor.shape, layout=layout)
+
+    return NotImplemented
 
 
 @squeeze.override(AllOfType(AnyTensor, PrimitiveTensor))
