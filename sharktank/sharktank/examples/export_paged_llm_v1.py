@@ -159,9 +159,9 @@ def main():
                 tensor_parallelism_size = cache_state[0].shard_count
             dynamic_shapes = []
             for _ in range(pipeline_parallelism_size):
-                ds = {0: page_dim}
+                ds = [{0: page_dim}]
                 if tensor_parallelism_size > 1:
-                    ds = [ds] * tensor_parallelism_size
+                    ds = ds * tensor_parallelism_size
                 dynamic_shapes.append(ds)
             unpacked = cache_state
             arg_affinities = {}
