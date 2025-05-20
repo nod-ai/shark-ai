@@ -280,7 +280,6 @@ def get_index_QuantizedTensor(tensor: QuantizedTensor, key: slice):
     return NotImplemented
     
 
-
 @gemm.override(AllOfType(Tensor, InferenceTensor))
 def gemm(
     a: AnyTensor,
@@ -618,6 +617,7 @@ def transpose_QuantizedTensor(tensor: QuantizedTensor, dim0: int, dim1: int):
         )
         return PlanarQuantizedTensor(shape=shape, layout=layout)
     return NotImplemented
+
 
 # Sharded default impls (do nothing).
 
