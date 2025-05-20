@@ -933,6 +933,7 @@ class PagedAttention:
                     attn_weights = probs_quantizer.quantize(attn_weights).unpack().qs
             attn_weights = ops.to(attn_weights, dtype=q.dtype)
             return ops.matmul(attn_weights, v)  # (bs, heads, slen, head_dim)
+
         elif attention_kernel == "sharktank":
             if mask is not None:
                 attn_output = kernels.masked_flash_attention(
@@ -945,19 +946,19 @@ class PagedAttention:
             else:
                 attn_output = kernels.flash_attention(q, k, v)
             return attn_output
-        else:
-            # Non-decomposed
-            if softcap is not None:
-                raise ValueError("softcap not supported yet")
 
-            return ops.scaled_dot_product_attention(
-                q=q,  # [bs, ..., sl, dim]
-                k=k,  # [bs, ..., sl, dim]
-                v=v,  # [bs, ..., sl, dim]
-                a=mask,  # [bs, ..., sl, sl]
-                is_causal=mask is None,  # assumes causal masking when true
-                scale=None,  # defaults to 1/sqrt(dim)
-            )
+        # Non-decomposed
+        if softcap is not None:
+            raise ValueError("softcap not supported yet")
+
+        return ops.scaled_dot_product_attention(
+            q=q,  # [bs, ..., sl, dim]
+            k=k,  # [bs, ..., sl, dim]
+            v=v,  # [bs, ..., sl, dim]
+            a=mask,  # [bs, ..., sl, sl]
+            is_causal=mask is None,  # assumes causal masking when true
+            scale=None,  # defaults to 1/sqrt(dim)
+        )
 
     def forward_decode(
         self,
