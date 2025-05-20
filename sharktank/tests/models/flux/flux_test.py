@@ -276,6 +276,9 @@ class FluxTest(TempDirTestBase):
         )
 
     @with_flux_data
+    @pytest.mark.xfail(
+        reason="Marking xfail with issue already present. Issue: https://github.com/nod-ai/shark-ai/issues/1244",
+    )
     @pytest.mark.expensive
     def testCompareDevIreeF32AgainstEagerF32(self):
         self.runTestCompareDevIreeAgainstEager(

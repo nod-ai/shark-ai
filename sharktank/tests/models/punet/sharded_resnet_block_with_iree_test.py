@@ -115,7 +115,14 @@ def run_test_toy_size_sharded_resnet_block_with_iree(artifacts_dir: Path):
 
 
 @pytest.mark.xfail(
-    torch.__version__ >= (2, 5), reason="https://github.com/nod-ai/shark-ai/issues/683"
+    torch.__version__ < (2, 5),
+    reason="https://github.com/iree-org/iree/issues/20436#issuecomment-2894920219",
+    strict=True,
+)
+@pytest.mark.xfail(
+    torch.__version__ >= (2, 5),
+    reason="https://github.com/nod-ai/shark-ai/issues/683",
+    strict=True,
 )
 @pytest.mark.skipif(
     sys.platform == "win32", reason="https://github.com/nod-ai/shark-ai/issues/698"

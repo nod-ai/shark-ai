@@ -158,7 +158,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         # [bs, batch_seq_len]
         tokens: Union[torch.Tensor, ReplicatedTensor],
         *,
-        # [[1, 1, batch_seq_len, batch_seq_len] x self.config.pipeline_parallelism_size]
+        # [[bs|1, 1, batch_seq_len, batch_seq_len] x self.config.pipeline_parallelism_size]
         attention_mask: list[Union[torch.Tensor, ReplicatedTensor]],
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: list[Union[torch.Tensor, ReplicatedTensor]],
@@ -176,16 +176,34 @@ class PagedLlmModelV1(BaseCausalLMModel):
         if self.inference_norm:
             h *= math.sqrt(h.shape[-1])
 
+        if self.config.attention_chunk_size is not None:
+            chunked_attention_mask = [
+                ops.replicate(
+                    self.chunked_attention_mask(attention_mask[pipeline]),
+                    count=len(self.cache.pipeline_to_device_map[pipeline]),
+                    devices=self.cache.pipeline_to_device_map[pipeline],
+                )
+                for pipeline in range(self.cache.pipeline_count)
+            ]
+
         # Iterate over attention blocks.
         for block_idx, block in enumerate(self.attn_blocks):
             if block_idx == 0:
                 self.trace_tensor(f"llama.attn_block.{block_idx}.input", h)
+            use_chunked_attention = (
+                self.config.chunked_attention_layers is not None
+                and block_idx in self.config.chunked_attention_layers
+            )  # <=> use rope
+            if use_chunked_attention:
+                mask = chunked_attention_mask
+            else:
+                mask = attention_mask
             pipeline = self.cache.block_to_pipeline_map[block_idx]
             h = block(
                 h,
                 embedding=self.attention_embedding[pipeline],
                 start_index=0,
-                attention_mask=attention_mask[pipeline],
+                attention_mask=mask[pipeline],
                 cache_state=cache_state,
                 seq_block_ids=seq_block_ids[pipeline],
             )
