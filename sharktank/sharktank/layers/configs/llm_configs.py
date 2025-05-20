@@ -215,6 +215,12 @@ class LlamaModelConfig:
     # the program and not.
     static_tables: bool = True
 
+    # Specifies the size of each chunk used during chunked attention computation.
+    attention_chunk_size: Optional[int] = None
+
+    # A list of layer indices where chunked attention is applied instead of full attention.
+    chunked_attention_layers: Optional[set[int]] = None
+
 
 @dataclass
 class T5Config:
