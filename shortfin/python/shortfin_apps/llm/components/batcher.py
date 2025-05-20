@@ -561,8 +561,23 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         return args, req_count
 
     async def get_results(self, logits, indices, req_count, device0):
+        transfer = any(
+            [self.exec_requests[i].return_host_array for i in range(req_count)]
+        )
+
+        if transfer:
+            host_logits = logits.for_transfer()
+            host_logits.copy_from(logits)
+            logits = host_logits
+
+            if indices is not None:
+                host_indices = indices.for_transfer
+                host_indices.copy_from(indices)
+                indices = host_indices
+
+            await device0
+
         # Return results.
-        await_device = False
         for i in range(req_count):
             req = self.exec_requests[i]
             sl = 1
@@ -575,20 +590,8 @@ class DecodeExecutorProcess(LlmExecutorProcess):
             if indices is not None:
                 index_item = indices.view(i, sl - 1)
 
-            if req.return_host_array:
-                req.result_logits = logits_item.for_transfer()
-                req.result_logits.copy_from(logits_item)
-
-                if index_item is not None:
-                    req.result_indices = index_item.for_transfer()
-                    req.result_indices.copy_from(index_item)
-
-                await_device = True
-            else:
-                req.result_logits = logits_item
-
-        if await_device:
-            await device0
+            req.result_logits = logits_item
+            req.result_indices = index_item
 
         for req in self.exec_requests:
             req.done.set_success()
