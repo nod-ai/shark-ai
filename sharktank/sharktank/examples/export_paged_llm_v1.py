@@ -154,13 +154,15 @@ def main():
             page_dim = torch.export.Dim("page")
 
             pipeline_parallelism_size = len(cache_state)
-            tensor_parallelism_size = (
-                cache_state[0].shard_count
-                if isinstance(cache_state[0], ShardedTensor)
-                else 1
-            )
-
-            dynamic_shapes = [{0: page_dim} for _ in range(pipeline_parallelism_size)]
+            tensor_parallelism_size = 1
+            if isinstance(cache_state[0], ShardedTensor):
+                tensor_parallelism_size = cache_state[0].shard_count
+            dynamic_shapes = []
+            for _ in range(pipeline_parallelism_size):
+                ds = {0: page_dim}
+                if tensor_parallelism_size > 1:
+                    ds = [ds] * tensor_parallelism_size
+                dynamic_shapes.append(ds)
             unpacked = cache_state
             arg_affinities = {}
             shard_dim = None
@@ -170,9 +172,6 @@ def main():
                 shard_dim = cache_state[0].shard_dim
 
                 unpacked = [[shard._data for shard in cs.shards] for cs in cache_state]
-                dynamic_shapes = [
-                    [ds] * tensor_parallelism_size for ds in dynamic_shapes
-                ]
 
                 # Cache is unpacked as [[pipeline 0 shards], [pipeline 1 shards], ...]
                 # Therefore pipeline index is in outer loop.
