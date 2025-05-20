@@ -85,13 +85,24 @@ class BaseTokenSelectionStrategy(ABC):
         Returns:
             int: Token generated from prefill.
         """
+
+        if exec_req.status_tracker.is_disconnected():
+            return
+
         token_selection_strategy_config = self.token_selection_strategy_config
 
         token_selection_strategy_config.prefill_callback(exec_req)
         await exec_req.done
 
-        token = sfnp.argmax(exec_req.result_logits)
-        token_int = token.items[0]
+        assert_message = f"{exec_req.instance_id}'s result_logits are None. This typically indicates an error during prefill invocation."
+        assert exec_req.result_logits is not None, assert_message
+
+        if exec_req.result_indices is not None:
+            token_int = exec_req.result_indices.items[0]
+        else:
+            token = sfnp.argmax(exec_req.result_logits)
+            token_int = token.items[0]
+
         decode_config = token_selection_strategy_config.decode_config
         # TODO: This is only temporary until streaming is enabled for `MultiGreedy`
         if decode_config.token_selection_strategy == TokenSelectionStrategy.GREEDY:

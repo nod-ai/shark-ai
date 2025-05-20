@@ -232,11 +232,9 @@ class ShardedLlamaTest(unittest.TestCase):
             sharded_prefill_result, expected_prefill_result, atol=1e-3, rtol=1e-2
         )
         expected_cache_state = prefill_kwargs["cache_state"][0]
-        actual_cache_state = ops.unshard(
-            sharded_model.cache.unflatten_page_tables(
-                sharded_prefill_kwargs["cache_state"]
-            )[0]
-        ).flatten(start_dim=1)
+        actual_cache_state = sharded_model.cache.unshard_state(
+            sharded_prefill_kwargs["cache_state"]
+        )[0].flatten(start_dim=1)
         torch.testing.assert_close(
             actual_cache_state, expected_cache_state, atol=1e-4, rtol=1e-1
         )
@@ -253,11 +251,9 @@ class ShardedLlamaTest(unittest.TestCase):
             sharded_decode_result, expected_decode_result, atol=1e-4, rtol=1e-5
         )
         expected_decode_cache_state = decode_kwargs["cache_state"][0]
-        actual_decode_cache_state = ops.unshard(
-            sharded_model.cache.unflatten_page_tables(
-                sharded_decode_kwargs["cache_state"]
-            )[0]
-        ).flatten(start_dim=1)
+        actual_decode_cache_state = sharded_model.cache.unshard_state(
+            sharded_decode_kwargs["cache_state"]
+        )[0].flatten(start_dim=1)
         # TODO: investigate why the Windows machine CI is producing a larger numerical
         # error.
         # The Ubuntu CI runs fine with default tolerances.
@@ -441,14 +437,12 @@ class ShardedLlamaTest(unittest.TestCase):
             atol=atol,
         )
 
-        actual_prefill_cache_state = ops.unshard(
-            sharded_model.cache.unflatten_page_tables([prefill_iree_cache_state])[0]
-        )
-        expected_prefill_cache_state = ops.unshard(
-            sharded_model.cache.unflatten_page_tables(
-                sharded_prefill_kwargs["cache_state"]
-            )[0]
-        )
+        actual_prefill_cache_state = sharded_model.cache.unshard_state(
+            [prefill_iree_cache_state]
+        )[0]
+        expected_prefill_cache_state = sharded_model.cache.unshard_state(
+            sharded_prefill_kwargs["cache_state"]
+        )[0]
         assert_cosine_similarity_close(
             actual_prefill_cache_state, expected_prefill_cache_state, dim=-1, atol=atol
         )
@@ -460,14 +454,12 @@ class ShardedLlamaTest(unittest.TestCase):
             atol=atol,
         )
 
-        actual_decode_cache_state = ops.unshard(
-            sharded_model.cache.unflatten_page_tables([decode_iree_cache_state])[0]
-        )
-        expected_decode_cache_state = ops.unshard(
-            sharded_model.cache.unflatten_page_tables(
-                sharded_decode_kwargs["cache_state"]
-            )[0]
-        )
+        actual_decode_cache_state = sharded_model.cache.unshard_state(
+            [decode_iree_cache_state]
+        )[0]
+        expected_decode_cache_state = sharded_model.cache.unshard_state(
+            sharded_decode_kwargs["cache_state"]
+        )[0]
         assert_cosine_similarity_close(
             actual_decode_cache_state, expected_decode_cache_state, dim=-1, atol=atol
         )

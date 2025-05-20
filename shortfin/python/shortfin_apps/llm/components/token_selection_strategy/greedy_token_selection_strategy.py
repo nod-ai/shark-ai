@@ -33,9 +33,13 @@ class GreedyBeam(Beam):
         top_p = decode_config.top_p
 
         logits = np.array(exec_req.result_logits)
+        indices = exec_req.result_indices
 
         # Normal greedy selection based on max value
         if (top_k, top_p) == (None, None):
+            if indices is not None:
+                return indices.items[0]
+
             return self.sampler.select_greedy(logits)
 
         if top_k is not None:
@@ -104,6 +108,8 @@ class GreedyTokenSelectionStrategy(BaseTokenSelectionStrategy):
         config.decode_begin_callback(rid=exec_req.orig_instance_id, count=1)
         beam = GreedyBeam(exec_req, decode_config=config.decode_config)
         for _ in range(config.decode_config.max_completion_tokens):
+            if exec_req.status_tracker.is_disconnected():
+                break
             exec_req = beam.exec_req
             exec_req.reset(InferencePhase.DECODE)
             config.decode_callback(exec_req)

@@ -366,6 +366,11 @@ class InferenceTensor(ABC):
         return to(self, dtype=torch.bool)
 
     @property
+    def device(self) -> torch.device:
+        """Equivalent to torch.Tensor.device."""
+        raise NotImplementedError()
+
+    @property
     def dtype(self) -> torch.dtype:
         raise NotImplementedError()
 
@@ -630,6 +635,10 @@ class PrimitiveTensor(InferenceTensor):
         the logical arrangement of the data.
         """
         ...
+
+    @property
+    def device(self) -> torch.device:
+        return self.as_torch().device
 
     @property
     def dtype(self) -> torch.dtype:
@@ -914,6 +923,14 @@ class ShardedTensor(InferenceTensor):
         return self.clone(ts=[~t for t in self._shards])
 
     @property
+    def device(self) -> torch.device:
+        assert all(s.device == self.shards[0].device for s in self.shards), (
+            "TODO: figure out what do do if shards are placed on different Torch "
+            "devices. This is only relevant for eager execution."
+        )
+        return self.shards[0].as_torch().device
+
+    @property
     def devices(self) -> Tuple[int]:
         return self._devices
 
@@ -1172,6 +1189,9 @@ class SplitPrimitiveTensor(ShardedTensorBase):
             assert (
                 shard_count > 1
             ), "SplitTensor must have at least 2 shards. Use ReplicatedTensor for 1 shard."
+            assert (
+                ts.shape[shard_dim] >= shard_count
+            ), f"Cannot split dimension {shard_dim} of size {ts.shape[shard_dim]} into {shard_count} shards"
             ts = ts.split(ceildiv(ts.shape[shard_dim], shard_count), dim=shard_dim)
             ts = [transfer_to_logical_device(t, devices[i]) for i, t in enumerate(ts)]
             assert len(ts) == shard_count

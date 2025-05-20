@@ -9,6 +9,7 @@ from uuid import uuid4
 
 import shortfin as sf
 import shortfin.array as sfnp
+from shortfin.interop.fastapi import RequestStatusTracker
 
 from .kvcache.base_attention_cache import BasePagedAttentionCache, PageAllocation
 from ...utils import InferenceExecRequest
@@ -28,6 +29,7 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         input_token_ids: list[int],
         rid=None,
         orig_instance_id=None,
+        status_tracker: RequestStatusTracker | None = None,
     ):
         super().__init__()
         self.phase = phase
@@ -57,10 +59,12 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         # Result logits as [1, sl, d] where 1 is the preserved batch dim,
         # sl is either 1 (not return_all_logits) or >=1 (return_all_logits).
         self.result_logits: sfnp.device_array | None = None
+        self.result_indices: sfnp.device_array | None = None
 
         # Cache pages that have been locked for this request.
         self._cache: BasePagedAttentionCache | None = None
         self.allocation: PageAllocation | None = None
+        self.status_tracker: RequestStatusTracker | None = status_tracker
 
     @classmethod
     def copy_exec_request(

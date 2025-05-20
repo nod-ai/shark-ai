@@ -58,6 +58,9 @@ class LlamaHParams:
     # Grok configurations
     attention_softcap: Optional[float] = None
 
+    # Deepseek MoE config
+    expert_shared_count: Optional[int] = None
+
     @staticmethod
     def from_gguf_props(p: dict[str, Any]):
         name_prefix = p.get("general.architecture", "llama")
@@ -211,6 +214,12 @@ class LlamaModelConfig:
     # be the difference of many gigabytes of static data being embedded in
     # the program and not.
     static_tables: bool = True
+
+    # Specifies the size of each chunk used during chunked attention computation.
+    attention_chunk_size: Optional[int] = None
+
+    # A list of layer indices where chunked attention is applied instead of full attention.
+    chunked_attention_layers: Optional[set[int]] = None
 
 
 @dataclass

@@ -51,6 +51,9 @@ def main():
                 f"Parent directory for output MLIR file does not exist: {mlir_dir}"
             )
 
+    if args.top_k is not None and args.top_k > 1:
+        raise NotImplementedError(f"Currently only `top-k === 1` is supported.")
+
     if args.attention_kernel == "sharktank":
         ops.attention_impls.register_attention_override_by_name(
             "masked_flash_attention"
@@ -76,8 +79,8 @@ def main():
             dataset.root_theta, args.pipeline_parallelism_size
         )
     else:
-        block_to_pipeline = tuple([0] * hp.block_count)
-        pipeline_to_devices = tuple([tuple(range(args.tensor_parallelism_size))])
+        block_to_pipeline = None
+        pipeline_to_devices = None
 
     llama_config = LlamaModelConfig(
         hp,
@@ -305,7 +308,15 @@ def main():
             if args.logits_normalization == "log_softmax":
                 logits = ops.elementwise(torch.log, ops.softmax(logits, dim=-1))
 
-            return logits
+            if args.top_k is None:
+                return logits
+
+            if args.top_k == 1:
+                max_logits, indices = model.argmax(
+                    logits, chunk_size=hp.context_length // 128
+                )
+
+            return max_logits, indices
 
     def generate_batch_decode(bs: int):
         # torch.export.Dim would make min at least 2
@@ -433,7 +444,15 @@ def main():
             if args.logits_normalization == "log_softmax":
                 logits = ops.elementwise(torch.log, ops.softmax(logits, dim=-1))
 
-            return logits
+            if args.top_k is None:
+                return logits
+
+            if args.top_k == 1:
+                max_logits, indices = model.argmax(
+                    logits, chunk_size=hp.context_length // 128
+                )
+
+            return max_logits, indices
 
     def generate_argmax():
         # TODO: Remove this when the corresponding `dtype` conversion is
