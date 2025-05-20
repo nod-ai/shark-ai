@@ -144,6 +144,11 @@ class KVCache:
         key = selected[:, :, 0, :].flatten(1, 2)
         value = selected[:, :, 1, :].flatten(1, 2)
 
+        if self.devices:
+            # Explicitly passing a list of one value to avoid redundant transfer inside ReplicateTensor.__init__.
+            key = ReplicatedTensor(ts=[key], devices=self.devices)
+            value = ReplicatedTensor(ts=[value], devices=self.devices)
+
         return key, value
 
     def write(
@@ -592,16 +597,9 @@ class PipelinedCache:
         pipeline_state = self.unwrap_pipelining(pipeline_state)
         page_ids = self.unwrap_pipelining(page_ids)
 
-        k, v = self.caches[pipeline].read(
+        return self.caches[pipeline].read(
             state=pipeline_state, transformer_block_index=block, page_ids=page_ids
         )
-
-        # If running purely pipelined, we need to rewrap the primitive tensors as replicated tensors.
-        if isinstance(state[pipeline], ReplicatedTensor):
-            k = ReplicatedTensor(ts=[k], devices=state[pipeline].devices)
-            v = ReplicatedTensor(ts=[v], devices=state[pipeline].devices)
-
-        return k, v
 
     def write(
         self,
