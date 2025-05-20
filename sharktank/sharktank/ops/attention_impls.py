@@ -34,7 +34,7 @@ def _extract_linear_scale(t):
         and isinstance(t.layout, TensorScaledLayout)
         and t.layout.m is None
     ):
-        return t.layout.qs, 1.0 / t.layout.d
+        return t.layout.qs, t.layout.d
     return unbox_tensor(t), None
 
 def masked_flash_attention(q, k, v, a):
