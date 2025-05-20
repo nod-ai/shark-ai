@@ -36,6 +36,7 @@ class LlamaHParams:
     Comments are only provided if they differ from this source.
     """
 
+    # Attention config
     model_arch: str
     context_length: int
     embedding_length: int
@@ -45,18 +46,39 @@ class LlamaHParams:
     attn_head_dim: int
     attention_layer_norm_rms_epsilon: float
     attention_head_count_kv: int
+
+    # Deepseek Multi-Latent Attention config
+    q_lora_rank: Optional[int] = None
+    kv_lora_rank: Optional[int] = None
+    qk_nope_head_dim: Optional[int] = None
+    qk_rope_head_dim: Optional[int] = None
+    v_head_dim: Optional[int] = None
+
+    # Grok Attention config
+    attention_softcap: Optional[float] = None
+
+    # RoPE config
     rope_dimension_count: Optional[int] = None
     rope_freq_base: Optional[float] = None
+
+    # Deepseek RoPE+YaRN config
+    rope_scaling_type: Optional[str] = None
+    rope_scaling_factor: Optional[float] = None
+    rope_scaling_original_context_length: Optional[int] = None
+    rope_scaling_yarn_log_multiplier: Optional[float] = None
+
+    # MoE config
     expert_count: Optional[int] = None
     expert_used_count: Optional[int] = None
 
-    # Latent Attention Config - Deepseek specific
-    nope_dim: Optional[int] = None
-    kv_latent_dim: Optional[int] = None
-    v_head_dim: Optional[int] = None
-
-    # Grok configurations
-    attention_softcap: Optional[float] = None
+    # Deepseek MoE config
+    expert_shared_count: Optional[int] = None
+    moe_intermediate_size: Optional[int] = None
+    """Size of the MoE experts feed forward network hidden dimension."""
+    n_expert_groups: Optional[int] = None
+    n_limited_groups: Optional[int] = None
+    n_dense_layers: Optional[int] = None
+    route_scale: Optional[float] = None
 
     # Deepseek MoE config
     expert_shared_count: Optional[int] = None
@@ -64,16 +86,78 @@ class LlamaHParams:
     @staticmethod
     def from_gguf_props(p: dict[str, Any]):
         name_prefix = p.get("general.architecture", "llama")
-        default_expert_count = 0
-        default_expert_used_count = 0
+
         default_rope_freq_base = 500000.0
         default_rope_dimension_count = 128
+        default_expert_count = 0
+        default_expert_used_count = 0
+        defaut_n_dense_layers = 0
+
         attention_head_count = _int_prop(p, f"{name_prefix}.attention.head_count")
         rope_dimension_count = _optional_int_prop(
             p, f"{name_prefix}.rope.dimension_count", default_rope_dimension_count
         )
+        expert_count = _optional_int_prop(
+            p, f"{name_prefix}.expert_count", default_expert_count
+        )
 
         attention_softcap = 30.0 if name_prefix == "grok" else None
+
+        if name_prefix == "deepseek2":
+            default_n_expert_groups = 8
+            default_n_limited_groups = 4
+            default_qk_rope_head_dim = 64
+            default_qk_nope_head_dim = 128
+            default_v_head_dim = 128
+
+            qk_rope_head_dim = _optional_int_prop(
+                p, f"{name_prefix}.attention.qk_rope_head_dim", default_qk_rope_head_dim
+            )
+            qk_nope_head_dim = _optional_int_prop(
+                p, f"{name_prefix}.attention.qk_nope_head_dim", default_qk_nope_head_dim
+            )
+            v_head_dim = _optional_int_prop(
+                p, f"{name_prefix}.attention.v_head_dim", default_v_head_dim
+            )
+            q_lora_rank = _int_prop(p, f"{name_prefix}.attention.q_lora_rank")
+            kv_lora_rank = _int_prop(p, f"{name_prefix}.attention.kv_lora_rank")
+            route_scale = _float_prop(p, f"{name_prefix}.expert_weights_scale")
+            n_dense_layers = _optional_int_prop(
+                p, f"{name_prefix}.leading_dense_block_count", defaut_n_dense_layers
+            )
+            expert_shared_count = _int_prop(p, f"{name_prefix}.expert_shared_count")
+            n_expert_groups = _optional_int_prop(
+                p, f"{name_prefix}.n_expert_groups", default_n_expert_groups
+            )
+            n_limited_groups = _optional_int_prop(
+                p, f"{name_prefix}.n_limited_groups", default_n_limited_groups
+            )
+            rope_scaling_type = _str_prop(p, f"{name_prefix}.rope.scaling.type")
+            rope_scaling_factor = _float_prop(p, f"{name_prefix}.rope.scaling.factor")
+            rope_scaling_original_context_length = _int_prop(
+                p, f"{name_prefix}.rope.scaling.original_context_length"
+            )
+            rope_scaling_yarn_log_multiplier = _float_prop(
+                p, f"{name_prefix}.rope.scaling.yarn_log_multiplier"
+            )
+            attn_head_dim = qk_nope_head_dim + qk_rope_head_dim
+        else:
+            attn_head_dim = rope_dimension_count
+            route_scale = None
+            attention_softcap = None
+            n_expert_groups = None
+            n_limited_groups = None
+            expert_shared_count = None
+            q_lora_rank = None
+            kv_lora_rank = None
+            qk_nope_head_dim = None
+            qk_rope_head_dim = None
+            v_head_dim = None
+            rope_scaling_type = None
+            rope_scaling_factor = None
+            rope_scaling_original_context_length = None
+            rope_scaling_yarn_log_multiplier = None
+            n_dense_layers = defaut_n_dense_layers if expert_count > 0 else None
 
         return LlamaHParams(
             model_arch=name_prefix,
@@ -88,18 +172,33 @@ class LlamaHParams:
             attention_head_count_kv=_optional_int_prop(
                 p, f"{name_prefix}.attention.head_count_kv", attention_head_count
             ),
-            attn_head_dim=rope_dimension_count,
+            attn_head_dim=attn_head_dim,
+            q_lora_rank=q_lora_rank,
+            kv_lora_rank=kv_lora_rank,
+            qk_nope_head_dim=qk_nope_head_dim,
+            qk_rope_head_dim=qk_rope_head_dim,
+            v_head_dim=v_head_dim,
+            attention_softcap=attention_softcap,
+            expert_count=expert_count,
+            expert_used_count=_optional_int_prop(
+                p, f"{name_prefix}.expert_used_count", default_expert_used_count
+            ),
+            moe_intermediate_size=_optional_int_prop(
+                p, f"{name_prefix}.moe_intermediate_size", None
+            ),
+            route_scale=route_scale,
+            n_dense_layers=n_dense_layers,
+            expert_shared_count=expert_shared_count,
+            n_expert_groups=n_expert_groups,
+            n_limited_groups=n_limited_groups,
             rope_dimension_count=rope_dimension_count,
             rope_freq_base=_optional_float_prop(
                 p, f"{name_prefix}.rope.freq_base", default_rope_freq_base
             ),
-            expert_count=_optional_int_prop(
-                p, f"{name_prefix}.expert_count", default_expert_count
-            ),
-            expert_used_count=_optional_int_prop(
-                p, f"{name_prefix}.expert_used_count", default_expert_used_count
-            ),
-            attention_softcap=attention_softcap,
+            rope_scaling_type=rope_scaling_type,
+            rope_scaling_factor=rope_scaling_factor,
+            rope_scaling_original_context_length=rope_scaling_original_context_length,
+            rope_scaling_yarn_log_multiplier=rope_scaling_yarn_log_multiplier,
         )
 
     def to_gguf_props(self) -> dict[str, Any]:
@@ -113,14 +212,48 @@ class LlamaHParams:
             f"{self.model_arch}.attention.layer_norm_rms_epsilon": self.attention_layer_norm_rms_epsilon,
             f"{self.model_arch}.attention.head_count_kv": self.attention_head_count_kv,
         }
-        if self.rope_dimension_count is not None:
-            res[f"{self.model_arch}.rope.dimension_count"] = self.rope_dimension_count
-        if self.rope_freq_base is not None:
-            res[f"{self.model_arch}.rope.freq_base"] = self.rope_freq_base
+        if self.qk_rope_head_dim is not None:
+            res[f"{self.model_arch}.attention.qk_rope_head_dim"] = self.qk_rope_head_dim
+        if self.qk_nope_head_dim is not None:
+            res[f"{self.model_arch}.attention.qk_nope_head_dim"] = self.qk_nope_head_dim
+        if self.v_head_dim is not None:
+            res[f"{self.model_arch}.attention.v_head_dim"] = self.v_head_dim
+        if self.q_lora_rank is not None:
+            res[f"{self.model_arch}.attention.q_lora_rank"] = self.q_lora_rank
+        if self.kv_lora_rank is not None:
+            res[f"{self.model_arch}.attention.kv_lora_rank"] = self.kv_lora_rank
+        if self.route_scale is not None:
+            res[f"{self.model_arch}.expert_weights_scale"] = self.route_scale
+        if self.n_dense_layers is not None:
+            res[f"{self.model_arch}.leading_dense_block_count"] = self.n_dense_layers
         if self.expert_count is not None:
             res[f"{self.model_arch}.expert_count"] = self.expert_count
         if self.expert_used_count is not None:
             res[f"{self.model_arch}.expert_used_count"] = self.expert_used_count
+        if self.expert_shared_count is not None:
+            res[f"{self.model_arch}.expert_shared_count"] = self.expert_shared_count
+        if self.n_expert_groups is not None:
+            res[f"{self.model_arch}.n_expert_groups"] = self.n_expert_groups
+        if self.n_limited_groups is not None:
+            res[f"{self.model_arch}.n_limited_groups"] = self.n_limited_groups
+        if self.moe_intermediate_size is not None:
+            res[f"{self.model_arch}.moe_intermediate_size"] = self.moe_intermediate_size
+        if self.rope_dimension_count is not None:
+            res[f"{self.model_arch}.rope.dimension_count"] = self.rope_dimension_count
+        if self.rope_freq_base is not None:
+            res[f"{self.model_arch}.rope.freq_base"] = self.rope_freq_base
+        if self.rope_scaling_type is not None:
+            res[f"{self.model_arch}.rope.scaling.type"] = self.rope_scaling_type
+        if self.rope_scaling_factor is not None:
+            res[f"{self.model_arch}.rope.scaling.factor"] = self.rope_scaling_factor
+        if self.rope_scaling_original_context_length is not None:
+            res[
+                f"{self.model_arch}.rope.scaling.original_context_length"
+            ] = self.rope_scaling_original_context_length
+        if self.rope_scaling_yarn_log_multiplier is not None:
+            res[
+                f"{self.model_arch}.rope.scaling.yarn_log_multiplier"
+            ] = self.rope_scaling_yarn_log_multiplier
         return res
 
 
@@ -142,16 +275,33 @@ def _int_prop(p: dict[str, Any], name: str) -> int:
         raise KeyError(f"Property '{name}' not found (among keys {p.keys()})")
 
 
-def _optional_float_prop(p: dict[str, Any], name: str, default_value: float) -> float:
+def _str_prop(p: dict[str, Any], name: str) -> str:
+    try:
+        return str(p[name])
+    except ValueError as e:
+        raise ValueError(f"Property '{name}' expected to be an str and was not") from e
+    except KeyError:
+        raise KeyError(f"Property '{name}' not found (among keys {p.keys()})")
+
+
+def _optional_float_prop(
+    p: dict[str, Any], name: str, default_value: float | None
+) -> float | None:
     value = p.get(name, default_value)
+    if value is None:
+        return None
     try:
         return float(value)
     except ValueError as e:
         raise ValueError(f"Property '{name}' expected to be a float and was not") from e
 
 
-def _optional_int_prop(p: dict[str, Any], name: str, default_value: int) -> int:
+def _optional_int_prop(
+    p: dict[str, Any], name: str, default_value: int | None
+) -> int | None:
     value = p.get(name, default_value)
+    if value is None:
+        return None
     try:
         return int(value)
     except ValueError as e:
