@@ -15,18 +15,14 @@ import numpy as np
 # Import first as it does dep checking and reporting.
 from pathlib import Path
 from typing import List, Optional
-from shortfin import ProgramIsolation
 from shortfin.support.logging_setup import configure_main_logger
 from shortfin.support.responder import AbstractResponder
 
 from .components.generate import ClientGenerateBatchProcess
 from .components.io_struct import GenerateReqInput, SamplingParams
 from .components.lifecycle import ShortfinLlmLifecycleManager
-from .components.token_selection_strategy import TokenSelectionStrategy
-from ..utils import get_system_args
-
-
-logger = logging.getLogger(__name__)
+from .server import add_service_args
+from loguru import logger
 
 
 def add_input_args(parser):
@@ -41,7 +37,6 @@ def add_cli_args(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--log_tokens", action="store_true", help="Log tokens to stdout"
     )
-
     parser.add_argument(
         "--benchmark",
         action="store_true",
@@ -53,7 +48,6 @@ def add_cli_args(parser: argparse.ArgumentParser):
         default=None,
         help="Workload size to benchmark with",
     )
-
     parser.add_argument(
         "--decode_steps",
         type=int,
@@ -71,86 +65,6 @@ def add_cli_args(parser: argparse.ArgumentParser):
         type=int,
         default=1,
         help="Number of workers to use when running in `offline` mode.",
-    )
-
-
-def add_service_args(parser: argparse.ArgumentParser):
-    # TODO separate the server args from the `offline` args
-    get_system_args(parser)
-
-    parser.add_argument(
-        "--tokenizer_json",
-        type=Path,
-        required=True,
-        help="Path to a tokenizer.json file",
-    )
-    parser.add_argument(
-        "--tokenizer_config_json",
-        type=Path,
-        required=False,
-        help="Path to a tokenizer_config json file",
-    )
-    parser.add_argument(
-        "--model_config",
-        type=Path,
-        required=True,
-        help="Path to the model config file",
-    )
-    parser.add_argument(
-        "--vmfb",
-        type=Path,
-        required=True,
-        help="Model VMFB to load",
-    )
-    parser.add_argument(
-        "--parameters",
-        type=Path,
-        nargs="*",
-        help="Parameter archives to load (supports: gguf, irpa, safetensors).",
-        metavar="FILE",
-    )
-    parser.add_argument(
-        "--program_isolation",
-        type=str,
-        default="per_call",
-        choices=[isolation.name.lower() for isolation in ProgramIsolation],
-        help="Concurrency control -- How to isolate programs.",
-    )
-    parser.add_argument(
-        "--server_config",
-        type=Path,
-        help="Path to server configuration file",
-    )
-    parser.add_argument(
-        "--prefix_sharing_algorithm",
-        type=str,
-        choices=["none", "trie"],
-        help="Algorithm to use for prefix sharing in KV cache",
-    )
-    parser.add_argument(
-        "--num_beams",
-        type=int,
-        default=1,
-        help="The number of beams to use during decode sequence. Defaults to `1`.",
-    )
-    parser.add_argument(
-        "--token_selection_strategy",
-        type=str,
-        choices=[strategy.name.lower() for strategy in TokenSelectionStrategy],
-        default="greedy",
-        help="Strategy to use when selecting tokens during generation. Defaults to `greedy`.",
-    )
-    parser.add_argument(
-        "--workers",
-        type=int,
-        default=1,
-        help="Number of workers to use when running in `server` mode.",
-    )
-    parser.add_argument(
-        "--fibers_per_worker",
-        type=int,
-        default=1,
-        help="Number of fibers to use per worker.",
     )
 
 
@@ -220,7 +134,6 @@ class CliResponder(AbstractResponder):
         self.timer.start()
 
     def ensure_response(self):
-        logger.info(f"{self.name} Ensuring response")
         self.timer.end()
 
     def send_response(self, response):
@@ -255,8 +168,6 @@ class CliResponder(AbstractResponder):
 
         def start():
             asyncio.create_task(collect_stream())
-            # Set an empty response to indicate streaming has started
-            # self.response.set_result(None)
 
         self._loop.call_soon_threadsafe(start)
 
@@ -289,14 +200,14 @@ async def main(argv):
     args = parse_args(argv)
     if args.tokenizer_config_json is None:
         # this is only used for the EOS token
-        logging.info("Argument `--tokenizer_config_json` is not provided")
-        logging.info("Inferring tokenizer config path from tokenizer path")
+        logger.info("Argument `--tokenizer_config_json` is not provided")
+        logger.info("Inferring tokenizer config path from tokenizer path")
         inferred_tokenizer_config_path = args.tokenizer_json.with_name(
             args.tokenizer_json.stem + "_config.json"
         )
         args.tokenizer_config_json = inferred_tokenizer_config_path
 
-    logger.info(msg="Setting up service")
+    logger.info("Setting up service")
     lifecycle_manager = ShortfinLlmLifecycleManager(args)
     service = lifecycle_manager.services["default"]
     service.start()
@@ -329,7 +240,7 @@ async def main(argv):
                 ) / len(self.responder.token_times)
             return 0
 
-    logger.info(msg=f"Setting up a tasklist of {len(prompts)} items")
+    logger.info(f"Setting up a tasklist of {len(prompts)} items")
     tasks: List[Task] = []
     for p in prompts:
         task = Task(p)
@@ -350,7 +261,7 @@ async def main(argv):
             task.result = responder.response.result()
             queue.task_done()
 
-    logger.info(msg=f"Setting up {args.workers_offline} workers")
+    logger.info(f"Setting up {args.workers_offline} workers")
     workers = []
     queue = asyncio.Queue()
     for i in range(args.workers_offline):
@@ -360,7 +271,7 @@ async def main(argv):
         w = asyncio.create_task(worker(name, queue, fiber))
         workers.append(w)
 
-    logger.info(msg=f"Processing tasks")
+    logger.info(f"Processing tasks")
 
     global_timer = Timer("global")
     global_timer.start()
@@ -392,10 +303,9 @@ async def main(argv):
                 f"TPOT: av: {np.mean(tpot)}, min: {np.min(tpot)}, max: {np.max(tpot)}, median: {np.median(tpot)}, sd: {np.std(tpot)}"
             )
 
-    logger.info(msg=f"Shutting down service")
+    logger.info(f"Shutting down service")
     service.shutdown()
 
 
 if __name__ == "__main__":
-    configure_main_logger("cli")
     asyncio.run(main(sys.argv[1:]))
