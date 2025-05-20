@@ -60,10 +60,10 @@ class masked_flash_attention(CustomOp):
             and s_desc.t.dtype.is_floating_point,
             lambda: f"masked_flash_attention: Expected floating point",
         )
-        # torch._check(
-        #     q_desc.t.dtype == k_desc.t.dtype == v_desc.t.dtype,
-        #     lambda: f"masked_flash_attention: Expected matching dtypes. {q_desc.t.dtype} {k_desc.t.dtype} {v_desc.t.dtype}",
-        # )
+        torch._check(
+            q_desc.t.dtype == k_desc.t.dtype == v_desc.t.dtype,
+            lambda: f"masked_flash_attention: Expected matching dtypes.",
+        )
 
         for q_b, k_b, v_b in zip(q_bs, k_bs, v_bs):
             torch._check(
