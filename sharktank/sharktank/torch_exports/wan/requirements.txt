@@ -1,0 +1,4 @@
+diffusers==0.32.1
+transformers==4.46.3
+omegaconf==2.3.0
+ftfy==6.3.1
