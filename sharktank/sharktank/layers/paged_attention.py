@@ -576,7 +576,9 @@ class PipelinedCache:
         *,
         transformer_block_index: int,
         page_ids: torch.Tensor | ReplicatedTensor,
-    ):
+    ) -> Tuple[
+        ReplicatedTensor | SplitPrimitiveTensor, ReplicatedTensor | SplitPrimitiveTensor
+    ]:
         pipeline = self.block_to_pipeline_map[transformer_block_index]
         block = self.transformer_block_map[transformer_block_index]
 
@@ -590,9 +592,16 @@ class PipelinedCache:
         pipeline_state = self.unwrap_pipelining(pipeline_state)
         page_ids = self.unwrap_pipelining(page_ids)
 
-        return self.caches[pipeline].read(
+        k, v = self.caches[pipeline].read(
             state=pipeline_state, transformer_block_index=block, page_ids=page_ids
         )
+
+        # If running purely pipelined, we need to rewrap the primitive tensors as replicated tensors.
+        if isinstance(state[pipeline], ReplicatedTensor):
+            k = ReplicatedTensor(ts=[k], devices=state[pipeline].devices)
+            v = ReplicatedTensor(ts=[v], devices=state[pipeline].devices)
+
+        return k, v
 
     def write(
         self,
