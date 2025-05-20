@@ -154,12 +154,13 @@ def parse_args(argv):
 
 
 def process_inputs(args):
+    # Leaving this here as it helps with debugging differences in
+    # performance between the CLI and the server.
+    # return ["".join(["one " * 2500])]
+
     if args.prompt:
-        # Leaving this here as it helps with debugging differences in
-        # performance between the CLI and the server.
-        # prompts = ["".join(["one " * 2500])]
         if args.benchmark and args.benchmark_tasks is not None:
-            prompts = prompts * args.benchmark_tasks
+            prompts = [args.prompt] * args.benchmark_tasks
         return prompts
 
     return json.load(open(args.prompt_file, "r"))
