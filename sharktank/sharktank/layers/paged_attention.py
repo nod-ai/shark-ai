@@ -576,7 +576,7 @@ class PipelinedCache:
         *,
         transformer_block_index: int,
         page_ids: torch.Tensor | ReplicatedTensor,
-    ) -> Tuple[
+    ) -> tuple[
         ReplicatedTensor | SplitPrimitiveTensor, ReplicatedTensor | SplitPrimitiveTensor
     ]:
         pipeline = self.block_to_pipeline_map[transformer_block_index]
