@@ -29,7 +29,8 @@ def add_input_args(parser):
     group = parser.add_argument_group("Input Source", "Inputs to select from")
     group = group.add_mutually_exclusive_group(required=True)
     group.add_argument("--prompt")
-    group.add_argument("--prompt-file")
+    group.add_argument("--prompt_file")
+    group.add_argument("--input_token_length", type=int)
 
 
 def add_cli_args(parser: argparse.ArgumentParser):
@@ -76,11 +77,9 @@ def parse_args(argv):
     return parser.parse_args(argv)
 
 
-def process_inputs(args):
-    # Leaving this here as it helps with debugging differences in
-    # performance between the CLI and the server.
-    # return ["".join(["one " * 2500])]
-
+def process_inputs(args) -> List[str]:
+    if args.input_token_length:
+        args.prompt = "".join(["one "] * args.input_token_length)
     if args.prompt:
         if args.benchmark and args.benchmark_tasks is not None:
             prompts = [args.prompt] * args.benchmark_tasks
