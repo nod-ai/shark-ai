@@ -366,6 +366,11 @@ class InferenceTensor(ABC):
         return to(self, dtype=torch.bool)
 
     @property
+    def device(self) -> torch.device:
+        """Equivalent to torch.Tensor.device."""
+        raise NotImplementedError()
+
+    @property
     def dtype(self) -> torch.dtype:
         raise NotImplementedError()
 
@@ -630,6 +635,10 @@ class PrimitiveTensor(InferenceTensor):
         the logical arrangement of the data.
         """
         ...
+
+    @property
+    def device(self) -> torch.device:
+        return self.as_torch().device
 
     @property
     def dtype(self) -> torch.dtype:
@@ -912,6 +921,14 @@ class ShardedTensor(InferenceTensor):
 
     def __invert__(self):
         return self.clone(ts=[~t for t in self._shards])
+
+    @property
+    def device(self) -> torch.device:
+        assert all(s.device == self.shards[0].device for s in self.shards), (
+            "TODO: figure out what do do if shards are placed on different Torch "
+            "devices. This is only relevant for eager execution."
+        )
+        return self.shards[0].as_torch().device
 
     @property
     def devices(self) -> Tuple[int]:

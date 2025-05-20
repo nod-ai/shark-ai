@@ -52,13 +52,14 @@ def main():
     if args.num_blocks:
         config.properties[f"{model_arch}.block_count"] = args.num_blocks
         num_blocks = list(range(0, args.num_blocks))
-        logger.info(f"  Saving {num_blocks} blocks")
+        logger.info(f"  Blocks saved: {num_blocks} ")
     else:
         num_blocks = range(0, config.properties[f"{model_arch}.block_count"])
 
     logger.info("  Properties:")
     for key, value in config.properties.items():
-        logger.info(f"  {key} = {value} (of {type(value)})")
+        if "tokenizer" not in key:
+            logger.info(f"  {key} = {value} (of {type(value)})")
 
     tensors = []
     logger.info("  Tensors:")
@@ -69,14 +70,16 @@ def main():
             save = True
 
         # Save input/output layer tensors
-        if "blk" not in tensor.name and args.save_input_output_blocks:
-            save = True
+        if "blk" not in tensor.name:
+            if args.save_input_output_blocks:
+                save = True
         elif int(tensor.name.split(".")[1]) in num_blocks:
             # Save tensors if in num_blocks
             save = True
 
         if save:
-            logger.info(f"  {tensor.name}: {tensor.shape}")
+            logger.info(f"  {tensor.name}: {tensor.shape}, {tensor.dtype}")
+            # TODO: Add support to save QuantizedTensor and ShardedTensor
             tensors += [
                 DefaultPrimitiveTensor(data=tensor.as_torch(), name=tensor.name)
             ]
