@@ -4,6 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from typing import Any
 import sys
 import logging
 import time
@@ -13,13 +14,13 @@ from tqdm import tqdm
 import gc
 
 import torch
-from torch.nn import CrossEntropyLoss
 
 from sharktank.layers import *
 from sharktank.types import *
 
 from sharktank.models.llm import *
-from sharktank.models.llama.sharding import shard_theta
+from sharktank.types.sharding import shard_theta
+
 
 from sharktank.utils import cli
 from sharktank.utils.load_llm import *
@@ -104,7 +105,7 @@ class PerplexityTorch:
 
     def assemble_batch(self, token_batch: torch.tensor) -> torch.tensor:
 
-        token_batch, seq_lens_batch = self.generator.tokenizer.pad_tokens(
+        token_batch, seq_lens_batch = pad_tokens(
             token_ids=token_batch.tolist(),
             pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
         )

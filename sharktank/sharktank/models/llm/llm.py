@@ -11,6 +11,7 @@ import math
 import torch
 import torch.nn as nn
 
+from sharktank import ops
 from sharktank.layers import *
 from sharktank.types import *
 from sharktank.utils.create_cache import *
@@ -90,7 +91,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
                     use_hf=self.config.use_hf,
                     tensor_parallelism_size=self.config.tensor_parallelism_size,
                     pipeline_parallelism=config.pipeline_parallelism_size > 1,
-                    devices=self.cache.pipeline_to_device_lookup[pipeline],
+                    devices=self.cache.pipeline_to_device_map[pipeline],
                     dtype=self.config.activation_dtype,
                 )
                 for pipeline in range(self.config.pipeline_parallelism_size)
@@ -112,7 +113,6 @@ class PagedLlmModelV1(BaseCausalLMModel):
                     cache=self.cache,
                     config=self.config,
                     fake_quant=self.fake_quant,
-                    block_to_device_lookup=self.config.block_to_device_lookup,
                 )
                 for n in range(self.hp.block_count)
             ]
@@ -121,11 +121,17 @@ class PagedLlmModelV1(BaseCausalLMModel):
     def _inter_layer_callback(self, x: ShardedTensor, curr_block: int) -> ShardedTensor:
         from ... import ops
 
-        if curr_block == len(self.config.block_to_device_lookup) - 1:
+        if self.config.block_to_pipeline_map is None:
             return x
 
-        curr_devices = self.config.block_to_device_lookup[curr_block]
-        next_devices = self.config.block_to_device_lookup[curr_block + 1]
+        if curr_block >= len(self.config.block_to_pipeline_map) - 1:
+            return x
+
+        pipeline_0 = self.config.block_to_pipeline_map[curr_block]
+        pipeline_1 = self.config.block_to_pipeline_map[curr_block + 1]
+
+        curr_devices = self.config.pipeline_to_device_map[pipeline_0]
+        next_devices = self.config.pipeline_to_device_map[pipeline_1]
         if all(d_curr == d_next for d_curr, d_next in zip(curr_devices, next_devices)):
             return x
 
@@ -134,12 +140,25 @@ class PagedLlmModelV1(BaseCausalLMModel):
         )
         return x.clone(ts=shards, devices=next_devices)
 
+    def argmax(
+        self,
+        logits: torch.Tensor,
+        chunk_size: int,
+    ):
+        indices = ops.argmax(logits, -1, chunk_size=chunk_size)
+        indices_expanded = indices.unsqueeze(-1)
+
+        max_logits = ops.gather(logits, dim=-1, index=indices_expanded)
+        max_logits = max_logits.squeeze(-1)
+
+        return max_logits, indices
+
     def prefill(
         self,
         # [bs, batch_seq_len]
         tokens: Union[torch.Tensor, ReplicatedTensor],
         *,
-        # [[1, 1, batch_seq_len, batch_seq_len] x self.config.pipeline_parallelism_size]
+        # [[bs|1, 1, batch_seq_len, batch_seq_len] x self.config.pipeline_parallelism_size]
         attention_mask: list[Union[torch.Tensor, ReplicatedTensor]],
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: list[Union[torch.Tensor, ReplicatedTensor]],
@@ -157,23 +176,36 @@ class PagedLlmModelV1(BaseCausalLMModel):
         if self.inference_norm:
             h *= math.sqrt(h.shape[-1])
 
+        if self.config.attention_chunk_size is not None:
+            chunked_attention_mask = [
+                ops.replicate(
+                    self.chunked_attention_mask(attention_mask[pipeline]),
+                    count=len(self.cache.pipeline_to_device_map[pipeline]),
+                    devices=self.cache.pipeline_to_device_map[pipeline],
+                )
+                for pipeline in range(self.cache.pipeline_count)
+            ]
+
         # Iterate over attention blocks.
         for block_idx, block in enumerate(self.attn_blocks):
             if block_idx == 0:
                 self.trace_tensor(f"llama.attn_block.{block_idx}.input", h)
+            use_chunked_attention = (
+                self.config.chunked_attention_layers is not None
+                and block_idx in self.config.chunked_attention_layers
+            )  # <=> use rope
+            if use_chunked_attention:
+                mask = chunked_attention_mask
+            else:
+                mask = attention_mask
+            pipeline = self.cache.block_to_pipeline_map[block_idx]
             h = block(
                 h,
-                embedding=self.attention_embedding[
-                    self.cache.block_to_pipeline_lookup[block_idx]
-                ],
+                embedding=self.attention_embedding[pipeline],
                 start_index=0,
-                attention_mask=attention_mask[
-                    self.cache.block_to_pipeline_lookup[block_idx]
-                ],
+                attention_mask=mask[pipeline],
                 cache_state=cache_state,
-                seq_block_ids=seq_block_ids[
-                    self.cache.block_to_pipeline_lookup[block_idx]
-                ],
+                seq_block_ids=seq_block_ids[pipeline],
             )
             h = self._inter_layer_callback(h, block_idx)
             self.trace_tensor(f"llama.attn_block.{block_idx}.output", h)
@@ -251,24 +283,16 @@ class PagedLlmModelV1(BaseCausalLMModel):
         for block_idx, block in enumerate(self.attn_blocks):
             if block_idx == 0:
                 self.trace_tensor(f"llama.attn_block.{block_idx}.input", h)
+            # TODO: Hacky, shouldn't need to read info out of self.cache
+            pipeline = self.cache.block_to_pipeline_map[block_idx]
             h = block(  # TODO: Should we index into attention_mask and cache here?
-                h,  # TODO: Hacky, shouldn't need to read info out of self.cache
-                start_positions=start_positions[
-                    self.cache.block_to_pipeline_lookup[block_idx]
-                ],
-                embedding=self.attention_embedding[
-                    self.cache.block_to_pipeline_lookup[block_idx]
-                ],
-                embedding_batch_mask=embedding_batch_masks[
-                    self.cache.block_to_pipeline_lookup[block_idx]
-                ],
-                attention_mask=attention_mask[
-                    self.cache.block_to_pipeline_lookup[block_idx]
-                ],
+                h,
+                start_positions=start_positions[pipeline],
+                embedding=self.attention_embedding[pipeline],
+                embedding_batch_mask=embedding_batch_masks[pipeline],
+                attention_mask=attention_mask[pipeline],
                 cache_state=cache_state,
-                seq_block_ids=seq_block_ids[
-                    self.cache.block_to_pipeline_lookup[block_idx]
-                ],
+                seq_block_ids=seq_block_ids[pipeline],
             )
             h = self._inter_layer_callback(h, block_idx)
             self.trace_tensor(f"llama.attn_block.{block_idx}.output", h)
@@ -302,7 +326,6 @@ class AttentionFFNBlock(ThetaLayer):
         cache: PagedAttention,  # TODO: Add deepseek PagedLatentAttention
         config: LlamaModelConfig,
         fake_quant: bool = True,
-        block_to_device_lookup: tuple[tuple[int, ...], ...] | None = None,
     ):
         super().__init__(theta)
 
@@ -322,10 +345,18 @@ class AttentionFFNBlock(ThetaLayer):
                 rms_epsilon=config.hp.attention_layer_norm_rms_epsilon,
                 attention_kernel=attention_kernel,
                 fake_quant=fake_quant,
-                block_to_device_lookup=block_to_device_lookup,
                 softcap=config.hp.attention_softcap,
+                block_to_pipeline_map=config.block_to_pipeline_map,
+                pipeline_to_device_map=config.pipeline_to_device_map,
             ),
         )
+
+        # Add FFN norm
+        self.ffn_norm = torch.nn.Identity()
+        if theta.optional_tensor("ffn_norm") is not None:
+            self.ffn_norm = RMSNormLayer(
+                theta("ffn_norm"), epsilon=config.hp.attention_layer_norm_rms_epsilon
+            )
 
         moe_func_map = {
             "llama": (
@@ -348,22 +379,24 @@ class AttentionFFNBlock(ThetaLayer):
             ),
         }
 
+        (
+            score_experts,
+            moe_activation,
+            self.add_residual,
+            normalize_experts,
+        ) = moe_func_map[config.hp.model_arch]
+
         if config.hp.expert_count:
-            (
-                score_experts,
-                moe_activation,
-                add_residual,
-                normalize_experts,
-            ) = moe_func_map[config.hp.model_arch]
 
             self.add_module(
                 "ffn",
                 MoeBlock(
                     theta=theta,
+                    expert_count=config.hp.expert_count,
                     expert_used_count=config.hp.expert_used_count,
+                    expert_shared_count=config.hp.expert_shared_count,
                     rms_epsilon=config.hp.attention_layer_norm_rms_epsilon,
                     moe_activation=moe_activation,
-                    add_residual=add_residual,
                     score_experts=score_experts,
                     normalize_experts=normalize_experts,
                 ),
@@ -373,7 +406,6 @@ class AttentionFFNBlock(ThetaLayer):
                 "ffn",
                 FFN(
                     theta=theta,
-                    rms_epsilon=config.hp.attention_layer_norm_rms_epsilon,
                     fake_quant=fake_quant,
                 ),
             )
@@ -403,6 +435,9 @@ class AttentionFFNBlock(ThetaLayer):
         )
 
         # Feed forward network.
-        final_output = self.ffn(h)
+        final_output = self.ffn(self.ffn_norm(h))
+
+        if self.add_residual:
+            final_output = h + final_output
 
         return final_output

@@ -28,13 +28,13 @@ class DatasetShardingTransformTest(MainRunnerTestBase):
         ]
         ds_orig = Dataset(
             {
-                "general.architecture": "llm",
-                "llm.attention.head_count": 1,
-                "llm.context_length": 2,
-                "llm.embedding_length": 3,
-                "llm.block_count": 4,
-                "llm.feed_forward_length": 5,
-                "llm.attention.layer_norm_rms_epsilon": 0.1,
+                "general.architecture": "llama",
+                "llama.attention.head_count": 1,
+                "llama.context_length": 2,
+                "llama.embedding_length": 3,
+                "llama.block_count": 4,
+                "llama.feed_forward_length": 5,
+                "llama.attention.layer_norm_rms_epsilon": 0.1,
             },
             Theta(orig_pts),
         )

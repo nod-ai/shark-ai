@@ -12,6 +12,9 @@ import pytest
 
 from typing import Generator
 
+# TODO: remove after https://github.com/llvm/llvm-project/pull/117918 is resolved.
+import sharktuner
+
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import func  # type: ignore
 from iree.compiler.dialects import iree_gpu  # type: ignore
@@ -24,7 +27,7 @@ from sharktuner import dispatch_parser
 from sharktuner.test_utils import tuner_ctx
 
 
-CONTRACTION_TEMPLATE = r"""
+GENERIC_TEMPLATE = r"""
 builtin.module{{
     func.func @test(%arg0: {lhs_type}, %arg1: {rhs_type}) -> {res_type} {{
         %cst = arith.constant 0.000000e+00 : f32
@@ -55,7 +58,7 @@ def test_get_contraction_operation(tuner_ctx: common.TunerContext) -> None:
     context = tuner_ctx.mlir_ctx
 
     with ir.Location.unknown():
-        transpose_b_str = CONTRACTION_TEMPLATE.format(
+        transpose_b_str = GENERIC_TEMPLATE.format(
             lhs_type=ir.RankedTensorType.get([16, 64], ir.F16Type.get()),
             rhs_type=ir.RankedTensorType.get([32, 64], ir.F16Type.get()),
             res_type=ir.RankedTensorType.get([16, 32], ir.F32Type.get()),
@@ -82,7 +85,7 @@ def test_get_contraction_operation(tuner_ctx: common.TunerContext) -> None:
     assert isinstance(shapes.res_type.element_type, ir.F32Type)
 
     with ir.Location.unknown():
-        bmm_transposed_inputs_str = CONTRACTION_TEMPLATE.format(
+        bmm_transposed_inputs_str = GENERIC_TEMPLATE.format(
             lhs_type=ir.RankedTensorType.get([5, 8, 128], ir.F16Type.get()),
             rhs_type=ir.RankedTensorType.get([128, 40, 5], ir.F16Type.get()),
             res_type=ir.RankedTensorType.get([5, 40, 8], ir.F32Type.get()),
@@ -103,7 +106,7 @@ def test_get_contraction_operation(tuner_ctx: common.TunerContext) -> None:
     assert shapes.matmul_size.K == [128]
 
     with ir.Location.unknown():
-        bmm_transposed_inputs_str = CONTRACTION_TEMPLATE.format(
+        bmm_transposed_inputs_str = GENERIC_TEMPLATE.format(
             lhs_type=ir.RankedTensorType.get(
                 [16, 8, 15, 16, 64, 256], ir.F16Type.get()
             ),
@@ -223,7 +226,7 @@ def test_get_named_contraction_op():
         assert shape.res_type.shape == [5, 7]
 
 
-def test_get_conv_operation(tuner_ctx: common.TunerContext) -> None:
+def test_get_conv_nhwc_hwcf_operation(tuner_ctx: common.TunerContext) -> None:
     context = tuner_ctx.mlir_ctx
     module_str = """
         builtin.module{
@@ -246,6 +249,81 @@ def test_get_conv_operation(tuner_ctx: common.TunerContext) -> None:
     assert (
         parser.has_valid_root_op()
     ), f"ConvolutionOpInterfaceParser does not support the op: {root_op.name}"
+
+    problem_size = parser.get_problem_size()
+    assert problem_size.contraction_dims.batch == []
+    assert problem_size.contraction_dims.m == [0, 1, 2]
+    assert problem_size.contraction_dims.n == [3]
+    assert problem_size.contraction_dims.k == [4, 5, 6]
+    assert problem_size.matmul_size.B == []
+    assert problem_size.matmul_size.M == [2, 32, 32]
+    assert problem_size.matmul_size.N == [16]
+    assert problem_size.matmul_size.K == [3, 3, 16]
+
+
+def test_get_group_conv_operation(tuner_ctx: common.TunerContext) -> None:
+    context = tuner_ctx.mlir_ctx
+    module_str = """
+    module {
+      func.func @test(%arg0: tensor<2x10x10x7x4xf32>, %arg1: tensor<7x16x3x3x4xf32>, %arg2: tensor<2x8x8x7x16xf32>) -> tensor<2x8x8x7x16xf32> {
+        %0 = linalg.conv_2d_nhwgc_gfhwc {
+           root_op,
+           dilations = dense<1> : tensor<2xi64>, strides = dense<1> : tensor<2xi64>
+        } ins(%arg0, %arg1: tensor<2x10x10x7x4xf32>, tensor<7x16x3x3x4xf32>)
+          outs(%arg2: tensor<2x8x8x7x16xf32>) -> tensor<2x8x8x7x16xf32>
+        return %0 : tensor<2x8x8x7x16xf32>
+      }
+    }
+    """
+    module = ir.Module.parse(module_str, context)
+    root_op_list = iree_codegen.get_tuner_root_ops(module)
+    assert len(root_op_list) == 1
+    root_op = root_op_list[0]
+    parser = dispatch_parser.ConvolutionOpInterfaceParser(root_op)
+    assert parser.get_root_op_func_name() == "match_test"
+    assert parser.has_valid_root_op() is False, "group convs aren't supported yet"
+
+    problem_size = parser.get_problem_size()
+    assert problem_size.contraction_dims.batch == [3]
+    assert problem_size.contraction_dims.m == [0, 1, 2]
+    assert problem_size.contraction_dims.n == [4]
+    assert problem_size.contraction_dims.k == [5, 6, 7]
+    assert problem_size.matmul_size.B == [7]
+    assert problem_size.matmul_size.M == [2, 8, 8]
+    assert problem_size.matmul_size.N == [16]
+    assert problem_size.matmul_size.K == [3, 3, 4]
+
+
+def test_get_generic_conv_operation(tuner_ctx: common.TunerContext) -> None:
+    context = tuner_ctx.mlir_ctx
+    with ir.Location.name("generic_conv"):
+        # nhwc_hwcf
+        module_str = GENERIC_TEMPLATE.format(
+            lhs_type=ir.RankedTensorType.get([2, 7, 7, 32], ir.F16Type.get()),
+            rhs_type=ir.RankedTensorType.get([3, 3, 32, 64], ir.F16Type.get()),
+            res_type=ir.RankedTensorType.get([2, 5, 5, 64], ir.F32Type.get()),
+            lhs_map="affine_map<(d0, d1, d2, d3, d4, d5, d6) -> (d0, d1 + d4, d2 + d5, d6)>",
+            rhs_map="affine_map<(d0, d1, d2, d3, d4, d5, d6) -> (d4, d5, d6, d3)>",
+            res_map="affine_map<(d0, d1, d2, d3, d4, d5, d6) -> (d0, d1, d2, d3)>",
+            iterator_types='["parallel", "parallel", "parallel", "parallel", "reduction", "reduction", "reduction"]',
+        )
+    module = ir.Module.parse(module_str, context)
+    root_op_list = iree_codegen.get_tuner_root_ops(module)
+    assert len(root_op_list) == 1
+    root_op = root_op_list[0]
+    parser = dispatch_parser.ConvolutionOpInterfaceParser(root_op)
+    assert parser.get_root_op_func_name() == "match_test"
+    assert parser.has_valid_root_op()
+
+    problem_size = parser.get_problem_size()
+    assert problem_size.contraction_dims.batch == []
+    assert problem_size.contraction_dims.m == [0, 1, 2]
+    assert problem_size.contraction_dims.n == [3]
+    assert problem_size.contraction_dims.k == [4, 5, 6]
+    assert problem_size.matmul_size.B == []
+    assert problem_size.matmul_size.M == [2, 5, 5]
+    assert problem_size.matmul_size.N == [64]
+    assert problem_size.matmul_size.K == [3, 3, 32]
 
 
 def test_get_mmt_tile_sizes(tuner_ctx: common.TunerContext) -> None:

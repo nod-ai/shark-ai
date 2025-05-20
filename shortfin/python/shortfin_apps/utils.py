@@ -38,6 +38,11 @@ def get_system_args(parser):
         help="Enable asynchronous allocations for amdgpu device contexts.",
     )
     parser.add_argument(
+        "--amdgpu_async_caching",
+        action="store_true",
+        help="Enable asynchronous caching for amdgpu device contexts.",
+    )
+    parser.add_argument(
         "--amdgpu_allow_device_reuse",
         action="store_true",
         help="Allows the same device to be used for each instance",
@@ -55,6 +60,7 @@ class SystemManager:
         device: str = "local-task",
         device_ids: list[Union[str, int]] = None,
         async_allocs: bool = True,
+        async_caching: bool = True,
         amdgpu_allow_device_reuse: bool = False,
         amdgpu_allocators: Optional[bool] = None,
         logger_name: str = __name__,
@@ -71,12 +77,14 @@ class SystemManager:
                 sb = sf.SystemBuilder(
                     system_type="amdgpu",
                     amdgpu_async_allocations=async_allocs,
+                    amdgpu_async_caching=async_caching,
                     amdgpu_allow_device_reuse=amdgpu_allow_device_reuse,
                 )
             else:
                 sb = sf.SystemBuilder(
                     system_type="amdgpu",
                     amdgpu_async_allocations=async_allocs,
+                    amdgpu_async_caching=async_caching,
                     amdgpu_allocators=amdgpu_allocators,
                     amdgpu_allow_device_reuse=amdgpu_allow_device_reuse,
                 )

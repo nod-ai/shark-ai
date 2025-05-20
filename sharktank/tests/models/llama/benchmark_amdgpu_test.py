@@ -921,7 +921,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             suffix=".vmfb", prefix=output_file_name
         )
         output_shard_file_name = (
-            self.artifacts_dir
+            self.weights_dir
             / f"tp8/llama3_405b_instruct_fp16_tp{self.tensor_parallelism_size}.irpa"
         )
         if output_shard_file_name.exists():
@@ -962,7 +962,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             suffix=".vmfb", prefix=output_file_name
         )
         output_shard_file_name = (
-            self.artifacts_dir
+            self.weights_dir
             / f"tp8/llama3_405b_instruct_fp16_tp{self.tensor_parallelism_size}.irpa"
         )
         if output_shard_file_name.exists():

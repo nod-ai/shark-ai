@@ -28,6 +28,60 @@ from .signatures import *
 import iree.turbine.ops.iree
 
 
+@argmax.override(Tensor)
+def argmax_default(
+    x: Tensor,
+    dim: Optional[int] = None,
+    keepdim: bool = False,
+    chunk_size: Optional[int] = None,
+) -> None:
+    if chunk_size is None:
+        return torch.argmax(unbox_tensor(x), dim=dim, keepdim=keepdim)
+
+    return _split_argmax(
+        unbox_tensor(x),
+        dim=dim,
+        keepdim=keepdim,
+        chunk_size=chunk_size,
+    )
+
+
+def _split_argmax(input_tensor, dim, keepdim: bool = False, chunk_size: int = 128):
+    input_tensor = unbox_tensor(input_tensor)
+    dim = dim if dim >= 0 else input_tensor.dim() + dim
+
+    if input_tensor.shape[dim] % chunk_size != 0:
+        raise ValueError(
+            "dim's size must be a multiple of chunk_size.\n"
+            f"Dim Size: {dim}\n"
+            f"Chunk Size: {chunk_size}\n"
+        )
+
+    n_chunks = input_tensor.shape[dim] // chunk_size
+    tensor_split = unflatten(input_tensor, dim, (n_chunks, chunk_size))
+
+    argmax_1 = argmax(tensor_split, dim + 1)
+    argmax_expanded = unsqueeze(argmax_1, dim + 1)
+
+    max_vals = gather(tensor_split, dim + 1, argmax_expanded)
+    max_vals = squeeze(max_vals, dim + 1)
+
+    argmax_2 = argmax(max_vals, dim)
+    index_shape = list(argmax_1.shape)
+    index_shape[dim] = 1
+    argmax_2_expanded = argmax_2.unsqueeze(dim)
+
+    final_index_in_chunk = gather(argmax_1, dim, argmax_2_expanded)
+    final_index = argmax_2_expanded * tensor_split.shape[dim + 1] + final_index_in_chunk
+
+    final_index = squeeze(final_index, dim)
+
+    if keepdim:
+        final_index = unsqueeze(final_index, dim)
+
+    return final_index
+
+
 @cat.override(AllOfType(Tensor, PrimitiveTensor))
 def cat_default(tensors: Sequence[Tensor | PrimitiveTensor], dim: int):
     return torch.cat([unbox_tensor(t) for t in tensors], dim)
@@ -393,14 +447,6 @@ def scaled_dot_product_attention_torch(q, k, v, a, is_causal, scale) -> Tensor:
     )
 
 
-@argmax.override(Tensor)
-def argmax_default(
-    x: Tensor,
-    axis: int,
-) -> None:
-    return torch.argmax(unbox_tensor(x), dim=axis)
-
-
 @mean.override(Tensor)
 def mean_default(
     x: Tensor, dim: Union[int, List[int]], keepdim: bool, *, dtype: torch.dtype
@@ -463,23 +509,43 @@ def permute(tensor: Tensor, dims: List[int]):
     return torch.permute(torch_tensor, dims)
 
 
-@scatter_.override(AllOfType(Tensor, PrimitiveTensor))
+@scatter_.override(
+    AllOfExprs(
+        IsOfType(Tensor, PrimitiveTensor),
+        IsOfType(Tensor, PrimitiveTensor),
+        IsOfType(Tensor, PrimitiveTensor, Number),
+    )
+)
 def scatter__default(
     inout: Tensor | PrimitiveTensor,
     dim: int,
     index: Tensor | PrimitiveTensor,
-    value,
+    src: Tensor | PrimitiveTensor | Number,
     *,
     reduce: str | None = None,
 ) -> Tensor:
-    assert isinstance(value, Number), "Tensor version of this op not implemented"
     inout = unbox_tensor(inout)
     index = unbox_tensor(index)
+    if isinstance(src, (torch.Tensor, PrimitiveTensor)):
+        src = unbox_tensor(src)
     if reduce is not None:
-        inout.scatter_(dim, index, value, reduce=reduce)
+        inout.scatter_(dim, index, src, reduce=reduce)
     else:
-        inout.scatter_(dim, index, value)
+        inout.scatter_(dim, index, src)
     return inout
+
+
+@scatter_add.override(AllOfType(Tensor, PrimitiveTensor))
+def scatter_add_default(
+    input: Tensor | PrimitiveTensor,
+    dim: int,
+    index: Tensor | PrimitiveTensor,
+    src: Tensor | PrimitiveTensor,
+) -> Tensor:
+    input = unbox_tensor(input)
+    index = unbox_tensor(index)
+    src = unbox_tensor(src)
+    return torch.scatter_add(input, dim, index, src)
 
 
 @sigmoid.override(Tensor)
@@ -494,6 +560,15 @@ def softmax_default(
     dtype: Optional[torch.dtype],
 ) -> Tensor:
     return F.softmax(unbox_tensor(tensor), dim=dim, dtype=dtype)
+
+
+@split.override(Tensor)
+def split_default(
+    tensor: Tensor | PrimitiveTensor,
+    split_size_or_sections: int | list[int],
+    dim: int = 0,
+) -> tuple[Tensor, ...]:
+    return torch.split(unbox_tensor(tensor), split_size_or_sections, dim)
 
 
 @to.override(Tensor)
@@ -544,14 +619,31 @@ def transpose_QuantizedTensor(tensor: QuantizedTensor, dim0: int, dim1: int):
 # Sharded default impls (do nothing).
 
 
+@reduce_scatter.override(Tensor)
+def reduce_scatter_unsharded(
+    tensor: AnyTensor, scatter_dim: int
+) -> Tensor | InferenceTensor:
+    return tensor
+
+
 @sharded_cat.override(Tensor)
 def sharded_cat_unsharded(maybe_sharded):
     return unbox_tensor(maybe_sharded)
 
 
+@sharded_gather.override(Tensor)
+def sharded_gather_unsharded(input):
+    return [input]
+
+
 @sharded_sum.override(Tensor)
-def sharded_sum_unsharded(maybe_sharded):
-    return unbox_tensor(maybe_sharded)
+def sharded_sum_unsharded(tensor: Tensor, root_rank: int) -> Tensor:
+    if root_rank != 0:
+        raise ValueError(
+            f"sharded_sum destination rank {root_rank} is invalid for"
+            f" tensor of type {type(tensor)}. Only rank of 0 is allowed"
+        )
+    return unbox_tensor(tensor)
 
 
 @sum.override(AllOfType(Tensor, PrimitiveTensor))

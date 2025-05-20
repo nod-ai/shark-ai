@@ -9,6 +9,7 @@ import logging
 import json
 import time
 from tqdm import tqdm
+from typing import Any
 
 import torch
 import iree.runtime as ireert
@@ -134,14 +135,12 @@ class PerplexityIree:
 
     def load_model(self, dataset: Dataset, tokenizer: InferenceTokenizer):
         hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
-        block_to_device_lookup = []
-        for i in range(hp.block_count):
-            pp_group = int(i * self.pipeline_parallelism_size / hp.block_count)
-            zero_4_group = self.tensor_parallelism_size * pp_group
-            devices = tuple(
-                i + zero_4_group for i in range(self.tensor_parallelism_size)
-            )
-            block_to_device_lookup.append(devices)
+
+        pp = self.pipeline_parallelism_size
+        tp = self.tensor_parallelism_size
+        block_count = hp.block_count
+        block_to_pipeline = [i * pp // block_count for i in range(block_count)]
+        pipeline_to_devices = [[d + p * tp for d in range(tp)] for p in range(pp)]
 
         config = LlamaModelConfig(
             hp=hp,
@@ -154,7 +153,8 @@ class PerplexityIree:
             block_seq_stride=self.block_seq_stride,
             attention_kernel=self.attention_kernel,
             use_hf=self.use_hf,
-            block_to_device_lookup=block_to_device_lookup,
+            block_to_pipeline_map=block_to_pipeline,
+            pipeline_to_device_map=pipeline_to_devices,
         )
 
         theta = dataset.root_theta
@@ -165,7 +165,7 @@ class PerplexityIree:
 
     def assemble_batch(self, token_batch: torch.tensor, devices) -> torch.tensor:
 
-        token_batch, seq_lens_batch = self.generator.tokenizer.pad_tokens(
+        token_batch, seq_lens_batch = pad_tokens(
             token_ids=token_batch.tolist(),
             pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
         )
@@ -475,19 +475,25 @@ def main(argv):
             args.output_config is not None and args.output_mlir is not None
         ), "If using pre-exported mlir, both --mlir-path and --json-path must be passed"
 
-    # Override flag if dataset disagrees
-    tensor_parallelism_size = (
-        dataset.properties["tensor_parallelism_size"]
-        if "tensor_parallelism_size" in dataset.properties
-        else args.tensor_parallelism_size
-    )
+    # Ensure tensor parallelism flag agrees with dataset properties
+    if "tensor_parallelism_size" in dataset.properties:
+        dataset_tensor_parallelism_size = dataset.properties["tensor_parallelism_size"]
+        if dataset_tensor_parallelism_size != args.tensor_parallelism_size:
+            raise ValueError(
+                f"Tensor parallelism size mismatch: dataset={dataset_tensor_parallelism_size} while arg={args.tensor_parallelism_size}. Wrong value for --tensor-parallelism-size."
+            )
+    else:
+        if args.tensor_parallelism_size != 1:
+            raise ValueError(
+                f"Unsharded dataset file provided, but specified --tensor-parallelism-size={args.tensor_parallelism_size}. Likely wrong dataset provided."
+            )
 
     ppl = run_perplexity_iree(
         args,
         dataset=dataset,
         tokenizer=tokenizer,
         torch_device=torch_device,
-        tensor_parallelism_size=tensor_parallelism_size,
+        tensor_parallelism_size=args.tensor_parallelism_size,
         pipeline_parallelism_size=args.pipeline_parallelism_size,
     )
 

@@ -4,22 +4,22 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from typing import Optional
 import collections
 import math
 from pathlib import Path
 
 import numpy as np
 import torch
-import numpy as np
 
 from sharktank.layers import *
 from sharktank.types import *
 from sharktank.models.llm import *
-from sharktank.models.llama.tools.data_utils import write_ndarray_to_bin
 
 from sharktank.ops import replicate, unshard
 from sharktank.utils.debugging import trace_tensor
 from sharktank.utils.tokenizer import InferenceTokenizer
+from sharktank.utils.evaluate import *
 
 
 class TorchGenerator:
@@ -28,7 +28,7 @@ class TorchGenerator:
     def __init__(
         self,
         model: PagedLlmModelV1,
-        tokenizer: InferenceTokenizer,
+        tokenizer: Optional[InferenceTokenizer] = None,
         # Need to look at the model more for this.
         end_token: int = 2,
     ):
@@ -50,7 +50,7 @@ class TorchGenerator:
         for idx, prompt in enumerate(prompts):
             print(f"    prompt_{idx}: \n    {prompt.encode()} \n    {token_ids[idx]}\n")
 
-        token_ids, seq_lens = self.tokenizer.pad_tokens(
+        token_ids, seq_lens = pad_tokens(
             token_ids, pad_to_multiple_of=self.model.cache.pad_sequence_stride
         )
 
@@ -222,7 +222,7 @@ class Batch:
             attention_mask = [attention_mask]
         else:
             token_ids = replicate(
-                token_ids, shard_count, devices=model.config.block_to_device_lookup[0]
+                token_ids, shard_count, devices=model.config.pipeline_to_device_map[0]
             )
             _attention_mask, _seq_block_ids = [], []
             for pipeline in range(model.cache.pipeline_count):
@@ -230,14 +230,14 @@ class Batch:
                     replicate(
                         attention_mask,
                         count=shard_count,
-                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                        devices=model.cache.pipeline_to_device_map[pipeline],
                     )
                 )
                 _seq_block_ids.append(
                     replicate(
                         seq_block_ids,
                         count=shard_count,
-                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                        devices=model.cache.pipeline_to_device_map[pipeline],
                     )
                 )
             attention_mask, seq_block_ids = _attention_mask, _seq_block_ids
@@ -297,7 +297,7 @@ class Batch:
             start_positions = [start_positions]
         else:
             token_batch = replicate(
-                token_batch, shard_count, devices=model.config.block_to_device_lookup[0]
+                token_batch, shard_count, devices=model.config.pipeline_to_device_map[0]
             )
 
             _start_positions, _seq_block_ids, _decode_attention_mask = [], [], []
@@ -306,21 +306,21 @@ class Batch:
                     replicate(
                         start_positions,
                         count=shard_count,
-                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                        devices=model.cache.pipeline_to_device_map[pipeline],
                     )
                 )
                 _seq_block_ids.append(
                     replicate(
                         seq_block_ids,
                         count=shard_count,
-                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                        devices=model.cache.pipeline_to_device_map[pipeline],
                     )
                 )
                 _decode_attention_mask.append(
                     replicate(
                         decode_attention_mask,
                         count=shard_count,
-                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                        devices=model.cache.pipeline_to_device_map[pipeline],
                     )
                 )
             start_positions, seq_block_ids, decode_attention_mask = (

@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import math
+import numpy as np
 import random
 
 import shortfin.array as sfnp
@@ -22,16 +23,16 @@ def test_sampler_select_top_k(device):
     src.items = data
     k = 8
     top_tokens, top_values = sampler.select_top_k(src, -k)
-    assert top_tokens == [i for i in range(8, 16)]
-    assert top_values == [i for i in range(8, 16)]
+    assert top_tokens.tolist() == [i for i in range(8, 16)]
+    assert top_values.tolist() == [i for i in range(8, 16)]
 
     # Sorted descending
     data = data[::-1]
     src.items = data
     k = 8
     top_tokens, top_values = sampler.select_top_k(src, -k)
-    assert sorted(top_tokens) == [i for i in range(0, 8)]
-    assert sorted(top_values) == [i for i in range(8, 16)]
+    assert sorted(top_tokens.tolist()) == [i for i in range(0, 8)]
+    assert sorted(top_values.tolist()) == [i for i in range(8, 16)]
 
     # Randomized data
     random.shuffle(data)
@@ -40,8 +41,8 @@ def test_sampler_select_top_k(device):
     expected_values = {val for val in range(11, 16)}
     expected_tokens = [i for i in range(len(data)) if data[i] in expected_values]
     top_tokens, top_values = sampler.select_top_k(src, -k)
-    assert sorted(top_tokens) == expected_tokens
-    assert sorted(top_values) == list(expected_values)
+    assert sorted(top_tokens.tolist()) == expected_tokens
+    assert sorted(top_values.tolist()) == list(expected_values)
 
 
 def test_sampler_select_top_k_one_dim(device):
@@ -53,16 +54,16 @@ def test_sampler_select_top_k_one_dim(device):
     src.items = data
     k = 8
     top_tokens, top_values = sampler.select_top_k(src, -k)
-    assert top_tokens == [i for i in range(8, 16)]
-    assert top_values == [i for i in range(8, 16)]
+    assert top_tokens.tolist() == [i for i in range(8, 16)]
+    assert top_values.tolist() == [i for i in range(8, 16)]
 
     # Sorted descending
     data = data[::-1]
     src.items = data
     k = 8
     top_tokens, top_values = sampler.select_top_k(src, -k)
-    assert sorted(top_tokens) == [i for i in range(0, 8)]
-    assert sorted(top_values) == [i for i in range(8, 16)]
+    assert sorted(top_tokens.tolist()) == [i for i in range(0, 8)]
+    assert sorted(top_values.tolist()) == [i for i in range(8, 16)]
 
     # Randomized data
     random.shuffle(data)
@@ -71,8 +72,8 @@ def test_sampler_select_top_k_one_dim(device):
     expected_values = {val for val in range(11, 16)}
     expected_tokens = [i for i in range(len(data)) if data[i] in expected_values]
     top_tokens, top_values = sampler.select_top_k(src, -k)
-    assert sorted(top_tokens) == expected_tokens
-    assert sorted(top_values) == list(expected_values)
+    assert sorted(top_tokens.tolist()) == expected_tokens
+    assert sorted(top_values.tolist()) == list(expected_values)
 
 
 def test_sampler_select_top_k_float16(device):
@@ -86,8 +87,8 @@ def test_sampler_select_top_k_float16(device):
     src.items = data
     k = 8
     top_tokens, top_values = sampler.select_top_k(src, -k)
-    assert top_tokens == [i for i in range(8, 16)]
-    assert top_values == [i for i in range(8, 16)]
+    assert top_tokens.tolist() == [i for i in range(8, 16)]
+    assert top_values.tolist() == [i for i in range(8, 16)]
 
     # Randomize data
     random.shuffle(data)
@@ -100,8 +101,8 @@ def test_sampler_select_top_k_float16(device):
         if convert_int_to_float(data[i], sfnp.float16) in expected_values
     ]
     top_tokens, top_values = sampler.select_top_k(src, -k)
-    assert sorted(top_tokens) == expected_tokens
-    assert sorted(top_values) == list(expected_values)
+    assert sorted(top_tokens.tolist()) == expected_tokens
+    assert sorted(top_values.tolist()) == list(expected_values)
 
 
 def test_sampler_sample_top_k(device):
@@ -112,8 +113,8 @@ def test_sampler_sample_top_k(device):
     src.items = data
 
     # One hot
-    tokens = [i for i in range(11)]
-    probs = [0.0 for _ in range(len(tokens))]
+    tokens = np.array([i for i in range(11)])
+    probs = np.array([0.0 for _ in range(len(tokens))])
 
     hot_token = random.randint(0, 10)
     probs[hot_token] = 1.0

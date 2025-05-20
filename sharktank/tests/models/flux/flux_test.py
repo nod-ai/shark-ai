@@ -254,10 +254,7 @@ class FluxTest(TempDirTestBase):
         )
 
     @pytest.mark.xfail(
-        is_cpu_condition,
-        raises=iree.compiler.CompilerToolError,
-        strict=True,
-        reason="Fails on CPU. Issue: https://github.com/nod-ai/shark-ai/issues/1244",
+        reason="Fails on both CPU and MI300. Issue: https://github.com/nod-ai/shark-ai/issues/1244",
     )
     def testCompareToyIreeF32AgainstEagerF64(self):
         """atol is apparently high because the expected output range is large.
@@ -279,6 +276,9 @@ class FluxTest(TempDirTestBase):
         )
 
     @with_flux_data
+    @pytest.mark.xfail(
+        reason="Marking xfail with issue already present. Issue: https://github.com/nod-ai/shark-ai/issues/1244",
+    )
     @pytest.mark.expensive
     def testCompareDevIreeF32AgainstEagerF32(self):
         self.runTestCompareDevIreeAgainstEager(
