@@ -254,6 +254,19 @@ def flatten_default(
 ) -> Tensor:
     return torch.flatten(unbox_tensor(input), start_dim, end_dim)
 
+@flatten.override(QuantizedTensor)
+def flatten_quantized(
+    tensor: QuantizedTensor, start_dim: int, end_dim: int
+) -> QuantizedTensor:
+    unpacked = tensor.unpack()
+    if isinstance(unpacked, TensorScaledLayout):
+        new_qs = torch.flatten(unpacked._qs, start_dim, end_dim)
+        layout = TensorScaledLayout(
+            shape=tensor.shape, d=unpacked._d, qs=new_qs, m=unpacked._m
+        )
+        return PlanarQuantizedTensor(shape=tensor.shape, layout=layout)
+    return NotImplemented
+
 
 @flatten.override(QuantizedTensor)
 def flatten_quantized(
