@@ -28,6 +28,7 @@ from sharktank.types import (
     QuantizerTensor,
     PlanarQuantizedTensor,
     StaticScaledQuantizer,
+    TensorScaledLayout,
 )
 from sharktank import ops, kernels
 
@@ -876,19 +877,6 @@ class PagedAttention:
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)
 
-        # q = ops.to(q, dtype=self.attn_dtype)
-        # k = ops.to(k, dtype=self.attn_dtype)
-        # v = ops.to(v, dtype=self.attn_dtype)
-        # if mask is not None:
-        #     mask = ops.to(mask, dtype=self.attn_dtype)
-
-        if qq is not None:
-            q = qq.quantize(q)
-        if kq is not None:
-            k = kq.quantize(k)
-        if vq is not None:
-            v = vq.quantize(v)
-
         # Decomposed
         if attention_kernel == "decomposed":
             if isinstance(q, PlanarQuantizedTensor):
@@ -971,16 +959,15 @@ class PagedAttention:
         softcap: Optional[float] = None,
         scale: Optional[float] = None,
         mask: Optional[torch.Tensor] = None,
-        qq = None,
-        kq = None,
-        vq = None,
+        k_quantizer = None,
+        v_quantizer = None,
     ):
         # Write our one updated cache row into the cache.
         self.write_timestep(
             cache_state,
             cache_partitions=[
-                k,
-                v,
+                k.unpack()._qs,
+                v.unpack()._qs,
             ],
             transformer_block_index=block_index,
             seq_positions=start_positions,
@@ -988,11 +975,22 @@ class PagedAttention:
         )
 
         # Restore from the cache.
-        k, v = self.read(
+        kqs, vqs = self.read(
             cache_state,
             transformer_block_index=block_index,
             page_ids=seq_block_ids,
         )
+
+        if k_quantizer is not None:
+            klayout = TensorScaledLayout(
+                shape=kqs.shape, d=k_quantizer._d, qs=kqs, m=k_quantizer._m
+            )
+            k = PlanarQuantizedTensor(shape=kqs.shape, layout=klayout)
+        if v_quantizer is not None:
+            vlayout = TensorScaledLayout(
+                shape=vqs.shape, d=v_quantizer._d, qs=vqs, m=v_quantizer._m
+            )
+            v = PlanarQuantizedTensor(shape=vqs.shape, layout=vlayout)
 
         return self.attention(
             q=q,
@@ -1005,9 +1003,6 @@ class PagedAttention:
             softcap=softcap,
             scale=scale,
             mask=mask,
-            qq=qq,
-            kq=kq,
-            vq=vq,
         )
 
     def forward_prefill(
@@ -1027,13 +1022,12 @@ class PagedAttention:
         scale: Optional[float] = None,
         mask: Optional[torch.Tensor] = None,
         probs_quantizer: Optional[StaticScaledQuantizer] = None,
-        qq = None,
-        kq = None,
-        vq = None,
+        k_quantizer = None,
+        v_quantizer = None,
     ):
         self.write(
             cache_state,
-            cache_partitions=[k, v],
+            cache_partitions=[k.unpack()._qs, v.unpack()._qs],
             transformer_block_index=block_index,
             page_ids=seq_block_ids,
         )
@@ -1050,7 +1044,4 @@ class PagedAttention:
             scale=scale,
             mask=mask,
             probs_quantizer=probs_quantizer,
-            qq=qq,
-            kq=kq,
-            vq=vq,
         )

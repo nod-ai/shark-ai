@@ -154,9 +154,13 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 xk = self.cache_quantizer.quantize(xk).unpack().qs
                 xv = self.cache_quantizer.quantize(xv).unpack().qs
 
-        qq = self.attn_q.q_output
-        kq = self.attn_k.q_output
-        vq = self.attn_v.q_output
+
+        if self.attn_q.q_output is not None:
+            xq = self.attn_q.q_output.quantize(xq)
+        if self.attn_k.q_output is not None:
+            xk = self.attn_k.q_output.quantize(xk)
+        if self.attn_v.q_output is not None:
+            xv = self.attn_v.q_output.quantize(xv)
 
         if start_positions is None:
             attn_output = self.paged_attention.forward_prefill(
@@ -174,9 +178,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 scale=self.attention_scale,
                 softcap=self.softcap,
                 probs_quantizer=self.probs_quantizer,
-                qq=qq,
-                kq=kq,
-                vq=vq,
+                k_quantizer=self.attn_k.q_output,
+                v_quantizer=self.attn_v.q_output,
             )
         else:
             attn_output = self.paged_attention.forward_decode(
@@ -194,6 +197,9 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 mask=attention_mask,
                 scale=self.attention_scale,
                 softcap=self.softcap,
+                qq=qq,
+                kq=kq,
+                vq=vq,
             )
 
         attn_output = attn_output.transpose(1, 2)
