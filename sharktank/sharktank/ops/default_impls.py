@@ -305,7 +305,6 @@ def get_index_QuantizedTensor(tensor: QuantizedTensor, key: slice):
         return PlanarQuantizedTensor(shape=shape, layout=layout)
     return NotImplemented
 
-
 @gemm.override(AllOfType(Tensor, InferenceTensor))
 def gemm(
     a: AnyTensor,
