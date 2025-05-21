@@ -153,6 +153,16 @@ class PagedLlmModelV1(BaseCausalLMModel):
 
         return max_logits, indices
 
+    def topk(
+        self,
+        logits: torch.Tensor,
+        k: int,
+        chunk_size: int,
+    ):
+        return ops.topk(
+            logits, k=k, dim=-1, largest=True, sorted=True, chunk_size=chunk_size
+        )
+
     def prefill(
         self,
         # [bs, batch_seq_len]
@@ -342,10 +352,13 @@ class AttentionFFNBlock(ThetaLayer):
                 head_count=config.hp.attention_head_count,
                 head_dim=config.hp.attn_head_dim,
                 head_count_kv=config.hp.attention_head_count_kv,
+                v_head_dim=config.hp.v_head_dim,
                 rms_epsilon=config.hp.attention_layer_norm_rms_epsilon,
+                rope_dimension_count=config.hp.rope_dimension_count,
                 attention_kernel=attention_kernel,
                 fake_quant=fake_quant,
                 softcap=config.hp.attention_softcap,
+                model_arch=config.hp.model_arch,
                 block_to_pipeline_map=config.block_to_pipeline_map,
                 pipeline_to_device_map=config.pipeline_to_device_map,
             ),

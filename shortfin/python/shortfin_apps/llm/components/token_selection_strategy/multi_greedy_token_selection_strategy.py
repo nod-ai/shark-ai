@@ -50,7 +50,7 @@ class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
         Args:
             exec_req (LlmInferenceExecRequest): Initial inference request, post prefill.
         """
-        logger.info("Starting `multi_greedy` decode loop...")
+        logger.debug("Starting `multi_greedy` decode loop...")
         config = self.token_selection_strategy_config
 
         if config.decode_config.top_k is not None:
