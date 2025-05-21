@@ -444,6 +444,88 @@ class TestScatterAdd(unittest.TestCase):
         assert ops.equal(actual, expected)
 
 
+class TestTopK(unittest.TestCase):
+    @parameterized.expand(
+        [
+            (-1, 4, True, True, (1, 1, 256), 16),
+            (-1, 4, True, True, (1, 1, 256), 8),
+            (-1, 8, True, True, (1, 1, 256), 16),
+            (-1, 4, False, True, (1, 1, 256), 16),
+            (-1, 4, False, False, (1, 1, 256), 16),
+            (-1, 4, True, True, (1, 1, 131072), 1024),
+            (-1, 2, True, True, (2, 1, 6), 3),
+            (-1, 4, True, True, (1, 32, 131072), 1024),
+            (-1, 4, True, True, (4, 32, 131072), 1024),
+            (-1, 4, True, True, (32, 1, 131072), 1024),
+        ]
+    )
+    def testSplitTopKLastDim(self, dim, k, largest, _sorted, shape, chunk_size):
+        tensor = torch.rand(shape, dtype=torch.float16)
+        values_expected, index_expected = torch.topk(tensor, k, dim, largest, _sorted)
+
+        values, index = ops.topk(
+            tensor, k, dim, largest, _sorted, chunk_size=chunk_size
+        )
+
+        if _sorted is False:
+            values = torch.sort(values).values
+            values_expected = torch.sort(values_expected).values
+
+        torch.testing.assert_close(values, values_expected)
+
+        values_from_indices = torch.gather(tensor, -1, index=index)
+        values_from_indices_expected = torch.gather(tensor, -1, index=index_expected)
+
+        if _sorted is False:
+            values_from_indices = torch.sort(values_from_indices).values
+            values_from_indices_expected = torch.sort(
+                values_from_indices_expected
+            ).values
+
+        torch.testing.assert_close(values_from_indices, values_from_indices_expected)
+
+    @parameterized.expand(
+        [
+            (0, 2, True, True, (4, 1, 32), 2),
+            (0, 2, False, True, (4, 1, 32), 2),
+            (0, 2, False, False, (4, 1, 32), 2),
+            (0, 2, True, False, (4, 1, 32), 2),
+            (0, 3, True, True, (6, 2, 64), 3),
+            (0, 4, True, True, (8, 3, 128), 4),
+        ]
+    )
+    def testSplitTopKDim0(self, dim, k, largest, _sorted, shape, chunk_size):
+        tensor = torch.rand(shape, dtype=torch.float16)
+        values_expected, index_expected = torch.topk(tensor, k, dim, largest, _sorted)
+
+        values, index = ops.topk(
+            tensor, k, dim, largest, _sorted, chunk_size=chunk_size
+        )
+
+        if not _sorted:
+            values = torch.sort(values, dim=dim).values
+            values_expected = torch.sort(values_expected, dim=dim).values
+
+        torch.testing.assert_close(values, values_expected)
+
+        # Duplicate values may cause differences in indices
+        index_slices = [slice(None)] * tensor.ndim
+        index_slices[dim] = index[0, 0]
+        values_from_indices = tensor[tuple(index_slices)]
+
+        index_slices_expected = [slice(None)] * tensor.ndim
+        index_slices_expected[dim] = index_expected[0, 0]
+        values_from_indices_expected = tensor[tuple(index_slices_expected)]
+
+        if not _sorted:
+            values_from_indices = torch.sort(values_from_indices, dim=dim).values
+            values_from_indices_expected = torch.sort(
+                values_from_indices_expected, dim=dim
+            ).values
+
+        torch.testing.assert_close(values_from_indices, values_from_indices_expected)
+
+
 class TestTraceTensors(TempDirTestBase):
     def setUp(self):
         super().setUp()
