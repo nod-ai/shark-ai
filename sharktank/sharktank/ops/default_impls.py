@@ -732,12 +732,75 @@ def squeeze_default(tensor, dim: Optional[int] = None) -> AnyTensor:
 
 @topk.override(AllOfType(Tensor, PrimitiveTensor))
 def topk_default(
-    tensor, k: int, dim: int, largest: bool, sorted: bool
+    tensor,
+    k: int,
+    dim: int,
+    largest: bool,
+    sorted: bool,
+    chunk_size: Optional[int] = None,
 ) -> tuple[Tensor, Tensor]:
-    result = torch.topk(
-        unbox_tensor(tensor), k=k, dim=dim, largest=largest, sorted=sorted
+    if chunk_size is None:
+        result = torch.topk(
+            unbox_tensor(tensor), k=k, dim=dim, largest=largest, sorted=sorted
+        )
+        return result.values, result.indices
+
+    return _split_topk(tensor, k, dim, largest, sorted, chunk_size)
+
+
+def _split_topk(
+    tensor: Tensor,
+    k: int,
+    dim: int,
+    largest: bool,
+    sorted: bool,
+    chunk_size: int,
+) -> Tuple[Tensor, Tensor]:
+    """Find the `topk` of a tensor using `split_k` strategy for better perf.
+
+    Args:
+        tensor (Tensor): Tensor to take `topk` of.
+        k (int): Number of max tokens to select.
+        dim (int): Dim to take along.
+        largest (bool): Return largest or smallest indices.
+        sorted (bool): Return results in sorted order or not.
+        chunk_size (int): Size to split groups into.
+
+    Raises:
+        ValueError: k must be positive
+        ValueError: dim length must be a multiple of chunk_size
+
+    Returns:
+        Tuple[Tensor, Tensor]: Selected values and indices.
+    """
+    # TODO(stbaione): Explore more algorithms, like `grouped_argmax` for better perf.
+    tensor = unbox_tensor(tensor)
+
+    if k <= 0:
+        raise ValueError("k must be positive")
+    dim = dim if dim >= 0 else tensor.dim() + dim
+
+    if tensor.shape[dim] % chunk_size:
+        raise ValueError("dim length must be a multiple of chunk_size")
+
+    n_chunks = tensor.shape[dim] // chunk_size
+    tensor_unflattened = unflatten(tensor, dim, (n_chunks, chunk_size))
+
+    vals_local, idx_local = topk(
+        tensor_unflattened, k, dim=dim + 1, largest=largest, sorted=sorted
     )
-    return result.values, result.indices
+
+    vals_flat = flatten(vals_local, start_dim=dim, end_dim=dim + 1)
+    idx_flat = flatten(idx_local, start_dim=dim, end_dim=dim + 1)
+
+    vals_out, flat_idx = topk(vals_flat, k, dim=dim, largest=largest, sorted=sorted)
+
+    chunk_idx = flat_idx // k
+
+    local_pos = gather(idx_flat, dim, flat_idx)
+    idx_out = local_pos + chunk_idx * chunk_size
+
+    return vals_out, idx_out
 
 
 @view.override(Tensor)
