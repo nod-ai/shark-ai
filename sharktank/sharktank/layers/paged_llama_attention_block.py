@@ -272,9 +272,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 mask=attention_mask,
                 scale=self.attention_scale,
                 softcap=self.softcap,
-                qq=qq,
-                kq=kq,
-                vq=vq,
+                k_quantizer=self.attn_k.q_output,
+                v_quantizer=self.attn_v.q_output,
             )
         # attn_output is sharded
         # Drop padded part of attn_output
