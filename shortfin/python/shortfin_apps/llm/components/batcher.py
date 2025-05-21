@@ -298,8 +298,6 @@ class LlmExecutorProcess(sf.Process):
             host_buffer.copy_from(buffer)
             new_buffers.append(host_buffer)
 
-        print(f"{self.name} {new_buffers}")
-
         await device0
         return tuple(new_buffers)
 
