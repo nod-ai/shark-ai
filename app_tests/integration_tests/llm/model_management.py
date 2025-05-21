@@ -204,6 +204,15 @@ _PREDEFINED_MODELS = {
         device_settings=None,
         top_k=1,
     ),
+    "tinystories_llama2_25m_gpu_topk_k4": ModelConfig(
+        source=ModelSource.HUGGINGFACE_FROM_SAFETENSORS,
+        dataset_name="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
+        model_file="model.irpa",  # This will be the final converted file name
+        tokenizer_id="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
+        batch_sizes=(4,),
+        device_settings=None,
+        top_k=4,
+    ),
 }
 
 

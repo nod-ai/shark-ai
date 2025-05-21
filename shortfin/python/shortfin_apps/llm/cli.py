@@ -12,6 +12,7 @@ import sys
 import time
 import numpy as np
 
+
 # Import first as it does dep checking and reporting.
 from pathlib import Path
 from typing import List, Optional
@@ -22,7 +23,9 @@ from .components.generate import ClientGenerateBatchProcess
 from .components.io_struct import GenerateReqInput, SamplingParams
 from .components.lifecycle import ShortfinLlmLifecycleManager
 from .server import add_service_args
-from loguru import logger
+
+
+logger = logging.getLogger(__name__)
 
 
 def add_input_args(parser):
@@ -62,6 +65,18 @@ def add_cli_args(parser: argparse.ArgumentParser):
         help="Temperature value to use for `offline` generation.",
     )
     parser.add_argument(
+        "--top_k",
+        type=int,
+        required=False,
+        help="Top K value to use for `offline` generation.",
+    )
+    parser.add_argument(
+        "--top_p",
+        type=float,
+        required=False,
+        help="Top P value to use for `offline` generation.",
+    )
+    parser.add_argument(
         "--workers_offline",
         type=int,
         default=1,
@@ -98,8 +113,8 @@ def process_inputs(args) -> List[str]:
 class Timer:
     def __init__(self, name: str):
         self._name = name
-        self._start = None
-        self._end = None
+        self._start: Optional[float] = None
+        self._end: Optional[float] = None
 
     def start(self):
         self._start = time.perf_counter()
@@ -110,12 +125,16 @@ class Timer:
         logger.info(f"{self._name} end time: {self._end}")
 
     def elapsed(self):
-        if self._end is None:
+        if self._end is None and self._start is not None:
             return time.perf_counter() - self._start
-        return self._end - self._start
+        if self._end is not None and self._start is not None:
+            return self._end - self._start
+        return 0
 
 
 class CliResponder(AbstractResponder):
+    _idx: int = 0
+
     def __init__(self, log_tokens: bool = False):
         super().__init__()
         self._loop = asyncio.get_running_loop()
@@ -123,7 +142,7 @@ class CliResponder(AbstractResponder):
         self.responded = False
         self.idx = self._get_idx()
         self.name = f"CliResponder-{self.idx}"
-        self.timer = Timer(self.name)
+        self._timer = Timer(self.name)
         self.token_times = []
         self._streaming_queue: asyncio.Queue | None = None
         self._streamed_content = []
@@ -131,16 +150,17 @@ class CliResponder(AbstractResponder):
 
     @classmethod
     def _get_idx(cls):
-        if not hasattr(cls, "_idx"):
-            cls._idx = 0
         cls._idx += 1
         return cls._idx
 
+    def elapsed(self):
+        return self._timer.elapsed()
+
     def start_response(self):
-        self.timer.start()
+        self._timer.start()
 
     def ensure_response(self):
-        self.timer.end()
+        self._timer.end()
 
     def send_response(self, response):
         logger.info(f"{self.name} Sending response")
@@ -221,6 +241,10 @@ async def main(argv):
     sampling_params = SamplingParams(max_completion_tokens=args.decode_steps)
     if getattr(args, "temperature", None) is not None:
         sampling_params.temperature = args.temperature
+    if getattr(args, "top_k", None) is not None:
+        sampling_params.top_k = args.top_k
+    if getattr(args, "top_p", None) is not None:
+        sampling_params.top_p = args.top_p
 
     prompts = process_inputs(args)
 
@@ -228,10 +252,11 @@ async def main(argv):
         def __init__(self, prompt):
             self.prompt = prompt
             self.responder: Optional[CliResponder] = None
+            self.result: Optional[str] = None
 
         def runtime(self):
             if self.responder is not None:
-                return self.responder.timer.elapsed()
+                return self.responder.elapsed()
             return 0
 
         def ttft(self):

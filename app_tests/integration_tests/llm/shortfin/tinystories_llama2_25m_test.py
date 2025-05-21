@@ -4,7 +4,6 @@ Simple smoke tests to:
 - ensure the smoke test model works so we know it's not a model issue when another test using this model fails.
 """
 
-import dataclasses
 import json
 import logging
 import pytest
@@ -18,6 +17,7 @@ from shortfin_apps.llm.components.io_struct import (
     GeneratedResponse,
     GenerateReqOutput,
 )
+import urllib3
 
 logger = logging.getLogger(__name__)
 
@@ -32,10 +32,15 @@ pytestmark = pytest.mark.parametrize(
             ModelConfig.get(name="tinystories_llama2_25m_gpu_argmax"),
             {"prefix_sharing": "none"},
         ),
+        (
+            ModelConfig.get(name="tinystories_llama2_25m_gpu_topk_k4"),
+            {"prefix_sharing": "none"},
+        ),
     ],
     ids=[
         "tinystories_llama2_25m_none",
         "tinystories_llama2_25m_gpu_argmax_none",
+        "tinystories_llama2_25m_gpu_topk_k4_none",
     ],
     indirect=True,
 )
@@ -49,17 +54,30 @@ GOLDEN_RESPONSE = ", there was a little girl named Lily. She loved to play with 
 class TestLLMServer:
     """Test suite for LLM server functionality."""
 
-    def test_basic_generation(self, server: tuple[Any, int]) -> None:
+    def test_basic_generation(
+        self, request: pytest.FixtureRequest, server: tuple[Any, int]
+    ) -> None:
         """Tests basic text generation capabilities.
 
         Args:
             server: Tuple of (process, port) from server fixture
         """
+        test_id = request.node.callspec.id
+
         process, port = server
         assert process.poll() is None, "Server process terminated unexpectedly"
         prompt = GOLDEN_PROMPT
         expected_prefix = GOLDEN_RESPONSE
-        response = self._generate(prompt, port)
+
+        try:
+            response = self._generate(prompt, port)
+        except Exception as e:
+            if "gpu_topk_k4" in test_id:
+                pytest.xfail(
+                    "(https://github.com/iree-org/iree/issues/20772): Current top-k kernel is slow and causes `ReadTimeout`"
+                )
+            raise e
+
         response = json.loads(response)
         response = GenerateReqOutput(**response)
         response = PromptResponse(**response.responses[0])
@@ -80,7 +98,10 @@ class TestLLMServer:
         ],
     )
     def test_concurrent_generation(
-        self, server: tuple[Any, int], concurrent_requests: int
+        self,
+        request: pytest.FixtureRequest,
+        server: tuple[Any, int],
+        concurrent_requests: int,
     ) -> None:
         """Tests concurrent text generation requests.
 
@@ -88,15 +109,28 @@ class TestLLMServer:
             server: Tuple of (process, port) from server fixture
             concurrent_requests: Number of concurrent requests to test
         """
+        test_id = request.node.callspec.id
+
         process, port = server
         assert process.poll() is None, "Server process terminated unexpectedly"
 
         prompt = GOLDEN_PROMPT
         expected_prefix = GOLDEN_RESPONSE
 
+        def _generate_task(prompt: str, port: int):
+            try:
+                return self._generate(prompt, port)
+            except Exception as e:
+                if "gpu_topk_k4" in test_id:
+                    pytest.xfail(
+                        "(https://github.com/iree-org/iree/issues/20772): Current top-k kernel is slow and causes `ReadTimeout`"
+                    )
+
+                raise e
+
         with ThreadPoolExecutor(max_workers=concurrent_requests) as executor:
             futures = [
-                executor.submit(self._generate, prompt, port)
+                executor.submit(_generate_task, prompt, port)
                 for _ in range(concurrent_requests)
             ]
 
@@ -114,7 +148,12 @@ class TestLLMServer:
                         message=f"Concurrent generation did not match expected pattern.\nExpected to start with: {expected_prefix}\nActual response: {response}",
                     )
 
-    def _generate(self, prompt: str | list[int], port: int, input_ids=False) -> str:
+    def _generate(
+        self,
+        prompt: str | list[int],
+        port: int,
+        input_ids: bool = False,
+    ) -> str:
         """Helper method to make generation request to server.
 
         Args:
