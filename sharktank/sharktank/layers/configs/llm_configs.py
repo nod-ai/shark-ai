@@ -48,19 +48,41 @@ class LlamaHParams:
     attention_layer_norm_rms_epsilon: float
     attention_head_count_kv: int
 
+    # Deepseek Multi-Latent Attention config
+    q_lora_rank: Optional[int] = None
+    kv_lora_rank: Optional[int] = None
+    qk_nope_head_dim: Optional[int] = None
+    qk_rope_head_dim: Optional[int] = None
+    v_head_dim: Optional[int] = None
+
+    # Grok Attention config
+    attention_softcap: Optional[float] = None
+
     # RoPE config
     rope_dimension_count: Optional[int] = None
     rope_freq_base: Optional[float] = None
 
+    # Deepseek RoPE+YaRN config
+    rope_scaling_type: Optional[str] = None
+    rope_scaling_factor: Optional[float] = None
+    rope_scaling_original_context_length: Optional[int] = None
+    rope_scaling_yarn_log_multiplier: Optional[float] = None
+
     # MoE config
     expert_count: Optional[int] = None
     expert_used_count: Optional[int] = None
-    n_dense_layers: Optional[int] = None
-    moe_intermediate_size: Optional[
-        int
-    ] = None  # Size of the MoE experts feed forward network hidden dimension.
 
-    custom: dict[str, Any] = None
+    # Deepseek MoE config
+    expert_shared_count: Optional[int] = None
+    moe_intermediate_size: Optional[int] = None
+    """Size of the MoE experts feed forward network hidden dimension."""
+    n_expert_groups: Optional[int] = None
+    n_limited_groups: Optional[int] = None
+    n_dense_layers: Optional[int] = None
+    route_scale: Optional[float] = None
+
+    # Deepseek MoE config
+    expert_shared_count: Optional[int] = None
 
     @staticmethod
     def from_gguf_props(p: dict[str, Any]):
@@ -84,10 +106,10 @@ class LlamaHParams:
             p, f"{name_prefix}.leading_dense_block_count", defaut_n_dense_layers
         )
 
-        custom_configs = get_custom_configs(p, name_prefix)
+        custom_config = get_custom_configs(p, name_prefix)
 
-        if custom_configs["attn_head_dim"]:
-            attn_head_dim = custom_configs["attn_head_dim"]
+        if custom_config["attn_head_dim"]:
+            attn_head_dim = custom_config["attn_head_dim"]
 
         return LlamaHParams(
             model_arch=name_prefix,
@@ -115,7 +137,7 @@ class LlamaHParams:
             rope_freq_base=_optional_float_prop(
                 p, f"{name_prefix}.rope.freq_base", default_rope_freq_base
             ),
-            custom=custom_configs,
+            **custom_config,
         )
 
     def to_gguf_props(self) -> dict[str, Any]:
