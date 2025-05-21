@@ -280,6 +280,27 @@ class LlmExecutorProcess(sf.Process):
     ):
         ...
 
+    async def _transfer_buffer(self, req_count, device0, buffers):
+        transfer = any(
+            [self.exec_requests[i].return_host_array for i in range(req_count)]
+        )
+
+        if not transfer:
+            return buffers
+
+        new_buffers = []
+        for buffer in buffers:
+            if buffer is None:
+                new_buffers.append(None)
+                continue
+
+            host_buffer = buffer.for_transfer()
+            host_buffer.copy_from(buffer)
+            new_buffers.append(host_buffer)
+
+        await device0
+        return tuple(new_buffers)
+
     async def run(self):
         try:
             req_bs = len(self.exec_requests)
@@ -335,8 +356,12 @@ class LlmExecutorProcess(sf.Process):
                 number_of_complete_pages = total_tokens // seq_stride
                 r.publish_allocated_pages(number_of_complete_pages)
 
+            logits, indices = await self._transfer_buffer(
+                req_count=req_count, device0=device0, buffers=(logits, indices)
+            )
+
             # Return results.
-            await self.get_results(logits, indices, req_count, device0)
+            await self.get_results(logits, indices, req_count)
 
         except Exception:
             logger.exception("Fatal error in prefetch invocation")
@@ -428,9 +453,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
 
         return args, req_count
 
-    async def get_results(self, logits, indices, req_count, device0):
-        # Return results.
-        await_device = False
+    async def get_results(self, logits, indices, req_count):
         for i in range(req_count):
             req = self.exec_requests[i]
             sl = len(req.input_token_ids)
@@ -443,20 +466,8 @@ class PrefillExecutorProcess(LlmExecutorProcess):
             if indices is not None:
                 index_item = indices.view(i, sl - 1)
 
-            if req.return_host_array:
-                req.result_logits = logits_item.for_transfer()
-                req.result_logits.copy_from(logits_item)
-
-                if index_item is not None:
-                    req.result_indices = index_item.for_transfer()
-                    req.result_indices.copy_from(index_item)
-
-                await_device = True
-            else:
-                req.result_logits = logits_item
-
-        if await_device:
-            await device0
+            req.result_logits = logits_item
+            req.result_indices = index_item
 
         for req in self.exec_requests:
             req.done.set_success()
@@ -560,9 +571,9 @@ class DecodeExecutorProcess(LlmExecutorProcess):
 
         return args, req_count
 
-    async def get_results(self, logits, indices, req_count, device0):
+    async def get_results(self, logits, indices, req_count):
+
         # Return results.
-        await_device = False
         for i in range(req_count):
             req = self.exec_requests[i]
             sl = 1
@@ -575,20 +586,8 @@ class DecodeExecutorProcess(LlmExecutorProcess):
             if indices is not None:
                 index_item = indices.view(i, sl - 1)
 
-            if req.return_host_array:
-                req.result_logits = logits_item.for_transfer()
-                req.result_logits.copy_from(logits_item)
-
-                if index_item is not None:
-                    req.result_indices = index_item.for_transfer()
-                    req.result_indices.copy_from(index_item)
-
-                await_device = True
-            else:
-                req.result_logits = logits_item
-
-        if await_device:
-            await device0
+            req.result_logits = logits_item
+            req.result_indices = index_item
 
         for req in self.exec_requests:
             req.done.set_success()
