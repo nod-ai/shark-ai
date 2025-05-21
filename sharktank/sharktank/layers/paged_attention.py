@@ -128,6 +128,18 @@ def cachify(tensor):
     return tensor
 
 
+def uncachify(tensor, quantizer):
+    if quantizer is None:
+        return tensor
+    layout = TensorScaledLayout(
+        shape=tensor.shape,
+        d=quantizer._reciprocal_scale,
+        qs=tensor,
+        m=quantizer._offset,
+    )
+    return PlanarQuantizedTensor(shape=tensor.shape, layout=layout)
+
+
 class KVCache:
     def __init__(
         self,
@@ -1086,28 +1098,14 @@ class PagedAttention:
         )
 
         # Restore from the cache.
-        kqs, vqs = self.read(
+        k, v = self.read(
             cache_state,
             transformer_block_index=block_index,
             page_ids=seq_block_ids,
         )
 
-        if k_quantizer is not None:
-            klayout = TensorScaledLayout(
-                shape=kqs.shape,
-                d=k_quantizer._reciprocal_scale,
-                qs=kqs,
-                m=k_quantizer._offset,
-            )
-            k = PlanarQuantizedTensor(shape=kqs.shape, layout=klayout)
-        if v_quantizer is not None:
-            vlayout = TensorScaledLayout(
-                shape=vqs.shape,
-                d=v_quantizer._reciprocal_scale,
-                qs=vqs,
-                m=v_quantizer._offset,
-            )
-            v = PlanarQuantizedTensor(shape=vqs.shape, layout=vlayout)
+        k = uncachify(k, k_quantizer)
+        v = uncachify(v, v_quantizer)
 
         return self.attention(
             q=q,

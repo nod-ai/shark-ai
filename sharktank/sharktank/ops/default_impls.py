@@ -263,20 +263,6 @@ def flatten_quantized(
     if isinstance(unpacked, TensorScaledLayout):
         new_qs = torch.flatten(unpacked._qs, start_dim, end_dim)
         layout = TensorScaledLayout(
-            shape=tensor.shape, d=unpacked._d, qs=new_qs, m=unpacked._m
-        )
-        return PlanarQuantizedTensor(shape=tensor.shape, layout=layout)
-    return NotImplemented
-
-
-@flatten.override(QuantizedTensor)
-def flatten_quantized(
-    tensor: QuantizedTensor, start_dim: int, end_dim: int
-) -> QuantizedTensor:
-    unpacked = tensor.unpack()
-    if isinstance(unpacked, TensorScaledLayout):
-        new_qs = torch.flatten(unpacked._qs, start_dim, end_dim)
-        layout = TensorScaledLayout(
             shape=new_qs.shape, d=unpacked._d, qs=new_qs, m=unpacked._m
         )
         return PlanarQuantizedTensor(shape=new_qs.shape, layout=layout)
@@ -318,6 +304,7 @@ def get_index_QuantizedTensor(tensor: QuantizedTensor, key: slice):
         layout = TensorScaledLayout(shape=shape, d=d, qs=qs, m=m)
         return PlanarQuantizedTensor(shape=shape, layout=layout)
     return NotImplemented
+
 
 @gemm.override(AllOfType(Tensor, InferenceTensor))
 def gemm(
@@ -641,21 +628,6 @@ def transpose_default(
 ) -> Tensor:
     return torch.transpose(unbox_tensor(tensor), dim0, dim1)
 
-
-@transpose.override(QuantizedTensor)
-def transpose_QuantizedTensor(tensor: QuantizedTensor, dim0: int, dim1: int):
-    unpacked = tensor.unpack()
-    if isinstance(unpacked, TensorScaledLayout):
-        shape = list(unpacked._shape)
-        tmp = shape[dim0]
-        shape[dim0] = shape[dim1]
-        shape[dim1] = tmp
-        new_qs = unpacked._qs.transpose(dim0, dim1)
-        layout = TensorScaledLayout(
-            shape=shape, d=unpacked._d, qs=new_qs, m=unpacked._m
-        )
-        return PlanarQuantizedTensor(shape=shape, layout=layout)
-    return NotImplemented
 
 @transpose.override(QuantizedTensor)
 def transpose_QuantizedTensor(tensor: QuantizedTensor, dim0: int, dim1: int):
