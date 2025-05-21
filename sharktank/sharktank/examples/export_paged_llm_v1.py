@@ -51,8 +51,8 @@ def main():
                 f"Parent directory for output MLIR file does not exist: {mlir_dir}"
             )
 
-    if args.top_k is not None and args.top_k > 1:
-        raise NotImplementedError(f"Currently only `top-k === 1` is supported.")
+    if args.top_k is not None and args.top_k < 1:
+        raise NotImplementedError(f"`top-k` value must be >= 1.")
 
     if args.attention_kernel == "sharktank":
         ops.attention_impls.register_attention_override_by_name(
@@ -310,15 +310,14 @@ def main():
             if args.logits_normalization == "log_softmax":
                 logits = ops.elementwise(torch.log, ops.softmax(logits, dim=-1))
 
-            if args.top_k is None:
+            top_k = args.top_k
+            if top_k is None:
                 return logits
 
-            if args.top_k == 1:
-                max_logits, indices = model.argmax(
-                    logits, chunk_size=hp.context_length // 128
-                )
+            if top_k == 1:
+                return model.argmax(logits, chunk_size=hp.context_length // 128)
 
-            return max_logits, indices
+            return model.topk(logits, k=args.top_k, chunk_size=hp.context_length // 128)
 
     def generate_batch_decode(bs: int):
         # torch.export.Dim would make min at least 2
@@ -452,45 +451,18 @@ def main():
             if args.logits_normalization == "log_softmax":
                 logits = ops.elementwise(torch.log, ops.softmax(logits, dim=-1))
 
-            if args.top_k is None:
+            top_k = args.top_k
+            if top_k is None:
                 return logits
 
-            if args.top_k == 1:
-                max_logits, indices = model.argmax(
-                    logits, chunk_size=hp.context_length // 128
-                )
+            if top_k == 1:
+                return model.argmax(logits, chunk_size=hp.context_length // 128)
+
+            max_logits, indices = model.topk(
+                logits, k=top_k, chunk_size=hp.context_length // 128
+            )
 
             return max_logits, indices
-
-    def generate_argmax():
-        # TODO: Remove this when the corresponding `dtype` conversion is
-        # removed in `PagedLlmModelV1.prefill/decode`
-        dtype = llama_config.activation_dtype
-        if "float8" in str(dtype) or dtype == torch.bfloat16:
-            dtype = torch.float16
-
-        logits: torch.Tensor = torch.empty(
-            1,
-            1,
-            hp.context_length,
-            dtype=dtype,
-        )
-
-        arg_affinities = [DeviceAffinity("0")]
-
-        @fxb.export_program(
-            name="argmax",
-            args=(logits,),
-            dynamic_shapes={},
-            strict=args.strict,
-            arg_device=arg_affinities,
-        )
-        def _(
-            _,
-            logits=logits,
-            axis=-1,
-        ):
-            return ops.argmax(logits, axis, chunk_size=hp.context_length // 1024)
 
     if not args.skip_prefill:
         for bs in args.bs_prefill:
@@ -498,10 +470,6 @@ def main():
     if not args.skip_decode:
         for bs in args.bs_decode:
             generate_batch_decode(bs)
-
-    if args.top_k is not None:
-        if args.top_k == 1:
-            generate_argmax()
 
     config = generate_params_json(
         hp, args.bs_prefill, args.bs_decode, args.logits_normalization

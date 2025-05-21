@@ -153,6 +153,16 @@ class PagedLlmModelV1(BaseCausalLMModel):
 
         return max_logits, indices
 
+    def topk(
+        self,
+        logits: torch.Tensor,
+        k: int,
+        chunk_size: int,
+    ):
+        return ops.topk(
+            logits, k=k, dim=-1, largest=True, sorted=True, chunk_size=chunk_size
+        )
+
     def prefill(
         self,
         # [bs, batch_seq_len]

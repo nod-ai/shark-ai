@@ -29,9 +29,11 @@ from .io_struct import (
     PromptResponse,
 )
 from .messages import LlmInferenceExecRequest, InferencePhase
+from .error_codes import ResponseErrorCodes
 from .service import LlmGenerateService
 from .token_selection_strategy import (
     BaseTokenSelectionStrategy,
+    TokenSelectionStrategy,
     TokenSelectionStrategyConfig,
     build_token_selector,
     build_token_selector_config,
@@ -156,23 +158,53 @@ class ClientGenerateBatchProcess(sf.Process):
 
         self.decode_config = service.server_params.decode_config
 
+    def _check_topk_params(
+        self, exported_topk: int | None, requested_topk: int | None
+    ) -> bool:
+        if (
+            # Argmax
+            requested_topk is None
+            # CPU-based `beam_search, top_k, and/or top_p`
+            or exported_topk is None
+            # GPU-based `beam_search, top_k, and/or top_p`
+            or exported_topk >= requested_topk
+        ):
+            return True
+
+        logger.error(
+            f"Requested top-k of {requested_topk} larger than exported top-k of {exported_topk}"
+        )
+        return False
+
+    def _return_error_response(
+        self,
+        status_code: int,
+        error_message: str,
+        code: ResponseErrorCodes,
+        extra_fields: dict,
+    ):
+        error_response = JSONResponse(
+            status_code=status_code,
+            content={"error": error_message, "code": code.value, **extra_fields},
+        )
+        self.responder.send_response(error_response)
+        self.responder.ensure_response()
+
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
 
         # Try to add request to queue
         # TODO(@zphoenixrises): Add load testing and integration tests for this.
         if not self.service.add_to_queue(self.decode_config.num_beams):
-            error_response = JSONResponse(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                content={
-                    "error": "Server queue is full. Please try again later.",
-                    "code": "QUEUE_FULL",
+            self._return_error_response(
+                status.HTTP_503_SERVICE_UNAVAILABLE,
+                error_message="Server queue is full. Please try again later.",
+                code=ResponseErrorCodes.QUEUE_FULL,
+                extra_fields={
                     "current_size": self.service.current_queue_size,
                     "max_size": self.service.max_queue_size,
                 },
             )
-            self.responder.send_response(error_response)
-            self.responder.ensure_response()
             return
 
         fibers = []
@@ -199,6 +231,28 @@ class ClientGenerateBatchProcess(sf.Process):
                     if self.gen_req.is_single
                     else self.gen_req.sampling_params[index]
                 )
+
+                exported_topk = self.service.model_params.top_k
+                requested_topk = (
+                    max(decode_config.num_beams, exported_topk or 1)
+                    if decode_config.token_selection_strategy
+                    == TokenSelectionStrategy.BEAM_SEARCH
+                    else decode_config.top_k
+                )
+                if not self._check_topk_params(
+                    exported_topk,
+                    requested_topk,
+                ):
+                    self._return_error_response(
+                        status.HTTP_400_BAD_REQUEST,
+                        error_message="Requested top-k larger than exported top-k",
+                        code=ResponseErrorCodes.INVALID_REQUEST_ARGS,
+                        extra_fields={
+                            "exported_topk": exported_topk,
+                            "requested_topk": requested_topk,
+                        },
+                    )
+                    return
 
                 idx, fiber = await self.service.main_fiber_pool.get()
                 fibers.append(
