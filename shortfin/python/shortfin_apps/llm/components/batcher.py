@@ -349,7 +349,9 @@ class LlmExecutorProcess(sf.Process):
 
 class PrefillExecutorProcess(LlmExecutorProcess):
     """Executes a prefill batch."""
-
+    tokens_host_cache: dict[tuple[int, int, sfnp.DType], sfnp.device_array] = {}
+    seq_lens_host_cache: dict[tuple[int, sfnp.DType], sfnp.device_array] = {}
+    seq_block_ids_host_cache: dict[tuple[int, int, sfnp.DType], sfnp.device_array] = {}
     def __init__(
         self,
         fiber: Fiber,
@@ -391,8 +393,12 @@ class PrefillExecutorProcess(LlmExecutorProcess):
             device0, [bs, block_count], int_dtype
         )
 
-        # Populate tokens.
-        tokens_host = tokens.for_transfer()
+        # Populate tokens
+        tokens_key = (bs, bsl, int_dtype)
+        if tokens_key not in self.tokens_host_cache:
+            self.tokens_host_cache[tokens_key] = tokens.for_transfer()
+        tokens_host = self.tokens_host_cache[tokens_key]
+
         for i in range(bs):
             with tokens_host.view(i).map(discard=True) as m:
                 m.fill(0)
@@ -401,14 +407,21 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         tokens_host.copy_to(tokens)
 
         # Populate seq_lens
-        seq_lens_host = seq_lens.for_transfer()
+        seq_lens_key = (bs, int_dtype)
+        if seq_lens_key not in self.seq_lens_host_cache:
+            self.seq_lens_host_cache[seq_lens_key] = seq_lens.for_transfer()
+        seq_lens_host = self.seq_lens_host_cache[seq_lens_key]
+
         with seq_lens_host.map(discard=True) as m:
             m.fill(1)
             m.items = [len(req.input_token_ids) for req in self.exec_requests]
         seq_lens_host.copy_to(seq_lens)
 
         # Populate cache pages.
-        seq_block_ids_host = seq_block_ids.for_transfer()
+        seq_block_ids_key = (bs, block_count, int_dtype)
+        if seq_block_ids_key not in self.seq_block_ids_host_cache:
+            self.seq_block_ids_host_cache[seq_block_ids_key] = seq_block_ids.for_transfer()
+        seq_block_ids_host = self.seq_block_ids_host_cache[seq_block_ids_key]
         for i in range(bs):
             with seq_block_ids_host.view(i).map(discard=True) as m:
                 m.fill(0)
@@ -464,6 +477,10 @@ class PrefillExecutorProcess(LlmExecutorProcess):
 
 class DecodeExecutorProcess(LlmExecutorProcess):
     """Executes a decode batch."""
+    tokens_host_cache: dict[tuple[int, int, sfnp.DType], sfnp.device_array] = {}
+    seq_lens_host_cache: dict[tuple[int, sfnp.DType], sfnp.device_array] = {}
+    start_positions_host_cache: dict[tuple[int, sfnp.DType], sfnp.device_array] = {}
+    seq_block_ids_host_cache: dict[tuple[int, int, sfnp.DType], sfnp.device_array] = {}
 
     def __init__(
         self,
@@ -504,10 +521,25 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         )
 
         # Setup host buffers for transfer:
-        tokens_host = tokens.for_transfer()
-        seq_lens_host = seq_lens.for_transfer()
-        start_positions_host = start_positions.for_transfer()
-        seq_block_ids_host = seq_block_ids.for_transfer()
+        tokens_key = (bs, 1, int_dtype)
+        if tokens_key not in self.tokens_host_cache:
+            self.tokens_host_cache[tokens_key] = tokens.for_transfer()
+        tokens_host = self.tokens_host_cache[tokens_key]
+
+        seq_lens_key = (bs, int_dtype)
+        if seq_lens_key not in self.seq_lens_host_cache:
+            self.seq_lens_host_cache[seq_lens_key] = seq_lens.for_transfer()
+        seq_lens_host = self.seq_lens_host_cache[seq_lens_key]
+
+        start_positions_key = (bs, int_dtype)
+        if start_positions_key not in self.start_positions_host_cache:
+            self.start_positions_host_cache[start_positions_key] = start_positions.for_transfer()
+        start_positions_host = self.start_positions_host_cache[start_positions_key]
+
+        seq_block_ids_key = (bs, block_count, int_dtype)
+        if seq_block_ids_key not in self.seq_block_ids_host_cache:
+            self.seq_block_ids_host_cache[seq_block_ids_key] = seq_block_ids.for_transfer()
+        seq_block_ids_host = self.seq_block_ids_host_cache[seq_block_ids_key]
 
         # Populate tokens.
         with tokens_host.map(discard=True) as m:
