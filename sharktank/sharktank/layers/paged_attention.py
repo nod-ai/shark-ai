@@ -34,10 +34,12 @@ from sharktank import ops, kernels
 
 __all__ = ["PagedAttention"]
 
+
 def cachify(tensor):
     if isinstance(tensor, QuantizerTensor):
         return tensor.unpack()._qs
     return tensor
+
 
 class KVCache:
     def __init__(
