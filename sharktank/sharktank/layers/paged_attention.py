@@ -34,6 +34,10 @@ from sharktank import ops, kernels
 
 __all__ = ["PagedAttention"]
 
+def cachify(tensor):
+    if isinstance(tensor, QuantizerTensor):
+        return tensor.unpack()._qs
+    return tensor
 
 class KVCache:
     def __init__(
@@ -960,8 +964,8 @@ class PagedAttention:
         self.write_timestep(
             cache_state,
             cache_partitions=[
-                k.unpack()._qs,
-                v.unpack()._qs,
+                cachify(k),
+                cachify(v),
             ],
             transformer_block_index=block_index,
             seq_positions=start_positions,
@@ -1025,7 +1029,7 @@ class PagedAttention:
     ):
         self.write(
             cache_state,
-            cache_partitions=[k.unpack()._qs, v.unpack()._qs],
+            cache_partitions=[cachify(k), cachify(v)],
             transformer_block_index=block_index,
             page_ids=seq_block_ids,
         )
