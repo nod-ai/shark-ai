@@ -153,18 +153,20 @@ def main():
             tensor_parallelism_size = 1
             if isinstance(cache_state[0], ShardedTensor):
                 tensor_parallelism_size = cache_state[0].shard_count
+            parallelized = pipeline_parallelism_size > 1 or tensor_parallelism_size > 1
+
             dynamic_shapes = []
             for _ in range(pipeline_parallelism_size):
-                ds = [{0: page_dim}]
-                if tensor_parallelism_size > 1:
-                    ds = ds * tensor_parallelism_size
+                ds = {0: page_dim}
+                if parallelized:
+                    ds = [ds] * tensor_parallelism_size
                 dynamic_shapes.append(ds)
             unpacked = cache_state
             arg_affinities = {}
             shard_dim = None
 
             # Need to unpack that state when sharded (for tracing support reasons)
-            if tensor_parallelism_size > 1 or pipeline_parallelism_size > 1:
+            if parallelized:
                 shard_dim = cache_state[0].shard_dim
 
                 unpacked = [[shard._data for shard in cs.shards] for cs in cache_state]
