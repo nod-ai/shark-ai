@@ -32,11 +32,15 @@ def add_input_args(parser):
     group = parser.add_argument_group("Input Source", "Inputs to select from")
     group = group.add_mutually_exclusive_group(required=True)
     group.add_argument("--prompt")
-    group.add_argument("--prompt-file")
+    group.add_argument("--prompt_file")
+    group.add_argument("--input_token_length", type=int)
 
 
 def add_cli_args(parser: argparse.ArgumentParser):
-
+    parser.add_argument("--stream", action="store_true", help="Stream the response")
+    parser.add_argument(
+        "--log_tokens", action="store_true", help="Log tokens to stdout"
+    )
     parser.add_argument(
         "--benchmark",
         action="store_true",
@@ -85,14 +89,22 @@ def parse_args(argv):
     add_service_args(parser)
     add_input_args(parser)
     add_cli_args(parser)
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.benchmark and args.benchmark_tasks is None:
+        raise ValueError(
+            "Benchmark tasks must be provided when running in benchmark mode"
+        )
+    return args
 
 
-def process_inputs(args):
-
+def process_inputs(args) -> List[str]:
+    if args.input_token_length:
+        args.prompt = "".join(["one "] * args.input_token_length)
     if args.prompt:
         if args.benchmark and args.benchmark_tasks is not None:
             prompts = [args.prompt] * args.benchmark_tasks
+        else:
+            prompts = [args.prompt]
         return prompts
 
     return json.load(open(args.prompt_file, "r"))
@@ -123,7 +135,7 @@ class Timer:
 class CliResponder(AbstractResponder):
     _idx: int = 0
 
-    def __init__(self):
+    def __init__(self, log_tokens: bool = False):
         super().__init__()
         self._loop = asyncio.get_running_loop()
         self.response = asyncio.Future(loop=self._loop)
@@ -131,6 +143,10 @@ class CliResponder(AbstractResponder):
         self.idx = self._get_idx()
         self.name = f"CliResponder-{self.idx}"
         self._timer = Timer(self.name)
+        self.token_times = []
+        self._streaming_queue: asyncio.Queue | None = None
+        self._streamed_content = []
+        self._log_tokens = log_tokens
 
     @classmethod
     def _get_idx(cls):
@@ -155,10 +171,55 @@ class CliResponder(AbstractResponder):
         self._loop.call_soon_threadsafe(self.response.set_result, response)
 
     def stream_start(self, **kwargs):
-        raise Exception("Streaming not supported")
+        """Starts a streaming response.
 
-    def stream_part(self, content):
-        raise Exception("Streaming not supported")
+        For CLI, we'll collect the streamed content in a list that can be accessed later.
+        """
+        assert not self.responded, "Response already sent"
+        if self._loop.is_closed():
+            raise IOError("Web server is shut down")
+        self.responded = True
+        self._streaming_queue = asyncio.Queue()
+        self._streamed_content = []
+
+        async def collect_stream():
+            while True:
+                if self._streaming_queue is None:
+                    logger.info(f"{self.name} Streaming queue is completed")
+                    break
+                part = await self._streaming_queue.get()
+                if part is None:
+                    break
+                self._streamed_content.append(part)
+
+        def start():
+            asyncio.create_task(collect_stream())
+
+        self._loop.call_soon_threadsafe(start)
+
+    def stream_part(self, content: bytes | None):
+        """Streams content to a response started with stream_start().
+
+        Streaming must be ended by sending None.
+        """
+        assert self._streaming_queue is not None, "stream_start() not called"
+        self.token_times.append(self.elapsed())
+        if self._log_tokens:
+            logger.info(
+                f"{self.name} Streaming part: {content.decode() if isinstance(content, bytes) else content}"
+            )
+
+        if self._loop.is_closed():
+            raise IOError("Web server is shut down")
+        self._loop.call_soon_threadsafe(self._streaming_queue.put_nowait, content)
+
+        if content is None:
+            self._streaming_queue = None
+            # Join all streamed content and set it as the final response
+            final_content = (
+                b"".join(self._streamed_content) if self._streamed_content else b""
+            )
+            self._loop.call_soon_threadsafe(self.response.set_result, final_content)
 
 
 async def main(argv):
@@ -198,6 +259,18 @@ async def main(argv):
                 return self.responder.elapsed()
             return 0
 
+        def ttft(self):
+            if self.responder is not None:
+                return self.responder.token_times[0]
+            return 0
+
+        def tpot(self):
+            if self.responder is not None:
+                return (
+                    self.responder.token_times[-1] - self.responder.token_times[0]
+                ) / len(self.responder.token_times)
+            return 0
+
     logger.info(f"Setting up a tasklist of {len(prompts)} items")
     tasks: List[Task] = []
     for p in prompts:
@@ -207,9 +280,9 @@ async def main(argv):
     async def worker(name, queue, fiber):
         while True:
             task: Task = await queue.get()
-            responder = CliResponder()
+            responder = CliResponder(log_tokens=args.log_tokens)
             gen_req = GenerateReqInput(
-                text=task.prompt, sampling_params=sampling_params
+                text=task.prompt, sampling_params=sampling_params, stream=args.stream
             )
             ClientGenerateBatchProcess(
                 service, gen_req, responder, fiber=fiber
@@ -251,6 +324,15 @@ async def main(argv):
         print(
             f"Latencies: av: {np.mean(latencies)}, min: {np.min(latencies)}, max: {np.max(latencies)}, median: {np.median(latencies)}, sd: {np.std(latencies)}"
         )
+        if args.stream:
+            ttft = [s.ttft() for s in tasks]
+            tpot = [s.tpot() for s in tasks]
+            print(
+                f"TTFT: av: {np.mean(ttft)}, min: {np.min(ttft)}, max: {np.max(ttft)}, median: {np.median(ttft)}, sd: {np.std(ttft)}"
+            )
+            print(
+                f"TPOT: av: {np.mean(tpot)}, min: {np.min(tpot)}, max: {np.max(tpot)}, median: {np.median(tpot)}, sd: {np.std(tpot)}"
+            )
 
     logger.info(f"Shutting down service")
     service.shutdown()

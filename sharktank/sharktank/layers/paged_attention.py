@@ -144,6 +144,11 @@ class KVCache:
         key = selected[:, :, 0, :].flatten(1, 2)
         value = selected[:, :, 1, :].flatten(1, 2)
 
+        if self.devices:
+            # Explicitly passing a list of one value to avoid redundant transfer inside ReplicateTensor.__init__.
+            key = ReplicatedTensor(ts=[key], devices=self.devices)
+            value = ReplicatedTensor(ts=[value], devices=self.devices)
+
         return key, value
 
     def write(
@@ -586,7 +591,9 @@ class PipelinedCache:
         *,
         transformer_block_index: int,
         page_ids: torch.Tensor | ReplicatedTensor,
-    ):
+    ) -> tuple[
+        ReplicatedTensor | SplitPrimitiveTensor, ReplicatedTensor | SplitPrimitiveTensor
+    ]:
         pipeline = self.block_to_pipeline_map[transformer_block_index]
         block = self.transformer_block_map[transformer_block_index]
 
