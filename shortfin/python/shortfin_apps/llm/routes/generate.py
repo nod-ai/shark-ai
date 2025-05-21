@@ -14,6 +14,8 @@ from ..components.service import GenerateService
 
 generation_router = APIRouter()
 
+test_text = "".join(["one " * 2500])
+
 
 @generation_router.post("/generate")
 @generation_router.put("/generate")
@@ -21,6 +23,7 @@ async def generate_request(gen_req: GenerateReqInput, request: Request):
     # app.state.services is populated by the ShortfinLlmLifecycleManager
     # see shortfin/python/shortfin_apps/llm/components/lifecycle.py
     service: GenerateService = request.app.state.services["default"]
+    gen_req.text = test_text
     gen_req.post_init()
     responder = FastAPIResponder(request)
     ClientGenerateBatchProcess(
