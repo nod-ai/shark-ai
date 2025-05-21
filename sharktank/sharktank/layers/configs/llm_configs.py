@@ -75,6 +75,15 @@ class LlamaHParams:
     # MoE config
     expert_count: Optional[int] = None
     expert_used_count: Optional[int] = None
+    expert_feed_forward_length: Optional[int] = None
+    expert_shared_feed_forward_length: Optional[int] = None
+
+    # Specifies the interval at which Mixture of Experts (MoE) layers are inserted among the model's layers.
+    # For example:
+    #     1 - every layer is an MoE layer.
+    #     3 - every third layer (layers 0, 3, 6, ...) is an MoE layer; others are dense layers.
+    # If None, no specific interleaving pattern is applied.
+    interleave_moe_layer_step: Optional[int] = None
 
     # Deepseek MoE config
     expert_shared_count: Optional[int] = None
@@ -85,17 +94,14 @@ class LlamaHParams:
     n_dense_layers: Optional[int] = None
     route_scale: Optional[float] = None
 
-    # Deepseek MoE config
-    expert_shared_count: Optional[int] = None
-
     @staticmethod
     def from_gguf_props(p: dict[str, Any]):
         name_prefix = p.get("general.architecture", "llama")
-
-        default_rope_freq_base = 500000.0
-        default_rope_dimension_count = 128
         default_expert_count = 0
         default_expert_used_count = 0
+        default_interleave_moe_layer_step = None
+        default_rope_freq_base = 500000.0
+        default_rope_dimension_count = 128
 
         attention_head_count = _int_prop(p, f"{name_prefix}.attention.head_count")
         rope_dimension_count = _optional_int_prop(
@@ -128,7 +134,6 @@ class LlamaHParams:
             attention_head_count_kv=_optional_int_prop(
                 p, f"{name_prefix}.attention.head_count_kv", attention_head_count
             ),
-            expert_count=expert_count,
             expert_used_count=_optional_int_prop(
                 p, f"{name_prefix}.expert_used_count", default_expert_used_count
             ),
@@ -139,6 +144,17 @@ class LlamaHParams:
             rope_dimension_count=rope_dimension_count,
             rope_freq_base=_optional_float_prop(
                 p, f"{name_prefix}.rope.freq_base", default_rope_freq_base
+            ),
+            expert_feed_forward_length=_optional_int_prop(
+                p, f"{name_prefix}.expert_feed_forward_length", None
+            ),
+            expert_shared_feed_forward_length=_optional_int_prop(
+                p, f"{name_prefix}.expert_shared_feed_forward_length", None
+            ),
+            interleave_moe_layer_step=_optional_int_prop(
+                p,
+                f"{name_prefix}.interleave_moe_layer_step",
+                default_interleave_moe_layer_step,
             ),
             **custom_config,
         )
@@ -198,6 +214,18 @@ class LlamaHParams:
             res[
                 f"{self.model_arch}.rope.scaling.yarn_log_multiplier"
             ] = self.rope_scaling_yarn_log_multiplier
+        if self.expert_feed_forward_length is not None:
+            res[
+                f"{self.model_arch}.expert_feed_forward_length"
+            ] = self.expert_feed_forward_length
+        if self.expert_shared_feed_forward_length is not None:
+            res[
+                f"{self.model_arch}.expert_shared_feed_forward_length"
+            ] = self.expert_shared_feed_forward_length
+        if self.interleave_moe_layer_step is not None:
+            res[
+                f"{self.model_arch}.interleave_moe_layer_step"
+            ] = self.interleave_moe_layer_step
         return res
 
 
@@ -239,6 +267,11 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
             p, f"{name_prefix}.rope.scaling.yarn_log_multiplier"
         )
         res["attn_head_dim"] = res["qk_nope_head_dim"] + res["qk_rope_head_dim"]
+
+    if name_prefix == "llama4":
+        res["expert_shared_count"] = _optional_int_prop(
+            p, f"{name_prefix}.expert_shared_count", None
+        )
 
     return res
 
@@ -314,6 +347,9 @@ class LlamaModelConfig:
     # Dtype to use for general FP activations not otherwise configured.
     activation_dtype: torch.dtype = torch.float16
 
+    # Activation function to use for the model. If None, will use the activation function specified in the model configuration.
+    activation_fn: Optional[str] = None
+
     # Dtype to use for attention.
     attention_dtype: torch.dtype = torch.float16
 
@@ -338,6 +374,12 @@ class LlamaModelConfig:
     # Which attention kernel to use.
     attention_kernel: str = "torch"
 
+    # Implementation of rotary embeddings.
+    # E.g. "llama3", "llama4", "default".
+    # "llama3" indicates running with HuggingFace implementation and ensures
+    # numerical equivalency to HuggingFace's LLaMa.
+    rope_type: str | None = None
+
     # Indicates if running with HuggingFace implementation and ensures
     # numerical equivalency to HuggingFace's LLaMa if true (by modifying
     # rotary embedding).
@@ -356,6 +398,55 @@ class LlamaModelConfig:
 
     # A list of layer indices where chunked attention is applied instead of full attention.
     chunked_attention_layers: Optional[set[int]] = None
+
+    # Indices of layers that are MoE.
+    moe_layers: Optional[list[int]] = None
+
+    # Indices of layers that use RoPE after the attention.
+    rope_layers: Optional[list[int]] = None
+
+    use_qk_norm: bool = False
+    # If True, applies normalization to the query and key vectors in attention.
+
+    # In HuggingFace transformers, this field is represented as an int, but it is only ever used as a boolean.
+    # For clarity and correctness, it should be a bool: if True, enables attention temperature tuning.
+    attn_temperature_tuning: Optional[bool] = None
+
+    # Scaling factor applied to attention scores.
+    attn_scale: Optional[float] = None
+
+    # Scaling factor applied as a floor value in attention computations.
+    floor_scale: Optional[int] = None
+
+    # If True, the Feed-Forward Network (FFN) block adds the residual connection at the end.
+    ffn_add_residual: bool = True
+
+    # The size of the model's vocabulary.
+    vocabulary_size: Optional[int] = None
+
+    # The default data type to use for model parameters and computations.
+    dtype: Optional[torch.dtype] = None
+
+    def __post_init__(self):
+        if self.moe_layers is None:
+            if self.hp.interleave_moe_layer_step is None:
+                self.moe_layers = []
+            else:
+                self.moe_layers = list(
+                    range(
+                        self.hp.interleave_moe_layer_step - 1,
+                        self.hp.block_count,
+                        self.hp.interleave_moe_layer_step,
+                    )
+                )
+        else:
+            if self.hp.interleave_moe_layer_step is not None:
+                raise ValueError(
+                    "moe_layers and hp.interleave_moe_layer_step are mutually exclusive."
+                )
+
+        if isinstance(self.dtype, str):
+            self.dtype = serialized_name_to_dtype(self.dtype)
 
     def to_properties(self) -> "PropertyValueType":
         res = self.hp.to_gguf_props()

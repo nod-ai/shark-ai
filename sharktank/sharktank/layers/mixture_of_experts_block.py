@@ -112,7 +112,7 @@ class MoeBlock(ThetaLayer):
                     }
                 )
             self.shared_experts = FFN(
-                theta=shared_ffn_theta, activation_fn=moe_activation
+                theta=shared_ffn_theta, activation_fn=moe_activation, add_residual=False
             )
 
         # Add optional FFN output norm layer
@@ -123,13 +123,14 @@ class MoeBlock(ThetaLayer):
 
     def forward(
         self,
+        # shape: (batch_size, sequence_length, feature_dim)
         h: torch.Tensor | ShardedTensor,
     ):
         batch_size, sequence_length, feature_dim = h.shape
         ffn_input = h.view(-1, feature_dim)
 
         # For each token, the router calculates the router weights for all experts
-        # router_logits: (batch_size * sequence_length, expert_count)
+        # shape: (batch_size * sequence_length, expert_count)
         router_logits = self.ffn_gate_inp(ffn_input)
         router_weights = self.score_experts(router_logits.to(torch.float))
 
@@ -157,10 +158,12 @@ class MoeBlock(ThetaLayer):
                 .reshape(-1, self.expert_count)
             )
             scores_for_choice = scores_for_choice.masked_fill(~score_mask.bool(), 0.0)
+            # shape: (batch_size * sequence_length, expert_used_count)
             expert_gate, top_k_experts = topk(
                 scores_for_choice, k=self.expert_used_count, dim=-1
             )
         else:
+            # shape: (batch_size * sequence_length, expert_used_count)
             expert_gate, top_k_experts = topk(
                 router_weights, self.expert_used_count, dim=-1
             )
@@ -173,6 +176,7 @@ class MoeBlock(ThetaLayer):
         if self.route_scale is not None:
             expert_gate = expert_gate * self.route_scale
 
+        # shape: (batch_size * sequence_length, feature_dim)
         moe_output = self.routed_experts(ffn_input, top_k_experts, expert_gate)
 
         if self.expert_shared_count is not None:
