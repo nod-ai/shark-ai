@@ -728,8 +728,8 @@ class PagedAttention:
 
     * transformer block
     * cache partition (K or V cache)
-    * block sequence stride (number of sequence positions per block)
     * attention heads
+    * block sequence stride (number of sequence positions per block)
     * attention dimensionality
 
     Note that the internal page structure matches the organization of the
