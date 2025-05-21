@@ -97,7 +97,6 @@ class LlamaHParams:
         rope_dimension_count = _optional_int_prop(
             p, f"{name_prefix}.rope.dimension_count", default_rope_dimension_count
         )
-        attn_head_dim = rope_dimension_count
         expert_count = _optional_int_prop(
             p, f"{name_prefix}.expert_count", default_expert_count
         )
@@ -108,8 +107,8 @@ class LlamaHParams:
 
         custom_config = get_custom_configs(p, name_prefix)
 
-        if custom_config["attn_head_dim"]:
-            attn_head_dim = custom_config["attn_head_dim"]
+        if custom_config["attn_head_dim"] is None:
+            custom_config["attn_head_dim"] = rope_dimension_count
 
         return LlamaHParams(
             model_arch=name_prefix,
@@ -124,7 +123,6 @@ class LlamaHParams:
             attention_head_count_kv=_optional_int_prop(
                 p, f"{name_prefix}.attention.head_count_kv", attention_head_count
             ),
-            attn_head_dim=attn_head_dim,
             expert_count=expert_count,
             expert_used_count=_optional_int_prop(
                 p, f"{name_prefix}.expert_used_count", default_expert_used_count
