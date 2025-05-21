@@ -21,6 +21,7 @@ TOP_P_DEFAULT_SELECTION = 32
 
 
 class GreedyBeam(Beam):
+    # TODO(stbaione): Combine this and `BeamSearchBeam` into a single class
     def sample_logits(self) -> int:
         """Return the single highest scoring token of the logits.
 
@@ -42,10 +43,12 @@ class GreedyBeam(Beam):
 
             return self.sampler.select_greedy(logits)
 
+        indices = np.array(indices) if indices is not None else None
         if top_k is not None:
             num_selections = 1 if top_p is None else top_k
             tokens, probs = self._sample_logits_top_k(
                 logits,
+                indices,
                 top_k,
                 num_selections,
             )
@@ -53,19 +56,22 @@ class GreedyBeam(Beam):
         if top_p is not None:
             if top_k is None:
                 top_p_selection = min(logits.shape[-1], TOP_P_DEFAULT_SELECTION)
-                tokens, values = self.sampler.select_top_k(logits, -top_p_selection)
+                tokens, values = self.sampler.select_top_k(
+                    logits, indices, -top_p_selection
+                )
                 probs = self._to_softmax(
                     values,
                     self.decode_config.logits_normalization,
                 )
 
-                sorted_order = np.argsort(probs)[::-1]
-                tokens = tokens[sorted_order]
-                probs = probs[sorted_order]
+                if indices is None:
+                    sorted_order = np.argsort(probs)[::-1]
+                    tokens = tokens[sorted_order]
+                    probs = probs[sorted_order]
 
             tokens, _ = self._sample_logits_top_p(tokens, probs, top_p, 1)
 
-        return tokens[0]
+        return int(tokens[0])
 
     def update_exec_req(self):
         """Update the `LlmInferenceExecRequest` with the selected token."""
@@ -83,6 +89,8 @@ class GreedyBeam(Beam):
 
 
 class GreedyTokenSelectionStrategy(BaseTokenSelectionStrategy):
+    # TODO(stbaione): Combine this class, `MultiGreedy` and `BeamSearch`
+    # strategies into a single class with more clear interface.
     def __init__(
         self,
         token_selection_strategy_config: TokenSelectionStrategyConfig,

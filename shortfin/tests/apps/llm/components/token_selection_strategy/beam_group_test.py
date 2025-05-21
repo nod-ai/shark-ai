@@ -227,7 +227,7 @@ def test__sample_logits_top_k(decode_config, device, exec_req):
 
     beam = DummyBeam(exec_req, decode_config)
     top_k = len(random_hot_tokens)
-    tokens, probs = beam._sample_logits_top_k(logits, top_k, top_k)
+    tokens, probs = beam._sample_logits_top_k(np.array(logits), None, top_k, top_k)
 
     assert len(tokens) == 3
     assert [token in random_hot_tokens for token in tokens]

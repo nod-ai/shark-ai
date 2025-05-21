@@ -147,20 +147,20 @@ class ModelParams:
     # The element type of the attention caches.
     attn_dtype: sfnp.DType = sfnp.float16
 
-    # TODO(stbaione): Update comment when export with `top_k > 1` is enabled.
-    # Define the `top_k` kernel that model was exported with.
-    # If `top_k` is None, no `top_k` kernels were exported.
-    # If `top_k == 1`, argmax is exported.
+    # Define the `top_k` option that model was exported with for prefill/decode.
+    # If `top_k` is None, only logits are returned.
+    # If `top_k == 1`, logits/indices from `argmax` are returned.
+    # If `top_k` > 1, logits/indices from `top_k` are returned.
     top_k: int | None = None
 
     # Cache parameters.
     paged_kv_cache: PagedKVCacheParams | None = None
 
     def __post_init__(self):
-        if self.top_k is None or self.top_k == 1:
+        if self.top_k is None or self.top_k >= 1:
             return
 
-        raise ValueError(f"Currently, only `top_k == 1` is supported.")
+        raise ValueError(f"Currently, only `top_k >= 1` is supported.")
 
     # Size in bytes of the KV cache dtype.
     @property
