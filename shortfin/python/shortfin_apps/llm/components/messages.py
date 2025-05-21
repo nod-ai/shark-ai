@@ -59,6 +59,7 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         # Result logits as [1, sl, d] where 1 is the preserved batch dim,
         # sl is either 1 (not return_all_logits) or >=1 (return_all_logits).
         self.result_logits: sfnp.device_array | None = None
+        self.result_indices: sfnp.device_array | None = None
 
         # Cache pages that have been locked for this request.
         self._cache: BasePagedAttentionCache | None = None

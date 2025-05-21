@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from typing import Sequence, Optional
-from sharktank.types.tensors import AnyTensor
+from sharktank.types.tensors import AnyTensor, is_any_tensor
 
 
 def broadcast_dim(
@@ -62,3 +62,15 @@ def unbroadcast_dim(dim: int, shapes: Sequence[Sequence[int]]) -> Optional[int]:
     broadcast_rank = max(ranks)
     res = dim - max(0, broadcast_rank - ranks[0])
     return None if res < 0 else res
+
+
+def normalize_negative_dim(
+    shaped_or_shape: tuple[int, ...] | AnyTensor, /, *dim: tuple[int, ...]
+) -> tuple[int, ...]:
+    """Make negative dimensions indices be positive."""
+    if is_any_tensor(shaped_or_shape):
+        return normalize_negative_dim(shaped_or_shape.shape, *dim)
+    res = tuple(d if d >= 0 else len(shaped_or_shape) + d for d in dim)
+    if len(res) == 1:
+        return res[0]
+    return res
