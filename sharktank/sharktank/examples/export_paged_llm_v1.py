@@ -51,8 +51,8 @@ def main():
                 f"Parent directory for output MLIR file does not exist: {mlir_dir}"
             )
 
-    if args.top_k is not None and args.top_k > 1:
-        raise NotImplementedError(f"Currently only `top-k === 1` is supported.")
+    if args.top_k is not None and args.top_k < 1:
+        raise NotImplementedError(f"`top-k` value must be >= 1.")
 
     if args.attention_kernel == "sharktank":
         ops.attention_impls.register_attention_override_by_name(
@@ -74,13 +74,9 @@ def main():
                 f"Unsharded dataset file provided, but specified --tensor-parallelism-size={args.tensor_parallelism_size}. Likely wrong dataset provided."
             )
 
-    if args.pipeline_parallelism_size > 1:
-        block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
-            dataset.root_theta, args.pipeline_parallelism_size
-        )
-    else:
-        block_to_pipeline = None
-        pipeline_to_devices = None
+    block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
+        dataset.root_theta, args.pipeline_parallelism_size
+    )
 
     llama_config = LlamaModelConfig(
         hp,
@@ -226,8 +222,9 @@ def main():
             # We need to offset the indices for the cache
             arg_affinities = {key + 3: arg_affinities[key] for key in arg_affinities}
 
+            # Inputs have default affinity 0
             for i in range(3):
-                device = str(pipeline_to_devices[0][0])
+                device = pipeline_to_devices[0][0] if pipeline_to_devices else 0
                 arg_affinities[i] = DeviceAffinity(device)
 
         dynamic_shapes = {
@@ -263,33 +260,38 @@ def main():
                 seq_block_ids = [seq_block_ids]
             else:
                 shard_count = llama_config.tensor_parallelism_size
+                pipeline_to_device_map = (
+                    llama_config.pipeline_to_device_map
+                    if llama_config.pipeline_to_device_map
+                    else [list(range(shard_count))]
+                )
 
                 tokens = ops.replicate(
                     tokens,
                     count=shard_count,
-                    devices=llama_config.pipeline_to_device_map[0],
+                    devices=pipeline_to_device_map[0],
                 )
                 if attention_mask is None:
-                    attention_mask = [None] * len(model.cache.pipeline_to_device_map)
+                    attention_mask = [None] * len(pipeline_to_device_map)
                 else:
                     attention_mask = [
                         ops.replicate(
                             attention_mask,
                             count=shard_count,
-                            devices=model.cache.pipeline_to_device_map[pipeline],
+                            devices=pipeline_to_device_map[pipeline],
                         )
-                        for pipeline in range(len(model.cache.pipeline_to_device_map))
+                        for pipeline in range(len(pipeline_to_device_map))
                     ]
                 seq_block_ids = [
                     ops.replicate(
                         seq_block_ids,
                         count=shard_count,
-                        devices=model.cache.pipeline_to_device_map[pipeline],
+                        devices=pipeline_to_device_map[pipeline],
                     )
-                    for pipeline in range(len(model.cache.pipeline_to_device_map))
+                    for pipeline in range(len(pipeline_to_device_map))
                 ]
                 cache_tensors = repack_cache(
-                    cs, cache_shard_dim, model.cache.pipeline_to_device_map
+                    cs, cache_shard_dim, pipeline_to_device_map
                 )
 
             logits = model.prefill(
@@ -308,15 +310,14 @@ def main():
             if args.logits_normalization == "log_softmax":
                 logits = ops.elementwise(torch.log, ops.softmax(logits, dim=-1))
 
-            if args.top_k is None:
+            top_k = args.top_k
+            if top_k is None:
                 return logits
 
-            if args.top_k == 1:
-                max_logits, indices = model.argmax(
-                    logits, chunk_size=hp.context_length // 128
-                )
+            if top_k == 1:
+                return model.argmax(logits, chunk_size=hp.context_length // 128)
 
-            return max_logits, indices
+            return model.topk(logits, k=args.top_k, chunk_size=hp.context_length // 128)
 
     def generate_batch_decode(bs: int):
         # torch.export.Dim would make min at least 2
@@ -348,7 +349,8 @@ def main():
 
             # Inputs have default affinity 0
             for i in range(4):
-                arg_affinities[i] = DeviceAffinity(str(pipeline_to_devices[0][0]))
+                device = pipeline_to_devices[0][0] if pipeline_to_devices else 0
+                arg_affinities[i] = DeviceAffinity(device)
 
         dynamic_shapes = {
             "tokens": {},
@@ -395,15 +397,21 @@ def main():
                 start_positions = [start_positions]
             else:
                 shard_count = llama_config.tensor_parallelism_size
+                pipeline_to_device_map = (
+                    llama_config.pipeline_to_device_map
+                    if llama_config.pipeline_to_device_map
+                    else [list(range(shard_count))]
+                )
 
                 tokens = ops.replicate(
                     tokens,
                     count=shard_count,
-                    devices=llama_config.pipeline_to_device_map[0],
+                    devices=pipeline_to_device_map[0],
                 )
                 _attention_mask, _start_positions, _seq_block_ids = [], [], []
-                for pipeline in range(len(model.cache.pipeline_to_device_map)):
-                    devices = model.cache.pipeline_to_device_map[pipeline]
+
+                for pipeline in range(len(pipeline_to_device_map)):
+                    devices = pipeline_to_device_map[pipeline]
                     _attention_mask.append(
                         ops.replicate(
                             attention_mask, count=shard_count, devices=devices
@@ -424,7 +432,7 @@ def main():
                 )
 
                 cache_state = repack_cache(
-                    cache_state, cache_shard_dim, model.cache.pipeline_to_device_map
+                    cache_state, cache_shard_dim, pipeline_to_device_map
                 )
 
             logits = model.decode(
@@ -444,45 +452,18 @@ def main():
             if args.logits_normalization == "log_softmax":
                 logits = ops.elementwise(torch.log, ops.softmax(logits, dim=-1))
 
-            if args.top_k is None:
+            top_k = args.top_k
+            if top_k is None:
                 return logits
 
-            if args.top_k == 1:
-                max_logits, indices = model.argmax(
-                    logits, chunk_size=hp.context_length // 128
-                )
+            if top_k == 1:
+                return model.argmax(logits, chunk_size=hp.context_length // 128)
+
+            max_logits, indices = model.topk(
+                logits, k=top_k, chunk_size=hp.context_length // 128
+            )
 
             return max_logits, indices
-
-    def generate_argmax():
-        # TODO: Remove this when the corresponding `dtype` conversion is
-        # removed in `PagedLlmModelV1.prefill/decode`
-        dtype = llama_config.activation_dtype
-        if "float8" in str(dtype) or dtype == torch.bfloat16:
-            dtype = torch.float16
-
-        logits: torch.Tensor = torch.empty(
-            1,
-            1,
-            hp.context_length,
-            dtype=dtype,
-        )
-
-        arg_affinities = [DeviceAffinity("0")]
-
-        @fxb.export_program(
-            name="argmax",
-            args=(logits,),
-            dynamic_shapes={},
-            strict=args.strict,
-            arg_device=arg_affinities,
-        )
-        def _(
-            _,
-            logits=logits,
-            axis=-1,
-        ):
-            return ops.argmax(logits, axis, chunk_size=hp.context_length // 1024)
 
     if not args.skip_prefill:
         for bs in args.bs_prefill:
@@ -490,10 +471,6 @@ def main():
     if not args.skip_decode:
         for bs in args.bs_decode:
             generate_batch_decode(bs)
-
-    if args.top_k is not None:
-        if args.top_k == 1:
-            generate_argmax()
 
     config = generate_params_json(
         hp, args.bs_prefill, args.bs_decode, args.logits_normalization

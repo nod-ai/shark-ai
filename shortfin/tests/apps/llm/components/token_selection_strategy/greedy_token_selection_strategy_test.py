@@ -6,6 +6,7 @@
 
 import logging
 import math
+import numpy as np
 import pytest
 import random
 
@@ -70,44 +71,141 @@ def test_greedy_beam_sample_logits(device, greedy_beam):
     token = greedy_beam.sample_logits()
     assert token == 15
 
-    data[10] = 42.0
+
+def test_greedy_beam_sample_logits_w_indices(device, greedy_beam):
+    greedy_beam.decode_config.temperature = 1.0
+
+    src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+    data = [float(i) for i in range(math.prod(src.shape))]
     src.items = data
-    greedy_beam.exec_req.result_logits == src
+
+    indices = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+
+    greedy_beam.exec_req.result_logits = src
+    greedy_beam.exec_req.result_indices = indices
+
     token = greedy_beam.sample_logits()
-    assert token == 10
+    assert token == 0
 
-    # `top_k` is provided
+
+def test_greedy_beam_sample_logits_top_k(device, greedy_beam):
+    greedy_beam.decode_config.temperature = 1.0
+
+    src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+    data = [float(i) for i in range(math.prod(src.shape))]
+    src.items = data
+
     expected_tokens = [13, 14, 15]
-    values = [0.33] * 3
     greedy_beam.decode_config.top_k = 3
-    with patch.object(
-        greedy_beam, "_sample_logits_top_k", return_value=(expected_tokens, values)
-    ):
-        token = greedy_beam.sample_logits()
-        assert token in expected_tokens
+    greedy_beam.exec_req.result_logits = src
 
-    # `top_p` is provided
+    token = greedy_beam.sample_logits()
+    assert token in expected_tokens
+
+
+def test_greedy_beam_sample_logits_top_k_w_indices(device, greedy_beam):
+    greedy_beam.decode_config.temperature = 1.0
+
+    src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+    data = [float(i) for i in range(math.prod(src.shape))]
+    src.items = data
+
+    indices_np = np.flip(
+        np.argpartition(src, -3, -1),
+        axis=-1,
+    )
+    indices = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+    indices.items = indices_np.flatten().tolist()
+
+    greedy_beam.decode_config.top_k = 3
+    greedy_beam.exec_req.result_logits = src
+    greedy_beam.exec_req.result_indices = indices
+
+    token = greedy_beam.sample_logits()
+
+    expected_tokens = indices.view(0, 0, slice(None, 3)).items.tolist()
+    assert token in expected_tokens
+
+
+def test_greedy_beam_sample_logits_top_p(device, greedy_beam):
+    greedy_beam.decode_config.temperature = 1.0
+
+    src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+    data = [float(i) for i in range(math.prod(src.shape))]
+    src.items = data
+
     greedy_beam.decode_config.top_p = 0.95
     greedy_beam.decode_config.top_k = None
-    with patch.object(
-        greedy_beam, "_sample_logits_top_p", return_value=(expected_tokens, values)
-    ):
-        token = greedy_beam.sample_logits()
-        assert token in expected_tokens
+    greedy_beam.exec_req.result_logits = src
 
-    # `top_k` and `top_p` are provided
+    token = greedy_beam.sample_logits()
+    expected_tokens = {13, 14, 15}
+    assert token in expected_tokens
+
+
+def test_greedy_beam_sample_logits_top_p_w_indices(device, greedy_beam):
+    greedy_beam.decode_config.temperature = 1.0
+
+    src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+    data = [0] * math.prod(src.shape)
+    data[0:3] = [4.41] * 3
+    src.items = data
+
+    indices_np = np.flip(
+        np.argpartition(src, -3, -1),
+        axis=-1,
+    )
+    indices = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+    indices.items = indices_np.flatten().tolist()
+
+    greedy_beam.decode_config.top_p = 0.94
+    greedy_beam.decode_config.top_k = None
+    greedy_beam.exec_req.result_logits = src
+    greedy_beam.exec_req.result_indices = indices
+
+    token = greedy_beam.sample_logits()
+    expected_tokens = indices.view(0, 0, slice(None, 3)).items.tolist()
+    assert token in expected_tokens
+
+
+def test_greedy_beam_sample_logits_top_k_top_p(device, greedy_beam):
+    src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+    data = [0] * math.prod(src.shape)
+    data[-3:] = [4.41] * 3
+    src.items = data
+
     greedy_beam.decode_config.top_k = 3
-    greedy_beam.decode_config.top_p = 0.95
+    greedy_beam.decode_config.top_p = 0.94
+    greedy_beam.exec_req.result_logits = src
     expected_tokens = [13, 14, 15]
-    values = [0.33] * 3
-    with patch.object(
-        greedy_beam, "_sample_logits_top_k", return_value=(expected_tokens, values)
-    ):
-        with patch.object(
-            greedy_beam, "_sample_logits_top_p", return_value=(expected_tokens, values)
-        ):
-            token = greedy_beam.sample_logits()
-            assert token in expected_tokens
+
+    token = greedy_beam.sample_logits()
+    assert token in expected_tokens
+
+
+def test_greedy_beam_sample_logits_top_k_top_p_w_indices(device, greedy_beam):
+    greedy_beam.decode_config.temperature = 1.0
+
+    src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+    data = [0] * math.prod(src.shape)
+    data[0:3] = [4.41] * 3
+    src.items = data
+
+    indices_np = np.flip(
+        np.argpartition(src, -3, -1),
+        axis=-1,
+    )
+    indices = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+    indices.items = indices_np.flatten().tolist()
+
+    greedy_beam.decode_config.top_p = 0.94
+    greedy_beam.decode_config.top_k = 3
+    greedy_beam.exec_req.result_logits = src
+    greedy_beam.exec_req.result_indices = indices
+
+    token = greedy_beam.sample_logits()
+    expected_tokens = indices.view(0, 0, slice(None, 3)).items.tolist()
+    assert token in expected_tokens
 
 
 def test_greedy_update_exec_req(greedy_beam):

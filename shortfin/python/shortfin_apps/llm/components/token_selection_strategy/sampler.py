@@ -8,7 +8,7 @@ import logging
 import numpy as np
 
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Tuple, Union
 
 import shortfin.array as sfnp
 
@@ -51,16 +51,33 @@ class Sampler:
 
         return choices, chosen_probs
 
-    def select_top_k(self, logits: np.array, k: int) -> Tuple[np.array, np.array]:
+    def select_top_k(
+        self,
+        logits: Union[np.array, sfnp.device_array],
+        indices: Union[np.array, sfnp.device_array, None],
+        k: int,
+    ) -> Tuple[np.array, np.array]:
         """
         This function is used to get the top k tokens and their cumulative probabilities.
         """
-        partitioned_tokens = np.argpartition(logits, k)
+        if isinstance(logits, sfnp.device_array):
+            logits = np.array(logits)
+
+        if isinstance(indices, sfnp.device_array):
+            indices = np.array(indices)
+
         # Slice off all axes except the last one
-        zero_indices = (0,) * (partitioned_tokens.ndim - 1)
+        zero_indices = (0,) * (logits.ndim - 1)
+
+        if indices is not None:
+            tokens_index = zero_indices + (slice(None, -k),)
+            return indices[tokens_index], logits[tokens_index]
+
+        tokens_index = zero_indices + (slice(k, None),)
+        partitioned_tokens = np.argpartition(logits, k)
 
         # Obtain tokens & values from partition
-        top_tokens = partitioned_tokens[zero_indices + (slice(k, None),)]
+        top_tokens = partitioned_tokens[tokens_index]
         top_values = np.take(logits, top_tokens, axis=-1)[zero_indices]
 
         return top_tokens, top_values

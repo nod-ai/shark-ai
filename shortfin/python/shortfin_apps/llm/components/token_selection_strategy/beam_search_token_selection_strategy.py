@@ -46,16 +46,17 @@ class BeamSearchBeam(Beam):
         Returns:
             Tuple[List[int], List[float]]: Tuple containing (top_tokens, top_values)
         """
-        logits = self.exec_req.result_logits
+        exec_req = self.exec_req
         decode_config = self.decode_config
-        num_beams = decode_config.num_beams
         top_k = decode_config.top_k
         top_p = decode_config.top_p
 
-        logits = np.array(logits)
+        logits = np.array(exec_req.result_logits)
+        indices = exec_req.result_indices
+        indices = np.array(indices) if indices is not None else None
 
         if (top_k, top_p) == (None, None):
-            tokens, probs = self.sampler.select_top_k(logits, -k)
+            tokens, probs = self.sampler.select_top_k(logits, indices, -k)
 
             if self.decode_config.logits_normalization == LogitsNormalization.NONE:
                 probs = self.apply_temperature(probs)
@@ -72,6 +73,7 @@ class BeamSearchBeam(Beam):
             # Sample from `top_k` tokens
             tokens, probs = self._sample_logits_top_k(
                 logits,
+                indices,
                 top_k,
                 num_selections=top_k,
             )
@@ -79,14 +81,21 @@ class BeamSearchBeam(Beam):
         if top_p is not None:
             if top_k is None:
                 top_p_selection = min(logits.shape[-1], TOP_P_DEFAULT_SELECTION)
-                tokens, values = self.sampler.select_top_k(logits, -top_p_selection)
+                tokens, values = self.sampler.select_top_k(
+                    logits, indices, -top_p_selection
+                )
                 probs = self._to_softmax(
                     values,
                     self.decode_config.logits_normalization,
                 )
 
+                if indices is None:
+                    sorted_order = np.argsort(probs)[::-1]
+                    tokens = tokens[sorted_order]
+                    probs = probs[sorted_order]
+
             tokens, probs = self._sample_logits_top_p(
-                tokens, probs, top_p, num_beams, return_probs=True
+                tokens, probs, top_p, k, return_probs=True
             )
 
         log_probs = self._convert_results_to_log_probs(

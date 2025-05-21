@@ -121,17 +121,25 @@ class Beam(ABC):
 
         return probs
 
-    def _sample_logits_top_k(self, logits: np.array, top_k: int, num_selections: int):
-        tokens, values = self.sampler.select_top_k(logits, -top_k)
+    def _sample_logits_top_k(
+        self,
+        logits: np.array,
+        indices: Union[np.array, None],
+        top_k: int,
+        num_selections: int,
+    ):
+        tokens, values = self.sampler.select_top_k(logits, indices, -top_k)
 
         probs = self._to_softmax(
             values,
             self.decode_config.logits_normalization,
         )
 
-        sorted_order = np.argsort(probs)[::-1]
-        tokens = tokens[sorted_order]
-        probs = probs[sorted_order]
+        if indices is None:
+            sorted_order = np.argsort(probs)[::-1]
+            tokens = tokens[sorted_order]
+            probs = probs[sorted_order]
+
         return self.sampler.sample_top_k(
             tokens=tokens,
             probs=probs,
