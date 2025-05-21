@@ -409,7 +409,6 @@ def main():
                     devices=pipeline_to_device_map[0],
                 )
                 _attention_mask, _start_positions, _seq_block_ids = [], [], []
-
                 for pipeline in range(len(pipeline_to_device_map)):
                     devices = pipeline_to_device_map[pipeline]
                     _attention_mask.append(

@@ -351,9 +351,7 @@ def make_random_moe_block_theta(
             out_dim=in_dim,
             dtype=dtype,
         )
-
         res.update(shared_ffn_theta.tree)
-
     if with_layer_output_norm:
         res["layer_output_norm.weight"] = DefaultPrimitiveTensor(
             name=f"blk.{block_idx}.layer_output_norm.weight",
