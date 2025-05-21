@@ -154,7 +154,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 xk = self.cache_quantizer.quantize(xk).unpack().qs
                 xv = self.cache_quantizer.quantize(xv).unpack().qs
 
-
         if self.attn_q.q_output is not None:
             xq = self.attn_q.q_output.quantize(xq)
         if self.attn_k.q_output is not None:
