@@ -20,6 +20,7 @@ import shortfin.array as sfnp
 from shortfin.interop.fastapi import FastAPIResponder, RequestStatusTracker
 from fastapi.responses import JSONResponse
 from fastapi import status
+from shortfin.python.shortfin_apps.llm.cli import CliResponder
 
 from .config_struct import DecodeConfig
 from .io_struct import (
@@ -142,7 +143,7 @@ class ClientGenerateBatchProcess(sf.Process):
         self,
         service: LlmGenerateService,
         gen_req: GenerateReqInput,
-        responder: FastAPIResponder,
+        responder: FastAPIResponder | CliResponder,
         fiber: sf.Fiber,
     ):
         super().__init__(fiber=fiber)

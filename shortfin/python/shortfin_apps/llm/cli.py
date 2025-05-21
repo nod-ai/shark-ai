@@ -90,8 +90,8 @@ def process_inputs(args):
 class Timer:
     def __init__(self, name: str):
         self._name = name
-        self._start = None
-        self._end = None
+        self._start: Optional[float] = None
+        self._end: Optional[float] = None
 
     def start(self):
         self._start = time.perf_counter()
@@ -102,12 +102,16 @@ class Timer:
         logger.info(f"{self._name} end time: {self._end}")
 
     def elapsed(self):
-        if self._end is None:
+        if self._end is None and self._start is not None:
             return time.perf_counter() - self._start
-        return self._end - self._start
+        if self._end is not None and self._start is not None:
+            return self._end - self._start
+        return 0
 
 
 class CliResponder(AbstractResponder):
+    _idx: int = 0
+
     def __init__(self):
         super().__init__()
         self._loop = asyncio.get_running_loop()
@@ -115,20 +119,21 @@ class CliResponder(AbstractResponder):
         self.responded = False
         self.idx = self._get_idx()
         self.name = f"CliResponder-{self.idx}"
-        self.timer = Timer(self.name)
+        self._timer = Timer(self.name)
 
     @classmethod
     def _get_idx(cls):
-        if not hasattr(cls, "_idx"):
-            cls._idx = 0
         cls._idx += 1
         return cls._idx
 
+    def elapsed(self):
+        return self._timer.elapsed()
+
     def start_response(self):
-        self.timer.start()
+        self._timer.start()
 
     def ensure_response(self):
-        self.timer.end()
+        self._timer.end()
 
     def send_response(self, response):
         logger.info(f"{self.name} Sending response")
@@ -171,9 +176,12 @@ async def main(argv):
         def __init__(self, prompt):
             self.prompt = prompt
             self.responder: Optional[CliResponder] = None
+            self.result: Optional[str] = None
 
         def runtime(self):
-            return self.responder.timer.elapsed()
+            if self.responder is not None:
+                return self.responder.elapsed()
+            return 0
 
     logger.info(f"Setting up a tasklist of {len(prompts)} items")
     tasks: List[Task] = []
