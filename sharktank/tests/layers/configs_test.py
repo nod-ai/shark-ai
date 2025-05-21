@@ -22,6 +22,7 @@ def test_llama_hp_params_to_from_gguf_props_roundtrip():
         attention_head_count_kv=9,
         expert_count=10,
         expert_used_count=11,
+        n_dense_layers=0,
     )
     roundtripped_params = LlamaHParams.from_gguf_props(params.to_gguf_props())
     assert params == roundtripped_params
