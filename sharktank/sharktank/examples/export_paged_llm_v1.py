@@ -74,13 +74,9 @@ def main():
                 f"Unsharded dataset file provided, but specified --tensor-parallelism-size={args.tensor_parallelism_size}. Likely wrong dataset provided."
             )
 
-    if args.pipeline_parallelism_size > 1:
-        block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
-            dataset.root_theta, args.pipeline_parallelism_size
-        )
-    else:
-        block_to_pipeline = None
-        pipeline_to_devices = None
+    block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
+        dataset.root_theta, args.pipeline_parallelism_size
+    )
 
     llama_config = LlamaModelConfig(
         hp,
@@ -226,8 +222,9 @@ def main():
             # We need to offset the indices for the cache
             arg_affinities = {key + 3: arg_affinities[key] for key in arg_affinities}
 
+            # Inputs have default affinity 0
             for i in range(3):
-                device = str(pipeline_to_devices[0][0])
+                device = pipeline_to_devices[0][0] if pipeline_to_devices else 0
                 arg_affinities[i] = DeviceAffinity(device)
 
         dynamic_shapes = {
@@ -263,33 +260,38 @@ def main():
                 seq_block_ids = [seq_block_ids]
             else:
                 shard_count = llama_config.tensor_parallelism_size
+                pipeline_to_device_map = (
+                    llama_config.pipeline_to_device_map
+                    if llama_config.pipeline_to_device_map
+                    else [list(range(shard_count))]
+                )
 
                 tokens = ops.replicate(
                     tokens,
                     count=shard_count,
-                    devices=llama_config.pipeline_to_device_map[0],
+                    devices=pipeline_to_device_map[0],
                 )
                 if attention_mask is None:
-                    attention_mask = [None] * model.cache.pipeline_count
+                    attention_mask = [None] * len(pipeline_to_device_map)
                 else:
                     attention_mask = [
                         ops.replicate(
                             attention_mask,
                             count=shard_count,
-                            devices=model.cache.pipeline_to_device_map[pipeline],
+                            devices=pipeline_to_device_map[pipeline],
                         )
-                        for pipeline in range(model.cache.pipeline_count)
+                        for pipeline in range(len(pipeline_to_device_map))
                     ]
                 seq_block_ids = [
                     ops.replicate(
                         seq_block_ids,
                         count=shard_count,
-                        devices=model.cache.pipeline_to_device_map[pipeline],
+                        devices=pipeline_to_device_map[pipeline],
                     )
-                    for pipeline in range(model.cache.pipeline_count)
+                    for pipeline in range(len(pipeline_to_device_map))
                 ]
                 cache_tensors = repack_cache(
-                    cs, cache_shard_dim, model.cache.pipeline_to_device_map
+                    cs, cache_shard_dim, pipeline_to_device_map
                 )
 
             logits = model.prefill(
@@ -348,7 +350,8 @@ def main():
 
             # Inputs have default affinity 0
             for i in range(4):
-                arg_affinities[i] = DeviceAffinity(str(pipeline_to_devices[0][0]))
+                device = pipeline_to_devices[0][0] if pipeline_to_devices else 0
+                arg_affinities[i] = DeviceAffinity(device)
 
         dynamic_shapes = {
             "tokens": {},
@@ -395,15 +398,20 @@ def main():
                 start_positions = [start_positions]
             else:
                 shard_count = llama_config.tensor_parallelism_size
+                pipeline_to_device_map = (
+                    llama_config.pipeline_to_device_map
+                    if llama_config.pipeline_to_device_map
+                    else [list(range(shard_count))]
+                )
 
                 tokens = ops.replicate(
                     tokens,
                     count=shard_count,
-                    devices=llama_config.pipeline_to_device_map[0],
+                    devices=pipeline_to_device_map[0],
                 )
                 _attention_mask, _start_positions, _seq_block_ids = [], [], []
-                for pipeline in range(model.cache.pipeline_count):
-                    devices = model.cache.pipeline_to_device_map[pipeline]
+                for pipeline in range(len(pipeline_to_device_map)):
+                    devices = pipeline_to_device_map[pipeline]
                     _attention_mask.append(
                         ops.replicate(
                             attention_mask, count=shard_count, devices=devices
@@ -424,7 +432,7 @@ def main():
                 )
 
                 cache_state = repack_cache(
-                    cache_state, cache_shard_dim, model.cache.pipeline_to_device_map
+                    cache_state, cache_shard_dim, pipeline_to_device_map
                 )
 
             logits = model.decode(
