@@ -28,10 +28,29 @@ from sharktank.types import (
     QuantizerTensor,
     PlanarQuantizedTensor,
     StaticScaledQuantizer,
+    TensorScaledLayout,
 )
 from sharktank import ops, kernels
 
 __all__ = ["PagedAttention"]
+
+
+def cachify(tensor):
+    if isinstance(tensor, PlanarQuantizedTensor):
+        return tensor.unpack()._qs
+    return tensor
+
+
+def uncachify(tensor, quantizer):
+    if quantizer is None:
+        return tensor
+    layout = TensorScaledLayout(
+        shape=tensor.shape,
+        d=quantizer._reciprocal_scale,
+        qs=tensor,
+        m=quantizer._offset,
+    )
+    return PlanarQuantizedTensor(shape=tensor.shape, layout=layout)
 
 
 class KVCache:
@@ -873,12 +892,6 @@ class PagedAttention:
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)
 
-        q = ops.to(q, dtype=self.attn_dtype)
-        k = ops.to(k, dtype=self.attn_dtype)
-        v = ops.to(v, dtype=self.attn_dtype)
-        if mask is not None:
-            mask = ops.to(mask, dtype=self.attn_dtype)
-
         # Decomposed
         if attention_kernel == "decomposed":
             if isinstance(q, PlanarQuantizedTensor):
@@ -921,12 +934,8 @@ class PagedAttention:
             return ops.matmul(attn_weights, v)  # (bs, heads, slen, head_dim)
         elif attention_kernel == "sharktank":
             if mask is not None:
-                attn_output = kernels.masked_flash_attention(
-                    q,
-                    k,
-                    v,
-                    mask[0, 0, :, :],
-                    torch.tensor(1 / math.sqrt(self.attn_head_dim)),
+                attn_output = ops.attention_impls.masked_flash_attention(
+                    q, k, v, mask[0, 0, :, :]
                 )
             else:
                 attn_output = kernels.flash_attention(q, k, v)
@@ -962,13 +971,15 @@ class PagedAttention:
         softcap: Optional[float] = None,
         scale: Optional[float] = None,
         mask: Optional[torch.Tensor] = None,
+        k_quantizer: StaticScaledQuantizer = None,
+        v_quantizer: StaticScaledQuantizer = None,
     ):
         # Write our one updated cache row into the cache.
         self.write_timestep(
             cache_state,
             cache_partitions=[
-                k,
-                v,
+                cachify(k),
+                cachify(v),
             ],
             transformer_block_index=block_index,
             seq_positions=start_positions,
@@ -981,6 +992,9 @@ class PagedAttention:
             transformer_block_index=block_index,
             page_ids=seq_block_ids,
         )
+
+        k = uncachify(k, k_quantizer)
+        v = uncachify(v, v_quantizer)
 
         return self.attention(
             q=q,
@@ -1015,7 +1029,7 @@ class PagedAttention:
     ):
         self.write(
             cache_state,
-            cache_partitions=[k, v],
+            cache_partitions=[cachify(k), cachify(v)],
             transformer_block_index=block_index,
             page_ids=seq_block_ids,
         )
