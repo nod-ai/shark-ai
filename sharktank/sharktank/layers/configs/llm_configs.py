@@ -202,14 +202,24 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         res["attention_softcap"] = 30.0
 
     if name_prefix == "deepseek2":
-        res["qk_rope_head_dim"] = 64
-        res["qk_nope_head_dim"] = 128
-        res["v_head_dim"] = 128
+        res["qk_rope_head_dim"] = _optional_int_prop(
+            p, f"{name_prefix}.attention.qk_rope_head_dim", 64
+        )
+        res["qk_nope_head_dim"] = _optional_int_prop(
+            p, f"{name_prefix}.attention.qk_nope_head_dim", 128
+        )
+        res["v_head_dim"] = _optional_int_prop(
+            p, f"{name_prefix}.attention.v_head_dim", 128
+        )
         res["q_lora_rank"] = _int_prop(p, f"{name_prefix}.attention.q_lora_rank")
         res["kv_lora_rank"] = _int_prop(p, f"{name_prefix}.attention.kv_lora_rank")
         res["route_scale"] = _float_prop(p, f"{name_prefix}.expert_weights_scale")
-        res["n_expert_groups"] = 8
-        res["n_limited_groups"] = 4
+        res["n_expert_groups"] = _optional_int_prop(
+            p, f"{name_prefix}.n_expert_groups", 8
+        )
+        res["n_limited_groups"] = _optional_int_prop(
+            p, f"{name_prefix}.n_limited_groups", 4
+        )
         res["expert_shared_count"] = _int_prop(p, f"{name_prefix}.expert_shared_count")
         res["rope_scaling_type"] = _str_prop(p, f"{name_prefix}.rope.scaling.type")
         res["rope_scaling_factor"] = _float_prop(
