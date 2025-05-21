@@ -203,7 +203,7 @@ class CliResponder(AbstractResponder):
         Streaming must be ended by sending None.
         """
         assert self._streaming_queue is not None, "stream_start() not called"
-        self.token_times.append(self.timer.elapsed())
+        self.token_times.append(self.elapsed())
         if self._log_tokens:
             logger.info(
                 f"{self.name} Streaming part: {content.decode() if isinstance(content, bytes) else content}"
@@ -339,4 +339,5 @@ async def main(argv):
 
 
 if __name__ == "__main__":
+    configure_main_logger("cli")
     asyncio.run(main(sys.argv[1:]))
