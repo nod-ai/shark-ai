@@ -254,6 +254,7 @@ def flatten_default(
 ) -> Tensor:
     return torch.flatten(unbox_tensor(input), start_dim, end_dim)
 
+
 @flatten.override(QuantizedTensor)
 def flatten_quantized(
     tensor: QuantizedTensor, start_dim: int, end_dim: int
