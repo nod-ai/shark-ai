@@ -12,9 +12,8 @@ and dims floating around everywhere.
 """
 
 from itertools import accumulate
-from typing import Optional, Tuple, Union, List
+from typing import Optional, Union, List
 
-import abc
 import math
 
 import itertools
@@ -219,6 +218,10 @@ class KVCache:
             index = index * self.block_seq_stride + page_offset
 
             values = ops.to(cache_partition, dtype=page_table.dtype)
+
+            if isinstance(values, ShardedTensor) and type(values) != type(page_table):
+                values = ops.reshard_like(values, like=page_table)
+
             if page_table.dtype == torch.float8_e4m3fnuz:
                 # Workaround for Torch not supporting torch.Tensor.index_copy_ for f8.
                 page_table_as_int8 = page_table.view(dtype=torch.int8)
@@ -738,6 +741,7 @@ class PagedAttention:
         transformer_block_count: int,
         attn_head_count: int,
         attn_head_dim: int,
+        attn_type: str = "gqa",
         cache_partition_count: int = 2,
         block_seq_stride: int = 16,
         cache_dtype: torch.dtype = torch.float32,
@@ -755,6 +759,7 @@ class PagedAttention:
         self.attn_dtype = attn_dtype
         self.cache_dtype = cache_dtype
         self.shard_count = shard_count
+        self.attn_type = attn_type
 
         self.pipeline_to_device_map = pipeline_to_device_map
         if self.pipeline_to_device_map is None:
@@ -836,6 +841,20 @@ class PagedAttention:
             page_ids=page_ids,
         )
 
+    def repeat_kv(self, x: torch.Tensor, n_rep: int) -> torch.Tensor:
+        bs, slen, n_kv_heads, head_dim = x.shape
+        unsq = x.unsqueeze(-2)
+        exp = ops.expand(unsq, (bs, slen, n_kv_heads, n_rep, head_dim))
+        return exp.flatten(2, 3)
+
+    def gqa(self, head_count_attn, k, v):
+        gqa_n_rep = head_count_attn // self.head_count_kv
+        assert gqa_n_rep > 0
+        if gqa_n_rep > 1:
+            k = self.repeat_kv(x=k, n_rep=gqa_n_rep)
+            v = self.repeat_kv(x=v, n_rep=gqa_n_rep)
+        return k, v
+
     def attention(
         self,
         *,
@@ -843,26 +862,16 @@ class PagedAttention:
         k: torch.Tensor,
         v: torch.Tensor,
         head_count_attn: int,
-        attention_kernel: str,
         cache_quantizer: Optional[QuantizerTensor],
+        attention_kernel: str,
         fake_quant: Optional[bool],
         softcap: Optional[float] = None,
         scale: Optional[torch.Tensor] = None,
         mask: Optional[torch.Tensor] = None,
         probs_quantizer: Optional[StaticScaledQuantizer] = None,
     ):
-        gqa_n_rep = head_count_attn // self.head_count_kv
-        assert gqa_n_rep > 0
-        if gqa_n_rep > 1:
-
-            def repeat_kv(x: torch.Tensor) -> torch.Tensor:
-                bs, slen, n_kv_heads, head_dim = x.shape
-                unsq = x.unsqueeze(-2)
-                exp = ops.expand(unsq, (bs, slen, n_kv_heads, gqa_n_rep, head_dim))
-                return exp.flatten(2, 3)
-
-            k = repeat_kv(k)
-            v = repeat_kv(v)
+        if self.attn_type == "gqa":
+            k, v = self.gqa(head_count_attn, k, v)
 
         # Fake quant is already dequantized when stored in the cache.
         if cache_quantizer and not fake_quant:
@@ -879,7 +888,12 @@ class PagedAttention:
         if mask is not None:
             mask = ops.to(mask, dtype=self.attn_dtype)
 
-        # Decomposed
+        if isinstance(k, ShardedTensor) and type(k) != type(q):
+            k = ops.reshard_like(k, like=q)
+
+        if isinstance(v, ShardedTensor) and type(v) != type(q):
+            v = ops.reshard_like(v, like=q)
+
         if attention_kernel == "decomposed":
             if isinstance(q, PlanarQuantizedTensor):
                 q = q.unpack().dequantize()
@@ -919,6 +933,7 @@ class PagedAttention:
                     attn_weights = probs_quantizer.quantize(attn_weights).unpack().qs
             attn_weights = ops.to(attn_weights, dtype=q.dtype)
             return ops.matmul(attn_weights, v)  # (bs, heads, slen, head_dim)
+
         elif attention_kernel == "sharktank":
             if mask is not None:
                 attn_output = kernels.masked_flash_attention(
@@ -931,19 +946,19 @@ class PagedAttention:
             else:
                 attn_output = kernels.flash_attention(q, k, v)
             return attn_output
-        else:
-            # Non-decomposed
-            if softcap is not None:
-                raise ValueError("softcap not supported yet")
 
-            return ops.scaled_dot_product_attention(
-                q=q,  # [bs, ..., sl, dim]
-                k=k,  # [bs, ..., sl, dim]
-                v=v,  # [bs, ..., sl, dim]
-                a=mask,  # [bs, ..., sl, sl]
-                is_causal=mask is None,  # assumes causal masking when true
-                scale=None,  # defaults to 1/sqrt(dim)
-            )
+        # Non-decomposed
+        if softcap is not None:
+            raise ValueError("softcap not supported yet")
+
+        return ops.scaled_dot_product_attention(
+            q=q,  # [bs, ..., sl, dim]
+            k=k,  # [bs, ..., sl, dim]
+            v=v,  # [bs, ..., sl, dim]
+            a=mask,  # [bs, ..., sl, sl]
+            is_causal=mask is None,  # assumes causal masking when true
+            scale=None,  # defaults to 1/sqrt(dim)
+        )
 
     def forward_decode(
         self,
