@@ -170,7 +170,7 @@ class RotaryEmbeddingLayer(BaseLayer):
             sin = sin[None, :, None, :].repeat(xt.shape[0], 1, 1, 1)
             xt = xt.transpose(1, 2)
             xt_out = (xt_ * cos) + (self.rotate_half(xt_) * sin)
-            return xt_out.to(self.dtype)
+            return xt_out
 
         # Offset the table based on starting position.
         if self.use_table:

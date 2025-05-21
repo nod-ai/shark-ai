@@ -967,9 +967,6 @@ class PagedAttention:
         scale: Optional[torch.Tensor] = None,
         mask: Optional[torch.Tensor] = None,
         probs_quantizer: Optional[StaticScaledQuantizer] = None,
-        qq = None,
-        kq = None,
-        vq = None,
     ):
         if self.attn_type == "gqa":
             k, v = self.gqa(head_count_attn, k, v)
