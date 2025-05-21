@@ -242,9 +242,9 @@ def expand_quantized(tensor: QuantizedTensor, shape: List[int]) -> QuantizedTens
     if isinstance(unpacked, TensorScaledLayout):
         new_qs = unpacked._qs.expand(*shape)
         layout = TensorScaledLayout(
-            shape=tensor.shape, d=unpacked._d, qs=new_qs, m=unpacked._m
+            shape=new_qs.shape, d=unpacked._d, qs=new_qs, m=unpacked._m
         )
-        return PlanarQuantizedTensor(shape=tensor.shape, layout=layout)
+        return PlanarQuantizedTensor(shape=new_qs.shape, layout=layout)
     return NotImplemented
 
 
@@ -263,9 +263,9 @@ def flatten_quantized(
     if isinstance(unpacked, TensorScaledLayout):
         new_qs = torch.flatten(unpacked._qs, start_dim, end_dim)
         layout = TensorScaledLayout(
-            shape=tensor.shape, d=unpacked._d, qs=new_qs, m=unpacked._m
+            shape=new_qs.shape, d=unpacked._d, qs=new_qs, m=unpacked._m
         )
-        return PlanarQuantizedTensor(shape=tensor.shape, layout=layout)
+        return PlanarQuantizedTensor(shape=new_qs.shape, layout=layout)
     return NotImplemented
 
 
@@ -704,9 +704,9 @@ def unsqueeze_quantized(tensor: QuantizedTensor, dim: int) -> QuantizedTensor:
     if isinstance(unpacked, TensorScaledLayout):
         new_qs = unpacked._qs.unsqueeze(dim)
         layout = TensorScaledLayout(
-            shape=tensor.shape, d=unpacked._d, qs=new_qs, m=unpacked._m
+            shape=new_qs.shape, d=unpacked._d, qs=new_qs, m=unpacked._m
         )
-        return PlanarQuantizedTensor(shape=tensor.shape, layout=layout)
+        return PlanarQuantizedTensor(shape=new_qs.shape, layout=layout)
     return NotImplemented
 
 
