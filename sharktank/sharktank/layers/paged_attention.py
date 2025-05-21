@@ -1029,10 +1029,7 @@ class PagedAttention:
         elif attention_kernel == "sharktank":
             if mask is not None:
                 attn_output = ops.attention_impls.masked_flash_attention(
-                    q,
-                    k,
-                    v,
-                    mask[0, 0, :, :]
+                    q, k, v, mask[0, 0, :, :]
                 )
             else:
                 attn_output = kernels.flash_attention(q, k, v)
@@ -1092,12 +1089,18 @@ class PagedAttention:
 
         if k_quantizer is not None:
             klayout = TensorScaledLayout(
-                shape=kqs.shape, d=k_quantizer._reciprocal_scale, qs=kqs, m=k_quantizer._offset
+                shape=kqs.shape,
+                d=k_quantizer._reciprocal_scale,
+                qs=kqs,
+                m=k_quantizer._offset,
             )
             k = PlanarQuantizedTensor(shape=kqs.shape, layout=klayout)
         if v_quantizer is not None:
             vlayout = TensorScaledLayout(
-                shape=vqs.shape, d=v_quantizer._reciprocal_scale, qs=vqs, m=v_quantizer._offset
+                shape=vqs.shape,
+                d=v_quantizer._reciprocal_scale,
+                qs=vqs,
+                m=v_quantizer._offset,
             )
             v = PlanarQuantizedTensor(shape=vqs.shape, layout=vlayout)
 
