@@ -134,13 +134,18 @@ def add_service_args(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--benchmark",
         action="store_true",
-        help="Perform a benchmarking run for throughput",
+        help="Perform a benchmarking run for throughput.",
     )
     parser.add_argument(
         "--benchmark_tasks",
         type=int,
         default=None,
-        help="Workload size to benchmark with",
+        help="Workload size to benchmark with.",
+    )
+    parser.add_argument(
+        "--disaggregate",
+        action="store_true",
+        help="Disaggregate the prefill and decode invocations to separate HIP streams.",
     )
 
 
