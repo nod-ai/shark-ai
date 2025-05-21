@@ -1134,8 +1134,6 @@ class PagedAttention:
         scale: Optional[float] = None,
         mask: Optional[torch.Tensor] = None,
         probs_quantizer: Optional[StaticScaledQuantizer] = None,
-        k_quantizer = None,
-        v_quantizer = None,
     ):
         self.write(
             cache_state,
