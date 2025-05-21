@@ -23,7 +23,9 @@ from .components.generate import ClientGenerateBatchProcess
 from .components.io_struct import GenerateReqInput, SamplingParams
 from .components.lifecycle import ShortfinLlmLifecycleManager
 from .server import add_service_args
-from loguru import logger
+
+
+logger = logging.getLogger(__name__)
 
 
 def add_input_args(parser):
@@ -57,6 +59,18 @@ def add_cli_args(parser: argparse.ArgumentParser):
         type=float,
         required=False,
         help="Temperature value to use for `offline` generation.",
+    )
+    parser.add_argument(
+        "--top_k",
+        type=int,
+        required=False,
+        help="Top K value to use for `offline` generation.",
+    )
+    parser.add_argument(
+        "--top_p",
+        type=float,
+        required=False,
+        help="Top P value to use for `offline` generation.",
     )
     parser.add_argument(
         "--workers_offline",
@@ -169,6 +183,10 @@ async def main(argv):
     sampling_params = SamplingParams(max_completion_tokens=args.decode_steps)
     if getattr(args, "temperature", None) is not None:
         sampling_params.temperature = args.temperature
+    if getattr(args, "top_k", None) is not None:
+        sampling_params.top_k = args.top_k
+    if getattr(args, "top_p", None) is not None:
+        sampling_params.top_p = args.top_p
 
     prompts = process_inputs(args)
 
@@ -242,4 +260,5 @@ async def main(argv):
 
 
 if __name__ == "__main__":
+    configure_main_logger("cli")
     asyncio.run(main(sys.argv[1:]))

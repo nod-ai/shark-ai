@@ -17,10 +17,10 @@ import shortfin as sf
 import shortfin.array as sfnp
 
 # TODO: Have a generic "Responder" interface vs just the concrete impl.
-from shortfin.interop.fastapi import FastAPIResponder, RequestStatusTracker
+from shortfin.interop.fastapi import RequestStatusTracker
+from shortfin.support.responder import AbstractResponder
 from fastapi.responses import JSONResponse
 from fastapi import status
-from shortfin.python.shortfin_apps.llm.cli import CliResponder
 
 from .config_struct import DecodeConfig
 from .io_struct import (
@@ -143,7 +143,7 @@ class ClientGenerateBatchProcess(sf.Process):
         self,
         service: LlmGenerateService,
         gen_req: GenerateReqInput,
-        responder: FastAPIResponder | CliResponder,
+        responder: AbstractResponder,
         fiber: sf.Fiber,
     ):
         super().__init__(fiber=fiber)

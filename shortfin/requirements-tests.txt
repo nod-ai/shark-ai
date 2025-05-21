@@ -6,7 +6,6 @@ fastapi
 aiohttp==3.11.3
 onnx
 uvicorn
-loguru
 
 # Libraries needed to build in dev setups.
 setuptools
