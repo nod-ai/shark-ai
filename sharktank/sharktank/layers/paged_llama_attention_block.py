@@ -253,8 +253,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 scale=self.attention_scale,
                 softcap=self.softcap,
                 probs_quantizer=self.probs_quantizer,
-                k_quantizer=self.attn_k.q_output,
-                v_quantizer=self.attn_v.q_output,
             )
         else:
             attn_output = self.paged_attention.forward_decode(
@@ -272,6 +270,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 mask=attention_mask,
                 scale=self.attention_scale,
                 softcap=self.softcap,
+                k_quantizer=self.attn_k.q_output,
+                v_quantizer=self.attn_v.q_output,
             )
         # attn_output is sharded
         # Drop padded part of attn_output
