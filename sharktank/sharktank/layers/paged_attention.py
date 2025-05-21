@@ -959,8 +959,8 @@ class PagedAttention:
         softcap: Optional[float] = None,
         scale: Optional[float] = None,
         mask: Optional[torch.Tensor] = None,
-        k_quantizer = None,
-        v_quantizer = None,
+        k_quantizer: StaticScaledQuantizer = None,
+        v_quantizer: StaticScaledQuantizer = None,
     ):
         # Write our one updated cache row into the cache.
         self.write_timestep(
@@ -983,12 +983,12 @@ class PagedAttention:
 
         if k_quantizer is not None:
             klayout = TensorScaledLayout(
-                shape=kqs.shape, d=k_quantizer._d, qs=kqs, m=k_quantizer._m
+                shape=kqs.shape, d=k_quantizer._reciprocal_scale, qs=kqs, m=k_quantizer._offset
             )
             k = PlanarQuantizedTensor(shape=kqs.shape, layout=klayout)
         if v_quantizer is not None:
             vlayout = TensorScaledLayout(
-                shape=vqs.shape, d=v_quantizer._d, qs=vqs, m=v_quantizer._m
+                shape=vqs.shape, d=v_quantizer._reciprocal_scale, qs=vqs, m=v_quantizer._offset
             )
             v = PlanarQuantizedTensor(shape=vqs.shape, layout=vlayout)
 
