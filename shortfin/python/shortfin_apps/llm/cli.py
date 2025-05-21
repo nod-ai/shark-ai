@@ -74,7 +74,12 @@ def parse_args(argv):
     add_service_args(parser)
     add_input_args(parser)
     add_cli_args(parser)
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.benchmark and args.benchmark_tasks is None:
+        raise ValueError(
+            "Benchmark tasks must be provided when running in benchmark mode"
+        )
+    return args
 
 
 def process_inputs(args) -> List[str]:
@@ -83,6 +88,8 @@ def process_inputs(args) -> List[str]:
     if args.prompt:
         if args.benchmark and args.benchmark_tasks is not None:
             prompts = [args.prompt] * args.benchmark_tasks
+        else:
+            prompts = [args.prompt]
         return prompts
 
     return json.load(open(args.prompt_file, "r"))
