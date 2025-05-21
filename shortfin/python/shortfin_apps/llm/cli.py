@@ -89,9 +89,6 @@ def parse_args(argv):
 
 
 def process_inputs(args):
-    # Leaving this here as it helps with debugging differences in
-    # performance between the CLI and the server.
-    # return ["".join(["one " * 2500])]
 
     if args.prompt:
         if args.benchmark and args.benchmark_tasks is not None:
