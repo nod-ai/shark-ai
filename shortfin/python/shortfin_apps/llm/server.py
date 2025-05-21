@@ -13,13 +13,13 @@ import uvicorn.logging
 
 # Import first as it does dep checking and reporting.
 from shortfin import ProgramIsolation
-from .cli import add_service_args
 
 import uvicorn
 
 from .application import get_app
 from .components.lifecycle import ShortfinLlmLifecycleManager
-
+from .components.token_selection_strategy import TokenSelectionStrategy
+from ..utils import get_system_args
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +49,85 @@ UVICORN_LOG_CONFIG = {
         },
     },
 }
+
+
+def add_service_args(parser: argparse.ArgumentParser):
+    get_system_args(parser)
+
+    parser.add_argument(
+        "--tokenizer_json",
+        type=Path,
+        required=True,
+        help="Path to a tokenizer.json file",
+    )
+    parser.add_argument(
+        "--tokenizer_config_json",
+        type=Path,
+        required=False,
+        help="Path to a tokenizer_config json file",
+    )
+    parser.add_argument(
+        "--model_config",
+        type=Path,
+        required=True,
+        help="Path to the model config file",
+    )
+    parser.add_argument(
+        "--vmfb",
+        type=Path,
+        required=True,
+        help="Model VMFB to load",
+    )
+    parser.add_argument(
+        "--parameters",
+        type=Path,
+        nargs="*",
+        help="Parameter archives to load (supports: gguf, irpa, safetensors).",
+        metavar="FILE",
+    )
+    parser.add_argument(
+        "--program_isolation",
+        type=str,
+        default="per_call",
+        choices=[isolation.name.lower() for isolation in ProgramIsolation],
+        help="Concurrency control -- How to isolate programs.",
+    )
+    parser.add_argument(
+        "--server_config",
+        type=Path,
+        help="Path to server configuration file",
+    )
+    parser.add_argument(
+        "--prefix_sharing_algorithm",
+        type=str,
+        choices=["none", "trie"],
+        help="Algorithm to use for prefix sharing in KV cache",
+    )
+    parser.add_argument(
+        "--num_beams",
+        type=int,
+        default=1,
+        help="The number of beams to use during decode sequence. Defaults to `1`.",
+    )
+    parser.add_argument(
+        "--token_selection_strategy",
+        type=str,
+        choices=[strategy.name.lower() for strategy in TokenSelectionStrategy],
+        default="greedy",
+        help="Strategy to use when selecting tokens during generation. Defaults to `greedy`.",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Number of workers to use when running in `server` mode.",
+    )
+    parser.add_argument(
+        "--fibers_per_worker",
+        type=int,
+        default=1,
+        help="Number of fibers to use per worker.",
+    )
 
 
 def parse_args(argv):
