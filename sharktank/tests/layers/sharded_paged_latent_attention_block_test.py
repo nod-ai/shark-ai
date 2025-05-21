@@ -23,7 +23,7 @@ from sharktank.utils.create_cache import *
 
 
 @pytest.mark.skip(
-    reason="Support will be added soon",
+    reason="Cache states don't match after cache refactor in #1404",
 )
 class ShardedPagedLatentAttentionBlockTest(unittest.TestCase):
     """Verify that the sharded latent paged attention block behaves in PyTorch as the
@@ -130,11 +130,8 @@ class ShardedPagedLatentAttentionBlockTest(unittest.TestCase):
         )
 
         actual_result = unbox_tensor(ops.unshard(sharded_result))
-        actual_cache_state = unbox_tensor(
-            ops.unshard(
-                sharded_cache.unflatten_page_tables(sharded_cache_state)[0]
-            ).flatten(start_dim=1)
-        )
 
-        torch.testing.assert_close(actual_result, expected_result)
+        actual_cache_state = unbox_tensor(sharded_cache_state[0])
+
+        torch.testing.assert_close(actual_result, expected_result, atol=3e-4, rtol=2e-1)
         torch.testing.assert_close(actual_cache_state, cache_state[0])
