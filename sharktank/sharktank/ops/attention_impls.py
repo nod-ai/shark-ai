@@ -42,7 +42,6 @@ def masked_flash_attention(q, k, v, a):
     q, qscale = _extract_linear_scale(q)
     k, kscale = _extract_linear_scale(k)
     v, vscale = _extract_linear_scale(v)
-    #print(q.dtype, v.dtype, k.dtype)
 
     scale = scale * qscale if qscale is not None else scale
     scale = scale * kscale if kscale is not None else scale

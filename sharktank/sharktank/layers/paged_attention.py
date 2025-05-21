@@ -851,9 +851,6 @@ class PagedAttention:
         scale: Optional[torch.Tensor] = None,
         mask: Optional[torch.Tensor] = None,
         probs_quantizer: Optional[StaticScaledQuantizer] = None,
-        qq = None,
-        kq = None,
-        vq = None,
     ):
         gqa_n_rep = head_count_attn // self.head_count_kv
         assert gqa_n_rep > 0

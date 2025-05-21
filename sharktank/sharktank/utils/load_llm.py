@@ -77,7 +77,6 @@ class TorchGenerator:
 
         cache_state = self.model.cache.allocate(self.page_cache_size)
         self.free_pages = list(range(1, self.page_cache_size))
-        print(self.page_cache_size, bs)
 
         return Batch(
             self,
