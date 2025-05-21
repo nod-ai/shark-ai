@@ -123,7 +123,7 @@ def KVCacheGatherKernel():
 kv_cache_gather = KVCacheGatherKernel()
 
 def cachify(tensor):
-    if isinstance(tensor, QuantizerTensor):
+    if isinstance(tensor, PlanarQuantizedTensor):
         return tensor.unpack()._qs
     return tensor
 
