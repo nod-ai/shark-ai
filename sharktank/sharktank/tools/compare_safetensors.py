@@ -145,7 +145,8 @@ def main(argv):
         type=Path,
         default=None,
         help=(
-            "Path to JSON or YAML file that maps names of expected tensors to names of actual tensors."
+            "Path to JSON or YAML file that maps names of expected tensors to names of "
+            'actual tensors. E.g. {"a": "b", "c": "d"}'
         ),
     )
     parser.add_argument(
@@ -179,7 +180,9 @@ def main(argv):
                     act_name = expected_actual_to_key_map[name]
                 if act_name not in act_keys:
                     continue
-            reporter.compare(name, exp_f.get_tensor(name), act_f.get_tensor(act_name))
+                reporter.compare(
+                    name, exp_f.get_tensor(name), act_f.get_tensor(act_name)
+                )
     finally:
         reporter.close()
 
