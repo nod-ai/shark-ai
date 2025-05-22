@@ -419,7 +419,7 @@ class LlamaModelConfig:
     floor_scale: Optional[int] = None
 
     # If True, the Feed-Forward Network (FFN) block adds the residual connection at the end.
-    ffn_add_residual: bool = True
+    ffn_add_residual: bool = False
 
     # The size of the model's vocabulary.
     vocabulary_size: Optional[int] = None

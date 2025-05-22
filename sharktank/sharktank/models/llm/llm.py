@@ -405,17 +405,12 @@ class AttentionFFNBlock(ThetaLayer):
             ),
         }
 
-        # TODO: make all models respect config.moe_layers
-        is_moe_block = block_index in config.moe_layers
-        # Always define add_residual
-        self.add_residual = False
-        if is_moe_block:
-            (
-                score_experts,
-                moe_activation,
-                self.add_residual,
-                normalize_experts,
-            ) = moe_func_map[config.hp.model_arch]
+        (
+            score_experts,
+            moe_activation,
+            self.add_residual,
+            normalize_experts,
+        ) = moe_func_map[config.hp.model_arch]
 
         n_dense_layers = config.hp.n_dense_layers
 
