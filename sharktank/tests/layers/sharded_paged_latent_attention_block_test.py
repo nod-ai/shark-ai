@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import unittest
+import pytest
 from copy import deepcopy
 
 import torch
@@ -21,6 +22,9 @@ from sharktank import ops
 from sharktank.utils.create_cache import *
 
 
+@pytest.mark.skip(
+    reason="Deepseek support will be added in 1256",
+)
 class ShardedPagedLatentAttentionBlockTest(unittest.TestCase):
     """Verify that the sharded latent paged attention block behaves in PyTorch as the
     unsharded variant."""
