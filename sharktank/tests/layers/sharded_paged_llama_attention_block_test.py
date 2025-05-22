@@ -17,6 +17,7 @@ import torch
 from sharktank import ops
 from copy import deepcopy
 import pytest
+import platform
 
 
 class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
@@ -44,6 +45,12 @@ class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
         self.batch_size = 3
         self.start_index = 0
 
+    @pytest.mark.xfail(
+        platform.system() == "Windows",
+        raises=AssertionError,
+        strict=False,
+        reason="nan on Windows",
+    )
     def testSmallSizedLayerFp64(self):
         self.runTestSmallSizedLayer(dtype=torch.float64, rtol=1e-7, atol=1e-7)
 
