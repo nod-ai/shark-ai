@@ -7,6 +7,7 @@
 from pathlib import Path
 from typing import Any
 from collections.abc import Mapping, Iterable
+from sharktank.types import InferenceTensor, unbox_tensor
 import logging
 import torch
 
@@ -124,6 +125,7 @@ class SaveModuleResultTensorsPatch(Patch):
                     for k, v in tensor_dict.items()
                     if k not in unsupported_tensor_dict.keys()
                 }
+
         save_file(tensor_dict, output_path)
 
     def _add_nested_tensors(
@@ -132,16 +134,16 @@ class SaveModuleResultTensorsPatch(Patch):
         tensors: list[Any] | dict[str, Any] | torch.Tensor,
         name_delimiter: str,
     ):
-        if isinstance(tensors, torch.Tensor):
-            self._add_tensor(name=name_prefix, tensor=tensors)
+        if isinstance(tensors, (torch.Tensor, InferenceTensor)):
+            self._add_tensor(name=name_prefix, tensor=unbox_tensor(tensors))
         elif isinstance(tensors, Mapping):
             for k, v in tensors.items():
-                self._add_nested_tensor(
+                self._add_nested_tensors(
                     f"{name_prefix}{name_delimiter}{k}", v, name_delimiter
                 )
         elif isinstance(tensors, Iterable):
             for i, v in enumerate(tensors):
-                self._add_nested_tensor(
+                self._add_nested_tensors(
                     f"{name_prefix}{name_delimiter}{i}", v, name_delimiter
                 )
         else:
@@ -154,7 +156,6 @@ class SaveModuleResultTensorsPatch(Patch):
             del self.tensors[name]
             self.duplicate_tensors[name] = 0
             self.tensors[f"{name}#0"] = orig_dup
-
         if name in self.duplicate_tensors:
             index = self.duplicate_tensors[name] + 1
             self.duplicate_tensors[name] = index
