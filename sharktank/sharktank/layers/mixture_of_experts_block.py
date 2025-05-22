@@ -40,6 +40,7 @@ class MoeBlock(ThetaLayer):
         n_expert_groups: Optional[int] = None,
         n_limited_groups: Optional[int] = None,
         route_scale: Optional[float] = None,
+        add_residual: bool = False,
     ):
         super().__init__(theta)
         if n_expert_groups is not None:
@@ -112,7 +113,9 @@ class MoeBlock(ThetaLayer):
                     }
                 )
             self.shared_experts = FFN(
-                theta=shared_ffn_theta, activation_fn=moe_activation, add_residual=False
+                theta=shared_ffn_theta,
+                activation_fn=moe_activation,
+                add_residual=add_residual,
             )
 
         # Add optional FFN output norm layer

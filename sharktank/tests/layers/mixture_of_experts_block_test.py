@@ -29,18 +29,19 @@ class MoeBlockTest(unittest.TestCase):
         in_dim = 7
 
         theta = make_random_moe_block_theta(
+            block_idx=0,
             in_dim=in_dim,
             expert_hidden_dim=13,
             num_experts=17,
             with_ffn_norm=True,
             num_shared_experts=19,
-            shared_expert_hidden_dim=23,
             with_layer_output_norm=True,
             dtype=dtype,
         )
         theta.rename_tensors_to_paths()
         model = MoeBlock(
             theta=theta,
+            expert_count=17,
             expert_used_count=2,
             rms_epsilon=1e-5,
         )

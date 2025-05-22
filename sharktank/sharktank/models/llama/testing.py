@@ -98,22 +98,11 @@ def make_attention_moe_block_random_theta(
         dtype=dtype,
     )
     res_dict.update(attention_theta.tree)
-    ffn_norm_theta = Theta(
-        {
-            "ffn_norm.weight": DefaultPrimitiveTensor(
-                data=make_rand_torch(
-                    (config.hp.attention_head_count * config.hp.attn_head_dim),
-                    dtype=dtype,
-                ),
-            )
-        }
-    )
-    res_dict.update(ffn_norm_theta.tree)
     moe_theta = make_random_moe_block_theta(
         in_dim=config.hp.embedding_length,
         expert_hidden_dim=config.hp.expert_feed_forward_length,
         num_experts=config.hp.expert_count,
-        with_ffn_norm=False,
+        with_ffn_norm=True,
         num_shared_experts=config.hp.expert_shared_count,
         shared_expert_hidden_dim=config.hp.expert_shared_feed_forward_length,
         with_layer_output_norm=False,

@@ -43,19 +43,6 @@ class PreGatherFFNMOE(ThetaLayer):
 
         self.activation_fn = activation_fn
 
-    def pre_matmul_gather_orig(
-        self,
-        inputs: torch.Tensor,
-        weights: torch.Tensor,
-        # (batch_size * sequence_length, num_top_experts)
-        experts: torch.Tensor,
-        einstring="mk,menk->men",
-    ):
-        inputs = inputs[:, :]
-        weights = weights[experts, :, :]
-        matmul = einsum_2args(inputs, weights, einstring)
-        return matmul
-
     def pre_matmul_gather(
         self,
         inputs: torch.Tensor,
@@ -68,10 +55,6 @@ class PreGatherFFNMOE(ThetaLayer):
     ):
         inputs = inputs[:, :]
         weights = weights[experts, :, :]
-        if expert_gate is not None:
-            weights = weights * expert_gate.view(
-                expert_gate.shape[0], expert_gate.shape[1], 1, 1
-            )
         matmul = einsum_2args(inputs, weights, einstring)
         return matmul
 
@@ -98,7 +81,7 @@ class PreGatherFFNMOE(ThetaLayer):
         # (bs * sl, num_top_experts, expert_feature_dim)
         ffn_gate = self.pre_matmul_gather(h, self.ffn_gate, experts, None)
         ffn_gate = einsum_2args(expert_gate, ffn_gate, "me,men->men")
-        ffn_gate = elementwise(self.activation, ffn_gate)
+        ffn_gate = elementwise(self.activation_fn, ffn_gate)
 
         # (bs * sl, num_top_experts, expert_feature_dim)
         ffn_up = self.pre_matmul_gather(h, self.ffn_up, experts, None)
@@ -109,7 +92,7 @@ class PreGatherFFNMOE(ThetaLayer):
             ffn_gate * ffn_up, self.ffn_down, experts, einstring="mek,menk->men"
         )
         # (bs * sl, num_top_experts, feature_dim)
-        # ffn_down = einsum_2args(expert_gate, ffn_down, "me,men->men")
+        ffn_down = einsum_2args(expert_gate, ffn_down, "me,men->men")
         return torch.sum(ffn_down, dim=1)  # (bs * sl, feature_dim)
 
 

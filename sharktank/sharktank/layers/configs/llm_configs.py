@@ -94,6 +94,9 @@ class LlamaHParams:
     n_dense_layers: Optional[int] = None
     route_scale: Optional[float] = None
 
+    # The size of the model's vocabulary.
+    vocab_size: Optional[int] = None
+
     @staticmethod
     def from_gguf_props(p: dict[str, Any]):
         name_prefix = p.get("general.architecture", "llama")
@@ -155,6 +158,11 @@ class LlamaHParams:
                 p,
                 f"{name_prefix}.interleave_moe_layer_step",
                 default_interleave_moe_layer_step,
+            ),
+            vocab_size=_optional_int_prop(
+                p,
+                f"{name_prefix}.vocab_size",
+                None,
             ),
             **custom_config,
         )
@@ -226,6 +234,8 @@ class LlamaHParams:
             res[
                 f"{self.model_arch}.interleave_moe_layer_step"
             ] = self.interleave_moe_layer_step
+        if self.vocab_size is not None:
+            res[f"{self.model_arch}.vocab_size"] = self.vocab_size
         return res
 
 
@@ -420,9 +430,6 @@ class LlamaModelConfig:
 
     # If True, the Feed-Forward Network (FFN) block adds the residual connection at the end.
     ffn_add_residual: bool = False
-
-    # The size of the model's vocabulary.
-    vocabulary_size: Optional[int] = None
 
     # The default data type to use for model parameters and computations.
     dtype: Optional[torch.dtype] = None

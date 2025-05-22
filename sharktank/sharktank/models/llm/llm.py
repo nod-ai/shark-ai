@@ -429,6 +429,7 @@ class AttentionFFNBlock(ThetaLayer):
                     moe_activation=moe_activation,
                     score_experts=score_experts,
                     normalize_experts=normalize_experts,
+                    add_residual=config.ffn_add_residual,
                 ),
             )
         else:
