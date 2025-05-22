@@ -230,8 +230,7 @@ class Batch:
                 token_ids, count=shard_count, devices=pipeline_to_device_map[0]
             )
             _attention_mask, _seq_block_ids = [], []
-            for pipeline in range(len(pipeline_to_device_map)):
-                devices = pipeline_to_device_map[pipeline]
+            for pipeline, devices in enumerate(pipeline_to_device_map):
                 _attention_mask.append(
                     replicate(
                         attention_mask,
@@ -312,8 +311,7 @@ class Batch:
             )
 
             _start_positions, _seq_block_ids, _decode_attention_mask = [], [], []
-            for pipeline in range(len(pipeline_to_device_map)):
-                devices = pipeline_to_device_map[pipeline]
+            for pipeline, devices in enumerate(pipeline_to_device_map):
                 _start_positions.append(
                     replicate(
                         start_positions,
