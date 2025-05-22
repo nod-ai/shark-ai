@@ -55,8 +55,8 @@ def KVCacheGatherKernel():
                 CACHE_SIZE,
                 T_BLOCK,
                 PART,
-                BLOCK_SEQ_STRIDE,
                 HEAD_COUNT_KV,
+                BLOCK_SEQ_STRIDE,
                 ATTN_HEAD_DIM,
                 CACHE_TY,
             ],
@@ -66,7 +66,7 @@ def KVCacheGatherKernel():
         ),
         results=(
             MLIRTensor[
-                BATCH, PAGES, BLOCK_SEQ_STRIDE, HEAD_COUNT_KV, ATTN_HEAD_DIM, CACHE_TY
+                BATCH, PAGES, HEAD_COUNT_KV, BLOCK_SEQ_STRIDE, ATTN_HEAD_DIM, CACHE_TY
             ],
         ),
     )
@@ -74,7 +74,7 @@ def KVCacheGatherKernel():
         cache, page_ids, transformer_idx, partition_idx, result
     ):
         mlir = """
-        !cache_slice = tensor<{{[CACHE_SIZE, BLOCK_SEQ_STRIDE, HEAD_COUNT_KV, ATTN_HEAD_DIM]|join('x')}}x!cache_dtype>
+        !cache_slice = tensor<{{[CACHE_SIZE, HEAD_COUNT_KV, BLOCK_SEQ_STRIDE, ATTN_HEAD_DIM]|join('x')}}x!cache_dtype>
 
         module {
         util.func @{{kernel_name}}(%cache: !cache,
@@ -98,7 +98,7 @@ def KVCacheGatherKernel():
           // Extract a the current transformer block and partition from cache.
           %cache_slice = tensor.extract_slice %cache
             [0, %t_id, %p_id, 0, 0, 0]
-            [%cache_size, 1, 1, {{BLOCK_SEQ_STRIDE}}, {{HEAD_COUNT_KV}}, {{ATTN_HEAD_DIM}}]
+            [%cache_size, 1, 1, {{HEAD_COUNT_KV}}, {{BLOCK_SEQ_STRIDE}}, {{ATTN_HEAD_DIM}}]
             [1, 1, 1, 1, 1, 1]
             : !cache to !cache_slice
 
@@ -225,8 +225,8 @@ class KVCache:
         key = kv_cache_gather(*unwrap_args(page_table, page_ids, t_id, key_p_id))
         value = kv_cache_gather(*unwrap_args(page_table, page_ids, t_id, value_p_id))
 
-        key = key.flatten(1, 2)
-        value = value.flatten(1, 2)
+        key = key.transpose(2, 3).flatten(1, 2)
+        value = value.transpose(2, 3).flatten(1, 2)
 
         if self.devices:
             # Explicitly passing a list of one value to avoid redundant transfer inside ReplicateTensor.__init__.
