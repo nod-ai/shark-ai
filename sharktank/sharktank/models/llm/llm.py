@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import Optional, Union
+from typing import Callable, Optional, Union
 
 import math
 
@@ -13,6 +13,7 @@ import torch.nn as nn
 
 from sharktank import ops
 from sharktank.layers import *
+from sharktank.layers.activations import ACT2FN
 from sharktank.types import *
 from sharktank.utils.create_cache import *
 
@@ -337,6 +338,11 @@ class AttentionFFNBlock(ThetaLayer):
         config: LlamaModelConfig,
         fake_quant: bool = True,
     ):
+        activation_fn = (
+            ACT2FN[config.activation_fn]
+            if config.activation_fn
+            else torch.nn.functional.silu
+        )
         super().__init__(theta)
 
         attention_kernel = (
@@ -390,6 +396,12 @@ class AttentionFFNBlock(ThetaLayer):
                 False,
                 True,
             ),
+            "llama4": (
+                torch.nn.functional.sigmoid,
+                activation_fn,
+                True,
+                False,
+            ),
         }
 
         (
@@ -412,6 +424,7 @@ class AttentionFFNBlock(ThetaLayer):
                     moe_activation=moe_activation,
                     score_experts=score_experts,
                     normalize_experts=normalize_experts,
+                    add_residual=config.ffn_add_residual,
                 ),
             )
         else:
@@ -420,6 +433,8 @@ class AttentionFFNBlock(ThetaLayer):
                 FFN(
                     theta=theta,
                     fake_quant=fake_quant,
+                    activation_fn=activation_fn,
+                    add_residual=config.ffn_add_residual,
                 ),
             )
 

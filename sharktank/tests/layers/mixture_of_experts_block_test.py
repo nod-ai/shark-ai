@@ -10,7 +10,8 @@ from typing import Callable
 
 import torch
 from iree.turbine.aot import *
-from sharktank.models.llama.testing import make_moe_block_theta, make_rand_torch
+from sharktank.layers.testing import make_random_moe_block_theta
+from sharktank.utils.testing import make_rand_torch
 from sharktank.layers.mixture_of_experts_block import MoeBlock
 from sharktank.types.sharding import MoeBlockSharding
 from sharktank.ops import reshard, reshard_like, replicate
@@ -22,15 +23,30 @@ class MoeBlockTest(unittest.TestCase):
         torch.random.manual_seed(123)
 
     def testExport(self):
-        expert_count = 8
+        dtype = torch.float32
+        batch_size = 3
+        seq_len = 5
+        in_dim = 7
+
+        theta = make_random_moe_block_theta(
+            block_idx=0,
+            in_dim=in_dim,
+            expert_hidden_dim=13,
+            num_experts=17,
+            with_ffn_norm=True,
+            num_shared_experts=19,
+            with_layer_output_norm=True,
+            dtype=dtype,
+        )
+        theta.rename_tensors_to_paths()
         model = MoeBlock(
-            theta=make_moe_block_theta(num_experts=expert_count)("blk.0"),
-            expert_count=expert_count,
+            theta=theta,
+            expert_count=17,
             expert_used_count=2,
             rms_epsilon=1e-5,
         )
         fxb = FxProgramsBuilder(model)
-        input = make_rand_torch((2, 32, 6144))
+        input = make_rand_torch((batch_size, seq_len, in_dim))
 
         @fxb.export_program(name="moe_block", args=(input,), strict=False)
         def _(model, input: torch.Tensor) -> torch.Tensor:
