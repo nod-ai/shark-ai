@@ -177,7 +177,7 @@ class KVCache:
     def state_count(self):
         return 1
 
-    def shard_state(self, state: List[torch.Tensor]) -> List[torch.Tensor]:
+    def shard_state(self, state: List[torch.Tensor]) -> List[ReplicatedTensor]:
         assert len(state) == 1
         if self.devices is None:
             return state
@@ -185,7 +185,9 @@ class KVCache:
         state = ReplicatedTensor(ts=state, devices=self.devices)
         return [state]
 
-    def unshard_state(self, state: List[torch.Tensor]) -> List[torch.Tensor]:
+    def unshard_state(
+        self, state: List[torch.Tensor | ReplicatedTensor]
+    ) -> List[torch.Tensor]:
         assert len(state) == 1
         state = state[0].unflatten(1, self.sub_page_dims)
 
@@ -315,9 +317,6 @@ class KVCache:
             cache_partition.transpose(1, 2)
             values = ops.to(cache_partition, dtype=page_table.dtype)
 
-            if isinstance(values, ShardedTensor) and type(values) != type(page_table):
-                values = ops.reshard_like(values, like=page_table)
-
             if page_table.dtype == torch.float8_e4m3fnuz:
                 # Workaround for Torch not supporting torch.Tensor.index_copy_ for f8.
                 page_table_as_int8 = page_table.view(dtype=torch.int8)
@@ -341,7 +340,7 @@ class ShardedCache:
         cache_dtype: torch.dtype = torch.float32,
         device: Optional[torch.device] = None,
     ):
-        caches = []
+        caches: list[KVCache] = []
         for i in range(shard_count):
             start = i * attn_head_count // shard_count
             end = (i + 1) * attn_head_count // shard_count
