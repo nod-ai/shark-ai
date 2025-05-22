@@ -352,6 +352,8 @@ class PrefillExecutorProcess(LlmExecutorProcess):
     tokens_host_cache: dict[tuple[int, int, sfnp.DType], sfnp.device_array] = {}
     seq_lens_host_cache: dict[tuple[int, sfnp.DType], sfnp.device_array] = {}
     seq_block_ids_host_cache: dict[tuple[int, int, sfnp.DType], sfnp.device_array] = {}
+    logits_host_cache: sfnp.device_array
+    logits_host_size_cache: int = 0
     def __init__(
         self,
         fiber: Fiber,
@@ -457,7 +459,11 @@ class PrefillExecutorProcess(LlmExecutorProcess):
                 index_item = indices.view(i, sl - 1)
 
             if req.return_host_array:
-                req.result_logits = logits_item.for_transfer()
+                if sl > PrefillExecutorProcess.logits_host_size_cache:
+                    # TO do release the cache first
+                    PrefillExecutorProcess.logits_host_cache = logits_item.for_transfer()
+                    PrefillExecutorProcess.logits_host_size_cache = sl
+                req.result_logits = PrefillExecutorProcess.logits_host_cache
                 req.result_logits.copy_from(logits_item)
 
                 if index_item is not None:
@@ -481,6 +487,8 @@ class DecodeExecutorProcess(LlmExecutorProcess):
     seq_lens_host_cache: dict[tuple[int, sfnp.DType], sfnp.device_array] = {}
     start_positions_host_cache: dict[tuple[int, sfnp.DType], sfnp.device_array] = {}
     seq_block_ids_host_cache: dict[tuple[int, int, sfnp.DType], sfnp.device_array] = {}
+    logits_host_cache: sfnp.device_array
+    logits_host_size_cache: int = 0
 
     def __init__(
         self,
@@ -608,7 +616,11 @@ class DecodeExecutorProcess(LlmExecutorProcess):
                 index_item = indices.view(i, sl - 1)
 
             if req.return_host_array:
-                req.result_logits = logits_item.for_transfer()
+                if sl > DecodeExecutorProcess.logits_host_size_cache:
+                    # TO do release the cache first
+                    DecodeExecutorProcess.logits_host_cache = logits_item.for_transfer()
+                    DecodeExecutorProcess.logits_host_size_cache = sl
+                req.result_logits = DecodeExecutorProcess.logits_host_cache
                 req.result_logits.copy_from(logits_item)
 
                 if index_item is not None:
