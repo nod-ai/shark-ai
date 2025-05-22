@@ -349,9 +349,9 @@ class LlmExecutorProcess(sf.Process):
 
 class PrefillExecutorProcess(LlmExecutorProcess):
     """Executes a prefill batch."""
-    tokens_host_cache: dict[tuple[int, int, sfnp.DType], sfnp.device_array] = {}
-    seq_lens_host_cache: dict[tuple[int, sfnp.DType], sfnp.device_array] = {}
-    seq_block_ids_host_cache: dict[tuple[int, int, sfnp.DType], sfnp.device_array] = {}
+    tokens_host_cache: dict[tuple[int, int], sfnp.device_array] = {}
+    seq_lens_host_cache: dict[int, sfnp.device_array] = {}
+    seq_block_ids_host_cache: dict[tuple[int, int], sfnp.device_array] = {}
     logits_host_cache: sfnp.device_array
     logits_host_size_cache: int = 0
     def __init__(
@@ -396,7 +396,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         )
 
         # Populate tokens
-        tokens_key = (bs, bsl, int_dtype)
+        tokens_key = (bs, bsl)
         if tokens_key not in self.tokens_host_cache:
             self.tokens_host_cache[tokens_key] = tokens.for_transfer()
         tokens_host = self.tokens_host_cache[tokens_key]
@@ -409,7 +409,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         tokens_host.copy_to(tokens)
 
         # Populate seq_lens
-        seq_lens_key = (bs, int_dtype)
+        seq_lens_key = bs
         if seq_lens_key not in self.seq_lens_host_cache:
             self.seq_lens_host_cache[seq_lens_key] = seq_lens.for_transfer()
         seq_lens_host = self.seq_lens_host_cache[seq_lens_key]
@@ -420,7 +420,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         seq_lens_host.copy_to(seq_lens)
 
         # Populate cache pages.
-        seq_block_ids_key = (bs, block_count, int_dtype)
+        seq_block_ids_key = (bs, block_count)
         if seq_block_ids_key not in self.seq_block_ids_host_cache:
             self.seq_block_ids_host_cache[seq_block_ids_key] = seq_block_ids.for_transfer()
         seq_block_ids_host = self.seq_block_ids_host_cache[seq_block_ids_key]
@@ -459,10 +459,9 @@ class PrefillExecutorProcess(LlmExecutorProcess):
                 index_item = indices.view(i, sl - 1)
 
             if req.return_host_array:
-                if sl > PrefillExecutorProcess.logits_host_size_cache:
-                    # TO do release the cache first
+                if PrefillExecutorProcess.logits_host_size_cache == 0:
                     PrefillExecutorProcess.logits_host_cache = logits_item.for_transfer()
-                    PrefillExecutorProcess.logits_host_size_cache = sl
+                    PrefillExecutorProcess.logits_host_size_cache = 1
                 req.result_logits = PrefillExecutorProcess.logits_host_cache
                 req.result_logits.copy_from(logits_item)
 
@@ -483,10 +482,10 @@ class PrefillExecutorProcess(LlmExecutorProcess):
 
 class DecodeExecutorProcess(LlmExecutorProcess):
     """Executes a decode batch."""
-    tokens_host_cache: dict[tuple[int, int, sfnp.DType], sfnp.device_array] = {}
-    seq_lens_host_cache: dict[tuple[int, sfnp.DType], sfnp.device_array] = {}
-    start_positions_host_cache: dict[tuple[int, sfnp.DType], sfnp.device_array] = {}
-    seq_block_ids_host_cache: dict[tuple[int, int, sfnp.DType], sfnp.device_array] = {}
+    tokens_host_cache: dict[int, sfnp.device_array] = {}
+    seq_lens_host_cache: dict[int, sfnp.device_array] = {}
+    start_positions_host_cache: dict[int, sfnp.device_array] = {}
+    seq_block_ids_host_cache: dict[tuple[int, int], sfnp.device_array] = {}
     logits_host_cache: sfnp.device_array
     logits_host_size_cache: int = 0
 
@@ -529,22 +528,22 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         )
 
         # Setup host buffers for transfer:
-        tokens_key = (bs, 1, int_dtype)
+        tokens_key = bs
         if tokens_key not in self.tokens_host_cache:
             self.tokens_host_cache[tokens_key] = tokens.for_transfer()
         tokens_host = self.tokens_host_cache[tokens_key]
 
-        seq_lens_key = (bs, int_dtype)
+        seq_lens_key = bs
         if seq_lens_key not in self.seq_lens_host_cache:
             self.seq_lens_host_cache[seq_lens_key] = seq_lens.for_transfer()
         seq_lens_host = self.seq_lens_host_cache[seq_lens_key]
 
-        start_positions_key = (bs, int_dtype)
+        start_positions_key = bs
         if start_positions_key not in self.start_positions_host_cache:
             self.start_positions_host_cache[start_positions_key] = start_positions.for_transfer()
         start_positions_host = self.start_positions_host_cache[start_positions_key]
 
-        seq_block_ids_key = (bs, block_count, int_dtype)
+        seq_block_ids_key = (bs, block_count)
         if seq_block_ids_key not in self.seq_block_ids_host_cache:
             self.seq_block_ids_host_cache[seq_block_ids_key] = seq_block_ids.for_transfer()
         seq_block_ids_host = self.seq_block_ids_host_cache[seq_block_ids_key]
@@ -616,10 +615,9 @@ class DecodeExecutorProcess(LlmExecutorProcess):
                 index_item = indices.view(i, sl - 1)
 
             if req.return_host_array:
-                if sl > DecodeExecutorProcess.logits_host_size_cache:
-                    # TO do release the cache first
+                if DecodeExecutorProcess.logits_host_size_cache == 0:
                     DecodeExecutorProcess.logits_host_cache = logits_item.for_transfer()
-                    DecodeExecutorProcess.logits_host_size_cache = sl
+                    DecodeExecutorProcess.logits_host_size_cache = 1
                 req.result_logits = DecodeExecutorProcess.logits_host_cache
                 req.result_logits.copy_from(logits_item)
 
