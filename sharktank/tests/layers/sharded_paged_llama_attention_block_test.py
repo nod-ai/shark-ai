@@ -45,17 +45,13 @@ class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
         self.start_index = 0
 
     def testSmallSizedLayerFp64(self):
-        self.runTestSmallSizedLayer(dtype=torch.float64)
+        self.runTestSmallSizedLayer(dtype=torch.float64, rtol=1e-7, atol=1e-7)
 
-    @pytest.mark.xfail(
-        reason="The accuracy seems low (atol=0.0018, rtol=0.5065)",
-        strict=True,
-        raises=AssertionError,
-    )
     def testSmallSizedLayerFp32(self):
-        self.runTestSmallSizedLayer(dtype=torch.float32)
+        # This tolerance is OK because the output element value range is (-538, 582).
+        self.runTestSmallSizedLayer(dtype=torch.float32, rtol=1e-5, atol=1e-2)
 
-    def runTestSmallSizedLayer(self, dtype: torch.dtype):
+    def runTestSmallSizedLayer(self, dtype: torch.dtype, rtol: float, atol: float):
         torch.set_default_dtype(dtype)
 
         def make_paged_kv_cache(shard_count: int) -> PagedAttention:
@@ -73,12 +69,45 @@ class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
         cache = make_paged_kv_cache(shard_count=1)
         sharded_cache = make_paged_kv_cache(shard_count=self.shard_count)
 
+        def assert_equal_unsharded_and_sharded_cache_states(
+            cache_state: list[torch.Tensor],
+            sharded_cache_state: list[SplitPrimitiveTensor],
+        ):
+            cache_state = cache.unshard_state(cache_state)[0]
+            sharded_state_as_unsharded = sharded_cache.unshard_state(
+                sharded_cache_state
+            )[0]
+            assert sharded_state_as_unsharded.shape == cache_state.shape
+            assert ops.equal(
+                cache_state,
+                sharded_state_as_unsharded,
+            )
+
+        def assert_close_unsharded_and_sharded_cache_states(
+            cache_state: list[torch.Tensor],
+            sharded_cache_state: list[SplitPrimitiveTensor],
+        ):
+            cache_state = cache.unshard_state(cache_state)[0]
+            sharded_state_as_unsharded = sharded_cache.unshard_state(
+                sharded_cache_state
+            )[0]
+            assert sharded_state_as_unsharded.shape == cache_state.shape
+            torch.testing.assert_close(
+                unbox_tensor(cache_state),
+                unbox_tensor(sharded_state_as_unsharded),
+                rtol=rtol,
+                atol=atol,
+            )
+
         def make_unsharded_and_sharded_equal_cache_states() -> (
             tuple[list[torch.Tensor], list[SplitPrimitiveTensor]]
         ):
             cache_state = cache.allocate(self.page_count)
             cache_state[0] = make_rand_torch(cache_state[0].shape, dtype=dtype)
             sharded_cache_state = sharded_cache.shard_state(deepcopy(cache_state))
+            assert_equal_unsharded_and_sharded_cache_states(
+                cache_state, sharded_cache_state
+            )
             return cache_state, sharded_cache_state
 
         (
@@ -158,7 +187,8 @@ class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
         )
 
         actual_result = unbox_tensor(ops.unshard(sharded_result))
-        actual_cache_state = unbox_tensor(sharded_cache_state[0])
 
-        torch.testing.assert_close(actual_result, expected_result, atol=3e-4, rtol=2e-1)
-        torch.testing.assert_close(actual_cache_state, cache_state[0])
+        torch.testing.assert_close(actual_result, expected_result, rtol=rtol, atol=atol)
+        assert_close_unsharded_and_sharded_cache_states(
+            cache_state, sharded_cache_state
+        )
