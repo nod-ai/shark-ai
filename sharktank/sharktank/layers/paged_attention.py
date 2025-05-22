@@ -214,7 +214,7 @@ class KVCache:
         page_index = page_index.unsqueeze(1)
         page_id = ops.gather(page_ids, dim=1, index=page_index).view((bs, 1, 1))
         page_offset = (seq_positions % self.block_seq_stride).view((bs, 1, 1))
-        head_offset = torch.arange(self.attn_head_count).view(
+        head_offset = torch.arange(self.attn_head_count, device=device).view(
             (1, 1, self.attn_head_count)
         )
 
