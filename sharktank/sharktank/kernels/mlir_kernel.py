@@ -14,9 +14,9 @@ import torch
 from jinja2 import Environment, BaseLoader
 
 from sharktank.kernels.base import *
-from sharktank.types.tensors import dtype_to_serialized_short_name
 from sharktank.utils.logging import get_logger
 from iree.turbine.transforms.merger import Merger
+from iree.turbine.support.conversions import TORCH_DTYPE_TO_IREE_TYPE
 from iree.turbine.support.ir_imports import Operation, MLIRError, IrType
 
 logger = get_logger("sharktank.ops")
@@ -34,11 +34,29 @@ def _get_jinja2_env() -> Environment:
 class _Dim:
     dynamic: bool
     name: str
+    value: int | None = None
+
+    def __str__(self) -> str:
+        return ("dyn_" if self.dynamic else " ") + self.name
+
+    def __repr__(self) -> str:
+        return ("dyn_" if self.dynamic else " ") + self.name
+
+    def __call__(self, val: int):
+        if self.dynamic:
+            raise ValueError(
+                f"Cannot assign value to a dynamic dimension. Tried assigning value: {val} to {str(self)}"
+            )
+        return _Dim(self.dynamic, self.name, val)
 
 
 @dataclass
 class _Dtype:
     name: str
+    value: torch.dtype | None = None
+
+    def __call__(self, val: torch.dtype):
+        return _Dtype(self.name, val)
 
 
 class _StaticDimExpando:
@@ -57,6 +75,35 @@ class _DtypeExpando:
 
 
 class MLIRTensor:
+    """
+    A class representing a symbolic tensor type. For example:
+
+    There are 3 types of symbols that can be used to create the type:
+        - DynDim: Dynamic Dimensions
+        - StaticDim: Static Dimensions
+        - Dtype: Static Data Type
+
+    For example:
+    ```
+        D0 = DynDim.D0
+        S0 = StaticDim.S0
+        TY = Dtype.TY
+        MLIRTensor[D0, S0, TY]
+    ```
+
+    The example above describes a 2-D tensor type, whose outer dimension is
+    dynamic, the inner dimension is static and the element type is TY. The
+    tensor type always assumes the last symbol passed is the data type, and all
+    other symbols are StaticDim/DynDim.
+
+    StaticDim and Dtype can also be statically assigned with a value:
+
+    ```
+        S0_64 = StaticDim.S0(64)
+        TY_I1 = Dtype.TY(torch.bool)
+    ```
+    """
+
     shapes: ClassVar[tuple[_Dim, ...]]
     dtype: ClassVar[_Dtype]
     tensor: Optional[torch.Tensor]
@@ -65,12 +112,15 @@ class MLIRTensor:
         self.tensor = t
 
     def __class_getitem__(
-        cls, shape_and_dtype: tuple[_Dim | _Dtype, ...]
+        cls, shape_and_dtype: _Dtype | tuple[_Dim | _Dtype, ...]
     ) -> Type["MLIRTensor"]:
         """Syntax: `KernelBuffer[shape1, shape2, ..., shapeN, dtype]`"""
 
-        if not isinstance(shape_and_dtype, tuple) or len(shape_and_dtype) < 2:
-            raise TypeError(f"Expected at least 2 arguments, got: {shape_and_dtype}")
+        if not isinstance(shape_and_dtype, tuple):
+            shape_and_dtype = tuple([shape_and_dtype])
+
+        if len(shape_and_dtype) < 1:
+            raise TypeError(f"Expected at least 1 argument, got: {shape_and_dtype}")
 
         shape = shape_and_dtype[:-1]
         ty = shape_and_dtype[-1]
@@ -91,6 +141,17 @@ class MLIRTensor:
 
 
 class MLIRSpec:
+    """
+    A class representing a MLIR Jinja2 template.
+
+    The `subs` dictionary contains additional substitutions passed to the jinja
+    template generator.
+
+    Note that currently, no specialization is done on the extra substitutions
+    passed, it is recommended to pass all specialization information through
+    input/output tensor type description.
+    """
+
     mlir: str
     subs: dict
 
@@ -106,14 +167,48 @@ def mlir_kernel(
     A decorator that allows a user to inject inline mlir kernels directly into
     the model.
 
-    TODO:
-        - Add user guide with examples.
-        - Allow constant dimensions and dtypes for results, currently we only
-          support result dimensions to be derived symbolically from inputs.
-        - Add more input signature types (other than MLIRTensor) like MLIRInt,
-          MLIRFloat, MLIRListOfTensor.
-        - Add more default substitutions like passing the value of a resolved
-          symbol as a substitution to jinja generator.
+    The mlir_kernel decorator takes an input/output spec containing tensor type
+    descriptions. These tensor type descriptions are used to automatically
+    specialize the kernel and generate verifiers. The kernel is specialized on
+    static dimensions and dtypes, and is not specialized on dynamic dimensions.
+
+    The decorator takes a function, with the same number of input/output
+    arguments as the input spec. These function argument names are used to
+    generate type aliases in the given mlir_spec.
+
+    Example:
+
+    ```
+    D0 = DynDim.D0
+    S0 = StaticDim.S0
+    TY = Dtype.TY
+    @mlir_kernel(
+        inputs=(MLIRTensor[D0, S0, TY],),
+        results = (MLIRTensor[D0, S0, TY],)
+    )
+    def identity(input, result=None):
+        mlir = \"""
+
+        // The mlir spec must be wrapped around in a module. We might change this
+        // in the future and not as the user to write a utl.func and module well.
+        module {
+
+        // Note that the function name MUST be the passed `kernel_name` alias.
+        // Also note the type aliases passed for the input and result argument.
+        util.func private @{{kernel_name}}(%input: !input) -> !result {
+
+            // dtype aliases are generated as `<argname>_dtype`
+            // dimension and dtype values are accessible as aliases. For dynamic
+            // dimensions the alias is `?`.
+            %c0 = arith.constant {{S0}} : !input_dtype
+
+            util.return %input : !result
+        }
+
+        }
+
+        \"""
+    ```
     """
 
     def fun(func: Callable[..., MLIRSpec]) -> Callable:
@@ -151,20 +246,37 @@ def mlir_kernel(
                     desc.specialize_dims(*static_dims)
 
                 # Resolve shape and dtype symbols.
-                dims = {}
-                dtypes = {}
+                dims = {
+                    sym_dim.name: sym_dim.value
+                    for sym_ty in inputs + results
+                    for sym_dim in sym_ty.shapes
+                    if sym_dim.value is not None
+                }
+                dtypes = {
+                    sym_ty.dtype.name: sym_ty.dtype.value
+                    for sym_ty in inputs + results
+                    if sym_ty.dtype.value is not None
+                }
                 for sym_ty, ty in zip(inputs, input_descs):
+                    if len(sym_ty.shapes) != len(ty.t.shape):
+                        raise ValueError(
+                            f"Mismatched input rank. Expected: {sym_ty.shapes}, got: {ty.t.shape}"
+                        )
                     # Resolve shape symbols.
                     for sym_dim, dim in zip(sym_ty.shapes, ty.t.shape):
                         if sym_dim.name in dims:
                             if not sym_dim.dynamic and dims[sym_dim.name] != dim:
-                                raise ValueError("Mismatched dim error")
+                                raise ValueError(
+                                    f"Mismatched dim error. Expected value for {sym_dim.name}: {dims[sym_dim.name]}, got: {dim}"
+                                )
                         else:
                             dims[sym_dim.name] = dim
                     # Resolve dtype symbols.
                     if sym_ty.dtype.name in dtypes:
                         if dtypes[sym_ty.dtype.name] != ty.t.dtype:
-                            raise ValueError("Mismatched dtype error")
+                            raise ValueError(
+                                f"Mismatched dtype error. Expected value for {sym_ty.dtype.name}: {dtypes[sym_ty.dtype.name]}, got: {ty.t.dtype}"
+                            )
                     else:
                         dtypes[sym_ty.dtype.name] = ty.t.dtype
 
@@ -186,8 +298,17 @@ def mlir_kernel(
                 input_types = [RankedTensorType(val.type) for val in input_values]
 
                 # Resolve shape and dtype symbols.
-                dims = {}
-                dtypes = {}
+                dims: Dict[str, int | None] = {
+                    sym_dim.name: sym_dim.value
+                    for sym_ty in inputs + results
+                    for sym_dim in sym_ty.shapes
+                    if sym_dim.value is not None
+                }
+                dtypes: Dict[str, IrType] = {
+                    sym_ty.dtype.name: TORCH_DTYPE_TO_IREE_TYPE[sym_ty.dtype.value]()
+                    for sym_ty in inputs + results
+                    if sym_ty.dtype.value is not None
+                }
                 for sym_ty, ty in zip(inputs, input_types):
                     # Resolve shape symbols.
                     for sym_dim, dim in zip(sym_ty.shapes, ty.shape):
@@ -197,13 +318,17 @@ def mlir_kernel(
 
                         if sym_dim.name in dims:
                             if dims[sym_dim.name] != dim:
-                                raise ValueError("Mismatched dim error")
+                                raise ValueError(
+                                    f"Mismatched dim error. Expected value for {sym_dim.name}: {dims[sym_dim.name]}, got: {dim}"
+                                )
                         else:
                             dims[sym_dim.name] = dim
                     # Resolve dtype symbols.
                     if sym_ty.dtype.name in dtypes:
                         if dtypes[sym_ty.dtype.name] != ty.element_type:
-                            raise ValueError("Mismatched dtype error")
+                            raise ValueError(
+                                f"Mismatched dtype error. Expected value for {sym_ty.dtype.name}: {dtypes[sym_ty.dtype.name]}, got: {ty.element_type}"
+                            )
                     else:
                         dtypes[sym_ty.dtype.name] = ty.element_type
 
@@ -231,7 +356,13 @@ def mlir_kernel(
                     asm = (
                         _get_jinja2_env()
                         .from_string(mlir)
-                        .render({"kernel_name": kernel_name, **mlir_spec.subs})
+                        .render(
+                            {
+                                "kernel_name": kernel_name,
+                                **self._get_additional_aliases(dims),
+                                **mlir_spec.subs,
+                            }
+                        )
                     )
                     try:
                         module_op = Operation.parse(asm, context=kb.context)
@@ -270,7 +401,9 @@ def mlir_kernel(
                         for dim in sym_ty.shapes
                     ]
                     dtype = dtypes[sym_ty.dtype.name]
-                    aliases += f'!{arg} = tensor<{"x".join(mlir_shapes)}x{dtype}>\n'
+                    aliases += (
+                        f'!{arg} = tensor<{"x".join(mlir_shapes + [str(dtype)])}>\n'
+                    )
                     aliases += f"!{arg}_dtype = {dtype}\n"
                 for arg, sym_ty in zip(result_args, results):
                     mlir_shapes = [
@@ -278,7 +411,9 @@ def mlir_kernel(
                         for dim in sym_ty.shapes
                     ]
                     dtype = dtypes[sym_ty.dtype.name]
-                    aliases += f'!{arg} = tensor<{"x".join(mlir_shapes)}x{dtype}>\n'
+                    aliases += (
+                        f'!{arg} = tensor<{"x".join(mlir_shapes + [str(dtype)])}>\n'
+                    )
                     aliases += f"!{arg}_dtype = {dtype}\n"
                 return aliases
 
@@ -323,6 +458,16 @@ def mlir_kernel(
                 kernel_name += "_".join(result_names)
 
                 return kernel_name
+
+            def _get_additional_aliases(
+                self, dims: Dict[str, Optional[int]]
+            ) -> Dict[str, str]:
+                return dict(
+                    {
+                        (dim, "?") if val is None else (dim, str(val))
+                        for dim, val in dims.items()
+                    }
+                )
 
         return kernel
 

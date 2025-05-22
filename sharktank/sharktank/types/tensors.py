@@ -314,7 +314,11 @@ class InferenceTensor(ABC):
         arg0 = args[0] if len(args) > 0 else None
         device_overload = ("device" in kwargs) or isinstance(arg0, (str, torch.device))
         other_overload = ("other" in kwargs) or isinstance(arg0, AnyTensor)
-        memory_overload = ("memory_format" in kwargs) or isinstance(arg0, torch.dtype)
+        memory_overload = (
+            ("memory_format" in kwargs)
+            or ("dtype" in kwargs)
+            or isinstance(arg0, torch.dtype)
+        )
 
         if device_overload:
             # Do we always want to clone with globals?

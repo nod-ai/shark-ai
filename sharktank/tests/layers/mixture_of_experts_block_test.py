@@ -147,6 +147,7 @@ class MoeBlockTest(unittest.TestCase):
         from sharktank.layers import MoeBlock
 
         theta = make_random_moe_block_theta(
+            block_idx=0,
             in_dim=feature_dim,
             expert_hidden_dim=expert_hidden_dim,
             num_experts=num_experts,
@@ -154,7 +155,6 @@ class MoeBlockTest(unittest.TestCase):
             num_shared_experts=num_shared_experts,
             with_layer_output_norm=True,
             dtype=dtype,
-            block_idx=0,
         )
 
         moe_with_pre_gather_ffn = MoeBlock(
@@ -214,7 +214,7 @@ class MoeBlockTest(unittest.TestCase):
             param(
                 dtype=torch.bfloat16,
                 feature_dim=2,
-                expert_hidden_dim=6,
+                expert_hidden_dim=10,
                 num_experts=9,
                 n_expert_groups=3,
                 n_limited_groups=3,
@@ -231,7 +231,6 @@ class MoeBlockTest(unittest.TestCase):
             ),
         ]
     )
-    @unittest.skip("Deepseek moe sharding changes required from #1256")
     def testTensorParallel(
         self,
         dtype: torch.dtype,
@@ -255,6 +254,7 @@ class MoeBlockTest(unittest.TestCase):
         from sharktank.layers import MoeBlock
 
         theta = make_random_moe_block_theta(
+            block_idx=0,
             in_dim=feature_dim,
             expert_hidden_dim=expert_hidden_dim,
             num_experts=num_experts,
@@ -262,7 +262,6 @@ class MoeBlockTest(unittest.TestCase):
             num_shared_experts=num_shared_experts,
             with_layer_output_norm=True,
             dtype=dtype,
-            block_idx=0,
         )
         model_arch = "grok"
         if num_shared_experts > 0:
