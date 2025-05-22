@@ -23,9 +23,6 @@ from sharktank.utils.load_llm import TorchGenerator
 from sharktank.utils.create_cache import *
 
 
-@pytest.mark.skip(
-    reason="Deepseek support will be added soon",
-)
 class DeepseekShardedTest(unittest.TestCase):
     def testTensorParallelToySizedModelEagerVsUnsharded(self):
         theta, config = generate(12345)

@@ -15,6 +15,7 @@ from sharktank import ops
 from sharktank.layers import *
 from sharktank.types import *
 from sharktank.utils.create_cache import *
+from sharktank import ops
 
 __all__ = [
     "PagedLlmModelV1",
@@ -373,21 +374,21 @@ class AttentionFFNBlock(ThetaLayer):
 
         moe_func_map = {
             "llama": (
-                torch.nn.functional.softmax,
+                ops.softmax,
                 torch.nn.functional.silu,
                 True,
                 False,
             ),
             "grok": (
-                torch.nn.functional.softmax,
+                ops.softmax,
                 torch.nn.functional.gelu,
                 True,
                 False,
             ),
             "deepseek2": (
-                torch.nn.functional.sigmoid,
+                ops.sigmoid,
                 torch.nn.functional.silu,
-                False,
+                True,
                 True,
             ),
         }
@@ -399,8 +400,9 @@ class AttentionFFNBlock(ThetaLayer):
             normalize_experts,
         ) = moe_func_map[config.hp.model_arch]
 
-        if config.hp.expert_count:
+        n_dense_layers = config.hp.n_dense_layers
 
+        if n_dense_layers is not None and block_index >= n_dense_layers:
             self.add_module(
                 "ffn",
                 MoeBlock(
@@ -409,6 +411,9 @@ class AttentionFFNBlock(ThetaLayer):
                     expert_used_count=config.hp.expert_used_count,
                     expert_shared_count=config.hp.expert_shared_count,
                     rms_epsilon=config.hp.attention_layer_norm_rms_epsilon,
+                    n_expert_groups=config.hp.n_expert_groups,
+                    n_limited_groups=config.hp.n_limited_groups,
+                    route_scale=config.hp.route_scale,
                     moe_activation=moe_activation,
                     score_experts=score_experts,
                     normalize_experts=normalize_experts,
