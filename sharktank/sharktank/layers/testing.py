@@ -55,41 +55,94 @@ def make_llama_attention_block_theta(
 def make_latent_attention_block_theta(
     *,
     block_idx: int,
-    dim: int,
-    heads: int,
-    rope_dim: int,
-    nope_dim: int,
+    head_count: int,
+    head_count_kv: int,
+    embedding_length: int,
+    qk_rope_head_dim: int,
+    qk_nope_head_dim: int,
     kv_latent_dim: int,
+    q_lora_rank: int,
     v_head_dim: int,
     dtype: torch.dtype | None = None,
 ) -> Theta:
     return Theta(
         {
-            "wq.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.wq.weight",
-                data=make_rand_torch((heads * (rope_dim + nope_dim), dim), dtype=dtype),
-            ),
-            "wkv_a.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.wkv_a.weight",
-                data=make_rand_torch((kv_latent_dim + rope_dim, dim), dtype=dtype),
-            ),
-            "wkv_b.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.wkv_b.weight",
-                data=make_rand_torch(
-                    (heads * (v_head_dim + nope_dim), kv_latent_dim), dtype=dtype
-                ),
-            ),
-            "wo.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.wo.weight",
-                data=make_rand_torch((dim, heads * v_head_dim), dtype=dtype),
-            ),
             "attn_norm.weight": DefaultPrimitiveTensor(
                 name=f"blk.{block_idx}.attn_norm.weight",
-                data=make_rand_torch((dim,), dtype=dtype),
+                data=make_rand_torch((embedding_length,), dtype=dtype),
             ),
-            "kv_norm.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.kv_norm.weight",
+            "attn_q_a_norm.weight": DefaultPrimitiveTensor(
+                name=f"blk.{block_idx}.attn_q_a_norm.weight",
+                data=make_rand_torch((q_lora_rank,), dtype=dtype),
+            ),
+            "attn_kv_a_norm.weight": DefaultPrimitiveTensor(
+                name=f"blk.{block_idx}.attn_kv_a_norm.weight",
                 data=make_rand_torch((kv_latent_dim,), dtype=dtype),
+            ),
+            "attn_q_a.weight": DefaultPrimitiveTensor(
+                name=f"blk.{block_idx}.attn_q_a.weight",
+                data=make_rand_torch((q_lora_rank, embedding_length), dtype=dtype),
+            ),
+            "attn_q_b.weight": DefaultPrimitiveTensor(
+                name=f"blk.{block_idx}.attn_q_b.weight",
+                data=make_rand_torch(
+                    (head_count * (qk_rope_head_dim + qk_nope_head_dim), q_lora_rank),
+                    dtype=dtype,
+                ),
+            ),
+            "attn_kv_a_mqa.weight": DefaultPrimitiveTensor(
+                name=f"blk.{block_idx}.attn_kv_a_mqa.weight",
+                data=make_rand_torch(
+                    (kv_latent_dim + qk_rope_head_dim, embedding_length), dtype=dtype
+                ),
+            ),
+            "attn_kv_b.weight": DefaultPrimitiveTensor(
+                name=f"blk.{block_idx}.attn_kv_b.weight",
+                data=make_rand_torch(
+                    (head_count_kv * (v_head_dim + qk_nope_head_dim), kv_latent_dim),
+                    dtype=dtype,
+                ),
+            ),
+            "attn_output.weight": DefaultPrimitiveTensor(
+                name=f"blk.{block_idx}.attn_output.weight",
+                data=make_rand_torch(
+                    (embedding_length, head_count * v_head_dim), dtype=dtype
+                ),
+            ),
+        }
+    )
+
+
+def make_ffn_block_theta(
+    *,
+    block_idx: int,
+    embedding_length: int,
+    feed_forward_length: int,
+    dtype: torch.dtype | None = None,
+) -> Theta:
+    return Theta(
+        {
+            "ffn_norm.weight": DefaultPrimitiveTensor(
+                name=f"blk.{block_idx}.ffn_norm.weight",
+                data=make_rand_torch((embedding_length), dtype=dtype),
+            ),
+            "ffn_gate.weight": DefaultPrimitiveTensor(
+                name=f"blk.{block_idx}.ffn_gate.weight",
+                data=make_rand_torch(
+                    (feed_forward_length, embedding_length), dtype=dtype
+                ),
+            ),
+            "ffn_up.weight": DefaultPrimitiveTensor(
+                name=f"blk.{block_idx}.ffn_up.weight",
+                data=make_rand_torch(
+                    (feed_forward_length, embedding_length), dtype=dtype
+                ),
+            ),
+            "ffn_down.weight": DefaultPrimitiveTensor(
+                name=f"blk.{block_idx}.ffn_down.weight",
+                data=make_rand_torch(
+                    (embedding_length, feed_forward_length), dtype=dtype
+                ),
             ),
         }
     )
@@ -240,7 +293,6 @@ def make_random_ffn_theta(
 ):
     if out_dim is None:
         out_dim = in_dim
-
     return Theta(
         {
             "ffn_gate.weight": DefaultPrimitiveTensor(
@@ -266,7 +318,7 @@ def make_random_moe_block_theta(
     num_experts: int,
     with_ffn_norm: bool = True,
     num_shared_experts: int = 0,
-    with_layer_output_norm: bool = True,
+    with_layer_output_norm: bool = False,
     dtype: torch.dtype | None = None,
 ) -> Theta:
     res = {}

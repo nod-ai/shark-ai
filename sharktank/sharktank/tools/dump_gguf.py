@@ -65,13 +65,17 @@ def main():
     logger.info("  Tensors:")
     for tensor in config.root_theta.flatten().values():
         save = False
-        # Save tensors of if name in tensor_regex
-        if args.tensor_regex is not None and re.search(args.tensor_regex, tensor.name):
-            save = True
 
         # Save input/output layer tensors
         if "blk" not in tensor.name:
             if args.save_input_output_blocks:
+                save = True
+        elif args.tensor_regex is not None:
+            if (
+                re.search(args.tensor_regex, tensor.name)
+                and int(tensor.name.split(".")[1]) in num_blocks
+            ):
+                # Save tensors if name in tensor_regex and if in num_blocks
                 save = True
         elif int(tensor.name.split(".")[1]) in num_blocks:
             # Save tensors if in num_blocks

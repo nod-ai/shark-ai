@@ -75,6 +75,35 @@ class _DtypeExpando:
 
 
 class MLIRTensor:
+    """
+    A class representing a symbolic tensor type. For example:
+
+    There are 3 types of symbols that can be used to create the type:
+        - DynDim: Dynamic Dimensions
+        - StaticDim: Static Dimensions
+        - Dtype: Static Data Type
+
+    For example:
+    ```
+        D0 = DynDim.D0
+        S0 = StaticDim.S0
+        TY = Dtype.TY
+        MLIRTensor[D0, S0, TY]
+    ```
+
+    The example above describes a 2-D tensor type, whose outer dimension is
+    dynamic, the inner dimension is static and the element type is TY. The
+    tensor type always assumes the last symbol passed is the data type, and all
+    other symbols are StaticDim/DynDim.
+
+    StaticDim and Dtype can also be statically assigned with a value:
+
+    ```
+        S0_64 = StaticDim.S0(64)
+        TY_I1 = Dtype.TY(torch.bool)
+    ```
+    """
+
     shapes: ClassVar[tuple[_Dim, ...]]
     dtype: ClassVar[_Dtype]
     tensor: Optional[torch.Tensor]
@@ -112,6 +141,17 @@ class MLIRTensor:
 
 
 class MLIRSpec:
+    """
+    A class representing a MLIR Jinja2 template.
+
+    The `subs` dictionary contains additional substitutions passed to the jinja
+    template generator.
+
+    Note that currently, no specialization is done on the extra substitutions
+    passed, it is recommended to pass all specialization information through
+    input/output tensor type description.
+    """
+
     mlir: str
     subs: dict
 
@@ -127,10 +167,48 @@ def mlir_kernel(
     A decorator that allows a user to inject inline mlir kernels directly into
     the model.
 
-    TODO:
-        - Add user guide with examples.
-        - Add more input signature types (other than MLIRTensor) like MLIRInt,
-          MLIRFloat, MLIRListOfTensor.
+    The mlir_kernel decorator takes an input/output spec containing tensor type
+    descriptions. These tensor type descriptions are used to automatically
+    specialize the kernel and generate verifiers. The kernel is specialized on
+    static dimensions and dtypes, and is not specialized on dynamic dimensions.
+
+    The decorator takes a function, with the same number of input/output
+    arguments as the input spec. These function argument names are used to
+    generate type aliases in the given mlir_spec.
+
+    Example:
+
+    ```
+    D0 = DynDim.D0
+    S0 = StaticDim.S0
+    TY = Dtype.TY
+    @mlir_kernel(
+        inputs=(MLIRTensor[D0, S0, TY],),
+        results = (MLIRTensor[D0, S0, TY],)
+    )
+    def identity(input, result=None):
+        mlir = \"""
+
+        // The mlir spec must be wrapped around in a module. We might change this
+        // in the future and not as the user to write a utl.func and module well.
+        module {
+
+        // Note that the function name MUST be the passed `kernel_name` alias.
+        // Also note the type aliases passed for the input and result argument.
+        util.func private @{{kernel_name}}(%input: !input) -> !result {
+
+            // dtype aliases are generated as `<argname>_dtype`
+            // dimension and dtype values are accessible as aliases. For dynamic
+            // dimensions the alias is `?`.
+            %c0 = arith.constant {{S0}} : !input_dtype
+
+            util.return %input : !result
+        }
+
+        }
+
+        \"""
+    ```
     """
 
     def fun(func: Callable[..., MLIRSpec]) -> Callable:
