@@ -77,7 +77,7 @@ def KVCacheGatherKernel():
         !cache_slice = tensor<{{[CACHE_SIZE, HEAD_COUNT_KV, BLOCK_SEQ_STRIDE, ATTN_HEAD_DIM]|join('x')}}x!cache_dtype>
 
         module {
-        util.func @{{kernel_name}}(%cache: !cache,
+        util.func private @{{kernel_name}}(%cache: !cache,
                                    %page_ids: !page_ids,
                                    %transformer_idx: !transformer_idx,
                                    %partition_idx: !partition_idx) -> !result {
