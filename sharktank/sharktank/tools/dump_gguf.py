@@ -82,7 +82,9 @@ def main():
             save = True
 
         if save and isinstance(tensor, PrimitiveTensor):
-            logger.info(f"  {tensor.name}: <PrimitiveTensor>({tensor.shape}, {tensor.dtype})")
+            logger.info(
+                f"  {tensor.name}: <PrimitiveTensor>({tensor.shape}, {tensor.dtype})"
+            )
             # TODO: Add support to save QuantizedTensor and ShardedTensor
             tensors += [
                 DefaultPrimitiveTensor(data=tensor.as_torch(), name=tensor.name)
