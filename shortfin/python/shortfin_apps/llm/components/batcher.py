@@ -250,6 +250,9 @@ class DecodeBatcherProcess(LlmBatcherProcess):
 
 class LlmExecutorProcess(sf.Process):
     """Executes a prefill batch."""
+    _host_logits = None
+    _host_indices = None
+
 
     def __init__(
         self,
@@ -282,24 +285,28 @@ class LlmExecutorProcess(sf.Process):
 
     async def _transfer_buffer(self, req_count, device0, buffers):
         transfer = any(
-            [self.exec_requests[i].return_host_array for i in range(req_count)]
+            self.exec_requests[i].return_host_array for i in range(req_count)
         )
 
         if not transfer:
             return buffers
 
-        new_buffers = []
-        for buffer in buffers:
-            if buffer is None:
-                new_buffers.append(None)
-                continue
+        logits, indices = buffers
 
-            host_buffer = buffer.for_transfer()
-            host_buffer.copy_from(buffer)
-            new_buffers.append(host_buffer)
+        # Lazily initialize host buffers only once
+        if self._host_logits is None:
+            self._host_logits = logits.for_transfer()
+        if indices is not None and self._host_indices is None:
+            self._host_indices = indices.for_transfer()
+
+        # Copy data from device to host
+        self._host_logits.copy_from(logits)
+        if indices is not None:
+            self._host_indices.copy_from(indices)
 
         await device0
-        return tuple(new_buffers)
+
+        return self._host_logits, self._host_indices if indices is not None else None
 
     async def run(self):
         try:
