@@ -69,7 +69,7 @@ class LlmGenerateService(GenerateService):
         """Initialize request and response queues"""
         if self.model_params.decode_batch_sizes:
             self.max_queue_size = max(self.model_params.decode_batch_sizes)
-            logger.info(f"Max queue size: {self.max_queue_size}")
+            logger.debug(f"Max queue size: {self.max_queue_size}")
 
     def add_to_queue(self, num_beams: int) -> bool:
         """Try to add a request to the queue. Returns True if successful, False if queue is full."""
@@ -77,7 +77,7 @@ class LlmGenerateService(GenerateService):
             if self.current_queue_size >= self.max_queue_size:
                 return False
             self.current_queue_size += num_beams
-            logger.info(f"Adding to queue, queue size: {self.current_queue_size}")
+            logger.debug(f"Adding to queue, queue size: {self.current_queue_size}")
             return True
 
     def remove_from_queue(self, num_beams: int):
@@ -85,7 +85,7 @@ class LlmGenerateService(GenerateService):
         with self._lock:
             if self.current_queue_size >= num_beams:
                 self.current_queue_size -= num_beams
-                logger.info(
+                logger.debug(
                     f"Removing from queue, queue size: {self.current_queue_size}"
                 )
 

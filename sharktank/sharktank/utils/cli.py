@@ -138,9 +138,16 @@ def add_model_options(parser: argparse.ArgumentParser):
     )
     parser.add_argument(
         "--top-k",
-        help="Export with a `top_k` kernel. If `top_k` == 1, argmax is exported.",
+        help="Export with a `top_k` kernel. If `top_k` == 1, argmax is exported."
+        "Otherwise, `topk_k{k} is exported.",
         type=int,
         default=None,
+    )
+    parser.add_argument(
+        "--top-k-chunk-size",
+        help="Size of chunks to split into when exporting `top_k`.",
+        type=int,
+        default=1024,
     )
 
 

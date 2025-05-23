@@ -12,9 +12,8 @@ and dims floating around everywhere.
 """
 
 from itertools import accumulate
-from typing import Optional, Tuple, Union, List
+from typing import Optional, Union, List
 
-import abc
 import math
 
 import itertools
@@ -30,8 +29,97 @@ from sharktank.types import (
     StaticScaledQuantizer,
 )
 from sharktank import ops, kernels
+from sharktank.kernels.mlir_kernel import *
 
 __all__ = ["PagedAttention"]
+
+# Paged Attention Kernels
+#
+# Each kernel is put into its own class to create a namespace for it
+def KVCacheGatherKernel():
+    CACHE_SIZE = DynDim.CACHE_SIZE
+    PAGES = DynDim.PAGES
+    T_BLOCK = StaticDim.T_BLOCK
+    PART = StaticDim.PART
+    BLOCK_SEQ_STRIDE = StaticDim.BLOCK_SEQ_STRIDE
+    HEAD_COUNT_KV = StaticDim.HEAD_COUNT_KV
+    ATTN_HEAD_DIM = StaticDim.ATTN_HEAD_DIM
+    BATCH = DynDim.BATCH
+
+    CACHE_TY = Dtype.CACHE_TY
+    I64 = Dtype.I64
+
+    @mlir_kernel(
+        inputs=(
+            MLIRTensor[
+                CACHE_SIZE,
+                T_BLOCK,
+                PART,
+                HEAD_COUNT_KV,
+                BLOCK_SEQ_STRIDE,
+                ATTN_HEAD_DIM,
+                CACHE_TY,
+            ],
+            MLIRTensor[BATCH, PAGES, I64],
+            MLIRTensor[I64],
+            MLIRTensor[I64],
+        ),
+        results=(
+            MLIRTensor[
+                BATCH, PAGES, HEAD_COUNT_KV, BLOCK_SEQ_STRIDE, ATTN_HEAD_DIM, CACHE_TY
+            ],
+        ),
+    )
+    def paged_attention_kv_cache_gather(
+        cache, page_ids, transformer_idx, partition_idx, result
+    ):
+        mlir = """
+        !cache_slice = tensor<{{[CACHE_SIZE, HEAD_COUNT_KV, BLOCK_SEQ_STRIDE, ATTN_HEAD_DIM]|join('x')}}x!cache_dtype>
+
+        module {
+        util.func private @{{kernel_name}}(%cache: !cache,
+                                   %page_ids: !page_ids,
+                                   %transformer_idx: !transformer_idx,
+                                   %partition_idx: !partition_idx) -> !result {
+          %c0 = arith.constant 0 : index
+          %c1 = arith.constant 1 : index
+
+          // Get transformer/partition ids.
+          %t_id64 = tensor.extract %transformer_idx[] : !transformer_idx
+          %p_id64 = tensor.extract %partition_idx[] : !partition_idx
+          %t_id = arith.index_cast %t_id64 : !transformer_idx_dtype to index
+          %p_id = arith.index_cast %p_id64 : !partition_idx_dtype to index
+
+          // Get dynamic dimensions.
+          %cache_size = tensor.dim %cache, %c0 : !cache
+          %batches = tensor.dim %page_ids, %c0 : !page_ids
+          %pages = tensor.dim %page_ids, %c1 : !page_ids
+
+          // Extract a the current transformer block and partition from cache.
+          %cache_slice = tensor.extract_slice %cache
+            [0, %t_id, %p_id, 0, 0, 0]
+            [%cache_size, 1, 1, {{HEAD_COUNT_KV}}, {{BLOCK_SEQ_STRIDE}}, {{ATTN_HEAD_DIM}}]
+            [1, 1, 1, 1, 1, 1]
+            : !cache to !cache_slice
+
+          %empty = tensor.empty(%batches, %pages) : !result
+
+          // Gather from cache_slice using page_ids.
+          %result = iree_linalg_ext.gather
+                    dimension_map = [0]
+                    ins(%cache_slice, %page_ids : !cache_slice, !page_ids)
+                    outs(%empty : !result) -> !result
+
+          util.return %result : !result
+        }
+        }
+        """
+        return MLIRSpec(mlir)
+
+    return paged_attention_kv_cache_gather
+
+
+kv_cache_gather = KVCacheGatherKernel()
 
 
 class KVCache:
@@ -63,8 +151,8 @@ class KVCache:
         self.sub_page_dims = [
             self.transformer_block_count,
             self.cache_partition_count,
-            self.block_seq_stride,
             self.attn_head_count,
+            self.block_seq_stride,
             self.attn_head_dim,
         ]
 
@@ -120,29 +208,30 @@ class KVCache:
     ):
         page_table = self.unflatten_page_table(state)[0]
 
-        bs, block_seq_len, *_ = page_ids.shape
-        # Blocks dim 1,2 according to the configured block stride.
-        blocked_shape = [
-            bs,
-            block_seq_len,
-            self.cache_partition_count,
-            self.block_seq_stride,
-            self.attn_head_count,
-            self.attn_head_dim,
-        ]
+        # TODO: mlir_kernel doesn't support non-tensor args yet, so use 0-D
+        # tensors instead.
+        t_id = torch.tensor(transformer_block_index, dtype=torch.int64)
+        key_p_id = torch.tensor(0, dtype=torch.int64)
+        value_p_id = torch.tensor(1, dtype=torch.int64)
 
-        # Gather both partitions and split post gather. This is more
-        # computationally efficient without gather fusion:
-        page_table = page_table.flatten(start_dim=0, end_dim=1)
-        transformer_block_index = torch.full(
-            (bs, block_seq_len), transformer_block_index, device=self.device
-        )
-        subblock_ids = page_ids * self.transformer_block_count + transformer_block_index
-        selected = ops.index_select(page_table, 0, subblock_ids.flatten(0, 1))
+        def unwrap_args(*ts):
+            new_ts = []
+            for t in ts:
+                if isinstance(t, DefaultPrimitiveTensor):
+                    t = t._data
+                new_ts.append(t)
+            return new_ts
 
-        selected = selected.unflatten(0, blocked_shape[:2])
-        key = selected[:, :, 0, :].flatten(1, 2)
-        value = selected[:, :, 1, :].flatten(1, 2)
+        key = kv_cache_gather(*unwrap_args(page_table, page_ids, t_id, key_p_id))
+        value = kv_cache_gather(*unwrap_args(page_table, page_ids, t_id, value_p_id))
+
+        key = key.transpose(2, 3).flatten(1, 2)
+        value = value.transpose(2, 3).flatten(1, 2)
+
+        if self.devices:
+            # Explicitly passing a list of one value to avoid redundant transfer inside ReplicateTensor.__init__.
+            key = ReplicatedTensor(ts=[key], devices=self.devices)
+            value = ReplicatedTensor(ts=[value], devices=self.devices)
 
         return key, value
 
@@ -176,6 +265,7 @@ class KVCache:
                 1, (block_seq_len, self.block_seq_stride)
             )
             cache_partition = cache_partition.flatten(0, 1)
+            cache_partition = cache_partition.transpose(1, 2)
 
             part_block = ops.to(cache_partition, dtype=page_table.dtype)
             if page_table.dtype == torch.float8_e4m3fnuz:
@@ -199,26 +289,35 @@ class KVCache:
         assert len(cache_partitions) == self.cache_partition_count
 
         page_table = self.unflatten_page_table(state)[0]
-        page_table = page_table.flatten(0, 3)
+        page_table = page_table.flatten(0, 4)
 
         device = self.device
         bs, *_ = seq_positions.shape
 
         page_index = seq_positions // self.block_seq_stride
-        page_id = ops.gather(page_ids, dim=1, index=page_index.unsqueeze(1))
-        page_offset = (seq_positions % self.block_seq_stride).unsqueeze(1)
+        page_index = page_index.unsqueeze(1)
+        page_id = ops.gather(page_ids, dim=1, index=page_index).view((bs, 1, 1))
+        page_offset = (seq_positions % self.block_seq_stride).view((bs, 1, 1))
+        head_offset = torch.arange(self.attn_head_count, device=device).view(
+            (1, 1, self.attn_head_count)
+        )
 
         for cache_partition_id, cache_partition in enumerate(cache_partitions):
             # [1, 1]
-            partitions = torch.tensor(cache_partition_id, device=device).unsqueeze(0)
-            partitions = partitions.repeat(bs, 1)
+            partitions = torch.tensor(cache_partition_id, device=device).view((1, 1, 1))
 
             index = page_id
             index = index * self.transformer_block_count + transformer_block_index
             index = index * self.cache_partition_count + partitions
+            index = index * self.attn_head_count + head_offset
             index = index * self.block_seq_stride + page_offset
 
+            cache_partition.transpose(1, 2)
             values = ops.to(cache_partition, dtype=page_table.dtype)
+
+            if isinstance(values, ShardedTensor) and type(values) != type(page_table):
+                values = ops.reshard_like(values, like=page_table)
+
             if page_table.dtype == torch.float8_e4m3fnuz:
                 # Workaround for Torch not supporting torch.Tensor.index_copy_ for f8.
                 page_table_as_int8 = page_table.view(dtype=torch.int8)
@@ -271,8 +370,8 @@ class ShardedCache:
         self.unsharded_page_dims = [
             self.transformer_block_count,
             self.cache_partition_count,
-            self.block_seq_stride,
             self.attn_head_count,
+            self.block_seq_stride,
             self.attn_head_dim,
         ]
 
@@ -298,7 +397,7 @@ class ShardedCache:
         head_start = 0
         for cache in self.caches:
             head_end = head_start + cache.attn_head_count
-            shard = page_table[:, :, :, :, head_start:head_end]
+            shard = page_table[:, :, :, head_start:head_end]
             shard = shard.flatten(1)
             shards.append(shard)
             head_start = head_end
@@ -313,7 +412,7 @@ class ShardedCache:
             cache.unshard_state([shard])[0]
             for cache, shard in zip(self.caches, state[0].shards)
         ]
-        state = SplitPrimitiveTensor(ts=state, shard_dim=4, devices=self.devices)
+        state = SplitPrimitiveTensor(ts=state, shard_dim=3, devices=self.devices)
 
         return [ops.unshard(state)]
 
@@ -576,7 +675,9 @@ class PipelinedCache:
         *,
         transformer_block_index: int,
         page_ids: torch.Tensor | ReplicatedTensor,
-    ):
+    ) -> tuple[
+        ReplicatedTensor | SplitPrimitiveTensor, ReplicatedTensor | SplitPrimitiveTensor
+    ]:
         pipeline = self.block_to_pipeline_map[transformer_block_index]
         block = self.transformer_block_map[transformer_block_index]
 
@@ -718,8 +819,8 @@ class PagedAttention:
 
     * transformer block
     * cache partition (K or V cache)
-    * block sequence stride (number of sequence positions per block)
     * attention heads
+    * block sequence stride (number of sequence positions per block)
     * attention dimensionality
 
     Note that the internal page structure matches the organization of the
@@ -738,6 +839,7 @@ class PagedAttention:
         transformer_block_count: int,
         attn_head_count: int,
         attn_head_dim: int,
+        attn_type: str = "gqa",
         cache_partition_count: int = 2,
         block_seq_stride: int = 16,
         cache_dtype: torch.dtype = torch.float32,
@@ -755,6 +857,7 @@ class PagedAttention:
         self.attn_dtype = attn_dtype
         self.cache_dtype = cache_dtype
         self.shard_count = shard_count
+        self.attn_type = attn_type
 
         self.pipeline_to_device_map = pipeline_to_device_map
         if self.pipeline_to_device_map is None:
@@ -836,6 +939,20 @@ class PagedAttention:
             page_ids=page_ids,
         )
 
+    def repeat_kv(self, x: torch.Tensor, n_rep: int) -> torch.Tensor:
+        bs, slen, n_kv_heads, head_dim = x.shape
+        unsq = x.unsqueeze(-2)
+        exp = ops.expand(unsq, (bs, slen, n_kv_heads, n_rep, head_dim))
+        return exp.flatten(2, 3)
+
+    def gqa(self, head_count_attn, k, v):
+        gqa_n_rep = head_count_attn // self.head_count_kv
+        assert gqa_n_rep > 0
+        if gqa_n_rep > 1:
+            k = self.repeat_kv(x=k, n_rep=gqa_n_rep)
+            v = self.repeat_kv(x=v, n_rep=gqa_n_rep)
+        return k, v
+
     def attention(
         self,
         *,
@@ -843,26 +960,16 @@ class PagedAttention:
         k: torch.Tensor,
         v: torch.Tensor,
         head_count_attn: int,
-        attention_kernel: str,
         cache_quantizer: Optional[QuantizerTensor],
+        attention_kernel: str,
         fake_quant: Optional[bool],
         softcap: Optional[float] = None,
         scale: Optional[torch.Tensor] = None,
         mask: Optional[torch.Tensor] = None,
         probs_quantizer: Optional[StaticScaledQuantizer] = None,
     ):
-        gqa_n_rep = head_count_attn // self.head_count_kv
-        assert gqa_n_rep > 0
-        if gqa_n_rep > 1:
-
-            def repeat_kv(x: torch.Tensor) -> torch.Tensor:
-                bs, slen, n_kv_heads, head_dim = x.shape
-                unsq = x.unsqueeze(-2)
-                exp = ops.expand(unsq, (bs, slen, n_kv_heads, gqa_n_rep, head_dim))
-                return exp.flatten(2, 3)
-
-            k = repeat_kv(k)
-            v = repeat_kv(v)
+        if self.attn_type == "gqa":
+            k, v = self.gqa(head_count_attn, k, v)
 
         # Fake quant is already dequantized when stored in the cache.
         if cache_quantizer and not fake_quant:
@@ -879,7 +986,12 @@ class PagedAttention:
         if mask is not None:
             mask = ops.to(mask, dtype=self.attn_dtype)
 
-        # Decomposed
+        if isinstance(k, ShardedTensor) and type(k) != type(q):
+            k = ops.reshard_like(k, like=q)
+
+        if isinstance(v, ShardedTensor) and type(v) != type(q):
+            v = ops.reshard_like(v, like=q)
+
         if attention_kernel == "decomposed":
             if isinstance(q, PlanarQuantizedTensor):
                 q = q.unpack().dequantize()
@@ -919,6 +1031,7 @@ class PagedAttention:
                     attn_weights = probs_quantizer.quantize(attn_weights).unpack().qs
             attn_weights = ops.to(attn_weights, dtype=q.dtype)
             return ops.matmul(attn_weights, v)  # (bs, heads, slen, head_dim)
+
         elif attention_kernel == "sharktank":
             if mask is not None:
                 attn_output = kernels.masked_flash_attention(
@@ -931,19 +1044,19 @@ class PagedAttention:
             else:
                 attn_output = kernels.flash_attention(q, k, v)
             return attn_output
-        else:
-            # Non-decomposed
-            if softcap is not None:
-                raise ValueError("softcap not supported yet")
 
-            return ops.scaled_dot_product_attention(
-                q=q,  # [bs, ..., sl, dim]
-                k=k,  # [bs, ..., sl, dim]
-                v=v,  # [bs, ..., sl, dim]
-                a=mask,  # [bs, ..., sl, sl]
-                is_causal=mask is None,  # assumes causal masking when true
-                scale=None,  # defaults to 1/sqrt(dim)
-            )
+        # Non-decomposed
+        if softcap is not None:
+            raise ValueError("softcap not supported yet")
+
+        return ops.scaled_dot_product_attention(
+            q=q,  # [bs, ..., sl, dim]
+            k=k,  # [bs, ..., sl, dim]
+            v=v,  # [bs, ..., sl, dim]
+            a=mask,  # [bs, ..., sl, sl]
+            is_causal=mask is None,  # assumes causal masking when true
+            scale=None,  # defaults to 1/sqrt(dim)
+        )
 
     def forward_decode(
         self,
