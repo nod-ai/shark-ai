@@ -250,8 +250,10 @@ class DecodeBatcherProcess(LlmBatcherProcess):
 
 class LlmExecutorProcess(sf.Process):
     """Executes a prefill batch."""
-    _host_logits = None
-    _host_indices = None
+    _host_logits: sfnp.device_array
+    _host_logits_init: int = 0
+    _host_indices: sfnp.device_array
+    _host_indices_init: int = 0
 
 
     def __init__(
@@ -294,10 +296,12 @@ class LlmExecutorProcess(sf.Process):
         logits, indices = buffers
 
         # Lazily initialize host buffers only once
-        if self._host_logits is None:
+        if self._host_logits_init == 0:
             self._host_logits = logits.for_transfer()
-        if indices is not None and self._host_indices is None:
+            self._host_logits_init = 1
+        if indices is not None and self._host_indices_init == 0:
             self._host_indices = indices.for_transfer()
+            self._host_indices_init = 1
 
         # Copy data from device to host
         self._host_logits.copy_from(logits)
