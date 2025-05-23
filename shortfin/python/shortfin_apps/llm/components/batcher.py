@@ -250,11 +250,6 @@ class DecodeBatcherProcess(LlmBatcherProcess):
 
 class LlmExecutorProcess(sf.Process):
     """Executes a prefill batch."""
-    _host_logits: sfnp.device_array
-    _host_logits_init: int = 0
-    _host_indices: sfnp.device_array
-    _host_indices_init: int = 0
-
 
     def __init__(
         self,
@@ -286,31 +281,7 @@ class LlmExecutorProcess(sf.Process):
         ...
 
     async def _transfer_buffer(self, req_count, device0, buffers):
-        transfer = any(
-            self.exec_requests[i].return_host_array for i in range(req_count)
-        )
-
-        if not transfer:
-            return buffers
-
-        logits, indices = buffers
-
-        # Lazily initialize host buffers only once
-        if self._host_logits_init == 0:
-            self._host_logits = logits.for_transfer()
-            self._host_logits_init = 1
-        if indices is not None and self._host_indices_init == 0:
-            self._host_indices = indices.for_transfer()
-            self._host_indices_init = 1
-
-        # Copy data from device to host
-        self._host_logits.copy_from(logits)
-        if indices is not None:
-            self._host_indices.copy_from(indices)
-
-        await device0
-
-        return self._host_logits, self._host_indices if indices is not None else None
+        ...
 
     async def run(self):
         try:
@@ -388,6 +359,10 @@ class PrefillExecutorProcess(LlmExecutorProcess):
     tokens_host_cache: dict[tuple[int, int], sfnp.device_array] = {}
     seq_lens_host_cache: dict[int, sfnp.device_array] = {}
     seq_block_ids_host_cache: dict[tuple[int, int], sfnp.device_array] = {}
+    _host_logits: sfnp.device_array
+    _host_logits_init: int = 0
+    _host_indices: sfnp.device_array
+    _host_indices_init: int = 0
 
     def __init__(
         self,
@@ -497,6 +472,32 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         for req in self.exec_requests:
             req.done.set_success()
 
+    async def _transfer_buffer(self, req_count, device0, buffers):
+        transfer = any(
+            self.exec_requests[i].return_host_array for i in range(req_count)
+        )
+
+        if not transfer:
+            return buffers
+
+        logits, indices = buffers
+
+        # Lazily initialize host buffers only once
+        if PrefillExecutorProcess._host_logits_init == 0:
+            PrefillExecutorProcess._host_logits = logits.for_transfer()
+            PrefillExecutorProcess._host_logits_init = 1
+        if indices is not None and PrefillExecutorProcess._host_indices_init == 0:
+            PrefillExecutorProcess._host_indices = indices.for_transfer()
+            PrefillExecutorProcess._host_indices_init = 1
+
+        # Copy data from device to host
+        self._host_logits.copy_from(logits)
+        if indices is not None:
+            self._host_indices.copy_from(indices)
+
+        await device0
+
+        return self._host_logits, self._host_indices if indices is not None else None
 
 class DecodeExecutorProcess(LlmExecutorProcess):
     """Executes a decode batch."""
@@ -504,6 +505,10 @@ class DecodeExecutorProcess(LlmExecutorProcess):
     seq_lens_host_cache: dict[int, sfnp.device_array] = {}
     start_positions_host_cache: dict[int, sfnp.device_array] = {}
     seq_block_ids_host_cache: dict[tuple[int, int], sfnp.device_array] = {}
+    _host_logits: sfnp.device_array
+    _host_logits_init: int = 0
+    _host_indices: sfnp.device_array
+    _host_indices_init: int = 0
 
     def __init__(
         self,
@@ -635,3 +640,30 @@ class DecodeExecutorProcess(LlmExecutorProcess):
 
         for req in self.exec_requests:
             req.done.set_success()
+
+    async def _transfer_buffer(self, req_count, device0, buffers):
+        transfer = any(
+            self.exec_requests[i].return_host_array for i in range(req_count)
+        )
+
+        if not transfer:
+            return buffers
+
+        logits, indices = buffers
+
+        # Lazily initialize host buffers only once
+        if DecodeExecutorProcess._host_logits_init == 0:
+            DecodeExecutorProcess._host_logits = logits.for_transfer()
+            DecodeExecutorProcess._host_logits_init = 1
+        if indices is not None and DecodeExecutorProcess._host_indices_init == 0:
+            DecodeExecutorProcess._host_indices = indices.for_transfer()
+            DecodeExecutorProcess._host_indices_init = 1
+
+        # Copy data from device to host
+        self._host_logits.copy_from(logits)
+        if indices is not None:
+            self._host_indices.copy_from(indices)
+
+        await device0
+
+        return self._host_logits, self._host_indices if indices is not None else None
