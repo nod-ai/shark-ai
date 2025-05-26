@@ -224,6 +224,7 @@ class LlamaHParams:
 
 
 def get_custom_configs(p: dict[str, Any], name_prefix: str):
+    res = defaultdict(lambda: None)
 
     if name_prefix == "grok":
         res["attention_softcap"] = 30.0

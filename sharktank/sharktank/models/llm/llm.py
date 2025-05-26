@@ -13,7 +13,6 @@ import torch.nn as nn
 
 from sharktank import ops
 from sharktank.layers import *
-from sharktank.layers.activations import ACT2FN
 from sharktank.types import *
 from sharktank.utils.create_cache import *
 from sharktank import ops
@@ -432,7 +431,6 @@ class AttentionFFNBlock(ThetaLayer):
                 FFN(
                     theta=theta,
                     fake_quant=fake_quant,
-                    activation_fn=activation_fn,
                 ),
             )
 
