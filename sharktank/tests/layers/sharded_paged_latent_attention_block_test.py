@@ -16,27 +16,31 @@ from sharktank.layers.testing import make_rand_torch
 
 from sharktank.models.deepseek.toy_deepseek import generate
 from sharktank.types.theta import Theta, flat_to_nested_dict
-from sharktank.types import unbox_tensor
+from sharktank.types import unbox_tensor, SplitPrimitiveTensor
 from sharktank.types.sharding import shard_theta, LatentAttentionBlockSharding
 from sharktank import ops
 from sharktank.utils.create_cache import *
 
 
 @pytest.mark.skip(
-    reason="Support will be added soon",
+    reason="Deepseek support will be added in 1256",
 )
 class ShardedPagedLatentAttentionBlockTest(unittest.TestCase):
     """Verify that the sharded latent paged attention block behaves in PyTorch as the
     unsharded variant."""
 
     def testShardedLatentLayer(self):
+        rtol = 1e-5
+        atol = 1e-5
 
         bs = 1
         start_index = 0
         block_seqlen = 7
         tensor_parallelism_size = 2
         page_count = 64
-        dtype = torch.float16
+
+        # This needs to be f32 because we are generating a config for KV cache of f32.
+        dtype = torch.float32
 
         theta, config = generate(12345)
         theta = theta("blk", 0)
@@ -70,9 +74,52 @@ class ShardedPagedLatentAttentionBlockTest(unittest.TestCase):
 
         cache = create_paged_kv_cache(config)
         sharded_cache = create_paged_kv_cache(sharded_config)
-        cache_state = cache.allocate(page_count)
-        cache_state[0] = make_rand_torch(cache_state[0].shape, dtype=dtype)
-        sharded_cache_state = sharded_cache.shard_state(deepcopy(cache_state))
+
+        def assert_equal_unsharded_and_sharded_cache_states(
+            cache_state: list[torch.Tensor],
+            sharded_cache_state: list[SplitPrimitiveTensor],
+        ):
+            cache_state = cache.unshard_state(cache_state)[0]
+            sharded_state_as_unsharded = sharded_cache.unshard_state(
+                sharded_cache_state
+            )[0]
+            assert sharded_state_as_unsharded.shape == cache_state.shape
+            assert ops.equal(
+                cache_state,
+                sharded_state_as_unsharded,
+            )
+
+        def assert_close_unsharded_and_sharded_cache_states(
+            cache_state: list[torch.Tensor],
+            sharded_cache_state: list[SplitPrimitiveTensor],
+        ):
+            cache_state = cache.unshard_state(cache_state)[0]
+            sharded_state_as_unsharded = sharded_cache.unshard_state(
+                sharded_cache_state
+            )[0]
+            assert sharded_state_as_unsharded.shape == cache_state.shape
+            torch.testing.assert_close(
+                unbox_tensor(cache_state),
+                unbox_tensor(sharded_state_as_unsharded),
+                rtol=rtol,
+                atol=atol,
+            )
+
+        def make_unsharded_and_sharded_equal_cache_states() -> (
+            tuple[list[torch.Tensor], list[SplitPrimitiveTensor]]
+        ):
+            cache_state = cache.allocate(page_count)
+            cache_state[0] = make_rand_torch(cache_state[0].shape, dtype=dtype)
+            sharded_cache_state = sharded_cache.shard_state(deepcopy(cache_state))
+            assert_equal_unsharded_and_sharded_cache_states(
+                cache_state, sharded_cache_state
+            )
+            return cache_state, sharded_cache_state
+
+        (
+            cache_state,
+            sharded_cache_state,
+        ) = make_unsharded_and_sharded_equal_cache_states()
 
         embedding = RotaryEmbeddingLayer(
             rope_dimension_count=hp.rope_dimension_count,
@@ -130,11 +177,8 @@ class ShardedPagedLatentAttentionBlockTest(unittest.TestCase):
         )
 
         actual_result = unbox_tensor(ops.unshard(sharded_result))
-        actual_cache_state = unbox_tensor(
-            ops.unshard(
-                sharded_cache.unflatten_page_tables(sharded_cache_state)[0]
-            ).flatten(start_dim=1)
-        )
 
-        torch.testing.assert_close(actual_result, expected_result)
-        torch.testing.assert_close(actual_cache_state, cache_state[0])
+        torch.testing.assert_close(actual_result, expected_result, rtol=rtol, atol=atol)
+        assert_close_unsharded_and_sharded_cache_states(
+            cache_state, sharded_cache_state
+        )
