@@ -348,9 +348,6 @@ class LlamaModelConfig:
     # Dtype to use for general FP activations not otherwise configured.
     activation_dtype: torch.dtype = torch.float16
 
-    # Activation function to use for the model. If None, will use the activation function specified in the model configuration.
-    activation_fn: Optional[str] = None
-
     # Dtype to use for attention.
     attention_dtype: torch.dtype = torch.float16
 
@@ -418,9 +415,6 @@ class LlamaModelConfig:
 
     # Scaling factor applied as a floor value in attention computations.
     floor_scale: Optional[int] = None
-
-    # If True, the Feed-Forward Network (FFN) block adds the residual connection at the end.
-    ffn_add_residual: bool = False
 
     # The default data type to use for model parameters and computations.
     dtype: Optional[torch.dtype] = None
