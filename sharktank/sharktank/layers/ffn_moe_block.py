@@ -80,12 +80,10 @@ class PreGatherFFNMOE(ThetaLayer):
 
         # (bs * sl, num_top_experts, expert_feature_dim)
         ffn_gate = self.pre_matmul_gather(h, self.ffn_gate, experts, None)
-        ffn_gate = einsum_2args(expert_gate, ffn_gate, "me,men->men")
         ffn_gate = elementwise(self.activation_fn, ffn_gate)
 
         # (bs * sl, num_top_experts, expert_feature_dim)
         ffn_up = self.pre_matmul_gather(h, self.ffn_up, experts, None)
-        ffn_up = einsum_2args(expert_gate, ffn_up, "me,men->men")
 
         # (bs * sl, num_top_experts, feature_dim)
         ffn_down = self.pre_matmul_gather(

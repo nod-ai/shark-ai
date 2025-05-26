@@ -40,10 +40,13 @@ class MoeBlock(ThetaLayer):
         n_expert_groups: Optional[int] = None,
         n_limited_groups: Optional[int] = None,
         route_scale: Optional[float] = None,
-        add_residual: bool = False,
     ):
         super().__init__(theta)
         if n_expert_groups is not None:
+            if expert_count is None:
+                raise ValueError(
+                    "expert_count must not be None when n_expert_groups is specified."
+                )
             if expert_count % n_expert_groups != 0:
                 raise ValueError(
                     (
@@ -52,7 +55,7 @@ class MoeBlock(ThetaLayer):
                     )
                 )
             n_experts_per_group = expert_count // n_expert_groups
-            if n_experts_per_group < n_limited_groups:
+            if n_limited_groups is not None and n_experts_per_group < n_limited_groups:
                 raise ValueError(
                     (
                         f"Number of limited expert groups {n_limited_groups} must be at "
@@ -115,7 +118,6 @@ class MoeBlock(ThetaLayer):
             self.shared_experts = FFN(
                 theta=shared_ffn_theta,
                 activation_fn=moe_activation,
-                add_residual=add_residual,
             )
 
         # Add optional FFN output norm layer

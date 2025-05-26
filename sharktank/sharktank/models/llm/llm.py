@@ -339,11 +339,6 @@ class AttentionFFNBlock(ThetaLayer):
         config: LlamaModelConfig,
         fake_quant: bool = True,
     ):
-        activation_fn = (
-            ACT2FN[config.activation_fn]
-            if config.activation_fn
-            else torch.nn.functional.silu
-        )
         super().__init__(theta)
 
         attention_kernel = (
@@ -399,7 +394,7 @@ class AttentionFFNBlock(ThetaLayer):
             ),
             "llama4": (
                 torch.nn.functional.sigmoid,
-                activation_fn,
+                torch.nn.functional.silu,
                 True,
                 False,
             ),
@@ -429,7 +424,6 @@ class AttentionFFNBlock(ThetaLayer):
                     moe_activation=moe_activation,
                     score_experts=score_experts,
                     normalize_experts=normalize_experts,
-                    add_residual=config.ffn_add_residual,
                 ),
             )
         else:
@@ -439,7 +433,6 @@ class AttentionFFNBlock(ThetaLayer):
                     theta=theta,
                     fake_quant=fake_quant,
                     activation_fn=activation_fn,
-                    add_residual=config.ffn_add_residual,
                 ),
             )
 

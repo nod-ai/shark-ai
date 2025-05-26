@@ -47,7 +47,9 @@ class LlamaHParams:
     attention_head_count: int
     attn_head_dim: int
     attention_layer_norm_rms_epsilon: float
-    attention_head_count_kv: int
+    attention_head_count_kv: Optional[int] = None
+    # The size of the model's vocabulary.
+    vocab_size: Optional[int] = None
 
     vocab_size: int | None = None
     """TODO: make this non-optional once we don't use artifacts without this value."""
@@ -94,9 +96,6 @@ class LlamaHParams:
     n_dense_layers: Optional[int] = None
     route_scale: Optional[float] = None
 
-    # The size of the model's vocabulary.
-    vocab_size: Optional[int] = None
-
     @staticmethod
     def from_gguf_props(p: dict[str, Any]):
         name_prefix = p.get("general.architecture", "llama")
@@ -113,7 +112,7 @@ class LlamaHParams:
         expert_count = _optional_int_prop(
             p, f"{name_prefix}.expert_count", default_expert_count
         )
-        defaut_n_dense_layers = 0 if expert_count > 0 else None
+        defaut_n_dense_layers = 0 if expert_count and expert_count > 0 else None
         n_dense_layers = _optional_int_prop(
             p, f"{name_prefix}.leading_dense_block_count", defaut_n_dense_layers
         )
@@ -137,6 +136,7 @@ class LlamaHParams:
             attention_head_count_kv=_optional_int_prop(
                 p, f"{name_prefix}.attention.head_count_kv", attention_head_count
             ),
+            expert_count=expert_count,
             expert_used_count=_optional_int_prop(
                 p, f"{name_prefix}.expert_used_count", default_expert_used_count
             ),
@@ -147,22 +147,6 @@ class LlamaHParams:
             rope_dimension_count=rope_dimension_count,
             rope_freq_base=_optional_float_prop(
                 p, f"{name_prefix}.rope.freq_base", default_rope_freq_base
-            ),
-            expert_feed_forward_length=_optional_int_prop(
-                p, f"{name_prefix}.expert_feed_forward_length", None
-            ),
-            expert_shared_feed_forward_length=_optional_int_prop(
-                p, f"{name_prefix}.expert_shared_feed_forward_length", None
-            ),
-            interleave_moe_layer_step=_optional_int_prop(
-                p,
-                f"{name_prefix}.interleave_moe_layer_step",
-                default_interleave_moe_layer_step,
-            ),
-            vocab_size=_optional_int_prop(
-                p,
-                f"{name_prefix}.vocab_size",
-                None,
             ),
             **custom_config,
         )
@@ -241,8 +225,6 @@ class LlamaHParams:
 
 def get_custom_configs(p: dict[str, Any], name_prefix: str):
 
-    res = defaultdict(lambda: None)
-
     if name_prefix == "grok":
         res["attention_softcap"] = 30.0
 
@@ -279,9 +261,17 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         res["attn_head_dim"] = res["qk_nope_head_dim"] + res["qk_rope_head_dim"]
 
     if name_prefix == "llama4":
-        res["expert_shared_count"] = _optional_int_prop(
-            p, f"{name_prefix}.expert_shared_count", None
+        res["interleave_moe_layer_step"] = _int_prop(
+            p, f"{name_prefix}.interleave_moe_layer_step"
         )
+        res["expert_shared_count"] = _int_prop(p, f"{name_prefix}.expert_shared_count")
+        res["expert_feed_forward_length"] = _int_prop(
+            p, f"{name_prefix}.expert_feed_forward_length"
+        )
+        res["expert_shared_feed_forward_length"] = _int_prop(
+            p, f"{name_prefix}.expert_shared_feed_forward_length"
+        )
+        res["vocab_size"] = _int_prop(p, f"{name_prefix}.vocab_size")
 
     return res
 
