@@ -432,7 +432,9 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         # Populate cache pages.
         seq_block_ids_key = (bs, block_count)
         if seq_block_ids_key not in self.seq_block_ids_host_cache:
-            self.seq_block_ids_host_cache[seq_block_ids_key] = seq_block_ids.for_transfer()
+            self.seq_block_ids_host_cache[
+                seq_block_ids_key
+            ] = seq_block_ids.for_transfer()
         seq_block_ids_host = self.seq_block_ids_host_cache[seq_block_ids_key]
         for i in range(bs):
             with seq_block_ids_host.view(i).map(discard=True) as m:
@@ -561,7 +563,9 @@ class DecodeExecutorProcess(LlmExecutorProcess):
 
         start_positions_key = bs
         if start_positions_key not in self.start_positions_host_cache:
-            self.start_positions_host_cache[start_positions_key] = start_positions.for_transfer()
+            self.start_positions_host_cache[
+                start_positions_key
+            ] = start_positions.for_transfer()
         start_positions_host = self.start_positions_host_cache[start_positions_key]
 
         seq_block_ids_key = (bs, block_count)
