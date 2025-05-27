@@ -43,8 +43,8 @@ class CausalConv3d(nn.Conv3d):
         if cache_x is not None and self._padding[4] > 0:
             cache_x = cache_x.to(x.device)
             cache_x = cache_x.clone()
-            if self.trace_tensors:
-                ops.iree.trace_tensor(f"cc3d_cache_x", x[0][0])
+            # if self.trace_tensors:
+            #     ops.iree.trace_tensor(f"cc3d_cache_x", x[0][0])
             x = torch.cat([cache_x, x], dim=2)
             padding[4] -= cache_x.shape[2]
         x = F.pad(x, padding)
@@ -55,7 +55,7 @@ class CausalConv3d(nn.Conv3d):
         out = super().forward(x)
         if self.trace_tensors:
             out = out.clone()
-            ops.iree.trace_tensor(f"cc3d_out_{self._iter}", out[0][0])
+            # ops.iree.trace_tensor(f"cc3d_out_{self._iter}", out[0][0])
         return out
 
 
