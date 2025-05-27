@@ -356,6 +356,7 @@ class LlmExecutorProcess(sf.Process):
 
 class PrefillExecutorProcess(LlmExecutorProcess):
     """Executes a prefill batch."""
+
     tokens_host_cache: dict[tuple[int, int], sfnp.device_array] = {}
     seq_lens_host_cache: dict[int, sfnp.device_array] = {}
     seq_block_ids_host_cache: dict[tuple[int, int], sfnp.device_array] = {}
@@ -501,8 +502,10 @@ class PrefillExecutorProcess(LlmExecutorProcess):
 
         return self._host_logits, self._host_indices if indices is not None else None
 
+
 class DecodeExecutorProcess(LlmExecutorProcess):
     """Executes a decode batch."""
+
     tokens_host_cache: dict[int, sfnp.device_array] = {}
     seq_lens_host_cache: dict[int, sfnp.device_array] = {}
     start_positions_host_cache: dict[int, sfnp.device_array] = {}
