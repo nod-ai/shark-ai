@@ -71,6 +71,7 @@ class ModelArgs:
     qk_nope_head_dim: int = 128
     qk_rope_head_dim: int = 64
     v_head_dim: int = 128
+    attn_head_dim = qk_nope_head_dim + qk_rope_head_dim
     # yarn
     original_seq_len: int = 4096
     rope_theta: float = 10000.0
@@ -78,6 +79,7 @@ class ModelArgs:
     beta_fast: int = 32
     beta_slow: int = 1
     mscale: float = 1.0
+    rope_scaling_yarn_log_multiplier: float = 0.10000000149011612
 
 
 if __name__ == "__main__":
@@ -93,20 +95,33 @@ if __name__ == "__main__":
     config = json.load(open(args.config, "r"))
     modelargs = ModelArgs(**config)
     hp = LlamaHParams(
-        model_arch="deepseek_v3",
+        model_arch="deepseek2",
         context_length=modelargs.original_seq_len,
         embedding_length=modelargs.vocab_size,
         block_count=modelargs.n_layers,
         feed_forward_length=modelargs.inter_dim,
         attention_head_count=modelargs.n_heads,
-        attn_head_dim=modelargs.dim,
+        attn_head_dim=modelargs.attn_head_dim,
         attention_layer_norm_rms_epsilon=1e-6,
         attention_head_count_kv=-1,
+        q_lora_rank=modelargs.q_lora_rank,
+        kv_lora_rank=modelargs.kv_lora_rank,
+        qk_nope_head_dim=modelargs.qk_nope_head_dim,
+        qk_rope_head_dim=modelargs.qk_rope_head_dim,
+        v_head_dim=modelargs.v_head_dim,
+        rope_dimension_count=modelargs.qk_rope_head_dim,
         rope_freq_base=modelargs.rope_theta,
         expert_count=modelargs.n_routed_experts,
         expert_used_count=modelargs.n_activated_experts,
-        rope_dimension_count=modelargs.qk_rope_head_dim,
+        expert_shared_count=modelargs.n_shared_experts,
+        n_expert_groups=modelargs.n_expert_groups,
+        n_limited_groups=modelargs.n_limited_groups,
+        n_dense_layers=modelargs.n_dense_layers,
         route_scale=modelargs.route_scale,
+        rope_scaling_type="yarn",
+        rope_scaling_factor=modelargs.rope_factor,
+        rope_scaling_original_context_length=modelargs.original_seq_len,
+        rope_scaling_yarn_log_multiplier=modelargs.rope_scaling_yarn_log_multiplier,
     )
 
     x = torch.randint(0, modelargs.vocab_size, (2, 16))
@@ -179,7 +194,6 @@ if __name__ == "__main__":
                     experts[id] = {}
                 experts[id][split[3]] = weight
                 continue
-            print(name)
             assert False and "unhandled tensor found"
 
         expert_keys = experts[0].keys() if experts else []
