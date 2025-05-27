@@ -1,4 +1,4 @@
-# SHARK artifacts export and compile for Wan2.1 text+audio to video benchmarks
+# SHARK artifacts export and compile for Wan2.1 benchmarks
 
 ## Getting MLIR
 
