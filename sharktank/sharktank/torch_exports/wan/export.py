@@ -6,6 +6,7 @@ from typing import Dict, Any
 from pathlib import Path
 from dataclasses import fields
 import functools
+import os
 
 import torch
 import torch.nn.functional as F
@@ -17,7 +18,7 @@ from sharktank.transforms.dataset import set_float_dtype
 
 import time
 
-#from models.wan.modules.clip import clip_xlm_roberta_vit_h_14
+from clip import clip_xlm_roberta_vit_h_14
 
 # Global variables for models
 torch.random.manual_seed(0)
@@ -131,7 +132,7 @@ def get_t5_text_model_and_inputs():
     output_path = Path(ARTIFACTS_DIR)
     t5_path = Path(model_path)
     t5_tokenizer_path = Path(model_path)
-    t5_output_path = output_path / f"{model_path.split('_')[0]}_t5xxl_{dtype_str}.irpa"
+    t5_output_path = output_path / f"wan2_1_umt5xxl_{dtype_str}.irpa"
     t5_dataset = import_encoder_dataset_from_hugging_face(
         str(t5_path), tokenizer_path_or_repo_id=str(t5_tokenizer_path)
     )
@@ -152,6 +153,7 @@ def get_t5_text_model_and_inputs():
             self.hf_module = self.hf_module.eval().requires_grad_(False)
 
         def forward(self, input_ids) -> torch.Tensor:
+
             outputs = self.hf_module(
                 input_ids=input_ids,
                 attention_mask=None,
@@ -163,9 +165,15 @@ def get_t5_text_model_and_inputs():
         t5_dataset,
         512,
     )
-    t5_sample_inputs = [
-        torch.ones([BATCH_SIZE, 512], dtype=torch.int64),
-    ]
+    t5_sample_inputs = {
+        "forward": {
+            "input_ids": torch.ones([BATCH_SIZE, 512], dtype=torch.int64),
+        }
+    }
+    t5_output = t5_mod.forward(t5_sample_inputs["forward"]["input_ids"])
+    np.save("umt5xxl_input.npy", np.asarray(t5_sample_inputs["forward"]["input_ids"]))
+
+    np.save("umt5xxl_output.npy", np.asarray(t5_output.to(torch.float16).detach()))
     return t5_mod, t5_sample_inputs
 
 # The c.ai benchmark script does not run through the wav2vec model. Skip for now.
@@ -235,18 +243,20 @@ def get_vae_model_and_inputs():
     return model, inputs
 
 def export_model_components(args):
-    clip_artifacts = ["wan2_1_clip_512x512.mlir", "wan2_1_clip_bf16.irpa"]
-    if not artifacts_exist(clip_artifacts):
-        clip_mod, clip_inputs = get_clip_visual_model_and_inputs()
-        export_model_mlir(
-            clip_mod, 
-            clip_artifacts[0], 
-            clip_inputs, 
-            decomp_attn=True, 
-            weights_filename=clip_artifacts[1]
-        )
+    # clip_artifacts = ["wan2_1_clip_512x512.mlir", "wan2_1_clip_bf16.irpa"]
+    # if not artifacts_exist(clip_artifacts) or "clip" in args.force_export:
+    #     print("Exporting CLIP model...")
+    #     clip_mod, clip_inputs = get_clip_visual_model_and_inputs()
+    #     export_model_mlir(
+    #         clip_mod, 
+    #         clip_artifacts[0], 
+    #         clip_inputs, 
+    #         decomp_attn=True, 
+    #         weights_filename=clip_artifacts[1]
+    #     )
     t5_artifacts = ["wan2_1_umt5xxl.mlir", "wan2_1_umt5xxl_bf16.irpa"]
-    if not artifacts_exist(t5_artifacts):
+    if not artifacts_exist(t5_artifacts) or "t5" in args.force_export:
+        print("Exporting umt5-xxl model...")
         t5_mod, t5_inputs = get_t5_text_model_and_inputs()
         export_model_mlir(
             t5_mod, 
@@ -255,9 +265,10 @@ def export_model_components(args):
             weights_filename=t5_artifacts[1]
         )
     vae_artifacts = ["wan2_1_vae_512x512.mlir", "wan2_1_vae_bf16.irpa"]
-        if not artifacts_exist(vae_artifacts):
+    if not artifacts_exist(vae_artifacts) or "vae" in args.force_export:
+        print("Exporting VAE model...")
         vae_mod, vae_inputs = get_vae_model_and_inputs()
-        export_model_mlir(vae_mod, vae_artifacts[0], vae_inputs, weights_filename=vae_artifacts[1])
+        export_model_mlir(vae_mod, vae_artifacts[0], vae_inputs, decomp_attn=True, weights_filename=vae_artifacts[1])
 
 def artifacts_exist(artifacts: list) -> bool:
     for artifact in artifacts:
@@ -339,6 +350,7 @@ def main():
     parser.add_argument("--width", type=int, default=512)
     parser.add_argument("--height", type=int, default=512)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--force_export", type=str, default="", help="model to force new export for. Comma-separated t5, clip, vae",)
 
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
