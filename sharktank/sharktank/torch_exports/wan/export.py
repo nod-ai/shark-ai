@@ -255,7 +255,7 @@ def export_model_components(args):
     #         weights_filename=clip_artifacts[1]
     #     )
     t5_artifacts = ["wan2_1_umt5xxl.mlir", "wan2_1_umt5xxl_bf16.irpa"]
-    if not artifacts_exist(t5_artifacts) or "t5" in args.force_export:
+    if "t5" in args.force_export:
         print("Exporting umt5-xxl model...")
         t5_mod, t5_inputs = get_t5_text_model_and_inputs()
         export_model_mlir(
@@ -265,10 +265,10 @@ def export_model_components(args):
             weights_filename=t5_artifacts[1]
         )
     vae_artifacts = ["wan2_1_vae_512x512.mlir", "wan2_1_vae_bf16.irpa"]
-    if not artifacts_exist(vae_artifacts) or "vae" in args.force_export:
+    if "vae" in args.force_export:
         print("Exporting VAE model...")
         vae_mod, vae_inputs = get_vae_model_and_inputs()
-        export_model_mlir(vae_mod, vae_artifacts[0], vae_inputs, decomp_attn=True, weights_filename=vae_artifacts[1])
+        export_model_mlir(vae_mod, vae_artifacts[0], vae_inputs, decomp_attn=False, weights_filename=vae_artifacts[1])
 
 def artifacts_exist(artifacts: list) -> bool:
     for artifact in artifacts:
