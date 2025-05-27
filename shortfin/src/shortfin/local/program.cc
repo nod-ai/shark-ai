@@ -209,6 +209,7 @@ Program Program::Load(std::span<const ProgramModule> modules,
   SHORTFIN_THROW_IF_ERROR(                           //
       iree_hal_module_create(                        //
           system->vm_instance(),                     //
+          iree_hal_module_device_policy_default(),   //
           raw_devices.size(),                        //
           raw_devices.data(),                        //
           IREE_HAL_MODULE_FLAG_NONE,                 //
