@@ -123,13 +123,13 @@ def KVCacheGatherKernel():
 kv_cache_gather = KVCacheGatherKernel()
 
 
-def cachify(tensor):
+def unpack_raw_tensor(tensor):
     if isinstance(tensor, PlanarQuantizedTensor):
         return tensor.unpack()._qs
     return tensor
 
 
-def uncachify(tensor, quantizer):
+def pack_raw_tensor(tensor, quantizer):
     if quantizer is None:
         return tensor
     layout = TensorScaledLayout(
@@ -1090,8 +1090,8 @@ class PagedAttention:
         self.write_timestep(
             cache_state,
             cache_partitions=[
-                cachify(k),
-                cachify(v),
+                unpack_raw_tensor(k),
+                unpack_raw_tensor(v),
             ],
             transformer_block_index=block_index,
             seq_positions=start_positions,
@@ -1105,8 +1105,8 @@ class PagedAttention:
             page_ids=seq_block_ids,
         )
 
-        k = uncachify(k, k_quantizer)
-        v = uncachify(v, v_quantizer)
+        k = pack_raw_tensor(k, k_quantizer)
+        v = pack_raw_tensor(v, v_quantizer)
 
         return self.attention(
             q=q,
@@ -1141,7 +1141,7 @@ class PagedAttention:
     ):
         self.write(
             cache_state,
-            cache_partitions=[cachify(k), cachify(v)],
+            cache_partitions=[unpack_raw_tensor(k), unpack_raw_tensor(v)],
             transformer_block_index=block_index,
             page_ids=seq_block_ids,
         )
