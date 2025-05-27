@@ -570,7 +570,9 @@ class DecodeExecutorProcess(LlmExecutorProcess):
 
         seq_block_ids_key = (bs, block_count)
         if seq_block_ids_key not in self.seq_block_ids_host_cache:
-            self.seq_block_ids_host_cache[seq_block_ids_key] = seq_block_ids.for_transfer()
+            self.seq_block_ids_host_cache[
+                seq_block_ids_key
+            ] = seq_block_ids.for_transfer()
         seq_block_ids_host = self.seq_block_ids_host_cache[seq_block_ids_key]
 
         # Populate tokens.
