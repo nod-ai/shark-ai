@@ -135,7 +135,7 @@ jobs:
             -v \
             -s \
             sharktank/tests/evaluate/perplexity_iree_test.py \
-            --run-nightly-llama-tests \
+            --run-nightly-tests \
             --bs=128 \
             --iree-device=hip://0 \
             --iree-hip-target=gfx942 \
@@ -200,12 +200,12 @@ jobs:
       - name: Run Torch perplexity for fp16
         run: |
           source ${VENV_DIR}/bin/activate
-          pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_torch_test.py -k test_llama3_8B_f16 --run-nightly-llama-tests --bs=32 --device='cuda:0' --llama3-8b-f16-model-path=/shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa --llama3-8b-tokenizer-path=/shark-dev/data/llama3.1/weights/8b/fp16/tokenizer_config.json --html=out/llm/llama/perplexity/torch_perplexity/index_f16.html --log-cli-level=INFO
+          pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_torch_test.py -k test_llama3_8B_f16 --run-nightly-tests --bs=32 --device='cuda:0' --llama3-8b-f16-model-path=/shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa --llama3-8b-tokenizer-path=/shark-dev/data/llama3.1/weights/8b/fp16/tokenizer_config.json --html=out/llm/llama/perplexity/torch_perplexity/index_f16.html --log-cli-level=INFO
 
       - name: Run Torch perplexity for fp8
         run: |
           source ${VENV_DIR}/bin/activate
-          pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_torch_test.py -k test_llama3_8B_f8 --run-nightly-llama-tests --bs=32 --device='cuda:0' --llama3-8b-f8-model-path=/shark-dev/8b/fp8/native_fp8_e4m3fnuz_llama3_8b.irpa --llama3-8b-tokenizer-path=/shark-dev/data/llama3.1/weights/8b/fp16/tokenizer_config.json --html=out/llm/llama/perplexity/torch_perplexity/index_f8.html --log-cli-level=INFO
+          pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_torch_test.py -k test_llama3_8B_f8 --run-nightly-tests --bs=32 --device='cuda:0' --llama3-8b-f8-model-path=/shark-dev/8b/fp8/native_fp8_e4m3fnuz_llama3_8b.irpa --llama3-8b-tokenizer-path=/shark-dev/data/llama3.1/weights/8b/fp16/tokenizer_config.json --html=out/llm/llama/perplexity/torch_perplexity/index_f8.html --log-cli-level=INFO
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4.0.0
