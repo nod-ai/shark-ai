@@ -4,6 +4,8 @@
 
 Currently, different torch versions are required for different exports. This is mostly due to VAE using torch.aten.as_strided in latest torch versions, which we don't have a torch to linalg lowering for -- we use latest torch for CLIP export (uses newer layer slicing not available in 2.5.1) and 2.5.1 for VAE export.
 
+First, check out this branch (wan_exports) in your local repository clone.
+
 ### CLIP
 Run:
 ```shell
