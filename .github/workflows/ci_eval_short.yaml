@@ -71,6 +71,6 @@ jobs:
             --iree-hal-target-device=hip \
             --llama3-8b-f16-model-path=/shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa \
             --llama3-8b-tokenizer-path=/shark-dev/data/llama3.1/weights/8b/fp16/tokenizer_config.json \
-            --run-quick-llama-test \
+            --run-quick-test \
             --log-cli-level=INFO
           ls -lha ${{ github.workspace }}/perplexity_ci_artifacts
