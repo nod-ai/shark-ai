@@ -123,65 +123,33 @@ def test_get_pipeline_config(tuner_ctx: common.TunerContext) -> None:
 
 
 def test_get_compatible_mfma_intrinsics(tuner_ctx: common.TunerContext) -> None:
-    assert common.get_compatible_mfma_intrinsics(
-        common.ProblemSize(
-            common.ContractionSizes([2048], [1280], [1280]),
-            common.ShapedType([2048, 1280], tuner_ctx.type.f16),
-            common.ShapedType([1280, 1280], tuner_ctx.type.f16),
-            common.ShapedType([2048, 1280], tuner_ctx.type.f32),
-            common.DispatchKind.contraction,
-            common.ContractionDimensions([0], [1], [2]),
-        ),
-        [
-            iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
-            iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
-            iree_gpu.MMAIntrinsic.MFMA_I32_16x16x32_I8,
-            iree_gpu.MMAIntrinsic.MFMA_I32_32x32x16_I8,
-        ],
-    ) == [
+    all_intrinsics = [
         iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
         iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
-    ]
-
-    assert common.get_compatible_mfma_intrinsics(
-        common.ProblemSize(
-            common.ContractionSizes([2048], [1280], [1280]),
-            common.ShapedType([2048, 1280], tuner_ctx.type.i8),
-            common.ShapedType([1280, 1280], tuner_ctx.type.i8),
-            common.ShapedType([2048, 1280], tuner_ctx.type.i32),
-            common.DispatchKind.contraction,
-            common.ContractionDimensions([0], [1], [2]),
-        ),
-        [
-            iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
-            iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
-            iree_gpu.MMAIntrinsic.MFMA_I32_16x16x32_I8,
-            iree_gpu.MMAIntrinsic.MFMA_I32_32x32x16_I8,
-        ],
-    ) == [
         iree_gpu.MMAIntrinsic.MFMA_I32_16x16x32_I8,
         iree_gpu.MMAIntrinsic.MFMA_I32_32x32x16_I8,
     ]
 
-    assert (
-        common.get_compatible_mfma_intrinsics(
-            common.ProblemSize(
-                common.ContractionSizes([968], [320], [640], [64]),
-                common.ShapedType([64, 968, 640], tuner_ctx.type.f32),
-                common.ShapedType([64, 640, 320], tuner_ctx.type.f32),
-                common.ShapedType([64, 968, 320], tuner_ctx.type.f32),
-                common.DispatchKind.contraction,
-                common.ContractionDimensions([1], [2], [3], [0]),
-            ),
-            [
-                iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
-                iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
-                iree_gpu.MMAIntrinsic.MFMA_I32_16x16x32_I8,
-                iree_gpu.MMAIntrinsic.MFMA_I32_32x32x16_I8,
-            ],
-        )
-        == []
-    )
+    lhs = common.ShapedType([2048, 1280], tuner_ctx.type.f16)
+    rhs = common.ShapedType([1280, 1280], tuner_ctx.type.f16)
+    res = common.ShapedType([2048, 1280], tuner_ctx.type.f32)
+    assert common.get_compatible_mfma_intrinsics(lhs, rhs, res, all_intrinsics) == [
+        iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
+        iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
+    ]
+
+    lhs = common.ShapedType([2048, 1280], tuner_ctx.type.i8)
+    rhs = common.ShapedType([1280, 1280], tuner_ctx.type.i8)
+    res = common.ShapedType([2048, 1280], tuner_ctx.type.i32)
+    assert common.get_compatible_mfma_intrinsics(lhs, rhs, res, all_intrinsics) == [
+        iree_gpu.MMAIntrinsic.MFMA_I32_16x16x32_I8,
+        iree_gpu.MMAIntrinsic.MFMA_I32_32x32x16_I8,
+    ]
+
+    lhs = common.ShapedType([64, 968, 640], tuner_ctx.type.f32)
+    rhs = common.ShapedType([64, 640, 320], tuner_ctx.type.f32)
+    res = common.ShapedType([64, 968, 320], tuner_ctx.type.f32)
+    assert common.get_compatible_mfma_intrinsics(lhs, rhs, res, all_intrinsics) == []
 
 
 def test_get_lowering_config(tuner_ctx: common.TunerContext) -> None:

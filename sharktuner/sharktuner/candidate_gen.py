@@ -31,6 +31,7 @@ from .common import *
 from .dispatch_constraints import *
 from .dispatch_parser import *
 from .spec_builder import *
+from .constraint_generator import *
 
 tune_logger = logging.getLogger("tune")
 
@@ -42,6 +43,11 @@ class DispatchTuner(DispatchParser):
         compilation_info: iree_codegen.CompilationInfoAttr,
     ) -> ir.Module:
         """Generate a transform dialect spec that applies the compilation info attr."""
+        pass
+
+    @abstractmethod
+    def get_constraint_generator(self) -> ConstraintGenerator:
+        """Returns a ConstraintGenerator associated with this dispatch root op."""
         pass
 
 
@@ -64,6 +70,9 @@ class ContractionOpInterfaceTuner(DispatchTuner, ContractionOpInterfaceParser):
     def __init__(self, root_op: ir.Operation):
         super().__init__(root_op)
 
+    def get_constraint_generator(self) -> ConstraintGenerator:
+        return ContractionOpInterfaceConstraintGenerator(self.get_root_op())
+
     def get_td_spec(
         self,
         compilation_info: iree_codegen.CompilationInfoAttr,
@@ -76,6 +85,12 @@ class ContractionOpInterfaceTuner(DispatchTuner, ContractionOpInterfaceParser):
 
 
 class ConvolutionOpInterfaceTuner(DispatchTuner, ConvolutionOpInterfaceParser):
+    def __init__(self, root_op: ir.Operation):
+        super().__init__(root_op)
+
+    def get_constraint_generator(self) -> ConstraintGenerator:
+        return ConvolutionOpInterfaceConstraintGenerator(self.get_root_op())
+
     def get_td_spec(
         self,
         compilation_info: iree_codegen.CompilationInfoAttr,
@@ -126,8 +141,6 @@ def generate_configs_and_td_specs(
             break
 
     assert dispatch_tuner, "No suitable dispatch tuner found"
-    problem_size: ProblemSize = dispatch_tuner.get_problem_size()
-    tune_logger.debug(str(problem_size))
 
     # Index 0 is reserved for default config, so it gets a placeholder spec.
     config_specs: list[ir.Module] = [get_placeholder_spec(input_module.context)]
@@ -138,15 +151,16 @@ def generate_configs_and_td_specs(
     variant_op = variant_op_list[0]
     mma_list = iree_codegen.query_mma_intrinsics(variant_op)
 
+    constraint_generator = dispatch_tuner.get_constraint_generator()
+
     for i, config in enumerate(
-        generate_solutions(
+        constraint_generator.generate_solutions(
             tuner_context,
-            problem_size,
-            num_subgroups,
-            mma_list,
-            allowed_waves_per_eu,
-            pipeline_options_search_space,
             codegen_pipeline,
+            num_subgroups=num_subgroups,
+            mma_list=mma_list,
+            allowed_waves_per_eu=allowed_waves_per_eu,
+            pipeline_options_search_space=pipeline_options_search_space,
         )
     ):
         if i >= limit:
