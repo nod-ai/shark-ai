@@ -9,14 +9,14 @@ Run:
 ```shell
 pip uninstall torch torchvision torchaudio -y
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm6.3
-python export.py --model=clip
+python export.py --force_export=clip
 ```
 ### VAE
 Run:
 ```shell
 pip uninstall torch torchvision torchaudio -y
 pip install -r <shark_ai_root>/pytorch-rocm-requirements.txt
-python export.py --model=vae
+python export.py --force_export=vae
 ```
 ## Compile
 
