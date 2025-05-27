@@ -105,50 +105,6 @@ class RotaryEmbeddingLayer(BaseLayer):
             f"Rotary embedding layer not implemented for input tensor type {type(xt)}"
         )
 
-    def _create_interleaved_tensor(_, dim):
-        """Creates a tensor which indexes an tensor such that
-        it alternates between elements of its first and second
-        half. Intended for use for HuggingFace's rotation
-        implementation.
-
-        Args:
-          dim: Size of tensor
-
-        Returns:
-          Interleaved indexing tensor
-        """
-        first_half = torch.arange(dim // 2)
-        second_half = torch.arange(dim // 2, dim)
-
-        interleaved_tensor = torch.empty(dim, dtype=torch.long)
-        interleaved_tensor[0::2] = first_half
-        interleaved_tensor[1::2] = second_half
-
-        return interleaved_tensor
-
-    def _create_ordering_tensor(_, dim):
-        """Creates a tensor which indexes an tensor such that
-        it reverses the alternation induced by create_interleaved_tesnor.
-        Intended for use for HuggingFace's rotation implementation.
-
-        Args:
-          dim: Size of tensor
-
-        Returns:
-          Ordering indexing tensor
-        """
-        order_tensor = torch.empty(dim, dtype=torch.long)
-        order_tensor[: dim // 2] = torch.arange(0, dim, 2)
-        order_tensor[dim // 2 :] = torch.arange(1, dim, 2)
-        return order_tensor
-
-    @staticmethod
-    def rotate_half(x):
-        """Rotates half the hidden dims of the input."""
-        x1 = x[..., : x.shape[-1] // 2]
-        x2 = x[..., x.shape[-1] // 2 :]
-        return torch.cat((-x2, x1), dim=-1)
-
     def forward_unsharded(
         self,
         *,
@@ -158,8 +114,7 @@ class RotaryEmbeddingLayer(BaseLayer):
     ):
         # freqs_cis shape: max_sl, dim
         # xq_, xk_ shape: bs, sl, _, dim
-        xt_ = xt
-        _, sl, _, _ = xt_.shape
+        _, sl, _, dim = xt.shape
 
         if self.use_hf:
             freqs_cis = rotary_embed_table
@@ -168,9 +123,11 @@ class RotaryEmbeddingLayer(BaseLayer):
             # expand to 1, sl, 1, dim and repeat per bs
             cos = cos[None, :, None, :].repeat(xt.shape[0], 1, 1, 1)
             sin = sin[None, :, None, :].repeat(xt.shape[0], 1, 1, 1)
-            xt = xt.transpose(1, 2)
-            xt_out = (xt_ * cos) + (self.rotate_half(xt_) * sin)
-            return xt_out
+            xt_real = xt[..., : dim // 2]
+            xt_imag = xt[..., dim // 2 :]
+            x1 = xt_real * cos - xt_imag * sin
+            x2 = xt_imag * cos + xt_real * sin
+            return torch.cat((x1, x2), dim=-1)
 
         # Offset the table based on starting position.
         if self.use_table:
@@ -184,8 +141,8 @@ class RotaryEmbeddingLayer(BaseLayer):
             freqs_cis.shape[0] >= sl
         ), f"Sequence length longer than embedding table ({sl} vs {freqs_cis.shape[0]})"
 
-        freqs_cis = ops.repeat(freqs_cis[None, :, :], (xt_.shape[0], 1, 1))
-        xt_out = kernels.apply_rotary_embedding(xt_.to(freqs_cis.dtype), freqs_cis)
+        freqs_cis = ops.repeat(freqs_cis[None, :, :], (xt.shape[0], 1, 1))
+        xt_out = kernels.apply_rotary_embedding(xt.to(freqs_cis.dtype), freqs_cis)
 
         return ops.to(xt_out, xt.dtype)
 
@@ -260,11 +217,15 @@ class RotaryEmbeddingLayer(BaseLayer):
         # xq_, xk_ shape: bs, sl, _, dim
         # freqs_cis shape: max_sl, dim
 
+        _, sl, _, dim = xt.shape
+
         if self.use_hf:
             cos, sin = mask
-            xt = xt.transpose(1, 2)
-            xt_out = (xt * cos) + (self.rotate_half(xt) * sin)
-            return xt_out.transpose(1, 2)
+            xt_real = xt[..., : dim // 2]
+            xt_imag = xt[..., dim // 2 :]
+            x1 = xt_real * cos - xt_imag * sin
+            x2 = xt_imag * cos + xt_real * sin
+            return torch.cat((x1, x2), dim=-1)
 
         xt_out = kernels.apply_rotary_embedding(xt.to(mask.dtype), mask)
 
@@ -274,39 +235,44 @@ class RotaryEmbeddingLayer(BaseLayer):
         dim = self.rope_dimension_count
         if self.use_hf:
 
-            freqs = 1.0 / (
-                self.rope_freq_base
-                ** (torch.arange(0, dim, 2, dtype=torch.int64).float() / dim)
-            )
-            ### from llama3 embedding changes
-            # TODO: get these values from Dataset
-            factor = 8  # in the original implementation
-            low_freq_factor = 1  # in the original implementation
+            # The original paper creates a d/2 dimensional space to represent
+            # the polar coordinates.
+            #
+            # From the original paper:
+            #   theta = 10000^{-2 (i - 1) / d}, i \in [1, 2, ..., d/2]
+            # which is a convoluted way of saying
+            #   theta = (1/base)^{i / d}, i \in range(0, dim, 2)
+            rope_rcp_theta = 1.0 / self.rope_freq_base
+            freqs = rope_rcp_theta ** (torch.arange(0, dim, 2).float() / dim)
+
+            # llama3.1 introduced rope scaling to normalize the theta better.
+            # The theory is based on the original llama3.1 implementation:
+            # https://github.com/meta-llama/llama-models/blob/709a61fd810157f75fbb314e7287089eec06d9c3/models/llama3_1/api/model.py#L41
+            # TODO: Not all models use rope scaling, fix this.
+            # TODO: get these values from Dataset. Current values are derived
+            # from llama3.1 reference link above.
+            rope_factor = 8
+            low_freq_factor = 1
             high_freq_factor = 4
             old_context_len = 8192
 
-            low_freq_wavelen = old_context_len / low_freq_factor
-            high_freq_wavelen = old_context_len / high_freq_factor
-
-            inv_freq = freqs
-            wavelen = 2 * torch.pi / inv_freq
-            inv_freq_llama = torch.where(
-                wavelen > low_freq_wavelen, inv_freq / factor, inv_freq
+            # The reference implementation is based on flash-infer. This
+            # implementation uses clamping instead of conditionals which is
+            # much better for a tensor compiler:
+            # https://github.com/flashinfer-ai/flashinfer/commit/4c89decadc8ae9f261cae97c350064156e66bc09#diff-e797f0f37e32a5e08c50ef190459c873fcb33ef6334333cef1e4e2d931308fa3
+            smooth_a = old_context_len / (
+                2 * torch.pi * (high_freq_factor - low_freq_factor)
             )
+            smooth_b = -1.0 / (high_freq_factor / low_freq_factor - 1.0)
 
-            smooth_factor = (old_context_len / wavelen - low_freq_factor) / (
-                high_freq_factor - low_freq_factor
-            )
-            smoothed_inv_freq = (
-                1 - smooth_factor
-            ) * inv_freq_llama / factor + smooth_factor * inv_freq_llama
-            is_medium_freq = ~(wavelen < high_freq_wavelen) * ~(
-                wavelen > low_freq_wavelen
-            )
-            freqs = torch.where(is_medium_freq, smoothed_inv_freq, inv_freq_llama)
+            rope_rcp_scale = 1.0 / rope_factor
 
-            freqs = torch.cat((freqs, freqs), dim=-1).to(device=self.device)
-            emb = t.unsqueeze(1).float() * freqs.unsqueeze(0).float()
+            smooth = freqs * smooth_a + smooth_b
+            # Clamp to [0, 1]
+            smooth = torch.clamp(smooth, 0.0, 1.0)
+            freqs = (1 - smooth) * (freqs * rope_rcp_scale) + smooth * freqs
+
+            emb = torch.outer(t, freqs)
 
             cos = torch.cos(emb).to(self.dtype)
             sin = torch.sin(emb).to(self.dtype)
