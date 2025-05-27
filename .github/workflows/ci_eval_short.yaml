@@ -64,6 +64,8 @@ jobs:
       - name: Run perplexity test with vmfb
         run: |
           source ${VENV_DIR}/bin/activate
+          mkdir perplexity_ci_artifacts
+          python -m sharktank.models.deepseek.toy_deepseek -o "perplexity_ci_artifacts/toy_deepseek.irpa"
           pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_iree_test.py \
             --bs=4 \
             --iree-device=hip://0 \
@@ -71,6 +73,8 @@ jobs:
             --iree-hal-target-device=hip \
             --llama3-8b-f16-model-path=/shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa \
             --llama3-8b-tokenizer-path=/shark-dev/data/llama3.1/weights/8b/fp16/tokenizer_config.json \
+            --deepseek-v3-model-path=perplexity_ci_artifacts/toy_deepseek.irpa \
+            --deepseek-v3-tokenizer-path=/shark-dev/data/deepseekv3/weights/fp16/tokenizer_config.json \
             --run-quick-test \
             --log-cli-level=INFO
           ls -lha ${{ github.workspace }}/perplexity_ci_artifacts
