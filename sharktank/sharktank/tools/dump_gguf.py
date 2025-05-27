@@ -65,9 +65,6 @@ def main():
     logger.info("  Tensors:")
     for tensor in config.root_theta.flatten().values():
         save = False
-        # Save tensors of if name in tensor_regex
-        if args.tensor_regex is not None and re.search(args.tensor_regex, tensor.name):
-            save = True
 
         # Save input/output layer tensors
         if "blk" not in tensor.name:
