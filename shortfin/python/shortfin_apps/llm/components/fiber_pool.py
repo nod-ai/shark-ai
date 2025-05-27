@@ -78,11 +78,10 @@ class FiberPool:
             assert idx < self.size()
             self.__index_queue.put_nowait(idx)
 
-    def return_fiber(self, fibers: tuple[int, sf.Fiber] | list[tuple[int, sf.Fiber]]):
-        if not isinstance(fibers, list):
-            fibers = [fibers]
-        for idx, fiber in fibers:
-            self.__fiber_pool.append(fiber)
+    def return_fiber(self, indices: int | list[int]):
+        if not isinstance(indices, list):
+            indices = [indices]
+        for idx in indices:
             self.__index_queue.put_nowait(idx)
 
     def size(self) -> int:

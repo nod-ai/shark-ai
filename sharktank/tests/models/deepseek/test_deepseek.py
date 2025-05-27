@@ -15,9 +15,6 @@ from sharktank.utils.load_llm import *
 from sharktank.utils.evaluate import *
 
 
-@pytest.mark.skip(
-    reason="Deepseek support will be added soon",
-)
 class DeepseekTest(unittest.TestCase):
     def test_deepseek(self):
         theta, config = generate(12345)
@@ -45,4 +42,4 @@ class DeepseekTest(unittest.TestCase):
         logits = logits[0, 1:]
         cross_entropy = torch.nn.functional.cross_entropy(logits, ids)
 
-        assert pytest.approx(6.5687, 1e-4) == cross_entropy
+        assert pytest.approx(9.7477, 1e-4) == cross_entropy

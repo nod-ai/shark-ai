@@ -5,7 +5,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import unittest
-import pytest
 from copy import deepcopy
 
 import torch
@@ -23,9 +22,6 @@ from sharktank.utils.load_llm import TorchGenerator
 from sharktank.utils.create_cache import *
 
 
-@pytest.mark.skip(
-    reason="Deepseek support will be added soon",
-)
 class DeepseekShardedTest(unittest.TestCase):
     def testTensorParallelToySizedModelEagerVsUnsharded(self):
         theta, config = generate(12345)
