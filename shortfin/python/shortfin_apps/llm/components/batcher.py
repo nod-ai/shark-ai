@@ -126,9 +126,11 @@ class LlmBatcherProcess(BatcherProcess):
         pending = set(pending) - set(scheduled)
         self.pending = self.pending | pending
 
-    def make_process(self, cache: BasePagedAttentionCache, fiber: Fiber): ...
+    def make_process(self, cache: BasePagedAttentionCache, fiber: Fiber):
+        ...
 
-    def board_request(self, cache, request: LlmInferenceExecRequest): ...
+    def board_request(self, cache, request: LlmInferenceExecRequest):
+        ...
 
     def board(self, cache: BasePagedAttentionCache, fiber: Fiber, to_schedule: set):
         # Fill prefill flights.
@@ -279,7 +281,8 @@ class LlmExecutorProcess(sf.Process):
         self.device0 = fiber.device(0)
         self.allocator = allocator
 
-    async def get_args(self, bs): ...
+    async def get_args(self, bs):
+        ...
 
     async def get_results(
         self,
@@ -287,7 +290,8 @@ class LlmExecutorProcess(sf.Process):
         indices: sfnp.device_array | None,
         req_count: int,
         device0: sf.ScopedDevice,
-    ): ...
+    ):
+        ...
 
     async def _transfer_buffer(self, req_count, device0, buffers):
         transfer = any(
