@@ -145,6 +145,13 @@ class PagedLlamaAttentionBlock(ThetaLayer):
     ):
         bs, batch_seq_len, _ = x.shape
 
+        if self.attn_q.q_output is not None:
+            xq = self.attn_q.q_output.quantize(xq)
+        if self.attn_k.q_output is not None:
+            xk = self.attn_k.q_output.quantize(xk)
+        if self.attn_v.q_output is not None:
+            xv = self.attn_v.q_output.quantize(xv)
+
         xq = self.attn_q(x)
         xk = self.attn_k(x)
         xv = self.attn_v(x)
@@ -229,13 +236,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         # Pad final dim of v to match with kv cache
         if self.attn_type == "mla" and self.head_dim != self.v_head_dim:
             xv = ops.pad(xv, [0, self.head_dim - self.v_head_dim])
-
-        if self.attn_q.q_output is not None:
-            xq = self.attn_q.q_output.quantize(xq)
-        if self.attn_k.q_output is not None:
-            xk = self.attn_k.q_output.quantize(xk)
-        if self.attn_v.q_output is not None:
-            xv = self.attn_v.q_output.quantize(xv)
 
         if start_positions is None:
             attn_output = self.paged_attention.forward_prefill(
