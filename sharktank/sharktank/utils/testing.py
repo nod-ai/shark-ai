@@ -28,8 +28,8 @@ from .math import cosine_similarity
 
 # TODO: Remove once pre-submits and nightly tests are unified to single workflow.
 def get_test_type():
-    pre_submit = 'config.getoption("--run-quick-test")'
-    nightly = 'config.getoption("--run-nightly-tests")'
+    pre_submit = 'config.getoption("run-quick-test")'
+    nightly = 'config.getoption("run-nightly-tests")'
     if pre_submit or nightly:
         return False
     else:
@@ -39,6 +39,11 @@ def get_test_type():
 is_mi300x = pytest.mark.skipif("config.getoption('iree_hip_target') != 'gfx942'")
 
 # TODO: ci-sharktank-nightly should run all nightly CIs requiring mi300x in a single workflow, dropping all test specific flags/workflows
+
+is_pre_submit = pytest.mark.skipif(
+    'not config.getoption("run-quick-test")',
+    reason="Run quick tests if --run-quick-test is passed",
+)
 is_nightly = pytest.mark.skipif(
     'not config.getoption("run-nightly-tests")',
     reason="Run large tests if --run-nightly-tests is passed",

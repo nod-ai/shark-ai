@@ -13,6 +13,7 @@ import numpy as np
 from sharktank.evaluate import perplexity_iree
 from sharktank.utils.testing import (
     is_mi300x,
+    is_pre_submit,
     is_nightly,
     is_pre_submit_nightly,
     is_llama_8b,
@@ -163,7 +164,7 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
-    @is_pre_submit_nightly
+    @is_pre_submit
     def test_deepseek_v3_pp(self):
         # DeepSeek v3 pipeline parallelism
         self.model_name = "deepseek_v3_iree"
