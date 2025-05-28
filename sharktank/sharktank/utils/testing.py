@@ -28,9 +28,10 @@ from .math import cosine_similarity
 
 # TODO: Remove once pre-submits and nightly tests are unified to single workflow.
 def get_test_type():
-    pre_submit = pytest.config.getoption("--run-quick-llama-test")
-    nightly = pytest.config.getoption("--run-nightly-llama-tests")
-    if pre_submit or nightly:
+    pre_submit = 'config.getoption("run-quick-test")'
+    nightly = 'config.getoption("run-nightly-tests")'
+    print("pre_submit", pre_submit)
+    if bool(pre_submit) or bool(nightly):
         return False
     else:
         return True
