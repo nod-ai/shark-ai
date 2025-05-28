@@ -145,6 +145,13 @@ class PagedLlamaAttentionBlock(ThetaLayer):
     ):
         bs, batch_seq_len, _ = x.shape
 
+        if self.attn_q.q_output is not None:
+            xq = self.attn_q.q_output.quantize(xq)
+        if self.attn_k.q_output is not None:
+            xk = self.attn_k.q_output.quantize(xk)
+        if self.attn_v.q_output is not None:
+            xv = self.attn_v.q_output.quantize(xv)
+
         xq = self.attn_q(x)
         xk = self.attn_k(x)
         xv = self.attn_v(x)
@@ -263,6 +270,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 mask=attention_mask,
                 scale=self.attention_scale,
                 softcap=self.softcap,
+                k_quantizer=self.attn_k.q_output,
+                v_quantizer=self.attn_v.q_output,
             )
         # attn_output is sharded
         # Drop padded part of attn_output
