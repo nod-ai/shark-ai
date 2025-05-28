@@ -35,7 +35,8 @@ def get_test_type():
     else:
         return False
 
-# TODO: ci-sharktank-nightly should run all nightly CIs and ci-sharktank/test-mi300x should run all pre-submits 
+
+# TODO: ci-sharktank-nightly should run all nightly CIs and ci-sharktank/test-mi300x should run all pre-submits
 # requiring mi300x in a single workflow, dropping all test specific flags/workflows
 is_pre_submit = pytest.mark.skipif(
     'not config.getoption("run-quick-test")',
