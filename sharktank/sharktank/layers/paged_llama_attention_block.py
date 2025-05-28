@@ -83,6 +83,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         }
         self.attn_type = self.attn_type_map[self.model_arch]
 
+        self.k_quantizer = None
+        self.v_quantizer = None
         if self.attn_type == "gqa":
             self.add_module(
                 "attn_q", LinearLayer(theta("attn_q"), fake_quant=self.fake_quant)
