@@ -206,10 +206,18 @@ Program Program::Load(std::span<const ProgramModule> modules,
   // minimum version required so you can switch between them, and whether they
   // are optional/required).
   iree::vm_module_ptr hal_module;
-  SHORTFIN_THROW_IF_ERROR(iree_hal_module_create(
-      system->vm_instance(), raw_devices.size(), raw_devices.data(),
-      IREE_HAL_MODULE_FLAG_NONE, iree_hal_module_debug_sink_stdio(stderr),
-      system->host_allocator(), hal_module.for_output()));
+  SHORTFIN_THROW_IF_ERROR(                           //
+      iree_hal_module_create(                        //
+          system->vm_instance(),                     //
+          iree_hal_module_device_policy_default(),   //
+          raw_devices.size(),                        //
+          raw_devices.data(),                        //
+          IREE_HAL_MODULE_FLAG_NONE,                 //
+          iree_hal_module_debug_sink_stdio(stderr),  //
+          system->host_allocator(),                  //
+          hal_module.for_output()                    //
+          )                                          //
+  );
   all_modules.push_back(hal_module);
 
   // Add explicit modules.
