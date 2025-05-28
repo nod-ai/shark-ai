@@ -40,7 +40,7 @@ class MoeBlock(ThetaLayer):
         n_expert_groups: Optional[int] = None,
         n_limited_groups: Optional[int] = None,
         route_scale: Optional[float] = None,
-        is_llama4_moe: bool = False,
+        model_arch: Optional[str] = None,
     ):
         super().__init__(theta)
         if n_expert_groups is not None:
@@ -93,7 +93,7 @@ class MoeBlock(ThetaLayer):
                 self.routed_experts = PreGatherFFNMOE(
                     routed_ffn_theta,
                     activation_fn=moe_activation,
-                    is_llama4_moe=is_llama4_moe,
+                    model_arch=model_arch,
                 )
             elif experts_ffn_moe_block == "DenseFFNMOE":
                 self.routed_experts = DenseFFNMOE(
