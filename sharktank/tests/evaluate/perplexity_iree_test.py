@@ -79,7 +79,6 @@ class PerplexityTest(unittest.TestCase):
         )
 
     @is_pre_submit_nightly
-    @is_llama_8b
     def test_llama3_8B_f16(self):
         # Llama 3.1 8B non-decomposed
         self.model_name = "llama3_8B_f16_iree"
@@ -164,7 +163,7 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
-    @is_pre_submit
+    @is_pre_submit_nightly
     def test_deepseek_v3_pp(self):
         # DeepSeek v3 pipeline parallelism
         self.model_name = "deepseek_v3_iree"

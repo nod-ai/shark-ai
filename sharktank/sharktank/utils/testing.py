@@ -31,15 +31,12 @@ def get_test_type():
     pre_submit = 'config.getoption("run-quick-test")'
     nightly = 'config.getoption("run-nightly-tests")'
     if pre_submit or nightly:
-        return False
-    else:
         return True
+    else:
+        return False
 
-
-is_mi300x = pytest.mark.skipif("config.getoption('iree_hip_target') != 'gfx942'")
-
-# TODO: ci-sharktank-nightly should run all nightly CIs requiring mi300x in a single workflow, dropping all test specific flags/workflows
-
+# TODO: ci-sharktank-nightly should run all nightly CIs and ci-sharktank/test-mi300x should run all pre-submits 
+# requiring mi300x in a single workflow, dropping all test specific flags/workflows
 is_pre_submit = pytest.mark.skipif(
     'not config.getoption("run-quick-test")',
     reason="Run quick tests if --run-quick-test is passed",
@@ -48,8 +45,6 @@ is_nightly = pytest.mark.skipif(
     'not config.getoption("run-nightly-tests")',
     reason="Run large tests if --run-nightly-tests is passed",
 )
-
-# TODO: ci-sharktank/test-mi300x should run all pre-submits requiring mi300x in a single workflow, dropping all test specific flags/workflows
 is_pre_submit_nightly = pytest.mark.skipif(
     get_test_type(),
     reason="Run large/quick tests if --run-quick-test or --run-nightly-tests is passed",
@@ -58,6 +53,7 @@ is_llama_8b = pytest.mark.skipif(
     'config.getoption("llama3_8b_f16_model_path") is None',
     reason="Run llama tests if --llama3-8b-f16-model-path is passed",
 )
+is_mi300x = pytest.mark.skipif("config.getoption('iree_hip_target') != 'gfx942'")
 is_cpu_condition = (
     "exec('from sharktank.utils.testing import is_iree_hal_target_device_cpu') or "
     "is_iree_hal_target_device_cpu(config.getoption('iree_hal_target_device'))"
