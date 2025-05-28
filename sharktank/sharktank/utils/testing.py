@@ -28,12 +28,12 @@ from .math import cosine_similarity
 
 # TODO: Remove once pre-submits and nightly tests are unified to single workflow.
 def get_test_type():
-    pre_submit = 'config.getoption("run-quick-test")'
-    nightly = 'config.getoption("run-nightly-tests")'
+    pre_submit = pytest.config.getoption("--run-quick-llama-test")
+    nightly = pytest.config.getoption("--run-nightly-llama-tests")
     if pre_submit or nightly:
-        return True
-    else:
         return False
+    else:
+        return True
 
 
 # TODO: ci-sharktank-nightly should run all nightly CIs and ci-sharktank/test-mi300x should run all pre-submits
