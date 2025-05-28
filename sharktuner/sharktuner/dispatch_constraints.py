@@ -9,26 +9,27 @@
 
 import math
 import z3  # type: ignore
-from typing import Iterator
+from typing import Optional
+from dataclasses import dataclass, field
 
 from iree.compiler import ir  # type: ignore
 
 from iree.compiler.dialects import iree_gpu  # type: ignore
 from iree.compiler.dialects import iree_codegen  # type: ignore
 
-from .common import *
+from . import common
 
 
 def get_mfma_intrinsic_constraints(
-    lhs_type: ShapedType,
-    rhs_type: ShapedType,
-    res_type: ShapedType,
+    lhs_type: common.ShapedType,
+    rhs_type: common.ShapedType,
+    res_type: common.ShapedType,
     intrinsic_m: z3.ArithRef,
     intrinsic_n: z3.ArithRef,
     intrinsic_k: z3.ArithRef,
     mma_intrinsics: list[iree_gpu.MMAIntrinsic],
 ) -> z3.BoolRef:
-    compatible_intrinsics = get_compatible_mfma_intrinsics(
+    compatible_intrinsics = common.get_compatible_mfma_intrinsics(
         lhs_type, rhs_type, res_type, mma_intrinsics
     )
     assert len(compatible_intrinsics) > 0, "No compatible intrinsics found"
@@ -49,13 +50,13 @@ def get_mfma_intrinsic_constraints(
 
 
 def get_dispatch_constraints(
-    matmul_size: ContractionSizes,
-    dispatch_kind: DispatchKind,
+    matmul_size: common.ContractionSizes,
+    dispatch_kind: common.DispatchKind,
     tile_m: z3.ArithRef,
     tile_n: z3.ArithRef,
     tile_k: z3.ArithRef,
 ) -> list[z3.BoolRef]:
-    if dispatch_kind != DispatchKind.conv:
+    if dispatch_kind != common.DispatchKind.conv:
         return []
 
     max_tile_m = matmul_size.M[-1]
@@ -71,8 +72,8 @@ def get_dispatch_constraints(
 
 
 def calculate_shared_memory_usage_in_bytes(
-    lhs_type: ShapedType,
-    rhs_type: ShapedType,
+    lhs_type: common.ShapedType,
+    rhs_type: common.ShapedType,
     m: list[int] | list[z3.ArithRef],
     n: list[int] | list[z3.ArithRef],
     k: list[int] | list[z3.ArithRef],
@@ -87,10 +88,10 @@ def calculate_shared_memory_usage_in_bytes(
 
 
 def generate_vector_distribute_constraints(
-    matmul_size: ContractionSizes,
-    lhs_type: ShapedType,
-    rhs_type: ShapedType,
-    res_type: ShapedType,
+    matmul_size: common.ContractionSizes,
+    lhs_type: common.ShapedType,
+    rhs_type: common.ShapedType,
+    res_type: common.ShapedType,
     tile_sizes: list[list[z3.ArithRef]],
     num_subgroups: int,
     subgroup_size: z3.ArithRef,
@@ -99,7 +100,7 @@ def generate_vector_distribute_constraints(
     subgroup_m_count: z3.ArithRef,
     subgroup_n_count: z3.ArithRef,
     mma_intrinsics: list[iree_gpu.MMAIntrinsic],
-    dispatch_kind: DispatchKind,
+    dispatch_kind: common.DispatchKind,
 ):
     M, N, K = (
         matmul_size.M[-1],
@@ -171,10 +172,10 @@ def generate_vector_distribute_constraints(
 
 
 def generate_tile_and_fuse_constraints(
-    matmul_size: ContractionSizes,
-    lhs_type: ShapedType,
-    rhs_type: ShapedType,
-    res_type: ShapedType,
+    matmul_size: common.ContractionSizes,
+    lhs_type: common.ShapedType,
+    rhs_type: common.ShapedType,
+    res_type: common.ShapedType,
     tile_sizes: list[list[z3.ArithRef]],
     num_subgroups: int,
     subgroup_size: z3.ArithRef,
@@ -324,7 +325,7 @@ def generate_allowed_pipeline_options(
 
 
 def generate_compilation_infos(
-    tuner_ctx: TunerContext,
+    tuner_ctx: common.TunerContext,
     mma_attr: iree_gpu.MMAAttr,
     workgroup_tile_sizes: list[int],
     reduction_tile_sizes: list[int],
@@ -356,7 +357,7 @@ def generate_compilation_infos(
     if codegen_pipeline == iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse:
         lowering_config_args["subgroup"] = subgroup_tile_sizes
 
-    lowering_config = get_lowering_config(**lowering_config_args)
+    lowering_config = common.get_lowering_config(**lowering_config_args)
 
     # Create the TranslationInfoAttr
     pipeline_attr = iree_codegen.DispatchLoweringPassPipelineAttr.get(codegen_pipeline)
@@ -367,7 +368,9 @@ def generate_compilation_infos(
     compilation_infos = []
     for pipeline_options in pipeline_options_list:
         for waves_per_eu in allowed_waves_per_eu:
-            config_dict = get_translation_info_config(pipeline_options, waves_per_eu)
+            config_dict = common.get_translation_info_config(
+                pipeline_options, waves_per_eu
+            )
             translation_info = iree_codegen.TranslationInfoAttr.get(
                 pipeline_attr,
                 None,

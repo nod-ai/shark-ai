@@ -9,12 +9,13 @@
 
 from abc import ABCMeta, abstractmethod
 
+from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import linalg, func  # type: ignore
 
-from .common import *
+from . import common
 
 
-def parse_mlir(mlir_text: str, ctx: TunerContext) -> ir.Module:
+def parse_mlir(mlir_text: str, ctx: common.TunerContext) -> ir.Module:
     mlir_module = None
     try:
         mlir_module = ir.Module.parse(mlir_text, ctx.mlir_ctx)

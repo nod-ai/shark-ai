@@ -11,8 +11,6 @@ Usage: python -m pytest common_test.py
 import pytest
 from sharktuner import common
 
-from typing import Generator
-
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_gpu  # type: ignore
 from iree.compiler.dialects import iree_codegen  # type: ignore

@@ -40,7 +40,7 @@ def test_generate_solutions(tuner_ctx: common.TunerContext) -> None:
         res_type=res_type,
         dispatch_kind=common.DispatchKind.contraction,
         num_subgroups=4,
-        mma_intrinsics=[
+        mma_list=[
             iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
             iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
             iree_gpu.MMAIntrinsic.MFMA_I32_16x16x32_I8,
@@ -76,7 +76,7 @@ def test_generate_solutions_tile_and_fuse_contraction_padding(
             res_type=res_type,
             dispatch_kind=common.DispatchKind.contraction,
             num_subgroups=4,
-            mma_intrinsics=mma_intrinsics,
+            mma_list=mma_intrinsics,
             allowed_waves_per_eu=[2],
             pipeline_options_search_space=dispatch_constraints.PipelineOptionsSearchSpace(),
             codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
@@ -126,7 +126,7 @@ def test_generate_solutions_tile_and_fuse_conv_padding(
             res_type=res_type,
             dispatch_kind=common.DispatchKind.conv,
             num_subgroups=4,
-            mma_intrinsics=[iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16],
+            mma_list=[iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16],
             codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
         )
     )
@@ -146,7 +146,6 @@ def test_generate_solutions_tile_and_fuse_conv_padding(
 def test_adjust_problem_size_for_pipeline(
     tuner_ctx: common.TunerContext,
 ) -> None:
-    # Matmul TileAndFuse: no change expected
     matmul_size = common.ContractionSizes(
         M=[32],
         N=[64],
@@ -177,7 +176,6 @@ def test_adjust_problem_size_for_pipeline(
     assert matmul_size.K == [128]
     assert contraction_dims.k == [3]
 
-    # Conv VectorDistribute: no change expected
     conv_size = common.ContractionSizes(
         M=[2, 32, 32],
         N=[256],
@@ -187,7 +185,6 @@ def test_adjust_problem_size_for_pipeline(
         m=[0, 1, 2],
         n=[3],
         k=[4, 5, 6],
-        batch=[],
     )
     vec_dist_pipeline = (
         iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute
@@ -203,7 +200,6 @@ def test_adjust_problem_size_for_pipeline(
     assert conv_size.K == [3, 3, 512]
     assert conv_dims.k == [4, 5, 6]
 
-    # Conv TileAndFuse: expect flattened K dims and IGEMM enabled
     constraint_generator.adjust_problem_size_for_pipeline(
         contraction_dims=conv_dims,
         matmul_size=conv_size,

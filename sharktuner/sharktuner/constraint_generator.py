@@ -4,7 +4,6 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-
 from abc import ABC, abstractmethod
 from typing import Iterator
 
@@ -46,13 +45,15 @@ def generate_generic_contraction_solutions(
     rhs_type: ShapedType,
     res_type: ShapedType,
     dispatch_kind: DispatchKind,
-    num_subgroups: int,
-    mma_intrinsics: list[iree_gpu.MMAIntrinsic],
-    allowed_waves_per_eu: list[int] = [2],
-    pipeline_options_search_space: PipelineOptionsSearchSpace = PipelineOptionsSearchSpace(),
     codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline = iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
+    **kwargs,
 ) -> Iterator[iree_codegen.CompilationInfoAttr]:
-
+    num_subgroups = kwargs.get("num_subgroups", 4)
+    mma_intrinsics = kwargs["mma_list"]  # Required
+    allowed_waves_per_eu = kwargs.get("allowed_waves_per_eu", [2])
+    pipeline_options_search_space = kwargs.get(
+        "pipeline_options_search_space", PipelineOptionsSearchSpace()
+    )
     adjust_problem_size_for_pipeline(
         contraction_dims,
         matmul_size,
@@ -243,6 +244,19 @@ def generate_generic_contraction_solutions(
 
 
 class ConstraintGenerator(ABC):
+    """
+    Describes how to generate constraints and produce tuning candidates
+    for a specific type of tunable problem.
+
+    Implementations of ConstraintGenerator are responsible for encapsulating
+    problem-specific information—such as contraction dimensions, sizes, operand types—
+    and using that information to generate valid configurations that satisfy the
+    constraints imposed by the codegen pipeline and target architecture.
+
+    The `generate_solutions` method produces a stream of CompilationInfoAttr
+    candidates, each representing a viable tuning configuration for the given problem.
+    """
+
     @abstractmethod
     def generate_solutions(
         self,
@@ -304,13 +318,8 @@ class ContractionOpInterfaceConstraintGenerator(ConstraintGenerator):
             rhs_type=self.rhs_type,
             res_type=self.res_type,
             dispatch_kind=DispatchKind.contraction,
-            num_subgroups=kwargs.get("num_subgroups", 4),
-            mma_intrinsics=kwargs["mma_list"],
-            allowed_waves_per_eu=kwargs.get("allowed_waves_per_eu", [2]),
-            pipeline_options_search_space=kwargs.get(
-                "pipeline_options_search_space", PipelineOptionsSearchSpace()
-            ),
             codegen_pipeline=codegen_pipeline,
+            **kwargs,
         )
 
 
@@ -367,11 +376,6 @@ class ConvolutionOpInterfaceConstraintGenerator(ConstraintGenerator):
             rhs_type=self.rhs_type,
             res_type=self.res_type,
             dispatch_kind=DispatchKind.conv,
-            num_subgroups=kwargs.get("num_subgroups", 4),
-            mma_intrinsics=kwargs["mma_list"],
-            allowed_waves_per_eu=kwargs.get("allowed_waves_per_eu", [2]),
-            pipeline_options_search_space=kwargs.get(
-                "pipeline_options_search_space", PipelineOptionsSearchSpace()
-            ),
             codegen_pipeline=codegen_pipeline,
+            **kwargs,
         )
