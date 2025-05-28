@@ -40,6 +40,56 @@ halelementtype_map = {
 }
 
 
+class TorchLikeIreeModule:
+    """Makes an IREE module look like a torch module. Where it can be called with
+    Sharktank and Torch tensors.
+
+    This handles marshaling of torch tensor and sharktank.type.InferenceTensor arguments.
+    Unfortunately, we can't marshall the output back to the correct tensor types as
+    some of the information is lost. E.g. the sharded tensor types. We return a flat
+    list of torch tensors.
+    """
+
+    def __init__(
+        self,
+        module: iree.runtime.VmModule,
+        vm_context: iree.runtime.VmContext,
+        devices: List[iree.runtime.HalDevice],
+    ):
+        self.module = module
+        self.vm_context = vm_context
+        self.devices = devices
+
+    def __getattr__(self, name: str) -> Any:
+        def f(
+            *args: tuple[Any, ...], **kwargs: dict[str, Any]
+        ) -> tuple[torch.Tensor, ...]:
+            flat_args = flatten_for_iree_signature(
+                (
+                    args,
+                    kwargs,
+                )
+            )
+            iree_args = prepare_iree_module_function_args(flat_args, self.devices)
+            res = run_iree_module_function(
+                module=self.module,
+                vm_context=self.vm_context,
+                args=iree_args,
+                device=self.devices[0],
+                function_name=name,
+            )
+            res = iree_to_torch(*res)
+
+            # Copy back to args as they may have been modified in-place by the function.
+            iree_args_post_call = iree_to_torch(*iree_args)
+            for arg, iree_arg in zip(flat_args, iree_args_post_call):
+                arg[...] = iree_arg
+
+            return res
+
+        return f
+
+
 def get_iree_compiler_flags(
     iree_hal_target_device: str,
     iree_hal_local_target_device_backends: list[str] | None = None,
@@ -356,8 +406,9 @@ def run_iree_module_function(
 
 
 def prepare_iree_module_function_args(
-    args: List[Union[AnyTensor, List[AnyTensor]]], devices: List[iree.runtime.HalDevice]
-) -> List[iree.runtime.DeviceArray]:
+    args: list[Union[AnyTensor, iree.runtime.DeviceArray, list]],
+    devices: list[iree.runtime.HalDevice],
+) -> list[iree.runtime.DeviceArray]:
     """Flatten composite tensors into their parts and place them on devices.
     Sharded tensors become a list of their shards while placing them onto their
     corresponding device.
