@@ -26,17 +26,6 @@ from datasets import load_dataset
 from sharktank.types import *
 from .math import cosine_similarity
 
-# TODO: Remove once pre-submits and nightly tests are unified to single workflow.
-def get_test_type():
-    pre_submit = 'config.getoption("run-quick-test")'
-    nightly = 'config.getoption("run-nightly-tests")'
-    print("pre_submit", pre_submit)
-    if bool(pre_submit) or bool(nightly):
-        return False
-    else:
-        return True
-
-
 # TODO: ci-sharktank-nightly should run all nightly CIs and ci-sharktank/test-mi300x should run all pre-submits
 # requiring mi300x in a single workflow, dropping all test specific flags/workflows
 is_pre_submit = pytest.mark.skipif(
@@ -47,13 +36,13 @@ is_nightly = pytest.mark.skipif(
     'not config.getoption("run-nightly-tests")',
     reason="Run large tests if --run-nightly-tests is passed",
 )
-is_pre_submit_nightly = pytest.mark.skipif(
-    get_test_type(),
-    reason="Run large/quick tests if --run-quick-test or --run-nightly-tests is passed",
-)
 is_llama_8b = pytest.mark.skipif(
     'config.getoption("llama3_8b_f16_model_path") is None',
     reason="Run llama tests if --llama3-8b-f16-model-path is passed",
+)
+is_deepseek = pytest.mark.skipif(
+    'config.getoption("deepseek_v3_model") is None',
+    reason="Run deepseek tests if --deepseek-v3-model-path is passed",
 )
 is_mi300x = pytest.mark.skipif("config.getoption('iree_hip_target') != 'gfx942'")
 is_cpu_condition = (

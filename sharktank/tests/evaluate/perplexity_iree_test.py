@@ -13,9 +13,8 @@ import numpy as np
 from sharktank.evaluate import perplexity_iree
 from sharktank.utils.testing import (
     is_mi300x,
-    is_pre_submit,
     is_nightly,
-    is_pre_submit_nightly,
+    is_deepseek,
     is_llama_8b,
 )
 
@@ -78,7 +77,7 @@ class PerplexityTest(unittest.TestCase):
             msg=f"Current perplexity deviates baseline by {perplexity_difference}",
         )
 
-    @is_pre_submit_nightly
+    @is_llama_8b
     def test_llama3_8B_f16(self):
         # Llama 3.1 8B non-decomposed
         self.model_name = "llama3_8B_f16_iree"
@@ -163,7 +162,7 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
-    @is_pre_submit_nightly
+    @is_deepseek
     def test_deepseek_v3_pp(self):
         # DeepSeek v3 pipeline parallelism
         self.model_name = "deepseek_v3_iree"

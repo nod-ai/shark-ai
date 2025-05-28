@@ -74,14 +74,14 @@ def pytest_addoption(parser):
         action="store_true",
         dest="run-quick-test",
         default=False,
-        help="Run large tests if passed",
+        help="Enable all quick tests",
     )
     parser.addoption(
         "--run-nightly-tests",
         action="store_true",
         dest="run-nightly-tests",
         default=False,
-        help="Enable all benchmarking tests",
+        help="Enable all nightly tests",
     )
 
     parser.addoption(
