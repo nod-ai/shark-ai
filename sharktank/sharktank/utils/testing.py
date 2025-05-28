@@ -9,7 +9,9 @@ import contextlib
 from pathlib import Path
 import pytest
 from os import PathLike
+import functools
 import os
+import re
 import shutil
 import tempfile
 import unittest
@@ -423,6 +425,47 @@ def skip(*decorator_args, **decorator_kwargs):
             return unittest.skip(*decorator_args, **decorator_kwargs)(test_item)
 
         return test_item
+
+    return decorator
+
+
+class XfailMatchError(Exception):
+    pass
+
+
+def xfail(*args, match: str | None = None, **kwargs):
+    """xfail a test with support for regex matching against the error message.
+
+    This wraps the pytest.mark.xfail decorator into a new decorator.
+    pytest.mark.xfail does not support matching on the error message, but sometimes we
+    need to be more precise on why we expect a failure.
+    One example is when specifying what compiler error is expected. Just the exception
+    type is not enough.
+
+    ```
+    @xfail(raises=MyError, strict=True, match="my message")
+    @test_something():
+        raise MyError("my message")
+    ```
+
+    *args and **kwargs are passthrough arguments for pytest.mark.xfail.
+    """
+
+    def decorator(test_fn: Callable):
+        @pytest.mark.xfail(*args, **kwargs)
+        @functools.wraps(test_fn)
+        def wrapper(*args, **kwargs):
+            try:
+                return test_fn(*args, **kwargs)
+            except Exception as ex:
+                if match is None or re.match(match, str(ex)):
+                    raise ex
+                else:
+                    raise XfailMatchError(
+                        f'Failed to match error "{ex}" against expected match "{match}"'
+                    ) from ex
+
+        return wrapper
 
     return decorator
 
