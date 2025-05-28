@@ -41,7 +41,7 @@ is_llama_8b = pytest.mark.skipif(
     reason="Run llama tests if --llama3-8b-f16-model-path is passed",
 )
 is_deepseek = pytest.mark.skipif(
-    'config.getoption("deepseek_v3_model") is None',
+    'config.getoption("--deepseek-v3-model-path") is None',
     reason="Run deepseek tests if --deepseek-v3-model-path is passed",
 )
 is_mi300x = pytest.mark.skipif("config.getoption('iree_hip_target') != 'gfx942'")
