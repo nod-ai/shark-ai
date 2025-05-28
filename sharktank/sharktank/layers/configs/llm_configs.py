@@ -26,6 +26,7 @@ from sharktank.types.tensors import serialized_name_to_dtype, dtype_to_serialize
 
 if TYPE_CHECKING:
     import transformers
+    from sharktank.types import PropertyValueType
 
 __all__ = ["ClipTextConfig", "LlamaHParams", "LlamaModelConfig", "T5Config"]
 
@@ -349,6 +350,49 @@ class LlamaModelConfig:
 
     # A list of layer indices where chunked attention is applied instead of full attention.
     chunked_attention_layers: Optional[set[int]] = None
+
+    def to_properties(self) -> "PropertyValueType":
+        res = self.hp.to_gguf_props()
+        res["kv_cache_type"] = self.kv_cache_type
+        res["block_seq_stride"] = self.block_seq_stride
+        if self.kv_cache_dtype is not None:
+            res["kv_cache_dtype"] = dtype_to_serialized_name(self.kv_cache_dtype)
+        res["activation_dtype"] = dtype_to_serialized_name(self.activation_dtype)
+        res["attention_dtype"] = dtype_to_serialized_name(self.attention_dtype)
+        res["fake_quant"] = self.fake_quant
+        res["tensor_parallelism_size"] = self.tensor_parallelism_size
+        res["pipeline_parallelism_size"] = self.pipeline_parallelism_size
+        res["block_to_pipeline_map"] = self.block_to_pipeline_map
+        res["pipeline_to_device_map"] = self.pipeline_to_device_map
+        res["attention_kernel"] = self.attention_kernel
+        res["use_hf"] = self.use_hf
+        res["static_tables"] = self.static_tables
+        res["attention_chunk_size"] = self.attention_chunk_size
+        if self.chunked_attention_layers is not None:
+            res["chunked_attention_layers"] = list(self.chunked_attention_layers)
+        return res
+
+    @staticmethod
+    def from_properties(properties: "PropertyValueType") -> "LlamaModelConfig":
+        kwargs = dict(properties)
+        fields_name_set = set(field.name for field in fields(LlamaModelConfig))
+        kwargs = {k: v for k, v in kwargs.items() if k in fields_name_set}
+        kwargs["hp"] = LlamaHParams.from_gguf_props(properties)
+        if "kv_cache_dtype" in kwargs:
+            kwargs["kv_cache_dtype"] = serialized_name_to_dtype(
+                kwargs["kv_cache_dtype"]
+            )
+        if "activation_dtype" in kwargs:
+            kwargs["activation_dtype"] = serialized_name_to_dtype(
+                kwargs["activation_dtype"]
+            )
+        if "attention_dtype" in kwargs:
+            kwargs["attention_dtype"] = serialized_name_to_dtype(
+                kwargs["attention_dtype"]
+            )
+        if "chunked_attention_layers" in kwargs:
+            kwargs["chunked_attention_layers"] = set(kwargs["chunked_attention_layers"])
+        return LlamaModelConfig(**kwargs)
 
 
 @dataclass
