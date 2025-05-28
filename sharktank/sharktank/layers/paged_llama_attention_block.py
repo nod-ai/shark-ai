@@ -237,6 +237,11 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         if self.attn_type == "mla" and self.head_dim != self.v_head_dim:
             xv = ops.pad(xv, [0, self.head_dim - self.v_head_dim])
 
+        k_quantizer, v_quantizer = None, None
+        if self.attn_type == "gqa":
+            k_quantizer = self.attn_k.q_output
+            v_quantizer = self.attn_v.q_output
+
         if start_positions is None:
             attn_output = self.paged_attention.forward_prefill(
                 q=xq,
@@ -270,8 +275,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 mask=attention_mask,
                 scale=self.attention_scale,
                 softcap=self.softcap,
-                k_quantizer=self.attn_k.q_output,
-                v_quantizer=self.attn_v.q_output,
+                k_quantizer=k_quantizer,
+                v_quantizer=v_quantizer,
             )
         # attn_output is sharded
         # Drop padded part of attn_output
