@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import logging
 from typing import List, Callable, Union
 
+from .sampler import SamplerThreadPool
 from .config import DecodeConfig, TokenSelectionStrategy
 from ..messages import LlmInferenceExecRequest
 
@@ -33,6 +34,20 @@ class TokenSelectionStrategyConfig:
 
 class BaseTokenSelectionStrategy(ABC):
     """Abstract class for implementing token selection strategies."""
+
+    thread_pool_executor: SamplerThreadPool | None = None
+    executor_initialized = False
+
+    @classmethod
+    def _initialize_threadpool(cls, max_workers: int = 196):
+        if not cls.executor_initialized:
+            logger.debug("Initializing token_selection threads...")
+            cls.thread_pool_executor = SamplerThreadPool(max_workers=max_workers)
+            cls.thread_pool_executor.executor._adjust_thread_count()
+            cls.executor_initialized = True
+            return
+
+        logger.debug("token_selection threads already initialized...")
 
     def _log_sampling_method(self):
         """Log the sampling method used for token selection."""
@@ -94,7 +109,7 @@ class BaseTokenSelectionStrategy(ABC):
         token_selection_strategy_config.prefill_callback(exec_req)
         await exec_req.done
 
-        assert_message = f"{exec_req.instance_id}'s result_logits are None. This typically indicates an error during prefill invocation."
+        assert_message = f"{exec_req.instance_id}'s result_logits are None. This typically indicates an error during prefill VMFB invocation."
         assert exec_req.result_logits is not None, assert_message
 
         if exec_req.result_indices is not None:

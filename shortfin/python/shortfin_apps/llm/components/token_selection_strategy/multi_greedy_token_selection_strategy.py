@@ -31,15 +31,21 @@ class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
         Returns:
             List[GreedyBeam]: Beams with new token selected.
         """
-        selections = []
-        for beam in active_beams:
-            token = beam.sample_logits()
-            beam.last_token = token
-            selections.append(
-                beam,
-            )
 
-        return selections
+        def _process_beam(beam):
+            assert beam.exec_req.result_logits is not None, (
+                f"{beam.exec_req.instance_id}'s result_logits are None."
+                "This typically indicates an error during decode VMFB invocation."
+            )
+            token_int = beam.sample_logits()
+            beam.last_token = token_int
+
+        batch = [(_process_beam, beam) for beam in active_beams]
+        MultiGreedyTokenSelectionStrategy.thread_pool_executor.submit_batch_and_wait(
+            batch
+        )
+
+        return active_beams
 
     async def decode(
         self,

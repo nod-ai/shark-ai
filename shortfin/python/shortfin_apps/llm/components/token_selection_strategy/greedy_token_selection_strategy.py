@@ -122,6 +122,11 @@ class GreedyTokenSelectionStrategy(BaseTokenSelectionStrategy):
             exec_req.reset(InferencePhase.DECODE)
             config.decode_callback(exec_req)
             await exec_req.done
+            assert exec_req.result_logits is not None, (
+                f"{exec_req.instance_id}'s result_logits are None."
+                "This typically indicates an error during decode VMFB invocation."
+            )
+
             token_int = beam.sample_logits()
             beam.last_token = token_int
             config.results_callback(token_int)

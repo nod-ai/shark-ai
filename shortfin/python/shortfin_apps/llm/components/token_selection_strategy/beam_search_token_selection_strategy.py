@@ -152,7 +152,7 @@ class BeamSearchTokenSelectionStrategy(BaseTokenSelectionStrategy):
 
         Args:
             active_beams (List[BeamSearchBeam]): Beams that are still active.
-            completed_beams (Set[BeamSearchBeam]): Beams that have been completed.
+            completed_beams (List[BeamSearchBeam]): Beams that have been completed.
 
         Returns:
             List[BeamSearchBeam]: The `top_k` selections, containing necessary info for `beam_group` to handle choosing and processing beams.
@@ -160,14 +160,19 @@ class BeamSearchTokenSelectionStrategy(BaseTokenSelectionStrategy):
         config = self.token_selection_strategy_config
         k = config.decode_config.num_beams - len(completed_beams)
 
-        global_min_log_prob = 0.0
+        top_beam_container = {"top_score": None, "top_beam": None}
+        global_min_log_prob_container = {"value": 0.0}
+        all_selections = []
 
-        top_score = None
-        top_beam = None
-        selections: List[BeamSearchBeam] = []
-        for beam in active_beams:
+        def _process_beam(beam):
+            assert beam.exec_req.result_logits is not None, (
+                f"{beam.exec_req.instance_id}'s result_logits are None."
+                "This typically indicates an error during decode VMFB invocation."
+            )
             min_log_prob = 0.0
             top_tokens, top_values = beam.sample_logits(k)
+            local_selections = []
+
             for token, value in zip(top_tokens, top_values):
                 if value < min_log_prob:
                     min_log_prob = value
@@ -180,17 +185,32 @@ class BeamSearchTokenSelectionStrategy(BaseTokenSelectionStrategy):
                     decode_config=config.decode_config,
                 )
                 new_beam.update_score(value)
-                selections.append(new_beam)
+                local_selections.append(new_beam)
 
-                if top_score is None or new_beam.score > top_score:
-                    top_score = new_beam.score
-                    top_beam = new_beam
+                if (
+                    top_beam_container["top_score"] is None
+                    or new_beam.score > top_beam_container["top_score"]
+                ):
+                    top_beam_container["top_score"] = new_beam.score
+                    top_beam_container["top_beam"] = new_beam
 
-            if min_log_prob < global_min_log_prob:
-                global_min_log_prob = min_log_prob
+            # Track global minimum log prob
+            if min_log_prob < global_min_log_prob_container["value"]:
+                global_min_log_prob_container["value"] = min_log_prob
 
-        if len(selections) < config.decode_config.num_beams:
-            beams_to_add = config.decode_config.num_beams - len(selections)
+            return local_selections
+
+        # Create and submit jobs for thread pool
+        batch = [(_process_beam, beam) for beam in active_beams]
+        results = self.thread_pool_executor.submit_batch_and_wait(batch)
+
+        for result in results.done:
+            all_selections.extend(result.result())
+
+        # Fill in if not enough beams
+        if len(all_selections) < config.decode_config.num_beams:
+            beams_to_add = config.decode_config.num_beams - len(all_selections)
+            top_beam = top_beam_container["top_beam"]
             for _ in range(beams_to_add):
                 new_beam = BeamSearchBeam(
                     exec_req=top_beam.exec_req,
@@ -199,13 +219,15 @@ class BeamSearchTokenSelectionStrategy(BaseTokenSelectionStrategy):
                     last_token=top_beam.last_token,
                     decode_config=config.decode_config,
                 )
-                selections.append(new_beam)
+                all_selections.append(new_beam)
 
         sorted_selections = sorted(
-            selections, key=lambda beam: beam.score, reverse=True
+            all_selections, key=lambda beam: beam.score, reverse=True
         )[:k]
+
         for beam in sorted_selections:
-            beam.normalize_score(global_min_log_prob)
+            beam.normalize_score(global_min_log_prob_container["value"])
+
         return sorted_selections
 
     def _find_top_beam(

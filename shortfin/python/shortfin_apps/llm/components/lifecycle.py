@@ -19,6 +19,7 @@ from .token_selection_strategy import DecodeConfig
 from .manager import LlmSystemManager
 from .service import LlmGenerateService
 from .tokenizer import Tokenizer
+from .token_selection_strategy import BaseTokenSelectionStrategy
 from typing import TYPE_CHECKING
 from fastapi import FastAPI
 
@@ -90,6 +91,11 @@ class ShortfinLlmLifecycleManager:
         service.load_inference_parameters(*args.parameters, parameter_scope="model")
         self.sysman = sysman
         self.services = {"default": service}
+
+        # Initialize sampling threadpool.
+        BaseTokenSelectionStrategy._initialize_threadpool(
+            args.max_sampling_threads,
+        )
 
     def __enter__(self):
         self.sysman.start()

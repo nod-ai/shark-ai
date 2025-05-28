@@ -21,6 +21,10 @@ from shortfin_apps.llm.components.token_selection_strategy import (
 )
 
 
+def pytest_configure(config):
+    BaseTokenSelectionStrategy._initialize_threadpool()
+
+
 class MockVoidFuture:
     def __init__(self):
         self._event = asyncio.Event()

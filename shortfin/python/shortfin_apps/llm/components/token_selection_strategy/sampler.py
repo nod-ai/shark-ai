@@ -4,16 +4,79 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from concurrent.futures import ThreadPoolExecutor, Future, wait
 import logging
 import numpy as np
 
 from dataclasses import dataclass
-from typing import Tuple, Union
+from typing import Any, Callable, List, Tuple, Union
 
 import shortfin.array as sfnp
 
 
 logger = logging.getLogger(__name__)
+
+
+class SamplerThreadPool:
+    executor: None | ThreadPoolExecutor = None
+
+    def __init__(self, max_workers: int = 128):
+        """Initialize the thread pool with a specified number of workers.
+
+        Args:
+            max_workers (int, optional): Maximum number of worker threads. Defaults to 128.
+        """
+        if SamplerThreadPool.executor is None:
+            SamplerThreadPool.executor = ThreadPoolExecutor(max_workers=max_workers)
+
+        self.max_workers = max_workers
+
+    def submit(self, func: Callable, *args) -> Future:
+        """Submit a task to the thread pool.
+
+        Args:
+            func (Callable): Function to run.
+            *args: Positional arguments for the function.
+
+        Returns:
+            Future: Future for when task is done.
+        """
+        return SamplerThreadPool.executor.submit(func, args)
+
+    def submit_and_wait(self, func: Callable, *args) -> Future:
+        """Submit a task to the thread pool and wait for it to complete.
+
+        Args:
+            func (Callable): Function to run.
+            *args: Positional arguments for the function.
+
+        Returns:
+            Future: Future for when task is done.
+        """
+        future = SamplerThreadPool.executor.submit(func, args)
+        return future.result()
+
+    def submit_batch(self, funcs: List[Tuple[Callable, Any]]) -> Future:
+        """Submit a batch of tasks to the thread pool.
+
+        Args:
+            funcs (List[Tuple[Callable, Any]]): An iterable of tuples, where each tuple contains a function and its arguments.
+
+        Returns:
+            Future: A Future object representing the execution of the batch of tasks.
+        """
+        return [SamplerThreadPool.executor.submit(func, args) for func, args in funcs]
+
+    def submit_batch_and_wait(self, funcs: List[Tuple[Callable, Any]]) -> Future:
+        """Submit a batch of tasks to the thread pool and wait for all to complete.
+
+        Args:
+            funcs (List[Tuple[Callable, Any]]): An iterable of tuples, where each tuple contains a function and its arguments.
+
+        Returns:
+            Future: A Future object representing the execution of the batch of tasks.
+        """
+        return wait(self.submit_batch(funcs))
 
 
 @dataclass
