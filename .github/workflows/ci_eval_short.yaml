@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   test_perplexity_iree:
-    name: "IREE Perplexity"
+    name: "Perplexity tests"
     strategy:
       matrix:
         version: [3.11]
@@ -61,7 +61,7 @@ jobs:
 
           pip freeze
 
-      - name: Run perplexity test with vmfb
+      - name: Run Perplexity tests
         run: |
           source ${VENV_DIR}/bin/activate
           mkdir perplexity_ci_artifacts
