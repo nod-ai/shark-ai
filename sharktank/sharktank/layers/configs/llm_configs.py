@@ -26,6 +26,7 @@ from sharktank.types.tensors import serialized_name_to_dtype, dtype_to_serialize
 
 if TYPE_CHECKING:
     import transformers
+    from sharktank.types import PropertyValueType
 
 __all__ = ["ClipTextConfig", "LlamaHParams", "LlamaModelConfig", "T5Config"]
 
@@ -47,6 +48,9 @@ class LlamaHParams:
     attn_head_dim: int
     attention_layer_norm_rms_epsilon: float
     attention_head_count_kv: int
+
+    vocab_size: int | None = None
+    """TODO: make this non-optional once we don't use artifacts without this value."""
 
     # Deepseek Multi-Latent Attention config
     q_lora_rank: Optional[int] = None
@@ -112,6 +116,7 @@ class LlamaHParams:
 
         return LlamaHParams(
             model_arch=name_prefix,
+            vocab_size=_optional_int_prop(p, f"{name_prefix}.vocab_size", None),
             context_length=_int_prop(p, f"{name_prefix}.context_length"),
             embedding_length=_int_prop(p, f"{name_prefix}.embedding_length"),
             block_count=_int_prop(p, f"{name_prefix}.block_count"),
@@ -149,6 +154,8 @@ class LlamaHParams:
             f"{self.model_arch}.attention.layer_norm_rms_epsilon": self.attention_layer_norm_rms_epsilon,
             f"{self.model_arch}.attention.head_count_kv": self.attention_head_count_kv,
         }
+        if self.vocab_size is not None:
+            res[f"{self.model_arch}.vocab_size"] = self.vocab_size
         if self.qk_rope_head_dim is not None:
             res[f"{self.model_arch}.attention.qk_rope_head_dim"] = self.qk_rope_head_dim
         if self.qk_nope_head_dim is not None:
@@ -349,6 +356,49 @@ class LlamaModelConfig:
 
     # A list of layer indices where chunked attention is applied instead of full attention.
     chunked_attention_layers: Optional[set[int]] = None
+
+    def to_properties(self) -> "PropertyValueType":
+        res = self.hp.to_gguf_props()
+        res["kv_cache_type"] = self.kv_cache_type
+        res["block_seq_stride"] = self.block_seq_stride
+        if self.kv_cache_dtype is not None:
+            res["kv_cache_dtype"] = dtype_to_serialized_name(self.kv_cache_dtype)
+        res["activation_dtype"] = dtype_to_serialized_name(self.activation_dtype)
+        res["attention_dtype"] = dtype_to_serialized_name(self.attention_dtype)
+        res["fake_quant"] = self.fake_quant
+        res["tensor_parallelism_size"] = self.tensor_parallelism_size
+        res["pipeline_parallelism_size"] = self.pipeline_parallelism_size
+        res["block_to_pipeline_map"] = self.block_to_pipeline_map
+        res["pipeline_to_device_map"] = self.pipeline_to_device_map
+        res["attention_kernel"] = self.attention_kernel
+        res["use_hf"] = self.use_hf
+        res["static_tables"] = self.static_tables
+        res["attention_chunk_size"] = self.attention_chunk_size
+        if self.chunked_attention_layers is not None:
+            res["chunked_attention_layers"] = list(self.chunked_attention_layers)
+        return res
+
+    @staticmethod
+    def from_properties(properties: "PropertyValueType") -> "LlamaModelConfig":
+        kwargs = dict(properties)
+        fields_name_set = set(field.name for field in fields(LlamaModelConfig))
+        kwargs = {k: v for k, v in kwargs.items() if k in fields_name_set}
+        kwargs["hp"] = LlamaHParams.from_gguf_props(properties)
+        if "kv_cache_dtype" in kwargs:
+            kwargs["kv_cache_dtype"] = serialized_name_to_dtype(
+                kwargs["kv_cache_dtype"]
+            )
+        if "activation_dtype" in kwargs:
+            kwargs["activation_dtype"] = serialized_name_to_dtype(
+                kwargs["activation_dtype"]
+            )
+        if "attention_dtype" in kwargs:
+            kwargs["attention_dtype"] = serialized_name_to_dtype(
+                kwargs["attention_dtype"]
+            )
+        if "chunked_attention_layers" in kwargs:
+            kwargs["chunked_attention_layers"] = set(kwargs["chunked_attention_layers"])
+        return LlamaModelConfig(**kwargs)
 
 
 @dataclass
