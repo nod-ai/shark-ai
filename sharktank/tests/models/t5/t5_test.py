@@ -48,7 +48,6 @@ from sharktank.models.t5.testing import (
     make_t5_encoder_random_theta,
 )
 from sharktank.utils.testing import (
-    get_iree_compiler_flags,
     assert_text_encoder_state_close,
     make_rand_torch,
     make_random_mask,
@@ -58,6 +57,7 @@ from sharktank.utils.testing import (
 )
 from sharktank.utils.hf_datasets import get_dataset
 from sharktank.utils.iree import (
+    get_iree_compiler_flags_from_object,
     with_iree_device_context,
     get_iree_devices,
     load_iree_module,
@@ -387,7 +387,7 @@ class T5EncoderIreeTest(TempDirTestBase):
             iree.compiler.compile_file(
                 mlir_path,
                 output_file=iree_module_path,
-                extra_args=get_iree_compiler_flags(self),
+                extra_args=get_iree_compiler_flags_from_object(self),
             )
 
         iree_devices = get_iree_devices(driver=self.iree_device, device_count=1)

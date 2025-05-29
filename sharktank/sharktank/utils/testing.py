@@ -72,27 +72,6 @@ def is_iree_hal_target_device_cpu(v: str, /) -> bool:
     return v.startswith("local") or v == "llvm-cpu"
 
 
-def get_iree_compiler_flags(o: Any, device_count: int = 1) -> list[str]:
-    """Retrieve compiler flags driven by the test configuration."""
-    res = []
-    if device_count == 1:
-        res += [f"--iree-hal-target-device={o.iree_hal_target_device}"]
-    else:
-        res += [
-            f"--iree-hal-target-device={o.iree_hal_target_device}[{i}]"
-            for i in range(device_count)
-        ]
-    if o.iree_hal_target_device.startswith("local"):
-        res += [
-            f"--iree-hal-local-target-device-backends={v}"
-            for v in o.iree_hal_local_target_device_backends
-        ]
-        res += ["--iree-llvmcpu-target-cpu=host"]
-    elif o.iree_hal_target_device.startswith("hip"):
-        res += [f"--iree-hip-target={o.iree_hip_target}"]
-    return res
-
-
 # Range of torch.rand() is [0,1)
 # Range of torch.rand() * 2 - 1 is [-1, 1), includes negative values
 def make_rand_torch(shape: list[int], dtype: Optional[torch.dtype] = torch.float32):
