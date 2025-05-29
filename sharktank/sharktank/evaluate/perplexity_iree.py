@@ -88,7 +88,16 @@ class PerplexityIree:
         self.start = 10
 
     def print_token_comparison(self, i: int):
-        if i <= self.max_prompt_length:
+        if self.use_toy_model and i <= self.max_prompt_length:
+            batch_predicted_token_id = [[i[-1]] for i in self.batch.results]
+            logger.debug(f"Predicted:")
+            logger.debug(f"{batch_predicted_token_id}")
+
+            expected_token_id = self.token_ids[:, i + 1 : i + 2].tolist()
+            logger.debug(f"Expected:")
+            logger.debug(f"{expected_token_id}")
+
+        elif i <= self.max_prompt_length:
             batch_predicted_token_id = [[i[-1]] for i in self.batch.results]
             batch_predicted_token = self.generator.tokenizer.decode(
                 batch_predicted_token_id
@@ -138,7 +147,9 @@ class PerplexityIree:
             )
             self.output_vmfb = export_artifacts.get_artifacts()
 
-    def load_model(self, dataset: Dataset, tokenizer: InferenceTokenizer):
+    def load_model(
+        self, dataset: Dataset, tokenizer: Optional[InferenceTokenizer] = None
+    ):
         hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
 
         pp = self.pipeline_parallelism_size
@@ -200,8 +211,10 @@ class PerplexityIree:
     def prefill_vmfb(
         self, token_batch: torch.tensor, i: int, devices: list[iree.runtime.HalDevice]
     ) -> torch.tensor:
-        logger.debug(f"Prefill input:")
-        logger.debug(f"{self.generator.tokenizer.decode(token_batch)}")
+        if not self.use_toy_model:
+            logger.debug(
+                f"Prefill input:\n{self.generator.tokenizer.decode(token_batch)}"
+            )
 
         token_batch = self.assemble_batch(token_batch, devices)
 
@@ -248,8 +261,9 @@ class PerplexityIree:
     def decode_vmfb(
         self, token_batch: torch.tensor, i: int, devices: list[iree.runtime.HalDevice]
     ) -> torch.tensor:
-        logger.debug("Decode input:")
-        logger.debug(f"{self.generator.tokenizer.decode(token_batch)}")
+        logger.debug(f"Decode input:")
+        if not self.use_toy_model:
+            logger.debug(f"{self.generator.tokenizer.decode(token_batch)}")
         logger.debug(f"{token_batch.tolist()}")
 
         start_positions = [self.batch.seq_lens.clone()]
@@ -377,9 +391,8 @@ class PerplexityIree:
             self.seq_lens = [len(t) for t in self.token_ids]
             self.start = 5
 
-            logger.debug(f" Prompts for Evaluation:")
-            for idx, prompt in enumerate(test_prompts):
-                logger.debug(f" Prompt {idx}: \nToken ids: {self.token_ids[idx]}\n")
+            logger.debug(f" Token ids for Evaluation: \n{self.token_ids}\n")
+
         else:
             self.token_ids, self.seq_lens = self.generator.tokenizer.encode(
                 test_prompts,
@@ -489,7 +502,9 @@ def main(argv):
 
     args = cli.parse(parser, args=argv)
     dataset = cli.get_input_dataset(args)
-    tokenizer = cli.get_tokenizer(args)
+    tokenizer = None
+    if not args.use_toy_model:
+        tokenizer = cli.get_tokenizer(args)
 
     logger.setLevel(args.loglevel)
     torch_device = torch.device(args.device) if args.device else None
