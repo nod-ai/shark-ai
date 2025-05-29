@@ -13,14 +13,110 @@ import z3  # type: ignore
 
 from typing import Generator
 
+# TODO: remove after https://github.com/llvm/llvm-project/pull/117918 is resolved.
+import sharktuner
 from iree.compiler import ir  # type: ignore
-from iree.compiler.dialects import iree_gpu, iree_codegen  # type: ignore
+from iree.compiler.dialects import func  # type: ignore
+from iree.compiler.dialects import iree_gpu  # type: ignore
+from iree.compiler.dialects import iree_codegen  # type: ignore
+from iree.compiler.dialects import func, linalg  # type: ignore
 
 from sharktuner import common
 from sharktuner import constraint_generator
 from sharktuner import dispatch_constraints
 
 from sharktuner.test_utils import tuner_ctx
+
+
+def test_matmul_contraint_generator_dims(tuner_ctx: common.TunerContext) -> None:
+    context = tuner_ctx.mlir_ctx
+    with ir.Location.unknown(context):
+        module = ir.Module.create()
+        f16 = ir.F16Type.get()
+        f32 = ir.F32Type.get()
+
+        with ir.InsertionPoint(module.body):
+            a_type = ir.RankedTensorType.get((16, 64), f16)
+            b_type = ir.RankedTensorType.get((64, 32), f16)
+            c_type = ir.RankedTensorType.get((16, 32), f32)
+
+            dim_m = ir.AffineDimExpr.get(0)
+            dim_n = ir.AffineDimExpr.get(1)
+            dim_k = ir.AffineDimExpr.get(2)
+            a_map = ir.AffineMap.get(3, 0, [dim_m, dim_k])
+            b_map = ir.AffineMap.get(3, 0, [dim_k, dim_n])
+            c_map = ir.AffineMap.get(3, 0, [dim_m, dim_n])
+
+            @func.FuncOp.from_py_func(a_type, b_type, c_type)
+            def named_matmul(a, b, c):
+                matmul_op = linalg.MatmulOp(
+                    result_tensors=[c_type],
+                    inputs=[a, b],
+                    outputs=[c],
+                    indexing_maps=[a_map, b_map, c_map],
+                )
+                matmul_op.operation.attributes["root_op"] = ir.UnitAttr.get()
+
+        root_op_list = iree_codegen.get_tuner_root_ops(module)
+        assert len(root_op_list) == 1, "Expected one root op"
+        root_op = root_op_list[0]
+        print(root_op)
+        gen = constraint_generator.ContractionOpInterfaceConstraintGenerator(root_op)
+        assert gen.dims.batch == []
+        assert gen.dims.m == [0]
+        assert gen.dims.n == [1]
+        assert gen.dims.k == [2]
+
+        assert gen.matmul_size.B == []
+        assert gen.matmul_size.M == [16]
+        assert gen.matmul_size.N == [32]
+        assert gen.matmul_size.K == [64]
+
+        assert gen.lhs_type.shape == [16, 64]
+        assert gen.rhs_type.shape == [64, 32]
+        assert gen.res_type.shape == [16, 32]
+
+
+def test_conv2d_constraint_generator_dims(tuner_ctx: common.TunerContext) -> None:
+    context = tuner_ctx.mlir_ctx
+    with ir.Location.unknown(context):
+        module = ir.Module.create()
+        i8 = ir.IntegerType.get_signless(8)
+        i32 = ir.IntegerType.get_signless(32)
+
+        with ir.InsertionPoint(module.body):
+            input_type = ir.RankedTensorType.get([2, 34, 34, 16], i8)
+            kernel_type = ir.RankedTensorType.get([3, 3, 16, 16], i8)
+            output_type = ir.RankedTensorType.get([2, 32, 32, 16], i32)
+
+            @func.FuncOp.from_py_func(input_type, kernel_type, output_type)
+            def conv2d_fn(arg0, arg1, arg2):
+                conv_op = linalg.Conv2DNhwcHwcfOp(
+                    inputs=[arg0, arg1],
+                    outputs=[arg2],
+                    result_tensors=[output_type],
+                )
+                conv_op.operation.attributes["root_op"] = ir.UnitAttr.get()
+
+        root_op_list = iree_codegen.get_tuner_root_ops(module)
+        assert len(root_op_list) == 1
+        root_op = root_op_list[0]
+
+        gen = constraint_generator.ConvolutionOpInterfaceConstraintGenerator(root_op)
+
+        assert gen.dims.batch == []
+        assert gen.dims.m == [0, 1, 2]
+        assert gen.dims.n == [3]
+        assert gen.dims.k == [4, 5, 6]
+
+        assert gen.matmul_size.B == []
+        assert gen.matmul_size.M == [2, 32, 32]
+        assert gen.matmul_size.N == [16]
+        assert gen.matmul_size.K == [3, 3, 16]
+
+        assert gen.lhs_type.shape == [2, 34, 34, 16]
+        assert gen.rhs_type.shape == [3, 3, 16, 16]
+        assert gen.res_type.shape == [2, 32, 32, 16]
 
 
 def test_generate_solutions(tuner_ctx: common.TunerContext) -> None:
@@ -40,7 +136,7 @@ def test_generate_solutions(tuner_ctx: common.TunerContext) -> None:
         res_type=res_type,
         dispatch_kind=common.DispatchKind.contraction,
         num_subgroups=4,
-        mma_list=[
+        mma_intrinsics=[
             iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
             iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
             iree_gpu.MMAIntrinsic.MFMA_I32_16x16x32_I8,
@@ -76,7 +172,7 @@ def test_generate_solutions_tile_and_fuse_contraction_padding(
             res_type=res_type,
             dispatch_kind=common.DispatchKind.contraction,
             num_subgroups=4,
-            mma_list=mma_intrinsics,
+            mma_intrinsics=mma_intrinsics,
             allowed_waves_per_eu=[2],
             pipeline_options_search_space=dispatch_constraints.PipelineOptionsSearchSpace(),
             codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
@@ -126,7 +222,7 @@ def test_generate_solutions_tile_and_fuse_conv_padding(
             res_type=res_type,
             dispatch_kind=common.DispatchKind.conv,
             num_subgroups=4,
-            mma_list=[iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16],
+            mma_intrinsics=[iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16],
             codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
         )
     )

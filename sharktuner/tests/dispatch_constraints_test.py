@@ -13,8 +13,7 @@ import z3  # type: ignore
 
 from typing import Generator
 
-from iree.compiler import ir  # type: ignore
-from iree.compiler.dialects import iree_gpu, iree_codegen  # type: ignore
+from iree.compiler.dialects import iree_gpu  # type: ignore
 
 from sharktuner import common
 from sharktuner import dispatch_constraints
@@ -65,12 +64,6 @@ def test_generate_tile_and_fuse_constraints_valid_input(
         K=[128],
         B=[2],
     )
-    # contraction_dims = common.ContractionDimensions(
-    #     m=[1],
-    #     n=[2],
-    #     k=[3],
-    #     batch=[0],
-    # )
     lhs_type = common.ShapedType([2, 32, 128], tuner_ctx.type.f16)
     rhs_type = common.ShapedType([2, 64, 128], tuner_ctx.type.f16)
     res_type = common.ShapedType([2, 32, 64], tuner_ctx.type.f32)
@@ -146,14 +139,6 @@ def test_generate_tile_and_fuse_constraints_invalid_input(
     lhs_type = common.ShapedType([2, 32, 128], tuner_ctx.type.f16)
     rhs_type = common.ShapedType([2, 64, 128], tuner_ctx.type.f16)
     res_type = common.ShapedType([2, 32, 64], tuner_ctx.type.f32)
-    # problem_size = common.ProblemSize(
-    #     matmul_size,
-    #     lhs_type,
-    #     rhs_type,
-    #     res_type,
-    #     common.DispatchKind.contraction,
-    #     contraction_dims,
-    # )
     # Define input parameters as z3 Ints
     m, n, k = (
         [z3.Int("m0")],
@@ -213,14 +198,6 @@ def test_generate_vector_distribute_constraints_valid_input(
     res_type = common.ShapedType([1024, 1024], tuner_ctx.type.f32)
     dispatch_kind = common.DispatchKind.contraction
 
-    # problem_size = common.ProblemSize(
-    #     matmul_size,
-    #     lhs_type,
-    #     rhs_type,
-    #     res_type,
-    #     common.DispatchKind.contraction,
-    #     contraction_dims,
-    # )
     # Define input parameters as z3 Ints
     m, n, k = (
         [z3.Int("m")],
@@ -271,20 +248,11 @@ def test_generate_vector_distribute_constraints_invalid_input(
 ) -> None:
     # Define input parameters that should lead to unsatisfiable constraints
     matmul_size = common.ContractionSizes([1024], [1024], [1024])
-    # contraction_dims = common.ContractionDimensions([0], [1], [2])
     lhs_type = common.ShapedType([1024, 1024], tuner_ctx.type.f16)
     rhs_type = common.ShapedType([1024, 1024], tuner_ctx.type.f16)
     res_type = common.ShapedType([1024, 1024], tuner_ctx.type.f32)
     dispatch_kind = common.DispatchKind.contraction
 
-    # problem_size = common.ProblemSize(
-    #     matmul_size,
-    #     lhs_type,
-    #     rhs_type,
-    #     res_type,
-    #     common.DispatchKind.contraction,
-    #     contraction_dims,
-    # )
     m, n, k = (
         [z3.Int("m")],
         [z3.Int("n")],

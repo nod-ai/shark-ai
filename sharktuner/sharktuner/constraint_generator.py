@@ -4,29 +4,31 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import z3  # type: ignore
+import math
 from abc import ABC, abstractmethod
 from typing import Iterator
 
 from iree.compiler import ir  # type: ignore
-from iree.compiler.dialects import iree_codegen  # type: ignore
-from iree.compiler.dialects import linalg, func  # type: ignore
+from iree.compiler.dialects import iree_codegen, iree_gpu  # type: ignore
+from iree.compiler.dialects import linalg  # type: ignore
 
-from .common import *
-from .dispatch_constraints import *
+from . import common
+from . import dispatch_constraints
 
 
 def adjust_problem_size_for_pipeline(
-    contraction_dims: ContractionDimensions,
-    matmul_size: ContractionSizes,
-    dispatch_kind: DispatchKind,
-    pipeline_options_search_space: PipelineOptionsSearchSpace,
+    contraction_dims: common.ContractionDimensions,
+    matmul_size: common.ContractionSizes,
+    dispatch_kind: common.DispatchKind,
+    pipeline_options_search_space: dispatch_constraints.PipelineOptionsSearchSpace,
     codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline,
 ):
     # Adjustment is only needed for IGEMM. Fail if the problem is not a conv
     # going down the TileAndFuse pipeline.
     if (
         codegen_pipeline != iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse
-        or dispatch_kind != DispatchKind.conv
+        or dispatch_kind != common.DispatchKind.conv
     ):
         return
 
@@ -38,22 +40,19 @@ def adjust_problem_size_for_pipeline(
 
 
 def generate_generic_contraction_solutions(
-    tuner_ctx: TunerContext,
-    contraction_dims: ContractionDimensions,
-    matmul_size: ContractionSizes,
-    lhs_type: ShapedType,
-    rhs_type: ShapedType,
-    res_type: ShapedType,
-    dispatch_kind: DispatchKind,
+    tuner_ctx: common.TunerContext,
+    contraction_dims: common.ContractionDimensions,
+    matmul_size: common.ContractionSizes,
+    lhs_type: common.ShapedType,
+    rhs_type: common.ShapedType,
+    res_type: common.ShapedType,
+    dispatch_kind: common.DispatchKind,
     codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline = iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
-    **kwargs,
+    num_subgroups: int = 4,
+    mma_intrinsics: list[iree_gpu.MMAIntrinsic] = [],
+    allowed_waves_per_eu: list[int] = [2],
+    pipeline_options_search_space: dispatch_constraints.PipelineOptionsSearchSpace = dispatch_constraints.PipelineOptionsSearchSpace(),
 ) -> Iterator[iree_codegen.CompilationInfoAttr]:
-    num_subgroups = kwargs.get("num_subgroups", 4)
-    mma_intrinsics = kwargs["mma_list"]  # Required
-    allowed_waves_per_eu = kwargs.get("allowed_waves_per_eu", [2])
-    pipeline_options_search_space = kwargs.get(
-        "pipeline_options_search_space", PipelineOptionsSearchSpace()
-    )
     adjust_problem_size_for_pipeline(
         contraction_dims,
         matmul_size,
@@ -96,7 +95,7 @@ def generate_generic_contraction_solutions(
     solver = z3.Solver()
     match codegen_pipeline:
         case iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute:
-            constraints = generate_vector_distribute_constraints(
+            constraints = dispatch_constraints.generate_vector_distribute_constraints(
                 matmul_size,
                 lhs_type,
                 rhs_type,
@@ -113,7 +112,7 @@ def generate_generic_contraction_solutions(
             )
             constraints += [v == 0 for v in subgroup_m_vars + subgroup_n_vars]
         case iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse:
-            constraints = generate_tile_and_fuse_constraints(
+            constraints = dispatch_constraints.generate_tile_and_fuse_constraints(
                 matmul_size,
                 lhs_type,
                 rhs_type,
@@ -140,7 +139,7 @@ def generate_generic_contraction_solutions(
             lookup(intrinsic_mn),
             lookup(intrinsic_k),
         )
-        mma_attr = getMMAAttr(
+        mma_attr = dispatch_constraints.getMMAAttr(
             res_type.element_type,
             *intrinsic_mnk_shape,
             lhs_type.element_type,
@@ -219,7 +218,7 @@ def generate_generic_contraction_solutions(
                 ),
             ]
 
-        compilation_infos = generate_compilation_infos(
+        compilation_infos = dispatch_constraints.generate_compilation_infos(
             tuner_ctx,
             mma_attr,
             workgroup_tile_sizes,
@@ -260,9 +259,9 @@ class ConstraintGenerator(ABC):
     @abstractmethod
     def generate_solutions(
         self,
-        tuner_context: TunerContext,
+        tuner_context: common.TunerContext,
         codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline,
-        **kwargs,
+        **pipeline_constraint_options,
     ) -> Iterator[iree_codegen.CompilationInfoAttr]:
         """
         Generate a sequence of CompilationInfoAttr candidates based on the
@@ -276,12 +275,18 @@ class ContractionOpInterfaceConstraintGenerator(ConstraintGenerator):
         self.root_op = root_op
         contraction_dims = linalg.infer_contraction_dimensions(root_op)
         assert contraction_dims, "no contraction dimensions"
+        dims = common.ContractionDimensions(
+            batch=list(contraction_dims.batch),
+            m=list(contraction_dims.m),
+            n=list(contraction_dims.n),
+            k=list(contraction_dims.k),
+        )
 
         res_maps = linalg.get_indexing_maps(root_op)
         maps = [map_attr.value for map_attr in res_maps]
-        lhs_dims = get_map_result_dim_positions(maps[0])
-        rhs_dims = get_map_result_dim_positions(maps[1])
-        res_dims = get_map_result_dim_positions(maps[2])
+        lhs_dims = common.get_map_result_dim_positions(maps[0])
+        rhs_dims = common.get_map_result_dim_positions(maps[1])
+        res_dims = common.get_map_result_dim_positions(maps[2])
 
         assert lhs_dims, "no lhs dimensions"
         assert rhs_dims, "no rhs dimensions"
@@ -291,25 +296,34 @@ class ContractionOpInterfaceConstraintGenerator(ConstraintGenerator):
         rhs_type = ir.RankedTensorType(root_op.operands[1].type)
         res_type = ir.RankedTensorType(root_op.operands[2].type)
 
-        matmul_size = ContractionSizes(
+        matmul_size = common.ContractionSizes(
             M=[lhs_type.shape[lhs_dims.index(dim)] for dim in contraction_dims.m],
             N=[rhs_type.shape[rhs_dims.index(dim)] for dim in contraction_dims.n],
             K=[lhs_type.shape[lhs_dims.index(dim)] for dim in contraction_dims.k],
             B=[lhs_type.shape[lhs_dims.index(dim)] for dim in contraction_dims.batch],
         )
 
-        self.dims = contraction_dims
+        self.dims = dims
         self.matmul_size = matmul_size
-        self.lhs_type = ShapedType(lhs_type.shape, lhs_type.element_type)
-        self.rhs_type = ShapedType(rhs_type.shape, rhs_type.element_type)
-        self.res_type = ShapedType(res_type.shape, res_type.element_type)
+        self.lhs_type = common.ShapedType(lhs_type.shape, lhs_type.element_type)
+        self.rhs_type = common.ShapedType(rhs_type.shape, rhs_type.element_type)
+        self.res_type = common.ShapedType(res_type.shape, res_type.element_type)
 
     def generate_solutions(
         self,
-        tuner_context: TunerContext,
+        tuner_context: common.TunerContext,
         codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline,
-        **kwargs,
+        **pipeline_constraint_options,
     ) -> Iterator[iree_codegen.CompilationInfoAttr]:
+        num_subgroups = pipeline_constraint_options.get("num_subgroups", 4)
+        mma_intrinsics = pipeline_constraint_options["mma_list"]
+        allowed_waves_per_eu = pipeline_constraint_options.get(
+            "allowed_waves_per_eu", [2]
+        )
+        pipeline_options_search_space = pipeline_constraint_options.get(
+            "pipeline_options_search_space",
+            dispatch_constraints.PipelineOptionsSearchSpace(),
+        )
         return generate_generic_contraction_solutions(
             tuner_ctx=tuner_context,
             contraction_dims=self.dims,
@@ -317,9 +331,12 @@ class ContractionOpInterfaceConstraintGenerator(ConstraintGenerator):
             lhs_type=self.lhs_type,
             rhs_type=self.rhs_type,
             res_type=self.res_type,
-            dispatch_kind=DispatchKind.contraction,
+            dispatch_kind=common.DispatchKind.contraction,
             codegen_pipeline=codegen_pipeline,
-            **kwargs,
+            num_subgroups=num_subgroups,
+            mma_intrinsics=mma_intrinsics,
+            allowed_waves_per_eu=allowed_waves_per_eu,
+            pipeline_options_search_space=pipeline_options_search_space,
         )
 
 
@@ -329,8 +346,7 @@ class ConvolutionOpInterfaceConstraintGenerator(ConstraintGenerator):
 
         convolution_dims = linalg.infer_convolution_dimensions(root_op)
         assert convolution_dims, "no convolution dimensions"
-
-        contraction_dims = ContractionDimensions(
+        contraction_dims = common.ContractionDimensions(
             batch=list(convolution_dims.depth),
             m=list(convolution_dims.batch) + list(convolution_dims.output_image),
             n=list(convolution_dims.output_channel),
@@ -345,7 +361,7 @@ class ConvolutionOpInterfaceConstraintGenerator(ConstraintGenerator):
             )
             return operand_type.shape[tensor_dim]
 
-        matmul_size = ContractionSizes(
+        matmul_size = common.ContractionSizes(
             B=[find_iter_dim_size(d, operand=2) for d in contraction_dims.batch],
             M=[find_iter_dim_size(d, operand=2) for d in contraction_dims.m],
             N=[find_iter_dim_size(d, operand=2) for d in contraction_dims.n],
@@ -358,16 +374,25 @@ class ConvolutionOpInterfaceConstraintGenerator(ConstraintGenerator):
 
         self.dims = contraction_dims
         self.matmul_size = matmul_size
-        self.lhs_type = ShapedType(lhs_type.shape, lhs_type.element_type)
-        self.rhs_type = ShapedType(rhs_type.shape, rhs_type.element_type)
-        self.res_type = ShapedType(res_type.shape, res_type.element_type)
+        self.lhs_type = common.ShapedType(lhs_type.shape, lhs_type.element_type)
+        self.rhs_type = common.ShapedType(rhs_type.shape, rhs_type.element_type)
+        self.res_type = common.ShapedType(res_type.shape, res_type.element_type)
 
     def generate_solutions(
         self,
-        tuner_context: TunerContext,
+        tuner_context: common.TunerContext,
         codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline,
-        **kwargs,
+        **pipeline_constraint_options,
     ) -> Iterator[iree_codegen.CompilationInfoAttr]:
+        num_subgroups = pipeline_constraint_options.get("num_subgroups", 4)
+        mma_intrinsics = pipeline_constraint_options["mma_list"]
+        allowed_waves_per_eu = pipeline_constraint_options.get(
+            "allowed_waves_per_eu", [2]
+        )
+        pipeline_options_search_space = pipeline_constraint_options.get(
+            "pipeline_options_search_space",
+            dispatch_constraints.PipelineOptionsSearchSpace(),
+        )
         return generate_generic_contraction_solutions(
             tuner_ctx=tuner_context,
             contraction_dims=self.dims,
@@ -375,7 +400,10 @@ class ConvolutionOpInterfaceConstraintGenerator(ConstraintGenerator):
             lhs_type=self.lhs_type,
             rhs_type=self.rhs_type,
             res_type=self.res_type,
-            dispatch_kind=DispatchKind.conv,
+            dispatch_kind=common.DispatchKind.conv,
             codegen_pipeline=codegen_pipeline,
-            **kwargs,
+            num_subgroups=num_subgroups,
+            mma_intrinsics=mma_intrinsics,
+            allowed_waves_per_eu=allowed_waves_per_eu,
+            pipeline_options_search_space=pipeline_options_search_space,
         )
