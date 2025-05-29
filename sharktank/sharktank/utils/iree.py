@@ -55,6 +55,7 @@ def get_iree_compiler_flags(
             f"--iree-hal-target-device={iree_hal_target_device}[{i}]"
             for i in range(device_count)
         ]
+
     if iree_hal_target_device.startswith("local"):
         res += [
             f"--iree-hal-local-target-device-backends={v}"
@@ -63,6 +64,11 @@ def get_iree_compiler_flags(
         res += ["--iree-llvmcpu-target-cpu=host"]
     elif iree_hal_target_device.startswith("hip"):
         res += [f"--iree-hip-target={iree_hip_target}"]
+    else:
+        raise ValueError(
+            f'"{iree_hal_target_device}" is not a supported IREE HAL target device'
+        )
+
     return res
 
 
