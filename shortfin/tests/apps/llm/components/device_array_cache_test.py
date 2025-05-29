@@ -60,8 +60,6 @@ def test_release_allocate_multiple(generic_device):
     for i in range(10):
         allocation1.append(cache.allocate((1, 2, 3), sfnp.int64))
 
-    allocation1.reverse()
-
     for a, b in zip(allocation0, allocation1):
         assert a.device == b.device
         assert a.host == b.host
