@@ -29,6 +29,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         rope_freq_base: Optional[float],
         device: Optional[torch.device] = None,
         use_hf: bool = False,
+        rope_scaling_type: Optional[str] = None,
         use_table: bool = True,
         tensor_parallelism_size: int = 1,
         pipeline_parallelism: bool = False,
@@ -40,6 +41,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         self.rope_dimension_count = rope_dimension_count
         self.max_seqlen = max_seqlen
         self.use_hf = use_hf
+        self.rope_scaling_type = rope_scaling_type
         self.use_table = use_table
         self.dtype = dtype
         self.rope_freq_base = rope_freq_base if rope_freq_base is not None else 10000.0

@@ -90,6 +90,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
                     max_seqlen=self.hp.context_length,
                     device=self.device,
                     use_hf=self.config.use_hf,
+                    rope_scaling_type=self.hp.rope_scaling_type,
                     tensor_parallelism_size=self.config.tensor_parallelism_size,
                     pipeline_parallelism=config.pipeline_parallelism_size > 1,
                     devices=self.cache.pipeline_to_device_map[pipeline],
@@ -391,6 +392,12 @@ class AttentionFFNBlock(ThetaLayer):
                 True,
                 True,
             ),
+            "llama4": (
+                torch.nn.functional.sigmoid,
+                torch.nn.functional.silu,
+                True,
+                False,
+            ),
         }
 
         (
@@ -417,6 +424,7 @@ class AttentionFFNBlock(ThetaLayer):
                     moe_activation=moe_activation,
                     score_experts=score_experts,
                     normalize_experts=normalize_experts,
+                    model_arch=config.hp.model_arch,
                 ),
             )
         else:

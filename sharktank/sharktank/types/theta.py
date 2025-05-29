@@ -35,6 +35,7 @@ __all__ = [
     "Dataset",
     "flat_to_nested_dict",
     "load_properties",
+    "PropertyValueType",
     "Theta",
     "torch_module_to_theta",
     "mark_export_external_theta",

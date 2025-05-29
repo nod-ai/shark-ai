@@ -192,7 +192,7 @@ _PREDEFINED_MODELS = {
         dataset_name="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
         model_file="model.irpa",  # This will be the final converted file name
         tokenizer_id="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
-        batch_sizes=(4,),
+        batch_sizes=(4, 8),
         device_settings=None,
     ),
     "tinystories_llama2_25m_gpu_argmax": ModelConfig(
