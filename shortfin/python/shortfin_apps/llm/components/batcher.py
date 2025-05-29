@@ -488,19 +488,19 @@ class PrefillExecutorProcess(LlmExecutorProcess):
 
         host_logits_key = (self.bs, self.bsl)
         if host_logits_key not in self.host_logits_cache:
-            logger.debug(f"Creating new host logits buffer. Host key: {host_logits_key}")
-            self.host_logits_cache[
-                host_logits_key
-            ] = logits.for_transfer()
+            logger.debug(
+                f"Creating new host logits buffer. Host key: {host_logits_key}"
+            )
+            self.host_logits_cache[host_logits_key] = logits.for_transfer()
         logits_host = self.host_logits_cache[host_logits_key]
 
         indices_host = None
         if indices is not None:
             if host_logits_key not in self.host_indices_cache:
-                logger.debug(f"Creating new host indices buffer. Host key: {host_logits_key}")
-                self.host_indices_cache[
-                    host_logits_key
-                ] = indices.for_transfer()
+                logger.debug(
+                    f"Creating new host indices buffer. Host key: {host_logits_key}"
+                )
+                self.host_indices_cache[host_logits_key] = indices.for_transfer()
             indices_host = self.host_indices_cache[host_logits_key]
 
         # Copy data from device to host
@@ -571,9 +571,7 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         seq_lens_host = self.seq_lens_host_cache[self.bs]
 
         if self.bs not in self.start_positions_host_cache:
-            self.start_positions_host_cache[
-                self.bs
-            ] = start_positions.for_transfer()
+            self.start_positions_host_cache[self.bs] = start_positions.for_transfer()
         start_positions_host = self.start_positions_host_cache[self.bs]
 
         seq_block_ids_key = (self.bs, block_count)
@@ -667,19 +665,19 @@ class DecodeExecutorProcess(LlmExecutorProcess):
 
         host_logits_key = (self.bs, self.bsl)
         if host_logits_key not in self.host_logits_cache:
-            logger.debug(f"Creating new host logits buffer. Host key: {host_logits_key}")
-            self.host_logits_cache[
-                host_logits_key
-            ] = logits.for_transfer()
+            logger.debug(
+                f"Creating new host logits buffer. Host key: {host_logits_key}"
+            )
+            self.host_logits_cache[host_logits_key] = logits.for_transfer()
         logits_host = self.host_logits_cache[host_logits_key]
 
         indices_host = None
         if indices is not None:
             if host_logits_key not in self.host_indices_cache:
-                logger.debug(f"Creating new host indices buffer. Host key: {host_logits_key}")
-                self.host_indices_cache[
-                    host_logits_key
-                ] = indices.for_transfer()
+                logger.debug(
+                    f"Creating new host indices buffer. Host key: {host_logits_key}"
+                )
+                self.host_indices_cache[host_logits_key] = indices.for_transfer()
             indices_host = self.host_indices_cache[host_logits_key]
 
         # Copy data from device to host
