@@ -8,6 +8,7 @@ from typing import Any
 import sys
 import logging
 import time
+from datetime import timedelta
 import json
 import numpy as np
 from tqdm import tqdm
@@ -48,6 +49,42 @@ class PerplexityTorch:
     def __init__(self):
         pass
 
+    def calc_time(self, start, end):
+        total_seconds = end - start
+        time_taken = abs(timedelta(seconds=total_seconds))
+        hours, minutes, seconds = re.split(":", str(time_taken))
+
+        if total_seconds < 1:
+            time_taken = f" {round(total_seconds * 1000, 3)} ms"
+        elif total_seconds < 60:
+            time_taken = "{:.2f} secs".format(round(float(total_seconds), 2))
+        else:
+            time_taken = "{:02d} hrs : {:02d} mins : {:.2f} secs".format(
+                int(hours), int(minutes), round(float(seconds), 2)
+            )
+        return time_taken
+
+    def timeit(func):
+        def wrapper(*args, **kwargs):
+            start = time.time()
+            result = func(*args, **kwargs)
+            end = time.time()
+            total_seconds = end - start
+            time_taken = abs(timedelta(seconds=total_seconds))
+            hours, minutes, seconds = re.split(":", str(time_taken))
+
+            if total_seconds < 1:
+                time_taken = f" {round(total_seconds * 1000, 3)} ms"
+            elif total_seconds < 60:
+                time_taken = "{:.2f} secs".format(round(float(total_seconds), 2))
+            else:
+                time_taken = "{:02d} hrs : {:02d} mins : {:.2f} secs".format(
+                    int(hours), int(minutes), round(float(seconds), 2)
+                )
+            return result
+
+        return wrapper
+
     def print_token_comparison(self, i: int):
         if i <= self.max_prompt_length:
             batch_predicted_token_id = [[i[-1]] for i in self.batch.results]
@@ -64,6 +101,7 @@ class PerplexityTorch:
             logger.debug(f"{expected_token}")
             logger.debug(f"{expected_token_id}")
 
+    @timeit
     def load_model(
         self,
         dataset: Dataset,
@@ -123,6 +161,7 @@ class PerplexityTorch:
 
         return token_batch
 
+    @timeit
     def get_logits(self, skip_decode: bool) -> torch.tensor:
 
         is_first_token = True
@@ -175,6 +214,7 @@ class PerplexityTorch:
 
         return out_logits
 
+    @timeit
     def get_perplexity(
         self, test_prompts: list[str], skip_decode: bool
     ) -> dict[str, Any]:
