@@ -142,7 +142,7 @@ class MLIRTensor:
 
 class MLIRSpec:
     """
-    A class representing a MLIR Jinja2 template.
+    A class representing a MLIR Jinja2 template or a MLIR asm.
 
     The `subs` dictionary contains additional substitutions passed to the jinja
     template generator.
@@ -153,11 +153,15 @@ class MLIRSpec:
     """
 
     mlir: str
+    target_kernel_name: str
     subs: dict
+    use_jinja: bool
 
-    def __init__(self, mlir: str, subs: dict = {}):
+    def __init__(self, mlir: str, target_kernel_name: str = None, subs: dict = {}, use_jinja: bool = True):
         self.mlir = mlir
+        self.target_kernel_name = target_kernel_name
         self.subs = subs
+        self.use_jinja = use_jinja
 
 
 def mlir_kernel(
@@ -353,17 +357,21 @@ def mlir_kernel(
                 # the mlir spec.
                 if symbol_name is None:
                     # Generate the MLIR spec using jinja.
-                    asm = (
-                        _get_jinja2_env()
-                        .from_string(mlir)
-                        .render(
-                            {
-                                "kernel_name": kernel_name,
-                                **self._get_additional_aliases(dims),
-                                **mlir_spec.subs,
-                            }
+                    if mlir_spec.use_jinja:
+                        asm = (
+                            _get_jinja2_env()
+                            .from_string(mlir)
+                            .render(
+                                {
+                                    "kernel_name": kernel_name,
+                                    **self._get_additional_aliases(dims),
+                                    **mlir_spec.subs,
+                                }
+                            )
                         )
-                    )
+                    else:
+                        asm = mlir_spec.mlir
+                        kernel_name = mlir_spec.target_kernel_name
                     try:
                         module_op = Operation.parse(asm, context=kb.context)
                     except MLIRError as e:

@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import Optional, Sequence, Tuple
+from typing import Optional, Sequence, Tuple, List
 
 import logging
 from pathlib import Path
@@ -105,8 +105,13 @@ def call_function(target_function: Operation, *operands: Value) -> Sequence[Valu
     target_symbol = FlatSymbolRefAttr.get(target_function.attributes["sym_name"].value)
     ftype = FunctionType(TypeAttr(target_function.attributes["function_type"]).value)
     operands = [i for i in operands if i is not None]
+    op_name = (
+        "func.call" if target_function.operation.name == "func.func" else "util.call"
+    )
+    target_function.attributes["sym_visibility"] = StringAttr.get("private")
+
     return Operation.create(
-        "util.call",
+        op_name,
         results=ftype.results,
         operands=operands,
         attributes={
