@@ -40,9 +40,14 @@ class MoeBlock(ThetaLayer):
         n_expert_groups: Optional[int] = None,
         n_limited_groups: Optional[int] = None,
         route_scale: Optional[float] = None,
+        model_arch: Optional[str] = None,
     ):
         super().__init__(theta)
         if n_expert_groups is not None:
+            if expert_count is None:
+                raise ValueError(
+                    "expert_count must not be None when n_expert_groups is specified."
+                )
             if expert_count % n_expert_groups != 0:
                 raise ValueError(
                     (
@@ -51,7 +56,7 @@ class MoeBlock(ThetaLayer):
                     )
                 )
             n_experts_per_group = expert_count // n_expert_groups
-            if n_experts_per_group < n_limited_groups:
+            if n_limited_groups is not None and n_experts_per_group < n_limited_groups:
                 raise ValueError(
                     (
                         f"Number of limited expert groups {n_limited_groups} must be at "
@@ -86,7 +91,9 @@ class MoeBlock(ThetaLayer):
         if isinstance(experts_ffn_moe_block, str):
             if experts_ffn_moe_block == "PreGatherFFNMOE":
                 self.routed_experts = PreGatherFFNMOE(
-                    routed_ffn_theta, activation_fn=moe_activation
+                    routed_ffn_theta,
+                    activation_fn=moe_activation,
+                    model_arch=model_arch,
                 )
             elif experts_ffn_moe_block == "DenseFFNMOE":
                 self.routed_experts = DenseFFNMOE(
@@ -112,7 +119,8 @@ class MoeBlock(ThetaLayer):
                     }
                 )
             self.shared_experts = FFN(
-                theta=shared_ffn_theta, activation_fn=moe_activation
+                theta=shared_ffn_theta,
+                activation_fn=moe_activation,
             )
 
         # Add optional FFN output norm layer
@@ -123,13 +131,14 @@ class MoeBlock(ThetaLayer):
 
     def forward(
         self,
+        # shape: (batch_size, sequence_length, feature_dim)
         h: torch.Tensor | ShardedTensor,
     ):
         batch_size, sequence_length, feature_dim = h.shape
         ffn_input = h.view(-1, feature_dim)
 
         # For each token, the router calculates the router weights for all experts
-        # router_logits: (batch_size * sequence_length, expert_count)
+        # shape: (batch_size * sequence_length, expert_count)
         router_logits = self.ffn_gate_inp(ffn_input)
         router_weights = self.score_experts(router_logits.to(torch.float))
 
@@ -157,10 +166,12 @@ class MoeBlock(ThetaLayer):
                 .reshape(-1, self.expert_count)
             )
             scores_for_choice = scores_for_choice.masked_fill(~score_mask.bool(), 0.0)
+            # shape: (batch_size * sequence_length, expert_used_count)
             expert_gate, top_k_experts = topk(
                 scores_for_choice, k=self.expert_used_count, dim=-1
             )
         else:
+            # shape: (batch_size * sequence_length, expert_used_count)
             expert_gate, top_k_experts = topk(
                 router_weights, self.expert_used_count, dim=-1
             )
@@ -173,6 +184,7 @@ class MoeBlock(ThetaLayer):
         if self.route_scale is not None:
             expert_gate = expert_gate * self.route_scale
 
+        # shape: (batch_size * sequence_length, feature_dim)
         moe_output = self.routed_experts(ffn_input, top_k_experts, expert_gate)
 
         if self.expert_shared_count is not None:

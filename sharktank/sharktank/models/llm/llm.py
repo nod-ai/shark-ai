@@ -392,6 +392,12 @@ class AttentionFFNBlock(ThetaLayer):
                 True,
                 True,
             ),
+            "llama4": (
+                torch.nn.functional.sigmoid,
+                torch.nn.functional.silu,
+                True,
+                False,
+            ),
         }
 
         (
@@ -418,6 +424,7 @@ class AttentionFFNBlock(ThetaLayer):
                     moe_activation=moe_activation,
                     score_experts=score_experts,
                     normalize_experts=normalize_experts,
+                    model_arch=config.hp.model_arch,
                 ),
             )
         else:
