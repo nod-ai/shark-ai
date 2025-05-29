@@ -20,6 +20,7 @@ from sharktank.layers import *
 from sharktank.types import *
 
 from sharktank.models.llm import *
+from sharktank.types.pipelining import pipeline_parallelize_theta
 from sharktank.types.sharding import shard_theta
 
 
@@ -107,6 +108,7 @@ class PerplexityTorch:
         dataset: Dataset,
         tokenizer: InferenceTokenizer,
         tensor_parallelism_size: int,
+        pipeline_parallelism_size: int,
         device: torch.device,
         activation_dtype: torch.dtype,
         attention_dtype: torch.dtype,
@@ -117,6 +119,10 @@ class PerplexityTorch:
         fake_quant: bool,
     ):
 
+        block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
+            dataset.root_theta, pipeline_parallelism_size
+        )
+
         config = LlamaModelConfig(
             hp=configs.LlamaHParams.from_gguf_props(dataset.properties),
             device=device,
@@ -124,6 +130,9 @@ class PerplexityTorch:
             attention_dtype=attention_dtype,
             kv_cache_dtype=kv_cache_dtype,
             tensor_parallelism_size=tensor_parallelism_size,
+            pipeline_parallelism_size=pipeline_parallelism_size,
+            block_to_pipeline_map=block_to_pipeline,
+            pipeline_to_device_map=pipeline_to_devices,
             block_seq_stride=block_seq_stride,
             attention_kernel=attention_kernel,
             use_hf=use_hf,
@@ -131,9 +140,6 @@ class PerplexityTorch:
         )
 
         self.device = device
-
-        if config.tensor_parallelism_size > 1:
-            dataset.root_theta = shard_theta(dataset.root_theta, config)
 
         theta = dataset.root_theta
 
@@ -250,8 +256,9 @@ def run_perplexity_torch(
     args,
     dataset,
     tokenizer,
-    device,
-    tensor_parallelism_size,
+    device: torch.device | None,
+    tensor_parallelism_size: int,
+    pipeline_parallelism_size: int,
     model_file,
 ):
 
@@ -276,6 +283,7 @@ def run_perplexity_torch(
                 tokenizer=tokenizer,
                 device=device,
                 tensor_parallelism_size=tensor_parallelism_size,
+                pipeline_parallelism_size=pipeline_parallelism_size,
                 attention_kernel=args.attention_kernel,
                 block_seq_stride=args.block_seq_stride,
                 prompts=p,
@@ -308,7 +316,8 @@ def perplexity_torch(
     dataset,
     tokenizer,
     device,
-    tensor_parallelism_size,
+    tensor_parallelism_size: int,
+    pipeline_parallelism_size: int,
     attention_kernel,
     block_seq_stride,
     prompts,
@@ -326,6 +335,7 @@ def perplexity_torch(
         dataset=dataset,
         tokenizer=tokenizer,
         tensor_parallelism_size=tensor_parallelism_size,
+        pipeline_parallelism_size=pipeline_parallelism_size,
         device=device,
         activation_dtype=activation_dtype,
         attention_dtype=attention_dtype,
@@ -375,6 +385,7 @@ def main(argv):
         tokenizer=tokenizer,
         device=device,
         tensor_parallelism_size=tensor_parallelism_size,
+        pipeline_parallelism_size=args.pipeline_parallelism_size,
         model_file=model_file,
     )
 
