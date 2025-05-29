@@ -134,14 +134,7 @@ class BeamSearchBeam(Beam):
 
 
 class BeamSearchTokenSelectionStrategy(BaseTokenSelectionStrategy):
-    def __init__(self, token_selection_strategy_config: TokenSelectionStrategyConfig):
-        self._token_selection_strategy_config = token_selection_strategy_config
-
-        self.min_log_prob = 0.0
-
-    @property
-    def token_selection_strategy_config(self):
-        return self._token_selection_strategy_config
+    min_log_prob: float = 0.0
 
     def select_top_k(
         self,
