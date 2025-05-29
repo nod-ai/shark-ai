@@ -104,7 +104,6 @@ def make_attention_moe_block_random_theta(
         num_experts=config.hp.expert_count,
         with_ffn_norm=True,
         num_shared_experts=config.hp.expert_shared_count,
-        shared_expert_hidden_dim=config.hp.expert_shared_feed_forward_length,
         with_layer_output_norm=False,
         dtype=dtype,
     )
