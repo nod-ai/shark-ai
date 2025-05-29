@@ -99,11 +99,13 @@ def make_attention_moe_block_random_theta(
     )
     res_dict.update(attention_theta.tree)
     moe_theta = make_random_moe_block_theta(
+        block_idx=block_idx,
         in_dim=config.hp.embedding_length,
         expert_hidden_dim=config.hp.expert_feed_forward_length,
         num_experts=config.hp.expert_count,
         with_ffn_norm=True,
         num_shared_experts=config.hp.expert_shared_count,
+        shared_expert_hidden_dim=config.hp.expert_shared_feed_forward_length,
         with_layer_output_norm=False,
         dtype=dtype,
     )
