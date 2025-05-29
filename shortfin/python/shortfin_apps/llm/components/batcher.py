@@ -16,7 +16,7 @@ import shortfin.array as sfnp
 
 from shortfin import Fiber
 
-from .cacheing_allocator import CacheingAllocator, WrappedAllocation
+from .device_array_cache import DeviceArrayCache, WrappedAllocation
 from .scheduler import Scheduler
 from ...utils import BatcherProcess
 
@@ -66,7 +66,7 @@ class LlmBatcherProcess(BatcherProcess):
         self.ideal_batch_size: int = ideal_batch_size
         self.page_seq_stride = self.model_params.paged_kv_cache.block_seq_stride
         self.scheduler = Scheduler(ideal_batch_size=self.ideal_batch_size)
-        self.allocator = CacheingAllocator(fiber.device(0))
+        self.cache = DeviceArrayCache(fiber.device(0))
 
         self.program_isolation = program_isolation
 
@@ -77,7 +77,7 @@ class LlmBatcherProcess(BatcherProcess):
     def shutdown(self):
         """Shutdown the batcher process."""
         super().shutdown()
-        self.allocator.free()
+        self.cache.free()
 
     async def process_batches(self):
         """Process batches of requests."""
@@ -182,7 +182,7 @@ class PrefillBatcherProcess(LlmBatcherProcess):
     def make_process(self, cache: BasePagedAttentionCache, fiber: Fiber):
         return PrefillExecutorProcess(
             fiber,
-            self.allocator,
+            self.cache,
             self.functions,
             self.page_seq_stride,
             cache.page_pool.page_tables,
@@ -238,7 +238,7 @@ class DecodeBatcherProcess(LlmBatcherProcess):
     def make_process(self, cache: BasePagedAttentionCache, fiber: Fiber):
         return DecodeExecutorProcess(
             fiber,
-            self.allocator,
+            self.cache,
             self.functions,
             self.page_seq_stride,
             cache.page_pool.page_tables,
@@ -264,7 +264,7 @@ class LlmExecutorProcess(sf.Process):
         self,
         name: str,
         fiber: Fiber,
-        allocator,
+        cache,
         functions: dict[int, sf.ProgramFunction],
         seq_stride: int,
         page_tables,
@@ -279,7 +279,7 @@ class LlmExecutorProcess(sf.Process):
         self.program_isolation = program_isolation
 
         self.device0 = fiber.device(0)
-        self.allocator = allocator
+        self.cache = cache
 
     async def get_args(self, bs):
         ...
@@ -394,7 +394,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
     def __init__(
         self,
         fiber: Fiber,
-        allocator,
+        cache,
         functions: dict[int, sf.ProgramFunction],
         seq_stride: int,
         page_tables,
@@ -403,7 +403,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         super().__init__(
             name="prefill_process",
             fiber=fiber,
-            allocator=allocator,
+            cache=cache,
             functions=functions,
             seq_stride=seq_stride,
             page_tables=page_tables,
@@ -427,11 +427,11 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         # Prepare inputs.
         # TODO: Better support in shortfin for h2d. The best way to do it is
         # device dependent.
-        allocator = self.allocator
+        cache = self.cache
         int_dtype = sfnp.int64
-        tokens = allocator.allocate([bs, bsl], int_dtype)
-        seq_lens = allocator.allocate([bs], int_dtype)
-        seq_block_ids = allocator.allocate([bs, block_count], int_dtype)
+        tokens = cache.allocate([bs, bsl], int_dtype)
+        seq_lens = cache.allocate([bs], int_dtype)
+        seq_block_ids = cache.allocate([bs, block_count], int_dtype)
 
         # Populate tokens.
         for i in range(bs):
@@ -494,7 +494,7 @@ class DecodeExecutorProcess(LlmExecutorProcess):
     def __init__(
         self,
         fiber: Fiber,
-        allocator,
+        cache,
         functions: dict[int, sf.ProgramFunction],
         seq_stride: int,
         page_tables,
@@ -503,7 +503,7 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         super().__init__(
             name="decode_process",
             fiber=fiber,
-            allocator=allocator,
+            cache=cache,
             functions=functions,
             seq_stride=seq_stride,
             page_tables=page_tables,
@@ -524,13 +524,13 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         # TODO: Better support in shortfin for h2d. The best way to do it is
         # device dependent.
 
-        allocator = self.allocator
+        cache = self.cache
         int_dtype = sfnp.int64
 
-        tokens = allocator.allocate([bs, 1], int_dtype)
-        start_positions = allocator.allocate([bs], int_dtype)
-        seq_lens = allocator.allocate([bs], int_dtype)
-        seq_block_ids = allocator.allocate([bs, block_count], int_dtype)
+        tokens = cache.allocate([bs, 1], int_dtype)
+        start_positions = cache.allocate([bs], int_dtype)
+        seq_lens = cache.allocate([bs], int_dtype)
+        seq_block_ids = cache.allocate([bs, block_count], int_dtype)
 
         # Populate tokens.
         with tokens.host.map(discard=True) as m:

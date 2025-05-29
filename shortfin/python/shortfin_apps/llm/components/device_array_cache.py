@@ -86,7 +86,7 @@ def _shape_matches(a, b):
     return all([_a == _b for _a, _b in zip(a, b)])
 
 
-class CacheingAllocator:
+class DeviceArrayCache:
     def __init__(self, device, *, max_allocations=100):
         self._device = device
         self._cache = []

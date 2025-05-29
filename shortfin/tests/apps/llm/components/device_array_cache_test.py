@@ -4,14 +4,14 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from shortfin_apps.llm.components.cacheing_allocator import CacheingAllocator
+from shortfin_apps.llm.components.device_array_cache import DeviceArrayCache
 
 import shortfin.array as sfnp
 
 
 def test_allocate(generic_device):
-    allocator = CacheingAllocator(generic_device)
-    allocation0 = allocator.allocate((1, 2, 3), sfnp.int64)
+    cache = DeviceArrayCache(generic_device)
+    allocation0 = cache.allocate((1, 2, 3), sfnp.int64)
 
     assert allocation0.shape[0] == 1
     assert allocation0.shape[1] == 2
@@ -20,11 +20,11 @@ def test_allocate(generic_device):
 
 
 def test_release_allocate(generic_device):
-    allocator = CacheingAllocator(generic_device)
-    allocation0 = allocator.allocate((1, 2, 3), sfnp.int64)
+    cache = DeviceArrayCache(generic_device)
+    allocation0 = cache.allocate((1, 2, 3), sfnp.int64)
 
-    allocator.release(allocation0)
-    allocation1 = allocator.allocate((1, 2, 3), sfnp.int64)
+    cache.release(allocation0)
+    allocation1 = cache.allocate((1, 2, 3), sfnp.int64)
 
     assert allocation0.device == allocation1.device
     assert allocation0.host == allocation1.host
@@ -36,29 +36,29 @@ def test_release_allocate(generic_device):
 
 
 def test_release_allocate_diff(generic_device):
-    allocator = CacheingAllocator(generic_device)
-    allocation0 = allocator.allocate((1, 2, 3), sfnp.int64)
+    cache = DeviceArrayCache(generic_device)
+    allocation0 = cache.allocate((1, 2, 3), sfnp.int64)
 
-    allocator.release(allocation0)
-    allocation1 = allocator.allocate((1, 2, 4), sfnp.int64)
+    cache.release(allocation0)
+    allocation1 = cache.allocate((1, 2, 4), sfnp.int64)
 
     assert allocation0.device != allocation1.device
     assert allocation0.host != allocation1.host
 
 
 def test_release_allocate_multiple(generic_device):
-    allocator = CacheingAllocator(generic_device)
+    cache = DeviceArrayCache(generic_device)
     allocation0 = []
     allocation1 = []
 
     for i in range(10):
-        allocation0.append(allocator.allocate((1, 2, 3), sfnp.int64))
+        allocation0.append(cache.allocate((1, 2, 3), sfnp.int64))
 
     for allocation in allocation0[::-1]:
-        allocator.release(allocation)
+        cache.release(allocation)
 
     for i in range(10):
-        allocation1.append(allocator.allocate((1, 2, 3), sfnp.int64))
+        allocation1.append(cache.allocate((1, 2, 3), sfnp.int64))
 
     allocation1.reverse()
 
@@ -76,19 +76,19 @@ def test_release_allocate_multiple(generic_device):
 
 
 def test_release_allocate_limit(generic_device):
-    allocator = CacheingAllocator(generic_device, max_allocations=1)
+    cache = DeviceArrayCache(generic_device, max_allocations=1)
 
-    allocation0 = allocator.allocate((1, 2, 3), sfnp.int64)
-    allocation1 = allocator.allocate((1, 2, 3), sfnp.int64)
+    allocation0 = cache.allocate((1, 2, 3), sfnp.int64)
+    allocation1 = cache.allocate((1, 2, 3), sfnp.int64)
 
-    allocator.release(allocation0)
-    allocator.release(allocation1)
+    cache.release(allocation0)
+    cache.release(allocation1)
 
     # An uncached allocation is used to flush the cache.
-    flush = allocator.allocate((1, 2, 4), sfnp.int64)
+    flush = cache.allocate((1, 2, 4), sfnp.int64)
 
-    allocation2 = allocator.allocate((1, 2, 3), sfnp.int64)
-    allocation3 = allocator.allocate((1, 2, 3), sfnp.int64)
+    allocation2 = cache.allocate((1, 2, 3), sfnp.int64)
+    allocation3 = cache.allocate((1, 2, 3), sfnp.int64)
 
     assert allocation0.device != allocation3.device
     assert allocation0.host != allocation3.host
