@@ -272,6 +272,7 @@ class RotaryEmbeddingLayer(BaseLayer):
             smooth = torch.clamp(smooth, 0.0, 1.0)
             freqs = (1 - smooth) * (freqs * rope_rcp_scale) + smooth * freqs
 
+            freqs = freqs.to(device=self.device)
             emb = torch.outer(t, freqs)
 
             cos = torch.cos(emb).to(self.dtype)
