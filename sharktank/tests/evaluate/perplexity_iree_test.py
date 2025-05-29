@@ -170,7 +170,7 @@ class PerplexityTest(unittest.TestCase):
         self.tokenizer = self.deepseek_v3_tokenizer
         self.pipeline_parallelism_size = 2
 
-        self.prepare_argv()
+        self.prepare_argv(extra_args=(f"--use-toy-model",))
         self.run_and_check_perplexity()
 
 
