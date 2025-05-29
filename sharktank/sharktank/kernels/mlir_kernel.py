@@ -359,7 +359,8 @@ def mlir_kernel(
                         .render(
                             {
                                 "kernel_name": kernel_name,
-                                **self._get_additional_aliases(dims),
+                                **self._get_additional_dim_aliases(dims),
+                                **dtypes,
                                 **mlir_spec.subs,
                             }
                         )
@@ -459,7 +460,7 @@ def mlir_kernel(
 
                 return kernel_name
 
-            def _get_additional_aliases(
+            def _get_additional_dim_aliases(
                 self, dims: Dict[str, Optional[int]]
             ) -> Dict[str, str]:
                 return dict(
