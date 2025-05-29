@@ -26,6 +26,6 @@ class rotary_test(unittest.TestCase):
         res_b = ops.view_as_real(torch.complex(rot, rot))
         ref_b = torch.complex(torch.cos(rot), torch.sin(rot))
 
-        result = kernels.apply_rotary_embedding(a, res_b)
+        result = kernels.apply_rotary_embedding(a, res_b.unsqueeze(0))
         ref = ops.view_as_real(ops.view_as_complex(a) * ref_b[None, :, None, :])
         torch.testing.assert_close(result, ref)
