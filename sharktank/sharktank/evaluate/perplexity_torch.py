@@ -141,7 +141,14 @@ class PerplexityTorch:
                 token_batch = self.assemble_batch(token_batch)
 
                 self.batch.prefill()
-                out_logits.append(self.batch.prefill_logits[:, 0:1, :])
+
+                last_logits_indices = torch.minimum(i, self.seq_lens - 1)
+                last_logits_indices = torch.maximum(0, last_logits_indices)
+                batch_indices = torch.arange(len(self.seq_lens))
+                last_real_prefill_logits = self.batch.prefill_logits[
+                    batch_indices, last_logits_indices, :
+                ].unsqueeze(1)
+                out_logits.append(last_real_prefill_logits)
 
                 self.print_token_comparison(i)
 
@@ -183,6 +190,7 @@ class PerplexityTorch:
             test_prompts,
             pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
         )
+        self.seq_lens = torch.tensor(seq_lens, device=self.device)
 
         logger.debug(f" Prompts for Evaluation:")
         for idx, prompt in enumerate(test_prompts):
