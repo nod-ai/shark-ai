@@ -29,6 +29,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         rope_freq_base: Optional[float],
         device: Optional[torch.device] = None,
         use_hf: bool = False,
+        rope_scaling_type: Optional[str] = None,
         use_table: bool = True,
         tensor_parallelism_size: int = 1,
         pipeline_parallelism: bool = False,
@@ -40,6 +41,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         self.rope_dimension_count = rope_dimension_count
         self.max_seqlen = max_seqlen
         self.use_hf = use_hf
+        self.rope_scaling_type = rope_scaling_type
         self.use_table = use_table
         self.dtype = dtype
         self.rope_freq_base = rope_freq_base if rope_freq_base is not None else 10000.0
@@ -245,32 +247,35 @@ class RotaryEmbeddingLayer(BaseLayer):
             rope_rcp_theta = 1.0 / self.rope_freq_base
             freqs = rope_rcp_theta ** (torch.arange(0, dim, 2).float() / dim)
 
-            # llama3.1 introduced rope scaling to normalize the theta better.
-            # The theory is based on the original llama3.1 implementation:
-            # https://github.com/meta-llama/llama-models/blob/709a61fd810157f75fbb314e7287089eec06d9c3/models/llama3_1/api/model.py#L41
-            # TODO: Not all models use rope scaling, fix this.
-            # TODO: get these values from Dataset. Current values are derived
-            # from llama3.1 reference link above.
-            rope_factor = 8
-            low_freq_factor = 1
-            high_freq_factor = 4
-            old_context_len = 8192
+            if self.rope_scaling_type == "llama3":
+                # llama3.1 introduced rope scaling to normalize the theta better.
+                # The theory is based on the original llama3.1 implementation:
+                # https://github.com/meta-llama/llama-models/blob/709a61fd810157f75fbb314e7287089eec06d9c3/models/llama3_1/api/model.py#L41
+                # TODO: Not all models use rope scaling, fix this.
+                # TODO: get these values from Dataset. Current values are derived
+                # from llama3.1 reference link above.
+                rope_factor = 8
+                low_freq_factor = 1
+                high_freq_factor = 4
+                old_context_len = 8192
 
-            # The reference implementation is based on flash-infer. This
-            # implementation uses clamping instead of conditionals which is
-            # much better for a tensor compiler:
-            # https://github.com/flashinfer-ai/flashinfer/commit/4c89decadc8ae9f261cae97c350064156e66bc09#diff-e797f0f37e32a5e08c50ef190459c873fcb33ef6334333cef1e4e2d931308fa3
-            smooth_a = old_context_len / (
-                2 * torch.pi * (high_freq_factor - low_freq_factor)
-            )
-            smooth_b = -1.0 / (high_freq_factor / low_freq_factor - 1.0)
+                # The reference implementation is based on flash-infer. This
+                # implementation uses clamping instead of conditionals which is
+                # much better for a tensor compiler:
+                # https://github.com/flashinfer-ai/flashinfer/commit/4c89decadc8ae9f261cae97c350064156e66bc09#diff-e797f0f37e32a5e08c50ef190459c873fcb33ef6334333cef1e4e2d931308fa3
+                smooth_a = old_context_len / (
+                    2 * torch.pi * (high_freq_factor - low_freq_factor)
+                )
+                smooth_b = -1.0 / (high_freq_factor / low_freq_factor - 1.0)
 
-            rope_rcp_scale = 1.0 / rope_factor
+                rope_rcp_scale = 1.0 / rope_factor
 
-            smooth = freqs * smooth_a + smooth_b
-            # Clamp to [0, 1]
-            smooth = torch.clamp(smooth, 0.0, 1.0)
-            freqs = (1 - smooth) * (freqs * rope_rcp_scale) + smooth * freqs
+                smooth = freqs * smooth_a + smooth_b
+                # Clamp to [0, 1]
+                smooth = torch.clamp(smooth, 0.0, 1.0)
+                freqs = (1 - smooth) * (freqs * rope_rcp_scale) + smooth * freqs
+            elif self.rope_scaling_type is not None:
+                raise ValueError(f"{self.rope_scaling_type} NYI")
 
             emb = torch.outer(t, freqs)
 

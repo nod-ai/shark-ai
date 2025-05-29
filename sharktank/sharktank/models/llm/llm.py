@@ -90,6 +90,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
                     max_seqlen=self.hp.context_length,
                     device=self.device,
                     use_hf=self.config.use_hf,
+                    rope_scaling_type=self.hp.rope_scaling_type,
                     tensor_parallelism_size=self.config.tensor_parallelism_size,
                     pipeline_parallelism=config.pipeline_parallelism_size > 1,
                     devices=self.cache.pipeline_to_device_map[pipeline],
