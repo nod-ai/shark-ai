@@ -83,6 +83,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         }
         self.attn_type = self.attn_type_map[self.model_arch]
 
+        self.k_quantizer = None
+        self.v_quantizer = None
         if self.attn_type == "gqa":
             self.add_module(
                 "attn_q", LinearLayer(theta("attn_q"), fake_quant=self.fake_quant)
@@ -93,6 +95,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             self.add_module(
                 "attn_v", LinearLayer(theta("attn_v"), fake_quant=self.fake_quant)
             )
+            self.k_quantizer = self.attn_k.q_output
+            self.v_quantizer = self.attn_v.q_output
         elif self.attn_type == "mla":
             self.add_module(
                 "latent_attn",
@@ -165,6 +169,13 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         else:
             xq = embedding.apply_batched_mask(xt=xq, mask=embedding_batch_mask)
             xk = embedding.apply_batched_mask(xt=xk, mask=embedding_batch_mask)
+
+        if self.attn_q.q_output is not None:
+            xq = self.attn_q.q_output.quantize(xq)
+        if self.attn_k.q_output is not None:
+            xk = self.attn_k.q_output.quantize(xk)
+        if self.attn_v.q_output is not None:
+            xv = self.attn_v.q_output.quantize(xv)
         return xq, xk, xv
 
     def pre_process_attention(
@@ -263,6 +274,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 mask=attention_mask,
                 scale=self.attention_scale,
                 softcap=self.softcap,
+                k_quantizer=self.k_quantizer,
+                v_quantizer=self.v_quantizer,
             )
         # attn_output is sharded
         # Drop padded part of attn_output

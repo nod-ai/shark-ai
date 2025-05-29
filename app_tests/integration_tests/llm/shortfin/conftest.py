@@ -67,12 +67,20 @@ def server(model_artifacts, request):
         artifacts=model_artifacts,
         device_settings=model_config.device_settings,
         prefix_sharing_algorithm=request.param.get("prefix_sharing", "none"),
+        token_selection_strategy=request.param.get(
+            "token_selection_strategy", "independent"
+        ),
+        num_beams=request.param.get("num_beams", 1),
     )
 
     server_instance = ServerInstance(server_config)
     server_instance.start()
-    process, port = server_instance.process, server_instance.port
-    yield process, port
+    process, port, config = (
+        server_instance.process,
+        server_instance.port,
+        server_instance.config,
+    )
+    yield process, port, config
 
     process.terminate()
     process.wait()

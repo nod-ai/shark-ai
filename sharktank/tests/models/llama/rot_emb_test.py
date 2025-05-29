@@ -51,6 +51,7 @@ class HFRotaryComparisonTest(unittest.TestCase):
             max_seqlen=2048,
             rope_freq_base=500000,
             use_hf=True,
+            rope_scaling_type="llama3",
             dtype=test_dtype,
         )
 

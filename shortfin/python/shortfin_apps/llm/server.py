@@ -113,8 +113,8 @@ def add_service_args(parser: argparse.ArgumentParser):
         "--token_selection_strategy",
         type=str,
         choices=[strategy.name.lower() for strategy in TokenSelectionStrategy],
-        default="greedy",
-        help="Strategy to use when selecting tokens during generation. Defaults to `greedy`.",
+        default="independent",
+        help="Strategy to use when selecting tokens during generation. Defaults to `independent`.",
     )
     parser.add_argument(
         "--workers",

@@ -6,6 +6,7 @@
 
 import logging
 import math
+import numpy as np
 import pytest
 from typing import List
 from unittest.mock import patch
@@ -25,11 +26,11 @@ from shortfin_apps.llm.components.messages import (
 from shortfin_apps.llm.components.token_selection_strategy import (
     build_token_selector_config,
     DecodeConfig,
-    MultiGreedyTokenSelectionStrategy,
+    IndependentTokenSelectionStrategy,
     TokenSelectionStrategy,
 )
-from shortfin_apps.llm.components.token_selection_strategy.greedy_token_selection_strategy import (
-    GreedyBeam,
+from shortfin_apps.llm.components.token_selection_strategy.independent_token_selection_strategy import (
+    IndependentBeam,
 )
 
 logger = logging.getLogger(__name__)
@@ -50,15 +51,15 @@ def exec_req_list(exec_req, cache, dummy_pages):
 
 
 @pytest.fixture(scope="function")
-def multi_greedy_token_selection_strategy():
-    yield MultiGreedyTokenSelectionStrategy(
+def independent_token_selection_strategy():
+    yield IndependentTokenSelectionStrategy(
         None,
     )
 
 
 @pytest.fixture(scope="function")
-def greedy_beam(exec_req, decode_config):
-    yield GreedyBeam(
+def independent_beam(exec_req, decode_config):
+    yield IndependentBeam(
         exec_req,
         decode_config=decode_config,
     )
@@ -75,8 +76,167 @@ def _batcher_workitem_callback(rid: int, count: int):
     pass
 
 
+def test_independent_beam_sample_logits(device, independent_beam):
+    independent_beam.decode_config.temperature = 1.0
+
+    src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+    data = [float(i) for i in range(math.prod(src.shape))]
+    src.items = data
+
+    independent_beam.exec_req.result_logits = src
+    token = independent_beam.sample_logits()
+    assert token == 15
+
+
+def test_independent_beam_sample_logits_w_indices(device, independent_beam):
+    independent_beam.decode_config.temperature = 1.0
+
+    src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+    data = [float(i) for i in range(math.prod(src.shape))]
+    src.items = data
+
+    indices = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+
+    independent_beam.exec_req.result_logits = src
+    independent_beam.exec_req.result_indices = indices
+
+    token = independent_beam.sample_logits()
+    assert token == 0
+
+
+def test_independent_beam_sample_logits_top_k(device, independent_beam):
+    independent_beam.decode_config.temperature = 1.0
+
+    src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+    data = [float(i) for i in range(math.prod(src.shape))]
+    src.items = data
+
+    expected_tokens = [13, 14, 15]
+    independent_beam.decode_config.top_k = 3
+    independent_beam.exec_req.result_logits = src
+
+    token = independent_beam.sample_logits()
+    assert token in expected_tokens
+
+
+def test_independent_beam_sample_logits_top_k_w_indices(device, independent_beam):
+    independent_beam.decode_config.temperature = 1.0
+
+    src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+    data = [float(i) for i in range(math.prod(src.shape))]
+    src.items = data
+
+    indices_np = np.flip(
+        np.argpartition(src, -3, -1),
+        axis=-1,
+    )
+    indices = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+    indices.items = indices_np.flatten().tolist()
+
+    independent_beam.decode_config.top_k = 3
+    independent_beam.exec_req.result_logits = src
+    independent_beam.exec_req.result_indices = indices
+
+    token = independent_beam.sample_logits()
+
+    expected_tokens = indices.view(0, 0, slice(None, 3)).items.tolist()
+    assert token in expected_tokens
+
+
+def test_independent_beam_sample_logits_top_p(device, independent_beam):
+    independent_beam.decode_config.temperature = 1.0
+
+    src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+    data = [float(i) for i in range(math.prod(src.shape))]
+    src.items = data
+
+    independent_beam.decode_config.top_p = 0.95
+    independent_beam.decode_config.top_k = None
+    independent_beam.exec_req.result_logits = src
+
+    token = independent_beam.sample_logits()
+    expected_tokens = {13, 14, 15}
+    assert token in expected_tokens
+
+
+def test_independent_beam_sample_logits_top_p_w_indices(device, independent_beam):
+    independent_beam.decode_config.temperature = 1.0
+
+    src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+    data = [0] * math.prod(src.shape)
+    data[0:3] = [4.41] * 3
+    src.items = data
+
+    indices_np = np.flip(
+        np.argpartition(src, -3, -1),
+        axis=-1,
+    )
+    indices = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+    indices.items = indices_np.flatten().tolist()
+
+    independent_beam.decode_config.top_p = 0.94
+    independent_beam.decode_config.top_k = None
+    independent_beam.exec_req.result_logits = src
+    independent_beam.exec_req.result_indices = indices
+
+    token = independent_beam.sample_logits()
+    expected_tokens = indices.view(0, 0, slice(None, 3)).items.tolist()
+    assert token in expected_tokens
+
+
+def test_independent_beam_sample_logits_top_k_top_p(device, independent_beam):
+    src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+    data = [0] * math.prod(src.shape)
+    data[-3:] = [4.41] * 3
+    src.items = data
+
+    independent_beam.decode_config.top_k = 3
+    independent_beam.decode_config.top_p = 0.94
+    independent_beam.exec_req.result_logits = src
+    expected_tokens = [13, 14, 15]
+
+    token = independent_beam.sample_logits()
+    assert token in expected_tokens
+
+
+def test_independent_beam_sample_logits_top_k_top_p_w_indices(device, independent_beam):
+    independent_beam.decode_config.temperature = 1.0
+
+    src = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+    data = [0] * math.prod(src.shape)
+    data[0:3] = [4.41] * 3
+    src.items = data
+
+    indices_np = np.flip(
+        np.argpartition(src, -3, -1),
+        axis=-1,
+    )
+    indices = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
+    indices.items = indices_np.flatten().tolist()
+
+    independent_beam.decode_config.top_p = 0.94
+    independent_beam.decode_config.top_k = 3
+    independent_beam.exec_req.result_logits = src
+    independent_beam.exec_req.result_indices = indices
+
+    token = independent_beam.sample_logits()
+    expected_tokens = indices.view(0, 0, slice(None, 3)).items.tolist()
+    assert token in expected_tokens
+
+
+def test_greedy_update_exec_req(independent_beam):
+    last_token = 42
+    expected_start_position = independent_beam.exec_req.start_position + 1
+
+    independent_beam.last_token = last_token
+    independent_beam.update_exec_req()
+
+    assert independent_beam.exec_req.input_token_ids[-1] == last_token
+    assert independent_beam.exec_req.start_position == expected_start_position
+
+
 def test_select_greedy(
-    decode_config, device, exec_req_list, multi_greedy_token_selection_strategy
+    decode_config, device, exec_req_list, independent_token_selection_strategy
 ):
     count = 0
     for exec_req in exec_req_list:
@@ -88,9 +248,10 @@ def test_select_greedy(
         count += 1
 
     beams = [
-        GreedyBeam(exec_req, decode_config=decode_config) for exec_req in exec_req_list
+        IndependentBeam(exec_req, decode_config=decode_config)
+        for exec_req in exec_req_list
     ]
-    selections = multi_greedy_token_selection_strategy.select_greedy(beams, [])
+    selections = independent_token_selection_strategy.select_greedy(beams, [])
     assert len(selections) == len(beams)
 
     expected_last_tokens = [i for i in range(len(beams))]
@@ -98,12 +259,12 @@ def test_select_greedy(
 
 
 @pytest.mark.asyncio
-async def test_multi_greedy_decode_single(
+async def test_independent_decode_single(
     cache,
     device,
     dummy_pages,
     exec_req: LlmInferenceExecRequest,
-    multi_greedy_token_selection_strategy,
+    independent_token_selection_strategy,
 ):
     def _batcher_callback(request: LlmInferenceExecRequest):
         result_logits = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
@@ -118,7 +279,7 @@ async def test_multi_greedy_decode_single(
         results_array.extend(tokens)
 
     decode_config = DecodeConfig(
-        token_selection_strategy=TokenSelectionStrategy.MULTI_GREEDY,
+        token_selection_strategy=TokenSelectionStrategy.INDEPENDENT,
         num_beams=2,
         max_completion_tokens=1,
     )
@@ -134,8 +295,8 @@ async def test_multi_greedy_decode_single(
     allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache)
     exec_req.allocation = allocation
     with patch.object(
-        multi_greedy_token_selection_strategy,
-        "_token_selection_strategy_config",
+        independent_token_selection_strategy,
+        "token_selection_strategy_config",
         new=config,
     ):
         with patch.object(
@@ -145,7 +306,7 @@ async def test_multi_greedy_decode_single(
                 BeamGroup,
                 "clean_up",
             ) as mock_clean_up:
-                await multi_greedy_token_selection_strategy.decode(exec_req)
+                await independent_token_selection_strategy.decode(exec_req)
                 logger.info(f"results_array: {results_array}")
                 assert len(results_array) == 2
                 for result in results_array:
@@ -157,12 +318,12 @@ async def test_multi_greedy_decode_single(
 
 
 @pytest.mark.asyncio
-async def test_multi_greedy_decode_multiple_completions(
+async def test_independent_decode_multiple_completions(
     cache,
     device,
     dummy_pages,
     exec_req: LlmInferenceExecRequest,
-    multi_greedy_token_selection_strategy,
+    independent_token_selection_strategy,
 ):
     results_array = []
 
@@ -194,7 +355,7 @@ async def test_multi_greedy_decode_multiple_completions(
 
     exec_req.start_position = len(exec_req.input_token_ids) - 1
     decode_config = DecodeConfig(
-        token_selection_strategy=TokenSelectionStrategy.MULTI_GREEDY,
+        token_selection_strategy=TokenSelectionStrategy.INDEPENDENT,
         num_beams=2,
         max_completion_tokens=5,
     )
@@ -214,8 +375,8 @@ async def test_multi_greedy_decode_multiple_completions(
     allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache)
     exec_req.allocation = allocation
     with patch.object(
-        multi_greedy_token_selection_strategy,
-        "_token_selection_strategy_config",
+        independent_token_selection_strategy,
+        "token_selection_strategy_config",
         new=config,
     ):
         with patch.object(
@@ -225,7 +386,7 @@ async def test_multi_greedy_decode_multiple_completions(
                 BeamGroup,
                 "clean_up",
             ) as mock_clean_up:
-                await multi_greedy_token_selection_strategy.decode(exec_req)
+                await independent_token_selection_strategy.decode(exec_req)
                 assert len(results_array) == 2
                 for result in results_array:
                     assert len(result) == 5
@@ -236,12 +397,12 @@ async def test_multi_greedy_decode_multiple_completions(
 
 
 @pytest.mark.asyncio
-async def test_multi_greedy_decode_eos_token(
+async def test_independent_decode_eos_token(
     cache,
     device,
     dummy_pages,
     exec_req: LlmInferenceExecRequest,
-    multi_greedy_token_selection_strategy,
+    independent_token_selection_strategy,
 ):
     results_array = []
 
@@ -273,7 +434,7 @@ async def test_multi_greedy_decode_eos_token(
 
     exec_req.start_position = len(exec_req.input_token_ids) - 1
     decode_config = DecodeConfig(
-        token_selection_strategy=TokenSelectionStrategy.MULTI_GREEDY,
+        token_selection_strategy=TokenSelectionStrategy.INDEPENDENT,
         num_beams=2,
         max_completion_tokens=5,
     )
@@ -293,8 +454,8 @@ async def test_multi_greedy_decode_eos_token(
     allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache)
     exec_req.allocation = allocation
     with patch.object(
-        multi_greedy_token_selection_strategy,
-        "_token_selection_strategy_config",
+        independent_token_selection_strategy,
+        "token_selection_strategy_config",
         new=config,
     ):
         with patch.object(
@@ -304,7 +465,7 @@ async def test_multi_greedy_decode_eos_token(
                 BeamGroup,
                 "clean_up",
             ) as mock_clean_up:
-                await multi_greedy_token_selection_strategy.decode(exec_req)
+                await independent_token_selection_strategy.decode(exec_req)
                 logger.info(f"results_array: {results_array}")
                 assert len(results_array) == 2
                 for result in results_array:

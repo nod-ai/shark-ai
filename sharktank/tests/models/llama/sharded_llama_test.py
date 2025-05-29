@@ -22,12 +22,12 @@ import sharktank.ops as ops
 
 from sharktank.utils.testing import (
     assert_cosine_similarity_close,
-    get_iree_compiler_flags,
     is_hip_condition,
 )
 from sharktank.utils.math import round_up_to_multiple_of
 from sharktank.utils import iterables_equal
 from sharktank.utils.iree import (
+    get_iree_compiler_flags_from_object,
     with_iree_device_context,
     get_iree_devices,
     load_iree_module,
@@ -333,7 +333,7 @@ class ShardedLlamaTest(unittest.TestCase):
             if dump_enabled:
                 output.save_mlir(f"{path_prefix}program.mlir")
             output.session.set_flags(
-                *get_iree_compiler_flags(
+                *get_iree_compiler_flags_from_object(
                     self, self.sharded_config.tensor_parallelism_size
                 )
             )
