@@ -267,8 +267,10 @@ class LlmExecutorProcess(sf.Process):
         self.page_tables = page_tables
         self.functions = functions
         self.program_isolation = program_isolation
+        self.bs = 0
+        self.bsl = 0
 
-    async def get_args(self, bs, device0):
+    async def get_args(self, device0):
         ...
 
     async def get_results(
@@ -296,7 +298,8 @@ class LlmExecutorProcess(sf.Process):
             else:
                 raise RuntimeError(f"No available entry point for bs {req_bs}")
 
-            args, req_count = await self.get_args(bs, device0)
+            self.bs = bs
+            args, req_count = await self.get_args(device0)
 
             logger.debug(
                 "INVOKE %r: %s",
@@ -361,9 +364,8 @@ class PrefillExecutorProcess(LlmExecutorProcess):
     seq_lens_host_cache: dict[int, sfnp.device_array] = {}
     seq_block_ids_host_cache: dict[tuple[int, int], sfnp.device_array] = {}
     _host_logits: sfnp.device_array
-    _host_logits_init: int = 0
-    _host_indices: sfnp.device_array
-    _host_indices_init: int = 0
+    host_logits_cache: dict[tuple[int, int], sfnp.device_array] = {}
+    host_indices_cache: dict[tuple[int, int], sfnp.device_array] = {}
 
     def __init__(
         self,
@@ -382,7 +384,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
             program_isolation=program_isolation,
         )
 
-    async def get_args(self, bs, device0):
+    async def get_args(self, device0):
         seq_stride = self.seq_stride
 
         # Compute block sequence length as maximum sequence length, rounded
@@ -391,28 +393,28 @@ class PrefillExecutorProcess(LlmExecutorProcess):
             assert r.start_position == 0
 
         bsl = max((len(r.input_token_ids)) for r in self.exec_requests)
-        bsl = int(math.ceil(bsl / seq_stride) * seq_stride)
-        block_count = bsl // seq_stride
+        self.bsl = int(math.ceil(bsl / seq_stride) * seq_stride)
+        block_count = self.bsl // seq_stride
         req_count = len(self.exec_requests)
-        logger.debug("Prefill bs=%d, bsl=%d", bs, bsl)
+        logger.debug("Prefill bs=%d, bsl=%d", self.bs, self.bsl)
 
         # Prepare inputs.
         # TODO: Better support in shortfin for h2d. The best way to do it is
         # device dependent.
         int_dtype = sfnp.int64
-        tokens = sfnp.device_array.for_device(device0, [bs, bsl], int_dtype)
-        seq_lens = sfnp.device_array.for_device(device0, [bs], int_dtype)
+        tokens = sfnp.device_array.for_device(device0, [self.bs, self.bsl], int_dtype)
+        seq_lens = sfnp.device_array.for_device(device0, [self.bs], int_dtype)
         seq_block_ids = sfnp.device_array.for_device(
-            device0, [bs, block_count], int_dtype
+            device0, [self.bs, block_count], int_dtype
         )
 
         # Populate tokens
-        tokens_key = (bs, bsl)
+        tokens_key = (self.bs, self.bsl)
         if tokens_key not in self.tokens_host_cache:
             self.tokens_host_cache[tokens_key] = tokens.for_transfer()
         tokens_host = self.tokens_host_cache[tokens_key]
 
-        for i in range(bs):
+        for i in range(self.bs):
             with tokens_host.view(i).map(discard=True) as m:
                 m.fill(0)
                 if i < req_count:
@@ -420,10 +422,9 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         tokens_host.copy_to(tokens)
 
         # Populate seq_lens
-        seq_lens_key = bs
-        if seq_lens_key not in self.seq_lens_host_cache:
-            self.seq_lens_host_cache[seq_lens_key] = seq_lens.for_transfer()
-        seq_lens_host = self.seq_lens_host_cache[seq_lens_key]
+        if self.bs not in self.seq_lens_host_cache:
+            self.seq_lens_host_cache[self.bs] = seq_lens.for_transfer()
+        seq_lens_host = self.seq_lens_host_cache[self.bs]
 
         with seq_lens_host.map(discard=True) as m:
             m.fill(1)
@@ -431,13 +432,13 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         seq_lens_host.copy_to(seq_lens)
 
         # Populate cache pages.
-        seq_block_ids_key = (bs, block_count)
+        seq_block_ids_key = (self.bs, block_count)
         if seq_block_ids_key not in self.seq_block_ids_host_cache:
             self.seq_block_ids_host_cache[
                 seq_block_ids_key
             ] = seq_block_ids.for_transfer()
         seq_block_ids_host = self.seq_block_ids_host_cache[seq_block_ids_key]
-        for i in range(bs):
+        for i in range(self.bs):
             with seq_block_ids_host.view(i).map(discard=True) as m:
                 m.fill(0)
                 if i < req_count:
@@ -485,22 +486,31 @@ class PrefillExecutorProcess(LlmExecutorProcess):
 
         logits, indices = buffers
 
-        # Lazily initialize host buffers only once
-        if PrefillExecutorProcess._host_logits_init == 0:
-            PrefillExecutorProcess._host_logits = logits.for_transfer()
-            PrefillExecutorProcess._host_logits_init = 1
-        if indices is not None and PrefillExecutorProcess._host_indices_init == 0:
-            PrefillExecutorProcess._host_indices = indices.for_transfer()
-            PrefillExecutorProcess._host_indices_init = 1
+        host_logits_key = (self.bs, self.bsl)
+        if host_logits_key not in self.host_logits_cache:
+            logger.debug(f"Creating new host logits buffer. Host key: {host_logits_key}")
+            self.host_logits_cache[
+                host_logits_key
+            ] = logits.for_transfer()
+        logits_host = self.host_logits_cache[host_logits_key]
+
+        indices_host = None
+        if indices is not None:
+            if host_logits_key not in self.host_indices_cache:
+                logger.debug(f"Creating new host indices buffer. Host key: {host_logits_key}")
+                self.host_indices_cache[
+                    host_logits_key
+                ] = indices.for_transfer()
+            indices_host = self.host_indices_cache[host_logits_key]
 
         # Copy data from device to host
-        self._host_logits.copy_from(logits)
+        logits_host.copy_from(logits)
         if indices is not None:
-            self._host_indices.copy_from(indices)
+            indices_host.copy_from(indices)
 
         await device0
 
-        return self._host_logits, self._host_indices if indices is not None else None
+        return logits_host, (indices_host if indices is not None else None)
 
 
 class DecodeExecutorProcess(LlmExecutorProcess):
@@ -510,10 +520,8 @@ class DecodeExecutorProcess(LlmExecutorProcess):
     seq_lens_host_cache: dict[int, sfnp.device_array] = {}
     start_positions_host_cache: dict[int, sfnp.device_array] = {}
     seq_block_ids_host_cache: dict[tuple[int, int], sfnp.device_array] = {}
-    _host_logits: sfnp.device_array
-    _host_logits_init: int = 0
-    _host_indices: sfnp.device_array
-    _host_indices_init: int = 0
+    host_logits_cache: dict[tuple[int, int], sfnp.device_array] = {}
+    host_indices_cache: dict[tuple[int, int], sfnp.device_array] = {}
 
     def __init__(
         self,
@@ -532,46 +540,43 @@ class DecodeExecutorProcess(LlmExecutorProcess):
             program_isolation=isolation,
         )
 
-    async def get_args(self, bs, device0):
+    async def get_args(self, device0):
         # Compute block sequence length as maximum sequence length, rounded
         # up to the seq_stride.
         seq_stride = self.seq_stride
         bsl = max((1 + len(r.input_token_ids)) for r in self.exec_requests)
-        bsl = int(math.ceil(bsl / seq_stride) * seq_stride)
-        block_count = bsl // seq_stride
+        self.bsl = int(math.ceil(bsl / seq_stride) * seq_stride)
+        block_count = self.bsl // seq_stride
         req_count = len(self.exec_requests)
-        logger.debug("Prefill bs=%d, bsl=%d", bs, bsl)
+        logger.debug("Prefill bs=%d, bsl=%d", self.bs, self.bsl)
 
         # Prepare inputs.
         # TODO: Better support in shortfin for h2d. The best way to do it is
         # device dependent.
         int_dtype = sfnp.int64
-        tokens = sfnp.device_array.for_device(device0, [bs, 1], int_dtype)
-        start_positions = sfnp.device_array.for_device(device0, [bs], int_dtype)
-        seq_lens = sfnp.device_array.for_device(device0, [bs], int_dtype)
+        tokens = sfnp.device_array.for_device(device0, [self.bs, 1], int_dtype)
+        start_positions = sfnp.device_array.for_device(device0, [self.bs], int_dtype)
+        seq_lens = sfnp.device_array.for_device(device0, [self.bs], int_dtype)
         seq_block_ids = sfnp.device_array.for_device(
-            device0, [bs, block_count], int_dtype
+            device0, [self.bs, block_count], int_dtype
         )
 
         # Setup host buffers for transfer:
-        tokens_key = bs
-        if tokens_key not in self.tokens_host_cache:
-            self.tokens_host_cache[tokens_key] = tokens.for_transfer()
-        tokens_host = self.tokens_host_cache[tokens_key]
+        if self.bs not in self.tokens_host_cache:
+            self.tokens_host_cache[self.bs] = tokens.for_transfer()
+        tokens_host = self.tokens_host_cache[self.bs]
 
-        seq_lens_key = bs
-        if seq_lens_key not in self.seq_lens_host_cache:
-            self.seq_lens_host_cache[seq_lens_key] = seq_lens.for_transfer()
-        seq_lens_host = self.seq_lens_host_cache[seq_lens_key]
+        if self.bs not in self.seq_lens_host_cache:
+            self.seq_lens_host_cache[self.bs] = seq_lens.for_transfer()
+        seq_lens_host = self.seq_lens_host_cache[self.bs]
 
-        start_positions_key = bs
-        if start_positions_key not in self.start_positions_host_cache:
+        if self.bs not in self.start_positions_host_cache:
             self.start_positions_host_cache[
-                start_positions_key
+                self.bs
             ] = start_positions.for_transfer()
-        start_positions_host = self.start_positions_host_cache[start_positions_key]
+        start_positions_host = self.start_positions_host_cache[self.bs]
 
-        seq_block_ids_key = (bs, block_count)
+        seq_block_ids_key = (self.bs, block_count)
         if seq_block_ids_key not in self.seq_block_ids_host_cache:
             self.seq_block_ids_host_cache[
                 seq_block_ids_key
@@ -582,7 +587,7 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         with tokens_host.map(discard=True) as m:
             m.fill(0)
             vals = []
-            for i in range(bs):
+            for i in range(self.bs):
                 if i < req_count:
                     vals = vals + self.exec_requests[i].input_token_ids[-1:]
             m.items = vals
@@ -603,7 +608,7 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         with seq_block_ids_host.map(discard=True) as m:
             m.fill(0)
             block_ids = []
-            for i in range(bs):
+            for i in range(self.bs):
                 if i < req_count:
                     batch_ids = self.exec_requests[i].cache_page_indices(block_count)
                     block_ids += batch_ids
@@ -660,19 +665,28 @@ class DecodeExecutorProcess(LlmExecutorProcess):
 
         logits, indices = buffers
 
-        # Lazily initialize host buffers only once
-        if DecodeExecutorProcess._host_logits_init == 0:
-            DecodeExecutorProcess._host_logits = logits.for_transfer()
-            DecodeExecutorProcess._host_logits_init = 1
-        if indices is not None and DecodeExecutorProcess._host_indices_init == 0:
-            DecodeExecutorProcess._host_indices = indices.for_transfer()
-            DecodeExecutorProcess._host_indices_init = 1
+        host_logits_key = (self.bs, self.bsl)
+        if host_logits_key not in self.host_logits_cache:
+            logger.debug(f"Creating new host logits buffer. Host key: {host_logits_key}")
+            self.host_logits_cache[
+                host_logits_key
+            ] = logits.for_transfer()
+        logits_host = self.host_logits_cache[host_logits_key]
+
+        indices_host = None
+        if indices is not None:
+            if host_logits_key not in self.host_indices_cache:
+                logger.debug(f"Creating new host indices buffer. Host key: {host_logits_key}")
+                self.host_indices_cache[
+                    host_logits_key
+                ] = indices.for_transfer()
+            indices_host = self.host_indices_cache[host_logits_key]
 
         # Copy data from device to host
-        self._host_logits.copy_from(logits)
+        logits_host.copy_from(logits)
         if indices is not None:
-            self._host_indices.copy_from(indices)
+            indices_host.copy_from(indices)
 
         await device0
 
-        return self._host_logits, self._host_indices if indices is not None else None
+        return logits_host, (indices_host if indices is not None else None)
