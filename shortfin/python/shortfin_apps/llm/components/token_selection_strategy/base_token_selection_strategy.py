@@ -31,8 +31,11 @@ class TokenSelectionStrategyConfig:
     eos_token_id: int
 
 
+@dataclass
 class BaseTokenSelectionStrategy(ABC):
     """Abstract class for implementing token selection strategies."""
+
+    token_selection_strategy_config: TokenSelectionStrategyConfig
 
     def _log_sampling_method(self):
         """Log the sampling method used for token selection."""
@@ -61,16 +64,6 @@ class BaseTokenSelectionStrategy(ABC):
             exec_reqs.append(LlmInferenceExecRequest.copy_exec_request(exec_req))
 
         return exec_reqs
-
-    @property
-    @abstractmethod
-    def token_selection_strategy_config(self) -> TokenSelectionStrategyConfig:
-        """Configuration object for defining the parameters of the decode loop.
-
-        Returns:
-            TokenSelectionStrategyConfig: Configuration object.
-        """
-        pass
 
     async def prefill(self, exec_req: LlmInferenceExecRequest) -> int:
         """Perform standard `prefill` on an LlmInferenceExecRequest.
@@ -104,8 +97,11 @@ class BaseTokenSelectionStrategy(ABC):
             token_int = token.items[0]
 
         decode_config = token_selection_strategy_config.decode_config
-        # TODO: This is only temporary until streaming is enabled for `MultiGreedy`
-        if decode_config.token_selection_strategy == TokenSelectionStrategy.GREEDY:
+        # TODO: This is only temporary until streaming is enabled for `MultiHypothesis`
+        if (
+            decode_config.token_selection_strategy == TokenSelectionStrategy.INDEPENDENT
+            and decode_config.num_beams == 1
+        ):
             token_selection_strategy_config.results_callback(token_int)
 
         exec_req.input_token_ids.append(token_int)

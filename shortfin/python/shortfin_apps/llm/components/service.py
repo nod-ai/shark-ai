@@ -22,7 +22,7 @@ from .kvcache.page_pool import PagePoolConfig, PagePool
 from .manager import LlmSystemManager
 from .service_debug_dumper import SERVICE_DEBUG_DUMPER
 from .tokenizer import Tokenizer
-from .token_selection_strategy import get_strategy_from_str, is_ref_counted
+from .token_selection_strategy import is_multi_response
 
 from ...utils import GenerateService
 from .fiber_pool import FiberPool
@@ -130,8 +130,8 @@ class LlmGenerateService(GenerateService):
             self.page_cache = BasePagedAttentionCache(
                 page_pool=page_pool,
                 tokens_per_page=self.model_params.paged_kv_cache.block_seq_stride,
-                use_ref_counts=is_ref_counted(
-                    self.server_params.decode_config.token_selection_strategy
+                use_ref_counts=is_multi_response(
+                    self.server_params.decode_config,
                 ),
             )
         else:
