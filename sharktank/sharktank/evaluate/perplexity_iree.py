@@ -62,6 +62,7 @@ class PerplexityIree:
         use_attention_mask,
         use_hf,
         weight_path_str: str,
+        use_toy_model: bool = False,
     ):
         self.torch_device = torch_device
         self.iree_devices = iree_devices
@@ -79,8 +80,12 @@ class PerplexityIree:
         self.use_attention_mask = use_attention_mask
         self.use_hf = use_hf
         self.weight_path_str = weight_path_str
+        self.use_toy_model = use_toy_model
         self.vm_context: iree.runtime.VmContext = None
         self.cache_state: None | list[ireert.DeviceArray] = None
+        self.page_cache_size = 128
+        # Add context to improve perplexity by starting at 10th token
+        self.start = 10
 
     def print_token_comparison(self, i: int):
         if i <= self.max_prompt_length:
@@ -295,8 +300,6 @@ class PerplexityIree:
 
     @timeit
     def get_logits(self, skip_decode: bool) -> torch.Tensor:
-        # Add context to improve perplexity by starting at 10th token
-        self.start = 10
         shard_count = self.tensor_parallelism_size
 
         vm_instance = ireert.VmInstance()
@@ -366,27 +369,36 @@ class PerplexityIree:
         return with_iree_device_context(run_iree_module, devices)
 
     def get_perplexity(
-        self, test_prompts: list[str], skip_decode: bool
+        self, test_prompts: list[str], token_ids: list[list[int]], skip_decode: bool
     ) -> dict[str, Any]:
 
-        token_ids, seq_lens = self.generator.tokenizer.encode(
-            test_prompts,
-            pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
-        )
+        if self.use_toy_model:
+            self.token_ids = token_ids
+            self.seq_lens = [len(t) for t in self.token_ids]
+            self.start = 5
 
-        logger.debug(f" Prompts for Evaluation:")
-        for idx, prompt in enumerate(test_prompts):
-            logger.debug(
-                f" Prompt {idx}: \nTokens: {prompt.encode()}\nToken ids: {token_ids[idx]}\n"
+            logger.debug(f" Prompts for Evaluation:")
+            for idx, prompt in enumerate(test_prompts):
+                logger.debug(f" Prompt {idx}: \nToken ids: {self.token_ids[idx]}\n")
+        else:
+            self.token_ids, self.seq_lens = self.generator.tokenizer.encode(
+                test_prompts,
+                pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
             )
 
-        self.page_cache_size = (
-            len(token_ids[0]) // self.generator.model.config.block_seq_stride
-        ) * len(test_prompts) + 1
+            logger.debug(f" Prompts for Evaluation:")
+            for idx, prompt in enumerate(test_prompts):
+                logger.debug(
+                    f" Prompt {idx}: \nTokens: {prompt.encode()}\nToken ids: {self.token_ids[idx]}\n"
+                )
 
-        self.max_prompt_length = max(seq_lens)
+            self.page_cache_size = (
+                len(self.token_ids[0]) // self.generator.model.config.block_seq_stride
+            ) * len(test_prompts) + 1
 
-        self.token_ids = torch.as_tensor(token_ids, device=self.torch_device)
+        self.max_prompt_length = max(self.seq_lens)
+
+        self.token_ids = torch.as_tensor(self.token_ids, device=self.torch_device)
 
         out_logits = self.get_logits(skip_decode)
 
@@ -406,7 +418,15 @@ def run_perplexity_iree(
 ) -> dict[str, Any]:
     start = time.time()
 
-    test_prompts = args.prompt_list or get_prompts(num_prompts=args.num_prompts)
+    token_ids = None
+    test_prompts = None
+
+    if args.use_toy_model:
+        token_ids = get_token_ids()
+        bs = len(token_ids)
+    else:
+        test_prompts = args.prompt_list or get_prompts(num_prompts=args.num_prompts)
+        bs = len(test_prompts)
 
     perplexity = PerplexityIree(
         torch_device=torch_device,
@@ -422,8 +442,9 @@ def run_perplexity_iree(
         attention_dtype=args.attention_dtype,
         kv_cache_dtype=args.kv_cache_dtype,
         use_hf=args.use_hf,
-        bs=len(test_prompts),
+        bs=bs,
         weight_path_str=str(args.irpa_file),
+        use_toy_model=args.use_toy_model,
     )
 
     perplexity.compile_model(
@@ -431,9 +452,14 @@ def run_perplexity_iree(
         output_config=args.output_config,
         output_vmfb=args.output_vmfb,
     )
-    perplexity.load_model(dataset=dataset, tokenizer=tokenizer)
+    perplexity.load_model(
+        dataset=dataset,
+        tokenizer=tokenizer,
+    )
     perplexity_batch = perplexity.get_perplexity(
-        test_prompts, skip_decode=args.skip_decode
+        test_prompts=test_prompts,
+        token_ids=token_ids,
+        skip_decode=args.skip_decode,
     )
 
     end = time.time()
