@@ -349,13 +349,13 @@ class PerplexityIree:
 
                     prefill_logits = self.prefill_vmfb(token_batch, i, devices).clone()
 
-                    last_real_logits_indices = np.maximum(
-                        0, np.minimum(i, self.seq_lens - 1)
-                    )
-                    last_real_logits = prefill_logits[
-                        torch.arange(len(self.seq_lens)), last_real_logits_indices, :
+                    last_logits_indices = torch.minimum(i, self.seq_lens - 1)
+                    last_logits_indices = torch.maximum(0, last_logits_indices)
+                    batch_indices = torch.arange(len(self.seq_lens))
+                    last_real_prefill_logits = prefill_logits[
+                        batch_indices, last_logits_indices, :
                     ].unsqueeze(1)
-                    out_logits.append(last_real_logits)
+                    out_logits.append(last_real_prefill_logits)
                 else:
                     token_batch = self.token_ids[:, i : i + 1]
                     decode_logits = self.decode_vmfb(token_batch, i, devices)
@@ -380,7 +380,7 @@ class PerplexityIree:
             test_prompts,
             pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
         )
-        self.seq_lens = np.array(seq_lens)
+        self.seq_lens = torch.tensor(seq_lens, device=self.torch_device)
 
         logger.debug(f" Prompts for Evaluation:")
         for idx, prompt in enumerate(test_prompts):
