@@ -285,7 +285,6 @@ def run_perplexity_torch(
     device: torch.device | None,
     tensor_parallelism_size: int,
     pipeline_parallelism_size: int,
-    model_file,
 ):
 
     start = time.time()
@@ -306,10 +305,11 @@ def run_perplexity_torch(
             test_prompts[idx : idx + bs] for idx in range(0, len(test_prompts), bs)
         ]
 
+    model_file = args.gguf_file or args.irpa_file
     perplexity_batch = []
     for p in tqdm(
         input_prompts,
-        desc=f"eval: Calculating logits for {model_file.name}",
+        desc=f"eval: Calculating logits for {model_file}",
     ):
         perplexity_batch.extend(
             perplexity_torch(
@@ -415,7 +415,6 @@ def main(argv):
 
     logger.setLevel(args.loglevel)
     device = torch.device(args.device) if args.device else None
-    model_file = args.gguf_file or args.irpa_file
 
     assert args.num_prompts or args.prompt_list, "Pass --num-prompts or --prompt-list"
 
@@ -433,7 +432,6 @@ def main(argv):
         device=device,
         tensor_parallelism_size=tensor_parallelism_size,
         pipeline_parallelism_size=args.pipeline_parallelism_size,
-        model_file=model_file,
     )
 
     logger.info(f"\n{json.dumps(ppl, indent=2)}")
