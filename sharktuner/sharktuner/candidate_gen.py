@@ -27,21 +27,29 @@ from abc import abstractmethod
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_codegen  # type: ignore
 
-from .common import *
-from .dispatch_constraints import *
-from .dispatch_parser import *
-from .spec_builder import *
+from . import (
+    common,
+    dispatch_constraints,
+    dispatch_parser,
+    spec_builder,
+    constraint_generator,
+)
 
 tune_logger = logging.getLogger("tune")
 
 
-class DispatchTuner(DispatchParser):
+class DispatchTuner(dispatch_parser.DispatchParser):
     @abstractmethod
     def get_td_spec(
         self,
         compilation_info: iree_codegen.CompilationInfoAttr,
     ) -> ir.Module:
         """Generate a transform dialect spec that applies the compilation info attr."""
+        pass
+
+    @abstractmethod
+    def get_constraint_generator(self) -> constraint_generator.ConstraintGenerator:
+        """Returns a ConstraintGenerator associated with this dispatch root op."""
         pass
 
 
@@ -60,9 +68,16 @@ class DispatchTunerRegistry:
         assert False, "Dispatch kind not supported"
 
 
-class ContractionOpInterfaceTuner(DispatchTuner, ContractionOpInterfaceParser):
+class ContractionOpInterfaceTuner(
+    DispatchTuner, dispatch_parser.ContractionOpInterfaceParser
+):
     def __init__(self, root_op: ir.Operation):
         super().__init__(root_op)
+
+    def get_constraint_generator(self) -> constraint_generator.ConstraintGenerator:
+        return constraint_generator.ContractionOpInterfaceConstraintGenerator(
+            self.get_root_op()
+        )
 
     def get_td_spec(
         self,
@@ -70,19 +85,31 @@ class ContractionOpInterfaceTuner(DispatchTuner, ContractionOpInterfaceParser):
     ) -> ir.Module:
         contraction_op = self.get_root_op()
         func_name = self.get_root_op_func_name()
-        return build_td_spec(
+        return spec_builder.build_td_spec(
             contraction_op.context, contraction_op, compilation_info, func_name
         )
 
 
-class ConvolutionOpInterfaceTuner(DispatchTuner, ConvolutionOpInterfaceParser):
+class ConvolutionOpInterfaceTuner(
+    DispatchTuner, dispatch_parser.ConvolutionOpInterfaceParser
+):
+    def __init__(self, root_op: ir.Operation):
+        super().__init__(root_op)
+
+    def get_constraint_generator(self) -> constraint_generator.ConstraintGenerator:
+        return constraint_generator.ConvolutionOpInterfaceConstraintGenerator(
+            self.get_root_op()
+        )
+
     def get_td_spec(
         self,
         compilation_info: iree_codegen.CompilationInfoAttr,
     ) -> ir.Module:
         conv_op = self.get_root_op()
         func_name = self.get_root_op_func_name()
-        return build_td_spec(conv_op.context, conv_op, compilation_info, func_name)
+        return spec_builder.build_td_spec(
+            conv_op.context, conv_op, compilation_info, func_name
+        )
 
 
 def get_default_output_dir() -> str:
@@ -93,11 +120,11 @@ def get_default_output_dir() -> str:
 
 def generate_configs_and_td_specs(
     input_module: ir.Module,  # Path to the mlir file to be tuned
-    tuner_context: TunerContext,
+    tuner_context: common.TunerContext,
     limit: int = 4096,  # Max candidates to be generated
     num_subgroups: int = 4,  # GPU spec, used to determine candidate generation constraints
     allowed_waves_per_eu: list[int] = [2],
-    pipeline_options_search_space: PipelineOptionsSearchSpace = PipelineOptionsSearchSpace(),
+    pipeline_options_search_space: dispatch_constraints.PipelineOptionsSearchSpace = dispatch_constraints.PipelineOptionsSearchSpace(),
     codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline = iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
 ) -> list[ir.Module]:
     dispatch_tuners: list[type[DispatchTuner]] = [
@@ -126,27 +153,28 @@ def generate_configs_and_td_specs(
             break
 
     assert dispatch_tuner, "No suitable dispatch tuner found"
-    problem_size: ProblemSize = dispatch_tuner.get_problem_size()
-    tune_logger.debug(str(problem_size))
 
     # Index 0 is reserved for default config, so it gets a placeholder spec.
-    config_specs: list[ir.Module] = [get_placeholder_spec(input_module.context)]
+    config_specs: list[ir.Module] = [
+        spec_builder.get_placeholder_spec(input_module.context)
+    ]
 
     # Get the MMA intrinisic intructions supported by the target.
     variant_op_list = iree_codegen.get_executable_variant_ops(input_module)
     assert len(variant_op_list) == 1, "Expect one executable variant op"
     variant_op = variant_op_list[0]
-    mma_list = iree_codegen.query_mma_intrinsics(variant_op)
+    mma_intrinsics = iree_codegen.query_mma_intrinsics(variant_op)
+
+    constraint_generator = dispatch_tuner.get_constraint_generator()
 
     for i, config in enumerate(
-        generate_solutions(
+        constraint_generator.generate_solutions(
             tuner_context,
-            problem_size,
-            num_subgroups,
-            mma_list,
-            allowed_waves_per_eu,
-            pipeline_options_search_space,
             codegen_pipeline,
+            num_subgroups=num_subgroups,
+            mma_intrinsics=mma_intrinsics,
+            allowed_waves_per_eu=allowed_waves_per_eu,
+            pipeline_options_search_space=pipeline_options_search_space,
         )
     ):
         if i >= limit:
@@ -222,9 +250,9 @@ def strip_root_op_attr(module: ir.Module):
     root_ops: list[ir.Operation] = iree_codegen.get_tuner_root_ops(module)
     for root_op in root_ops:
         assert (
-            ROOT_OP_ATTR_NAME in root_op.opview.attributes
-        ), f"expected root op to have '{ROOT_OP_ATTR_NAME}' attr"
-        del root_op.opview.attributes[ROOT_OP_ATTR_NAME]
+            spec_builder.ROOT_OP_ATTR_NAME in root_op.opview.attributes
+        ), f"expected root op to have '{spec_builder.ROOT_OP_ATTR_NAME}' attr"
+        del root_op.opview.attributes[spec_builder.ROOT_OP_ATTR_NAME]
 
 
 # See the above comment for `strip_root_op_attr`.
@@ -299,10 +327,10 @@ def main() -> None:
     console_handler.setFormatter(formatter)
     tune_logger.addHandler(console_handler)
 
-    with TunerContext() as tuner_ctx:
+    with common.TunerContext() as tuner_ctx:
         mlir_text = strip_compilation_info(args.input)
-        mlir_module = parse_mlir(mlir_text, tuner_ctx)
-        pipeline_options_search_space = PipelineOptionsSearchSpace(
+        mlir_module = dispatch_parser.parse_mlir(mlir_text, tuner_ctx)
+        pipeline_options_search_space = dispatch_constraints.PipelineOptionsSearchSpace(
             prefetch_shared_memory=args.prefetch_shared_memory_options,
             no_reduce_shared_memory_bank_conflicts=args.no_reduce_shared_memory_bank_conflicts_options,
         )
