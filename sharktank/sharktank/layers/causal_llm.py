@@ -63,12 +63,12 @@ class BaseCausalLMModel(ThetaLayer):
                         t.dtype == dtype
                     ), f"Expected tensor to have dtype {dtype} but it is {t.dtype}"
 
-    def _maximally_negative_value(self, dtype):
+    def _maximally_negative_value(self, dtype) -> torch.Tensor:
         """Returns a maximally negative value for the given dtype.
 
         This can be overriden to decide on a different policy.
         """
-        return float("-inf")
+        return torch.tensor(float("-inf"), dtype=dtype)
 
     def generate_causal_context_mask(self) -> torch.Tensor:
         context_length = self.context_length

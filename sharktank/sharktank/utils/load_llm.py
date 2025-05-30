@@ -66,7 +66,7 @@ class TorchGenerator:
         page_cache_size: int = None,
         dump_path: Path = None,
         dump_decode_steps: int = None,
-    ):
+    ) -> "Batch":
         bs = token_ids.shape[0]
 
         self.page_cache_size = (
