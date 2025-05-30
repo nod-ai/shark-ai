@@ -163,7 +163,7 @@ def generate_configs_and_td_specs(
     variant_op_list = iree_codegen.get_executable_variant_ops(input_module)
     assert len(variant_op_list) == 1, "Expect one executable variant op"
     variant_op = variant_op_list[0]
-    mma_list = iree_codegen.query_mma_intrinsics(variant_op)
+    mma_intrinsics = iree_codegen.query_mma_intrinsics(variant_op)
 
     constraint_generator = dispatch_tuner.get_constraint_generator()
 
@@ -172,7 +172,7 @@ def generate_configs_and_td_specs(
             tuner_context,
             codegen_pipeline,
             num_subgroups=num_subgroups,
-            mma_list=mma_list,
+            mma_intrinsics=mma_intrinsics,
             allowed_waves_per_eu=allowed_waves_per_eu,
             pipeline_options_search_space=pipeline_options_search_space,
         )

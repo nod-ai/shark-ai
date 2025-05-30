@@ -122,7 +122,7 @@ def test_generate_solutions(tuner_ctx: common.TunerContext) -> None:
             tuner_context=tuner_ctx,
             codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
             num_subgroups=4,
-            mma_list=[
+            mma_intrinsics=[
                 iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
                 iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
                 iree_gpu.MMAIntrinsic.MFMA_I32_16x16x32_I8,
@@ -171,7 +171,7 @@ def test_generate_solutions_tile_and_fuse_contraction_padding(
                 tuner_context=tuner_ctx,
                 codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
                 num_subgroups=4,
-                mma_list=[
+                mma_intrinsics=[
                     iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
                 ],
                 allowed_waves_per_eu=[2],
@@ -243,7 +243,7 @@ def test_generate_solutions_tile_and_fuse_conv_padding(
                 tuner_context=tuner_ctx,
                 codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
                 num_subgroups=4,
-                mma_list=[iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16],
+                mma_intrinsics=[iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16],
             )
         )
 

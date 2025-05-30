@@ -315,15 +315,6 @@ class ContractionOpInterfaceConstraintGenerator(ConstraintGenerator):
         codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline,
         **pipeline_constraint_options,
     ) -> Iterator[iree_codegen.CompilationInfoAttr]:
-        num_subgroups = pipeline_constraint_options.get("num_subgroups", 4)
-        mma_intrinsics = pipeline_constraint_options["mma_list"]
-        allowed_waves_per_eu = pipeline_constraint_options.get(
-            "allowed_waves_per_eu", [2]
-        )
-        pipeline_options_search_space = pipeline_constraint_options.get(
-            "pipeline_options_search_space",
-            dispatch_constraints.PipelineOptionsSearchSpace(),
-        )
         return generate_generic_contraction_solutions(
             tuner_ctx=tuner_context,
             contraction_dims=self.dims,
@@ -333,10 +324,7 @@ class ContractionOpInterfaceConstraintGenerator(ConstraintGenerator):
             res_type=self.res_type,
             dispatch_kind=common.DispatchKind.contraction,
             codegen_pipeline=codegen_pipeline,
-            num_subgroups=num_subgroups,
-            mma_intrinsics=mma_intrinsics,
-            allowed_waves_per_eu=allowed_waves_per_eu,
-            pipeline_options_search_space=pipeline_options_search_space,
+            **pipeline_constraint_options,
         )
 
 
@@ -384,15 +372,6 @@ class ConvolutionOpInterfaceConstraintGenerator(ConstraintGenerator):
         codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline,
         **pipeline_constraint_options,
     ) -> Iterator[iree_codegen.CompilationInfoAttr]:
-        num_subgroups = pipeline_constraint_options.get("num_subgroups", 4)
-        mma_intrinsics = pipeline_constraint_options["mma_list"]
-        allowed_waves_per_eu = pipeline_constraint_options.get(
-            "allowed_waves_per_eu", [2]
-        )
-        pipeline_options_search_space = pipeline_constraint_options.get(
-            "pipeline_options_search_space",
-            dispatch_constraints.PipelineOptionsSearchSpace(),
-        )
         return generate_generic_contraction_solutions(
             tuner_ctx=tuner_context,
             contraction_dims=self.dims,
@@ -402,8 +381,5 @@ class ConvolutionOpInterfaceConstraintGenerator(ConstraintGenerator):
             res_type=self.res_type,
             dispatch_kind=common.DispatchKind.conv,
             codegen_pipeline=codegen_pipeline,
-            num_subgroups=num_subgroups,
-            mma_intrinsics=mma_intrinsics,
-            allowed_waves_per_eu=allowed_waves_per_eu,
-            pipeline_options_search_space=pipeline_options_search_space,
+            **pipeline_constraint_options,
         )
