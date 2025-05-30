@@ -13,8 +13,7 @@ import z3  # type: ignore
 
 from typing import Generator
 
-from iree.compiler import ir  # type: ignore
-from iree.compiler.dialects import iree_gpu, iree_codegen  # type: ignore
+from iree.compiler.dialects import iree_gpu  # type: ignore
 
 from sharktuner import common
 from sharktuner import dispatch_constraints
@@ -22,300 +21,38 @@ from sharktuner import dispatch_constraints
 from sharktuner.test_utils import tuner_ctx
 
 
-def test_generate_solutions(tuner_ctx: common.TunerContext) -> None:
-    matmul_size = common.ContractionSizes([2048], [3840], [1280])
-    contraction_dims = common.ContractionDimensions([0], [1], [2])
-    lhs_type = common.ShapedType([2048, 1280], tuner_ctx.type.f16)
-    rhs_type = common.ShapedType([3840, 1280], tuner_ctx.type.f16)
-    res_type = common.ShapedType([2048, 3840], tuner_ctx.type.f32)
-    problem_size = common.ProblemSize(
-        matmul_size,
-        lhs_type,
-        rhs_type,
-        res_type,
-        common.DispatchKind.contraction,
-        contraction_dims,
-    )
-    configs = dispatch_constraints.generate_solutions(
-        tuner_ctx,
-        problem_size,
-        4,
-        [
-            iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
-            iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
-            iree_gpu.MMAIntrinsic.MFMA_I32_16x16x32_I8,
-            iree_gpu.MMAIntrinsic.MFMA_I32_32x32x16_I8,
-        ],
-    )
-
-    assert configs is not None
-
-
-def test_generate_solutions_tile_and_fuse_contraction_padding(
-    tuner_ctx: common.TunerContext,
-) -> None:
-    matmul_size = common.ContractionSizes([5369], [112], [112])
-    contraction_dims = common.ContractionDimensions([0], [1], [2])
-    lhs_type = common.ShapedType([5369, 112], tuner_ctx.type.f16)
-    rhs_type = common.ShapedType([112, 112], tuner_ctx.type.f16)
-    res_type = common.ShapedType([5369, 112], tuner_ctx.type.f32)
-    problem_size = common.ProblemSize(
-        matmul_size,
-        lhs_type,
-        rhs_type,
-        res_type,
-        common.DispatchKind.contraction,
-        contraction_dims,
-    )
-
-    mma_intrinsics = [
-        iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
-    ]
-
-    solutions = list(
-        dispatch_constraints.generate_solutions(
-            tuner_ctx=tuner_ctx,
-            problem_size=problem_size,
-            num_subgrups=4,
-            mma_intrinsics=mma_intrinsics,
-            allowed_waves_per_eu=[2],
-            pipeline_options_search_space=dispatch_constraints.PipelineOptionsSearchSpace(),
-            codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
-        )
-    )
-
-    assert len(solutions) > 0, "No solutions generated with TileAndFuse pipeline."
-    assert all(isinstance(sol, iree_codegen.CompilationInfoAttr) for sol in solutions)
-    assert all(
-        "padding =" in str(sol.lowering_config) for sol in solutions
-    ), "Not all lowering configs have padding option"
-    assert all(
-        [int(x) for x in sol.lowering_config.attributes["promote_operands"]]
-        == [0, 1, 2]
-        for sol in solutions
-    ), "Not all lowering configs have promote_operands = [0, 1, 2]"
-
-
-def test_generate_solutions_tile_and_fuse_conv_padding(
-    tuner_ctx: common.TunerContext,
-) -> None:
-    matmul_size = common.ContractionSizes(B=[], M=[2, 5, 5], N=[64], K=[3, 3, 32])
-    lhs_type = common.ShapedType([2, 7, 7, 32], tuner_ctx.type.f16)
-    rhs_type = common.ShapedType([64, 3, 3, 32], tuner_ctx.type.f16)
-    res_type = common.ShapedType([2, 5, 5, 64], tuner_ctx.type.f32)
-    contraction_dims = common.ContractionDimensions(
-        batch=[], m=[0, 1, 2], n=[3], k=[4, 5, 6]
-    )
-    problem_size = common.ProblemSize(
-        matmul_size,
-        lhs_type,
-        rhs_type,
-        res_type,
-        common.DispatchKind.conv,
-        contraction_dims,
-    )
-
-    solutions = list(
-        dispatch_constraints.generate_solutions(
-            tuner_ctx=tuner_ctx,
-            problem_size=problem_size,
-            num_subgrups=4,
-            mma_intrinsics=[iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16],
-            codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
-        )
-    )
-
-    assert len(solutions) > 0, "No solutions generated with TileAndFuse pipeline."
-    assert all(isinstance(sol, iree_codegen.CompilationInfoAttr) for sol in solutions)
-    assert all(
-        "padding =" in str(sol.lowering_config) for sol in solutions
-    ), "Not all lowering configs have padding option"
-    assert all(
-        [int(x) for x in sol.lowering_config.attributes["promote_operands"]]
-        == [0, 1, 2]
-        for sol in solutions
-    ), "Not all lowering configs have promote_operands = [0, 1, 2]"
-
-
 def test_calculate_shared_memory_usage_in_bytes(tuner_ctx: common.TunerContext) -> None:
-    matmul_size = common.ContractionSizes([1024], [1024], [1024])
-    contraction_dims = common.ContractionDimensions([0], [1], [2])
     lhs_type = common.ShapedType([1024, 1024], tuner_ctx.type.f16)
     rhs_type = common.ShapedType([1024, 1024], tuner_ctx.type.f16)
-    res_type = common.ShapedType([1024, 1024], tuner_ctx.type.f32)
-    problem_size = common.ProblemSize(
-        matmul_size,
-        lhs_type,
-        rhs_type,
-        res_type,
-        common.DispatchKind.contraction,
-        contraction_dims,
-    )
     assert (
         dispatch_constraints.calculate_shared_memory_usage_in_bytes(
-            problem_size, [512], [64], [128]
+            rhs_type, rhs_type, [512], [64], [128]
         )
         == 147456
     )
 
     lhs_type = common.ShapedType([1024, 1024], tuner_ctx.type.i8)
-    problem_size = common.ProblemSize(
-        matmul_size,
-        lhs_type,
-        rhs_type,
-        res_type,
-        common.DispatchKind.contraction,
-        contraction_dims,
-    )
     assert (
         dispatch_constraints.calculate_shared_memory_usage_in_bytes(
-            problem_size, [512], [64], [128]
+            lhs_type, rhs_type, [512], [64], [128]
         )
         == 81920
     )
 
     rhs_type = common.ShapedType([1024, 1024], tuner_ctx.type.i32)
-    problem_size = common.ProblemSize(
-        matmul_size,
-        lhs_type,
-        rhs_type,
-        res_type,
-        common.DispatchKind.contraction,
-        contraction_dims,
-    )
     assert (
         dispatch_constraints.calculate_shared_memory_usage_in_bytes(
-            problem_size, [128], [64], [32]
+            lhs_type, rhs_type, [128], [64], [32]
         )
         == 12288
     )
 
     assert (
         dispatch_constraints.calculate_shared_memory_usage_in_bytes(
-            problem_size, [2, 64], [4, 16], [8, 4]
+            lhs_type, rhs_type, [2, 64], [4, 16], [8, 4]
         )
         == 12288
     )
-
-
-def test_adjust_problem_size_for_pipeline(
-    tuner_ctx: common.TunerContext,
-):
-    # Test Matmul TileAndFuse. Expect no change.
-    matmul_size = common.ContractionSizes(
-        M=[32],
-        N=[64],
-        K=[128],
-        B=[2],
-    )
-    contraction_dims = common.ContractionDimensions(
-        m=[1],
-        n=[2],
-        k=[3],
-        batch=[0],
-    )
-    lhs_type = common.ShapedType([2, 32, 128], tuner_ctx.type.f16)
-    rhs_type = common.ShapedType([2, 64, 128], tuner_ctx.type.f16)
-    res_type = common.ShapedType([2, 32, 64], tuner_ctx.type.f32)
-    matmul_problem_size = common.ProblemSize(
-        matmul_size,
-        lhs_type,
-        rhs_type,
-        res_type,
-        common.DispatchKind.contraction,
-        contraction_dims,
-    )
-    pipeline_options_space = dispatch_constraints.PipelineOptionsSearchSpace(
-        prefetch_shared_memory=[True],
-        no_reduce_shared_memory_bank_conflicts=[True, False],
-        use_igemm_convolution=[None],
-    )
-    taf_pipeline = iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse
-    dispatch_constraints.adjust_problem_size_for_pipeline(
-        problem_size=matmul_problem_size,
-        pipeline_options_search_space=pipeline_options_space,
-        codegen_pipeline=taf_pipeline,
-    )
-    assert pipeline_options_space.prefetch_shared_memory == [True]
-    assert pipeline_options_space.no_reduce_shared_memory_bank_conflicts == [
-        True,
-        False,
-    ]
-    assert pipeline_options_space.use_igemm_convolution == [None]
-    assert matmul_problem_size.matmul_size.M == [32]
-    assert matmul_problem_size.matmul_size.N == [64]
-    assert matmul_problem_size.matmul_size.K == [128]
-    assert matmul_problem_size.matmul_size.B == [2]
-    assert matmul_problem_size.contraction_dims.m == [1]
-    assert matmul_problem_size.contraction_dims.n == [2]
-    assert matmul_problem_size.contraction_dims.k == [3]
-    assert matmul_problem_size.contraction_dims.batch == [0]
-
-    # Test Conv VectorDistribute. Expect no change.
-    conv_size = common.ContractionSizes(
-        M=[2, 32, 32],
-        N=[256],
-        K=[3, 3, 512],
-    )
-    contraction_dims = common.ContractionDimensions(
-        m=[0, 1, 2],
-        n=[3],
-        k=[4, 5, 6],
-    )
-    lhs_type = common.ShapedType([2, 34, 34, 512], tuner_ctx.type.f16)
-    rhs_type = common.ShapedType([3, 3, 512, 256], tuner_ctx.type.f16)
-    res_type = common.ShapedType([2, 32, 32, 256], tuner_ctx.type.f32)
-    conv_problem_size = common.ProblemSize(
-        conv_size,
-        lhs_type,
-        rhs_type,
-        res_type,
-        common.DispatchKind.conv,
-        contraction_dims,
-    )
-    vec_dist_pipeline = (
-        iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute
-    )
-    dispatch_constraints.adjust_problem_size_for_pipeline(
-        problem_size=conv_problem_size,
-        pipeline_options_search_space=pipeline_options_space,
-        codegen_pipeline=vec_dist_pipeline,
-    )
-    assert pipeline_options_space.prefetch_shared_memory == [True]
-    assert pipeline_options_space.no_reduce_shared_memory_bank_conflicts == [
-        True,
-        False,
-    ]
-    assert pipeline_options_space.use_igemm_convolution == [None]
-    assert conv_problem_size.matmul_size.M == [2, 32, 32]
-    assert conv_problem_size.matmul_size.N == [256]
-    assert conv_problem_size.matmul_size.K == [3, 3, 512]
-    assert conv_problem_size.matmul_size.B == []
-    assert conv_problem_size.contraction_dims.m == [0, 1, 2]
-    assert conv_problem_size.contraction_dims.n == [3]
-    assert conv_problem_size.contraction_dims.k == [4, 5, 6]
-    assert conv_problem_size.contraction_dims.batch == []
-
-    # Test Conv TileAndFuse. Expect flat K dims and use_igemm_convolution True.
-    dispatch_constraints.adjust_problem_size_for_pipeline(
-        problem_size=conv_problem_size,
-        pipeline_options_search_space=pipeline_options_space,
-        codegen_pipeline=taf_pipeline,
-    )
-    assert pipeline_options_space.prefetch_shared_memory == [True]
-    assert pipeline_options_space.no_reduce_shared_memory_bank_conflicts == [
-        True,
-        False,
-    ]
-    assert pipeline_options_space.use_igemm_convolution == [True]
-    assert conv_problem_size.matmul_size.M == [2, 32, 32]
-    assert conv_problem_size.matmul_size.N == [256]
-    assert conv_problem_size.matmul_size.K == [4608]
-    assert conv_problem_size.matmul_size.B == []
-    assert conv_problem_size.contraction_dims.m == [0, 1, 2]
-    assert conv_problem_size.contraction_dims.n == [3]
-    assert conv_problem_size.contraction_dims.k == [4]
-    assert conv_problem_size.contraction_dims.batch == []
 
 
 def test_generate_tile_and_fuse_constraints_valid_input(
@@ -327,23 +64,10 @@ def test_generate_tile_and_fuse_constraints_valid_input(
         K=[128],
         B=[2],
     )
-    contraction_dims = common.ContractionDimensions(
-        m=[1],
-        n=[2],
-        k=[3],
-        batch=[0],
-    )
     lhs_type = common.ShapedType([2, 32, 128], tuner_ctx.type.f16)
     rhs_type = common.ShapedType([2, 64, 128], tuner_ctx.type.f16)
     res_type = common.ShapedType([2, 32, 64], tuner_ctx.type.f32)
-    problem_size = common.ProblemSize(
-        matmul_size,
-        lhs_type,
-        rhs_type,
-        res_type,
-        common.DispatchKind.contraction,
-        contraction_dims,
-    )
+
     # Define input parameters as z3 Ints
     m, n, k = (
         [z3.Int("m0")],
@@ -354,6 +78,8 @@ def test_generate_tile_and_fuse_constraints_valid_input(
         [z3.Int("subgroup_m0")],
         [z3.Int("subgroup_n0")],
     )
+    tile_sizes = [m, n, k, subgroup_m, subgroup_n]
+
     subgroup_size = z3.Int("subgroup_size")
     intrinsic_mn = z3.Int("intrinsic_mn")
     intrinsic_k = z3.Int("intrinsic_k")
@@ -362,19 +88,24 @@ def test_generate_tile_and_fuse_constraints_valid_input(
         z3.Int("wg_y"),
         z3.Int("wg_z"),
     )
+    wg_size = [wg_x, wg_y, wg_z]
+
     sg_m_cnt = z3.Int("sg_m_cnt")
     sg_n_cnt = z3.Int("sg_n_cnt")
 
     constraints = dispatch_constraints.generate_tile_and_fuse_constraints(
-        problem_size,
-        [m, n, k, subgroup_m, subgroup_n],
-        4,
-        subgroup_size,
-        [intrinsic_mn, intrinsic_k],
-        [wg_x, wg_y, wg_z],
-        sg_m_cnt,
-        sg_n_cnt,
-        [
+        matmul_size=matmul_size,
+        lhs_type=lhs_type,
+        rhs_type=rhs_type,
+        res_type=res_type,
+        tile_sizes=tile_sizes,
+        num_subgroups=4,
+        subgroup_size=subgroup_size,
+        intrinsic_size=[intrinsic_mn, intrinsic_k],
+        workgroup_size=wg_size,
+        subgroup_m_count=sg_m_cnt,
+        subgroup_n_count=sg_n_cnt,
+        mma_intrinsics=[
             iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
             iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
             iree_gpu.MMAIntrinsic.MFMA_I32_16x16x32_I8,
@@ -408,14 +139,6 @@ def test_generate_tile_and_fuse_constraints_invalid_input(
     lhs_type = common.ShapedType([2, 32, 128], tuner_ctx.type.f16)
     rhs_type = common.ShapedType([2, 64, 128], tuner_ctx.type.f16)
     res_type = common.ShapedType([2, 32, 64], tuner_ctx.type.f32)
-    problem_size = common.ProblemSize(
-        matmul_size,
-        lhs_type,
-        rhs_type,
-        res_type,
-        common.DispatchKind.contraction,
-        contraction_dims,
-    )
     # Define input parameters as z3 Ints
     m, n, k = (
         [z3.Int("m0")],
@@ -436,17 +159,21 @@ def test_generate_tile_and_fuse_constraints_invalid_input(
     )
     sg_m_cnt = z3.Int("sg_m_cnt")
     sg_n_cnt = z3.Int("sg_n_cnt")
+    tile_sizes = [m, n, k, subgroup_m, subgroup_n]
 
     constraints = dispatch_constraints.generate_tile_and_fuse_constraints(
-        problem_size,
-        [m, n, k, subgroup_m, subgroup_n],
-        4,
-        subgroup_size,
-        [intrinsic_mn, intrinsic_k],
-        [wg_x, wg_y, wg_z],
-        sg_m_cnt,
-        sg_n_cnt,
-        [
+        matmul_size=matmul_size,
+        lhs_type=lhs_type,
+        rhs_type=rhs_type,
+        res_type=res_type,
+        tile_sizes=tile_sizes,
+        num_subgroups=4,
+        subgroup_size=subgroup_size,
+        intrinsic_size=[intrinsic_mn, intrinsic_k],
+        workgroup_size=[wg_x, wg_y, wg_z],
+        subgroup_m_count=sg_m_cnt,
+        subgroup_n_count=sg_n_cnt,
+        mma_intrinsics=[
             iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
             iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
             iree_gpu.MMAIntrinsic.MFMA_I32_16x16x32_I8,
@@ -466,18 +193,11 @@ def test_generate_vector_distribute_constraints_valid_input(
     tuner_ctx: common.TunerContext,
 ) -> None:
     matmul_size = common.ContractionSizes([1024], [1024], [1024])
-    contraction_dims = common.ContractionDimensions([0], [1], [2])
     lhs_type = common.ShapedType([1024, 1024], tuner_ctx.type.f16)
     rhs_type = common.ShapedType([1024, 1024], tuner_ctx.type.f16)
     res_type = common.ShapedType([1024, 1024], tuner_ctx.type.f32)
-    problem_size = common.ProblemSize(
-        matmul_size,
-        lhs_type,
-        rhs_type,
-        res_type,
-        common.DispatchKind.contraction,
-        contraction_dims,
-    )
+    dispatch_kind = common.DispatchKind.contraction
+
     # Define input parameters as z3 Ints
     m, n, k = (
         [z3.Int("m")],
@@ -496,20 +216,24 @@ def test_generate_vector_distribute_constraints_valid_input(
     sg_n_cnt = z3.Int("sg_n_cnt")
 
     constraints = dispatch_constraints.generate_vector_distribute_constraints(
-        problem_size,
-        [m, n, k],
-        4,
-        subgroup_size,
-        [intrinsic_mn, intrinsic_k],
-        [wg_x, wg_y, wg_z],
-        sg_m_cnt,
-        sg_n_cnt,
-        [
+        matmul_size=matmul_size,
+        lhs_type=lhs_type,
+        rhs_type=rhs_type,
+        res_type=res_type,
+        tile_sizes=[m, n, k],
+        num_subgroups=4,
+        subgroup_size=subgroup_size,
+        intrinsic_size=[intrinsic_mn, intrinsic_k],
+        workgroup_size=[wg_x, wg_y, wg_z],
+        subgroup_m_count=sg_m_cnt,
+        subgroup_n_count=sg_n_cnt,
+        mma_intrinsics=[
             iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
             iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
             iree_gpu.MMAIntrinsic.MFMA_I32_16x16x32_I8,
             iree_gpu.MMAIntrinsic.MFMA_I32_32x32x16_I8,
         ],
+        dispatch_kind=dispatch_kind,
     )
 
     solver = z3.Solver()
@@ -524,18 +248,11 @@ def test_generate_vector_distribute_constraints_invalid_input(
 ) -> None:
     # Define input parameters that should lead to unsatisfiable constraints
     matmul_size = common.ContractionSizes([1024], [1024], [1024])
-    contraction_dims = common.ContractionDimensions([0], [1], [2])
     lhs_type = common.ShapedType([1024, 1024], tuner_ctx.type.f16)
     rhs_type = common.ShapedType([1024, 1024], tuner_ctx.type.f16)
     res_type = common.ShapedType([1024, 1024], tuner_ctx.type.f32)
-    problem_size = common.ProblemSize(
-        matmul_size,
-        lhs_type,
-        rhs_type,
-        res_type,
-        common.DispatchKind.contraction,
-        contraction_dims,
-    )
+    dispatch_kind = common.DispatchKind.contraction
+
     m, n, k = (
         [z3.Int("m")],
         [z3.Int("n")],
@@ -553,20 +270,24 @@ def test_generate_vector_distribute_constraints_invalid_input(
     sg_n_cnt = z3.Int("sg_n_cnt")
 
     constraints = dispatch_constraints.generate_vector_distribute_constraints(
-        problem_size,
-        [m, n, k],
-        4,
-        subgroup_size,
-        [intrinsic_mn, intrinsic_k],
-        [wg_x, wg_y, wg_z],
-        sg_m_cnt,
-        sg_n_cnt,
-        [
+        matmul_size=matmul_size,
+        lhs_type=lhs_type,
+        rhs_type=rhs_type,
+        res_type=res_type,
+        tile_sizes=[m, n, k],
+        num_subgroups=4,
+        subgroup_size=subgroup_size,
+        intrinsic_size=[intrinsic_mn, intrinsic_k],
+        workgroup_size=[wg_x, wg_y, wg_z],
+        subgroup_m_count=sg_m_cnt,
+        subgroup_n_count=sg_n_cnt,
+        mma_intrinsics=[
             iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
             iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
             iree_gpu.MMAIntrinsic.MFMA_I32_16x16x32_I8,
             iree_gpu.MMAIntrinsic.MFMA_I32_32x32x16_I8,
         ],
+        dispatch_kind=dispatch_kind,
     )
     constraints.append(m[0] > 1000)  # Adding an additional unsatisfiable constraint
 

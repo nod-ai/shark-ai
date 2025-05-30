@@ -74,6 +74,7 @@ class LlmBatcherProcess(BatcherProcess):
         """Handle an inference request."""
         self.pending.add(request)
 
+
     async def process_batches(self):
         """Process batches of requests."""
         await self.board_flights()
@@ -263,6 +264,7 @@ class LlmExecutorProcess(sf.Process):
         self,
         name: str,
         fiber: Fiber,
+        cache,
         functions: dict[int, sf.ProgramFunction],
         seq_stride: int,
         page_tables,
@@ -275,10 +277,11 @@ class LlmExecutorProcess(sf.Process):
         self.page_tables = page_tables
         self.functions = functions
         self.program_isolation = program_isolation
+        self.device0 = fiber.device(0)
         self.bs = 0
         self.bsl = 0
 
-    async def get_args(self, device0):
+    async def get_args(self):
         ...
 
     async def get_results(
@@ -286,18 +289,16 @@ class LlmExecutorProcess(sf.Process):
         logits: sfnp.device_array,
         indices: sfnp.device_array | None,
         req_count: int,
-        device0: sf.ScopedDevice,
     ):
         ...
 
-    async def _transfer_buffer(self, req_count, device0, buffers):
+    async def _transfer_buffer(self, req_count, buffers):
         ...
 
     async def run(self):
         try:
             req_bs = len(self.exec_requests)
             seq_stride = self.seq_stride
-            device0 = self.fiber.device(0)
             # Select an entrypoint for the batch.
             entrypoints = self.functions
             for bs, fn in entrypoints.items():
@@ -307,7 +308,7 @@ class LlmExecutorProcess(sf.Process):
                 raise RuntimeError(f"No available entry point for bs {req_bs}")
 
             self.bs = bs
-            args, req_count = await self.get_args(device0)
+            args, req_count = await self.get_args()
 
             logger.debug(
                 "INVOKE %r: %s",
@@ -336,7 +337,8 @@ class LlmExecutorProcess(sf.Process):
                 )
 
             # Invoke VMFB. Logits are of shape [bs, bsl, d].
-            result = await fn(*args, fiber=self.fiber)
+            args_device = [arg.device for arg in args]
+            result = await fn(*args_device, fiber=self.fiber)
 
             indices = None
             logits = result[0]
@@ -350,11 +352,10 @@ class LlmExecutorProcess(sf.Process):
                 r.publish_allocated_pages(number_of_complete_pages)
 
             logits, indices = await self._transfer_buffer(
-                req_count=req_count, device0=device0, buffers=(logits, indices)
+                req_count=req_count, buffers=(logits, indices)
             )
 
-            # Return results.
-            await self.get_results(logits, indices, req_count)
+            result = await fn(*args, fiber=self.fiber)
 
         except Exception:
             logger.exception("Fatal error in prefetch invocation")
@@ -380,6 +381,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         super().__init__(
             name="prefill_process",
             fiber=fiber,
+            cache=cache,
             functions=functions,
             seq_stride=seq_stride,
             page_tables=page_tables,
@@ -387,7 +389,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         )
         self.host_cache = host_cache
 
-    async def get_args(self, device0):
+    async def get_args(self):
         seq_stride = self.seq_stride
 
         # Compute block sequence length as maximum sequence length, rounded
@@ -405,10 +407,11 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         # TODO: Better support in shortfin for h2d. The best way to do it is
         # device dependent.
         int_dtype = sfnp.int64
-        tokens = sfnp.device_array.for_device(device0, [self.bs, self.bsl], int_dtype)
-        seq_lens = sfnp.device_array.for_device(device0, [self.bs], int_dtype)
+
+        tokens = sfnp.device_array.for_device(self.device0, [self.bs, self.bsl], int_dtype)
+        seq_lens = sfnp.device_array.for_device(self.device0, [self.bs], int_dtype)
         seq_block_ids = sfnp.device_array.for_device(
-            device0, [self.bs, block_count], int_dtype
+            self.device0, [self.bs, block_count], int_dtype
         )
 
         # Populate tokens
@@ -423,7 +426,6 @@ class PrefillExecutorProcess(LlmExecutorProcess):
                 m.fill(0)
                 if i < req_count:
                     m.items = self.exec_requests[i].input_token_ids
-        tokens_host.copy_to(tokens)
 
         # Populate seq_lens
         seq_lens_host_cache = self.host_cache[1]
@@ -434,7 +436,6 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         with seq_lens_host.map(discard=True) as m:
             m.fill(1)
             m.items = [len(req.input_token_ids) for req in self.exec_requests]
-        seq_lens_host.copy_to(seq_lens)
 
         # Populate cache pages.
         seq_block_ids_key = (self.bs, block_count)
@@ -447,7 +448,10 @@ class PrefillExecutorProcess(LlmExecutorProcess):
                 m.fill(0)
                 if i < req_count:
                     m.items = self.exec_requests[i].cache_page_indices(block_count)
-        seq_block_ids_host.copy_to(seq_block_ids)
+
+        tokens.transfer_to_device()
+        seq_lens.transfer_to_device()
+        seq_block_ids.transfer_to_device()
 
         # V1 args:
         #  prefill:
@@ -457,7 +461,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         #    cache_slabs: ...
         args = [tokens, seq_lens, seq_block_ids]
         for page_table in self.page_tables:
-            args.append(sfnp.disable_barrier(page_table))
+            args.append(WrappedAllocation(sfnp.disable_barrier(page_table)))
 
         return args, req_count
 
@@ -480,7 +484,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         for req in self.exec_requests:
             req.done.set_success()
 
-    async def _transfer_buffer(self, req_count, device0, buffers):
+    async def _transfer_buffer(self, req_count, buffers):
         transfer = any(
             self.exec_requests[i].return_host_array for i in range(req_count)
         )
@@ -514,7 +518,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         if indices is not None:
             indices_host.copy_from(indices)
 
-        await device0
+        await self.device0
 
         return logits_host, (indices_host if indices is not None else None)
 
@@ -540,8 +544,7 @@ class DecodeExecutorProcess(LlmExecutorProcess):
             program_isolation=isolation,
         )
         self.host_cache = host_cache
-
-    async def get_args(self, device0):
+    async def get_args(self):
         # Compute block sequence length as maximum sequence length, rounded
         # up to the seq_stride.
         seq_stride = self.seq_stride
@@ -555,11 +558,11 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         # TODO: Better support in shortfin for h2d. The best way to do it is
         # device dependent.
         int_dtype = sfnp.int64
-        tokens = sfnp.device_array.for_device(device0, [self.bs, 1], int_dtype)
-        start_positions = sfnp.device_array.for_device(device0, [self.bs], int_dtype)
-        seq_lens = sfnp.device_array.for_device(device0, [self.bs], int_dtype)
+        tokens = sfnp.device_array.for_device(self.device0, [self.bs, 1], int_dtype)
+        start_positions = sfnp.device_array.for_device(self.device0, [self.bs], int_dtype)
+        seq_lens = sfnp.device_array.for_device(self.device0, [self.bs], int_dtype)
         seq_block_ids = sfnp.device_array.for_device(
-            device0, [self.bs, block_count], int_dtype
+            self.device0, [self.bs, block_count], int_dtype
         )
 
         # Setup host buffers for transfer:
@@ -583,9 +586,8 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         if seq_block_ids_key not in seq_block_ids_host_cache:
             seq_block_ids_host_cache[seq_block_ids_key] = seq_block_ids.for_transfer()
         seq_block_ids_host = seq_block_ids_host_cache[seq_block_ids_key]
-
         # Populate tokens.
-        with tokens_host.map(discard=True) as m:
+        with tokens.host.map(discard=True) as m:
             m.fill(0)
             vals = []
             for i in range(self.bs):
@@ -594,11 +596,11 @@ class DecodeExecutorProcess(LlmExecutorProcess):
             m.items = vals
 
         # For decode, populate start_positions and seq_lens.
-        with start_positions_host.map(discard=True) as m:
+        with start_positions.host.map(discard=True) as m:
             m.fill(0)
             m.items = [req.start_position for req in self.exec_requests]
 
-        with seq_lens_host.map(discard=True) as m:
+        with seq_lens.host.map(discard=True) as m:
             # Pad unused requests.
             m.fill(
                 1  # Must pad with a nonzero value because a division by 0 during softmax floods clobber page (page 0) in cache with NaN values.
@@ -606,7 +608,7 @@ class DecodeExecutorProcess(LlmExecutorProcess):
             m.items = [req.start_position + 1 for req in self.exec_requests]
 
         # Populate cache pages.
-        with seq_block_ids_host.map(discard=True) as m:
+        with seq_block_ids.host.map(discard=True) as m:
             m.fill(0)
             block_ids = []
             for i in range(self.bs):
@@ -617,10 +619,10 @@ class DecodeExecutorProcess(LlmExecutorProcess):
             m.items = block_ids
 
         # Transfer to device memory:
-        tokens_host.copy_to(tokens)
-        start_positions_host.copy_to(start_positions)
-        seq_lens_host.copy_to(seq_lens)
-        seq_block_ids_host.copy_to(seq_block_ids)
+        tokens.transfer_to_device()
+        start_positions.transfer_to_device()
+        seq_lens.transfer_to_device()
+        seq_block_ids.transfer_to_device()
 
         # V1 args:
         #  decode:
@@ -656,7 +658,7 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         for req in self.exec_requests:
             req.done.set_success()
 
-    async def _transfer_buffer(self, req_count, device0, buffers):
+    async def _transfer_buffer(self, req_count, buffers):
         transfer = any(
             self.exec_requests[i].return_host_array for i in range(req_count)
         )
@@ -690,6 +692,6 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         if indices is not None:
             indices_host.copy_from(indices)
 
-        await device0
+        await self.device0
 
         return logits_host, (indices_host if indices is not None else None)

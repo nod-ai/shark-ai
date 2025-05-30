@@ -45,8 +45,8 @@ class PerplexityTorch:
     For more information, see https://huggingface.co/docs/transformers/perplexity
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, use_attention_mask: bool = True):
+        self.use_attention_mask = use_attention_mask
 
     def print_token_comparison(self, i: int):
         if i <= self.max_prompt_length:
@@ -119,6 +119,7 @@ class PerplexityTorch:
             token_ids=token_batch,
             seq_lens=seq_lens_batch,
             page_cache_size=self.page_cache_size,
+            use_attention_mask=self.use_attention_mask,
         )
 
         return token_batch
@@ -245,6 +246,7 @@ def run_perplexity_torch(
                 use_hf=args.use_hf,
                 fake_quant=args.fake_quant,
                 skip_decode=args.skip_decode,
+                use_attention_mask=args.use_attention_mask,
             )
         )
 
@@ -278,9 +280,10 @@ def perplexity_torch(
     use_hf,
     fake_quant,
     skip_decode,
+    use_attention_mask: bool,
 ):
 
-    perplexity = PerplexityTorch()
+    perplexity = PerplexityTorch(use_attention_mask=use_attention_mask)
 
     perplexity.load_model(
         dataset=dataset,
