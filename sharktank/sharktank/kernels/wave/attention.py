@@ -56,54 +56,21 @@ from iree.compiler.dialects import builtin, func, util
 from iree.turbine.transforms.merger import Merger
 
 __all__ = [
-    "build_util_func",
-    "get_wave_flash_attention_asm"
+    "get_module_body",
+    "get_wave_flash_attention_asm",
     "wave_bhsd_flash_attention",
 ]
 
 
-def build_util_func(kernel_name: str, wave_kernel_name: str, *operands: Value):
-    with Context() as ctx, Location.unknown():
-        module = Module.create()
-
-        operand_types = [op.type for op in operands if op is not None]
-        result_type = operand_types[-1]
-        func_type = FunctionType.get(
-            inputs=operand_types,
-            results=[result_type]
-        )
-
-        with InsertionPoint(module.body):
-            # Manually build util.func using Operation.create
-            sym_name = StringAttr.get(kernel_name)
-            type_attr = TypeAttr.get(func_type)
-            visibility_attr = StringAttr.get("private")
-
-            # Create the util.func operation
-            util_func_op = Operation.create(
-                "func.func",
-                results=[],
-                operands=[],
-                attributes={
-                    "sym_name": sym_name,
-                    "function_type": type_attr,
-                    "sym_visibility": visibility_attr
-                },
-                regions=1
-            )
-
-            # Insert and populate the body block
-            module.body.append(util_func_op)
-            block = util_func_op.regions[0].blocks.append(*func_type.inputs)
-
-            with InsertionPoint(block):
-                call_op = func.CallOp(
-                    func_type.results,
-                    FlatSymbolRefAttr.get(wave_kernel_name),
-                    block.arguments
-                )
-                func.ReturnOp([call_op.result])
-        return module
+def get_module_body(module: Module) -> str:
+    """
+    Extracts the MLIR code inside the top-level module by
+    concatenating the asm of all operations inside the module's main region.
+    """
+    region = module.operation.regions[0]
+    block = region.blocks[0]
+    ops_asm = [op.get_asm() for op in block.operations]
+    return "\n".join(ops_asm)
 
 
 def get_wave_flash_attention_asm(target_function_name: str, shape: AttentionShape, mfma_variant: list[MMAType], dynamic_dims: bool, is_causal: bool = False, is_custom_mask: bool = False,) -> str:
@@ -135,6 +102,7 @@ def get_wave_flash_attention_asm(target_function_name: str, shape: AttentionShap
 
     asm = base_attention.asm
     return asm
+
 
 # Wave Attention Kernels
 # Each kernel is put into its own class to create a namespace for it
@@ -215,14 +183,15 @@ def wave_bhsd_flash_attention(
         is_custom_mask=is_custom_mask,
     )
 
-    asm_op = Operation.parse(asm)
-    op = build_util_func("{{kernel_name}}", wave_kernel_name, q, k, v, c)
-    merger = Merger(
-        op.operation, asm_op.operation
-    )
-    merger.merge()
-    mlir = asm_op.operation.get_asm()
-    with open('test.mlir', 'w') as f:
-        f.write(mlir)
+    asm_module = Module.parse(asm)
+    asm_body = get_module_body(asm_module)
+
+    mlir_wave_kernel = f"""
+    func.func private @{{{{kernel_name}}}}(%q : !q, %k : !k, %v : !v, %c : !c) -> !result {{
+        %result = call @{wave_kernel_name}(%q, %k, %v, %c) : (!q, !k, !v, !c) -> !result
+        return %result : !result
+    }}
+    """
+    mlir = "module {" + asm_body + mlir_wave_kernel + "}"
 
     return MLIRSpec(mlir)

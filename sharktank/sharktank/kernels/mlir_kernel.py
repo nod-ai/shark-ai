@@ -333,7 +333,6 @@ def mlir_kernel(
                         dtypes[sym_ty.dtype.name] = ty.element_type
 
                 # Get the MLIR spec.
-                breakpoint()
                 mlir_spec = func(*input_values, *([None] * len(result_args)))
 
                 # Insert type aliases to the mlir_spec.
