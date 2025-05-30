@@ -365,7 +365,18 @@ class PerplexityIree:
                     token_batch = self.token_ids[:, : i + 1]
 
                     prefill_logits = self.prefill_vmfb(token_batch, i, devices).clone()
-                    out_logits.append(prefill_logits[:, -1:, :])
+
+                    last_logits_indices = torch.minimum(
+                        self.seq_lens - 1, torch.tensor(i)
+                    )
+                    last_logits_indices = torch.maximum(
+                        last_logits_indices, torch.tensor(0)
+                    )
+                    batch_indices = torch.arange(len(self.seq_lens))
+                    last_real_prefill_logits = prefill_logits[
+                        batch_indices, last_logits_indices, :
+                    ].unsqueeze(1)
+                    out_logits.append(last_real_prefill_logits)
                 else:
                     token_batch = self.token_ids[:, i : i + 1]
                     decode_logits = self.decode_vmfb(token_batch, i, devices)
@@ -398,6 +409,7 @@ class PerplexityIree:
                 test_prompts,
                 pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
             )
+            self.seq_lens = torch.tensor(self.seq_lens, device=self.torch_device)
 
             logger.debug(f" Prompts for Evaluation:")
             for idx, prompt in enumerate(test_prompts):
@@ -408,6 +420,7 @@ class PerplexityIree:
             self.page_cache_size = (
                 len(self.token_ids[0]) // self.generator.model.config.block_seq_stride
             ) * len(test_prompts) + 1
+
 
         self.max_prompt_length = max(self.seq_lens)
 
