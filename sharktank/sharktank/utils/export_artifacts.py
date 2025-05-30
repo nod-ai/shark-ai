@@ -10,7 +10,11 @@ import logging
 import time
 from pathlib import Path
 from datetime import timedelta
-from typing import List, Optional
+from typing import Any, List, Optional, TYPE_CHECKING
+from sharktank.utils.iree import get_iree_compiler_flags_from_object
+
+if TYPE_CHECKING:
+    from sharktank.layers import LlamaModelConfig
 
 logger = logging.getLogger("eval")
 
@@ -84,12 +88,13 @@ class ExportArtifacts:
         *,
         irpa_path: str,
         batch_size: int,
-        iree_hip_target: str,
         attention_kernel: str,
         tensor_parallelism_size: int,
         pipeline_parallelism_size: int,
         block_seq_stride: int,
         iree_hal_target_device: str,
+        iree_hip_target: str | None = None,
+        iree_hal_local_target_device_backends: str | None = None,
         use_attention_mask: bool = False,
         use_hf: bool = False,
         activation_dtype: str = "float16",
@@ -107,6 +112,9 @@ class ExportArtifacts:
         self.batch_size = batch_size
         self.iree_hip_target = iree_hip_target
         self.iree_hal_target_device = iree_hal_target_device
+        self.iree_hal_local_target_device_backends = (
+            iree_hal_local_target_device_backends
+        )
         self.attention_kernel = attention_kernel
         self.tensor_parallelism_size = tensor_parallelism_size
         self.pipeline_parallelism_size = pipeline_parallelism_size
@@ -119,6 +127,26 @@ class ExportArtifacts:
         self.attention_dtype = attention_dtype
         self.kv_cache_dtype = kv_cache_dtype
         self.use_hf = use_hf
+
+    @staticmethod
+    def from_config(
+        config: "LlamaModelConfig", /, **init_kwargs: dict[str, Any]
+    ) -> "ExportArtifacts":
+        properties = config.to_properties()
+        kv_cache_dtype = (
+            properties["kv_cache_dtype"] if "kv_cache_dtype" in properties else None
+        )
+        return ExportArtifacts(
+            attention_kernel=config.attention_kernel,
+            tensor_parallelism_size=config.tensor_parallelism_size,
+            pipeline_parallelism_size=config.pipeline_parallelism_size,
+            block_seq_stride=config.block_seq_stride,
+            use_hf=config.use_hf,
+            activation_dtype=properties["activation_dtype"],
+            attention_dtype=properties["attention_dtype"],
+            kv_cache_dtype=kv_cache_dtype,
+            **init_kwargs,
+        )
 
     def timeit(func):
         def wrapper(*args, **kwargs):
@@ -239,28 +267,22 @@ class ExportArtifacts:
         *,
         output_mlir,
         output_vmfb,
-        cwd,
+        cwd: str | None = None,
         hal_dump_path: Optional[Path] = None,
         args: Optional[List[str]] = None,
     ):
+        if cwd is None:
+            cwd = os.getcwd()
 
         # TODO: Control flag to enable multiple backends
         compile_args = [
             f"iree-compile",
             f"{output_mlir}",
-            f"--iree-hip-target={self.iree_hip_target}",
             f"-o={output_vmfb}",
         ]
-        if self.parallelism_size > 1:
-            iree_hal_target_devices = [
-                f"--iree-hal-target-device={self.iree_hal_target_device}[{i}]"
-                for i in range(self.parallelism_size)
-            ]
-        else:
-            iree_hal_target_devices = [
-                f"--iree-hal-target-device={self.iree_hal_target_device}"
-            ]
-        compile_args += iree_hal_target_devices
+        compile_args += get_iree_compiler_flags_from_object(
+            self, device_count=self.parallelism_size
+        )
         if hal_dump_path:
             compile_args += [
                 f"--iree-hal-dump-executable-files-to={hal_dump_path}/files"

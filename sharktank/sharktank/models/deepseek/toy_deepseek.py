@@ -38,6 +38,7 @@ def generate(seed: int) -> tuple[Theta, LlamaModelConfig]:
     config = LlamaModelConfig(
         hp=LlamaHParams(
             model_arch="deepseek2",
+            vocab_size=vocabulary_size,
             context_length=block_seq_stride * max_blocks,
             embedding_length=32,
             block_count=4,
