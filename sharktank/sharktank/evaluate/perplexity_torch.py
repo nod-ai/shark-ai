@@ -368,7 +368,9 @@ def perplexity_torch(
     use_attention_mask: bool,
     use_toy_model,
 ):
-    perplexity = PerplexityTorch(use_attention_mask=use_attention_mask, use_toy_model=use_toy_model)
+    perplexity = PerplexityTorch(
+        use_attention_mask=use_attention_mask, use_toy_model=use_toy_model
+    )
 
     perplexity.load_model(
         dataset=dataset,
