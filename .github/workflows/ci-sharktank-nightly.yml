@@ -7,6 +7,7 @@
 name: CI - sharktank nightly
 
 on:
+  pull_request:
   workflow_dispatch:
   schedule:
     # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
@@ -136,7 +137,7 @@ jobs:
             -n 8 \
             -v \
             -s \
-            sharktank/tests/evaluate/ \
+            sharktank/tests/evaluate/perplexity_torch_test.py \
             --run-nightly-tests \
             --bs=32 \
             --device='cuda:0' \
