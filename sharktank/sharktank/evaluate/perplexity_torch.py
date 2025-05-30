@@ -8,6 +8,7 @@ from typing import Any
 import sys
 import logging
 import time
+from datetime import timedelta
 import json
 import numpy as np
 from tqdm import tqdm
@@ -19,13 +20,12 @@ from sharktank.layers import *
 from sharktank.types import *
 
 from sharktank.models.llm import *
-from sharktank.types.sharding import shard_theta
-
+from sharktank.types.pipelining import pipeline_parallelize_theta
 
 from sharktank.utils import cli
 from sharktank.utils.load_llm import *
 from sharktank.utils.evaluate import *
-
+import sharktank.ops as ops
 
 logger = logging.getLogger("eval")
 
@@ -45,11 +45,61 @@ class PerplexityTorch:
     For more information, see https://huggingface.co/docs/transformers/perplexity
     """
 
-    def __init__(self, use_attention_mask: bool = True):
+    def __init__(
+        self,
+        use_attention_mask: bool = True,
+        use_toy_model: bool = False,
+    ):
         self.use_attention_mask = use_attention_mask
+        self.use_toy_model = use_toy_model
+
+    def calc_time(self, start, end):
+        total_seconds = end - start
+        time_taken = abs(timedelta(seconds=total_seconds))
+        hours, minutes, seconds = re.split(":", str(time_taken))
+
+        if total_seconds < 1:
+            time_taken = f" {round(total_seconds * 1000, 3)} ms"
+        elif total_seconds < 60:
+            time_taken = "{:.2f} secs".format(round(float(total_seconds), 2))
+        else:
+            time_taken = "{:02d} hrs : {:02d} mins : {:.2f} secs".format(
+                int(hours), int(minutes), round(float(seconds), 2)
+            )
+        return time_taken
+
+    def timeit(func):
+        def wrapper(*args, **kwargs):
+            start = time.time()
+            result = func(*args, **kwargs)
+            end = time.time()
+            total_seconds = end - start
+            time_taken = abs(timedelta(seconds=total_seconds))
+            hours, minutes, seconds = re.split(":", str(time_taken))
+
+            if total_seconds < 1:
+                time_taken = f" {round(total_seconds * 1000, 3)} ms"
+            elif total_seconds < 60:
+                time_taken = "{:.2f} secs".format(round(float(total_seconds), 2))
+            else:
+                time_taken = "{:02d} hrs : {:02d} mins : {:.2f} secs".format(
+                    int(hours), int(minutes), round(float(seconds), 2)
+                )
+            return result
+
+        return wrapper
 
     def print_token_comparison(self, i: int):
-        if i <= self.max_prompt_length:
+        if self.use_toy_model and i <= self.max_prompt_length:
+            batch_predicted_token_id = [[i[-1]] for i in self.batch.results]
+            logger.debug(f"Predicted:")
+            logger.debug(f"{batch_predicted_token_id}")
+
+            expected_token_id = self.token_ids[:, i + 1 : i + 2].tolist()
+            logger.debug(f"Expected:")
+            logger.debug(f"{expected_token_id}")
+
+        elif i <= self.max_prompt_length:
             batch_predicted_token_id = [[i[-1]] for i in self.batch.results]
             batch_predicted_token = self.generator.tokenizer.decode(
                 batch_predicted_token_id
@@ -64,11 +114,12 @@ class PerplexityTorch:
             logger.debug(f"{expected_token}")
             logger.debug(f"{expected_token_id}")
 
+    @timeit
     def load_model(
         self,
         dataset: Dataset,
-        tokenizer: InferenceTokenizer,
         tensor_parallelism_size: int,
+        pipeline_parallelism_size: int,
         device: torch.device,
         activation_dtype: torch.dtype,
         attention_dtype: torch.dtype,
@@ -77,7 +128,12 @@ class PerplexityTorch:
         block_seq_stride: int,
         use_hf: bool,
         fake_quant: bool,
+        tokenizer: Optional[InferenceTokenizer] = None,
     ):
+
+        block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
+            dataset.root_theta, pipeline_parallelism_size
+        )
 
         config = LlamaModelConfig(
             hp=configs.LlamaHParams.from_gguf_props(dataset.properties),
@@ -86,6 +142,9 @@ class PerplexityTorch:
             attention_dtype=attention_dtype,
             kv_cache_dtype=kv_cache_dtype,
             tensor_parallelism_size=tensor_parallelism_size,
+            pipeline_parallelism_size=pipeline_parallelism_size,
+            block_to_pipeline_map=block_to_pipeline,
+            pipeline_to_device_map=pipeline_to_devices,
             block_seq_stride=block_seq_stride,
             attention_kernel=attention_kernel,
             use_hf=use_hf,
@@ -93,9 +152,6 @@ class PerplexityTorch:
         )
 
         self.device = device
-
-        if config.tensor_parallelism_size > 1:
-            dataset.root_theta = shard_theta(dataset.root_theta, config)
 
         theta = dataset.root_theta
 
@@ -124,11 +180,10 @@ class PerplexityTorch:
 
         return token_batch
 
+    @timeit
     def get_logits(self, skip_decode: bool) -> torch.tensor:
 
         is_first_token = True
-        # Add context to improve perplexity by starting at 10th token
-        self.start = 10
         out_logits = []
         for i in range(self.start, self.max_prompt_length - 1):
             logger.debug(f"Iteration: {i}")
@@ -136,8 +191,10 @@ class PerplexityTorch:
             if is_first_token:
 
                 token_batch = self.token_ids[:, : i + 1]
-                logger.debug(f"Prefill input:")
-                logger.debug(f"{self.generator.tokenizer.decode(token_batch)}")
+                if not self.use_toy_model:
+                    logger.debug(
+                        f"Prefill input:\n{self.generator.tokenizer.decode(token_batch)}"
+                    )
 
                 token_batch = self.assemble_batch(token_batch)
 
@@ -152,8 +209,9 @@ class PerplexityTorch:
             else:
                 token_batch = self.token_ids[:, i : i + 1]
 
-                logger.debug("Decode input:")
-                logger.debug(f"{self.generator.tokenizer.decode(token_batch)}")
+                logger.debug(f"Decode input:")
+                if not self.use_toy_model:
+                    logger.debug(f"{self.generator.tokenizer.decode(token_batch)}")
                 logger.debug(f"{token_batch.tolist()}")
 
                 self.batch.decode(token_batch=token_batch)
@@ -161,7 +219,7 @@ class PerplexityTorch:
 
                 self.print_token_comparison(i)
 
-        out_logits = torch.cat(out_logits, dim=1)
+        out_logits = ops.cat(out_logits, dim=1)
 
         pad_logits_shape = self.token_ids.shape[1] - out_logits.shape[1]
 
@@ -172,32 +230,45 @@ class PerplexityTorch:
             device=self.device,
         )
 
-        out_logits = torch.cat((out_logits, pad_logits), dim=1).to(self.device)
+        out_logits = ops.cat((out_logits, pad_logits), dim=1).to(self.device)
 
         return out_logits
 
+    @timeit
     def get_perplexity(
-        self, test_prompts: list[str], skip_decode: bool
+        self, test_prompts: list[str], token_ids: list[list[int]], skip_decode: bool
     ) -> dict[str, Any]:
 
-        token_ids, seq_lens = self.generator.tokenizer.encode(
-            test_prompts,
-            pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
-        )
+        if self.use_toy_model:
+            self.token_ids = token_ids
+            self.seq_lens = [len(t) for t in self.token_ids]
+            # Add context to improve perplexity by starting at 5th token
+            self.start = 5
+            self.page_cache_size = 128
 
-        logger.debug(f" Prompts for Evaluation:")
-        for idx, prompt in enumerate(test_prompts):
-            logger.debug(
-                f" Prompt {idx}: \nTokens: {prompt.encode()}\nToken ids: {token_ids[idx]}\n"
+            logger.debug(f" Token ids for Evaluation: \n{self.token_ids}\n")
+
+        else:
+            self.token_ids, self.seq_lens = self.generator.tokenizer.encode(
+                test_prompts,
+                pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
             )
 
-        self.page_cache_size = (
-            len(token_ids[0]) // self.generator.model.config.block_seq_stride
-        ) * len(test_prompts) + 1
+            logger.debug(f" Prompts for Evaluation:")
+            for idx, prompt in enumerate(test_prompts):
+                logger.debug(
+                    f" Prompt {idx}: \nTokens: {prompt.encode()}\nToken ids: {self.token_ids[idx]}\n"
+                )
 
-        self.max_prompt_length = max(seq_lens)
+            # Add context to improve perplexity by starting at 10th token
+            self.start = 10
+            self.page_cache_size = (
+                len(self.token_ids[0]) // self.generator.model.config.block_seq_stride
+            ) * len(test_prompts) + 1
 
-        self.token_ids = torch.tensor(token_ids, device=self.device)
+        self.max_prompt_length = max(self.seq_lens)
+
+        self.token_ids = torch.tensor(self.token_ids, device=self.device)
 
         out_logits = self.get_logits(skip_decode)
 
@@ -211,25 +282,34 @@ def run_perplexity_torch(
     args,
     dataset,
     tokenizer,
-    device,
-    tensor_parallelism_size,
-    model_file,
+    device: torch.device | None,
+    tensor_parallelism_size: int,
+    pipeline_parallelism_size: int,
 ):
 
     start = time.time()
 
-    test_prompts = args.prompt_list or get_prompts(num_prompts=args.num_prompts)
+    token_ids = None
+    test_prompts = None
 
-    bs = 32
+    if args.use_toy_model:
+        token_ids = get_token_ids()
+        bs = len(token_ids)
+        input_prompts = [
+            token_ids[idx : idx + bs] for idx in range(0, len(token_ids), bs)
+        ]
+    else:
+        test_prompts = args.prompt_list or get_prompts(num_prompts=args.num_prompts)
+        bs = len(test_prompts)
+        input_prompts = [
+            test_prompts[idx : idx + bs] for idx in range(0, len(test_prompts), bs)
+        ]
 
-    input_prompts = [
-        test_prompts[idx : idx + bs] for idx in range(0, len(test_prompts), bs)
-    ]
-
+    model_file = args.gguf_file or args.irpa_file
     perplexity_batch = []
     for p in tqdm(
         input_prompts,
-        desc=f"eval: Calculating logits for {model_file.name}",
+        desc=f"eval: Calculating logits for {model_file}",
     ):
         perplexity_batch.extend(
             perplexity_torch(
@@ -237,9 +317,11 @@ def run_perplexity_torch(
                 tokenizer=tokenizer,
                 device=device,
                 tensor_parallelism_size=tensor_parallelism_size,
+                pipeline_parallelism_size=pipeline_parallelism_size,
                 attention_kernel=args.attention_kernel,
                 block_seq_stride=args.block_seq_stride,
                 prompts=p,
+                token_ids=token_ids,
                 activation_dtype=args.activation_dtype,
                 attention_dtype=args.attention_dtype,
                 kv_cache_dtype=args.kv_cache_dtype,
@@ -247,6 +329,7 @@ def run_perplexity_torch(
                 fake_quant=args.fake_quant,
                 skip_decode=args.skip_decode,
                 use_attention_mask=args.use_attention_mask,
+                use_toy_model=args.use_toy_model,
             )
         )
 
@@ -270,10 +353,12 @@ def perplexity_torch(
     dataset,
     tokenizer,
     device,
-    tensor_parallelism_size,
+    tensor_parallelism_size: int,
+    pipeline_parallelism_size: int,
     attention_kernel,
     block_seq_stride,
     prompts,
+    token_ids,
     activation_dtype,
     attention_dtype,
     kv_cache_dtype,
@@ -281,14 +366,17 @@ def perplexity_torch(
     fake_quant,
     skip_decode,
     use_attention_mask: bool,
+    use_toy_model,
 ):
-
-    perplexity = PerplexityTorch(use_attention_mask=use_attention_mask)
+    perplexity = PerplexityTorch(
+        use_attention_mask=use_attention_mask, use_toy_model=use_toy_model
+    )
 
     perplexity.load_model(
         dataset=dataset,
         tokenizer=tokenizer,
         tensor_parallelism_size=tensor_parallelism_size,
+        pipeline_parallelism_size=pipeline_parallelism_size,
         device=device,
         activation_dtype=activation_dtype,
         attention_dtype=attention_dtype,
@@ -299,7 +387,11 @@ def perplexity_torch(
         fake_quant=fake_quant,
     )
 
-    ppl = perplexity.get_perplexity(prompts, skip_decode=skip_decode)
+    ppl = perplexity.get_perplexity(
+        test_prompts=prompts,
+        token_ids=token_ids,
+        skip_decode=skip_decode,
+    )
 
     return ppl
 
@@ -317,11 +409,12 @@ def main(argv):
     args = cli.parse(parser, args=argv)
 
     dataset = cli.get_input_dataset(args)
-    tokenizer = cli.get_tokenizer(args)
+    tokenizer = None
+    if not args.use_toy_model:
+        tokenizer = cli.get_tokenizer(args)
 
     logger.setLevel(args.loglevel)
     device = torch.device(args.device) if args.device else None
-    model_file = args.gguf_file or args.irpa_file
 
     assert args.num_prompts or args.prompt_list, "Pass --num-prompts or --prompt-list"
 
@@ -338,7 +431,7 @@ def main(argv):
         tokenizer=tokenizer,
         device=device,
         tensor_parallelism_size=tensor_parallelism_size,
-        model_file=model_file,
+        pipeline_parallelism_size=args.pipeline_parallelism_size,
     )
 
     logger.info(f"\n{json.dumps(ppl, indent=2)}")

@@ -306,7 +306,7 @@ class LlmExecutorProcess(sf.Process):
                 raise RuntimeError(f"No available entry point for bs {req_bs}")
 
             self.bs = bs
-            args, req_count = await self.get_args(device0)
+            args, req_count = await self.get_args()
 
             logger.debug(
                 "INVOKE %r: %s",

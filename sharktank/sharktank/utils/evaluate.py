@@ -50,6 +50,15 @@ def compute_perplexity(
     return perplexity_batch
 
 
+def get_token_ids():
+    return [
+        [3, 4, 5, 56, 76, 23, 2, 65, 49, 3, 98],
+        [4, 65, 49, 32, 98, 5, 2, 23, 13, 58, 9],
+        [5, 2, 23, 13, 58, 9, 3, 4, 5, 56, 76],
+        [3, 4, 5, 65, 49, 32, 98, 5, 2, 23, 13],
+    ]
+
+
 def get_prompts(num_prompts: Optional[int] = None) -> list[str]:
     """Fetches prompts from the wikitext test dataset.
     Args:
