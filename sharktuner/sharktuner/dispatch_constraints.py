@@ -9,24 +9,29 @@
 
 import math
 import z3  # type: ignore
-from typing import Iterator
+from typing import Optional
+from dataclasses import dataclass, field
 
 from iree.compiler import ir  # type: ignore
 
 from iree.compiler.dialects import iree_gpu  # type: ignore
 from iree.compiler.dialects import iree_codegen  # type: ignore
 
-from .common import *
+from . import common
 
 
 def get_mfma_intrinsic_constraints(
-    problem_size: ProblemSize,
+    lhs_type: common.ShapedType,
+    rhs_type: common.ShapedType,
+    res_type: common.ShapedType,
     intrinsic_m: z3.ArithRef,
     intrinsic_n: z3.ArithRef,
     intrinsic_k: z3.ArithRef,
     mma_intrinsics: list[iree_gpu.MMAIntrinsic],
 ) -> z3.BoolRef:
-    compatible_intrinsics = get_compatible_mfma_intrinsics(problem_size, mma_intrinsics)
+    compatible_intrinsics = common.get_compatible_mfma_intrinsics(
+        lhs_type, rhs_type, res_type, mma_intrinsics
+    )
     assert len(compatible_intrinsics) > 0, "No compatible intrinsics found"
 
     mma_attrs = [iree_gpu.MMAAttr.get(mfma) for mfma in compatible_intrinsics]
@@ -45,17 +50,18 @@ def get_mfma_intrinsic_constraints(
 
 
 def get_dispatch_constraints(
-    problem_size: ProblemSize,
+    matmul_size: common.ContractionSizes,
+    dispatch_kind: common.DispatchKind,
     tile_m: z3.ArithRef,
     tile_n: z3.ArithRef,
     tile_k: z3.ArithRef,
 ) -> list[z3.BoolRef]:
-    if problem_size.dispatch_kind != DispatchKind.conv:
+    if dispatch_kind != common.DispatchKind.conv:
         return []
 
-    max_tile_m = problem_size.matmul_size.M[-1]
-    [max_tile_n] = problem_size.matmul_size.N
-    max_tile_k = problem_size.matmul_size.K[-1]
+    max_tile_m = matmul_size.M[-1]
+    [max_tile_n] = matmul_size.N
+    max_tile_k = matmul_size.K[-1]
     conv_constraints = [
         # WARNING: This sometimes makes the constraints UNSAT for some reason.
         tile_m <= max_tile_m,
@@ -66,22 +72,26 @@ def get_dispatch_constraints(
 
 
 def calculate_shared_memory_usage_in_bytes(
-    problem_size: ProblemSize,
+    lhs_type: common.ShapedType,
+    rhs_type: common.ShapedType,
     m: list[int] | list[z3.ArithRef],
     n: list[int] | list[z3.ArithRef],
     k: list[int] | list[z3.ArithRef],
 ) -> int | z3.ArithRef:
-    lhs_memory = problem_size.lhs_type.bitwidth // 8
+    lhs_memory = lhs_type.bitwidth // 8
     for size in m + k:
         lhs_memory *= size
-    rhs_memory = problem_size.rhs_type.bitwidth // 8
+    rhs_memory = rhs_type.bitwidth // 8
     for size in n + k:
         rhs_memory *= size
     return lhs_memory + rhs_memory
 
 
 def generate_vector_distribute_constraints(
-    problem_size: ProblemSize,
+    matmul_size: common.ContractionSizes,
+    lhs_type: common.ShapedType,
+    rhs_type: common.ShapedType,
+    res_type: common.ShapedType,
     tile_sizes: list[list[z3.ArithRef]],
     num_subgroups: int,
     subgroup_size: z3.ArithRef,
@@ -90,11 +100,12 @@ def generate_vector_distribute_constraints(
     subgroup_m_count: z3.ArithRef,
     subgroup_n_count: z3.ArithRef,
     mma_intrinsics: list[iree_gpu.MMAIntrinsic],
+    dispatch_kind: common.DispatchKind,
 ):
     M, N, K = (
-        problem_size.matmul_size.M[-1],
-        problem_size.matmul_size.N[-1],
-        problem_size.matmul_size.K[-1],
+        matmul_size.M[-1],
+        matmul_size.N[-1],
+        matmul_size.K[-1],
     )
     m_vars, n_vars, k_vars = tile_sizes
     intrinsic_mn, intrinsic_k = intrinsic_size
@@ -104,7 +115,13 @@ def generate_vector_distribute_constraints(
     constraints += [subgroup_size == 64, wg_threads <= 1024]
     constraints += [
         get_mfma_intrinsic_constraints(
-            problem_size, intrinsic_mn, intrinsic_mn, intrinsic_k, mma_intrinsics
+            lhs_type,
+            rhs_type,
+            res_type,
+            intrinsic_mn,
+            intrinsic_mn,
+            intrinsic_k,
+            mma_intrinsics,
         )
     ]
     subgroup_k_count = 1
@@ -144,16 +161,21 @@ def generate_vector_distribute_constraints(
     else:
         constraints += [subgroups >= 1, subgroups <= 10]
 
-    shared_memory = calculate_shared_memory_usage_in_bytes(problem_size, [m], [n], [k])
+    shared_memory = calculate_shared_memory_usage_in_bytes(
+        lhs_type, rhs_type, [m], [n], [k]
+    )
     constraints += [shared_memory <= 65536]
 
-    constraints += get_dispatch_constraints(problem_size, m, n, k)
+    constraints += get_dispatch_constraints(matmul_size, dispatch_kind, m, n, k)
 
     return constraints
 
 
 def generate_tile_and_fuse_constraints(
-    problem_size: ProblemSize,
+    matmul_size: common.ContractionSizes,
+    lhs_type: common.ShapedType,
+    rhs_type: common.ShapedType,
+    res_type: common.ShapedType,
     tile_sizes: list[list[z3.ArithRef]],
     num_subgroups: int,
     subgroup_size: z3.ArithRef,
@@ -163,7 +185,7 @@ def generate_tile_and_fuse_constraints(
     subgroup_n_count: z3.ArithRef,
     mma_intrinsics: list[iree_gpu.MMAIntrinsic],
 ):
-    M, N, K = map(list, problem_size.MNK)
+    M, N, K = list(matmul_size.M), list(matmul_size.N), list(matmul_size.K)
     m_tiles, n_tiles, k_tiles, subgroup_m_tiles, subgroup_n_tiles = tile_sizes
     intrinsic_mn, intrinsic_k = intrinsic_size
     M[-1] = ((M[-1] + intrinsic_mn - 1) / intrinsic_mn) * intrinsic_mn
@@ -175,7 +197,13 @@ def generate_tile_and_fuse_constraints(
     constraints += [subgroup_size == 64, wg_threads <= 1024]
     constraints += [
         get_mfma_intrinsic_constraints(
-            problem_size, intrinsic_mn, intrinsic_mn, intrinsic_k, mma_intrinsics
+            lhs_type,
+            rhs_type,
+            res_type,
+            intrinsic_mn,
+            intrinsic_mn,
+            intrinsic_k,
+            mma_intrinsics,
         )
     ]
 
@@ -232,7 +260,7 @@ def generate_tile_and_fuse_constraints(
     constraints += [wg_threads == subgroups * subgroup_size]
 
     shared_memory = calculate_shared_memory_usage_in_bytes(
-        problem_size, m_tiles, n_tiles, k_tiles
+        lhs_type, rhs_type, m_tiles, n_tiles, k_tiles
     )
     constraints += [shared_memory * intrinsic_k <= 65536]
 
@@ -297,7 +325,7 @@ def generate_allowed_pipeline_options(
 
 
 def generate_compilation_infos(
-    tuner_ctx: TunerContext,
+    tuner_ctx: common.TunerContext,
     mma_attr: iree_gpu.MMAAttr,
     workgroup_tile_sizes: list[int],
     reduction_tile_sizes: list[int],
@@ -329,7 +357,7 @@ def generate_compilation_infos(
     if codegen_pipeline == iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse:
         lowering_config_args["subgroup"] = subgroup_tile_sizes
 
-    lowering_config = get_lowering_config(**lowering_config_args)
+    lowering_config = common.get_lowering_config(**lowering_config_args)
 
     # Create the TranslationInfoAttr
     pipeline_attr = iree_codegen.DispatchLoweringPassPipelineAttr.get(codegen_pipeline)
@@ -340,7 +368,9 @@ def generate_compilation_infos(
     compilation_infos = []
     for pipeline_options in pipeline_options_list:
         for waves_per_eu in allowed_waves_per_eu:
-            config_dict = get_translation_info_config(pipeline_options, waves_per_eu)
+            config_dict = common.get_translation_info_config(
+                pipeline_options, waves_per_eu
+            )
             translation_info = iree_codegen.TranslationInfoAttr.get(
                 pipeline_attr,
                 None,
@@ -352,209 +382,3 @@ def generate_compilation_infos(
                 iree_codegen.CompilationInfoAttr.get(lowering_config, translation_info)
             )
     return compilation_infos
-
-
-def adjust_problem_size_for_pipeline(
-    problem_size: ProblemSize,
-    pipeline_options_search_space: PipelineOptionsSearchSpace,
-    codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline,
-):
-    # Adjustment is only needed for IGEMM. Fail if the problem is not a conv
-    # going down the TileAndFuse pipeline.
-    if (
-        codegen_pipeline != iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse
-        or problem_size.dispatch_kind != DispatchKind.conv
-    ):
-        return
-    pipeline_options_search_space.use_igemm_convolution = [True]
-    # Flatten the K dimensions into a single dimension. The IGEMM transformation
-    # flattens the reduction channel and filter dimensions into one.
-    problem_size.contraction_dims.k = [problem_size.contraction_dims.k[0]]
-    problem_size.matmul_size.K = [math.prod(problem_size.matmul_size.K)]
-
-
-def generate_solutions(
-    tuner_ctx: TunerContext,
-    problem_size: ProblemSize,
-    num_subgrups: int,
-    mma_intrinsics: list[iree_gpu.MMAIntrinsic],
-    allowed_waves_per_eu: list[int] = [2],
-    pipeline_options_search_space: PipelineOptionsSearchSpace = PipelineOptionsSearchSpace(),
-    codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline = iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
-) -> Iterator[iree_codegen.CompilationInfoAttr]:
-    adjust_problem_size_for_pipeline(
-        problem_size,
-        pipeline_options_search_space,
-        codegen_pipeline,
-    )
-    M, N, K = problem_size.MNK
-    tuner_ctx.logger.debug(f"{M},{N},{K}")
-    m_vars = [z3.Int(f"m{i}") for i in range(len(M))]
-    n_vars = [z3.Int(f"n{i}") for i in range(len(N))]
-    k_vars = [z3.Int(f"k{i}") for i in range(len(K))]
-    subgroup_m_vars = [z3.Int(f"subgroup_m{i}") for i in range(len(M))]
-    subgroup_n_vars = [z3.Int(f"subgroup_n{i}") for i in range(len(N))]
-
-    subgroup_size = z3.Int("subgroup_size")
-    intrinsic_mn = z3.Int("intrinsic_mn")
-    intrinsic_k = z3.Int("intrinsic_k")
-    wg_x, wg_y, wg_z = z3.Int("wg_x"), z3.Int("wg_y"), z3.Int("wg_z")
-    sg_m_cnt = z3.Int("sg_m_cnt")
-    sg_n_cnt = z3.Int("sg_n_cnt")
-    all_vars = (
-        m_vars
-        + n_vars
-        + k_vars
-        + [
-            subgroup_size,
-            intrinsic_mn,
-            intrinsic_k,
-            wg_x,
-            wg_y,
-            wg_z,
-            sg_m_cnt,
-            sg_n_cnt,
-        ]
-    )
-
-    solver = z3.Solver()
-    match codegen_pipeline:
-        case iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute:
-            constraints = generate_vector_distribute_constraints(
-                problem_size,
-                [m_vars, n_vars, k_vars],
-                num_subgrups,
-                subgroup_size,
-                [intrinsic_mn, intrinsic_k],
-                [wg_x, wg_y, wg_z],
-                sg_m_cnt,
-                sg_n_cnt,
-                mma_intrinsics,
-            )
-            constraints += [v == 0 for v in subgroup_m_vars + subgroup_n_vars]
-        case iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse:
-            constraints = generate_tile_and_fuse_constraints(
-                problem_size,
-                [m_vars, n_vars, k_vars, subgroup_m_vars, subgroup_n_vars],
-                num_subgrups,
-                subgroup_size,
-                [intrinsic_mn, intrinsic_k],
-                [wg_x, wg_y, wg_z],
-                sg_m_cnt,
-                sg_n_cnt,
-                mma_intrinsics,
-            )
-    solver.add(z3.simplify(z3.And(constraints)))
-    tuner_ctx.logger.debug(f"Initial constraints: {solver}")
-
-    i = 0
-    while solver.check() == z3.sat:
-        model = solver.model()
-        lookup = lambda var: model[var].as_long()
-        intrinsic_mnk_shape = (
-            lookup(intrinsic_mn),
-            lookup(intrinsic_mn),
-            lookup(intrinsic_k),
-        )
-        mma_attr = getMMAAttr(
-            problem_size.res_type.element_type,
-            *intrinsic_mnk_shape,
-            problem_size.lhs_type.element_type,
-            problem_size.rhs_type.element_type,
-        )
-
-        def set_cdim_tile_sizes(tile_sizes, contraction_dims, csizes):
-            for dim, size in zip(contraction_dims, csizes):
-                tile_sizes[dim] = size
-
-        # Get workgroup tile sizes.
-        workgroup_tile_sizes = [0] * (
-            len(M) + len(N) + len(K) + len(problem_size.contraction_dims.batch)
-        )
-        set_cdim_tile_sizes(
-            workgroup_tile_sizes,
-            problem_size.contraction_dims.m,
-            [lookup(v) for v in m_vars],
-        )
-        set_cdim_tile_sizes(
-            workgroup_tile_sizes,
-            problem_size.contraction_dims.n,
-            [lookup(v) for v in n_vars],
-        )
-        set_cdim_tile_sizes(
-            workgroup_tile_sizes,
-            problem_size.contraction_dims.batch,
-            [1] * len(problem_size.contraction_dims.batch),
-        )
-
-        # Get subgroup tile sizes.
-        subgroup_tile_sizes = [0] * (
-            len(M) + len(N) + len(K) + len(problem_size.contraction_dims.batch)
-        )
-        set_cdim_tile_sizes(
-            subgroup_tile_sizes,
-            problem_size.contraction_dims.m,
-            [lookup(v) for v in subgroup_m_vars],
-        )
-        set_cdim_tile_sizes(
-            subgroup_tile_sizes,
-            problem_size.contraction_dims.n,
-            [lookup(v) for v in subgroup_n_vars],
-        )
-        set_cdim_tile_sizes(
-            subgroup_tile_sizes,
-            problem_size.contraction_dims.batch,
-            [1] * len(problem_size.contraction_dims.batch),
-        )
-
-        # Get reduction tile sizes.
-        reduction_tile_sizes = [0] * (
-            len(M) + len(N) + len(K) + len(problem_size.contraction_dims.batch)
-        )
-        set_cdim_tile_sizes(
-            reduction_tile_sizes,
-            problem_size.contraction_dims.k,
-            [lookup(v) for v in k_vars],
-        )
-
-        required_padding = any(
-            p[-1] % i != 0
-            for p, i in zip(problem_size.MNK, intrinsic_mnk_shape, strict=True)
-        )
-        promote_operands = [0, 1]
-        padding = None
-        if required_padding:
-            # TODO: Remove promotion of operand 2 once codegen supports handling padded outputs without promotion.
-            promote_operands = [0, 1, 2]
-            _, _, mma_intrinsic_k = mma_attr.mnk_shape
-            padding = [
-                *(workgroup_tile_sizes[d] for d in problem_size.contraction_dims.m),
-                *(workgroup_tile_sizes[d] for d in problem_size.contraction_dims.n),
-                *(
-                    reduction_tile_sizes[d] * mma_intrinsic_k
-                    for d in problem_size.contraction_dims.k
-                ),
-            ]
-
-        compilation_infos = generate_compilation_infos(
-            tuner_ctx,
-            mma_attr,
-            workgroup_tile_sizes,
-            reduction_tile_sizes,
-            subgroup_tile_sizes,
-            (lookup(wg_x), lookup(wg_y), lookup(wg_z)),
-            lookup(subgroup_size),
-            lookup(sg_m_cnt),
-            lookup(sg_n_cnt),
-            promote_operands,
-            codegen_pipeline,
-            pipeline_options_search_space,
-            allowed_waves_per_eu,
-            padding=padding,
-        )
-
-        solver.add(z3.simplify(z3.Not(z3.And(list(x == model[x] for x in all_vars)))))
-        i += 1
-
-        for compilation_info in compilation_infos:
-            yield compilation_info
