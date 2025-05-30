@@ -1063,7 +1063,7 @@ class PagedAttention:
             v=v,  # [bs, ..., sl, dim]
             a=mask,  # [bs, ..., sl, sl]
             is_causal=mask is None,  # assumes causal masking when true
-            scale=None,  # defaults to 1/sqrt(dim)
+            scale=scale,  # defaults to 1/sqrt(dim)
         )
 
     def forward_decode(
