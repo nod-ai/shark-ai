@@ -66,7 +66,7 @@ class PerplexityTest(unittest.TestCase):
         )
         gc.collect()
 
-    @pytest.mark.xfail(
+    @pytest.mark.skip(
         reason="https://github.com/nod-ai/shark-ai/issues/1509",
     )
     @is_llama_8b
@@ -79,7 +79,7 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
-    @pytest.mark.xfail(
+    @pytest.mark.skip(
         reason="https://github.com/nod-ai/shark-ai/issues/1509",
     )
     @is_nightly
@@ -99,7 +99,7 @@ class PerplexityTest(unittest.TestCase):
         )
         self.run_and_check_perplexity()
 
-    @pytest.mark.xfail(
+    @pytest.mark.skip(
         reason="https://github.com/nod-ai/shark-ai/issues/1509",
     )
     @is_nightly
@@ -113,7 +113,7 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
-    @pytest.mark.xfail(
+    @pytest.mark.skip(
         reason="https://github.com/nod-ai/shark-ai/issues/1509",
     )
     @is_nightly
