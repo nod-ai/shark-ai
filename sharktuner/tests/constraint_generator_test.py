@@ -28,79 +28,199 @@ from sharktuner import dispatch_constraints
 from sharktuner.test_utils import tuner_ctx
 
 
-def test_matmul_contraint_generator_dims(tuner_ctx: common.TunerContext) -> None:
+def build_func_with_matmul(
+    module: ir.Module,
+    m: int,
+    n: int,
+    k: int,
+    lhs_type: ir.Type,
+    rhs_type: ir.Type,
+    res_type: ir.Type,
+) -> None:
+    a_type = ir.RankedTensorType.get((m, k), lhs_type)
+    b_type = ir.RankedTensorType.get((k, n), rhs_type)
+    c_type = ir.RankedTensorType.get((m, n), res_type)
+
+    dim_m = ir.AffineDimExpr.get(0)
+    dim_n = ir.AffineDimExpr.get(1)
+    dim_k = ir.AffineDimExpr.get(2)
+    a_map = ir.AffineMap.get(3, 0, [dim_m, dim_k])
+    b_map = ir.AffineMap.get(3, 0, [dim_k, dim_n])
+    c_map = ir.AffineMap.get(3, 0, [dim_m, dim_n])
+
+    with ir.InsertionPoint(module.body):
+
+        @func.FuncOp.from_py_func(a_type, b_type, c_type)
+        def named_matmul(a: ir.Value, b: ir.Value, c: ir.Value) -> None:
+            matmul_op = linalg.MatmulOp(
+                result_tensors=[c_type],
+                inputs=[a, b],
+                outputs=[c],
+                indexing_maps=[a_map, b_map, c_map],
+            )
+            matmul_op.operation.attributes["root_op"] = ir.UnitAttr.get()
+
+
+def build_func_with_conv2d_nhwc_hwcf(
+    module: ir.Module,
+    input_shape: tuple[int, int, int, int],
+    kernel_shape: tuple[int, int, int, int],
+    output_shape: tuple[int, int, int, int],
+    input_type: ir.Type,
+    kernel_type: ir.Type,
+    output_type: ir.Type,
+) -> None:
+    input_tensor_type = ir.RankedTensorType.get(input_shape, input_type)
+    kernel_tensor_type = ir.RankedTensorType.get(kernel_shape, kernel_type)
+    output_tensor_type = ir.RankedTensorType.get(output_shape, output_type)
+
+    with ir.InsertionPoint(module.body):
+
+        @func.FuncOp.from_py_func(
+            input_tensor_type, kernel_tensor_type, output_tensor_type
+        )
+        def conv2d_func(arg0, arg1, arg2):
+            conv_op = linalg.Conv2DNhwcHwcfOp(
+                inputs=[arg0, arg1],
+                outputs=[arg2],
+                result_tensors=[output_tensor_type],
+            )
+            conv_op.operation.attributes["root_op"] = ir.UnitAttr.get()
+
+
+def test_generate_solutions(tuner_ctx: common.TunerContext) -> None:
     context = tuner_ctx.mlir_ctx
+    f16 = tuner_ctx.type.f16
+    f32 = tuner_ctx.type.f32
+
+    m, n, k = 2048, 3840, 1280
     with ir.Location.unknown(context):
         module = ir.Module.create()
-        f16 = ir.F16Type.get()
-        f32 = ir.F32Type.get()
+        build_func_with_matmul(module, m, n, k, f16, f16, f32)
 
-        with ir.InsertionPoint(module.body):
-            a_type = ir.RankedTensorType.get((16, 64), f16)
-            b_type = ir.RankedTensorType.get((64, 32), f16)
-            c_type = ir.RankedTensorType.get((16, 32), f32)
+        root_ops = iree_codegen.get_tuner_root_ops(module)
+        assert len(root_ops) == 1
+        root_op = root_ops[0]
 
-            dim_m = ir.AffineDimExpr.get(0)
-            dim_n = ir.AffineDimExpr.get(1)
-            dim_k = ir.AffineDimExpr.get(2)
-            a_map = ir.AffineMap.get(3, 0, [dim_m, dim_k])
-            b_map = ir.AffineMap.get(3, 0, [dim_k, dim_n])
-            c_map = ir.AffineMap.get(3, 0, [dim_m, dim_n])
-
-            @func.FuncOp.from_py_func(a_type, b_type, c_type)
-            def named_matmul(a, b, c):
-                matmul_op = linalg.MatmulOp(
-                    result_tensors=[c_type],
-                    inputs=[a, b],
-                    outputs=[c],
-                    indexing_maps=[a_map, b_map, c_map],
-                )
-                matmul_op.operation.attributes["root_op"] = ir.UnitAttr.get()
-
-        root_op_list = iree_codegen.get_tuner_root_ops(module)
-        assert len(root_op_list) == 1, "Expected one root op"
-        root_op = root_op_list[0]
-        print(root_op)
         gen = constraint_generator.ContractionOpInterfaceConstraintGenerator(root_op)
+
         assert gen.dims.batch == []
         assert gen.dims.m == [0]
         assert gen.dims.n == [1]
         assert gen.dims.k == [2]
 
         assert gen.matmul_size.B == []
-        assert gen.matmul_size.M == [16]
-        assert gen.matmul_size.N == [32]
-        assert gen.matmul_size.K == [64]
+        assert gen.matmul_size.M == [2048]
+        assert gen.matmul_size.N == [3840]
+        assert gen.matmul_size.K == [1280]
 
-        assert gen.lhs_type.shape == [16, 64]
-        assert gen.rhs_type.shape == [64, 32]
-        assert gen.res_type.shape == [16, 32]
+        assert gen.lhs_type.shape == [2048, 1280]
+        assert gen.rhs_type.shape == [1280, 3840]
+        assert gen.res_type.shape == [2048, 3840]
+
+        configs = gen.generate_solutions(
+            tuner_context=tuner_ctx,
+            codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
+            num_subgroups=4,
+            mma_list=[
+                iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
+                iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
+                iree_gpu.MMAIntrinsic.MFMA_I32_16x16x32_I8,
+                iree_gpu.MMAIntrinsic.MFMA_I32_32x32x16_I8,
+            ],
+            pipeline_options_search_space=dispatch_constraints.PipelineOptionsSearchSpace(),
+        )
+
+        assert list(configs), "Expected at least one valid solution"
 
 
-def test_conv2d_constraint_generator_dims(tuner_ctx: common.TunerContext) -> None:
+def test_generate_solutions_tile_and_fuse_contraction_padding(
+    tuner_ctx: common.TunerContext,
+) -> None:
     context = tuner_ctx.mlir_ctx
+    f16 = tuner_ctx.type.f16
+    f32 = tuner_ctx.type.f32
+
+    m, n, k = 5369, 112, 112
+
     with ir.Location.unknown(context):
         module = ir.Module.create()
-        i8 = ir.IntegerType.get_signless(8)
-        i32 = ir.IntegerType.get_signless(32)
+        build_func_with_matmul(module, m, n, k, f16, f16, f32)
 
-        with ir.InsertionPoint(module.body):
-            input_type = ir.RankedTensorType.get([2, 34, 34, 16], i8)
-            kernel_type = ir.RankedTensorType.get([3, 3, 16, 16], i8)
-            output_type = ir.RankedTensorType.get([2, 32, 32, 16], i32)
+        root_ops = iree_codegen.get_tuner_root_ops(module)
+        assert len(root_ops) == 1
+        root_op = root_ops[0]
 
-            @func.FuncOp.from_py_func(input_type, kernel_type, output_type)
-            def conv2d_fn(arg0, arg1, arg2):
-                conv_op = linalg.Conv2DNhwcHwcfOp(
-                    inputs=[arg0, arg1],
-                    outputs=[arg2],
-                    result_tensors=[output_type],
-                )
-                conv_op.operation.attributes["root_op"] = ir.UnitAttr.get()
+        gen = constraint_generator.ContractionOpInterfaceConstraintGenerator(root_op)
 
-        root_op_list = iree_codegen.get_tuner_root_ops(module)
-        assert len(root_op_list) == 1
-        root_op = root_op_list[0]
+        assert gen.dims.batch == []
+        assert gen.dims.m == [0]
+        assert gen.dims.n == [1]
+        assert gen.dims.k == [2]
+
+        assert gen.matmul_size.M == [5369]
+        assert gen.matmul_size.N == [112]
+        assert gen.matmul_size.K == [112]
+
+        assert gen.lhs_type.shape == [5369, 112]
+        assert gen.rhs_type.shape == [112, 112]
+        assert gen.res_type.shape == [5369, 112]
+
+        solutions = list(
+            gen.generate_solutions(
+                tuner_context=tuner_ctx,
+                codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
+                num_subgroups=4,
+                mma_list=[
+                    iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
+                ],
+                allowed_waves_per_eu=[2],
+                pipeline_options_search_space=dispatch_constraints.PipelineOptionsSearchSpace(),
+            )
+        )
+
+        assert len(solutions) > 0, "No solutions generated with TileAndFuse pipeline."
+        assert all(
+            isinstance(sol, iree_codegen.CompilationInfoAttr) for sol in solutions
+        )
+
+        assert all(
+            "padding =" in str(sol.lowering_config) for sol in solutions
+        ), "Not all lowering configs have padding option."
+
+        assert all(
+            [int(x) for x in sol.lowering_config.attributes["promote_operands"]]
+            == [0, 1, 2]
+            for sol in solutions
+        ), "Not all lowering configs have promote_operands = [0, 1, 2]."
+
+
+def test_generate_solutions_tile_and_fuse_conv_padding(
+    tuner_ctx: common.TunerContext,
+) -> None:
+    context = tuner_ctx.mlir_ctx
+    f16 = tuner_ctx.type.f16
+    f32 = tuner_ctx.type.f32
+
+    input_shape = (2, 7, 7, 32)
+    kernel_shape = (3, 3, 32, 64)
+    output_shape = (2, 5, 5, 64)
+
+    with ir.Location.unknown(context):
+        module = ir.Module.create()
+        build_func_with_conv2d_nhwc_hwcf(
+            module=module,
+            input_shape=input_shape,
+            kernel_shape=kernel_shape,
+            output_shape=output_shape,
+            input_type=f16,
+            kernel_type=f16,
+            output_type=f32,
+        )
+
+        root_ops = iree_codegen.get_tuner_root_ops(module)
+        assert len(root_ops) == 1
+        root_op = root_ops[0]
 
         gen = constraint_generator.ConvolutionOpInterfaceConstraintGenerator(root_op)
 
@@ -110,133 +230,35 @@ def test_conv2d_constraint_generator_dims(tuner_ctx: common.TunerContext) -> Non
         assert gen.dims.k == [4, 5, 6]
 
         assert gen.matmul_size.B == []
-        assert gen.matmul_size.M == [2, 32, 32]
-        assert gen.matmul_size.N == [16]
-        assert gen.matmul_size.K == [3, 3, 16]
+        assert gen.matmul_size.M == [2, 5, 5]
+        assert gen.matmul_size.N == [64]
+        assert gen.matmul_size.K == [3, 3, 32]
 
-        assert gen.lhs_type.shape == [2, 34, 34, 16]
-        assert gen.rhs_type.shape == [3, 3, 16, 16]
-        assert gen.res_type.shape == [2, 32, 32, 16]
+        assert gen.lhs_type.shape == [2, 7, 7, 32]
+        assert gen.rhs_type.shape == [3, 3, 32, 64]
+        assert gen.res_type.shape == [2, 5, 5, 64]
 
-
-def test_generate_solutions(tuner_ctx: common.TunerContext) -> None:
-    matmul_size = common.ContractionSizes([2048], [3840], [1280])
-    contraction_dims = common.ContractionDimensions([0], [1], [2])
-
-    lhs_type = common.ShapedType([2048, 1280], tuner_ctx.type.f16)
-    rhs_type = common.ShapedType([3840, 1280], tuner_ctx.type.f16)
-    res_type = common.ShapedType([2048, 3840], tuner_ctx.type.f32)
-
-    configs = constraint_generator.generate_generic_contraction_solutions(
-        tuner_ctx=tuner_ctx,
-        contraction_dims=contraction_dims,
-        matmul_size=matmul_size,
-        lhs_type=lhs_type,
-        rhs_type=rhs_type,
-        res_type=res_type,
-        dispatch_kind=common.DispatchKind.contraction,
-        num_subgroups=4,
-        mma_intrinsics=[
-            iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
-            iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
-            iree_gpu.MMAIntrinsic.MFMA_I32_16x16x32_I8,
-            iree_gpu.MMAIntrinsic.MFMA_I32_32x32x16_I8,
-        ],
-        pipeline_options_search_space=dispatch_constraints.PipelineOptionsSearchSpace(),
-        codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
-    )
-    assert list(configs), "Expected at least one valid solution"
-
-
-def test_generate_solutions_tile_and_fuse_contraction_padding(
-    tuner_ctx: common.TunerContext,
-) -> None:
-    matmul_size = common.ContractionSizes([5369], [112], [112])
-    contraction_dims = common.ContractionDimensions([0], [1], [2])
-
-    lhs_type = common.ShapedType([5369, 112], tuner_ctx.type.f16)
-    rhs_type = common.ShapedType([112, 112], tuner_ctx.type.f16)
-    res_type = common.ShapedType([5369, 112], tuner_ctx.type.f32)
-
-    mma_intrinsics = [
-        iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
-    ]
-
-    solutions = list(
-        constraint_generator.generate_generic_contraction_solutions(
-            tuner_ctx=tuner_ctx,
-            contraction_dims=contraction_dims,
-            matmul_size=matmul_size,
-            lhs_type=lhs_type,
-            rhs_type=rhs_type,
-            res_type=res_type,
-            dispatch_kind=common.DispatchKind.contraction,
-            num_subgroups=4,
-            mma_intrinsics=mma_intrinsics,
-            allowed_waves_per_eu=[2],
-            pipeline_options_search_space=dispatch_constraints.PipelineOptionsSearchSpace(),
-            codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
+        solutions = list(
+            gen.generate_solutions(
+                tuner_context=tuner_ctx,
+                codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
+                num_subgroups=4,
+                mma_list=[iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16],
+            )
         )
-    )
 
-    assert len(solutions) > 0, "No solutions generated with TileAndFuse pipeline."
-    assert all(isinstance(sol, iree_codegen.CompilationInfoAttr) for sol in solutions)
-
-    assert all(
-        "padding =" in str(sol.lowering_config) for sol in solutions
-    ), "Not all lowering configs have padding option."
-
-    assert all(
-        [int(x) for x in sol.lowering_config.attributes["promote_operands"]]
-        == [0, 1, 2]
-        for sol in solutions
-    ), "Not all lowering configs have promote_operands = [0, 1, 2]."
-
-
-def test_generate_solutions_tile_and_fuse_conv_padding(
-    tuner_ctx: common.TunerContext,
-) -> None:
-    contraction_dims = common.ContractionDimensions(
-        batch=[],
-        m=[0, 1, 2],
-        n=[3],
-        k=[4, 5, 6],
-    )
-    matmul_size = common.ContractionSizes(
-        B=[],
-        M=[2, 5, 5],
-        N=[64],
-        K=[3, 3, 32],
-    )
-    lhs_type = common.ShapedType([2, 7, 7, 32], tuner_ctx.type.f16)
-    rhs_type = common.ShapedType([64, 3, 3, 32], tuner_ctx.type.f16)
-    res_type = common.ShapedType([2, 5, 5, 64], tuner_ctx.type.f32)
-
-    solutions = list(
-        constraint_generator.generate_generic_contraction_solutions(
-            tuner_ctx=tuner_ctx,
-            contraction_dims=contraction_dims,
-            matmul_size=matmul_size,
-            lhs_type=lhs_type,
-            rhs_type=rhs_type,
-            res_type=res_type,
-            dispatch_kind=common.DispatchKind.conv,
-            num_subgroups=4,
-            mma_intrinsics=[iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16],
-            codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
+        assert len(solutions) > 0, "No solutions generated with TileAndFuse pipeline."
+        assert all(
+            isinstance(sol, iree_codegen.CompilationInfoAttr) for sol in solutions
         )
-    )
-
-    assert len(solutions) > 0, "No solutions generated with TileAndFuse pipeline."
-    assert all(isinstance(sol, iree_codegen.CompilationInfoAttr) for sol in solutions)
-    assert all(
-        "padding =" in str(sol.lowering_config) for sol in solutions
-    ), "Not all lowering configs have padding option"
-    assert all(
-        [int(x) for x in sol.lowering_config.attributes["promote_operands"]]
-        == [0, 1, 2]
-        for sol in solutions
-    ), "Not all lowering configs have promote_operands = [0, 1, 2]"
+        assert all(
+            "padding =" in str(sol.lowering_config) for sol in solutions
+        ), "Not all lowering configs have padding option"
+        assert all(
+            [int(x) for x in sol.lowering_config.attributes["promote_operands"]]
+            == [0, 1, 2]
+            for sol in solutions
+        ), "Not all lowering configs have promote_operands = [0, 1, 2]"
 
 
 def test_adjust_problem_size_for_pipeline(
