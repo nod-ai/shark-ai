@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from sharktank.kernels.base import *
+from sharktank.kernels.mlir_kernel import *
 from iree.turbine.kernel.wave.templates.vanilla_attention import (
     get_bhsd_attention_kernel,
 )
@@ -18,12 +19,92 @@ from iree.turbine.kernel.wave.utils.general_utils import (
 from iree.turbine.kernel.wave.utils.run_utils import (
     set_default_run_config,
 )
-from sharktank.kernels.mlir_kernel import *
+from iree.compiler.ir import (
+    ArrayAttr,
+    Attribute as Attribute,
+    Block,
+    Context,
+    DenseElementsAttr,
+    DenseResourceElementsAttr,
+    DictAttr,
+    FloatAttr,
+    BF16Type,
+    ComplexType,
+    F16Type,
+    F32Type,
+    F64Type,
+    Float8E4M3FNType,
+    Float8E5M2FNUZType,
+    Float8E5M2Type,
+    FlatSymbolRefAttr,
+    FunctionType,
+    InsertionPoint,
+    TypeAttr,
+    IntegerAttr,
+    IntegerType,
+    MLIRError,
+    RankedTensorType,
+    Location,
+    Module,
+    Operation,
+    StringAttr,
+    SymbolTable,
+    Type as IrType,
+    Value,
+)
+from iree.compiler.dialects import builtin, func, util
+from iree.turbine.transforms.merger import Merger
 
 __all__ = [
+    "build_util_func",
     "get_wave_flash_attention_asm"
     "wave_bhsd_flash_attention",
 ]
+
+
+def build_util_func(kernel_name: str, wave_kernel_name: str, *operands: Value):
+    with Context() as ctx, Location.unknown():
+        module = Module.create()
+
+        operand_types = [op.type for op in operands if op is not None]
+        result_type = operand_types[-1]
+        func_type = FunctionType.get(
+            inputs=operand_types,
+            results=[result_type]
+        )
+
+        with InsertionPoint(module.body):
+            # Manually build util.func using Operation.create
+            sym_name = StringAttr.get(kernel_name)
+            type_attr = TypeAttr.get(func_type)
+            visibility_attr = StringAttr.get("private")
+
+            # Create the util.func operation
+            util_func_op = Operation.create(
+                "func.func",
+                results=[],
+                operands=[],
+                attributes={
+                    "sym_name": sym_name,
+                    "function_type": type_attr,
+                    "sym_visibility": visibility_attr
+                },
+                regions=1
+            )
+
+            # Insert and populate the body block
+            module.body.append(util_func_op)
+            block = util_func_op.regions[0].blocks.append(*func_type.inputs)
+
+            with InsertionPoint(block):
+                call_op = func.CallOp(
+                    func_type.results,
+                    FlatSymbolRefAttr.get(wave_kernel_name),
+                    block.arguments
+                )
+                func.ReturnOp([call_op.result])
+        return module
+
 
 def get_wave_flash_attention_asm(target_function_name: str, shape: AttentionShape, mfma_variant: list[MMAType], dynamic_dims: bool, is_causal: bool = False, is_custom_mask: bool = False,) -> str:
     (
@@ -123,10 +204,10 @@ def wave_bhsd_flash_attention(
     i_type_str = "f16"
     o_type_str = "f32"
 
-    target_function_name = f"wave_flash_attention_{batch_size}_{num_heads}_{q_s}_{v_d}_{i_type_str}_{o_type_str}"
+    wave_kernel_name = f"wave_flash_attention_{batch_size}_{num_heads}_{q_s}_{v_d}_{i_type_str}_{o_type_str}"
 
     asm = get_wave_flash_attention_asm(
-        target_function_name,
+        wave_kernel_name,
         shape,
         mfma_variant,
         dynamic_dims,
@@ -134,4 +215,14 @@ def wave_bhsd_flash_attention(
         is_custom_mask=is_custom_mask,
     )
 
-    return MLIRSpec(asm, target_kernel_name=target_function_name, use_jinja=False)
+    asm_op = Operation.parse(asm)
+    op = build_util_func("{{kernel_name}}", wave_kernel_name, q, k, v, c)
+    merger = Merger(
+        op.operation, asm_op.operation
+    )
+    merger.merge()
+    mlir = asm_op.operation.get_asm()
+    with open('test.mlir', 'w') as f:
+        f.write(mlir)
+
+    return MLIRSpec(mlir)
