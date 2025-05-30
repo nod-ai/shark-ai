@@ -134,7 +134,7 @@ class PerplexityTest(unittest.TestCase):
         self.irpa_file = self.deepseek_v3_model
         self.tokenizer = self.deepseek_v3_tokenizer
 
-        self.prepare_argv(extra_args=(f"--use-toy-model"))
+        self.prepare_argv(extra_args=("--use-toy-model",))
         self.run_and_check_perplexity()
 
     @is_nightly
@@ -145,7 +145,7 @@ class PerplexityTest(unittest.TestCase):
         self.tokenizer = self.deepseek_v3_tokenizer
         self.tensor_parallelism_size = 2
 
-        self.prepare_argv(extra_args=(f"--use-toy-model"))
+        self.prepare_argv(extra_args=("--use-toy-model",))
         self.run_and_check_perplexity()
 
     @is_nightly
@@ -156,7 +156,7 @@ class PerplexityTest(unittest.TestCase):
         self.tokenizer = self.deepseek_v3_tokenizer
         self.pipeline_parallelism_size = 2
 
-        self.prepare_argv(extra_args=(f"--use-toy-model"))
+        self.prepare_argv(extra_args=("--use-toy-model",))
         self.run_and_check_perplexity()
 
 
