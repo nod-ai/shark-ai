@@ -26,6 +26,7 @@ from .token_selection_strategy import is_multi_response
 
 from ...utils import GenerateService
 from .fiber_pool import FiberPool
+from .host_cache import PrefillHostCacheType, DecodeHostCacheType
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,8 @@ class LlmGenerateService(GenerateService):
         model_params: ModelParams,
         server_params: "ServerParams",
         program_isolation: str = "per_call",
+        prefill_host_cache: PrefillHostCacheType,
+        decode_host_cache: DecodeHostCacheType,
         max_queue_size: int = 3,  # Maximum number of requests in queue
     ):
         super().__init__(sysman)
@@ -59,6 +62,8 @@ class LlmGenerateService(GenerateService):
             self.sysman, self.max_queue_size, resizable=True
         )
 
+        self.prefill_host_cache = prefill_host_cache
+        self.decode_host_cache = decode_host_cache
         self.set_isolation(program_isolation)
         self._initialize_worker_and_fiber()
         self._initialize_queues()
@@ -152,6 +157,7 @@ class LlmGenerateService(GenerateService):
             self.model_params,
             self.prefill_functions,
             self.prog_isolation,
+            self.prefill_host_cache,
         )
 
         self.decode_batcher = DecodeBatcherProcess(
@@ -160,6 +166,7 @@ class LlmGenerateService(GenerateService):
             self.model_params,
             self.decode_functions,
             self.prog_isolation,
+            self.decode_host_cache,
         )
 
         self.prefill_batcher.launch()

@@ -14,6 +14,8 @@ from typing import List
 import shortfin as sf
 import shortfin.array as sfnp
 
+from .host_cache import PrefillHostCacheType, DecodeHostCacheType
+
 from shortfin import Fiber
 
 from .scheduler import Scheduler
@@ -161,6 +163,7 @@ class PrefillBatcherProcess(LlmBatcherProcess):
         model_params: ModelParams,
         prefill_functions: dict[int, sf.ProgramFunction],
         program_isolation: str,
+        host_cache: PrefillHostCacheType
     ):
         super().__init__(
             name="prefill",
@@ -171,6 +174,7 @@ class PrefillBatcherProcess(LlmBatcherProcess):
             ideal_batch_size=max(model_params.prefill_batch_sizes),
             program_isolation=program_isolation,
         )
+        self.host_cache = host_cache
 
     def make_process(self, cache: BasePagedAttentionCache, fiber: Fiber):
         return PrefillExecutorProcess(
@@ -179,6 +183,7 @@ class PrefillBatcherProcess(LlmBatcherProcess):
             self.page_seq_stride,
             cache.page_pool.page_tables,
             self.program_isolation,
+            self.host_cache,
         )
 
     def board_request(self, cache, request: LlmInferenceExecRequest):
@@ -216,6 +221,7 @@ class DecodeBatcherProcess(LlmBatcherProcess):
         model_params: ModelParams,
         decode_functions: dict[int, sf.ProgramFunction],
         program_isolation: str,
+        host_cache: DecodeHostCacheType
     ):
         super().__init__(
             name="decode",
@@ -226,6 +232,7 @@ class DecodeBatcherProcess(LlmBatcherProcess):
             ideal_batch_size=max(model_params.decode_batch_sizes),
             program_isolation=program_isolation,
         )
+        self.host_cache = host_cache
 
     def make_process(self, cache: BasePagedAttentionCache, fiber: Fiber):
         return DecodeExecutorProcess(
@@ -234,6 +241,7 @@ class DecodeBatcherProcess(LlmBatcherProcess):
             self.page_seq_stride,
             cache.page_pool.page_tables,
             self.program_isolation,
+            self.host_cache,
         )
 
     def board_request(self, cache, request: LlmInferenceExecRequest):
@@ -360,13 +368,6 @@ class LlmExecutorProcess(sf.Process):
 class PrefillExecutorProcess(LlmExecutorProcess):
     """Executes a prefill batch."""
 
-    tokens_host_cache: dict[tuple[int, int], sfnp.device_array] = {}
-    seq_lens_host_cache: dict[int, sfnp.device_array] = {}
-    seq_block_ids_host_cache: dict[tuple[int, int], sfnp.device_array] = {}
-    _host_logits: sfnp.device_array
-    host_logits_cache: dict[tuple[int, int], sfnp.device_array] = {}
-    host_indices_cache: dict[tuple[int, int], sfnp.device_array] = {}
-
     def __init__(
         self,
         fiber: Fiber,
@@ -374,6 +375,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         seq_stride: int,
         page_tables,
         program_isolation: sf.ProgramIsolation,
+        host_cache: PrefillHostCacheType,
     ):
         super().__init__(
             name="prefill_process",
@@ -383,6 +385,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
             page_tables=page_tables,
             program_isolation=program_isolation,
         )
+        self.host_cache = host_cache
 
     async def get_args(self, device0):
         seq_stride = self.seq_stride
@@ -410,9 +413,10 @@ class PrefillExecutorProcess(LlmExecutorProcess):
 
         # Populate tokens
         tokens_key = (self.bs, self.bsl)
-        if tokens_key not in self.tokens_host_cache:
-            self.tokens_host_cache[tokens_key] = tokens.for_transfer()
-        tokens_host = self.tokens_host_cache[tokens_key]
+        tokens_host_cache = self.host_cache[0]
+        if tokens_key not in tokens_host_cache:
+            tokens_host_cache[tokens_key] = tokens.for_transfer()
+        tokens_host = tokens_host_cache[tokens_key]
 
         for i in range(self.bs):
             with tokens_host.view(i).map(discard=True) as m:
@@ -422,9 +426,10 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         tokens_host.copy_to(tokens)
 
         # Populate seq_lens
-        if self.bs not in self.seq_lens_host_cache:
-            self.seq_lens_host_cache[self.bs] = seq_lens.for_transfer()
-        seq_lens_host = self.seq_lens_host_cache[self.bs]
+        seq_lens_host_cache = self.host_cache[1]
+        if self.bs not in seq_lens_host_cache:
+            seq_lens_host_cache[self.bs] = seq_lens.for_transfer()
+        seq_lens_host = seq_lens_host_cache[self.bs]
 
         with seq_lens_host.map(discard=True) as m:
             m.fill(1)
@@ -433,11 +438,10 @@ class PrefillExecutorProcess(LlmExecutorProcess):
 
         # Populate cache pages.
         seq_block_ids_key = (self.bs, block_count)
-        if seq_block_ids_key not in self.seq_block_ids_host_cache:
-            self.seq_block_ids_host_cache[
-                seq_block_ids_key
-            ] = seq_block_ids.for_transfer()
-        seq_block_ids_host = self.seq_block_ids_host_cache[seq_block_ids_key]
+        seq_block_ids_host_cache = self.host_cache[2]
+        if seq_block_ids_key not in seq_block_ids_host_cache:
+            seq_block_ids_host_cache[seq_block_ids_key] = seq_block_ids.for_transfer()
+        seq_block_ids_host = seq_block_ids_host_cache[seq_block_ids_key]
         for i in range(self.bs):
             with seq_block_ids_host.view(i).map(discard=True) as m:
                 m.fill(0)
@@ -487,21 +491,23 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         logits, indices = buffers
 
         host_logits_key = (self.bs, self.bsl)
-        if host_logits_key not in self.host_logits_cache:
+        host_logits_cache = self.host_cache[3]
+        if host_logits_key not in host_logits_cache:
             logger.debug(
-                f"Creating new host logits buffer. Host key: {host_logits_key}"
+                f"Creating new host logits buffer during prefill. Host key: {host_logits_key}"
             )
-            self.host_logits_cache[host_logits_key] = logits.for_transfer()
-        logits_host = self.host_logits_cache[host_logits_key]
+            host_logits_cache[host_logits_key] = logits.for_transfer()
+        logits_host = host_logits_cache[host_logits_key]
 
         indices_host = None
         if indices is not None:
-            if host_logits_key not in self.host_indices_cache:
+            host_indices_cache = self.host_cache[4]
+            if host_logits_key not in host_indices_cache:
                 logger.debug(
-                    f"Creating new host indices buffer. Host key: {host_logits_key}"
+                    f"Creating new host indices buffer during prefill. Host key: {host_logits_key}"
                 )
-                self.host_indices_cache[host_logits_key] = indices.for_transfer()
-            indices_host = self.host_indices_cache[host_logits_key]
+                host_indices_cache[host_logits_key] = indices.for_transfer()
+            indices_host = host_indices_cache[host_logits_key]
 
         # Copy data from device to host
         logits_host.copy_from(logits)
@@ -516,13 +522,6 @@ class PrefillExecutorProcess(LlmExecutorProcess):
 class DecodeExecutorProcess(LlmExecutorProcess):
     """Executes a decode batch."""
 
-    tokens_host_cache: dict[int, sfnp.device_array] = {}
-    seq_lens_host_cache: dict[int, sfnp.device_array] = {}
-    start_positions_host_cache: dict[int, sfnp.device_array] = {}
-    seq_block_ids_host_cache: dict[tuple[int, int], sfnp.device_array] = {}
-    host_logits_cache: dict[tuple[int, int], sfnp.device_array] = {}
-    host_indices_cache: dict[tuple[int, int], sfnp.device_array] = {}
-
     def __init__(
         self,
         fiber: Fiber,
@@ -530,6 +529,7 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         seq_stride: int,
         page_tables,
         isolation: sf.ProgramIsolation,
+        host_cache: DecodeHostCacheType,
     ):
         super().__init__(
             name="decode_process",
@@ -539,6 +539,7 @@ class DecodeExecutorProcess(LlmExecutorProcess):
             page_tables=page_tables,
             program_isolation=isolation,
         )
+        self.host_cache = host_cache
 
     async def get_args(self, device0):
         # Compute block sequence length as maximum sequence length, rounded
@@ -562,24 +563,26 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         )
 
         # Setup host buffers for transfer:
-        if self.bs not in self.tokens_host_cache:
-            self.tokens_host_cache[self.bs] = tokens.for_transfer()
-        tokens_host = self.tokens_host_cache[self.bs]
+        tokens_host_cache = self.host_cache[0]
+        if self.bs not in tokens_host_cache:
+            tokens_host_cache[self.bs] = tokens.for_transfer()
+        tokens_host = tokens_host_cache[self.bs]
 
-        if self.bs not in self.seq_lens_host_cache:
-            self.seq_lens_host_cache[self.bs] = seq_lens.for_transfer()
-        seq_lens_host = self.seq_lens_host_cache[self.bs]
+        seq_lens_host_cache = self.host_cache[1]
+        if self.bs not in seq_lens_host_cache:
+            seq_lens_host_cache[self.bs] = seq_lens.for_transfer()
+        seq_lens_host = seq_lens_host_cache[self.bs]
 
-        if self.bs not in self.start_positions_host_cache:
-            self.start_positions_host_cache[self.bs] = start_positions.for_transfer()
-        start_positions_host = self.start_positions_host_cache[self.bs]
+        start_positions_host_cache = self.host_cache[2]
+        if self.bs not in start_positions_host_cache:
+            start_positions_host_cache[self.bs] = start_positions.for_transfer()
+        start_positions_host = start_positions_host_cache[self.bs]
 
         seq_block_ids_key = (self.bs, block_count)
-        if seq_block_ids_key not in self.seq_block_ids_host_cache:
-            self.seq_block_ids_host_cache[
-                seq_block_ids_key
-            ] = seq_block_ids.for_transfer()
-        seq_block_ids_host = self.seq_block_ids_host_cache[seq_block_ids_key]
+        seq_block_ids_host_cache = self.host_cache[3]
+        if seq_block_ids_key not in seq_block_ids_host_cache:
+            seq_block_ids_host_cache[seq_block_ids_key] = seq_block_ids.for_transfer()
+        seq_block_ids_host = seq_block_ids_host_cache[seq_block_ids_key]
 
         # Populate tokens.
         with tokens_host.map(discard=True) as m:
@@ -664,21 +667,23 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         logits, indices = buffers
 
         host_logits_key = (self.bs, self.bsl)
-        if host_logits_key not in self.host_logits_cache:
+        host_logits_cache = self.host_cache[4]
+        if host_logits_key not in host_logits_cache:
             logger.debug(
                 f"Creating new host logits buffer. Host key: {host_logits_key}"
             )
-            self.host_logits_cache[host_logits_key] = logits.for_transfer()
-        logits_host = self.host_logits_cache[host_logits_key]
+            host_logits_cache[host_logits_key] = logits.for_transfer()
+        logits_host = host_logits_cache[host_logits_key]
 
         indices_host = None
         if indices is not None:
-            if host_logits_key not in self.host_indices_cache:
+            host_indices_cache = self.host_cache[5]
+            if host_logits_key not in host_indices_cache:
                 logger.debug(
-                    f"Creating new host indices buffer. Host key: {host_logits_key}"
+                    f"Creating new host indices buffer during decode. Host key: {host_logits_key}"
                 )
-                self.host_indices_cache[host_logits_key] = indices.for_transfer()
-            indices_host = self.host_indices_cache[host_logits_key]
+                host_indices_cache[host_logits_key] = indices.for_transfer()
+            indices_host = host_indices_cache[host_logits_key]
 
         # Copy data from device to host
         logits_host.copy_from(logits)
