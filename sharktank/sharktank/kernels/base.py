@@ -105,13 +105,8 @@ def call_function(target_function: Operation, *operands: Value) -> Sequence[Valu
     target_symbol = FlatSymbolRefAttr.get(target_function.attributes["sym_name"].value)
     ftype = FunctionType(TypeAttr(target_function.attributes["function_type"]).value)
     operands = [i for i in operands if i is not None]
-    op_name = (
-        "func.call" if target_function.operation.name == "func.func" else "util.call"
-    )
-    target_function.attributes["sym_visibility"] = StringAttr.get("private")
-
     return Operation.create(
-        op_name,
+        "util.call",
         results=ftype.results,
         operands=operands,
         attributes={
