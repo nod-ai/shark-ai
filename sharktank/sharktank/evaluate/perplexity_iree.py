@@ -357,7 +357,7 @@ class PerplexityIree:
             for i in tqdm(
                 range(self.start, self.max_prompt_length - 1),
                 mininterval=300,
-                desc=f"eval: Calculating logits for {weight_path.name}",
+                desc=f"eval_iree: Calculating logits for {weight_path.name}",
             ):
                 logger.debug(f"Iteration: {i - self.start}")
 
