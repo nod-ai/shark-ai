@@ -49,7 +49,7 @@ class LlamaHParams:
     attention_layer_norm_rms_epsilon: float
     attention_head_count_kv: Optional[int] = None
     # The size of the model's vocabulary.
-    vocab_size: Optional[int] = None
+    #vocab_size: Optional[int] = None
 
     vocab_size: int | None = None
     """TODO: make this non-optional once we don't use artifacts without this value."""

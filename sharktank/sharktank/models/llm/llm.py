@@ -195,7 +195,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
                     count=len(self.cache.pipeline_to_device_map[pipeline]),
                     devices=self.cache.pipeline_to_device_map[pipeline],
                 )
-                for pipeline in range(self.cache.pipeline_count)
+                for pipeline in range(len(self.cache.pipeline_to_device_map))
             ]
 
         # Iterate over attention blocks.
