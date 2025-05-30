@@ -22,7 +22,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test_perplexity_iree:
+  test_perplexity:
     name: "Perplexity tests"
     strategy:
       matrix:
@@ -70,28 +70,15 @@ jobs:
             -n 8 \
             -v \
             -s \
-            sharktank/tests/evaluate/perplexity_torch_test.py \
+            sharktank/tests/evaluate/ \
             --run-quick-test \
             --bs=4 \
             --device='cuda:0' \
-            --llama3-8b-f16-model-path=/shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa \
-            --llama3-8b-tokenizer-path=/shark-dev/data/llama3.1/weights/8b/fp16/tokenizer_config.json \
-            --deepseek-v3-model-path=perplexity_ci_artifacts/toy_deepseek.irpa \
-            --deepseek-v3-tokenizer-path=/shark-dev/data/deepseekv3/weights/fp16/tokenizer_config.json \
-            --log-cli-level=INFO
-          pytest \
-            -n 8 \
-            -v \
-            -s \
-            sharktank/tests/evaluate/perplexity_iree_test.py \
-            --run-quick-test \
-            --bs=4 \
             --iree-device=hip://0 \
             --iree-hip-target=gfx942 \
             --iree-hal-target-device=hip \
             --llama3-8b-f16-model-path=/shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa \
             --llama3-8b-tokenizer-path=/shark-dev/data/llama3.1/weights/8b/fp16/tokenizer_config.json \
             --deepseek-v3-model-path=perplexity_ci_artifacts/toy_deepseek.irpa \
-            --deepseek-v3-tokenizer-path=/shark-dev/data/deepseekv3/weights/fp16/tokenizer_config.json \
             --log-cli-level=INFO
           ls -lha ${{ github.workspace }}/perplexity_ci_artifacts
