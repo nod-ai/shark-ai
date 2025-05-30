@@ -163,7 +163,7 @@ class PrefillBatcherProcess(LlmBatcherProcess):
         model_params: ModelParams,
         prefill_functions: dict[int, sf.ProgramFunction],
         program_isolation: str,
-        host_cache: PrefillHostCacheType
+        host_cache: PrefillHostCacheType,
     ):
         super().__init__(
             name="prefill",
@@ -221,7 +221,7 @@ class DecodeBatcherProcess(LlmBatcherProcess):
         model_params: ModelParams,
         decode_functions: dict[int, sf.ProgramFunction],
         program_isolation: str,
-        host_cache: DecodeHostCacheType
+        host_cache: DecodeHostCacheType,
     ):
         super().__init__(
             name="decode",

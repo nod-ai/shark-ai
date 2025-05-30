@@ -55,7 +55,13 @@ class ShortfinLlmLifecycleManager:
         seq_block_ids_host = {}
         logits_host = {}
         indices_host = {}
-        return (tokens_host, seq_lens_host, seq_block_ids_host, logits_host, indices_host)
+        return (
+            tokens_host,
+            seq_lens_host,
+            seq_block_ids_host,
+            logits_host,
+            indices_host
+        )
 
     @staticmethod
     def initialize_decode_host_cache() -> DecodeHostCacheType:
@@ -65,7 +71,14 @@ class ShortfinLlmLifecycleManager:
         seq_block_ids_host = {}
         logits_host = {}
         indices_host = {}
-        return (tokens_host, seq_lens_host, start_positions_host, seq_block_ids_host, logits_host, indices_host)
+        return (
+            tokens_host,
+            seq_lens_host,
+            start_positions_host,
+            seq_block_ids_host,
+            logits_host,
+            indices_host
+        )
 
     def __init__(self, args):
         # Load server configuration with priority: command line > config file > defaults

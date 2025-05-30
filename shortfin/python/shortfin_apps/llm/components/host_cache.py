@@ -14,7 +14,7 @@ PrefillHostCacheType = tuple[
     dict[tuple[int, int], sfnp.device_array],
 
     # indices_host
-    dict[tuple[int, int], sfnp.device_array]
+    dict[tuple[int, int], sfnp.device_array],
 ]
 
 DecodeHostCacheType = tuple[
@@ -34,5 +34,5 @@ DecodeHostCacheType = tuple[
     dict[tuple[int, int], sfnp.device_array],
 
     # indices_host
-    dict[tuple[int, int], sfnp.device_array]
+    dict[tuple[int, int], sfnp.device_array],
 ]
