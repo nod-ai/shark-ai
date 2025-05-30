@@ -22,7 +22,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test_perplexity_iree:
+  test_perplexity:
     name: "Perplexity tests"
     strategy:
       matrix:

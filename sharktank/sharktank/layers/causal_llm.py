@@ -68,7 +68,7 @@ class BaseCausalLMModel(ThetaLayer):
 
         This can be overriden to decide on a different policy.
         """
-        return torch.tensor(float("-inf"), dtype=dtype)
+        return torch.tensor(float("-inf"), dtype=dtype, device=self.device)
 
     def generate_causal_context_mask(self) -> torch.Tensor:
         context_length = self.context_length

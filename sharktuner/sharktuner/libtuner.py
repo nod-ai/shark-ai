@@ -33,14 +33,17 @@ import hashlib
 from dataclasses import dataclass, field
 from typing import Type, Optional, Callable, Iterable, Any
 from abc import ABC, abstractmethod
+import subprocess
+import tempfile
+import os
 import iree.runtime as ireert  # type: ignore
 import iree.compiler as ireec  # type: ignore
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_codegen  # type: ignore
 from . import candidate_gen
 from . import dispatch_parser
-from .common import *
-from .dispatch_constraints import *
+from . import common
+from . import dispatch_constraints
 
 
 # Default values for num_candidates and devices, change it as needed
@@ -104,7 +107,7 @@ class PathConfig:
 
 
 class TuningClient(ABC):
-    def __init__(self, tuner_context: TunerContext):
+    def __init__(self, tuner_context: common.TunerContext):
         self.tuner_context = tuner_context
 
     @abstractmethod
@@ -712,7 +715,7 @@ def generate_candidate_specs(
         mlir_text = candidate_gen.strip_compilation_info(path_config.template_mlir)
         mlir_module = dispatch_parser.parse_mlir(mlir_text, tuning_client.tuner_context)
         logging.debug("Captured messages from candidate_gen.py:")
-        pipeline_options_search_space = PipelineOptionsSearchSpace(
+        pipeline_options_search_space = dispatch_constraints.PipelineOptionsSearchSpace(
             prefetch_shared_memory=args.prefetch_shared_memory_options,
             no_reduce_shared_memory_bank_conflicts=args.no_reduce_shared_memory_bank_conflicts_options,
         )
@@ -747,14 +750,14 @@ def generate_candidate_specs(
             if starter_td_spec is not None:
                 td_specs: list[ir.Module] = [spec, starter_td_spec]
                 # Only log duplicate matchers during the first iteration.
-                td_specs_to_link = determine_td_specs_to_link(
+                td_specs_to_link = common.determine_td_specs_to_link(
                     td_specs,
                     log_duplicates=(candidate_num == 0),
                 )
 
                 if len(td_specs_to_link) != 1:
                     td_spec_str = str(
-                        combine_tuning_specs(
+                        common.combine_tuning_specs(
                             tuning_client.tuner_context, td_specs_to_link
                         )
                     )
