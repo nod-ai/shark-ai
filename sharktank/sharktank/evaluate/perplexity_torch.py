@@ -309,7 +309,7 @@ def run_perplexity_torch(
     perplexity_batch = []
     for p in tqdm(
         input_prompts,
-        desc=f"eval: Calculating logits for {model_file}",
+        desc=f"eval_torch: Calculating logits for {model_file.name}",
     ):
         perplexity_batch.extend(
             perplexity_torch(
