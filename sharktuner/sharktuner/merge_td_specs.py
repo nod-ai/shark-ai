@@ -18,9 +18,6 @@ Usage:
 
 import argparse
 import logging
-import subprocess
-import tempfile
-import os
 
 from iree.compiler import ir  # type: ignore
 
