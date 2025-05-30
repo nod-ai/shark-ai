@@ -21,8 +21,6 @@ from sharktank.types import *
 
 from sharktank.models.llm import *
 from sharktank.types.pipelining import pipeline_parallelize_theta
-from sharktank.types.sharding import shard_theta
-
 
 from sharktank.utils import cli
 from sharktank.utils.load_llm import *
@@ -52,9 +50,6 @@ class PerplexityTorch:
         use_toy_model: bool = False,
     ):
         self.use_toy_model = use_toy_model
-        self.page_cache_size = 128
-        # Add context to improve perplexity by starting at 10th token
-        self.start = 10
 
     def calc_time(self, start, end):
         total_seconds = end - start
@@ -244,7 +239,9 @@ class PerplexityTorch:
         if self.use_toy_model:
             self.token_ids = token_ids
             self.seq_lens = [len(t) for t in self.token_ids]
+            # Add context to improve perplexity by starting at 5th token
             self.start = 5
+            self.page_cache_size = 128
 
             logger.debug(f" Token ids for Evaluation: \n{self.token_ids}\n")
 
@@ -260,6 +257,8 @@ class PerplexityTorch:
                     f" Prompt {idx}: \nTokens: {prompt.encode()}\nToken ids: {self.token_ids[idx]}\n"
                 )
 
+            # Add context to improve perplexity by starting at 10th token
+            self.start = 10
             self.page_cache_size = (
                 len(self.token_ids[0]) // self.generator.model.config.block_seq_stride
             ) * len(test_prompts) + 1
