@@ -409,7 +409,6 @@ class PerplexityIree:
                 test_prompts,
                 pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
             )
-            self.seq_lens = torch.tensor(self.seq_lens, device=self.torch_device)
 
             logger.debug(f" Prompts for Evaluation:")
             for idx, prompt in enumerate(test_prompts):
@@ -424,6 +423,7 @@ class PerplexityIree:
         self.max_prompt_length = max(self.seq_lens)
 
         self.token_ids = torch.as_tensor(self.token_ids, device=self.torch_device)
+        self.seq_lens = torch.tensor(self.seq_lens, device=self.torch_device)
 
         out_logits = self.get_logits(skip_decode)
 
