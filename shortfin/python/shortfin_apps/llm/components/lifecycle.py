@@ -60,7 +60,7 @@ class ShortfinLlmLifecycleManager:
             seq_lens_host,
             seq_block_ids_host,
             logits_host,
-            indices_host
+            indices_host,
         )
 
     @staticmethod
@@ -77,7 +77,7 @@ class ShortfinLlmLifecycleManager:
             start_positions_host,
             seq_block_ids_host,
             logits_host,
-            indices_host
+            indices_host,
         )
 
     def __init__(self, args):
