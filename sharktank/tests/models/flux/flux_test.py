@@ -29,13 +29,13 @@ from sharktank.models.flux.flux import FluxModelV1, FluxParams
 from sharktank.models.flux.compile import iree_compile_flags
 from sharktank.utils.testing import (
     TempDirTestBase,
-    get_iree_compiler_flags,
     skip,
     is_mi300x,
     is_cpu,
     is_cpu_condition,
 )
 from sharktank.utils.iree import (
+    get_iree_compiler_flags_from_object,
     with_iree_device_context,
     load_iree_module,
     run_iree_module_function,
@@ -116,7 +116,7 @@ class FluxTest(TempDirTestBase):
         iree_module_path = self._temp_dir / "model.vmfb"
         logger.info("Compiling MLIR file...")
 
-        iree_device_flags = get_iree_compiler_flags(self)
+        iree_device_flags = get_iree_compiler_flags_from_object(self)
         compile_flags = iree_compile_flags + iree_device_flags
         iree.compiler.compile_file(
             str(mlir_path),

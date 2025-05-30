@@ -40,6 +40,53 @@ halelementtype_map = {
 }
 
 
+def get_iree_compiler_flags(
+    iree_hal_target_device: str,
+    iree_hal_local_target_device_backends: list[str] | None = None,
+    iree_hip_target: str | None = None,
+    device_count: int = 1,
+) -> list[str]:
+    """Retrieve compiler flags driven by the test configuration."""
+    res = []
+    if device_count == 1:
+        res += [f"--iree-hal-target-device={iree_hal_target_device}"]
+    else:
+        res += [
+            f"--iree-hal-target-device={iree_hal_target_device}[{i}]"
+            for i in range(device_count)
+        ]
+
+    if iree_hal_target_device.startswith("local"):
+        res += [
+            f"--iree-hal-local-target-device-backends={v}"
+            for v in iree_hal_local_target_device_backends
+        ]
+        res += ["--iree-llvmcpu-target-cpu=host"]
+    elif iree_hal_target_device.startswith("hip"):
+        res += [f"--iree-hip-target={iree_hip_target}"]
+    else:
+        raise ValueError(
+            f'"{iree_hal_target_device}" is not a supported IREE HAL target device'
+        )
+
+    return res
+
+
+def get_iree_compiler_flags_from_object(o: Any, device_count: int = 1) -> list[str]:
+    kwargs = {
+        "iree_hal_target_device": o.iree_hal_target_device,
+        "device_count": device_count,
+    }
+    if hasattr(o, "iree_hal_local_target_device_backends"):
+        kwargs[
+            "iree_hal_local_target_device_backends"
+        ] = o.iree_hal_local_target_device_backends
+    if hasattr(o, "iree_hip_target"):
+        kwargs["iree_hip_target"] = o.iree_hip_target
+
+    return get_iree_compiler_flags(**kwargs)
+
+
 def with_iree_device_context(
     fn: Callable[[list[iree.runtime.HalDevice]], Any],
     devices: list[iree.runtime.HalDevice],
