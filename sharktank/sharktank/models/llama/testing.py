@@ -99,6 +99,7 @@ def make_attention_moe_block_random_theta(
     )
     res_dict.update(attention_theta.tree)
     moe_theta = make_random_moe_block_theta(
+        block_idx=block_idx,
         in_dim=config.hp.embedding_length,
         expert_hidden_dim=config.hp.expert_feed_forward_length,
         num_experts=config.hp.expert_count,
@@ -117,7 +118,7 @@ def make_random_llama_theta(
     dtype: Optional[torch.dtype] = None,
 ) -> Theta:
     if vocab_size is None:
-        vocab_size = config.vocabulary_size
+        vocab_size = config.hp.vocab_size
     if dtype is None:
         dtype = config.dtype
     res = {
