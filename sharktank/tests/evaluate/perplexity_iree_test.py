@@ -14,7 +14,6 @@ from sharktank.evaluate import perplexity_iree
 from sharktank.utils.testing import (
     is_mi300x,
     is_nightly,
-    is_pre_submit_nightly,
     is_llama_8b,
 )
 
@@ -77,7 +76,6 @@ class PerplexityTest(unittest.TestCase):
             msg=f"Current perplexity deviates baseline by {perplexity_difference}",
         )
 
-    @is_pre_submit_nightly
     @is_llama_8b
     def test_llama3_8B_f16(self):
         # Llama 3.1 8B non-decomposed
