@@ -27,7 +27,7 @@ from sharktank.types.sharding import shard_theta
 from sharktank.utils import cli
 from sharktank.utils.load_llm import *
 from sharktank.utils.evaluate import *
-
+import sharktank.ops as ops
 
 logger = logging.getLogger("eval")
 
@@ -221,7 +221,7 @@ class PerplexityTorch:
 
                 self.print_token_comparison(i)
 
-        out_logits = torch.cat(out_logits, dim=1)
+        out_logits = ops.cat(out_logits, dim=1)
 
         pad_logits_shape = self.token_ids.shape[1] - out_logits.shape[1]
 
@@ -232,7 +232,7 @@ class PerplexityTorch:
             device=self.device,
         )
 
-        out_logits = torch.cat((out_logits, pad_logits), dim=1).to(self.device)
+        out_logits = ops.cat((out_logits, pad_logits), dim=1).to(self.device)
 
         return out_logits
 

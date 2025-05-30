@@ -186,6 +186,12 @@ def pytest_addoption(parser):
         help="Deepseek v3 unsharded model path",
     )
     parser.addoption(
+        "--deepseek-v3-tp2-model-path",
+        type=Path,
+        action="store",
+        help="Deepseek v3 tp2 sharded model path",
+    )
+    parser.addoption(
         "--deepseek-v3-tp8-model-path",
         type=Path,
         action="store",
@@ -373,6 +379,9 @@ def get_model_artifacts(request: FixtureRequest):
     )
     model_path["deepseek_v3_model_path"] = set_fixture_from_cli_option(
         request, "--deepseek-v3-model-path", "deepseek_v3_model"
+    )
+    model_path["deepseek_v3_tp2_model_path"] = set_fixture_from_cli_option(
+        request, "--deepseek-v3-tp2-model-path", "deepseek_v3_tp2_model"
     )
     model_path["deepseek_v3_tp8_model_path"] = set_fixture_from_cli_option(
         request, "--deepseek-v3-tp8-model-path", "deepseek_v3_tp8_model"
