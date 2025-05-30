@@ -126,6 +126,79 @@ def conv2d_default(
 conv2d.override(Tensor, Tensor, Tensor, auto_dequant=True)(conv2d_default)
 conv2d.override(Tensor, Tensor, auto_dequant=True)(conv2d_default)
 
+# conv3d
+
+
+def conv3d_default(
+    input: Tensor,
+    weight: Tensor,
+    bias: Optional[Tensor],
+    *,
+    stride,
+    padding,
+    dilation,
+    groups,
+    accum_dtype: Optional[torch.dtype],
+):
+    input = unbox_tensor(input)
+    weight = unbox_tensor(weight)
+    if bias is not None:
+        bias = unbox_tensor(bias)
+    if weight.dtype != input.dtype:
+        weight = weight.to(input.dtype)
+    if bias is not None and bias.dtype != input.dtype:
+        bias = bias.to(input.dtype)
+    return F.conv3d(
+        input,
+        weight,
+        bias,
+        stride=stride,
+        padding=padding,
+        dilation=dilation,
+        groups=groups,
+    )
+
+
+conv3d.override(Tensor, Tensor, Tensor, auto_dequant=True)(conv3d_default)
+conv3d.override(Tensor, Tensor, auto_dequant=True)(conv3d_default)
+
+
+# conv1d
+
+
+def conv1d_default(
+    input: Tensor,
+    weight: Tensor,
+    bias: Optional[Tensor],
+    *,
+    stride,
+    padding,
+    dilation,
+    groups,
+    accum_dtype: Optional[torch.dtype],
+):
+    input = unbox_tensor(input)
+    weight = unbox_tensor(weight)
+    if bias is not None:
+        bias = unbox_tensor(bias)
+    if weight.dtype != input.dtype:
+        weight = weight.to(input.dtype)
+    if bias is not None and bias.dtype != input.dtype:
+        bias = bias.to(input.dtype)
+    return F.conv1d(
+        input,
+        weight,
+        bias,
+        stride=stride,
+        padding=padding,
+        dilation=dilation,
+        groups=groups,
+    )
+
+
+conv1d.override(Tensor, Tensor, Tensor, auto_dequant=True)(conv1d_default)
+conv1d.override(Tensor, Tensor, auto_dequant=True)(conv1d_default)
+
 
 # Einsum
 def mk_menk_men(inputs, weights):
