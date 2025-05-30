@@ -40,6 +40,7 @@ class PerplexityTest(unittest.TestCase):
             f"--num-prompts={self.batch_size}",
             f"--device={self.device}",
             f"--tensor-parallelism-size={self.tensor_parallelism_size}",
+            "--use-attention-mask",
         ]
         if extra_args:
             self.argv.extend(extra_args)
