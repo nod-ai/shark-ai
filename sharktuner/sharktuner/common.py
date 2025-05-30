@@ -132,20 +132,6 @@ class ContractionDimensions:
     batch: list[int] = field(default_factory=list)
 
 
-@dataclass
-class ProblemSize:
-    matmul_size: ContractionSizes
-    lhs_type: ShapedType
-    rhs_type: ShapedType
-    res_type: ShapedType
-    dispatch_kind: DispatchKind
-    contraction_dims: ContractionDimensions
-
-    @property
-    def MNK(self) -> tuple[list[int], list[int], list[int]]:
-        return (self.matmul_size.M, self.matmul_size.N, self.matmul_size.K)
-
-
 def get_map_result_dim_positions(map: ir.AffineMap) -> Optional[list[int]]:
     if not map.is_projected_permutation:
         return None
@@ -154,17 +140,19 @@ def get_map_result_dim_positions(map: ir.AffineMap) -> Optional[list[int]]:
 
 
 def get_compatible_mfma_intrinsics(
-    problem_size: ProblemSize,
+    lhs_type: ShapedType,
+    rhs_type: ShapedType,
+    res_type: ShapedType,
     mma_intrinsics: list[iree_gpu.MMAIntrinsic],
 ) -> list[iree_gpu.MMAIntrinsic]:
     def is_comptible(mma_intrinsic: iree_gpu.MMAIntrinsic) -> bool:
         mma_attr = iree_gpu.MMAIntrinsicAttr.get(mma_intrinsic).mma
         a_type, b_type, c_type = mma_attr.abc_element_types
-        if not isinstance(problem_size.res_type.element_type, type(c_type)):
+        if not isinstance(res_type.element_type, type(c_type)):
             return False
-        if not isinstance(
-            problem_size.lhs_type.element_type, type(a_type)
-        ) or not isinstance(problem_size.rhs_type.element_type, type(b_type)):
+        if not isinstance(lhs_type.element_type, type(a_type)) or not isinstance(
+            rhs_type.element_type, type(b_type)
+        ):
             return False
         return True
 
