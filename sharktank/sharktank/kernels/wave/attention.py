@@ -20,40 +20,8 @@ from iree.turbine.kernel.wave.utils.run_utils import (
     set_default_run_config,
 )
 from iree.compiler.ir import (
-    ArrayAttr,
-    Attribute as Attribute,
-    Block,
-    Context,
-    DenseElementsAttr,
-    DenseResourceElementsAttr,
-    DictAttr,
-    FloatAttr,
-    BF16Type,
-    ComplexType,
-    F16Type,
-    F32Type,
-    F64Type,
-    Float8E4M3FNType,
-    Float8E5M2FNUZType,
-    Float8E5M2Type,
-    FlatSymbolRefAttr,
-    FunctionType,
-    InsertionPoint,
-    TypeAttr,
-    IntegerAttr,
-    IntegerType,
-    MLIRError,
-    RankedTensorType,
-    Location,
     Module,
-    Operation,
-    StringAttr,
-    SymbolTable,
-    Type as IrType,
-    Value,
 )
-from iree.compiler.dialects import builtin, func, util
-from iree.turbine.transforms.merger import Merger
 
 __all__ = [
     "get_module_body",
@@ -187,11 +155,12 @@ def wave_bhsd_flash_attention(
     asm_body = get_module_body(asm_module)
 
     mlir_wave_kernel = f"""
-    func.func private @{{{{kernel_name}}}}(%q : !q, %k : !k, %v : !v, %c : !c) -> !result {{
-        %result = call @{wave_kernel_name}(%q, %k, %v, %c) : (!q, !k, !v, !c) -> !result
-        return %result : !result
+    util.func private @{{{{kernel_name}}}}(%q : !q, %k : !k, %v : !v, %c : !c) -> !result {{
+        %result = func.call @{wave_kernel_name}(%q, %k, %v, %c) : (!q, !k, !v, !c) -> !result
+        util.return %result : !result
     }}
     """
     mlir = "module {" + asm_body + mlir_wave_kernel + "}"
-
+    with open('wave_attn.mlir', 'w') as f:
+        f.write(mlir)
     return MLIRSpec(mlir)
