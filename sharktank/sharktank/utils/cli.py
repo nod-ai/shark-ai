@@ -137,6 +137,11 @@ def add_model_options(parser: argparse.ArgumentParser):
         action="store_true",
     )
     parser.add_argument(
+        "--use-toy-model",
+        help="Generates toy model",
+        action="store_true",
+    )
+    parser.add_argument(
         "--top-k",
         help="Export with a `top_k` kernel. If `top_k` == 1, argmax is exported."
         "Otherwise, `topk_k{k} is exported.",
