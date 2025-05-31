@@ -404,7 +404,9 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         # TODO: Better support in shortfin for h2d. The best way to do it is
         # device dependent.
         int_dtype = sfnp.int64
-        tokens = sfnp.device_array.for_device(self.device0, [self.bs, self.bsl], int_dtype)
+        tokens = sfnp.device_array.for_device(
+            self.device0, [self.bs, self.bsl], int_dtype
+        )
         seq_lens = sfnp.device_array.for_device(self.device0, [self.bs], int_dtype)
         seq_block_ids = sfnp.device_array.for_device(
             self.device0, [self.bs, block_count], int_dtype
@@ -555,7 +557,9 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         # device dependent.
         int_dtype = sfnp.int64
         tokens = sfnp.device_array.for_device(self.device0, [self.bs, 1], int_dtype)
-        start_positions = sfnp.device_array.for_device(self.device0, [self.bs], int_dtype)
+        start_positions = sfnp.device_array.for_device(
+            self.device0, [self.bs], int_dtype
+        )
         seq_lens = sfnp.device_array.for_device(self.device0, [self.bs], int_dtype)
         seq_block_ids = sfnp.device_array.for_device(
             self.device0, [self.bs, block_count], int_dtype
