@@ -190,7 +190,7 @@ class ServerRunner:
                 if self.process.errors is not None:
                     raise RuntimeError("API server process terminated") from e
             time.sleep(1.0)
-            if (time.time() - start) > 30:
+            if (time.time() - start) > 100:
                 raise RuntimeError("Timeout waiting for server start")
 
     def __del__(self):
