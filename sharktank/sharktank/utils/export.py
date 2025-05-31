@@ -12,11 +12,12 @@ import torch
 from torch.utils._pytree import PyTree, _is_leaf
 
 import iree.turbine.aot as aot
-from iree.turbine.aot import DeviceAffinity, FxProgramsBuilder
+from iree.turbine.aot import DeviceAffinity, FxProgramsBuilder, externalize_module_parameters, decompositions
 from torch.utils._pytree import tree_structure, tree_unflatten, tree_flatten
+from torch import nn
 from sharktank.types.tensors import ShardedTensor
-from sharktank.types.theta import mark_export_external_theta
-from sharktank.layers import BaseLayer, ThetaLayer
+from sharktank.types.theta import mark_export_external_theta, Theta
+from sharktank.layers import BaseLayer, ThetaLayer, ModelConfig
 
 
 def flatten_signature(
@@ -185,6 +186,7 @@ def export_model_mlir(
     *,
     function_batch_sizes_map: Optional[dict[Optional[str], list[int]]] = None,
     batch_sizes: Optional[list[int]] = None,
+    decomp_attn: Optional[bool] = False,
 ):
     """Export a model with no dynamic dimensions.
 
@@ -204,6 +206,8 @@ def export_model_mlir(
 
     if isinstance(model, ThetaLayer):
         mark_export_external_theta(model.theta)
+    elif isinstance(model, nn.Module):
+        externalize_module_parameters(model)
 
     if batch_sizes is not None:
         function_batch_sizes_map = {None: batch_sizes}
@@ -211,24 +215,74 @@ def export_model_mlir(
     if function_batch_sizes_map is None and batch_sizes is None:
         function_batch_sizes_map = {None: batch_sizes}
 
-    fxb = FxProgramsBuilder(model)
+    decomp_list = [torch.ops.aten.logspace]
+    if decomp_attn == True:
+        decomp_list = [
+            torch.ops.aten._scaled_dot_product_flash_attention_for_cpu,
+            torch.ops.aten._scaled_dot_product_flash_attention.default,
+            torch.ops.aten.scaled_dot_product_attention.default,
+            torch.ops.aten.scaled_dot_product_attention,
+        ]
+    with decompositions.extend_aot_decompositions(
+        from_current=True,
+        add_ops=decomp_list,
+    ):
+        fxb = FxProgramsBuilder(model)
 
-    for function, batch_sizes in function_batch_sizes_map.items():
-        for batch_size in batch_sizes:
-            args, kwargs = model.sample_inputs(batch_size, function)
-            dynamic_shapes = model.dynamic_shapes_for_export(
-                batch_size=batch_size, function=function
-            )
+        for function, batch_sizes in function_batch_sizes_map.items():
+            if not function:
+                function = "forward"
+            for batch_size in batch_sizes:
+                args, kwargs = model.sample_inputs(batch_size, function)
+                dynamic_shapes = model.dynamic_shapes_for_export(
+                    batch_size=batch_size, function=function
+                )
 
-            @fxb.export_program(
-                name=f"{function or 'forward'}_bs{batch_size}",
-                args=args,
-                kwargs=kwargs,
-                dynamic_shapes=dynamic_shapes,
-                strict=False,
-            )
-            def _(model, **kwargs):
-                return model(**kwargs)
+                @fxb.export_program(
+                    name=f"{function}_bs{batch_size}",
+                    args=args,
+                    kwargs=kwargs,
+                    dynamic_shapes=dynamic_shapes,
+                    strict=False,
+                )
+                def _(model, **kwargs):
+                    return getattr(model, function)(**kwargs)
 
-    output = aot.export(fxb)
-    output.save_mlir(output_path)
+        output = aot.export(fxb)
+        output.save_mlir(output_path)
+
+def export_model_mlir_from_config(
+    model_config: ModelConfig,
+    function_batch_sizes_map: dict[str, list[int]],
+    wrapper_cls: Optional[BaseLayer | torch.nn.Module] = None,
+    wrapper_kwargs: Optional[dict] = {},
+    theta: Optional[Theta] = None,
+    decomp_attn: Optional[bool] = False,
+):
+    """Export a model with no dynamic dimensions from a config instance.
+
+    Allows provision of a wrapper_cls which accepts a list of one or more 
+    sharktank theta layers (models) and wrapper_kwargs as arguments.
+    The wrapper_cls should accept a list of theta layers as its first init argument,
+    and the rest of the args should be populated via wrapper_kwargs.
+
+    Since the wrapper is likely to change function signatures, we explicitly require that a map
+    be passed in here to determine which function/batch size pairs to construct export sample inputs for, e.g.:
+    {
+        "encode": [1, 2, 4, 8]
+        "decode": [1]
+    }
+
+    """
+    output_path = model_config.mlir_path
+    assert output_path is not None, "A mlir_path was not provided in the model config when exporting to MLIR format."
+
+    sharktank_mod_cls = model_config.model_type
+    sharktank_mod = sharktank_mod_cls(model_config, theta)
+    if wrapper_cls is not None:
+        model = wrapper_cls(model, **wrapper_kwargs)
+    else:
+        model = sharktank_mod
+
+
+    export_model_mlir(model, output_path, function_batch_sizes_map, decomp_attn)
