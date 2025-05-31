@@ -961,12 +961,14 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         output_vmfb = self.llama405b_f16_torch_sdpa_artifacts.create_file(
             suffix=".vmfb", prefix=output_file_name
         )
+        irpa_path = self.irpa_path
         output_shard_file_name = (
             self.weights_dir
             / f"tp8/llama3_405b_instruct_fp16_tp{self.tensor_parallelism_size}.irpa"
         )
         if output_shard_file_name.exists():
             self.llama405b_f16_torch_sdpa_artifacts.irpa_path = output_shard_file_name
+            irpa_path = output_shard_file_name
         export_return_code = self.llama405b_f16_torch_sdpa_artifacts.export_to_mlir(
             output_mlir=output_mlir,
             output_config=output_json,
@@ -982,7 +984,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         self.llama405b_f16_torch_sdpa_artifacts.iree_benchmark_vmfb(
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
-            irpa_path=self.irpa_path,
+            irpa_path=irpa_path,
             args=self.iree_run_prefill_nondecomposed_args_2048_tp8_fp16,
             cwd=self.repo_root,
         )
