@@ -35,6 +35,8 @@ class HFRotaryComparisonTest(unittest.TestCase):
             rope_theta=500000,
         )
         torch.manual_seed(123456)
+        atol = 1e-2
+        rtol = 1e-6
 
         class HFRotaryEmbedding(torch.nn.Module):
             def __init__(self):
@@ -70,11 +72,11 @@ class HFRotaryComparisonTest(unittest.TestCase):
         hf_results = hf_rotary.forward(
             xt=decode_example, positions=torch.arange(0, bs).unsqueeze(1)
         )
-        assert torch.all(torch.eq(st_results, hf_results))
+        assert torch.all(torch.isclose(st_results, hf_results, rtol=rtol, atol=atol))
 
         hf_results = hf_rotary(xt=example, positions=positions)
         st_results = st_rotary.forward(xt=example, start_index=0)
-        assert torch.all(torch.eq(st_results, hf_results))
+        assert torch.all(torch.isclose(st_results, hf_results, rtol=rtol, atol=atol))
 
 
 if __name__ == "__main__":

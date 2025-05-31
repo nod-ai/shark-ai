@@ -19,13 +19,33 @@ class rotary_test(unittest.TestCase):
     def setUp(self):
         torch.manual_seed(42)
 
-    def test_rotary(self):
+    def test_rotary_interleaved(self):
         dtype = torch.float32
         a = torch.rand([1, 128, 1, 64], dtype=dtype)
         rot = torch.rand([128, 32], dtype=dtype)
-        res_b = ops.view_as_real(torch.complex(rot, rot))
-        ref_b = torch.complex(torch.cos(rot), torch.sin(rot))
 
-        result = kernels.apply_rotary_embedding(a, res_b)
-        ref = ops.view_as_real(ops.view_as_complex(a) * ref_b[None, :, None, :])
-        torch.testing.assert_close(result, ref)
+        ref_a = ops.view_as_complex(a)
+        ref_b = torch.complex(torch.cos(rot), torch.sin(rot))
+        ref = ops.view_as_real(ref_a * ref_b[None, :, None, :])
+
+        res_a = a
+        res_b = ops.view_as_real(torch.complex(rot, rot)).unsqueeze(0)
+        res = kernels.apply_rotary_embedding(res_a, res_b, mode="interleave")
+
+        torch.testing.assert_close(res, ref)
+
+    def test_rotary_concatted(self):
+        dtype = torch.float32
+        a = torch.rand([1, 128, 1, 64], dtype=dtype)
+        rot = torch.rand([128, 32], dtype=dtype)
+
+        ref_a = ops.view_as_complex(a)
+        ref_b = torch.complex(torch.cos(rot), torch.sin(rot))
+        ref = ops.view_as_real(ref_a * ref_b[None, :, None, :])
+
+        res_a = a.unflatten(-1, (-1, 2)).transpose(-2, -1).flatten(-2, -1)
+        res_b = torch.concat((rot, rot), dim=-1).unsqueeze(0)
+        res = kernels.apply_rotary_embedding(res_a, res_b, mode="concat")
+        res = res.unflatten(-1, (2, -1)).transpose(-2, -1).flatten(-2, -1)
+
+        torch.testing.assert_close(res, ref)
