@@ -33,6 +33,8 @@ __all__ = [
     "barrier_on_logical_device",
     "cat",
     "conv2d",
+    "conv3d",
+    "conv1d",
     "einsum_2args",
     "elementwise",
     "embedding_lookup",
@@ -158,8 +160,9 @@ def _argmax_trampoline(
 
 
 @overridable
-def cat(tensors: Tuple[AnyTensor, ...] | List[AnyTensor], dim: int = 0) -> AnyTensor:
-    ...
+def cat(
+    tensors: Tuple[AnyTensor, ...] | List[AnyTensor], dim: int = 0
+) -> AnyTensor: ...
 
 
 @cat.trampoline
@@ -195,6 +198,110 @@ def conv2d(
 
 @conv2d.trampoline
 def _conv2d_trampoline(
+    d: SignatureDispatcher,
+    input: AnyTensor,
+    weight: AnyTensor,
+    bias: Optional[AnyTensor] = None,
+    *,
+    stride=1,
+    padding=0,
+    dilation=1,
+    groups=1,
+    accum_dtype: Optional[torch.dtype] = None,
+):
+    tensors = [input, weight]
+    if bias is not None:
+        tensors.append(bias)
+    for override in d.find_overrides(tensors):
+        result = override(
+            input,
+            weight,
+            bias,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+            accum_dtype=accum_dtype,
+        )
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
+
+
+@overridable
+def conv3d(
+    input: AnyTensor,
+    weight: AnyTensor,
+    bias: Optional[AnyTensor] = None,
+    *,
+    stride: IntOrSequenceInt = 1,
+    padding: IntOrSequenceInt = 0,
+    dilation: IntOrSequenceInt = 1,
+    groups: IntOrSequenceInt = 1,
+    accum_dtype: Optional[torch.dtype] = None,
+):
+    """Equivalent to torch.nn.functional.conv3d with enhancements:
+
+    * Primitive weight/bias tensors will be promoted to the input dtype.
+    """
+    raise NotImplementedError
+
+
+@conv3d.trampoline
+def _conv3d_trampoline(
+    d: SignatureDispatcher,
+    input: AnyTensor,
+    weight: AnyTensor,
+    bias: Optional[AnyTensor] = None,
+    *,
+    stride=1,
+    padding=0,
+    dilation=1,
+    groups=1,
+    accum_dtype: Optional[torch.dtype] = None,
+):
+    tensors = [input, weight]
+    if bias is not None:
+        tensors.append(bias)
+    for override in d.find_overrides(tensors):
+        result = override(
+            input,
+            weight,
+            bias,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+            accum_dtype=accum_dtype,
+        )
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
+
+
+@overridable
+def conv1d(
+    input: AnyTensor,
+    weight: AnyTensor,
+    bias: Optional[AnyTensor] = None,
+    *,
+    stride: IntOrSequenceInt = 1,
+    padding: IntOrSequenceInt = 0,
+    dilation: IntOrSequenceInt = 1,
+    groups: IntOrSequenceInt = 1,
+    accum_dtype: Optional[torch.dtype] = None,
+):
+    """Equivalent to torch.nn.functional.conv1d with enhancements:
+
+    * Primitive weight/bias tensors will be promoted to the input dtype.
+    """
+    raise NotImplementedError
+
+
+@conv1d.trampoline
+def _conv1d_trampoline(
     d: SignatureDispatcher,
     input: AnyTensor,
     weight: AnyTensor,
@@ -1341,8 +1448,7 @@ def _to_trampoline(d: SignatureDispatcher, tensor: AnyTensor, *args, **kwargs):
 
 
 @overridable
-def trace_tensor(key: str, *tensors: tuple[AnyTensor]):
-    ...
+def trace_tensor(key: str, *tensors: tuple[AnyTensor]): ...
 
 
 @trace_tensor.trampoline
