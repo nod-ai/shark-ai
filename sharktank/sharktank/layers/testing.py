@@ -316,6 +316,7 @@ def make_random_moe_block_theta(
     in_dim: int,
     expert_hidden_dim: int,
     num_experts: int,
+    shared_expert_hidden_dim: int,
     with_ffn_norm: bool = True,
     num_shared_experts: int = 0,
     with_layer_output_norm: bool = False,

@@ -109,7 +109,7 @@ class MoeBlock(ThetaLayer):
             self.routed_experts = experts_ffn_moe_block
 
         if self.expert_shared_count is not None:
-            shared_ffn_theta = theta
+            #shared_ffn_theta = theta("shared_expert")
             if theta.optional_tensor("ffn_gate_shexp") is not None:
                 shared_ffn_theta = Theta(
                     {
