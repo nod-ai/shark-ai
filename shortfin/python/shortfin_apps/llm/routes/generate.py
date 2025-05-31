@@ -10,7 +10,7 @@ from shortfin.interop.fastapi import FastAPIResponder
 
 from ..components.generate import ClientGenerateBatchProcess
 from ..components.io_struct import GenerateReqInput
-from ..components.service import GenerateService
+from ..components.service import LlmGenerateService
 
 generation_router = APIRouter()
 
@@ -20,7 +20,7 @@ generation_router = APIRouter()
 async def generate_request(gen_req: GenerateReqInput, request: Request):
     # app.state.services is populated by the ShortfinLlmLifecycleManager
     # see shortfin/python/shortfin_apps/llm/components/lifecycle.py
-    service: GenerateService = request.app.state.services["default"]
+    service: LlmGenerateService = request.app.state.services["default"]
     gen_req.post_init()
     responder = FastAPIResponder(request)
     ClientGenerateBatchProcess(
