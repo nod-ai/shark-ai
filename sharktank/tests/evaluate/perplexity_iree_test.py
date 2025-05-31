@@ -14,6 +14,7 @@ from sharktank.evaluate import perplexity_iree
 from sharktank.utils.testing import (
     is_mi300x,
     is_nightly,
+    is_deepseek,
     is_llama_8b,
 )
 
@@ -147,6 +148,42 @@ class PerplexityTest(unittest.TestCase):
         self.pipeline_parallelism_size = 8
 
         self.prepare_argv()
+        self.run_and_check_perplexity()
+
+    @is_deepseek
+    def test_deepseek_v3(self):
+        # DeepSeek v3 pipeline parallelism
+        self.model_name = "deepseek_v3_iree"
+        self.irpa_file = self.deepseek_v3_model
+        self.tokenizer = self.deepseek_v3_tokenizer
+
+        self.prepare_argv(extra_args=(f"--use-toy-model",))
+        self.run_and_check_perplexity()
+
+    @pytest.mark.skip(reason="https://github.com/iree-org/iree/issues/20436")
+    @is_nightly
+    def test_deepseek_v3_tp(self):
+        # DeepSeek v3 tensor parallelism
+        self.model_name = "deepseek_v3_iree"
+        self.irpa_file = self.deepseek_v3_tp2_model
+        self.tokenizer = self.deepseek_v3_tokenizer
+        self.tensor_parallelism_size = 2
+
+        self.prepare_argv(extra_args=("--use-toy-model",))
+        self.run_and_check_perplexity()
+
+    @pytest.mark.skip(
+        reason="https://github.com/nod-ai/shark-ai/pull/1545",
+    )
+    @is_nightly
+    def test_deepseek_v3_pp(self):
+        # DeepSeek v3 pipeline parallelism
+        self.model_name = "deepseek_v3_iree"
+        self.irpa_file = self.deepseek_v3_model
+        self.tokenizer = self.deepseek_v3_tokenizer
+        self.pipeline_parallelism_size = 2
+
+        self.prepare_argv(extra_args=(f"--use-toy-model",))
         self.run_and_check_perplexity()
 
 

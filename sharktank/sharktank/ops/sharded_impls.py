@@ -1633,7 +1633,7 @@ def unflatten_split(
 
 @unshard.override(ReplicatedTensor)
 def unshard_replicated(input: ReplicatedTensor) -> Tensor:
-    return input.shards[0]
+    return input.shards[0].as_torch()
 
 
 @unshard.override(SplitPrimitiveTensor)
