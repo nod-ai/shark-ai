@@ -127,6 +127,7 @@ class Refs {
       py::module_::import_("threading").attr("main_thread");
 
   py::handle lazy_PyWorkerEventLoop() {
+    iree::slim_mutex_lock_guard g(mutex_event_loop_);
     if (!lazy_PyWorkerEventLoop_.is_valid()) {
       lazy_PyWorkerEventLoop_ = py::module_::import_("_shortfin.asyncio_bridge")
                                     .attr("PyWorkerEventLoop");
@@ -144,8 +145,9 @@ class Refs {
   }
 
  private:
-  iree::slim_mutex mu_;
+  iree::slim_mutex mutex_event_loop_;
   py::object lazy_PyWorkerEventLoop_;
+  iree::slim_mutex mu_;
   std::optional<std::string> default_system_type_;
 };
 
