@@ -316,9 +316,11 @@ def main():
                 return logits
 
             if top_k == 1:
-                return model.argmax(logits, chunk_size=hp.context_length // 128)
+                return argmax_output(logits, chunk_size=hp.context_length // 128)
 
-            return model.topk(logits, k=args.top_k, chunk_size=hp.context_length // 128)
+            return topk_output(
+                logits, k=args.top_k, chunk_size=hp.context_length // 128
+            )
 
     def generate_batch_decode(bs: int):
         # torch.export.Dim would make min at least 2
@@ -457,13 +459,30 @@ def main():
                 return logits
 
             if top_k == 1:
-                return model.argmax(logits, chunk_size=hp.context_length // 128)
+                return argmax_output(logits, chunk_size=hp.context_length // 128)
 
-            max_logits, indices = model.topk(
-                logits, k=top_k, chunk_size=hp.context_length // 128
-            )
+            return topk_output(logits, k=top_k, chunk_size=hp.context_length // 128)
 
-            return max_logits, indices
+    def argmax_output(logits, chunk_size):
+        """Exported argmax for logits."""
+        indices = ops.argmax(logits, -1, chunk_size=chunk_size)
+        indices_expanded = indices.unsqueeze(-1)
+
+        max_logits = ops.gather(logits, dim=-1, index=indices_expanded)
+        max_logits = max_logits.squeeze(-1)
+
+        return max_logits, indices
+
+    def topk_output(logits, k, chunk_size):
+        """Exported topk for logits."""
+        return ops.topk(
+            logits,
+            k=k,
+            dim=-1,
+            largest=True,
+            sorted=True,
+            chunk_size=chunk_size,
+        )
 
     if not args.skip_prefill:
         for bs in args.bs_prefill:
