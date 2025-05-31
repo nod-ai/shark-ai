@@ -16,6 +16,7 @@ def lifecycle(app: FastApi):
 
 from .config_struct import ModelParams, ServerParams
 from .token_selection_strategy import DecodeConfig
+from .host_cache import PrefillHostCacheType, DecodeHostCacheType
 from .manager import LlmSystemManager
 from .service import LlmGenerateService
 from .tokenizer import Tokenizer
@@ -46,6 +47,38 @@ class ShortfinLlmLifecycleManager:
 
     To initialize a shortfin server but not start it, use the constructor, then manipulate the services and sysman attributes directly.
     """
+
+    @staticmethod
+    def initialize_prefill_host_cache() -> PrefillHostCacheType:
+        tokens_host = {}
+        seq_lens_host = {}
+        seq_block_ids_host = {}
+        logits_host = {}
+        indices_host = {}
+        return (
+            tokens_host,
+            seq_lens_host,
+            seq_block_ids_host,
+            logits_host,
+            indices_host,
+        )
+
+    @staticmethod
+    def initialize_decode_host_cache() -> DecodeHostCacheType:
+        tokens_host = {}
+        seq_lens_host = {}
+        start_positions_host = {}
+        seq_block_ids_host = {}
+        logits_host = {}
+        indices_host = {}
+        return (
+            tokens_host,
+            seq_lens_host,
+            start_positions_host,
+            seq_block_ids_host,
+            logits_host,
+            indices_host,
+        )
 
     def __init__(self, args):
         # Load server configuration with priority: command line > config file > defaults
@@ -78,6 +111,9 @@ class ShortfinLlmLifecycleManager:
         tokenizer = Tokenizer.from_tokenizer_json_file(
             args.tokenizer_json, eos_token=eos_token
         )
+
+        prefill_host_cache = ShortfinLlmLifecycleManager.initialize_prefill_host_cache()
+        decode_host_cache = ShortfinLlmLifecycleManager.initialize_decode_host_cache()
         service = LlmGenerateService(
             name="default",
             sysman=sysman,
@@ -85,6 +121,8 @@ class ShortfinLlmLifecycleManager:
             model_params=model_params,
             server_params=server_params,
             program_isolation=server_params.program_isolation,
+            prefill_host_cache=prefill_host_cache,
+            decode_host_cache=decode_host_cache,
         )
         service.load_inference_module(args.vmfb)
         service.load_inference_parameters(*args.parameters, parameter_scope="model")
