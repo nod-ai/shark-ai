@@ -8,7 +8,8 @@ import asyncio
 import inspect
 
 from . import lib as sfl
-
+import asyncio.futures as futures
+import concurrent.futures
 
 # Feature detect some versions where signatures changes.
 if "context" in inspect.signature(asyncio.Task).parameters:
@@ -21,6 +22,7 @@ else:
 class PyWorkerEventLoop(asyncio.AbstractEventLoop):
     def __init__(self, worker: sfl.local.Worker):
         self._worker = worker
+        self._closed = False
 
     def get_debug(self):
         # Requirement of asyncio.
@@ -82,6 +84,16 @@ class PyWorkerEventLoop(asyncio.AbstractEventLoop):
             ).with_traceback(source_exception.__traceback__)
         else:
             raise RuntimeError(f"Async exception on {self._worker}: {context}")
+
+    def run_in_executor(self, executor, func, *args):
+        executor = concurrent.futures.ThreadPoolExecutor(thread_name_prefix="asyncio")
+        return futures.wrap_future(executor.submit(func, *args), loop=self)
+
+    def is_closed(self):
+        return self._closed
+
+    def close(self):
+        self._closed = True
 
     def _timer_handle_cancelled(self, handle):
         # We don't do anything special: just skip it if it comes up.

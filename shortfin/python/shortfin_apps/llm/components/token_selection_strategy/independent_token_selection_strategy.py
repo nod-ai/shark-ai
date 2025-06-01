@@ -13,6 +13,7 @@ from .beam_group import Beam, BeamGroup
 from .base_token_selection_strategy import (
     BaseTokenSelectionStrategy,
 )
+import asyncio
 
 from ..messages import LlmInferenceExecRequest, InferencePhase
 
@@ -185,7 +186,7 @@ class IndependentTokenSelectionStrategy(BaseTokenSelectionStrategy):
                 config.decode_callback(req)
 
             await beam_group.wait()
-            beam_group.process_beams()
+            await asyncio.to_thread(beam_group.process_beams)
 
             if not beam_group.active_beams:
                 break
