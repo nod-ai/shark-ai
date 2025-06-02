@@ -9,7 +9,7 @@ authors = [
 ]
 description = "SHARK layers and inference models for genai"
 readme = "README.md"
-license = "Apache-2.0"
+license = { text = "Apache-2.0" }
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Programming Language :: Python :: 3",

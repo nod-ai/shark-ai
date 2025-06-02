@@ -7,6 +7,8 @@
 import json
 import os
 from pathlib import Path
+import subprocess
+from setuptools.command.build_py import build_py as _build_py
 
 from setuptools import setup
 
@@ -31,6 +33,22 @@ except FileNotFoundError:
 PACKAGE_VERSION = version_info.get("package-version")
 print(f"Using PACKAGE_VERSION: '{PACKAGE_VERSION}'")
 
+
+class BuildCustomKernels(_build_py):
+    def run(self):
+        hip_kernels_dir = os.path.join(os.path.dirname(__file__), "hip_kernels")
+        build_dir = os.path.join(hip_kernels_dir, "build")
+        os.makedirs(build_dir, exist_ok=True)
+        subprocess.check_call(["cmake", ".."], cwd=build_dir)
+        subprocess.check_call(
+            ["cmake", "--build", ".", "--target", "all_hsaco_kernels"], cwd=build_dir
+        )
+        super().run()
+
+
 setup(
     version=f"{PACKAGE_VERSION}",
+    cmdclass={
+        "build_py": BuildCustomKernels,
+    },
 )
