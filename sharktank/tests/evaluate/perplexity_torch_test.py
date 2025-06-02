@@ -14,6 +14,8 @@ import gc
 from sharktank.evaluate import perplexity_torch
 from sharktank.utils.testing import (
     is_nightly,
+    is_llama_8b,
+    is_deepseek,
 )
 
 
@@ -24,12 +26,12 @@ from sharktank.utils.testing import (
     "batch_size",
     "device",
 )
-@is_nightly
 class PerplexityTest(unittest.TestCase):
     def setUp(self):
         self.current_perplexity_all = {}
         self.delta = 5e-1
         self.tensor_parallelism_size = 1
+        self.pipeline_parallelism_size = 1
         with open(self.baseline_perplexity_scores, "r") as f:
             self.baseline_perplexity = json.load(f)
 
@@ -40,6 +42,7 @@ class PerplexityTest(unittest.TestCase):
             f"--num-prompts={self.batch_size}",
             f"--device={self.device}",
             f"--tensor-parallelism-size={self.tensor_parallelism_size}",
+            f"--pipeline-parallelism-size={self.pipeline_parallelism_size}",
             "--use-attention-mask",
         ]
         if extra_args:
@@ -64,6 +67,10 @@ class PerplexityTest(unittest.TestCase):
         )
         gc.collect()
 
+    @pytest.mark.skip(
+        reason="https://github.com/nod-ai/shark-ai/issues/1509",
+    )
+    @is_llama_8b
     def test_llama3_8B_f16(self):
         # Llama 3.1 8B non-decomposed
         self.model_name = "llama3_8B_f16_torch"
@@ -73,6 +80,10 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
+    @pytest.mark.skip(
+        reason="https://github.com/nod-ai/shark-ai/issues/1509",
+    )
+    @is_nightly
     def test_llama3_8B_f8(self):
         # Llama 3.1 8B non-decomposed
         self.model_name = "llama3_8B_f8_torch"
@@ -89,9 +100,10 @@ class PerplexityTest(unittest.TestCase):
         )
         self.run_and_check_perplexity()
 
-    @pytest.mark.xfail(
-        reason="Non-decomposed attention is not supported yet",
+    @pytest.mark.skip(
+        reason="https://github.com/nod-ai/shark-ai/issues/1509",
     )
+    @is_nightly
     def test_llama3_405B_f16(self):
         # Llama 3.1 405B non-decomposed
         self.model_name = "llama3_405B_f16_torch"
@@ -102,9 +114,10 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
-    @pytest.mark.xfail(
-        reason="Non-decomposed attention is not supported yet",
+    @pytest.mark.skip(
+        reason="https://github.com/nod-ai/shark-ai/issues/1509",
     )
+    @is_nightly
     def test_llama3_405B_f8(self):
         # Llama 3.1 405B non-decomposed
         self.model_name = "llama3_405B_f8_torch"
@@ -113,6 +126,42 @@ class PerplexityTest(unittest.TestCase):
         self.tensor_parallelism_size = 8
 
         self.prepare_argv()
+        self.run_and_check_perplexity()
+
+    @is_deepseek
+    def test_deepseek_v3(self):
+        # DeepSeek v3 unsharded toy test
+        self.model_name = "deepseek_v3_torch"
+        self.irpa_file = self.deepseek_v3_model
+        self.tokenizer = self.deepseek_v3_tokenizer
+
+        self.prepare_argv(extra_args=("--use-toy-model",))
+        self.run_and_check_perplexity()
+
+    @is_nightly
+    def test_deepseek_v3_tp(self):
+        # DeepSeek v3 tensor parallelism
+        self.model_name = "deepseek_v3_torch"
+        self.irpa_file = self.deepseek_v3_tp2_model
+        self.tokenizer = self.deepseek_v3_tokenizer
+        self.tensor_parallelism_size = 2
+        self.delta = 10
+
+        self.prepare_argv(extra_args=("--use-toy-model",))
+        self.run_and_check_perplexity()
+
+    @pytest.mark.skip(
+        reason="https://github.com/nod-ai/shark-ai/pull/1545",
+    )
+    @is_nightly
+    def test_deepseek_v3_pp(self):
+        # DeepSeek v3 pipeline parallelism
+        self.model_name = "deepseek_v3_torch"
+        self.irpa_file = self.deepseek_v3_model
+        self.tokenizer = self.deepseek_v3_tokenizer
+        self.pipeline_parallelism_size = 2
+
+        self.prepare_argv(extra_args=("--use-toy-model",))
         self.run_and_check_perplexity()
 
 

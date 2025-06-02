@@ -362,8 +362,6 @@ class AttentionFFNBlock(ThetaLayer):
                 fake_quant=fake_quant,
                 softcap=config.hp.attention_softcap,
                 model_arch=config.hp.model_arch,
-                block_to_pipeline_map=config.block_to_pipeline_map,
-                pipeline_to_device_map=config.pipeline_to_device_map,
             ),
         )
 
