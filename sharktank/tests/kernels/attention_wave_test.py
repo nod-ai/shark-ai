@@ -18,7 +18,7 @@ from sharktank.kernels.wave.attention import wave_bhsd_flash_attention
 from sharktank.types import layout_utils
 from sharktank.utils import debugging
 from sharktank import ops
-from iree.turbine.kernel.wave.common.utils import scaled_dot_product_attention_bhsd
+from iree.turbine.kernel.wave.utils.reference_kernel_utils import scaled_dot_product_attention_bhsd
 
 
 class wave_attention(unittest.TestCase):
