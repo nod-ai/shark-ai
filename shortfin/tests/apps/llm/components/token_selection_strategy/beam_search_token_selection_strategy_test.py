@@ -455,7 +455,7 @@ def test_get_results(
         decode_end_callback=lambda _: None,
         eos_token_id=-1,
     )
-    beam_search_token_selection_strategy._token_selection_strategy_config = config
+    beam_search_token_selection_strategy.token_selection_strategy_config = config
 
     expected_results = [[6, 7, 8, 9, 10], [7, 8, 9, 10, 11], [8, 9, 10, 11, 12]]
 
@@ -533,7 +533,7 @@ def test_get_results_extra_reqs(
         results_callback=lambda _: None,
         eos_token_id=-1,
     )
-    beam_search_token_selection_strategy._token_selection_strategy_config = config
+    beam_search_token_selection_strategy.token_selection_strategy_config = config
 
     expected_results = [
         [6, 7, 8, 9, 10],
@@ -619,7 +619,7 @@ async def test_beam_search_decode_single(
     exec_req.allocation = allocation
     with patch.object(
         beam_search_token_selection_strategy,
-        "_token_selection_strategy_config",
+        "token_selection_strategy_config",
         new=config,
     ):
         with patch.object(
@@ -702,7 +702,7 @@ async def test_beam_search_decode_multiple_completions(
     exec_req.allocation = allocation
     with patch.object(
         beam_search_token_selection_strategy,
-        "_token_selection_strategy_config",
+        "token_selection_strategy_config",
         new=config,
     ):
         with patch.object(
@@ -795,7 +795,7 @@ async def test_beam_search_decode_eos_token(
     exec_req.allocation = allocation
     with patch.object(
         beam_search_token_selection_strategy,
-        "_token_selection_strategy_config",
+        "token_selection_strategy_config",
         new=config,
     ):
         with patch.object(

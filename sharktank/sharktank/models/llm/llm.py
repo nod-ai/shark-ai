@@ -90,6 +90,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
                     max_seqlen=self.hp.context_length,
                     device=self.device,
                     use_hf=self.config.use_hf,
+                    rope_scaling_type=self.hp.rope_scaling_type,
                     tensor_parallelism_size=self.config.tensor_parallelism_size,
                     pipeline_parallelism=config.pipeline_parallelism_size > 1,
                     devices=self.cache.pipeline_to_device_map[pipeline],
@@ -170,13 +171,14 @@ class PagedLlmModelV1(BaseCausalLMModel):
         tokens: Union[torch.Tensor, ReplicatedTensor],
         *,
         # [[bs|1, 1, batch_seq_len, batch_seq_len] x self.config.pipeline_parallelism_size]
-        attention_mask: list[Union[torch.Tensor, ReplicatedTensor]],
+        attention_mask: list[Union[torch.Tensor, ReplicatedTensor, None]],
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: list[Union[torch.Tensor, ReplicatedTensor]],
         cache_state: list[Union[torch.Tensor, SplitPrimitiveTensor]],
     ):
         self._assert_device(tokens)
-        self._assert_device(*attention_mask, dtype=self.activation_dtype)
+        if not all(mask is None for mask in attention_mask):
+            self._assert_device(*attention_mask, dtype=self.activation_dtype)
         self._assert_device(*seq_block_ids)
         self._assert_device(*cache_state, dtype=self.activation_dtype)
 
@@ -391,6 +393,12 @@ class AttentionFFNBlock(ThetaLayer):
                 True,
                 True,
             ),
+            "llama4": (
+                torch.nn.functional.sigmoid,
+                torch.nn.functional.silu,
+                True,
+                False,
+            ),
         }
 
         (
@@ -417,6 +425,7 @@ class AttentionFFNBlock(ThetaLayer):
                     moe_activation=moe_activation,
                     score_experts=score_experts,
                     normalize_experts=normalize_experts,
+                    model_arch=config.hp.model_arch,
                 ),
             )
         else:
