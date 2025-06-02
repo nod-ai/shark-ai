@@ -10,8 +10,8 @@ import io
 import json
 import logging
 
-from copy import copy
-from typing import List
+from copy import deepcopy
+from typing import List, Tuple
 
 import shortfin as sf
 import shortfin.array as sfnp
@@ -189,22 +189,33 @@ class ClientGenerateBatchProcess(sf.Process):
         self.responder.send_response(error_response)
         self.responder.ensure_response()
 
+    def _pre_processing_sampling_params(self) -> Tuple[List[DecodeConfig], int]:
+        """Calculate the total number of beams requested in the generation request."""
+        gen_req = self.gen_req
+        decode_configs = []
+        total_requested_beams = 0
+
+        sampling_params = (
+            [gen_req.sampling_params] if gen_req.is_single else gen_req.sampling_params
+        )
+        for sampling_param in sampling_params:
+            decode_config = deepcopy(self.service.server_params.decode_config)
+            decode_config.update_from_sampling_params(sampling_param)
+            total_requested_beams += decode_config.num_beams
+            decode_configs.append(decode_config)
+
+        return decode_configs, total_requested_beams
+
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
 
         indices = []
         total_requested_beams = 0
         try:
-            decode_configs = []
-            for i in range(len(self.gen_req.sampling_params)):
-                decode_config = copy(self.service.server_params.decode_config)
-                decode_config.update_from_sampling_params(
-                    self.gen_req.sampling_params
-                    if self.gen_req.is_single
-                    else self.gen_req.sampling_params[i]
-                )
-                total_requested_beams += decode_config.num_beams
-                decode_configs.append(decode_config)
+            (
+                decode_configs,
+                total_requested_beams,
+            ) = self._pre_processing_sampling_params()
 
             # Try to add request to queue
             # TODO(@zphoenixrises): Add load testing and integration tests for this.
