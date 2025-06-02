@@ -217,28 +217,28 @@ def get_vae_model_and_inputs():
     # model = SanitizedWanVAE(**cfg).bfloat16().to("cpu").requires_grad_(False).eval()
     from orig_vae import WanVAE_
     #scale = torch.tensor(scale_py, dtype=torch.float16)
-    model = WanVAE_(**cfg).bfloat16().to("cuda").requires_grad_(False).eval()
+    model = WanVAE_(**cfg).bfloat16().to("cpu").requires_grad_(False).eval()
     inputs = {
         "encode": {
             "x": torch.rand(1, 3, 1, height, width, dtype=torch.float16),
         },
         "decode": {
-            "z": torch.rand(1, 16, 1, height, width, dtype=torch.float16),
+            "z": torch.rand(1, 16, 21, height, width, dtype=torch.float16),
         }
     }
     np.save("vae_encode_input.npy", np.asarray(inputs["encode"]["x"]).astype("float16"))
     np.save("vae_decode_input.npy", np.asarray(inputs["decode"]["z"]).astype("float16"))
-    model.to("cuda:0")
-    enc_start = time.time()
-    vae_enc_output = model.encode(inputs["encode"]["x"].to("cuda")).clone().detach()
-    print("ENCODE LATENCY: ", str(time.time() - enc_start), " seconds")
-    dec_start = time.time()
-    vae_dec_output = model.decode(inputs["decode"]["z"].to("cuda")).clone().detach()
-    print("DECODE LATENCY: ", str(time.time() - dec_start), " seconds")
+    # model.to("cuda:0")
+    # enc_start = time.time()
+    # vae_enc_output = model.encode(inputs["encode"]["x"].to("cuda")).clone().detach()
+    # print("ENCODE LATENCY: ", str(time.time() - enc_start), " seconds")
+    # dec_start = time.time()
+    # vae_dec_output = model.decode(inputs["decode"]["z"].to("cuda")).clone().detach()
+    # print("DECODE LATENCY: ", str(time.time() - dec_start), " seconds")
 
     
-    np.save("vae_encode_output.npy", np.asarray(vae_enc_output.to(torch.float16)))
-    np.save("vae_decode_output.npy", np.asarray(vae_dec_output.to(torch.float16)))
+    # np.save("vae_encode_output.npy", np.asarray(vae_enc_output.to(torch.float16)))
+    # np.save("vae_decode_output.npy", np.asarray(vae_dec_output.to(torch.float16)))
 
     return model, inputs
 
