@@ -491,7 +491,16 @@ def run_perplexity_iree(
         token_ids = get_token_ids()
         bs = len(token_ids)
     else:
-        test_prompts = args.prompt_list or get_prompts(num_prompts=args.num_prompts)
+        hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
+        if args.prompt_list:
+            for i, prompt in enumerate(test_prompts):
+                if len(prompt) > hp.context_length:
+                    raise ValueError(
+                        f"Prompt {i}'s length {len(prompt)} exceeds context length {hp.context_length}."
+                    )
+        test_prompts = args.prompt_list or get_prompts(
+            num_prompts=args.num_prompts, max_length=hp.context_length
+        )
         bs = len(test_prompts)
 
     perplexity = PerplexityIree(

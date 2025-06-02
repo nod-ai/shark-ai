@@ -299,7 +299,16 @@ def run_perplexity_torch(
             token_ids[idx : idx + bs] for idx in range(0, len(token_ids), bs)
         ]
     else:
-        test_prompts = args.prompt_list or get_prompts(num_prompts=args.num_prompts)
+        hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
+        if args.prompt_list:
+            for i, prompt in enumerate(test_prompts):
+                if len(prompt) > hp.context_length:
+                    raise ValueError(
+                        f"Prompt {i}'s length {len(prompt)} exceeds context length {hp.context_length}."
+                    )
+        test_prompts = args.prompt_list or get_prompts(
+            num_prompts=args.num_prompts, max_length=hp.context_length
+        )
         bs = len(test_prompts)
         input_prompts = [
             test_prompts[idx : idx + bs] for idx in range(0, len(test_prompts), bs)

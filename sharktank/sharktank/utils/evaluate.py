@@ -59,10 +59,14 @@ def get_token_ids():
     ]
 
 
-def get_prompts(num_prompts: Optional[int] = None) -> list[str]:
+def get_prompts(
+    num_prompts: Optional[int] = None,
+    max_length: Optional[int] = None,
+) -> list[str]:
     """Fetches prompts from the wikitext test dataset.
     Args:
           num_prompts: Number of prompts to fetch from dataset, will return all prompts if None
+          max_length: Maximum length of each prompt, will not truncate if None
     """
 
     test_prompts = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")["text"]
@@ -83,6 +87,9 @@ def get_prompts(num_prompts: Optional[int] = None) -> list[str]:
 
     if num_prompts:
         test_prompts = test_prompts[0:num_prompts]
+
+    if max_length is not None:
+        test_prompts = [prompt[:max_length] for prompt in test_prompts]
 
     return test_prompts
 
