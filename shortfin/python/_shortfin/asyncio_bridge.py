@@ -23,6 +23,8 @@ class PyWorkerEventLoop(asyncio.AbstractEventLoop):
     def __init__(self, worker: sfl.local.Worker):
         self._worker = worker
         self._closed = False
+        self._default_executor = None
+        self._executor_shutdown_called = False
 
     def get_debug(self):
         # Requirement of asyncio.
@@ -86,18 +88,47 @@ class PyWorkerEventLoop(asyncio.AbstractEventLoop):
             raise RuntimeError(f"Async exception on {self._worker}: {context}")
 
     def run_in_executor(self, executor, func, *args):
-        executor = concurrent.futures.ThreadPoolExecutor(thread_name_prefix="asyncio")
+        self._check_closed()
+        if executor is None:
+            executor = self._default_executor
+            self._check_default_executor()
+            if executor is None:
+                executor = concurrent.futures.ThreadPoolExecutor(
+                    thread_name_prefix="shortfin_asyncio_bridge"
+                )
+                self._default_executor = executor
         return futures.wrap_future(executor.submit(func, *args), loop=self)
 
     def is_closed(self):
         return self._closed
 
     def close(self):
+        if self._closed:
+            return
         self._closed = True
+        self._executor_shutdown_called = True
+        executor = self._default_executor
+        if executor is not None:
+            # Do not wait for the executor threads to finish.
+            self._default_executor = None
+            executor.shutdown(wait=False)
 
     def _timer_handle_cancelled(self, handle):
         # We don't do anything special: just skip it if it comes up.
         ...
+
+    def _set_result_unless_cancelled(self, fut, result):
+        if fut.cancelled():
+            return
+        fut.set_result(result)
+
+    def _check_default_executor(self):
+        if self._executor_shutdown_called:
+            raise RuntimeError("Executor shutdown has already been called.")
+
+    def _check_closed(self):
+        if self._closed:
+            raise RuntimeError("Event loop closed.")
 
 
 class _Handle(asyncio.Handle):
