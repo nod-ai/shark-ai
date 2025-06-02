@@ -55,7 +55,7 @@ class CausalConv3d(nn.Conv3d):
         out = super().forward(x)
         if self.trace_tensors:
             out = out.clone()
-            # ops.iree.trace_tensor(f"cc3d_out_{self._iter}", out[0][0])
+            ops.iree.trace_tensor(f"cc3d_out_{self._iter}", out[0][0])
         return out
 
 
@@ -537,8 +537,8 @@ class WanVAE_(nn.Module):
             2.8184, 1.4541, 2.3275, 2.6558, 1.2196, 1.7708, 2.6052, 2.0743,
             3.2687, 2.1526, 2.8652, 1.5579, 1.6382, 1.1253, 2.8251, 1.9160
         ]
-        self.mean = torch.tensor(mean, dtype=torch.bfloat16, device="cuda")
-        self.std = torch.tensor(std, dtype=torch.bfloat16, device="cuda")
+        self.mean = torch.tensor(mean, dtype=torch.bfloat16, device="cpu")
+        self.std = torch.tensor(std, dtype=torch.bfloat16, device="cpu")
         self.scale = [self.mean, 1.0 / self.std]
 
     def forward(self, x):
