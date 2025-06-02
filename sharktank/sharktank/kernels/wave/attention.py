@@ -161,6 +161,5 @@ def wave_bhsd_flash_attention(
     }}
     """
     mlir = "module {" + asm_body + mlir_wave_kernel + "}"
-    with open('wave_attn.mlir', 'w') as f:
-        f.write(mlir)
+
     return MLIRSpec(mlir)
