@@ -390,9 +390,18 @@ class PerplexityIree:
                 modules=(hal_module, parameters_module, self.vm_module),
             )
 
+            self.last_token = self.max_prompt_length
+            context_length = self.generator.model.config.hp.context_length
+            if self.last_token > context_length:
+                logger.warning(
+                    f"Last token {self.last_token} exceeds context length {context_length}. "
+                    "Limiting tokens to context length."
+                )
+                self.last_token = context_length
+
             out_logits = []
             for i in tqdm(
-                range(self.start, self.max_prompt_length - 1),
+                range(self.start, self.last_token),
                 mininterval=300,
                 desc=f"eval_iree: Calculating logits for {weight_path.name}",
             ):
@@ -491,16 +500,7 @@ def run_perplexity_iree(
         token_ids = get_token_ids()
         bs = len(token_ids)
     else:
-        hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
-        if args.prompt_list:
-            for i, prompt in enumerate(test_prompts):
-                if len(prompt) > hp.context_length:
-                    raise ValueError(
-                        f"Prompt {i}'s length {len(prompt)} exceeds context length {hp.context_length}."
-                    )
-        test_prompts = args.prompt_list or get_prompts(
-            num_prompts=args.num_prompts, max_length=hp.context_length
-        )
+        test_prompts = args.prompt_list or get_prompts(num_prompts=args.num_prompts)
         bs = len(test_prompts)
 
     perplexity = PerplexityIree(
