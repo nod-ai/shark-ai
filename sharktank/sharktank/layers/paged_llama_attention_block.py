@@ -43,8 +43,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         attention_scale: Optional[float] = None,
         softcap: Optional[float] = None,
         fake_quant: Optional[bool] = True,
-        block_to_pipeline_map: tuple[tuple[int, ...], ...] | None = None,
-        pipeline_to_device_map: tuple[tuple[int, ...], ...] | None = None,
     ):
         super().__init__(theta)
         self.shard_count = cache.shard_count
