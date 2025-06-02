@@ -200,6 +200,8 @@ class PagedLlmModelV1(BaseCausalLMModel):
 
         # Iterate over attention blocks.
         for block_idx, block in enumerate(self.attn_blocks):
+            if block_idx != 3:
+                continue
             if block_idx == 0:
                 self.trace_tensor(f"llama.attn_block.{block_idx}.input", h)
             use_chunked_attention = (
@@ -293,6 +295,8 @@ class PagedLlmModelV1(BaseCausalLMModel):
 
         # Iterate over attention blocks.
         for block_idx, block in enumerate(self.attn_blocks):
+            if block_idx != 3:
+                continue
             if block_idx == 0:
                 self.trace_tensor(f"llama.attn_block.{block_idx}.input", h)
             # TODO: Hacky, shouldn't need to read info out of self.cache
