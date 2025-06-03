@@ -290,21 +290,25 @@ def make_random_ffn_theta(
     hidden_dim: int,
     dtype: torch.dtype,
     out_dim: int | None = None,
+    suffix: str = "",
 ):
+    ffn_gate = "ffn_gate" + suffix
+    ffn_up = "ffn_up" + suffix
+    ffn_down = "ffn_down" + suffix
     if out_dim is None:
         out_dim = in_dim
     return Theta(
         {
-            "ffn_gate.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.ffn_gate.weight",
+            f"{ffn_gate}.weight": DefaultPrimitiveTensor(
+                name=f"blk.{block_idx}.{ffn_gate}.weight",
                 data=make_rand_torch((hidden_dim, in_dim), dtype=dtype),
             ),
-            "ffn_up.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.ffn_up.weight",
+            f"{ffn_up}.weight": DefaultPrimitiveTensor(
+                name=f"blk.{block_idx}.{ffn_up}.weight",
                 data=make_rand_torch((hidden_dim, in_dim), dtype=dtype),
             ),
-            "ffn_down.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.ffn_down.weight",
+            f"{ffn_down}.weight": DefaultPrimitiveTensor(
+                name=f"blk.{block_idx}.{ffn_down}.weight",
                 data=make_rand_torch((out_dim, hidden_dim), dtype=dtype),
             ),
         }
@@ -350,6 +354,7 @@ def make_random_moe_block_theta(
             hidden_dim=expert_hidden_dim * num_shared_experts,
             out_dim=in_dim,
             dtype=dtype,
+            suffix="_shexp",
         )
         res.update(shared_ffn_theta.tree)
     if with_layer_output_norm:
