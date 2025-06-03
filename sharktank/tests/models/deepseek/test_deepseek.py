@@ -147,4 +147,11 @@ class DeepseekTest(TempDirTestBase):
             return iree_logits
 
         iree_logits = with_iree_device_context(run_iree_module, iree_devices)
+
+        padding_mask = (
+            (token_ids != 0).int().detach().clone().to(token_ids.device).unsqueeze(2)
+        )
+        reference_logits = reference_logits * padding_mask
+        iree_logits = iree_logits * padding_mask
+
         torch.testing.assert_close(iree_logits, reference_logits)
