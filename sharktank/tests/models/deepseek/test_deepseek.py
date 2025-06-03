@@ -87,10 +87,8 @@ class DeepseekTest(TempDirTestBase):
         reference_batch.prefill()
         reference_logits = reference_batch.prefill_logits
 
-        sharded_cache = create_paged_kv_cache(config)
-        sharded_cache_state = sharded_cache.shard_state(
-            deepcopy(cache_state_before_prefill)
-        )
+        iree_cache = create_paged_kv_cache(config)
+        iree_cache_state = iree_cache.shard_state(deepcopy(cache_state_before_prefill))
 
         mlir_path = self._temp_dir / "model.mlir"
         export_config_path = self._temp_dir / "model_export_config.json"
@@ -135,7 +133,7 @@ class DeepseekTest(TempDirTestBase):
                 token_ids,
                 seq_lens,
                 seq_block_ids_before_prefill,
-                sharded_cache_state,
+                iree_cache_state,
             )
             iree_result = getattr(torch_like_iree_module, f"prefill_bs{batch_size}")(
                 *args
