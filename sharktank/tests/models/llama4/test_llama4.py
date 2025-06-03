@@ -50,7 +50,7 @@ class Llama4Test(TempDirTestBase):
         batch_seq_len = config.hp.context_length
         input_ids = torch.randint(
             low=0,
-            high=config.vocabulary_size,
+            high=config.hp.vocab_size,
             size=[batch_size, batch_seq_len],
             dtype=torch.long,
         )

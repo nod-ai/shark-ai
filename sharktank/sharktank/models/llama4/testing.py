@@ -65,15 +65,29 @@ def block_theta_to_hugging_face_state_dict(
         "attn_output.weight": "self_attn.o_proj.weight",
         "attn_norm.weight": "input_layernorm.weight",
         "ffn_norm.weight": "post_attention_layernorm.weight",
-        "ffn_gate.weight": "feed_forward.gate_proj.weight",
-        "ffn_up.weight": "feed_forward.up_proj.weight",
-        "ffn_down.weight": "feed_forward.down_proj.weight",
         # MoE
         "ffn_gate_inp.weight": "feed_forward.router.weight",
         "shared_experts.ffn_gate.weight": "feed_forward.shared_expert.gate_proj.weight",
         "shared_experts.ffn_up.weight": "feed_forward.shared_expert.up_proj.weight",
         "shared_experts.ffn_down.weight": "feed_forward.shared_expert.down_proj.weight",
     }
+    if block_idx in config.moe_layers:
+        name_map.update(
+            {
+                "ffn_gate.weight": "feed_forward.shared_expert.gate_proj.weight",
+                "ffn_up.weight": "feed_forward.shared_expert.up_proj.weight",
+                "ffn_down.weight": "feed_forward.shared_expert.down_proj.weight",
+            }
+        )
+    else:
+        name_map.update(
+            {
+                "ffn_gate.weight": "feed_forward.gate_proj.weight",
+                "ffn_up.weight": "feed_forward.up_proj.weight",
+                "ffn_down.weight": "feed_forward.down_proj.weight",
+            }
+        )
+
     res = {name_map[k]: v for k, v in theta.flatten().items() if k in name_map}
     if "ffn_gate_exps" in theta.tree:
         res["feed_forward.experts.gate_up_proj"] = torch.cat(

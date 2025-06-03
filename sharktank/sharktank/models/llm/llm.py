@@ -195,7 +195,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
                     count=len(self.cache.pipeline_to_device_map[pipeline]),
                     devices=self.cache.pipeline_to_device_map[pipeline],
                 )
-                for pipeline in range(self.cache.pipeline_count)
+                for pipeline in range(len(self.cache.pipeline_to_device_map))
             ]
 
         # Iterate over attention blocks.
@@ -345,6 +345,13 @@ class AttentionFFNBlock(ThetaLayer):
             "decomposed" if config.hp.model_arch == "grok" else config.attention_kernel
         )
 
+        if config.hp.model_arch == "llama4":
+            use_rope = (
+                block_index in config.rope_layers if config.rope_layers else False
+            )
+        else:
+            use_rope = True
+
         self.add_module(
             "attn",
             PagedLlamaAttentionBlock(
@@ -363,9 +370,7 @@ class AttentionFFNBlock(ThetaLayer):
                 model_arch=config.hp.model_arch,
                 block_to_pipeline_map=config.block_to_pipeline_map,
                 pipeline_to_device_map=config.pipeline_to_device_map,
-                use_rope=block_index in config.rope_layers
-                if config.rope_layers
-                else False,
+                use_rope=use_rope,
                 use_qk_norm=block_index in config.rope_layers and config.use_qk_norm
                 if config.rope_layers
                 else False,
