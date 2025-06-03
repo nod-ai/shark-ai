@@ -39,7 +39,7 @@ O_DTYPE = Dtype.O_DTYPE(torch.float32)
 def flash_attention(q, k, v, scale, result=None):
     mlir = """
     module {
-    util.func @{{kernel_name}}(%q : !q, %k : !k, %v: !v, %scale: !scale) -> !result {
+    util.func private @{{kernel_name}}(%q : !q, %k : !k, %v: !v, %scale: !scale) -> !result {
 
       %c0 = arith.constant 0 : index
       %c1 = arith.constant 1 : index
@@ -88,7 +88,7 @@ def flash_attention(q, k, v, scale, result=None):
 def masked_flash_attention(q, k, v, mask, scale, result=None):
     mlir = """
     module {
-    util.func @{{kernel_name}}(%q : !q, %k : !k, %v: !v, %mask : !mask, %scale: !scale) -> !result {
+    util.func private @{{kernel_name}}(%q : !q, %k : !k, %v: !v, %mask : !mask, %scale: !scale) -> !result {
 
       %c0 = arith.constant 0 : index
       %c1 = arith.constant 1 : index
