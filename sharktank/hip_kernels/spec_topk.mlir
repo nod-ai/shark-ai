@@ -28,7 +28,7 @@ module attributes {transform.with_named_sequence} {
       objects({
         #rocm_target ordinal(0) = [
           #hal.executable.object<{
-            path = "topk_ukernel.c.hsaco"
+            path = "compiled_kernels/topk_ukernel.c.hsaco"
           }>
         ]
       })
