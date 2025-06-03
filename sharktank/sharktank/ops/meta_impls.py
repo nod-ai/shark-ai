@@ -25,24 +25,28 @@ def linear_meta(input, weight, bias, *, accum_dtype) -> Tensor:
     input = unbox_tensor(input)
     weight = unbox_tensor(weight)
     bias = None if bias is None else unbox_tensor(bias)
-    
+
     result = matmul(input, weight, transpose_rhs=True)
     if bias is not None:
         result = result + bias
     return result
 
+
 # Linear overrides
 linear.override(MetaAnyTensor, MetaAnyTensor, auto_dequant=True)(linear_meta)
-linear.override(MetaAnyTensor, MetaAnyTensor, MetaAnyTensor, auto_dequant=True)(linear_meta)
+linear.override(MetaAnyTensor, MetaAnyTensor, MetaAnyTensor, auto_dequant=True)(
+    linear_meta
+)
+
 
 def matmul_meta(lhs, rhs, *, transpose_rhs: bool = False) -> Tensor:
     """Matmul implementation that handles torch.fx.Proxy objects during FX tracing."""
     lhs = unbox_tensor(lhs)
     rhs = unbox_tensor(rhs)
-    
+
     if transpose_rhs:
         rhs = rhs.T
-    
+
     return torch.matmul(lhs, rhs)
 
 

@@ -420,13 +420,13 @@ class ThetaLayer(BaseLayer):
     def state_dict(self, *args, **kwargs):
         """Override state_dict for brevitas compatibility."""
         state_dict = super().state_dict(*args, **kwargs)
-        
+
         # Only include actual tensors, not quantizers or other objects
         for theta_name in self.theta.keys:
             tensor = self.theta.tensor(theta_name)
-            if hasattr(tensor, 'as_torch') or isinstance(tensor, torch.Tensor):
+            if hasattr(tensor, "as_torch") or isinstance(tensor, torch.Tensor):
                 state_dict[theta_name] = unbox_tensor(tensor)
-        
+
         return state_dict
 
     def export_parameters(self, path: PathLike | None = None, /):
