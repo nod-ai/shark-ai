@@ -283,7 +283,9 @@ class PerplexityTorch:
         logger.debug(f"Final Logits shape: {out_logits.shape}")
         logger.debug(f"Token ids shape: {self.token_ids.shape}")
 
-        return compute_perplexity(self.token_ids, out_logits, self.start)
+        return compute_perplexity(
+            self.token_ids, out_logits, self.start, self.last_token
+        )
 
 
 def run_perplexity_torch(
