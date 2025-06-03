@@ -86,6 +86,7 @@ class DeepseekTest(TempDirTestBase):
         seq_block_ids_before_prefill = reference_batch.pad_block_ids()
         reference_batch.prefill()
         reference_logits = reference_batch.prefill_logits
+        reference_cache_state_after = deepcopy(reference_batch.cache_state)
 
         iree_cache = create_paged_kv_cache(config)
         iree_cache_state = iree_cache.shard_state(deepcopy(cache_state_before_prefill))
@@ -145,7 +146,9 @@ class DeepseekTest(TempDirTestBase):
             return iree_logits
 
         iree_logits = with_iree_device_context(run_iree_module, iree_devices)
+        iree_cache_state_after = deepcopy(iree_cache_state)
 
+        # Compare logits
         padding_mask = (
             (token_ids != 0).int().detach().clone().to(token_ids.device).unsqueeze(2)
         )
@@ -153,3 +156,10 @@ class DeepseekTest(TempDirTestBase):
         iree_logits = iree_logits * padding_mask
 
         torch.testing.assert_close(iree_logits, reference_logits)
+
+        # Compare cache state
+        assert len(iree_cache_state_after) == len(reference_cache_state_after)
+        for i in range(len(iree_cache_state_after)):
+            iree_state_i = iree_cache_state_after[i]
+            reference_state_i = reference_cache_state_after[i]
+            torch.testing.assert_close(iree_state_i, reference_state_i)
