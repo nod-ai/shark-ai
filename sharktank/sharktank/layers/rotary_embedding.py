@@ -209,7 +209,7 @@ class RotaryEmbeddingLayer(BaseLayer):
             0
         ) + start_positions.unsqueeze(1)
         assert not any(
-            position >= self.max_seqlen for position in start_positions
+            position >= self.max_seqlen for position in ops.unshard(positions_seq)
         ), "One or more positions greater than max_seqlen. Prompt too long."
         # Broadcast lookup to [b, ...].
         self.trace_tensor("rope.positions_seq", positions_seq)
