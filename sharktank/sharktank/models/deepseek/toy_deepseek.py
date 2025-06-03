@@ -60,7 +60,7 @@ def generate(seed: int) -> tuple[Theta, LlamaModelConfig]:
             moe_intermediate_size=7,
             n_expert_groups=2,
             n_limited_groups=2,
-            n_dense_layers=1,
+            n_dense_layers=0,
             route_scale=2.5,
             rope_scaling_type="yarn",
             rope_scaling_factor=40.0,
