@@ -45,7 +45,6 @@ class topk_test(unittest.TestCase):
         # Compare results
         torch.testing.assert_close(result_values, ref_values)
         torch.testing.assert_close(result_indices, ref_indices)
-        assert False
 
     def test_topk_dynamic_dim(self):
         dtype = torch.float32
@@ -70,4 +69,3 @@ class topk_test(unittest.TestCase):
             torch.testing.assert_close(
                 result_indices, ref_indices, msg=f"Failed for dim={dim}"
             )
-        assert False
