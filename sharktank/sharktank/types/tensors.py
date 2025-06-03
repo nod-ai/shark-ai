@@ -1726,6 +1726,10 @@ def unbox_tensor(t: Any) -> Tensor:
     """Unboxes a value that can be isomorphically interpreted as a Tensor."""
     if isinstance(t, Tensor):
         return t
+    elif isinstance(t, torch.fx.Proxy):
+        # During FX tracing, Proxy objects act like torch.Tensor
+        # Required for Brevitas quantization support
+        return t
     elif isinstance(t, PrimitiveTensor):
         return t.as_torch()
     elif isinstance(t, QuantizedTensor):
