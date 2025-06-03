@@ -37,11 +37,6 @@ class topk_test(unittest.TestCase):
         # Convert indices to match PyTorch's dtype
         result_indices = result_indices.to(torch.int64)
 
-        print("result_values", result_values)
-        print("ref_values", ref_values)
-        print("result_indices", result_indices)
-        print("ref_indices", ref_indices)
-
         # Compare results
         torch.testing.assert_close(result_values, ref_values)
         torch.testing.assert_close(result_indices, ref_indices)
