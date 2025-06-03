@@ -16,7 +16,7 @@ from sharktank.utils.evaluate import *
 
 
 class DeepseekTest(unittest.TestCase):
-    def test_deepseek(self):
+    def testCrossEntropy(self):
         theta, config = generate(12345)
         model = PagedLlmModelV1(theta=theta, config=config)
 
