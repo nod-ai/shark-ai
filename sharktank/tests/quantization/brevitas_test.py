@@ -16,6 +16,7 @@ from sharktank.quantization.brevitas import quantize
 
 import brevitas
 
+
 class BrevitasQuantizationTest(unittest.TestCase):
     def setUp(self):
         torch.manual_seed(12345)
