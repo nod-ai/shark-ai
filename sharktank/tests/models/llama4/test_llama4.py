@@ -126,7 +126,7 @@ class Llama4Test(TempDirTestBase):
             num_experts=num_experts,
             with_ffn_norm=True,
             num_shared_experts=num_shared_experts,
-            with_layer_output_norm=True,
+            with_layer_output_norm=False,
             dtype=dtype,
         )
 
