@@ -4,6 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import subprocess
 import pytest
 import unittest
 import iree
@@ -14,7 +15,7 @@ import torch
 from sharktank.models.llm import *
 from sharktank.models.deepseek.toy_deepseek import generate
 from sharktank.utils.create_cache import create_paged_kv_cache
-from sharktank.utils.export_artifacts import ExportArtifacts
+from sharktank.utils.export_artifacts import ExportArtifacts, IreeBenchmarkException
 from sharktank.utils.iree import (
     TorchLikeIreeModule,
     get_iree_devices,
@@ -80,6 +81,7 @@ class DeepseekTest(TempDirTestBase):
         assert pytest.approx(9.7477, 1e-4) == cross_entropy
 
     def testUnshardedToySizedModelIREEVsEager(self):
+        work_dir = self._temp_dir
         theta, config = generate(12345)
 
         ids = [
@@ -96,7 +98,7 @@ class DeepseekTest(TempDirTestBase):
         batch_size = token_ids.shape[0]
 
         dataset = Dataset(root_theta=theta, properties=config.to_properties())
-        dataset_path = self._temp_dir / "parameters.irpa"
+        dataset_path = work_dir / "parameters.irpa"
         dataset.save(path=dataset_path)
         dataset = Dataset.load(dataset_path)
 
@@ -115,8 +117,8 @@ class DeepseekTest(TempDirTestBase):
         iree_cache = create_paged_kv_cache(config)
         iree_cache_state = iree_cache.shard_state(deepcopy(cache_state_before_prefill))
 
-        mlir_path = self._temp_dir / "model.mlir"
-        export_config_path = self._temp_dir / "model_export_config.json"
+        mlir_path = work_dir / "model.mlir"
+        export_config_path = work_dir / "model_export_config.json"
         export_artifacts = ExportArtifacts.from_config(
             config,
             irpa_path=dataset_path,
@@ -131,7 +133,7 @@ class DeepseekTest(TempDirTestBase):
             skip_decode=True,  # TODO: enable decode
         )
 
-        iree_module_path = self._temp_dir / "model.vmfb"
+        iree_module_path = work_dir / "model.vmfb"
         export_artifacts.compile_to_vmfb(
             output_mlir=mlir_path,
             output_vmfb=iree_module_path,
@@ -142,6 +144,21 @@ class DeepseekTest(TempDirTestBase):
             device="hip://4",
             device_count=1,
         )
+
+        token_ids_path = work_dir / "token_ids.npy"
+        seq_lens_path = work_dir / "seq_lens.npy"
+        seq_block_ids_before_prefill_path = (
+            work_dir / "seq_block_ids_before_prefill.npy"
+        )
+        iree_cache_state_path = work_dir / "iree_cache_state.npy"
+
+        np.save(token_ids_path, token_ids.cpu().numpy())
+        np.save(seq_lens_path, seq_lens.cpu().numpy())
+        np.save(
+            seq_block_ids_before_prefill_path,
+            seq_block_ids_before_prefill.cpu().numpy(),
+        )
+        np.save(iree_cache_state_path, iree_cache_state[0].cpu().numpy())
 
         def run_iree_module(iree_devices: list[iree.runtime.HalDevice]):
             cpu_device = get_iree_devices(driver="local-task", device_count=1)
@@ -177,23 +194,59 @@ class DeepseekTest(TempDirTestBase):
             iree_logits = iree_result[0]
             return iree_logits
 
-        iree_logits = with_iree_device_context(run_iree_module, iree_devices)
+        iree_logits_w_py = with_iree_device_context(run_iree_module, iree_devices)
         iree_cache_state_after = deepcopy(iree_cache_state)
+
+        run_args = [
+            "iree-run-module",
+            "--hip_use_streams=true",
+            f"--parameters=model={dataset_path}",
+            f"--module={iree_module_path}",
+            "--device=hip://0",
+            f"--function=prefill_bs{batch_size}",
+            f"--input=@{token_ids_path}",
+            f"--input=@{seq_lens_path}",
+            f"--input=@{seq_block_ids_before_prefill_path}",
+            f"--input=@{iree_cache_state_path}",
+            "--output=@iree_logits.npy",
+        ]
+        cmd = subprocess.list2cmdline(run_args)
+        print(f" Launching compile command:\n" f"cd {work_dir} && {cmd}")
+        proc = subprocess.run(cmd, shell=True, capture_output=True, cwd=work_dir)
+        return_code = proc.returncode
+        if return_code != 0:
+            raise IreeBenchmarkException(proc, work_dir)
+
+        iree_logits_cli = torch.tensor(np.load(work_dir / "iree_logits.npy"))
 
         # Compare logits
         padding_mask = (
             (token_ids != 0).int().detach().clone().to(token_ids.device).bool()
         )
-        all_ref_logits, all_iree_logits = [], []
+        all_ref_logits, all_iree_logits_w_py, all_iree_logits = [], [], []
         for i in range(len(ids)):
             all_ref_logits.append(reference_logits[i, padding_mask[i]])
-            all_iree_logits.append(iree_logits[i, padding_mask[i]])
+            all_iree_logits_w_py.append(iree_logits_w_py[i, padding_mask[i]])
+            all_iree_logits.append(iree_logits_cli[i, padding_mask[i]])
 
-        for i, (ref_logits_i, iree_logits_i) in enumerate(
-            zip(all_ref_logits, all_iree_logits)
+        for i, (iree_logits_py_i, iree_logits_cli_i) in enumerate(
+            zip(all_iree_logits_w_py, all_iree_logits)
         ):
-            assert ref_logits_i.shape == iree_logits_i.shape
-            same = torch.isclose(ref_logits_i, iree_logits_i, rtol=1.3e-6, atol=1e-5)
+            assert iree_logits_py_i.shape == iree_logits_cli_i.shape
+            same = torch.isclose(
+                iree_logits_py_i, iree_logits_cli_i, rtol=1.3e-6, atol=1e-5
+            )
+            if not same.all():
+                raise AssertionError(
+                    f"Logits mismatch for batch {i}: "
+                    f"Num mismatch: {(~same).sum()}. {100*same.sum() / same.numel():.1f}% match."
+                )
+
+        for i, (ref_logits_i, iree_logits_py_i) in enumerate(
+            zip(all_ref_logits, all_iree_logits_w_py)
+        ):
+            assert ref_logits_i.shape == iree_logits_py_i.shape
+            same = torch.isclose(ref_logits_i, iree_logits_py_i, rtol=1.3e-6, atol=1e-5)
             if not same.all():
                 raise AssertionError(
                     f"Logits mismatch for batch {i}: "
