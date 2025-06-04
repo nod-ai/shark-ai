@@ -6,6 +6,7 @@
 
 import unittest
 
+import math
 import numpy as np
 import pytest
 import torch
@@ -456,7 +457,11 @@ class TestTopK(unittest.TestCase):
         ]
     )
     def testSplitTopKLastDim(self, dim, k, largest, _sorted, shape, chunk_size):
-        tensor = torch.rand(shape, dtype=torch.float32)
+        numels = math.prod(shape)
+        tensor = torch.arange(numels) * 173 + 129
+        tensor = tensor % numels
+        tensor = tensor.to(torch.float16).view(shape)
+
         values_expected, index_expected = torch.topk(tensor, k, dim, largest, _sorted)
 
         values, index = ops.topk(
@@ -483,16 +488,20 @@ class TestTopK(unittest.TestCase):
 
     @parameterized.expand(
         [
-            (0, 2, True, True, (4, 1, 32), 2),
-            (0, 2, False, True, (4, 1, 32), 2),
-            (0, 2, False, False, (4, 1, 32), 2),
-            (0, 2, True, False, (4, 1, 32), 2),
-            (0, 3, True, True, (6, 2, 64), 3),
-            (0, 4, True, True, (8, 3, 128), 4),
+            (0, 2, True, True, (4, 1, 8), 2),
+            (0, 2, False, True, (4, 1, 8), 2),
+            (0, 2, False, False, (4, 1, 8), 2),
+            (0, 2, True, False, (4, 1, 8), 2),
+            (0, 3, True, True, (6, 2, 12), 3),
+            (0, 4, True, True, (8, 3, 24), 4),
         ]
     )
     def testSplitTopKDim0(self, dim, k, largest, _sorted, shape, chunk_size):
-        tensor = torch.rand(shape, dtype=torch.float16)
+        numels = math.prod(shape)
+        tensor = torch.arange(numels) * 173 + 129
+        tensor = tensor % numels
+        tensor = tensor.to(torch.float16).view(shape)
+
         values_expected, index_expected = torch.topk(tensor, k, dim, largest, _sorted)
 
         values, index = ops.topk(

@@ -782,7 +782,7 @@ def _split_topk(
     tensor_unflattened = unflatten(tensor, dim, (n_chunks, chunk_size))
 
     vals_local, idx_local = topk(
-        tensor_unflattened, k, dim=dim + 1, largest=largest, sorted=False
+        tensor_unflattened, k, dim=dim + 1, largest=largest, sorted=sorted
     )
 
     vals_flat = flatten(vals_local, start_dim=dim, end_dim=dim + 1)
