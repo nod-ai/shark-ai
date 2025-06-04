@@ -332,6 +332,9 @@ def _optional_int_prop(
 class LlamaModelConfig:
     hp: LlamaHParams
 
+    # If true, use the topk kernel for the topk operation.
+    use_topk_kernel: bool = False
+
     # Block sequence stride for a paged KV cache. This must divide evenly
     # into the context length.
     block_seq_stride: int = 32
