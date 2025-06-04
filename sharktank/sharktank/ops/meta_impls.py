@@ -10,20 +10,36 @@
 from typing import Union
 import torch
 from torch import Tensor
-from sharktank.types import PrimitiveTensor, QuantizedTensor, InferenceTensor
+from sharktank.types import InferenceTensor
 from sharktank.types.tensors import unbox_tensor
 from .signatures import *
 
 # Union type for meta implementations that includes Proxy objects
 MetaAnyTensor = Union[torch.fx.Proxy, Tensor, InferenceTensor]
 
+
+def any_input_meta(*args):
+    for arg in args:
+        if isinstance(arg, torch.fx.Proxy):
+            return True
+    return False
+
+
+def meta_unbox_tensor(tensor):
+    if isinstance(tensor, torch.fx.Proxy):
+        return tensor
+    else:
+        return unbox_tensor(tensor)
+
+
 # During FX tracing with Proxy objects, we can't do control flow comparisons
 # but we can still call operations - PyTorch will handle the dtype conversion
 # automatically during actual execution
 def linear_meta(input, weight, bias, *, accum_dtype) -> Tensor:
-    """Linear implementation that handles torch.fx.Proxy objects during FX tracing."""
-    input = unbox_tensor(input)
-    weight = unbox_tensor(weight)
+    if not any_input_meta(input, weight, bias):
+        return NotImplemented
+    input = meta_unbox_tensor(input)
+    weight = meta_unbox_tensor(weight)
     bias = None if bias is None else unbox_tensor(bias)
 
     result = matmul(input, weight, transpose_rhs=True)
@@ -32,7 +48,6 @@ def linear_meta(input, weight, bias, *, accum_dtype) -> Tensor:
     return result
 
 
-# Linear overrides
 linear.override(MetaAnyTensor, MetaAnyTensor, auto_dequant=True)(linear_meta)
 linear.override(MetaAnyTensor, MetaAnyTensor, MetaAnyTensor, auto_dequant=True)(
     linear_meta
@@ -40,9 +55,10 @@ linear.override(MetaAnyTensor, MetaAnyTensor, MetaAnyTensor, auto_dequant=True)(
 
 
 def matmul_meta(lhs, rhs, *, transpose_rhs: bool = False) -> Tensor:
-    """Matmul implementation that handles torch.fx.Proxy objects during FX tracing."""
-    lhs = unbox_tensor(lhs)
-    rhs = unbox_tensor(rhs)
+    if not any_input_meta(lhs, rhs):
+        return NotImplemented
+    lhs = meta_unbox_tensor(lhs)
+    rhs = meta_unbox_tensor(rhs)
 
     if transpose_rhs:
         rhs = rhs.T
@@ -50,5 +66,4 @@ def matmul_meta(lhs, rhs, *, transpose_rhs: bool = False) -> Tensor:
     return torch.matmul(lhs, rhs)
 
 
-# Matmul overrides
 matmul.override(MetaAnyTensor, MetaAnyTensor)(matmul_meta)

@@ -8,6 +8,7 @@ from typing import Optional
 import torch
 from .base import Theta, ThetaLayer
 from sharktank.types import AnyTensor, QuantizerTensor
+from sharktank.quantization.config import QuantizationConfig
 
 __all__ = [
     "QuantizationLayer",
@@ -28,12 +29,14 @@ class QuantizationLayer(ThetaLayer):
         *,
         quantizer_name: str = "quantizer",
         enabled=True,
+        quantization_config: QuantizationConfig = QuantizationConfig(),
     ):
         super().__init__(theta)
+        self.quantization_config = quantization_config
+        self.enabled = enabled
         self.quantizer: Optional[QuantizerTensor] = theta.optional_tensor(
             quantizer_name
         )
-        self.enabled = enabled
 
         if enabled and self.quantizer is None:
             raise ValueError(

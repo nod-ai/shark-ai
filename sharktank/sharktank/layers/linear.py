@@ -13,6 +13,7 @@ from sharktank.types import (
     QuantizedTensor,
     QuantizerTensor,
 )
+from sharktank.quantization.config import QuantizationConfig
 
 __all__ = [
     "LinearLayer",
@@ -39,6 +40,7 @@ class LinearLayer(ThetaLayer):
         weight_name: str = "weight",
         bias_name: str = "bias",
         fake_quant: bool = False,
+        quantization_config: QuantizationConfig = QuantizationConfig(torch.int8),
     ):
         super().__init__(theta)
         self._simulate_native_quant = True
@@ -47,6 +49,8 @@ class LinearLayer(ThetaLayer):
         self.fake_quant = fake_quant
         if bias_name in self.theta.keys:
             self.bias = self.theta_tensor(bias_name)
+
+        self.quantization_config = quantization_config
 
         # Input premultiplier.
         self.premul_input = theta.optional_tensor("premul_input")
