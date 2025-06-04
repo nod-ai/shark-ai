@@ -82,12 +82,7 @@ def add_cli_args(parser: argparse.ArgumentParser):
         default=1,
         help="Number of workers to use when running in `offline` mode.",
     )
-    parser.add_argument(
-        "--disaggregate",
-        action="store_true",
-        help="Disaggregate the prefill and decode invocations to separate HIP streams.",
-    )
-    
+
 
 def parse_args(argv):
     parser = argparse.ArgumentParser()
