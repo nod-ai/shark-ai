@@ -8,13 +8,7 @@
 #include <hip/hip_fp16.h>
 #include <hip/hip_runtime.h>
 
-#define MAX_K 32 // Upper limit for K, safe for stack on GPU
-
-extern "C" __device__ __attribute__((const)) half __ockl_wfred_max_f16(half);
-extern "C" __device__
-    __attribute__((const)) int64_t __ockl_wfred_min_i64(int64_t);
-extern "C" __device__
-    __attribute__((const)) int32_t __ockl_wfred_min_i32(int32_t);
+#define MAX_K 16  // Upper limit for K, safe for stack on GPU
 
 /*
 Batch-enabled TopK Kernel:
@@ -29,7 +23,7 @@ extern "C" __global__ void topk_F32I32(const float *__restrict__ inputBuffer,
                                        int reductionSize) {
   int k = 4;
   int batchID = blockIdx.x;
-  uint laneID = __builtin_amdgcn_workitem_id_x();
+  uint laneID = threadIdx.x;
 
   const float *batchInput = inputBuffer + batchID * reductionSize;
   float *batchOutputValues = outputValues + batchID * k;
@@ -46,7 +40,7 @@ extern "C" __global__ void topk_F32I32(const float *__restrict__ inputBuffer,
   uint numBatches = (reductionSize + warpSize - 1) / warpSize;
   for (int i = 0; i < numBatches; ++i) {
     uint idx = warpSize * i + laneID;
-    float val = (idx < reductionSize) ? batchInput[idx] : -FLT_MAX;
+    float val = idx < reductionSize ? batchInput[idx] : -FLT_MAX;
 
     // Insert into local top-k buffer
     for (int j = 0; j < k; ++j) {

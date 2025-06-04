@@ -1,6 +1,6 @@
 // iree-compile linalg_topk.mlir --iree-hal-target-device=hip --iree-hip-target=gfx942 --iree-hal-executable-object-search-path=~/iree-build --iree-preprocessing-transform-spec-filename=spec_topk.mlir -o linalg_topk_hip.vmfb
 // iree-benchmark-module --module=linalg_topk_hip.vmfb --function=topk_k4 --device=hip://4 --input=8x1x131072xf32
-// iree-run-module --module=linalg_topk_hip.vmfb --function=topk_k4 --device=hip://4 --input=8x1x131072xf32=@input0.npy
+// iree-run-module --module=linalg_topk_hip.vmfb --function=topk_k4 --device=hip://4 --input=@input0.npy
 
 module @module {
   util.func public @topk_k4(%arg0: tensor<8x1x131072xf32>) -> (tensor<8x1x4xf32>, tensor<8x1x4xi32>) {
