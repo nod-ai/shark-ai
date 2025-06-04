@@ -4,9 +4,9 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-!input_tensor_type = tensor<?x?x?xf32>
+!input_tensor_type = tensor<?x?x?x{{dtype}}>
 !indices_tensor_type = tensor<?x?x?xi32>
-!values_tensor_type = tensor<?x?x{{k}}xf32>
+!values_tensor_type = tensor<?x?x{{k}}x{{dtype}}>
 !indices_out_tensor_type = tensor<?x?x{{k}}xi32>
 
 module {

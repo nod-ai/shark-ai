@@ -460,7 +460,7 @@ class TestTopK(unittest.TestCase):
         ]
     )
     def testSplitTopKLastDim(self, dim, k, largest, _sorted, shape, chunk_size):
-        tensor = torch.rand(shape, dtype=torch.float16)
+        tensor = torch.rand(shape, dtype=torch.float32)
         values_expected, index_expected = torch.topk(tensor, k, dim, largest, _sorted)
 
         values, index = ops.topk(
