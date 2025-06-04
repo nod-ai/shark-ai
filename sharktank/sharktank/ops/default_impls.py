@@ -730,16 +730,16 @@ def topk_default(
     sorted: bool,
     chunk_size: Optional[int] = None,
 ) -> tuple[Tensor, Tensor]:
+    if chunk_size is not None:
+        return _split_topk(tensor, k, dim, largest, sorted, chunk_size)
+
     if largest:
-        return iree_topk(tensor, k=k)
+        return iree_topk(unbox_tensor(tensor), k=k)
 
-    if chunk_size is None:
-        result = torch.topk(
-            unbox_tensor(tensor), k=k, dim=dim, largest=largest, sorted=sorted
-        )
-        return result.values, result.indices
-
-    return _split_topk(tensor, k, dim, largest, sorted, chunk_size)
+    result = torch.topk(
+        unbox_tensor(tensor), k=k, dim=dim, largest=largest, sorted=sorted
+    )
+    return result.values, result.indices
 
 
 def _split_topk(
