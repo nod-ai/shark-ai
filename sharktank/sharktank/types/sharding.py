@@ -166,20 +166,25 @@ class Conv2DSplitOutputChannelSharding(ThetaLayerSharding):
 
 
 class FFNSharding(ThetaLayerSharding):
-    def __init__(self, shard_count: int):
+    def __init__(self, shard_count: int, suffix: str = ""):
         super().__init__()
         self.shard_count = shard_count
+        self.suffix = suffix
 
     def theta_sharding(self) -> ThetaSharding:
+        ffn_gate = "ffn_gate" + self.suffix
+        ffn_up = "ffn_up" + self.suffix
+        ffn_down = "ffn_down" + self.suffix
+
         return ThetaSharding(
             {
-                "ffn_gate": LinearSplitParallelWeightAndBiasSharding(
+                ffn_gate: LinearSplitParallelWeightAndBiasSharding(
                     shard_count=self.shard_count
                 ).theta_sharding(),
-                "ffn_up": LinearSplitParallelWeightAndBiasSharding(
+                ffn_up: LinearSplitParallelWeightAndBiasSharding(
                     shard_count=self.shard_count
                 ).theta_sharding(),
-                "ffn_down": LinearSplitReductionDimSharding(
+                ffn_down: LinearSplitReductionDimSharding(
                     shard_count=self.shard_count
                 ).theta_sharding(),
             }
@@ -223,7 +228,9 @@ class MoeBlockSharding(ThetaLayerSharding):
             }
         )
         if self.model_arch == "deepseek2":
-            result.update(FFNSharding(self.shard_count).theta_sharding())
+            result.update(
+                FFNSharding(self.shard_count, suffix="_shexp").theta_sharding()
+            )
         result.update(
             ExpertParallelRoutedExpertsSharding(self.shard_count).theta_sharding()
         )
