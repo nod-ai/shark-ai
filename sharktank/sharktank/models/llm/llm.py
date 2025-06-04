@@ -462,6 +462,7 @@ class AttentionFFNBlock(ThetaLayer):
         attention_mask: list[Union[torch.Tensor, ReplicatedTensor]] = None,
         embedding_batch_mask: Optional[torch.Tensor] = None,
         cache_state: list[torch.Tensor] = None,
+        router_override:Optional[torch.Tensor]=None,
     ):
         h = self.attn(
             h,
