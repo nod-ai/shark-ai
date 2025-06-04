@@ -19,6 +19,7 @@ from .kvcache.base_attention_cache import (
 )
 from .kvcache.trie_attention_cache import TriePagedAttentionCache
 from .kvcache.page_pool import PagePoolConfig, PagePool
+from .kvcache.mooncake import MooncakeConfig, MooncakeEngine, MooncakeStore
 from .manager import LlmSystemManager
 from .service_debug_dumper import SERVICE_DEBUG_DUMPER
 from .tokenizer import Tokenizer
@@ -138,6 +139,12 @@ class LlmGenerateService(GenerateService):
             raise ValueError(
                 f"Unknown prefix_sharing_algorithm {self.server_params.prefix_sharing_algorithm}. Currently only supporting 'trie' and 'none'."
             )
+
+        if self.mooncake_config_path != None:
+            config = MooncakeConfig.from_json(self.mooncake_config_path)
+            mooncake_engin = MooncakeEngine(config)
+            mooncake_store = MooncakeStore(config)
+            logger.info(f"Mooncake enabled with config: {self.mooncake_config_path}")
 
     def start(self):
         component_modules = self.initialize_program_modules("main")

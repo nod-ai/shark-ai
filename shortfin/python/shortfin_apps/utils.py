@@ -99,7 +99,7 @@ class SystemManager:
         self.t = threading.Thread(target=lambda: self.ls.run(self.run()))
         self.command_queue = self.ls.create_queue("command")
         self.command_writer = self.command_queue.writer()
-
+    
     def start(self):
         self.logger.info("Starting system manager")
         self.t.start()
@@ -390,6 +390,11 @@ class GenerateService:
         self.workers_per_device = workers_per_device
         self.fibers_per_device = fibers_per_device
         self.validate_fiber_configuration()
+
+        # Mooncake configuration path
+        self.mooncake_config_path = None
+        if 'MOONCAKE_CONFIG_PATH' in os.environ:
+            self.mooncake_config_path = os.getenv('MOONCAKE_CONFIG_PATH')
 
     def set_isolation(self, isolation_str: str = "per_call"):
         """Set the program isolation mode from a string.
