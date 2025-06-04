@@ -1,7 +1,7 @@
 from sharktank.models.llama.testing import make_random_llama_theta 
-
 from sharktank.layers.configs import LlamaHParams, LlamaModelConfig
 from sharktank.types import Dataset
+from sharktank.examples.export_paged_llm_v1 import PagedLlmModelV1
 
 import argparse
 import torch
@@ -55,7 +55,7 @@ def generate(seed):
         dtype=dtype,
         use_qk_norm=True,
         #rope_type="llama4",
-        rope_layers=rope_layers,
+        rope_layers=[1,3],
         attention_chunk_size=37,
         attn_temperature_tuning=True,
         floor_scale=31,
@@ -65,6 +65,8 @@ def generate(seed):
 
     theta=make_random_llama_theta(config=config, vocab_size=vocabulary_size)
     print('here is theta: ',theta)
+    model = PagedLlmModelV1(theta, config=config)
+    print(model.attn_blocks)
 
     return theta, config
 

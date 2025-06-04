@@ -423,7 +423,14 @@ class AttentionFFNBlock(ThetaLayer):
 
         n_dense_layers = config.hp.n_dense_layers
 
-        if n_dense_layers is not None and block_index >= n_dense_layers:
+        is_moe_block=False
+        if config.hp.model_arch=="llama4":
+            if block_index in config.rope_layers:
+                is_moe_block=True
+        else:
+            if n_dense_layers is not None and block_index >= n_dense_layers:
+                is_moe_block=True
+        if is_moe_block:
             self.add_module(
                 "ffn",
                 MoeBlock(

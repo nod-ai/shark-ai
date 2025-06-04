@@ -7,8 +7,16 @@
 from ...layers import BaseCausalLMModel, LlamaModelConfig, LlamaHParams
 from ...types import Theta, unbox_tensor
 from transformers.models.llama4 import Llama4TextConfig
-
+from sharktank.types.tensors import *
+from sharktank.utils.testing import make_rand_torch
+from sharktank.layers.testing import (
+    make_latent_attention_block_theta,
+    make_ffn_block_theta,
+    make_random_moe_block_theta,
+)
 import torch
+from typing import Optional
+
 
 
 def config_to_hugging_face_text_config(config: LlamaModelConfig) -> Llama4TextConfig:
