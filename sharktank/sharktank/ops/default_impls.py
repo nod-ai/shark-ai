@@ -733,7 +733,7 @@ def topk_default(
     if chunk_size is not None:
         return _split_topk(tensor, k, dim, largest, sorted, chunk_size)
 
-    if largest and len(tensor.shape) == 3 and dim == 2:
+    if largest and not sorted and len(tensor.shape) == 3 and dim == 2:
         values, indices = iree_topk(unbox_tensor(tensor), k=k)
         return values, indices.to(torch.int64)
 
