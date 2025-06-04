@@ -35,7 +35,6 @@ class Llama4Test(TempDirTestBase):
         torch.set_printoptions(
             linewidth=120, threshold=1000, edgeitems=4, precision=2, sci_mode=True
         )
-
         config = make_toy_model_config(dtype=dtype)
         theta = make_random_llama_theta(config, dtype=dtype)
         hf_config = config_to_hugging_face_text_config(config)
@@ -185,6 +184,14 @@ class Llama4Test(TempDirTestBase):
         hf_moe.experts.down_proj.data = unbox_tensor(
             theta("ffn_down_exps.weight")
         ).transpose(1, 2)
+
+        hf_moe.shared_expert.gate_proj.weight.data = unbox_tensor(
+            theta("ffn_gate.weight")
+        )
+        hf_moe.shared_expert.up_proj.weight.data = unbox_tensor(theta("ffn_up.weight"))
+        hf_moe.shared_expert.down_proj.weight.data = unbox_tensor(
+            theta("ffn_down.weight")
+        )
 
         hf_res = hf_moe(input)[0]
         hf_moe_output = hf_res.reshape(input.shape)
