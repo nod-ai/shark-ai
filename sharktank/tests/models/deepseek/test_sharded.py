@@ -14,6 +14,7 @@ import pytest
 import torch
 import unittest
 from parameterized import parameterized
+import re
 
 from sharktank.models.deepseek.toy_deepseek import generate
 from sharktank.models.llm import PagedLlmModelV1
@@ -30,7 +31,7 @@ from sharktank.utils.iree import (
     TorchLikeIreeModule,
     with_iree_device_context,
 )
-from sharktank.utils.testing import TempDirTestBase
+from sharktank.utils.testing import TempDirTestBase, xfail
 from sharktank.examples.sharding import shard_llm_dataset
 
 
@@ -95,8 +96,10 @@ class DeepseekShardedTest(TempDirTestBase):
 
         # TODO: test decode step and maybe verify the paged cache is close.
 
-    @pytest.mark.xfail(
+    @xfail(
         reason="https://github.com/nod-ai/shark-ai/issues/1566",
+        raises=IreeCompileException,
+        match=re.escape("error: 'vector.broadcast' op dimension mismatch (192 vs. 1)"),
         strict=True,
     )
     def testTensorParallelToySizedModelIREEVsUnshardedEager(self):
