@@ -19,15 +19,38 @@ from sharktank.utils.iree import (
     TorchLikeIreeModule,
     get_iree_devices,
     load_iree_module,
+    make_hal_buffer_view_trace_default_callback,
     with_iree_device_context,
 )
 from sharktank.utils.load_llm import *
 from sharktank.utils.evaluate import *
 from sharktank.utils.testing import TempDirTestBase
+from sharktank.utils import debugging
 
 
 # @pytest.mark.usefixtures("get_iree_flags")
 class DeepseekTest(TempDirTestBase):
+    def setUp(self):
+        super().setUp()
+        self.callback_stash = debugging.get_trace_tensor_callback()
+        debugging.set_trace_tensor_callback(
+            debugging.trace_tensor_to_safetensors_callback
+        )
+
+        self.enable_tensor_trace_stash = debugging.flags.enable_tensor_trace
+        # debugging.flags.enable_tensor_trace = True
+
+        self.trace_path_stash = debugging.flags.trace_path
+        debugging.flags.trace_path = Path(
+            "/home/alvasile/repos/shark-ai/sharktank/logits"
+        )
+
+    def tearDown(self):
+        super().tearDown()
+        debugging.set_trace_tensor_callback(self.callback_stash)
+        debugging.flags.enable_tensor_trace = self.enable_tensor_trace_stash
+        debugging.flags.trace_path = self.trace_path_stash
+
     def testCrossEntropy(self):
         theta, config = generate(12345)
         model = PagedLlmModelV1(theta=theta, config=config)
@@ -62,6 +85,7 @@ class DeepseekTest(TempDirTestBase):
         ids = [
             [1, 2, 3, 4],
             [9, 8, 7, 6],
+            [3, 5, 2, 1],
         ]
         token_ids, seq_lens = pad_tokens(
             token_ids=ids,
@@ -120,11 +144,19 @@ class DeepseekTest(TempDirTestBase):
         )
 
         def run_iree_module(iree_devices: list[iree.runtime.HalDevice]):
+            cpu_device = get_iree_devices(driver="local-task", device_count=1)
+            iree_buffere_view_trace_callback = (
+                make_hal_buffer_view_trace_default_callback(cpu_device[0])
+            )
+            debug_sink = iree.runtime.HalModuleDebugSink(
+                iree_buffere_view_trace_callback
+            )
 
             iree_module, vm_context, vm_instance = load_iree_module(
                 module_path=iree_module_path,
                 devices=iree_devices,
                 parameters_path=dataset_path,
+                debug_sink=debug_sink,
             )
 
             torch_like_iree_module = TorchLikeIreeModule(
@@ -149,17 +181,24 @@ class DeepseekTest(TempDirTestBase):
         iree_cache_state_after = deepcopy(iree_cache_state)
 
         # Compare logits
+        padding_mask = (
+            (token_ids != 0).int().detach().clone().to(token_ids.device).bool()
+        )
+        all_ref_logits, all_iree_logits = [], []
         for i in range(len(ids)):
-            same = torch.isclose(
-                reference_logits[i], iree_logits[i], rtol=1.3e-6, atol=1e-5
-            )
+            all_ref_logits.append(reference_logits[i, padding_mask[i]])
+            all_iree_logits.append(iree_logits[i, padding_mask[i]])
+
+        for i, (ref_logits_i, iree_logits_i) in enumerate(
+            zip(all_ref_logits, all_iree_logits)
+        ):
+            assert ref_logits_i.shape == iree_logits_i.shape
+            same = torch.isclose(ref_logits_i, iree_logits_i, rtol=1.3e-6, atol=1e-5)
             if not same.all():
                 raise AssertionError(
                     f"Logits mismatch for batch {i}: "
                     f"Num mismatch: {(~same).sum()}. {100*same.sum() / same.numel():.1f}% match."
                 )
-
-            torch.testing.assert_close(reference_logits[i], iree_logits[i])
 
         # Compare cache state
         assert len(iree_cache_state_after) == len(reference_cache_state_after)
