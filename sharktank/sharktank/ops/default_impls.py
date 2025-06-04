@@ -602,7 +602,7 @@ def to_default(tensor: Tensor, *args, **kwargs) -> Tensor:
 
 
 @trace_tensor.override(AllOfExprsVariadic(IsOfType(Tensor, InferenceTensor)))
-def trace_tensor(key: str, *tensors: tuple[AnyTensor]):
+def trace_tensor(key: str, *tensors: tuple[AnyTensor, ...]):
     if len(tensors) != 1:
         raise ValueError("Tracing more than one tensor at a time is not supported.")
     iree.turbine.ops.iree.trace_tensor(key, unshard(tensors[0]))
