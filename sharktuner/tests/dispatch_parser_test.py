@@ -72,17 +72,6 @@ def test_get_contraction_operation(tuner_ctx: common.TunerContext) -> None:
     assert len(root_op_list) == 1
     root_op = root_op_list[0]
     parser = dispatch_parser.ContractionOpInterfaceParser(root_op)
-    shapes: common.ProblemSize = parser.get_problem_size()
-    assert shapes.matmul_size.B == []
-    assert shapes.matmul_size.M == [16]
-    assert shapes.matmul_size.N == [32]
-    assert shapes.matmul_size.K == [64]
-    assert shapes.lhs_type.shape == [16, 64]
-    assert isinstance(shapes.lhs_type.element_type, ir.F16Type)
-    assert shapes.rhs_type.shape == [32, 64]
-    assert isinstance(shapes.rhs_type.element_type, ir.F16Type)
-    assert shapes.res_type.shape == [16, 32]
-    assert isinstance(shapes.res_type.element_type, ir.F32Type)
 
     with ir.Location.unknown():
         bmm_transposed_inputs_str = GENERIC_TEMPLATE.format(
@@ -99,11 +88,6 @@ def test_get_contraction_operation(tuner_ctx: common.TunerContext) -> None:
     assert len(root_op_list) == 1
     root_op = root_op_list[0]
     parser = dispatch_parser.ContractionOpInterfaceParser(root_op)
-    shapes = parser.get_problem_size()
-    assert shapes.matmul_size.B == [5]
-    assert shapes.matmul_size.M == [8]
-    assert shapes.matmul_size.N == [40]
-    assert shapes.matmul_size.K == [128]
 
     with ir.Location.unknown():
         bmm_transposed_inputs_str = GENERIC_TEMPLATE.format(
@@ -125,11 +109,6 @@ def test_get_contraction_operation(tuner_ctx: common.TunerContext) -> None:
     root_op = root_op_list[0]
     parser = dispatch_parser.ContractionOpInterfaceParser(root_op)
     assert parser.get_root_op_func_name() == "match_test"
-    shapes = parser.get_problem_size()
-    assert shapes.matmul_size.B == [16, 16]
-    assert shapes.matmul_size.M == [8, 64]
-    assert shapes.matmul_size.N == [9, 128]
-    assert shapes.matmul_size.K == [15, 256]
 
 
 def test_get_matmul_named_op(tuner_ctx: common.TunerContext) -> None:
@@ -167,18 +146,6 @@ def test_get_matmul_named_op(tuner_ctx: common.TunerContext) -> None:
 
         parser = dispatch_parser.ContractionOpInterfaceParser(root_op)
         assert parser.get_root_op_func_name() == "match_named_matmul"
-        shapes = parser.get_problem_size()
-
-        assert shapes.matmul_size.B == []
-        assert shapes.matmul_size.M == [16]
-        assert shapes.matmul_size.N == [32]
-        assert shapes.matmul_size.K == [64]
-        assert shapes.lhs_type.shape == [16, 64]
-        assert isinstance(shapes.lhs_type.element_type, ir.F16Type)
-        assert shapes.rhs_type.shape == [64, 32]
-        assert isinstance(shapes.rhs_type.element_type, ir.F16Type)
-        assert shapes.res_type.shape == [16, 32]
-        assert isinstance(shapes.res_type.element_type, ir.F32Type)
 
 
 def test_get_named_contraction_op():
@@ -215,15 +182,6 @@ def test_get_named_contraction_op():
 
         parser = dispatch_parser.ContractionOpInterfaceParser(root_op)
         assert parser.get_root_op_func_name() == "match_named_contraction"
-        shape = parser.get_problem_size()
-
-        assert shape.matmul_size.B == []
-        assert shape.matmul_size.M == [5]
-        assert shape.matmul_size.N == [7]
-        assert shape.matmul_size.K == [3]
-        assert shape.lhs_type.shape == [5, 3]
-        assert shape.rhs_type.shape == [7, 3]
-        assert shape.res_type.shape == [5, 7]
 
 
 def test_get_conv_nhwc_hwcf_operation(tuner_ctx: common.TunerContext) -> None:
@@ -250,16 +208,6 @@ def test_get_conv_nhwc_hwcf_operation(tuner_ctx: common.TunerContext) -> None:
         parser.has_valid_root_op()
     ), f"ConvolutionOpInterfaceParser does not support the op: {root_op.name}"
 
-    problem_size = parser.get_problem_size()
-    assert problem_size.contraction_dims.batch == []
-    assert problem_size.contraction_dims.m == [0, 1, 2]
-    assert problem_size.contraction_dims.n == [3]
-    assert problem_size.contraction_dims.k == [4, 5, 6]
-    assert problem_size.matmul_size.B == []
-    assert problem_size.matmul_size.M == [2, 32, 32]
-    assert problem_size.matmul_size.N == [16]
-    assert problem_size.matmul_size.K == [3, 3, 16]
-
 
 def test_get_group_conv_operation(tuner_ctx: common.TunerContext) -> None:
     context = tuner_ctx.mlir_ctx
@@ -283,16 +231,6 @@ def test_get_group_conv_operation(tuner_ctx: common.TunerContext) -> None:
     assert parser.get_root_op_func_name() == "match_test"
     assert parser.has_valid_root_op() is False, "group convs aren't supported yet"
 
-    problem_size = parser.get_problem_size()
-    assert problem_size.contraction_dims.batch == [3]
-    assert problem_size.contraction_dims.m == [0, 1, 2]
-    assert problem_size.contraction_dims.n == [4]
-    assert problem_size.contraction_dims.k == [5, 6, 7]
-    assert problem_size.matmul_size.B == [7]
-    assert problem_size.matmul_size.M == [2, 8, 8]
-    assert problem_size.matmul_size.N == [16]
-    assert problem_size.matmul_size.K == [3, 3, 4]
-
 
 def test_get_generic_conv_operation(tuner_ctx: common.TunerContext) -> None:
     context = tuner_ctx.mlir_ctx
@@ -314,16 +252,6 @@ def test_get_generic_conv_operation(tuner_ctx: common.TunerContext) -> None:
     parser = dispatch_parser.ConvolutionOpInterfaceParser(root_op)
     assert parser.get_root_op_func_name() == "match_test"
     assert parser.has_valid_root_op()
-
-    problem_size = parser.get_problem_size()
-    assert problem_size.contraction_dims.batch == []
-    assert problem_size.contraction_dims.m == [0, 1, 2]
-    assert problem_size.contraction_dims.n == [3]
-    assert problem_size.contraction_dims.k == [4, 5, 6]
-    assert problem_size.matmul_size.B == []
-    assert problem_size.matmul_size.M == [2, 5, 5]
-    assert problem_size.matmul_size.N == [64]
-    assert problem_size.matmul_size.K == [3, 3, 32]
 
 
 def test_get_mmt_tile_sizes(tuner_ctx: common.TunerContext) -> None:

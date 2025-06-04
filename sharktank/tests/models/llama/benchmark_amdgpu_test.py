@@ -22,7 +22,7 @@ from sharktank.utils.export_artifacts import (
 from sharktank.utils.testing import (
     is_mi300x,
     is_nightly,
-    is_pre_submit_nightly,
+    is_llama_8b,
 )
 
 
@@ -226,7 +226,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             ">>",
         ]
 
-    @is_pre_submit_nightly
+    @is_llama_8b
     def testBenchmark8B_f16_TP1_Non_Decomposed_Input_Len_128(self):
         output_file_name = self.dir_path_8b / "f16_torch_128_tp1"
         output_mlir = self.llama8b_f16_torch_sdpa_artifacts.create_file(
