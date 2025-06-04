@@ -37,8 +37,9 @@ from . import qlinear_impls
 
 from . import cpu_impls
 
+# Meta implementations for FX tracing support (Brevitas, etc.)
+from . import meta_impls
+
 # This import should stay at the bottom for compatibility
 from . import sharded_impls
 
-# Meta implementations for FX tracing support (Brevitas, etc.)
-from . import meta_impls
