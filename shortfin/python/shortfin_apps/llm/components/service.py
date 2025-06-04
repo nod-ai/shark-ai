@@ -11,7 +11,6 @@ from typing import List
 from threading import Lock
 import shortfin as sf
 
-
 from .batcher import PrefillBatcherProcess, DecodeBatcherProcess
 from .config_struct import ModelParams, ServerParams
 from .kvcache.base_attention_cache import (
@@ -142,9 +141,23 @@ class LlmGenerateService(GenerateService):
 
         if self.mooncake_config_path != None:
             config = MooncakeConfig.from_json(self.mooncake_config_path)
-            mooncake_engin = MooncakeEngine(config)
+            # mooncake_engin = MooncakeEngine(config) #looks like we don't need to connect to mooncake engine if we only use mooncake store
             mooncake_store = MooncakeStore(config)
-            logger.info(f"Mooncake enabled with config: {self.mooncake_config_path}")
+            logger.info(
+                f"Mooncake store enabled with config: {self.mooncake_config_path}"
+            )
+            # Test mooncake store PUT/GET, uncomment following lines to test the connection beween mooncake store and shortfin
+            import torch
+
+            test_str = "Hello, Mooncake!"
+            test_data = test_str.encode("utf-8")
+            test_tensor = torch.tensor(list(test_data), dtype=torch.uint8)
+            mooncake_store.put("test_key", test_tensor)
+            retrieved_tensor = mooncake_store.get("test_key")
+            retrieved_str = bytes(retrieved_tensor.tolist()).decode("utf-8")
+            print(
+                f"Successfully sent and received test string: {retrieved_str} from mooncake store"
+            )
 
     def start(self):
         component_modules = self.initialize_program_modules("main")
