@@ -88,23 +88,28 @@ class GenerateItemProcess(sf.Process):
         self.is_multi_response = is_multi_response(self.decode_config)
         self.streamed_tokens_index = 0
         self._status_tracker = status_tracker
-
-    async def run(self):
-        exec_req = LlmInferenceExecRequest(
+        self.exec_req = LlmInferenceExecRequest(
             phase=InferencePhase.PREFILL,
             input_token_ids=self.input_token_ids,
             rid=self.gen_req.rid,
             status_tracker=self._status_tracker,
         )
-        exec_req._cache = self.client.prefill_batcher.page_cache
+
+    async def run(self):
+        self.exec_req._cache = self.client.prefill_batcher.page_cache
         try:
             # Prefill result.
-            await self.token_selector.prefill(exec_req)
+            await self.token_selector.prefill(self.exec_req)
 
             # Decode loop.
-            await self.token_selector.decode(exec_req)
+            await self.token_selector.decode(self.exec_req)
         finally:
-            exec_req.free_cache_pages()
+            self.exec_req.completed.set_success()
+            self.exec_req.free_cache_pages()
+
+    async def await_completion(self):
+        await self.exec_req.completed
+        return self.index
 
     def results_callback(self, result: int | list[list[int]]):
         if is_multi_response(self.decode_config):
@@ -246,6 +251,7 @@ class ClientGenerateBatchProcess(sf.Process):
             else:
                 input_batch = self.tokenize()
 
+            pending = []
             for index, input_tokens in enumerate(input_batch):
                 decode_config = decode_configs[index]
 
@@ -288,11 +294,17 @@ class ClientGenerateBatchProcess(sf.Process):
                     fiber=fiber,
                 )
                 gen_processes.append(gen_process)
+                pending.append(asyncio.create_task(gen_process.await_completion()))
                 gen_process.launch()
 
-            await asyncio.gather(*gen_processes)
-            if not self.responder.is_disconnected():
-                self.generate_response(gen_processes, streaming)
+            while pending:
+                done, pending = await asyncio.wait(
+                    pending, return_when=asyncio.FIRST_COMPLETED
+                )
+                for task in done:
+                    idx = await task
+                    if not self.responder.is_disconnected():
+                        self.generate_response([gen_processes[idx]], streaming)
         finally:
             self.service.main_fiber_pool.return_fiber(indices)
             self.responder.ensure_response()

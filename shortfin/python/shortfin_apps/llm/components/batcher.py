@@ -69,6 +69,7 @@ class LlmBatcherProcess(BatcherProcess):
         self.scheduler = Scheduler(ideal_batch_size=self.ideal_batch_size)
         self.cache = DeviceArrayCache(fiber.device(0))
         self.program_isolation = program_isolation
+        self.exec_fiber = exec_fiber
 
     def handle_inference_request(self, request):
         """Handle an inference request."""
@@ -120,7 +121,7 @@ class LlmBatcherProcess(BatcherProcess):
         scheduled = []
         for job in to_schedule:
             scheduled = scheduled + job
-            self.board(cache, self.fiber, job)
+            self.board(cache, self.exec_fiber, job)
             logger.debug("Post boarding cache state: %r", cache)
 
         pending = set(pending) - set(scheduled)

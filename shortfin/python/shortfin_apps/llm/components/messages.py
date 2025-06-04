@@ -38,6 +38,7 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         self.input_token_ids = input_token_ids
         self.prompt_length = len(input_token_ids)
         self.done = sf.VoidFuture()
+        self.completed = sf.VoidFuture()
         self.rid = rid
         # Unique `instance_id` for token selection strategies that may need
         # to differentiate between an original req and a copy of a req.
