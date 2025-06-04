@@ -219,6 +219,13 @@ class DeepseekTest(TempDirTestBase):
 
         iree_logits_cli = torch.tensor(np.load(work_dir / "iree_logits.npy"))
 
+        # Compare cache state
+        assert len(iree_cache_state_after) == len(reference_cache_state_after)
+        for i in range(len(iree_cache_state_after)):
+            iree_state_i = iree_cache_state_after[i]
+            reference_state_i = reference_cache_state_after[i]
+            torch.testing.assert_close(iree_state_i, reference_state_i)
+
         # Compare logits
         padding_mask = (
             (token_ids != 0).int().detach().clone().to(token_ids.device).bool()
@@ -252,10 +259,3 @@ class DeepseekTest(TempDirTestBase):
                     f"Logits mismatch for batch {i}: "
                     f"Num mismatch: {(~same).sum()}. {100*same.sum() / same.numel():.1f}% match."
                 )
-
-        # Compare cache state
-        assert len(iree_cache_state_after) == len(reference_cache_state_after)
-        for i in range(len(iree_cache_state_after)):
-            iree_state_i = iree_cache_state_after[i]
-            reference_state_i = reference_cache_state_after[i]
-            torch.testing.assert_close(iree_state_i, reference_state_i)
