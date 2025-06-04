@@ -61,7 +61,8 @@ def main():
     dataset_type = cli.get_input_data_files(args)
     dataset_type = "irpa" if "irpa" in dataset_type else "gguf"
     dataset = cli.get_input_dataset(args)
-    hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
+    #hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
+    hp=configs.LlamaHParams(**dataset.properties["hparams"])
     if "tensor_parallelism_size" in dataset.properties:
         dataset_tensor_parallelism_size = dataset.properties["tensor_parallelism_size"]
         if dataset_tensor_parallelism_size != args.tensor_parallelism_size:
@@ -87,13 +88,21 @@ def main():
         use_hf=args.use_hf,
         static_tables=False,  # Rely on the compiler for hoisting tables.
         attention_kernel=args.attention_kernel,
-        block_seq_stride=args.block_seq_stride,
+        block_seq_stride=13, #args.block_seq_stride,
         activation_dtype=args.activation_dtype,
         attention_dtype=args.attention_dtype,
         kv_cache_dtype=args.kv_cache_dtype,
+       use_qk_norm=True,
+        #rope_type="llama4",
+        rope_layers=[1,3],
+        attention_chunk_size=37,
+        attn_temperature_tuning=True,
+        floor_scale=31,
+        attn_scale=0.2,
+    
     )
     llama_config.fake_quant = args.fake_quant
-
+    print(llama_config)
     model = PagedLlmModelV1(dataset.root_theta, llama_config)
 
     def generate_params_json(
