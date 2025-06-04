@@ -22,6 +22,9 @@ from sharktank.types import (
     BlockScaledI4Layout,
     TensorScaledLayout,
 )
+
+from sharktank.kernels.topk import iree_topk
+
 from sharktank.types.tensors import unbox_tensor, AnyTensor
 from ._registry import AllOfType, AllOfExprs, AllOfExprsVariadic, IsOfType
 from .signatures import *
@@ -727,6 +730,9 @@ def topk_default(
     sorted: bool,
     chunk_size: Optional[int] = None,
 ) -> tuple[Tensor, Tensor]:
+    if largest:
+        return iree_topk(tensor, k=k)
+
     if chunk_size is None:
         result = torch.topk(
             unbox_tensor(tensor), k=k, dim=dim, largest=largest, sorted=sorted
