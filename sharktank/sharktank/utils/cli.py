@@ -154,6 +154,11 @@ def add_model_options(parser: argparse.ArgumentParser):
         type=int,
         default=1024,
     )
+    parser.add_argument(
+        "--use-topk-kernel",
+        help="Use the topk kernel for the topk operation.",
+        action="store_true",
+    )
 
 
 def add_model_input_options(parser: argparse.ArgumentParser):

@@ -318,7 +318,12 @@ def main():
             if top_k == 1:
                 return model.argmax(logits, chunk_size=hp.context_length // 128)
 
-            return model.topk(logits, k=args.top_k, chunk_size=hp.context_length // 128)
+            return model.topk(
+                logits,
+                k=args.top_k,
+                chunk_size=hp.context_length // 128,
+                use_topk_kernel=args.use_topk_kernel,
+            )
 
     def generate_batch_decode(bs: int):
         # torch.export.Dim would make min at least 2
@@ -460,7 +465,10 @@ def main():
                 return model.argmax(logits, chunk_size=hp.context_length // 128)
 
             max_logits, indices = model.topk(
-                logits, k=top_k, chunk_size=hp.context_length // 128
+                logits,
+                k=top_k,
+                chunk_size=hp.context_length // 128,
+                use_topk_kernel=args.use_topk_kernel,
             )
 
             return max_logits, indices

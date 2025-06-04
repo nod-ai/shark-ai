@@ -1526,6 +1526,7 @@ def topk(
     largest: bool,
     sorted: bool,
     chunk_size: Optional[int] = None,
+    use_topk_kernel: bool = False,
 ) -> AnyTensor:
     """See torch.topk"""
     ...
@@ -1540,6 +1541,7 @@ def _topk_trampoline(
     largest: bool = True,
     sorted: bool = True,
     chunk_size: Optional[int] = None,
+    use_topk_kernel: bool = False,
 ) -> AnyTensor:
     tensors = (tensor,)
     for override in d.find_overrides(tensors):
@@ -1560,6 +1562,7 @@ def _topk_trampoline(
                 largest=largest,
                 sorted=sorted,
                 chunk_size=chunk_size,
+                use_topk_kernel=use_topk_kernel,
             )
         if result is not NotImplemented:
             return override, result

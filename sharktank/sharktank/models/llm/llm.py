@@ -160,9 +160,16 @@ class PagedLlmModelV1(BaseCausalLMModel):
         logits: torch.Tensor,
         k: int,
         chunk_size: int,
+        use_topk_kernel: bool = False,
     ):
         return ops.topk(
-            logits, k=k, dim=-1, largest=True, sorted=True, chunk_size=chunk_size
+            logits,
+            k=k,
+            dim=-1,
+            largest=True,
+            sorted=True,
+            chunk_size=chunk_size,
+            use_topk_kernel=use_topk_kernel,
         )
 
     def prefill(
