@@ -223,16 +223,16 @@ class PagedLlmModelV1(BaseCausalLMModel):
             h = self._inter_layer_callback(h, block_idx)
             self.trace_tensor(f"llama.attn_block.{block_idx}.output", h)
 
-        h = self.output_norm(h)
-        logits = self.output_lm_head(h)
+        # h = self.output_norm(h)
+        # logits = self.output_lm_head(h)
 
-        if self.inference_norm:
-            logits = logits / math.sqrt(3.0)
+        # if self.inference_norm:
+        # logits = logits / math.sqrt(3.0)
 
-        if "float8" in str(logits.dtype) or logits.dtype == torch.bfloat16:
-            return logits.to(dtype=torch.float16)
+        # if "float8" in str(logits.dtype) or logits.dtype == torch.bfloat16:
+        # return logits.to(dtype=torch.float16)
 
-        return logits
+        return h
 
     def decode(
         self,
@@ -448,19 +448,19 @@ class AttentionFFNBlock(ThetaLayer):
         embedding_batch_mask: Optional[torch.Tensor] = None,
         cache_state: list[torch.Tensor] = None,
     ):
-        h = self.attn(
-            h,
-            embedding=embedding,
-            seq_block_ids=seq_block_ids,
-            start_index=start_index,
-            start_positions=start_positions,
-            attention_mask=attention_mask,
-            embedding_batch_mask=embedding_batch_mask,
-            cache_state=cache_state,
-        )
+        # h = self.attn(
+        #     h,
+        #     embedding=embedding,
+        #     seq_block_ids=seq_block_ids,
+        #     start_index=start_index,
+        #     start_positions=start_positions,
+        #     attention_mask=attention_mask,
+        #     embedding_batch_mask=embedding_batch_mask,
+        #     cache_state=cache_state,
+        # )
 
         # Feed forward network.
-        final_output = self.ffn(self.ffn_norm(h))
+        final_output = self.ffn(h)
 
         # if self.add_residual:
         # final_output = h + final_output
