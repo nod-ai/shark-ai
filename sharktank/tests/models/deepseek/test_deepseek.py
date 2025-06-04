@@ -145,17 +145,21 @@ class DeepseekTest(TempDirTestBase):
             iree_logits = iree_result[0]
             return iree_logits
 
-        iree_logits = with_iree_device_context(run_iree_module, iree_devices)
+        iree_logits_i = with_iree_device_context(run_iree_module, iree_devices)
         iree_cache_state_after = deepcopy(iree_cache_state)
 
         # Compare logits
         padding_mask = (
-            (token_ids != 0).int().detach().clone().to(token_ids.device).unsqueeze(2)
+            (token_ids != 0).int().detach().clone().to(token_ids.device).bool()
         )
-        reference_logits = reference_logits * padding_mask
-        iree_logits = iree_logits * padding_mask
+        all_ref_logits, all_iree_logits = [], []
+        for i in range(len(ids)):
+            all_ref_logits.append(reference_logits[i, padding_mask[i]])
+            all_iree_logits.append(iree_logits_i[i, padding_mask[i]])
 
-        torch.testing.assert_close(iree_logits, reference_logits)
+        for ref_logits_i, iree_logits_i in zip(all_ref_logits, all_iree_logits):
+            assert ref_logits_i.shape == iree_logits_i.shape
+            torch.testing.assert_close(ref_logits_i, iree_logits_i)
 
         # Compare cache state
         assert len(iree_cache_state_after) == len(reference_cache_state_after)
