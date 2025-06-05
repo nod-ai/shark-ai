@@ -141,6 +141,7 @@ class MoeBlock(ThetaLayer):
         # shape: (batch_size * sequence_length, expert_count)
         router_logits = ffn_input[..., :4]  # self.ffn_gate_inp(ffn_input)
         router_weights = self.score_experts(router_logits.to(torch.float))
+        router_weights *= torch.arange(router_weights.shape[-1])
 
         # router_weights = reshard_like(router_weights, like=ffn_input)
 
