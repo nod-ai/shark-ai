@@ -54,7 +54,7 @@ class LlmBatcherProcess(BatcherProcess):
         functions: dict[int, sf.ProgramFunction],
         ideal_batch_size: int,
         program_isolation: str,
-        exec_fiber: Fiber,
+        exec_fiber: Fiber | None = None,
     ):
         super().__init__(fiber=fiber)
         self.name = name
@@ -121,7 +121,11 @@ class LlmBatcherProcess(BatcherProcess):
         scheduled = []
         for job in to_schedule:
             scheduled = scheduled + job
-            self.board(cache, self.exec_fiber, job)
+            self.board(
+                cache,
+                self.exec_fiber if self.exec_fiber is not None else self.fiber,
+                job,
+            )
             logger.debug("Post boarding cache state: %r", cache)
 
         pending = set(pending) - set(scheduled)
@@ -169,7 +173,7 @@ class PrefillBatcherProcess(LlmBatcherProcess):
         model_params: ModelParams,
         prefill_functions: dict[int, sf.ProgramFunction],
         program_isolation: str,
-        exec_fiber: Fiber,
+        exec_fiber: Fiber | None = None,
     ):
         super().__init__(
             name="prefill",
@@ -227,7 +231,7 @@ class DecodeBatcherProcess(LlmBatcherProcess):
         model_params: ModelParams,
         decode_functions: dict[int, sf.ProgramFunction],
         program_isolation: str,
-        exec_fiber: Fiber,
+        exec_fiber: Fiber | None = None,
     ):
         super().__init__(
             name="decode",
