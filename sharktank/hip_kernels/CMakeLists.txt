@@ -4,10 +4,12 @@ project(HIP_KERNELS LANGUAGES C CXX)
 # Set ROCm and IREE build paths
 set(IREE_BUILD_DIR $ENV{IREE_BUILD_DIR})
 set(ROCM_PATH /opt/rocm)
-set(TARGET_ARCH gfx942)
+
+set(TARGET_ARCH "gfx942" CACHE STRING "Target architecture for ROCM GPU")
 
 # Find all kernel source files in the kernels subdirectory
 file(GLOB KERNEL_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/kernels/*.c")
+file(GLOB SPEC_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/specs/*.mlir")
 
 # Paths to ROCm and IREE bitcode libraries
 set(ROCM_BC
@@ -93,9 +95,29 @@ foreach(KERNEL_SRC ${KERNEL_SRCS})
   )
 endforeach()
 
+
+# Define the output directory for .hsaco files
+set(CUSTOM_SPEC_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/specs")
+file(MAKE_DIRECTORY ${CUSTOM_SPEC_OUTPUT_DIR})
+
+foreach(SPEC_SRC ${SPEC_SRCS})
+  get_filename_component(SPEC_NAME ${SPEC_SRC} NAME)
+  set(SPEC_FILE "${CUSTOM_SPEC_OUTPUT_DIR}/${SPEC_NAME}")
+
+  add_custom_command(
+    OUTPUT ${SPEC_FILE}
+    COMMAND sed -e 's,{{HIP_ARCH}},${TARGET_ARCH},' -e 's,{{BUILD}},${CMAKE_CURRENT_BINARY_DIR},'  ${SPEC_SRC} > ${SPEC_FILE}
+    DEPENDS ${SPEC_SRC}
+    COMMENT "Filling template ${HSACO_FILE} to ${TARGET_ARCH}"
+  )
+
+  list(APPEND HSACO_TARGETS ${SPEC_FILE})
+
+endforeach()
+
 add_custom_command(
   OUTPUT topk_test
-  COMMAND hipcc ${CMAKE_CURRENT_SOURCE_DIR}/tests/topk.cpp -o topk_test
+  COMMAND hipcc ${CMAKE_CURRENT_SOURCE_DIR}/tests/topk.cpp -std=c++20 -o topk_test
   DEPENDS topk_test
   COMMENT "Compiling topk test"
 )

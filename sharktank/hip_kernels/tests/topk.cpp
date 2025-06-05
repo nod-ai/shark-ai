@@ -14,7 +14,7 @@ using float32_t = float;
 
 constexpr uint32_t recordRuns = 100u;
 constexpr int ARGMAX_LABEL = 7; // Will still be top-1 here
-constexpr int k = 4;
+constexpr int k = 8;
 
 template <typename DataT>
 static inline void fillIndex(DataT *mat, uint32_t m, uint32_t n, int k) {

@@ -27,7 +27,7 @@ extern "C" __global__ void topk_F32I32(const float *__restrict__ inputBuffer,
                                        float *__restrict__ outputValues,
                                        int32_t *__restrict__ outputIndices,
                                        int reductionSize) {
-  int k = 4;
+  int k = 8;
   int batchID = blockIdx.x;
   uint laneID = __builtin_amdgcn_workitem_id_x();
 

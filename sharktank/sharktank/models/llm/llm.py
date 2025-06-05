@@ -162,7 +162,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         chunk_size: int,
     ):
         return ops.topk(
-            logits, k=k, dim=-1, largest=True, sorted=True, chunk_size=chunk_size
+            logits, k=k, dim=-1, largest=True, sorted=False, chunk_size=chunk_size
         )
 
     def prefill(
