@@ -4,23 +4,14 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import subprocess
 import unittest
 from parameterized import parameterized, param
 from typing import Callable
 
 import torch
 from iree.turbine.aot import *
-from sharktank.layers.ffn_moe_block import DenseFFNMOE
 from sharktank.layers.testing import make_random_moe_block_theta
-from sharktank.types.theta import Theta
-from sharktank.utils import iree
-from sharktank.utils.export_artifacts import IreeCompileException
-from sharktank.utils.iree import (
-    get_iree_devices,
-    load_iree_module,
-    with_iree_device_context,
-)
+
 from sharktank.utils.testing import make_rand_torch
 from sharktank.layers.mixture_of_experts_block import MoeBlock
 from sharktank.types.sharding import MoeBlockSharding
@@ -61,102 +52,6 @@ class MoeBlockTest(unittest.TestCase):
         @fxb.export_program(name="moe_block", args=(input,), strict=False)
         def _(model, input: torch.Tensor) -> torch.Tensor:
             return model(input)
-
-    def testIREEvsEager(self):
-        dtype = torch.float32
-        batch_size = 3
-        seq_len = 5
-        in_dim = 7
-
-        theta = make_random_moe_block_theta(
-            block_idx=0,
-            in_dim=in_dim,
-            expert_hidden_dim=13,
-            num_experts=17,
-            with_ffn_norm=True,
-            num_shared_experts=19,
-            with_layer_output_norm=True,
-            dtype=dtype,
-        )
-        theta.rename_tensors_to_paths()
-        routed_ffn_theta = Theta(
-            {
-                "ffn_gate": theta("ffn_gate_exps").tree,
-                "ffn_up": theta("ffn_up_exps").tree,
-                "ffn_down": theta("ffn_down_exps").tree,
-            }
-        )
-        model = DenseFFNMOE(
-            theta=routed_ffn_theta,
-            expert_count=17,
-            activation_fn=torch.nn.functional.silu,
-        )
-        fxb = FxProgramsBuilder(model)
-        input = make_rand_torch((batch_size * seq_len, in_dim))
-        top_experts_index = torch.tensor([[0, 1]] * batch_size * seq_len)
-        expert_gate = torch.tensor([[0, 1]] * batch_size * seq_len, dtype=torch.float32)
-
-        _batch_size_x_seq_len = torch.export.Dim("batch_size_times_seq_len")
-        _in_dim = torch.export.Dim("in_dim")
-
-        dynamic_shapes = {
-            "input": {0: _batch_size_x_seq_len, 1: _in_dim},
-            "top_experts_index": {0: _batch_size_x_seq_len},
-            "expert_gate": {0: _batch_size_x_seq_len},
-        }
-
-        @fxb.export_program(
-            name="denseffnmoe",
-            args=(input, top_experts_index, expert_gate),
-            dynamic_shapes=dynamic_shapes,
-            strict=False,
-        )
-        def _(
-            model,
-            input: torch.Tensor,
-            top_experts_index: torch.Tensor,
-            expert_gate: torch.Tensor,
-        ) -> torch.Tensor:
-            return model(input, top_experts_index, expert_gate)
-
-        output = export(fxb, import_symbolic_shape_expressions=True)
-        mlir_path = "/home/alvasile/repos/shark-ai/sharktank/denseffnmoe.mlir"
-        output.save_mlir(mlir_path)
-
-        iree_module_path = "/home/alvasile/repos/shark-ai/sharktank/denseffnmoe.vmfb"
-        compile_args = [
-            f"iree-compile",
-            f"{mlir_path}",
-            f"-o={iree_module_path}",
-            "--iree-opt-level=O3",
-            "--iree-hal-target-device=hip[0]",
-            "--iree-hip-target=gfx942",
-        ]
-        cmd = subprocess.list2cmdline(compile_args)
-        cwd = "/home/alvasile/repos/shark-ai/sharktank"
-        # logger.info(f" Launching compile command:\n" f"cd {cwd} && {cmd}")
-        proc = subprocess.run(cmd, shell=True, capture_output=True, cwd=cwd)
-        return_code = proc.returncode
-        if return_code != 0:
-            raise IreeCompileException(proc, cwd)
-
-        # iree_devices = get_iree_devices(
-        #     device="hip://4",
-        #     device_count=1,
-        # )
-
-        # def run_iree_module(iree_devices: list[iree.runtime.HalDevice]):
-        #     iree_module, vm_context, vm_instance = load_iree_module(
-        #         module_path=iree_module_path,
-        #         devices=iree_devices,
-        #         parameters_path=dataset_path,
-        #     )
-
-        # iree_results = with_iree_device_context(run_iree_module, iree_devices)
-        # eager_results = model.forward(
-        #     input, top_experts_index, expert_gate
-        # )
-        # torch.testing.assert_close(iree_results, eager_results)
 
     @parameterized.expand(
         [
