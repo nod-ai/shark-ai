@@ -112,7 +112,7 @@ class DeepseekTest(TempDirTestBase):
         seq_block_ids_before_prefill = reference_batch.pad_block_ids()
         reference_batch.prefill()
         reference_logits = reference_batch.prefill_logits
-        reference_cache_state_after = deepcopy(reference_batch.cache_state)
+        ref_cache_state_after = deepcopy(reference_batch.cache_state)
 
         np.save(work_dir / "reference_logits.npy", reference_logits.cpu().numpy())
 
@@ -224,12 +224,11 @@ class DeepseekTest(TempDirTestBase):
         iree_logits_cli = torch.tensor(np.load(work_dir / "iree_logits.npy"))
 
         # Compare cache state
-        assert len(iree_cache_state_after) == len(reference_cache_state_after)
-        for i in range(len(iree_cache_state_after)):
-            iree_state_i = iree_cache_state_after[i]
-            reference_state_i = reference_cache_state_after[i]
-            torch.testing.assert_close(iree_state_i, reference_state_i)
-
+        assert len(iree_cache_state_after) == len(ref_cache_state_after)
+        for ref_state_i, iree_state_i in zip(
+            ref_cache_state_after, iree_cache_state_after
+        ):
+            torch.testing.assert_close(iree_state_i, ref_state_i)
         # Compare logits
         padding_mask = (
             (token_ids != 0).int().detach().clone().to(token_ids.device).bool()
