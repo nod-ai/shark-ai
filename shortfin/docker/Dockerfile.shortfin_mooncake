@@ -1,0 +1,42 @@
+FROM rocm/dev-ubuntu-22.04:6.1.2
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+ARG COMMON_WORKDIR=/app
+WORKDIR ${COMMON_WORKDIR}
+
+# apt dependencies
+RUN apt-get update && apt-get install -y \
+ffmpeg libsm6 libxext6 git wget unzip \
+  software-properties-common git \
+  build-essential curl cmake ninja-build clang lld vim nano python3.11-dev python3.11-venv gfortran pkg-config libopenblas-dev && \
+  apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN python3.11 -m pip install --upgrade pip setuptools wheel && \
+    python3.11 -m pip install pybind11 'nanobind<2' numpy==1.* pandas && \
+    python3.11 -m pip install hip-python hip-python-as-cuda -i https://test.pypi.org/simple
+
+
+# #########################################################################
+# # build shorttank and shortfin and use the nightly iree
+# #########################################################################
+RUN git clone https://github.com/nod-ai/shark-ai.git -b lisal.mooncake_connection \
+    && cd shark-ai \
+    && python3.11 -m pip install -r pytorch-rocm-requirements.txt \
+    && python3.11 -m pip install -r requirements.txt -e sharktank/ -e shortfin/ \
+    && python3.11 -m pip install -f https://iree.dev/pip-release-links.html --upgrade --pre \
+  iree-base-compiler iree-base-runtime iree-turbine
+
+# ######################################################
+# # Build and install Mooncake
+# ######################################################
+RUN git clone https://github.com/lisaliu1/Mooncake \
+    && cd Mooncake \
+    && bash dependencies.sh \
+    && export PATH=$PATH:/usr/local/go/bin \
+    && mkdir build \
+    && cd build \
+    && cmake .. -DUSE_ETCD=ON \
+    && make -j \
+    && make install
+
+CMD ["/bin/bash"]
