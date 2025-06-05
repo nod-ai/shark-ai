@@ -139,10 +139,10 @@ class MoeBlock(ThetaLayer):
 
         # For each token, the router calculates the router weights for all experts
         # shape: (batch_size * sequence_length, expert_count)
-        router_logits = self.ffn_gate_inp(ffn_input)
+        router_logits = ffn_input[..., :4]  # self.ffn_gate_inp(ffn_input)
         router_weights = self.score_experts(router_logits.to(torch.float))
 
-        router_weights = reshard_like(router_weights, like=ffn_input)
+        # router_weights = reshard_like(router_weights, like=ffn_input)
 
         # Select top k experts from router weights
         # if self.n_expert_groups is not None and self.n_limited_groups is not None:
@@ -172,6 +172,8 @@ class MoeBlock(ThetaLayer):
         #     )
         # else:
         # shape: (batch_size * sequence_length, expert_used_count)
+        # expert_gate = router_weights[..., :self.expert_used_count]
+        # top_k_experts = torch.tensor([[2, 3]], dtype=torch.int64).repeat(expert_gate.shape[0], 1)
         expert_gate, top_k_experts = topk(
             router_weights, self.expert_used_count, dim=-1
         )

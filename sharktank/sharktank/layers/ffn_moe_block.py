@@ -172,23 +172,26 @@ class DenseFFNMOE(ThetaLayer):
         self.trace_tensor("router_scores", router_scores)
 
         # (self.num_experts, num_tokens)
-        router_indices = (
-            torch.arange(num_tokens, device=h.device)
-            .view(1, -1)
-            .expand(self.num_experts, -1)
-        )
+        # router_indices = (
+        #     torch.arange(num_tokens, device=h.device)
+        #     .view(1, -1)
+        #     .expand(self.num_experts, -1)
+        # )
         # (self.num_experts * num_tokens, input_feature_dim)
-        router_indices = router_indices.reshape(-1, 1).expand(-1, input_feature_dim)
+        # router_indices = router_indices.reshape(-1, 1).expand(-1, input_feature_dim)
         # return router_indices[:h.shape[0], ...]
         # (self.num_experts * num_tokens, input_feature_dim)
-        routed_in = router_indices.to(dtype=h.dtype)
+        # routed_in = router_indices.to(dtype=h.dtype)
         # routed_in = ops.gather(
         #     input=h,
         #     dim=0,
         #     index=router_indices,
         # )
         # routed_in = routed_in * (routed_in > 0)[..., -1:]
-        routed_out = routed_in * (router_scores > 0).reshape(-1, 1)
+        # routed_out = routed_in #* (router_scores > 0).reshape(-1, 1)
+        routed_out = (
+            (router_scores > 0).reshape(-1, 1).repeat(1, 32).to(dtype=torch.float32)
+        )
         # routed_in = routed_in.view(self.num_experts, num_tokens, input_feature_dim)
 
         # (self.num_experts * num_tokens, input_feature_dim)
