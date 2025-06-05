@@ -22,6 +22,9 @@ from sharktank.types import (
     BlockScaledI4Layout,
     TensorScaledLayout,
 )
+
+from sharktank.kernels.topk import iree_topk
+
 from sharktank.types.tensors import unbox_tensor, AnyTensor
 from ._registry import AllOfType, AllOfExprs, AllOfExprsVariadic, IsOfType
 from .signatures import *
@@ -727,13 +730,17 @@ def topk_default(
     sorted: bool,
     chunk_size: Optional[int] = None,
 ) -> tuple[Tensor, Tensor]:
-    if chunk_size is None:
-        result = torch.topk(
-            unbox_tensor(tensor), k=k, dim=dim, largest=largest, sorted=sorted
-        )
-        return result.values, result.indices
+    if chunk_size is not None:
+        return _split_topk(tensor, k, dim, largest, sorted, chunk_size)
 
-    return _split_topk(tensor, k, dim, largest, sorted, chunk_size)
+    if largest and not sorted and len(tensor.shape) == 3 and dim == 2:
+        values, indices = iree_topk(unbox_tensor(tensor), k=k)
+        return values, indices.to(torch.int64)
+
+    result = torch.topk(
+        unbox_tensor(tensor), k=k, dim=dim, largest=largest, sorted=sorted
+    )
+    return result.values, result.indices
 
 
 def _split_topk(

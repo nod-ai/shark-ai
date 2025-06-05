@@ -1360,6 +1360,7 @@ def trace_tensor(key: str, *tensors: tuple[AnyTensor, ...]):
     sharktank.utils.debugging.trace_tensor_to_safetensors_callback
     sharktank.utils.debugging.flags.trace_path
     sharktank.utils.iree.make_hal_buffer_view_trace_default_callback
+    sharktank.layers.BaseLayer.trace_tensor
     """
     ...
 
