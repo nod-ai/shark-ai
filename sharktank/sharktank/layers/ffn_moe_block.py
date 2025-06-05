@@ -153,15 +153,15 @@ class DenseFFNMOE(ThetaLayer):
         num_tokens, input_feature_dim = h.shape
 
         router_scores = ops.reshard_like(
-            torch.zeros([num_tokens, self.num_experts], device=h.device, dtype=h.dtype),
-            like=h,
+            torch.empty([num_tokens, self.num_experts], device=h.device), like=h
         )
-        self.trace_tensor("top_experts_index", top_experts_index)
-        self.trace_tensor("expert_gate", expert_gate)
+
         # (self.num_experts, num_tokens)
-        router_scores = router_scores.scatter_(
-            1, top_experts_index, expert_gate
-        ).transpose(0, 1)
+        router_scores = (
+            ops.zeros_like(router_scores, dtype=h.dtype)
+            .scatter_(1, top_experts_index, expert_gate)
+            .transpose(0, 1)
+        )
 
         # one_hot_expert_indices = F.one_hot(
         # top_experts_index, num_classes=self.num_experts

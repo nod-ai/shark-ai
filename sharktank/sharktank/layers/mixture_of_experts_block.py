@@ -139,58 +139,45 @@ class MoeBlock(ThetaLayer):
 
         # For each token, the router calculates the router weights for all experts
         # shape: (batch_size * sequence_length, expert_count)
-        router_logits = ffn_input[..., :4]  # self.ffn_gate_inp(ffn_input)
+        router_logits = self.ffn_gate_inp(ffn_input)
         router_weights = self.score_experts(router_logits.to(torch.float))
-        router_weights *= torch.arange(router_weights.shape[-1])
+        # router_weights *= torch.arange(router_weights.shape[-1])
 
-        # router_weights = reshard_like(router_weights, like=ffn_input)
+        router_weights = reshard_like(router_weights, like=ffn_input)
 
         # Select top k experts from router weights
-        # if self.n_expert_groups is not None and self.n_limited_groups is not None:
-        #     scores_for_choice = router_weights.view(-1, self.expert_count)
+        if self.n_expert_groups is not None and self.n_limited_groups is not None:
+            scores_for_choice = router_weights.view(-1, self.expert_count)
 
-        #     group_scores = (
-        #         router_weights.view(
-        #             -1, self.n_expert_groups, self.expert_count // self.n_expert_groups
-        #         )
-        #         .topk(2, dim=-1)[0]
-        #         .sum(dim=-1)
-        #     )
-        #     group_idx = topk(group_scores, k=self.n_limited_groups, dim=-1)[1]
-        #     group_mask = zeros_like(group_scores)
-        #     group_mask.scatter_(1, group_idx, 1)
-        #     score_mask = (
-        #         group_mask.unsqueeze(-1)
-        #         .expand(
-        #             -1, self.n_expert_groups, self.expert_count // self.n_expert_groups
-        #         )
-        #         .reshape(-1, self.expert_count)
-        #     )
-        #     scores_for_choice = scores_for_choice.masked_fill(~score_mask.bool(), 0.0)
-        #     # shape: (batch_size * sequence_length, expert_used_count)
-        #     expert_gate, top_k_experts = topk(
-        #         scores_for_choice, k=self.expert_used_count, dim=-1
-        #     )
-        # else:
-        # shape: (batch_size * sequence_length, expert_used_count)
-        # expert_gate = router_weights[..., :self.expert_used_count]
-        # top_k_experts = torch.tensor([[2, 3]], dtype=torch.int64).repeat(expert_gate.shape[0], 1)
-        expert_gate, top_k_experts = topk(
-            router_weights, self.expert_used_count, dim=-1
-        )
+            group_scores = (
+                router_weights.view(
+                    -1, self.n_expert_groups, self.expert_count // self.n_expert_groups
+                )
+                .topk(2, dim=-1)[0]
+                .sum(dim=-1)
+            )
+            group_idx = topk(group_scores, k=self.n_limited_groups, dim=-1)[1]
+            group_mask = zeros_like(group_scores)
+            group_mask.scatter_(1, group_idx, 1)
+            score_mask = (
+                group_mask.unsqueeze(-1)
+                .expand(
+                    -1, self.n_expert_groups, self.expert_count // self.n_expert_groups
+                )
+                .reshape(-1, self.expert_count)
+            )
+            scores_for_choice = scores_for_choice.masked_fill(~score_mask.bool(), 0.0)
+            # shape: (batch_size * sequence_length, expert_used_count)
+            expert_gate, top_k_experts = topk(
+                scores_for_choice, k=self.expert_used_count, dim=-1
+            )
+        else:
+            # shape: (batch_size * sequence_length, expert_used_count)
+            expert_gate, top_k_experts = topk(
+                router_weights, self.expert_used_count, dim=-1
+            )
 
-        # res = router_weights
-        # res = torch.cat(
-        #     [
-        #         expert_gate,
-        #         top_k_experts,
-        #     ],
-        #     dim=-1,
-        # )
-        # reps = 1 + (feature_dim - 1) // res.size(-1)
-        # res = res.repeat(1, reps)[:, :feature_dim]
-        # return res.reshape(batch_size, sequence_length, feature_dim)
-        # return res
+        return torch.cat((expert_gate, top_k_experts), dim=-1)
 
         # if self.normalize_experts:
         #     expert_gate /= expert_gate.sum(dim=-1, keepdim=True)

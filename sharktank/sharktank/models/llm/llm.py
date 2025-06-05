@@ -182,14 +182,12 @@ class PagedLlmModelV1(BaseCausalLMModel):
         self._assert_device(*seq_block_ids)
         self._assert_device(*cache_state, dtype=self.activation_dtype)
 
-        # [bs, batch_seq_len, 32]
-        h = tokens.unsqueeze(-1).to(dtype=torch.float32).repeat(1, 1, 32)
-        # h = self.token_embedding(tokens)
+        h = self.token_embedding(tokens)
         self.trace_tensor("llama.token_embedding", h)
 
         # TODO: Get the normalization factor via configuration
-        # if self.inference_norm:
-        # h *= math.sqrt(h.shape[-1])
+        if self.inference_norm:
+            h *= math.sqrt(h.shape[-1])
 
         if self.config.attention_chunk_size is not None:
             chunked_attention_mask = [
@@ -467,4 +465,4 @@ class AttentionFFNBlock(ThetaLayer):
         # if self.add_residual:
         # final_output = h + final_output
 
-        return h
+        return final_output
