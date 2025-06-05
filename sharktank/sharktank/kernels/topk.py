@@ -42,9 +42,6 @@ class iree_topk(CustomOp):
         input_asm_type, input_ident, input_dtype = unpack_tensor_type(input.type)
 
         # Generate specialization signature and types.
-        bs = input.type.shape[0]
-        bs = "?" if bs < 0 else bs  # Use ? for dynamic dimensions in MLIR
-
         template_file = "topk_dynamic.mlir"
         target_function_name = f"sharktank_topk_{k}_{input_dtype}"
 

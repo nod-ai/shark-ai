@@ -28,13 +28,6 @@ from sharktank.models.llm import *
 def main():
     parser = cli.create_parser()
 
-    parser.add_argument(
-        "--logits-normalization",
-        default="none",
-        help="Return the log softmax of the logits",
-        choices=["none", "softmax", "log_softmax"],
-    )
-
     cli.add_input_dataset_options(parser)
     cli.add_model_options(parser)
     cli.add_export_artifacts(parser)
@@ -318,7 +311,10 @@ def main():
                 return argmax_output(logits, chunk_size=hp.context_length // 128)
 
             return topk_output(
-                logits, k=args.top_k, chunk_size=hp.context_length // 128
+                logits,
+                k=args.top_k,
+                chunk_size=hp.context_length // 128,
+                use_linalgext_topk=args.use_linalgext_topk,
             )
 
     def generate_batch_decode(bs: int):
@@ -460,7 +456,12 @@ def main():
             if top_k == 1:
                 return argmax_output(logits, chunk_size=hp.context_length // 128)
 
-            return topk_output(logits, k=top_k, chunk_size=hp.context_length // 128)
+            return topk_output(
+                logits,
+                k=top_k,
+                chunk_size=hp.context_length // 128,
+                use_linalgext_topk=args.use_linalgext_topk,
+            )
 
     def argmax_output(
         logits: torch.Tensor, chunk_size: int
@@ -483,7 +484,7 @@ def main():
         return max_logits, indices
 
     def topk_output(
-        logits: torch.Tensor, k: int, chunk_size: int
+        logits: torch.Tensor, k: int, chunk_size: int, use_linalgext_topk: bool
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Return the top-k logits and their indices for the given logits.
 
@@ -500,8 +501,9 @@ def main():
             k=k,
             dim=-1,
             largest=True,
-            sorted=True,
+            sorted=not use_linalgext_topk,
             chunk_size=chunk_size,
+            use_linalgext_topk=use_linalgext_topk,
         )
 
     if not args.skip_prefill:
