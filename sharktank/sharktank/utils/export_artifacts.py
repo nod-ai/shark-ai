@@ -243,8 +243,8 @@ class ExportArtifacts:
             export_args.append(f"--kv-cache-dtype={self.kv_cache_dtype}")
         if skip_decode:
             export_args.append("--skip-decode")
-        if self.use_attention_mask:
-            export_args.append("--use-attention-mask")
+        # if self.use_attention_mask:
+        export_args.append("--use-attention-mask")
         if self.use_hf:
             export_args.append("--use-hf")
 
