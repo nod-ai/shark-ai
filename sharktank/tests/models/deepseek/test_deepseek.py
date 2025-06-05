@@ -211,7 +211,7 @@ class DeepseekTest(TempDirTestBase):
             "--output=@iree_logits.npy",
         ]
         cmd = subprocess.list2cmdline(run_args)
-        print(f" Launching compile command:\n" f"cd {work_dir} && {cmd}")
+        print(f" Launching run command:\n" f"cd {work_dir} && {cmd}")
         proc = subprocess.run(cmd, shell=True, capture_output=True, cwd=work_dir)
         return_code = proc.returncode
         if return_code != 0:
