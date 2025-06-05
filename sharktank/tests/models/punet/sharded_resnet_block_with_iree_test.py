@@ -26,6 +26,7 @@ from sharktank.utils.iree import (
     run_iree_module_function,
     with_iree_device_context,
 )
+from sharktank.utils.testing import xfail
 from typing import List
 
 
@@ -114,6 +115,12 @@ def run_test_toy_size_sharded_resnet_block_with_iree(artifacts_dir: Path):
     torch.testing.assert_close(actual_outputs, expected_results, rtol=0, atol=5e-5)
 
 
+@xfail(
+    raises=iree.compiler.tools.binaries.CompilerToolError,
+    reason="https://github.com/nod-ai/shark-ai/issues/1576",
+    strict=True,
+    match="Error code: -11",
+)
 @pytest.mark.xfail(
     torch.__version__ >= (2, 5),
     reason="https://github.com/nod-ai/shark-ai/issues/683",
