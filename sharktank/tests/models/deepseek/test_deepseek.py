@@ -114,6 +114,8 @@ class DeepseekTest(TempDirTestBase):
         reference_logits = reference_batch.prefill_logits
         reference_cache_state_after = deepcopy(reference_batch.cache_state)
 
+        np.save(work_dir / "reference_logits.npy", reference_logits.cpu().numpy())
+
         iree_cache = create_paged_kv_cache(config)
         iree_cache_state = iree_cache.shard_state(deepcopy(cache_state_before_prefill))
 
@@ -196,6 +198,8 @@ class DeepseekTest(TempDirTestBase):
 
         iree_logits_w_py = with_iree_device_context(run_iree_module, iree_devices)
         iree_cache_state_after = deepcopy(iree_cache_state)
+
+        np.save(work_dir / "iree_logits_w_py.npy", iree_logits_w_py.cpu().numpy())
 
         run_args = [
             "iree-run-module",
