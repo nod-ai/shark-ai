@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 class LlmGenerateService(GenerateService):
     """Top level service interface for generating text against a model."""
 
-    inference_program: list[sf.Program]
+    inference_program: sf.Program | list[sf.Program]
     prefill_functions: dict[int, sf.ProgramFunction]
     decode_functions: dict[int, sf.ProgramFunction]
 
@@ -240,7 +240,7 @@ class LlmGenerateDisaggregatedService(LlmGenerateService):
 
         devices = self.sysman.ls.devices
         workers = [self.sysman.ls.create_worker(f"{task}-worker") for task in task_list]
-        fibers = [
+        exec_fibers = [
             self.sysman.ls.create_fiber(
                 workers[idx], devices=[devices[idx % len(devices)]]
             )
@@ -253,7 +253,7 @@ class LlmGenerateDisaggregatedService(LlmGenerateService):
             self.model_params,
             self.prefill_functions,
             self.prog_isolation,
-            fibers[0],
+            exec_fibers[0],
         )
 
         self.decode_batcher = DecodeBatcherProcess(
@@ -262,7 +262,7 @@ class LlmGenerateDisaggregatedService(LlmGenerateService):
             self.model_params,
             self.decode_functions,
             self.prog_isolation,
-            fibers[1],
+            exec_fibers[1],
         )
 
         self.prefill_batcher.launch()
@@ -279,7 +279,7 @@ class LlmGenerateDisaggregatedService(LlmGenerateService):
         # Resolve decode entrypoints.
         self.decode_functions = {}
         for bs in self.model_params.decode_batch_sizes:
-            self.decode_functions[bs] = self.inference_program[1 % num_devices][
+            self.decode_functions[bs] = self.inference_program[1][
                 f"{self.model_params.module_name}.decode_bs{bs}"
             ]
 

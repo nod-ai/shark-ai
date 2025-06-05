@@ -104,11 +104,11 @@ class GenerateItemProcess(sf.Process):
             # Decode loop.
             await self.token_selector.decode(self.exec_req)
         finally:
-            self.exec_req.completed.set_success()
+            self.exec_req.request_exec_success.set_success()
             self.exec_req.free_cache_pages()
 
     async def await_completion(self):
-        await self.exec_req.completed
+        await self.exec_req.request_exec_success
         return self.index
 
     def results_callback(self, result: int | list[list[int]]):
