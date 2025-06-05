@@ -11,7 +11,6 @@ from typing import Callable
 import torch
 from iree.turbine.aot import *
 from sharktank.layers.testing import make_random_moe_block_theta
-
 from sharktank.utils.testing import make_rand_torch
 from sharktank.layers.mixture_of_experts_block import MoeBlock
 from sharktank.types.sharding import MoeBlockSharding
