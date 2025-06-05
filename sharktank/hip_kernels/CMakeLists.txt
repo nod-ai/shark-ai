@@ -10,6 +10,7 @@ set(TARGET_ARCH "gfx942" CACHE STRING "Target architecture for ROCM GPU")
 # Find all kernel source files in the kernels subdirectory
 file(GLOB KERNEL_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/kernels/*.c")
 file(GLOB SPEC_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/specs/*.mlir")
+file(GLOB TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp")
 
 # Paths to ROCm and IREE bitcode libraries
 set(ROCM_BC
@@ -115,17 +116,29 @@ foreach(SPEC_SRC ${SPEC_SRCS})
 
 endforeach()
 
-add_custom_command(
-  OUTPUT topk_test
-  COMMAND hipcc ${CMAKE_CURRENT_SOURCE_DIR}/tests/topk.cpp -std=c++20 -o topk_test
-  DEPENDS topk_test
-  COMMENT "Compiling topk test"
-)
+# Define the output directory for .hsaco files
+set(TEST_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/tests")
+file(MAKE_DIRECTORY ${TEST_OUTPUT_DIR})
+set(TEST_TARGETS "")
+
+foreach(TEST_SRC ${TEST_SRCS})
+  get_filename_component(TEST_NAME ${TEST_SRC} NAME)
+  set(TEST_FILE "${TEST_OUTPUT_DIR}/${TEST_NAME}")
+
+  add_custom_command(
+    OUTPUT ${TEST_FILE}
+    COMMAND hipcc ${TEST_SRC} -std=c++20 -o ${TEST_FILE}
+    DEPENDS ${TEST_SRC}
+    COMMENT "Compiling ${TEST_FILE} test"
+  )
+
+  list(APPEND TEST_TARGETS ${TEST_FILE})
+endforeach()
 
 # Add a custom target to build all .hsaco files in the output directory
 add_custom_target(
   tests ALL
-  DEPENDS topk_test
+  DEPENDS ${TEST_TARGETS}
   COMMENT "Building test deps"
 )
 

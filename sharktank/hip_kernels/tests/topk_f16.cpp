@@ -7,10 +7,10 @@
 #include <mutex>
 #include <vector>
 
-using float32_t = float;
+using float16_t = uint16_t;
 
-#define OUTPUT_TY int32_t
-#define INPUT_TY float32_t
+#define OUTPUT_TY uint32_t
+#define INPUT_TY float16_t
 
 constexpr uint32_t recordRuns = 100u;
 constexpr int ARGMAX_LABEL = 7; // Will still be top-1 here
@@ -72,13 +72,13 @@ void benchmark_module(size_t reductionSize) {
   hipModule_t module;
   hipFunction_t kernel;
   std::vector<char> hsacoVec =
-      readFileIntoVector("compiled_kernels/topk_ukernel.c.hsaco");
+      readFileIntoVector("compiled_kernels/topk_fp16_ukernel.c.hsaco");
   if (hipModuleLoadDataEx(&module, hsacoVec.data(), 0, nullptr, nullptr) !=
       hipSuccess) {
     std::cerr << "Failed to load module!" << std::endl;
     return;
   }
-  if (hipModuleGetFunction(&kernel, module, "topk_F32I32") != hipSuccess) {
+  if (hipModuleGetFunction(&kernel, module, "topk_F16I32") != hipSuccess) {
     std::cerr << "Failed to get function!" << std::endl;
     return;
   }
