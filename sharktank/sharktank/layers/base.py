@@ -132,7 +132,7 @@ class BaseLayer(nn.Module, metaclass=BaseLayerMetaClass):
 
     def set_recursively_submodules_default_trace_tensor_key_prefix(self):
         """All submodules get a trace key prefix that reflects their nesting with
-        respect to the parent module.
+        respect to the parent modules.
 
         Example:
         ```
@@ -152,16 +152,17 @@ class BaseLayer(nn.Module, metaclass=BaseLayerMetaClass):
 
 
         a = A()
+        a.trace_tensor_key_prefix = "top."
         a.set_recursively_submodules_default_trace_tensor_key_prefix()
         ```
 
         This will result in trace key prefixes
-        a -> ""
-        a.b -> "b."
-        a.b.c -> "b.c."
+        a -> "top."
+        a.b -> "top.b."
+        a.b.c -> "top.b.c."
 
         The trace_tensor method call in C.forward will result in a trace with key
-        "b.c.x".
+        "top.b.c.x".
         """
         _set_recursively_submodules_default_trace_tensor_key_prefix(
             self, self.trace_tensor_key_prefix
@@ -183,6 +184,17 @@ class BaseLayer(nn.Module, metaclass=BaseLayerMetaClass):
         key: str,
         tensors: Dict[str, torch.Tensor] | list[torch.Tensor] | torch.Tensor,
     ):
+        """Trace tensor(s) prefixed by this module's key prefix.
+
+        You can use `set_recursively_submodules_default_trace_tensor_key_prefix` on
+        your top level module to specify a key prefix for it and all its nested
+        submodules.
+
+        See:
+        sharktank.layers.BaseLayer.trace_tensor_key_prefix
+        sharktank.layers.BaseLayer.set_recursively_submodules_default_trace_tensor_key_prefix
+        sharktank.ops.trace_tensor
+        """
         debugging.trace_tensor(f"{self.trace_tensor_key_prefix}{key}", tensors)
 
     def assert_not_nan(self, *ts: torch.Tensor):
