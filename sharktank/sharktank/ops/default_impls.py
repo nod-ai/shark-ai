@@ -49,7 +49,15 @@ def _split_argmax(input_tensor, dim, keepdim: bool = False, chunk_size: int = 12
     input_tensor = unbox_tensor(input_tensor)
     dim = dim if dim >= 0 else input_tensor.dim() + dim
 
-    tensor_split = unflatten(input_tensor, dim, (chunk_size, -1))
+    if input_tensor.shape[dim] % chunk_size != 0:
+        raise ValueError(
+            "dim's size must be a multiple of chunk_size.\n"
+            f"Dim Size: {dim}\n"
+            f"Chunk Size: {chunk_size}\n"
+        )
+
+    n_chunks = input_tensor.shape[dim] // chunk_size
+    tensor_split = unflatten(input_tensor, dim, (n_chunks, chunk_size))
 
     argmax_1 = argmax(tensor_split, dim + 1)
     argmax_expanded = unsqueeze(argmax_1, dim + 1)
@@ -58,12 +66,14 @@ def _split_argmax(input_tensor, dim, keepdim: bool = False, chunk_size: int = 12
     max_vals = squeeze(max_vals, dim + 1)
 
     argmax_2 = argmax(max_vals, dim)
-    argmax_2_expanded = unsqueeze(argmax_2, 0)
+    index_shape = list(argmax_1.shape)
+    index_shape[dim] = 1
+    argmax_2_expanded = argmax_2.unsqueeze(dim)
 
     final_index_in_chunk = gather(argmax_1, dim, argmax_2_expanded)
-    final_index = argmax_2 * tensor_split.shape[dim + 1] + final_index_in_chunk
+    final_index = argmax_2_expanded * tensor_split.shape[dim + 1] + final_index_in_chunk
 
-    final_index = squeeze(final_index, 0)
+    final_index = squeeze(final_index, dim)
 
     if keepdim:
         final_index = unsqueeze(final_index, dim)
@@ -112,6 +122,79 @@ def conv2d_default(
 conv2d.override(Tensor, Tensor, Tensor, auto_dequant=True)(conv2d_default)
 conv2d.override(Tensor, Tensor, auto_dequant=True)(conv2d_default)
 
+
+# conv3d
+
+
+def conv3d_default(
+    input: Tensor,
+    weight: Tensor,
+    bias: Optional[Tensor],
+    *,
+    stride,
+    padding,
+    dilation,
+    groups,
+    accum_dtype: Optional[torch.dtype],
+):
+    input = unbox_tensor(input)
+    weight = unbox_tensor(weight)
+    if bias is not None:
+        bias = unbox_tensor(bias)
+    if weight.dtype != input.dtype:
+        weight = weight.to(input.dtype)
+    if bias is not None and bias.dtype != input.dtype:
+        bias = bias.to(input.dtype)
+    return F.conv3d(
+        input,
+        weight,
+        bias,
+        stride=stride,
+        padding=padding,
+        dilation=dilation,
+        groups=groups,
+    )
+
+
+conv3d.override(Tensor, Tensor, Tensor, auto_dequant=True)(conv3d_default)
+conv3d.override(Tensor, Tensor, auto_dequant=True)(conv3d_default)
+
+
+# conv1d
+
+
+def conv1d_default(
+    input: Tensor,
+    weight: Tensor,
+    bias: Optional[Tensor],
+    *,
+    stride,
+    padding,
+    dilation,
+    groups,
+    accum_dtype: Optional[torch.dtype],
+):
+    input = unbox_tensor(input)
+    weight = unbox_tensor(weight)
+    if bias is not None:
+        bias = unbox_tensor(bias)
+    if weight.dtype != input.dtype:
+        weight = weight.to(input.dtype)
+    if bias is not None and bias.dtype != input.dtype:
+        bias = bias.to(input.dtype)
+    return F.conv1d(
+        input,
+        weight,
+        bias,
+        stride=stride,
+        padding=padding,
+        dilation=dilation,
+        groups=groups,
+    )
+
+
+conv1d.override(Tensor, Tensor, Tensor, auto_dequant=True)(conv1d_default)
+conv1d.override(Tensor, Tensor, auto_dequant=True)(conv1d_default)
 
 # Einsum
 def mk_menk_men(inputs, weights):
