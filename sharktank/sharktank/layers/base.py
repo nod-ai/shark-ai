@@ -186,7 +186,7 @@ class BaseLayer(nn.Module, metaclass=BaseLayerMetaClass):
     ):
         """Trace tensor(s) prefixed by this module's key prefix.
 
-        You can use `set_recursively_submodules_default_trace_tensor_key_prefix` no
+        You can use `set_recursively_submodules_default_trace_tensor_key_prefix` on
         your top level module to specify a key prefix for it and all its nested
         submodules.
 
