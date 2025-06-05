@@ -89,11 +89,13 @@ class Llama4Test(TempDirTestBase):
         ).transpose(1, 2)
 
         hf_moe.shared_expert.gate_proj.weight.data = unbox_tensor(
-            theta("ffn_gate.weight")
+            theta("ffn_gate_shexp.weight")
         )
-        hf_moe.shared_expert.up_proj.weight.data = unbox_tensor(theta("ffn_up.weight"))
+        hf_moe.shared_expert.up_proj.weight.data = unbox_tensor(
+            theta("ffn_up_shexp.weight")
+        )
         hf_moe.shared_expert.down_proj.weight.data = unbox_tensor(
-            theta("ffn_down.weight")
+            theta("ffn_down_shexp.weight")
         )
 
         hf_res = hf_moe(input)[0]

@@ -74,9 +74,9 @@ def block_theta_to_hugging_face_state_dict(
     if block_idx in config.moe_layers:
         name_map.update(
             {
-                "ffn_gate.weight": "feed_forward.shared_expert.gate_proj.weight",
-                "ffn_up.weight": "feed_forward.shared_expert.up_proj.weight",
-                "ffn_down.weight": "feed_forward.shared_expert.down_proj.weight",
+                "ffn_gate_shexp.weight": "feed_forward.shared_expert.gate_proj.weight",
+                "ffn_up_shexp.weight": "feed_forward.shared_expert.up_proj.weight",
+                "ffn_down_shexp.weight": "feed_forward.shared_expert.down_proj.weight",
             }
         )
     else:
