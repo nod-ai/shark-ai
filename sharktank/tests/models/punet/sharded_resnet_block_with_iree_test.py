@@ -26,7 +26,6 @@ from sharktank.utils.iree import (
     run_iree_module_function,
     with_iree_device_context,
 )
-from sharktank.utils.testing import xfail
 from typing import List
 
 
