@@ -1549,14 +1549,26 @@ def to_sharded(tensor: ShardedTensor, *args, **kwargs):
 
 @topk.override(SplitPrimitiveTensor)
 def topk_split(
-    input: SplitPrimitiveTensor, k: int, dim: int, largest: bool, sorted: bool
+    input: SplitPrimitiveTensor,
+    k: int,
+    dim: int,
+    largest: bool,
+    sorted: bool,
+    use_linalgext_topk: bool,
 ) -> tuple[
     SplitPrimitiveTensor | ReplicatedTensor, SplitPrimitiveTensor | ReplicatedTensor
 ]:
     if dim != input.shard_dim:
         values, indices = zip(
             *(
-                topk(shard, k=k, dim=dim, largest=largest, sorted=sorted)
+                topk(
+                    shard,
+                    k=k,
+                    dim=dim,
+                    largest=largest,
+                    sorted=sorted,
+                    use_linalgext_topk=use_linalgext_topk,
+                )
                 for shard in input.shards
             )
         )
@@ -1633,7 +1645,7 @@ def unflatten_split(
 
 @unshard.override(ReplicatedTensor)
 def unshard_replicated(input: ReplicatedTensor) -> Tensor:
-    return input.shards[0]
+    return input.shards[0].as_torch()
 
 
 @unshard.override(SplitPrimitiveTensor)

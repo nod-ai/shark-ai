@@ -142,29 +142,6 @@ class PagedLlmModelV1(BaseCausalLMModel):
         )
         return x.clone(ts=shards, devices=next_devices)
 
-    def argmax(
-        self,
-        logits: torch.Tensor,
-        chunk_size: int,
-    ):
-        indices = ops.argmax(logits, -1, chunk_size=chunk_size)
-        indices_expanded = indices.unsqueeze(-1)
-
-        max_logits = ops.gather(logits, dim=-1, index=indices_expanded)
-        max_logits = max_logits.squeeze(-1)
-
-        return max_logits, indices
-
-    def topk(
-        self,
-        logits: torch.Tensor,
-        k: int,
-        chunk_size: int,
-    ):
-        return ops.topk(
-            logits, k=k, dim=-1, largest=True, sorted=True, chunk_size=chunk_size
-        )
-
     def prefill(
         self,
         # [bs, batch_seq_len]
@@ -362,8 +339,6 @@ class AttentionFFNBlock(ThetaLayer):
                 fake_quant=fake_quant,
                 softcap=config.hp.attention_softcap,
                 model_arch=config.hp.model_arch,
-                block_to_pipeline_map=config.block_to_pipeline_map,
-                pipeline_to_device_map=config.pipeline_to_device_map,
             ),
         )
 

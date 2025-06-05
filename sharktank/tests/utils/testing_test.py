@@ -38,3 +38,12 @@ def test_xfail_without_match():
 
     with pytest.raises(RuntimeError, match="test_xfail_without_match"):
         f()
+
+
+def test_xfail_match_with_multiple_lines_in_exception_string():
+    @xfail(raises=RuntimeError, strict=True, match="line2")
+    def f():
+        raise RuntimeError("line1\nline2\nline3")
+
+    with pytest.raises(RuntimeError, match="line1\nline2\nline3"):
+        f()
