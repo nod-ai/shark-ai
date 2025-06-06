@@ -160,6 +160,7 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv(extra_args=(f"--use-toy-model",))
         self.run_and_check_perplexity()
 
+    @pytest.mark.skip(reason="https://github.com/iree-org/iree/issues/20914")
     @is_nightly
     def test_deepseek_v3_tp(self):
         # DeepSeek v3 tensor parallelism
