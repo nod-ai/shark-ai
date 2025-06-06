@@ -9,6 +9,9 @@ import unittest
 import pytest
 import json
 import numpy as np
+from sharktank.utils.export_artifacts import (
+    IreeCompileException,
+)
 
 from sharktank.evaluate import perplexity_iree
 from sharktank.utils.testing import (
@@ -160,8 +163,12 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv(extra_args=(f"--use-toy-model",))
         self.run_and_check_perplexity()
 
-    @pytest.mark.skip(reason="https://github.com/iree-org/iree/issues/20914")
-    @is_nightly
+    @pytest.mark.xfail(
+        raises=IreeCompileException,
+        reason="https://github.com/iree-org/iree/issues/20914",
+        strict=True,
+    )
+    @is_deepseek
     def test_deepseek_v3_tp(self):
         # DeepSeek v3 tensor parallelism
         self.model_name = "deepseek_v3_iree"
