@@ -21,6 +21,7 @@ from iree.turbine.kernel.wave.utils.run_utils import (
 )
 from iree.compiler.ir import (
     Module,
+    Context,
 )
 
 __all__ = [
@@ -66,7 +67,8 @@ def get_wave_flash_attention_asm(target_function_name: str, shape: AttentionShap
         compile_to_mlir=True,
     )
     options = set_default_run_config(options)
-    base_attention = wave_compile(options, base_attention_func)
+    with Context() as ctx:
+        base_attention = wave_compile(options, base_attention_func)
 
     asm = base_attention.asm
     return asm
@@ -154,12 +156,12 @@ def wave_bhsd_flash_attention(
     asm_module = Module.parse(asm)
     asm_body = get_module_body(asm_module)
 
-    mlir_wave_kernel = f"""
+    mlir_wave_kernel = asm_body + f"""
     util.func private @{{{{kernel_name}}}}(%q : !q, %k : !k, %v : !v, %c : !c) -> !result {{
         %result = func.call @{wave_kernel_name}(%q, %k, %v, %c) : (!q, !k, !v, !c) -> !result
         util.return %result : !result
     }}
     """
-    mlir = "module {" + asm_body + mlir_wave_kernel + "}"
+    mlir = "module {" + mlir_wave_kernel + "}"
 
     return MLIRSpec(mlir)
