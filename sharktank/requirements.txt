@@ -14,3 +14,6 @@ einops
 # Serving deps.
 fastapi>=0.112.2
 uvicorn>=0.30.6
+
+# Quantization deps.
+brevitas
