@@ -729,12 +729,24 @@ def topk_default(
     largest: bool,
     sorted: bool,
     chunk_size: Optional[int] = None,
+    use_linalgext_topk: bool = False,
 ) -> tuple[Tensor, Tensor]:
     if chunk_size is not None:
-        return _split_topk(tensor, k, dim, largest, sorted, chunk_size)
+        return _split_topk(
+            tensor, k, dim, largest, sorted, chunk_size, use_linalgext_topk
+        )
 
-    if largest and not sorted and len(tensor.shape) == 3 and dim == 2:
+    if use_linalgext_topk:
+        assert largest
+        assert not sorted
+        assert dim == len(tensor.shape) - 1
+        bs_shape = tensor.shape[:-1]
+        tensor = tensor.flatten(0, -2)
+
         values, indices = iree_topk(unbox_tensor(tensor), k=k)
+
+        values = unflatten(values, 0, bs_shape)
+        indices = unflatten(indices, 0, bs_shape)
         return values, indices.to(torch.int64)
 
     result = torch.topk(
@@ -750,6 +762,7 @@ def _split_topk(
     largest: bool,
     sorted: bool,
     chunk_size: int,
+    use_linalgext_topk: bool,
 ) -> Tuple[Tensor, Tensor]:
     """Find the `topk` of a tensor using `split_k` strategy for better perf.
 
@@ -782,13 +795,25 @@ def _split_topk(
     tensor_unflattened = unflatten(tensor, dim, (n_chunks, chunk_size))
 
     vals_local, idx_local = topk(
-        tensor_unflattened, k, dim=dim + 1, largest=largest, sorted=sorted
+        tensor_unflattened,
+        k,
+        dim=dim + 1,
+        largest=largest,
+        sorted=sorted,
+        use_linalgext_topk=use_linalgext_topk,
     )
 
     vals_flat = flatten(vals_local, start_dim=dim, end_dim=dim + 1)
     idx_flat = flatten(idx_local, start_dim=dim, end_dim=dim + 1)
 
-    vals_out, flat_idx = topk(vals_flat, k, dim=dim, largest=largest, sorted=sorted)
+    vals_out, flat_idx = topk(
+        vals_flat,
+        k,
+        dim=dim,
+        largest=largest,
+        sorted=sorted,
+        use_linalgext_topk=use_linalgext_topk,
+    )
 
     chunk_idx = flat_idx // k
 
