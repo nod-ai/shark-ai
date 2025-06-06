@@ -41,7 +41,6 @@ def paged_attention(
     bs, batch_seq_len, _, _ = xq.shape
 
     # Full sequence length.
-    kv_seq_len = seq_block_ids.shape[1] * attention_block.cache.block_seq_stride
 
     if start_positions is None:
         attn_output = paged_attention.forward_prefill(
@@ -62,7 +61,6 @@ def paged_attention(
             cache_state=cache_state,
             seq_block_ids=seq_block_ids,
             block_index=block_index,
-            kv_seq_len=kv_seq_len,
             start_positions=start_positions,
             head_count_attn=head_count,
             mask=attention_mask,

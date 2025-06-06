@@ -137,10 +137,33 @@ def add_model_options(parser: argparse.ArgumentParser):
         action="store_true",
     )
     parser.add_argument(
+        "--use-toy-model",
+        help="Generates toy model",
+        action="store_true",
+    )
+    parser.add_argument(
         "--top-k",
-        help="Export with a `top_k` kernel. If `top_k` == 1, argmax is exported.",
+        help="Export with a `top_k` kernel. If `top_k` == 1, argmax is exported."
+        "Otherwise, `topk_k{k} is exported.",
         type=int,
         default=None,
+    )
+    parser.add_argument(
+        "--top-k-chunk-size",
+        help="Size of chunks to split into when exporting `top_k`.",
+        type=int,
+        default=1024,
+    )
+    parser.add_argument(
+        "--use-linalgext-topk",
+        action="store_true",
+        help="Whether to use the linalg_ext topk implementation",
+    )
+    parser.add_argument(
+        "--logits-normalization",
+        default="none",
+        help="Return the log softmax of the logits",
+        choices=["none", "softmax", "log_softmax"],
     )
 
 

@@ -4,15 +4,16 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import logging
 import argparse
 import shutil
 from pathlib import Path
 from sharktuner import libtuner
-from sharktuner.common import *
+from sharktuner import common
 
 
 class ModelTuner(libtuner.TuningClient):
-    def __init__(self, tuner_context: libtuner.TunerContext):
+    def __init__(self, tuner_context: common.TunerContext):
         super().__init__(tuner_context)
         self.compile_flags: list[str] = []
         self.benchmark_flags: list[str] = []
@@ -110,7 +111,7 @@ def main() -> None:
         logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     )
     print("Generating candidate tuning specs...")
-    with TunerContext(logger=root_logger) as tuner_context:
+    with common.TunerContext(logger=root_logger) as tuner_context:
         tuner_context.logger.addHandler(summary_handler)
         model_tuner = ModelTuner(tuner_context)
         candidates = libtuner.generate_candidate_specs(

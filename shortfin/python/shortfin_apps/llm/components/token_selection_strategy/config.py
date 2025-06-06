@@ -39,8 +39,7 @@ def get_normalization_from_str(token_selection_strategy: str) -> LogitsNormaliza
 class TokenSelectionStrategy(Enum):
     """Supported token selection strategies."""
 
-    GREEDY = auto()
-    MULTI_GREEDY = auto()
+    INDEPENDENT = auto()
     BEAM_SEARCH = auto()
 
 
@@ -55,13 +54,6 @@ def get_strategy_from_str(token_selection_strategy: str) -> TokenSelectionStrate
     return name_to_strategy[strategy]
 
 
-def is_ref_counted(token_selection_strategy: TokenSelectionStrategy) -> bool:
-    return token_selection_strategy in {
-        TokenSelectionStrategy.MULTI_GREEDY,
-        TokenSelectionStrategy.BEAM_SEARCH,
-    }
-
-
 @dataclass_json(undefined=Undefined.RAISE)
 @dataclass
 class DecodeConfig:
@@ -70,7 +62,7 @@ class DecodeConfig:
     num_beams: int = 1
 
     # Strategy for selecting tokens during generation
-    token_selection_strategy: str | TokenSelectionStrategy = "greedy"
+    token_selection_strategy: str | TokenSelectionStrategy = "independent"
 
     logits_normalization: LogitsNormalization = LogitsNormalization.NONE
 

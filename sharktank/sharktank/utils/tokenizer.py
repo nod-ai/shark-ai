@@ -8,9 +8,9 @@
 
 from abc import ABC, abstractmethod
 from typing import Optional, Union
-
-import math
 import os
+
+from sharktank.utils.evaluate import *
 
 __all__ = [
     "load_tokenizer",
@@ -32,7 +32,7 @@ class InferenceTokenizer(ABC):
         Returns a list of list of tokens and a list of unpadded lengths.
         """
         raw_rows = self._encode(texts, add_start_token)
-        raw_rows, lengths = self.pad_tokens(
+        raw_rows, lengths = pad_tokens(
             token_ids=raw_rows, pad_to_multiple_of=pad_to_multiple_of
         )
         return raw_rows, lengths
@@ -44,35 +44,6 @@ class InferenceTokenizer(ABC):
             for i, row_length in enumerate(lens):
                 tokens[i] = tokens[i][0:row_length]
         return self._decode(tokens)
-
-    def get_prompt_lengths(
-        self,
-        token_ids: list[list[int]],
-    ):
-        max_length = 0
-        lengths: list[int] = []
-        for row in token_ids:
-            lengths.append(len(row))
-            max_length = max(max_length, len(row))
-
-        return lengths, max_length
-
-    def pad_tokens(
-        self,
-        token_ids: list[list[int]],
-        pad_to_multiple_of: int,
-        pad_token: int = 0,
-    ):
-        lengths, max_length = self.get_prompt_lengths(token_ids)
-        if pad_to_multiple_of > 1:
-            max_length = int(
-                pad_to_multiple_of * math.ceil(max_length / pad_to_multiple_of)
-            )
-        for row in token_ids:
-            pad_count = max_length - len(row)
-            row.extend(pad_count * [pad_token])
-
-        return token_ids, lengths
 
     @abstractmethod
     def _encode(self, texts: list[str]) -> list[list[int]]:

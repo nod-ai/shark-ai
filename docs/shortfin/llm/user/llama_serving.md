@@ -85,7 +85,7 @@ following either https://pytorch.org/get-started/locally/ or our recommendation:
 
 ```bash
 # Fast installation of torch with just CPU support.
-pip install torch --index-url https://download.pytorch.org/whl/cpu "torch>=2.3.0,<2.6.0"
+pip install torch --index-url https://download.pytorch.org/whl/cpu "torch>=2.4.0,<2.6.0"
 ```
 
 ### Prepare a working directory

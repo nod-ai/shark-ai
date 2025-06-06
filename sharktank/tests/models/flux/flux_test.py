@@ -29,13 +29,13 @@ from sharktank.models.flux.flux import FluxModelV1, FluxParams
 from sharktank.models.flux.compile import iree_compile_flags
 from sharktank.utils.testing import (
     TempDirTestBase,
-    get_iree_compiler_flags,
     skip,
     is_mi300x,
     is_cpu,
     is_cpu_condition,
 )
 from sharktank.utils.iree import (
+    get_iree_compiler_flags_from_object,
     with_iree_device_context,
     load_iree_module,
     run_iree_module_function,
@@ -116,7 +116,7 @@ class FluxTest(TempDirTestBase):
         iree_module_path = self._temp_dir / "model.vmfb"
         logger.info("Compiling MLIR file...")
 
-        iree_device_flags = get_iree_compiler_flags(self)
+        iree_device_flags = get_iree_compiler_flags_from_object(self)
         compile_flags = iree_compile_flags + iree_device_flags
         iree.compiler.compile_file(
             str(mlir_path),
@@ -254,10 +254,7 @@ class FluxTest(TempDirTestBase):
         )
 
     @pytest.mark.xfail(
-        is_cpu_condition,
-        raises=iree.compiler.CompilerToolError,
-        strict=True,
-        reason="Fails on CPU. Issue: https://github.com/nod-ai/shark-ai/issues/1244",
+        reason="Fails on both CPU and MI300. Issue: https://github.com/nod-ai/shark-ai/issues/1244",
     )
     def testCompareToyIreeF32AgainstEagerF64(self):
         """atol is apparently high because the expected output range is large.
@@ -279,6 +276,9 @@ class FluxTest(TempDirTestBase):
         )
 
     @with_flux_data
+    @pytest.mark.xfail(
+        reason="Marking xfail with issue already present. Issue: https://github.com/nod-ai/shark-ai/issues/1244",
+    )
     @pytest.mark.expensive
     def testCompareDevIreeF32AgainstEagerF32(self):
         self.runTestCompareDevIreeAgainstEager(

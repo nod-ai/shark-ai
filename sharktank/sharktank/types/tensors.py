@@ -46,6 +46,7 @@ __all__ = [
     "dtype_to_serialized_short_name",
     "flatten_tensor_tree",
     "InferenceTensor",
+    "is_any_tensor",
     "MetaDataValueType",
     "PlanarQuantizedTensor",
     "PrimitiveTensor",
@@ -313,7 +314,11 @@ class InferenceTensor(ABC):
         arg0 = args[0] if len(args) > 0 else None
         device_overload = ("device" in kwargs) or isinstance(arg0, (str, torch.device))
         other_overload = ("other" in kwargs) or isinstance(arg0, AnyTensor)
-        memory_overload = ("memory_format" in kwargs) or isinstance(arg0, torch.dtype)
+        memory_overload = (
+            ("memory_format" in kwargs)
+            or ("dtype" in kwargs)
+            or isinstance(arg0, torch.dtype)
+        )
 
         if device_overload:
             # Do we always want to clone with globals?
@@ -353,10 +358,21 @@ class InferenceTensor(ABC):
 
         return permute(self, dims=dims)
 
+    @property
+    def mT(self) -> "AnyTensor":
+        from sharktank.ops import transpose
+
+        return transpose(self, -2, -1)
+
     def bool(self) -> "InferenceTensor":
         from sharktank.ops import to
 
         return to(self, dtype=torch.bool)
+
+    @property
+    def device(self) -> torch.device:
+        """Equivalent to torch.Tensor.device."""
+        raise NotImplementedError()
 
     @property
     def dtype(self) -> torch.dtype:
@@ -437,11 +453,23 @@ class InferenceTensor(ABC):
         return reshape(self, shape)
 
     def scatter_(
-        self, dim: int, index: "AnyTensor", value, *, reduce=None
+        self,
+        dim: int,
+        index: "AnyTensor",
+        src: Union["AnyTensor", Number],
+        *,
+        reduce=None,
     ) -> "AnyTensor":
         from sharktank.ops import scatter_
 
-        return scatter_(self, dim, index, value, reduce=reduce)
+        return scatter_(self, dim, index, src, reduce=reduce)
+
+    def scatter_add(
+        self, dim: int, index: "AnyTensor", src: "AnyTensor"
+    ) -> "AnyTensor":
+        from sharktank.ops import scatter_add
+
+        return scatter_add(self, dim, index, src)
 
     def sigmoid(self) -> "AnyTensor":
         from sharktank.ops import sigmoid
@@ -459,6 +487,13 @@ class InferenceTensor(ABC):
         from sharktank.ops import softmax
 
         return softmax(self, dim, dtype=dtype)
+
+    def split(
+        self, split_size_or_sections: int | list[int], dim: int = 0
+    ) -> tuple["AnyTensor", ...]:
+        from sharktank.ops import split
+
+        return split(self, split_size_or_sections, dim)
 
     def squeeze(self, dim: Optional[int] = None) -> "AnyTensor":
         from sharktank.ops import squeeze
@@ -513,13 +548,16 @@ class InferenceTensor(ABC):
             shape = args[0]
         return view(self, shape)
 
+    def __gt__(self, lhs: Union["AnyTensor", Number]) -> "AnyTensor":
+        from sharktank.ops import elementwise
+        from operator import gt
+
+        return elementwise(gt, self, lhs)
+
     def __add__(self, rhs):
         from sharktank.ops import elementwise
 
         return elementwise(torch.add, self, rhs)
-
-    def __invert__(self):
-        pass
 
     def __radd__(self, lhs):
         # Assumes commutative addition due to torch elementwise ops not handling
@@ -601,6 +639,10 @@ class PrimitiveTensor(InferenceTensor):
         the logical arrangement of the data.
         """
         ...
+
+    @property
+    def device(self) -> torch.device:
+        return self.as_torch().device
 
     @property
     def dtype(self) -> torch.dtype:
@@ -885,6 +927,14 @@ class ShardedTensor(InferenceTensor):
         return self.clone(ts=[~t for t in self._shards])
 
     @property
+    def device(self) -> torch.device:
+        assert all(s.device == self.shards[0].device for s in self.shards), (
+            "TODO: figure out what do do if shards are placed on different Torch "
+            "devices. This is only relevant for eager execution."
+        )
+        return self.shards[0].as_torch().device
+
+    @property
     def devices(self) -> Tuple[int]:
         return self._devices
 
@@ -1143,6 +1193,9 @@ class SplitPrimitiveTensor(ShardedTensorBase):
             assert (
                 shard_count > 1
             ), "SplitTensor must have at least 2 shards. Use ReplicatedTensor for 1 shard."
+            assert (
+                ts.shape[shard_dim] >= shard_count
+            ), f"Cannot split dimension {shard_dim} of size {ts.shape[shard_dim]} into {shard_count} shards"
             ts = ts.split(ceildiv(ts.shape[shard_dim], shard_count), dim=shard_dim)
             ts = [transfer_to_logical_device(t, devices[i]) for i, t in enumerate(ts)]
             assert len(ts) == shard_count
@@ -1457,6 +1510,10 @@ class UnreducedTensor(ShardedTensorBase):
         kwargs["shape"] = kwargs.get("shape", self.shape)
         kwargs["devices"] = kwargs.get("devices", self.devices)
         return UnreducedTensor(**kwargs)
+
+
+def is_any_tensor(x: Any) -> bool:
+    return isinstance(x, (InferenceTensor, torch.Tensor))
 
 
 def flatten_tensor_tree(

@@ -9,10 +9,9 @@ authors = [
 ]
 description = "SHARK layers and inference models for genai"
 readme = "README.md"
-license = {text = "Apache-2.0"}
+license = "Apache-2.0"
 classifiers = [
   "Development Status :: 3 - Alpha",
-  "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python :: 3",
 ]
 
@@ -21,6 +20,9 @@ dynamic = ["version", "dependencies", "optional-dependencies"]
 
 [project.urls]
 Repository = "https://github.com/nod-ai/shark-ai"
+
+[project.scripts]
+shark = "sharktank.tools.sharktank:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

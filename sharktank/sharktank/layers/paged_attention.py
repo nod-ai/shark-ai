@@ -11,23 +11,820 @@ tightly coupled transformer blocks a bit less "stringy" with loose tensors
 and dims floating around everywhere.
 """
 
-from typing import Optional, Tuple, Union, List
+from itertools import accumulate
+from typing import Optional, Union, List
 
-import abc
 import math
 
+import itertools
 import torch
 
 from sharktank.types import (
+    DefaultPrimitiveTensor,
     SplitPrimitiveTensor,
     ReplicatedTensor,
+    ShardedTensor,
     QuantizerTensor,
     PlanarQuantizedTensor,
     StaticScaledQuantizer,
+    TensorScaledLayout,
 )
 from sharktank import ops, kernels
+from sharktank.kernels.mlir_kernel import *
 
 __all__ = ["PagedAttention"]
+
+# Paged Attention Kernels
+#
+# Each kernel is put into its own class to create a namespace for it
+def KVCacheGatherKernel():
+    CACHE_SIZE = DynDim.CACHE_SIZE
+    PAGES = DynDim.PAGES
+    T_BLOCK = StaticDim.T_BLOCK
+    PART = StaticDim.PART
+    BLOCK_SEQ_STRIDE = StaticDim.BLOCK_SEQ_STRIDE
+    HEAD_COUNT_KV = StaticDim.HEAD_COUNT_KV
+    ATTN_HEAD_DIM = StaticDim.ATTN_HEAD_DIM
+    BATCH = DynDim.BATCH
+
+    CACHE_TY = Dtype.CACHE_TY
+    I64 = Dtype.I64
+
+    @mlir_kernel(
+        inputs=(
+            MLIRTensor[
+                CACHE_SIZE,
+                T_BLOCK,
+                PART,
+                HEAD_COUNT_KV,
+                BLOCK_SEQ_STRIDE,
+                ATTN_HEAD_DIM,
+                CACHE_TY,
+            ],
+            MLIRTensor[BATCH, PAGES, I64],
+            MLIRTensor[I64],
+            MLIRTensor[I64],
+        ),
+        results=(
+            MLIRTensor[
+                BATCH, PAGES, HEAD_COUNT_KV, BLOCK_SEQ_STRIDE, ATTN_HEAD_DIM, CACHE_TY
+            ],
+        ),
+    )
+    def paged_attention_kv_cache_gather(
+        cache, page_ids, transformer_idx, partition_idx, result
+    ):
+        mlir = """
+        !cache_slice = tensor<{{[CACHE_SIZE, HEAD_COUNT_KV, BLOCK_SEQ_STRIDE, ATTN_HEAD_DIM]|join('x')}}x!cache_dtype>
+
+        module {
+        util.func private @{{kernel_name}}(%cache: !cache,
+                                   %page_ids: !page_ids,
+                                   %transformer_idx: !transformer_idx,
+                                   %partition_idx: !partition_idx) -> !result {
+          %c0 = arith.constant 0 : index
+          %c1 = arith.constant 1 : index
+
+          // Get transformer/partition ids.
+          %t_id64 = tensor.extract %transformer_idx[] : !transformer_idx
+          %p_id64 = tensor.extract %partition_idx[] : !partition_idx
+          %t_id = arith.index_cast %t_id64 : !transformer_idx_dtype to index
+          %p_id = arith.index_cast %p_id64 : !partition_idx_dtype to index
+
+          // Get dynamic dimensions.
+          %cache_size = tensor.dim %cache, %c0 : !cache
+          %batches = tensor.dim %page_ids, %c0 : !page_ids
+          %pages = tensor.dim %page_ids, %c1 : !page_ids
+
+          // Extract a the current transformer block and partition from cache.
+          %cache_slice = tensor.extract_slice %cache
+            [0, %t_id, %p_id, 0, 0, 0]
+            [%cache_size, 1, 1, {{HEAD_COUNT_KV}}, {{BLOCK_SEQ_STRIDE}}, {{ATTN_HEAD_DIM}}]
+            [1, 1, 1, 1, 1, 1]
+            : !cache to !cache_slice
+
+          %empty = tensor.empty(%batches, %pages) : !result
+
+          // Gather from cache_slice using page_ids.
+          %result = iree_linalg_ext.gather
+                    dimension_map = [0]
+                    ins(%cache_slice, %page_ids : !cache_slice, !page_ids)
+                    outs(%empty : !result) -> !result
+
+          util.return %result : !result
+        }
+        }
+        """
+        return MLIRSpec(mlir)
+
+    return paged_attention_kv_cache_gather
+
+
+kv_cache_gather = KVCacheGatherKernel()
+
+
+def unpack_raw_tensor(tensor):
+    if isinstance(tensor, PlanarQuantizedTensor):
+        return tensor.unpack()._qs
+    return tensor
+
+
+def pack_raw_tensor(tensor, quantizer):
+    if quantizer is None:
+        return tensor
+    layout = TensorScaledLayout(
+        shape=tensor.shape,
+        d=quantizer._reciprocal_scale,
+        qs=tensor,
+        m=quantizer._offset,
+    )
+    return PlanarQuantizedTensor(shape=tensor.shape, layout=layout)
+
+
+class KVCache:
+    def __init__(
+        self,
+        *,
+        transformer_block_count: int,
+        attn_head_count: int,
+        attn_head_dim: int,
+        cache_partition_count: int = 2,
+        block_seq_stride: int = 16,
+        cache_dtype: torch.dtype = torch.float32,
+        device: Optional[torch.device] = None,
+        devices: List[int] | None = None,
+    ):
+        self.transformer_block_count = transformer_block_count
+        self.attn_head_count = attn_head_count
+        self.attn_head_dim = attn_head_dim
+        self.cache_partition_count = cache_partition_count
+        self.block_seq_stride = block_seq_stride
+        self.cache_dtype = cache_dtype
+        self.device = device
+        self.devices = devices
+
+        assert devices is None or len(devices) == 1
+        assert cache_partition_count == 2
+
+        # Some derived values based on attributes.
+        self.sub_page_dims = [
+            self.transformer_block_count,
+            self.cache_partition_count,
+            self.attn_head_count,
+            self.block_seq_stride,
+            self.attn_head_dim,
+        ]
+
+        self.page_slab_flat_dims = math.prod(self.sub_page_dims)
+
+    def allocate(self, page_count: int) -> List[torch.Tensor | ReplicatedTensor]:
+        tensors = [
+            torch.empty(
+                [page_count, self.page_slab_flat_dims],
+                dtype=self.cache_dtype,
+                device=self.device,
+            )
+        ]
+
+        # If we have explicit devices we should attach device information:
+        if self.devices is not None:
+            tensors = [ReplicatedTensor(ts=[t], devices=self.devices) for t in tensors]
+
+        return tensors
+
+    @property
+    def state_count(self):
+        return 1
+
+    def shard_state(self, state: List[torch.Tensor]) -> List[ReplicatedTensor]:
+        assert len(state) == 1
+        if self.devices is None:
+            return state
+
+        state = ReplicatedTensor(ts=state, devices=self.devices)
+        return [state]
+
+    def unshard_state(
+        self, state: List[torch.Tensor | ReplicatedTensor]
+    ) -> List[torch.Tensor]:
+        assert len(state) == 1
+        state = state[0].unflatten(1, self.sub_page_dims)
+
+        if isinstance(state, ReplicatedTensor):
+            assert state.shard_count == 1
+            return [state.shards[0]]
+        return [state]
+
+    def unflatten_page_table(self, state: List[torch.Tensor]) -> List[torch.Tensor]:
+        assert len(state) == 1
+        """Unflattens the 2D page tables to 6D tensors."""
+        return [state[0].unflatten(1, self.sub_page_dims)]
+
+    def read(
+        self,
+        state: List[torch.Tensor],
+        *,
+        transformer_block_index: int,
+        page_ids: torch.Tensor,
+    ):
+        page_table = self.unflatten_page_table(state)[0]
+
+        # TODO: mlir_kernel doesn't support non-tensor args yet, so use 0-D
+        # tensors instead.
+        t_id = torch.tensor(transformer_block_index, dtype=torch.int64)
+        key_p_id = torch.tensor(0, dtype=torch.int64)
+        value_p_id = torch.tensor(1, dtype=torch.int64)
+
+        def unwrap_args(*ts):
+            new_ts = []
+            for t in ts:
+                if isinstance(t, DefaultPrimitiveTensor):
+                    t = t._data
+                new_ts.append(t)
+            return new_ts
+
+        key = kv_cache_gather(*unwrap_args(page_table, page_ids, t_id, key_p_id))
+        value = kv_cache_gather(*unwrap_args(page_table, page_ids, t_id, value_p_id))
+
+        key = key.transpose(2, 3).flatten(1, 2)
+        value = value.transpose(2, 3).flatten(1, 2)
+
+        if self.devices:
+            # Explicitly passing a list of one value to avoid redundant transfer inside ReplicateTensor.__init__.
+            key = ReplicatedTensor(ts=[key], devices=self.devices)
+            value = ReplicatedTensor(ts=[value], devices=self.devices)
+
+        return key, value
+
+    def write(
+        self,
+        *,
+        state: List[torch.Tensor],
+        cache_partitions: List[torch.Tensor],
+        transformer_block_index: int,
+        page_ids: Union[torch.Tensor, ReplicatedTensor],
+    ):
+        """Writes cache partitions from a linear layout to the page table.
+
+        This is the inverse of the linear read. The same caveat applies if the
+        in-place scatter cannot be fused.
+        """
+        assert len(state) == 1
+        assert len(cache_partitions) == self.cache_partition_count
+
+        page_table = self.unflatten_page_table(state=state)[0]
+        page_table = page_table.flatten(0, 2)
+
+        _, block_seq_len, *_ = page_ids.shape
+        for cache_partition_id, cache_partition in enumerate(cache_partitions):
+            index = page_ids
+            index = index * self.transformer_block_count + transformer_block_index
+            index = index * self.cache_partition_count + cache_partition_id
+            index = index.flatten(0, 1)
+
+            cache_partition = cache_partition.unflatten(
+                1, (block_seq_len, self.block_seq_stride)
+            )
+            cache_partition = cache_partition.flatten(0, 1)
+            cache_partition = cache_partition.transpose(1, 2)
+
+            part_block = ops.to(cache_partition, dtype=page_table.dtype)
+            if page_table.dtype == torch.float8_e4m3fnuz:
+                # Workaround for Torch not supporting torch.Tensor.index_copy_ for f8.
+                page_table_as_int8 = page_table.view(dtype=torch.int8)
+                part_block_as_int8 = part_block.view(dtype=torch.int8)
+                page_table_as_int8.index_copy_(0, index, part_block_as_int8)
+            else:
+                page_table.index_copy_(0, index, part_block)
+
+    def write_timestep(
+        self,
+        *,
+        state: List[torch.Tensor],
+        cache_partitions: List[torch.Tensor],
+        transformer_block_index: int,
+        seq_positions: torch.Tensor,
+        page_ids: torch.Tensor,
+    ):
+        assert len(state) == 1
+        assert len(cache_partitions) == self.cache_partition_count
+
+        page_table = self.unflatten_page_table(state)[0]
+        page_table = page_table.flatten(0, 4)
+
+        device = self.device
+        bs, *_ = seq_positions.shape
+
+        page_index = seq_positions // self.block_seq_stride
+        page_index = page_index.unsqueeze(1)
+        page_id = ops.gather(page_ids, dim=1, index=page_index).view((bs, 1, 1))
+        page_offset = (seq_positions % self.block_seq_stride).view((bs, 1, 1))
+        head_offset = torch.arange(self.attn_head_count, device=device).view(
+            (1, 1, self.attn_head_count)
+        )
+
+        for cache_partition_id, cache_partition in enumerate(cache_partitions):
+            # [1, 1]
+            partitions = torch.tensor(cache_partition_id, device=device).view((1, 1, 1))
+
+            index = page_id
+            index = index * self.transformer_block_count + transformer_block_index
+            index = index * self.cache_partition_count + partitions
+            index = index * self.attn_head_count + head_offset
+            index = index * self.block_seq_stride + page_offset
+
+            cache_partition.transpose(1, 2)
+            values = ops.to(cache_partition, dtype=page_table.dtype)
+
+            if page_table.dtype == torch.float8_e4m3fnuz:
+                # Workaround for Torch not supporting torch.Tensor.index_copy_ for f8.
+                page_table_as_int8 = page_table.view(dtype=torch.int8)
+                values_int8 = values.view(dtype=torch.int8)
+                page_table_as_int8.index_put_(indices=(index,), values=values_int8)
+            else:
+                page_table.index_put_(indices=(index,), values=values)
+
+
+class ShardedCache:
+    def __init__(
+        self,
+        *,
+        shard_count: int,
+        transformer_block_count: int,
+        attn_head_count: int,
+        attn_head_dim: int,
+        devices: List[int] | None = None,
+        cache_partition_count: int = 2,
+        block_seq_stride: int = 16,
+        cache_dtype: torch.dtype = torch.float32,
+        device: Optional[torch.device] = None,
+    ):
+        caches: list[KVCache] = []
+        for i in range(shard_count):
+            start = i * attn_head_count // shard_count
+            end = (i + 1) * attn_head_count // shard_count
+            sharded_attn_head_count = end - start
+
+            cache = KVCache(
+                transformer_block_count=transformer_block_count,
+                attn_head_count=sharded_attn_head_count,
+                attn_head_dim=attn_head_dim,
+                cache_partition_count=cache_partition_count,
+                block_seq_stride=block_seq_stride,
+                cache_dtype=cache_dtype,
+                device=device,
+            )
+            caches.append(cache)
+
+        self.caches = caches
+        self.cache_partition_count = cache_partition_count
+        self.devices = devices
+        self.attn_head_count = attn_head_count
+        self.attn_head_dim = attn_head_dim
+        self.block_seq_stride = block_seq_stride
+        self.transformer_block_count = transformer_block_count
+        self.shard_count = shard_count
+
+        self.unsharded_page_dims = [
+            self.transformer_block_count,
+            self.cache_partition_count,
+            self.attn_head_count,
+            self.block_seq_stride,
+            self.attn_head_dim,
+        ]
+
+        if self.devices is None:
+            self.devices = list(range(shard_count))
+
+    @property
+    def state_count(self):
+        return 1
+
+    def allocate(
+        self, page_count: int, devices: List[int] | None = None
+    ) -> List[SplitPrimitiveTensor]:
+        assert devices is None
+        shards = [cache.allocate(page_count)[0] for cache in self.caches]
+        return [SplitPrimitiveTensor(ts=shards, shard_dim=1, devices=self.devices)]
+
+    def shard_state(self, state: List[torch.Tensor]) -> List[SplitPrimitiveTensor]:
+        assert len(state) == 1
+        page_table = state[0].unflatten(1, self.unsharded_page_dims)
+
+        shards = []
+        head_start = 0
+        for cache in self.caches:
+            head_end = head_start + cache.attn_head_count
+            shard = page_table[:, :, :, head_start:head_end]
+            shard = shard.flatten(1)
+            shards.append(shard)
+            head_start = head_end
+
+        return [SplitPrimitiveTensor(ts=shards, shard_dim=1, devices=self.devices)]
+
+    def unshard_state(self, state: List[SplitPrimitiveTensor]) -> List[torch.Tensor]:
+        assert len(state) == 1
+        assert state[0].shard_count == len(self.caches)
+
+        state = [
+            cache.unshard_state([shard])[0]
+            for cache, shard in zip(self.caches, state[0].shards)
+        ]
+        state = SplitPrimitiveTensor(ts=state, shard_dim=3, devices=self.devices)
+
+        return [ops.unshard(state)]
+
+    def read(
+        self,
+        state: List[SplitPrimitiveTensor],
+        *,
+        transformer_block_index: int,
+        page_ids: ReplicatedTensor,
+    ):
+        assert len(state) == 1
+        assert state[0].shard_count == self.shard_count
+
+        for device in state[0].devices:
+            assert device in page_ids.devices
+
+        page_id_map = {d: i for i, d in enumerate(page_ids.devices)}
+        page_id_shards = [page_ids.shards[page_id_map[d]] for d in state[0].devices]
+
+        shards = []
+        for shard_state, cache, shard_page_ids in zip(
+            state[0].shards, self.caches, page_id_shards
+        ):
+            read = cache.read(
+                state=[shard_state],
+                transformer_block_index=transformer_block_index,
+                page_ids=shard_page_ids,
+            )
+            shards.append(read)
+
+        tensors = []
+        for i in range(self.cache_partition_count):
+            ret_shards = [s[i] for s in shards]
+            tensors.append(
+                SplitPrimitiveTensor(ts=ret_shards, shard_dim=2, devices=self.devices)
+            )
+
+        return tuple(tensors)
+
+    def write(
+        self,
+        *,
+        state: List[SplitPrimitiveTensor],
+        cache_partitions: List[SplitPrimitiveTensor],
+        transformer_block_index: int,
+        page_ids: Union[ReplicatedTensor],
+    ):
+        assert len(state) == 1
+        assert state[0].shard_count == self.shard_count
+
+        for p in cache_partitions:
+            assert tuple(state[0].devices) == tuple(p.devices)
+
+        for device in state[0].devices:
+            assert device in page_ids.devices
+
+        shards = []
+        for i in range(self.shard_count):
+            cache_partition_shards = [p.shards[i] for p in cache_partitions]
+            self.caches[i].write(
+                state=[state[0].shards[i]],
+                cache_partitions=cache_partition_shards,
+                transformer_block_index=transformer_block_index,
+                page_ids=page_ids.shards[i],
+            )
+
+    def write_timestep(
+        self,
+        *,
+        state: List[torch.Tensor],
+        cache_partitions: List[torch.Tensor],
+        transformer_block_index: int,
+        seq_positions: torch.Tensor,
+        page_ids: torch.Tensor,
+    ):
+        assert len(state) == 1
+        assert state[0].shard_count == self.shard_count
+
+        shards = []
+        for i in range(self.shard_count):
+            cache_partition_shards = [p.shards[i] for p in cache_partitions]
+            self.caches[i].write_timestep(
+                state=[state[0].shards[i]],
+                cache_partitions=cache_partition_shards,
+                transformer_block_index=transformer_block_index,
+                seq_positions=seq_positions.shards[i],
+                page_ids=page_ids.shards[i],
+            )
+
+
+class PipelinedCache:
+    def __init__(
+        self,
+        *,
+        shard_count: int,
+        transformer_block_count: int,
+        attn_head_count: int,
+        attn_head_dim: int,
+        cache_partition_count: int = 2,
+        block_seq_stride: int = 16,
+        cache_dtype: torch.dtype = torch.float32,
+        block_to_pipeline_map: List[int],
+        pipeline_to_device_map: List[List[int]],
+        device: Optional[torch.device] = None,
+    ):
+        assert transformer_block_count == len(block_to_pipeline_map)
+
+        pipeline_count = len(pipeline_to_device_map)
+
+        # Determine the mapping from each unsharded transformer block to the corresponding block in the pipeline sharded cache.
+        transformer_block_map = []
+        pipeline_block_counts = [0] * pipeline_count
+        for pipeline in block_to_pipeline_map:
+            assert pipeline >= 0 and pipeline < pipeline_count
+            transformer_block_map.append(pipeline_block_counts[pipeline])
+            pipeline_block_counts[pipeline] += 1
+
+        caches = []
+        for pipeline in range(pipeline_count):
+            devices = pipeline_to_device_map[pipeline]
+            cache = build_cache(
+                shard_count=shard_count,
+                transformer_block_count=pipeline_block_counts[pipeline],
+                attn_head_count=attn_head_count,
+                attn_head_dim=attn_head_dim,
+                cache_partition_count=cache_partition_count,
+                block_seq_stride=block_seq_stride,
+                cache_dtype=cache_dtype,
+                device=device,
+                devices=devices,
+            )
+            caches.append(cache)
+
+        self.caches = caches
+        self.pipeline_count = pipeline_count
+        self.pipeline_block_counts = pipeline_block_counts
+        self.transformer_block_map = transformer_block_map
+        self.transformer_block_count = transformer_block_count
+        self.block_to_pipeline_map = block_to_pipeline_map
+
+        self.unsharded_page_dims = [
+            transformer_block_count,
+            cache_partition_count,
+            block_seq_stride,
+            attn_head_count,
+            attn_head_dim,
+        ]
+
+    def allocate(
+        self, page_count: int
+    ) -> List[ReplicatedTensor | SplitPrimitiveTensor]:
+        allocations = []
+        for pipeline in range(self.pipeline_count):
+            cache = self.caches[pipeline]
+            allocation = cache.allocate(page_count)
+            allocations.append(allocation)
+
+        allocations = list(itertools.chain(*allocations))
+        return allocations
+
+    def shard_state(self, state: List[torch.Tensor]) -> List[SplitPrimitiveTensor]:
+        assert len(state) == 1
+
+        page_table = state[0].unflatten(1, self.unsharded_page_dims)
+
+        pipelined_tensors = []
+        for pipeline in range(self.pipeline_count):
+            pipeline_blocks = [
+                block
+                for block in range(self.transformer_block_count)
+                if self.block_to_pipeline_map[block] == pipeline
+            ]
+            tensor = ops.index_select(
+                page_table, dim=1, index=torch.tensor(pipeline_blocks)
+            )
+            pipelined_tensors.append(tensor)
+
+        for i, t in enumerate(pipelined_tensors):
+            assert t.shape[1] == self.pipeline_block_counts[i]
+
+        sharded = []
+        for pipeline in range(self.pipeline_count):
+            cache = self.caches[pipeline]
+            tensor = pipelined_tensors[pipeline].flatten(1)
+            subsharded = cache.shard_state([tensor])[0]
+            sharded.append(subsharded)
+
+        return sharded
+
+    def unshard_state(self, state: List[SplitPrimitiveTensor]) -> List[torch.Tensor]:
+        expected = sum([cache.state_count for cache in self.caches])
+        assert len(state) == expected
+        state = state.copy()
+
+        pipelined_states = [
+            [state.pop(0) for i in range(cache.state_count)] for cache in self.caches
+        ]
+        unsharded_states = [
+            cache.unshard_state(state)
+            for cache, state in zip(self.caches, pipelined_states)
+        ]
+
+        selected_tensors = []
+        for block in range(self.transformer_block_count):
+            pipeline = self.block_to_pipeline_map[block]
+            new_block = self.transformer_block_map[block]
+            current_state = unsharded_states[pipeline]
+
+            selected = current_state[0]
+            selected = selected[:, new_block].unsqueeze(1)
+            selected_tensors.append(selected)
+
+        sharded_version = SplitPrimitiveTensor(ts=selected_tensors, shard_dim=1)
+        unsharded_version = ops.unshard(sharded_version).flatten(1)
+        return [unsharded_version]
+
+    @staticmethod
+    def unwrap_pipelining(state):
+        if not isinstance(state, list):
+            if isinstance(state, ReplicatedTensor) and state.shard_count == 1:
+                state = state.shards[0]
+            return state
+
+        new_state = []
+        for s in state:
+            if isinstance(s, ReplicatedTensor) and s.shard_count == 1:
+                s = s.shards[0]
+            new_state.append(s)
+
+        return new_state
+
+    @staticmethod
+    def unwrap_like(value, state):
+        if isinstance(
+            value, (torch.Tensor, DefaultPrimitiveTensor, SplitPrimitiveTensor)
+        ):
+            return value
+
+        src_device_map = {device: i for i, device in enumerate(value.devices)}
+
+        target_devices = None
+        for s in state:
+            if isinstance(s, ReplicatedTensor):
+                target_devices = s.devices
+                break
+
+        for s in state:
+            if isinstance(s, SplitPrimitiveTensor):
+                target_devices = s.devices
+                break
+
+        assert all(d in src_device_map for d in target_devices)
+
+        shards = [value.shards[src_device_map[d]] for d in target_devices]
+        return ReplicatedTensor(ts=shards, devices=target_devices)
+
+    def read(
+        self,
+        state: List[ReplicatedTensor | SplitPrimitiveTensor],
+        *,
+        transformer_block_index: int,
+        page_ids: torch.Tensor | ReplicatedTensor,
+    ) -> tuple[
+        ReplicatedTensor | SplitPrimitiveTensor, ReplicatedTensor | SplitPrimitiveTensor
+    ]:
+        pipeline = self.block_to_pipeline_map[transformer_block_index]
+        block = self.transformer_block_map[transformer_block_index]
+
+        # Select the right pipeline:
+        pipeline_state = [state[pipeline]]
+
+        # Remove pipelining from the args:
+        page_ids = self.unwrap_like(page_ids, pipeline_state)
+
+        # If device pipelined we need to unwrap:
+        pipeline_state = self.unwrap_pipelining(pipeline_state)
+        page_ids = self.unwrap_pipelining(page_ids)
+
+        return self.caches[pipeline].read(
+            state=pipeline_state, transformer_block_index=block, page_ids=page_ids
+        )
+
+    def write(
+        self,
+        *,
+        state: List[ReplicatedTensor | SplitPrimitiveTensor],
+        cache_partitions: List[SplitPrimitiveTensor],
+        transformer_block_index: int,
+        page_ids: torch.Tensor | ReplicatedTensor,
+    ):
+        pipeline = self.block_to_pipeline_map[transformer_block_index]
+        block = self.transformer_block_map[transformer_block_index]
+
+        # Select the right pipeline:
+        pipeline_state = [state[pipeline]]
+
+        # Remove pipelining from the args:
+        page_ids = self.unwrap_like(page_ids, pipeline_state)
+
+        # If device pipelined we need to unwrap:
+        pipeline_state = self.unwrap_pipelining(pipeline_state)
+        page_ids = self.unwrap_pipelining(page_ids)
+        cache_partitions = self.unwrap_pipelining(cache_partitions)
+
+        return self.caches[pipeline].write(
+            state=pipeline_state,
+            cache_partitions=cache_partitions,
+            transformer_block_index=block,
+            page_ids=page_ids,
+        )
+
+    def write_timestep(
+        self,
+        *,
+        state: List[torch.Tensor],
+        cache_partitions: List[torch.Tensor],
+        transformer_block_index: int,
+        seq_positions: torch.Tensor,
+        page_ids: torch.Tensor,
+    ):
+        pipeline = self.block_to_pipeline_map[transformer_block_index]
+        block = self.transformer_block_map[transformer_block_index]
+
+        # Select the right pipeline:
+        pipeline_state = [state[pipeline]]
+
+        # Remove pipelining from the args:
+        page_ids = self.unwrap_like(page_ids, pipeline_state)
+
+        # If device pipelined we need to unwrap:
+        pipeline_state = self.unwrap_pipelining(pipeline_state)
+        page_ids = self.unwrap_pipelining(page_ids)
+        cache_partitions = self.unwrap_pipelining(cache_partitions)
+        seq_positions = self.unwrap_pipelining(seq_positions)
+
+        return self.caches[pipeline].write_timestep(
+            state=pipeline_state,
+            cache_partitions=cache_partitions,
+            transformer_block_index=block,
+            page_ids=page_ids,
+            seq_positions=seq_positions,
+        )
+
+
+def build_cache(
+    shard_count: int,
+    transformer_block_count: int,
+    attn_head_count: int,
+    attn_head_dim: int,
+    devices: List[int] | None = None,
+    cache_partition_count: int = 2,
+    block_seq_stride: int = 16,
+    cache_dtype: torch.dtype = torch.float32,
+    block_to_pipeline_map: List[int] | None = None,
+    pipeline_to_device_map: List[List[int]] | None = None,
+    device: Optional[torch.device] = None,
+):
+    if pipeline_to_device_map is not None:
+        return PipelinedCache(
+            shard_count=shard_count,
+            transformer_block_count=transformer_block_count,
+            attn_head_count=attn_head_count,
+            attn_head_dim=attn_head_dim,
+            cache_partition_count=cache_partition_count,
+            block_seq_stride=block_seq_stride,
+            cache_dtype=cache_dtype,
+            device=device,
+            block_to_pipeline_map=block_to_pipeline_map,
+            pipeline_to_device_map=pipeline_to_device_map,
+        )
+
+    if shard_count == 1:
+        return KVCache(
+            transformer_block_count=transformer_block_count,
+            attn_head_count=attn_head_count,
+            attn_head_dim=attn_head_dim,
+            cache_partition_count=cache_partition_count,
+            block_seq_stride=block_seq_stride,
+            cache_dtype=cache_dtype,
+            device=device,
+            devices=devices,
+        )
+
+    return ShardedCache(
+        shard_count=shard_count,
+        transformer_block_count=transformer_block_count,
+        attn_head_count=attn_head_count,
+        attn_head_dim=attn_head_dim,
+        cache_partition_count=cache_partition_count,
+        block_seq_stride=block_seq_stride,
+        cache_dtype=cache_dtype,
+        device=device,
+        devices=devices,
+    )
 
 
 class PagedAttention:
@@ -40,8 +837,8 @@ class PagedAttention:
 
     * transformer block
     * cache partition (K or V cache)
-    * block sequence stride (number of sequence positions per block)
     * attention heads
+    * block sequence stride (number of sequence positions per block)
     * attention dimensionality
 
     Note that the internal page structure matches the organization of the
@@ -60,167 +857,52 @@ class PagedAttention:
         transformer_block_count: int,
         attn_head_count: int,
         attn_head_dim: int,
+        attn_type: str = "gqa",
         cache_partition_count: int = 2,
         block_seq_stride: int = 16,
         cache_dtype: torch.dtype = torch.float32,
         attn_dtype: torch.dtype = torch.float32,
         device: Optional[torch.device] = None,
         shard_count: int = 1,
-        block_to_device_lookup: tuple[tuple[int, ...], ...] | None = None,
+        block_to_pipeline_map: List[int] | None = None,
+        pipeline_to_device_map: List[List[int]] | None = None,
     ):
         self.transformer_block_count = transformer_block_count
         self.head_count_kv = attn_head_count
         self.attn_head_dim = attn_head_dim
-        self.cache_partition_count = cache_partition_count
         self.block_seq_stride = block_seq_stride
-        self.shard_count = shard_count
-
-        if block_to_device_lookup is None:
-            block_to_device_lookup = tuple(
-                tuple(range(self.shard_count))
-                for _ in range(self.transformer_block_count)
-            )
-        assert len(block_to_device_lookup) == transformer_block_count
-        block_to_pipeline_lookup = [0]
-        pipeline_to_device_lookup = [block_to_device_lookup[0]]
-        pipeline = 0
-        for block in range(1, transformer_block_count):
-            ds_prev, ds_curr = (
-                block_to_device_lookup[block - 1],
-                block_to_device_lookup[block],
-            )
-            assert all(d for d in ds_prev) >= 0
-            assert all(d for d in ds_curr) >= 0
-            if not all(d_prev == d_curr for d_prev, d_curr in zip(ds_prev, ds_curr)):
-                pipeline += 1
-                pipeline_to_device_lookup.append(ds_curr)
-            block_to_pipeline_lookup.append(pipeline)
-
-        self.pipeline_to_device_lookup = tuple(pipeline_to_device_lookup)
-        self.block_to_pipeline_lookup = tuple(block_to_pipeline_lookup)
-        self.pipeline_count = len(pipeline_to_device_lookup)
-
-        if attn_head_count % shard_count != 0:
-            raise ValueError(
-                f"The attention head count {attn_head_count} must be a multiple of the tensor parallelism size {shard_count}."
-            )
-
-        self.pipeline_to_block_count = tuple(
-            sum(1 for block in block_to_pipeline_lookup if block == i)
-            for i in range(self.pipeline_count)
-        )
-        # Some derived values based on attributes.
-        self.sub_page_dims = [
-            [
-                self.pipeline_to_block_count[pipeline],
-                self.cache_partition_count,
-                self.block_seq_stride,
-                self.head_count_kv // self.shard_count,
-                self.attn_head_dim,
-            ]
-            for pipeline in range(self.pipeline_count)
-        ]
-        self.page_slab_flat_dims = [
-            math.prod(sub_page_dim) for sub_page_dim in self.sub_page_dims
-        ]
         self.device = device
-        self.cache_dtype = cache_dtype
         self.attn_dtype = attn_dtype
+        self.cache_dtype = cache_dtype
+        self.shard_count = shard_count
+        self.attn_type = attn_type
 
-    def unflatten_page_tables(
-        self, state: list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor]
-    ) -> list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor]:
-        """Unflattens the 2D page tables to 6D tensors."""
-        assert (
-            len(state) == self.pipeline_count
-        ), f"Expected {self.pipeline_count}-element state. Got: {len(state)}"
+        self.pipeline_to_device_map = pipeline_to_device_map
+        if self.pipeline_to_device_map is None:
+            self.pipeline_to_device_map = [list(range(shard_count))]
 
-        if self.shard_count == 1 and self.pipeline_count == 1:
-            assert all(
-                not isinstance(page_slab, SplitPrimitiveTensor) for page_slab in state
-            )
-            return [
-                page_slab.unflatten(1, self.sub_page_dims[pipeline])
-                for pipeline, page_slab in enumerate(state)
-            ]
+        self.block_to_pipeline_map = block_to_pipeline_map
+        if self.block_to_pipeline_map is None:
+            self.block_to_pipeline_map = [0] * self.transformer_block_count
 
-        assert all(page_slab.shard_count == self.shard_count for page_slab in state)
-        unflattened = []
-        for pipeline, page_slab in enumerate(state):
-            shards = [
-                shard.unflatten(1, self.sub_page_dims[pipeline])
-                for shard in page_slab.shards
-            ]
-            unflattened.append(
-                (
-                    SplitPrimitiveTensor(
-                        ts=shards, shard_dim=4, devices=page_slab.devices
-                    )
-                    if len(shards) > 1
-                    else ReplicatedTensor(ts=shards, devices=page_slab.devices)
-                )
-            )
-        return unflattened
-
-    def shard_state(
-        self, state: List[torch.Tensor]
-    ) -> List[torch.Tensor | SplitPrimitiveTensor]:
-        """Shard an unsharded state.
-        We can't just split the slab on the sub page dims.
-        First it needs to be reinterpreted into the actual shape.
-        The split the head dimension, then flatten each shard.
-        This is a work-around for the lack of block-cyclic sharded tensor type."""
-        if self.shard_count == 1 and self.pipeline_count == 1:
-            return state
-
-        page_table = state[0].reshape(
-            [
-                -1,
-                self.transformer_block_count,
-                self.cache_partition_count,
-                self.block_seq_stride,
-                self.head_count_kv,
-                self.attn_head_dim,
-            ]
+        self.kv_cache = build_cache(
+            shard_count=shard_count,
+            transformer_block_count=transformer_block_count,
+            attn_head_count=attn_head_count,
+            attn_head_dim=attn_head_dim,
+            cache_partition_count=cache_partition_count,
+            block_seq_stride=block_seq_stride,
+            cache_dtype=cache_dtype,
+            device=device,
+            block_to_pipeline_map=block_to_pipeline_map,
+            pipeline_to_device_map=pipeline_to_device_map,
         )
 
-        flat_sharded_page_tables = []
-        for pipeline in range(self.pipeline_count):
-            # TODO: Do I need to make copies here, or are views enough?
-            assert (
-                self.pipeline_to_block_count[pipeline] != 1
-            ), "1 tensor per pipeline not supported. dim gets collapsed"
-            i_min = sum(self.pipeline_to_block_count[:pipeline])
-            i_max = i_min + self.pipeline_to_block_count[pipeline]
-            if self.shard_count == 1:
-                sharded_page_table = ops.replicate(
-                    page_table[:, i_min:i_max, ...],
-                    count=1,
-                    devices=self.pipeline_to_device_lookup[pipeline],
-                )
-            else:
-                sharded_page_table = ops.reshard_split(
-                    page_table[:, i_min:i_max, ...],
-                    dim=4,
-                    count=self.shard_count,
-                    devices=self.pipeline_to_device_lookup[pipeline],
-                )
-            shards_flattened = [
-                ops.flatten(shard, start_dim=1) for shard in sharded_page_table.shards
-            ]
-            flat_sharded_page_tables.append(
-                SplitPrimitiveTensor(
-                    ts=shards_flattened,
-                    shard_dim=1,
-                    devices=self.pipeline_to_device_lookup[pipeline],
-                )
-                if self.shard_count > 1
-                else ReplicatedTensor(
-                    ts=shards_flattened,
-                    devices=self.pipeline_to_device_lookup[pipeline],
-                )
-            )
-        return flat_sharded_page_tables
+    def shard_state(self, state: List[torch.Tensor]) -> List[torch.Tensor]:
+        return self.kv_cache.shard_state(state=state)
+
+    def unshard_state(self, state: List[torch.Tensor]) -> List[torch.Tensor]:
+        return self.kv_cache.unshard_state(state=state)
 
     @property
     def pad_sequence_stride(self) -> int:
@@ -228,218 +910,66 @@ class PagedAttention:
 
     def allocate(
         self, page_count: int
-    ) -> list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor]:
-        """Allocates tensor state for a page table for the given capacity in
-        pages.
-        """
-        shards = [
-            [
-                torch.empty(
-                    [page_count, self.page_slab_flat_dims[pipeline]],
-                    dtype=self.cache_dtype,
-                    device=self.device,
-                )
-                for _ in range(self.shard_count)
-            ]
-            for pipeline in range(self.pipeline_count)
-        ]
-
-        if self.shard_count == 1 and self.pipeline_count == 1:
-            return shards[0]
-
-        return [
-            (
-                SplitPrimitiveTensor(ts=shards[i], shard_dim=1, devices=devices)
-                if len(shards[i]) > 1
-                else ReplicatedTensor(ts=shards[i], devices=devices)
-            )
-            for i, devices in enumerate(self.pipeline_to_device_lookup)
-        ]
+    ) -> List[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor]:
+        return self.kv_cache.allocate(page_count=page_count)
 
     def read(
         self,
-        state: list[Union[torch.Tensor, SplitPrimitiveTensor]],
+        state: List[Union[torch.Tensor, SplitPrimitiveTensor]],
         *,
         transformer_block_index: int,
-        seq_len: int,
         page_ids: Optional[Union[torch.Tensor, ReplicatedTensor]] = None,
     ):
-        """Reads K/V caches the page table for the given page_ids.
-
-        Args:
-        state: State struct as returned from allocate().
-        transformer_block_index: The index of the transformer block accessing
-            the cache.
-        page_ids: Tensor of [bs, max_seqlen // block_pos_stride] of page ids
-            to access.
-
-        Returns the K/V cache partitions, linearized. Note that this reference
-        approach to reading by materializing linearly may not be terribly
-        efficient unless if the compiler can fuse the gather.
-        """
-        page_tables = self.unflatten_page_tables(state)  # 6D
-        page_table = page_tables[self.block_to_pipeline_lookup[transformer_block_index]]
-
-        bs, block_seq_len, *_ = page_ids.shape
-        # Blocks dim 1,2 according to the configured block stride.
-        blocked_shape = [
-            bs,
-            block_seq_len,
-            self.cache_partition_count,
-            self.block_seq_stride,
-            self.head_count_kv // self.shard_count,
-            self.attn_head_dim,
-        ]
-
-        # Gather both partitions and split post gather. This is more
-        # computationally efficient without gather fusion:
-        subblock_table = page_table.flatten(start_dim=0, end_dim=1)
-        page_stride = self.pipeline_to_block_count[
-            self.block_to_pipeline_lookup[transformer_block_index]
-        ]
-
-        transformer_block_index = torch.full(
-            (bs, block_seq_len), transformer_block_index, device=self.device
+        return self.kv_cache.read(
+            state=state,
+            transformer_block_index=transformer_block_index,
+            page_ids=page_ids,
         )
-        subblock_ids = page_ids * page_stride + transformer_block_index
-        selected = ops.index_select(subblock_table, 0, subblock_ids.flatten(0, 1))
-
-        selected = selected.unflatten(0, blocked_shape[:2])
-        key = selected[:, :, 0, :seq_len].flatten(1, 2)[:, :seq_len]
-        value = selected[:, :, 1, :seq_len].flatten(1, 2)[:, :seq_len]
-
-        return key, value
 
     def write_timestep(
         self,
-        state: list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
-        # List of [bs, 1, attn_head_count, attn_head_dim]
-        cache_partitions: list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
-        *,
+        state: List[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
+        cache_partitions: List[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
         transformer_block_index: int,
-        # [bs]
         seq_positions: Union[torch.Tensor, ReplicatedTensor],
-        # [bs, max_seqlen // block_pos_stride]
         page_ids: Union[torch.Tensor, ReplicatedTensor],
     ):
-        """Writes a single batched timestep across all cache partitions.
-
-        Note that this internally loops over the batch size, which cannot be
-        dynamic.
-        """
-        device = self.device
-        page_tables = self.unflatten_page_tables(state)  # 6D
-        page_table = page_tables[self.block_to_pipeline_lookup[transformer_block_index]]
-        page_table = page_table.flatten(0, 3)
-        bs, *_ = seq_positions.shape
-        assert len(cache_partitions) == self.cache_partition_count
-
-        # [bs, 1, atten_head_count, attn_head_dim]
-        for idx, cache_partition in enumerate(cache_partitions):
-            # [bs, 1]
-            page_index = seq_positions // self.block_seq_stride
-
-            page_id = ops.gather(page_ids, dim=1, index=page_index.unsqueeze(1))
-            page_offset = (seq_positions % self.block_seq_stride).unsqueeze(1)
-
-            # [1, 1]
-            if isinstance(seq_positions, ReplicatedTensor):
-                partitions = [
-                    torch.tensor(idx, device=device).unsqueeze(0)
-                    for _ in range(seq_positions.shard_count)
-                ]
-
-                transformer_block = [
-                    torch.full((bs, 1), transformer_block_index, device=device)
-                    for _ in range(seq_positions.shard_count)
-                ]
-
-                devices = self.pipeline_to_device_lookup[
-                    self.block_to_pipeline_lookup[transformer_block_index]
-                ]
-                partitions = ReplicatedTensor(ts=partitions, devices=devices)
-                transformer_block = ReplicatedTensor(
-                    ts=transformer_block, devices=devices
-                )
-            else:
-                partitions = torch.tensor(idx, device=device).unsqueeze(0)
-                transformer_block = torch.full(
-                    (bs, 1), transformer_block_index, device=device
-                )
-
-            partitions = partitions.repeat(bs, 1)
-
-            transformer_block_count_in_pipeline = self.pipeline_to_block_count[
-                self.block_to_pipeline_lookup[transformer_block_index]
-            ]
-
-            index = page_id
-            index = index * transformer_block_count_in_pipeline + transformer_block
-            index = index * self.cache_partition_count + partitions
-            index = index * self.block_seq_stride + page_offset
-            values = ops.to(cache_partition, dtype=page_table.dtype)
-            if page_table.dtype == torch.float8_e4m3fnuz:
-                # Workaround for Torch not supporting torch.Tensor.index_copy_ for f8.
-                page_table_as_int8 = page_table.view(dtype=torch.int8)
-                values_int8 = values.view(dtype=torch.int8)
-                page_table_as_int8.index_put_(indices=(index,), values=values_int8)
-            else:
-                page_table.index_put_(indices=(index,), values=values)
-
-        return
+        self.kv_cache.write_timestep(
+            state=state,
+            cache_partitions=cache_partitions,
+            transformer_block_index=transformer_block_index,
+            seq_positions=seq_positions,
+            page_ids=page_ids,
+        )
 
     def write(
         self,
-        state: list[Union[torch.Tensor, SplitPrimitiveTensor]],
-        cache_partitions: list[Union[torch.Tensor, SplitPrimitiveTensor]],
+        state: List[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
+        cache_partitions: List[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
         *,
         transformer_block_index: int,
         page_ids: Union[torch.Tensor, ReplicatedTensor],
     ):
-        """Writes cache partitions from a linear layout to the page table.
-
-        This is the inverse of the linear read. The same caveat applies if the
-        in-place scatter cannot be fused.
-        """
-        page_tables = self.unflatten_page_tables(state)  # 6D
-        page_table = page_tables[self.block_to_pipeline_lookup[transformer_block_index]]
-        bs, block_seq_len, *_ = page_ids.shape
-
-        # Reshape the page cache into sub-blocks so that we can index at the
-        # granularity of the transformer_block and cache partition.
-        # This requires us to recompute indices to the sub-block reference
-        # frame.
-        # The subblock slab is organized as:
-        #   [page, attn_layer, cache_partition]
-        # Where the cache line can be 0 (k) or 1 (v).
-        subblock_table = page_table.flatten(start_dim=0, end_dim=2)
-        transformer_block_count_in_pipeline = self.pipeline_to_block_count[
-            self.block_to_pipeline_lookup[transformer_block_index]
-        ]
-        page_stride = transformer_block_count_in_pipeline * self.cache_partition_count
-        transformer_block_stride = self.cache_partition_count
-        base_subblock_ids = page_ids * page_stride + (
-            transformer_block_index * transformer_block_stride
+        self.kv_cache.write(
+            state=state,
+            cache_partitions=cache_partitions,
+            transformer_block_index=transformer_block_index,
+            page_ids=page_ids,
         )
 
-        for index, partition in enumerate(cache_partitions):
-            part_block_view = partition.unflatten(
-                1, (block_seq_len, self.block_seq_stride)
-            )
-            part_block_view = part_block_view.flatten(0, 1)
+    def repeat_kv(self, x: torch.Tensor, n_rep: int) -> torch.Tensor:
+        bs, slen, n_kv_heads, head_dim = x.shape
+        unsq = x.unsqueeze(-2)
+        exp = ops.expand(unsq, (bs, slen, n_kv_heads, n_rep, head_dim))
+        return exp.flatten(2, 3)
 
-            subblock_ids = (
-                (base_subblock_ids + index) if index > 0 else base_subblock_ids
-            ).flatten(0, 1)
-
-            part_block = ops.to(part_block_view, dtype=subblock_table.dtype)
-            if subblock_table.dtype == torch.float8_e4m3fnuz:
-                # Workaround for Torch not supporting torch.Tensor.index_copy_ for f8.
-                subblock_table_as_int8 = subblock_table.view(dtype=torch.int8)
-                part_block_as_int8 = part_block.view(dtype=torch.int8)
-                subblock_table_as_int8.index_copy_(0, subblock_ids, part_block_as_int8)
-            else:
-                subblock_table.index_copy_(0, subblock_ids, part_block)
+    def gqa(self, head_count_attn, k, v):
+        gqa_n_rep = head_count_attn // self.head_count_kv
+        assert gqa_n_rep > 0
+        if gqa_n_rep > 1:
+            k = self.repeat_kv(x=k, n_rep=gqa_n_rep)
+            v = self.repeat_kv(x=v, n_rep=gqa_n_rep)
+        return k, v
 
     def attention(
         self,
@@ -448,26 +978,16 @@ class PagedAttention:
         k: torch.Tensor,
         v: torch.Tensor,
         head_count_attn: int,
-        attention_kernel: str,
         cache_quantizer: Optional[QuantizerTensor],
+        attention_kernel: str,
         fake_quant: Optional[bool],
         softcap: Optional[float] = None,
         scale: Optional[torch.Tensor] = None,
         mask: Optional[torch.Tensor] = None,
         probs_quantizer: Optional[StaticScaledQuantizer] = None,
     ):
-        gqa_n_rep = head_count_attn // self.head_count_kv
-        assert gqa_n_rep > 0
-        if gqa_n_rep > 1:
-
-            def repeat_kv(x: torch.Tensor) -> torch.Tensor:
-                bs, slen, n_kv_heads, head_dim = x.shape
-                unsq = x.unsqueeze(-2)
-                exp = ops.expand(unsq, (bs, slen, n_kv_heads, gqa_n_rep, head_dim))
-                return exp.flatten(2, 3)
-
-            k = repeat_kv(k)
-            v = repeat_kv(v)
+        if self.attn_type == "gqa":
+            k, v = self.gqa(head_count_attn, k, v)
 
         # Fake quant is already dequantized when stored in the cache.
         if cache_quantizer and not fake_quant:
@@ -478,13 +998,12 @@ class PagedAttention:
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)
 
-        q = ops.to(q, dtype=self.attn_dtype)
-        k = ops.to(k, dtype=self.attn_dtype)
-        v = ops.to(v, dtype=self.attn_dtype)
-        if mask is not None:
-            mask = ops.to(mask, dtype=self.attn_dtype)
+        if isinstance(k, ShardedTensor) and type(k) != type(q):
+            k = ops.reshard_like(k, like=q)
 
-        # Decomposed
+        if isinstance(v, ShardedTensor) and type(v) != type(q):
+            v = ops.reshard_like(v, like=q)
+
         if attention_kernel == "decomposed":
             if isinstance(q, PlanarQuantizedTensor):
                 q = q.unpack().dequantize()
@@ -524,31 +1043,28 @@ class PagedAttention:
                     attn_weights = probs_quantizer.quantize(attn_weights).unpack().qs
             attn_weights = ops.to(attn_weights, dtype=q.dtype)
             return ops.matmul(attn_weights, v)  # (bs, heads, slen, head_dim)
+
         elif attention_kernel == "sharktank":
             if mask is not None:
-                attn_output = kernels.masked_flash_attention(
-                    q,
-                    k,
-                    v,
-                    mask[0, 0, :, :],
-                    torch.tensor(1 / math.sqrt(self.attn_head_dim)),
+                attn_output = ops.attention_impls.masked_flash_attention(
+                    q, k, v, mask[0, 0, :, :]
                 )
             else:
                 attn_output = kernels.flash_attention(q, k, v)
             return attn_output
-        else:
-            # Non-decomposed
-            if softcap is not None:
-                raise ValueError("softcap not supported yet")
 
-            return ops.scaled_dot_product_attention(
-                q=q,  # [bs, ..., sl, dim]
-                k=k,  # [bs, ..., sl, dim]
-                v=v,  # [bs, ..., sl, dim]
-                a=mask,  # [bs, ..., sl, sl]
-                is_causal=mask is None,  # assumes causal masking when true
-                scale=None,  # defaults to 1/sqrt(dim)
-            )
+        # Non-decomposed
+        if softcap is not None:
+            raise ValueError("softcap not supported yet")
+
+        return ops.scaled_dot_product_attention(
+            q=q,  # [bs, ..., sl, dim]
+            k=k,  # [bs, ..., sl, dim]
+            v=v,  # [bs, ..., sl, dim]
+            a=mask,  # [bs, ..., sl, sl]
+            is_causal=mask is None,  # assumes causal masking when true
+            scale=scale,  # defaults to 1/sqrt(dim)
+        )
 
     def forward_decode(
         self,
@@ -556,9 +1072,8 @@ class PagedAttention:
         q: torch.Tensor,
         k: torch.Tensor,
         v: torch.Tensor,
-        cache_state: list[torch.Tensor],
+        cache_state: List[torch.Tensor],
         seq_block_ids: torch.Tensor,
-        kv_seq_len: int,
         block_index: int,
         start_positions: torch.Tensor,
         attention_kernel: str,
@@ -568,13 +1083,15 @@ class PagedAttention:
         softcap: Optional[float] = None,
         scale: Optional[float] = None,
         mask: Optional[torch.Tensor] = None,
+        k_quantizer: StaticScaledQuantizer = None,
+        v_quantizer: StaticScaledQuantizer = None,
     ):
         # Write our one updated cache row into the cache.
         self.write_timestep(
             cache_state,
             cache_partitions=[
-                k,
-                v,
+                unpack_raw_tensor(k),
+                unpack_raw_tensor(v),
             ],
             transformer_block_index=block_index,
             seq_positions=start_positions,
@@ -586,8 +1103,10 @@ class PagedAttention:
             cache_state,
             transformer_block_index=block_index,
             page_ids=seq_block_ids,
-            seq_len=kv_seq_len,
         )
+
+        k = pack_raw_tensor(k, k_quantizer)
+        v = pack_raw_tensor(v, v_quantizer)
 
         return self.attention(
             q=q,
@@ -608,7 +1127,7 @@ class PagedAttention:
         q: torch.Tensor,
         k: torch.Tensor,
         v: torch.Tensor,
-        cache_state: list[torch.Tensor],
+        cache_state: List[torch.Tensor],
         seq_block_ids: torch.Tensor,
         block_index: int,
         attention_kernel: str,
@@ -622,7 +1141,7 @@ class PagedAttention:
     ):
         self.write(
             cache_state,
-            cache_partitions=[k, v],
+            cache_partitions=[unpack_raw_tensor(k), unpack_raw_tensor(v)],
             transformer_block_index=block_index,
             page_ids=seq_block_ids,
         )

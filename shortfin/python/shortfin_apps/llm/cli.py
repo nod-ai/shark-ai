@@ -10,19 +10,19 @@ import json
 import logging
 import sys
 import time
+import numpy as np
 
 
 # Import first as it does dep checking and reporting.
 from pathlib import Path
-from shortfin import ProgramIsolation
+from typing import List, Optional
 from shortfin.support.logging_setup import configure_main_logger
 from shortfin.support.responder import AbstractResponder
 
 from .components.generate import ClientGenerateBatchProcess
 from .components.io_struct import GenerateReqInput, SamplingParams
 from .components.lifecycle import ShortfinLlmLifecycleManager
-from .components.token_selection_strategy import TokenSelectionStrategy
-from ..utils import get_system_args
+from .server import add_service_args
 
 
 logger = logging.getLogger(__name__)
@@ -32,74 +32,25 @@ def add_input_args(parser):
     group = parser.add_argument_group("Input Source", "Inputs to select from")
     group = group.add_mutually_exclusive_group(required=True)
     group.add_argument("--prompt")
-    group.add_argument("--prompt-file")
+    group.add_argument("--prompt_file")
+    group.add_argument("--input_token_length", type=int)
 
 
-def add_service_args(parser: argparse.ArgumentParser):
-    # TODO separate the server args from the `offline` args
-    get_system_args(parser)
-
+def add_cli_args(parser: argparse.ArgumentParser):
+    parser.add_argument("--stream", action="store_true", help="Stream the response")
     parser.add_argument(
-        "--tokenizer_json",
-        type=Path,
-        required=True,
-        help="Path to a tokenizer.json file",
+        "--log_tokens", action="store_true", help="Log tokens to stdout"
     )
     parser.add_argument(
-        "--tokenizer_config_json",
-        type=Path,
-        required=False,
-        help="Path to a tokenizer_config json file",
+        "--benchmark",
+        action="store_true",
+        help="Perform a benchmarking run for throughput",
     )
     parser.add_argument(
-        "--model_config",
-        type=Path,
-        required=True,
-        help="Path to the model config file",
-    )
-    parser.add_argument(
-        "--vmfb",
-        type=Path,
-        required=True,
-        help="Model VMFB to load",
-    )
-    parser.add_argument(
-        "--parameters",
-        type=Path,
-        nargs="*",
-        help="Parameter archives to load (supports: gguf, irpa, safetensors).",
-        metavar="FILE",
-    )
-    parser.add_argument(
-        "--program_isolation",
-        type=str,
-        default="per_call",
-        choices=[isolation.name.lower() for isolation in ProgramIsolation],
-        help="Concurrency control -- How to isolate programs.",
-    )
-    parser.add_argument(
-        "--server_config",
-        type=Path,
-        help="Path to server configuration file",
-    )
-    parser.add_argument(
-        "--prefix_sharing_algorithm",
-        type=str,
-        choices=["none", "trie"],
-        help="Algorithm to use for prefix sharing in KV cache",
-    )
-    parser.add_argument(
-        "--num_beams",
+        "--benchmark_tasks",
         type=int,
-        default=1,
-        help="The number of beams to use during decode sequence. Defaults to `1`.",
-    )
-    parser.add_argument(
-        "--token_selection_strategy",
-        type=str,
-        choices=[strategy.name.lower() for strategy in TokenSelectionStrategy],
-        default="greedy",
-        help="Strategy to use when selecting tokens during generation. Defaults to `greedy`.",
+        default=None,
+        help="Workload size to benchmark with",
     )
     parser.add_argument(
         "--decode_steps",
@@ -114,33 +65,22 @@ def add_service_args(parser: argparse.ArgumentParser):
         help="Temperature value to use for `offline` generation.",
     )
     parser.add_argument(
+        "--top_k",
+        type=int,
+        required=False,
+        help="Top K value to use for `offline` generation.",
+    )
+    parser.add_argument(
+        "--top_p",
+        type=float,
+        required=False,
+        help="Top P value to use for `offline` generation.",
+    )
+    parser.add_argument(
         "--workers_offline",
         type=int,
         default=1,
         help="Number of workers to use when running in `offline` mode.",
-    )
-    parser.add_argument(
-        "--workers",
-        type=int,
-        default=1,
-        help="Number of workers to use when running in `server` mode.",
-    )
-    parser.add_argument(
-        "--fibers_per_worker",
-        type=int,
-        default=1,
-        help="Number of fibers to use per worker.",
-    )
-    parser.add_argument(
-        "--benchmark",
-        action="store_true",
-        help="Perform a benchmarking run for throughput",
-    )
-    parser.add_argument(
-        "--benchmark_tasks",
-        type=int,
-        default=None,
-        help="Workload size to benchmark with",
     )
 
 
@@ -148,52 +88,82 @@ def parse_args(argv):
     parser = argparse.ArgumentParser()
     add_service_args(parser)
     add_input_args(parser)
+    add_cli_args(parser)
+    args = parser.parse_args(argv)
+    if args.benchmark and args.benchmark_tasks is None:
+        raise ValueError(
+            "Benchmark tasks must be provided when running in benchmark mode"
+        )
+    return args
 
-    return parser.parse_args(argv)
 
-
-def process_inputs(args):
+def process_inputs(args) -> List[str]:
+    if args.input_token_length:
+        args.prompt = "".join(["one "] * args.input_token_length)
     if args.prompt:
-        prompts = [args.prompt]
         if args.benchmark and args.benchmark_tasks is not None:
-            prompts = prompts * args.benchmark_tasks
+            prompts = [args.prompt] * args.benchmark_tasks
+        else:
+            prompts = [args.prompt]
         return prompts
 
     return json.load(open(args.prompt_file, "r"))
 
 
 class Timer:
-    def __init__(self):
-        self._start = None
-        self._end = None
+    def __init__(self, name: str):
+        self._name = name
+        self._start: Optional[float] = None
+        self._end: Optional[float] = None
 
     def start(self):
         self._start = time.perf_counter()
+        logger.info(f"{self._name} start time: {self._start}")
 
     def end(self):
         self._end = time.perf_counter()
+        logger.info(f"{self._name} end time: {self._end}")
 
     def elapsed(self):
-        if self._end is None:
+        if self._end is None and self._start is not None:
             return time.perf_counter() - self._start
-        return self._end - self._start
+        if self._end is not None and self._start is not None:
+            return self._end - self._start
+        return 0
 
 
 class CliResponder(AbstractResponder):
-    def __init__(self):
+    _idx: int = 0
+
+    def __init__(self, log_tokens: bool = False):
         super().__init__()
         self._loop = asyncio.get_running_loop()
         self.response = asyncio.Future(loop=self._loop)
         self.responded = False
-        self.timer = Timer()
+        self.idx = self._get_idx()
+        self.name = f"CliResponder-{self.idx}"
+        self._timer = Timer(self.name)
+        self.token_times = []
+        self._streaming_queue: asyncio.Queue | None = None
+        self._streamed_content = []
+        self._log_tokens = log_tokens
+
+    @classmethod
+    def _get_idx(cls):
+        cls._idx += 1
+        return cls._idx
+
+    def elapsed(self):
+        return self._timer.elapsed()
 
     def start_response(self):
-        self.timer.start()
+        self._timer.start()
 
     def ensure_response(self):
-        self.timer.end()
+        self._timer.end()
 
     def send_response(self, response):
+        logger.info(f"{self.name} Sending response")
         assert not self.responded, "Response already sent"
         if self._loop.is_closed():
             raise IOError("Web server is shut down")
@@ -201,24 +171,69 @@ class CliResponder(AbstractResponder):
         self._loop.call_soon_threadsafe(self.response.set_result, response)
 
     def stream_start(self, **kwargs):
-        raise Exception("Streaming not supported")
+        """Starts a streaming response.
 
-    def stream_part(self, content):
-        raise Exception("Streaming not supported")
+        For CLI, we'll collect the streamed content in a list that can be accessed later.
+        """
+        assert not self.responded, "Response already sent"
+        if self._loop.is_closed():
+            raise IOError("Web server is shut down")
+        self.responded = True
+        self._streaming_queue = asyncio.Queue()
+        self._streamed_content = []
+
+        async def collect_stream():
+            while True:
+                if self._streaming_queue is None:
+                    logger.info(f"{self.name} Streaming queue is completed")
+                    break
+                part = await self._streaming_queue.get()
+                if part is None:
+                    break
+                self._streamed_content.append(part)
+
+        def start():
+            asyncio.create_task(collect_stream())
+
+        self._loop.call_soon_threadsafe(start)
+
+    def stream_part(self, content: bytes | None):
+        """Streams content to a response started with stream_start().
+
+        Streaming must be ended by sending None.
+        """
+        assert self._streaming_queue is not None, "stream_start() not called"
+        self.token_times.append(self.elapsed())
+        if self._log_tokens:
+            logger.info(
+                f"{self.name} Streaming part: {content.decode() if isinstance(content, bytes) else content}"
+            )
+
+        if self._loop.is_closed():
+            raise IOError("Web server is shut down")
+        self._loop.call_soon_threadsafe(self._streaming_queue.put_nowait, content)
+
+        if content is None:
+            self._streaming_queue = None
+            # Join all streamed content and set it as the final response
+            final_content = (
+                b"".join(self._streamed_content) if self._streamed_content else b""
+            )
+            self._loop.call_soon_threadsafe(self.response.set_result, final_content)
 
 
 async def main(argv):
     args = parse_args(argv)
     if args.tokenizer_config_json is None:
         # this is only used for the EOS token
-        logging.info("Argument `--tokenizer_config_json` is not provided")
-        logging.info("Inferring tokenizer config path from tokenizer path")
+        logger.info("Argument `--tokenizer_config_json` is not provided")
+        logger.info("Inferring tokenizer config path from tokenizer path")
         inferred_tokenizer_config_path = args.tokenizer_json.with_name(
             args.tokenizer_json.stem + "_config.json"
         )
         args.tokenizer_config_json = inferred_tokenizer_config_path
 
-    logger.info(msg="Setting up service")
+    logger.info("Setting up service")
     lifecycle_manager = ShortfinLlmLifecycleManager(args)
     service = lifecycle_manager.services["default"]
     service.start()
@@ -226,37 +241,58 @@ async def main(argv):
     sampling_params = SamplingParams(max_completion_tokens=args.decode_steps)
     if getattr(args, "temperature", None) is not None:
         sampling_params.temperature = args.temperature
+    if getattr(args, "top_k", None) is not None:
+        sampling_params.top_k = args.top_k
+    if getattr(args, "top_p", None) is not None:
+        sampling_params.top_p = args.top_p
 
     prompts = process_inputs(args)
 
     class Task:
         def __init__(self, prompt):
             self.prompt = prompt
-            self.responder = None
+            self.responder: Optional[CliResponder] = None
+            self.result: Optional[str] = None
 
         def runtime(self):
-            return self.responder.timer.elapsed()
+            if self.responder is not None:
+                return self.responder.elapsed()
+            return 0
 
-    logger.info(msg=f"Setting up a tasklist of {len(prompts)} items")
-    tasks = []
+        def ttft(self):
+            if self.responder is not None:
+                return self.responder.token_times[0]
+            return 0
+
+        def tpot(self):
+            if self.responder is not None:
+                return (
+                    self.responder.token_times[-1] - self.responder.token_times[0]
+                ) / len(self.responder.token_times)
+            return 0
+
+    logger.info(f"Setting up a tasklist of {len(prompts)} items")
+    tasks: List[Task] = []
     for p in prompts:
         task = Task(p)
         tasks.append(task)
 
     async def worker(name, queue, fiber):
         while True:
-            task = await queue.get()
-            responder = CliResponder()
+            task: Task = await queue.get()
+            responder = CliResponder(log_tokens=args.log_tokens)
             gen_req = GenerateReqInput(
-                text=task.prompt, sampling_params=sampling_params
+                text=task.prompt, sampling_params=sampling_params, stream=args.stream
             )
-            ClientGenerateBatchProcess(service, gen_req, responder).launch()
+            ClientGenerateBatchProcess(
+                service, gen_req, responder, fiber=fiber
+            ).launch()
             await responder.response
             task.responder = responder
             task.result = responder.response.result()
             queue.task_done()
 
-    logger.info(msg=f"Setting up {args.workers_offline} workers")
+    logger.info(f"Setting up {args.workers_offline} workers")
     workers = []
     queue = asyncio.Queue()
     for i in range(args.workers_offline):
@@ -266,9 +302,9 @@ async def main(argv):
         w = asyncio.create_task(worker(name, queue, fiber))
         workers.append(w)
 
-    logger.info(msg=f"Processing tasks")
+    logger.info(f"Processing tasks")
 
-    global_timer = Timer()
+    global_timer = Timer("global")
     global_timer.start()
     for t in tasks:
         queue.put_nowait(t)
@@ -280,15 +316,25 @@ async def main(argv):
         w.cancel()
 
     if args.benchmark:
-        latency_sum = sum([s.runtime() for s in tasks])
-        latency_avg = latency_sum / len(tasks)
         total_time = global_timer.elapsed()
         reqs = len(prompts) / total_time
 
         print(f"Requests per second: {reqs:2f}")
-        print(f"AverageLatency:      {latency_avg:2f}")
+        latencies = [s.runtime() for s in tasks]
+        print(
+            f"Latencies: av: {np.mean(latencies)}, min: {np.min(latencies)}, max: {np.max(latencies)}, median: {np.median(latencies)}, sd: {np.std(latencies)}"
+        )
+        if args.stream:
+            ttft = [s.ttft() for s in tasks]
+            tpot = [s.tpot() for s in tasks]
+            print(
+                f"TTFT: av: {np.mean(ttft)}, min: {np.min(ttft)}, max: {np.max(ttft)}, median: {np.median(ttft)}, sd: {np.std(ttft)}"
+            )
+            print(
+                f"TPOT: av: {np.mean(tpot)}, min: {np.min(tpot)}, max: {np.max(tpot)}, median: {np.median(tpot)}, sd: {np.std(tpot)}"
+            )
 
-    logger.info(msg=f"Shutting down service")
+    logger.info(f"Shutting down service")
     service.shutdown()
 
 

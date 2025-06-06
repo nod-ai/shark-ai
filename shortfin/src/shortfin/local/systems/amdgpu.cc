@@ -55,6 +55,9 @@ void AMDGPUSystemBuilder::InitializeDefaultSettings() {
   default_device_params_.async_allocations =
       config_options().GetBool("amdgpu_async_allocations", true);
 
+  default_device_params_.async_caching =
+      config_options().GetBool("amdgpu_async_caching", true);
+
   amdgpu_allow_device_reuse_ =
       config_options().GetBool("amdgpu_allow_device_reuse", false);
 

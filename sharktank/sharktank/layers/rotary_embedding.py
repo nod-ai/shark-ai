@@ -29,6 +29,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         rope_freq_base: Optional[float],
         device: Optional[torch.device] = None,
         use_hf: bool = False,
+        rope_scaling_type: Optional[str] = None,
         use_table: bool = True,
         tensor_parallelism_size: int = 1,
         pipeline_parallelism: bool = False,
@@ -40,6 +41,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         self.rope_dimension_count = rope_dimension_count
         self.max_seqlen = max_seqlen
         self.use_hf = use_hf
+        self.rope_scaling_type = rope_scaling_type
         self.use_table = use_table
         self.dtype = dtype
         self.rope_freq_base = rope_freq_base if rope_freq_base is not None else 10000.0
@@ -82,18 +84,28 @@ class RotaryEmbeddingLayer(BaseLayer):
                 rotary_embed_table=table,
             )
 
-        assert isinstance(table, ShardedTensor) and xt.shard_count == table.shard_count
-        rotary_shards = [unbox_tensor(shard) for shard in table.shards]
-
-        xt_shards = [
-            self.forward_unsharded(
-                xt=unbox_tensor(xt_shard),
-                start_index=start_index,
-                rotary_embed_table=rotary_shard,
+        if isinstance(xt, SplitPrimitiveTensor):
+            assert (
+                not self.use_hf or xt.shard_dim == len(xt.shape) - 1
+            ), "We rotate the last dim in that case causing awkwardness, so sharding it is disallowed"
+            assert (
+                isinstance(table, ShardedTensor) and xt.shard_count == table.shard_count
             )
-            for xt_shard, rotary_shard in zip(xt.shards, rotary_shards)
-        ]
-        return xt.clone(ts=xt_shards)
+            rotary_shards = [unbox_tensor(shard) for shard in table.shards]
+
+            xt_shards = [
+                self.forward_unsharded(
+                    xt=unbox_tensor(xt_shard),
+                    start_index=start_index,
+                    rotary_embed_table=rotary_shard,
+                )
+                for xt_shard, rotary_shard in zip(xt.shards, rotary_shards)
+            ]
+            return xt.clone(ts=xt_shards)
+
+        raise NotImplementedError(
+            f"Rotary embedding layer not implemented for input tensor type {type(xt)}"
+        )
 
     def _create_interleaved_tensor(_, dim):
         """Creates a tensor which indexes an tensor such that

@@ -9,7 +9,9 @@ import contextlib
 from pathlib import Path
 import pytest
 from os import PathLike
+import functools
 import os
+import re
 import shutil
 import tempfile
 import unittest
@@ -26,33 +28,25 @@ from datasets import load_dataset
 from sharktank.types import *
 from .math import cosine_similarity
 
-# TODO: Remove once pre-submits and nightly tests are unified to single workflow.
-def get_test_type():
-    pre_submit = 'config.getoption("--run-quick-llama-test")'
-    nightly = 'config.getoption("--run-nightly-llama-tests")'
-    if pre_submit or nightly:
-        return False
-    else:
-        return True
-
-
-is_mi300x = pytest.mark.skipif("config.getoption('iree_hip_target') != 'gfx942'")
-
-# TODO: ci-sharktank-nightly should run all nightly CIs requiring mi300x in a single workflow, dropping all test specific flags/workflows
-is_nightly = pytest.mark.skipif(
-    'not config.getoption("run-nightly-llama-tests")',
-    reason="Run large tests if --run-nightly-llama-tests is passed",
+# TODO: ci-sharktank-nightly should run all nightly CIs and ci-sharktank/test-mi300x should run all pre-submits
+# requiring mi300x in a single workflow, dropping all test specific flags/workflows
+is_pre_submit = pytest.mark.skipif(
+    'not config.getoption("run-quick-test")',
+    reason="Run quick tests if --run-quick-test is passed",
 )
-
-# TODO: ci-sharktank/test-mi300x should run all pre-submits requiring mi300x in a single workflow, dropping all test specific flags/workflows
-is_pre_submit_nightly = pytest.mark.skipif(
-    get_test_type(),
-    reason="Run large/quick tests if --run-quick-llama-test or --run-nightly-llama-tests is passed",
+is_nightly = pytest.mark.skipif(
+    'not config.getoption("run-nightly-tests")',
+    reason="Run large tests if --run-nightly-tests is passed",
 )
 is_llama_8b = pytest.mark.skipif(
     'config.getoption("llama3_8b_f16_model_path") is None',
     reason="Run llama tests if --llama3-8b-f16-model-path is passed",
 )
+is_deepseek = pytest.mark.skipif(
+    'config.getoption("--deepseek-v3-model-path") is None',
+    reason="Run deepseek tests if --deepseek-v3-model-path is passed",
+)
+is_mi300x = pytest.mark.skipif("config.getoption('iree_hip_target') != 'gfx942'")
 is_cpu_condition = (
     "exec('from sharktank.utils.testing import is_iree_hal_target_device_cpu') or "
     "is_iree_hal_target_device_cpu(config.getoption('iree_hal_target_device'))"
@@ -68,27 +62,6 @@ is_cpu_win = pytest.mark.skipif(is_cpu_condition and platform == "win32")
 
 def is_iree_hal_target_device_cpu(v: str, /) -> bool:
     return v.startswith("local") or v == "llvm-cpu"
-
-
-def get_iree_compiler_flags(o: Any, device_count: int = 1) -> list[str]:
-    """Retrieve compiler flags driven by the test configuration."""
-    res = []
-    if device_count == 1:
-        res += [f"--iree-hal-target-device={o.iree_hal_target_device}"]
-    else:
-        res += [
-            f"--iree-hal-target-device={o.iree_hal_target_device}[{i}]"
-            for i in range(device_count)
-        ]
-    if o.iree_hal_target_device.startswith("local"):
-        res += [
-            f"--iree-hal-local-target-device-backends={v}"
-            for v in o.iree_hal_local_target_device_backends
-        ]
-        res += ["--iree-llvmcpu-target-cpu=host"]
-    elif o.iree_hal_target_device.startswith("hip"):
-        res += [f"--iree-hip-target={o.iree_hip_target}"]
-    return res
 
 
 # Range of torch.rand() is [0,1)
@@ -423,6 +396,47 @@ def skip(*decorator_args, **decorator_kwargs):
             return unittest.skip(*decorator_args, **decorator_kwargs)(test_item)
 
         return test_item
+
+    return decorator
+
+
+class XfailMatchError(Exception):
+    pass
+
+
+def xfail(*args, match: str | None = None, **kwargs):
+    """xfail a test with support for regex matching against the error message.
+
+    This wraps the pytest.mark.xfail decorator into a new decorator.
+    pytest.mark.xfail does not support matching on the error message, but sometimes we
+    need to be more precise on why we expect a failure.
+    One example is when specifying what compiler error is expected. Just the exception
+    type is not enough.
+
+    ```
+    @xfail(raises=MyError, strict=True, match="my message")
+    @test_something():
+        raise MyError("my message")
+    ```
+
+    *args and **kwargs are passthrough arguments for pytest.mark.xfail.
+    """
+
+    def decorator(test_fn: Callable):
+        @pytest.mark.xfail(*args, **kwargs)
+        @functools.wraps(test_fn)
+        def wrapper(*args, **kwargs):
+            try:
+                return test_fn(*args, **kwargs)
+            except Exception as ex:
+                if match is None or re.search(match, str(ex)):
+                    raise ex
+                else:
+                    raise XfailMatchError(
+                        f'Failed to match error "{ex}" against expected match "{match}"'
+                    ) from ex
+
+        return wrapper
 
     return decorator
 

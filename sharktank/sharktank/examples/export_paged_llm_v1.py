@@ -9,7 +9,7 @@
 import os
 import logging
 import json
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
 import torch
 
 from iree.turbine.aot import *
@@ -26,15 +26,7 @@ from sharktank.models.llm import *
 
 
 def main():
-
     parser = cli.create_parser()
-
-    parser.add_argument(
-        "--logits-normalization",
-        default="none",
-        help="Return the log softmax of the logits",
-        choices=["none", "softmax", "log_softmax"],
-    )
 
     cli.add_input_dataset_options(parser)
     cli.add_model_options(parser)
@@ -50,6 +42,9 @@ def main():
             raise ValueError(
                 f"Parent directory for output MLIR file does not exist: {mlir_dir}"
             )
+
+    if args.top_k is not None and args.top_k < 1:
+        raise NotImplementedError(f"`top-k` value must be >= 1.")
 
     if args.attention_kernel == "sharktank":
         ops.attention_impls.register_attention_override_by_name(
@@ -71,20 +66,16 @@ def main():
                 f"Unsharded dataset file provided, but specified --tensor-parallelism-size={args.tensor_parallelism_size}. Likely wrong dataset provided."
             )
 
-    if args.pipeline_parallelism_size > 1:
-        block_to_device_lookup = pipeline_parallelize_theta(
-            dataset.root_theta, args.pipeline_parallelism_size
-        )
-    else:
-        block_to_device_lookup = tuple(
-            tuple(range(args.tensor_parallelism_size)) for _ in range(hp.block_count)
-        )
+    block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
+        dataset.root_theta, args.pipeline_parallelism_size
+    )
 
     llama_config = LlamaModelConfig(
         hp,
         tensor_parallelism_size=args.tensor_parallelism_size,
         pipeline_parallelism_size=args.pipeline_parallelism_size,
-        block_to_device_lookup=block_to_device_lookup,
+        block_to_pipeline_map=block_to_pipeline,
+        pipeline_to_device_map=pipeline_to_devices,
         use_hf=args.use_hf,
         static_tables=False,  # Rely on the compiler for hoisting tables.
         attention_kernel=args.attention_kernel,
@@ -150,50 +141,51 @@ def main():
             )
             page_dim = torch.export.Dim("page")
 
-            dynamic_shapes = [
-                {0: page_dim} for _ in range(llama_config.pipeline_parallelism_size)
-            ]
+            pipeline_parallelism_size = len(cache_state)
+            tensor_parallelism_size = 1
+            if isinstance(cache_state[0], ShardedTensor):
+                tensor_parallelism_size = cache_state[0].shard_count
+            parallelized = pipeline_parallelism_size > 1 or tensor_parallelism_size > 1
+
+            dynamic_shapes = []
+            for _ in range(pipeline_parallelism_size):
+                ds = {0: page_dim}
+                if parallelized:
+                    ds = [ds] * tensor_parallelism_size
+                dynamic_shapes.append(ds)
             unpacked = cache_state
             arg_affinities = {}
             shard_dim = None
 
             # Need to unpack that state when sharded (for tracing support reasons)
-            if (
-                llama_config.tensor_parallelism_size > 1
-                or llama_config.pipeline_parallelism_size > 1
-            ):
+            if parallelized:
                 shard_dim = cache_state[0].shard_dim
 
                 unpacked = [[shard._data for shard in cs.shards] for cs in cache_state]
-                dynamic_shapes = [
-                    [ds] * llama_config.tensor_parallelism_size for ds in dynamic_shapes
-                ]
 
                 # Cache is unpacked as [[pipeline 0 shards], [pipeline 1 shards], ...]
                 # Therefore pipeline index is in outer loop.
-                for pipeline in range(llama_config.pipeline_parallelism_size):
-                    for tp in range(llama_config.tensor_parallelism_size):
-                        i = pipeline * llama_config.tensor_parallelism_size + tp
-                        arg_affinities[i] = DeviceAffinity(
-                            str(model.cache.pipeline_to_device_lookup[pipeline][tp])
-                        )
+                for pipeline, cache_state_for_pipeline in enumerate(cache_state):
+                    for shard, device in enumerate(cache_state_for_pipeline.devices):
+                        i = pipeline * tensor_parallelism_size + shard
+                        arg_affinities[i] = DeviceAffinity(device)
 
             return unpacked, shard_dim, dynamic_shapes, arg_affinities
         else:
             raise NotImplementedError(f"Unsupported KV cache type: {type(model.cache)}")
 
     def repack_cache(
-        cache, shard_dim, pipeline_to_device_lookup: tuple[tuple[int, ...], ...]
+        cache, shard_dim, pipeline_to_device_map: tuple[tuple[int, ...], ...]
     ) -> list[ShardedTensor]:
         return [
             (
                 SplitPrimitiveTensor(
                     ts=c,
                     shard_dim=shard_dim,
-                    devices=pipeline_to_device_lookup[pipeline],
+                    devices=pipeline_to_device_map[pipeline],
                 )
                 if len(c) > 1
-                else ReplicatedTensor(ts=c, devices=pipeline_to_device_lookup[pipeline])
+                else ReplicatedTensor(ts=c, devices=pipeline_to_device_map[pipeline])
             )
             for pipeline, c in enumerate(cache)
         ]
@@ -223,8 +215,10 @@ def main():
             # We need to offset the indices for the cache
             arg_affinities = {key + 3: arg_affinities[key] for key in arg_affinities}
 
+            # Inputs have default affinity 0
             for i in range(3):
-                arg_affinities[i] = DeviceAffinity(str(block_to_device_lookup[0][0]))
+                device = pipeline_to_devices[0][0] if pipeline_to_devices else 0
+                arg_affinities[i] = DeviceAffinity(device)
 
         dynamic_shapes = {
             "tokens": {1: sl_dim},
@@ -259,33 +253,38 @@ def main():
                 seq_block_ids = [seq_block_ids]
             else:
                 shard_count = llama_config.tensor_parallelism_size
+                pipeline_to_device_map = (
+                    llama_config.pipeline_to_device_map
+                    if llama_config.pipeline_to_device_map
+                    else [list(range(shard_count))]
+                )
 
                 tokens = ops.replicate(
                     tokens,
                     count=shard_count,
-                    devices=llama_config.block_to_device_lookup[0],
+                    devices=pipeline_to_device_map[0],
                 )
                 if attention_mask is None:
-                    attention_mask = [None] * model.cache.pipeline_count
+                    attention_mask = [None] * len(pipeline_to_device_map)
                 else:
                     attention_mask = [
                         ops.replicate(
                             attention_mask,
                             count=shard_count,
-                            devices=model.cache.pipeline_to_device_lookup[pipeline],
+                            devices=pipeline_to_device_map[pipeline],
                         )
-                        for pipeline in range(model.cache.pipeline_count)
+                        for pipeline in range(len(pipeline_to_device_map))
                     ]
                 seq_block_ids = [
                     ops.replicate(
                         seq_block_ids,
                         count=shard_count,
-                        devices=model.cache.pipeline_to_device_lookup[pipeline],
+                        devices=pipeline_to_device_map[pipeline],
                     )
-                    for pipeline in range(model.cache.pipeline_count)
+                    for pipeline in range(len(pipeline_to_device_map))
                 ]
                 cache_tensors = repack_cache(
-                    cs, cache_shard_dim, model.cache.pipeline_to_device_lookup
+                    cs, cache_shard_dim, pipeline_to_device_map
                 )
 
             logits = model.prefill(
@@ -304,7 +303,19 @@ def main():
             if args.logits_normalization == "log_softmax":
                 logits = ops.elementwise(torch.log, ops.softmax(logits, dim=-1))
 
-            return logits
+            top_k = args.top_k
+            if top_k is None:
+                return logits
+
+            if top_k == 1:
+                return argmax_output(logits, chunk_size=hp.context_length // 128)
+
+            return topk_output(
+                logits,
+                k=args.top_k,
+                chunk_size=hp.context_length // 128,
+                use_linalgext_topk=args.use_linalgext_topk,
+            )
 
     def generate_batch_decode(bs: int):
         # torch.export.Dim would make min at least 2
@@ -336,7 +347,8 @@ def main():
 
             # Inputs have default affinity 0
             for i in range(4):
-                arg_affinities[i] = DeviceAffinity(str(block_to_device_lookup[0][0]))
+                device = pipeline_to_devices[0][0] if pipeline_to_devices else 0
+                arg_affinities[i] = DeviceAffinity(device)
 
         dynamic_shapes = {
             "tokens": {},
@@ -383,15 +395,20 @@ def main():
                 start_positions = [start_positions]
             else:
                 shard_count = llama_config.tensor_parallelism_size
+                pipeline_to_device_map = (
+                    llama_config.pipeline_to_device_map
+                    if llama_config.pipeline_to_device_map
+                    else [list(range(shard_count))]
+                )
 
                 tokens = ops.replicate(
                     tokens,
                     count=shard_count,
-                    devices=llama_config.block_to_device_lookup[0],
+                    devices=pipeline_to_device_map[0],
                 )
                 _attention_mask, _start_positions, _seq_block_ids = [], [], []
-                for pipeline in range(model.cache.pipeline_count):
-                    devices = model.cache.pipeline_to_device_lookup[pipeline]
+                for pipeline in range(len(pipeline_to_device_map)):
+                    devices = pipeline_to_device_map[pipeline]
                     _attention_mask.append(
                         ops.replicate(
                             attention_mask, count=shard_count, devices=devices
@@ -412,7 +429,7 @@ def main():
                 )
 
                 cache_state = repack_cache(
-                    cache_state, cache_shard_dim, model.cache.pipeline_to_device_lookup
+                    cache_state, cache_shard_dim, pipeline_to_device_map
                 )
 
             logits = model.decode(
@@ -432,31 +449,62 @@ def main():
             if args.logits_normalization == "log_softmax":
                 logits = ops.elementwise(torch.log, ops.softmax(logits, dim=-1))
 
-            return logits
+            top_k = args.top_k
+            if top_k is None:
+                return logits
 
-    def generate_argmax():
-        logits: torch.Tensor = torch.empty(
-            1,
-            1,
-            hp.context_length,
-            dtype=llama_config.activation_dtype,
+            if top_k == 1:
+                return argmax_output(logits, chunk_size=hp.context_length // 128)
+
+            return topk_output(
+                logits,
+                k=top_k,
+                chunk_size=hp.context_length // 128,
+                use_linalgext_topk=args.use_linalgext_topk,
+            )
+
+    def argmax_output(
+        logits: torch.Tensor, chunk_size: int
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Return the max logits and indices for the given logits.
+
+        Args:
+            logits (torch.Tensor): Logits tensor to find the max from.
+            chunk_size (int): Chunk size for the argmax operation.
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: A tuple containing the max logits and their indices.
+        """
+        indices = ops.argmax(logits, -1, chunk_size=chunk_size)
+        indices_expanded = indices.unsqueeze(-1)
+
+        max_logits = ops.gather(logits, dim=-1, index=indices_expanded)
+        max_logits = max_logits.squeeze(-1)
+
+        return max_logits, indices
+
+    def topk_output(
+        logits: torch.Tensor, k: int, chunk_size: int, use_linalgext_topk: bool
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Return the top-k logits and their indices for the given logits.
+
+        Args:
+            logits (torch.Tensor): Logits tensor to find the top-k from.
+            k (int): Number of top elements to return.
+            chunk_size (int): Chunk size for the top-k operation.
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: A tuple containing the top-k logits and their indices.
+        """
+        return ops.topk(
+            logits,
+            k=k,
+            dim=-1,
+            largest=True,
+            sorted=not use_linalgext_topk,
+            chunk_size=chunk_size,
+            use_linalgext_topk=use_linalgext_topk,
         )
-
-        arg_affinities = [DeviceAffinity("0")]
-
-        @fxb.export_program(
-            name="argmax",
-            args=(logits,),
-            dynamic_shapes={},
-            strict=args.strict,
-            arg_device=arg_affinities,
-        )
-        def _(
-            _,
-            logits=logits,
-            axis=-1,
-        ):
-            return ops.argmax(logits, axis)
 
     if not args.skip_prefill:
         for bs in args.bs_prefill:
@@ -464,10 +512,6 @@ def main():
     if not args.skip_decode:
         for bs in args.bs_decode:
             generate_batch_decode(bs)
-
-    if args.top_k is not None:
-        if args.top_k == 1:
-            generate_argmax()
 
     config = generate_params_json(
         hp, args.bs_prefill, args.bs_decode, args.logits_normalization

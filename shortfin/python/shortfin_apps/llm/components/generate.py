@@ -17,7 +17,8 @@ import shortfin as sf
 import shortfin.array as sfnp
 
 # TODO: Have a generic "Responder" interface vs just the concrete impl.
-from shortfin.interop.fastapi import FastAPIResponder
+from shortfin.interop.fastapi import RequestStatusTracker
+from shortfin.support.responder import AbstractResponder
 from fastapi.responses import JSONResponse
 from fastapi import status
 
@@ -29,9 +30,11 @@ from .io_struct import (
     PromptResponse,
 )
 from .messages import LlmInferenceExecRequest, InferencePhase
+from .error_codes import ResponseErrorCodes
 from .service import LlmGenerateService
 from .token_selection_strategy import (
     BaseTokenSelectionStrategy,
+    TokenSelectionStrategy,
     TokenSelectionStrategyConfig,
     build_token_selector,
     build_token_selector_config,
@@ -59,8 +62,10 @@ class GenerateItemProcess(sf.Process):
         input_token_ids: list[int],
         eos_token_id: int,
         decode_config: DecodeConfig,
+        status_tracker: RequestStatusTracker,
+        fiber: sf.Fiber,
     ):
-        super().__init__(fiber=client.fiber)
+        super().__init__(fiber=fiber)
         self.client = client
         self.gen_req = gen_req
         self.index = index
@@ -81,14 +86,15 @@ class GenerateItemProcess(sf.Process):
         self.token_selector: BaseTokenSelectionStrategy = build_token_selector(
             self.token_selector_config,
         )
-
         self.streamed_tokens_index = 0
+        self._status_tracker = status_tracker
 
     async def run(self):
         exec_req = LlmInferenceExecRequest(
             phase=InferencePhase.PREFILL,
             input_token_ids=self.input_token_ids,
             rid=self.gen_req.rid,
+            status_tracker=self._status_tracker,
         )
         exec_req._cache = self.client.prefill_batcher.page_cache
         try:
@@ -101,7 +107,7 @@ class GenerateItemProcess(sf.Process):
             exec_req.free_cache_pages()
 
     def results_callback(self, result: int | list[list[int]]):
-        if is_multi_response(self.decode_config.token_selection_strategy):
+        if is_multi_response(self.decode_config):
             # TODO: Streaming is not supported for multiple responses
             self.result_token_ids = result
             return
@@ -139,10 +145,10 @@ class ClientGenerateBatchProcess(sf.Process):
         self,
         service: LlmGenerateService,
         gen_req: GenerateReqInput,
-        responder: FastAPIResponder,
-        fiber: sf.Fiber | None = None,
+        responder: AbstractResponder,
+        fiber: sf.Fiber,
     ):
-        super().__init__(fiber=service.fiber_pool.fibers[0] if fiber is None else fiber)
+        super().__init__(fiber=fiber)
         self.service = service
         self.gen_req = gen_req
         self.responder = responder
@@ -153,25 +159,56 @@ class ClientGenerateBatchProcess(sf.Process):
 
         self.decode_config = service.server_params.decode_config
 
+    def _check_topk_params(
+        self, exported_topk: int | None, requested_topk: int | None
+    ) -> bool:
+        if (
+            # Argmax
+            requested_topk is None
+            # CPU-based `beam_search, top_k, and/or top_p`
+            or exported_topk is None
+            # GPU-based `beam_search, top_k, and/or top_p`
+            or exported_topk >= requested_topk
+        ):
+            return True
+
+        logger.error(
+            f"Requested top-k of {requested_topk} larger than exported top-k of {exported_topk}"
+        )
+        return False
+
+    def _return_error_response(
+        self,
+        status_code: int,
+        error_message: str,
+        code: ResponseErrorCodes,
+        extra_fields: dict,
+    ):
+        error_response = JSONResponse(
+            status_code=status_code,
+            content={"error": error_message, "code": code.value, **extra_fields},
+        )
+        self.responder.send_response(error_response)
+        self.responder.ensure_response()
+
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
 
         # Try to add request to queue
         # TODO(@zphoenixrises): Add load testing and integration tests for this.
-        if not self.service.add_to_queue():
-            error_response = JSONResponse(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                content={
-                    "error": "Server queue is full. Please try again later.",
-                    "code": "QUEUE_FULL",
+        if not self.service.add_to_queue(self.decode_config.num_beams):
+            self._return_error_response(
+                status.HTTP_503_SERVICE_UNAVAILABLE,
+                error_message="Server queue is full. Please try again later.",
+                code=ResponseErrorCodes.QUEUE_FULL,
+                extra_fields={
                     "current_size": self.service.current_queue_size,
                     "max_size": self.service.max_queue_size,
                 },
             )
-            self.responder.send_response(error_response)
-            self.responder.ensure_response()
             return
 
+        indices = []
         try:
             streaming = self.gen_req.stream
             self.responder.start_response()
@@ -195,27 +232,60 @@ class ClientGenerateBatchProcess(sf.Process):
                     if self.gen_req.is_single
                     else self.gen_req.sampling_params[index]
                 )
+
+                exported_topk = self.service.model_params.top_k
+                requested_topk = (
+                    max(decode_config.num_beams, exported_topk or 1)
+                    if decode_config.token_selection_strategy
+                    == TokenSelectionStrategy.BEAM_SEARCH
+                    else decode_config.top_k
+                )
+                if not self._check_topk_params(
+                    exported_topk,
+                    requested_topk,
+                ):
+                    self._return_error_response(
+                        status.HTTP_400_BAD_REQUEST,
+                        error_message="Requested top-k larger than exported top-k",
+                        code=ResponseErrorCodes.INVALID_REQUEST_ARGS,
+                        extra_fields={
+                            "exported_topk": exported_topk,
+                            "requested_topk": requested_topk,
+                        },
+                    )
+                    return
+
+                idx, fiber = await self.service.main_fiber_pool.get()
+                indices.append(idx)
                 gen_process = GenerateItemProcess(
                     self,
                     self.gen_req,
                     index,
-                    self.gen_req.text
-                    if self.gen_req.is_single
-                    else self.gen_req.text[index],
+                    (
+                        self.gen_req.text
+                        if self.gen_req.is_single
+                        else self.gen_req.text[index]
+                    ),
                     input_tokens if is_pretokenized else input_tokens.ids,
                     eos_token_id=self.tokenizer.eos_token_id,
                     decode_config=decode_config,
+                    status_tracker=self.responder.get_status_tracker(),
+                    fiber=fiber,
                 )
                 gen_processes.append(gen_process)
                 gen_process.launch()
 
             await asyncio.gather(*gen_processes)
-            self.generate_response(gen_processes, streaming)
-
+            if not self.responder.is_disconnected():
+                self.generate_response(gen_processes, streaming)
         finally:
             # Remove request from queue when done
-            self.service.remove_from_queue()
+            self.service.remove_from_queue(self.decode_config.num_beams)
+            self.service.main_fiber_pool.return_fiber(indices)
             self.responder.ensure_response()
+
+        # Remove request from queue when done
+        self.service.remove_from_queue(self.decode_config.num_beams)
 
     def generate_response(
         self, gen_processes: List[GenerateItemProcess], streaming: bool
@@ -244,7 +314,7 @@ class ClientGenerateBatchProcess(sf.Process):
         for p in gen_processes:
             token_ids = p.result_token_ids
 
-            if not is_multi_response(self.decode_config.token_selection_strategy):
+            if not is_multi_response(self.decode_config):
                 token_ids = [token_ids]
 
             decoded = self.tokenizer.decode(token_ids)

@@ -33,14 +33,14 @@ class PipelinedPagedAttentionTest(unittest.TestCase):
         self.block_seq_len = 2
         self.max_seq_len = self.block_seq_len * self.block_seq_stride
 
-        block_to_device_lookup = []
-        for block in range(self.transformer_block_count):
-            pp_group = int(block * self.pipeline_count / self.transformer_block_count)
-            zero_4_group = self.shard_count * pp_group
-            block_to_device_lookup.append(
-                tuple(i + zero_4_group for i in range(self.shard_count))
-            )
-        self.block_to_device_lookup = tuple(block_to_device_lookup)
+        self.block_to_pipeline_map = [
+            block * self.pipeline_count // self.transformer_block_count
+            for block in range(self.transformer_block_count)
+        ]
+        self.pipeline_to_device_map = [
+            tuple(i + pipeline * self.shard_count for i in range(self.shard_count))
+            for pipeline in range(self.pipeline_count)
+        ]
 
         self.cache = PagedAttention(
             transformer_block_count=self.transformer_block_count,
@@ -53,7 +53,8 @@ class PipelinedPagedAttentionTest(unittest.TestCase):
         )
         self.pipelined_cache = PagedAttention(
             shard_count=self.shard_count,
-            block_to_device_lookup=self.block_to_device_lookup,
+            block_to_pipeline_map=self.block_to_pipeline_map,
+            pipeline_to_device_map=self.pipeline_to_device_map,
             transformer_block_count=self.transformer_block_count,
             attn_head_count=self.attn_head_count,
             block_seq_stride=self.block_seq_stride,
@@ -79,17 +80,15 @@ class PipelinedPagedAttentionTest(unittest.TestCase):
         cache_state: List[torch.Tensor],
         pipelined_cache_state: List[SplitPrimitiveTensor],
     ):
-        pipelined_states_unreplicated = [
-            ops.unshard(unflatted_page).flatten(start_dim=1)
-            for unflatted_page in self.pipelined_cache.unflatten_page_tables(
-                pipelined_cache_state
-            )
-        ]
-        pipelined_states_as_single = ops.cat(pipelined_states_unreplicated, dim=1)
-        assert iterables_equal(cache_state[0].shape, pipelined_states_as_single.shape)
+        pipelined_states_as_single = self.pipelined_cache.unshard_state(
+            pipelined_cache_state
+        )
+        assert iterables_equal(
+            cache_state[0].shape, pipelined_states_as_single[0].shape
+        )
         assert ops.equal(
             cache_state[0],
-            pipelined_states_as_single,
+            pipelined_states_as_single[0],
         )
 
     def testAllocate(self):
@@ -102,39 +101,13 @@ class PipelinedPagedAttentionTest(unittest.TestCase):
             t.shape[1] for t in pipelined_cache_allocation
         )
 
-    def testUnflattenPageTable(self):
-        cache_state = self.cache.allocate(self.page_count)
-        assert len(cache_state) == 1
-        pipelined_cache_state = self.pipelined_cache.allocate(self.page_count)
-
-        unflattened_state = self.cache.unflatten_page_tables(cache_state)
-        pipelined_unflattened_state = self.pipelined_cache.unflatten_page_tables(
-            pipelined_cache_state
-        )
-        # [0] is page count
-        assert all(
-            pipelined_page_slab.shape[0] == self.page_count
-            for pipelined_page_slab in pipelined_unflattened_state
-        )
-        # [1] is for block count, and split across pipelines
-        assert unflattened_state[0].shape[1] == self.transformer_block_count
-        assert (
-            sum(page_slab.shape[1] for page_slab in pipelined_unflattened_state)
-            == self.transformer_block_count
-        )
-        # [2:] should be the same
-        assert all(
-            iterables_equal(page_slab.shape[2:], unflattened_state[0].shape[2:])
-            for page_slab in pipelined_unflattened_state
-        )
-
     def testRead(self):
         (
             cache_state,
             pipelined_cache_state,
         ) = self.make_unpipelined_and_pipelined_equal_cache_states()
 
-        transformer_block_index = 1
+        transformer_block_index = 3
         page_ids = torch.randint(
             low=0, high=self.page_count, size=[self.batch_size, self.block_seq_len]
         ).reshape([self.batch_size, self.block_seq_len])
@@ -142,14 +115,16 @@ class PipelinedPagedAttentionTest(unittest.TestCase):
             state=cache_state,
             transformer_block_index=transformer_block_index,
             page_ids=page_ids,
-            seq_len=self.block_seq_len * self.block_seq_stride,
         )
-        pipelined_page_ids = ops.replicate(page_ids, count=self.shard_count)
+        pipeline = self.block_to_pipeline_map[transformer_block_index]
+        devices = self.pipeline_to_device_map[pipeline]
+        pipelined_page_ids = ops.replicate(
+            page_ids, count=self.shard_count, devices=devices
+        )
         pipelined_read = self.pipelined_cache.read(
             state=pipelined_cache_state,
             transformer_block_index=transformer_block_index,
             page_ids=pipelined_page_ids,
-            seq_len=self.block_seq_len * self.block_seq_stride,
         )
         for unpipelined, pipelined in zip(unpipelined_read, pipelined_read):
             assert ops.equal(unpipelined, ops.unshard(pipelined))
@@ -169,7 +144,7 @@ class PipelinedPagedAttentionTest(unittest.TestCase):
             )
             for _ in range(self.cache_partition_count)
         ]
-        transformer_block_index = 1
+        transformer_block_index = 3
         seq_positions = torch.randint(
             low=0, high=self.max_seq_len, size=[self.batch_size]
         )
@@ -183,11 +158,20 @@ class PipelinedPagedAttentionTest(unittest.TestCase):
             seq_positions=seq_positions,
             page_ids=page_ids,
         )
+        pipeline = self.block_to_pipeline_map[transformer_block_index]
+        devices = self.pipeline_to_device_map[pipeline]
         pipelined_cache_partitions = deepcopy(
-            [ops.replicate(t, count=self.shard_count) for t in cache_partitions]
+            [
+                ops.replicate(t, count=self.shard_count, devices=devices)
+                for t in cache_partitions
+            ]
         )
-        pipelined_seq_positions = ops.replicate(seq_positions, count=self.shard_count)
-        pipelined_page_ids = ops.replicate(page_ids, count=self.shard_count)
+        pipelined_seq_positions = ops.replicate(
+            seq_positions, count=self.shard_count, devices=devices
+        )
+        pipelined_page_ids = ops.replicate(
+            page_ids, count=self.shard_count, devices=devices
+        )
         self.pipelined_cache.write_timestep(
             state=pipelined_cache_state,
             cache_partitions=pipelined_cache_partitions,
@@ -214,7 +198,7 @@ class PipelinedPagedAttentionTest(unittest.TestCase):
             )
             for _ in range(self.cache_partition_count)
         ]
-        transformer_block_index = 1
+        transformer_block_index = 3
         assert self.batch_size * self.block_seq_len <= self.page_count
         page_ids = torch.randperm(self.batch_size * self.block_seq_len).reshape(
             [self.batch_size, self.block_seq_len]
@@ -225,10 +209,17 @@ class PipelinedPagedAttentionTest(unittest.TestCase):
             transformer_block_index=transformer_block_index,
             page_ids=page_ids,
         )
+        pipeline = self.block_to_pipeline_map[transformer_block_index]
+        devices = self.pipeline_to_device_map[pipeline]
         pipelined_cache_partitions = deepcopy(
-            [ops.replicate(t, count=self.shard_count) for t in cache_partitions]
+            [
+                ops.replicate(t, count=self.shard_count, devices=devices)
+                for t in cache_partitions
+            ]
         )
-        pipelined_page_ids = ops.replicate(page_ids, count=self.shard_count)
+        pipelined_page_ids = ops.replicate(
+            page_ids, count=self.shard_count, devices=devices
+        )
         self.pipelined_cache.write(
             state=pipelined_cache_state,
             cache_partitions=pipelined_cache_partitions,

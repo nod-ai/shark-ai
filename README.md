@@ -30,11 +30,6 @@ serving engine.
 The SHARK Tank sub-project contains a collection of model recipes and
 conversion tools to produce inference-optimized programs.
 
-> [!WARNING]
-> SHARK Tank is still under development. Experienced users may want to try it
-> out, but we currently recommend most users download pre-exported or
-> pre-compiled model files for serving with shortfin.
-
 <!-- TODO: features list here? -->
 
 * See the [SHARK Tank Programming Guide](./docs/programming_guide.md) for
@@ -45,15 +40,10 @@ conversion tools to produce inference-optimized programs.
 
 ### [`sharktuner/`](./sharktuner/)
 
-[![CI - sharktuner](https://github.com/nod-ai/shark-ai/actions/workflows/ci-tuner.yml/badge.svg?event=push)](https://github.com/nod-ai/shark-ai/actions/workflows/ci-tuner.yml?query=event%3Apush)
+[![CI - sharktuner](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharktuner.yml/badge.svg?event=push)](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharktuner.yml?query=event%3Apush)
 
-The Tuner sub-project assists with tuning program performance by searching for
-optimal parameter configurations to use during model compilation.
-
-> [!WARNING]
-> SHARK Tuner is still in early development. Interested users may want
-> to try it out, but the tuner is not ready for general use yet. Check out
-> [the readme](sharktuner/README.md) for more details.
+The SHARK Tuner sub-project assists with tuning program performance by searching for
+optimal parameter configurations to use during model compilation. Check out [the readme](sharktuner/README.md) for more details.
 
 ## Support matrix
 

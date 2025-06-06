@@ -42,7 +42,7 @@ class TestLLMServer:
         Args:
             server: Tuple of (process, port) from server fixture
         """
-        process, port = server
+        process, port, _ = server
         assert process.poll() is None, "Server process terminated unexpectedly"
 
         expected_prefix = "6 7 8"
@@ -68,7 +68,7 @@ class TestLLMServer:
         Args:
             server: Tuple of (process, port) from server fixture
         """
-        process, port = server
+        process, port, _ = server
         assert process.poll() is None, "Server process terminated unexpectedly"
 
         expected_prefix = "6 7 8"
@@ -101,7 +101,7 @@ class TestLLMServer:
             server: Tuple of (process, port) from server fixture
             concurrent_requests: Number of concurrent requests to test
         """
-        process, port = server
+        process, port, _ = server
         assert process.poll() is None, "Server process terminated unexpectedly"
 
         prompt = "1 2 3 4 5 "
