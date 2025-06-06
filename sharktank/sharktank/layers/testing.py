@@ -9,6 +9,7 @@ from sharktank.types.theta import Theta
 from sharktank.types.tensors import DefaultPrimitiveTensor, unbox_tensor
 from sharktank.utils.testing import make_rand_torch
 from sharktank.types.sharding import *
+from sharktank.types import *
 
 
 def make_llama_attention_block_theta(
@@ -19,8 +20,9 @@ def make_llama_attention_block_theta(
     head_dim: int,
     embedding_length: int,
     dtype: torch.dtype | None = None,
+    quantize_qkv: bool = False,
 ) -> Theta:
-    return Theta(
+    sample_theta = Theta(
         {
             "attn_q.weight": DefaultPrimitiveTensor(
                 name=f"blk.{block_idx}.attn_q.weight",
@@ -50,6 +52,18 @@ def make_llama_attention_block_theta(
             ),
         }
     )
+    if quantize_qkv:
+        internal_dict = sample_theta.flatten()
+        names = [f"{i}.q_input" for i in ["attn_q", "attn_k", "attn_v"]]
+        for name in names:
+            internal_dict[name] = StaticScaledQuantizer(
+                name=name,
+                scale=torch.tensor(0.5),
+                reciprocal_scale=torch.tensor(1.0 / 0.5),
+                dtype=torch.float8_e4m3fnuz,
+            )
+        sample_theta = Theta(internal_dict)
+    return sample_theta
 
 
 def make_latent_attention_block_theta(
