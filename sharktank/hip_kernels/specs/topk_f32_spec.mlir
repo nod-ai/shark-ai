@@ -47,7 +47,7 @@ module attributes {transform.with_named_sequence} {
     transform.iree.match.cast_compatible_type %in0 = tensor<?x?xf32> : !transform.any_value
     transform.iree.match.dim_is_multiple_of %in0[1], 64 : !transform.any_value
     %in1 = transform.get_operand %linalg[1] : (!transform.any_op) -> !transform.any_value
-    transform.iree.match.cast_compatible_type %in0 = tensor<?x?xi32> : !transform.any_value
+    transform.iree.match.cast_compatible_type %in1 = tensor<?x?xi32> : !transform.any_value
     transform.iree.match.dim_is_multiple_of %in1[1], 64 : !transform.any_value
     %out0 = transform.get_operand %linalg[2] : (!transform.any_op) -> !transform.any_value
     transform.iree.match.cast_compatible_type %out0 = tensor<?x8xf32> : !transform.any_value
@@ -59,7 +59,7 @@ module attributes {transform.with_named_sequence} {
   transform.named_sequence @cast_and_call_topk(%topk: !transform.any_op {transform.readonly}) {
     %module = transform.util.get_nearest_symbol_table %topk : (!transform.any_op) -> !transform.any_op
     %func = transform.util.import_symbol @topk_3d_f32_entry_point into %module if undefined : (!transform.any_op) -> !transform.any_op
-    %ins = transform.get_operand %topk[all] : (!transform.any_op) -> !transform.any_value
+    %ins = transform.get_operand %topk[0,1] : (!transform.any_op) -> !transform.any_value
     %outs = transform.get_result %topk[all] : (!transform.any_op) -> !transform.any_value
     transform.util.cast_and_call %func(%ins) -> %outs before %topk {
       transform.type_conversion.tensor.cast_shape_dynamic_dims
