@@ -32,24 +32,28 @@ class ScatterLayer(ThetaLayer):
         num_tokens, input_feature_dim = h.shape
 
         # (num_experts, num_tokens)
-        router_scores = torch.zeros([num_tokens, num_experts], dtype=h.dtype)
-        router_scores = router_scores.scatter_(
+        router_scores1 = torch.zeros([num_tokens, num_experts], dtype=h.dtype)
+        router_scores1 = router_scores1.scatter_(
             1, top_experts_index, expert_gate
         ).transpose(0, 1)
 
+        # return router_scores1
+
         # NOTE: This one also doesn't work, but likely a different reason (since it doesn't emit a scatter op)
-        # one_hot_expert_indices = F.one_hot(
-        #     top_experts_index, num_classes=num_experts
-        # ).to(dtype=h.dtype, device=h.device)
-        # weighted_scores = one_hot_expert_indices * expert_gate.unsqueeze(-1)
-        # router_scores = weighted_scores.sum(dim=1).transpose(0, 1)
+        one_hot_expert_indices = F.one_hot(
+            top_experts_index, num_classes=num_experts
+        ).to(dtype=h.dtype, device=h.device)
+        weighted_scores = one_hot_expert_indices * expert_gate.unsqueeze(-1)
+        router_scores = weighted_scores.sum(dim=1).transpose(0, 1)
+
+        return torch.cat((router_scores1, router_scores), dim=0).T
 
         # (num_experts * num_tokens, input_feature_dim)
-        router_indices = torch.arange(num_tokens).view(1, -1).expand(num_experts, -1)
-        router_indices = router_indices.reshape(-1, 1).expand(-1, input_feature_dim)
+        # router_indices = torch.arange(num_tokens).view(1, -1).expand(num_experts, -1)
+        # router_indices = router_indices.reshape(-1, 1).expand(-1, input_feature_dim)
 
-        routed_in = router_indices.to(dtype=h.dtype)
-        routed_out = routed_in * (router_scores > 0).reshape(-1, 1)
+        # routed_in = router_indices.to(dtype=h.dtype)
+        # routed_out = routed_in * (router_scores > 0).reshape(-1, 1)
         # (num_tokens, input_feature_dim)
         return routed_out[: h.shape[0], ...]
 
@@ -64,19 +68,20 @@ iree_result_path = cwd + "iree_result.npy"
 
 model = ScatterLayer(Theta([DefaultPrimitiveTensor(data=torch.tensor([1]))]))
 
-h_path = cwd + "h.npy"
+ffn_input_path = cwd + "ffn_input.npy"
 expert_gate_path = cwd + "expert_gate.npy"
-top_experts_index_path = cwd + "top_experts_index.npy"
-h = torch.tensor(np.load(h_path))
+top_experts_index_path = cwd + "top_k_experts.npy"
+ffn_input = torch.tensor(np.load(ffn_input_path))
 expert_gate = torch.tensor(np.load(expert_gate_path))
-top_experts_index = torch.tensor(np.load(top_experts_index_path))
-expected_output = torch.tensor(np.load(cwd + "routed_out_slice.npy"))
+top_k_experts = torch.tensor(np.load(top_experts_index_path))
+expected_output = torch.tensor(np.load(cwd + "eager_moe_output.npy"))
 
 # Run locally
-eager_result = model.forward(h, top_experts_index, expert_gate)
-assert (
-    expected_output == eager_result
+eager_result = model.forward(ffn_input, top_k_experts, expert_gate)
+assert torch.isclose(
+    eager_result, expected_output, rtol=1.3e-6, atol=1e-5
 ).all(), "Eager result does not match expected output"
+
 
 num_tokens = torch.export.Dim("num_tokens")
 input_feature_dim = torch.export.Dim("input_feature_dim")
@@ -94,24 +99,27 @@ fxb = FxProgramsBuilder(model)
 
 @fxb.export_program(
     name="scatter",
-    args=(h, top_experts_index, expert_gate),
+    args=(ffn_input, top_k_experts, expert_gate),
     # dynamic_shapes=dynamic_shapes,
     strict=False,
 )
-def _(model, h, top_experts_index, expert_gate) -> torch.Tensor:
-    return model(h, top_experts_index, expert_gate)
+def _(model, ffn_input, top_k_experts, expert_gate) -> torch.Tensor:
+    return model(ffn_input, top_k_experts, expert_gate)
 
 
 output = export(fxb, import_symbolic_shape_expressions=True)
 output.save_mlir(mlir_path)
 
 compile_args = [
-    f"iree-compile",
-    f"{mlir_path}",
+    "iree-compile",
+    mlir_path,
     f"-o={iree_module_path}",
-    "--iree-opt-level=O3",
-    "--iree-hal-target-device=hip[0]",
+    "--iree-hal-target-device=hip",
     "--iree-hip-target=gfx942",
+    "--iree-opt-level=O3",
+    "--iree-hal-indirect-command-buffers=true",
+    "--iree-stream-resource-memory-model=discrete",
+    "--iree-hal-memoization=true",
 ]
 cmd = subprocess.list2cmdline(compile_args)
 print(f" Launching compile command:\n" f"cd {cwd} && {cmd}")
@@ -127,7 +135,7 @@ run_args = [
     f"--module={iree_module_path}",
     "--device=hip://0",
     "--function=scatter",
-    f"--input=@{h_path}",
+    f"--input=@{ffn_input_path}",
     f"--input=@{top_experts_index_path}",
     f"--input=@{expert_gate_path}",
     f"--output=@{iree_result_path}",
@@ -140,6 +148,6 @@ if return_code != 0:
     raise IreeBenchmarkException(proc, cwd)
 
 iree_result = torch.tensor(np.load(iree_result_path))
-assert (
-    expected_output == iree_result
+assert torch.isclose(
+    iree_result, expected_output, rtol=1.3e-6, atol=1e-5
 ).all(), "IREE result does not match expected output"
