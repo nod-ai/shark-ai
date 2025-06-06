@@ -17,6 +17,11 @@ import shortfin as sf
 from shortfin.interop.support.device_setup import get_selected_devices
 
 
+# Define disaggregation constants here for cleaner imports.
+LLM_DISAGGREGATED_PREFILL_DEVICE_IDX = 0
+LLM_DISAGGREGATED_DECODE_DEVICE_IDX = 1
+
+
 def get_system_args(parser):
     parser.add_argument(
         "--device",

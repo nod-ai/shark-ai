@@ -25,7 +25,11 @@ from .tokenizer import Tokenizer
 from .token_selection_strategy import is_multi_response
 from .request_queue_manager import RequestQueueManager
 
-from ...utils import GenerateService
+from ...utils import (
+    GenerateService,
+    LLM_DISAGGREGATED_DECODE_DEVICE_IDX,
+    LLM_DISAGGREGATED_PREFILL_DEVICE_IDX,
+)
 from .fiber_pool import FiberPool, DisaggregatedFiberPool
 
 logger = logging.getLogger(__name__)
@@ -202,22 +206,23 @@ class LlmGenerateDisaggregatedService(LlmGenerateService):
         )
 
         self.main_worker = self.sysman.ls.create_worker(f"{self.name}-inference-main-0")
+        # Unconditionally assign device 0 to the main fiber.
         self.main_fiber = self.sysman.ls.create_fiber(
-            self.main_worker, devices=[devices[0]]
+            self.main_worker, devices=[devices[LLM_DISAGGREGATED_PREFILL_DEVICE_IDX]]
         )
 
         self.prefill_worker = self.sysman.ls.create_worker(
             f"{self.name}-inference-prefill-0"
         )
         self.prefill_fiber = self.sysman.ls.create_fiber(
-            self.prefill_worker, devices=[devices[0]]
+            self.prefill_worker, devices=[devices[LLM_DISAGGREGATED_PREFILL_DEVICE_IDX]]
         )
 
         self.decode_worker = self.sysman.ls.create_worker(
             f"{self.name}-inference-decode-0"
         )
         self.decode_fiber = self.sysman.ls.create_fiber(
-            self.decode_worker, devices=[devices[1 % len(devices)]]
+            self.decode_worker, devices=[devices[LLM_DISAGGREGATED_DECODE_DEVICE_IDX]]
         )
 
         self.devices = self.prefill_fiber.devices_dict.values()
@@ -253,7 +258,7 @@ class LlmGenerateDisaggregatedService(LlmGenerateService):
             self.model_params,
             self.prefill_functions,
             self.prog_isolation,
-            exec_fibers[0],
+            exec_fibers[LLM_DISAGGREGATED_PREFILL_DEVICE_IDX],
         )
 
         self.decode_batcher = DecodeBatcherProcess(
@@ -262,7 +267,7 @@ class LlmGenerateDisaggregatedService(LlmGenerateService):
             self.model_params,
             self.decode_functions,
             self.prog_isolation,
-            exec_fibers[1],
+            exec_fibers[LLM_DISAGGREGATED_DECODE_DEVICE_IDX],
         )
 
         self.prefill_batcher.launch()
@@ -273,15 +278,15 @@ class LlmGenerateDisaggregatedService(LlmGenerateService):
         num_devices = len(devices)
         self.prefill_functions = {}
         for bs in self.model_params.prefill_batch_sizes:
-            self.prefill_functions[bs] = self.inference_program[0][
-                f"{self.model_params.module_name}.prefill_bs{bs}"
-            ]
+            self.prefill_functions[bs] = self.inference_program[
+                LLM_DISAGGREGATED_PREFILL_DEVICE_IDX
+            ][f"{self.model_params.module_name}.prefill_bs{bs}"]
         # Resolve decode entrypoints.
         self.decode_functions = {}
         for bs in self.model_params.decode_batch_sizes:
-            self.decode_functions[bs] = self.inference_program[1][
-                f"{self.model_params.module_name}.decode_bs{bs}"
-            ]
+            self.decode_functions[bs] = self.inference_program[
+                LLM_DISAGGREGATED_DECODE_DEVICE_IDX
+            ][f"{self.model_params.module_name}.decode_bs{bs}"]
 
     def __repr__(self):
         return (
