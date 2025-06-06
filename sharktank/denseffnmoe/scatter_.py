@@ -88,9 +88,9 @@ input_feature_dim = torch.export.Dim("input_feature_dim")
 num_top_experts = torch.export.Dim("num_top_experts")
 
 dynamic_shapes = {
-    "h": {0: num_tokens, 1: input_feature_dim},
-    "top_experts_index": {0: num_tokens, 1: num_top_experts},
-    "expert_gate": {0: num_tokens, 1: num_top_experts},
+    "ffn_input": {0: num_tokens, 1: input_feature_dim},
+    "top_k_experts": {0: num_tokens},  # , 1: num_top_experts},
+    "expert_gate": {0: num_tokens},  # , 1: num_top_experts},
 }
 
 # Run through IREE
@@ -100,7 +100,7 @@ fxb = FxProgramsBuilder(model)
 @fxb.export_program(
     name="scatter",
     args=(ffn_input, top_k_experts, expert_gate),
-    # dynamic_shapes=dynamic_shapes,
+    dynamic_shapes=dynamic_shapes,
     strict=False,
 )
 def _(model, ffn_input, top_k_experts, expert_gate) -> torch.Tensor:
