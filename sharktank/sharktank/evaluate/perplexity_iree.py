@@ -390,18 +390,18 @@ class PerplexityIree:
                 modules=(hal_module, parameters_module, self.vm_module),
             )
 
-            self.last_token = self.max_prompt_length
+            self.last_token_index = self.max_prompt_length
             context_length = self.generator.model.config.hp.context_length
-            if self.last_token > context_length:
+            if self.last_token_index > context_length:
                 logger.warning(
-                    f"Last token {self.last_token} exceeds context length {context_length}. "
+                    f"Last token {self.last_token_index} exceeds context length {context_length}. "
                     "Limiting tokens to context length."
                 )
-                self.last_token = context_length
+                self.last_token_index = context_length
 
             out_logits = []
             for i in tqdm(
-                range(self.start, self.last_token - 1),
+                range(self.start, self.last_token_index - 1),
                 mininterval=300,
                 desc=f"eval_iree: Calculating logits for {weight_path.name}",
             ):
@@ -490,7 +490,7 @@ class PerplexityIree:
         logger.debug(f"Token ids shape: {self.token_ids.shape}")
 
         return compute_perplexity(
-            self.token_ids, out_logits, self.start, self.last_token
+            self.token_ids, out_logits, self.start, self.last_token_index
         )
 
 
