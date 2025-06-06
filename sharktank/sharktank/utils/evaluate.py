@@ -30,7 +30,7 @@ def compute_perplexity(
 
     attention_mask = (token_ids != 0).int().detach().clone().to(token_ids.device)
 
-    logits = logits[..., : -(start + 1), :].contiguous()
+    logits = logits[..., start + 1 :, :].contiguous()
     token_ids = token_ids[..., start + 1 :].contiguous()
     attention_mask = attention_mask[..., start + 1 :].contiguous()
 

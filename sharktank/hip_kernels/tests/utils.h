@@ -1,5 +1,7 @@
 #pragma once
 
+#include <numeric>
+
 #define FP16_EXP_BITS (5)
 
 #ifndef CHECK_HIP_ERROR
@@ -68,16 +70,14 @@ static inline float half2float(uint16_t f16_value, int exp_bits) {
     f32_mantissa = f16_mantissa << (f32_mantissa_bits - f16_mantissa_bits);
   }
   const uint32_t u32_value = f32_sign | f32_exp | f32_mantissa;
-  float f32_value;
-  memcpy(&f32_value, &u32_value, sizeof f32_value);
+  float f32_value = std::bit_cast<float>(u32_value);
   return f32_value;
 }
 
 static inline uint16_t float2half(float value, int exp_bits) {
   IREE_MATH_FP_FORMAT_CONSTANTS(f16_, 16, exp_bits)
   IREE_MATH_FP_FORMAT_CONSTANTS(f32_, 32, 8)
-  uint32_t u32_value;
-  memcpy(&u32_value, &value, sizeof value);
+  uint32_t u32_value = std::bit_cast<uint32_t>(value);
   const uint32_t f32_sign = u32_value & f32_sign_mask;
   const uint32_t f16_sign = f32_sign >> (f32_sign_shift - f16_sign_shift);
   const uint32_t f32_exp = u32_value & f32_exp_mask;
