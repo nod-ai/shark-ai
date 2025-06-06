@@ -21,7 +21,7 @@ class ServerConfig:
     artifacts: ModelArtifacts
     device_settings: DeviceSettings
     prefix_sharing_algorithm: str = "none"
-    token_selection_strategy: str = "independent"
+    use_beam_search: bool = False
     num_beams: int = 1
 
 
@@ -71,10 +71,12 @@ class ServerInstance:
             f"--parameters={self.config.artifacts.weights_path}",
             f"--port={self.port}",
             f"--prefix_sharing_algorithm={self.config.prefix_sharing_algorithm}",
-            f"--token_selection_strategy={self.config.token_selection_strategy}",
             f"--num_beams={self.config.num_beams}",
         ]
         argv.extend(self.config.device_settings.server_flags)
+        if self.config.use_beam_search:
+            argv.append("--use_beam_search")
+
         return argv
 
     @contextmanager

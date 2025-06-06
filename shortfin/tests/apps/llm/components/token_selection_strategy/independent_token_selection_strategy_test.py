@@ -26,11 +26,11 @@ from shortfin_apps.llm.components.messages import (
 from shortfin_apps.llm.components.token_selection_strategy import (
     build_token_selector_config,
     DecodeConfig,
-    IndependentTokenSelectionStrategy,
-    TokenSelectionStrategy,
+    DefaultScorer,
+    TokenSelector,
 )
-from shortfin_apps.llm.components.token_selection_strategy.independent_token_selection_strategy import (
-    IndependentBeam,
+from shortfin_apps.llm.components.token_selection_strategy.beam_group import (
+    DefaultBeam,
 )
 
 logger = logging.getLogger(__name__)
@@ -52,14 +52,14 @@ def exec_req_list(exec_req, cache, dummy_pages):
 
 @pytest.fixture(scope="function")
 def independent_token_selection_strategy():
-    yield IndependentTokenSelectionStrategy(
+    yield TokenSelector(
         None,
     )
 
 
 @pytest.fixture(scope="function")
 def independent_beam(exec_req, decode_config):
-    yield IndependentBeam(
+    yield DefaultBeam(
         exec_req,
         decode_config=decode_config,
     )
@@ -84,7 +84,7 @@ def test_independent_beam_sample_logits(device, independent_beam):
     src.items = data
 
     independent_beam.exec_req.result_logits = src
-    token = independent_beam.sample_logits()
+    token = independent_beam.sample_logits(0)
     assert token == 15
 
 
@@ -100,7 +100,7 @@ def test_independent_beam_sample_logits_w_indices(device, independent_beam):
     independent_beam.exec_req.result_logits = src
     independent_beam.exec_req.result_indices = indices
 
-    token = independent_beam.sample_logits()
+    token = independent_beam.sample_logits(0)
     assert token == 0
 
 
@@ -115,7 +115,7 @@ def test_independent_beam_sample_logits_top_k(device, independent_beam):
     independent_beam.decode_config.top_k = 3
     independent_beam.exec_req.result_logits = src
 
-    token = independent_beam.sample_logits()
+    token = independent_beam.sample_logits(0)
     assert token in expected_tokens
 
 
@@ -137,7 +137,7 @@ def test_independent_beam_sample_logits_top_k_w_indices(device, independent_beam
     independent_beam.exec_req.result_logits = src
     independent_beam.exec_req.result_indices = indices
 
-    token = independent_beam.sample_logits()
+    token = independent_beam.sample_logits(0)
 
     expected_tokens = indices.view(0, 0, slice(None, 3)).items.tolist()
     assert token in expected_tokens
@@ -154,7 +154,7 @@ def test_independent_beam_sample_logits_top_p(device, independent_beam):
     independent_beam.decode_config.top_k = None
     independent_beam.exec_req.result_logits = src
 
-    token = independent_beam.sample_logits()
+    token = independent_beam.sample_logits(0)
     expected_tokens = {13, 14, 15}
     assert token in expected_tokens
 
@@ -179,7 +179,7 @@ def test_independent_beam_sample_logits_top_p_w_indices(device, independent_beam
     independent_beam.exec_req.result_logits = src
     independent_beam.exec_req.result_indices = indices
 
-    token = independent_beam.sample_logits()
+    token = independent_beam.sample_logits(0)
     expected_tokens = indices.view(0, 0, slice(None, 3)).items.tolist()
     assert token in expected_tokens
 
@@ -195,7 +195,7 @@ def test_independent_beam_sample_logits_top_k_top_p(device, independent_beam):
     independent_beam.exec_req.result_logits = src
     expected_tokens = [13, 14, 15]
 
-    token = independent_beam.sample_logits()
+    token = independent_beam.sample_logits(0)
     assert token in expected_tokens
 
 
@@ -219,7 +219,7 @@ def test_independent_beam_sample_logits_top_k_top_p_w_indices(device, independen
     independent_beam.exec_req.result_logits = src
     independent_beam.exec_req.result_indices = indices
 
-    token = independent_beam.sample_logits()
+    token = independent_beam.sample_logits(0)
     expected_tokens = indices.view(0, 0, slice(None, 3)).items.tolist()
     assert token in expected_tokens
 
@@ -236,7 +236,9 @@ def test_greedy_update_exec_req(independent_beam):
 
 
 def test_select_greedy(
-    decode_config, device, exec_req_list, independent_token_selection_strategy
+    decode_config,
+    device,
+    exec_req_list,
 ):
     count = 0
     for exec_req in exec_req_list:
@@ -248,10 +250,13 @@ def test_select_greedy(
         count += 1
 
     beams = [
-        IndependentBeam(exec_req, decode_config=decode_config)
-        for exec_req in exec_req_list
+        DefaultBeam(exec_req, decode_config=decode_config) for exec_req in exec_req_list
     ]
-    selections = independent_token_selection_strategy.select_greedy(beams, [])
+    token_selector = TokenSelector(
+        token_selection_strategy_config=None,
+        scorer=DefaultScorer(None),
+    )
+    selections = token_selector.scorer.select_beams(beams, [])
     assert len(selections) == len(beams)
 
     expected_last_tokens = [i for i in range(len(beams))]
@@ -264,7 +269,6 @@ async def test_independent_decode_single(
     device,
     dummy_pages,
     exec_req: LlmInferenceExecRequest,
-    independent_token_selection_strategy,
 ):
     def _batcher_callback(request: LlmInferenceExecRequest):
         result_logits = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
@@ -279,7 +283,6 @@ async def test_independent_decode_single(
         results_array.extend(tokens)
 
     decode_config = DecodeConfig(
-        token_selection_strategy=TokenSelectionStrategy.INDEPENDENT,
         num_beams=2,
         max_completion_tokens=1,
     )
@@ -290,31 +293,30 @@ async def test_independent_decode_single(
         results_callback=_results_callback,
         eos_token_id=-1,
     )
+    token_selector = TokenSelector(
+        token_selection_strategy_config=config,
+        scorer=DefaultScorer(config),
+    )
 
     exec_req._cache = cache
     allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache)
     exec_req.allocation = allocation
     with patch.object(
-        independent_token_selection_strategy,
-        "token_selection_strategy_config",
-        new=config,
-    ):
+        exec_req._cache, "fork_pages", return_value=allocation
+    ) as fork_pages_mock:
         with patch.object(
-            exec_req._cache, "fork_pages", return_value=allocation
-        ) as fork_pages_mock:
-            with patch.object(
-                BeamGroup,
-                "clean_up",
-            ) as mock_clean_up:
-                await independent_token_selection_strategy.decode(exec_req)
-                logger.info(f"results_array: {results_array}")
-                assert len(results_array) == 2
-                for result in results_array:
-                    assert len(result) == 1
-                    assert result[0] == 15
+            BeamGroup,
+            "clean_up",
+        ) as mock_clean_up:
+            await token_selector.decode(exec_req)
+            logger.info(f"results_array: {results_array}")
+            assert len(results_array) == 2
+            for result in results_array:
+                assert len(result) == 1
+                assert result[0] == 15
 
-                fork_pages_mock.assert_called_once()
-                mock_clean_up.assert_called_once()
+            fork_pages_mock.assert_called_once()
+            mock_clean_up.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -323,7 +325,6 @@ async def test_independent_decode_multiple_completions(
     device,
     dummy_pages,
     exec_req: LlmInferenceExecRequest,
-    independent_token_selection_strategy,
 ):
     results_array = []
 
@@ -355,7 +356,6 @@ async def test_independent_decode_multiple_completions(
 
     exec_req.start_position = len(exec_req.input_token_ids) - 1
     decode_config = DecodeConfig(
-        token_selection_strategy=TokenSelectionStrategy.INDEPENDENT,
         num_beams=2,
         max_completion_tokens=5,
     )
@@ -371,29 +371,28 @@ async def test_independent_decode_multiple_completions(
         eos_token_id=-1,
     )
 
+    token_selector = TokenSelector(
+        token_selection_strategy_config=config,
+        scorer=DefaultScorer(config),
+    )
     exec_req._cache = cache
     allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache)
     exec_req.allocation = allocation
     with patch.object(
-        independent_token_selection_strategy,
-        "token_selection_strategy_config",
-        new=config,
-    ):
+        exec_req._cache, "fork_pages", return_value=allocation
+    ) as fork_pages_mock:
         with patch.object(
-            exec_req._cache, "fork_pages", return_value=allocation
-        ) as fork_pages_mock:
-            with patch.object(
-                BeamGroup,
-                "clean_up",
-            ) as mock_clean_up:
-                await independent_token_selection_strategy.decode(exec_req)
-                assert len(results_array) == 2
-                for result in results_array:
-                    assert len(result) == 5
-                    assert result == [0, 1, 2, 3, 4]
+            BeamGroup,
+            "clean_up",
+        ) as mock_clean_up:
+            await token_selector.decode(exec_req)
+            assert len(results_array) == 2
+            for result in results_array:
+                assert len(result) == 5
+                assert result == [0, 1, 2, 3, 4]
 
-                fork_pages_mock.assert_called_once()
-                mock_clean_up.assert_called_once()
+            fork_pages_mock.assert_called_once()
+            mock_clean_up.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -402,7 +401,6 @@ async def test_independent_decode_eos_token(
     device,
     dummy_pages,
     exec_req: LlmInferenceExecRequest,
-    independent_token_selection_strategy,
 ):
     results_array = []
 
@@ -434,7 +432,6 @@ async def test_independent_decode_eos_token(
 
     exec_req.start_position = len(exec_req.input_token_ids) - 1
     decode_config = DecodeConfig(
-        token_selection_strategy=TokenSelectionStrategy.INDEPENDENT,
         num_beams=2,
         max_completion_tokens=5,
     )
@@ -450,27 +447,26 @@ async def test_independent_decode_eos_token(
         eos_token_id=-1,
     )
 
+    token_selector = TokenSelector(
+        token_selection_strategy_config=config,
+        scorer=DefaultScorer(config),
+    )
     exec_req._cache = cache
     allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache)
     exec_req.allocation = allocation
     with patch.object(
-        independent_token_selection_strategy,
-        "token_selection_strategy_config",
-        new=config,
-    ):
+        exec_req._cache, "fork_pages", return_value=allocation
+    ) as fork_pages_mock:
         with patch.object(
-            exec_req._cache, "fork_pages", return_value=allocation
-        ) as fork_pages_mock:
-            with patch.object(
-                BeamGroup,
-                "clean_up",
-            ) as mock_clean_up:
-                await independent_token_selection_strategy.decode(exec_req)
-                logger.info(f"results_array: {results_array}")
-                assert len(results_array) == 2
-                for result in results_array:
-                    assert len(result) == 5
-                    assert result == [0, 1, 2, 3, 4]
+            BeamGroup,
+            "clean_up",
+        ) as mock_clean_up:
+            await token_selector.decode(exec_req)
+            logger.info(f"results_array: {results_array}")
+            assert len(results_array) == 2
+            for result in results_array:
+                assert len(result) == 5
+                assert result == [0, 1, 2, 3, 4]
 
-                fork_pages_mock.assert_called_once()
-                mock_clean_up.assert_called_once()
+            fork_pages_mock.assert_called_once()
+            mock_clean_up.assert_called_once()
