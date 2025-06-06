@@ -401,7 +401,7 @@ class PerplexityIree:
 
             out_logits = []
             for i in tqdm(
-                range(self.start, self.last_token),
+                range(self.start, self.last_token - 1),
                 mininterval=300,
                 desc=f"eval_iree: Calculating logits for {weight_path.name}",
             ):
