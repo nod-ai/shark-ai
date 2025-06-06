@@ -247,7 +247,14 @@ class PerplexityTorch:
             device=self.device,
         )
 
-        return ops.cat((out_logits, pad_logits), dim=1).to(self.device)
+        return ops.cat(
+            (
+                pad_logits[:, : self.start + 1],
+                out_logits,
+                pad_logits[:, self.start + 1 :],
+            ),
+            dim=1,
+        ).to(self.device)
 
     @timeit
     def get_perplexity(
