@@ -7,9 +7,7 @@
 #include <mutex>
 #include <vector>
 
-using float32_t = float;
-
-#define OUTPUT_TY int32_t
+#define OUTPUT_TY uint32_t
 #define INPUT_TY float32_t
 
 constexpr uint32_t recordRuns = 100u;
@@ -17,13 +15,23 @@ constexpr int ARGMAX_LABEL = 7; // Will still be top-1 here
 constexpr int k = 8;
 
 template <typename DataT>
-static inline void fillIndex(DataT *mat, uint32_t m, uint32_t n, int k) {
+static inline void fillValues(DataT *mat, uint32_t m, uint32_t n, int k) {
   for (int i = 0; i < m; ++i) {
     for (int j = 0; j < n; j++) {
       // Fill top-K largest values at known locations
       mat[i * n + j] = (j >= ARGMAX_LABEL && j < ARGMAX_LABEL + k)
                            ? static_cast<DataT>(250.0 - (j - ARGMAX_LABEL))
                            : static_cast<DataT>(0.0);
+    }
+  }
+}
+
+template <typename DataT>
+static inline void fillIndices(DataT *mat, uint32_t m, uint32_t n, int k) {
+  for (int i = 0; i < m; ++i) {
+    for (int j = 0; j < n; j++) {
+      // Fill top-K largest values at known locations
+      mat[i * n + j] = j;
     }
   }
 }
@@ -47,26 +55,33 @@ std::vector<char> readFileIntoVector(const std::string &filename) {
 void benchmark_module(size_t reductionSize) {
   int batchSize = 1;
 
-  std::vector<INPUT_TY> inputBuffer(batchSize * reductionSize);
-  std::vector<OUTPUT_TY> outputIndices(k);
-  std::vector<INPUT_TY> outputValues(k);
+  std::vector<INPUT_TY> inputValues(batchSize * reductionSize);
+  std::vector<OUTPUT_TY> inputIndices(batchSize * reductionSize);
+  std::vector<OUTPUT_TY> outputIndices(batchSize * k);
+  std::vector<INPUT_TY> outputValues(batchSize * k);
 
-  fillIndex(inputBuffer.data(), batchSize, reductionSize, k);
+  fillValues(inputValues.data(), batchSize, reductionSize, k);
+  fillIndices(inputIndices.data(), batchSize, reductionSize, k);
 
   std::cout << "Initializing device data..." << std::endl;
   INPUT_TY *d_input;
+  OUTPUT_TY *d_indices;
   OUTPUT_TY *d_outputIndices;
   INPUT_TY *d_outputValues;
 
-  size_t bytesInput = inputBuffer.size() * sizeof(INPUT_TY);
+  size_t bytesInput = inputValues.size() * sizeof(INPUT_TY);
+  size_t bytesIdx = inputIndices.size() * sizeof(OUTPUT_TY);
   size_t bytesOutIdx = outputIndices.size() * sizeof(OUTPUT_TY);
   size_t bytesOutVal = outputValues.size() * sizeof(INPUT_TY);
 
   CHECK_HIP_ERROR(hipMalloc(&d_input, bytesInput));
+  CHECK_HIP_ERROR(hipMalloc(&d_indices, bytesIdx));
   CHECK_HIP_ERROR(hipMalloc(&d_outputIndices, bytesOutIdx));
   CHECK_HIP_ERROR(hipMalloc(&d_outputValues, bytesOutVal));
 
-  CHECK_HIP_ERROR(hipMemcpy(d_input, inputBuffer.data(), bytesInput,
+  CHECK_HIP_ERROR(hipMemcpy(d_input, inputValues.data(), bytesInput,
+                            hipMemcpyHostToDevice));
+  CHECK_HIP_ERROR(hipMemcpy(d_indices, inputIndices.data(), bytesIdx,
                             hipMemcpyHostToDevice));
 
   hipModule_t module;
@@ -97,10 +112,11 @@ void benchmark_module(size_t reductionSize) {
   }
 
   *((hipDeviceptr_t *)kernelParam[0]) = d_input;
-  *((hipDeviceptr_t *)kernelParam[1]) = d_outputValues;
-  *((hipDeviceptr_t *)kernelParam[2]) = d_outputIndices;
-  *((uint32_t *)kernelParam[3]) = static_cast<uint32_t>(reductionSize);
-  *((uint32_t *)kernelParam[4]) = static_cast<uint32_t>(k);
+  *((hipDeviceptr_t *)kernelParam[1]) = d_indices;
+  *((hipDeviceptr_t *)kernelParam[2]) = d_outputValues;
+  *((hipDeviceptr_t *)kernelParam[3]) = d_outputIndices;
+  *((uint32_t *)kernelParam[4]) = static_cast<uint32_t>(reductionSize);
+  *((uint32_t *)kernelParam[5]) = static_cast<uint32_t>(k);
 
   // Launch
   std::cout << "Launching Topk kernel..." << std::endl;
