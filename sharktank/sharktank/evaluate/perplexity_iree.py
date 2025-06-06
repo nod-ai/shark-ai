@@ -435,7 +435,7 @@ class PerplexityIree:
                     pad_logits[:, self.start + 1 :],
                 ),
                 dim=1,
-            ).to(self.device)
+            ).to(self.torch_device)
 
         return with_iree_device_context(run_iree_module, devices)
 
