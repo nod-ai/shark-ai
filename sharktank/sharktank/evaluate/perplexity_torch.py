@@ -193,7 +193,7 @@ class PerplexityTorch:
                 "Limiting tokens to context length."
             )
             self.last_token = context_length
-        for i in range(self.start, self.last_token):
+        for i in range(self.start, self.last_token - 1):
             logger.debug(f"Iteration: {i}")
 
             if is_first_token:
