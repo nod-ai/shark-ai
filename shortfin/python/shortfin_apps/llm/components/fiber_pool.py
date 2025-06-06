@@ -8,6 +8,7 @@
 import shortfin as sf
 from .manager import LlmSystemManager
 import asyncio
+from threading import Lock
 
 
 class FiberPool:
@@ -39,50 +40,57 @@ class FiberPool:
         # during runtime if `resizable` is set to True.
         self.__extra_fibers: int = 0
         self.__index_queue = asyncio.Queue()
-
+        # Any code that modifies the index_queue or the fiber_pool
+        # needs to be locked. asyncio.Queue is not thread-safe, so
+        # this is required to avoid issues like new fibers with the
+        # same name as existing ones.
+        self.__lock = Lock()
         self.__initialize_pool()
 
     async def get(self) -> tuple[int, sf.Fiber]:
-        try:
-            idx = self.__index_queue.get_nowait()
-            return (
-                idx,
-                self.__fiber_pool[idx],
-            )
-        except asyncio.QueueEmpty:
-            if self.resizable:
-                # Resize the fiber pool by adding a new fiber.
-                new_worker = self.sysman.ls.create_worker(
-                    f"{self.name}-new-worker-{self.__extra_fibers}"
+        with self.__lock:
+            try:
+                idx = self.__index_queue.get_nowait()
+                return (
+                    idx,
+                    self.__fiber_pool[idx],
                 )
-                self.__workers.append(new_worker)
+            except asyncio.QueueEmpty:
+                if self.resizable:
+                    # Resize the fiber pool by adding a new fiber.
+                    new_worker = self.sysman.ls.create_worker(
+                        f"{self.name}-new-worker-{self.__extra_fibers}"
+                    )
+                    self.__workers.append(new_worker)
 
-                fiber = self.sysman.ls.create_fiber(new_worker)
-                self.__fiber_pool.append(fiber)
-                self.__extra_fibers += 1
-                return [self.size() - 1, fiber]
+                    fiber = self.sysman.ls.create_fiber(new_worker)
+                    self.__fiber_pool.append(fiber)
+                    self.__extra_fibers += 1
+                    return [self.size() - 1, fiber]
 
-            available_index = await self.__index_queue.get()
-            return (available_index, self.__fiber_pool[available_index])
+                available_index = await self.__index_queue.get()
+                return (available_index, self.__fiber_pool[available_index])
 
     def pool(self) -> list[sf.Fiber]:
         return self.__fiber_pool
 
     def __initialize_pool(self):
-        for idx in range(self.init_size):
-            worker = self.sysman.ls.create_worker(f"{self.name}-init-worker-{idx}")
-            self.__workers.append(worker)
+        with self.__lock:
+            for idx in range(self.init_size):
+                worker = self.sysman.ls.create_worker(f"{self.name}-init-worker-{idx}")
+                self.__workers.append(worker)
 
-            fiber = self.sysman.ls.create_fiber(worker)
-            self.__fiber_pool.append(fiber)
-            assert idx < self.size()
-            self.__index_queue.put_nowait(idx)
+                fiber = self.sysman.ls.create_fiber(worker)
+                self.__fiber_pool.append(fiber)
+                assert idx < self.size()
+                self.__index_queue.put_nowait(idx)
 
     def return_fiber(self, indices: int | list[int]):
-        if not isinstance(indices, list):
-            indices = [indices]
-        for idx in indices:
-            self.__index_queue.put_nowait(idx)
+        with self.__lock:
+            if not isinstance(indices, list):
+                indices = [indices]
+            for idx in indices:
+                self.__index_queue.put_nowait(idx)
 
     def size(self) -> int:
         return len(self.__fiber_pool)

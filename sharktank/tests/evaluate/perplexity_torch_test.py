@@ -67,9 +67,6 @@ class PerplexityTest(unittest.TestCase):
         )
         gc.collect()
 
-    @pytest.mark.skip(
-        reason="https://github.com/nod-ai/shark-ai/issues/1509",
-    )
     @is_llama_8b
     def test_llama3_8B_f16(self):
         # Llama 3.1 8B non-decomposed
@@ -80,9 +77,6 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
-    @pytest.mark.skip(
-        reason="https://github.com/nod-ai/shark-ai/issues/1509",
-    )
     @is_nightly
     def test_llama3_8B_f8(self):
         # Llama 3.1 8B non-decomposed
@@ -100,9 +94,7 @@ class PerplexityTest(unittest.TestCase):
         )
         self.run_and_check_perplexity()
 
-    @pytest.mark.skip(
-        reason="https://github.com/nod-ai/shark-ai/issues/1509",
-    )
+    @pytest.mark.skip(reason="Non-decomposed attention is not supported yet")
     @is_nightly
     def test_llama3_405B_f16(self):
         # Llama 3.1 405B non-decomposed
@@ -114,9 +106,7 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
-    @pytest.mark.skip(
-        reason="https://github.com/nod-ai/shark-ai/issues/1509",
-    )
+    @pytest.mark.skip(reason="Non-decomposed attention is not supported yet")
     @is_nightly
     def test_llama3_405B_f8(self):
         # Llama 3.1 405B non-decomposed

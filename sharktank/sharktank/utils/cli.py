@@ -154,6 +154,17 @@ def add_model_options(parser: argparse.ArgumentParser):
         type=int,
         default=1024,
     )
+    parser.add_argument(
+        "--use-linalgext-topk",
+        action="store_true",
+        help="Whether to use the linalg_ext topk implementation",
+    )
+    parser.add_argument(
+        "--logits-normalization",
+        default="none",
+        help="Return the log softmax of the logits",
+        choices=["none", "softmax", "log_softmax"],
+    )
 
 
 def add_model_input_options(parser: argparse.ArgumentParser):

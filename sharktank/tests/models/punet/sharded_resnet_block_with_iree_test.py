@@ -115,8 +115,8 @@ def run_test_toy_size_sharded_resnet_block_with_iree(artifacts_dir: Path):
 
 
 @pytest.mark.xfail(
-    torch.__version__ < (2, 5),
-    reason="https://github.com/iree-org/iree/issues/20436#issuecomment-2894920219",
+    raises=iree.compiler.tools.binaries.CompilerToolError,
+    reason="https://github.com/nod-ai/shark-ai/issues/1576",
     strict=True,
 )
 @pytest.mark.xfail(

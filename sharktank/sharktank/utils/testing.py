@@ -429,7 +429,7 @@ def xfail(*args, match: str | None = None, **kwargs):
             try:
                 return test_fn(*args, **kwargs)
             except Exception as ex:
-                if match is None or re.match(match, str(ex)):
+                if match is None or re.search(match, str(ex)):
                     raise ex
                 else:
                     raise XfailMatchError(

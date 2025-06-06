@@ -188,8 +188,8 @@ class DenseFFNMOE(ThetaLayer):
         routed_out = ops.reshard_like(routed_out, like=h)
 
         # (num_tokens, input_feature_dim)
-        return ops.zeros_like(h).scatter_add(
-            dim=0, index=router_indices, src=routed_out
+        return routed_out.view(self.num_experts, num_tokens, input_feature_dim).sum(
+            dim=0
         )
 
 

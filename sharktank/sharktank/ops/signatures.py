@@ -1341,13 +1341,33 @@ def _to_trampoline(d: SignatureDispatcher, tensor: AnyTensor, *args, **kwargs):
 
 
 @overridable
-def trace_tensor(key: str, *tensors: tuple[AnyTensor]):
+def trace_tensor(key: str, *tensors: tuple[AnyTensor, ...]):
+    """Trace tensor(s) in IREE runtime or in eager mode.
+
+    You can add trace_tensor into your model wherever you want. It will insert a
+    trace op into the IR. Then you can register a callback in the IREE runtime for
+    custom handling of the trace command during execution. For example recording the
+    tensor into a file. There is also a destination/sink for eager execution.
+
+    The trace op will prevent fusion which will influence how the model is compiled.
+    This may change the behavior of the program and cause a numerical issue to
+    disappear if it was the result of op fusion.
+
+    Example usage at sharktank/tests/ops/ops_test.py::TestTraceTensors.
+
+    See:
+    sharktank.utils.debugging.set_trace_tensor_callback
+    sharktank.utils.debugging.trace_tensor_to_safetensors_callback
+    sharktank.utils.debugging.flags.trace_path
+    sharktank.utils.iree.make_hal_buffer_view_trace_default_callback
+    sharktank.layers.BaseLayer.trace_tensor
+    """
     ...
 
 
 @trace_tensor.trampoline
-def _transfer_to_logical_device_trampoline(
-    d: SignatureDispatcher, key: str, *tensors: tuple[AnyTensor]
+def _trace_tensor_trampoline(
+    d: SignatureDispatcher, key: str, *tensors: tuple[AnyTensor, ...]
 ):
     for override in d.find_overrides(tensors):
         result = override(key, *tensors)
@@ -1526,6 +1546,7 @@ def topk(
     largest: bool,
     sorted: bool,
     chunk_size: Optional[int] = None,
+    use_linalgext_topk: bool = False,
 ) -> AnyTensor:
     """See torch.topk"""
     ...
@@ -1540,6 +1561,7 @@ def _topk_trampoline(
     largest: bool = True,
     sorted: bool = True,
     chunk_size: Optional[int] = None,
+    use_linalgext_topk: bool = False,
 ) -> AnyTensor:
     tensors = (tensor,)
     for override in d.find_overrides(tensors):
@@ -1550,6 +1572,7 @@ def _topk_trampoline(
                 dim=dim,
                 largest=largest,
                 sorted=sorted,
+                use_linalgext_topk=use_linalgext_topk,
             )
 
         else:
@@ -1560,6 +1583,7 @@ def _topk_trampoline(
                 largest=largest,
                 sorted=sorted,
                 chunk_size=chunk_size,
+                use_linalgext_topk=use_linalgext_topk,
             )
         if result is not NotImplemented:
             return override, result
