@@ -2,9 +2,9 @@ cmake_minimum_required(VERSION 3.13)
 project(HIP_KERNELS LANGUAGES C CXX)
 
 # Set ROCm and IREE build paths
-set(IREE_BUILD_DIR $ENV{IREE_BUILD_DIR})
 set(ROCM_PATH /opt/rocm)
 
+set(IREE_BUILD_DIR OFF CACHE STRING "iree build directory")
 set(TARGET_ARCH "gfx942" CACHE STRING "Target architecture for ROCM GPU")
 
 # Find all kernel source files in the kernels subdirectory

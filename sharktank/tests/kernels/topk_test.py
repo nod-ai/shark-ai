@@ -31,7 +31,8 @@ class topk_test(unittest.TestCase):
         ref_values, ref_indices = torch.topk(x, k=4, dim=-1)
 
         # Get result from our kernel
-        result = kernels.iree_topk(x, 4)
+        y = torch.arange(10)[None, :].repeat(8, 1).to(torch.int32)
+        result = kernels.iree_topk(x, indices=y, k=4)
         result_values, result_indices = result[0], result[1]
 
         # Convert indices to match PyTorch's dtype
@@ -51,7 +52,8 @@ class topk_test(unittest.TestCase):
             ref_values, ref_indices = torch.topk(x, k=4, dim=-1)
 
             # Get result from our kernel
-            result = kernels.iree_topk(x, k=4)
+            y = torch.arange(dim)[None, :].repeat(8, 1).to(torch.int32)
+            result = kernels.iree_topk(x, indices=y, k=4)
             result_values, result_indices = result[0], result[1]
 
             # Convert indices to match PyTorch's dtype

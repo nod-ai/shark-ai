@@ -8,13 +8,7 @@
 #include <hip/hip_fp16.h>
 #include <hip/hip_runtime.h>
 
-#define MAX_K 32 // Upper limit for K, safe for stack on GPU
-
-extern "C" __device__ __attribute__((const)) half __ockl_wfred_max_f16(half);
-extern "C" __device__
-    __attribute__((const)) int64_t __ockl_wfred_min_i64(int64_t);
-extern "C" __device__
-    __attribute__((const)) int32_t __ockl_wfred_min_i32(int32_t);
+#define MAX_K 16 // Upper limit for K, safe for stack on GPU
 
 /*
 Batch-enabled TopK Kernel:
@@ -23,42 +17,50 @@ Batch-enabled TopK Kernel:
 - Each warp handles the reduction using in-warp TopK logic
 */
 
-extern "C" __global__ void topk_F32I32(const float *__restrict__ inputBuffer,
+extern "C" __global__ void topk_F32I32(const float *__restrict__ inputValues,
+                                       const int32_t *__restrict__ inputIndices,
                                        float *__restrict__ outputValues,
                                        int32_t *__restrict__ outputIndices,
                                        int reductionSize) {
   int k = 8;
-  int batchID = blockIdx.x;
-  uint laneID = __builtin_amdgcn_workitem_id_x();
+  int groupID = blockIdx.x; // dim 1
+  int batchID = blockIdx.y; // dim 0
+  int groupCount = gridDim.x;
+  uint laneID = threadIdx.x;
 
-  const float *batchInput = inputBuffer + batchID * reductionSize;
-  float *batchOutputValues = outputValues + batchID * k;
-  int32_t *batchOutputIndices = outputIndices + batchID * k;
+  int linearIndex = batchID * groupCount + groupID;
+  const float *batchInput = inputValues + linearIndex * reductionSize;
+  const int32_t *batchIndices = inputIndices + linearIndex * reductionSize;
+  float *batchOutputValues = outputValues + linearIndex * k;
+  int32_t *batchOutputIndices = outputIndices + linearIndex * k;
 
+  float NEG_F32_MAX = -FLT_MAX;
   float topk_vals[MAX_K];
   int32_t topk_indices[MAX_K];
-  // Initialize topk values to identity (-FLT_MAX for max)
+  // Initialize topk values to first K values
   for (int i = 0; i < k; ++i) {
-    topk_vals[i] = -FLT_MAX;
-    topk_indices[i] = -1;
+    uint idx = warpSize * i + laneID;
+    topk_vals[i] = batchInput[idx];
+    topk_indices[i] = batchIndices[idx];
   }
 
   uint numBatches = (reductionSize + warpSize - 1) / warpSize;
-  for (int i = 0; i < numBatches; ++i) {
+  for (int i = k; i < numBatches; ++i) {
     uint idx = warpSize * i + laneID;
-    float val = (idx < reductionSize) ? batchInput[idx] : -FLT_MAX;
+    float val = batchInput[idx];
+    int32_t ind = batchIndices[idx];
 
     // Insert into local top-k buffer
     for (int j = 0; j < k; ++j) {
       if (val > topk_vals[j]) {
-        // Shift down
-        for (int m = k - 1; m > j; --m) {
-          topk_vals[m] = topk_vals[m - 1];
-          topk_indices[m] = topk_indices[m - 1];
-        }
+        float tmp_val = topk_vals[j];
+        int32_t tmp_ind = topk_indices[j];
+
         topk_vals[j] = val;
-        topk_indices[j] = idx;
-        break;
+        topk_indices[j] = ind;
+
+        val = tmp_val;
+        ind = tmp_ind;
       }
     }
   }
@@ -85,7 +87,6 @@ extern "C" __global__ void topk_F32I32(const float *__restrict__ inputBuffer,
       for (int j = 0; j < k; ++j) {
         int IDX = j + laneID * k;
         if (warp_topk_vals[IDX] < hold_v) {
-
           float tmp_v = warp_topk_vals[IDX];
           int32_t tmp_i = warp_topk_indices[IDX];
           warp_topk_vals[IDX] = hold_v;

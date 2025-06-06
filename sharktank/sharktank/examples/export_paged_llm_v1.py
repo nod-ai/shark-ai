@@ -313,7 +313,7 @@ def main():
             return topk_output(
                 logits,
                 k=args.top_k,
-                chunk_size=hp.context_length // 128,
+                chunk_size=256,
                 use_linalgext_topk=args.use_linalgext_topk,
             )
 
@@ -459,7 +459,7 @@ def main():
             return topk_output(
                 logits,
                 k=top_k,
-                chunk_size=hp.context_length // 128,
+                chunk_size=256,
                 use_linalgext_topk=args.use_linalgext_topk,
             )
 

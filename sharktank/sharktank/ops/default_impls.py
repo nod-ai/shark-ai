@@ -731,23 +731,43 @@ def topk_default(
     chunk_size: Optional[int] = None,
     use_linalgext_topk: bool = False,
 ) -> tuple[Tensor, Tensor]:
-    if chunk_size is not None:
-        return _split_topk(
-            tensor, k, dim, largest, sorted, chunk_size, use_linalgext_topk
-        )
 
     if use_linalgext_topk:
         assert largest
         assert not sorted
-        assert dim == len(tensor.shape) - 1
+        assert dim == len(tensor.shape) - 1 or dim == -1
         bs_shape = tensor.shape[:-1]
-        tensor = tensor.flatten(0, -2)
 
-        values, indices = iree_topk(unbox_tensor(tensor), k=k)
+        tensor = unbox_tensor(tensor.flatten(0, -2))
+        flat_bs = tensor.shape[0]
+
+        indices = torch.arange(tensor.shape[1], dtype=torch.int32)[None, :].repeat(
+            tensor.shape[0], 1
+        )
+
+        if chunk_size:
+            tensor = tensor.unflatten(dim, (chunk_size, tensor.shape[-1] // chunk_size))
+            tensor = tensor.flatten(0, 1)
+            indices = indices.unflatten(
+                dim, (chunk_size, indices.shape[-1] // chunk_size)
+            )
+            indices = indices.flatten(0, 1)
+
+        values, indices = iree_topk(tensor, indices, k=k)
+
+        if chunk_size:
+            values = values.unflatten(0, (flat_bs, chunk_size)).flatten(1)
+            indices = indices.unflatten(0, (flat_bs, chunk_size)).flatten(1)
+            values, indices = iree_topk(values, indices, k=k)
 
         values = unflatten(values, 0, bs_shape)
         indices = unflatten(indices, 0, bs_shape)
         return values, indices.to(torch.int64)
+
+    if chunk_size is not None:
+        return _split_topk(
+            tensor, k, dim, largest, sorted, chunk_size, use_linalgext_topk
+        )
 
     result = torch.topk(
         unbox_tensor(tensor), k=k, dim=dim, largest=largest, sorted=sorted

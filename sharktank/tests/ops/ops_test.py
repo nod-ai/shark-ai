@@ -448,15 +448,18 @@ class TestScatterAdd(unittest.TestCase):
 class TestTopK(unittest.TestCase):
     @parameterized.expand(
         [
-            (-1, 4, True, True, (1, 1, 256), 16),
-            (-1, 4, True, True, (1, 1, 256), 8),
-            (-1, 8, True, True, (1, 1, 256), 16),
-            (-1, 4, False, True, (1, 1, 256), 16),
-            (-1, 4, False, False, (1, 1, 256), 16),
-            (-1, 2, True, True, (2, 1, 6), 3),
+            (-1, 4, True, True, (1, 1, 256), 16, False),
+            (-1, 4, True, True, (1, 1, 256), 8, False),
+            (-1, 8, True, True, (1, 1, 256), 16, False),
+            (-1, 4, False, True, (1, 1, 256), 16, False),
+            (-1, 4, False, False, (1, 1, 256), 16, False),
+            (-1, 2, True, True, (2, 1, 6), 3, False),
+            (-1, 4, True, False, (1, 1, 64), 8, True),
         ]
     )
-    def testSplitTopKLastDim(self, dim, k, largest, _sorted, shape, chunk_size):
+    def testSplitTopKLastDim(
+        self, dim, k, largest, _sorted, shape, chunk_size, use_linalgext_topk
+    ):
         numels = math.prod(shape)
         tensor = torch.arange(numels) * 173 + 129
         tensor = tensor % numels
@@ -465,7 +468,13 @@ class TestTopK(unittest.TestCase):
         values_expected, index_expected = torch.topk(tensor, k, dim, largest, _sorted)
 
         values, index = ops.topk(
-            tensor, k, dim, largest, _sorted, chunk_size=chunk_size
+            tensor,
+            k,
+            dim,
+            largest,
+            _sorted,
+            chunk_size=chunk_size,
+            use_linalgext_topk=use_linalgext_topk,
         )
 
         if _sorted is False:
