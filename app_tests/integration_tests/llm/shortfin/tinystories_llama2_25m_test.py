@@ -12,6 +12,7 @@ import uuid
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
+from ..server_management import ServerConfig
 from shortfin_apps.llm.components.io_struct import (
     PromptResponse,
     GeneratedResponse,
@@ -31,7 +32,6 @@ pytestmark = pytest.mark.parametrize(
         (
             ModelConfig.get(name="tinystories_llama2_25m"),
             {
-                "token_selection_strategy": "independent",
                 "prefix_sharing": "none",
                 "num_beams": 2,
             },
@@ -40,7 +40,7 @@ pytestmark = pytest.mark.parametrize(
             ModelConfig.get(name="tinystories_llama2_25m"),
             {
                 "prefix_sharing": "none",
-                "token_selection_strategy": "beam_search",
+                "use_beam_search": True,
                 "num_beams": 2,
             },
         ),
@@ -80,7 +80,9 @@ class TestLLMServer:
     """Test suite for LLM server functionality."""
 
     def test_basic_generation(
-        self, request: pytest.FixtureRequest, server: tuple[Any, int]
+        self,
+        request: pytest.FixtureRequest,
+        server: tuple[Any, int, ServerConfig],
     ) -> None:
         """Tests basic text generation capabilities.
 
@@ -88,25 +90,21 @@ class TestLLMServer:
             server: Tuple of (process, port) from server fixture
         """
         test_id = request.node.callspec.id
+        if "gpu_topk_k4" in test_id:
+            pytest.xfail(
+                "(https://github.com/iree-org/iree/issues/20772): Current top-k kernel is slow and causes `ReadTimeout`"
+            )
 
         process, port, config = server
         assert process.poll() is None, "Server process terminated unexpectedly"
         prompt = GOLDEN_PROMPT
         expected_response = (
             GOLDEN_RESPONSE
-            if config.token_selection_strategy != "beam_search"
+            if not config.use_beam_search
             else GOLDEN_BEAM_SEARCH_RESPONSE
         )
 
-        try:
-            response = self._generate(prompt, port)
-        except Exception as e:
-            if "gpu_topk_k4" in test_id:
-                pytest.xfail(
-                    "(https://github.com/iree-org/iree/issues/20772): Current top-k kernel is slow and causes `ReadTimeout`"
-                )
-            raise e
-
+        response = self._generate(prompt, port)
         response = json.loads(response)
         req_output = GenerateReqOutput(**response)
 
@@ -133,7 +131,7 @@ class TestLLMServer:
     def test_concurrent_generation(
         self,
         request: pytest.FixtureRequest,
-        server: tuple[Any, int],
+        server: tuple[Any, int, ServerConfig],
         concurrent_requests: int,
     ) -> None:
         """Tests concurrent text generation requests.
@@ -143,6 +141,10 @@ class TestLLMServer:
             concurrent_requests: Number of concurrent requests to test
         """
         test_id = request.node.callspec.id
+        if "gpu_topk_k4" in test_id:
+            pytest.xfail(
+                "(https://github.com/iree-org/iree/issues/20772): Current top-k kernel is slow and causes `ReadTimeout`"
+            )
 
         process, port, config = server
         assert process.poll() is None, "Server process terminated unexpectedly"
@@ -150,20 +152,12 @@ class TestLLMServer:
         prompt = GOLDEN_PROMPT
         expected_response = (
             GOLDEN_RESPONSE
-            if config.token_selection_strategy != "beam_search"
+            if not config.use_beam_search
             else GOLDEN_BEAM_SEARCH_RESPONSE
         )
 
         def _generate_task(prompt: str, port: int):
-            try:
-                return self._generate(prompt, port)
-            except Exception as e:
-                if "gpu_topk_k4" in test_id:
-                    pytest.xfail(
-                        "(https://github.com/iree-org/iree/issues/20772): Current top-k kernel is slow and causes `ReadTimeout`"
-                    )
-
-                raise e
+            return self._generate(prompt, port)
 
         with ThreadPoolExecutor(max_workers=concurrent_requests) as executor:
             futures = [
@@ -190,11 +184,160 @@ class TestLLMServer:
                                 message=f"Concurrent generation did not match expected pattern.\nExpected to start with: {expected_response}\nActual response: {response}",
                             )
 
+    # -------- Test switching generation strategies from client ---------- #
+    def test_single_greedy_switch(
+        self,
+        request: pytest.FixtureRequest,
+        server: tuple[Any, int, ServerConfig],
+    ):
+        """Tests switching to single-beam greedy generation.
+
+        Args:
+            server: Tuple of (process, port, config) from server fixture
+        """
+        test_id = request.node.callspec.id
+        if "gpu_topk_k4" in test_id:
+            pytest.xfail(
+                "(https://github.com/iree-org/iree/issues/20772): Current top-k kernel is slow and causes `ReadTimeout`"
+            )
+
+        process, port, _ = server
+        assert process.poll() is None, "Server process terminated unexpectedly"
+
+        # Test greedy generation
+        prompt = GOLDEN_PROMPT
+        sampling_params = {
+            "max_completion_tokens": 15,
+            "temperature": 0.7,
+            "num_beams": 1,
+            "use_beam_search": False,
+        }
+        response = self._generate(prompt, port, sampling_params=sampling_params)
+
+        response = json.loads(response)
+        req_output = GenerateReqOutput(**response)
+
+        for prompt_response in req_output.responses:
+            prompt_response = PromptResponse(**prompt_response)
+            assert len(prompt_response.responses) == 1
+            for generated_response in prompt_response.responses:
+                generated_response = GeneratedResponse(**generated_response)
+                response_text = generated_response.text
+                if response_text not in GOLDEN_RESPONSE:
+                    raise AccuracyValidationException(
+                        expected=f"{GOLDEN_RESPONSE}...",
+                        actual=response_text,
+                        message=f"Greedy generation did not match expected pattern.\nExpected to be one of: {GOLDEN_RESPONSE}\nActual response: {response_text}",
+                    )
+
+    def test_multi_hypothesis_switch(
+        self,
+        request: pytest.FixtureRequest,
+        server: tuple[Any, int, ServerConfig],
+    ):
+        """Tests switching to multi-beam generation.
+
+        Args:
+            server: Tuple of (process, port, config) from server fixture
+        """
+        test_id = request.node.callspec.id
+        if "gpu_topk_k4" in test_id:
+            pytest.xfail(
+                "(https://github.com/iree-org/iree/issues/20772): Current top-k kernel is slow and causes `ReadTimeout`"
+            )
+
+        process, port, _ = server
+        assert process.poll() is None, "Server process terminated unexpectedly"
+
+        # Test multi-beam generation
+        num_beams = 2
+        sampling_params = {
+            "max_completion_tokens": 15,
+            "temperature": 0.7,
+            "num_beams": num_beams,
+            "use_beam_search": False,
+        }
+        prompt = GOLDEN_PROMPT
+        response = self._generate(prompt, port, sampling_params=sampling_params)
+
+        response = json.loads(response)
+        req_output = GenerateReqOutput(**response)
+
+        for prompt_response in req_output.responses:
+            prompt_response = PromptResponse(**prompt_response)
+            assert len(prompt_response.responses) == num_beams
+            for generated_response in prompt_response.responses:
+                generated_response = GeneratedResponse(**generated_response)
+                response_text = generated_response.text
+                if response_text not in GOLDEN_RESPONSE:
+                    raise AccuracyValidationException(
+                        expected=f"{GOLDEN_RESPONSE}...",
+                        actual=response_text,
+                        message=f"Multi-beam generation did not match expected pattern.\nExpected to be one of: {GOLDEN_BEAM_SEARCH_RESPONSE}\nActual response: {response_text}",
+                    )
+
+    def test_beam_search_switch(
+        self,
+        request: pytest.FixtureRequest,
+        server: tuple[Any, int, ServerConfig],
+    ):
+        """Tests switching to beam search generation.
+
+        Args:
+            request: Pytest request object for accessing test metadata
+            server: Tuple of (process, port, config) from server fixture
+        """
+        test_id = request.node.callspec.id
+        if "gpu_topk_k4" in test_id:
+            pytest.xfail(
+                "(https://github.com/iree-org/iree/issues/20772): Current top-k kernel is slow and causes `ReadTimeout`"
+            )
+        elif "gpu_argmax" in test_id:
+            pytest.skip(
+                "Beam search with 2 beams isn't compatible with logits returned by GPU argmax model."
+            )
+
+        process, port, _ = server
+        assert process.poll() is None, "Server process terminated unexpectedly"
+
+        # Test beam search generation
+        num_beams = 2
+        sampling_params = {
+            "max_completion_tokens": 15,
+            "temperature": 0.7,
+            "num_beams": num_beams,
+            "use_beam_search": True,
+        }
+        prompt = GOLDEN_PROMPT
+
+        response = self._generate(prompt, port, sampling_params=sampling_params)
+        response = json.loads(response)
+        req_output = GenerateReqOutput(**response)
+
+        for prompt_response in req_output.responses:
+            prompt_response = PromptResponse(**prompt_response)
+            assert len(prompt_response.responses) == num_beams
+            for generated_response in prompt_response.responses:
+                generated_response = GeneratedResponse(**generated_response)
+                response_text = generated_response.text
+                if response_text not in GOLDEN_BEAM_SEARCH_RESPONSE:
+                    raise AccuracyValidationException(
+                        expected=f"{GOLDEN_BEAM_SEARCH_RESPONSE}...",
+                        actual=response_text,
+                        message=f"Beam search generation did not match expected pattern.\nExpected to be one of: {GOLDEN_BEAM_SEARCH_RESPONSE}\nActual response: {response_text}",
+                    )
+
+    # -------- End Test switching generation strategies from client ---------- #
+
     def _generate(
         self,
         prompt: str | list[int],
         port: int,
         input_ids: bool = False,
+        sampling_params: dict[str, Any] = {
+            "max_completion_tokens": 15,
+            "temperature": 0.7,
+        },
     ) -> str:
         """Helper method to make generation request to server.
 
@@ -210,7 +353,7 @@ class TestLLMServer:
             AccuracyValidationException: If response format is invalid
         """
         payload = {
-            "sampling_params": {"max_completion_tokens": 15, "temperature": 0.7},
+            "sampling_params": sampling_params,
             "rid": uuid.uuid4().hex,
             "stream": False,
         }
