@@ -372,12 +372,6 @@ class LlamaModelConfig:
     # Which attention kernel to use.
     attention_kernel: str = "torch"
 
-    # Implementation of rotary embeddings.
-    # E.g. "llama3", "llama4", "default".
-    # "llama3" indicates running with HuggingFace implementation and ensures
-    # numerical equivalency to HuggingFace's LLaMa.
-    rope_type: str | None = None
-
     # Indicates if running with HuggingFace implementation and ensures
     # numerical equivalency to HuggingFace's LLaMa if true (by modifying
     # rotary embedding).
