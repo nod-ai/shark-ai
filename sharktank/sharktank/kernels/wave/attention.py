@@ -42,7 +42,14 @@ def get_module_body(module: Module) -> str:
     return "\n".join(ops_asm)
 
 
-def get_wave_flash_attention_asm(target_function_name: str, shape: AttentionShape, mfma_variant: list[MMAType], dynamic_dims: bool, is_causal: bool = False, is_custom_mask: bool = False,) -> str:
+def get_wave_flash_attention_asm(
+    target_function_name: str,
+    shape: AttentionShape,
+    mfma_variant: list[MMAType],
+    dynamic_dims: bool,
+    is_causal: bool = False,
+    is_custom_mask: bool = False,
+) -> str:
     (
         base_attention_func,
         hyperparams,
@@ -76,54 +83,27 @@ def get_wave_flash_attention_asm(target_function_name: str, shape: AttentionShap
 
 # Wave Attention Kernels
 # Each kernel is put into its own class to create a namespace for it
-B = StaticDim.B # batch_size
-H = StaticDim.H # num_query_heads
-M = StaticDim.M # query_seq_len
-N = StaticDim.N # head_size_kv
-K1 = StaticDim.K1 # head_size
-K2 = StaticDim.K2 # kv_seq_len
+B = StaticDim.B  # batch_size
+H = StaticDim.H  # num_query_heads
+M = StaticDim.M  # query_seq_len
+N = StaticDim.N  # head_size_kv
+K1 = StaticDim.K1  # head_size
+K2 = StaticDim.K2  # kv_seq_len
 
 F16 = Dtype.F16
 F32 = Dtype.F32
 
+
 @mlir_kernel(
     inputs=(
-        MLIRTensor[
-            B,
-            H,
-            M,
-            K1,
-            F16
-        ],
-        MLIRTensor[
-            B,
-            H,
-            K2,
-            K1,
-            F16
-        ],
-        MLIRTensor[
-            B,
-            H,
-            K2,
-            N,
-            F16
-        ],
-        MLIRTensor[
-            B,
-            H,
-            M,
-            N,
-            F32
-        ],
-    ),
-    results=(
+        MLIRTensor[B, H, M, K1, F16],
+        MLIRTensor[B, H, K2, K1, F16],
+        MLIRTensor[B, H, K2, N, F16],
         MLIRTensor[B, H, M, N, F32],
     ),
+    results=(MLIRTensor[B, H, M, N, F32],),
 )
-def wave_bhsd_flash_attention(
-    q, k, v, c, result=None
-):
+def wave_bhsd_flash_attention(q, k, v, c, result=None):
     batch_size, num_heads, q_s, q_d = q.type.shape
     v_batch_size, num_heads_kv, v_s, v_d = v.type.shape
     shape = AttentionShape(
@@ -156,12 +136,15 @@ def wave_bhsd_flash_attention(
     asm_module = Module.parse(asm)
     asm_body = get_module_body(asm_module)
 
-    mlir_wave_kernel = asm_body + f"""
+    mlir_wave_kernel = (
+        asm_body
+        + f"""
     util.func private @{{{{kernel_name}}}}(%q : !q, %k : !k, %v : !v, %c : !c) -> !result {{
         %result = func.call @{wave_kernel_name}(%q, %k, %v, %c) : (!q, !k, !v, !c) -> !result
         util.return %result : !result
     }}
     """
+    )
     mlir = "module {" + mlir_wave_kernel + "}"
 
     return MLIRSpec(mlir)
