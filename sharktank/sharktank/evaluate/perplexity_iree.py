@@ -420,13 +420,22 @@ class PerplexityIree:
                     out_logits.append(decode_logits)
 
             out_logits = ops.cat(out_logits, dim=1)
+
             pad_logits_shape = self.token_ids.shape[1] - out_logits.shape[1]
+
             pad_logits = torch.zeros(
                 out_logits.shape[0], pad_logits_shape, out_logits.shape[2]
             )
 
             self.cache_state = None  # Remove saved reference to iree.runtime.DeviceArray before leaving function
-            return ops.cat((out_logits, pad_logits), 1).to(self.torch_device)
+            return ops.cat(
+                (
+                    pad_logits[:, : self.start + 1],
+                    out_logits,
+                    pad_logits[:, self.start + 1 :],
+                ),
+                dim=1,
+            ).to(self.torch_device)
 
         return with_iree_device_context(run_iree_module, devices)
 
