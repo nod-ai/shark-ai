@@ -19,6 +19,7 @@ from sharktank.utils.testing import (
     is_nightly,
     is_deepseek,
     is_llama_8b,
+    xfail,
 )
 
 
@@ -163,12 +164,13 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv(extra_args=(f"--use-toy-model",))
         self.run_and_check_perplexity()
 
-    @pytest.mark.xfail(
+    @xfail(
         raises=IreeCompileException,
         reason="https://github.com/iree-org/iree/issues/20914",
         strict=True,
+        match="Error code: 245",
     )
-    @is_deepseek
+    @is_nightly
     def test_deepseek_v3_tp(self):
         # DeepSeek v3 tensor parallelism
         self.model_name = "deepseek_v3_iree"
