@@ -185,7 +185,15 @@ class PerplexityTorch:
 
         is_first_token = True
         out_logits = []
-        for i in range(self.start, self.max_prompt_length - 1):
+        self.last_token_index = self.max_prompt_length
+        context_length = self.generator.model.config.hp.context_length
+        if self.last_token_index > context_length:
+            logger.warning(
+                f"Last token {self.last_token_index} exceeds context length {context_length}. "
+                "Limiting tokens to context length."
+            )
+            self.last_token_index = context_length
+        for i in range(self.start, self.last_token_index - 1):
             logger.debug(f"Iteration: {i}")
 
             if is_first_token:
@@ -290,7 +298,9 @@ class PerplexityTorch:
         logger.debug(f"Final Logits shape: {out_logits.shape}")
         logger.debug(f"Token ids shape: {self.token_ids.shape}")
 
-        return compute_perplexity(self.token_ids, out_logits, self.start)
+        return compute_perplexity(
+            self.token_ids, out_logits, self.start, self.last_token_index
+        )
 
 
 def run_perplexity_torch(
