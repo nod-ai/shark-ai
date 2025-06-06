@@ -21,11 +21,11 @@ class iree_topk(CustomOp):
         inputs_desc = ksel.arg_tensor(0)
         k = ksel.attr_int(1).v
         values_desc = ksel.return_new_tensor(
-            [inputs_desc.t.shape[0], inputs_desc.t.shape[1], k],
+            [inputs_desc.t.shape[0], k],
             dtype=inputs_desc.t.dtype,
         )
         indices_desc = ksel.return_new_tensor(
-            [inputs_desc.t.shape[0], inputs_desc.t.shape[1], k], dtype=torch.int32
+            [inputs_desc.t.shape[0], k], dtype=torch.int32
         )
         # specialize_all_known_dims(inputs_desc)
         # specialize_all_known_dims(values_desc)
@@ -42,18 +42,14 @@ class iree_topk(CustomOp):
         input_asm_type, input_ident, input_dtype = unpack_tensor_type(input.type)
 
         # Generate specialization signature and types.
-        bs = input.type.shape[0]
-        sl = input.type.shape[1]
-        sl = "?" if sl < 0 else sl  # Use ? for dynamic dimensions in MLIR
-
         template_file = "topk_dynamic.mlir"
         target_function_name = f"sharktank_topk_{k}_{input_dtype}"
 
         # Template params
         input_tensor_type = input_asm_type
-        indices_tensor_type = f"tensor<?x?x?xi32>"
-        values_tensor_type = f"tensor<?x?x{k}x{input_dtype}>"
-        indices_out_tensor_type = f"tensor<?x?x{k}xi32>"
+        indices_tensor_type = f"tensor<?x?xi32>"
+        values_tensor_type = f"tensor<?x{k}x{input_dtype}>"
+        indices_out_tensor_type = f"tensor<?x{k}xi32>"
 
         target_function = inline_template_function(
             kb,
@@ -63,8 +59,6 @@ class iree_topk(CustomOp):
             indices_tensor_type=indices_tensor_type,
             values_tensor_type=values_tensor_type,
             indices_out_tensor_type=indices_out_tensor_type,
-            bs=bs,
-            sl=sl,
             k=k,
             dtype=str(input_dtype),
         )
