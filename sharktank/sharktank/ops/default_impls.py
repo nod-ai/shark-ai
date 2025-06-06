@@ -741,14 +741,17 @@ def topk_default(
         tensor = unbox_tensor(tensor.flatten(0, -2))
         flat_bs = tensor.shape[0]
 
-        indices = torch.arange(tensor.shape[1], dtype=torch.int32)[None, :].repeat(tensor.shape[0], 1)
+        indices = torch.arange(tensor.shape[1], dtype=torch.int32)[None, :].repeat(
+            tensor.shape[0], 1
+        )
 
         if chunk_size:
             tensor = tensor.unflatten(dim, (chunk_size, tensor.shape[-1] // chunk_size))
             tensor = tensor.flatten(0, 1)
-            indices = indices.unflatten(dim, (chunk_size, indices.shape[-1] // chunk_size))
+            indices = indices.unflatten(
+                dim, (chunk_size, indices.shape[-1] // chunk_size)
+            )
             indices = indices.flatten(0, 1)
-
 
         values, indices = iree_topk(tensor, indices, k=k)
 

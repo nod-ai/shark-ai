@@ -41,7 +41,7 @@ class iree_topk(CustomOp):
         input_asm_type, input_ident, input_dtype = unpack_tensor_type(input.type)
 
         # Generate specialization signature and types.
-        template_file =  "topk_dynamic.mlir"
+        template_file = "topk_dynamic.mlir"
         target_function_name = f"sharktank_topk_{k}_{input_dtype}"
 
         # Template params
