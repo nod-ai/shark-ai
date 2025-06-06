@@ -251,7 +251,7 @@ class ExportArtifacts:
         cwd = self.sharktank_dir
         cmd = subprocess.list2cmdline(export_args)
 
-        logger.info(f" Exporting mlir:\n" f"cd {cwd} && {cmd}")
+        print(f" Exporting mlir:\n" f"cd {cwd} && {cmd}")
 
         proc = subprocess.run(cmd, shell=True, capture_output=True, cwd=cwd, text=True)
         if proc.returncode != 0:
@@ -300,7 +300,7 @@ class ExportArtifacts:
 
         cmd = subprocess.list2cmdline(compile_args)
 
-        logger.info(f" Launching compile command:\n" f"cd {cwd} && {cmd}")
+        print(f" Launching compile command:\n" f"cd {cwd} && {cmd}")
         proc = subprocess.run(cmd, shell=True, capture_output=True, cwd=cwd)
         return_code = proc.returncode
         if return_code != 0:

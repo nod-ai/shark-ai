@@ -27,6 +27,7 @@ from sharktank.utils.load_llm import *
 from sharktank.utils.evaluate import *
 from sharktank.utils.testing import TempDirTestBase
 from sharktank.utils import debugging
+import os
 
 
 # @pytest.mark.usefixtures("get_iree_flags")
@@ -83,6 +84,7 @@ class DeepseekTest(TempDirTestBase):
     def testUnshardedToySizedModelIREEVsEager(self):
         work_dir = self._temp_dir
         theta, config = generate(12345)
+        # config.device = "cuda:5"
 
         ids = [
             [1, 2, 3, 4],
@@ -143,7 +145,7 @@ class DeepseekTest(TempDirTestBase):
         )
 
         iree_devices = get_iree_devices(
-            device="hip://4",
+            device="hip://5",
             device_count=1,
         )
 
@@ -206,7 +208,7 @@ class DeepseekTest(TempDirTestBase):
             "--hip_use_streams=true",
             f"--parameters=model={dataset_path}",
             f"--module={iree_module_path}",
-            "--device=hip://0",
+            "--device=hip://5",
             f"--function=prefill_bs{batch_size}",
             f"--input=@{token_ids_path}",
             f"--input=@{seq_lens_path}",
@@ -230,6 +232,79 @@ class DeepseekTest(TempDirTestBase):
         ):
             torch.testing.assert_close(iree_state_i, ref_state_i)
         # Compare logits
+
+        def split_result(res):
+            slice_sizes = [32, 2, 2, 4]  # End piece handled implicitly
+            slices = []
+            start = 0
+            for size in slice_sizes:
+                end = start + size
+                slices.append(res[:, start:end])
+                start = end
+            slices.append(res[:, start:])  # Remaining columns
+            return tuple(slices)
+
+        (
+            iree_input,
+            iree_top_vals,
+            iree_top_indx,
+            iree_router_weights,
+            iree_moe_output,
+        ) = split_result(iree_logits_w_py)
+        (
+            eager_input,
+            eager_top_vals,
+            eager_top_indx,
+            eager_router_weights,
+            eager_moe_output,
+        ) = split_result(reference_logits)
+
+        input_mismatch_indx = ~torch.isclose(
+            iree_input, eager_input, rtol=1.3e-6, atol=1e-5
+        )
+        num_input_mismatch = input_mismatch_indx.sum().item()
+        weight_mismatch_indx = ~torch.isclose(
+            iree_router_weights, eager_router_weights, rtol=1.3e-6, atol=1e-5
+        )
+        num_weights_mismatch = weight_mismatch_indx.sum().item()
+        top_vals_mismatch = ~torch.isclose(
+            iree_top_vals, eager_top_vals, rtol=1.3e-6, atol=1e-5
+        )
+        num_top_vals_mismatch = top_vals_mismatch.sum().item()
+        top_indx_mismatch = ~torch.isclose(
+            iree_top_indx, eager_top_indx, rtol=1.3e-6, atol=1e-5
+        )
+        num_top_indx_mismatch = top_indx_mismatch.sum().item()
+        moe_output_mismatch = ~torch.isclose(
+            iree_moe_output, eager_moe_output, rtol=1.3e-6, atol=1e-5
+        )
+        num_moe_output_mismatch = moe_output_mismatch.sum().item()
+
+        print(
+            f"Input mismatch: {num_input_mismatch}, "
+            f"Router weights mismatch: {num_weights_mismatch}, "
+            f"Top indices mismatch: {num_top_indx_mismatch}, "
+            f"Top values mismatch: {num_top_vals_mismatch}, "
+            f"MoE output mismatch: {num_moe_output_mismatch}"
+        )
+
+        denseffnmoe_dir = "/home/alvasile/repos/shark-ai/sharktank/denseffnmoe/"
+        np.save(
+            os.path.join(denseffnmoe_dir, "ffn_input.npy"), eager_input.cpu().numpy()
+        )
+        np.save(
+            os.path.join(denseffnmoe_dir, "expert_gate.npy"),
+            eager_top_vals.cpu().numpy(),
+        )
+        np.save(
+            os.path.join(denseffnmoe_dir, "top_k_experts.npy"),
+            eager_top_indx.cpu().numpy().astype(np.int64),
+        )
+        np.save(
+            os.path.join(denseffnmoe_dir, "eager_moe_output.npy"),
+            eager_moe_output.cpu().numpy(),
+        )
+
         padding_mask = (
             (token_ids != 0).int().detach().clone().to(token_ids.device).bool()
         )
