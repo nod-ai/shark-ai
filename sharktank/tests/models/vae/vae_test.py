@@ -154,7 +154,7 @@ class VaeSDXLDecoderTest(TempDirTestBase):
             "--iree-opt-outer-dim-concat=true",
             "--iree-llvmgpu-enable-prefetch=true",
             "--iree-hip-waves-per-eu=2",
-            "--iree-dispatch-creation-enable-aggressive-fusion=true",
+            # "--iree-dispatch-creation-enable-aggressive-fusion=true", #TODO: https://github.com/iree-org/iree/issues/20875
             "--iree-codegen-llvmgpu-use-vector-distribution=true",
             "--iree-execution-model=async-external",
             "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline,iree-preprocessing-pad-to-intrinsics)",
@@ -242,7 +242,7 @@ class VaeFluxDecoderTest(TempDirTestBase):
             "--iree-opt-outer-dim-concat=true",
             "--iree-llvmgpu-enable-prefetch=true",
             "--iree-hip-waves-per-eu=2",
-            "--iree-dispatch-creation-enable-aggressive-fusion=true",
+            # "--iree-dispatch-creation-enable-aggressive-fusion=true", #TODO: https://github.com/iree-org/iree/issues/20875
             "--iree-codegen-llvmgpu-use-vector-distribution=true",
             "--iree-execution-model=async-external",
             "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline,iree-preprocessing-pad-to-intrinsics)",
