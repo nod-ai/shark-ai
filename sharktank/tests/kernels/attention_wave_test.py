@@ -23,11 +23,11 @@ from iree.turbine.kernel.wave.utils.reference_kernel_utils import (
 )
 
 
+@unittest.skipIf(not torch.cuda.is_available(), "CUDA is required for Wave tests")
 class wave_attention(unittest.TestCase):
     def setUp(self):
         torch.manual_seed(42)
 
-    @unittest.skipIf(not torch.cuda.is_available(), "CUDA is required for Wave tests")
     @parameterized.expand(
         [
             (1e-3, 1e-3),
