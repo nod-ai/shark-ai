@@ -244,6 +244,10 @@ class DeepseekTest(TempDirTestBase):
             slices.append(res[:, start:])  # Remaining columns
             return tuple(slices)
 
+        same = torch.isclose(iree_logits_w_py, reference_logits, rtol=1.3e-6, atol=1e-5)
+        print(same.all().item())
+        diff = ~same
+
         (
             iree_input,
             iree_top_vals,
@@ -288,22 +292,22 @@ class DeepseekTest(TempDirTestBase):
             f"MoE output mismatch: {num_moe_output_mismatch}"
         )
 
-        denseffnmoe_dir = "/home/alvasile/repos/shark-ai/sharktank/denseffnmoe/"
-        np.save(
-            os.path.join(denseffnmoe_dir, "ffn_input.npy"), eager_input.cpu().numpy()
-        )
-        np.save(
-            os.path.join(denseffnmoe_dir, "expert_gate.npy"),
-            eager_top_vals.cpu().numpy(),
-        )
-        np.save(
-            os.path.join(denseffnmoe_dir, "top_k_experts.npy"),
-            eager_top_indx.cpu().numpy().astype(np.int64),
-        )
-        np.save(
-            os.path.join(denseffnmoe_dir, "eager_moe_output.npy"),
-            eager_moe_output.cpu().numpy(),
-        )
+        # denseffnmoe_dir = "/home/alvasile/repos/shark-ai/sharktank/denseffnmoe/"
+        # np.save(
+        #     os.path.join(denseffnmoe_dir, "ffn_input.npy"), eager_input.cpu().numpy()
+        # )
+        # np.save(
+        #     os.path.join(denseffnmoe_dir, "expert_gate.npy"),
+        #     eager_top_vals.cpu().numpy(),
+        # )
+        # np.save(
+        #     os.path.join(denseffnmoe_dir, "top_k_experts.npy"),
+        #     eager_top_indx.cpu().numpy().astype(np.int64),
+        # )
+        # np.save(
+        #     os.path.join(denseffnmoe_dir, "eager_moe_output.npy"),
+        #     eager_moe_output.cpu().numpy(),
+        # )
 
         padding_mask = (
             (token_ids != 0).int().detach().clone().to(token_ids.device).bool()
