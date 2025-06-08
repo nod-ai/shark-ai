@@ -34,6 +34,3 @@ from . import attention_impls
 # Comment this out to completely disable optimized quantized implementations.
 from . import qconv_impls
 from . import qlinear_impls
-
-# Meta implementations for FX tracing support (enables Brevitas)
-from . import meta_impls

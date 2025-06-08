@@ -4,20 +4,15 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from brevitas.graph.quantize import quantize as brevitas_quantize
+from brevitas.graph.quantize import layerwise_quantize as brevitas_quantize
 from brevitas.quant.scaled_int import (
     Int32Bias,
 )
 from brevitas import nn as qnn
-from torch import nn, fx
-from sharktank import ops
-from sharktank.types.tensors import unbox_tensor
+from torch import nn
 
 # Import SHARK layer types
-from ..layers import (
-    LinearLayer,
-    QuantizationLayer,
-)
+from ..layers import LinearLayer, QuantizationLayer
 
 # Default SHARK to Brevitas compute layer mappings
 SHARK_COMPUTE_LAYER_MAP = {
@@ -27,16 +22,18 @@ SHARK_COMPUTE_LAYER_MAP = {
             "in_features": lambda module: module.weight.shape[1],
             "out_features": lambda module: module.weight.shape[0],
             "bias": lambda module: module.bias is not None,
+            "input_quant": lambda module: module.quantization_config.quantization_scheme,
             "weight_quant": lambda module: module.quantization_config.quantization_scheme,
             "bias_quant": Int32Bias,
-            "return_quant_tensor": True,
+            "cache_inference_quant_bias": True,
+            "return_quant_tensor": False,
         },
     ),
     QuantizationLayer: (
         qnn.QuantIdentity,
         {
             "act_quant": lambda module: module.quantization_config.quantization_scheme,
-            "return_quant_tensor": True,
+            "return_quant_tensor": False,
         },
     ),
 }
@@ -51,38 +48,20 @@ SHARK_UNSIGNED_ACT_TUPLE = ()
 def quantize(
     model,
     compute_layer_map=SHARK_COMPUTE_LAYER_MAP,
-    quant_act_map=SHARK_QUANT_ACT_MAP,
-    unsigned_act_tuple=SHARK_UNSIGNED_ACT_TUPLE,
-    requantize_layer_handler_output=True,
+    name_blacklist=None,
 ):
     """Quantize a PyTorch model using Brevitas with SHARK layer mappings.
 
     Args:
-        model: PyTorch model to quantize (will be FX traced automatically)
+        model: PyTorch model to quantize
         compute_layer_map: Mapping of SHARK compute layers to Brevitas quantized equivalents
-        quant_act_map: Mapping of activation functions to quantized equivalents
-        unsigned_act_tuple: Tuple of activations that should use unsigned quantization
-        requantize_layer_handler_output: Whether to requantize layer handler outputs
+        name_blacklist: Optional blacklist of module names to skip during quantization
 
     Returns:
         Quantized model
     """
-    # Auto-trace the model if it's not already traced, treating SHARK layers as leaf modules
-    if not hasattr(model, "graph"):
-        # Get all SHARK layer types from our compute layer map
-        shark_layer_types = tuple(compute_layer_map.keys())
-
-        class SHARKLeafTracer(fx.Tracer):
-            def is_leaf_module(self, m, module_qualified_name):
-                return isinstance(m, shark_layer_types)
-
-        tracer = SHARKLeafTracer()
-        model = fx.GraphModule(model, tracer.trace(model))
-
     return brevitas_quantize(
         model,
         compute_layer_map=compute_layer_map,
-        quant_act_map=quant_act_map,
-        unsigned_act_tuple=unsigned_act_tuple,
-        requantize_layer_handler_output=requantize_layer_handler_output,
+        name_blacklist=name_blacklist,
     )
