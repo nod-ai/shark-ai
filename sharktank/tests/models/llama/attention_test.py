@@ -5,14 +5,14 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import unittest
-from typing import List
 
 import torch
 
-from sharktank.models.llama.testing import *
+from sharktank.layers.configs.llm_configs import *
 from sharktank.layers.rotary_embedding import RotaryEmbeddingLayer
-from sharktank.models.llama.llama import AttentionFFNBlock, PagedAttention
-from sharktank import ops
+from sharktank.layers.paged_attention import PagedAttention
+from sharktank.models.llm import AttentionFFNBlock
+from sharktank.models.llama.testing import *
 
 from transformers.models.llama.modeling_llama import (
     LlamaAttention,
@@ -42,6 +42,27 @@ class AttentionBlockTest(unittest.TestCase):
         attention_block_theta = make_attention_block_theta(
             feature_dim=head_count * head_dim, ffn_dim=ffn_dim, dtype=torch.float32
         )
+
+        hp = LlamaHParams(
+            model_arch="llama",
+            context_length=max_seq_len,
+            embedding_length=head_count * head_dim,
+            block_count=1,
+            feed_forward_length=ffn_dim,
+            attention_head_count=head_count,
+            attention_layer_norm_rms_epsilon=rms_epsilon,
+            attention_head_count_kv=head_count_kv,
+            attn_head_dim=head_dim,
+            rope_dimension_count=rope_dimension_count,
+            rope_freq_base=rope_freq_base,
+        )
+
+        llama_config = LlamaModelConfig(
+            hp,
+            attention_kernel="torch",
+            block_seq_stride=block_seq_stride,
+        )
+
         paged_kv_cache = PagedAttention(
             transformer_block_count=head_count,
             attn_head_count=head_count,
@@ -49,17 +70,14 @@ class AttentionBlockTest(unittest.TestCase):
             cache_partition_count=2,  # One for each of K/V.
             block_seq_stride=block_seq_stride,
             device="cpu",
-            dtype=torch.float32,
+            cache_dtype=torch.float32,
+            attn_dtype=torch.float32,
         )
         attention_block = AttentionFFNBlock(
             theta=attention_block_theta,
             block_index=block_index,
             cache=paged_kv_cache,
-            head_count=head_count,
-            head_dim=head_dim,
-            head_count_kv=head_count_kv,
-            rms_epsilon=rms_epsilon,
-            attention_kernel="decomposed",
+            config=llama_config,
         )
         attention_embedding = RotaryEmbeddingLayer(
             rope_dimension_count=rope_dimension_count,

@@ -4,18 +4,21 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-
-from sharktank.models.grok.grok import PagedGrokModelV1
+from sharktank.models.llm import *
 from sharktank.models.grok.toy_grok import generate
-from sharktank.utils.create_cache import create_paged_kv_cache
 
-import pytest
 import torch
+import pytest
 
 
+@pytest.mark.xfail(
+    raises=AssertionError,
+    strict=False,
+    reason="https://github.com/nod-ai/shark-ai/issues/1270",
+)
 def test_grok():
     theta, config = generate(12345)
-    model = PagedGrokModelV1(theta=theta, config=config)
+    model = PagedLlmModelV1(theta=theta, config=config)
 
     ids = [0, 102, 133, 192, 153, 26, 172, 3, 41, 193, 78, 204, 38, 30, 11, 62, 192, 38]
     seq_len = len(ids)
@@ -35,9 +38,9 @@ def test_grok():
 
     logits = model.prefill(
         tokens=ids,
-        attention_mask=None,
+        attention_mask=[None],
         cache_state=cache_state,
-        seq_block_ids=block_ids,
+        seq_block_ids=[block_ids],
     )
 
     # Remove padding
@@ -47,5 +50,4 @@ def test_grok():
     ids = ids[0, 1:].cpu()
     logits = logits[0, :-1].to(torch.float32).cpu()
     cross_entropy = torch.nn.functional.cross_entropy(logits, ids)
-    # Unknown why but this does not reproduce on the buildbots
-    # assert pytest.approx(2.0267, 1e-2) == cross_entropy
+    assert pytest.approx(2.0267, 1e-2) == cross_entropy

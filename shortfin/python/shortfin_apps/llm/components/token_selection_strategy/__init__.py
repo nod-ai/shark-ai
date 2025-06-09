@@ -8,17 +8,17 @@ from typing import Callable, List, Union
 
 from .base_token_selection_strategy import (
     BaseTokenSelectionStrategy,
-    DecodeConfig,
     TokenSelectionStrategyConfig,
+)
+
+from .config import (
+    DecodeConfig,
     TokenSelectionStrategy,
     get_strategy_from_str,
-    is_ref_counted,
 )
-from .greedy_token_selection_strategy import GreedyTokenSelectionStrategy
-from .multi_greedy_token_selection_strategy import MultiGreedyTokenSelectionStrategy
 from .beam_search_token_selection_strategy import BeamSearchTokenSelectionStrategy
-
-from ..messages import LlmInferenceExecRequest
+from .independent_token_selection_strategy import IndependentTokenSelectionStrategy
+from .sampler import Sampler
 
 
 def build_token_selector_config(
@@ -27,7 +27,6 @@ def build_token_selector_config(
     decode_batcher,
     results_callback: Callable[[Union[int, List[int]]], None],
     eos_token_id: int,
-    max_completion_tokens: int,
 ) -> TokenSelectionStrategyConfig:
     """Build a configuration class for a given token selection strategy.
 
@@ -60,7 +59,6 @@ def build_token_selector_config(
         decode_end_callback=decode_batcher.complete_workitem,
         results_callback=results_callback,
         eos_token_id=eos_token_id,
-        max_completion_tokens=max_completion_tokens,
     )
 
 
@@ -77,11 +75,10 @@ def build_token_selector(
         NotImplementedError: Unsupported `TokenSelectionStrategy`.
 
     Returns:
-        BaseTokenSelectionStrategy: Instantiated token selector. Current only `Greedy`, but more will be added.
+        BaseTokenSelectionStrategy: Instantiated token selector. Either `IndependentTokenSelectionStrategy` or `BeamSearchTokenSelectionStrategy`.
     """
     strategy_map = {
-        TokenSelectionStrategy.GREEDY: GreedyTokenSelectionStrategy,
-        TokenSelectionStrategy.MULTI_GREEDY: MultiGreedyTokenSelectionStrategy,
+        TokenSelectionStrategy.INDEPENDENT: IndependentTokenSelectionStrategy,
         TokenSelectionStrategy.BEAM_SEARCH: BeamSearchTokenSelectionStrategy,
     }
     if config.decode_config.token_selection_strategy not in strategy_map:
@@ -90,28 +87,29 @@ def build_token_selector(
             f"Supported strategies: {','.join([strategy.name for strategy in TokenSelectionStrategy])}"
         )
 
-    return strategy_map[config.decode_config.token_selection_strategy](config)
+    return strategy_map[config.decode_config.token_selection_strategy](
+        token_selection_strategy_config=config
+    )
 
 
-def is_multi_response(token_selection_strategy: TokenSelectionStrategy):
-    match token_selection_strategy:
-        case TokenSelectionStrategy.MULTI_GREEDY | TokenSelectionStrategy.BEAM_SEARCH:
-            return True
+def is_multi_response(decode_config: DecodeConfig) -> bool:
+    strategy = decode_config.token_selection_strategy
+    num_beams = decode_config.num_beams
 
-        case _:
-            return False
+    return strategy == TokenSelectionStrategy.BEAM_SEARCH or (
+        strategy == TokenSelectionStrategy.INDEPENDENT and num_beams > 1
+    )
 
 
 __all__ = [
     "BaseTokenSelectionStrategy",
     "TokenSelectionStrategyConfig",
     "TokenSelectionStrategy",
+    "Sampler",
     "BeamSearchTokenSelectionStrategy",
-    "GreedyTokenSelectionStrategy",
-    "MultiGreedyTokenSelectionStrategy",
+    "IndependentTokenSelectionStrategy",
     "build_token_selector",
     "build_token_selector_config",
     "get_strategy_from_str",
-    "is_ref_counted",
     "is_multi_response",
 ]

@@ -12,18 +12,16 @@ https://github.com/black-forest-labs/flux/blob/main/src/flux/model.py
 from typing import Any, Optional
 from collections import OrderedDict
 from copy import copy
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 import math
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
-from ...layers import *
-from ...layers import model_config_presets, get_model_type_id
-from ...types import *
-from ...utils.create_cache import *
-from ...utils.testing import make_rand_torch
-from ... import ops
+from sharktank.layers import *
+from sharktank.types import *
+from sharktank.utils.create_cache import *
+from sharktank.utils.testing import make_rand_torch
+from sharktank import ops
 
 __all__ = [
     "FluxParams",
@@ -463,7 +461,7 @@ class LastLayer(ThetaLayer):
         self.add_module("linear", LinearLayer(theta("linear")))
 
     def forward(self, x: AnyTensor, vec: AnyTensor) -> AnyTensor:
-        silu = ops.elementwise(F.silu, vec)
+        silu = ops.elementwise(nn.functional.silu, vec)
         lin = self.adaLN_modulation_linear(silu)
         shift, scale = lin.chunk(2, dim=1)
         x = (1 + scale[:, None, :]) * layer_norm(x) + shift[:, None, :]
@@ -479,31 +477,45 @@ def _register_flux_transformer_config_presets():
         "0ef5fff789c832c5c7f4e127f94c8b54bbcced44",
         "741f7c3ce8b383c54771c7003378a50191e9efe9",
     ]
+
     iree_hal_target_device = "hip"
     iree_hip_target = "gfx942"
     iree_compile_flags = compile.iree_compile_flags + [
         f"--iree-hal-target-device={iree_hal_target_device}",
         f"--iree-hip-target={iree_hip_target}",
     ]
+    build_type_compile_flags: dict[str, list[str]] = {
+        "debug": ["--iree-hal-executable-debug-level=3"],
+        "release": [],
+    }
+
     output_img_height = 1024
     output_img_width = 1024
     for variant, hf_revision in zip(variants, hf_revisions):
-        device_agnostic_name = f"black-forest-labs--FLUX.1-{variant}-bf16-{output_img_height}x{output_img_width}"
-        name = f"{device_agnostic_name}-{iree_hal_target_device}-{iree_hip_target}"
-        config = {
-            "model_type": get_model_type_id(FluxModelV1),
-            "mlir_path": f"{device_agnostic_name}.mlir",
-            "iree_module_path": f"{name}.vmfb",
-            "export_parameters_path": f"{device_agnostic_name}.irpa",
-            "export_sample_inputs_enabled": True,
-            "hugging_face_repo_id": f"black-forest-labs/FLUX.1-{variant}",
-            "hugging_face_revision": hf_revision,
-            "output_img_height": output_img_height,
-            "output_img_width": output_img_width,
-            "compile_args": iree_compile_flags,
-            "config_version": ModelConfig.current_config_version,
-        }
-        register_model_config_preset(name, config)
+        for build_type in build_type_compile_flags.keys():
+            device_agnostic_name = f"black-forest-labs--FLUX.1-{variant}-bf16-{output_img_height}x{output_img_width}"
+            name = f"{device_agnostic_name}-{iree_hal_target_device}-{iree_hip_target}-{build_type}"
+            compile_flags = copy(iree_compile_flags)
+            compile_flags += build_type_compile_flags[build_type]
+            if build_type == "debug":
+                compile_flags.append(
+                    f"--iree-hal-dump-executable-files-to={name}-exe-dump"
+                )
+            config = {
+                "model_type": get_model_type_id(FluxModelV1),
+                "mlir_path": f"{device_agnostic_name}.mlir",
+                "iree_module_path": f"{name}.vmfb",
+                "export_parameters_path": f"{device_agnostic_name}.irpa",
+                "export_sample_inputs_enabled": True,
+                "hugging_face_repo_id": f"black-forest-labs/FLUX.1-{variant}",
+                "hugging_face_revision": hf_revision,
+                "output_img_height": output_img_height,
+                "output_img_width": output_img_width,
+                "compile_args": compile_flags,
+                "iree_hal_driver": iree_hal_target_device,
+                "config_version": ModelConfig.current_config_version,
+            }
+            register_model_config_preset(name, config)
 
 
 _register_flux_transformer_config_presets()

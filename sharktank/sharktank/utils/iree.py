@@ -4,21 +4,22 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from copy import deepcopy
-import iree.runtime
 from typing import Any, Callable, List, Tuple, Optional, Union, overload, TYPE_CHECKING
-from pathlib import Path
-import torch
 import os
 import sys
 import json
+from copy import deepcopy
+from pathlib import Path
+
 import numpy as np
 import collections.abc
 from collections import OrderedDict
 from contextlib import contextmanager
 import subprocess
 import gc
-from ..types.tensors import (
+import torch
+
+from sharktank.types.tensors import (
     AnyTensor,
     InferenceTensor,
     ShardedTensor,
@@ -28,8 +29,112 @@ from ..types.tensors import (
 )
 from .tree import Tree
 
+import iree.runtime
+
 if TYPE_CHECKING:
     from ..layers import ModelConfig
+
+halelementtype_map = {
+    torch.float8_e4m3fnuz: iree.runtime.HalElementType.FLOAT_8_E4M3_FNUZ,
+    torch.bfloat16: iree.runtime.HalElementType.BFLOAT_16,
+}
+
+
+class TorchLikeIreeModule:
+    """Makes an IREE module look like a torch module. Where it can be called with
+    Sharktank and Torch tensors.
+
+    This handles marshaling of torch tensor and sharktank.type.InferenceTensor arguments.
+    Unfortunately, we can't marshall the output back to the correct tensor types as
+    some of the information is lost. E.g. the sharded tensor types. We return a flat
+    list of torch tensors.
+    """
+
+    def __init__(
+        self,
+        module: iree.runtime.VmModule,
+        vm_context: iree.runtime.VmContext,
+        devices: List[iree.runtime.HalDevice],
+    ):
+        self.module = module
+        self.vm_context = vm_context
+        self.devices = devices
+
+    def __getattr__(self, name: str) -> Any:
+        def f(
+            *args: tuple[Any, ...], **kwargs: dict[str, Any]
+        ) -> tuple[torch.Tensor, ...]:
+            flat_args = flatten_for_iree_signature(
+                (
+                    args,
+                    kwargs,
+                )
+            )
+            iree_args = prepare_iree_module_function_args(flat_args, self.devices)
+            res = run_iree_module_function(
+                module=self.module,
+                vm_context=self.vm_context,
+                args=iree_args,
+                device=self.devices[0],
+                function_name=name,
+            )
+            res = iree_to_torch(*res)
+
+            # Copy back to args as they may have been modified in-place by the function.
+            iree_args_post_call = iree_to_torch(*iree_args)
+            for arg, iree_arg in zip(flat_args, iree_args_post_call):
+                arg[...] = iree_arg
+
+            return res
+
+        return f
+
+
+def get_iree_compiler_flags(
+    iree_hal_target_device: str,
+    iree_hal_local_target_device_backends: list[str] | None = None,
+    iree_hip_target: str | None = None,
+    device_count: int = 1,
+) -> list[str]:
+    """Retrieve compiler flags driven by the test configuration."""
+    res = []
+    if device_count == 1:
+        res += [f"--iree-hal-target-device={iree_hal_target_device}"]
+    else:
+        res += [
+            f"--iree-hal-target-device={iree_hal_target_device}[{i}]"
+            for i in range(device_count)
+        ]
+
+    if iree_hal_target_device.startswith("local"):
+        res += [
+            f"--iree-hal-local-target-device-backends={v}"
+            for v in iree_hal_local_target_device_backends
+        ]
+        res += ["--iree-llvmcpu-target-cpu=host"]
+    elif iree_hal_target_device.startswith("hip"):
+        res += [f"--iree-hip-target={iree_hip_target}"]
+    else:
+        raise ValueError(
+            f'"{iree_hal_target_device}" is not a supported IREE HAL target device'
+        )
+
+    return res
+
+
+def get_iree_compiler_flags_from_object(o: Any, device_count: int = 1) -> list[str]:
+    kwargs = {
+        "iree_hal_target_device": o.iree_hal_target_device,
+        "device_count": device_count,
+    }
+    if hasattr(o, "iree_hal_local_target_device_backends"):
+        kwargs[
+            "iree_hal_local_target_device_backends"
+        ] = o.iree_hal_local_target_device_backends
+    if hasattr(o, "iree_hip_target"):
+        kwargs["iree_hip_target"] = o.iree_hip_target
+
+    return get_iree_compiler_flags(**kwargs)
 
 
 def with_iree_device_context(
@@ -152,14 +257,20 @@ def get_iree_devices(
     return [hal_devices[i % len(hal_devices)] for i in range(device_count)]
 
 
+_same_as_device_count = object()
+
+
 def load_iree_module(
     module_path: str,
     devices: List[iree.runtime.HalDevice],
     parameters_path: Optional[str] = None,
     debug_sink: Optional[iree.runtime.HalModuleDebugSink] = None,
+    tensor_parallel_size: int = _same_as_device_count,
 ) -> Tuple[iree.runtime.VmModule, iree.runtime.VmContext, iree.runtime.VmInstance]:
     """The VmContext and VmInstance need to outlive the VmModule and any device
     buffers."""
+    if tensor_parallel_size == _same_as_device_count:
+        tensor_parallel_size = len(devices)
     vm_instance = iree.runtime.VmInstance()
     hal_module = iree.runtime.create_hal_module(
         instance=vm_instance, devices=devices, debug_sink=debug_sink
@@ -168,7 +279,7 @@ def load_iree_module(
     if parameters_path is not None:
         params_path = Path(parameters_path)
         parameter_index = iree.runtime.ParameterIndex()
-        if len(devices) > 1:
+        if len(devices) > 1 and tensor_parallel_size == len(devices):
             # TODO: make IREE able to load the parameters from the top parameter file
             # without having to specify the parameter file for each shard separately.
             for i in range(len(devices)):
@@ -177,8 +288,12 @@ def load_iree_module(
                         Path(params_path).with_suffix(f".rank{i}{params_path.suffix}")
                     )
                 )
-        else:
+        elif tensor_parallel_size == 1:
             parameter_index.load(file_path=str(params_path))
+        else:
+            raise NotImplementedError(
+                "TODO: implement mixture of pipeline and tensor parallelism"
+            )
         parameter_provider = parameter_index.create_provider(scope="model")
         parameters_module = iree.runtime.create_io_parameters_module(
             vm_instance, parameter_provider
@@ -241,15 +356,15 @@ def device_array_to_host(device_array: iree.runtime.DeviceArray) -> torch.Tensor
 def torch_tensor_to_device_array(
     tensor: torch.Tensor, device: iree.runtime.HalDevice
 ) -> iree.runtime.DeviceArray:
-    if tensor.dtype == torch.bfloat16:
-        tensor_as_int16 = tensor.view(dtype=torch.int16)
+    if tensor.dtype in halelementtype_map.keys():
+        tensor_as_int16 = tensor.to(torch.int16)
         device_array_as_int16 = iree.runtime.asdevicearray(
             device, unbox_tensor(tensor_as_int16).to("cpu").detach().numpy()
         )
         buffer_view = iree.runtime.HalBufferView(
             buffer=device_array_as_int16._buffer_view.get_buffer(),
             shape=device_array_as_int16._buffer_view.shape,
-            element_type=iree.runtime.HalElementType.BFLOAT_16,
+            element_type=halelementtype_map[tensor.dtype],
         )
         return iree.runtime.DeviceArray(device, buffer_view)
 
@@ -301,8 +416,9 @@ def run_iree_module_function(
 
 
 def prepare_iree_module_function_args(
-    args: List[Union[AnyTensor, List[AnyTensor]]], devices: List[iree.runtime.HalDevice]
-) -> List[iree.runtime.DeviceArray]:
+    args: list[Union[AnyTensor, iree.runtime.DeviceArray, list]],
+    devices: list[iree.runtime.HalDevice],
+) -> list[iree.runtime.DeviceArray]:
     """Flatten composite tensors into their parts and place them on devices.
     Sharded tensors become a list of their shards while placing them onto their
     corresponding device.
@@ -320,6 +436,8 @@ def prepare_iree_module_function_args(
             )
         elif isinstance(arg, (DefaultPrimitiveTensor, torch.Tensor)):
             res.append(torch_tensor_to_device_array(arg, devices[0]))
+        elif isinstance(arg, iree.runtime.DeviceArray):
+            res.append(arg)
         else:
             assert isinstance(arg, collections.abc.Sequence)
             res.extend(prepare_iree_module_function_args(arg, devices))

@@ -5,20 +5,21 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import functools
-import torch
 from os import PathLike, makedirs
 from typing import Any, Optional
 
-from ...layers.configs import ExportFunctionConfig
-from ...layers.configs.llm_configs import ClipTextConfig
+import torch
+
+from sharktank.layers.configs import ExportFunctionConfig
+from sharktank.layers.configs.llm_configs import ClipTextConfig
 from .clip import ClipTextModel
-from ...types.theta import Theta, Dataset
-from ...types.tensors import dtype_to_serialized_short_name
-from ...utils.io import save_tensor_as_irpa
+from sharktank.types.theta import Theta, Dataset
+from sharktank.types.tensors import dtype_to_serialized_short_name
+from sharktank.utils.io import save_tensor_as_irpa
 from .export import (
     hugging_face_clip_text_model_to_theta,
 )
-from ...transforms.dataset import set_float_dtype
+from sharktank.transforms.dataset import set_float_dtype
 
 
 def clip_toy_text_model_config(dtype: Optional[torch.dtype] = None) -> ClipTextConfig:

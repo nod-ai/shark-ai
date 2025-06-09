@@ -4,20 +4,22 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from os import PathLike
 from typing import Any, Dict, Optional
 from collections import OrderedDict
 from collections.abc import Mapping
 from abc import ABCMeta
+from pathlib import Path
+import logging
+
 import torch
 import torch.nn as nn
-from os import PathLike
-import logging
-from pathlib import Path
 
-from ..types import InferenceTensor, Theta, AnyTensor, Dataset
-from ..utils import debugging, chdir
+from sharktank.types import InferenceTensor, Theta, AnyTensor, Dataset
+from sharktank.utils import debugging, chdir
+from sharktank.utils.iree import flatten_for_iree_signature
 from .configs import ModelConfig, ExportFunctionConfig, DynamicBatchSize
-from ..utils.iree import flatten_for_iree_signature
+
 from iree.turbine.support.tools import iree_tool_prepare_input_args
 
 __all__ = [
@@ -26,6 +28,7 @@ __all__ = [
     "create_model",
     "get_model_type_id",
     "model_registry",
+    "register_all_models",
 ]
 
 logger = logging.getLogger(__name__)
@@ -129,7 +132,7 @@ class BaseLayer(nn.Module, metaclass=BaseLayerMetaClass):
 
     def set_recursively_submodules_default_trace_tensor_key_prefix(self):
         """All submodules get a trace key prefix that reflects their nesting with
-        respect to the parent module.
+        respect to the parent modules.
 
         Example:
         ```
@@ -149,16 +152,17 @@ class BaseLayer(nn.Module, metaclass=BaseLayerMetaClass):
 
 
         a = A()
+        a.trace_tensor_key_prefix = "top."
         a.set_recursively_submodules_default_trace_tensor_key_prefix()
         ```
 
         This will result in trace key prefixes
-        a -> ""
-        a.b -> "b."
-        a.b.c -> "b.c."
+        a -> "top."
+        a.b -> "top.b."
+        a.b.c -> "top.b.c."
 
         The trace_tensor method call in C.forward will result in a trace with key
-        "b.c.x".
+        "top.b.c.x".
         """
         _set_recursively_submodules_default_trace_tensor_key_prefix(
             self, self.trace_tensor_key_prefix
@@ -180,6 +184,17 @@ class BaseLayer(nn.Module, metaclass=BaseLayerMetaClass):
         key: str,
         tensors: Dict[str, torch.Tensor] | list[torch.Tensor] | torch.Tensor,
     ):
+        """Trace tensor(s) prefixed by this module's key prefix.
+
+        You can use `set_recursively_submodules_default_trace_tensor_key_prefix` on
+        your top level module to specify a key prefix for it and all its nested
+        submodules.
+
+        See:
+        sharktank.layers.BaseLayer.trace_tensor_key_prefix
+        sharktank.layers.BaseLayer.set_recursively_submodules_default_trace_tensor_key_prefix
+        sharktank.ops.trace_tensor
+        """
         debugging.trace_tensor(f"{self.trace_tensor_key_prefix}{key}", tensors)
 
     def assert_not_nan(self, *ts: torch.Tensor):
@@ -227,7 +242,7 @@ class BaseLayer(nn.Module, metaclass=BaseLayerMetaClass):
             raise ValueError("Missing MLIR export path.")
 
         function_batch_sizes_map = self._get_function_batch_sizes_map()
-        from ..export import export_model_mlir
+        from sharktank.utils.export import export_model_mlir
 
         export_model_mlir(
             model=self,

@@ -6,6 +6,7 @@
 
 #include "./lib_ext.h"
 #include "./utils.h"
+#include "iree/base/internal/math.h"
 #include "shortfin/array/api.h"
 #include "shortfin/support/logging.h"
 #include "xtensor/xmath.hpp"
@@ -13,6 +14,114 @@
 #include "xtensor/xreducer.hpp"
 #include "xtensor/xsort.hpp"
 #include "xtl/xhalf_float.hpp"
+
+#ifndef FP8_HPP
+#define FP8_HPP
+
+#include <bit>
+#include <cstdint>
+#include <limits>
+#include <type_traits>
+
+struct float8_t {
+  uint8_t value;
+
+  float8_t() noexcept : value(0) {}
+
+  explicit float8_t(float f) noexcept {
+    value = iree_math_f32_to_f8e4m3fnuz(f);
+  }
+
+  template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> &&
+                                                    !std::is_same_v<T, float>>>
+  float8_t(T value) noexcept : float8_t(static_cast<float>(value)) {}
+
+  operator float() const noexcept {
+    // uint8_t temp = static_cast<uint8_t>(value);
+    return iree_math_f8e4m3fnuz_to_f32(value);
+  }
+
+  // Arithmetic operators (implemented via conversion to float)
+  float8_t operator+(const float8_t &other) const noexcept {
+    return float8_t(float(*this) + float(other));
+  }
+  float8_t operator-(const float8_t &other) const noexcept {
+    return float8_t(float(*this) - float(other));
+  }
+  float8_t operator*(const float8_t &other) const noexcept {
+    return float8_t(float(*this) * float(other));
+  }
+  float8_t operator/(const float8_t &other) const noexcept {
+    return float8_t(float(*this) / float(other));
+  }
+
+  float8_t &operator+=(const float8_t &other) noexcept {
+    *this = *this + other;
+    return *this;
+  }
+  float8_t &operator-=(const float8_t &other) noexcept {
+    *this = *this - other;
+    return *this;
+  }
+  float8_t &operator*=(const float8_t &other) noexcept {
+    *this = *this * other;
+    return *this;
+  }
+  float8_t &operator/=(const float8_t &other) noexcept {
+    *this = *this / other;
+    return *this;
+  }
+
+  // Comparison operators (using conversion to float)
+  bool operator==(const float8_t &other) const noexcept {
+    return float(*this) == float(other);
+  }
+  bool operator!=(const float8_t &other) const noexcept {
+    return !(*this == other);
+  }
+  bool operator<(const float8_t &other) const noexcept {
+    return float(*this) < float(other);
+  }
+  bool operator<=(const float8_t &other) const noexcept {
+    return float(*this) <= float(other);
+  }
+  bool operator>(const float8_t &other) const noexcept {
+    return float(*this) > float(other);
+  }
+  bool operator>=(const float8_t &other) const noexcept {
+    return float(*this) >= float(other);
+  }
+};
+
+// Mark float8_t as a trivial, standard-layout type so that xtensor can use
+// it.
+namespace std {
+template <>
+struct is_trivial<float8_t> : std::true_type {};
+template <>
+struct is_standard_layout<float8_t> : std::true_type {};
+template <>
+struct is_trivially_copyable<float8_t> : std::true_type {};
+}  // namespace std
+
+// Math functions needed by xtensor for float8_t
+inline float8_t round(float8_t x) noexcept {
+  return float8_t(std::round(float(x)));
+}
+
+inline float8_t ceil(float8_t x) noexcept {
+  return float8_t(std::ceil(float(x)));
+}
+
+inline float8_t floor(float8_t x) noexcept {
+  return float8_t(std::floor(float(x)));
+}
+
+inline float8_t trunc(float8_t x) noexcept {
+  return float8_t(std::trunc(float(x)));
+}
+
+#endif
 
 #ifndef BFLOAT16_HPP
 #define BFLOAT16_HPP
@@ -177,6 +286,38 @@ Returns:
   A device_array of dtype=int64, allocated on the host and not visible to the device.
 )";
 
+static const char DOCSTRING_EXP[] =
+    R"(Return the exp of the `input` array.
+
+Implemented for dtypes: float16, float32.
+
+Args:
+  input: An input array.
+  out: Array to write into. If specified, it must have an expected shape and
+    the same dtype as `input`.
+  device_visible: Whether to make the result array visible to devices. Defaults to
+    False.
+
+Returns:
+  A device_array of dtype=input.dtype(), allocated on the host and not visible to the device.
+)";
+
+static const char DOCSTRING_LOG[] =
+    R"(Return the log of the `input` array.
+
+Implemented for dtypes: float16, float32.
+
+Args:
+  input: An input array.
+  out: Array to write into. If specified, it must have an expected shape and
+    the same dtype as `input`.
+  device_visible: Whether to make the result array visible to devices. Defaults to
+    False.
+
+Returns:
+  A device_array of dtype=input.dtype(), allocated on the host and not visible to the device.
+)";
+
 static const char DOCSTRING_LOG_SOFTMAX[] =
     R"(Return the log of the softmax of the `input` array. Written to match
     the behavior of `torch.log_softmax`.
@@ -185,7 +326,25 @@ Implemented for dtypes: float16, float32.
 
 Args:
   input: An input array.
-  axis: Axis along which to sort. Defaults to the last axis.
+  axis: Axis along which to take log_softmax. Defaults to the last axis.
+  out: Array to write into. If specified, it must have an expected shape and
+    the same dtype as `input`.
+  device_visible: Whether to make the result array visible to devices. Defaults to
+    False.
+
+Returns:
+  A device_array of dtype=input.dtype(), allocated on the host and not visible to the device.
+)";
+
+static const char DOCSTRING_SOFTMAX[] =
+    R"(Return the softmax of the `input` array. Written to match
+    the behavior of `torch.softmax`.
+
+Implemented for dtypes: float16, float32.
+
+Args:
+  input: An input array.
+  axis: Axis along which to take softmax. Defaults to the last axis.
   out: Array to write into. If specified, it must have an expected shape and
     the same dtype as `input`.
   device_visible: Whether to make the result array visible to devices. Defaults to
@@ -348,6 +507,7 @@ struct ConvertFunctor {
   }
       switch (dtype) {
         SF_STORE_CASE(float16, half_float::half);
+        SF_STORE_CASE(float8_e4m3fnuz, float8_t);
         SF_STORE_CASE(bfloat16, bfloat16_t);
         SF_STORE_CASE(float32, float);
         SF_STORE_CASE(float64, double);
@@ -367,6 +527,7 @@ struct ConvertFunctor {
     };
 
     switch (input.dtype()) {
+      SF_UNARY_THUNK_CASE(float8_e4m3fnuz, float8_t);
       SF_UNARY_THUNK_CASE(float16, half_float::half);
       SF_UNARY_THUNK_CASE(bfloat16, bfloat16_t);
       SF_UNARY_THUNK_CASE(float32, float);
@@ -422,6 +583,7 @@ struct ConvertRoundFunctor {
     };
 
     switch (input.dtype()) {
+      SF_UNARY_THUNK_CASE(float8_e4m3fnuz, float8_t);
       SF_UNARY_THUNK_CASE(float16, half_float::half);
       SF_UNARY_THUNK_CASE(bfloat16, bfloat16_t);
       SF_UNARY_THUNK_CASE(float32, float);
@@ -467,6 +629,7 @@ struct ConvertCeilFunctor {
     };
 
     switch (input.dtype()) {
+      SF_UNARY_THUNK_CASE(float8_e4m3fnuz, float8_t);
       SF_UNARY_THUNK_CASE(float16, half_float::half);
       SF_UNARY_THUNK_CASE(bfloat16, bfloat16_t);
       SF_UNARY_THUNK_CASE(float32, float);
@@ -512,6 +675,7 @@ struct ConvertFloorFunctor {
     };
 
     switch (input.dtype()) {
+      SF_UNARY_THUNK_CASE(float8_e4m3fnuz, float8_t);
       SF_UNARY_THUNK_CASE(float16, half_float::half);
       SF_UNARY_THUNK_CASE(bfloat16, bfloat16_t);
       SF_UNARY_THUNK_CASE(float32, float);
@@ -557,6 +721,7 @@ struct ConvertTruncFunctor {
     };
 
     switch (input.dtype()) {
+      SF_UNARY_THUNK_CASE(float8_e4m3fnuz, float8_t);
       SF_UNARY_THUNK_CASE(float16, half_float::half);
       SF_UNARY_THUNK_CASE(bfloat16, bfloat16_t);
       SF_UNARY_THUNK_CASE(float32, float);
@@ -693,6 +858,10 @@ bfloat16_t ConvertPyToEltTy(py::handle py_value, bfloat16_t zero) {
   return static_cast<bfloat16_t>(py::cast<double>(py_value));
 }
 
+float8_t ConvertPyToEltTy(py::handle py_value, float8_t zero) {
+  return static_cast<float8_t>(py::cast<float>(py_value));
+}
+
 struct AddFunctor {
   template <typename Lhs, typename Rhs>
   static auto Invoke(Lhs &&lhs, Rhs &&rhs) {
@@ -777,6 +946,7 @@ device_array ElementwiseOperation(py::handle lhs, py::handle rhs,
   };
 
   switch (dtype) {
+    SF_UNARY_FUNCTION_CASE(float8_e4m3fnuz, float8_t);
     SF_UNARY_FUNCTION_CASE(float16, half_float::half);
     SF_UNARY_FUNCTION_CASE(bfloat16, bfloat16_t);
     SF_UNARY_FUNCTION_CASE(float32, float);
@@ -799,6 +969,7 @@ device_array ElementwiseOperation(py::handle lhs, py::handle rhs,
 
 void BindArrayHostOps(py::module_ &m) {
   // Simple op definitions.
+  // TODO (@stbaione:#1266) Add support for `fp8` model in `array_host_ops`
   m.def(
       "argmax",
       [](device_array &input, int axis, std::optional<device_array> out,
@@ -827,8 +998,8 @@ void BindArrayHostOps(py::module_ &m) {
           }
           return *out;
         };
-
         switch (input.dtype()) {
+          SF_UNARY_FUNCTION_CASE(float8_e4m3fnuz, float8_t);
           SF_UNARY_FUNCTION_CASE(float16, half_float::half);
           SF_UNARY_FUNCTION_CASE(bfloat16, bfloat16_t);
           SF_UNARY_FUNCTION_CASE(float32, float);
@@ -876,18 +1047,97 @@ void BindArrayHostOps(py::module_ &m) {
         };
 
         switch (input.dtype()) {
+          SF_UNARY_FUNCTION_CASE(float8_e4m3fnuz, float8_t);
           SF_UNARY_FUNCTION_CASE(float16, half_float::half);
           SF_UNARY_FUNCTION_CASE(bfloat16, bfloat16_t);
           SF_UNARY_FUNCTION_CASE(float32, float);
           default:
             throw std::invalid_argument(
-                fmt::format("Unsupported dtype({}) for operator argmax",
+                fmt::format("Unsupported dtype({}) for operator argpartition",
                             input.dtype().name()));
         }
       },
       py::arg("input"), py::arg("k"), py::arg("axis") = -1,
       py::arg("out") = py::none(), py::arg("device_visible") = false,
       DOCSTRING_ARGPARTITION);
+
+  m.def(
+      "exp",
+      [](device_array &input, std::optional<device_array> out,
+         bool device_visible) {
+        SHORTFIN_TRACE_SCOPE_NAMED("PyHostOp::log");
+        if (out && (out->dtype() != input.dtype())) {
+          throw std::invalid_argument(
+              fmt::format("out array must have dtype={} but got {}",
+                          input.dtype().name(), out->dtype().name()));
+        }
+        auto compute = [&]<typename EltTy>() {
+          auto input_t = input.map_xtensor<EltTy>();
+          auto result = xt::exp(*input_t);
+
+          if (!out) {
+            out.emplace(device_array::for_host(input.device(), result.shape(),
+                                               input.dtype(), device_visible));
+          }
+
+          auto out_t = out->map_xtensor_w<EltTy>();
+          *out_t = result;
+
+          return *out;
+        };
+
+        switch (input.dtype()) {
+          SF_UNARY_FUNCTION_CASE(float8_e4m3fnuz, float8_t);
+          SF_UNARY_FUNCTION_CASE(float16, half_float::half);
+          SF_UNARY_FUNCTION_CASE(bfloat16, bfloat16_t);
+          SF_UNARY_FUNCTION_CASE(float32, float);
+          default:
+            throw std::invalid_argument(
+                fmt::format("Unsupported dtype({}) for operator exp",
+                            input.dtype().name()));
+        }
+      },
+      py::arg("input"), py::arg("out") = py::none(),
+      py::arg("device_visible") = false, DOCSTRING_EXP);
+
+  m.def(
+      "log",
+      [](device_array &input, std::optional<device_array> out,
+         bool device_visible) {
+        SHORTFIN_TRACE_SCOPE_NAMED("PyHostOp::log");
+        if (out && (out->dtype() != input.dtype())) {
+          throw std::invalid_argument(
+              fmt::format("out array must have dtype={} but got {}",
+                          input.dtype().name(), out->dtype().name()));
+        }
+        auto compute = [&]<typename EltTy>() {
+          auto input_t = input.map_xtensor<EltTy>();
+          auto result = xt::log(*input_t);
+
+          if (!out) {
+            out.emplace(device_array::for_host(input.device(), result.shape(),
+                                               input.dtype(), device_visible));
+          }
+
+          auto out_t = out->map_xtensor_w<EltTy>();
+          *out_t = result;
+
+          return *out;
+        };
+
+        switch (input.dtype()) {
+          SF_UNARY_FUNCTION_CASE(float8_e4m3fnuz, float8_t);
+          SF_UNARY_FUNCTION_CASE(float16, half_float::half);
+          SF_UNARY_FUNCTION_CASE(bfloat16, bfloat16_t);
+          SF_UNARY_FUNCTION_CASE(float32, float);
+          default:
+            throw std::invalid_argument(
+                fmt::format("Unsupported dtype({}) for operator log",
+                            input.dtype().name()));
+        }
+      },
+      py::arg("input"), py::arg("out") = py::none(),
+      py::arg("device_visible") = false, DOCSTRING_LOG);
 
   m.def(
       "log_softmax",
@@ -935,12 +1185,65 @@ void BindArrayHostOps(py::module_ &m) {
           SF_UNARY_FUNCTION_CASE(float32, float);
           default:
             throw std::invalid_argument(
-                fmt::format("Unsupported dtype({}) for operator argmax",
+                fmt::format("Unsupported dtype({}) for operator log_softmax",
                             input.dtype().name()));
         }
       },
       py::arg("input"), py::arg("axis") = -1, py::arg("out") = py::none(),
       py::arg("device_visible") = false, DOCSTRING_LOG_SOFTMAX);
+
+  m.def(
+      "softmax",
+      [](device_array &input, int axis, std::optional<device_array> out,
+         bool device_visible) {
+        SHORTFIN_TRACE_SCOPE_NAMED("PyHostOp::softmax");
+        if (axis < 0) axis += input.shape().size();
+        if (axis < 0 || axis >= input.shape().size()) {
+          throw std::invalid_argument(
+              fmt::format("Axis out of range: Must be [0, {}) but got {}",
+                          input.shape().size(), axis));
+        }
+        if (out && (out->dtype() != input.dtype())) {
+          throw std::invalid_argument(
+              fmt::format("out array must have dtype={} but got {}",
+                          input.dtype().name(), out->dtype().name()));
+        }
+        auto compute = [&]<typename EltTy>() {
+          auto input_t = input.map_xtensor<EltTy>();
+
+          auto max_vals = xt::amax(*input_t, {axis});
+          xt::xarray<EltTy> max_vals_keep_dim = xt::expand_dims(max_vals, axis);
+
+          xt::xarray<EltTy> input_stable = *input_t - max_vals_keep_dim;
+
+          xt::xarray<EltTy> exp_input = xt::exp(input_stable);
+          auto sum_exp = xt::sum(exp_input, {axis});
+          xt::xarray<EltTy> sum_exp_expanded = xt::expand_dims(sum_exp, axis);
+
+          xt::xarray<EltTy> result = exp_input / sum_exp_expanded;
+
+          if (!out) {
+            out.emplace(device_array::for_host(input.device(), result.shape(),
+                                               input.dtype(), device_visible));
+          }
+
+          auto out_t = out->map_xtensor_w<EltTy>();
+          *out_t = result;
+
+          return *out;
+        };
+
+        switch (input.dtype()) {
+          SF_UNARY_FUNCTION_CASE(float16, half_float::half);
+          SF_UNARY_FUNCTION_CASE(float32, float);
+          default:
+            throw std::invalid_argument(
+                fmt::format("Unsupported dtype({}) for operator softmax",
+                            input.dtype().name()));
+        }
+      },
+      py::arg("input"), py::arg("axis") = -1, py::arg("out") = py::none(),
+      py::arg("device_visible") = false, DOCSTRING_SOFTMAX);
 
   // Random number generation.
   py::class_<PyRandomGenerator>(m, "RandomGenerator")
@@ -959,6 +1262,7 @@ void BindArrayHostOps(py::module_ &m) {
         };
 
         switch (out.dtype()) {
+          SF_UNARY_FUNCTION_CASE(float8_e4m3fnuz, float8_t);
           SF_UNARY_FUNCTION_CASE(float16, half_float::half);
           SF_UNARY_FUNCTION_CASE(bfloat16, bfloat16_t);
           SF_UNARY_FUNCTION_CASE(float32, float);

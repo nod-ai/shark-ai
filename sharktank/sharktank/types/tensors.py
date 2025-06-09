@@ -4,6 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import os
 from typing import (
     Any,
     Callable,
@@ -15,11 +16,11 @@ from typing import (
     Iterable,
     List,
     Tuple,
+    overload,
 )
 from copy import deepcopy
 from collections.abc import Collection, Sequence
 from numbers import Integral, Number
-import os
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -29,14 +30,14 @@ from torch import Tensor
 import torch._subclasses.functional_tensor
 from torch.utils._pytree import register_pytree_node, SequenceKey
 import torch.utils._pytree
-from ..utils.math import ceildiv
+from sharktank.utils.math import ceildiv
+from sharktank.utils import tree as tree_utils
+from sharktank.utils.io import ShardedArchiveBuilder
 from iree.turbine.aot import (
     DeviceTensorTrait,
     ExternalTensorTrait,
 )
-from ..utils import tree as tree_utils
 
-from ..utils.io import ShardedArchiveBuilder
 
 __all__ = [
     "AnyTensor",
@@ -45,6 +46,7 @@ __all__ = [
     "dtype_to_serialized_short_name",
     "flatten_tensor_tree",
     "InferenceTensor",
+    "is_any_tensor",
     "MetaDataValueType",
     "PlanarQuantizedTensor",
     "PrimitiveTensor",
@@ -241,7 +243,7 @@ class InferenceTensor(ABC):
         """Adds this tensor to the global archive."""
         ...
 
-    def is_deep_equal(self, other: Any) -> bool:
+    def is_deep_equal(self, other: Any, *, compare_name: bool = True) -> bool:
         """Deep equality including metadata and exact equality of tensor elements.
         It is a representational equality."""
         raise NotImplementedError()
@@ -274,18 +276,68 @@ class InferenceTensor(ABC):
             prev_globals = next_globals
         return self._clone_with_globals(prev_globals)
 
+    @overload
     def to(
         self,
+        device: str | torch.device | None = None,
+        dtype: torch.dtype | None = None,
+        non_blocking: bool = False,
+        copy: bool = False,
         *,
-        device: Optional[Union[str, torch.device]] = None,
+        memory_format: torch.memory_format = torch.preserve_format,
     ) -> "InferenceTensor":
-        # TODO: reconcile with ops.to(...) and torch.Tensor.to(...).
-        # Do we always want to clone with globals?
-        # This makes our type inconsistent with torch tensors.
-        # If we use this to transform a theta we want to change the theta.
-        # If we want to use this in a computation we don't want to change the theta.
-        return self.transform_globals(
-            lambda d: {k: t.to(device=device) for k, t in d.items()}
+        ...
+
+    @overload
+    def to(
+        self,
+        other: "AnyTensor",
+        non_blocking: bool = False,
+        copy: bool = False,
+        *,
+        memory_format: torch.memory_format = torch.preserve_format,
+    ) -> "InferenceTensor":
+        ...
+
+    @overload
+    def to(
+        self,
+        dtype: torch.dtype,
+        non_blocking: bool = False,
+        copy: bool = False,
+        *,
+        memory_format: torch.memory_format = torch.preserve_format,
+    ) -> "InferenceTensor":
+        ...
+
+    def to(self, *args, **kwargs) -> "InferenceTensor":
+        arg0 = args[0] if len(args) > 0 else None
+        device_overload = ("device" in kwargs) or isinstance(arg0, (str, torch.device))
+        other_overload = ("other" in kwargs) or isinstance(arg0, AnyTensor)
+        memory_overload = (
+            ("memory_format" in kwargs)
+            or ("dtype" in kwargs)
+            or isinstance(arg0, torch.dtype)
+        )
+
+        if device_overload:
+            # Do we always want to clone with globals?
+            # This makes our type inconsistent with torch tensors.
+            # If we use this to transform a theta we want to change the theta.
+            # If we want to use this in a computation we don't want to change the theta.
+            return self.transform_globals(
+                lambda d: {k: t.to(*args, **kwargs) for k, t in d.items()}
+            )
+        elif other_overload:
+            args = tuple([arg0.device, arg0.dtype] + list(args[1:]))
+            return self.to(*args, **kwargs)
+        elif memory_overload:
+            from sharktank.ops import to
+
+            return to(self, *args, **kwargs)
+
+        raise ValueError(
+            f"Could not idenify which overload to use given args, and kwargs: {args}{kwargs}"
         )
 
     def _clone_with_globals(
@@ -297,7 +349,7 @@ class InferenceTensor(ABC):
 
     @property
     def T(self) -> "InferenceTensor":
-        from ..ops import permute
+        from sharktank.ops import permute
 
         # Reverse the dimension range.
         rank = len(self.shape)
@@ -307,11 +359,27 @@ class InferenceTensor(ABC):
         return permute(self, dims=dims)
 
     @property
+    def mT(self) -> "AnyTensor":
+        from sharktank.ops import transpose
+
+        return transpose(self, -2, -1)
+
+    def bool(self) -> "InferenceTensor":
+        from sharktank.ops import to
+
+        return to(self, dtype=torch.bool)
+
+    @property
+    def device(self) -> torch.device:
+        """Equivalent to torch.Tensor.device."""
+        raise NotImplementedError()
+
+    @property
     def dtype(self) -> torch.dtype:
         raise NotImplementedError()
 
     def expand(self, *args: Union[List[List[int]], List[int]]) -> "AnyTensor":
-        from ..ops import expand
+        from sharktank.ops import expand
 
         if all(isinstance(a, int) for a in args):
             shape = args
@@ -321,21 +389,21 @@ class InferenceTensor(ABC):
         return expand(self, shape)
 
     def flatten(self, start_dim: int = 0, end_dim: int = -1) -> "AnyTensor":
-        from ..ops import flatten
+        from sharktank.ops import flatten
 
         return flatten(self, start_dim, end_dim)
 
     def index_copy_(
         self, dim: int, index: "AnyTensor", tensor: "AnyTensor"
     ) -> "InferenceTensor":
-        from ..ops import index_copy_
+        from sharktank.ops import index_copy_
 
         return index_copy_(self, dim, index, tensor)
 
     def index_put_(
         self, indices: Tuple["AnyTensor"], values: "AnyTensor"
     ) -> "InferenceTensor":
-        from ..ops import index_put_
+        from sharktank.ops import index_put_
 
         return index_put_(self, indices, values)
 
@@ -344,9 +412,14 @@ class InferenceTensor(ABC):
         dim: int,
         index: "AnyTensor",
     ) -> "InferenceTensor":
-        from ..ops import index_select
+        from sharktank.ops import index_select
 
         return index_select(self, dim, index)
+
+    def masked_fill(self, mask: "AnyTensor", value: Number) -> "InferenceTensor":
+        from sharktank.ops import masked_fill
+
+        return masked_fill(self, mask, value)
 
     def mean(
         self,
@@ -355,62 +428,118 @@ class InferenceTensor(ABC):
         *,
         dtype: torch.dtype = None,
     ) -> "AnyTensor":
-        from ..ops import mean
+        from sharktank.ops import mean
 
         return mean(self, dim, keepdim, dtype=None)
 
     def pow(self, exponent: Union["AnyTensor", Number]) -> "AnyTensor":
-        from ..ops import elementwise
+        from sharktank.ops import elementwise
 
         return elementwise(torch.pow, self, exponent)
 
     def repeat(self, *sizes: List[int]) -> "AnyTensor":
-        from ..ops import repeat
+        from sharktank.ops import repeat
 
         return repeat(self, *sizes)
 
     def reshape(self, *args: Union[List[List[int]], List[int]]) -> "AnyTensor":
-        from ..ops import reshape
+        from sharktank.ops import reshape
 
-        if all(isinstance(a, int) for a in args):
+        if all(isinstance(a, (int, torch.SymInt)) for a in args):
             shape = args
         else:
             assert len(args) == 1
             shape = args[0]
         return reshape(self, shape)
 
+    def scatter_(
+        self,
+        dim: int,
+        index: "AnyTensor",
+        src: Union["AnyTensor", Number],
+        *,
+        reduce=None,
+    ) -> "AnyTensor":
+        from sharktank.ops import scatter_
+
+        return scatter_(self, dim, index, src, reduce=reduce)
+
+    def scatter_add(
+        self, dim: int, index: "AnyTensor", src: "AnyTensor"
+    ) -> "AnyTensor":
+        from sharktank.ops import scatter_add
+
+        return scatter_add(self, dim, index, src)
+
+    def sigmoid(self) -> "AnyTensor":
+        from sharktank.ops import sigmoid
+
+        return sigmoid(self)
+
     def size(self, dim: Optional[int] = None) -> tuple[int]:
         if dim is None:
             return tuple(self.shape)
         return self.shape[dim]
 
+    def softmax(
+        self, dim: Optional[int] = None, dtype: Optional[torch.dtype] = None
+    ) -> "AnyTensor":
+        from sharktank.ops import softmax
+
+        return softmax(self, dim, dtype=dtype)
+
+    def split(
+        self, split_size_or_sections: int | list[int], dim: int = 0
+    ) -> tuple["AnyTensor", ...]:
+        from sharktank.ops import split
+
+        return split(self, split_size_or_sections, dim)
+
     def squeeze(self, dim: Optional[int] = None) -> "AnyTensor":
-        from ..ops import squeeze
+        from sharktank.ops import squeeze
 
         return squeeze(self, dim)
 
     def squeeze(self, dim: Optional[int] = None) -> "AnyTensor":
-        from ..ops import squeeze
+        from sharktank.ops import squeeze
 
         return squeeze(self, dim)
+
+    def sum(
+        self,
+        dim: Union[int, List[int]],
+        keepdim: bool = False,
+        *,
+        dtype: torch.dtype = None,
+    ) -> "AnyTensor":
+        from sharktank.ops import sum
+
+        return sum(self, dim=dim, keepdim=keepdim, dtype=dtype)
+
+    def topk(
+        self, k: int, dim: int, largest: bool = True, sorted: bool = True
+    ) -> Tuple["AnyTensor"]:
+        from sharktank.ops import topk
+
+        return topk(self, k, dim, largest, sorted)
 
     def transpose(self, dim0: int, dim1: int) -> "AnyTensor":
-        from ..ops import transpose
+        from sharktank.ops import transpose
 
         return transpose(self, dim0, dim1)
 
     def unflatten(self, dim: int, sizes: Tuple[int]) -> "AnyTensor":
-        from ..ops import unflatten
+        from sharktank.ops import unflatten
 
         return unflatten(self, dim, sizes)
 
     def unsqueeze(self, dim: int) -> "AnyTensor":
-        from ..ops import unsqueeze
+        from sharktank.ops import unsqueeze
 
         return unsqueeze(self, dim)
 
     def view(self, *args: Union[List[List[int]], List[int]]) -> "AnyTensor":
-        from ..ops import view
+        from sharktank.ops import view
 
         if all(isinstance(a, int) or isinstance(a, torch.SymInt) for a in args):
             shape = args
@@ -419,8 +548,14 @@ class InferenceTensor(ABC):
             shape = args[0]
         return view(self, shape)
 
+    def __gt__(self, lhs: Union["AnyTensor", Number]) -> "AnyTensor":
+        from sharktank.ops import elementwise
+        from operator import gt
+
+        return elementwise(gt, self, lhs)
+
     def __add__(self, rhs):
-        from ..ops import elementwise
+        from sharktank.ops import elementwise
 
         return elementwise(torch.add, self, rhs)
 
@@ -430,12 +565,12 @@ class InferenceTensor(ABC):
         return self.__add__(lhs)
 
     def __mod__(self, rhs):
-        from ..ops import elementwise
+        from sharktank.ops import elementwise
 
         return elementwise(torch.remainder, self, rhs)
 
     def __mul__(self, rhs):
-        from ..ops import elementwise
+        from sharktank.ops import elementwise
 
         return elementwise(torch.mul, self, rhs)
 
@@ -445,19 +580,26 @@ class InferenceTensor(ABC):
         return self.__mul__(lhs)
 
     def __truediv__(self, rhs):
-        from ..ops import elementwise
+        from sharktank.ops import elementwise
 
         return elementwise(torch.true_divide, self, rhs)
 
     def __floordiv__(self, rhs):
-        from ..ops import elementwise
+        from sharktank.ops import elementwise
 
         return elementwise(torch.floor_divide, self, rhs)
 
     def __getitem__(self, key):
-        from ..ops import get_index
+        from sharktank.ops import get_index
 
         return get_index(self, key)
+
+    def _is_deep_equal(self, other: Any, compare_name: bool = True) -> bool:
+        if self.shape != other.shape:
+            return False
+        if compare_name and self.name != other.name:
+            return False
+        return True
 
 
 REGISTERED_INFERENCE_TENSOR_CLASSES: dict[str, Type[InferenceTensor]] = {}
@@ -497,6 +639,10 @@ class PrimitiveTensor(InferenceTensor):
         the logical arrangement of the data.
         """
         ...
+
+    @property
+    def device(self) -> torch.device:
+        return self.as_torch().device
 
     @property
     def dtype(self) -> torch.dtype:
@@ -561,6 +707,9 @@ class DefaultPrimitiveTensor(PrimitiveTensor):
     ) -> "InferenceTensor":
         return DefaultPrimitiveTensor(name=self.name, data=new_globals[self.name])
 
+    def __invert__(self):
+        return DefaultPrimitiveTensor(data=~self._data, name=self.name)
+
     def __getitem__(self, key):
         keys = [key]
         if isinstance(key, tuple) or isinstance(key, list):
@@ -575,10 +724,10 @@ class DefaultPrimitiveTensor(PrimitiveTensor):
     def __repr__(self):
         return f"PrimitiveTensor({self.name}, {self.shape}, {self._data.dtype})"
 
-    def is_deep_equal(self, other: Any) -> bool:
+    def is_deep_equal(self, other: Any, *, compare_name: bool = True) -> bool:
         if not isinstance(other, DefaultPrimitiveTensor):
             return False
-        if self.shape != other.shape or self.name != other.name:
+        if not self._is_deep_equal(other, compare_name=compare_name):
             return False
         return torch.equal(self.as_torch(), other.as_torch())
 
@@ -774,6 +923,17 @@ class ShardedTensor(InferenceTensor):
             for i, t in enumerate(ts)
         )
 
+    def __invert__(self):
+        return self.clone(ts=[~t for t in self._shards])
+
+    @property
+    def device(self) -> torch.device:
+        assert all(s.device == self.shards[0].device for s in self.shards), (
+            "TODO: figure out what do do if shards are placed on different Torch "
+            "devices. This is only relevant for eager execution."
+        )
+        return self.shards[0].as_torch().device
+
     @property
     def devices(self) -> Tuple[int]:
         return self._devices
@@ -819,7 +979,7 @@ class ShardedTensor(InferenceTensor):
         old_devices: Tuple[int, ...],
         new_devices: Tuple[int, ...],
     ) -> Tuple[DefaultPrimitiveTensor, ...]:
-        from ..ops import transfer_to_logical_device, barrier_on_logical_device
+        from sharktank.ops import transfer_to_logical_device, barrier_on_logical_device
 
         new_shard_tensors = tuple(
             (
@@ -888,13 +1048,12 @@ class ShardedTensorBase(ShardedTensor):
             extra_properties=extra_properties,
         )
 
-    @classmethod
     def _clone_with_globals(
         self, new_globals: dict[str, torch.Tensor]
     ) -> "InferenceTensor":
         ts = []
         for k in self.globals.keys():
-            ts.append(new_globals[ts[k]])
+            ts.append(new_globals[k])
         return self.__class__(
             name=self.name,
             shape=self.shape,
@@ -942,15 +1101,12 @@ class ShardedTensorBase(ShardedTensor):
             f"of {self.shards[0].shape})"
         )
 
-    def is_deep_equal(self, other: Any) -> bool:
+    def is_deep_equal(self, other: Any, compare_name: bool = True) -> bool:
         if type(self) != type(other):
             return False
-        if (
-            self.shard_count != other.shard_count
-            or self.shard_dim != other.shard_dim
-            or self.name != other.name
-            or self.shape != other.shape
-        ):
+        if self.shard_count != other.shard_count or self.shard_dim != other.shard_dim:
+            return False
+        if not self._is_deep_equal(other, compare_name=compare_name):
             return False
         return all(a.is_deep_equal(b) for a, b in zip(self.shards, other.shards))
 
@@ -1031,12 +1187,15 @@ class SplitPrimitiveTensor(ShardedTensorBase):
             devices = tuple(range(num_shards))
 
         if isinstance(ts, torch.Tensor):
-            from ..ops import transfer_to_logical_device
+            from sharktank.ops import transfer_to_logical_device
 
             assert shard_count is not None
             assert (
                 shard_count > 1
             ), "SplitTensor must have at least 2 shards. Use ReplicatedTensor for 1 shard."
+            assert (
+                ts.shape[shard_dim] >= shard_count
+            ), f"Cannot split dimension {shard_dim} of size {ts.shape[shard_dim]} into {shard_count} shards"
             ts = ts.split(ceildiv(ts.shape[shard_dim], shard_count), dim=shard_dim)
             ts = [transfer_to_logical_device(t, devices[i]) for i, t in enumerate(ts)]
             assert len(ts) == shard_count
@@ -1199,7 +1358,7 @@ class ReplicatedTensor(ShardedTensor):
 
         if isinstance(ts, torch.Tensor):
             assert shard_count is not None
-            from ..ops import transfer_to_logical_device
+            from sharktank.ops import transfer_to_logical_device
 
             ts = [
                 transfer_to_logical_device(ts, devices[i]) for i in range(shard_count)
@@ -1256,10 +1415,9 @@ class ReplicatedTensor(ShardedTensor):
     ) -> "InferenceTensor":
         ts = []
         for k in self.globals.keys():
-            ts.append(new_globals[ts[k]])
+            ts.append(new_globals[k])
         return ReplicatedTensor(
             name=self.name,
-            shape=self.shape,
             ts=ts,
             devices=self.devices,
         )
@@ -1311,17 +1469,13 @@ class ReplicatedTensor(ShardedTensor):
             f"of {self.shards[0].shape})"
         )
 
-    def is_deep_equal(self, other: Any) -> bool:
+    def is_deep_equal(self, other: Any, *, compare_name: bool = True) -> bool:
         if not isinstance(other, ReplicatedTensor):
             return False
-        if (
-            self.shard_count != other.shard_count
-            or self.name != other.name
-            or self.shape != other.shape
-        ):
+        if self.shard_count != other.shard_count:
             return False
-        if self.shard_count == 0:
-            return True
+        if not self._is_deep_equal(other, compare_name=compare_name):
+            return False
         return self.shards[0].is_deep_equal(other.shards[0])
 
 
@@ -1358,6 +1512,10 @@ class UnreducedTensor(ShardedTensorBase):
         return UnreducedTensor(**kwargs)
 
 
+def is_any_tensor(x: Any) -> bool:
+    return isinstance(x, (InferenceTensor, torch.Tensor))
+
+
 def flatten_tensor_tree(
     tree: tree_utils.Tree,
 ) -> Iterable[torch.Tensor | InferenceTensor]:
@@ -1382,6 +1540,10 @@ def unbox_tensor(t: Any) -> Tensor:
         return t.as_torch()
     elif isinstance(t, QuantizedTensor):
         return t.unpack().dequant()
+    elif isinstance(t, ShardedTensor):
+        from .. import ops
+
+        return unbox_tensor(ops.unshard(t))
     raise ValueError(f"Expected a Tensor or PrimitiveTensor but got {type(t)}")
 
 

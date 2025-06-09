@@ -17,7 +17,6 @@ iree_compile_flags = [
     "--iree-vm-target-truncate-unsupported-floats",
     "--iree-llvmgpu-enable-prefetch=true",
     "--iree-opt-data-tiling=false",
-    "--iree-codegen-gpu-native-math-precision=true",
     "--iree-codegen-llvmgpu-use-vector-distribution=1",
     "--iree-hip-waves-per-eu=2",
     "--iree-execution-model=async-external",

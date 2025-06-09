@@ -41,9 +41,10 @@ def _results_callback(token: int | List[int]):
 
 
 def test_build_token_selector_config():
-    strategy = token_selection_strategy.TokenSelectionStrategy.GREEDY
+    strategy = token_selection_strategy.TokenSelectionStrategy.INDEPENDENT
     decode_config = token_selection_strategy.DecodeConfig(
         token_selection_strategy=strategy,
+        max_completion_tokens=42,
     )
 
     config = token_selection_strategy.build_token_selector_config(
@@ -52,14 +53,13 @@ def test_build_token_selector_config():
         decode_batcher=FakeBatcher(_batcher_callback, _batcher_workitem_callback),
         results_callback=_results_callback,
         eos_token_id=0,
-        max_completion_tokens=42,
     )
 
     assert config.prefill_callback == _batcher_callback
     assert config.decode_callback == _batcher_callback
     assert config.results_callback == _results_callback
     assert config.eos_token_id == 0
-    assert config.max_completion_tokens == 42
+    assert config.decode_config.max_completion_tokens == 42
 
     with pytest.raises(NotImplementedError):
         decode_config.token_selection_strategy = "NotImplemented"
@@ -69,15 +69,15 @@ def test_build_token_selector_config():
             decode_batcher=FakeBatcher(_batcher_callback, _batcher_workitem_callback),
             results_callback=_results_callback,
             eos_token_id=0,
-            max_completion_tokens=42,
         )
 
 
 def test_build_token_selector():
-    strategy = token_selection_strategy.TokenSelectionStrategy.GREEDY
+    strategy = token_selection_strategy.TokenSelectionStrategy.INDEPENDENT
 
     decode_config = token_selection_strategy.DecodeConfig(
         token_selection_strategy=strategy,
+        max_completion_tokens=42,
     )
     config = token_selection_strategy.build_token_selector_config(
         decode_config,
@@ -85,12 +85,10 @@ def test_build_token_selector():
         decode_batcher=FakeBatcher(_batcher_callback, _batcher_workitem_callback),
         results_callback=_results_callback,
         eos_token_id=0,
-        max_completion_tokens=42,
     )
     token_selector = token_selection_strategy.build_token_selector(
         config,
     )
-    assert token_selector._token_selection_strategy_config == config
     assert token_selector.token_selection_strategy_config == config
 
     with pytest.raises(NotImplementedError):
@@ -123,10 +121,11 @@ async def test_prefill(
     def _results_callback(token: int):
         results_array.append(token)
 
-    strategy = token_selection_strategy.TokenSelectionStrategy.GREEDY
+    strategy = token_selection_strategy.TokenSelectionStrategy.INDEPENDENT
 
     decode_config = token_selection_strategy.DecodeConfig(
         token_selection_strategy=strategy,
+        max_completion_tokens=1,
     )
 
     config = token_selection_strategy.build_token_selector_config(
@@ -135,7 +134,6 @@ async def test_prefill(
         decode_batcher=FakeBatcher(_batcher_callback, _batcher_workitem_callback),
         results_callback=_results_callback,
         eos_token_id=0,
-        max_completion_tokens=1,
     )
     dummy_token_selection_strategy._token_selection_strategy_config = config
     await dummy_token_selection_strategy.prefill(exec_req)
@@ -148,8 +146,8 @@ async def test_prefill(
 def test_decode_config():
     num_beams = 42
     for strategy in [
-        token_selection_strategy.TokenSelectionStrategy.GREEDY,
-        token_selection_strategy.TokenSelectionStrategy.MULTI_GREEDY,
+        token_selection_strategy.TokenSelectionStrategy.INDEPENDENT,
+        token_selection_strategy.TokenSelectionStrategy.BEAM_SEARCH,
     ]:
         decode_config = token_selection_strategy.DecodeConfig(num_beams, strategy)
         assert decode_config.num_beams == 42
@@ -159,7 +157,7 @@ def test_decode_config():
 def test_decode_config_str():
     # Str conversion at init
     num_beams = 42
-    for strategy_str in ["greedy", "multi_greedy"]:
+    for strategy_str in ["independent", "beam_search"]:
         decode_config = token_selection_strategy.DecodeConfig(num_beams, strategy_str)
         assert decode_config.num_beams == num_beams
         assert (

@@ -5,15 +5,21 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import logging
+import numpy as np
+from typing import Union
+
+import shortfin.array as sfnp
 
 from abc import ABC, abstractmethod
 from asyncio import gather
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Set
 from uuid import uuid4
 
+from .base_token_selection_strategy import DecodeConfig
+from .config import LogitsNormalization
+from .sampler import Sampler
 from ..messages import LlmInferenceExecRequest
-
 
 logger = logging.getLogger(__name__)
 
@@ -24,14 +30,132 @@ logger = logging.getLogger(__name__)
 class Beam(ABC):
     exec_req: LlmInferenceExecRequest
 
+    decode_config: DecodeConfig
+
+    sampler: Sampler = field(default_factory=Sampler)
+
     score: float = 0.0
     accumulated_normalization: float = 0.0
     last_token: int | None = None
+
+    def apply_temperature(self, logits: np.array) -> np.array:
+        """Apply temperature to the logits of a decode invocation.
+
+        Args:
+            temperature (float): Value to use for `temperature`.
+        """
+        if self.decode_config.temperature == 1.0:
+            return logits
+        return np.divide(logits, self.decode_config.temperature)
+
+    def _softmax(self, logits: Union[np.array, sfnp.device_array]) -> np.array:
+        if isinstance(logits, sfnp.device_array):
+            logits = np.array(logits)
+
+        x_max = np.max(logits)
+        e_x = np.exp(logits - x_max)
+        return e_x / np.sum(e_x)
+
+    def _log_softmax(self, logits: Union[np.array, sfnp.device_array]) -> np.array:
+        if isinstance(logits, sfnp.device_array):
+            logits = np.array(logits)
+
+        c = logits.max()
+        shifted_logits = logits - c
+        sumexp = np.log(np.exp(shifted_logits).sum())
+        return shifted_logits - sumexp
+
+    def convert_logits_normalization(
+        self,
+        current: LogitsNormalization,
+        target: LogitsNormalization,
+        logits: np.array,
+        **kwargs,
+    ) -> np.array:
+        logits_conversion_map = {
+            LogitsNormalization.NONE: {
+                LogitsNormalization.LOG_SOFTMAX: self._log_softmax,
+                LogitsNormalization.SOFTMAX: self._softmax,
+                LogitsNormalization.NONE: lambda logits: logits,
+            },
+            LogitsNormalization.SOFTMAX: {
+                LogitsNormalization.LOG_SOFTMAX: np.log,
+                LogitsNormalization.SOFTMAX: lambda logits: logits,
+            },
+            LogitsNormalization.LOG_SOFTMAX: {
+                LogitsNormalization.SOFTMAX: np.exp,
+                LogitsNormalization.LOG_SOFTMAX: lambda logits: logits,
+            },
+        }
+
+        target_conversions = logits_conversion_map.get(current)
+        if target_conversions is None:
+            raise KeyError(f"Cannot convert current normalization: {current}")
+
+        conversion_function = target_conversions.get(target)
+        if conversion_function is None:
+            raise KeyError(f"Cannot convert {current} to {target}")
+
+        if kwargs:
+            converted_logits = conversion_function(logits, **kwargs)
+        else:
+            converted_logits = conversion_function(logits)
+
+        return converted_logits
 
     @abstractmethod
     def sample_logits(self):
         """Define how to sample and select tokens for a give `Beam`"""
         pass
+
+    def _to_softmax(
+        self,
+        values: np.array,
+        logits_normalization: LogitsNormalization,
+    ):
+        probs = self.convert_logits_normalization(
+            logits_normalization,
+            LogitsNormalization.SOFTMAX,
+            values,
+        )
+
+        return probs
+
+    def _sample_logits_top_k(
+        self,
+        logits: np.array,
+        indices: Union[np.array, None],
+        top_k: int,
+        num_selections: int,
+    ):
+        tokens, values = self.sampler.select_top_k(logits, indices, -top_k)
+
+        probs = self._to_softmax(
+            values,
+            self.decode_config.logits_normalization,
+        )
+
+        if indices is None:
+            sorted_order = np.argsort(probs)[::-1]
+            tokens = tokens[sorted_order]
+            probs = probs[sorted_order]
+
+        return self.sampler.sample_top_k(
+            tokens=tokens,
+            probs=probs,
+            k=num_selections,
+        )
+
+    def _sample_logits_top_p(
+        self, tokens, probs, top_p, num_selections, return_probs: bool = False
+    ):
+        return self.sampler.sample_top_p(
+            tokens=tokens,
+            probs=probs,
+            p=top_p,
+            k=num_selections,
+            return_probs=return_probs,
+        )
 
     @abstractmethod
     def update_score(self, value: float):
@@ -79,6 +203,10 @@ class BeamGroup:
         self.active_beams = beams
         self.selection_callback = selection_callback
         self.completed_beams: List[Beam] = []
+
+    @property
+    def active_beam_count(self):
+        return len(self.active_beams)
 
     async def wait(self):
         done_signals = [beam.exec_req.done for beam in self.active_beams]

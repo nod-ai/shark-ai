@@ -6,7 +6,9 @@
 
 import logging
 
-
+from dataclasses import dataclass
+from typing import List
+from threading import Lock
 import shortfin as sf
 
 
@@ -20,10 +22,10 @@ from .kvcache.page_pool import PagePoolConfig, PagePool
 from .manager import LlmSystemManager
 from .service_debug_dumper import SERVICE_DEBUG_DUMPER
 from .tokenizer import Tokenizer
-from .token_selection_strategy import get_strategy_from_str, is_ref_counted
+from .token_selection_strategy import is_multi_response
 
 from ...utils import GenerateService
-
+from .fiber_pool import FiberPool
 
 logger = logging.getLogger(__name__)
 
@@ -44,33 +46,80 @@ class LlmGenerateService(GenerateService):
         model_params: ModelParams,
         server_params: "ServerParams",
         program_isolation: str = "per_call",
+        max_queue_size: int = 3,  # Maximum number of requests in queue
     ):
         super().__init__(sysman)
         self.name = name
         self.tokenizer = tokenizer
         self.model_params = model_params
         self.server_params = server_params
+        self.max_queue_size = max_queue_size
+        self.current_queue_size = 0
+        self.main_fiber_pool = FiberPool(
+            self.sysman, self.max_queue_size, resizable=True
+        )
 
         self.set_isolation(program_isolation)
-        self.initialize_worker_and_fiber()
-        self.initialize_page_cache()
+        self._initialize_worker_and_fiber()
+        self._initialize_queues()
+        self._initialize_page_cache()
+        self._lock = Lock()
 
-    def initialize_worker_and_fiber(self):
-        self.main_worker = self.sysman.ls.create_worker(f"{self.name}-inference")
+    def _initialize_queues(self):
+        """Initialize request and response queues"""
+        if self.model_params.decode_batch_sizes:
+            self.max_queue_size = max(self.model_params.decode_batch_sizes)
+            logger.debug(f"Max queue size: {self.max_queue_size}")
+
+    def add_to_queue(self, num_beams: int) -> bool:
+        """Try to add a request to the queue. Returns True if successful, False if queue is full."""
+        with self._lock:
+            if self.current_queue_size >= self.max_queue_size:
+                return False
+            self.current_queue_size += num_beams
+            logger.debug(f"Adding to queue, queue size: {self.current_queue_size}")
+            return True
+
+    def remove_from_queue(self, num_beams: int):
+        """Remove a request from the queue."""
+        with self._lock:
+            if self.current_queue_size >= num_beams:
+                self.current_queue_size -= num_beams
+                logger.debug(
+                    f"Removing from queue, queue size: {self.current_queue_size}"
+                )
+
+    def _initialize_worker_and_fiber(self):
+        num_workers = self.server_params.workers
+        fibers_per_worker = self.server_params.fibers_per_worker
+
+        logger.info(
+            f"Creating {num_workers} workers, with {fibers_per_worker} fibers per worker..."
+        )
+
+        self.main_worker = self.sysman.ls.create_worker(f"{self.name}-inference-main-0")
         self.main_fiber = self.sysman.ls.create_fiber(self.main_worker)
-        self.prefill_fiber = self.sysman.ls.create_fiber(self.main_worker)
-        self.decode_fiber = self.sysman.ls.create_fiber(self.main_worker)
 
-    def initialize_page_cache(self):
+        self.prefill_worker = self.sysman.ls.create_worker(
+            f"{self.name}-inference-prefill-0"
+        )
+        self.prefill_fiber = self.sysman.ls.create_fiber(self.prefill_worker)
+
+        self.decode_worker = self.sysman.ls.create_worker(
+            f"{self.name}-inference-decode-0"
+        )
+        self.decode_fiber = self.sysman.ls.create_fiber(self.decode_worker)
+
+        self.devices = self.prefill_fiber.devices_dict.values()
+
+    def _initialize_page_cache(self):
         """Initialize page pool and attention cache."""
         page_pool_config = PagePoolConfig(
-            dtype=self.model_params.attn_dtype,
+            dtype=self.model_params.paged_kv_cache.kv_cache_dtype,
             alloc_page_count=self.model_params.paged_kv_cache.device_block_count,
             paged_kv_block_size_elements=self.model_params.paged_kv_block_size_elements,
         )
-        page_pool = PagePool(
-            devices=self.main_fiber.devices_dict.values(), config=page_pool_config
-        )
+        page_pool = PagePool(devices=self.devices, config=page_pool_config)
 
         if self.server_params.prefix_sharing_algorithm == "trie":
             self.page_cache = TriePagedAttentionCache(
@@ -81,8 +130,8 @@ class LlmGenerateService(GenerateService):
             self.page_cache = BasePagedAttentionCache(
                 page_pool=page_pool,
                 tokens_per_page=self.model_params.paged_kv_cache.block_seq_stride,
-                use_ref_counts=is_ref_counted(
-                    self.server_params.decode_config.token_selection_strategy
+                use_ref_counts=is_multi_response(
+                    self.server_params.decode_config,
                 ),
             )
         else:
@@ -102,6 +151,7 @@ class LlmGenerateService(GenerateService):
             self.page_cache,
             self.model_params,
             self.prefill_functions,
+            self.prog_isolation,
         )
 
         self.decode_batcher = DecodeBatcherProcess(
@@ -109,6 +159,7 @@ class LlmGenerateService(GenerateService):
             self.page_cache,
             self.model_params,
             self.decode_functions,
+            self.prog_isolation,
         )
 
         self.prefill_batcher.launch()

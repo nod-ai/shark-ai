@@ -7,18 +7,17 @@
 """MMDIT Layers adapted from black-forest-labs' flux implementation
 https://github.com/black-forest-labs/flux/blob/main/src/flux/modules/layers.py
 """
+import functools
 
-import torch.nn.functional as F
 import torch
+import torch.nn.functional as F
 from torch import Tensor
 
-from .. import ops
-
-from .base import Theta, ThetaLayer
+from sharktank import ops
+from .base import ThetaLayer
 from .linear import LinearLayer
 from .modulation import ModulationLayer
 from .norm import RMSNormLayer
-import functools
 
 
 def qk_norm(q, k, v, rms_q, rms_k):

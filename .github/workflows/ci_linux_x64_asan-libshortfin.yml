@@ -32,8 +32,8 @@ concurrency:
 
 env:
   PYENV_ROOT: ${{ github.workspace }}/pyenv
-  PYENV_REF: 2aff0df76deacd9b6c49de8870f0255d24d3b31b # v2.5.0
-  PYTHON_VER: 3.12.8
+  PYENV_REF: 97993fcc26999fb9f9d2172afd6914738df274d8 # v2.5.5
+  PYTHON_VER: 3.12.10
   CACHE_ASAN_VER: 2
   CACHE_DEPS_VER: 1
   LIBSHORTFIN_DIR: ${{ github.workspace }}/shortfin/

@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sharktuner"
+authors = [
+  {name = "SHARK Authors"},
+]
+description = "IREE Dispatch Tuner"
+readme = "README.md"
+license = "Apache-2.0"
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+requires-python = ">= 3.10"
+
+# Version is set via the `setup.py`.
+dynamic = ["version", "dependencies", "optional-dependencies"]
+
+[project.urls]
+Repository = "https://github.com/nod-ai/shark-ai"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["sharktuner", "model_tuner"]
+namespaces = true
+
+[tool.setuptools.package-data]
+sharktuner = ["py.typed"]
+
+[tool.setuptools.dynamic.dependencies]
+file = ["requirements.txt"]
+
+[tool.setuptools.dynamic.optional-dependencies]
+dev = {file = ["requirements-dev.txt"]}

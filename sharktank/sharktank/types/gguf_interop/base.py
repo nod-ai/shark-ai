@@ -5,7 +5,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from typing import Any, Optional, Union
-
 import os
 
 import numpy as np
@@ -17,7 +16,7 @@ from iree.turbine.aot import (
     ExternalTensorTrait,
 )
 
-from ...utils.logging import get_logger
+from sharktank.utils.logging import get_logger
 
 from ..tensors import (
     DefaultPrimitiveTensor,

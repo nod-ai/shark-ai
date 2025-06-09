@@ -38,7 +38,8 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
             block_seq_stride=self.block_seq_stride,
             attn_head_dim=self.attn_head_dim,
             cache_partition_count=self.cache_partition_count,
-            dtype=self.dtype,
+            cache_dtype=self.dtype,
+            attn_dtype=self.dtype,
         )
         self.sharded_cache = PagedAttention(
             shard_count=self.shard_count,
@@ -47,7 +48,8 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
             block_seq_stride=self.block_seq_stride,
             attn_head_dim=self.attn_head_dim,
             cache_partition_count=self.cache_partition_count,
-            dtype=self.dtype,
+            cache_dtype=self.dtype,
+            attn_dtype=self.dtype,
         )
 
     def make_unsharded_and_sharded_equal_cache_states(
@@ -66,11 +68,13 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
         cache_state: List[torch.Tensor],
         sharded_cache_state: List[SplitPrimitiveTensor],
     ):
-        sharded_state_as_unsharded = ops.unshard(
-            self.sharded_cache.unflatten_page_table(sharded_cache_state)
-        ).flatten(start_dim=1)
+        cache_state = self.cache.unshard_state(cache_state)[0]
+        sharded_state_as_unsharded = self.sharded_cache.unshard_state(
+            sharded_cache_state
+        )[0]
+        assert sharded_state_as_unsharded.shape == cache_state.shape
         assert ops.equal(
-            cache_state[0],
+            cache_state,
             sharded_state_as_unsharded,
         )
 
@@ -82,21 +86,6 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
         assert iterables_equal(cache_state[0].shape, sharded_cache_state[0].shape)
         assert sharded_cache_state[0].shard_dim == 1
         assert sharded_cache_state[0].shard_count == self.shard_count
-
-    def testUnflattenPageTable(self):
-        cache_state = self.cache.allocate(self.page_count)
-        sharded_cache_state = self.sharded_cache.allocate(self.page_count)
-
-        unflattened_cache_state = self.cache.unflatten_page_table(cache_state)
-        sharded_unflattened_cache_state = self.sharded_cache.unflatten_page_table(
-            sharded_cache_state
-        )
-        assert iterables_equal(
-            unflattened_cache_state.shape, sharded_unflattened_cache_state.shape
-        )
-        assert sharded_unflattened_cache_state.shard_dim == 4
-        assert sharded_unflattened_cache_state.shard_count == self.shard_count
-        assert sharded_unflattened_cache_state.shape[0] == self.page_count
 
     def testRead(self):
         (
@@ -112,14 +101,12 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
             state=cache_state,
             transformer_block_index=transformer_block_index,
             page_ids=page_ids,
-            seq_len=self.block_seq_len * self.block_seq_stride,
         )
         sharded_page_ids = ops.replicate(page_ids, count=self.shard_count)
         sharded_read = self.sharded_cache.read(
             state=sharded_cache_state,
             transformer_block_index=transformer_block_index,
             page_ids=sharded_page_ids,
-            seq_len=self.block_seq_len * self.block_seq_stride,
         )
         for unsharded, sharded in zip(unsharded_read, sharded_read):
             assert ops.equal(unsharded, ops.unshard(sharded))

@@ -10,13 +10,12 @@ This is an ad-hoc transformation which operates on the layer structure of
 weights of an LLM by converting the RHS of all eligible layers to a sharded
 form.
 """
-from ...models.llama.sharding import shard_theta
-from ...layers import LlamaHParams, LlamaModelConfig
-from ...types import *
+from sharktank.layers import LlamaHParams, LlamaModelConfig
+from sharktank.types.sharding import shard_theta
+from sharktank.utils import cli
 
 
 def main(raw_args=None):
-    from ...utils import cli
 
     parser = cli.create_parser()
     cli.add_input_dataset_options(parser)
@@ -38,14 +37,13 @@ def main(raw_args=None):
             f"Expect sharding greater than 1 found {args.tensor_parallelism_size}"
         )
 
-    hp = LlamaHParams.from_gguf_props(dataset.properties)
-    llama_config = LlamaModelConfig(
-        hp, tensor_parallelism_size=args.tensor_parallelism_size
-    )
+    llama_config = LlamaModelConfig.from_properties(dataset.properties)
+    llama_config.tensor_parallelism_size = args.tensor_parallelism_size
+
     sharded_theta = shard_theta(dataset.root_theta, llama_config)
     sharded_theta.rename_tensors_to_paths()
     dataset.root_theta = sharded_theta
-    dataset.properties["tensor_parallelism_size"] = args.tensor_parallelism_size
+    dataset.properties = llama_config.to_properties()
     dataset.save(args.output_irpa_file, io_report_callback=print)
 
 
