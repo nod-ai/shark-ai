@@ -6,7 +6,7 @@
 
 
 import shortfin as sf
-from .manager import LlmSystemManager
+from ...utils import SystemManager
 import asyncio
 from threading import Lock
 
@@ -23,7 +23,7 @@ class FiberPool:
 
     def __init__(
         self,
-        sysman: LlmSystemManager,
+        sysman: SystemManager,
         init_size: int,
         resizable: bool = True,
         name: str = "default-fiber-pool",
@@ -42,7 +42,7 @@ class FiberPool:
         self._lock = Lock()
         self._initialize_pool()
 
-    def resize(self):
+    def _resize(self) -> tuple[int, sf.Fiber]:
         new_worker = self.sysman.ls.create_worker(
             f"{self.name}-new-worker-{self._extra_fibers}"
         )
@@ -51,7 +51,10 @@ class FiberPool:
         self._fiber_pool.append(fiber)
         self._extra_fibers += 1
 
-        return [self.size() - 1, fiber]
+        return (
+            self.size() - 1,
+            fiber,
+        )
 
     async def get(self) -> tuple[int, sf.Fiber]:
         with self._lock:
@@ -64,15 +67,16 @@ class FiberPool:
             except asyncio.QueueEmpty:
                 if self.resizable:
                     # Resize the fiber pool by adding a new fiber.
-                    return self.resize()
+                    if self.sysman.disaggregate:
+                        return self._disaggregated_resize()
+                    return self._resize()
 
                 available_index = await self._index_queue.get()
                 return (available_index, self._fiber_pool[available_index])
 
-    def pool(self) -> list[sf.Fiber]:
-        return self._fiber_pool
-
     def _initialize_pool(self):
+        if self.sysman.disaggregate:
+            return self._initialize_disaggregated_pool()
         with self._lock:
             for idx in range(self.init_size):
                 worker = self.sysman.ls.create_worker(f"{self.name}-init-worker-{idx}")
@@ -90,25 +94,19 @@ class FiberPool:
                 self._index_queue.put_nowait(idx)
 
     def size(self) -> int:
+        """
+        NOTE: Due to multiple threads accessing the fiber pool concurrently, this function
+        is NOT a reliable way to find the size of the fiber pool at any given time during
+        execution.
+        """
         return len(self._fiber_pool)
 
+    # Same reason for separating out disaggregation implementations as pointed out in service.py.
+    def _disaggregated_resize(self):
+        assert (
+            self.sysman.disaggregate
+        ), "Disaggregation requested in FiberPool, but the SystemManager was not constructed with disaggregation enabled."
 
-class DisaggregatedFiberPool(FiberPool):
-    def __init__(
-        self,
-        sysman: LlmSystemManager,
-        init_size: int,
-        resizable: bool = True,
-        name: str = "default-disagg-fiber-pool",
-    ):
-        super().__init__(
-            sysman=sysman,
-            init_size=init_size,
-            resizable=resizable,
-            name=name,
-        )
-
-    def resize(self):
         devices = self.sysman.ls.devices
         num_devices = len(devices)
         new_worker = self.sysman.ls.create_worker(
@@ -121,9 +119,16 @@ class DisaggregatedFiberPool(FiberPool):
         )
         self._fiber_pool.append(fiber)
         self._extra_fibers += 1
-        return [self.size() - 1, fiber]
+        return (
+            self.size() - 1,
+            fiber,
+        )
 
-    def _initialize_pool(self):
+    def _initialize_disaggregated_pool(self):
+        assert (
+            self.sysman.disaggregate
+        ), "Disaggregation requested in FiberPool, but the SystemManager was not constructed with disaggregation enabled."
+
         with self._lock:
             devices = self.sysman.ls.devices
             num_devices = len(devices)
