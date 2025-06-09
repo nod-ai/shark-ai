@@ -155,6 +155,12 @@ class PerplexityTest(unittest.TestCase):
         self.run_and_check_perplexity()
 
     @is_deepseek
+    @xfail(
+        raises=IreeCompileException,
+        reason="https://github.com/iree-org/iree/issues/21058",
+        strict=True,
+        match='Index < size() && "invalid index for value range"',
+    )
     def test_deepseek_v3(self):
         # DeepSeek v3 pipeline parallelism
         self.model_name = "deepseek_v3_iree"
@@ -182,12 +188,6 @@ class PerplexityTest(unittest.TestCase):
         self.run_and_check_perplexity()
 
     @is_nightly
-    @xfail(
-        raises=IreeCompileException,
-        reason="https://github.com/iree-org/iree/issues/21058",
-        strict=True,
-        match='Index < size() && "invalid index for value range"',
-    )
     def test_deepseek_v3_pp(self):
         # DeepSeek v3 pipeline parallelism
         self.model_name = "deepseek_v3_iree"
