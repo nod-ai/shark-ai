@@ -9,6 +9,7 @@ import logging
 import torch
 import unittest
 import pytest
+import re
 import iree.runtime
 import iree.compiler
 from huggingface_hub import hf_hub_download
@@ -42,6 +43,7 @@ from sharktank.utils.testing import (
     is_cpu_condition,
     is_cpu_win,
     is_mi300x,
+    xfail,
 )
 from sharktank.models.vae.testing import (
     get_toy_vae_decoder_config,
@@ -319,23 +321,14 @@ class VaeFluxDecoderTest(TempDirTestBase):
             (torch.bfloat16, torch.float64, 3e-2, 3e-2),
         ],
     )
-    @pytest.mark.xfail(
-        is_cpu_condition,
+    @xfail(
         raises=iree.compiler.CompilerToolError,
-        strict=False,
-        reason="Compiler error on CPU TODO: file issue",
-    )
-    @pytest.mark.xfail(
-        is_cpu_win,
-        raises=AssertionError,
-        strict=False,
-        reason="Numerical error on Windows CPU TODO: file issue",
-    )
-    @pytest.mark.xfail(
-        is_mi300x,
-        raises=AssertionError,
-        strict=False,
-        reason="Numerical error on Mi300 TODO: file issue",
+        strict=True,
+        reason=(
+            "Compiler error: failed to legalize operation 'torch.constant.float'. "
+            "Issue https://github.com/iree-org/iree/issues/21050"
+        ),
+        match=re.escape("failed to legalize operation 'torch.constant.float'"),
     )
     def testCompareToyIreeVsEager(
         self,
