@@ -10,6 +10,7 @@ huggingface-hub
 transformers==4.52.1
 datasets
 einops
+sentencepiece
 
 # Serving deps.
 fastapi>=0.112.2
