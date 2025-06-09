@@ -159,7 +159,7 @@ class PerplexityTest(unittest.TestCase):
         raises=IreeCompileException,
         reason="https://github.com/iree-org/iree/issues/21058",
         strict=True,
-        match='Index < size() && "invalid index for value range"',
+        match="error: 'stream.async.dispatch'",
     )
     def test_deepseek_v3(self):
         # DeepSeek v3 pipeline parallelism
