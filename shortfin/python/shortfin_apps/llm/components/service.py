@@ -29,7 +29,7 @@ from ...utils import (
     LLM_DISAGGREGATED_DECODE_DEVICE_IDX,
     LLM_DISAGGREGATED_PREFILL_DEVICE_IDX,
 )
-from .fiber_pool import FiberPool, DisaggregatedFiberPool
+from .fiber_pool import FiberPool
 
 logger = logging.getLogger(__name__)
 
@@ -60,8 +60,7 @@ class LlmGenerateService(GenerateService):
         self.disaggregate = server_params.disaggregate
         self.max_queue_size = max_queue_size
         self.current_queue_size = 0
-        fiber_pool_cls = DisaggregatedFiberPool if self.disaggregate else FiberPool
-        self.main_fiber_pool = fiber_pool_cls(
+        self.main_fiber_pool = FiberPool(
             self.sysman, self.max_queue_size, resizable=True
         )
 
@@ -96,6 +95,10 @@ class LlmGenerateService(GenerateService):
                 )
 
     def _initialize_worker_and_fiber(self):
+        if self.disaggregate:
+            self._initialize_disaggregated_worker_and_fiber()
+            return
+
         num_workers = self.server_params.workers
         fibers_per_worker = self.server_params.fibers_per_worker
 
@@ -143,6 +146,10 @@ class LlmGenerateService(GenerateService):
             )
 
     def start(self):
+        if self.disaggregate:
+            self.start_disaggregated()
+            return
+
         component_modules = self.initialize_program_modules("main")
         self.inference_program = self.create_program(
             modules=component_modules, devices=self.sysman.ls.devices
@@ -187,34 +194,16 @@ class LlmGenerateService(GenerateService):
             f"  model_params={self.model_params}\n"
             f"  server_params={self.server_params}\n"
             f"  inference_modules={self.inference_modules}\n"
-            f"  page_cache={self.page_cache}\n"
-            f")"
+            f"  page_cache={self.page_cache}\n",
+            f"  disaggregated={self.disaggregate}",
+            f")",
         )
 
-
-class LlmGenerateDisaggregatedService(LlmGenerateService):
-    def __init__(
-        self,
-        *,
-        name: str,
-        sysman: LlmSystemManager,
-        tokenizer: Tokenizer,
-        model_params: ModelParams,
-        server_params: "ServerParams",
-        program_isolation: str = "per_call",
-        max_queue_size: int = 3,  # Maximum number of requests in queue
-    ):
-        super().__init__(
-            name=name,
-            sysman=sysman,
-            tokenizer=tokenizer,
-            model_params=model_params,
-            server_params=server_params,
-            program_isolation=program_isolation,
-            max_queue_size=max_queue_size,
-        )
-
-    def _initialize_worker_and_fiber(self):
+    # The intention behind separate definitions for functions implementing
+    # disaggregated invocation is to be able to modify this code without
+    # breaking default behavior, especially in models that are running with
+    # sharding across multiple physical devices.
+    def _initialize_disaggregated_worker_and_fiber(self):
         num_workers = self.server_params.workers
         fibers_per_worker = self.server_params.fibers_per_worker
         devices = self.sysman.ls.devices
@@ -245,16 +234,15 @@ class LlmGenerateDisaggregatedService(LlmGenerateService):
 
         self.devices = self.prefill_fiber.devices_dict.values()
 
-    def start(self):
+    def start_disaggregated(self):
         component_modules = self.initialize_program_modules("main")
-        print(f"{self.disaggregate=}")
         self.inference_program = [
             self.create_program(
                 modules=component_modules, devices=[self.sysman.ls.devices[idx]]
             )
             for idx in range(len(self.sysman.ls.devices))
         ]
-        self.initialize_function_references()
+        self.initialize_disaggregated_function_references()
 
         task_list = [
             "prefill-exec",
@@ -291,9 +279,7 @@ class LlmGenerateDisaggregatedService(LlmGenerateService):
         self.prefill_batcher.launch()
         self.decode_batcher.launch()
 
-    def initialize_function_references(self):
-        devices = self.sysman.ls.devices
-        num_devices = len(devices)
+    def initialize_disaggregated_function_references(self):
         self.prefill_functions = {}
         for bs in self.model_params.prefill_batch_sizes:
             self.prefill_functions[bs] = self.inference_program[
@@ -305,13 +291,3 @@ class LlmGenerateDisaggregatedService(LlmGenerateService):
             self.decode_functions[bs] = self.inference_program[
                 LLM_DISAGGREGATED_DECODE_DEVICE_IDX
             ][f"{self.model_params.module_name}.decode_bs{bs}"]
-
-    def __repr__(self):
-        return (
-            f"DisaggregatedServiceManager(\n"
-            f"  model_params={self.model_params}\n"
-            f"  server_params={self.server_params}\n"
-            f"  inference_modules={self.inference_modules}\n"
-            f"  page_cache={self.page_cache}\n"
-            f")"
-        )

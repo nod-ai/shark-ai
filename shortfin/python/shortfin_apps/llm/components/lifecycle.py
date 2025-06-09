@@ -17,7 +17,7 @@ def lifecycle(app: FastApi):
 from .config_struct import ModelParams, ServerParams
 from .token_selection_strategy import DecodeConfig
 from .manager import LlmSystemManager
-from .service import LlmGenerateService, LlmGenerateDisaggregatedService
+from .service import LlmGenerateService
 from .tokenizer import Tokenizer
 from typing import TYPE_CHECKING
 from fastapi import FastAPI
@@ -64,19 +64,6 @@ class ShortfinLlmLifecycleManager:
             )
             server_params.decode_config = decode_config
 
-        service_cls = LlmGenerateService
-        if args.disaggregate:
-            # To not run into complications with sharded models, assert that the server is
-            # being run only on one physical device.
-            rocr_visible_devices = os.environ.get("ROCR_VISIBLE_DEVICES")
-            assert (
-                rocr_visible_devices is not None and len(rocr_visible_devices) <= 2
-            ), "Running disaggregated prefill on HIP streams is supported only when running on one physical device. Set `ROCR_VISIBLE_DEVICES`=<device_id>."
-            # Setup two logical devices on one physical device to disaggregate
-            # prefill and decode invocations to distinct streams.
-            os.environ["SHORTFIN_AMDGPU_LOGICAL_DEVICES_PER_PHYSICAL_DEVICE"] = "2"
-            service_cls = LlmGenerateDisaggregatedService
-
         # Setup system (configure devices, etc).
         sysman = LlmSystemManager(
             device=args.device,
@@ -85,6 +72,7 @@ class ShortfinLlmLifecycleManager:
             async_caching=server_params.amdgpu_async_caching,
             amdgpu_allocators=server_params.amdgpu_allocators,
             amdgpu_allow_device_reuse=server_params.amdgpu_allow_device_reuse,
+            disaggregated_invocation=args.disaggregate,
         )
 
         # Setup each service we are hosting.
@@ -92,7 +80,7 @@ class ShortfinLlmLifecycleManager:
         tokenizer = Tokenizer.from_tokenizer_json_file(
             args.tokenizer_json, eos_token=eos_token
         )
-        service = service_cls(
+        service = LlmGenerateService(
             name="default",
             sysman=sysman,
             tokenizer=tokenizer,
