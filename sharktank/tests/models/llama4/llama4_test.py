@@ -1,3 +1,4 @@
+import re
 import transformers.models
 from sharktank.utils.testing import TempDirTestBase
 from sharktank.models.llama4.testing import (
@@ -11,7 +12,12 @@ import transformers
 import torch
 import pytest
 from sharktank.utils.export_artifacts import IreeCompileException
-from sharktank.utils.testing import is_mi300x, IreeVsEagerLLMTester, is_cpu_condition
+from sharktank.utils.testing import (
+    is_mi300x,
+    IreeVsEagerLLMTester,
+    is_cpu_condition,
+    is_hip_condition,
+)
 import random
 from parameterized import parameterized
 import os
@@ -129,9 +135,13 @@ class TestLlama4IreeEager(TempDirTestBase):
         ]
     )
     @pytest.mark.xfail(
+        condition=is_hip_condition,
         raises=IreeCompileException,
-        reason="https://github.com/iree-org/iree/issues/21462, https://github.com/nod-ai/shark-ai/issues/1758",
         strict=True,
+        reason="https://github.com/iree-org/iree/issues/21462, https://github.com/nod-ai/shark-ai/issues/1758",
+        match=re.escape(
+            "error: failed to legalize operation 'torch.aten.__and__.Tensor'"
+        ),
     )
     def testUnshardedToySizedModelIREEVsEager(self, dtype, atol, rtol):
         self.helper_run(dtype=dtype, atol=atol, rtol=rtol)

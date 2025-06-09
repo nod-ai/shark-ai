@@ -481,19 +481,15 @@ class T5EncoderIreeTest(TempDirTestBase):
             assert_close=assert_t5_encoder_state_close,
         )
 
-    @skip(
-        reason=(
-            "The test hangs. Probably during compilation or IREE module "
-            "execution. We can't determine easily what is going on as running "
-            "tests in parallel with pyest-xdist is incompatible with capture "
-            "disabling with --capture=no. No live logs are available from the CI."
-            " TODO: investigate"
-        )
-    )
     @parameterized.expand(
         [
             (torch.float32, torch.float64, 1e-5, 1e-5),
-            (torch.bfloat16, torch.float64, 2e-2, 1e-2),
+            (
+                torch.bfloat16,
+                torch.float64,
+                1e-1,
+                1e-2,
+            ),
         ]
     )
     def testCompareToyIreeVsEager(

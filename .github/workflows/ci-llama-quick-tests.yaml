@@ -26,7 +26,7 @@ jobs:
     name: "Llama Benchmarking 8B Tests"
     strategy:
       matrix:
-        version: [3.11]
+        python-version: [3.11]
       fail-fast: false
     runs-on: linux-mi325-1gpu-ossci-nod-ai
     defaults:
@@ -45,23 +45,14 @@ jobs:
         id: setup_python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
-          python-version: ${{matrix.version}}
+          python-version: ${{matrix.python-version}}
       - name: Create Python venv
         run: python -m venv ${VENV_DIR}
 
       - name: Install pip deps
         run: |
           source ${VENV_DIR}/bin/activate
-          python -m pip install --no-compile --upgrade pip
-
-          # Note: We install in three steps in order to satisfy requirements
-          # from non default locations first.
-          pip install --no-compile -r pytorch-cpu-requirements.txt
-          pip install -r requirements-iree-pinned.txt
-          pip install --no-compile \
-            -r sharktank/requirements-tests.txt \
-            -e sharktank/
-
+          sharktank/build_tools/install_test_dependencies.sh
           pip freeze
 
       - name: Run llama 8b f16 decomposed test

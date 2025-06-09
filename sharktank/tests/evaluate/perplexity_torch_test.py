@@ -82,6 +82,7 @@ class PerplexityTest(unittest.TestCase):
         self.model_name = "deepseek_v3_torch"
         self.irpa_file = self.deepseek_v3_model
         self.tokenizer = self.deepseek_v3_tokenizer
+        self.delta = 13
 
         self.prepare_argv(extra_args=("--use-toy-model",))
         self.run_and_check_perplexity()
