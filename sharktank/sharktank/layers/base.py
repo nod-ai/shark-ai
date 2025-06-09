@@ -424,8 +424,12 @@ class ThetaLayer(BaseLayer):
         # Only include actual tensors, not quantizers or other objects
         for theta_name in self.theta.keys:
             tensor = self.theta.tensor(theta_name)
-            if hasattr(tensor, "as_torch") or isinstance(tensor, torch.Tensor):
-                state_dict[theta_name] = unbox_tensor(tensor)
+            try:
+                unboxed = unbox_tensor(tensor)
+                state_dict[theta_name] = unboxed
+            except Exception:
+                # Skip tensors that can't be unboxed (like quantizers)
+                pass
 
         return state_dict
 

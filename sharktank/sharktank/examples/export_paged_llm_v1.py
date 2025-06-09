@@ -27,6 +27,7 @@ from sharktank.models.llm.export import (
     ServiceConfig,
     ServicePagedLlmModelV1,
 )
+from sharktank.quantization.brevitas import quantize
 
 logger = get_logger("sharktank.examples.export_paged_llm_v1")
 
@@ -46,6 +47,35 @@ def export_llm_v1(
     model = modelClass(theta, llama_config)
     model = ServicePagedLlmModelV1(model=model, config=export_config)
     hp = llama_config.hp
+
+    parser = cli.create_parser()
+
+    parser.add_argument(
+        "--logits-normalization",
+        default="none",
+        help="Return the log softmax of the logits",
+        choices=["none", "softmax", "log_softmax"],
+    )
+
+    cli.add_input_dataset_options(parser)
+    cli.add_model_options(parser)
+    cli.add_export_artifacts(parser)
+    cli.add_quantization_options(parser)
+    cli.add_log_options(parser)
+    
+    # TODO: DO NOT SUBMIT: Refactor parser to other file
+    parser.add_argument(
+        "--quantize",
+        action="store_true",
+        help="Apply quantization to the model and generate a new IRPA",
+    )
+
+    args = cli.parse(parser)
+
+    if args.quantize:
+        model = quantize(model)
+        # TODO: generate the new IRPA file
+        exit()
 
     fxb = FxProgramsBuilder(model)
 
