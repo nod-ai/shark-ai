@@ -9,6 +9,7 @@ import logging
 import torch
 import unittest
 import pytest
+import re
 import iree.runtime
 import iree.compiler
 from huggingface_hub import hf_hub_download
@@ -17,7 +18,7 @@ import functools
 from parameterized import parameterized
 import platform
 
-
+from pathlib import Path
 from sharktank.types import Dataset
 from sharktank.models.vae.model import VaeDecoderModel
 from sharktank.models.vae.tools.diffuser_ref import (
@@ -308,40 +309,108 @@ class VaeFluxDecoderTest(TempDirTestBase):
             target_model=model, reference_model=hf_model, atol=atol, rtol=rtol
         )
 
-    @parameterized.expand(
-        [
-            (torch.float32, torch.float64, 1e-5, 1e-5),
-            (torch.bfloat16, torch.float64, 3e-2, 3e-2),
-        ],
-    )
     @pytest.mark.xfail(
+        condition=(
+            "exec('import torch') or ("
+            "config.getoption('iree_hal_target_device') == 'local' and "
+            "torch.__version__ >= '2.6.0' and "
+            "torch.__version__ < '2.6.1')"
+        ),
         raises=iree.compiler.CompilerToolError,
-        strict=False,
-        reason="https://github.com/nod-ai/shark-ai/issues/1920",
+        strict=True,
+        reason=(
+            (
+                "Failing to compile for HIP and torch 2.5.1. "
+                "See: https://github.com/iree-org/iree/issues/21050"
+            )
+        ),
+        match=re.escape("error: failed to legalize operation 'torch.constant.float'"),
     )
-    def testCompareToyIreeVsEager(
+    def testCompareToyIreeVsEagerF32(
         self,
-        target_dtype: torch.dtype,
-        reference_dtype: torch.dtype,
-        atol: float,
-        rtol: float,
+        target_dtype: torch.dtype = torch.float32,
+        reference_dtype: torch.dtype = torch.float64,
+        atol: float = 1e-5,
+        rtol: float = 1e-5,
     ):
         config = get_toy_vae_decoder_config()
         reference_theta = make_vae_decoder_random_theta(config, dtype=reference_dtype)
         reference_model = VaeDecoderModel(config, reference_theta)
 
-        try:
-            self.runTestCompareIreeVsEager(
-                target_dtype=target_dtype,
-                reference_model=reference_model,
-                atol=atol,
-                rtol=rtol,
+        self.runTestCompareIreeVsEager(
+            target_dtype=target_dtype,
+            reference_model=reference_model,
+            atol=atol,
+            rtol=rtol,
+        )
+
+    @pytest.mark.xfail(
+        condition=(
+            "exec('import torch') or ("
+            "config.getoption('iree_hal_target_device') == 'local' and "
+            "torch.__version__ >= '2.6.0' and "
+            "torch.__version__ < '2.6.1')"
+        ),
+        raises=iree.compiler.CompilerToolError,
+        strict=True,
+        reason=(
+            (
+                "Failing to compile for CPU and torch 2.6.0. "
+                "See: https://github.com/iree-org/iree/issues/21050"
             )
-        except AssertionError as e:
-            if target_dtype == torch.float32:
-                pytest.xfail(reason="Numerical error on Windows CPU TODO: file issue")
-            else:
-                raise e
+        ),
+        match=re.escape("error: failed to legalize operation 'torch.constant.float'"),
+    )
+    @pytest.mark.xfail(
+        condition=(
+            "exec('import torch') or ("
+            "config.getoption('iree_hal_target_device') == 'hip' and "
+            "torch.__version__ > '2.5.0' and "
+            "torch.__version__ < '2.5.2')"
+        ),
+        raises=iree.compiler.CompilerToolError,
+        strict=True,
+        reason=(
+            (
+                "Failing to compile for HIP and torch 2.5.1. "
+                "See: https://github.com/nod-ai/shark-ai/issues/1920"
+            )
+        ),
+        match=re.escape(
+            "error: 'vector.shape_cast' op has different source and result element types"
+        ),
+    )
+    @pytest.mark.xfail(
+        condition=(
+            "exec('import torch') or ("
+            "config.getoption('iree_hal_target_device') == 'local' and "
+            "torch.__version__ > '2.5.0' and "
+            "torch.__version__ < '2.5.2')"
+        ),
+        raises=iree.compiler.CompilerToolError,
+        strict=True,
+        reason=("Failing to compile for CPU and torch 2.5.1. " "TODO: file issue"),
+        match=re.escape(
+            "error: 'vector.store' op write affecting operations on global resources are restricted to workgroup distributed contexts."
+        ),
+    )
+    def testCompareToyIreeVsEagerBf16(
+        self,
+        target_dtype: torch.dtype = torch.bfloat16,
+        reference_dtype: torch.dtype = torch.float64,
+        atol: float = 3e-2,
+        rtol: float = 3e-2,
+    ):
+        config = get_toy_vae_decoder_config()
+        reference_theta = make_vae_decoder_random_theta(config, dtype=reference_dtype)
+        reference_model = VaeDecoderModel(config, reference_theta)
+
+        self.runTestCompareIreeVsEager(
+            target_dtype=target_dtype,
+            reference_model=reference_model,
+            atol=atol,
+            rtol=rtol,
+        )
 
     @pytest.mark.expensive
     @with_vae_data

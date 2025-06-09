@@ -9,7 +9,7 @@ import pytest
 import re
 
 from dataclasses import dataclass
-from pytest import FixtureRequest
+from pytest import FixtureRequest, TempPathFactory
 from typing import Any, Generator, Optional
 
 
