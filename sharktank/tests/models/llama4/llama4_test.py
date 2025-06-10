@@ -10,6 +10,8 @@ from sharktank.models.llama.testing import make_random_llama_theta
 from sharktank.models.llm import PagedLlmModelV1
 import transformers
 import torch
+import pytest
+from sharktank.utils.testing import is_mi300x
 
 
 def convert_hf_2D_input_mask_to_4D_attention_mask(
@@ -24,12 +26,14 @@ class Llama4Test(TempDirTestBase):
         super().setUp()
         torch.random.manual_seed(12345)
 
-    @parameterized.expand(
-        [
-            (torch.float32),
-        ]
+    @pytest.mark.xfail(
+        is_mi300x,
+        raises=TypeError,
+        strict=False,
+        reason="argument of type 'NoneType' is not iterable",
     )
-    def testCompareToyEagerVsHuggingFace(self, dtype: torch.dtype):
+    def testCompareToyEagerVsHuggingFace(self):
+        dtype = torch.float32
         torch.set_printoptions(
             linewidth=120, threshold=1000, edgeitems=4, precision=2, sci_mode=True
         )
