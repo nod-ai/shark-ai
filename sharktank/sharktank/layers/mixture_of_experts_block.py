@@ -177,28 +177,22 @@ class MoeBlock(ThetaLayer):
                 router_weights, self.expert_used_count, dim=-1
             )
 
-        # if self.normalize_experts:
-        #     expert_gate /= expert_gate.sum(dim=-1, keepdim=True)
+        if self.normalize_experts:
+            expert_gate /= expert_gate.sum(dim=-1, keepdim=True)
 
-        # expert_gate = expert_gate.to(ffn_input.dtype)
+        expert_gate = expert_gate.to(ffn_input.dtype)
 
-        # if self.route_scale is not None:
-        #     expert_gate = expert_gate * self.route_scale
-
-        pre = torch.cat(
-            (ffn_input, expert_gate, top_k_experts, router_weights), dim=-1
-        ).contiguous()
+        if self.route_scale is not None:
+            expert_gate = expert_gate * self.route_scale
 
         # shape: (batch_size * sequence_length, feature_dim)
         moe_output = self.routed_experts(ffn_input, top_k_experts, expert_gate)
 
-        return moe_output
+        if self.expert_shared_count is not None:
+            moe_output = moe_output + self.shared_experts(ffn_input)
 
-        # if self.expert_shared_count is not None:
-        #     moe_output = moe_output + self.shared_experts(ffn_input)
+        moe_output = moe_output.reshape(batch_size, sequence_length, feature_dim)
 
-        # moe_output = moe_output.reshape(batch_size, sequence_length, feature_dim)
-
-        # moe_output = self.layer_output_norm(moe_output)
+        moe_output = self.layer_output_norm(moe_output)
 
         return moe_output
