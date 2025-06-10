@@ -35,7 +35,7 @@ def get_placeholder_spec(context: ir.Context) -> ir.Module:
 def build_td_spec(
     context: ir.Context,
     op: ir.Operation,
-    compilation_info: iree_codegen.CompilationInfoAttr,
+    config_list: list[tuple[str, ir.Attribute]],
     func_name: str,
 ) -> ir.Module:
     bbargs = []
@@ -76,35 +76,57 @@ def build_td_spec(
         bbargs.append(f"{ssa_name}: {operand_type}")
         captured_values.add(operand)
     bbargs_str = ", ".join(bbargs)
-    spec_text = f"""
+
+    config_lines = []
+    yield_vars = []
+    for i, (key, attr) in enumerate(config_list):
+        config_var = f"%{key}_{i}"
+        config_lines.append(
+            f"{config_var} = transform.param.constant {attr} -> !transform.any_param"
+        )
+        yield_vars.append(config_var)
+    config_block = "\n                ".join(config_lines)
+    yield_list = ", ".join(["%cont"] + yield_vars)
+    yield_types = ", ".join(
+        ["!transform.any_op"] + ["!transform.any_param"] * len(yield_vars)
+    )
+
+    annotation_args = ", ".join(
+        f"%cfg_{i}: !transform.any_param {{transform.readonly}}"
+        for i in range(len(config_list))
+    )
+    annotation_lines = "\n".join(
+        f'                transform.annotate %op "{key}" = %cfg_{i} : !transform.any_op, !transform.any_param'
+        for i, (key, _) in enumerate(config_list)
+    )
+
+    spec_text = f"""\
         module attributes {{ transform.with_named_sequence, iree_codegen.tuning_spec_with_default_entrypoint }} {{
-            // Annotation Transform
-            transform.named_sequence @apply_op_config(%op: !transform.any_op {{transform.readonly}},
-                                                        %config: !transform.any_param {{transform.readonly}}) {{
-                transform.annotate %op "compilation_info" = %config : !transform.any_op, !transform.any_param
-                transform.yield
-            }}
-
-            // Custom Op Matcher
-            transform.named_sequence @{func_name}(%cont: !transform.any_op {{transform.readonly}})
-                -> (!transform.any_op, !transform.any_param) {{
-                %ins, %outs = transform.iree.match.cast_compatible_dag_from_root %cont {{
-                ^bb0({bbargs_str}):
-                {root_operation}
-                }} : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
-                %config = transform.param.constant {compilation_info} -> !transform.any_param
-                transform.yield %cont, %config : !transform.any_op, !transform.any_param
-            }}
-
-            // Entry Point
-            transform.named_sequence
-            @__kernel_config(%variant_op: !transform.any_op {{transform.consumed}}) -> !transform.any_op
-                attributes {{ iree_codegen.tuning_spec_entrypoint }} {{
-                %res = transform.foreach_match in %variant_op
-                    @{func_name} -> @apply_op_config
-                : (!transform.any_op) -> !transform.any_op
-                transform.yield %res : !transform.any_op
-            }}
+        // Annotation Transform
+        transform.named_sequence @apply_op_config(%op: !transform.any_op {{transform.readonly}}, {annotation_args}) {{
+        {annotation_lines}
+            transform.yield
         }}
-        """
+
+        // Custom Op Matcher
+        transform.named_sequence @{func_name}(%cont: !transform.any_op {{transform.readonly}})
+            -> ({yield_types}) {{
+            %ins, %outs = transform.iree.match.cast_compatible_dag_from_root %cont {{
+              ^bb0({bbargs_str}):
+              {root_operation}
+            }} : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+            {config_block}
+            transform.yield {yield_list} : {yield_types}
+        }}
+
+        // Entry Point
+        transform.named_sequence
+        @__kernel_config(%variant_op: !transform.any_op {{transform.consumed}}) -> !transform.any_op
+            attributes {{ iree_codegen.tuning_spec_entrypoint }} {{
+            %res = transform.foreach_match in %variant_op
+                @{func_name} -> @apply_op_config
+            : (!transform.any_op) -> !transform.any_op
+            transform.yield %res : !transform.any_op
+        }}
+    }}"""
     return ir.Module.parse(spec_text, context)
