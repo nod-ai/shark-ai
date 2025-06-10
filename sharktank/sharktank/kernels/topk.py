@@ -15,11 +15,12 @@ __all__ = [
 @CustomOp.register(library=LIBRARY)
 class iree_topk(CustomOp):
 
-    signature = "iree_topk(Tensor input, int k) -> (Tensor values, Tensor indices)"
+    signature = "iree_topk(Tensor input, Tensor indices, int k) -> (Tensor values, Tensor indices)"
 
     def select(self, ksel: KernelSelection):
         inputs_desc = ksel.arg_tensor(0)
-        k = ksel.attr_int(1).v
+        indices_desc = ksel.arg_tensor(1)
+        k = ksel.attr_int(2).v
         values_desc = ksel.return_new_tensor(
             [inputs_desc.t.shape[0], k],
             dtype=inputs_desc.t.dtype,
@@ -27,12 +28,10 @@ class iree_topk(CustomOp):
         indices_desc = ksel.return_new_tensor(
             [inputs_desc.t.shape[0], k], dtype=torch.int32
         )
-        # specialize_all_known_dims(inputs_desc)
-        # specialize_all_known_dims(values_desc)
-        # specialize_all_known_dims(indices_desc)
 
     def generate(self, ksel: KernelSelection, kb: KernelBuilder):
         input = kb.arg_value(0)
+        indices = kb.arg_value(1)
 
         result_desc = ksel.result_descs[0]
         result_shape = result_desc.t.shape
@@ -48,7 +47,7 @@ class iree_topk(CustomOp):
         # Template params
         input_tensor_type = input_asm_type
         indices_tensor_type = f"tensor<?x?xi32>"
-        values_tensor_type = f"tensor<?x{k}x{input_dtype}>"
+        values_out_tensor_type = f"tensor<?x{k}x{input_dtype}>"
         indices_out_tensor_type = f"tensor<?x{k}xi32>"
 
         target_function = inline_template_function(
@@ -57,7 +56,7 @@ class iree_topk(CustomOp):
             target_function_name,
             input_tensor_type=input_tensor_type,
             indices_tensor_type=indices_tensor_type,
-            values_tensor_type=values_tensor_type,
+            values_out_tensor_type=values_out_tensor_type,
             indices_out_tensor_type=indices_out_tensor_type,
             k=k,
             dtype=str(input_dtype),
