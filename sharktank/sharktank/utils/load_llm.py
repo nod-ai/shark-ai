@@ -276,11 +276,11 @@ class Batch:
         # TODO: Generalize the sampling and don't make it swap on/off cpu.
         # TODO: Normalize the output of extract_tokens_from_logits into
         # tensor [bs, 1].
-        # tokens = torch.tensor(
-        #     model.extract_tokens_from_logits(self.prefill_logits, self.seq_lens)
-        # ).unsqueeze(1)
-        # self.add_result_token(tokens)
-        return None  # tokens.to(device=model.device)
+        tokens = torch.tensor(
+            model.extract_tokens_from_logits(self.prefill_logits, self.seq_lens)
+        ).unsqueeze(1)
+        self.add_result_token(tokens)
+        return tokens.to(device=model.device)
 
     def decode(self, token_batch=None):
 
