@@ -5,11 +5,14 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING, Union
 from collections.abc import Mapping, Iterable
 from sharktank.types import InferenceTensor, unbox_tensor
 import logging
 import torch
+
+if TYPE_CHECKING:
+    from sharktank.types import AnyTensor, InferenceTensor
 
 logger = logging.getLogger(__name__)
 
@@ -213,14 +216,16 @@ class TraceTensorModulePatch(Patch):
         from sharktank.layers import BaseLayer
         from sharktank import ops
 
-        def _trace_tensor(key: str, tensor: torch.Tensor):
+        def _trace_if_tensor(key: str, maybe_tensor: Union["AnyTensor", Any]):
+            if not isinstance(maybe_tensor, (torch.Tensor, InferenceTensor)):
+                return
             if isinstance(module, BaseLayer):
-                module.trace_tensor(key, tensor)
+                module.trace_tensor(key, maybe_tensor)
             else:
-                ops.trace_tensor(f"{module_name}.{key}", tensor)
+                ops.trace_tensor(f"{module_name}.{key}", maybe_tensor)
 
         if isinstance(module, BaseLayer):
             for i, arg in enumerate(args):
-                _trace_tensor(key=f"{key}%{i}", tensor=arg)
+                _trace_if_tensor(key=f"{key}%{i}", maybe_tensor=arg)
             for arg_name, arg in kwargs.items():
-                _trace_tensor(key=f"{key}%{arg_name}", tensor=arg)
+                _trace_if_tensor(key=f"{key}%{arg_name}", maybe_tensor=arg)
