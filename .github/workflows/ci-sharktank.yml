@@ -263,9 +263,6 @@ jobs:
         runs-on: [linux-mi300-1gpu-ossci-nod-ai]
       fail-fast: false
     runs-on: ${{matrix.runs-on}}
-    defaults:
-      run:
-        shell: bash
     env:
       VENV_DIR: ${{ github.workspace }}/.venv
     steps:
