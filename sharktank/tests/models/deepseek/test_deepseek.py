@@ -231,84 +231,8 @@ class DeepseekTest(TempDirTestBase):
             ref_cache_state_after, iree_cache_state_after
         ):
             torch.testing.assert_close(iree_state_i, ref_state_i)
+
         # Compare logits
-
-        def split_result(res):
-            slice_sizes = [32, 2, 2, 4]  # End piece handled implicitly
-            slices = []
-            start = 0
-            for size in slice_sizes:
-                end = start + size
-                slices.append(res[:, start:end])
-                start = end
-            slices.append(res[:, start:])  # Remaining columns
-            return tuple(slices)
-
-        same = torch.isclose(iree_logits_w_py, reference_logits, rtol=1.3e-6, atol=1e-5)
-        print(same.all().item())
-        diff = ~same
-
-        (
-            iree_input,
-            iree_top_vals,
-            iree_top_indx,
-            iree_router_weights,
-            iree_moe_output,
-        ) = split_result(iree_logits_w_py)
-        (
-            eager_input,
-            eager_top_vals,
-            eager_top_indx,
-            eager_router_weights,
-            eager_moe_output,
-        ) = split_result(reference_logits)
-
-        input_mismatch_indx = ~torch.isclose(
-            iree_input, eager_input, rtol=1.3e-6, atol=1e-5
-        )
-        num_input_mismatch = input_mismatch_indx.sum().item()
-        weight_mismatch_indx = ~torch.isclose(
-            iree_router_weights, eager_router_weights, rtol=1.3e-6, atol=1e-5
-        )
-        num_weights_mismatch = weight_mismatch_indx.sum().item()
-        top_vals_mismatch = ~torch.isclose(
-            iree_top_vals, eager_top_vals, rtol=1.3e-6, atol=1e-5
-        )
-        num_top_vals_mismatch = top_vals_mismatch.sum().item()
-        top_indx_mismatch = ~torch.isclose(
-            iree_top_indx, eager_top_indx, rtol=1.3e-6, atol=1e-5
-        )
-        num_top_indx_mismatch = top_indx_mismatch.sum().item()
-        moe_output_mismatch = ~torch.isclose(
-            iree_moe_output, eager_moe_output, rtol=1.3e-6, atol=1e-5
-        )
-        num_moe_output_mismatch = moe_output_mismatch.sum().item()
-
-        print(
-            f"Input mismatch: {num_input_mismatch}, "
-            f"Router weights mismatch: {num_weights_mismatch}, "
-            f"Top indices mismatch: {num_top_indx_mismatch}, "
-            f"Top values mismatch: {num_top_vals_mismatch}, "
-            f"MoE output mismatch: {num_moe_output_mismatch}"
-        )
-
-        # denseffnmoe_dir = "/home/alvasile/repos/shark-ai/sharktank/denseffnmoe/"
-        # np.save(
-        #     os.path.join(denseffnmoe_dir, "ffn_input.npy"), eager_input.cpu().numpy()
-        # )
-        # np.save(
-        #     os.path.join(denseffnmoe_dir, "expert_gate.npy"),
-        #     eager_top_vals.cpu().numpy(),
-        # )
-        # np.save(
-        #     os.path.join(denseffnmoe_dir, "top_k_experts.npy"),
-        #     eager_top_indx.cpu().numpy().astype(np.int64),
-        # )
-        # np.save(
-        #     os.path.join(denseffnmoe_dir, "eager_moe_output.npy"),
-        #     eager_moe_output.cpu().numpy(),
-        # )
-
         padding_mask = (
             (token_ids != 0).int().detach().clone().to(token_ids.device).bool()
         )
