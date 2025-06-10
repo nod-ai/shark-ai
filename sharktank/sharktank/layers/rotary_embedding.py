@@ -35,6 +35,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         pipeline_parallelism: bool = False,
         dtype: torch.dtype = torch.float32,
         devices: tuple[int, ...] | None = None,
+        model_arch: Optional[str] = None,
     ):
         super().__init__()
         self.device = device
@@ -52,6 +53,7 @@ class RotaryEmbeddingLayer(BaseLayer):
             if devices is not None
             else tuple(range(self.tensor_parallelism_size))
         )
+        self.model_arch = model_arch
 
     @property
     def rotary_embed_table(self):
@@ -163,7 +165,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         xt_ = xt
         _, sl, _, _ = xt_.shape
 
-        if self.rope_scaling_type == "llama3":
+        if self.model_arch == "llama4":
             freqs_cis_real = rotary_embed_table[0][
                 :, : rotary_embed_table[0].shape[1] // 2
             ]

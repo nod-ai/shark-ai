@@ -95,6 +95,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
                     pipeline_parallelism=config.pipeline_parallelism_size > 1,
                     devices=self.cache.pipeline_to_device_map[pipeline],
                     dtype=self.config.activation_dtype,
+                    model_arch=self.config.hp.model_arch,
                 )
                 for pipeline in range(self.config.pipeline_parallelism_size)
             ]
