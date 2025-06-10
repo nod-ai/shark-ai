@@ -1,4 +1,3 @@
-
 import iree.runtime
 import numpy
 import pytest
@@ -26,7 +25,8 @@ func.func @main(%arg0 : tensor<?x{d1}x{dtype}>, %arg1: tensor<?x{d1}xi32>) -> (t
 }
 """
 
-def get_topk_template(k:int, dtype:str, d1):
+
+def get_topk_template(k: int, dtype: str, d1):
     t = _topk_template
     t = t.replace("{k}", str(k))
     t = t.replace("{dtype}", str(dtype))
@@ -41,6 +41,7 @@ def hip_kernel_build(request):
         raise ValueError("--hip-kernel-build not specified")
     return ret
 
+
 @pytest.fixture(scope="session")
 def test_device(request):
     ret = request.config.option.iree_hip_target
@@ -48,17 +49,36 @@ def test_device(request):
         raise ValueError("--test_device not specified")
     return ret
 
+
 def test_topk_f16_test(tmp_path, test_device, hip_kernel_build):
-    run_topk(tmp_path=tmp_path, test_device=test_device, hip_kernel_build=hip_kernel_build, k=8, bs=1, d1=64, dtype=torch.float16, dtype_mlir="f16")
+    run_topk(
+        tmp_path=tmp_path,
+        test_device=test_device,
+        hip_kernel_build=hip_kernel_build,
+        k=8,
+        bs=1,
+        d1=64,
+        dtype=torch.float16,
+        dtype_mlir="f16",
+    )
 
 
 def test_topk_f32_test(tmp_path, test_device, hip_kernel_build):
-    run_topk(tmp_path=tmp_path, test_device=test_device, hip_kernel_build=hip_kernel_build, k=8, bs=1, d1=64, dtype=torch.float32, dtype_mlir="f32")
+    run_topk(
+        tmp_path=tmp_path,
+        test_device=test_device,
+        hip_kernel_build=hip_kernel_build,
+        k=8,
+        bs=1,
+        d1=64,
+        dtype=torch.float32,
+        dtype_mlir="f32",
+    )
 
 
 def run_topk(tmp_path, test_device, hip_kernel_build, k, bs, d1, dtype, dtype_mlir):
     filename = f"{tmp_path}/topk_{dtype_mlir}.mlir"
-    with open(filename, 'wt') as f:
+    with open(filename, "wt") as f:
         topk_mlir = get_topk_template(k=k, d1=d1, dtype=dtype_mlir)
         f.write(topk_mlir)
         f.close()
@@ -86,9 +106,10 @@ def run_topk(tmp_path, test_device, hip_kernel_build, k, bs, d1, dtype, dtype_ml
     device_infos = hal_driver.query_available_devices()
     device = hal_driver.create_device(device_infos[0]["device_id"])
     config = iree.runtime.Config(device=device)
-    vm_module = iree.runtime.VmModule.from_flatbuffer(config.vm_instance, stdout, warn_if_copy=False)
+    vm_module = iree.runtime.VmModule.from_flatbuffer(
+        config.vm_instance, stdout, warn_if_copy=False
+    )
     bound_module = iree.runtime.load_vm_module(vm_module, config)
-
 
     arg0 = torch.arange(d1).repeat(bs, 1).to(dtype=dtype) * 17 % (bs * d1)
     arg1 = torch.arange(d1, dtype=torch.int32)[None, :].repeat(bs, 1)
@@ -102,5 +123,5 @@ def run_topk(tmp_path, test_device, hip_kernel_build, k, bs, d1, dtype, dtype_ml
     res0 = res0[numpy.arange(bs), sort]
     res1 = res1[numpy.arange(bs), sort]
 
-    assert (numpy.isclose(res1, ref1).all())
-    assert (numpy.isclose(res0, ref0).all())
+    assert numpy.isclose(res1, ref1).all()
+    assert numpy.isclose(res0, ref0).all()
