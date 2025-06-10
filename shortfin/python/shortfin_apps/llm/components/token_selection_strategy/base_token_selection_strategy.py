@@ -6,12 +6,16 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+import logging
 from typing import List, Callable, Union
 
 from .config import DecodeConfig, TokenSelectionStrategy
 from ..messages import LlmInferenceExecRequest
 
 import shortfin.array as sfnp
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -27,8 +31,25 @@ class TokenSelectionStrategyConfig:
     eos_token_id: int
 
 
+@dataclass
 class BaseTokenSelectionStrategy(ABC):
     """Abstract class for implementing token selection strategies."""
+
+    token_selection_strategy_config: TokenSelectionStrategyConfig
+
+    def _log_sampling_method(self):
+        """Log the sampling method used for token selection."""
+        decode_config = self.token_selection_strategy_config.decode_config
+        strategy = decode_config.token_selection_strategy
+        if isinstance(strategy, TokenSelectionStrategy):
+            strategy = strategy.name
+        logger.info(f"Using {strategy.lower()} selection method...")
+
+        if decode_config.top_k is not None:
+            logger.info(f"Using `top_k` sampling with `top_k == {decode_config.top_k}`")
+
+        if decode_config.top_p is not None:
+            logger.info(f"Using `top_p` sampling with `top_p == {decode_config.top_p}`")
 
     def replicate_inference_exec_requests(
         self, exec_req: LlmInferenceExecRequest, replicate: int
@@ -44,16 +65,6 @@ class BaseTokenSelectionStrategy(ABC):
 
         return exec_reqs
 
-    @property
-    @abstractmethod
-    def token_selection_strategy_config(self) -> TokenSelectionStrategyConfig:
-        """Configuration object for defining the parameters of the decode loop.
-
-        Returns:
-            TokenSelectionStrategyConfig: Configuration object.
-        """
-        pass
-
     async def prefill(self, exec_req: LlmInferenceExecRequest) -> int:
         """Perform standard `prefill` on an LlmInferenceExecRequest.
 
@@ -67,16 +78,30 @@ class BaseTokenSelectionStrategy(ABC):
         Returns:
             int: Token generated from prefill.
         """
+
+        if exec_req.status_tracker.is_disconnected():
+            return
+
         token_selection_strategy_config = self.token_selection_strategy_config
 
         token_selection_strategy_config.prefill_callback(exec_req)
         await exec_req.done
 
-        token = sfnp.argmax(exec_req.result_logits)
-        token_int = token.items[0]
+        assert_message = f"{exec_req.instance_id}'s result_logits are None. This typically indicates an error during prefill invocation."
+        assert exec_req.result_logits is not None, assert_message
+
+        if exec_req.result_indices is not None:
+            token_int = exec_req.result_indices.items[0]
+        else:
+            token = sfnp.argmax(exec_req.result_logits)
+            token_int = token.items[0]
+
         decode_config = token_selection_strategy_config.decode_config
-        # TODO: This is only temporary until streaming is enabled for `MultiGreedy`
-        if decode_config.token_selection_strategy == TokenSelectionStrategy.GREEDY:
+        # TODO: This is only temporary until streaming is enabled for `MultiHypothesis`
+        if (
+            decode_config.token_selection_strategy == TokenSelectionStrategy.INDEPENDENT
+            and decode_config.num_beams == 1
+        ):
             token_selection_strategy_config.results_callback(token_int)
 
         exec_req.input_token_ids.append(token_int)

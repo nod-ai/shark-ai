@@ -12,23 +12,26 @@ Classes:
 - ServerParams: for specifying config keys needed by `python -m shortfin_apps.llm.server`
 """
 
+import dataclasses_json
+
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
-import dataclasses_json
 from dataclasses_json import dataclass_json, Undefined
-
-import shortfin.array as sfnp
 
 from .token_selection_strategy.config import DecodeConfig
 from .token_selection_strategy.config import LogitsNormalization
+
+import shortfin.array as sfnp
 
 
 def _decode_dtype(name: str) -> sfnp.DType:
     obj = getattr(sfnp, name, None)
     if not isinstance(obj, sfnp.DType):
         raise ValueError(f"{name} is not a recognized dtype")
+
+    return obj
 
 
 dataclasses_json.cfg.global_config.encoders[sfnp.DType] = lambda dt: dt.name
@@ -99,6 +102,9 @@ class PagedKVCacheParams:
     # Default: 256
     device_block_count: int
 
+    # Element type of the KVCache
+    kv_cache_dtype: sfnp.DType
+
 
 @dataclass_json(undefined=Undefined.RAISE)
 @dataclass
@@ -141,8 +147,20 @@ class ModelParams:
     # The element type of the attention caches.
     attn_dtype: sfnp.DType = sfnp.float16
 
+    # Define the `top_k` option that model was exported with for prefill/decode.
+    # If `top_k` is None, only logits are returned.
+    # If `top_k == 1`, logits/indices from `argmax` are returned.
+    # If `top_k` > 1, logits/indices from `top_k` are returned.
+    top_k: int | None = None
+
     # Cache parameters.
     paged_kv_cache: PagedKVCacheParams | None = None
+
+    def __post_init__(self):
+        if self.top_k is None or self.top_k >= 1:
+            return
+
+        raise ValueError(f"Currently, only `top_k >= 1` is supported.")
 
     # Size in bytes of the KV cache dtype.
     @property
@@ -212,11 +230,18 @@ class ServerParams:
     # Program isolation configuration
     program_isolation: str = "per_call"
 
+    # Number of shortfin workers to use during generation
+    workers: int = 1
+
+    # Number of fibers to create per worker
+    fibers_per_worker: int = 1
+
     decode_config: DecodeConfig | None = None
 
     # Device configuration
     device_ids: list[str] = field(default_factory=list)
     amdgpu_async_allocations: bool = False
+    amdgpu_async_caching: bool = False
     amdgpu_allocators: Optional[str] = None
     amdgpu_allow_device_reuse: bool = False
 

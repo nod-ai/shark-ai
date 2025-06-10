@@ -27,19 +27,12 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.11", "3.12"]
-        torch-version: ["2.3.0", "2.4.1", "2.5.1"]
+        torch-version: ["2.4.1", "2.5.1"]
         runs-on: [ubuntu-24.04]
         include:
           - runs-on: windows-2022
-            python-version: "3.11"
-            torch-version: "2.3.0"
-          - runs-on: windows-2022
             python-version: "3.12"
             torch-version: "2.4.1"
-        exclude:
-          - python-version: "3.12"
-             # `torch.compile` requires torch>=2.4.0 for Python 3.12+
-            torch-version: "2.3.0"
       fail-fast: false
     runs-on: ${{matrix.runs-on}}
     defaults:
@@ -52,7 +45,7 @@ jobs:
 
       - name: "Setting up Python"
         id: setup_python
-        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: ${{matrix.python-version}}
 
@@ -62,10 +55,6 @@ jobs:
         with:
           path: ${{ env.PIP_CACHE_DIR }}
           key: pip-${{ steps.setup_python.outputs.python-version }}-${{ hashFiles('*requirements*.txt','sharktank/requirements*.txt') }}
-
-      - name: Install numpy
-        if: ${{ matrix.runs-on == 'windows-2022' && matrix.torch-version == '2.3.0' }}
-        run: pip install "numpy<2.0"
 
       - name: Install pip deps
         run: |
@@ -110,7 +99,7 @@ jobs:
 
       - name: "Setting up Python"
         id: setup_python
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: ${{matrix.python-version}}
 
@@ -120,10 +109,6 @@ jobs:
         with:
           path: ${{ env.PIP_CACHE_DIR }}
           key: pip-${{ steps.setup_python.outputs.python-version }}-${{ hashFiles('*requirements*.txt','sharktank/requirements*.txt') }}
-
-      - name: Install numpy
-        if: ${{ matrix.runs-on == 'windows-2022' && matrix.torch-version == '2.3.0' }}
-        run: pip install "numpy<2.0"
 
       - name: Install pip deps
         run: |
@@ -172,7 +157,7 @@ jobs:
 
       - name: "Setting up Python"
         id: setup_python
-        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: ${{matrix.python-version}}
 
@@ -222,7 +207,7 @@ jobs:
 
       - name: "Setting up Python"
         id: setup_python
-        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: 3.11
 

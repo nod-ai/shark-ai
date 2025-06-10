@@ -13,13 +13,14 @@ Generate MLIR and a random inited IRPA file with:
     python -m sharktank.examples.sharding.export_ffn_net \
         --output-irpa-file=/tmp/ffn.irpa /tmp/ffn.mlir
 """
+import os
 
 import torch
-import torch.nn as nn
 
-from ...layers import *
-from ... import ops
-from ...types import *
+from sharktank.layers import *
+from sharktank import ops
+from sharktank.types import *
+from sharktank.utils import cli
 
 
 def create_theta(
@@ -63,8 +64,6 @@ class ShardedFFN(ThetaLayer):
 
 
 def main(raw_args=None):
-    from ...utils import cli
-    import os
 
     parser = cli.create_parser()
     parser.add_argument(

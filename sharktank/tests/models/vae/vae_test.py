@@ -28,6 +28,7 @@ from sharktank.models.vae.tools.run_vae import export_vae
 from sharktank.models.vae.tools.sample_data import get_random_inputs
 from sharktank.tools.import_hf_dataset import import_hf_dataset
 from sharktank.utils.iree import (
+    get_iree_compiler_flags_from_object,
     with_iree_device_context,
     get_iree_devices,
     load_iree_module,
@@ -38,8 +39,9 @@ from sharktank.utils.iree import (
 )
 from sharktank.utils.testing import (
     TempDirTestBase,
-    get_iree_compiler_flags,
     is_cpu_condition,
+    is_cpu_win,
+    is_mi300x,
 )
 from sharktank.models.vae.testing import (
     get_toy_vae_decoder_config,
@@ -122,6 +124,11 @@ class VaeSDXLDecoderTest(TempDirTestBase):
 
         torch.testing.assert_close(ref_results, results)
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason="Compile error uses <LARGE_NUM> bytes of shared memory; exceeded the limit of 65536 bytes: "
+        "https://github.com/iree-org/iree/issues/20875",
+    )
     @pytest.mark.expensive
     def testVaeIreeVsHuggingFace(self):
         dtype = getattr(torch, "float32")
@@ -151,7 +158,7 @@ class VaeSDXLDecoderTest(TempDirTestBase):
             "--iree-codegen-llvmgpu-use-vector-distribution=true",
             "--iree-execution-model=async-external",
             "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline,iree-preprocessing-pad-to-intrinsics)",
-        ] + get_iree_compiler_flags(self)
+        ] + get_iree_compiler_flags_from_object(self)
 
         iree.compiler.compile_file(
             f"{self._temp_dir}/vae_f16.mlir",
@@ -239,7 +246,7 @@ class VaeFluxDecoderTest(TempDirTestBase):
             "--iree-codegen-llvmgpu-use-vector-distribution=true",
             "--iree-execution-model=async-external",
             "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline,iree-preprocessing-pad-to-intrinsics)",
-        ] + get_iree_compiler_flags(self)
+        ] + get_iree_compiler_flags_from_object(self)
 
     @pytest.mark.expensive
     @with_vae_data
@@ -315,8 +322,20 @@ class VaeFluxDecoderTest(TempDirTestBase):
     @pytest.mark.xfail(
         is_cpu_condition,
         raises=iree.compiler.CompilerToolError,
-        strict=True,
+        strict=False,
         reason="Compiler error on CPU TODO: file issue",
+    )
+    @pytest.mark.xfail(
+        is_cpu_win,
+        raises=AssertionError,
+        strict=False,
+        reason="Numerical error on Windows CPU TODO: file issue",
+    )
+    @pytest.mark.xfail(
+        is_mi300x,
+        raises=AssertionError,
+        strict=False,
+        reason="Numerical error on Mi300 TODO: file issue",
     )
     def testCompareToyIreeVsEager(
         self,
@@ -336,6 +355,11 @@ class VaeFluxDecoderTest(TempDirTestBase):
             rtol=rtol,
         )
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason="Compile error uses <LARGE_NUM> bytes of shared memory; exceeded the limit of 65536 bytes: "
+        "https://github.com/iree-org/iree/issues/20875",
+    )
     @pytest.mark.expensive
     @with_vae_data
     def testVaeIreeVsHuggingFace(self):

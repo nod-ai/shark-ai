@@ -67,6 +67,23 @@ python -c "from sharktank import ops; print('Sanity check passed')"
 deactivate
 ```
 
+## Quickstart - sharktuner
+
+```bash
+# Set up a virtual environment to isolate packages from other envs.
+python3.11 -m venv 3.11.venv
+source 3.11.venv/bin/activate
+
+# Install 'sharktuner' package from nightly releases.
+pip install sharktuner -f https://github.com/nod-ai/shark-ai/releases/expanded_assets/dev-wheels --pre
+
+# Test the installation.
+python -c "import sharktuner; print('Sanity check passed')"
+
+# Deactivate the virtual environment when done.
+deactivate
+```
+
 ## Quickstart - shortfin
 
 ```bash

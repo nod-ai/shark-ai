@@ -8,21 +8,19 @@
 """
 
 from typing import Optional
-
 import warnings
 
 import torch
 from torch import Tensor
 
-from ..types import (
+from sharktank.types import (
     AnyTensor,
     QuantizedTensor,
     PlanarQuantizedTensor,
     TensorScaledLayout,
 )
-from ..utils import debugging
+from sharktank.utils import debugging
 
-from ..types.tensors import unbox_tensor
 from .signatures import *
 
 from sharktank import kernels

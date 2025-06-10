@@ -4,10 +4,16 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from collections.abc import Iterable
+from typing import Callable
 import unittest
-from parameterized import parameterized
+import itertools
+import pytest
+from parameterized import parameterized, parameterized_class
 
+import functools
 import torch
+import torch.nn.functional as F
 
 from sharktank import ops
 from sharktank.types import *
@@ -49,7 +55,219 @@ class AllReduceTest(unittest.TestCase):
             torch.testing.assert_close(shard.as_torch(), expected_result)
 
 
+class ArgmaxTest(unittest.TestCase):
+    def testArgmax(self):
+        shard_count = 3
+        shard_shape = [3, 4]
+        shard_dim = 0
+        shards = [
+            torch.rand(shard_shape, dtype=torch.float32) for _ in range(shard_count)
+        ]
+        expected_results = [torch.argmax(shard, 0, False) for shard in shards]
+
+        sharded = SplitPrimitiveTensor(shard_dim=shard_dim, ts=shards)
+        actual_result = ops.argmax(sharded, 0, False)
+
+        for i, shard in enumerate(actual_result.shards):
+            torch.testing.assert_close(shard.as_torch(), expected_results[i])
+
+    def testArgmaxReplicated(self):
+        shard_count = 3
+        shard_shape = [3, 4]
+        test = torch.rand(shard_shape, dtype=torch.float32)
+        expected_result = torch.argmax(test, 0, False)
+
+        sharded_test = ops.replicate(test, count=shard_count)
+        actual_result = ops.argmax(sharded_test, 0, False)
+
+        for shard in actual_result.shards:
+            torch.testing.assert_close(shard.as_torch(), expected_result)
+
+    def testSplitArgmax(self):
+        shard_count = 3
+        shard_shape = [3, 4]
+        shard_dim = 0
+        shards = [
+            torch.rand(shard_shape, dtype=torch.float32) for _ in range(shard_count)
+        ]
+        expected_results = [torch.argmax(shard, 0, False) for shard in shards]
+
+        sharded = SplitPrimitiveTensor(shard_dim=shard_dim, ts=shards)
+        actual_result = ops.argmax(sharded, 0, False, 1)
+
+        for i, shard in enumerate(actual_result.shards):
+            torch.testing.assert_close(shard.as_torch(), expected_results[i])
+
+    def testSplitArgmaxReplicated(self):
+        shard_count = 3
+        shard_shape = [3, 4]
+        test = torch.rand(shard_shape, dtype=torch.float32)
+        expected_result = torch.argmax(test, 0, False)
+
+        sharded_test = ops.replicate(test, count=shard_count)
+        actual_result = ops.argmax(sharded_test, 0, False, 1)
+
+        for shard in actual_result.shards:
+            torch.testing.assert_close(shard.as_torch(), expected_result)
+
+
+class CalculateViewDimensionMappingTest(unittest.TestCase):
+    # NOTE: Don't have to test dynamic dim versions since `_calculate_view_dimension_mapping`
+    #       Immediately calls `_reshape_infer_dynamic_dim` which collapses the result back to
+    #       a non-dynamic test version.
+    #       `_reshape_infer_dynamic_dim` is already being tested above.
+    def setUp(self):
+        from sharktank.ops.sharded_impls import _calculate_view_dimension_mapping
+
+        self.calc_map = _calculate_view_dimension_mapping
+
+    def _test_mapping(
+        self,
+        from_shape: list[int],
+        to_shape: list[int],
+        expected_mapping: list[int],
+    ):
+        actual_mapping = self.calc_map(from_shape=from_shape, to_shape=to_shape)
+        assert len(actual_mapping) == len(expected_mapping)
+        assert all(
+            sorted(i_to_lst_actual) == sorted(i_to_lst_expected)
+            for i_to_lst_actual, i_to_lst_expected in zip(
+                actual_mapping, expected_mapping
+            )
+        )
+
+    @parameterized.expand(
+        (
+            ([5],),
+            ([1],),
+            ([3, 4],),
+            ([3, 1],),
+            ([1, 4],),
+            ([3, 4, 5],),
+            ([1, 4, 5],),
+            ([3, 4, 1],),
+            ([1, 1, 3, 4, 5],),
+            ([1, 1, 3, 4, 5, 1],),
+            ([1, 1, 3, 4, 5, 1, 1],),
+        )
+    )
+    def testMappingToSelf(self, shape: tuple[int, ...]):
+        self._test_mapping(
+            from_shape=shape,
+            to_shape=shape,
+            expected_mapping=[[i] for i in range(len(shape))],
+        )
+
+    @parameterized.expand(
+        (
+            ([3, 4, 5, 1], [[0], [1], [2]]),
+            ([3, 4, 5, 1, 1], [[0], [1], [2]]),
+            ([1, 3, 4, 5], [[1], [2], [3]]),
+            ([1, 1, 3, 4, 5], [[2], [3], [4]]),
+            ([1, 1, 3, 4, 5, 1], [[2], [3], [4]]),
+            ([1, 1, 3, 4, 5, 1, 1], [[2], [3], [4]]),
+        )
+    )
+    def testMappingAdding1s(
+        self, to_shape: tuple[int, ...], expected_mapping: list[int]
+    ):
+        self._test_mapping(
+            from_shape=[3, 4, 5], to_shape=to_shape, expected_mapping=expected_mapping
+        )
+
+    @parameterized.expand(
+        (
+            (
+                [1, 5, 1, 6, 1, 1, 3, 1, 1],
+                [[0], [1], [1], [2], [3], [4], [5], [6], [7], [8]],
+            ),
+            (
+                [5, 1, 6, 1, 1, 3, 1, 1],
+                [[0], [0], [0], [1], [2], [3], [4], [5], [6], [7]],
+            ),
+            (
+                [1, 1, 5, 6, 1, 1, 3, 1, 1],
+                [[0], [1], [2], [3], [3], [4], [5], [6], [7], [8]],
+            ),
+            (
+                [1, 1, 5, 1, 6, 1, 3, 1, 1],
+                [[0], [1], [2], [3], [4], [5], [6], [6], [7], [8]],
+            ),
+            (
+                [1, 1, 5, 1, 6, 3, 1, 1],
+                [[0], [1], [2], [3], [4], [5], [5], [5], [6], [7]],
+            ),
+            (
+                [1, 1, 5, 1, 6, 1, 1, 3, 1],
+                [[0], [1], [2], [3], [4], [5], [6], [7], [8], [8]],
+            ),
+            (
+                [1, 1, 5, 1, 6, 1, 1, 3],
+                [[0], [1], [2], [3], [4], [5], [6], [7], [7], [7]],
+            ),
+            ([5, 6, 3], [[0], [0], [0], [1], [1], [2], [2], [2], [2], [2]]),
+        )
+    )
+    def testMappingRemoving1s(self, to_shape: list[int], expected_mapping: list[int]):
+        self._test_mapping(
+            from_shape=[1, 1, 5, 1, 6, 1, 1, 3, 1, 1],
+            to_shape=to_shape,
+            expected_mapping=expected_mapping,
+        )
+
+    @parameterized.expand(
+        (
+            ([8], [4, 2], [[0, 1]]),
+            ([5, 4], [5, 2, 2], [[0], [1, 2]]),
+            ([5, 4, 3], [5, 2, 2, 3], [[0], [1, 2], [3]]),
+        )
+    )
+    def testMappingExpand(
+        self,
+        from_shape: list[int],
+        to_shape: list[int],
+        expected_mapping: list[int],
+    ):
+        self._test_mapping(
+            from_shape=from_shape, to_shape=to_shape, expected_mapping=expected_mapping
+        )
+
+    @parameterized.expand(
+        (
+            ([4, 2], [8], [[0], [0]]),
+            ([5, 2, 2], [5, 4], [[0], [1], [1]]),
+            ([5, 2, 2, 3], [5, 4, 3], [[0], [1], [1], [2]]),
+        )
+    )
+    def testMappingCollapse(
+        self, from_shape: list[int], to_shape: list[int], expected_mapping: list[int]
+    ):
+        self._test_mapping(
+            from_shape=from_shape, to_shape=to_shape, expected_mapping=expected_mapping
+        )
+
+    @parameterized.expand(
+        (
+            ([5, 4, 9], [20, 3, 3], [[0], [0], [1, 2]]),
+            ([5, 4, 9], [1, 1, 20, 3, 3, 1, 1], [[2], [2], [3, 4]]),
+            ([7, 5, 4, 9], [7, 20, 3, 3], [[0], [1], [1], [2, 3]]),
+            ([7, 5, 4, 9], [7, 1, 20, 3, 3], [[0], [2], [2], [3, 4]]),
+            ([9, 5, 4, 9], [3, 3, 20, 3, 3], [[0, 1], [2], [2], [3, 4]]),
+            ([9, 5, 4, 9], [3, 3, 1, 20, 3, 1, 3], [[0, 1], [3], [3], [4, 6]]),
+        )
+    )
+    def testMappingExpandCollapse(
+        self, from_shape: list[int], to_shape: list[int], expected_mapping: list[int]
+    ):
+        self._test_mapping(
+            from_shape=from_shape, to_shape=to_shape, expected_mapping=expected_mapping
+        )
+
+
 class CatTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(0)
+
     def testCatSplitDim(self):
         """Concatenation along the sharded split dimension."""
         shard_dim = 1
@@ -249,20 +467,34 @@ class ElementwiseTest(unittest.TestCase):
 
         torch.testing.assert_close(actual_result, expected_result)
 
-    def testRhsAndLhsShardedAddWithBroadcasting(self):
-        a = torch.rand(1, 4, 5, 6, dtype=torch.float32)
-        b = torch.rand(3, 4, 1, 6, dtype=torch.float32)
+    @parameterized.expand(tuple(itertools.product([0, 1, 2, 3], repeat=2)))
+    def testRhsAndLhsShardedAddWithBroadcasting(self, i: int, j: int):
+        a = torch.rand((1, 4, 5, 6)[i:], dtype=torch.float32)
+        b = torch.rand((3, 4, 1, 6)[j:], dtype=torch.float32)
 
         expected_result = a + b
 
-        shard_dim = 3
         shard_count = 3
-        sharded_a = ops.reshard_split(a, dim=shard_dim, count=shard_count)
-        sharded_b = ops.reshard_split(b, dim=shard_dim, count=shard_count)
+        sharded_a = ops.reshard_split(a, dim=a.dim() - 1, count=shard_count)
+        sharded_b = ops.reshard_split(b, dim=b.dim() - 1, count=shard_count)
         sharded_result = sharded_a + sharded_b
         actual_result = ops.reshard_like(sharded_result, expected_result)
 
         torch.testing.assert_close(actual_result, expected_result)
+
+    @parameterized.expand(tuple(itertools.product([0, 1, 2], repeat=2)))
+    def testShardedReplicatedAddWithBroadcasting(self, i: int, j: int):
+        a = torch.rand((4, 1, 6)[i:], dtype=torch.float32)
+        b = torch.rand((4, 5, 6)[j:], dtype=torch.float32)
+
+        expected_result = a + b
+
+        a_s = ops.replicate(a, count=3)
+        b_s = ops.reshard_split(b, dim=b.dim() - 1, count=3)
+        actual_result = a_s + b_s
+        actual_result2 = b_s + a_s
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result2))
 
     @parameterized.expand(
         [
@@ -270,7 +502,8 @@ class ElementwiseTest(unittest.TestCase):
             (torch.div,),
             (torch.fmin,),
             (torch.fmax,),
-            (torch.sub),
+            (torch.sub,),
+            (torch.mul,),
         ]
     )
     def testBinaryOperators(self, operator):
@@ -623,6 +856,33 @@ class NormalizationTest(unittest.TestCase):
         torch.testing.assert_close(actual_result, expected_result)
 
 
+class PadTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(0)
+
+    def testPadReplicated(self):
+        tensor = torch.rand(3, 4, 5, dtype=torch.float32)
+        pad = [1, 2, 3, 4]
+        expected_result = F.pad(tensor, pad)
+        sharded_tensor = ops.replicate(tensor, count=2)
+        actual_result = ops.pad(sharded_tensor, pad)
+
+        assert ops.equal(expected_result, actual_result)
+
+    @parameterized.expand(((0,), (1,), (2,), (3,)))
+    def testPadSplit(self, shard_dim: int):
+        tensor = torch.rand((6, 6, 6, 6), dtype=torch.float32)
+        pad = [1, 2, 3, 4]
+        # assert False, "Handle 0"
+        expected_result = F.pad(tensor, pad)
+        sharded_tensor = SplitPrimitiveTensor(
+            ts=tensor.split(2, dim=shard_dim), shard_dim=shard_dim
+        )
+        actual_result = ops.pad(sharded_tensor, pad)
+
+        assert ops.equal(expected_result, actual_result)
+
+
 class PermuteTest(unittest.TestCase):
     def testShardedPrimitiveTensorPermute(self):
         torch_tensor = torch.rand(3, 8, 5, dtype=torch.float32)
@@ -692,7 +952,41 @@ class AttentionTest(unittest.TestCase):
         torch.testing.assert_close(unsharded_result, expected_result)
 
 
+class MaskedFillTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(0)
+
+    @parameterized.expand((([3, 4, 5],), ([1, 4, 5],), ([1, 1, 5],), ([1, 1, 1],)))
+    def testMaskedFillReplicatedReplicated(self, mask_shape: list[int]):
+        tensor = torch.zeros(3, 4, 5, dtype=torch.float32)
+        mask = torch.rand(mask_shape) > 0.5
+        value = 1
+        expected_result = tensor.masked_fill(mask, value)
+
+        sharded_tensor = ops.replicate(tensor, count=2)
+        sharded_mask = ops.replicate(mask, count=2)
+        actual_result = ops.masked_fill(sharded_tensor, sharded_mask, value)
+
+        assert ops.equal(expected_result, actual_result)
+
+    @parameterized.expand((([3, 4, 5],), ([1, 4, 5],)))
+    def testMaskedFillSplitSplit(self, mask_shape: list[int]):
+        tensor = torch.zeros(3, 4, 5, dtype=torch.float32)
+        mask = torch.rand(mask_shape) > 0.5
+        value = 1
+        expected_result = tensor.masked_fill(mask, value)
+
+        sharded_tensor = SplitPrimitiveTensor(ts=tensor.split(2, dim=1), shard_dim=1)
+        sharded_mask = SplitPrimitiveTensor(ts=mask.split(2, dim=1), shard_dim=1)
+        actual_result = ops.masked_fill(sharded_tensor, sharded_mask, value)
+
+        assert ops.equal(expected_result, actual_result)
+
+
 class MatmulTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(0)
+
     def testTorchRHSColumnShardedTransposed(self):
         t1 = torch.rand(4, 32, 16, dtype=torch.float32)
         t2 = torch.rand(48, 16, dtype=torch.float16)
@@ -718,10 +1012,22 @@ class MatmulTest(unittest.TestCase):
         shard_count = 3
         unsharded_result = torch.matmul(a, b)
         expected_result = ops.reshard_split(unsharded_result, dim=2, count=shard_count)
-        b_sharded = ops.reshard_split(b, dim=1, count=shard_count)
         a_sharded = ops.replicate(a, count=shard_count)
+        b_sharded = ops.reshard_split(b, dim=1, count=shard_count)
         actual_result = ops.matmul(a_sharded, b_sharded)
         assert expected_result.is_deep_equal(actual_result, compare_name=False)
+
+    def testReplicatedLhsShardedReductionDimRhs(self):
+        a = torch.randint(low=0, high=10, size=[2, 5, 3], dtype=torch.int32)
+        b = torch.randint(low=0, high=10, size=[3, 6], dtype=torch.int32)
+        shard_count = 3
+        unsharded_result = torch.matmul(a, b)
+        expected_result = ops.reshard_split(unsharded_result, dim=2, count=shard_count)
+        a_sharded = ops.replicate(a, count=shard_count)
+        b_sharded = ops.reshard_split(b, dim=0, count=shard_count)
+        actual_result = ops.matmul(a_sharded, b_sharded)
+        assert isinstance(actual_result, UnreducedTensor)
+        assert ops.equal(actual_result, expected_result)
 
     def testShardedChainMatmulX2Transposed(self):
         # Computes Z = (XA)B (sharded by 8).
@@ -884,7 +1190,103 @@ class MatmulTest(unittest.TestCase):
         b_sharded = ops.replicate(b, count=shard_count)
         actual_result = ops.matmul(a_sharded, b_sharded)
         for shard in actual_result.shards:
-            assert ops.equal(shard, unsharded_result)
+            torch.testing.assert_close(unsharded_result, unbox_tensor(shard))
+
+    def testReplicated3DLhsAndSplitBatchDim3DRhs(self):
+        """Both LHS and RHS are 3D tensors and RHS is split along the batch dimension."""
+        a = torch.randint(low=0, high=10, size=[4, 3, 5], dtype=torch.int32)
+        b = torch.randint(low=0, high=10, size=[4, 5, 7], dtype=torch.int32)
+        shard_count = 2
+        expected_result = torch.matmul(a, b)
+
+        a_sharded = ops.replicate(a, count=shard_count)
+        b_sharded = ops.reshard_split(b, count=shard_count, dim=0)
+        actual_result = ops.matmul(a_sharded, b_sharded)
+        assert isinstance(actual_result, SplitPrimitiveTensor)
+        assert actual_result.shard_dim == 0
+        ops.equal(expected_result, actual_result)
+
+
+@parameterized_class(
+    ("keepdim", "mean_dim_delta"), list(itertools.product([True, False], [-1, 0, +1]))
+)
+class MeanTest(unittest.TestCase):
+    def setUp(self):
+        self.shape = (2, 4, 6, 8, 10)
+        self.shard_dim = 2
+        self.mean_dim = self.shard_dim + self.mean_dim_delta
+        self.mean_dims_multi = tuple(self.mean_dim + i for i in [-1, 0, +1])
+        self.shard_count = 2
+        torch.random.manual_seed(sum(self.mean_dims_multi) + 13 * self.keepdim)
+
+    def testMeanReplicated(self):
+        tensor = torch.rand(self.shape, dtype=torch.float32)
+        expected_result = ops.mean(tensor, dim=self.mean_dim, keepdim=self.keepdim)
+        actual_result = ops.mean(
+            ops.replicate(tensor, count=self.shard_count),
+            dim=self.mean_dim,
+            keepdim=self.keepdim,
+        )
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+
+    def testMeanSplit(self):
+        tensor = torch.rand(self.shape, dtype=torch.float32)
+        expected_result = ops.mean(tensor, dim=self.mean_dim, keepdim=self.keepdim)
+        sharded_tensor = ops.reshard_split(
+            tensor, dim=self.shard_dim, count=self.shard_count
+        )
+        actual_result = ops.mean(
+            sharded_tensor, dim=self.mean_dim, keepdim=self.keepdim
+        )
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+
+    def testMeanSplitNegativeDims(self):
+        if self.mean_dim_delta != -1:
+            self.skipTest(
+                "Using a specifc negative dim, so only running for different versions of 'keepdim'."
+            )
+        mean_dim = [-5, -1, -4]
+        tensor = torch.rand(self.shape, dtype=torch.float32)
+        expected_result = ops.mean(tensor, dim=mean_dim, keepdim=self.keepdim)
+        sharded_tensor = ops.reshard_split(
+            tensor, dim=self.shard_dim, count=self.shard_count
+        )
+        actual_result = ops.mean(sharded_tensor, dim=mean_dim, keepdim=self.keepdim)
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+
+    def testMeanSplitMultiDim(self):
+        tensor = torch.rand(self.shape, dtype=torch.float32)
+        expected_result = ops.mean(
+            tensor, dim=self.mean_dims_multi, keepdim=self.keepdim
+        )
+        sharded_tensor = ops.reshard_split(
+            tensor, dim=self.shard_dim, count=self.shard_count
+        )
+        actual_result = ops.mean(
+            sharded_tensor, dim=self.mean_dims_multi, keepdim=self.keepdim
+        )
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+
+
+class ReduceScatter(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(0)
+
+    def testUnreduced(self):
+        dtype = torch.float32
+        shard_count = 3
+        shape = [2, shard_count * 5, 7]
+        scatter_dim = 1
+        input_shards = [torch.rand(shape, dtype=dtype) for _ in range(shard_count)]
+
+        expected = functools.reduce(torch.add, input_shards)
+
+        unreduced_input = UnreducedTensor(ts=input_shards)
+        actual = ops.reduce_scatter(unreduced_input, scatter_dim)
+        assert isinstance(actual, SplitPrimitiveTensor)
+        assert actual.shard_dim == scatter_dim
+        assert actual.shard_count == shard_count
+        assert ops.equal(expected, actual)
 
 
 class ReplicateTest(unittest.TestCase):
@@ -999,6 +1401,41 @@ class ReshapeTest(unittest.TestCase):
         assert expected_result.is_deep_equal(actual_result)
 
 
+class ReshapeInferDynamicDimTest(unittest.TestCase):
+    def setUp(self):
+        import sharktank.ops.sharded_impls as sharded_impls
+
+        self.infer_dim = sharded_impls._reshape_infer_dynamic_dim
+
+    @parameterized.expand(
+        (
+            ([2, 4, 5], [-1, 10]),
+            ([2, 4, 5], [-1, 5]),
+            (
+                [2, 4, 5],
+                [2, -1],
+            ),
+        )
+    )
+    def testOnlyDynamicDim(self, shape1: list[int], shape2: list[int]):
+        expected_result = list(torch.rand(shape1).view(shape2).shape)
+        _, actual_result = self.infer_dim(shape1, shape2)
+        assert actual_result == expected_result
+
+        actual_result, _ = self.infer_dim(shape2, shape1)
+        assert actual_result == expected_result
+
+    def testExpandCollapseAndDynamicDim(self):
+        shape1 = (4, 5, 7, 4, 2)
+        shape2 = (2, 2, -1, 8)
+        expected_result = list(torch.rand(shape1).view(shape2).shape)
+        _, actual_result = self.infer_dim(shape1, shape2)
+        assert actual_result == expected_result
+
+        actual_result, _ = self.infer_dim(shape2, shape1)
+        assert actual_result == expected_result
+
+
 class ReshardSplitTest(unittest.TestCase):
     def testReshardReplicated(self):
         tensor = torch.rand(4, 5, 6, dtype=torch.float32)
@@ -1070,6 +1507,55 @@ class ReshardTest(unittest.TestCase):
         assert expected_bias.is_deep_equal(sharded_theta("bias"), compare_name=False)
 
 
+class Scatter_Test(unittest.TestCase):
+    def setUp(self):
+        import numpy as np
+
+        np.random.seed(12345)
+        self.rng = np.random.default_rng()
+
+    def testScatterReplicatedReplicated(self):
+        tensor = torch.zeros(4, 6, dtype=torch.float32)
+        sharded_tensor = ops.replicate(tensor, count=3)
+
+        index = torch.tensor(self.rng.choice(4, (2, 1), replace=False))
+        value = 1
+        index_sharded = ops.replicate(index, count=3)
+        ops.scatter_(sharded_tensor, 1, index_sharded, value)
+        ops.scatter_(tensor, 1, index, value)
+        assert ops.equal(tensor, sharded_tensor)
+
+    def testScatterSplitSplitShardDim(self):
+        tensor = torch.zeros(4, 6, dtype=torch.float32)
+        index = torch.tensor(self.rng.choice(4, (2, 1), replace=False))
+        value = 1
+        sharded_tensor = ops.reshard_split(tensor, dim=0, count=2)
+        index_sharded = ops.reshard_split(index, dim=0, count=2)
+        ops.scatter_(sharded_tensor, 0, index_sharded, value)
+        ops.scatter_(tensor, 0, index, value)
+        assert ops.equal(tensor, sharded_tensor)
+
+    @parameterized.expand((([3, 1],), ([3, 2],), ([9, 1],), ([9, 6],)))
+    def testScatterSplitSplitNonShardDim(self, index_shape: list[int]):
+        scatter_dim = 1
+        value = 1
+        tensor = torch.zeros(9, 6, dtype=torch.float32)
+        index = torch.tensor(
+            [
+                self.rng.choice(
+                    tensor.shape[scatter_dim], index_shape[1], replace=False
+                )
+                for _ in range(index_shape[0])
+            ]
+        )
+
+        sharded_tensor = ops.reshard_split(tensor, dim=0, count=3)
+        index_sharded = ops.reshard_split(index, dim=0, count=3)
+        ops.scatter_(tensor, scatter_dim, index, value)
+        ops.scatter_(sharded_tensor, scatter_dim, index_sharded, value)
+        assert ops.equal(tensor, sharded_tensor)
+
+
 class ShardLikeTest(unittest.TestCase):
     def testReshardLikeReplicatedToReplicated(self):
         tensor = torch.rand(4, 5, 6, dtype=torch.float32)
@@ -1128,7 +1614,255 @@ class ShardLikeTest(unittest.TestCase):
         assert expected_result.is_deep_equal(actual_result, compare_name=False)
 
 
+class SigmoidTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(12345)
+
+    def testSigmoidReplicated(self):
+        tensor = torch.rand(4, 6, dtype=torch.float32)
+        expected_result = ops.sigmoid(tensor)
+        actual_result = ops.sigmoid(ops.replicate(tensor, count=3))
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+
+    @parameterized.expand(((0,), (1,)))
+    def testSigmoidSplit(self, shard_dim: int):
+        tensor = torch.rand(4, 6, dtype=torch.float32)
+        expected_result = ops.sigmoid(tensor)
+        actual_result = ops.sigmoid(ops.reshard_split(tensor, dim=shard_dim, count=2))
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+
+
+class ShardedGatherTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(12345)
+
+    def testGatherSplit(self):
+        shard_dim = 1
+        shard_count = 3
+        root_rank = 0
+        shards = [torch.rand(2, 5, 4) for _ in range(shard_count)]
+        tensor_sp = SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim)
+
+        actual = ops.sharded_gather(tensor_sp, root_rank=root_rank)
+        self.assertEqual(len(actual), 3)
+        self.assertEqual(actual[0].shape, (2, 5, 4))
+
+        for i, shard in enumerate(actual):
+            assert ops.equal(shard, shards[i])
+
+    def testGatherReplicated(self):
+        shard_count = 3
+        root_rank = 1
+        base_tensor = torch.rand(2, 5, 4)
+
+        # Create a replicated tensor
+        replicated = ReplicatedTensor(
+            ts=[base_tensor.clone() for _ in range(shard_count)]
+        )
+
+        actual = ops.sharded_gather(replicated, root_rank=root_rank)
+        self.assertEqual(len(actual), shard_count)
+        self.assertEqual(actual[0].shape, (2, 5, 4))
+        for i, shard in enumerate(actual):
+            assert ops.equal(shard, base_tensor)
+
+
+class SoftmaxTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(12345)
+
+    def testSoftmaxReplicated(self):
+        tensor = torch.rand(2, 4, 3, dtype=torch.float32)
+        dim = 1
+        expected_result = ops.softmax(tensor, dim=dim)
+        actual_result = ops.softmax(ops.replicate(tensor, count=3), dim=dim)
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+
+    def testSoftmaxSplit(self):
+        tensor = torch.rand(2, 2, 2, dtype=torch.float32)
+        dim = 1
+        sharded_tensor = ops.reshard_split(tensor, dim=dim, count=2)
+
+        expected_result = ops.softmax(tensor, dim=dim - 1)
+        actual_result = ops.softmax(sharded_tensor, dim=dim - 1)
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+
+        expected_result = ops.softmax(tensor, dim=dim + 1)
+        actual_result = ops.softmax(sharded_tensor, dim=dim + 1)
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+
+
+class SplitTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(0)
+
+    def testUnreduced(self):
+        split_dim = 2
+        shard_count = 3
+        input_shards = [
+            torch.rand(2, 5, 3, dtype=torch.float32) for _ in range(shard_count)
+        ]
+        split_size = 2
+
+        # Split each shard
+        expected_splits_per_shard = [
+            torch.split(shard, split_size, dim=split_dim) for shard in input_shards
+        ]
+        # transpose nested list of lists.
+        expected_shards_per_split = list(zip(*expected_splits_per_shard, strict=True))
+
+        unreduced_input = UnreducedTensor(ts=input_shards)
+        actual_result = ops.split(unreduced_input, split_size, dim=split_dim)
+        assert len(actual_result) == len(expected_shards_per_split)
+        for t in actual_result:
+            assert isinstance(t, UnreducedTensor)
+
+        for actual_split, expected_split in zip(
+            actual_result, expected_shards_per_split, strict=True
+        ):
+            for actual_shard, expected_shard in zip(
+                actual_split.shards, expected_split, strict=True
+            ):
+                ops.equal(actual_shard, expected_shard)
+
+
+class SumTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(12345)
+
+    @parameterized.expand(list(itertools.product((0, [0, 1], [2, 0]), [True, False])))
+    def testSumReplicated(self, sum_dim: int | list[int], keepdim: bool):
+        tensor = torch.rand(4, 6, 5, dtype=torch.float32)
+        expected_result = ops.sum(tensor, dim=sum_dim, keepdim=keepdim)
+        actual_result = ops.sum(
+            ops.replicate(tensor, count=3), dim=sum_dim, keepdim=keepdim
+        )
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+
+    @parameterized.expand(list(itertools.product((0, [0, 1], [2, 0]), [True, False])))
+    def testSumSplit(self, sum_dim: int | list[int], keepdim: bool):
+        tensor = torch.rand(4, 6, 5, dtype=torch.float32)
+        dim = 1
+        expected_result = ops.sum(tensor, dim=sum_dim, keepdim=keepdim)
+        sharded_tensor = ops.reshard_split(tensor, dim=dim, count=2)
+        actual_result = ops.sum(sharded_tensor, dim=sum_dim, keepdim=keepdim)
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+
+    @parameterized.expand(((list,), (tuple,), (reversed,)))
+    def testSumBuiltinFunction(
+        self, iterable_transform: Callable[[Iterable], Iterable]
+    ):
+        values = list(range(1, 10))
+        expected_result = __builtins__["sum"](values)
+        actual_result = ops.sum(iterable_transform(values))
+        assert expected_result == actual_result
+
+
+class ToTest(unittest.TestCase):
+    def skipIfNeeded(self):
+        if not torch.cuda.is_available():
+            self.skipTest("Pytorch not build with GPU support.")
+
+    @parameterized.expand(
+        (
+            ("device",),
+            ("other",),
+            ("dtype",),
+        )
+    )
+    def testToReplicated(self, mode: str):
+        kwargs = {}
+        if mode == "device":
+            self.skipIfNeeded()
+            args = ("cuda:0", torch.float64)
+        elif mode == "other":
+            self.skipIfNeeded()
+            args = torch.tensor([1], dtype=torch.int, device="cuda:0")
+        elif mode == "dtype":
+            args, kwargs = (torch.int64,), {}
+        else:
+            raise ValueError(f"Unknown mode: {mode}")
+
+        tensor = torch.ones(3, 2, dtype=torch.int32)
+        expected_result = tensor.to(*args, **kwargs)
+        actual_result = ReplicatedTensor(ts=tensor, shard_count=2).to(*args, **kwargs)
+        actual_result = unbox_tensor(actual_result)
+
+        assert ops.equal(expected_result, actual_result)
+        assert actual_result.dtype == expected_result.dtype
+        assert actual_result.device == expected_result.device
+
+    @parameterized.expand(
+        (
+            ("device",),
+            ("other",),
+            ("dtype",),
+        )
+    )
+    def testToSplit(self, mode: str):
+        kwargs = {}
+        if mode == "device":
+            if not torch.cuda.is_available():
+                self.skipTest("Pytorch not build with GPU support.")
+            args = ("cuda:0", torch.float64)
+        elif mode == "other":
+            if not torch.cuda.is_available():
+                self.skipTest("Pytorch not build with GPU support.")
+            args = torch.tensor([1], dtype=torch.int, device="cuda:0")
+        elif mode == "dtype":
+            args, kwargs = (torch.int64,), {}
+        args, kwargs = (torch.int64,), {}
+        tensor = torch.ones(3, 2, dtype=torch.int32)
+        expected_result = tensor.to(*args, **kwargs)
+        actual_result = SplitPrimitiveTensor(ts=tensor, shard_count=2, shard_dim=1).to(
+            *args, **kwargs
+        )
+        actual_result = unbox_tensor(actual_result)
+
+        assert ops.equal(expected_result, actual_result)
+        assert actual_result.dtype == expected_result.dtype
+        assert actual_result.device == expected_result.device
+
+
+class TopKTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(12345)
+        self.devices = (4, 5, 6)
+
+    def testTopKReplicated(self):
+        tensor = torch.rand(4, 6, 5, dtype=torch.float32)
+        sharded_tensor = ops.replicate(tensor, count=3, devices=self.devices)
+        k = 3
+        expected_result = ops.topk(tensor, k=k, dim=0)
+        actual_result = ops.topk(sharded_tensor, k=k, dim=0)
+
+        for expected_subresult, actual_subresult in zip(expected_result, actual_result):
+            assert ops.equal(expected_subresult, actual_subresult)
+            assert (
+                d_act == d_exp
+                for d_act, d_exp in zip(actual_subresult.devices, self.devices)
+            )
+
+    @parameterized.expand(((0,), (1,), (2,)))
+    def testTopKSplit(self, dim: int):
+        tensor = torch.rand(4, 12, 5, dtype=torch.float32)
+        sharded_tensor = ops.reshard_split(tensor, dim=1, count=3, devices=self.devices)
+        k = 3
+        expected_result = ops.topk(tensor, k=k, dim=dim)
+        actual_result = ops.topk(sharded_tensor, k=k, dim=dim)
+
+        for expected_subresult, actual_subresult in zip(expected_result, actual_result):
+            assert ops.equal(expected_subresult, actual_subresult)
+            assert (
+                d_act == d_exp
+                for d_act, d_exp in zip(actual_subresult.devices, self.devices)
+            )
+
+
 class TransposeTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(0)
+
     def testTransposeReplicated(self):
         a = torch.randn(3, 4, 1)
         expected = torch.transpose(a, 1, 2)
@@ -1138,6 +1872,136 @@ class TransposeTest(unittest.TestCase):
         assert all(s_a == s_e for (s_a, s_e) in zip(actual.shape, expected.shape))
         for shard in actual.shards:
             assert ops.equal(shard, expected)
+
+    def testTransposeSplitNegativeDims(self):
+        a = torch.randn(3, 4, 1)
+        expected = torch.transpose(a, -1, -2)
+        a_sharded = ops.reshard_split(a, count=2, dim=1)
+        actual = ops.transpose(a_sharded, -1, -2)
+
+        assert ops.equal(actual, expected)
+
+
+class TriviallyReplicableTest(unittest.TestCase):
+    def testOneArgOneResult(self):
+        @ops.trivially_replicable
+        def fn(a: torch.Tensor) -> torch.Tensor:
+            return a
+
+        arg = torch.Tensor([1, 2, 3])
+        shard_count = 2
+        replicated_arg = ReplicatedTensor(
+            ts=arg, shard_count=shard_count, devices=(1, 2)
+        )
+        replicated_result = fn(replicated_arg)
+        replicated_arg.is_deep_equal(replicated_result)
+
+    @parameterized.expand(
+        (
+            [1],
+            [2],
+        )
+    )
+    def testMultipleArgumentsAndResults(self, shard_count: int):
+        @ops.trivially_replicable
+        def fn(a: torch.Tensor, b: torch.Tensor) -> tuple[torch.Tensor, ...]:
+            # Swap order
+            return b, a
+
+        args = [torch.Tensor([1, 2, 3]), torch.Tensor([4, 5])]
+        replicated_args = [
+            ReplicatedTensor(ts=arg, shard_count=shard_count) for arg in args
+        ]
+        replicated_result = fn(*replicated_args)
+        replicated_args[0].is_deep_equal(replicated_result[1])
+        replicated_args[1].is_deep_equal(replicated_result[0])
+
+    def testListOfTensorsAsArgumentsAndResults(self):
+        @ops.trivially_replicable
+        def fn(a: list[torch.Tensor]) -> list[torch.Tensor]:
+            return a
+
+        arg = torch.Tensor([1, 2, 3])
+        shard_count = 2
+        replicated_arg = ReplicatedTensor(
+            ts=arg, shard_count=shard_count, devices=(1, 2)
+        )
+        replicated_result = fn(replicated_arg)
+        replicated_arg.is_deep_equal(replicated_result)
+
+    def testNestedTreeOfTensorsAsArgumentsAndResults(self):
+        @ops.trivially_replicable
+        def fn(a: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+            return a
+
+        arg = torch.Tensor([1, 2, 3])
+        shard_count = 2
+        replicated_arg = {
+            "a": [ReplicatedTensor(ts=arg, shard_count=shard_count, devices=(1, 2))]
+        }
+        replicated_result = fn(replicated_arg)
+        replicated_arg["a"][0].is_deep_equal(replicated_result["a"][0])
+
+    def testNonTensorArgumentsAndResults(self):
+        @ops.trivially_replicable
+        def fn(a: str, b: torch.Tensor, c: int) -> tuple[str, torch.Tensor, int]:
+            return a, b, c
+
+        args = ("a", torch.Tensor([1, 2, 3]), 1)
+        shard_count = 2
+        replicated_args = (
+            args[0],
+            ReplicatedTensor(ts=args[1], shard_count=shard_count),
+            args[2],
+        )
+        replicated_result = fn(*replicated_args)
+        replicated_args[0] == replicated_result[0]
+        replicated_args[1].is_deep_equal(replicated_result[1])
+        replicated_args[2] == replicated_result[2]
+
+    @pytest.mark.xfail(
+        reason=(
+            "The composition of trivially replicable and the wrapping of"
+            " SignatureDispatcher.override for sharded ops needs some"
+            " refactoring. Right now we can't declare ops outside of"
+            " sharktank.ops.signatures."
+        ),
+        strict=True,
+        raises=NotImplementedError,
+        match=(
+            "does not have an implementation for argument types:"
+            " [<class 'sharktank.types.tensors.ReplicatedTensor'>]"
+        ),
+    )
+    def testSignatureRegistration(self):
+        from sharktank.ops._registry import overridable, SignatureDispatcher
+
+        @overridable(is_trivially_replicable=True)
+        def f(a: torch.Tensor) -> torch.Tensor:
+            ...
+
+        @f.override(torch.Tensor)
+        def f_unsharded(a: torch.Tensor) -> torch.Tensor:
+            return a
+
+        @f.trampoline
+        def trampoline(
+            d: SignatureDispatcher,
+            a: AnyTensor,
+        ) -> AnyTensor:
+            tensors = (a,)
+            for override in d.find_overrides(tensors):
+                result = override(a)
+                if result is not NotImplemented:
+                    return override, result
+            else:
+                d.fail(tensors)
+
+        arg = torch.Tensor([1, 2, 3])
+        shard_count = 2
+        replicated_arg = ReplicatedTensor(ts=arg, shard_count=shard_count)
+        replicated_result = f(replicated_arg)
+        replicated_arg.is_deep_equal(replicated_result)
 
 
 class UnflattenTest(unittest.TestCase):
@@ -1160,6 +2024,93 @@ class UnshardTest(unittest.TestCase):
         sharded = ops.reshard_split(tensor, dim=shard_dim, count=shard_count)
         actual_result = ops.unshard(sharded)
         expected_result = tensor
+        assert ops.equal(expected_result, actual_result)
+
+
+class ViewTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(12345)
+
+    @parameterized.expand((([4, 30],), ([-1, 30],), ([20, 6],), ([20, -1],)))
+    def testViewReplicatedCollapse(self, new_shape: list[int]):
+        tensor = torch.rand(4, 5, 6, dtype=torch.float32)
+        tensor_rep = ops.replicate(tensor, count=3)
+
+        expected_result = ops.view(tensor, new_shape)
+        actual_result = tensor_rep.view(new_shape)
+        assert ops.equal(expected_result, actual_result)
+
+    @parameterized.expand((([8, 5, 3, 2],), ([4, 2, 5, 3, 2],)))
+    def testViewReplicatedExpand(self, new_shape: list[int]):
+        tensor = torch.rand(8, 5, 6, dtype=torch.float32)
+        tensor_rep = ops.replicate(tensor, count=3)
+
+        expected_result = ops.view(tensor, new_shape)
+        actual_result = tensor_rep.view(new_shape)
+        assert ops.equal(expected_result, actual_result)
+
+    @parameterized.expand(
+        (
+            ([4, 8, 5, 2],),
+            ([-1, 8, 5, 2],),
+            ([4, 8, 10],),
+            ([-1, 8, 10],),
+            ([4, -1, 5, 2],),
+        )
+    )
+    def testViewSplitCollapse(self, new_shape: list[int]):
+        tensor = torch.rand(2, 2, 8, 5, 2, dtype=torch.float32)
+        tensor_split = ops.reshard_split(tensor, dim=2, count=2)
+
+        expected_result = ops.view(tensor, new_shape)
+        actual_result = tensor_split.view(new_shape)
+        assert ops.equal(expected_result, actual_result)
+
+    @parameterized.expand((([8, 5, 3, 2],), ([4, 2, 5, 3, 2],)))
+    def testViewSplitExpand(self, new_shape: list[int]):
+        tensor = torch.rand(8, 5, 6, dtype=torch.float32)
+        tensor_split = ops.reshard_split(tensor, dim=0, count=2)
+        expected_result = ops.view(tensor, new_shape)
+        actual_result = tensor_split.view(new_shape)
+        assert ops.equal(expected_result, actual_result)
+
+    @parameterized.expand(
+        (
+            ([16, 8, 40],),
+            ([2, 8, 8, 5, 8],),
+            ([8, 2, 8, 5, 8],),
+            ([-1, 8, 40],),
+            ([2, -1, 8, 5, 8],),
+            ([8, -1, 8, 5, 8],),
+        )
+    )
+    def testViewSplitCollapseExpand(self, new_shape: list[int]):
+        tensor = torch.rand(4, 4, 8, 5, 8, dtype=torch.float32)
+        tensor_split = ops.reshard_split(tensor, dim=2, count=2)
+
+        expected_result = ops.view(tensor, new_shape)
+        actual_result = tensor_split.view(new_shape)
+        assert ops.equal(expected_result, actual_result)
+
+
+class ZerosLikeTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(12345)
+
+    def testZerosLikeReplicated(self):
+        tensor = torch.rand(9, 5, 6, dtype=torch.float32)
+        shard_count = 3
+        expected_result = ops.zeros_like(tensor)
+        actual_result = ops.zeros_like(ops.replicate(tensor, count=shard_count))
+        assert ops.equal(expected_result, actual_result)
+
+    def testZerosLikeSplit(self):
+        tensor = torch.rand(9, 5, 6, dtype=torch.float32)
+        shard_count = 3
+        expected_result = ops.zeros_like(tensor)
+        actual_result = ops.zeros_like(
+            ops.reshard_split(tensor, dim=0, count=shard_count)
+        )
         assert ops.equal(expected_result, actual_result)
 
 

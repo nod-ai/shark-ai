@@ -6,15 +6,13 @@
 
 """Signatures for dynamic dispatch of ops covering our fundamental tensor types."""
 
-from typing import Any, Callable, Iterable, Optional, Union, Tuple
+from typing import Any, Callable, Iterable, Optional, Tuple
 
 import collections
-import inspect
 import functools
 
-import torch
 from torch import Tensor
-from ..types import PrimitiveTensor, QuantizedTensor
+from sharktank.types import PrimitiveTensor, QuantizedTensor
 
 __all__ = [
     "AllOfExprs",
@@ -22,6 +20,7 @@ __all__ = [
     "AllOfType",
     "AnyOfType",
     "IsOfType",
+    "AllNotOfType",
     "overridable",
     "SignatureDispatcher",
     "BoolTypeExpr",
@@ -168,6 +167,29 @@ class AnyOfType(BoolTypeExpr):
         super().__init__(expr)
 
 
+class AllNotOfType(BoolTypeExpr):
+    """Returns True if none of the types are from a set of types.
+
+    ```python
+    # False. int is in (int, float).
+    AllNotOfType(int, float)(int, str)
+
+     # True. str is not in (int, float).
+    AllNotOfType(int, float)(str, str)
+    ```
+    """
+
+    def __init__(self, *types: type):
+        self._types = types
+
+        def expr(*types: type):
+            return not any(
+                [issubclass(t, required) for t in types for required in self._types]
+            )
+
+        super().__init__(expr)
+
+
 IsOfType = AllOfType
 
 
@@ -188,10 +210,11 @@ class SignatureDispatcher:
         "_trampoline",
     ]
 
-    def __init__(self, sigf: Callable):
+    def __init__(self, sigf: Callable, is_trivially_replicable: bool = True):
         self._target_cache = dict()
         self._trampoline: Optional[Callable] = None
         self._overrides: list[_TargetOverride] = []
+        self.is_trivially_replicable = is_trivially_replicable
 
     def __call__(self, *args, **kwargs):
         trampoline = self._trampoline
@@ -316,12 +339,26 @@ class SignatureDispatcher:
         return targets
 
 
-def overridable(f):
+def overridable(
+    f: Callable[..., Any] | None = None, is_trivially_replicable: bool = True
+):
     """Decorator to apply to overridable ops.
 
     Such ops can then have specializations stacked against them with the
     @override decorator.
+
+    is_trivially_replicable:
+        If True will automatically register a wrapper variant with all tensor
+        arguments and results as replicated. This replicated op variant will call the
+        underlying unreplicated variant with for all shards correspondingly. Then
+        construct replicated results from all corresponding shards.
     """
-    dispatcher = SignatureDispatcher(f)
+    if f is None:
+        return functools.partial(
+            overridable, is_trivially_replicable=is_trivially_replicable
+        )
+
+    dispatcher = SignatureDispatcher(f, is_trivially_replicable=is_trivially_replicable)
     functools.update_wrapper(dispatcher, f)
+
     return dispatcher

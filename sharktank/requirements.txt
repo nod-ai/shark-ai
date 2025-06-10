@@ -1,12 +1,13 @@
 iree-turbine
 
 # Runtime deps.
+fire>=0.7
 gguf>=0.11.0
 numpy
 
 # Model deps.
 huggingface-hub
-transformers==4.48.0
+transformers==4.50.0
 datasets
 einops
 

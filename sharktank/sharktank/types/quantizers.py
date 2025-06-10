@@ -20,7 +20,7 @@ from abc import abstractmethod
 
 import torch
 
-from ..utils.io import ShardedArchiveBuilder
+from sharktank.utils.io import ShardedArchiveBuilder
 
 from .layouts import (
     TensorScaledLayout,

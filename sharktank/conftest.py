@@ -70,18 +70,18 @@ def pytest_addoption(parser):
         help="List a torch device, (e.g., 'cuda:0')",
     )
     parser.addoption(
-        "--run-quick-llama-test",
+        "--run-quick-test",
         action="store_true",
-        dest="run-quick-llama-test",
+        dest="run-quick-test",
         default=False,
-        help="Run large llama tests if passed",
+        help="Enable all quick tests",
     )
     parser.addoption(
-        "--run-nightly-llama-tests",
+        "--run-nightly-tests",
         action="store_true",
-        dest="run-nightly-llama-tests",
+        dest="run-nightly-tests",
         default=False,
-        help="Enable all llama benchmarking tests",
+        help="Enable all nightly tests",
     )
 
     parser.addoption(
@@ -142,6 +142,12 @@ def pytest_addoption(parser):
         help="Llama3.1 8b model path, defaults to 30F CI system path",
     )
     parser.addoption(
+        "--llama3-8b-f16-tp2-model-path",
+        type=Path,
+        action="store",
+        help="Llama3.1 8b tp2 model path, defaults to 30F CI system path",
+    )
+    parser.addoption(
         "--llama3-8b-f8-model-path",
         type=Path,
         action="store",
@@ -167,39 +173,29 @@ def pytest_addoption(parser):
         default=None,
         help="Llama3.1 405b f8 model path",
     )
-
-    # To obtain a T5 GGUF file you can use llama.cpp's convert_hf_to_gguf.py.
-    # https://github.com/ggerganov/llama.cpp/blob/9abe9eeae98b11fa93b82632b264126a010225ff/convert_hf_to_gguf.py
-    # E.g.
-    # git lfs install
-    # git clone https://huggingface.co/google/t5-v1_1-small
-    # convert_hf_to_gguf.py \
-    #     --outfile t5-v1_1-small.gguf \
-    #     --outtype=f32 \
-    #     t5-v1_1-small
     parser.addoption(
-        "--google-t5-v1-1-small-f32-model-path",
+        "--deepseek-v3-tokenizer-path",
         type=Path,
-        default="/data/t5/small/google__t5-v1_1-small_f32.gguf",
-        help="Google T5 v1.1 small float32 model path",
+        action="store",
+        help="Deepkseek v3 tokenizer path",
     )
     parser.addoption(
-        "--google-t5-v1-1-small-bf16-model-path",
+        "--deepseek-v3-model-path",
         type=Path,
-        default="/data/t5/small/google__t5-v1_1-small_bf16.gguf",
-        help="Google T5 v1.1 small bfloat16 model path",
+        action="store",
+        help="Deepseek v3 unsharded model path",
     )
     parser.addoption(
-        "--google-t5-v1-1-xxl-f32-model-path",
+        "--deepseek-v3-tp2-model-path",
         type=Path,
-        default="/data/t5/xxl/google__t5-v1_1-xxl_f32.gguf",
-        help="Google T5 v1.1 XXL float32 model path",
+        action="store",
+        help="Deepseek v3 tp2 sharded model path",
     )
     parser.addoption(
-        "--google-t5-v1-1-xxl-bf16-model-path",
+        "--deepseek-v3-tp8-model-path",
         type=Path,
-        default="/data/t5/xxl/google__t5-v1_1-xxl_bf16.gguf",
-        help="Google T5 v1.1 XXL bfloat16 model path",
+        action="store",
+        help="Deepseek v3 tp8 sharded model path",
     )
 
     parser.addoption(
@@ -329,6 +325,9 @@ def get_model_artifacts(request: FixtureRequest):
     model_path["llama3_8b_f16_model_path"] = set_fixture_from_cli_option(
         request, "--llama3-8b-f16-model-path", "llama3_8b_f16_model"
     )
+    model_path["llama3_8b_f16_tp2_model_path"] = set_fixture_from_cli_option(
+        request, "--llama3-8b-f16-tp2-model-path", "llama3_8b_f16_tp2_model"
+    )
     model_path["llama3_8b_f8_model_path"] = set_fixture_from_cli_option(
         request, "--llama3-8b-f8-model-path", "llama3_8b_f8_model"
     )
@@ -341,20 +340,17 @@ def get_model_artifacts(request: FixtureRequest):
     model_path["llama3_405b_f8_model_path"] = set_fixture_from_cli_option(
         request, "--llama3-405b-f8-model-path", "llama3_405b_f8_model"
     )
-    model_path["google__t5_v1_1_small_f32_model_path"] = set_fixture_from_cli_option(
-        request,
-        "--google-t5-v1-1-small-f32-model-path",
-        "google__t5_v1_1_small_f32_model",
+    model_path["deepseek_v3_tokenizer_path"] = set_fixture_from_cli_option(
+        request, "--deepseek-v3-tokenizer-path", "deepseek_v3_tokenizer"
     )
-    model_path["google__t5_v1_1_small_bf16_model_path"] = set_fixture_from_cli_option(
-        request,
-        "--google-t5-v1-1-small-bf16-model-path",
-        "google__t5_v1_1_small_bf16_model",
+    model_path["deepseek_v3_model_path"] = set_fixture_from_cli_option(
+        request, "--deepseek-v3-model-path", "deepseek_v3_model"
     )
-    model_path["google__t5_v1_1_xxl_f32_model_path"] = set_fixture_from_cli_option(
-        request,
-        "--google-t5-v1-1-xxl-f32-model-path",
-        "google__t5_v1_1_xxl_f32_model",
+    model_path["deepseek_v3_tp2_model_path"] = set_fixture_from_cli_option(
+        request, "--deepseek-v3-tp2-model-path", "deepseek_v3_tp2_model"
+    )
+    model_path["deepseek_v3_tp8_model_path"] = set_fixture_from_cli_option(
+        request, "--deepseek-v3-tp8-model-path", "deepseek_v3_tp8_model"
     )
     return model_path
 

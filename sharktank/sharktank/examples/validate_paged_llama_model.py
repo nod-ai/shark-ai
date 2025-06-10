@@ -10,11 +10,11 @@ import torch
 
 from sharktank.layers import *
 from sharktank.types import *
-from sharktank.models.llama.llama import *
+from sharktank.models.llm import *
+from sharktank.utils import cli
 
 
 def main(args: list[str]):
-    from ..utils import cli
 
     torch.no_grad().__enter__()
 
@@ -27,7 +27,7 @@ def main(args: list[str]):
     llama_config = LlamaModelConfig(hp)
     llama_config.kv_cache_type = "paged"
     llama_config.activation_dtype = torch.float16
-    model = PagedLlamaModelV1(dataset.root_theta, llama_config)
+    model = PagedLlmModelV1(dataset.root_theta, llama_config)
 
     cache_state = model.cache.allocate(page_count=128)
 

@@ -14,19 +14,19 @@ When in question, we draw from the vocabulary and normalization they have done
 (and indeed, can bootstrap these off of GGUF files).
 """
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, Any, Optional, List
+from collections import defaultdict
+from os import PathLike
 from dataclasses import asdict, dataclass, field, fields
-from typing import Any, Optional
 import torch
 from transformers import T5Config as T5ConfigHf
 from .config import ModelConfig
-from ...utils import parse_version
-from os import PathLike
-
-from ...types.tensors import serialized_name_to_dtype, dtype_to_serialized_name
+from sharktank.utils import parse_version
+from sharktank.types.tensors import serialized_name_to_dtype, dtype_to_serialized_name
 
 if TYPE_CHECKING:
     import transformers
+    from sharktank.types import PropertyValueType
 
 __all__ = ["ClipTextConfig", "LlamaHParams", "LlamaModelConfig", "T5Config"]
 
@@ -38,6 +38,7 @@ class LlamaHParams:
     Comments are only provided if they differ from this source.
     """
 
+    # Attention config
     model_arch: str
     context_length: int
     embedding_length: int
@@ -46,40 +47,84 @@ class LlamaHParams:
     attention_head_count: int
     attn_head_dim: int
     attention_layer_norm_rms_epsilon: float
-    attention_head_count_kv: int
-    rope_dimension_count: Optional[int] = None
-    rope_freq_base: Optional[float] = None
-    expert_count: Optional[int] = None
-    expert_used_count: Optional[int] = None
+    attention_head_count_kv: Optional[int] = None
+    # The size of the model's vocabulary.
+    vocab_size: Optional[int] = None
 
-    # Latent Attention Config - Deepseek specific
-    nope_dim: Optional[int] = None
-    kv_latent_dim: Optional[int] = None
+    vocab_size: int | None = None
+    """TODO: make this non-optional once we don't use artifacts without this value."""
+
+    # Deepseek Multi-Latent Attention config
+    q_lora_rank: Optional[int] = None
+    kv_lora_rank: Optional[int] = None
+    qk_nope_head_dim: Optional[int] = None
+    qk_rope_head_dim: Optional[int] = None
     v_head_dim: Optional[int] = None
 
-    # Expert configs - Deep seek Specific
-    expert_score_func: Optional[str] = None
-    route_scale: Optional[float] = None
-
-    # Grok configurations
+    # Grok Attention config
     attention_softcap: Optional[float] = None
+
+    # RoPE config
+    rope_dimension_count: Optional[int] = None
+    rope_freq_base: Optional[float] = None
+
+    # Deepseek RoPE+YaRN config
+    rope_scaling_type: Optional[str] = None
+    rope_scaling_factor: Optional[float] = None
+    rope_scaling_original_context_length: Optional[int] = None
+    rope_scaling_yarn_log_multiplier: Optional[float] = None
+
+    # MoE config
+    expert_count: Optional[int] = None
+    expert_used_count: Optional[int] = None
+    expert_feed_forward_length: Optional[int] = None
+    expert_shared_feed_forward_length: Optional[int] = None
+
+    # Specifies the interval at which Mixture of Experts (MoE) layers are inserted among the model's layers.
+    # For example:
+    #     1 - every layer is an MoE layer.
+    #     3 - every third layer (layers 0, 3, 6, ...) is an MoE layer; others are dense layers.
+    # If None, no specific interleaving pattern is applied.
+    interleave_moe_layer_step: Optional[int] = None
+
+    # Deepseek MoE config
+    expert_shared_count: Optional[int] = None
+    moe_intermediate_size: Optional[int] = None
+    """Size of the MoE experts feed forward network hidden dimension."""
+    n_expert_groups: Optional[int] = None
+    n_limited_groups: Optional[int] = None
+    n_dense_layers: Optional[int] = None
+    route_scale: Optional[float] = None
 
     @staticmethod
     def from_gguf_props(p: dict[str, Any]):
         name_prefix = p.get("general.architecture", "llama")
         default_expert_count = 0
         default_expert_used_count = 0
+        default_interleave_moe_layer_step = None
         default_rope_freq_base = 500000.0
         default_rope_dimension_count = 128
+
         attention_head_count = _int_prop(p, f"{name_prefix}.attention.head_count")
         rope_dimension_count = _optional_int_prop(
             p, f"{name_prefix}.rope.dimension_count", default_rope_dimension_count
         )
+        expert_count = _optional_int_prop(
+            p, f"{name_prefix}.expert_count", default_expert_count
+        )
+        defaut_n_dense_layers = 0 if expert_count and expert_count > 0 else None
+        n_dense_layers = _optional_int_prop(
+            p, f"{name_prefix}.leading_dense_block_count", defaut_n_dense_layers
+        )
 
-        attention_softcap = 30.0 if name_prefix == "grok" else None
+        custom_config = get_custom_configs(p, name_prefix)
+
+        if custom_config["attn_head_dim"] is None:
+            custom_config["attn_head_dim"] = rope_dimension_count
 
         return LlamaHParams(
             model_arch=name_prefix,
+            vocab_size=_optional_int_prop(p, f"{name_prefix}.vocab_size", None),
             context_length=_int_prop(p, f"{name_prefix}.context_length"),
             embedding_length=_int_prop(p, f"{name_prefix}.embedding_length"),
             block_count=_int_prop(p, f"{name_prefix}.block_count"),
@@ -91,18 +136,19 @@ class LlamaHParams:
             attention_head_count_kv=_optional_int_prop(
                 p, f"{name_prefix}.attention.head_count_kv", attention_head_count
             ),
-            attn_head_dim=rope_dimension_count,
+            expert_count=expert_count,
+            expert_used_count=_optional_int_prop(
+                p, f"{name_prefix}.expert_used_count", default_expert_used_count
+            ),
+            moe_intermediate_size=_optional_int_prop(
+                p, f"{name_prefix}.moe_intermediate_size", None
+            ),
+            n_dense_layers=n_dense_layers,
             rope_dimension_count=rope_dimension_count,
             rope_freq_base=_optional_float_prop(
                 p, f"{name_prefix}.rope.freq_base", default_rope_freq_base
             ),
-            expert_count=_optional_int_prop(
-                p, f"{name_prefix}.expert_count", default_expert_count
-            ),
-            expert_used_count=_optional_int_prop(
-                p, f"{name_prefix}.expert_used_count", default_expert_used_count
-            ),
-            attention_softcap=attention_softcap,
+            **custom_config,
         )
 
     def to_gguf_props(self) -> dict[str, Any]:
@@ -116,15 +162,119 @@ class LlamaHParams:
             f"{self.model_arch}.attention.layer_norm_rms_epsilon": self.attention_layer_norm_rms_epsilon,
             f"{self.model_arch}.attention.head_count_kv": self.attention_head_count_kv,
         }
-        if self.rope_dimension_count is not None:
-            res[f"{self.model_arch}.rope.dimension_count"] = self.rope_dimension_count
-        if self.rope_freq_base is not None:
-            res[f"{self.model_arch}.rope.freq_base"] = self.rope_freq_base
+        if self.vocab_size is not None:
+            res[f"{self.model_arch}.vocab_size"] = self.vocab_size
+        if self.qk_rope_head_dim is not None:
+            res[f"{self.model_arch}.attention.qk_rope_head_dim"] = self.qk_rope_head_dim
+        if self.qk_nope_head_dim is not None:
+            res[f"{self.model_arch}.attention.qk_nope_head_dim"] = self.qk_nope_head_dim
+        if self.v_head_dim is not None:
+            res[f"{self.model_arch}.attention.v_head_dim"] = self.v_head_dim
+        if self.q_lora_rank is not None:
+            res[f"{self.model_arch}.attention.q_lora_rank"] = self.q_lora_rank
+        if self.kv_lora_rank is not None:
+            res[f"{self.model_arch}.attention.kv_lora_rank"] = self.kv_lora_rank
+        if self.route_scale is not None:
+            res[f"{self.model_arch}.expert_weights_scale"] = self.route_scale
+        if self.n_dense_layers is not None:
+            res[f"{self.model_arch}.leading_dense_block_count"] = self.n_dense_layers
         if self.expert_count is not None:
             res[f"{self.model_arch}.expert_count"] = self.expert_count
         if self.expert_used_count is not None:
             res[f"{self.model_arch}.expert_used_count"] = self.expert_used_count
+        if self.expert_shared_count is not None:
+            res[f"{self.model_arch}.expert_shared_count"] = self.expert_shared_count
+        if self.n_expert_groups is not None:
+            res[f"{self.model_arch}.n_expert_groups"] = self.n_expert_groups
+        if self.n_limited_groups is not None:
+            res[f"{self.model_arch}.n_limited_groups"] = self.n_limited_groups
+        if self.moe_intermediate_size is not None:
+            res[f"{self.model_arch}.moe_intermediate_size"] = self.moe_intermediate_size
+        if self.rope_dimension_count is not None:
+            res[f"{self.model_arch}.rope.dimension_count"] = self.rope_dimension_count
+        if self.rope_freq_base is not None:
+            res[f"{self.model_arch}.rope.freq_base"] = self.rope_freq_base
+        if self.rope_scaling_type is not None:
+            res[f"{self.model_arch}.rope.scaling.type"] = self.rope_scaling_type
+        if self.rope_scaling_factor is not None:
+            res[f"{self.model_arch}.rope.scaling.factor"] = self.rope_scaling_factor
+        if self.rope_scaling_original_context_length is not None:
+            res[
+                f"{self.model_arch}.rope.scaling.original_context_length"
+            ] = self.rope_scaling_original_context_length
+        if self.rope_scaling_yarn_log_multiplier is not None:
+            res[
+                f"{self.model_arch}.rope.scaling.yarn_log_multiplier"
+            ] = self.rope_scaling_yarn_log_multiplier
+        if self.expert_feed_forward_length is not None:
+            res[
+                f"{self.model_arch}.expert_feed_forward_length"
+            ] = self.expert_feed_forward_length
+        if self.expert_shared_feed_forward_length is not None:
+            res[
+                f"{self.model_arch}.expert_shared_feed_forward_length"
+            ] = self.expert_shared_feed_forward_length
+        if self.interleave_moe_layer_step is not None:
+            res[
+                f"{self.model_arch}.interleave_moe_layer_step"
+            ] = self.interleave_moe_layer_step
+        if self.vocab_size is not None:
+            res[f"{self.model_arch}.vocab_size"] = self.vocab_size
         return res
+
+
+def get_custom_configs(p: dict[str, Any], name_prefix: str):
+    res = defaultdict(lambda: None)
+
+    if name_prefix == "grok":
+        res["attention_softcap"] = 30.0
+
+    if name_prefix == "deepseek2":
+        res["qk_rope_head_dim"] = _optional_int_prop(
+            p, f"{name_prefix}.attention.qk_rope_head_dim", 64
+        )
+        res["qk_nope_head_dim"] = _optional_int_prop(
+            p, f"{name_prefix}.attention.qk_nope_head_dim", 128
+        )
+        res["v_head_dim"] = _optional_int_prop(
+            p, f"{name_prefix}.attention.v_head_dim", 128
+        )
+        res["q_lora_rank"] = _int_prop(p, f"{name_prefix}.attention.q_lora_rank")
+        res["kv_lora_rank"] = _int_prop(p, f"{name_prefix}.attention.kv_lora_rank")
+        res["route_scale"] = _float_prop(p, f"{name_prefix}.expert_weights_scale")
+        res["n_expert_groups"] = _optional_int_prop(
+            p, f"{name_prefix}.n_expert_groups", 8
+        )
+        res["n_limited_groups"] = _optional_int_prop(
+            p, f"{name_prefix}.n_limited_groups", 4
+        )
+        res["expert_shared_count"] = _int_prop(p, f"{name_prefix}.expert_shared_count")
+        res["rope_scaling_type"] = _str_prop(p, f"{name_prefix}.rope.scaling.type")
+        res["rope_scaling_factor"] = _float_prop(
+            p, f"{name_prefix}.rope.scaling.factor"
+        )
+        res["rope_scaling_original_context_length"] = _int_prop(
+            p, f"{name_prefix}.rope.scaling.original_context_length"
+        )
+        res["rope_scaling_yarn_log_multiplier"] = _float_prop(
+            p, f"{name_prefix}.rope.scaling.yarn_log_multiplier"
+        )
+        res["attn_head_dim"] = res["qk_nope_head_dim"] + res["qk_rope_head_dim"]
+
+    if name_prefix == "llama4":
+        res["interleave_moe_layer_step"] = _int_prop(
+            p, f"{name_prefix}.interleave_moe_layer_step"
+        )
+        res["expert_shared_count"] = _int_prop(p, f"{name_prefix}.expert_shared_count")
+        res["expert_feed_forward_length"] = _int_prop(
+            p, f"{name_prefix}.expert_feed_forward_length"
+        )
+        res["expert_shared_feed_forward_length"] = _int_prop(
+            p, f"{name_prefix}.expert_shared_feed_forward_length"
+        )
+        res["vocab_size"] = _int_prop(p, f"{name_prefix}.vocab_size")
+
+    return res
 
 
 def _float_prop(p: dict[str, Any], name: str) -> float:
@@ -145,16 +295,33 @@ def _int_prop(p: dict[str, Any], name: str) -> int:
         raise KeyError(f"Property '{name}' not found (among keys {p.keys()})")
 
 
-def _optional_float_prop(p: dict[str, Any], name: str, default_value: float) -> float:
+def _str_prop(p: dict[str, Any], name: str) -> str:
+    try:
+        return str(p[name])
+    except ValueError as e:
+        raise ValueError(f"Property '{name}' expected to be an str and was not") from e
+    except KeyError:
+        raise KeyError(f"Property '{name}' not found (among keys {p.keys()})")
+
+
+def _optional_float_prop(
+    p: dict[str, Any], name: str, default_value: float | None
+) -> float | None:
     value = p.get(name, default_value)
+    if value is None:
+        return None
     try:
         return float(value)
     except ValueError as e:
         raise ValueError(f"Property '{name}' expected to be a float and was not") from e
 
 
-def _optional_int_prop(p: dict[str, Any], name: str, default_value: int) -> int:
+def _optional_int_prop(
+    p: dict[str, Any], name: str, default_value: int | None
+) -> int | None:
     value = p.get(name, default_value)
+    if value is None:
+        return None
     try:
         return int(value)
     except ValueError as e:
@@ -169,7 +336,7 @@ class LlamaModelConfig:
     # into the context length.
     block_seq_stride: int = 32
 
-    # Either "paged" or "direct".
+    # Sharktank supports only "paged"
     kv_cache_type: str = "paged"
 
     # If None will use attention_dtype.
@@ -192,8 +359,24 @@ class LlamaModelConfig:
     # arguments.
     tensor_parallelism_size: int = 1
 
+    # How many groups of (roughly) uniform size to
+    # If greater than 1, the model will re-wrap all non-sharded tensors as sharded over 1 device.
+    pipeline_parallelism_size: int = 1
+
+    # Mapping between a transformer block and the corresponding pipeline
+    block_to_pipeline_map: tuple[int, ...] = None
+
+    # Mapping between a pipeline and the corresponding devices
+    pipeline_to_device_map: tuple[tuple[int, ...], ...] = None
+
     # Which attention kernel to use.
     attention_kernel: str = "torch"
+
+    # Implementation of rotary embeddings.
+    # E.g. "llama3", "llama4", "default".
+    # "llama3" indicates running with HuggingFace implementation and ensures
+    # numerical equivalency to HuggingFace's LLaMa.
+    rope_type: str | None = None
 
     # Indicates if running with HuggingFace implementation and ensures
     # numerical equivalency to HuggingFace's LLaMa if true (by modifying
@@ -207,6 +390,98 @@ class LlamaModelConfig:
     # be the difference of many gigabytes of static data being embedded in
     # the program and not.
     static_tables: bool = True
+
+    # Specifies the size of each chunk used during chunked attention computation.
+    attention_chunk_size: Optional[int] = None
+
+    # A list of layer indices where chunked attention is applied instead of full attention.
+    chunked_attention_layers: Optional[set[int]] = None
+
+    # Indices of layers that are MoE.
+    moe_layers: Optional[list[int]] = None
+
+    # Indices of layers that use RoPE after the attention.
+    rope_layers: Optional[list[int]] = None
+
+    use_qk_norm: bool = False
+    # If True, applies normalization to the query and key vectors in attention.
+
+    # In HuggingFace transformers, this field is represented as an int, but it is only ever used as a boolean.
+    # For clarity and correctness, it should be a bool: if True, enables attention temperature tuning.
+    attn_temperature_tuning: Optional[bool] = None
+
+    # Scaling factor applied to attention scores.
+    attn_scale: Optional[float] = None
+
+    # Scaling factor applied as a floor value in attention computations.
+    floor_scale: Optional[int] = None
+
+    # The default data type to use for model parameters and computations.
+    dtype: Optional[torch.dtype] = None
+
+    def __post_init__(self):
+        if self.moe_layers is None:
+            if self.hp.interleave_moe_layer_step is None:
+                self.moe_layers = []
+            else:
+                self.moe_layers = list(
+                    range(
+                        self.hp.interleave_moe_layer_step - 1,
+                        self.hp.block_count,
+                        self.hp.interleave_moe_layer_step,
+                    )
+                )
+        else:
+            if self.hp.interleave_moe_layer_step is not None:
+                raise ValueError(
+                    "moe_layers and hp.interleave_moe_layer_step are mutually exclusive."
+                )
+
+        if isinstance(self.dtype, str):
+            self.dtype = serialized_name_to_dtype(self.dtype)
+
+    def to_properties(self) -> "PropertyValueType":
+        res = self.hp.to_gguf_props()
+        res["kv_cache_type"] = self.kv_cache_type
+        res["block_seq_stride"] = self.block_seq_stride
+        if self.kv_cache_dtype is not None:
+            res["kv_cache_dtype"] = dtype_to_serialized_name(self.kv_cache_dtype)
+        res["activation_dtype"] = dtype_to_serialized_name(self.activation_dtype)
+        res["attention_dtype"] = dtype_to_serialized_name(self.attention_dtype)
+        res["fake_quant"] = self.fake_quant
+        res["tensor_parallelism_size"] = self.tensor_parallelism_size
+        res["pipeline_parallelism_size"] = self.pipeline_parallelism_size
+        res["block_to_pipeline_map"] = self.block_to_pipeline_map
+        res["pipeline_to_device_map"] = self.pipeline_to_device_map
+        res["attention_kernel"] = self.attention_kernel
+        res["use_hf"] = self.use_hf
+        res["static_tables"] = self.static_tables
+        res["attention_chunk_size"] = self.attention_chunk_size
+        if self.chunked_attention_layers is not None:
+            res["chunked_attention_layers"] = list(self.chunked_attention_layers)
+        return res
+
+    @staticmethod
+    def from_properties(properties: "PropertyValueType") -> "LlamaModelConfig":
+        kwargs = dict(properties)
+        fields_name_set = set(field.name for field in fields(LlamaModelConfig))
+        kwargs = {k: v for k, v in kwargs.items() if k in fields_name_set}
+        kwargs["hp"] = LlamaHParams.from_gguf_props(properties)
+        if "kv_cache_dtype" in kwargs:
+            kwargs["kv_cache_dtype"] = serialized_name_to_dtype(
+                kwargs["kv_cache_dtype"]
+            )
+        if "activation_dtype" in kwargs:
+            kwargs["activation_dtype"] = serialized_name_to_dtype(
+                kwargs["activation_dtype"]
+            )
+        if "attention_dtype" in kwargs:
+            kwargs["attention_dtype"] = serialized_name_to_dtype(
+                kwargs["attention_dtype"]
+            )
+        if "chunked_attention_layers" in kwargs:
+            kwargs["chunked_attention_layers"] = set(kwargs["chunked_attention_layers"])
+        return LlamaModelConfig(**kwargs)
 
 
 @dataclass
@@ -312,7 +587,7 @@ class ClipTextConfig(ModelConfig):
     dtype: torch.dtype = torch.float32
 
     def __post_init__(self):
-        from ...models.clip import ClipTextModel
+        from sharktank.models.clip import ClipTextModel
 
         self.model_type = ClipTextModel
         super().__post_init__()
@@ -325,8 +600,8 @@ class ClipTextConfig(ModelConfig):
     def from_hugging_face_clip_text_model_config(
         config: "transformers.CLIPTextConfig",
     ) -> "ClipTextConfig":
-        from ...models.clip import ClipTextModel
-        from ..base import get_model_type_id
+        from sharktank.models.clip import ClipTextModel
+        from sharktank.layers.base import get_model_type_id
 
         return ClipTextConfig(
             model_type=get_model_type_id(ClipTextModel),

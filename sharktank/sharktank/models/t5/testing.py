@@ -8,9 +8,9 @@ import transformers
 import torch
 import functools
 
-from ...layers.configs.llm_configs import T5Config
-from ...types import Theta, torch_module_to_theta
-from ...transforms.dataset import set_float_dtype
+from sharktank.layers.configs.llm_configs import T5Config
+from sharktank.types import Theta, torch_module_to_theta
+from sharktank.transforms.dataset import set_float_dtype
 from .t5 import T5Encoder
 
 

@@ -5,18 +5,18 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from .base import *
-from .conv import Conv2DLayer
+from .conv import Conv2DLayer, Conv3DLayer, Conv1DLayer
 from .paged_attention import PagedAttention
 from .causal_llm import BaseCausalLMModel
 from .linear import LinearLayer
 from .norm import RMSNormLayer, LayerNorm
 from .rotary_embedding import RotaryEmbeddingLayer
 from .token_embedding import TokenEmbeddingLayer
-from .llama_attention_block import LlamaAttentionBlock
 from .paged_llama_attention_block import PagedLlamaAttentionBlock
 from .ffn_block import FFN
-from .ffn_moe_block import FFNMOE
+from .ffn_moe_block import PreGatherFFNMOE, DenseFFNMOE, SparseFFNMOE
 from .mixture_of_experts_block import MoeBlock
 from .mmdit import MMDITDoubleBlock, MMDITSingleBlock
+from .modulation import ModulationLayer
 
 from .configs import *

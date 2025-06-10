@@ -17,9 +17,10 @@ and layouts.
 """
 
 from . import _registry
-from ..types.tensors import unbox_tensor
+from sharktank.types.tensors import unbox_tensor
 from .signatures import *
 from .shape import *
+from .utils import trivially_replicable
 
 # Ensure that implementations are registered.
 # Note that delegation prefers matching ops defined later, so order here

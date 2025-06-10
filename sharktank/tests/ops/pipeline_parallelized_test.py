@@ -151,6 +151,26 @@ class CatTest(unittest.TestCase):
         assert ops.equal(expected_result, actual_result)
         assert iterables_equal(expected_result.devices, actual_result.devices)
 
+    def testCatReplicatedShouldFail(self):
+        """Concatenation of replicated tensors."""
+        shard_count = 2
+        cat_dim = 0
+        # Done to ensure no overlap with default devices so incorrect placement is caught
+        devices = tuple(range(shard_count, 2 * shard_count))
+
+        a = torch.rand(5, 4, dtype=torch.float32)
+        b = torch.rand(3, 4, dtype=torch.float32)
+
+        sharded_a = ReplicatedTensor(ts=a, shard_count=shard_count, devices=devices)
+        sharded_b = ReplicatedTensor(
+            ts=b, shard_count=shard_count, devices=tuple(range(shard_count))
+        )
+
+        with pytest.raises(
+            ValueError, match="All tensors must be placed on the same devices"
+        ):
+            ops.cat([sharded_a, sharded_b], dim=cat_dim)
+
 
 class CloneTest(unittest.TestCase):
     def testCloneReplicatedFail(self):

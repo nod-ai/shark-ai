@@ -21,12 +21,12 @@ from transformers.modeling_attn_mask_utils import (
 )
 from collections import OrderedDict
 
-from ...layers import ThetaLayer, LinearLayer, LayerNorm, TokenEmbeddingLayer
-from ... import ops
-from ...types.theta import Theta
-from ...types.tensors import AnyTensor
-from ...layers.configs import ClipTextConfig
-from ...layers.activations import ACT2FN
+from sharktank.layers import ThetaLayer, LinearLayer, LayerNorm, TokenEmbeddingLayer
+from sharktank import ops
+from sharktank.types.theta import Theta
+from sharktank.types.tensors import AnyTensor
+from sharktank.layers.configs import ClipTextConfig
+from sharktank.layers.activations import ACT2FN
 
 
 class ClipTextEmbeddings(nn.Module):
