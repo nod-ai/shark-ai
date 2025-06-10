@@ -44,7 +44,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         softcap: Optional[float] = None,
         fake_quant: Optional[bool] = True,
         use_rope: bool = True,
-        use_qk_norm=False,
+        use_qk_norm: bool = False,
         attn_temperature_tuning: bool = False,
         floor_scale: Optional[float] = None,
         attn_scale: Optional[float] = None,
@@ -247,9 +247,9 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 * self.attn_scale
                 + 1.0
             )
-            input_shape = h.shape[:-1]
-            attn_scales = attn_scales.view((1, input_shape[-1], 1, 1)).expand(
-                (*input_shape, 1, 1)
+            input_tokens_shape = h.shape[:-1]
+            attn_scales = attn_scales.view((1, input_tokens_shape[-1], 1, 1)).expand(
+                (*input_tokens_shape, 1, 1)
             )  # batch size > 1
             xq = (xq * attn_scales).to(xq.dtype)
 

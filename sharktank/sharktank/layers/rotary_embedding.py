@@ -163,18 +163,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         xt_ = xt
         _, sl, _, _ = xt_.shape
 
-        if self.use_hf and self.rope_scaling_type != "llama4":
-            freqs_cis = rotary_embed_table
-            # Slice from max to current sequence length
-            cos, sin = [x[start_index : start_index + sl, :] for x in freqs_cis]
-            # expand to 1, sl, 1, dim and repeat per bs
-            cos = cos[None, :, None, :].repeat(xt.shape[0], 1, 1, 1)
-            sin = sin[None, :, None, :].repeat(xt.shape[0], 1, 1, 1)
-            xt = xt.transpose(1, 2)
-            xt_out = (xt_ * cos) + (self.rotate_half(xt_) * sin)
-            return xt_out
-
-        if self.rope_scaling_type == "llama4":
+        if self.rope_scaling_type == "llama3":
             freqs_cis_real = rotary_embed_table[0][
                 :, : rotary_embed_table[0].shape[1] // 2
             ]
@@ -189,6 +178,17 @@ class RotaryEmbeddingLayer(BaseLayer):
             xt_ = torch.view_as_complex(xt.float().reshape(*xt.shape[:-1], -1, 2))
             xt_out = torch.view_as_real(xt_ * freqs_cis[:, :, None, :]).flatten(3)
             return xt_out.type_as(xt)
+
+        if self.use_hf:
+            freqs_cis = rotary_embed_table
+            # Slice from max to current sequence length
+            cos, sin = [x[start_index : start_index + sl, :] for x in freqs_cis]
+            # expand to 1, sl, 1, dim and repeat per bs
+            cos = cos[None, :, None, :].repeat(xt.shape[0], 1, 1, 1)
+            sin = sin[None, :, None, :].repeat(xt.shape[0], 1, 1, 1)
+            xt = xt.transpose(1, 2)
+            xt_out = (xt_ * cos) + (self.rotate_half(xt_) * sin)
+            return xt_out
 
         # Offset the table based on starting position.
         if self.use_table:

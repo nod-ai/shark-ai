@@ -53,20 +53,19 @@ class Llama4Test(TempDirTestBase):
 
         from sharktank.types import unbox_tensor, Theta
 
-        if num_shared_experts is not None:
-            shared_ffn_theta = theta
-            if theta.optional_tensor("ffn_gate_shexp") is not None:
-                shared_ffn_theta = Theta(
-                    {
-                        "ffn_gate": theta("ffn_gate_shexp").tree,
-                        "ffn_up": theta("ffn_up_shexp").tree,
-                        "ffn_down": theta("ffn_down_shexp").tree,
-                    }
-                )
-            shared_experts = FFN(
-                theta=shared_ffn_theta,
-                activation_fn=torch.nn.functional.silu,
+        shared_ffn_theta = theta
+        if theta.optional_tensor("ffn_gate_shexp") is not None:
+            shared_ffn_theta = Theta(
+                {
+                    "ffn_gate": theta("ffn_gate_shexp").tree,
+                    "ffn_up": theta("ffn_up_shexp").tree,
+                    "ffn_down": theta("ffn_down_shexp").tree,
+                }
             )
+        shared_experts = FFN(
+            theta=shared_ffn_theta,
+            activation_fn=torch.nn.functional.silu,
+        )
 
         hf_moe = Llama4TextMoe(
             num_experts_per_tok=expert_used_count,
@@ -122,7 +121,6 @@ class Llama4TextMoe(torch.nn.Module):
         )
         self.router = torch.nn.Linear(hidden_size, num_local_experts, bias=False)
         self.shared_expert = Llama4TextMLP(hidden_size, intermediate_size)
-        # self.shared_expert = shared_expert
 
     def forward(self, hidden_states):
         batch, seq_len, hidden_dim = hidden_states.shape
@@ -138,31 +136,13 @@ class Llama4TextMoe(torch.nn.Module):
             .scatter_(1, router_indices, router_top_value)
             .transpose(0, 1)
         )
-        # We do this to make sure we have -inf for non topK tokens before going through the !
-        # Here we are just creating a tensor to index each and every single one of the hidden states. Let s maybe register a buffer for this!
-        router_indices = (
-            torch.arange(tokens_per_expert, device=hidden_states.device)
-            .view(1, -1)
-            .expand(router_scores.size(0), -1)
-        )
         router_scores = torch.sigmoid(router_scores.float()).to(hidden_states.dtype)
 
-        router_indices = router_indices.reshape(-1, 1).expand(-1, hidden_dim)
-        routed_in = torch.gather(
-            input=hidden_states,
-            dim=0,
-            index=router_indices,
-        ).to(hidden_states.device)
-        # we gather inputs corresponding to each expert based on the router indices
+        routed_in = hidden_states.repeat(self.num_experts, 1)
         routed_in = routed_in * router_scores.reshape(-1, 1)
         routed_out = self.experts(routed_in)
         out = self.shared_expert(hidden_states)
-        # now that we finished expert computation -> we scatter add because we gathered previously
-        # we have to do this because we used all experts on all tokens. This is faster than the for loop, tho you are compute bound
-        # this scales a lot better if you do EP!
-        out.scatter_add_(
-            dim=0, index=router_indices, src=routed_out.view(-1, hidden_dim)
-        )
+        out.add_(routed_out.reshape(self.num_experts, -1, self.hidden_dim).sum(dim=0))
         return out, router_scores
 
 

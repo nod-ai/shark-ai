@@ -26,10 +26,10 @@ class Llama4Test(TempDirTestBase):
 
     @parameterized.expand(
         [
-            (torch.float32, 1e-5),
+            (torch.float32),
         ]
     )
-    def testCompareToyEagerVsHuggingFace(self, dtype: torch.dtype, atol: float):
+    def testCompareToyEagerVsHuggingFace(self, dtype: torch.dtype):
         torch.set_printoptions(
             linewidth=120, threshold=1000, edgeitems=4, precision=2, sci_mode=True
         )

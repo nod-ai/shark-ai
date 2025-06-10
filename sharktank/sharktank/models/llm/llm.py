@@ -330,6 +330,11 @@ class AttentionFFNBlock(ThetaLayer):
         else:
             use_rope = True
 
+        use_qk_norm = (
+            block_index in config.rope_layers and config.use_qk_norm
+            if config.rope_layers
+            else False
+        )
         self.add_module(
             "attn",
             PagedLlamaAttentionBlock(
@@ -347,9 +352,7 @@ class AttentionFFNBlock(ThetaLayer):
                 softcap=config.hp.attention_softcap,
                 model_arch=config.hp.model_arch,
                 use_rope=use_rope,
-                use_qk_norm=block_index in config.rope_layers and config.use_qk_norm
-                if config.rope_layers
-                else False,
+                use_qk_norm=use_qk_norm,
                 attn_temperature_tuning=config.attn_temperature_tuning,
                 floor_scale=config.floor_scale,
                 attn_scale=config.attn_scale,
