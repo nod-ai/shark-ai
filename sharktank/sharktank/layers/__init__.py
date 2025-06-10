@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from .base import *
-from .conv import Conv2DLayer
+from .conv import Conv2DLayer, Conv3DLayer, Conv1DLayer
 from .paged_attention import PagedAttention
 from .causal_llm import BaseCausalLMModel
 from .linear import LinearLayer

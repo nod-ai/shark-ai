@@ -61,12 +61,12 @@ def assert_on_same_devices(*tensors: Tuple[ShardedTensor]) -> None:
 def sharded_wrap_override():
     def transfer_n_pin(f):
         """
-        Wrapper for each NON-TRANSFERING op defined in this file.
+        Wrapper for each NON-TRANSFERRING op defined in this file.
         """
 
         def func_wrapper(*args: Tuple, **kwargs: Dict[str, Any]):
             """
-            Wraps each NON-TRANSFERING operation, f, to ensure that all incoming tensors are on the same device and that the result has the devices correctly labelled.
+            Wraps each NON-TRANSFERRING operation, f, to ensure that all incoming tensors are on the same device and that the result has the devices correctly labelled.
 
             If no ShardedTensors are present in the input, then no changes are made to input/output.
             """
@@ -74,6 +74,14 @@ def sharded_wrap_override():
             for value in itertools.chain(args, kwargs.values()):
                 if isinstance(value, ShardedTensor):
                     sharded_tensors.append(value)
+                    continue
+                if isinstance(
+                    value,
+                    (
+                        InferenceTensor,
+                        torch.Tensor,
+                    ),
+                ):
                     continue
                 if isinstance(value, Iterable):
                     for val in value:
@@ -112,13 +120,15 @@ def sharded_wrap_override():
     do_not_wrap = {
         "all_gather",
         "all_reduce",
-        "replicate",
+        "equal",
         "index_copy_",
         "index_put_",
-        "transfer_to_logical_device",
-        "reshard_like",
         "replicate_like",
-        "equal",
+        "replicate",
+        "reshard_like",
+        "trace_tensor",
+        "transfer_to_logical_device",
+        "unshard",
     }
 
     from . import signatures

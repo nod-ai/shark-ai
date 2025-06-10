@@ -390,9 +390,18 @@ class PerplexityIree:
                 modules=(hal_module, parameters_module, self.vm_module),
             )
 
+            self.last_token_index = self.max_prompt_length
+            context_length = self.generator.model.config.hp.context_length
+            if self.last_token_index > context_length:
+                logger.warning(
+                    f"Last token {self.last_token_index} exceeds context length {context_length}. "
+                    "Limiting tokens to context length."
+                )
+                self.last_token_index = context_length
+
             out_logits = []
             for i in tqdm(
-                range(self.start, self.max_prompt_length - 1),
+                range(self.start, self.last_token_index - 1),
                 mininterval=300,
                 desc=f"eval_iree: Calculating logits for {weight_path.name}",
             ):
@@ -420,13 +429,22 @@ class PerplexityIree:
                     out_logits.append(decode_logits)
 
             out_logits = ops.cat(out_logits, dim=1)
+
             pad_logits_shape = self.token_ids.shape[1] - out_logits.shape[1]
+
             pad_logits = torch.zeros(
                 out_logits.shape[0], pad_logits_shape, out_logits.shape[2]
             )
 
             self.cache_state = None  # Remove saved reference to iree.runtime.DeviceArray before leaving function
-            return ops.cat((out_logits, pad_logits), 1).to(self.torch_device)
+            return ops.cat(
+                (
+                    pad_logits[:, : self.start + 1],
+                    out_logits,
+                    pad_logits[:, self.start + 1 :],
+                ),
+                dim=1,
+            ).to(self.torch_device)
 
         return with_iree_device_context(run_iree_module, devices)
 
@@ -471,7 +489,9 @@ class PerplexityIree:
         logger.debug(f"Final Logits shape: {out_logits.shape}")
         logger.debug(f"Token ids shape: {self.token_ids.shape}")
 
-        return compute_perplexity(self.token_ids, out_logits, self.start)
+        return compute_perplexity(
+            self.token_ids, out_logits, self.start, self.last_token_index
+        )
 
 
 def run_perplexity_iree(
