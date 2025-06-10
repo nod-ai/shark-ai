@@ -10,6 +10,7 @@ from .paged_attention import PagedAttention
 from .causal_llm import BaseCausalLMModel
 from .linear import LinearLayer
 from .norm import RMSNormLayer, LayerNorm
+from .quantization import QuantizationLayer
 from .rotary_embedding import RotaryEmbeddingLayer
 from .token_embedding import TokenEmbeddingLayer
 from .paged_llama_attention_block import PagedLlamaAttentionBlock

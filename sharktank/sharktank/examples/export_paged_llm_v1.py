@@ -20,6 +20,7 @@ from sharktank.types.pipelining import pipeline_parallelize_theta
 from sharktank.utils.math import ceildiv
 from sharktank import ops
 from sharktank.utils import cli
+from sharktank.quantization.brevitas import quantize
 
 # TODO: Should be using a base class with the protocol supported.
 from sharktank.models.llm import *
@@ -33,6 +34,12 @@ def main():
     cli.add_export_artifacts(parser)
     cli.add_quantization_options(parser)
     cli.add_log_options(parser)
+
+    parser.add_argument(
+        "--quantize",
+        action="store_true",
+        help="Apply quantization to the model and generate a new IRPA",
+    )
 
     args = cli.parse(parser)
 
@@ -87,6 +94,11 @@ def main():
     llama_config.fake_quant = args.fake_quant
 
     model = PagedLlmModelV1(dataset.root_theta, llama_config)
+
+    if args.quantize:
+        model = quantize(model)
+        # TODO: generate the new IRPA file
+        exit()
 
     def generate_params_json(
         hp: LlamaHParams,
