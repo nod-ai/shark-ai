@@ -25,8 +25,6 @@ from iree.compiler.ir import (
 )
 
 __all__ = [
-    "get_module_body",
-    "get_wave_flash_attention_asm",
     "wave_bhsd_flash_attention",
 ]
 
