@@ -224,6 +224,28 @@ class TextTimeFFNEmbedder(ThetaLayer):
         x = gelu_tanh_approximation(x)
         return self.out_layer(x)
 
+class TimeGuidanceProjector(ThetaLayer):
+    def __init__(self, theta: Theta):
+        super().__init__(theta)
+        self.out_layer = LinearLayer(theta("1"))
+
+    def forward(self, x: AnyTensor) -> AnyTensor:
+        x = ops.elementwise(torch.nn.functional.silu, x)
+        return self.out_layer(x)
+
+
+class GuidanceEmbedding(ThetaLayer):
+    def __init__(self, theta: Theta):
+        super().__init__(theta)
+        self.in_layer = LinearLayer(theta("0"))
+        self.out_layer = LinearLayer(theta("2"))
+
+    def forward(self, x: AnyTensor) -> AnyTensor:
+        x = self.in_layer(x)
+        x = ops.elementwise(torch.nn.functional.silu, x)
+        return self.out_layer(x)
+
+
 '''
 class WanRMSNorm(nn.Module):
 
@@ -481,6 +503,7 @@ class WanAttentionBlock(ThetaLayer):
                  qk_norm=True,
                  cross_attn_norm=False,
                  eps=1e-6,
+                 dtype=torch.bfloat16,
                  ):
         super().__init__(theta)
         self.dim = dim
@@ -528,6 +551,8 @@ class WanAttentionBlock(ThetaLayer):
         '''
         self.modulation = self.theta_tensor("modulation")
 
+        self.dtype = dtype
+
     def forward(
         self,
         x,
@@ -546,26 +571,23 @@ class WanAttentionBlock(ThetaLayer):
             grid_sizes(Tensor): Shape [B, 3], the second dimension contains (F, H, W)
             freqs(Tensor): Rope freqs, shape [1024, C / num_heads / 2]
         """
-        assert e.dtype == torch.bfloat16
-        with torch.amp.autocast('cuda', dtype=torch.bfloat16):
-            e = (self.modulation + e).chunk(6, dim=1)
-        assert e[0].dtype == torch.bfloat16
+        assert e.dtype == self.dtype
+        e = (self.modulation + e).type(self.dtype).chunk(6, dim=1)
+        assert e[0].dtype == self.dtype
 
         # self-attention
         y = self.self_attn(
-            layer_norm(x, self.dim, self.eps).bfloat16() * (1 + e[1]) + e[0], seq_lens, grid_sizes,
+            layer_norm(x, self.dim, self.eps).type(self.dtype) * (1 + e[1]) + e[0], seq_lens, grid_sizes,
             freqs)
 
-        with torch.amp.autocast('cuda', dtype=torch.bfloat16):
-            x = x + y * e[2]
+        x = (x + y * e[2]).type(self.dtype)
 
         # cross-attention & ffn function
         def cross_attn_ffn(x, context, context_lens, e):
             x = x + self.cross_attn(self.norm3(x), context, context_lens)
             y = self.ffn(layer_norm(x, self.dim, self.eps).bfloat16() * (1 + e[4]) + e[3])
-            with torch.amp.autocast('cuda', dtype=torch.bfloat16):
-                x = x + y * e[5]
-            return x
+            x = x + y * e[5]
+            return x.type(self.dtype)
 
         x = cross_attn_ffn(x, context, context_lens, e)
         return x
@@ -705,6 +727,7 @@ class WanModel(ThetaLayer):
         self.window_size = params.window_size
         self.qk_norm = params.qk_norm
         self.cross_attn_norm = params.cross_attn_norm
+
         self.eps = params.eps
 
         '''
@@ -726,6 +749,7 @@ class WanModel(ThetaLayer):
         self.time_projection = nn.Sequential(nn.SiLU(), nn.Linear(dim, dim * 6))
         '''
         self.time_embedding = TextTimeFFNEmbedder(self.theta("time_embedding"))
+        self.time_projection = TimeGuidanceProjector(self.theta("time_projection"))
 
         # blocks
         '''
@@ -784,7 +808,6 @@ class WanModel(ThetaLayer):
         x,
         t,
         context,
-        seq_len,
         clip_fea=None,
         y=None,
     ):
@@ -829,7 +852,7 @@ class WanModel(ThetaLayer):
         grid_sizes = torch.stack(
             [torch.tensor(u.shape[2:], dtype=torch.long) for u in x[:1]])
         '''
-        grid_sizes =[list(u.shape[2:]) for u in x[:1]]
+        grid_sizes = [list(u.shape[2:]) for u in x[:1]]
         x = [u.flatten(2).transpose(1, 2) for u in x] ## 1 l c
         seq_lens = torch.tensor([u.size(1) for u in x[:1]], dtype=torch.long)
         assert seq_lens.max() <= seq_len
@@ -840,8 +863,8 @@ class WanModel(ThetaLayer):
         # time embeddings
         with torch.amp.autocast('cuda', dtype=torch.bfloat16):
             e = self.time_embedding(
-                sinusoidal_embedding_1d(self.freq_dim, t).bfloat16())
-            e0 = self.time_projection(e).unflatten(1, (6, self.dim))
+                sinusoidal_embedding_1d(self.freq_dim, t).bfloat16()).bfloat16()
+            e0 = self.time_projection(e).unflatten(1, (6, self.dim)).bfloat16()
             assert e.dtype == torch.bfloat16 and e0.dtype == torch.bfloat16
 
         # context
@@ -856,9 +879,25 @@ class WanModel(ThetaLayer):
         if clip_fea is not None:
             context_clip = self.img_emb(clip_fea)  # bs x 257 x dim
             context = torch.concat([context_clip, context], dim=1)
-
+        """
+        only things to change is: 
+        x is a list of tensors
+        audio_contexts is a list of tensors
+        """
+        # arguments
+        kwargs = dict(
+            e=e0,
+            seq_lens=seq_lens,
+            grid_sizes=grid_sizes,
+            freqs=self.freqs,
+            context=context,
+            context_lens=context_lens)
+        
+        for idx, block in enumerate(self.blocks):
+            x = block(x=x[0], **kwargs)
+        
         # head
-        x = [self.head(z, e) for z in x]
+        x = [self.head(z, e.bfloat16()) for z in x]
 
         # unpatchify
         x = [self.unpatchify([z], grid_sizes)[0] for z in x] ## list of b c f h w
@@ -921,65 +960,3 @@ class WanModel(ThetaLayer):
         # init output layer
         nn.init.zeros_(self.head.head.weight)
     '''
-    def _get_noise(
-        self,
-        batch_size: int,
-        height: int,
-        width: int,
-        dtype: torch.dtype,
-    ):
-        assert self.params.in_dim % 4 == 0
-        channels = self.params.in_dim // 4
-        return torch.randn(
-            batch_size,
-            channels,
-            # allow for packing
-            2 * math.ceil(height / channels),
-            2 * math.ceil(width / channels),
-            dtype=dtype,
-        )
-
-    def sample_inputs(
-        self, batch_size: int = 1, function: Optional[str] = None
-    ) -> tuple[tuple[AnyTensor], OrderedDict[str, AnyTensor]]:
-        if not (function is None or function == "forward"):
-            raise ValueError(f'Only function "forward" is supported. Got "{function}"')
-        
-        # Prepare inputs
-        # input config
-        cfg_val = 4
-        target_dtype = torch.bfloat16
-      
-        # Get wan model input
-        model_input = self._get_noise(
-            batch_size,
-            self.params.output_img_height,
-            self.params.output_img_width,
-            self.dtype,
-        )
-
-        text_embeds_shape = (self.params.text_len, model_input.shape[1])
-
-
-
-        binary_masks = torch.zeros(4, *model_input.shape[1:], dtype=torch.bfloat16, device=model_input.device)
-        binary_masks[:, 0] = 1
-        ys = torch.cat([binary_masks, condition_frames[0]], dim=0).to(target_dtype)
-
-        max_seq_len = ys.shape[1] * ys.shape[2] * ys.shape[3] // (2 * 2)
-
-        # timestep_input = torch.full((1,), 1, device=rank, dtype=torch.long)
-        timestep_input = torch.full((1,), 1, dtype=torch.long)
-
-        args = tuple()
-        self.set_export_config(seq_len=max_seq_len)
-        kwargs = OrderedDict(
-            (
-                ("x", [model_input]),
-                ("t", timestep_input),
-                ("context", [text_embeddings[0]]),
-                ("clip_fea", clip_image_embeddings[:1]),
-                ("y", [ys]),
-            )
-        )
-        return args, kwargs
