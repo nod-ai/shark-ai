@@ -125,6 +125,22 @@ jobs:
 
           pip freeze
 
+      - name: Build hip kernel library
+        if: ${{ !cancelled() }}
+        run: |
+          mkdir sharktank/hip_kernels/build/
+          cmake -B sharktank/hip_kernels/build/ \
+            -S sharktank/hip_kernels/ \
+            -DTARGET_ARCH=gfx942 \
+          cmake --build sharktank/hip_kernels/build/
+
+      - name: Build hip kernel library
+        if: ${{ !cancelled() }}
+        run: |
+          pytest hip_kernels/tests/ \
+            --iree-hip-target=gfx942 \
+            --hip-kernel-build=sharktank/hip_kernels/build
+
       - name: Run sharktank tests
         if: ${{ !cancelled() }}
         run: |
