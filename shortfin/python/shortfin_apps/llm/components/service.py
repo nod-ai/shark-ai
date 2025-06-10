@@ -17,8 +17,8 @@ from .kvcache.base_attention_cache import (
     BasePagedAttentionCache,
 )
 from .kvcache.trie_attention_cache import TriePagedAttentionCache
+from .kvcache.mooncake_attention_cache import MooncakePagedAttentionCache
 from .kvcache.page_pool import PagePoolConfig, PagePool
-from .kvcache.mooncake import MooncakeConfig, MooncakeEngine, MooncakeStore
 from .manager import LlmSystemManager
 from .service_debug_dumper import SERVICE_DEBUG_DUMPER
 from .tokenizer import Tokenizer
@@ -122,10 +122,17 @@ class LlmGenerateService(GenerateService):
         page_pool = PagePool(devices=self.devices, config=page_pool_config)
 
         if self.server_params.prefix_sharing_algorithm == "trie":
-            self.page_cache = TriePagedAttentionCache(
-                page_pool=page_pool,
-                tokens_per_page=self.model_params.paged_kv_cache.block_seq_stride,
-            )
+            if self.mooncake_config_path != None:
+                self.page_cache = MooncakePagedAttentionCache(
+                    page_pool=page_pool,
+                    tokens_per_page=self.model_params.paged_kv_cache.block_seq_stride,
+                    mooncake_config_path=self.mooncake_config_path,
+                )
+            else:
+                self.page_cache = TriePagedAttentionCache(
+                    page_pool=page_pool,
+                    tokens_per_page=self.model_params.paged_kv_cache.block_seq_stride,
+                )
         elif self.server_params.prefix_sharing_algorithm == "none":
             self.page_cache = BasePagedAttentionCache(
                 page_pool=page_pool,
@@ -137,26 +144,6 @@ class LlmGenerateService(GenerateService):
         else:
             raise ValueError(
                 f"Unknown prefix_sharing_algorithm {self.server_params.prefix_sharing_algorithm}. Currently only supporting 'trie' and 'none'."
-            )
-
-        if self.mooncake_config_path != None:
-            config = MooncakeConfig.from_json(self.mooncake_config_path)
-            # mooncake_engin = MooncakeEngine(config) #looks like we don't need to connect to mooncake engine if we only use mooncake store
-            mooncake_store = MooncakeStore(config)
-            logger.info(
-                f"Mooncake store enabled with config: {self.mooncake_config_path}"
-            )
-            # Test mooncake store PUT/GET, uncomment following lines to test the connection beween mooncake store and shortfin
-            import torch
-
-            test_str = "Hello, Mooncake!"
-            test_data = test_str.encode("utf-8")
-            test_tensor = torch.tensor(list(test_data), dtype=torch.uint8)
-            mooncake_store.put("test_key", test_tensor)
-            retrieved_tensor = mooncake_store.get("test_key")
-            retrieved_str = bytes(retrieved_tensor.tolist()).decode("utf-8")
-            print(
-                f"Successfully sent and received test string: {retrieved_str} from mooncake store"
             )
 
     def start(self):
