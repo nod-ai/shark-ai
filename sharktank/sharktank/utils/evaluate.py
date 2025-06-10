@@ -16,7 +16,7 @@ import torch
 
 
 def compute_perplexity(
-    token_ids: torch.tensor, logits: torch.tensor, start: int
+    token_ids: torch.tensor, logits: torch.tensor, start: int, end: int
 ) -> list[float]:
 
     """Compute perplexity for predicted logits and groundtruth tokens.
@@ -24,15 +24,16 @@ def compute_perplexity(
           token_ids: Token ids of input prompts (groundtruth)
           logits: Output logits from an LLM
           start: Index of the first input token to prefill
+          end: Index of the last token that was processed by decode
     Returns:
           Dictionary of list of perplexities per prompt and
     """
 
     attention_mask = (token_ids != 0).int().detach().clone().to(token_ids.device)
 
-    logits = logits[..., start + 1 :, :].contiguous()
-    token_ids = token_ids[..., start + 1 :].contiguous()
-    attention_mask = attention_mask[..., start + 1 :].contiguous()
+    logits = logits[..., start + 1 : end + 1, :].contiguous()
+    token_ids = token_ids[..., start + 1 : end + 1].contiguous()
+    attention_mask = attention_mask[..., start + 1 : end + 1].contiguous()
 
     assert (
         token_ids.shape == logits.shape[0:2]

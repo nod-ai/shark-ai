@@ -17,7 +17,8 @@ Batch-enabled TopK Kernel:
 - Each warp handles the reduction using in-warp TopK logic
 */
 
-extern "C" __global__ void topk_F16I32(const _Float16 *__restrict__ inputBuffer,
+extern "C" __global__ void topk_F16I32(const _Float16 *__restrict__ inputValues,
+                                       const int32_t *__restrict__ inputIndices,
                                        _Float16 *__restrict__ outputValues,
                                        int32_t *__restrict__ outputIndices,
                                        int reductionSize) {
@@ -28,35 +29,38 @@ extern "C" __global__ void topk_F16I32(const _Float16 *__restrict__ inputBuffer,
   uint laneID = threadIdx.x;
 
   int linearIndex = batchID * groupCount + groupID;
-  const _Float16 *batchInput = inputBuffer + linearIndex * reductionSize;
+  const _Float16 *batchInput = inputValues + linearIndex * reductionSize;
+  const int32_t *batchIndices = inputIndices + linearIndex * reductionSize;
   _Float16 *batchOutputValues = outputValues + linearIndex * k;
   int32_t *batchOutputIndices = outputIndices + linearIndex * k;
 
   _Float16 NEG_F16_MAX = (_Float16)(-65504.0f);
   _Float16 topk_vals[MAX_K];
   int32_t topk_indices[MAX_K];
-  // Initialize topk values to identity (NEG_F16_MAX for max)
+  // Initialize topk values to first K values
   for (int i = 0; i < k; ++i) {
-    topk_vals[i] = NEG_F16_MAX;
-    topk_indices[i] = -1;
+    uint idx = warpSize * i + laneID;
+    topk_vals[i] = batchInput[idx];
+    topk_indices[i] = batchIndices[idx];
   }
 
   uint numBatches = (reductionSize + warpSize - 1) / warpSize;
-  for (int i = 0; i < numBatches; ++i) {
+  for (int i = k; i < numBatches; ++i) {
     uint idx = warpSize * i + laneID;
-    _Float16 val = idx < reductionSize ? batchInput[idx] : NEG_F16_MAX;
+    _Float16 val = batchInput[idx];
+    int32_t ind = batchIndices[idx];
 
     // Insert into local top-k buffer
     for (int j = 0; j < k; ++j) {
       if (val > topk_vals[j]) {
-        // Shift down
-        for (int m = k - 1; m > j; --m) {
-          topk_vals[m] = topk_vals[m - 1];
-          topk_indices[m] = topk_indices[m - 1];
-        }
+        _Float16 tmp_val = topk_vals[j];
+        int32_t tmp_ind = topk_indices[j];
+
         topk_vals[j] = val;
-        topk_indices[j] = idx;
-        break;
+        topk_indices[j] = ind;
+
+        val = tmp_val;
+        ind = tmp_ind;
       }
     }
   }

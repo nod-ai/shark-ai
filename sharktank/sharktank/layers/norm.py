@@ -9,6 +9,7 @@ import torch
 from sharktank import ops
 from sharktank.types import Theta
 from .base import ThetaLayer
+from typing import Optional
 
 
 class RMSNormLayer(ThetaLayer):
@@ -50,6 +51,7 @@ class LayerNorm(ThetaLayer):
         weight_name: str = "weight",
         bias_name: str = "bias",
         eps: float = 1e-05,
+        normalized_shape: Optional[tuple[int]] = None,
     ):
         super().__init__(theta)
         self.weight = self.theta_tensor(weight_name)
@@ -57,6 +59,13 @@ class LayerNorm(ThetaLayer):
         if bias_name in self.theta.keys:
             self.bias = self.theta_tensor(bias_name)
         self.eps = eps
+        self.normalized_shape = normalized_shape
 
     def forward(self, x: torch.Tensor):
-        return ops.layer_norm(x, weight=self.weight, bias=self.bias, eps=self.eps)
+        return ops.layer_norm(
+            x,
+            weight=self.weight,
+            bias=self.bias,
+            eps=self.eps,
+            normalized_shape=self.normalized_shape,
+        )

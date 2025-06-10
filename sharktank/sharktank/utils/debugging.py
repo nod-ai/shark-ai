@@ -144,7 +144,7 @@ set_trace_tensor_callback(trace_tensor_to_safetensors_callback)
 
 def trace_tensors_to_safetensors(key: str, tensors: Dict[str, torch.Tensor]):
     # Sanitize as path.
-    key = re.sub("[" + re.escape(r"""#~!@$%^&*()[]{}:;"'""") + "]", "", key)
+    key = re.sub("[" + re.escape(r"""*?"<>|""") + "]", "", key)
     from safetensors.torch import save_file
 
     path: Path = flags.trace_path / f"{key}.safetensors"
