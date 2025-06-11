@@ -105,6 +105,12 @@ jobs:
         with:
           files: coverage.xml
 
+      - name: Upload coverage data
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-data-${{ matrix.python-version }}-${{ matrix.torch-version }}-${{ matrix.runs-on }}
+          path: .coverage
+
   test-mi300x:
     name: "Unit Tests (${{ matrix.runs-on }}, ${{ matrix.python-version }}, ${{ matrix.torch-version }})"
     strategy:
