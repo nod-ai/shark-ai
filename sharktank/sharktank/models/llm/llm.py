@@ -200,6 +200,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
             h = self._inter_layer_callback(h, block_idx)
             self.trace_tensor(f"llama.attn_block.{block_idx}.output", h)
 
+        h = h.to(self.config.activation_dtype)
         h = self.output_norm(h)
         logits = self.output_lm_head(h)
 
@@ -287,6 +288,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
             h = self._inter_layer_callback(h, block_idx)
             self.trace_tensor(f"llama.attn_block.{block_idx}.output", h)
 
+        h = h.to(self.config.activation_dtype)
         h = self.output_norm(h)
         logits = self.output_lm_head(h)
 
