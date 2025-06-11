@@ -6,6 +6,7 @@
 
 from sharktank.kernels.base import *
 from sharktank.kernels.mlir_kernel import *
+from sharktank.kernels.wave.utils import get_wave_module_body_asm
 from iree.turbine.kernel.wave.templates.vanilla_attention import (
     get_bhsd_attention_kernel,
 )
@@ -27,17 +28,6 @@ from iree.compiler.ir import (
 __all__ = [
     "wave_bhsd_flash_attention",
 ]
-
-
-def get_module_body(module: Module) -> str:
-    """
-    Extracts the MLIR code inside the top-level module by
-    concatenating the asm of all operations inside the module's main region.
-    """
-    region = module.operation.regions[0]
-    block = region.blocks[0]
-    ops_asm = [op.get_asm() for op in block.operations]
-    return "\n".join(ops_asm)
 
 
 def get_wave_flash_attention_asm(
@@ -132,7 +122,7 @@ def wave_bhsd_flash_attention(q, k, v, c, result=None):
     )
 
     asm_module = Module.parse(asm)
-    asm_body = get_module_body(asm_module)
+    asm_body = get_wave_module_body_asm(asm_module)
 
     mlir_wave_kernel = (
         asm_body
