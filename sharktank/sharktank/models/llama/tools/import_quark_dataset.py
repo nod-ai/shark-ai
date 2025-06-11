@@ -23,12 +23,7 @@ import sys
 import torch
 
 from sharktank.types import *
-from sharktank.layers.configs.llm_configs import (
-    _int_prop,
-    _float_prop,
-    _optional_int_prop,
-    _int_prop,
-)
+from sharktank.layers.configs.llm_configs import LlamaHParams
 
 
 def _load_json(p: Path):
@@ -232,28 +227,6 @@ def apply_per_layer_quant(
         root_theta.pop(layer_name)
 
 
-def convert_hf_hparams_to_gguf(hf_hparams: dict[str, any]) -> dict[str, any]:
-    hp = hf_hparams["hparams"]
-    attention_head_count = _int_prop(hp, "num_attention_heads")
-    attn_head_dim = int(
-        _int_prop(hp, "hidden_size") // _int_prop(hp, "num_attention_heads")
-    )
-    attn_head_dim = int(_optional_int_prop(hp, "head_dim", attn_head_dim))
-
-    return {
-        "llama.context_length": _int_prop(hp, "max_position_embeddings"),
-        "llama.embedding_length": _int_prop(hp, "hidden_size"),
-        "llama.block_count": _int_prop(hp, "num_hidden_layers"),
-        "llama.feed_forward_length": _int_prop(hp, "intermediate_size"),
-        "llama.rope.dimension_count": attn_head_dim,
-        "llama.attention.head_count": attention_head_count,
-        "llama.attention.layer_norm_rms_epsilon": _float_prop(hp, "rms_norm_eps"),
-        "llama.attention.head_count_kv": _optional_int_prop(
-            hp, "num_key_value_heads", attention_head_count
-        ),
-    }
-
-
 def update_norm_layer(
     quant_theta: Theta, layer_name: str, updated_tensors: dict[str, InferenceTensor]
 ):
@@ -370,7 +343,8 @@ def main(argv):
     ds = Dataset(dataset_props, quant_theta)
 
     # Convert hyperparams to gguf format
-    updated_properties = convert_hf_hparams_to_gguf(ds.properties)
+    hp = LlamaHParams.from_hf_props(ds.properties)
+    updated_properties = hp.to_gguf_props()
 
     head_count = (updated_properties["llama.attention.head_count"],)
 
