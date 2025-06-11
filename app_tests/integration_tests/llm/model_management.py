@@ -11,7 +11,7 @@ from enum import Enum, auto
 
 from sharktank.utils.hf_datasets import Dataset, RemoteFile, get_dataset
 
-from . import device_settings
+from .device_settings import DeviceSettings
 
 logger = logging.getLogger(__name__)
 
@@ -194,6 +194,15 @@ _PREDEFINED_MODELS = {
         tokenizer_id="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
         batch_sizes=(4, 8),
         device_settings=None,
+    ),
+    "tinystories_llama2_25m_tp2": ModelConfig(
+        source=ModelSource.HUGGINGFACE_FROM_SAFETENSORS,
+        dataset_name="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
+        model_file="model.irpa",  # This will be the final converted file name
+        tokenizer_id="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
+        batch_sizes=(4, 8),
+        device_settings=None,
+        tensor_parallelism_size=2,  # Shard into 2 parts for tensor parallelism
     ),
     "tinystories_llama2_25m_gpu_argmax": ModelConfig(
         source=ModelSource.HUGGINGFACE_FROM_SAFETENSORS,
