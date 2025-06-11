@@ -31,7 +31,6 @@ pytestmark = pytest.mark.parametrize(
         (
             ModelConfig.get(name="tinystories_llama2_25m"),
             {
-                "token_selection_strategy": "independent",
                 "prefix_sharing": "none",
                 "num_beams": 2,
             },
@@ -40,7 +39,7 @@ pytestmark = pytest.mark.parametrize(
             ModelConfig.get(name="tinystories_llama2_25m"),
             {
                 "prefix_sharing": "none",
-                "token_selection_strategy": "beam_search",
+                "use_beam_search": True,
                 "num_beams": 2,
             },
         ),
@@ -94,7 +93,7 @@ class TestLLMServer:
         prompt = GOLDEN_PROMPT
         expected_response = (
             GOLDEN_RESPONSE
-            if config.token_selection_strategy != "beam_search"
+            if not config.use_beam_search
             else GOLDEN_BEAM_SEARCH_RESPONSE
         )
 
@@ -150,7 +149,7 @@ class TestLLMServer:
         prompt = GOLDEN_PROMPT
         expected_response = (
             GOLDEN_RESPONSE
-            if config.token_selection_strategy != "beam_search"
+            if not config.use_beam_search
             else GOLDEN_BEAM_SEARCH_RESPONSE
         )
 

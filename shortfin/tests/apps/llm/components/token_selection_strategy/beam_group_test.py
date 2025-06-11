@@ -3,7 +3,7 @@ import math
 import numpy as np
 import random
 import pytest
-from typing import Any, List
+from typing import List, Union
 from unittest.mock import patch
 
 from shortfin_apps.llm.components.kvcache.base_attention_cache import (
@@ -12,7 +12,7 @@ from shortfin_apps.llm.components.kvcache.base_attention_cache import (
 from shortfin_apps.llm.components.messages import LlmInferenceExecRequest
 from shortfin_apps.llm.components.token_selection_strategy.beam_group import (
     BeamGroup,
-    Beam,
+    BaseBeam,
 )
 from shortfin_apps.llm.components.token_selection_strategy.config import (
     LogitsNormalization,
@@ -38,20 +38,34 @@ def exec_req_list(exec_req, cache, dummy_pages):
     yield exec_reqs
 
 
-class DummyBeam(Beam):
+class DummyBeam(BaseBeam):
     def sample_logits(self):
         pass
 
-    def update_score(self, value: float):
+    def sample_default(
+        self, logits: np.array, indices: Union[np.array, None], num_completed_beams: int
+    ):
         pass
 
-    def update_exec_req(self):
+    def sample_top_k(
+        self,
+        logits: np.array,
+        indices: Union[np.array, None],
+        top_k: int,
+        num_completed_beams: int,
+    ):
         pass
 
-    def normalize_score(self, value: float):
+    def sample_top_p(
+        self,
+        tokens: np.array,
+        probs: np.array,
+        top_p: float,
+        num_completed_beams: int,
+    ):
         pass
 
-    def update_final_score(self):
+    def get_results(self, tokens: np.array, probs: np.array):
         pass
 
 
@@ -249,6 +263,7 @@ def test__sample_logits_top_p(decode_config, exec_req):
     expected_tokens = random_hot_tokens.copy()
     expected_probs = [0.33] * 3
 
+    beam.decode_config.top_k = -1
     tokens, probs = beam._sample_logits_top_p(
         np.array(tokens),
         np.array(probs),

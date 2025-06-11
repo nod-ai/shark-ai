@@ -34,9 +34,31 @@ import iree.runtime
 if TYPE_CHECKING:
     from ..layers import ModelConfig
 
-halelementtype_map = {
+torch_dtype_to_hal_element_type_map = {
     torch.float8_e4m3fnuz: iree.runtime.HalElementType.FLOAT_8_E4M3_FNUZ,
     torch.bfloat16: iree.runtime.HalElementType.BFLOAT_16,
+}
+
+hal_element_type_to_torch_dtype_map = {
+    v: k for k, v in torch_dtype_to_hal_element_type_map.items()
+}
+
+dtype_to_dtype_reinterpret_map = {
+    torch.float8_e4m3fnuz: torch.int8,
+    torch.bfloat16: torch.int16,
+}
+"""We want to map dtypes unsupported by iree.runtime.DeviceArray.
+This is due to numpy having no support for these and we need reinterpretation
+of the data in order to get it across the torch-IREE bundary.
+"""
+
+dtype_reinterpret_to_dtype_map = {
+    v: k for k, v in dtype_to_dtype_reinterpret_map.items()
+}
+
+torch_dtype_to_numpy_dtype_map = {
+    torch.int8: np.int8,
+    torch.int16: np.int16,
 }
 
 
@@ -320,7 +342,7 @@ def device_array_to_host(device_array: iree.runtime.DeviceArray) -> torch.Tensor
         return iree.runtime.HalBufferView(
             buffer=buffer_view.get_buffer(),
             shape=buffer_view.shape,
-            element_type=element_type,
+            element_type=int(element_type),
         )
 
     def reinterpret_device_array_dtype(
@@ -334,21 +356,41 @@ def device_array_to_host(device_array: iree.runtime.DeviceArray) -> torch.Tensor
             ),
         )
 
-    # Circumvent the lack of bfloat16 in numpy.
+    # Circumvent the lack of bfloat16, float8_e4m3fnuz, etc. in numpy.
     # TODO: This uses private fields _device and _buffer_view in iree.runtime.DeviceArray.
     # Improve DeviceArray to provide a hatchet to allow for reinterpretation of
     # element type of the underlying buffer.
-    def bfloat16_device_array_to_torch(
+    def device_array_to_torch_via_reinterpret(
         device_array: iree.runtime.DeviceArray,
     ) -> torch.Tensor:
-        device_array_as_int16 = reinterpret_device_array_dtype(device_array, np.int16)
-        torch_tensor_as_int16 = torch.tensor(device_array_as_int16.to_host())
-        return torch_tensor_as_int16.view(dtype=torch.bfloat16)
+        hal_element_type = iree.runtime.HalElementType(
+            device_array._buffer_view.element_type
+        )
+        reinterpret_torch_dtype: torch.dtype = dtype_to_dtype_reinterpret_map[
+            hal_element_type_to_torch_dtype_map[hal_element_type]
+        ]
+        reinterpret_numpy_dtype: np.dtype = torch_dtype_to_numpy_dtype_map[
+            reinterpret_torch_dtype
+        ]
+        device_array_reinterpreted_dtype = reinterpret_device_array_dtype(
+            device_array, reinterpret_numpy_dtype
+        )
+        torch_tensor_reinterpreted_dtype = torch.tensor(
+            device_array_reinterpreted_dtype.to_host()
+        )
+        return torch_tensor_reinterpreted_dtype.view(
+            dtype=dtype_reinterpret_to_dtype_map[torch_tensor_reinterpreted_dtype.dtype]
+        )
 
-    if device_array._buffer_view.element_type == int(
-        iree.runtime.HalElementType.BFLOAT_16
+    hal_element_type = iree.runtime.HalElementType(
+        device_array._buffer_view.element_type
+    )
+    if (
+        hal_element_type in hal_element_type_to_torch_dtype_map
+        and hal_element_type_to_torch_dtype_map[hal_element_type]
+        in dtype_to_dtype_reinterpret_map
     ):
-        return bfloat16_device_array_to_torch(device_array)
+        return device_array_to_torch_via_reinterpret(device_array)
     else:
         return torch.tensor(device_array.to_host())
 
@@ -356,15 +398,17 @@ def device_array_to_host(device_array: iree.runtime.DeviceArray) -> torch.Tensor
 def torch_tensor_to_device_array(
     tensor: torch.Tensor, device: iree.runtime.HalDevice
 ) -> iree.runtime.DeviceArray:
-    if tensor.dtype in halelementtype_map.keys():
-        tensor_as_int16 = tensor.to(torch.int16)
-        device_array_as_int16 = iree.runtime.asdevicearray(
-            device, unbox_tensor(tensor_as_int16).to("cpu").detach().numpy()
+    if tensor.dtype in torch_dtype_to_hal_element_type_map.keys():
+        tensor_reinterpreted_dtype = tensor.view(
+            dtype=dtype_to_dtype_reinterpret_map[tensor.dtype]
+        )
+        device_array_reinterpreted_dtype = iree.runtime.asdevicearray(
+            device, unbox_tensor(tensor_reinterpreted_dtype).to("cpu").detach().numpy()
         )
         buffer_view = iree.runtime.HalBufferView(
-            buffer=device_array_as_int16._buffer_view.get_buffer(),
-            shape=device_array_as_int16._buffer_view.shape,
-            element_type=halelementtype_map[tensor.dtype],
+            buffer=device_array_reinterpreted_dtype._buffer_view.get_buffer(),
+            shape=device_array_reinterpreted_dtype._buffer_view.shape,
+            element_type=torch_dtype_to_hal_element_type_map[tensor.dtype],
         )
         return iree.runtime.DeviceArray(device, buffer_view)
 
