@@ -9,6 +9,7 @@ from typing import Any, TYPE_CHECKING, Union
 from collections.abc import Mapping, Iterable
 from sharktank.types import InferenceTensor, unbox_tensor
 import logging
+import re
 import torch
 
 if TYPE_CHECKING:
@@ -175,8 +176,15 @@ class TraceTensorModulePatch(Patch):
     multiple nested torch modules.
     """
 
-    def __init__(self, with_before_forward: bool = False):
+    def __init__(
+        self, with_before_forward: bool = False, exclude_regex: str | None = None
+    ):
+        """
+        exclude_regex: exclude fully qualified trace keys that match a regex search
+            with this pattern.
+        """
         self.with_before_forward = with_before_forward
+        self.exclude_regex = exclude_regex
 
     def before_forward(
         self,
@@ -217,8 +225,13 @@ class TraceTensorModulePatch(Patch):
         from sharktank import ops
 
         def _trace_if_tensor(key: str, maybe_tensor: Union["AnyTensor", Any]):
+            if self.exclude_regex is not None and re.search(
+                self.exclude_regex, f"{module_name}.{key}"
+            ):
+                return
             if not isinstance(maybe_tensor, (torch.Tensor, InferenceTensor)):
                 return
+
             if isinstance(module, BaseLayer):
                 module.trace_tensor(key, maybe_tensor)
             else:
