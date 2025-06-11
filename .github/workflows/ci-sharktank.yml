@@ -71,13 +71,28 @@ jobs:
 
           pip freeze
 
-      - name: Run sharktank tests
+      - name: Run sharktank tests with coverage
         if: ${{ !cancelled() }}
         run: |
           pytest -n 4 sharktank/ \
+            --cov=sharktank \
+            --cov-report=xml \
+            --cov-report=term \
             --durations=10 \
             --log-cli-level=info \
             -v
+
+      - name: Annotate coverage in PR
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: py-cov-action/python-coverage-comment-action@v3
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
 
   test-mi300x:
     name: "Unit Tests (${{ matrix.runs-on }}, ${{ matrix.python-version }}, ${{ matrix.torch-version }})"
