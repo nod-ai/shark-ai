@@ -105,6 +105,7 @@ class MooncakePagedAttentionCache(TriePagedAttentionCache):
         self.mooncake_config_path = mooncake_config_path
         mooncake_config = MooncakeConfig.from_json(self.mooncake_config_path)
         self.mooncake_store = MooncakeStore(mooncake_config)
+        self.mooncake_keys: Set[str] = set()
         print(f"Mooncake store enabled with config: {self.mooncake_config_path}")
 
     def send_page_to_mooncake(
@@ -124,8 +125,13 @@ class MooncakePagedAttentionCache(TriePagedAttentionCache):
         key = f"{token_ids[0]}-{token_ids[-1]}"
         print(f"Sending page with key {key} to Mooncake store.")
         value = self.page_pool.get_page_data(page)
-        self.mooncake_store.put(key, value)
-        print(f"Page with key {key} sent to Mooncake store successfully.")
+        if key in self.mooncake_keys:
+            print(f"Page with key {key} already exists in Mooncake store, updating.")
+        else:
+            print(f"Page with key {key} is new, adding to Mooncake store.")
+            self.mooncake_keys.add(key)
+            self.mooncake_store.put(key, value)
+            print(f"Page with key {key} sent to Mooncake store successfully.")
 
     def acquire_pages_for_tokens(
         self,
