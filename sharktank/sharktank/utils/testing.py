@@ -474,10 +474,3 @@ def get_test_prompts():
             num_prompts=16, min_prompt_length=50
         )
     return _test_prompts
-
-
-def _globe_matching_file_paths(
-    target: PathLike,
-    source: PathLike,
-):
-    """Recurse into subdirectories of target and align"""
