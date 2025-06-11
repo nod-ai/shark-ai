@@ -4,15 +4,27 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from pathlib import Path
+
+import iree.runtime
 import pytest
 import platform
+import torch
 
+from parameterized import parameterized
+from pathlib import Path
 from sharktank.layers import create_model, model_config_presets
 from sharktank.utils import chdir
-from sharktank.utils.iree import trace_model_with_tracy, run_model_with_iree_run_module
+from sharktank.utils.iree import (
+    device_array_to_host,
+    get_iree_devices,
+    run_model_with_iree_run_module,
+    torch_tensor_to_device_array,
+    trace_model_with_tracy,
+    with_iree_device_context,
+)
 from sharktank.utils.testing import skip
 from sharktank.models.dummy import DummyModel
+from unittest import TestCase
 
 
 @pytest.fixture(scope="session")
@@ -57,3 +69,35 @@ def test_trace_model_with_tracy(dummy_model: DummyModel, dummy_model_path: Path)
         assert not trace_path.exists()
         trace_model_with_tracy(dummy_model.config, function="forward_bs1")
         assert trace_path.exists()
+
+
+@pytest.mark.usefixtures("get_iree_flags")
+class TestTensorConversion(TestCase):
+    def setUp(self):
+        torch.manual_seed(0)
+
+    @parameterized.expand(
+        [
+            (torch.float32, torch.float32),
+            (torch.float64, torch.float64),
+            (torch.bfloat16, torch.bfloat16),
+            (torch.float8_e4m3fnuz, torch.float32),
+        ]
+    )
+    def testRoundtrip(self, dtype: torch.dtype, dtype_for_equality_check: torch.dtype):
+        if dtype.is_floating_point:
+            tensor = torch.rand([3, 4], dtype=torch.float32).to(dtype=dtype)
+        else:
+            tensor = torch.randint(low=0, high=100, size=[3, 4], dtype=dtype)
+
+        iree_devices = get_iree_devices(device=self.iree_device, device_count=1)
+
+        def roundtrip(iree_devices: list[iree.runtime.HalDevice]):
+            tensor_roundtrip = device_array_to_host(
+                torch_tensor_to_device_array(tensor, iree_devices[0])
+            )
+            assert tensor.to(dtype=dtype_for_equality_check).equal(
+                tensor_roundtrip.to(dtype=dtype_for_equality_check)
+            )
+
+        with_iree_device_context(roundtrip, iree_devices)
