@@ -4,7 +4,20 @@ project(HIP_KERNELS LANGUAGES C CXX)
 # Set ROCm and IREE build paths
 set(ROCM_PATH /opt/rocm)
 
-set(IREE_BUILD_DIR OFF CACHE STRING "iree build directory")
+# Determine IREE_COMPILER_DIR from environment or Python
+if(NOT DEFINED ENV{IREE_COMPILER_DIR} OR "$ENV{IREE_COMPILER_DIR}" STREQUAL "")
+  find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  execute_process(
+    COMMAND ${Python3_EXECUTABLE} -c "import iree.compiler, os; print(os.path.dirname(iree.compiler.__file__))"
+    OUTPUT_VARIABLE IREE_COMPILER_DIR
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+else()
+  set(IREE_COMPILER_DIR $ENV{IREE_COMPILER_DIR})
+endif()
+
+message(STATUS "IREE_COMPILER_DIR: ${IREE_COMPILER_DIR}")
+
 set(TARGET_ARCH "gfx942" CACHE STRING "Target architecture for ROCM GPU")
 
 # Find all kernel source files in the kernels subdirectory
@@ -19,8 +32,8 @@ set(ROCM_BC
   ${ROCM_PATH}/amdgcn/bitcode/oclc_isa_version_1100.bc
 )
 set(IREE_BC
-  ${IREE_BUILD_DIR}/lib/iree_platform_libs/rocm/ockl.bc
-  ${IREE_BUILD_DIR}/lib/iree_platform_libs/rocm/ocml.bc
+  ${IREE_COMPILER_DIR}/_mlir_libs/iree_platform_libs/rocm/ockl.bc
+  ${IREE_COMPILER_DIR}/_mlir_libs/iree_platform_libs/rocm/ocml.bc
 )
 
 set(HSACO_TARGETS "")
@@ -40,7 +53,7 @@ foreach(KERNEL_SRC ${KERNEL_SRCS})
   # Step 1: Compile HIP kernel to LLVM IR
   add_custom_command(
     OUTPUT ${BC_FILE}
-    COMMAND ${IREE_BUILD_DIR}/llvm-project/bin/clang
+    COMMAND clang-19
       -x hip --offload-arch=${TARGET_ARCH} --offload-device-only -nogpulib
       -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH -O3 -fvisibility=protected
       -emit-llvm -c ${KERNEL_SRC} -o ${BC_FILE}
@@ -51,7 +64,7 @@ foreach(KERNEL_SRC ${KERNEL_SRCS})
   # Step 2: Link with ROCm/IREE bitcode
   add_custom_command(
     OUTPUT ${LINKED_BC_FILE}
-    COMMAND ${IREE_BUILD_DIR}/llvm-project/bin/llvm-link
+    COMMAND llvm-link-19
       ${IREE_BC} ${ROCM_BC} ${BC_FILE} -o ${LINKED_BC_FILE}
     DEPENDS ${BC_FILE}
     COMMENT "Linking ${KERNEL_NAME} with ROCm/IREE bitcode"
@@ -60,7 +73,7 @@ foreach(KERNEL_SRC ${KERNEL_SRCS})
   # Step 3: Compile to AMDGPU object file
   add_custom_command(
     OUTPUT ${O_FILE}
-    COMMAND ${IREE_BUILD_DIR}/llvm-project/bin/clang
+    COMMAND clang-19
       -target amdgcn-amd-amdhsa -mcpu=${TARGET_ARCH}
       -c ${LINKED_BC_FILE} -o ${O_FILE}
     DEPENDS ${LINKED_BC_FILE}
@@ -70,7 +83,7 @@ foreach(KERNEL_SRC ${KERNEL_SRCS})
   # Step 4: Link to produce .hsaco
   add_custom_command(
     OUTPUT ${HSACO_FILE}
-    COMMAND ${IREE_BUILD_DIR}/llvm-project/bin/lld
+    COMMAND lld-19
       -flavor gnu -shared ${O_FILE} -o ${HSACO_FILE}
     DEPENDS ${O_FILE}
     COMMENT "Linking ${KERNEL_NAME} object to produce .hsaco"

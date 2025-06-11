@@ -9,6 +9,7 @@ from typing import Callable, List, Union
 from dataclasses_json import dataclass_json, Undefined
 from enum import Enum, auto
 
+
 from ..io_struct import DEFAULT_MAX_COMPLETION_TOKENS, DEFAULT_TEMPERATURE, NOT_PROVIDED
 from ..messages import LlmInferenceExecRequest
 
