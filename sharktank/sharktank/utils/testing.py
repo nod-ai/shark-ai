@@ -200,10 +200,14 @@ def assert_close_safetensors(
     ref_path = Path(ref_path)
     actual_path = Path(actual_path)
 
+    assert ref_path.exists(), f'Path "{ref_path}" not found'
+
     if not ref_path.is_file():
         # Get all files in ref_path recursively.
         ref_file_paths: list[Path] = [
-            file_path for file_path in Path(ref_path).rglob("*") if file_path.is_file()
+            file_path
+            for file_path in Path(ref_path).rglob("*.safetensors")
+            if file_path.is_file()
         ]
 
         # Sort by timestamp. When we compare traces we want to order by time.
