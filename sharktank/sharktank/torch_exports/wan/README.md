@@ -43,6 +43,16 @@ Debug minimal compile command:
 ```
 iree-compile --iree-hal-target-backends=rocm --iree-hip-target=gfx942 --iree-execution-model=async-external  wan2_1_vae_512x512.mlir -o wan2_1_vae_512x512_gfx942.vmfb
 ```
+
+### Transformer
+
+```
+iree-compile --iree-hal-target-backends=rocm --iree-hip-target=gfx942 --iree-execution-model=async-external --iree-dispatch-creation-enable-fuse-horizontal-contractions=0  --iree-flow-inline-constants-max-byte-length=16 --iree-global-opt-propagate-transposes=1 --iree-opt-const-eval=0 --iree-opt-outer-dim-concat=1 --iree-opt-aggressively-propagate-transposes=1 --iree-dispatch-creation-enable-aggressive-fusion --iree-hal-force-indirect-command-buffers --iree-llvmgpu-enable-prefetch=1 --iree-opt-data-tiling=0 --iree-hal-memoization=1 --iree-opt-strip-assertions --iree-codegen-llvmgpu-early-tile-and-fuse-matmul=1 --iree-stream-resource-memory-model=discrete --iree-preprocessing-pass-pipeline='builtin.module(util.func(iree-global-opt-raise-special-ops, iree-flow-canonicalize), iree-preprocessing-pad-to-intrinsics, util.func(iree-preprocessing-generalize-linalg-matmul-experimental),iree-preprocessing-convert-conv-filter-to-channels-last{filter-layout=fhwc})' wan_transformer.mlir -o wan2_1_transformer_512x512_gfx942.vmfb
+```
+Debug minimal compile command:
+```
+iree-compile --iree-hal-target-backends=rocm --iree-hip-target=gfx942 --iree-execution-model=async-external  wan_transformer.mlir -o wan2_1_transformer_512x512_gfx942.vmfb
+```
 ## Run validation
 
 ### T5
