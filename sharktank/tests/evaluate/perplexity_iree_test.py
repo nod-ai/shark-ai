@@ -155,12 +155,6 @@ class PerplexityTest(unittest.TestCase):
         self.run_and_check_perplexity()
 
     @is_deepseek
-    @xfail(
-        raises=IreeCompileException,
-        reason="https://github.com/iree-org/iree/issues/21058",
-        strict=True,
-        match="error: 'stream.async.dispatch'",
-    )
     def test_deepseek_v3(self):
         # DeepSeek v3 pipeline parallelism
         self.model_name = "deepseek_v3_iree"
@@ -170,12 +164,6 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv(extra_args=(f"--use-toy-model",))
         self.run_and_check_perplexity()
 
-    @xfail(
-        raises=IreeCompileException,
-        reason="https://github.com/iree-org/iree/issues/21058",
-        strict=True,
-        match="error: 'stream.async.dispatch'",
-    )
     @is_nightly
     def test_deepseek_v3_tp(self):
         # DeepSeek v3 tensor parallelism
@@ -187,12 +175,6 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv(extra_args=("--use-toy-model",))
         self.run_and_check_perplexity()
 
-    @xfail(
-        raises=IreeCompileException,
-        reason="https://github.com/iree-org/iree/issues/21058",
-        strict=True,
-        match="error: 'stream.async.dispatch'",
-    )
     @is_nightly
     def test_deepseek_v3_pp(self):
         # DeepSeek v3 pipeline parallelism
