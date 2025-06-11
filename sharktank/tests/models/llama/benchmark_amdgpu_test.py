@@ -52,6 +52,7 @@ class BaseBenchmarkTest(unittest.TestCase):
             "--iree-hal-indirect-command-buffers=true",
             "--iree-stream-resource-memory-model=discrete",
             "--iree-hal-memoization=true",
+            "--iree-stream-affinity-solver-max-iterations=1024",
         ]
 
     def save_benchmarks(
