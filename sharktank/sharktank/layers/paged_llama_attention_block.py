@@ -67,6 +67,9 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             "deepseek2": "mla",
         }
         self.attn_type = self.attn_type_map[self.model_arch]
+        assert (
+            self.attn_type == self.paged_attention.attn_type
+        ), f"Attention type mismatch: {self.attn_type} != {self.paged_attention.attn_type}"
 
         self.k_quantizer = None
         self.v_quantizer = None

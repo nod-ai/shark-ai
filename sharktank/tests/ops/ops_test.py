@@ -689,5 +689,34 @@ class TestTraceTensors(TempDirTestBase):
         torch.testing.assert_close(recorded_tensor, tensor, rtol=0, atol=0)
 
 
+class ConvTest(unittest.TestCase):
+    def testConv2d(self):
+        # Random input tensor: batch size = 1, channels = 1, height = 5, width = 5
+        input = torch.rand(1, 1, 5, 5)
+        # Random kernel: out_channels = 1, in_channels = 1, kernel_size = 3x3
+        weight = torch.rand(1, 1, 3, 3)
+        result = ops.conv2d(input, weight)
+        expected = torch.conv2d(input, weight)
+        torch.testing.assert_close(result, expected)
+
+    def testConv3d(self):
+        # Random input tensor: batch size = 1, channels = 1, depth = 4, height = 4, width = 4
+        input = torch.rand(1, 1, 4, 4, 4)
+        # Random kernel: out_channels = 1, in_channels = 1, kernel_size = 2x2x2
+        weight = torch.rand(1, 1, 2, 2, 2)
+        result = ops.conv3d(input, weight)
+        expected = torch.conv3d(input, weight)
+        torch.testing.assert_close(result, expected)
+
+    def testConv1d(self):
+        # Random input tensor: batch size = 1, channels = 1, width = 10
+        input = torch.rand(1, 1, 10)
+        # Random kernel: out_channels = 1, in_channels = 1, kernel_size = 3
+        weight = torch.rand(1, 1, 3)
+        result = ops.conv1d(input, weight)
+        expected = torch.conv1d(input, weight)
+        torch.testing.assert_close(result, expected)
+
+
 if __name__ == "__main__":
     unittest.main()

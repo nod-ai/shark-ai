@@ -5,11 +5,15 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING, Union
 from collections.abc import Mapping, Iterable
 from sharktank.types import InferenceTensor, unbox_tensor
 import logging
+import re
 import torch
+
+if TYPE_CHECKING:
+    from sharktank.types import AnyTensor, InferenceTensor
 
 logger = logging.getLogger(__name__)
 
@@ -162,3 +166,79 @@ class SaveModuleResultTensorsPatch(Patch):
             self.tensors[f"{name}#{index}"] = tensor
         else:
             self.tensors[name] = tensor
+
+
+class TraceTensorModulePatch(Patch):
+    """Trace tensors using the sharktank.ops.trace_tensor mechanism.
+
+    This can be used to trace tensors both in eager and during execution with IREE.
+    Usually it allows to get adequate tracing density when models are decomposed into
+    multiple nested torch modules.
+    """
+
+    def __init__(
+        self, with_before_forward: bool = False, exclude_regex: str | None = None
+    ):
+        """
+        exclude_regex: exclude fully qualified trace keys that match a regex search
+            with this pattern.
+        """
+        self.with_before_forward = with_before_forward
+        self.exclude_regex = exclude_regex
+
+    def before_forward(
+        self,
+        module_name: str,
+        module: torch.nn.Module,
+        args: list[Any],
+        kwargs: dict[str, Any],
+    ):
+        if not self.with_before_forward:
+            return
+
+        self.trace_tensor(
+            module_name=module_name,
+            module=module,
+            key="arg",
+            args=args,
+            kwargs=kwargs,
+        )
+
+    def after_forward(self, module_name: str, module: torch.nn.Module, results: Any):
+        self.trace_tensor(
+            module_name=module_name,
+            module=module,
+            key="",
+            args=results,
+            kwargs={},
+        )
+
+    def trace_tensor(
+        self,
+        module_name: str,
+        module: torch.nn.Module,
+        key: str,
+        args: list[Any],
+        kwargs: dict[str, Any],
+    ):
+        from sharktank.layers import BaseLayer
+        from sharktank import ops
+
+        def _trace_if_tensor(key: str, maybe_tensor: Union["AnyTensor", Any]):
+            if self.exclude_regex is not None and re.search(
+                self.exclude_regex, f"{module_name}.{key}"
+            ):
+                return
+            if not isinstance(maybe_tensor, (torch.Tensor, InferenceTensor)):
+                return
+
+            if isinstance(module, BaseLayer):
+                module.trace_tensor(key, maybe_tensor)
+            else:
+                ops.trace_tensor(f"{module_name}.{key}", maybe_tensor)
+
+        if isinstance(module, BaseLayer):
+            for i, arg in enumerate(args):
+                _trace_if_tensor(key=f"{key}%{i}", maybe_tensor=arg)
+            for arg_name, arg in kwargs.items():
+                _trace_if_tensor(key=f"{key}%{arg_name}", maybe_tensor=arg)
