@@ -95,6 +95,12 @@ jobs:
           name: coverage-report
           path: coverage.xml
 
+      - name: Upload coverage to Codecov
+        if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.xml
+
   test-mi300x:
     name: "Unit Tests (${{ matrix.runs-on }}, ${{ matrix.python-version }}, ${{ matrix.torch-version }})"
     strategy:
