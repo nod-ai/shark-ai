@@ -186,7 +186,7 @@ def assert_close_safetensors(
     rtol: Optional[float] = None,
     atol: Optional[float] = None,
     fail_fast: bool = True,
-    allow_different_dtype: bool = False,
+    check_dtype: bool = True,
 ):
     """Asserts that actual and reference safetensors files are within tolerances.
 
@@ -223,13 +223,13 @@ def assert_close_safetensors(
                     ref_file_path,
                     rtol=rtol,
                     atol=atol,
-                    allow_different_dtype=allow_different_dtype,
+                    fail_fast=fail_fast,
+                    check_dtype=check_dtype,
                 )
             except Exception as ex:
                 if fail_fast:
                     raise
                 not_close_list.append((actual_file_path, ref_file_path))
-                print(ex)
 
         if len(not_close_list) > 0:
             print("Not close:")
@@ -264,10 +264,15 @@ def assert_close_safetensors(
         # Then assert.
         for name in ref_f.keys():
             actual = actual_f.get_tensor(name)
-            if allow_different_dtype:
-                actual = actual.to(dtype=ref.dtype)
             ref = ref_f.get_tensor(name)
-            torch.testing.assert_close(actual, ref, rtol=rtol, atol=atol)
+            try:
+                torch.testing.assert_close(
+                    actual, ref, rtol=rtol, atol=atol, check_dtype=check_dtype
+                )
+            except Exception as ex:
+                if fail_fast:
+                    raise
+                print(ex)
 
 
 def assert_iterables_equal(
