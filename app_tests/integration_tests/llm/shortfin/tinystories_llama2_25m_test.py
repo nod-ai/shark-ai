@@ -86,7 +86,6 @@ class TestLLMServer:
 
     def test_basic_generation(
         self,
-        request: pytest.FixtureRequest,
         server: tuple[Any, int, ServerConfig],
     ) -> None:
         """Tests basic text generation capabilities.
@@ -94,12 +93,6 @@ class TestLLMServer:
         Args:
             server: Tuple of (process, port) from server fixture
         """
-        test_id = request.node.callspec.id
-        if "gpu_topk_k4" in test_id:
-            pytest.xfail(
-                "(https://github.com/iree-org/iree/issues/20772): Current top-k kernel is slow and causes `ReadTimeout`"
-            )
-
         process, port, config = server
         assert process.poll() is None, "Server process terminated unexpectedly"
         prompt = GOLDEN_PROMPT
@@ -135,7 +128,6 @@ class TestLLMServer:
     )
     def test_concurrent_generation(
         self,
-        request: pytest.FixtureRequest,
         server: tuple[Any, int, ServerConfig],
         concurrent_requests: int,
     ) -> None:
@@ -145,12 +137,6 @@ class TestLLMServer:
             server: Tuple of (process, port) from server fixture
             concurrent_requests: Number of concurrent requests to test
         """
-        test_id = request.node.callspec.id
-        if "gpu_topk_k4" in test_id:
-            pytest.xfail(
-                "(https://github.com/iree-org/iree/issues/20772): Current top-k kernel is slow and causes `ReadTimeout`"
-            )
-
         process, port, config = server
         assert process.poll() is None, "Server process terminated unexpectedly"
 
@@ -192,7 +178,6 @@ class TestLLMServer:
     # -------- Test switching generation strategies from client ---------- #
     def test_single_greedy_switch(
         self,
-        request: pytest.FixtureRequest,
         server: tuple[Any, int, ServerConfig],
     ):
         """Tests switching to single-beam greedy generation.
@@ -200,12 +185,6 @@ class TestLLMServer:
         Args:
             server: Tuple of (process, port, config) from server fixture
         """
-        test_id = request.node.callspec.id
-        if "gpu_topk_k4" in test_id:
-            pytest.xfail(
-                "(https://github.com/iree-org/iree/issues/20772): Current top-k kernel is slow and causes `ReadTimeout`"
-            )
-
         process, port, _ = server
         assert process.poll() is None, "Server process terminated unexpectedly"
 
@@ -237,7 +216,6 @@ class TestLLMServer:
 
     def test_multi_hypothesis_switch(
         self,
-        request: pytest.FixtureRequest,
         server: tuple[Any, int, ServerConfig],
     ):
         """Tests switching to multi-beam generation.
@@ -245,12 +223,6 @@ class TestLLMServer:
         Args:
             server: Tuple of (process, port, config) from server fixture
         """
-        test_id = request.node.callspec.id
-        if "gpu_topk_k4" in test_id:
-            pytest.xfail(
-                "(https://github.com/iree-org/iree/issues/20772): Current top-k kernel is slow and causes `ReadTimeout`"
-            )
-
         process, port, _ = server
         assert process.poll() is None, "Server process terminated unexpectedly"
 
@@ -293,11 +265,7 @@ class TestLLMServer:
             server: Tuple of (process, port, config) from server fixture
         """
         test_id = request.node.callspec.id
-        if "gpu_topk_k4" in test_id:
-            pytest.xfail(
-                "(https://github.com/iree-org/iree/issues/20772): Current top-k kernel is slow and causes `ReadTimeout`"
-            )
-        elif "gpu_argmax" in test_id:
+        if "gpu_argmax" in test_id:
             pytest.skip(
                 "Beam search with 2 beams isn't compatible with logits returned by GPU argmax model."
             )
