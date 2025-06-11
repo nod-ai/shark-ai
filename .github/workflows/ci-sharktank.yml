@@ -63,7 +63,6 @@ jobs:
       - name: Install pip deps
         run: |
           python -m pip install --no-compile --upgrade pip
-          pip install pytest-cov
 
           # Note: We install in three steps in order to satisfy requirements
           # from non default locations first.
@@ -89,18 +88,18 @@ jobs:
 
       - name: Annotate coverage in PR
         if: ${{ github.event_name == 'pull_request' }}
-        uses: py-cov-action/python-coverage-comment-action@v3
+        uses: py-cov-action/python-coverage-comment-action@970a227e0c16ef4589a99a9970ab0ceb8c53059a
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload coverage to Codecov
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24
         with:
           files: coverage.xml
 
       - name: Upload coverage data
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: coverage-data-${{ matrix.python-version }}-${{ matrix.torch-version }}-${{ matrix.runs-on }}
           path: .coverage
@@ -139,7 +138,6 @@ jobs:
       - name: Install pip deps
         run: |
           python -m pip install --no-compile --upgrade pip
-          pip install pytest-cov
 
           # Note: We install in three steps in order to satisfy requirements
           # from non default locations first.
