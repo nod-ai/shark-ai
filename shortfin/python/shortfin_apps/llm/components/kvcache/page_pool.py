@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import math
 
 import time
+import torch
 
 logger = logging.getLogger(__name__)
 
@@ -160,6 +161,32 @@ class PagePool:
             f"PagePool({total_pages - free_pages}/{total_pages} pages in use: "
             f"{100.0 * free_pages / total_pages}% free)"
         )
+
+    def get_page_data(self, page: PageInfo) -> Torch.Tensor:
+        """
+        Get the data for a specific page.
+
+        Args:
+            page: PageInfo object representing the page
+
+        Returns:
+           Torch.tensor containing the page data
+        """
+        host_page_table = self.page_tables[0].for_transfer()
+        host_page_table.copy_from(self.page_tables[0])
+        dtype_map = {
+            "float32": torch.float32,
+            "float64": torch.float64,
+            "float16": torch.float16,
+            "int32": torch.int32,
+            "int64": torch.int64,
+            "bool": torch.bool,
+        }
+        page_data = torch.tensor(
+            host_page_table.view(page.index).items,
+            dtype=dtype_map[str(self.config.dtype)],
+        )
+        return page_data
 
 
 ############################## begin radix attention

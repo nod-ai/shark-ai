@@ -194,7 +194,6 @@ class TriePagedAttentionCacheAllocation(PageAllocation):
             cur_node.ref_count.increment()
             self.last_cached_node.ref_count.decrement()
             self.last_cached_node = cur_node
-
         self.number_of_published_pages = number_of_pages_to_publish
 
     def release_pages(self) -> None:
