@@ -85,13 +85,13 @@ jobs:
             --log-cli-level=info \
             -v
         env:
-          COVERAGE_FILE: coverage.${{ matrix.python-version }}.${{ matrix.torch-version }}.${{ matrix.runs-on }}
+          COVERAGE_FILE: .coverage.${{ matrix.python-version }}.${{ matrix.torch-version }}.${{ matrix.runs-on }}
 
       - name: Upload coverage data
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: coverage-data-${{ matrix.python-version }}-${{ matrix.torch-version }}-${{ matrix.runs-on }}
-          path: coverage.${{ matrix.python-version }}.${{ matrix.torch-version }}.${{ matrix.runs-on }}
+          path: .coverage.${{ matrix.python-version }}.${{ matrix.torch-version }}.${{ matrix.runs-on }}
 
       - name: Upload coverage to Codecov
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
@@ -113,8 +113,11 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         id: download
         with:
-          pattern: coverage*
+          pattern: coverage-*
           merge-multiple: true
+
+      - name: Display structure of downloaded files
+        run: ls -R .
 
       - name: Coverage comment
         id: coverage_comment
