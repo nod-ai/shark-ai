@@ -110,11 +110,10 @@ def add_service_args(parser: argparse.ArgumentParser):
         help="The number of beams to use during decode sequence. Defaults to `1`.",
     )
     parser.add_argument(
-        "--token_selection_strategy",
-        type=str,
-        choices=[strategy.name.lower() for strategy in TokenSelectionStrategy],
-        default="independent",
-        help="Strategy to use when selecting tokens during generation. Defaults to `independent`.",
+        "--use_beam_search",
+        action="store_true",
+        default=False,
+        help="Use beam search for decoding.",
     )
     parser.add_argument(
         "--workers",

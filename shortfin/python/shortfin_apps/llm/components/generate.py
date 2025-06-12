@@ -33,8 +33,7 @@ from .messages import LlmInferenceExecRequest, InferencePhase
 from .error_codes import ResponseErrorCodes
 from .service import LlmGenerateService
 from .token_selection_strategy import (
-    BaseTokenSelectionStrategy,
-    TokenSelectionStrategy,
+    TokenSelector,
     TokenSelectionStrategyConfig,
     build_token_selector,
     build_token_selector_config,
@@ -83,7 +82,7 @@ class GenerateItemProcess(sf.Process):
                 eos_token_id=self.eos_token_id,
             )
         )
-        self.token_selector: BaseTokenSelectionStrategy = build_token_selector(
+        self.token_selector: TokenSelector = build_token_selector(
             self.token_selector_config,
         )
         self.streamed_tokens_index = 0
@@ -236,8 +235,7 @@ class ClientGenerateBatchProcess(sf.Process):
                 exported_topk = self.service.model_params.top_k
                 requested_topk = (
                     max(decode_config.num_beams, exported_topk or 1)
-                    if decode_config.token_selection_strategy
-                    == TokenSelectionStrategy.BEAM_SEARCH
+                    if decode_config.use_beam_search
                     else decode_config.top_k
                 )
                 if not self._check_topk_params(
