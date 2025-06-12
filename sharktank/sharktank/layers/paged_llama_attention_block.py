@@ -11,7 +11,7 @@ import torch
 from sharktank.types import *
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
-from .norm import RMSNormLayer
+from .norm import RMSNormLayer, L2Norm
 from .rotary_embedding import RotaryEmbeddingLayer
 from .latent_attention_block import LatentAttentionBlock
 from .paged_attention import PagedAttention
@@ -43,6 +43,11 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         attention_scale: Optional[float] = None,
         softcap: Optional[float] = None,
         fake_quant: Optional[bool] = True,
+        use_rope: bool = True,
+        use_qk_norm: bool = False,
+        attn_temperature_tuning: bool = False,
+        floor_scale: Optional[float] = None,
+        attn_scale: Optional[float] = None,
     ):
         super().__init__(theta)
         self.shard_count = cache.shard_count
@@ -60,11 +65,17 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self.probs_quantizer = None
         self.model_arch = model_arch
         self.v_head_dim = v_head_dim
+        self.use_rope = use_rope
+        self.use_qk_norm = use_qk_norm
+        self.attn_temperature_tuning = attn_temperature_tuning
+        self.floor_scale = floor_scale
+        self.attn_scale = attn_scale
 
         self.attn_type_map = {
             "llama": "gqa",
             "grok": "gqa",
             "deepseek2": "mla",
+            "llama4": "gqa",
         }
         self.attn_type = self.attn_type_map[self.model_arch]
         assert (
@@ -97,6 +108,9 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                     fake_quant=self.fake_quant,
                 ),
             )
+
+        if self.use_qk_norm:
+            self.qk_norm = L2Norm(dim=-1, epsilon=rms_epsilon)
 
         self.add_module(
             "attn_norm", RMSNormLayer(theta("attn_norm"), epsilon=rms_epsilon)
@@ -149,14 +163,15 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         xk = xk.view(bs, batch_seq_len, self.head_count_kv, self.head_dim)
         xv = xv.view(bs, batch_seq_len, self.head_count_kv, self.head_dim)
 
-        # Fast path to start_index based embedding lookup if available.
-        # Falls back to a slower position based index lookup.
-        if start_index is not None:
-            xq = embedding.forward(xt=xq, start_index=start_index)
-            xk = embedding.forward(xt=xk, start_index=start_index)
-        else:
-            xq = embedding.apply_batched_mask(xt=xq, mask=embedding_batch_mask)
-            xk = embedding.apply_batched_mask(xt=xk, mask=embedding_batch_mask)
+        if self.use_rope:
+            # Fast path to start_index based embedding lookup if available.
+            # Falls back to a slower position based index lookup.
+            if start_index is not None:
+                xq = embedding.forward(xt=xq, start_index=start_index)
+                xk = embedding.forward(xt=xk, start_index=start_index)
+            else:
+                xq = embedding.apply_batched_mask(xt=xq, mask=embedding_batch_mask)
+                xk = embedding.apply_batched_mask(xt=xk, mask=embedding_batch_mask)
 
         if self.attn_q.q_output is not None:
             xq = self.attn_q.q_output.quantize(xq)
@@ -216,6 +231,30 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         xq, xk, xv = self.pre_process_attention(
             x, start_index, embedding, embedding_batch_mask
         )
+
+        if self.use_qk_norm:
+            xq = self.qk_norm(xq)
+            xk = self.qk_norm(xk)
+
+        # Use temperature tuning from https://arxiv.org/abs/2501.19399
+        # Ken M. Nakanishi - Scalable-Softmax Is Superior for Attention (2025)
+        if self.attn_temperature_tuning and not self.use_rope:
+            if start_positions is None:
+                cache_position = torch.arange(0, h.shape[1], dtype=torch.long)
+            else:
+                assert False, "TODO: decode step"
+            attn_scales = (
+                torch.log(
+                    torch.floor((cache_position.float() + 1.0) / self.floor_scale) + 1.0
+                )
+                * self.attn_scale
+                + 1.0
+            )
+            input_tokens_shape = h.shape[:-1]
+            attn_scales = attn_scales.view((1, input_tokens_shape[-1], 1, 1)).expand(
+                (*input_tokens_shape, 1, 1)
+            )  # batch size > 1
+            xq = (xq * attn_scales).to(xq.dtype)
 
         # Used by fp8_e4m3fnuz model
         if self.cache_quantizer is not None:

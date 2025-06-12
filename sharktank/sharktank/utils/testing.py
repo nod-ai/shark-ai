@@ -186,6 +186,7 @@ def assert_close_safetensors(
     rtol: Optional[float] = None,
     atol: Optional[float] = None,
     fail_fast: bool = True,
+    check_dtype: bool = True,
 ):
     """Asserts that actual and reference safetensors files are within tolerances.
 
@@ -196,21 +197,29 @@ def assert_close_safetensors(
 
     print(f"Asserting tensors close: actual={actual_path}, ref={ref_path}")
 
-    not_close_list: list[tuple[str, str]] = []
+    ref_path = Path(ref_path)
+    actual_path = Path(actual_path)
 
-    if os.path.isdir(ref_path):
-        assert os.path.isdir(actual_path)
-        actual_path = os.path.abspath(actual_path)
-        ref_path = os.path.abspath(ref_path)
-        ref_paths = [
-            Path(root) / file
-            for root, dirs, files in os.walk(ref_path)
-            for file in files
+    assert ref_path.exists(), f'Path "{ref_path}" not found'
+
+    if not ref_path.is_file():
+        # Get all files in ref_path recursively.
+        ref_file_paths: list[Path] = [
+            file_path
+            for file_path in Path(ref_path).rglob("*.safetensors")
+            if file_path.is_file()
         ]
-        for ref_file_path in ref_paths:
-            actual_file_path = Path(
-                f"{actual_path}{str(ref_file_path).removeprefix(ref_path)}"
-            )
+
+        # Sort by timestamp. When we compare traces we want to order by time.
+        ref_file_paths.sort(key=lambda file_path: os.stat(file_path).st_mtime_ns)
+
+        ref_actual_file_path_map: dict[Path, Path] = {
+            ref_file_path: Path(actual_path) / ref_file_path.relative_to(ref_path)
+            for ref_file_path in ref_file_paths
+        }
+
+        not_close_list: list[tuple[Path, Path]] = []
+        for ref_file_path, actual_file_path in ref_actual_file_path_map.items():
             try:
                 assert os.path.isfile(actual_file_path)
                 assert_close_safetensors(
@@ -219,32 +228,34 @@ def assert_close_safetensors(
                     rtol=rtol,
                     atol=atol,
                     fail_fast=fail_fast,
+                    check_dtype=check_dtype,
                 )
             except Exception as ex:
                 if fail_fast:
                     raise
                 not_close_list.append((actual_file_path, ref_file_path))
-                print(ex)
+
         if len(not_close_list) > 0:
             print("Not close:")
             for actual, ref in not_close_list:
                 print(f"{actual} != {ref}")
             assert False, "Tensors are not close."
+        return
 
-    def print_stats(label, t):
-        t = t.to(dtype=torch.float32)
-        std, mean = torch.std_mean(t)
+    def print_stats(label: str, t: torch.Tensor):
+        t_f32 = t.to(dtype=torch.float32)
+        std, mean = torch.std_mean(t_f32)
         print(
             f"    {label}: "
-            f"MIN={torch.min(t)}, "
-            f"MAX={torch.max(t)}, "
-            f"MEAN={mean}, STD={std}"
+            f"MIN={torch.min(t_f32)}, "
+            f"MAX={torch.max(t_f32)}, "
+            f"MEAN={mean}, STD={std}, "
+            f"DTYPE={t.dtype}"
         )
 
     with safe_open(actual_path, framework="pt") as actual_f, safe_open(
         ref_path, framework="pt"
     ) as ref_f:
-        is_close = True
         # Print all first.
         for name in ref_f.keys():
             actual = actual_f.get_tensor(name)
@@ -259,14 +270,13 @@ def assert_close_safetensors(
             actual = actual_f.get_tensor(name)
             ref = ref_f.get_tensor(name)
             try:
-                torch.testing.assert_close(actual, ref, rtol=rtol, atol=atol)
+                torch.testing.assert_close(
+                    actual, ref, rtol=rtol, atol=atol, check_dtype=check_dtype
+                )
             except Exception as ex:
                 if fail_fast:
                     raise
-                is_close = False
                 print(ex)
-
-        assert is_close, "Tensors are not close."
 
 
 def assert_iterables_equal(

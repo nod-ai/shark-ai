@@ -8,8 +8,8 @@ import torch
 
 from sharktank import ops
 from sharktank.types import Theta
-from .base import ThetaLayer
 from typing import Optional
+from .base import BaseLayer, ThetaLayer
 
 
 class RMSNormLayer(ThetaLayer):
@@ -69,3 +69,17 @@ class LayerNorm(ThetaLayer):
             eps=self.eps,
             normalized_shape=self.normalized_shape,
         )
+        return ops.layer_norm(x, weight=self.weight, bias=self.bias, eps=self.eps)
+
+
+class L2Norm(BaseLayer):
+    def __init__(self, dim: int | tuple[int, ...], epsilon: float = 1e-6):
+        super().__init__()
+        self.dim = dim
+        self.epsilon = epsilon
+
+    def _norm(self, x):
+        return x * torch.rsqrt(x.pow(2).mean(self.dim, keepdim=True) + self.epsilon)
+
+    def forward(self, x):
+        return self._norm(x.float()).type_as(x)
