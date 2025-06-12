@@ -6,6 +6,7 @@
 
 import logging
 import re
+from typing import Tuple
 import pytest
 
 from ..model_management import AccuracyValidationException
@@ -46,15 +47,51 @@ def compute_similarity(model: SentenceTransformer, sentence_1: str, sentence_2: 
 
 
 @sgl.function
-def multi_turn_question(s, question_1, question_2):
+def multi_turn_question(
+    s,
+    question_1: str,
+    question_2: str,
+    top_ps: Tuple[float | None, float | None] = (None, None),
+    top_ks: Tuple[int | None, int | None] = (None, None),
+):
+    """Run a multi-turn question and answer session.
+
+    This function allows for a multi-turn interaction where the user can send
+    a prompt, receive a response from that prompt, then send a follow-up generation,
+    that retains the context of the first response.
+
+    Args:
+        s (sgl.State): The state object to which the messages will be added.
+        question_1 (str): The first question to be asked.
+        question_2 (str): The second question to be asked, which will follow the first answer.
+        top_ps (Tuple[float  |  None, float  |  None], optional): The top_p values for the two questions. Defaults to (None, None).
+        top_ks (Tuple[int  |  None, int  |  None], optional): The top_k values for the two questions. Defaults to (None, None).
+    """
+    logger.info(f"Running multi-turn question with top_p: {top_ps} and top_k: {top_ks}")
     s += sgl.user(question_1)
-    s += sgl.assistant(sgl.gen("answer_1", max_tokens=50, temperature=1.0))
+    s += sgl.assistant(
+        sgl.gen(
+            "answer_1", max_tokens=50, temperature=1.0, top_p=top_ps[0], top_k=top_ks[0]
+        )
+    )
     s += sgl.user(question_2)
-    s += sgl.assistant(sgl.gen("answer_2", max_tokens=50, temperature=1.0))
+    s += sgl.assistant(
+        sgl.gen(
+            "answer_2", max_tokens=50, temperature=1.0, top_p=top_ps[1], top_k=top_ks[1]
+        )
+    )
 
 
 @sgl.function
 def tip_suggestion(s):
+    """Generate a forked process, but using a tip suggestion example.
+
+    Forked processes send two requests in parallel, and concatenate the results
+    as if it were a single response.
+
+    Args:
+        s (sgl.State): The state object to which the messages will be added.
+    """
     s += (
         "Here are two tips for staying healthy: "
         "1. Balanced Diet. 2. Regular Exercise.\n\n"
@@ -81,7 +118,19 @@ def tip_suggestion(s):
     ],
     indirect=True,
 )
-def test_multi_turn_qa(model_artifacts, start_server, load_comparison_model):
+@pytest.mark.parametrize(
+    "top_ps,top_ks",
+    [
+        ((None, None), (None, None)),  # Default values
+        ((0.95, 0.95), (None, None)),  # top_p values only
+        ((None, None), (8, 8)),  # top_k values only
+        ((0.95, 0.95), (8, 8)),  # Both top_p and top_k values
+    ],
+    ids=["default", "top_p_only", "top_k_only", "top_p_and_top_k"],
+)
+def test_multi_turn_qa(
+    model_artifacts, start_server, load_comparison_model, top_ps, top_ks
+):
     server, port = start_server
     register_shortfin_backend(port)
 
@@ -97,6 +146,8 @@ def test_multi_turn_qa(model_artifacts, start_server, load_comparison_model):
     state = multi_turn_question.run(
         question_1=question_1,
         question_2=question_2,
+        top_ps=top_ps,
+        top_ks=top_ks,
     )
     messages = state.messages()
     logger.info("Received messages from multi-turn call.")
@@ -109,8 +160,8 @@ def test_multi_turn_qa(model_artifacts, start_server, load_comparison_model):
 
     logger.info("Computing similarity between first question and first answer...")
     first_q_answer = messages[1]["content"]
-    score = compute_similarity(model, answer_1, first_q_answer)
-    if not score > ACCEPTED_THRESHOLD:
+    score_1 = compute_similarity(model, answer_1, first_q_answer)
+    if not score_1 > ACCEPTED_THRESHOLD:
         raise AccuracyValidationException(
             f"Accuracy error between {answer_1} and {first_q_answer}:\n SCORE: {score}"
         )
@@ -124,12 +175,21 @@ def test_multi_turn_qa(model_artifacts, start_server, load_comparison_model):
 
     logger.info("Testing similarity between second question and second answer...")
     second_q_answer = messages[3]["content"]
-    score = compute_similarity(model, answer_2, second_q_answer)
-    if not score > ACCEPTED_THRESHOLD:
+    score_2 = compute_similarity(model, answer_2, second_q_answer)
+    if not score_2 > ACCEPTED_THRESHOLD:
         raise AccuracyValidationException(
             f"Accuracy error between {answer_2} and {second_q_answer}:\n SCORE: {score}"
         )
-    logger.info("Similarity passed.")
+
+    logger.info(
+        "Similarity passed.\n"
+        f"Expected answer 1: {answer_1}\n"
+        f"Received answer 1: {first_q_answer}\n"
+        f"Similarity score 1: {score_1}\n"
+        f"Expected answer 2: {answer_2}\n"
+        f"Received answer 2: {second_q_answer}\n"
+        f"Similarity score 2: {score_2}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -184,7 +244,13 @@ def test_stream_multi_turn_qa(model_artifacts, start_server, load_comparison_mod
         raise AccuracyValidationException(
             f"Accuracy error between {expected_result} and {messages}:\n SCORE: {score}"
         )
-    logger.info("Similarity passed.")
+
+    logger.info(
+        "Similarity passed.\n"
+        f"Expected result: {expected_result}\n"
+        f"Received messages: {cleaned_messages}\n"
+        f"Similarity score: {score}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -289,7 +355,23 @@ def test_batch_multi_turn_qa(model_artifacts, start_server, load_comparison_mode
         raise AccuracyValidationException(
             f"Accuracy error between {expected_answer} and {second_answer}:\n SCORE: {score}"
         )
+
     logger.info("Second batch passed.")
+    logger.info(
+        "Similarity passed.\n"
+        f"Expected answer 1.1: {expected_answer_1_1}\n"
+        f"Received answer 1.1: {first_answer}\n"
+        f"Similarity score 1.1: {score}\n"
+        f"Expected answer 1.2: {expected_answer_1_2}\n"
+        f"Received answer 1.2: {second_answer}\n"
+        f"Similarity score 1.2: {score}\n"
+        f"Expected answer 2.1: {expected_answer_2_1}\n"
+        f"Received answer 2.1: {first_answer}\n"
+        f"Similarity score 2.1: {score}\n"
+        f"Expected answer 2.2: {expected_answer_2_2}\n"
+        f"Received answer 2.2: {second_answer}\n"
+        f"Similarity score 2.2: {score}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -324,4 +406,9 @@ def test_fork(model_artifacts, start_server, load_comparison_model):
         raise AccuracyValidationException(
             f"Accuracy error between {expected_answer} and {result}:\n SCORE: {score}"
         )
-    logger.info("Similarity passed.")
+    logger.info(
+        "Similarity passed.\n"
+        f"Expected answer: {expected_answer}\n"
+        f"Received result: {result}\n"
+        f"Similarity score: {score}"
+    )
