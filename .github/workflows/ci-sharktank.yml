@@ -14,7 +14,7 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 concurrency:
@@ -122,7 +122,6 @@ jobs:
           MERGE_COVERAGE_FILES: true
           MINIMUM_GREEN: 90
           MINIMUM_ORANGE: 70
-          COVERAGE_PATH: sharktank/
 
 
       - name: Store Pull Request comment to be posted
