@@ -7,6 +7,7 @@
 import gc
 import iree.compiler
 import iree.runtime
+import pytest
 import re
 import tempfile
 import torch
@@ -124,12 +125,10 @@ def run_test_toy_size_sharded_resnet_block_with_iree(artifacts_dir: Path):
     strict=True,
     match=re.escape(r"Error code: -11"),
 )
-def test_toy_size_sharded_resnet_block_with_iree():
+def test_toy_size_sharded_resnet_block_with_iree(tmp_path: Path):
     """Test sharding, exportation and execution with IREE local-task of a Resnet block.
     The result is compared against execution with torch.
     The model is tensor sharded across 2 devices.
     """
 
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        run_test_toy_size_sharded_resnet_block_with_iree(artifacts_dir=Path(tmp_dir))
-        gc.collect()
+    run_test_toy_size_sharded_resnet_block_with_iree(artifacts_dir=tmp_path)
