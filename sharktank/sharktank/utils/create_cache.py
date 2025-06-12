@@ -15,6 +15,7 @@ def create_paged_kv_cache(config: LlamaModelConfig) -> PagedAttention:
         "llama": "gqa",
         "grok": "gqa",
         "deepseek2": "mla",
+        "llama4": "gqa",
     }
 
     hp = config.hp
