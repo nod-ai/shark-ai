@@ -95,6 +95,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
                     pipeline_parallelism=config.pipeline_parallelism_size > 1,
                     devices=self.cache.pipeline_to_device_map[pipeline],
                     dtype=self.config.activation_dtype,
+                    model_arch=self.config.hp.model_arch,
                 )
                 for pipeline in range(self.config.pipeline_parallelism_size)
             ]
@@ -173,7 +174,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
                     count=len(self.cache.pipeline_to_device_map[pipeline]),
                     devices=self.cache.pipeline_to_device_map[pipeline],
                 )
-                for pipeline in range(self.cache.pipeline_count)
+                for pipeline in range(len(self.cache.pipeline_to_device_map))
             ]
 
         # Iterate over attention blocks.
@@ -181,8 +182,8 @@ class PagedLlmModelV1(BaseCausalLMModel):
             if block_idx == 0:
                 self.trace_tensor(f"llama.attn_block.{block_idx}.input", h)
             use_chunked_attention = (
-                self.config.chunked_attention_layers is not None
-                and block_idx in self.config.chunked_attention_layers
+                self.config.attention_chunk_size is not None
+                and block_idx in self.config.rope_layers
             )  # <=> use rope
             if use_chunked_attention:
                 mask = chunked_attention_mask
@@ -323,6 +324,18 @@ class AttentionFFNBlock(ThetaLayer):
             "decomposed" if config.hp.model_arch == "grok" else config.attention_kernel
         )
 
+        if config.hp.model_arch == "llama4":
+            use_rope = (
+                block_index in config.rope_layers if config.rope_layers else False
+            )
+        else:
+            use_rope = True
+
+        use_qk_norm = (
+            block_index in config.rope_layers and config.use_qk_norm
+            if config.rope_layers
+            else False
+        )
         self.add_module(
             "attn",
             PagedLlamaAttentionBlock(
@@ -339,6 +352,11 @@ class AttentionFFNBlock(ThetaLayer):
                 fake_quant=fake_quant,
                 softcap=config.hp.attention_softcap,
                 model_arch=config.hp.model_arch,
+                use_rope=use_rope,
+                use_qk_norm=use_qk_norm,
+                attn_temperature_tuning=config.attn_temperature_tuning,
+                floor_scale=config.floor_scale,
+                attn_scale=config.attn_scale,
             ),
         )
 
@@ -383,9 +401,16 @@ class AttentionFFNBlock(ThetaLayer):
             normalize_experts,
         ) = moe_func_map[config.hp.model_arch]
 
-        n_dense_layers = config.hp.n_dense_layers
+        is_moe_block = False
+        experts_ffn_moe_block = "DenseFFNMOE"
+        if config.hp.model_arch == "llama4":
+            is_moe_block = block_index in config.moe_layers
+            experts_ffn_moe_block = "PreGatherFFNMOE"
 
-        if n_dense_layers is not None and block_index >= n_dense_layers:
+        n_dense_layers = config.hp.n_dense_layers
+        if (
+            n_dense_layers is not None and block_index >= n_dense_layers
+        ) or is_moe_block:
             self.add_module(
                 "ffn",
                 MoeBlock(
@@ -398,6 +423,7 @@ class AttentionFFNBlock(ThetaLayer):
                     n_limited_groups=config.hp.n_limited_groups,
                     route_scale=config.hp.route_scale,
                     moe_activation=moe_activation,
+                    experts_ffn_moe_block=experts_ffn_moe_block,
                     score_experts=score_experts,
                     normalize_experts=normalize_experts,
                     model_arch=config.hp.model_arch,
