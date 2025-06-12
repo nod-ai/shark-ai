@@ -173,8 +173,11 @@ class PagePool:
         Returns:
            Torch.tensor containing the page data
         """
-        host_page_table = self.page_tables[0].for_transfer()
-        host_page_table.copy_from(self.page_tables[0])
+        page_table = self.page_tables[0]
+        host_page_table = page_table.for_transfer()
+        host_view = host_page_table.view(page.index)
+        device_view = page_table.view(page.index)
+        host_view.copy_from(device_view)
         dtype_map = {
             "float32": torch.float32,
             "float64": torch.float64,
@@ -183,10 +186,11 @@ class PagePool:
             "int64": torch.int64,
             "bool": torch.bool,
         }
-        page_data = torch.tensor(
-            host_page_table.view(page.index).items,
-            dtype=dtype_map[str(self.config.dtype)],
-        )
+        with host_view.map(discard=True) as m:
+            page_data = torch.tensor(
+                m.items,
+                dtype=dtype_map[str(self.config.dtype)],
+            )
         return page_data
 
     def update_page_data(self, page: PageInfo, data: Torch.Tensor) -> None:
