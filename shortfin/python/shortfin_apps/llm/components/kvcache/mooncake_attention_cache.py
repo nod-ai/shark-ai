@@ -16,6 +16,10 @@ from .trie_attention_cache import (
 )
 from .mooncake import MooncakeConfig, MooncakeStore
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class MooncakePagedAttentionCacheAllocation(TriePagedAttentionCacheAllocation):
     """Allocation for Mooncake paged attention cache.
@@ -50,6 +54,40 @@ class MooncakePagedAttentionCacheAllocation(TriePagedAttentionCacheAllocation):
         )
         self.send_pages_to_mooncake_store(tokens)
 
+    def update_pages_with_mooncake_store(
+        self,
+        tokens: List[int],
+        remaining_length: int,
+        new_pages: List[PageInfo],
+    ) -> None:
+        """Update the pages with Mooncake store data.
+
+        This method will check if there are any pages have been stored in Mooncake, if so, retrieve them and populate the new pages in page pool.
+
+        Args:
+            tokens: List of token ids for which some pages are being updated
+            remaining_length: Number of tokens that need to be retrieved from Mooncake and stored in page_pool
+            new_pages: Newly acquired pages that need to be populated by the Mooncake store
+        """
+        if not self.cache.mooncake_store:
+            logger.warning("Mooncake store is not initialized, skipping update.")
+            return
+
+        self._pages.extend(new_pages)
+        self.number_of_published_pages = len(self._pages)
+
+        if remaining_length > 0:
+            logger.debug(
+                f"Updating {remaining_length} remaining tokens with new pages."
+            )
+            start_token_idx = len(tokens) - remaining_length
+            remaining_tokens = tokens[start_token_idx:]
+            num_of_updated_pages = self.retrieve_pages_from_mooncake_store(
+                remaining_tokens, new_pages
+            )
+            tokens_for_publish = tokens[:start_token_idx] + remaining_tokens
+            super().publish_pages_for_tokens(tokens, publish_incomplete_page=False)
+
     def send_pages_to_mooncake_store(self, tokens) -> None:
         """Send the pages to Mooncake store for persistent storage.
 
@@ -70,8 +108,43 @@ class MooncakePagedAttentionCacheAllocation(TriePagedAttentionCacheAllocation):
             token_ids = tokens[
                 i * self.cache.tokens_per_page : (i + 1) * self.cache.tokens_per_page
             ]
-            print(f"Sending page {i} for {len(token_ids)} tokens to Mooncake store.")
+            logger.debug(
+                f"Sending page {i} for {len(token_ids)} tokens to Mooncake store."
+            )
             self.cache.send_page_to_mooncake(token_ids, page)
+
+    def retrieve_pages_from_mooncake_store(
+        self,
+        tokens: List[int],
+        new_pages: List[PageInfo],
+    ) -> int:
+        """Retrieve pages from Mooncake store and populate the new pages in page pool.
+
+        Args:
+            tokens: List of token ids for which some pages are being retrieved
+            new_pages: Newly acquired pages that need to be populated by the Mooncake store
+        """
+        if not self.cache.mooncake_store:
+            logger.warning("Mooncake store is not initialized, skipping retrieval.")
+            return
+
+        num_of_updated_pages = 0
+        for i in range(len(new_pages)):
+            page = new_pages[i]
+            token_ids = tokens[
+                i * self.cache.tokens_per_page : (i + 1) * self.cache.tokens_per_page
+            ]
+            success = self.cache.update_page_from_mooncake(token_ids, page)
+            if not success:
+                logger.warning(
+                    f"Failed to retrieve page for tokens {token_ids} from Mooncake store."
+                )
+                break  # Stop if any page retrieval fails
+            num_of_updated_pages += 1
+        logger.info(
+            f"Successfully updated {num_of_updated_pages} pages with Mooncake store for {len(tokens)}."
+        )
+        return num_of_updated_pages
 
 
 class MooncakePagedAttentionCache(TriePagedAttentionCache):
@@ -106,7 +179,18 @@ class MooncakePagedAttentionCache(TriePagedAttentionCache):
         mooncake_config = MooncakeConfig.from_json(self.mooncake_config_path)
         self.mooncake_store = MooncakeStore(mooncake_config)
         self.mooncake_keys: Set[str] = set()
-        print(f"Mooncake store enabled with config: {self.mooncake_config_path}")
+        logger.info(f"Mooncake store enabled with config: {self.mooncake_config_path}")
+
+    def token_ids_to_key(self, token_ids: List[int]) -> str:
+        """Convert a list of token ids to a unique key string.
+
+        Args:
+            token_ids: List of token ids
+
+        Returns:
+            A string key representing the token ids
+        """
+        return f"{token_ids}"
 
     def send_page_to_mooncake(
         self,
@@ -122,16 +206,42 @@ class MooncakePagedAttentionCache(TriePagedAttentionCache):
         if not self.mooncake_store:
             raise ValueError("Mooncake store is not initialized")
 
-        key = f"{token_ids[0]}-{token_ids[-1]}"
-        print(f"Sending page with key {key} to Mooncake store.")
+        key = self.token_ids_to_key(token_ids)
+        logger.debug(f"Sending page with key {key} to Mooncake store.")
         value = self.page_pool.get_page_data(page)
         if key in self.mooncake_keys:
-            print(f"Page with key {key} already exists in Mooncake store, updating.")
+            logger.debug(
+                f"Page with key {key} already exists in Mooncake store, updating."
+            )
         else:
-            print(f"Page with key {key} is new, adding to Mooncake store.")
+            logger.debug(f"Page with key {key} is new, adding to Mooncake store.")
             self.mooncake_keys.add(key)
             self.mooncake_store.put(key, value)
-            print(f"Page with key {key} sent to Mooncake store successfully.")
+            logger.debug(f"Page with key {key} sent to Mooncake store successfully.")
+
+    def update_page_from_mooncake(
+        self,
+        token_ids: List[int],
+        page: PageInfo,
+    ) -> bool:
+        """Update a page from Mooncake store.
+        Args:
+            token_ids: List of token ids as the key for the page
+            page: PageInfo object containing page details
+        Returns:
+            bool: True if update was successful, False otherwise
+        """
+        if not self.mooncake_store:
+            raise ValueError("Mooncake store is not initialized")
+        key = self.token_ids_to_key(token_ids)
+        logger.debug(f"Retrieving page with key {key} from Mooncake store.")
+        value = self.mooncake_store.get(key)
+        if value is None:
+            logger.warning(f"Page with key {key} not found in Mooncake store.")
+            return False
+        self.page_pool.update_page_data(page, value)
+        logger.debug(f"Page with key {key} updated successfully from Mooncake store.")
+        return True
 
     def acquire_pages_for_tokens(
         self,
@@ -156,7 +266,7 @@ class MooncakePagedAttentionCache(TriePagedAttentionCache):
         tokens = tuple(tokens)
 
         cur_node, matched_pages = self._match(tokens)
-        cur_node.ref_count.increment()
+        # cur_node.ref_count.increment()
 
         n_cached_tokens = len(matched_pages) * self.tokens_per_page
         remaining_length = len(tokens) - n_cached_tokens + extra_token_slots
@@ -164,28 +274,33 @@ class MooncakePagedAttentionCache(TriePagedAttentionCache):
 
         new_pages = self.page_pool.acquire_free_pages(n_empty_pages)
 
+        allocation = None
         if new_pages is not None:
-            return MooncakePagedAttentionCacheAllocation(
+            allocation = MooncakePagedAttentionCacheAllocation(
                 cache=self,
                 tokens=tokens,
                 last_cached_node=cur_node,
                 cached_pages=matched_pages,
                 newly_acquired_pages=new_pages,
             )
+        else:
+            # Try eviction
+            self._evict_pages(n_empty_pages - len(self.page_pool.available_pages))
+            new_pages = self.page_pool.acquire_free_pages(n_empty_pages)
 
-        # Try eviction
-        self._evict_pages(n_empty_pages - len(self.page_pool.available_pages))
-        new_pages = self.page_pool.acquire_free_pages(n_empty_pages)
+            if new_pages is None:
+                raise CacheAllocationFailure(
+                    "Failed to acquire pages even after attempting eviction from LRU leaves"
+                )
 
-        if new_pages is None:
-            raise CacheAllocationFailure(
-                "Failed to acquire pages even after attempting eviction from LRU leaves"
+            allocation = MooncakePagedAttentionCacheAllocation(
+                cache=self,
+                tokens=tokens,
+                last_cached_node=cur_node,
+                cached_pages=matched_pages,
+                newly_acquired_pages=new_pages,
             )
-
-        return MooncakePagedAttentionCacheAllocation(
-            cache=self,
-            tokens=tokens,
-            last_cached_node=cur_node,
-            cached_pages=matched_pages,
-            newly_acquired_pages=new_pages,
-        )
+        allocation.update_pages_with_mooncake_store(tokens, remaining_length, new_pages)
+        cur_node, matched_pages = self._match(tokens)
+        cur_node.ref_count.increment()
+        return allocation

@@ -188,5 +188,31 @@ class PagePool:
         )
         return page_data
 
+    def update_page_data(self, page: PageInfo, data: Torch.Tensor) -> None:
+        """
+        Update the data for a specific page.
+
+        Args:
+            page: PageInfo object representing the page
+            data: Torch.tensor containing the new data
+
+        """
+        page_table = self.page_tables[0]
+        host_page_table = page_table.for_transfer()
+        src_view = host_page_table.view(page.index)
+        dst_view = page_table.view(page.index)
+        dtype_map = {
+            "float32": torch.float32,
+            "float64": torch.float64,
+            "float16": torch.float16,
+            "int32": torch.int32,
+            "int64": torch.int64,
+            "bool": torch.bool,
+        }
+        dtype = dtype_map[str(self.config.dtype)]
+        data_items = data.to(dtype).tolist()
+        src_view.items[:] = data_items
+        dst_view.copy_from(src_view)
+
 
 ############################## begin radix attention

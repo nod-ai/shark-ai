@@ -171,5 +171,7 @@ class MooncakeStore:
             logger.info(f"Successfully retrieved key: {key} from Mooncake KVCache.")
             return value
         except Exception as e:
-            logger.error(f"Failed to get key: {key} from Mooncake KVCache. Error: {e}")
-            raise e
+            logger.warning(
+                f"Failed to get key: {key} from Mooncake KVCache. Error: {e}"
+            )
+            return None
