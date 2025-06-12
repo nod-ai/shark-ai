@@ -12,8 +12,23 @@ from parameterized import parameterized
 import pytest
 import torch
 
+pytorch_is_24 = torch.__version__.split(".")[:2] == ["2", "4"]
 
-@parameterized.expand([(True, 2.378), (False, 0.577)])  # quantize qkv
+
+@parameterized.expand(
+    [
+        (
+            pytest.param(
+                True,
+                marks=pytest.mark.skipif(
+                    pytorch_is_24, "numerical inconsistency in torch 2.4"
+                ),
+            ),
+            2.378,
+        ),
+        (False, 0.577),
+    ]
+)  # quantize qkv
 def test_llama(quantize_qkv, cross_entropy_golden_value):
     torch.set_default_dtype(torch.float32)
     theta, config = generate(12345, quantize_qkv)
