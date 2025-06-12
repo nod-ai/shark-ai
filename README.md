@@ -201,11 +201,11 @@
 | sharktank/tests/types/layouts\_test.py                                        |       57 |        1 |     98% |       129 |
 | sharktank/tests/types/quantizers\_test.py                                     |      124 |        1 |     99% |       248 |
 | sharktank/tests/types/tensors\_test.py                                        |      164 |        1 |     99% |       221 |
-| sharktank/tests/utils/iree\_test.py                                           |       47 |        6 |     87% | 67-71, 91 |
+| sharktank/tests/utils/iree\_test.py                                           |       56 |        6 |     89% | 69-73, 93 |
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |       26 |        0 |    100% |           |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **19341** | **4022** | **79%** |           |
+|                                                                     **TOTAL** | **19350** | **4022** | **79%** |           |
 
 
 ## Setup coverage badge
