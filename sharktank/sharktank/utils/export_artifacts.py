@@ -243,15 +243,15 @@ class ExportArtifacts:
             export_args.append(f"--kv-cache-dtype={self.kv_cache_dtype}")
         if skip_decode:
             export_args.append("--skip-decode")
-        # if self.use_attention_mask:
-        export_args.append("--use-attention-mask")
+        if self.use_attention_mask:
+            export_args.append("--use-attention-mask")
         if self.use_hf:
             export_args.append("--use-hf")
 
         cwd = self.sharktank_dir
         cmd = subprocess.list2cmdline(export_args)
 
-        print(f" Exporting mlir:\n" f"cd {cwd} && {cmd}")
+        logger.info(f" Exporting mlir:\n" f"cd {cwd} && {cmd}")
 
         proc = subprocess.run(cmd, shell=True, capture_output=True, cwd=cwd, text=True)
         if proc.returncode != 0:
@@ -300,7 +300,7 @@ class ExportArtifacts:
 
         cmd = subprocess.list2cmdline(compile_args)
 
-        print(f" Launching compile command:\n" f"cd {cwd} && {cmd}")
+        logger.info(f" Launching compile command:\n" f"cd {cwd} && {cmd}")
         proc = subprocess.run(cmd, shell=True, capture_output=True, cwd=cwd)
         return_code = proc.returncode
         if return_code != 0:

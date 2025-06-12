@@ -139,9 +139,8 @@ class MoeBlock(ThetaLayer):
 
         # For each token, the router calculates the router weights for all experts
         # shape: (batch_size * sequence_length, expert_count)
-        router_logits = self.ffn_gate_inp(ffn_input).to(torch.float)
-        router_logits = router_logits / torch.max(router_logits)
-        router_weights = self.score_experts(router_logits)
+        router_logits = self.ffn_gate_inp(ffn_input)
+        router_weights = self.score_experts(router_logits.to(torch.float))
 
         router_weights = reshard_like(router_weights, like=ffn_input)
 
