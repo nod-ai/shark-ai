@@ -7,8 +7,6 @@ import os
 
 import logging
 
-logging.basicConfig(level=logging.INFO)
-
 from dataclasses import dataclass
 
 import torch
@@ -156,9 +154,11 @@ class MooncakeStore:
             raise RuntimeError("MooncakeStore is not connected.")
         try:
             value_bytes = self.store.get(key)
-            if value_bytes is None:
-                logger.warning(f"Key: {key} not found in Mooncake KVCache.")
-                return None
+        except TypeError as e:
+            logger.error(f"Failed to get key: {key} from Mooncake KVCache. Error: {e}")
+            raise TypeError("Mooncake Store Get Type Error.") from e
+
+        if value_bytes:
             data = safetensors_load(value_bytes)
             device_id = int(data["device_id"].item())
             device = (
@@ -170,8 +170,4 @@ class MooncakeStore:
             value = value_tensor.to(device)
             logger.info(f"Successfully retrieved key: {key} from Mooncake KVCache.")
             return value
-        except Exception as e:
-            logger.warning(
-                f"Failed to get key: {key} from Mooncake KVCache. Error: {e}"
-            )
-            return None
+        return None

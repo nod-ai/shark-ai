@@ -190,7 +190,8 @@ class MooncakePagedAttentionCache(TriePagedAttentionCache):
         Returns:
             A string key representing the token ids
         """
-        return f"{token_ids}"
+        key = "_".join(map(str, token_ids))
+        return key
 
     def send_page_to_mooncake(
         self,
