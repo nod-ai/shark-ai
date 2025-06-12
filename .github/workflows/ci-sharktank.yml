@@ -81,6 +81,7 @@ jobs:
           pytest -n 20 sharktank/ \
             --cov=sharktank \
             --cov-report xml:cov.xml \
+            --cov-config=.coveragerc \
             --durations=10 \
             --log-cli-level=info \
             -v
@@ -91,6 +92,7 @@ jobs:
         run: ls -la -R .
 
       - name: Upload coverage data
+        if: runner.os != 'Windows'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: coverage-data-${{ matrix.python-version }}-${{ matrix.torch-version }}-${{ matrix.runs-on }}
