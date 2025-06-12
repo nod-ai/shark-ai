@@ -124,7 +124,7 @@ def get_file_handle(
                 weight_path.with_suffix(f".rank{i}{weight_path.suffix}")
             )
         with open(str(modified_weight_path), "rb") as f:
-            handles.append(FileHandle.wrap_fd(f.fileno(), True, False))
+            handles.append(FileHandle.wrap_fd(f.fileno()))
     return handles
 
 
@@ -332,7 +332,7 @@ def load_iree_module(
             vm_instance, parameter_provider
         )
         modules.append(parameters_module)
-    vm_module = iree.runtime.VmModule.mmap(vm_instance, str(module_path))
+    vm_module = iree.runtime.VmModule.mmap(vm_instance, module_path)
     modules.append(vm_module)
     vm_context = iree.runtime.VmContext(instance=vm_instance, modules=modules)
     return vm_module, vm_context, vm_instance

@@ -217,29 +217,17 @@ class PerplexityIree:
 
         shard_count = self.tensor_parallelism_size
 
-        vm_instance = ireert.VmInstance()
         self.devices: list[iree.runtime.HalDevice] = get_iree_devices(
             device=self.iree_devices,
             device_count=self.pipeline_parallelism_size * shard_count,
             allow_repeating=True,
         )
-        hal_module = iree.runtime.create_hal_module(
-            instance=vm_instance, devices=self.devices
-        )
-        self.weight_path = Path(self.weight_path_str)
-        parameter_index = iree.runtime.ParameterIndex()
-        handles = get_file_handle(shard_count=shard_count, weight_path=self.weight_path)
-        for handle in handles:
-            parameter_index.load_from_file_handle(handle, "irpa")
 
-        parameter_provider = parameter_index.create_provider(scope="model")
-        parameters_module = iree.runtime.create_io_parameters_module(
-            vm_instance, parameter_provider
-        )
-        self.vm_module = iree.runtime.VmModule.mmap(vm_instance, str(self.output_vmfb))
-        self.vm_context = iree.runtime.VmContext(
-            instance=vm_instance,
-            modules=(hal_module, parameters_module, self.vm_module),
+        self.vm_module, self.vm_context, self.vm_instance = load_iree_module(
+            module_path=self.output_vmfb,
+            devices=self.devices,
+            parameters_path=self.weight_path_str,
+            tensor_parallel_size=shard_count,
         )
 
     def assemble_batch(self, token_batch: torch.tensor, devices) -> torch.tensor:
@@ -380,10 +368,11 @@ class PerplexityIree:
     def get_logits(self, skip_decode: bool) -> torch.Tensor:
         def run_iree_module(devices: list[iree.runtime.HalDevice]):
             out_logits = []
+            model_name = Path(self.weight_path_str).name
             for i in tqdm(
                 range(self.start, self.max_prompt_length - 1),
                 mininterval=300,
-                desc=f"eval_iree: Calculating logits for {self.weight_path.name}",
+                desc=f"eval_iree: Calculating logits for {model_name}",
             ):
                 logger.debug(f"Iteration: {i - self.start}")
 
