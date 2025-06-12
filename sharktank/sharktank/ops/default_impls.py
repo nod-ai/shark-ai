@@ -22,6 +22,9 @@ from sharktank.types import (
     BlockScaledI4Layout,
     TensorScaledLayout,
 )
+
+from sharktank.kernels.topk import iree_topk
+
 from sharktank.types.tensors import unbox_tensor, AnyTensor
 from ._registry import AllOfType, AllOfExprs, AllOfExprsVariadic, IsOfType
 from .signatures import *
@@ -122,6 +125,79 @@ def conv2d_default(
 
 conv2d.override(Tensor, Tensor, Tensor, auto_dequant=True)(conv2d_default)
 conv2d.override(Tensor, Tensor, auto_dequant=True)(conv2d_default)
+
+# conv3d
+
+
+def conv3d_default(
+    input: Tensor,
+    weight: Tensor,
+    bias: Optional[Tensor],
+    *,
+    stride,
+    padding,
+    dilation,
+    groups,
+    accum_dtype: Optional[torch.dtype],
+):
+    input = unbox_tensor(input)
+    weight = unbox_tensor(weight)
+    if bias is not None:
+        bias = unbox_tensor(bias)
+    if weight.dtype != input.dtype:
+        weight = weight.to(input.dtype)
+    if bias is not None and bias.dtype != input.dtype:
+        bias = bias.to(input.dtype)
+    return F.conv3d(
+        input,
+        weight,
+        bias,
+        stride=stride,
+        padding=padding,
+        dilation=dilation,
+        groups=groups,
+    )
+
+
+conv3d.override(Tensor, Tensor, Tensor, auto_dequant=True)(conv3d_default)
+conv3d.override(Tensor, Tensor, auto_dequant=True)(conv3d_default)
+
+
+# conv1d
+
+
+def conv1d_default(
+    input: Tensor,
+    weight: Tensor,
+    bias: Optional[Tensor],
+    *,
+    stride,
+    padding,
+    dilation,
+    groups,
+    accum_dtype: Optional[torch.dtype],
+):
+    input = unbox_tensor(input)
+    weight = unbox_tensor(weight)
+    if bias is not None:
+        bias = unbox_tensor(bias)
+    if weight.dtype != input.dtype:
+        weight = weight.to(input.dtype)
+    if bias is not None and bias.dtype != input.dtype:
+        bias = bias.to(input.dtype)
+    return F.conv1d(
+        input,
+        weight,
+        bias,
+        stride=stride,
+        padding=padding,
+        dilation=dilation,
+        groups=groups,
+    )
+
+
+conv1d.override(Tensor, Tensor, Tensor, auto_dequant=True)(conv1d_default)
+conv1d.override(Tensor, Tensor, auto_dequant=True)(conv1d_default)
 
 
 # Einsum
@@ -602,7 +678,7 @@ def to_default(tensor: Tensor, *args, **kwargs) -> Tensor:
 
 
 @trace_tensor.override(AllOfExprsVariadic(IsOfType(Tensor, InferenceTensor)))
-def trace_tensor(key: str, *tensors: tuple[AnyTensor]):
+def trace_tensor(key: str, *tensors: tuple[AnyTensor, ...]):
     if len(tensors) != 1:
         raise ValueError("Tracing more than one tensor at a time is not supported.")
     iree.turbine.ops.iree.trace_tensor(key, unshard(tensors[0]))
@@ -726,14 +802,50 @@ def topk_default(
     largest: bool,
     sorted: bool,
     chunk_size: Optional[int] = None,
+    use_linalgext_topk: bool = False,
 ) -> tuple[Tensor, Tensor]:
-    if chunk_size is None:
-        result = torch.topk(
-            unbox_tensor(tensor), k=k, dim=dim, largest=largest, sorted=sorted
-        )
-        return result.values, result.indices
 
-    return _split_topk(tensor, k, dim, largest, sorted, chunk_size)
+    if use_linalgext_topk:
+        assert largest
+        assert not sorted
+        assert dim == len(tensor.shape) - 1 or dim == -1
+        bs_shape = tensor.shape[:-1]
+
+        tensor = unbox_tensor(tensor.flatten(0, -2))
+        flat_bs = tensor.shape[0]
+
+        indices = torch.arange(tensor.shape[1], dtype=torch.int32)[None, :].repeat(
+            tensor.shape[0], 1
+        )
+
+        if chunk_size:
+            tensor = tensor.unflatten(dim, (chunk_size, tensor.shape[-1] // chunk_size))
+            tensor = tensor.flatten(0, 1)
+            indices = indices.unflatten(
+                dim, (chunk_size, indices.shape[-1] // chunk_size)
+            )
+            indices = indices.flatten(0, 1)
+
+        values, indices = iree_topk(tensor, indices, k=k)
+
+        if chunk_size:
+            values = values.unflatten(0, (flat_bs, chunk_size)).flatten(1)
+            indices = indices.unflatten(0, (flat_bs, chunk_size)).flatten(1)
+            values, indices = iree_topk(values, indices, k=k)
+
+        values = unflatten(values, 0, bs_shape)
+        indices = unflatten(indices, 0, bs_shape)
+        return values, indices.to(torch.int64)
+
+    if chunk_size is not None:
+        return _split_topk(
+            tensor, k, dim, largest, sorted, chunk_size, use_linalgext_topk
+        )
+
+    result = torch.topk(
+        unbox_tensor(tensor), k=k, dim=dim, largest=largest, sorted=sorted
+    )
+    return result.values, result.indices
 
 
 def _split_topk(
@@ -743,6 +855,7 @@ def _split_topk(
     largest: bool,
     sorted: bool,
     chunk_size: int,
+    use_linalgext_topk: bool,
 ) -> Tuple[Tensor, Tensor]:
     """Find the `topk` of a tensor using `split_k` strategy for better perf.
 
@@ -775,13 +888,25 @@ def _split_topk(
     tensor_unflattened = unflatten(tensor, dim, (n_chunks, chunk_size))
 
     vals_local, idx_local = topk(
-        tensor_unflattened, k, dim=dim + 1, largest=largest, sorted=sorted
+        tensor_unflattened,
+        k,
+        dim=dim + 1,
+        largest=largest,
+        sorted=sorted,
+        use_linalgext_topk=use_linalgext_topk,
     )
 
     vals_flat = flatten(vals_local, start_dim=dim, end_dim=dim + 1)
     idx_flat = flatten(idx_local, start_dim=dim, end_dim=dim + 1)
 
-    vals_out, flat_idx = topk(vals_flat, k, dim=dim, largest=largest, sorted=sorted)
+    vals_out, flat_idx = topk(
+        vals_flat,
+        k,
+        dim=dim,
+        largest=largest,
+        sorted=sorted,
+        use_linalgext_topk=use_linalgext_topk,
+    )
 
     chunk_idx = flat_idx // k
 

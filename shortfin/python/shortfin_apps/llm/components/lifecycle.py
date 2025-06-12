@@ -58,7 +58,7 @@ class ShortfinLlmLifecycleManager:
         if server_params.decode_config is None:
             decode_config = DecodeConfig(
                 args.num_beams,
-                args.token_selection_strategy,
+                use_beam_search=args.use_beam_search,
                 logits_normalization=model_params.logits_normalization,
             )
             server_params.decode_config = decode_config

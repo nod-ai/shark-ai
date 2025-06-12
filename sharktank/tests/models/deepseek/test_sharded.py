@@ -96,13 +96,8 @@ class DeepseekShardedTest(TempDirTestBase):
         # TODO: test decode step and maybe verify the paged cache is close.
 
     @pytest.mark.xfail(
-        raises=IreeCompileException,
-        strict=False,
-        reason=(
-            "Compiler error: failed to solve for affinity analysis. "
-            "See https://github.com/iree-org/iree/issues/20436 and "
-            "https://github.com/iree-org/iree/issues/20914"
-        ),
+        reason="https://github.com/nod-ai/shark-ai/issues/1566",
+        strict=True,
     )
     def testTensorParallelToySizedModelIREEVsUnshardedEager(self):
         theta, config = generate(12345)

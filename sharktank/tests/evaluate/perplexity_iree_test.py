@@ -9,6 +9,9 @@ import unittest
 import pytest
 import json
 import numpy as np
+from sharktank.utils.export_artifacts import (
+    IreeCompileException,
+)
 
 from sharktank.evaluate import perplexity_iree
 from sharktank.utils.testing import (
@@ -16,6 +19,7 @@ from sharktank.utils.testing import (
     is_nightly,
     is_deepseek,
     is_llama_8b,
+    xfail,
 )
 
 
@@ -118,10 +122,12 @@ class PerplexityTest(unittest.TestCase):
 
         self.prepare_argv(
             extra_args=(
-                f"--attention-dtype=bfloat16",
+                f"--attention-dtype=float8_e4m3fnuz",
                 f"--activation-dtype=bfloat16",
                 f"--kv-cache-dtype=float8_e4m3fnuz",
                 "--use-hf",
+                "--use-attention-mask",
+                "--attention-kernel=sharktank",
             )
         )
         self.run_and_check_perplexity()
@@ -160,7 +166,12 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv(extra_args=(f"--use-toy-model",))
         self.run_and_check_perplexity()
 
-    @pytest.mark.skip(reason="https://github.com/iree-org/iree/issues/20436")
+    @xfail(
+        raises=IreeCompileException,
+        reason="https://github.com/iree-org/iree/issues/20914",
+        strict=True,
+        match="Error code: 245",
+    )
     @is_nightly
     def test_deepseek_v3_tp(self):
         # DeepSeek v3 tensor parallelism
@@ -172,9 +183,6 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv(extra_args=("--use-toy-model",))
         self.run_and_check_perplexity()
 
-    @pytest.mark.skip(
-        reason="https://github.com/nod-ai/shark-ai/pull/1545",
-    )
     @is_nightly
     def test_deepseek_v3_pp(self):
         # DeepSeek v3 pipeline parallelism

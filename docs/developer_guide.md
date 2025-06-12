@@ -16,7 +16,7 @@ sudo apt update && sudo apt install -y clang lld
 Install:
 
 ```bash
-sudo apt install python-is-python3 python3-venv python3-dev
+sudo apt install python-is-python3 python3.11-venv python3.11-dev
 ```
 
 <details>
@@ -62,7 +62,7 @@ The project is configured to ignore `.venv` directories, and editors like
 VSCode pick them up by default.
 
 ```bash
-python -m venv .venv
+python3.11 -m venv .venv
 source .venv/bin/activate
 ```
 
