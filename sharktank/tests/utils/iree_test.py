@@ -13,17 +13,19 @@ import torch
 from parameterized import parameterized
 from pathlib import Path
 from sharktank.layers import create_model, model_config_presets
+from sharktank.types import DefaultPrimitiveTensor
 from sharktank.utils import chdir
 from sharktank.utils.iree import (
     device_array_to_host,
     get_iree_devices,
     run_model_with_iree_run_module,
-    torch_tensor_to_device_array,
+    tensor_to_device_array,
     trace_model_with_tracy,
     with_iree_device_context,
 )
 from sharktank.utils.testing import skip
 from sharktank.models.dummy import DummyModel
+from sharktank import ops
 from unittest import TestCase
 
 
@@ -94,10 +96,23 @@ class TestTensorConversion(TestCase):
 
         def roundtrip(iree_devices: list[iree.runtime.HalDevice]):
             tensor_roundtrip = device_array_to_host(
-                torch_tensor_to_device_array(tensor, iree_devices[0])
+                tensor_to_device_array(tensor, iree_devices[0])
             )
             assert tensor.to(dtype=dtype_for_equality_check).equal(
                 tensor_roundtrip.to(dtype=dtype_for_equality_check)
             )
+
+        with_iree_device_context(roundtrip, iree_devices)
+
+    def testTensorToDeviceArraySupportsDefaultPrimitiveTensor(self):
+        tensor = DefaultPrimitiveTensor(data=torch.arange(1, 4, dtype=int))
+
+        iree_devices = get_iree_devices(device=self.iree_device, device_count=1)
+
+        def roundtrip(iree_devices: list[iree.runtime.HalDevice]):
+            tensor_roundtrip = device_array_to_host(
+                tensor_to_device_array(tensor, iree_devices[0])
+            )
+            assert ops.equal(tensor, tensor_roundtrip)
 
         with_iree_device_context(roundtrip, iree_devices)
