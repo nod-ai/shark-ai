@@ -98,6 +98,8 @@ jobs:
         with:
           name: coverage-data-${{ matrix.python-version }}-${{ matrix.torch-version }}-${{ matrix.runs-on }}
           path: .coverage
+          include-hidden-files: true
+
 
   coverage:
     name: Coverage
