@@ -29,6 +29,10 @@ pytestmark = pytest.mark.parametrize(
     [
         (ModelConfig.get(name="tinystories_llama2_25m"), {"prefix_sharing": "none"}),
         (
+            ModelConfig.get(name="tinystories_llama2_25m_tp2"),
+            {"prefix_sharing": "none"},
+        ),
+        (
             ModelConfig.get(name="tinystories_llama2_25m"),
             {
                 "prefix_sharing": "none",
@@ -54,6 +58,7 @@ pytestmark = pytest.mark.parametrize(
     ],
     ids=[
         "tinystories_llama2_25m_none",
+        "tinystories_llama2_25m_none_tp2",
         "tinystories_llama2_25m_none_independent_2_beams",
         "tinystories_llama2_25m_none_beam_search_2_beams",
         "tinystories_llama2_25m_gpu_argmax_none",
