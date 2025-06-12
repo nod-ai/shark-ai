@@ -142,7 +142,7 @@ class MooncakePagedAttentionCacheAllocation(TriePagedAttentionCacheAllocation):
                 break  # Stop if any page retrieval fails
             num_of_updated_pages += 1
         logger.info(
-            f"Successfully updated {num_of_updated_pages} pages with Mooncake store for {len(tokens)}."
+            f"Successfully updated {num_of_updated_pages} pages with Mooncake store for tokens {tokens}."
         )
         return num_of_updated_pages
 
@@ -212,10 +212,10 @@ class MooncakePagedAttentionCache(TriePagedAttentionCache):
         value = self.page_pool.get_page_data(page)
         if key in self.mooncake_keys:
             logger.debug(
-                f"Page with key {key} already exists in Mooncake store, updating."
+                f"Page with key {key} already exists in Mooncake store, do not need to send the page."
             )
         else:
-            logger.debug(f"Page with key {key} is new, adding to Mooncake store.")
+            logger.debug(f"Page with key {key} is new, adding it to Mooncake store.")
             self.mooncake_keys.add(key)
             self.mooncake_store.put(key, value)
             logger.debug(f"Page with key {key} sent to Mooncake store successfully.")
@@ -236,13 +236,18 @@ class MooncakePagedAttentionCache(TriePagedAttentionCache):
             raise ValueError("Mooncake store is not initialized")
         key = self.token_ids_to_key(token_ids)
         logger.debug(f"Retrieving page with key {key} from Mooncake store.")
-        value = self.mooncake_store.get(key)
-        if value is None:
-            logger.warning(f"Page with key {key} not found in Mooncake store.")
-            return False
-        self.page_pool.update_page_data(page, value)
-        logger.debug(f"Page with key {key} updated successfully from Mooncake store.")
-        return True
+        for mooncake_key in self.mooncake_keys:
+            if mooncake_key.startswith(key):
+                value = self.mooncake_store.get(mooncake_key)
+                if value is None:
+                    logger.warning(f"Page with key {key} not found in Mooncake store.")
+                    return False
+                self.page_pool.update_page_data(page, value)
+                logger.debug(
+                    f"Page with key {key} updated successfully from Mooncake store."
+                )
+                return True
+        return False
 
     def acquire_pages_for_tokens(
         self,

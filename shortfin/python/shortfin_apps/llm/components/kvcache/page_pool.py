@@ -211,7 +211,13 @@ class PagePool:
         }
         dtype = dtype_map[str(self.config.dtype)]
         data_items = data.to(dtype).tolist()
-        src_view.items[:] = data_items
+        if len(data_items) != self.config.paged_kv_block_size_elements:
+            raise ValueError(
+                f"Data length {len(data_items)} does not match page size "
+                f"{self.config.paged_kv_block_size_elements} elements."
+            )
+        src_list = src_view.items.tolist()
+        src_list = data_items
         dst_view.copy_from(src_view)
 
 
