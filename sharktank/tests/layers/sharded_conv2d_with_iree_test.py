@@ -24,7 +24,7 @@ from sharktank.types import (
     unbox_tensor,
 )
 from sharktank.types.sharding import Conv2DSplitOutputChannelSharding
-from sharktank.utils.iree import with_iree_device_context
+from sharktank.utils.iree import with_iree_device_context, get_file_handle
 import iree.runtime
 from typing import List, Optional
 import os
@@ -75,12 +75,9 @@ def run_iree_module(
         # TODO: make IREE able to load the parameters from the top parameter file
         # without having to specify the parameter file for each shard separately.
         parameter_index = iree.runtime.ParameterIndex()
-        for i in range(shard_count):
-            parameter_index.load(
-                file_path=str(
-                    Path(params_path).with_suffix(f".rank{i}{params_path.suffix}")
-                )
-            )
+        handles = get_file_handle(shard_count=shard_count, weight_path=params_path)
+        for handle in handles:
+            parameter_index.load_from_file_handle(handle, "irpa")
         parameter_provider = parameter_index.create_provider(scope="model")
         parameters_module = iree.runtime.create_io_parameters_module(
             vm_instance, parameter_provider
