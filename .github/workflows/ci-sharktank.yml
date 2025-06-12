@@ -90,6 +90,13 @@ jobs:
       - name: Display structure of files
         run: ls -la -R .
 
+      - name: Upload coverage data
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: coverage-data-${{ matrix.python-version }}-${{ matrix.torch-version }}-${{ matrix.runs-on }}
+          path: .coverage.${{ matrix.python-version }}.${{ matrix.torch-version }}.${{ matrix.runs-on }}
+          include-hidden-files: true
+
       - name: Upload coverage to Codecov
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
         uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24
@@ -98,13 +105,6 @@ jobs:
 
       - name: Display structure of files
         run: ls -la -R .
-
-      - name: Upload coverage data
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: coverage-data-${{ matrix.python-version }}-${{ matrix.torch-version }}-${{ matrix.runs-on }}
-          path: .coverage.${{ matrix.python-version }}.${{ matrix.torch-version }}.${{ matrix.runs-on }}
-          include-hidden-files: true
 
 
   coverage:
