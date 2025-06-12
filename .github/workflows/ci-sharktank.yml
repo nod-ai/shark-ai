@@ -84,7 +84,7 @@ jobs:
             --log-cli-level=info \
             -v
         env:
-          COVERAGE_FILE: .coverage.${{ matrix.python-version }}.${{ matrix.torch-version }}.${{ matrix.runs-on }}
+          COVERAGE_FILE: coverage.${{ matrix.python-version }}.${{ matrix.torch-version }}.${{ matrix.runs-on }}
 
       - name: Upload coverage data
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
