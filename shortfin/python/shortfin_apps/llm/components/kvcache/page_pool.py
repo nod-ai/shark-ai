@@ -5,6 +5,7 @@ import logging
 import shortfin as sf
 import shortfin.array as sfnp
 from dataclasses import dataclass
+from ....utils import convert_float_to_int
 
 import math
 
@@ -201,23 +202,24 @@ class PagePool:
         host_page_table = page_table.for_transfer()
         src_view = host_page_table.view(page.index)
         dst_view = page_table.view(page.index)
-        dtype_map = {
-            "float32": torch.float32,
-            "float64": torch.float64,
-            "float16": torch.float16,
-            "int32": torch.int32,
-            "int64": torch.int64,
-            "bool": torch.bool,
-        }
-        dtype = dtype_map[str(self.config.dtype)]
-        data_items = data.to(dtype).tolist()
+        data_items = data.tolist()
         if len(data_items) != self.config.paged_kv_block_size_elements:
             raise ValueError(
                 f"Data length {len(data_items)} does not match page size "
                 f"{self.config.paged_kv_block_size_elements} elements."
             )
-        src_list = src_view.items.tolist()
-        src_list = data_items
+        # convert data items to int list
+        dtype_map = {
+            "float32": sfnp.float32,
+            "float64": sfnp.float64,
+            "float16": sfnp.float16,
+            "int32": sfnp.int32,
+            "int64": sfnp.int64,
+        }
+        sfnp_dtype = dtype_map[str(self.config.dtype)]
+        data = [convert_float_to_int(item, sfnp_dtype) for item in data_items]
+        with src_view.map(discard=True) as m:
+            m.items = data
         dst_view.copy_from(src_view)
 
 
