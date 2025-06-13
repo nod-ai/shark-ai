@@ -161,5 +161,41 @@ class PagePool:
             f"{100.0 * free_pages / total_pages}% free)"
         )
 
+    def get_page_data(self, page: PageInfo) -> List[int]:
+        """
+        Get the data for a specific page.
+
+        Args:
+            page: PageInfo object representing the page
+
+        Returns:
+           a list containing the page data
+        """
+        page_table = self.page_tables[0]
+        host_page_table = page_table.for_transfer()
+        host_view = host_page_table.view(page.index)
+        device_view = page_table.view(page.index)
+        host_view.copy_from(device_view)
+        with host_view.map(discard=True) as m:
+            page_data = m.items
+        return page_data
+
+    def update_page_data(self, page: PageInfo, data: List[int]) -> None:
+        """
+        Update the data for a specific page.
+
+        Args:
+            page: PageInfo object representing the page
+            data: a list containing the new data
+
+        """
+        page_table = self.page_tables[0]
+        host_page_table = page_table.for_transfer()
+        src_view = host_page_table.view(page.index)
+        dst_view = page_table.view(page.index)
+        with src_view.map(discard=True) as m:
+            m.items = data
+        dst_view.copy_from(src_view)
+
 
 ############################## begin radix attention
