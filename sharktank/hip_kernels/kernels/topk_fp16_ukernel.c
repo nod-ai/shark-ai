@@ -58,7 +58,7 @@ extern "C" __global__ void topk_F16I32(const _Float16 *__restrict__ inputValues,
       int32_t curr_ind = warp_topk_indices[idx];
       bool swap = val > curr_val;
       _Float16 new_val = swap ? val : curr_val;
-      _Float16 new_ind = swap ? ind : curr_ind;
+      int32_t new_ind = swap ? ind : curr_ind;
       val = swap ? curr_val : val;
       ind = swap ? curr_ind : ind;
       warp_topk_vals[idx] = new_val;
@@ -84,7 +84,7 @@ extern "C" __global__ void topk_F16I32(const _Float16 *__restrict__ inputValues,
         int32_t curr_ind = warp_topk_indices[idx];
         bool swap = val > curr_val;
         _Float16 new_val = swap ? val : curr_val;
-        _Float16 new_ind = swap ? ind : curr_ind;
+        int32_t new_ind = swap ? ind : curr_ind;
         val = swap ? curr_val : val;
         ind = swap ? curr_ind : ind;
         warp_topk_vals[idx] = new_val;
@@ -109,7 +109,7 @@ extern "C" __global__ void topk_F16I32(const _Float16 *__restrict__ inputValues,
         int32_t curr_ind = warp_topk_indices[idx];
         bool swap = val > curr_val;
         _Float16 new_val = swap ? val : curr_val;
-        _Float16 new_ind = swap ? ind : curr_ind;
+        int32_t new_ind = swap ? ind : curr_ind;
         val = swap ? curr_val : val;
         ind = swap ? curr_ind : ind;
         warp_topk_vals[idx] = new_val;
