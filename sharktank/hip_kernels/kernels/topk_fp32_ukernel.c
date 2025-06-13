@@ -8,7 +8,7 @@
 #include <hip/hip_fp16.h>
 #include <hip/hip_runtime.h>
 
-#define MAX_K 16 // Upper limit for K, safe for stack on GPU
+#define MAX_K 8 // Upper limit for K, safe for stack on GPU
 
 /*
 Batch-enabled TopK Kernel:
@@ -24,76 +24,71 @@ extern "C" __global__ void topk_F32I32(const float *__restrict__ inputValues,
                                        int reductionSize) {
   int k = 8;
   int groupID = blockIdx.x; // dim 1
-  int batchID = blockIdx.y; // dim 0
-  int groupCount = gridDim.x;
+  int threadCount = blockDim.x;
   uint laneID = threadIdx.x;
 
-  int linearIndex = batchID * groupCount + groupID;
+  int linearIndex = groupID;
   const float *batchInput = inputValues + linearIndex * reductionSize;
   const int32_t *batchIndices = inputIndices + linearIndex * reductionSize;
   float *batchOutputValues = outputValues + linearIndex * k;
   int32_t *batchOutputIndices = outputIndices + linearIndex * k;
 
-  float NEG_F32_MAX = -FLT_MAX;
-  float topk_vals[MAX_K];
-  int32_t topk_indices[MAX_K];
-  // Initialize topk values to first K values
+  float NEG_F16_MAX = (float)(-3.4028234663852885981170418348451692544e+38);
+
+  int warp_offset = laneID * k;
+
+  // Collect and merge top-k from all lanes
+  __shared__ float warp_topk_vals[64 * MAX_K];
+  __shared__ int32_t warp_topk_indices[64 * MAX_K];
+
+  // Initialize topk values to identity (NEG_F16_MAX for max)
   for (int i = 0; i < k; ++i) {
-    uint idx = warpSize * i + laneID;
-    topk_vals[i] = batchInput[idx];
-    topk_indices[i] = batchIndices[idx];
+    warp_topk_vals[warp_offset + i] = NEG_F16_MAX;
+    warp_topk_indices[warp_offset + i] = -1;
   }
 
-  uint numBatches = (reductionSize + warpSize - 1) / warpSize;
-  for (int i = k; i < numBatches; ++i) {
-    uint idx = warpSize * i + laneID;
-    float val = batchInput[idx];
-    int32_t ind = batchIndices[idx];
+  for (int i = laneID; i < reductionSize; i += threadCount) {
+    float val = batchInput[i];
+    int32_t ind = batchIndices[i];
 
     // Insert into local top-k buffer
     for (int j = 0; j < k; ++j) {
-      if (val > topk_vals[j]) {
-        float tmp_val = topk_vals[j];
-        int32_t tmp_ind = topk_indices[j];
-
-        topk_vals[j] = val;
-        topk_indices[j] = ind;
-
-        val = tmp_val;
-        ind = tmp_ind;
-      }
+      int idx = warp_offset + j;
+      float curr_val = warp_topk_vals[idx];
+      int32_t curr_ind = warp_topk_indices[idx];
+      bool swap = val > curr_val;
+      float new_val = swap ? val : curr_val;
+      float new_ind = swap ? ind : curr_ind;
+      val = swap ? curr_val : val;
+      ind = swap ? curr_ind : ind;
+      warp_topk_vals[idx] = new_val;
+      warp_topk_indices[idx] = new_ind;
     }
-  }
-
-  // Collect and merge top-k from all lanes
-  __shared__ float warp_topk_vals[warpSize * MAX_K];
-  __shared__ int32_t warp_topk_indices[warpSize * MAX_K];
-
-  for (int i = 0; i < k; ++i) {
-    warp_topk_vals[laneID * k + i] = topk_vals[i];
-    warp_topk_indices[laneID * k + i] = topk_indices[i];
   }
 
   __syncthreads();
 
   int SUBGROUPS = 16;
 
+  // Merge in lane 0
   if (laneID < SUBGROUPS) {
     // Naive partial sort of k * warpSize
-    for (int i = laneID + k * SUBGROUPS; i < warpSize * k; i += SUBGROUPS) {
-      float hold_v = warp_topk_vals[i];
-      int32_t hold_i = warp_topk_indices[i];
+    for (int i = laneID + SUBGROUPS * k; i < threadCount * k; i += SUBGROUPS) {
+      float val = warp_topk_vals[i];
+      int32_t ind = warp_topk_indices[i];
 
+      // Insert into local top-k buffer
       for (int j = 0; j < k; ++j) {
-        int IDX = j + laneID * k;
-        if (warp_topk_vals[IDX] < hold_v) {
-          float tmp_v = warp_topk_vals[IDX];
-          int32_t tmp_i = warp_topk_indices[IDX];
-          warp_topk_vals[IDX] = hold_v;
-          warp_topk_indices[IDX] = hold_i;
-          hold_v = tmp_v;
-          hold_i = tmp_i;
-        }
+        int idx = warp_offset + j;
+        float curr_val = warp_topk_vals[idx];
+        int32_t curr_ind = warp_topk_indices[idx];
+        bool swap = val > curr_val;
+        float new_val = swap ? val : curr_val;
+        float new_ind = swap ? ind : curr_ind;
+        val = swap ? curr_val : val;
+        ind = swap ? curr_ind : ind;
+        warp_topk_vals[idx] = new_val;
+        warp_topk_indices[idx] = new_ind;
       }
     }
   }
@@ -104,18 +99,21 @@ extern "C" __global__ void topk_F32I32(const float *__restrict__ inputValues,
   if (laneID == 0) {
     // Naive partial sort of k * warpSize
     for (int i = k; i < SUBGROUPS * k; ++i) {
-      float hold_v = warp_topk_vals[i];
-      int32_t hold_i = warp_topk_indices[i];
+      float val = warp_topk_vals[i];
+      int32_t ind = warp_topk_indices[i];
 
+      // Insert into local top-k buffer
       for (int j = 0; j < k; ++j) {
-        if (warp_topk_vals[j] < hold_v) {
-          float tmp_v = warp_topk_vals[j];
-          int32_t tmp_i = warp_topk_indices[j];
-          warp_topk_vals[j] = hold_v;
-          warp_topk_indices[j] = hold_i;
-          hold_v = tmp_v;
-          hold_i = tmp_i;
-        }
+        int idx = j;
+        float curr_val = warp_topk_vals[idx];
+        int32_t curr_ind = warp_topk_indices[idx];
+        bool swap = val > curr_val;
+        float new_val = swap ? val : curr_val;
+        float new_ind = swap ? ind : curr_ind;
+        val = swap ? curr_val : val;
+        ind = swap ? curr_ind : ind;
+        warp_topk_vals[idx] = new_val;
+        warp_topk_indices[idx] = new_ind;
       }
     }
     for (int i = 0; i < k; ++i) {
