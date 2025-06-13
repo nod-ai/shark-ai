@@ -158,7 +158,7 @@ class PerplexityTest(unittest.TestCase):
 
     @is_deepseek
     def test_deepseek_v3(self):
-        # DeepSeek v3 pipeline parallelism
+        # DeepSeek v3
         self.model_name = "deepseek_v3_iree"
         self.irpa_file = self.deepseek_v3_model
         self.tokenizer = self.deepseek_v3_tokenizer
@@ -166,6 +166,12 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv(extra_args=(f"--use-toy-model",))
         self.run_and_check_perplexity()
 
+    @xfail(
+        raises=IreeCompileException,
+        reason="https://github.com/iree-org/iree/issues/20914",
+        strict=True,
+        match="Error code: 245",
+    )
     @is_nightly
     def test_deepseek_v3_tp(self):
         # DeepSeek v3 tensor parallelism
