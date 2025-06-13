@@ -112,6 +112,8 @@ class WanParams(ModelConfig):
             **cls._get_wan_params()
         )
 
+def outer_hacked(a, b):
+    return a.unsqueeze(1) * b.unsqueeze(0)
 
 def sinusoidal_embedding_1d(dim, position):
     # preprocess
@@ -120,41 +122,48 @@ def sinusoidal_embedding_1d(dim, position):
     position = position.type(torch.float64)
 
     # calculation
-    sinusoid = torch.outer(
+    sinusoid = outer_hacked(
         position, torch.pow(10000, -torch.arange(half).to(position).div(half)))
     x = torch.cat([torch.cos(sinusoid), torch.sin(sinusoid)], dim=1)
     return x
 
 
-@amp.autocast(enabled=False)
+@torch.autocast("cuda", enabled=False)
 def rope_params(max_seq_len, dim, theta=10000):
     assert dim % 2 == 0
-    freqs = torch.outer(
+    freqs = outer_hacked(
         torch.arange(max_seq_len),
         1.0 / torch.pow(theta,
-                        torch.arange(0, dim, 2).to(torch.float64).div(dim)))
+                        torch.arange(0, dim, 2).to(torch.float32).div(dim)))
     freqs = torch.polar(torch.ones_like(freqs), freqs)
     return freqs
 
-
-@amp.autocast(enabled=False)
+@torch.autocast("cuda", enabled=False)
 def rope_apply(x, grid_sizes, freqs):
+
     n, c = x.size(2), x.size(3) // 2
 
-    # split freqs
-    freqs = freqs.split([c - 2 * (c // 3), c // 3, c // 3], dim=1)
+    # split freqs (avoiding split/chunk as they lower to aten.as_strided)
+    c1 = c - 2 * (c // 3)
+    c2 = c // 3
+
+    f0 = freqs.narrow(1, 0, c1)
+    f1 = freqs.narrow(1, c1, c2)
+    f2 = freqs.narrow(1, c1 + c2, c2)
+    freqs = [f0, f1, f2]
 
     # loop over samples
     output = []
     '''
     for i, (f, h, w) in enumerate(grid_sizes.tolist()):
     '''
-    for i, [f, h, w] in enumerate(grid_sizes):
+    for i, (f, h, w) in enumerate(grid_sizes):
         seq_len = f * h * w
-
         # precompute multipliers
-        x_i = torch.view_as_complex(x[i, :seq_len].to(torch.float64).reshape(
+
+        x_i = torch.view_as_complex(x[i, :seq_len].to(torch.float32).reshape(
             seq_len, n, -1, 2))
+        
         freqs_i = torch.cat([
             freqs[0][:f].view(f, 1, 1, -1).expand(f, h, w, -1),
             freqs[1][:h].view(1, h, 1, -1).expand(f, h, w, -1),
@@ -168,7 +177,7 @@ def rope_apply(x, grid_sizes, freqs):
 
         # append to collection
         output.append(x_i)
-    return torch.stack(output).bfloat16()
+    return torch.stack(output).type_as(x)
 
 '''
 @amp.autocast(enabled=False)
@@ -281,6 +290,7 @@ class WanRMSNorm(ThetaLayer):
         self.weight = self.theta_tensor(weight_name)
         self.dim = dim
         self.eps = eps
+        self.dtype = torch.bfloat16
         # self.weight = nn.Parameter(torch.ones(dim))
 
     def forward(self, x):
@@ -288,7 +298,7 @@ class WanRMSNorm(ThetaLayer):
         Args:
             x(Tensor): Shape [B, L, C]
         """
-        return self._norm(x.bfloat16()).type_as(x) * self.weight
+        return self._norm(x).type_as(x) * self.weight
 
     def _norm(self, x):
         return x * torch.rsqrt(x.pow(2).mean(dim=-1, keepdim=True) + self.eps)
@@ -311,13 +321,14 @@ class WanLayerNorm(LayerNorm):
     def __init__(self, theta, dim, eps=1e-6):
         # elementwise_affine is flag for training, so delete it.
         super().__init__(theta, eps=eps, normalized_shape=(dim,))
+        self.dtype = torch.bfloat16
 
     def forward(self, x):
         r"""
         Args:
             x(Tensor): Shape [B, L, C]
         """
-        return super().forward(x.bfloat16()).type_as(x)
+        return super().forward(x.type(self.dtype)).type_as(x)
 
 # class WanSelfAttention(nn.Module):
 class WanSelfAttention(ThetaLayer):
@@ -491,7 +502,7 @@ WAN_CROSSATTENTION_CLASSES = {
 # This layer norm is used when non weight provided in irpa.
 def layer_norm(x: torch.Tensor, dim, eps=1e-6):
     return ops.layer_norm(
-        x.bfloat16(), normalized_shape=(dim,), weight=None, bias=None, eps=1e-6
+        x, normalized_shape=(dim,), weight=None, bias=None, eps=1e-6
     ).type_as(x)
 
 # class WanAttentionBlock(nn.Module):
@@ -574,21 +585,23 @@ class WanAttentionBlock(ThetaLayer):
             grid_sizes(Tensor): Shape [B, 3], the second dimension contains (F, H, W)
             freqs(Tensor): Rope freqs, shape [1024, C / num_heads / 2]
         """
-        trace_tensor("preemod", x)
 
-        e = (self.modulation + e.bfloat16()).chunk(6, dim=1)
-        trace_tensor("preselfattn", x)
+        """
+        workaround chunk lowering to as_strided
+        """
+        mod_e = self.modulation + e.type(self.dtype)
+        chunk_size = mod_e.size(1) // 6
+        e = [mod_e.narrow(1, i * chunk_size, chunk_size) for i in range(6)]
         # self-attention
         y = self.self_attn(
             layer_norm(x, self.dim, self.eps) * (1 + e[1]) + e[0], seq_lens, grid_sizes,
             freqs)
-        trace_tensor("postselfattn", x)
         x = (x + y * e[2])
 
         # cross-attention & ffn function
         def cross_attn_ffn(x, context, context_lens, e):
             x = x + self.cross_attn(self.norm3(x), context, context_lens)
-            y = self.ffn(layer_norm(x, self.dim, self.eps).bfloat16() * (1 + e[4]) + e[3])
+            y = self.ffn(layer_norm(x, self.dim, self.eps).type(self.dtype) * (1 + e[4]) + e[3])
             x = x + y * e[5]
             return x.type(self.dtype)
 
@@ -633,6 +646,7 @@ class Head(ThetaLayer):
         self.out_dim = out_dim
         self.patch_size = patch_size
         self.eps = eps
+        self.dtype = torch.bfloat16
 
         # layers
         out_dim = math.prod(patch_size) * out_dim
@@ -647,10 +661,14 @@ class Head(ThetaLayer):
             x(Tensor): Shape [B, L1, C]
             e(Tensor): Shape [B, C]
         """
-        assert e.dtype == torch.bfloat16
-        with amp.autocast(dtype=torch.bfloat16):
-            e = (self.modulation + e.unsqueeze(1)).chunk(2, dim=1)
-            x = (self.head(layer_norm(x, self.dim, self.eps) * (1 + e[1]) + e[0]))
+        assert e.dtype == self.dtype
+        '''
+        workaround chunk lowering to as_strided
+        '''
+        mod_e = self.modulation + e.unsqueeze(1)
+        chunk_size = mod_e.size(1) // 2
+        e = [mod_e.narrow(1, i * chunk_size, chunk_size) for i in range(2)]
+        x = (self.head(layer_norm(x, self.dim, self.eps) * (1 + e[1]) + e[0])).type(self.dtype)
         return x
 
 '''
@@ -730,6 +748,7 @@ class WanModel(ThetaLayer):
         self.window_size = params.window_size
         self.qk_norm = params.qk_norm
         self.cross_attn_norm = params.cross_attn_norm
+        self.dtype = torch.bfloat16
 
         self.eps = params.eps
 
@@ -860,9 +879,9 @@ class WanModel(ThetaLayer):
         
         # time embeddings
         e = self.time_embedding(
-            sinusoidal_embedding_1d(self.freq_dim, t).bfloat16()).bfloat16()
-        e0 = self.time_projection(e).unflatten(1, (6, self.dim)).bfloat16()
-        assert e.dtype == torch.bfloat16 and e0.dtype == torch.bfloat16
+            sinusoidal_embedding_1d(self.freq_dim, t).type(self.dtype)).type(self.dtype)
+        e0 = self.time_projection(e).unflatten(1, (6, self.dim)).type(self.dtype)
+        assert e.dtype == self.dtype and e0.dtype == self.dtype
 
         # context
         context_lens = None
@@ -875,7 +894,7 @@ class WanModel(ThetaLayer):
 
         if clip_fea is not None:
             context_clip = self.img_emb(clip_fea)  # bs x 257 x dim
-            context = torch.concat([context_clip, context], dim=1)
+            context = torch.cat([context_clip, context], dim=1)
         """
         only things to change is: 
         x is a list of tensors
@@ -889,16 +908,16 @@ class WanModel(ThetaLayer):
             context=context,
             context_lens=context_lens)
         
-        # for idx, block in enumerate(self.blocks):
-        #     x = block(x=x[0], **kwargs)
+        for idx, block in enumerate(self.blocks):
+            x = block(x=x[0], **kwargs)
         
         # head
-        x = [self.head(z, e.bfloat16()) for z in x]
+        x = [self.head(z, e.type(self.dtype)) for z in x]
 
         # unpatchify
         x = [self.unpatchify([z], grid_sizes)[0] for z in x] ## list of b c f h w
 
-        return [u.squeeze(0).bfloat16() for u in x]
+        return [u.squeeze(0).type(self.dtype) for u in x]
 
     def unpatchify(self, x, grid_sizes):
         r"""

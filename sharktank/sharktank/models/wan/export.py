@@ -15,14 +15,14 @@ from sharktank.types import Dataset, AnyTensor
 from sharktank.layers import create_model, model_config_presets, ThetaLayer
 from sharktank.transforms.dataset import set_float_dtype
 from sharktank.utils import chdir
-from sharktank.utils.export import export_model_mlir
+from sharktank.utils.export import mark_export_external_theta
 from sharktank.utils.iree import trace_model_with_tracy
 from sharktank.utils.hf import import_hf_dataset_from_hub
 from .wan import WanModel, WanParams
 
-from iree.turbine.aot import (
-    ExternalTensorTrait,
-)
+from iree.turbine.aot import *
+
+import numpy as np
 
 import torch
 import torch.nn as nn
@@ -132,6 +132,10 @@ def export_wan_transformer_model_mlir(
     }
     wrapped_model = WanTransformerWrapped(model)
     # golden = wrapped_model.forward(**wrapped_model.sample_inputs(function="forward_t2v")[1])
+    # np.save("wan_tformer_out.npy", golden)
+    # for name, sample_input in wrapped_model.sample_inputs(function="forward_t2v")[1].items():
+    #     np.save(f"wan_tformer_{name}.npy", sample_input)
+
     export_model_mlir(wrapped_model, output_path=output_path, function_batch_sizes_map=fn_bs_map)
 
 
@@ -187,3 +191,84 @@ def export_wan_transformer_models(dir: Path):
                         function="forward_bs1",
                         output_trace_path=f"{model.config.iree_module_path}.tracy",
                     )
+
+def export_model_mlir(
+    model,
+    output_path: PathLike,
+    *,
+    function_batch_sizes_map: Optional[dict[Optional[str], list[int]]] = None,
+    batch_sizes: Optional[list[int]] = None,
+):
+    """Export a model with no dynamic dimensions.
+
+    For the set of provided function name batch sizes pair, the resulting MLIR will
+    have function names with the below format.
+    ```
+    <function_name>_bs<batch_size>
+    ```
+
+    If `batch_sizes` is given then it defaults to a single function with named
+    "forward".
+
+    The model is required to implement method `sample_inputs`.
+    """
+
+    assert not (function_batch_sizes_map is not None and batch_sizes is not None)
+
+    if isinstance(model, ThetaLayer):
+        mark_export_external_theta(model.theta)
+
+    if batch_sizes is not None:
+        function_batch_sizes_map = {None: batch_sizes}
+
+    if function_batch_sizes_map is None and batch_sizes is None:
+        function_batch_sizes_map = {None: batch_sizes}
+    decomp_attn = True
+    decomp_list = [
+        torch.ops.aten.logspace, 
+        torch.ops.aten.upsample_bicubic2d.vec,
+        torch.ops.aten._upsample_nearest_exact2d.vec,
+        torch.ops.aten.as_strided,
+        torch.ops.aten.as_strided_copy.default,
+        torch.ops.aten.outer,
+    ]
+    decomp_blacklist = [
+        torch.ops.aten.slice,
+        torch.ops.aten.chunk,
+        torch.ops.aten.split,
+    ]
+    if decomp_attn:
+        decomp_list.extend([
+            torch.ops.aten._scaled_dot_product_flash_attention_for_cpu,
+            torch.ops.aten._scaled_dot_product_flash_attention.default,
+            torch.ops.aten.scaled_dot_product_attention.default,
+            torch.ops.aten.scaled_dot_product_attention,
+        ])
+    with decompositions.extend_aot_decompositions(
+        from_current=True,
+        add_ops=decomp_list,
+        remove_ops=decomp_blacklist,
+    ):
+        fxb = FxProgramsBuilder(model)
+
+        for function, batch_sizes in function_batch_sizes_map.items():
+            for batch_size in batch_sizes:
+                args, kwargs = model.sample_inputs(batch_size, function)
+                dynamic_shapes = model.dynamic_shapes_for_export(
+                    batch_size=batch_size, function=function
+                )
+
+                @fxb.export_program(
+                    name=f"{function or 'forward'}_bs{batch_size}",
+                    args=args,
+                    kwargs=kwargs,
+                    dynamic_shapes=dynamic_shapes,
+                    strict=False,
+                )
+                def _(model, **kwargs):
+                    return model(**kwargs)
+        
+        output = export(fxb)
+        output.save_mlir(output_path)
+
+    print("Saved MLIR to: ", str(output_path))
