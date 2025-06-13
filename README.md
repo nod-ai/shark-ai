@@ -47,8 +47,8 @@
 | sharktank/sharktank/layers/mmdit.py                                           |      102 |        0 |    100% |           |
 | sharktank/sharktank/layers/modulation.py                                      |       21 |        0 |    100% |           |
 | sharktank/sharktank/layers/norm.py                                            |       37 |        0 |    100% |           |
-| sharktank/sharktank/layers/paged\_attention.py                                |      443 |       21 |     95% |128, 135-141, 202, 670, 994-995, 1002, 1005, 1009, 1011, 1013, 1032, 1038-1043, 1048-1054, 1058 |
-| sharktank/sharktank/layers/paged\_llama\_attention\_block.py                  |      123 |       11 |     91% |122, 126-127, 140, 177, 179, 181, 245, 261-265 |
+| sharktank/sharktank/layers/paged\_attention.py                                |      443 |       21 |     95% |136, 143-149, 210, 678, 1002-1003, 1010, 1013, 1017, 1019, 1021, 1040, 1046-1051, 1056-1062, 1066 |
+| sharktank/sharktank/layers/paged\_llama\_attention\_block.py                  |      122 |       11 |     91% |116, 120-121, 134, 171, 173, 175, 239, 255-259 |
 | sharktank/sharktank/layers/rotary\_embedding.py                               |      146 |       18 |     88% |108, 124-131, 144-147, 200-201, 241-249 |
 | sharktank/sharktank/layers/testing.py                                         |       44 |        1 |     98% |       299 |
 | sharktank/sharktank/layers/token\_embedding.py                                |       12 |        0 |    100% |           |
@@ -124,7 +124,7 @@
 | sharktank/sharktank/utils/\_\_init\_\_.py                                     |        1 |        0 |    100% |           |
 | sharktank/sharktank/utils/azure.py                                            |       58 |       58 |      0% |     7-121 |
 | sharktank/sharktank/utils/cli.py                                              |      103 |       29 |     72% |173, 183-195, 243-264, 288-291, 314-320, 337-338, 340, 354, 359, 368-386 |
-| sharktank/sharktank/utils/create\_cache.py                                    |        8 |        1 |     88% |        12 |
+| sharktank/sharktank/utils/create\_cache.py                                    |        7 |        1 |     86% |        12 |
 | sharktank/sharktank/utils/debugging.py                                        |       91 |       29 |     68% |46-63, 67-74, 81-83, 127, 138 |
 | sharktank/sharktank/utils/evaluate.py                                         |       60 |       33 |     45% |32-51, 55, 69-88, 121-140 |
 | sharktank/sharktank/utils/export.py                                           |       70 |        2 |     97% |  179, 212 |
@@ -205,7 +205,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |       26 |        0 |    100% |           |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **19350** | **4022** | **79%** |           |
+|                                                                     **TOTAL** | **19348** | **4022** | **79%** |           |
 
 
 ## Setup coverage badge
