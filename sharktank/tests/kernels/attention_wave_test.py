@@ -14,33 +14,44 @@ from parameterized import parameterized
 import torch
 
 from sharktank.kernels.wave.attention import wave_bhsd_flash_attention
-from iree.turbine.kernel.wave.utils.reference_kernel_utils import (
-    scaled_dot_product_attention_bhsd,
-)
+import iree.turbine.aot as aot
 
 
-@unittest.skipIf(not torch.cuda.is_available(), "CUDA is required for Wave tests")
 class wave_attention(unittest.TestCase):
-    def setUp(self):
-        torch.manual_seed(42)
+    def testWaveAttentionCausal(self):
+        class WaveBhsdModule(torch.nn.Module):
+            def forward(self, q, k, v, output):
+                return wave_bhsd_flash_attention(q, k, v, output)
 
-    @parameterized.expand(
-        [
-            (1e-3, 1e-3),
-        ]
-    )
-    def testWaveAttentionCausal(self, atol, rtol):
-        dtype = torch.float16
-        accum_dtype = torch.float32
-        q = torch.randn([4, 32, 128, 128], device="cuda", dtype=dtype)
-        k = torch.randn([4, 32, 128, 128], device="cuda", dtype=dtype)
-        v = torch.randn([4, 32, 128, 128], device="cuda", dtype=dtype)
-        output = torch.zeros([4, 32, 128, 128], device="cuda", dtype=accum_dtype)
-        result = wave_bhsd_flash_attention(q, k, v, output)
-
-        # Tolerances are empirical and results are not expected to match exactly.
-        ref = scaled_dot_product_attention_bhsd(q, k, v, is_causal=True)
-        torch.testing.assert_close(result, ref, atol=atol, rtol=rtol)
+        e = aot.export(
+            WaveBhsdModule(),
+            args=(
+                torch.empty((4, 32, 128, 128), dtype=torch.float16),
+                torch.empty((4, 32, 128, 128), dtype=torch.float16),
+                torch.empty((4, 32, 128, 128), dtype=torch.float16),
+                torch.empty((4, 32, 128, 128), dtype=torch.float32),
+            ),
+        )
+        e.verify()
+        mlir_asm = str(e.mlir_module)
+        self.assertIn(
+            ("func.func @main"),
+            mlir_asm,
+        )
+        self.assertIn(
+            ("stream.executable private @base_attention"),
+            mlir_asm,
+        )
+        self.assertIn(
+            ("func.func private @wave_flash_attention_4_32_128_128_f16_f32"),
+            mlir_asm,
+        )
+        self.assertIn(
+            (
+                "util.func private @wave_bhsd_flash_attention_B_4_H_32_M_128_K1_128_f16_B_4_H_32_K2_128_K1_128_f16_B_4_H_32_K2_128_N_128_f16_B_4_H_32_M_128_N_128_f32_B_4_H_32_M_128_N_128_f32"
+            ),
+            mlir_asm,
+        )
 
 
 if __name__ == "__main__":

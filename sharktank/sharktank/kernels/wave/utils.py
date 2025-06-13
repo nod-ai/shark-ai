@@ -13,8 +13,8 @@ from iree.compiler.ir import (
 def get_wave_module_body_asm(module: Module) -> str:
     """
     Concatenates the MLIR of all operations within the
-    body region of the top-level Wave module and modifies the
-    visibility of the top-level public FuncOp generated in Wave
+    body region of the top-level wave_compile() module and modifies the
+    visibility of the top-level public FuncOp generated in wave_compile()
     to private, so that it gets removed when inlined.
     """
     block = module.operation.regions[0].blocks[0]
