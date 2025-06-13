@@ -113,12 +113,6 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
-    @xfail(
-        raises=TypeError,
-        reason="https://github.com/nod-ai/shark-ai/issues/1631",
-        strict=True,
-        match="TypeError: InferenceTensor.view() got an unexpected keyword argument 'dtype'",
-    )
     @is_nightly
     def test_llama3_8B_f8(self):
         # Llama 3.1 8B non-decomposed
