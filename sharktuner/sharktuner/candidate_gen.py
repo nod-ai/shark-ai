@@ -45,7 +45,7 @@ class DispatchTuner(dispatch_parser.DispatchParser):
         config: list[tuple[str, ir.Attribute]],
     ) -> ir.Module:
         """
-        Generate a transform dialect spec from a config list.
+        Generates a transform dialect spec from a config list.
         The config is a list of (str, Attribute) tuples, such as:
             [("compilation_info", CompilationInfoAttr), ...]
         """
