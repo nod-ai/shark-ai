@@ -45,6 +45,10 @@ addopts = [
     "--import-mode=importlib",
     "-m=unit and not expensive",
 ]
+
+[tool.coverage.run]
+relative_files = true
+
 markers = [
     "expensive: tests that are very expensive",
     "export: tests that require export from torch",
