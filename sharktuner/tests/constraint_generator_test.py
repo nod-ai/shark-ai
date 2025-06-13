@@ -181,17 +181,21 @@ def test_generate_solutions_tile_and_fuse_contraction_padding(
 
         assert len(solutions) > 0, "No solutions generated with TileAndFuse pipeline."
         assert all(
-            isinstance(sol, iree_codegen.CompilationInfoAttr) for sol in solutions
-        )
+            len(pair) == 1 and pair[0][0] == "compilation_info" for pair in solutions
+        ), "Each solution must be a single-item list with key 'compilation_info'"
 
+        compilation_infos = [pair[0][1] for pair in solutions]
         assert all(
-            "padding =" in str(sol.lowering_config) for sol in solutions
+            isinstance(sol, iree_codegen.CompilationInfoAttr)
+            for sol in compilation_infos
+        )
+        assert all(
+            "padding =" in str(sol.lowering_config) for sol in compilation_infos
         ), "Not all lowering configs have padding option."
-
         assert all(
             [int(x) for x in sol.lowering_config.attributes["promote_operands"]]
             == [0, 1, 2]
-            for sol in solutions
+            for sol in compilation_infos
         ), "Not all lowering configs have promote_operands = [0, 1, 2]."
 
 
@@ -249,15 +253,21 @@ def test_generate_solutions_tile_and_fuse_conv_padding(
 
         assert len(solutions) > 0, "No solutions generated with TileAndFuse pipeline."
         assert all(
-            isinstance(sol, iree_codegen.CompilationInfoAttr) for sol in solutions
+            len(pair) == 1 and pair[0][0] == "compilation_info" for pair in solutions
+        ), "Each solution must be a single-item list with key 'compilation_info'"
+
+        compilation_infos = [pair[0][1] for pair in solutions]
+        assert all(
+            isinstance(sol, iree_codegen.CompilationInfoAttr)
+            for sol in compilation_infos
         )
         assert all(
-            "padding =" in str(sol.lowering_config) for sol in solutions
+            "padding =" in str(sol.lowering_config) for sol in compilation_infos
         ), "Not all lowering configs have padding option"
         assert all(
             [int(x) for x in sol.lowering_config.attributes["promote_operands"]]
             == [0, 1, 2]
-            for sol in solutions
+            for sol in compilation_infos
         ), "Not all lowering configs have promote_operands = [0, 1, 2]"
 
 
