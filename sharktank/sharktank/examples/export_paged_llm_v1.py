@@ -9,7 +9,7 @@
 import os
 import logging
 import json
-from typing import Any, Dict, Tuple
+from typing import Any, Dict
 import torch
 
 from iree.turbine.aot import *
@@ -26,7 +26,15 @@ from sharktank.models.llm import *
 
 
 def main():
+
     parser = cli.create_parser()
+
+    parser.add_argument(
+        "--logits-normalization",
+        default="none",
+        help="Return the log softmax of the logits",
+        choices=["none", "softmax", "log_softmax"],
+    )
 
     cli.add_input_dataset_options(parser)
     cli.add_model_options(parser)
@@ -53,7 +61,8 @@ def main():
     dataset_type = cli.get_input_data_files(args)
     dataset_type = "irpa" if "irpa" in dataset_type else "gguf"
     dataset = cli.get_input_dataset(args)
-    hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
+    # hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
+    hp = configs.LlamaHParams(**dataset.properties["hparams"])
     if "tensor_parallelism_size" in dataset.properties:
         dataset_tensor_parallelism_size = dataset.properties["tensor_parallelism_size"]
         if dataset_tensor_parallelism_size != args.tensor_parallelism_size:
@@ -69,6 +78,11 @@ def main():
     block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
         dataset.root_theta, args.pipeline_parallelism_size
     )
+    if hp.model_arch == "llama4":
+        rope_layers = [
+            1,
+            3,
+        ]  # i for i in range(hp.block_count) if int((i + 1) % 4 != 0)]
 
     llama_config = LlamaModelConfig(
         hp,
@@ -83,7 +97,16 @@ def main():
         activation_dtype=args.activation_dtype,
         attention_dtype=args.attention_dtype,
         kv_cache_dtype=args.kv_cache_dtype,
+        use_qk_norm=True if hp.model_arch == "llama4" else args.use_qk_norm,
+        rope_layers=rope_layers if hp.model_arch == "llama4" else None,
+        attention_chunk_size=args.attention_chunk_size,
+        attn_temperature_tuning=True
+        if hp.model_arch == "llama4"
+        else args.attn_temperature_tuning,
+        floor_scale=args.floor_scale,
+        attn_scale=args.attn_scale,
     )
+
     llama_config.fake_quant = args.fake_quant
 
     model = PagedLlmModelV1(dataset.root_theta, llama_config)
@@ -308,14 +331,10 @@ def main():
                 return logits
 
             if top_k == 1:
-                return argmax_output(logits, chunk_size=hp.context_length // 128)
+                return model.argmax(logits, chunk_size=hp.context_length // 128)
 
-            return topk_output(
-                logits,
-                k=args.top_k,
-                chunk_size=256,
-                use_linalgext_topk=args.use_linalgext_topk,
-            )
+            out = model.topk(logits, k=args.top_k, chunk_size=hp.context_length // 128)
+            return out
 
     def generate_batch_decode(bs: int):
         # torch.export.Dim would make min at least 2
@@ -454,57 +473,13 @@ def main():
                 return logits
 
             if top_k == 1:
-                return argmax_output(logits, chunk_size=hp.context_length // 128)
+                return model.argmax(logits, chunk_size=hp.context_length // 128)
 
-            return topk_output(
-                logits,
-                k=top_k,
-                chunk_size=256,
-                use_linalgext_topk=args.use_linalgext_topk,
+            max_logits, indices = model.topk(
+                logits, k=top_k, chunk_size=hp.context_length // 128
             )
 
-    def argmax_output(
-        logits: torch.Tensor, chunk_size: int
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Return the max logits and indices for the given logits.
-
-        Args:
-            logits (torch.Tensor): Logits tensor to find the max from.
-            chunk_size (int): Chunk size for the argmax operation.
-
-        Returns:
-            Tuple[torch.Tensor, torch.Tensor]: A tuple containing the max logits and their indices.
-        """
-        indices = ops.argmax(logits, -1, chunk_size=chunk_size)
-        indices_expanded = indices.unsqueeze(-1)
-
-        max_logits = ops.gather(logits, dim=-1, index=indices_expanded)
-        max_logits = max_logits.squeeze(-1)
-
-        return max_logits, indices
-
-    def topk_output(
-        logits: torch.Tensor, k: int, chunk_size: int, use_linalgext_topk: bool
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Return the top-k logits and their indices for the given logits.
-
-        Args:
-            logits (torch.Tensor): Logits tensor to find the top-k from.
-            k (int): Number of top elements to return.
-            chunk_size (int): Chunk size for the top-k operation.
-
-        Returns:
-            Tuple[torch.Tensor, torch.Tensor]: A tuple containing the top-k logits and their indices.
-        """
-        return ops.topk(
-            logits,
-            k=k,
-            dim=-1,
-            largest=True,
-            sorted=not use_linalgext_topk,
-            chunk_size=chunk_size,
-            use_linalgext_topk=use_linalgext_topk,
-        )
+            return max_logits, indices
 
     if not args.skip_prefill:
         for bs in args.bs_prefill:

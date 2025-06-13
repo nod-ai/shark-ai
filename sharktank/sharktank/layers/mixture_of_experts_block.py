@@ -89,6 +89,8 @@ class MoeBlock(ThetaLayer):
 
         # Add expert_count x FFN
         if isinstance(experts_ffn_moe_block, str):
+            if model_arch == "llama4":
+                experts_ffn_moe_block = "DenseFFNMOE"
             if experts_ffn_moe_block == "PreGatherFFNMOE":
                 self.routed_experts = PreGatherFFNMOE(
                     routed_ffn_theta,

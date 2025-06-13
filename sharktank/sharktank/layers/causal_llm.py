@@ -149,6 +149,7 @@ class BaseCausalLMModel(ThetaLayer):
         self, attention_mask: torch.Tensor | ReplicatedTensor
     ) -> torch.Tensor:
         """Apply a chunked attention mask onto a mask."""
+
         batch_seq_len = attention_mask.shape[2]
         # TODO: handle decode step
         start_index = 0
@@ -159,8 +160,7 @@ class BaseCausalLMModel(ThetaLayer):
             start_index=start_index,
             end_index=end_index,
         )
-
-        return torch.where(
+        out = torch.where(
             chunked_boolean_attention_mask,
             attention_mask,
             torch.tensor(
@@ -168,6 +168,7 @@ class BaseCausalLMModel(ThetaLayer):
                 dtype=attention_mask.dtype,
             ),
         )
+        return out
 
     def create_boolean_chunked_attention_mask(
         self, attention_chunk_size: int, start_index: int, end_index: int

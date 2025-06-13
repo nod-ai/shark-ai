@@ -101,6 +101,23 @@ def add_model_options(parser: argparse.ArgumentParser):
         default="float16",
     )
     parser.add_argument(
+        "--attention-chunk-size",
+        help="chunk sizes in chunk attention used for llama4",
+        type=int,
+        default=37,
+    )
+    parser.add_argument(
+        "--attn-temperature-tuning",
+        help="tunning temperature for llama4",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--attn-scale",
+        help="attention scale used for llama4",
+        type=float,
+        default=0.2,
+    )
+    parser.add_argument(
         "--kv-cache-dtype",
         help="DType to use for the KV cache. If not given will be attention dtype",
         default=None,
@@ -132,6 +149,12 @@ def add_model_options(parser: argparse.ArgumentParser):
         default=512,
     )
     parser.add_argument(
+        "--floor-scale",
+        help="attention scale used for llama4",
+        type=int,
+        default=31,
+    )
+    parser.add_argument(
         "--use-attention-mask",
         help="Generates attention mask during export",
         action="store_true",
@@ -141,6 +164,7 @@ def add_model_options(parser: argparse.ArgumentParser):
         help="Generates toy model",
         action="store_true",
     )
+    parser.add_argument("--use-qk-norm", help="qk_norm for llama4", action="store_true")
     parser.add_argument(
         "--top-k",
         help="Export with a `top_k` kernel. If `top_k` == 1, argmax is exported."
@@ -153,17 +177,6 @@ def add_model_options(parser: argparse.ArgumentParser):
         help="Size of chunks to split into when exporting `top_k`.",
         type=int,
         default=1024,
-    )
-    parser.add_argument(
-        "--use-linalgext-topk",
-        action="store_true",
-        help="Whether to use the linalg_ext topk implementation",
-    )
-    parser.add_argument(
-        "--logits-normalization",
-        default="none",
-        help="Return the log softmax of the logits",
-        choices=["none", "softmax", "log_softmax"],
     )
 
 

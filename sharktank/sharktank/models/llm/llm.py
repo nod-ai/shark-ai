@@ -95,7 +95,6 @@ class PagedLlmModelV1(BaseCausalLMModel):
                     pipeline_parallelism=config.pipeline_parallelism_size > 1,
                     devices=self.cache.pipeline_to_device_map[pipeline],
                     dtype=self.config.activation_dtype,
-                    model_arch=self.config.hp.model_arch,
                 )
                 for pipeline in range(self.config.pipeline_parallelism_size)
             ]
@@ -142,6 +141,29 @@ class PagedLlmModelV1(BaseCausalLMModel):
             x.shards, old_devices=curr_devices, new_devices=next_devices
         )
         return x.clone(ts=shards, devices=next_devices)
+
+    def argmax(
+        self,
+        logits: torch.Tensor,
+        chunk_size: int,
+    ):
+        indices = ops.argmax(logits, -1, chunk_size=chunk_size)
+        indices_expanded = indices.unsqueeze(-1)
+
+        max_logits = ops.gather(logits, dim=-1, index=indices_expanded)
+        max_logits = max_logits.squeeze(-1)
+
+        return max_logits, indices
+
+    def topk(
+        self,
+        logits: torch.Tensor,
+        k: int,
+        chunk_size: int,
+    ):
+        return ops.topk(
+            logits, k=k, dim=-1, largest=True, sorted=True, chunk_size=chunk_size
+        )
 
     def prefill(
         self,
@@ -201,7 +223,6 @@ class PagedLlmModelV1(BaseCausalLMModel):
             h = self._inter_layer_callback(h, block_idx)
             self.trace_tensor(f"llama.attn_block.{block_idx}.output", h)
 
-        h = h.to(self.config.activation_dtype)
         h = self.output_norm(h)
         logits = self.output_lm_head(h)
 
@@ -289,7 +310,6 @@ class PagedLlmModelV1(BaseCausalLMModel):
             h = self._inter_layer_callback(h, block_idx)
             self.trace_tensor(f"llama.attn_block.{block_idx}.output", h)
 
-        h = h.to(self.config.activation_dtype)
         h = self.output_norm(h)
         logits = self.output_lm_head(h)
 
@@ -333,11 +353,6 @@ class AttentionFFNBlock(ThetaLayer):
         else:
             use_rope = True
 
-        use_qk_norm = (
-            block_index in config.rope_layers and config.use_qk_norm
-            if config.rope_layers
-            else False
-        )
         self.add_module(
             "attn",
             PagedLlamaAttentionBlock(
@@ -355,7 +370,9 @@ class AttentionFFNBlock(ThetaLayer):
                 softcap=config.hp.attention_softcap,
                 model_arch=config.hp.model_arch,
                 use_rope=use_rope,
-                use_qk_norm=use_qk_norm,
+                use_qk_norm=block_index in config.rope_layers and config.use_qk_norm
+                if config.rope_layers
+                else False,
                 attn_temperature_tuning=config.attn_temperature_tuning,
                 floor_scale=config.floor_scale,
                 attn_scale=config.attn_scale,
@@ -452,6 +469,7 @@ class AttentionFFNBlock(ThetaLayer):
         attention_mask: list[Union[torch.Tensor, ReplicatedTensor]] = None,
         embedding_batch_mask: Optional[torch.Tensor] = None,
         cache_state: list[torch.Tensor] = None,
+        router_override: Optional[torch.Tensor] = None,
     ):
         h = self.attn(
             h,
@@ -463,7 +481,6 @@ class AttentionFFNBlock(ThetaLayer):
             embedding_batch_mask=embedding_batch_mask,
             cache_state=cache_state,
         )
-
         # Feed forward network.
         final_output = self.ffn(self.ffn_norm(h))
 
