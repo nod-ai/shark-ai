@@ -5,12 +5,10 @@ import logging
 import shortfin as sf
 import shortfin.array as sfnp
 from dataclasses import dataclass
-from ....utils import convert_float_to_int
 
 import math
 
 import time
-import torch
 
 logger = logging.getLogger(__name__)
 
@@ -163,7 +161,7 @@ class PagePool:
             f"{100.0 * free_pages / total_pages}% free)"
         )
 
-    def get_page_data(self, page: PageInfo) -> Torch.Tensor:
+    def get_page_data(self, page: PageInfo) -> List[int]:
         """
         Get the data for a specific page.
 
@@ -171,57 +169,30 @@ class PagePool:
             page: PageInfo object representing the page
 
         Returns:
-           Torch.tensor containing the page data
+           a list containing the page data
         """
         page_table = self.page_tables[0]
         host_page_table = page_table.for_transfer()
         host_view = host_page_table.view(page.index)
         device_view = page_table.view(page.index)
         host_view.copy_from(device_view)
-        dtype_map = {
-            "float32": torch.float32,
-            "float64": torch.float64,
-            "float16": torch.float16,
-            "int32": torch.int32,
-            "int64": torch.int64,
-            "bool": torch.bool,
-        }
         with host_view.map(discard=True) as m:
-            page_data = torch.tensor(
-                m.items,
-                dtype=dtype_map[str(self.config.dtype)],
-            )
+            page_data = m.items
         return page_data
 
-    def update_page_data(self, page: PageInfo, data: Torch.Tensor) -> None:
+    def update_page_data(self, page: PageInfo, data: List[int]) -> None:
         """
         Update the data for a specific page.
 
         Args:
             page: PageInfo object representing the page
-            data: Torch.tensor containing the new data
+            data: a list containing the new data
 
         """
         page_table = self.page_tables[0]
         host_page_table = page_table.for_transfer()
         src_view = host_page_table.view(page.index)
         dst_view = page_table.view(page.index)
-        data_items = data.tolist()
-        if len(data_items) != self.config.paged_kv_block_size_elements:
-            raise ValueError(
-                f"Data length {len(data_items)} does not match page size "
-                f"{self.config.paged_kv_block_size_elements} elements."
-            )
-        # convert data items to int list
-        dtype_map = {
-            "float32": sfnp.float32,
-            "float64": sfnp.float64,
-            "float16": sfnp.float16,
-            "int32": sfnp.int32,
-            "int64": sfnp.int64,
-        }
-        sfnp_dtype = dtype_map[str(self.config.dtype)]
-        data = [convert_float_to_int(item, sfnp_dtype) for item in data_items]
         with src_view.map(discard=True) as m:
             m.items = data
         dst_view.copy_from(src_view)

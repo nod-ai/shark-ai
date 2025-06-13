@@ -217,7 +217,7 @@ class MooncakePagedAttentionCache(TriePagedAttentionCache):
         else:
             logger.debug(f"Page with key {key} is new, adding it to Mooncake store.")
             self.mooncake_keys.add(key)
-            self.mooncake_store.put(key, value)
+            self.mooncake_store.put_int_list(key, value)
             logger.debug(f"Page with key {key} sent to Mooncake store successfully.")
 
     def update_page_from_mooncake(
@@ -238,7 +238,7 @@ class MooncakePagedAttentionCache(TriePagedAttentionCache):
         logger.debug(f"Retrieving page with key {key} from Mooncake store.")
         for mooncake_key in self.mooncake_keys:
             if mooncake_key.startswith(key):
-                value = self.mooncake_store.get(mooncake_key)
+                value = self.mooncake_store.get_int_list(mooncake_key)
                 if value is None:
                     logger.warning(f"Page with key {key} not found in Mooncake store.")
                     return False

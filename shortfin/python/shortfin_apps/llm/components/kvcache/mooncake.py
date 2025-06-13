@@ -146,6 +146,16 @@ class MooncakeStore:
             logger.error(f"Failed to put key: {key} into Mooncake KVCache. Error: {e}")
             raise e
 
+    def put_int_list(self, key: str, value: list[int]) -> None:
+        """
+        Put a key-value pair into the Mooncake KVCache with a list of integers.
+        This method is specifically for storing lists of integers as tensors.
+        """
+        if not self._connected:
+            raise RuntimeError("MooncakeStore is not connected.")
+        value_tensor = torch.tensor(value, dtype=torch.int)
+        self.put(key, value_tensor)
+
     def get(self, key: str) -> Optional[torch.Tensor]:
         """
         Get a value from the Mooncake KVCache by key.
@@ -170,4 +180,14 @@ class MooncakeStore:
             value = value_tensor.to(device)
             logger.info(f"Successfully retrieved key: {key} from Mooncake KVCache.")
             return value
+        return None
+
+    def get_int_list(self, key: str) -> Optional[list[int]]:
+        """
+        Get a list of integers from the Mooncake KVCache by key.
+        This method is specifically for retrieving lists of integers stored as tensors.
+        """
+        value_tensor = self.get(key)
+        if value_tensor is not None:
+            return value_tensor.tolist()
         return None
