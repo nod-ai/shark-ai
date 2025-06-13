@@ -24,7 +24,11 @@ from .service_debug_dumper import SERVICE_DEBUG_DUMPER
 from .tokenizer import Tokenizer
 from .token_selection_strategy import is_multi_response
 
-from ...utils import GenerateService
+from ...utils import (
+    GenerateService,
+    LLM_DISAGGREGATED_DECODE_DEVICE_IDX,
+    LLM_DISAGGREGATED_PREFILL_DEVICE_IDX,
+)
 from .fiber_pool import FiberPool
 
 logger = logging.getLogger(__name__)
@@ -33,7 +37,7 @@ logger = logging.getLogger(__name__)
 class LlmGenerateService(GenerateService):
     """Top level service interface for generating text against a model."""
 
-    inference_program: sf.Program
+    inference_program: sf.Program | list[sf.Program]
     prefill_functions: dict[int, sf.ProgramFunction]
     decode_functions: dict[int, sf.ProgramFunction]
 
@@ -53,6 +57,7 @@ class LlmGenerateService(GenerateService):
         self.tokenizer = tokenizer
         self.model_params = model_params
         self.server_params = server_params
+        self.disaggregate = server_params.disaggregate
         self.max_queue_size = max_queue_size
         self.current_queue_size = 0
         self.main_fiber_pool = FiberPool(
@@ -90,6 +95,10 @@ class LlmGenerateService(GenerateService):
                 )
 
     def _initialize_worker_and_fiber(self):
+        if self.disaggregate:
+            self._initialize_disaggregated_worker_and_fiber()
+            return
+
         num_workers = self.server_params.workers
         fibers_per_worker = self.server_params.fibers_per_worker
 
@@ -140,6 +149,10 @@ class LlmGenerateService(GenerateService):
             )
 
     def start(self):
+        if self.disaggregate:
+            self.start_disaggregated()
+            return
+
         component_modules = self.initialize_program_modules("main")
         self.inference_program = self.create_program(
             modules=component_modules, devices=self.sysman.ls.devices
@@ -184,6 +197,100 @@ class LlmGenerateService(GenerateService):
             f"  model_params={self.model_params}\n"
             f"  server_params={self.server_params}\n"
             f"  inference_modules={self.inference_modules}\n"
-            f"  page_cache={self.page_cache}\n"
-            f")"
+            f"  page_cache={self.page_cache}\n",
+            f"  disaggregated={self.disaggregate}",
+            f")",
         )
+
+    # The intention behind separate definitions for functions implementing
+    # disaggregated invocation is to be able to modify this code without
+    # breaking default behavior, especially in models that are running with
+    # sharding across multiple physical devices.
+    def _initialize_disaggregated_worker_and_fiber(self):
+        num_workers = self.server_params.workers
+        fibers_per_worker = self.server_params.fibers_per_worker
+        devices = self.sysman.ls.devices
+
+        logger.info(
+            f"Creating {num_workers} workers, with {fibers_per_worker} fibers per worker..."
+        )
+
+        self.main_worker = self.sysman.ls.create_worker(f"{self.name}-inference-main-0")
+        # Unconditionally assign device 0 to the main fiber.
+        self.main_fiber = self.sysman.ls.create_fiber(
+            self.main_worker, devices=[devices[LLM_DISAGGREGATED_PREFILL_DEVICE_IDX]]
+        )
+
+        self.prefill_worker = self.sysman.ls.create_worker(
+            f"{self.name}-inference-prefill-0"
+        )
+        self.prefill_fiber = self.sysman.ls.create_fiber(
+            self.prefill_worker, devices=[devices[LLM_DISAGGREGATED_PREFILL_DEVICE_IDX]]
+        )
+
+        self.decode_worker = self.sysman.ls.create_worker(
+            f"{self.name}-inference-decode-0"
+        )
+        self.decode_fiber = self.sysman.ls.create_fiber(
+            self.decode_worker, devices=[devices[LLM_DISAGGREGATED_DECODE_DEVICE_IDX]]
+        )
+
+        self.devices = self.prefill_fiber.devices_dict.values()
+
+    def start_disaggregated(self):
+        component_modules = self.initialize_program_modules("main")
+        self.inference_program = [
+            self.create_program(
+                modules=component_modules, devices=[self.sysman.ls.devices[idx]]
+            )
+            for idx in range(len(self.sysman.ls.devices))
+        ]
+        self.initialize_disaggregated_function_references()
+
+        task_list = [
+            "prefill-exec",
+            "decode-exec",
+        ]
+
+        devices = self.sysman.ls.devices
+        workers = [self.sysman.ls.create_worker(f"{task}-worker") for task in task_list]
+        exec_fibers = [
+            self.sysman.ls.create_fiber(
+                workers[idx], devices=[devices[idx % len(devices)]]
+            )
+            for idx in range(len(workers))
+        ]
+
+        self.prefill_batcher = PrefillBatcherProcess(
+            self.prefill_fiber,
+            self.page_cache,
+            self.model_params,
+            self.prefill_functions,
+            self.prog_isolation,
+            exec_fibers[LLM_DISAGGREGATED_PREFILL_DEVICE_IDX],
+        )
+
+        self.decode_batcher = DecodeBatcherProcess(
+            self.decode_fiber,
+            self.page_cache,
+            self.model_params,
+            self.decode_functions,
+            self.prog_isolation,
+            exec_fibers[LLM_DISAGGREGATED_DECODE_DEVICE_IDX],
+        )
+
+        self.prefill_batcher.launch()
+        self.decode_batcher.launch()
+
+    def initialize_disaggregated_function_references(self):
+        self.prefill_functions = {}
+        for bs in self.model_params.prefill_batch_sizes:
+            self.prefill_functions[bs] = self.inference_program[
+                LLM_DISAGGREGATED_PREFILL_DEVICE_IDX
+            ][f"{self.model_params.module_name}.prefill_bs{bs}"]
+        # Resolve decode entrypoints.
+        self.decode_functions = {}
+        for bs in self.model_params.decode_batch_sizes:
+            self.decode_functions[bs] = self.inference_program[
+                LLM_DISAGGREGATED_DECODE_DEVICE_IDX
+            ][f"{self.model_params.module_name}.decode_bs{bs}"]
