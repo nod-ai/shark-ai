@@ -8,7 +8,7 @@ import gc
 import iree.compiler
 import iree.runtime
 import pytest
-import sys
+import re
 import tempfile
 import torch
 
@@ -26,6 +26,7 @@ from sharktank.utils.iree import (
     run_iree_module_function,
     with_iree_device_context,
 )
+from sharktank.utils.testing import xfail
 from typing import List
 
 
@@ -100,7 +101,7 @@ def run_test_toy_size_sharded_resnet_block_with_iree(artifacts_dir: Path):
                 vm_context=iree_vm_context,
                 args=iree_args,
                 device=iree_devices[0],
-                function_name=f"main",
+                function_name="forward",
             )
         )
         return [
@@ -114,25 +115,19 @@ def run_test_toy_size_sharded_resnet_block_with_iree(artifacts_dir: Path):
     torch.testing.assert_close(actual_outputs, expected_results, rtol=0, atol=5e-5)
 
 
-@pytest.mark.xfail(
-    raises=iree.compiler.tools.binaries.CompilerToolError,
-    reason="https://github.com/nod-ai/shark-ai/issues/1576",
+@xfail(
+    raises=iree.compiler.CompilerToolError,
+    reason=(
+        "The compiler crashes."
+        " See IREE issue https://github.com/iree-org/iree/issues/21049."
+    ),
     strict=True,
+    match=re.escape(r"Error code: -11"),
 )
-@pytest.mark.xfail(
-    torch.__version__ >= (2, 5),
-    reason="https://github.com/nod-ai/shark-ai/issues/683",
-    strict=True,
-)
-@pytest.mark.skipif(
-    sys.platform == "win32", reason="https://github.com/nod-ai/shark-ai/issues/698"
-)
-def test_toy_size_sharded_resnet_block_with_iree():
+def test_toy_size_sharded_resnet_block_with_iree(tmp_path: Path):
     """Test sharding, exportation and execution with IREE local-task of a Resnet block.
     The result is compared against execution with torch.
     The model is tensor sharded across 2 devices.
     """
 
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        run_test_toy_size_sharded_resnet_block_with_iree(artifacts_dir=Path(tmp_dir))
-        gc.collect()
+    run_test_toy_size_sharded_resnet_block_with_iree(artifacts_dir=tmp_path)
