@@ -49,11 +49,18 @@ class ExportArtifactsException(Exception):
         )
 
 
-class ExportMlirException(ExportArtifactsException):
+class MlirExportException(ExportArtifactsException):
     """shark-ai export MLIR exception."""
 
     def __init__(self, process: subprocess.CompletedProcess, cwd: str):
         super().__init__(process, cwd, export_stage="export_paged_llama_v1.py")
+
+
+class IreeBenchmarkException(Exception):
+    """IREE benchmark runtime exception."""
+
+    def __init__(self, process: subprocess.CompletedProcess, cwd: str):
+        super().__init__(process, cwd, export_stage="iree-benchmark-module")
 
 
 class IreeCompileException(Exception):
@@ -63,18 +70,18 @@ class IreeCompileException(Exception):
         super().__init__(process, cwd, export_stage="iree-compile")
 
 
-class IreeBenchmarkException(Exception):
-    """Iree benchmark runtime exception."""
-
-    def __init__(self, process: subprocess.CompletedProcess, cwd: str):
-        super().__init__(process, cwd, export_stage="iree-benchmark-module")
-
-
 class IreeRunModuleException(Exception):
     """Runtime exception that preserves the command line and error output."""
 
     def __init__(self, process: subprocess.CompletedProcess, cwd: str):
         super().__init__(process, cwd, export_stage="iree-run-module")
+
+
+class IrpaShardException(Exception):
+    """IRPA sharding exception."""
+
+    def __init__(self, process: subprocess.CompletedProcess, cwd: str):
+        super().__init__(process, cwd, export_stage="shard_llm_dataset.py")
 
 
 class ExportArtifacts:
@@ -193,14 +200,9 @@ class ExportArtifacts:
 
         proc = subprocess.run(cmd, shell=True, capture_output=True, cwd=cwd, text=True)
         if proc.returncode != 0:
-            logger.error(
-                f"Error sharding irpa file with shard_llm_dataset.py\n"
-                f"{proc.stdout+proc.stderr}"
-            )
+            raise IrpaShardException(proc, cwd)
         else:
-            logger.info(f"Sharded irpa file successfully:\n" f"{proc.stdout}")
-
-        return proc.returncode
+            logger.info(f" Exported to mlir successfully:\n" f"{proc.stdout}")
 
     @timeit
     def export_to_mlir(
@@ -226,6 +228,7 @@ class ExportArtifacts:
             f"--pipeline-parallelism-size={self.pipeline_parallelism_size}",
         ]
 
+        # TODO: This check should be handled by the export script.
         assert self.attention_kernel in [
             "decomposed",
             "torch",
@@ -250,7 +253,7 @@ class ExportArtifacts:
 
         proc = subprocess.run(cmd, shell=True, capture_output=True, cwd=cwd, text=True)
         if proc.returncode != 0:
-            raise ExportMlirException(proc, cwd)
+            raise MlirExportException(proc, cwd)
         else:
             logger.info(f" Exported to mlir successfully:\n" f"{proc.stdout}")
 
@@ -363,7 +366,9 @@ class ExportArtifacts:
 
     def get_artifacts(self):
 
-        self.dir_path = self.sharktank_dir + "/" + "perplexity_ci_artifacts/"
+        self.dir_path = (
+            self.sharktank_dir + "/" + "perplexity_ci_artifacts/"
+        )  # TODO: Remove this hardcoded path
         temp_dir = Path(self.dir_path)
         temp_dir.mkdir(parents=True, exist_ok=True)
 
