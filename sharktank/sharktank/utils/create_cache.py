@@ -11,13 +11,6 @@ def create_paged_kv_cache(config: LlamaModelConfig) -> PagedAttention:
     if config.kv_cache_type != "paged":
         raise ValueError("Model does not use paged kv cache, cannot create kv cache")
 
-    attn_type_map = {
-        "llama": "gqa",
-        "grok": "gqa",
-        "deepseek2": "mla",
-        "llama4": "gqa",
-    }
-
     hp = config.hp
     dtype = config.kv_cache_dtype or config.attention_dtype
     return PagedAttention(

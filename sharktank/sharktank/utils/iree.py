@@ -395,11 +395,11 @@ def device_array_to_host(device_array: iree.runtime.DeviceArray) -> torch.Tensor
         return torch.tensor(device_array.to_host())
 
 
-def torch_tensor_to_device_array(
-    tensor: torch.Tensor, device: iree.runtime.HalDevice
+def tensor_to_device_array(
+    tensor: torch.Tensor | DefaultPrimitiveTensor, device: iree.runtime.HalDevice
 ) -> iree.runtime.DeviceArray:
     if tensor.dtype in torch_dtype_to_hal_element_type_map.keys():
-        tensor_reinterpreted_dtype = tensor.view(
+        tensor_reinterpreted_dtype = unbox_tensor(tensor).view(
             dtype=dtype_to_dtype_reinterpret_map[tensor.dtype]
         )
         device_array_reinterpreted_dtype = iree.runtime.asdevicearray(
@@ -479,7 +479,7 @@ def prepare_iree_module_function_args(
                 ]
             )
         elif isinstance(arg, (DefaultPrimitiveTensor, torch.Tensor)):
-            res.append(torch_tensor_to_device_array(arg, devices[0]))
+            res.append(tensor_to_device_array(arg, devices[0]))
         elif isinstance(arg, iree.runtime.DeviceArray):
             res.append(arg)
         else:
