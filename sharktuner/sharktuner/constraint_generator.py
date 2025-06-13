@@ -52,7 +52,7 @@ def generate_generic_contraction_solutions(
     mma_intrinsics: list[iree_gpu.MMAIntrinsic] = [],
     allowed_waves_per_eu: list[int] = [2],
     pipeline_options_search_space: dispatch_constraints.PipelineOptionsSearchSpace = dispatch_constraints.PipelineOptionsSearchSpace(),
-) -> Iterator[iree_codegen.CompilationInfoAttr]:
+) -> Iterator[list[tuple[str, ir.Attribute]]]:
     adjust_problem_size_for_pipeline(
         contraction_dims,
         matmul_size,
@@ -239,7 +239,7 @@ def generate_generic_contraction_solutions(
         i += 1
 
         for compilation_info in compilation_infos:
-            yield compilation_info
+            yield [("compilation_info", compilation_info)]
 
 
 class ConstraintGenerator(ABC):
@@ -252,8 +252,10 @@ class ConstraintGenerator(ABC):
     and using that information to generate valid configurations that satisfy the
     constraints imposed by the codegen pipeline and target architecture.
 
-    The `generate_solutions` method produces a stream of CompilationInfoAttr
-    candidates, each representing a viable tuning configuration for the given problem.
+    The `generate_solutions` method produces a stream of configuration tuples.
+    Each item is a list of (str, Attribute) pairs representing a viable tuning configuration.
+    The example entry is:
+        [("compilation_info", CompilationInfoAttr)].
     """
 
     @abstractmethod
@@ -262,10 +264,9 @@ class ConstraintGenerator(ABC):
         tuner_context: common.TunerContext,
         codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline,
         **pipeline_constraint_options,
-    ) -> Iterator[iree_codegen.CompilationInfoAttr]:
+    ) -> Iterator[list[tuple[str, ir.Attribute]]]:
         """
-        Generate a sequence of CompilationInfoAttr candidates based on the
-        tuning constraints for the given codegen pipeline.
+        Generate a sequence of tuning configuration entries for the specified pipeline.
         """
         pass
 
@@ -314,7 +315,7 @@ class ContractionOpInterfaceConstraintGenerator(ConstraintGenerator):
         tuner_context: common.TunerContext,
         codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline,
         **pipeline_constraint_options,
-    ) -> Iterator[iree_codegen.CompilationInfoAttr]:
+    ) -> Iterator[list[tuple[str, ir.Attribute]]]:
         return generate_generic_contraction_solutions(
             tuner_ctx=tuner_context,
             contraction_dims=self.dims,
@@ -371,7 +372,7 @@ class ConvolutionOpInterfaceConstraintGenerator(ConstraintGenerator):
         tuner_context: common.TunerContext,
         codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline,
         **pipeline_constraint_options,
-    ) -> Iterator[iree_codegen.CompilationInfoAttr]:
+    ) -> Iterator[list[tuple[str, ir.Attribute]]]:
         return generate_generic_contraction_solutions(
             tuner_ctx=tuner_context,
             contraction_dims=self.dims,

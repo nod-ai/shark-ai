@@ -42,9 +42,13 @@ class DispatchTuner(dispatch_parser.DispatchParser):
     @abstractmethod
     def get_td_spec(
         self,
-        compilation_info: iree_codegen.CompilationInfoAttr,
+        config: list[tuple[str, ir.Attribute]],
     ) -> ir.Module:
-        """Generate a transform dialect spec that applies the compilation info attr."""
+        """
+        Generate a transform dialect spec from a config list.
+        The config is a list of (str, Attribute) tuples, such as:
+            [("compilation_info", CompilationInfoAttr), ...]
+        """
         pass
 
     @abstractmethod
@@ -81,15 +85,12 @@ class ContractionOpInterfaceTuner(
 
     def get_td_spec(
         self,
-        compilation_info: iree_codegen.CompilationInfoAttr,
+        config: list[tuple[str, ir.Attribute]],
     ) -> ir.Module:
         contraction_op = self.get_root_op()
         func_name = self.get_root_op_func_name()
-
-        # Wrap the single CompilationInfoAttr in a list of (str, Attribute).
-        config_list = [("compilation_info", compilation_info)]
         return spec_builder.build_td_spec(
-            contraction_op.context, contraction_op, config_list, func_name
+            contraction_op.context, contraction_op, config, func_name
         )
 
 
@@ -106,16 +107,11 @@ class ConvolutionOpInterfaceTuner(
 
     def get_td_spec(
         self,
-        compilation_info: iree_codegen.CompilationInfoAttr,
+        config: list[tuple[str, ir.Attribute]],
     ) -> ir.Module:
         conv_op = self.get_root_op()
         func_name = self.get_root_op_func_name()
-
-        # Wrap the single CompilationInfoAttr in a list of (str, Attribute).
-        config_list = [("compilation_info", compilation_info)]
-        return spec_builder.build_td_spec(
-            conv_op.context, conv_op, config_list, func_name
-        )
+        return spec_builder.build_td_spec(conv_op.context, conv_op, config, func_name)
 
 
 def get_default_output_dir() -> str:
