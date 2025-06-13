@@ -12,6 +12,7 @@ from typing import Optional, Any
 
 # Tests under each top-level directory will get a mark.
 TLD_MARKS = {
+    "hip_kernels": "unit",
     "tests": "unit",
     "integration": "integration",
 }
@@ -82,6 +83,12 @@ def pytest_addoption(parser):
         dest="run-nightly-tests",
         default=False,
         help="Enable all nightly tests",
+    )
+    parser.addoption(
+        "--hip-kernel-build",
+        type=Path,
+        default=None,
+        help="Path to where the hip kernel library has been built.",
     )
 
     parser.addoption(
