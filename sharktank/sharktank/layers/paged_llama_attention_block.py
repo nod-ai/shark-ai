@@ -14,7 +14,7 @@ from .linear import LinearLayer
 from .norm import RMSNormLayer, L2Norm
 from .rotary_embedding import RotaryEmbeddingLayer
 from .latent_attention_block import LatentAttentionBlock
-from .paged_attention import PagedAttention
+from .paged_attention import PagedAttention, attn_type_map
 from sharktank import ops
 
 __all__ = [
@@ -71,13 +71,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self.floor_scale = floor_scale
         self.attn_scale = attn_scale
 
-        self.attn_type_map = {
-            "llama": "gqa",
-            "grok": "gqa",
-            "deepseek2": "mla",
-            "llama4": "gqa",
-        }
-        self.attn_type = self.attn_type_map[self.model_arch]
+        self.attn_type = attn_type_map[self.model_arch]
         assert (
             self.attn_type == self.paged_attention.attn_type
         ), f"Attention type mismatch: {self.attn_type} != {self.paged_attention.attn_type}"
