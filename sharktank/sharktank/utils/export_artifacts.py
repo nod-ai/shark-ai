@@ -25,45 +25,12 @@ logger.root.handlers[0].setFormatter(
 )
 
 
-class ExportMlirException(Exception):
-    """shark-ai export MLIR exception that preserves the command line and error output."""
+class ExportArtifactsException(Exception):
+    """Base exception for export artifacts errors that preserves the command line and error output."""
 
-    def __init__(self, process: subprocess.CompletedProcess, cwd: str):
-        try:
-            errs = process.stderr.decode("utf-8")
-        except:
-            errs = str(process.stderr)
-        super().__init__(
-            f"Error invoking export_paged_llama_v1.py\n"
-            f"Error code: {process.returncode}\n"
-            f"Stderr diagnostics:\n{errs}\n\n"
-            f"Invoked with:\n"
-            f"  cd {cwd} && {process.args}\n\n"
-        )
-
-
-class IreeCompileException(Exception):
-    """Compiler exception that preserves the command line and error output."""
-
-    def __init__(self, process: subprocess.CompletedProcess, cwd: str):
-        try:
-            errs = process.stderr.decode("utf-8")
-        except:
-            errs = str(process.stderr)
-        super().__init__(
-            f"Error invoking iree-compile\n"
-            f"Error code: {process.returncode}\n"
-            f"Stderr diagnostics:\n{errs}\n\n"
-            f"Invoked with:\n"
-            f"  cd {cwd} && {process.args}\n\n"
-        )
-
-
-class IreeBenchmarkException(Exception):
-    """Runtime exception that preserves the command line and error output."""
-
-    def __init__(self, process: subprocess.CompletedProcess, cwd: str):
-        # iree-run-module sends output to both stdout and stderr
+    def __init__(
+        self, process: subprocess.CompletedProcess, cwd: str, export_stage: str
+    ):
         try:
             errs = process.stderr.decode("utf-8")
         except:
@@ -73,13 +40,41 @@ class IreeBenchmarkException(Exception):
         except:
             outs = str(process.stdout)
         super().__init__(
-            f"Error invoking iree-benchmark-module\n"
+            f"Error invoking {export_stage}\n"
             f"Error code: {process.returncode}\n"
             f"Stderr diagnostics:\n{errs}\n"
             f"Stdout diagnostics:\n{outs}\n"
-            f"Run with:\n"
-            f"  cd {cwd} && {process.args}\n\n"
+            f"Invoked with:\n"
+            f"\tcd {cwd} && {process.args}\n\n"
         )
+
+
+class ExportMlirException(ExportArtifactsException):
+    """shark-ai export MLIR exception."""
+
+    def __init__(self, process: subprocess.CompletedProcess, cwd: str):
+        super().__init__(process, cwd, export_stage="export_paged_llama_v1.py")
+
+
+class IreeCompileException(Exception):
+    """IREE compiler exception."""
+
+    def __init__(self, process: subprocess.CompletedProcess, cwd: str):
+        super().__init__(process, cwd, export_stage="iree-compile")
+
+
+class IreeBenchmarkException(Exception):
+    """Iree benchmark runtime exception."""
+
+    def __init__(self, process: subprocess.CompletedProcess, cwd: str):
+        super().__init__(process, cwd, export_stage="iree-benchmark-module")
+
+
+class IreeRunModuleException(Exception):
+    """Runtime exception that preserves the command line and error output."""
+
+    def __init__(self, process: subprocess.CompletedProcess, cwd: str):
+        super().__init__(process, cwd, export_stage="iree-run-module")
 
 
 class ExportArtifacts:
