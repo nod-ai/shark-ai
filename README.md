@@ -33,7 +33,7 @@
 | sharktank/sharktank/kernels/topk.py                                           |       28 |        0 |    100% |           |
 | sharktank/sharktank/layers/\_\_init\_\_.py                                    |       15 |        0 |    100% |           |
 | sharktank/sharktank/layers/activations.py                                     |        3 |        0 |    100% |           |
-| sharktank/sharktank/layers/base.py                                            |      164 |       27 |     84% |131, 206-209, 224, 242, 259-260, 269, 298, 344-352, 363-376, 378, 382-385, 389, 395, 402 |
+| sharktank/sharktank/layers/base.py                                            |      177 |       27 |     85% |131, 206-209, 224, 242, 259-260, 269, 298, 366-374, 385-398, 400, 404-407, 411, 417, 424 |
 | sharktank/sharktank/layers/causal\_llm.py                                     |       69 |        5 |     93% |57-62, 132 |
 | sharktank/sharktank/layers/configs/\_\_init\_\_.py                            |        2 |        0 |    100% |           |
 | sharktank/sharktank/layers/configs/config.py                                  |      172 |       16 |     91% |17, 139, 196, 205-211, 219, 234, 248-254, 267, 269, 289, 313 |
@@ -205,7 +205,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |       26 |        0 |    100% |           |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **19348** | **4022** | **79%** |           |
+|                                                                     **TOTAL** | **19361** | **4022** | **79%** |           |
 
 
 ## Setup coverage badge
