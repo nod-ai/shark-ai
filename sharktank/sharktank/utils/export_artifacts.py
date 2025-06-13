@@ -360,6 +360,7 @@ class ExportArtifacts:
             raise IreeBenchmarkException(proc, cwd)
 
     def create_file(self, *, suffix, prefix):
+        # TODO: This looks scary. Should not be doing an fopen just to ensure the path exists, who closes this?
         file_path = Path(prefix).with_suffix(suffix)
         f = open(file_path, "w")
         return file_path
