@@ -35,9 +35,9 @@ def main():
         "--num-blocks", type=int, help="Number of tensors to save to an IRPA file"
     )
     parser.add_argument(
-        "--save-input-output-blocks",
+        "--ignore-input-output-blocks",
         action="store_true",
-        help="Save input and output tensors",
+        help="Ignore input and output tensors",
     )
 
     cli.add_input_dataset_options(parser)
@@ -68,7 +68,7 @@ def main():
 
         # Save input/output layer tensors
         if "blk" not in tensor.name:
-            if args.save_input_output_blocks:
+            if not args.ignore_input_output_blocks:
                 save = True
         elif args.tensor_regex is not None:
             if (

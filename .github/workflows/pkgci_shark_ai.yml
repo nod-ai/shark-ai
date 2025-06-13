@@ -32,7 +32,7 @@ jobs:
             test_device: cpu
             python-version: 3.11
           - name: amdgpu_rocm_mi300_gfx942
-            runs-on: linux-mi300-1gpu-ossci-nod-ai
+            runs-on: linux-mi300-2gpu-ossci-nod-ai
             test_device: gfx942
             python-version: 3.11
     defaults:

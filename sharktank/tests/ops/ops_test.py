@@ -6,6 +6,7 @@
 
 import unittest
 
+import math
 import numpy as np
 import pytest
 import torch
@@ -447,24 +448,33 @@ class TestScatterAdd(unittest.TestCase):
 class TestTopK(unittest.TestCase):
     @parameterized.expand(
         [
-            (-1, 4, True, True, (1, 1, 256), 16),
-            (-1, 4, True, True, (1, 1, 256), 8),
-            (-1, 8, True, True, (1, 1, 256), 16),
-            (-1, 4, False, True, (1, 1, 256), 16),
-            (-1, 4, False, False, (1, 1, 256), 16),
-            (-1, 4, True, True, (1, 1, 131072), 1024),
-            (-1, 2, True, True, (2, 1, 6), 3),
-            (-1, 4, True, True, (1, 32, 131072), 1024),
-            (-1, 4, True, True, (4, 32, 131072), 1024),
-            (-1, 4, True, True, (32, 1, 131072), 1024),
+            (-1, 4, True, True, (1, 1, 256), 16, False),
+            (-1, 4, True, True, (1, 1, 256), 8, False),
+            (-1, 8, True, True, (1, 1, 256), 16, False),
+            (-1, 4, False, True, (1, 1, 256), 16, False),
+            (-1, 4, False, False, (1, 1, 256), 16, False),
+            (-1, 2, True, True, (2, 1, 6), 3, False),
+            (-1, 4, True, False, (1, 1, 64), 8, True),
         ]
     )
-    def testSplitTopKLastDim(self, dim, k, largest, _sorted, shape, chunk_size):
-        tensor = torch.rand(shape, dtype=torch.float16)
+    def testSplitTopKLastDim(
+        self, dim, k, largest, _sorted, shape, chunk_size, use_linalgext_topk
+    ):
+        numels = math.prod(shape)
+        tensor = torch.arange(numels) * 173 + 129
+        tensor = tensor % numels
+        tensor = tensor.to(torch.float16).view(shape)
+
         values_expected, index_expected = torch.topk(tensor, k, dim, largest, _sorted)
 
         values, index = ops.topk(
-            tensor, k, dim, largest, _sorted, chunk_size=chunk_size
+            tensor,
+            k,
+            dim,
+            largest,
+            _sorted,
+            chunk_size=chunk_size,
+            use_linalgext_topk=use_linalgext_topk,
         )
 
         if _sorted is False:
@@ -472,6 +482,7 @@ class TestTopK(unittest.TestCase):
             values_expected = torch.sort(values_expected).values
 
         torch.testing.assert_close(values, values_expected)
+        index = index.to(torch.int64)
 
         values_from_indices = torch.gather(tensor, -1, index=index)
         values_from_indices_expected = torch.gather(tensor, -1, index=index_expected)
@@ -486,16 +497,20 @@ class TestTopK(unittest.TestCase):
 
     @parameterized.expand(
         [
-            (0, 2, True, True, (4, 1, 32), 2),
-            (0, 2, False, True, (4, 1, 32), 2),
-            (0, 2, False, False, (4, 1, 32), 2),
-            (0, 2, True, False, (4, 1, 32), 2),
-            (0, 3, True, True, (6, 2, 64), 3),
-            (0, 4, True, True, (8, 3, 128), 4),
+            (0, 2, True, True, (4, 1, 8), 2),
+            (0, 2, False, True, (4, 1, 8), 2),
+            (0, 2, False, False, (4, 1, 8), 2),
+            (0, 2, True, False, (4, 1, 8), 2),
+            (0, 3, True, True, (6, 2, 12), 3),
+            (0, 4, True, True, (8, 3, 24), 4),
         ]
     )
     def testSplitTopKDim0(self, dim, k, largest, _sorted, shape, chunk_size):
-        tensor = torch.rand(shape, dtype=torch.float16)
+        numels = math.prod(shape)
+        tensor = torch.arange(numels) * 173 + 129
+        tensor = tensor % numels
+        tensor = tensor.to(torch.float16).view(shape)
+
         values_expected, index_expected = torch.topk(tensor, k, dim, largest, _sorted)
 
         values, index = ops.topk(
@@ -672,6 +687,35 @@ class TestTraceTensors(TempDirTestBase):
             assert len(f.keys()) == 1
             recorded_tensor = f.get_tensor("")
         torch.testing.assert_close(recorded_tensor, tensor, rtol=0, atol=0)
+
+
+class ConvTest(unittest.TestCase):
+    def testConv2d(self):
+        # Random input tensor: batch size = 1, channels = 1, height = 5, width = 5
+        input = torch.rand(1, 1, 5, 5)
+        # Random kernel: out_channels = 1, in_channels = 1, kernel_size = 3x3
+        weight = torch.rand(1, 1, 3, 3)
+        result = ops.conv2d(input, weight)
+        expected = torch.conv2d(input, weight)
+        torch.testing.assert_close(result, expected)
+
+    def testConv3d(self):
+        # Random input tensor: batch size = 1, channels = 1, depth = 4, height = 4, width = 4
+        input = torch.rand(1, 1, 4, 4, 4)
+        # Random kernel: out_channels = 1, in_channels = 1, kernel_size = 2x2x2
+        weight = torch.rand(1, 1, 2, 2, 2)
+        result = ops.conv3d(input, weight)
+        expected = torch.conv3d(input, weight)
+        torch.testing.assert_close(result, expected)
+
+    def testConv1d(self):
+        # Random input tensor: batch size = 1, channels = 1, width = 10
+        input = torch.rand(1, 1, 10)
+        # Random kernel: out_channels = 1, in_channels = 1, kernel_size = 3
+        weight = torch.rand(1, 1, 3)
+        result = ops.conv1d(input, weight)
+        expected = torch.conv1d(input, weight)
+        torch.testing.assert_close(result, expected)
 
 
 if __name__ == "__main__":

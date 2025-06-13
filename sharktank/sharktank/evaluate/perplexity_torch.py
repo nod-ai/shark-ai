@@ -185,7 +185,15 @@ class PerplexityTorch:
 
         is_first_token = True
         out_logits = []
-        for i in range(self.start, self.max_prompt_length - 1):
+        self.last_token_index = self.max_prompt_length
+        context_length = self.generator.model.config.hp.context_length
+        if self.last_token_index > context_length:
+            logger.warning(
+                f"Last token {self.last_token_index} exceeds context length {context_length}. "
+                "Limiting tokens to context length."
+            )
+            self.last_token_index = context_length
+        for i in range(self.start, self.last_token_index - 1):
             logger.debug(f"Iteration: {i}")
 
             if is_first_token:
@@ -199,7 +207,16 @@ class PerplexityTorch:
                 token_batch = self.assemble_batch(token_batch)
 
                 self.batch.prefill()
-                out_logits.append(self.batch.prefill_logits[:, 0:1, :])
+
+                last_logits_indices = torch.minimum(self.seq_lens - 1, torch.tensor(i))
+                last_logits_indices = torch.maximum(
+                    last_logits_indices, torch.tensor(0)
+                )
+                batch_indices = torch.arange(len(self.seq_lens))
+                last_real_prefill_logits = self.batch.prefill_logits[
+                    batch_indices, last_logits_indices, :
+                ].unsqueeze(1)
+                out_logits.append(last_real_prefill_logits)
 
                 self.print_token_comparison(i)
 
@@ -230,9 +247,14 @@ class PerplexityTorch:
             device=self.device,
         )
 
-        out_logits = ops.cat((out_logits, pad_logits), dim=1).to(self.device)
-
-        return out_logits
+        return ops.cat(
+            (
+                pad_logits[:, : self.start + 1],
+                out_logits,
+                pad_logits[:, self.start + 1 :],
+            ),
+            dim=1,
+        ).to(self.device)
 
     @timeit
     def get_perplexity(
@@ -267,6 +289,7 @@ class PerplexityTorch:
             ) * len(test_prompts) + 1
 
         self.max_prompt_length = max(self.seq_lens)
+        self.seq_lens = torch.tensor(self.seq_lens, device=self.device)
 
         self.token_ids = torch.tensor(self.token_ids, device=self.device)
 
@@ -275,7 +298,9 @@ class PerplexityTorch:
         logger.debug(f"Final Logits shape: {out_logits.shape}")
         logger.debug(f"Token ids shape: {self.token_ids.shape}")
 
-        return compute_perplexity(self.token_ids, out_logits, self.start)
+        return compute_perplexity(
+            self.token_ids, out_logits, self.start, self.last_token_index
+        )
 
 
 def run_perplexity_torch(
