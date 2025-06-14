@@ -227,7 +227,8 @@ class PerplexityIree:
             module_path=self.output_vmfb,
             devices=self.devices,
             parameters_path=self.weight_path_str,
-            tensor_parallel_size=shard_count,
+            shard_count=shard_count,
+            parallel_size=self.pipeline_parallelism_size * shard_count,
         )
 
     def assemble_batch(self, token_batch: torch.tensor, devices) -> torch.tensor:
