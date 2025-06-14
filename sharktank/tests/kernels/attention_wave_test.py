@@ -9,16 +9,17 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 
 import unittest
-from parameterized import parameterized
 
 import torch
-
-from sharktank.kernels.wave.attention import wave_bhsd_flash_attention
+from iree.compiler.passmanager import PassManager
+from iree.compiler.ir import Context, Module
 import iree.turbine.aot as aot
+from sharktank.kernels.wave.attention import wave_bhsd_flash_attention
+from parameterized import parameterized
 
 
 class wave_attention(unittest.TestCase):
-    def testWaveAttentionCausal(self):
+    def test_wave_attention_causal(self):
         class WaveBhsdModule(torch.nn.Module):
             def forward(self, q, k, v, output):
                 return wave_bhsd_flash_attention(q, k, v, output)
