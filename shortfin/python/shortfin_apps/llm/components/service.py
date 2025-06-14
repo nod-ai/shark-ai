@@ -130,9 +130,6 @@ class LlmGenerateService(GenerateService):
             self.page_cache = BasePagedAttentionCache(
                 page_pool=page_pool,
                 tokens_per_page=self.model_params.paged_kv_cache.block_seq_stride,
-                use_ref_counts=is_multi_response(
-                    self.server_params.decode_config,
-                ),
             )
         else:
             raise ValueError(

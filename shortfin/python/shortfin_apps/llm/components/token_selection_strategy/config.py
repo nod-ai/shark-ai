@@ -9,7 +9,8 @@ from typing import Callable, List, Union
 from dataclasses_json import dataclass_json, Undefined
 from enum import Enum, auto
 
-from ..io_struct import DEFAULT_MAX_COMPLETION_TOKENS, DEFAULT_TEMPERATURE
+
+from ..io_struct import DEFAULT_MAX_COMPLETION_TOKENS, DEFAULT_TEMPERATURE, NOT_PROVIDED
 from ..messages import LlmInferenceExecRequest
 
 
@@ -82,6 +83,8 @@ class DecodeConfig:
 
     def update_from_sampling_params(self, sampling_params):
         for field in fields(sampling_params):
+            if getattr(sampling_params, field.name) == NOT_PROVIDED:
+                continue
             if hasattr(self, field.name):
                 setattr(self, field.name, getattr(sampling_params, field.name))
 
