@@ -215,6 +215,21 @@ class PerplexityIree:
 
         self.generator = TorchGenerator(model, tokenizer)
 
+        shard_count = self.tensor_parallelism_size
+
+        self.devices: list[iree.runtime.HalDevice] = get_iree_devices(
+            device=self.iree_devices,
+            device_count=self.pipeline_parallelism_size * shard_count,
+            allow_repeating=True,
+        )
+
+        self.vm_module, self.vm_context, self.vm_instance = load_iree_module(
+            module_path=self.output_vmfb,
+            devices=self.devices,
+            parameters_path=self.weight_path_str,
+            tensor_parallel_size=shard_count,
+        )
+
     def assemble_batch(self, token_batch: torch.tensor, devices) -> torch.tensor:
 
         token_batch, seq_lens_batch = pad_tokens(
@@ -351,59 +366,13 @@ class PerplexityIree:
 
     @timeit
     def get_logits(self, skip_decode: bool) -> torch.Tensor:
-        shard_count = self.tensor_parallelism_size
-
-        vm_instance = ireert.VmInstance()
-        devices: list[iree.runtime.HalDevice] = get_iree_devices(
-            device=self.iree_devices,
-            device_count=self.pipeline_parallelism_size * shard_count,
-            allow_repeating=True,
-        )
-
         def run_iree_module(devices: list[iree.runtime.HalDevice]):
-            hal_module = iree.runtime.create_hal_module(
-                instance=vm_instance, devices=devices
-            )
-            weight_path = Path(self.weight_path_str)
-            parameter_index = iree.runtime.ParameterIndex()
-            if shard_count == 1:
-                parameter_index.load(file_path=str(Path(weight_path)))
-            else:
-                for i in range(shard_count):
-                    parameter_index.load(
-                        file_path=str(
-                            Path(weight_path).with_suffix(
-                                f".rank{i}{weight_path.suffix}"
-                            )
-                        )
-                    )
-
-            parameter_provider = parameter_index.create_provider(scope="model")
-            parameters_module = iree.runtime.create_io_parameters_module(
-                vm_instance, parameter_provider
-            )
-            self.vm_module = iree.runtime.VmModule.mmap(
-                vm_instance, str(self.output_vmfb)
-            )
-            self.vm_context = iree.runtime.VmContext(
-                instance=vm_instance,
-                modules=(hal_module, parameters_module, self.vm_module),
-            )
-
-            self.last_token_index = self.max_prompt_length
-            context_length = self.generator.model.config.hp.context_length
-            if self.last_token_index > context_length:
-                logger.warning(
-                    f"Last token {self.last_token_index} exceeds context length {context_length}. "
-                    "Limiting tokens to context length."
-                )
-                self.last_token_index = context_length
-
             out_logits = []
+            model_name = Path(self.weight_path_str).name
             for i in tqdm(
-                range(self.start, self.last_token_index - 1),
+                range(self.start, self.max_prompt_length - 1),
                 mininterval=300,
-                desc=f"eval_iree: Calculating logits for {weight_path.name}",
+                desc=f"eval_iree: Calculating logits for {model_name}",
             ):
                 logger.debug(f"Iteration: {i - self.start}")
 
@@ -418,9 +387,8 @@ class PerplexityIree:
                     last_logits_indices = torch.maximum(
                         last_logits_indices, torch.tensor(0)
                     )
-                    batch_indices = torch.arange(len(self.seq_lens))
                     last_real_prefill_logits = prefill_logits[
-                        batch_indices, last_logits_indices, :
+                        self.batch_indices, last_logits_indices, :
                     ].unsqueeze(1)
                     out_logits.append(last_real_prefill_logits)
                 else:
@@ -446,7 +414,7 @@ class PerplexityIree:
                 dim=1,
             ).to(self.torch_device)
 
-        return with_iree_device_context(run_iree_module, devices)
+        return with_iree_device_context(run_iree_module, self.devices)
 
     @timeit
     def get_perplexity(
@@ -481,8 +449,18 @@ class PerplexityIree:
 
         self.max_prompt_length = max(self.seq_lens)
 
+        context_length = self.generator.model.config.hp.context_length
+        if self.max_prompt_length > context_length:
+            logger.warning(
+                f"Last token {self.max_prompt_length} exceeds context length {context_length}. "
+                "Limiting tokens to context length."
+            )
+            self.max_prompt_length = context_length
+
         self.token_ids = torch.as_tensor(self.token_ids, device=self.torch_device)
         self.seq_lens = torch.tensor(self.seq_lens, device=self.torch_device)
+
+        self.batch_indices = torch.arange(len(self.seq_lens))
 
         out_logits = self.get_logits(skip_decode)
 
@@ -490,7 +468,7 @@ class PerplexityIree:
         logger.debug(f"Token ids shape: {self.token_ids.shape}")
 
         return compute_perplexity(
-            self.token_ids, out_logits, self.start, self.last_token_index
+            self.token_ids, out_logits, self.start, self.max_prompt_length
         )
 
 
