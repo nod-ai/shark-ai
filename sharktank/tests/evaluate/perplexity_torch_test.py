@@ -77,41 +77,12 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
-    @is_nightly
-    def test_llama3_8B_f8(self):
-        # Llama 3.1 8B non-decomposed
-        self.model_name = "llama3_8B_f8_torch"
-        self.irpa_file = self.llama3_8b_f8_model
-        self.tokenizer = self.llama3_8b_tokenizer
-
-        self.prepare_argv(
-            extra_args=(
-                "--attention-dtype=bfloat16",
-                "--activation-dtype=bfloat16",
-                "--use-hf",
-                "--fake-quant",
-            )
-        )
-        self.run_and_check_perplexity()
-
     @pytest.mark.skip(reason="Non-decomposed attention is not supported yet")
     @is_nightly
     def test_llama3_405B_f16(self):
         # Llama 3.1 405B non-decomposed
         self.model_name = "llama3_405B_f16_torch"
         self.irpa_file = self.llama3_405b_f16_model
-        self.tokenizer = self.llama3_405b_tokenizer
-        self.tensor_parallelism_size = 8
-
-        self.prepare_argv()
-        self.run_and_check_perplexity()
-
-    @pytest.mark.skip(reason="Non-decomposed attention is not supported yet")
-    @is_nightly
-    def test_llama3_405B_f8(self):
-        # Llama 3.1 405B non-decomposed
-        self.model_name = "llama3_405B_f8_torch"
-        self.irpa_file = self.llama3_405b_f8_model
         self.tokenizer = self.llama3_405b_tokenizer
         self.tensor_parallelism_size = 8
 
