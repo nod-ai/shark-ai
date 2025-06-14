@@ -303,13 +303,13 @@ def load_iree_module(
     devices: List[iree.runtime.HalDevice],
     parameters_path: Optional[str] = None,
     debug_sink: Optional[iree.runtime.HalModuleDebugSink] = None,
-    shard_count: int = 1,
-    parallel_size: int = _same_as_device_count,
+    tensor_parallel_size: int = 1,
+    pipeline_parallel_size: int = 1,
 ) -> Tuple[iree.runtime.VmModule, iree.runtime.VmContext, iree.runtime.VmInstance]:
     """The VmContext and VmInstance need to outlive the VmModule and any device
     buffers."""
-    if parallel_size == _same_as_device_count:
-        parallel_size = len(devices)
+    parallel_size = tensor_parallel_size * pipeline_parallel_size
+    assert parallel_size == len(devices)
 
     vm_instance = iree.runtime.VmInstance()
     hal_module = iree.runtime.create_hal_module(
@@ -322,7 +322,9 @@ def load_iree_module(
         if parallel_size == len(devices):
             # TODO: make IREE able to load the parameters from the top parameter file
             # without having to specify the parameter file for each shard separately.
-            handles = get_file_handle(shard_count=shard_count, weight_path=params_path)
+            handles = get_file_handle(
+                shard_count=tensor_parallel_size, weight_path=params_path
+            )
             for handle in handles:
                 parameter_index.load_from_file_handle(handle, "irpa")
         else:
