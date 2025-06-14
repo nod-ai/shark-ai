@@ -7,14 +7,31 @@
 
 from sharktank.models.llm import *
 from sharktank.models.llama.toy_llama import generate
+from parameterized import parameterized
 
 import pytest
 import torch
 
+pytorch_is_24 = torch.__version__.split(".")[:2] == ["2", "4"]
 
-def test_llama():
+
+@parameterized.expand(
+    [
+        (
+            pytest.param(
+                True,
+                marks=pytest.mark.skipif(
+                    pytorch_is_24, "numerical inconsistency in torch 2.4"
+                ),
+            ),
+            2.378,
+        ),
+        (False, 0.577),
+    ]
+)  # quantize qkv
+def test_llama(quantize_qkv, cross_entropy_golden_value):
     torch.set_default_dtype(torch.float32)
-    theta, config = generate(12345)
+    theta, config = generate(12345, quantize_qkv)
     model = PagedLlmModelV1(theta=theta, config=config)
 
     ids = [0, 208, 214, 29, 19, 86, 176, 120, 120, 80, 120, 208, 37, 157, 191, 137]
@@ -47,4 +64,4 @@ def test_llama():
     ids = ids[0, 1:]
     logits = logits[0, :-1].to(torch.float32)
     cross_entropy = torch.nn.functional.cross_entropy(logits, ids)
-    assert pytest.approx(0.577, 1e-2) == cross_entropy
+    assert pytest.approx(cross_entropy_golden_value, 1e-2) == cross_entropy
