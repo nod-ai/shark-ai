@@ -90,7 +90,7 @@ class Llama8BTest(BaseLlamaTest):
         )
         self.prompts = default_arguments["prompt"]
         # token and logit determined by running llama.cpp (llama_cpp_instructions.md).
-        self.llama_cpp_8b_prefill_token = [[311]]
+        self.llama_cpp_8b_prefill_token = torch.tensor([[311]])
         self.llama_cpp_8b_prefill_token_logit = torch.tensor(15.612568)
 
     def testPrefillPaged8B(self):
