@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_5c7ccde4cff0a431_perplexity_torch_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.1">coverage.py v7.9.1</a>,
-            created at 2025-06-16 18:09 +0000
+            created at 2025-06-16 20:21 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -240,7 +240,7 @@
     <p class="pln"><span class="n"><a id="t158" href="#t158">158</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t159" href="#t159">159</a></span><span class="t">    <span class="op">@</span><span class="nam">is_deepseek</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t160" href="#t160">160</a></span><span class="t">    <span class="key">def</span> <span class="nam">test_deepseek_v3</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t161" href="#t161">161</a></span><span class="t">        <span class="com"># DeepSeek v3 pipeline parallelism</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t161" href="#t161">161</a></span><span class="t">        <span class="com"># DeepSeek v3</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t162" href="#t162">162</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">model_name</span> <span class="op">=</span> <span class="str">"deepseek_v3_iree"</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t163" href="#t163">163</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">irpa_file</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">deepseek_v3_model</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t164" href="#t164">164</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">tokenizer</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">deepseek_v3_tokenizer</span>&nbsp;</span><span class="r"></span></p>
@@ -255,7 +255,7 @@
     <p class="pln"><span class="n"><a id="t173" href="#t173">173</a></span><span class="t">        <span class="nam">match</span><span class="op">=</span><span class="str">"Error code: 245"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t174" href="#t174">174</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t175" href="#t175">175</a></span><span class="t">    <span class="op">@</span><span class="nam">is_nightly</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t176" href="#t176">176</a></span><span class="t">    <span class="key">def</span> <span class="nam">test_deepseek_v3_tp</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t176" href="#t176">176</a></span><span class="t">    <span class="key">def</span> <span class="nam">test_deepseek_v3_tp2</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t177" href="#t177">177</a></span><span class="t">        <span class="com"># DeepSeek v3 tensor parallelism</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t178" href="#t178">178</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">model_name</span> <span class="op">=</span> <span class="str">"deepseek_v3_iree"</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t179" href="#t179">179</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">irpa_file</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">deepseek_v3_tp2_model</span>&nbsp;</span><span class="r"></span></p>
@@ -266,7 +266,7 @@
     <p class="mis show_mis"><span class="n"><a id="t184" href="#t184">184</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">run_and_check_perplexity</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t185" href="#t185">185</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t186" href="#t186">186</a></span><span class="t">    <span class="op">@</span><span class="nam">is_nightly</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t187" href="#t187">187</a></span><span class="t">    <span class="key">def</span> <span class="nam">test_deepseek_v3_pp</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t187" href="#t187">187</a></span><span class="t">    <span class="key">def</span> <span class="nam">test_deepseek_v3_pp2</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t188" href="#t188">188</a></span><span class="t">        <span class="com"># DeepSeek v3 pipeline parallelism</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t189" href="#t189">189</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">model_name</span> <span class="op">=</span> <span class="str">"deepseek_v3_iree"</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t190" href="#t190">190</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">irpa_file</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">deepseek_v3_model</span>&nbsp;</span><span class="r"></span></p>
@@ -288,7 +288,7 @@
             <a class="nav" href="z_5c7ccde4cff0a431_perplexity_torch_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.1">coverage.py v7.9.1</a>,
-            created at 2025-06-16 18:09 +0000
+            created at 2025-06-16 20:21 +0000
         </p>
     </div>
 </footer>
