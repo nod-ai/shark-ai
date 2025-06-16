@@ -10,6 +10,14 @@ import torch
 
 from sharktank.types import *
 from sharktank.types.tensors import REGISTERED_LAYOUT_CLASSES
+from sharktank.types.layout_utils import (
+    pack_fp4_e2m1_to_uint8,
+    unpack_uint8_to_fp4_e2m1,
+)
+from sharktank.types.ocp_floats import (
+    float32_to_fp4_e2m1,
+    fp4_e2m1_to_float32,
+)
 
 
 class BlockScaledLayoutTest(unittest.TestCase):
@@ -123,6 +131,27 @@ class TensorScaledLayoutTest(unittest.TestCase):
         torch.testing.assert_close(
             d, torch.tensor([-6.0, -4.0, -2.0], dtype=torch.float32)
         )
+
+    def testTensorScaledFp4Layout(self):
+        original_data = torch.tensor([1.0, 2.0, 3.0, 4.0, 0.5, 1.5, -1.0, -2.0])
+        fp4_indices = float32_to_fp4_e2m1(original_data)
+        packed_fp4 = pack_fp4_e2m1_to_uint8(fp4_indices)
+
+        l = TensorScaledLayout(
+            shape=list(original_data.shape),
+            d=torch.tensor(1.0),
+            qs=packed_fp4,
+            dtype=torch.float32,
+        )
+
+        self.assertEqual(l.qs.shape, (4,))
+        self.assertEqual(l.shape, [8])
+
+        unpacked_indices = unpack_uint8_to_fp4_e2m1(l.qs)
+        fp4_values = fp4_e2m1_to_float32(unpacked_indices)
+        dequantized = fp4_values * l.d
+
+        torch.testing.assert_close(dequantized, original_data, atol=0.0, rtol=0.0)
 
 
 if __name__ == "__main__":

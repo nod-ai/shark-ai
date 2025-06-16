@@ -8,7 +8,216 @@ import unittest
 
 import torch
 
-from sharktank.types.layout_utils import *
+from sharktank.types.quantizers import DynamicFp4BlockQuantizer
+from sharktank.types.layout_utils import (
+    debug_map_tensor_as_hex_string,
+    interleave_linear_i4_block,
+    linearize_interleaved_i4_block,
+    pack_fp4_e2m1_to_uint8,
+    promote_linear_i2_block_to_i8,
+    promote_linear_i4_block_to_i8,
+    promote_linear_i6_block_to_i8,
+    unpack_uint8_to_fp4_e2m1,
+)
+from sharktank.types.layouts import BlockScaledFp4Layout
+from sharktank.types.ocp_floats import (
+    FloatingPointFormat,
+    get_fp4_lookup_table,
+    _FP4_E2M1_TO_FP32,
+    float32_to_fp4_e2m1,
+    fp4_e2m1_to_float32,
+)
+from sharktank.types.tensors import PlanarQuantizedTensor
+
+
+class FP4Tests(unittest.TestCase):
+    def test_fp4_hardcoded_vs_generated_lookup_table(self):
+        """Test that hardcoded lookup table matches generated one."""
+
+        # Generate the lookup table using the original algorithm
+        generated_table = get_fp4_lookup_table(FloatingPointFormat.E2M1)
+
+        # Compare with hardcoded table
+        torch.testing.assert_close(
+            _FP4_E2M1_TO_FP32,
+            generated_table,
+            atol=0.0,
+            rtol=0.0,
+            msg="Hardcoded FP4 E2M1 lookup table doesn't match generated version",
+        )
+
+    def test_fp4_conversion_roundtrip(self):
+        """Test that float32 -> FP4 -> float32 conversion works for representable values."""
+        # Test values that should be exactly representable in FP4 E2M1
+        test_values = torch.tensor(
+            [
+                0.0,
+                0.5,
+                1.0,
+                1.5,
+                2.0,
+                3.0,
+                4.0,
+                6.0,
+                -0.0,
+                -0.5,
+                -1.0,
+                -1.5,
+                -2.0,
+                -3.0,
+                -4.0,
+                -6.0,
+            ]
+        )
+
+        # Convert to FP4 indices and back
+        fp4_indices = float32_to_fp4_e2m1(test_values)
+        recovered_values = fp4_e2m1_to_float32(fp4_indices)
+
+        # Should be exactly equal for representable values
+        torch.testing.assert_close(test_values, recovered_values, atol=0.0, rtol=0.0)
+
+    def test_fp4_conversion_approximation(self):
+        """Test that float32 -> FP4 conversion finds nearest representable values."""
+        # Test values that need to be approximated
+        test_values = torch.tensor([0.25, 0.75, 1.25, 2.5, 5.0])
+        # 0.25 is equidistant from 0.0 and 0.5, argmin returns first (0.0)
+        expected_approximations = torch.tensor(
+            [0.0, 0.5, 1.0, 2.0, 4.0]
+        )  # Nearest FP4 values
+
+        fp4_indices = float32_to_fp4_e2m1(test_values)
+        approximated_values = fp4_e2m1_to_float32(fp4_indices)
+
+        torch.testing.assert_close(
+            approximated_values, expected_approximations, atol=0.0, rtol=0.0
+        )
+
+    def test_fp4_packing_unpacking(self):
+        """Test that FP4 packing and unpacking works correctly."""
+        # Create test data with even number of elements
+        fp4_values = torch.tensor(
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], dtype=torch.uint8
+        )
+
+        # Pack pairs of FP4 values into uint8
+        packed = pack_fp4_e2m1_to_uint8(fp4_values)
+
+        # Should have half the elements
+        self.assertEqual(packed.shape[-1], fp4_values.shape[-1] // 2)
+
+        # Unpack back to original
+        unpacked = unpack_uint8_to_fp4_e2m1(packed)
+
+        # Should match original
+        torch.testing.assert_close(unpacked, fp4_values, atol=0, rtol=0)
+
+    def test_fp4_packing_bit_layout(self):
+        """Test that FP4 packing follows expected bit layout."""
+        # Test specific bit patterns
+        fp4_values = torch.tensor(
+            [0b0001, 0b0010, 0b1111, 0b1000], dtype=torch.uint8
+        )  # 1, 2, 15, 8
+
+        packed = pack_fp4_e2m1_to_uint8(fp4_values)
+
+        # Expected: [0b00100001, 0b10001111] = [0x21, 0x8F]
+        # First byte: high_nibble=0010, low_nibble=0001 -> 0x21
+        # Second byte: high_nibble=1000, low_nibble=1111 -> 0x8F
+        expected_packed = torch.tensor([0x21, 0x8F], dtype=torch.uint8)
+
+        torch.testing.assert_close(packed, expected_packed, atol=0, rtol=0)
+
+    def test_fp4_edge_cases(self):
+        """Test FP4 conversion with edge cases."""
+        # Test clamping of out-of-range values
+        large_values = torch.tensor([100.0, -100.0, 1000.0])
+        fp4_indices = float32_to_fp4_e2m1(large_values)
+        clamped_values = fp4_e2m1_to_float32(fp4_indices)
+
+        # Should clamp to max representable values
+        expected_max = torch.tensor([6.0, -6.0, 6.0])
+        torch.testing.assert_close(clamped_values, expected_max, atol=0.0, rtol=0.0)
+
+    def test_fp4_batch_processing(self):
+        """Test FP4 operations work with batched tensors."""
+        # Test with multiple dimensions
+        batch_values = torch.tensor([[0.0, 1.0, 2.0, 3.0], [4.0, 5.0, 6.0, -1.0]])
+
+        fp4_indices = float32_to_fp4_e2m1(batch_values)
+        recovered_values = fp4_e2m1_to_float32(fp4_indices)
+
+        # 5.0 should approximate to 4.0 or 6.0
+        expected = torch.tensor(
+            [[0.0, 1.0, 2.0, 3.0], [4.0, 4.0, 6.0, -1.0]]
+        )  # 5.0 -> 4.0 (closest)
+
+        torch.testing.assert_close(recovered_values, expected, atol=0.0, rtol=0.0)
+
+    def test_fp4_block_quantization(self):
+        """Test FP4 block quantization with configurable block size and power-of-two scales."""
+        # Test data with 64 elements (2 blocks of 32)
+        original_data = torch.randn(64) * 4.0  # Scale to reasonable FP4 range
+
+        # Test with power-of-two scales
+        quantizer = DynamicFp4BlockQuantizer(
+            block_size=32, use_power_of_two_scale=True, name="fp4_quantizer"
+        )
+        quantized_tensor = quantizer.quantize(original_data, name="fp4_quantized")
+
+        # Verify it's a proper quantized tensor
+        self.assertIsInstance(quantized_tensor, PlanarQuantizedTensor)
+        layout = quantized_tensor.unpack()
+        self.assertIsInstance(layout, BlockScaledFp4Layout)
+
+        # Verify scales are integer exponents (power-of-two)
+        self.assertTrue(layout.scales.dtype == torch.int32)
+        self.assertEqual(len(layout.scales), 2)  # Two blocks
+
+        # Dequantize
+        dequantized = quantized_tensor.unpack().dequant()
+
+        # Should be close (but not exact due to quantization)
+        self.assertEqual(dequantized.shape, original_data.shape)
+
+        # Test with float scales
+        quantizer_float = DynamicFp4BlockQuantizer(
+            block_size=32, use_power_of_two_scale=False, name="fp4_quantizer"
+        )
+        quantized_tensor_float = quantizer_float.quantize(
+            original_data, name="fp4_quantized"
+        )
+
+        # Verify scales are floats
+        layout_float = quantized_tensor_float.unpack()
+        self.assertTrue(layout_float.scales.dtype == torch.float32)
+
+        dequantized_float = quantized_tensor_float.unpack().dequant()
+
+        self.assertEqual(dequantized_float.shape, original_data.shape)
+
+    def test_fp4_configurable_block_size(self):
+        """Test FP4 block quantization with different block sizes."""
+        # Test data
+        original_data = torch.tensor([1.0, 2.0, 3.0, 4.0, -1.0, -2.0])
+
+        # Test with smaller block size (6)
+        quantizer = DynamicFp4BlockQuantizer(
+            block_size=6, use_power_of_two_scale=True, name="fp4_quantizer"
+        )
+        quantized_tensor = quantizer.quantize(original_data, name="fp4_quantized")
+
+        # Verify it's a proper quantized tensor
+        self.assertIsInstance(quantized_tensor, PlanarQuantizedTensor)
+        layout = quantized_tensor.unpack()
+        self.assertIsInstance(layout, BlockScaledFp4Layout)
+
+        # Should have 1 block (6 elements / 6 per block)
+        self.assertEqual(len(layout.scales), 1)
+
+        dequantized = quantized_tensor.unpack().dequant()
+
+        self.assertEqual(dequantized.shape, original_data.shape)
 
 
 class I4Shuffle(unittest.TestCase):

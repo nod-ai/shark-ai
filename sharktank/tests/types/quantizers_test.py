@@ -9,7 +9,16 @@ import unittest
 import torch
 
 from sharktank.types import *
-from sharktank.types.layout_utils import saturate_cast
+from sharktank.types.layout_utils import (
+    saturate_cast,
+    pack_fp4_e2m1_to_uint8,
+    unpack_uint8_to_fp4_e2m1,
+)
+from sharktank.types.ocp_floats import (
+    float32_to_fp4_e2m1,
+    fp4_e2m1_to_float32,
+)
+from sharktank.types.quantizers import DynamicFp4BlockQuantizer
 from sharktank.utils.testing import TempDirTestBase
 
 
@@ -242,6 +251,122 @@ class DynamicScaledQuantizerTest(TempDirTestBase):
             orig.to(torch.float16), dequant_fn, atol=1e-3, rtol=1e-3
         )
         torch.testing.assert_close(dequant_fnuz, dequant_fn, atol=1e-3, rtol=1e-3)
+
+
+class StaticScaledFP4QuantizerTest(TempDirTestBase):
+    def _roundtrip(self, it, suffix=""):
+        dataset_path = self._temp_dir / f"poodoo{suffix}.irpa"
+        theta = Theta([it])
+        Dataset({}, theta).save(dataset_path)
+        ds = Dataset.load(dataset_path)
+        return ds.root_theta.tensor(it.name)
+
+    def testFP4QuantDequant(self):
+        scale = torch.tensor(0.5, dtype=torch.float32)
+        ssq = StaticScaledQuantizer(scale=scale, dtype=torch.float32)
+        ssq = self._roundtrip(ssq, "_fp4_ssq")
+
+        # Original values that will be scaled before FP4 quantization
+        orig_value = torch.tensor([2.0, 4.0, 6.0, 8.0, 1.0, 3.0, -2.0, -4.0])
+
+        # Manually implement FP4 quantization with scaling
+        # First scale the values
+        scaled_values = orig_value * scale  # [1.0, 2.0, 3.0, 4.0, 0.5, 1.5, -1.0, -2.0]
+        fp4_indices = float32_to_fp4_e2m1(scaled_values)
+        packed_fp4 = pack_fp4_e2m1_to_uint8(fp4_indices)
+
+        # Create a quantized tensor with packed FP4 data
+        qt_value = PlanarQuantizedTensor(
+            shape=list(orig_value.shape),
+            name="test_fp4",
+            layout=TensorScaledLayout(
+                shape=list(orig_value.shape),
+                d=ssq.reciprocal_scale,  # 1/0.5 = 2.0
+                qs=packed_fp4,
+                dtype=orig_value.dtype,
+            ),
+        )
+
+        # Test roundtrip
+        qt_value = self._roundtrip(qt_value, "_fp4_qt_value")
+
+        # Manually implement FP4 dequantization with scaling
+        layout = qt_value.unpack()
+        packed_data = layout.qs
+        unpacked_indices = unpack_uint8_to_fp4_e2m1(packed_data)
+        fp4_values = fp4_e2m1_to_float32(unpacked_indices)
+        dequant_value = (
+            fp4_values * layout.d
+        )  # Apply reciprocal scale to get back original
+
+        torch.testing.assert_close(orig_value, dequant_value, atol=0.0, rtol=0.0)
+
+    def testFP4QuantDequantApproximation(self):
+
+        scale = torch.tensor(0.25, dtype=torch.float32)
+        ssq = StaticScaledQuantizer(scale=scale, dtype=torch.uint8)
+        ssq = self._roundtrip(ssq, "_fp4_approx_ssq")
+
+        # Values that will require approximation after scaling
+        orig_value = torch.tensor([2.5, 5.0, 7.5, 10.0, 1.25, 3.75, -2.5, -5.0])
+
+        expected_dequant = torch.tensor([2.0, 4.0, 8.0, 8.0, 2.0, 4.0, -2.0, -4.0])
+
+        scaled_values = orig_value * scale
+        fp4_indices = float32_to_fp4_e2m1(scaled_values)
+        packed_fp4 = pack_fp4_e2m1_to_uint8(fp4_indices)
+
+        qt_value = PlanarQuantizedTensor(
+            shape=list(orig_value.shape),
+            name="test_fp4_approx",
+            layout=TensorScaledLayout(
+                shape=list(orig_value.shape),
+                d=ssq.reciprocal_scale,
+                qs=packed_fp4,
+                dtype=orig_value.dtype,
+            ),
+        )
+
+        qt_value = self._roundtrip(qt_value, "_fp4_approx_qt_value")
+
+        layout = qt_value.unpack()
+        packed_data = layout.qs
+        unpacked_indices = unpack_uint8_to_fp4_e2m1(packed_data)
+        fp4_values = fp4_e2m1_to_float32(unpacked_indices)
+        dequant_value = fp4_values * layout.d
+
+        torch.testing.assert_close(expected_dequant, dequant_value, atol=0.0, rtol=0.0)
+
+    def testFP4BlockQuantization(self):
+        orig_value = torch.randn(128) * 3.0
+
+        # Block quantize with power-of-two scales
+        quantizer = DynamicFp4BlockQuantizer(
+            block_size=32, use_power_of_two_scale=True, name="fp4_quantizer"
+        )
+        quantized_tensor = quantizer.quantize(orig_value, name="fp4_quantized")
+
+        self.assertIsInstance(quantized_tensor, PlanarQuantizedTensor)
+        layout = quantized_tensor.unpack()
+        self.assertIsInstance(layout, BlockScaledFp4Layout)
+        self.assertEqual(len(layout.scales), 4)  # 4 blocks
+        self.assertTrue(layout.scales.dtype == torch.int32)  # Integer exponents
+
+        # Dequantize
+        dequantized = quantized_tensor.unpack().dequant()
+
+        self.assertEqual(dequantized.shape, orig_value.shape)
+
+        # Test with different block size
+        quantizer_16 = DynamicFp4BlockQuantizer(
+            block_size=16,
+            use_power_of_two_scale=True,
+            name="fp4_quantizer",
+        )
+        quantized_tensor_16 = quantizer_16.quantize(orig_value, name="fp4_quantized")
+
+        layout_16 = quantized_tensor_16.unpack()
+        self.assertEqual(len(layout_16.scales), 8)  # 8 blocks of 16
 
 
 if __name__ == "__main__":
