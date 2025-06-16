@@ -105,6 +105,7 @@ class ExportArtifacts:
         output_mlir: Optional[str] = None,
         output_config: Optional[str] = None,
     ):
+        # TODO: Can use temp directory instead
         self.sharktank_dir = str(
             Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent
         )
@@ -408,13 +409,14 @@ class ExportArtifacts:
         )
 
     def create_file(self, *, prefix, suffix):
-        # TODO: This looks scary. Should not be doing an fopen just to ensure the path exists, who closes this?
+        # TODO: This looks scary. Should not be doing an fopen just to ensure the path exists, who closes this?\
+        # TODO: May not longer be needed, verify
         file_path = Path(prefix).with_suffix(suffix)
         f = open(file_path, "w")
         return file_path
 
     def get_artifacts(self):
-
+        # TODO: Change to use temp directory.
         dir_path = (
             self.sharktank_dir + "/" + "perplexity_ci_artifacts/"
         )  # TODO: Remove this hardcoded path
