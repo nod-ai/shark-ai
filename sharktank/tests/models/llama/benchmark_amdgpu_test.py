@@ -188,30 +188,30 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         )
 
         # default fp8 input size here is 128
-        self.iree_run_prefill_nondecomposed_args_fp16 = self.save_benchmarks(
+        self.prefill_args_nondecomposed_fp16_128 = self.save_benchmarks(
             benchmark_fn="prefill_bs4",
             input_path=self.artifacts_dir / "prefill_args_bs4_128_stride_32_tp1",
-            tensor_parallelism_size=1,
+            tensor_parallelism_size=self.tensor_parallelism_size,
         )
-        self.iree_run_decode_nondecomposed_args_fp16 = self.save_benchmarks(
+        self.decode_args_nondecomposed_fp16_128 = self.save_benchmarks(
             benchmark_fn="decode_bs4",
             input_path=self.artifacts_dir / "decode_args_bs4_128_stride_32_tp1",
-            tensor_parallelism_size=1,
+            tensor_parallelism_size=self.tensor_parallelism_size,
         )
-        self.iree_run_prefill_nondecomposed_args_fp16_2048 = self.save_benchmarks(
+        self.prefill_args_nondecomposed_fp16_2048 = self.save_benchmarks(
             benchmark_fn="prefill_bs4",
             input_path=self.artifacts_dir / "prefill_args_bs4_2048_stride_32",
-            tensor_parallelism_size=1,
+            tensor_parallelism_size=self.tensor_parallelism_size,
         )
-        self.iree_run_decode_nondecomposed_args_fp16_2048 = self.save_benchmarks(
+        self.decode_args_nondecomposed_fp16_2048 = self.save_benchmarks(
             benchmark_fn="decode_bs4",
             input_path=self.artifacts_dir / "decode_args_bs4_2048_stride_32",
-            tensor_parallelism_size=1,
+            tensor_parallelism_size=self.tensor_parallelism_size,
         )
 
         self.prefill_args_fp8 = self.artifacts_dir / "prefill_args_fp8"
         self.decode_args_fp8 = self.artifacts_dir / "decode_args_fp8"
-        self.iree_run_prefill_args_fp8 = [
+        self.prefill_args_nondecomposed_fp8_128 = [
             "--function=prefill_bs4",
             f"--input=4x128xi64=@{self.prefill_args_fp8}/tokens.bin",
             f"--input=4xi64=@{self.prefill_args_fp8}/seq_lens.bin",
@@ -220,7 +220,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             "--benchmark_repetitions=10",
             ">>",
         ]
-        self.iree_run_decode_args_fp8 = [
+        self.decode_args_nondecomposed_fp8_128 = [
             "--function=decode_bs4",
             f"--input=4x1xi64=@{self.decode_args_fp8}/next_tokens.bin",
             f"--input=4xi64=@{self.decode_args_fp8}/seq_lens.bin",
@@ -230,7 +230,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             "--benchmark_repetitions=10",
             ">>",
         ]
-        self.iree_run_prefill_args_fp8_2048 = [
+        self.prefill_args_nondecomposed_fp8_2048 = [
             "--function=prefill_bs4",
             f"--input=4x2048xi64=@{self.prefill_args_fp8}/2048/prefill_token_ids_4x2048xi64.bin",
             f"--input=4xi64=@{self.prefill_args_fp8}/2048/prefill_seq_lens_4xi64.bin",
@@ -239,7 +239,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             "--benchmark_repetitions=10",
             ">>",
         ]
-        self.iree_run_decode_args_fp8_2048 = [
+        self.decode_args_nondecomposed_fp8_2048 = [
             "--function=decode_bs4",
             f"--input=4x1xi64=@{self.decode_args_fp8}/2048/decode_next_tokens_4x1xi64.bin",
             f"--input=4xi64=@{self.decode_args_fp8}/2048/decode_seq_lens_4xi64.bin",
@@ -254,8 +254,8 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         self.output_name = self.dir_path / "f16_torch_128_tp1"
         self.export_artifact = self.llama8b_f16_torch_sdpa_artifacts
         self.irpa_path = self.irpa_path_fp16
-        self.prefill_args = self.iree_run_prefill_nondecomposed_args_fp16
-        self.decode_args = self.iree_run_decode_nondecomposed_args_fp16
+        self.prefill_args = self.prefill_args_nondecomposed_fp16_128
+        self.decode_args = self.decode_args_nondecomposed_fp16_128
 
         self.export_compile_benchmark()
 
@@ -264,18 +264,18 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         self.output_name = self.dir_path / "f16_torch_2048_tp1"
         self.export_artifact = self.llama8b_f16_torch_sdpa_artifacts
         self.irpa_path = self.irpa_path_fp16
-        self.prefill_args = self.iree_run_prefill_nondecomposed_args_fp16_2048
-        self.decode_args = self.iree_run_decode_nondecomposed_args_fp16_2048
+        self.prefill_args = self.prefill_args_nondecomposed_fp16_2048
+        self.decode_args = self.decode_args_nondecomposed_fp16_2048
 
         self.export_compile_benchmark()
 
     @is_nightly
-    def testBenchmark8B_fp8_TP1_Non_Decomposed(self):
+    def testBenchmark8B_fp8_TP1_Non_Decomposed_Input_len_128(self):
         self.output_name = self.dir_path / "fp8_torch_tp1"
         self.export_artifact = self.llama8b_fp8_torch_sdpa_artifacts
         self.irpa_path = self.irpa_path_fp8
-        self.prefill_args = self.iree_run_prefill_args_fp8
-        self.decode_args = self.iree_run_decode_args_fp8
+        self.prefill_args = self.prefill_args_nondecomposed_fp8_128
+        self.decode_args = self.decode_args_nondecomposed_fp8_128
 
         self.export_compile_benchmark()
 
@@ -284,8 +284,8 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         self.output_name = self.dir_path / "fp8_attnf8_2048_tp1"
         self.export_artifact = self.llama8b_fp8_attnf8_sdpa_artifacts
         self.irpa_path = self.irpa_path_fp8_attnf8
-        self.prefill_args = self.iree_run_prefill_args_fp8_2048
-        self.decode_args = self.iree_run_decode_args_fp8_2048
+        self.prefill_args = self.prefill_args_nondecomposed_fp8_2048
+        self.decode_args = self.decode_args_nondecomposed_fp8_2048
 
         self.export_compile_benchmark()
 
@@ -294,8 +294,8 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         self.output_name = self.dir_path / "fp8_attnf8_128_tp1"
         self.export_artifact = self.llama8b_fp8_attnf8_sdpa_artifacts
         self.irpa_path = self.irpa_path_fp8_attnf8
-        self.prefill_args = self.iree_run_prefill_args_fp8
-        self.decode_args = self.iree_run_decode_args_fp8
+        self.prefill_args = self.prefill_args_nondecomposed_fp8_128
+        self.decode_args = self.decode_args_nondecomposed_fp8_128
 
         self.export_compile_benchmark()
 
