@@ -37,6 +37,8 @@ class BaseBenchmarkTest(unittest.TestCase):
     sharktank_dir = os.path.dirname(tests_dir)
     repo_root = os.path.dirname(sharktank_dir)
     dir_path = Path(repo_root + "/" + dir_path_suffix)
+    tensor_parallelism_size = 1
+    pipeline_parallelism_size = 1
 
     @classmethod
     def setUpClass(cls):
@@ -113,8 +115,6 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         self.irpa_path_fp8_attnf8 = (
             self.artifacts_dir / "fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa"
         )
-        self.tensor_parallelism_size = 1
-        self.pipeline_parallelism_size = 1
         self.dir_path_8b = self.dir_path / "llama-8b"
         self.temp_dir_8b = Path(self.dir_path_8b)
         self.temp_dir_8b.mkdir(parents=True, exist_ok=True)
@@ -828,7 +828,6 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         )
         self.irpa_path_fp8 = self.artifacts_dir / "f8/llama3.1_405b_fp8.irpa"
         self.tensor_parallelism_size = 8
-        self.pipeline_parallelism_size = 1
         self.dir_path_405b = self.dir_path / "llama-405b"
         self.temp_dir_405b = Path(self.dir_path_405b)
         self.temp_dir_405b.mkdir(parents=True, exist_ok=True)
