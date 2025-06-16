@@ -90,6 +90,7 @@ def run_test_toy_size_sharded_resnet_block_with_iree(artifacts_dir: Path):
             module_path=module_path,
             devices=iree_devices,
             parameters_path=parameters_path,
+            tensor_parallel_size=shard_count,
         )
         iree_args = prepare_iree_module_function_args(
             args=input_args, devices=iree_devices
