@@ -9,6 +9,7 @@ repos:
     -   id: check-yaml
         args: ['--allow-multiple-documents']
     -   id: check-added-large-files
+    -   id: name-tests-test
 -   repo: https://github.com/psf/black
     rev: 22.10.0
     hooks:
