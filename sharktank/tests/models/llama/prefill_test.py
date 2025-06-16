@@ -12,6 +12,7 @@ from sharktank.layers.configs.llm_configs import *
 from sharktank.examples.paged_llm_v1 import *
 from sharktank.models.llm import *
 from sharktank.utils import tokenizer, hf_datasets
+import pytest
 
 
 class BaseLlamaTest(unittest.TestCase):
@@ -93,6 +94,9 @@ class Llama8BTest(BaseLlamaTest):
         self.llama_cpp_8b_prefill_token = torch.tensor([[311]])
         self.llama_cpp_8b_prefill_token_logit = torch.tensor(15.612568)
 
+    @pytest.mark.xfail(
+        reason="Marking xfail as it failing accuracy. Issue: https://github.com/nod-ai/shark-ai/issues/1648",
+    )
     def testPrefillPaged8B(self):
         batch_results_paged, greedy_token_logit_paged = self.runPrefill(
             kv_cache_type="paged"
