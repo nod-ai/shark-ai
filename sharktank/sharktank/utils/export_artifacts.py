@@ -414,7 +414,7 @@ class ExportArtifacts:
             exception=IreeRunException,
         )
 
-    def create_file(self, *, suffix, prefix):
+    def create_file(self, *, prefix, suffix):
         # TODO: This looks scary. Should not be doing an fopen just to ensure the path exists, who closes this?
         file_path = Path(prefix).with_suffix(suffix)
         f = open(file_path, "w")
@@ -422,11 +422,10 @@ class ExportArtifacts:
 
     def get_artifacts(self):
 
-        self.dir_path = (
+        dir_path = (
             self.sharktank_dir + "/" + "perplexity_ci_artifacts/"
         )  # TODO: Remove this hardcoded path
-        temp_dir = Path(self.dir_path)
-        temp_dir.mkdir(parents=True, exist_ok=True)
+        Path(dir_path).mkdir(parents=True, exist_ok=True)
 
         model_name = (
             str(self.irpa_path).split("/")[-1].rsplit(".", 1)[0].replace(".", "_")
@@ -438,14 +437,11 @@ class ExportArtifacts:
                 else ""
             )
         )
+        prefix = self.dir_path + model_name
 
         if self.output_mlir is None:
-            self.output_mlir = str(
-                self.create_file(suffix=".mlir", prefix=self.dir_path + model_name)
-            )
-            self.output_config = str(
-                self.create_file(suffix=".json", prefix=self.dir_path + model_name)
-            )
+            self.output_mlir = str(self.create_file(prefix=prefix, suffix=".mlir"))
+            self.output_config = str(self.create_file(prefix=prefix, suffix=".json"))
 
             self.export_to_mlir(
                 output_mlir=self.output_mlir,
@@ -455,9 +451,7 @@ class ExportArtifacts:
             logger.info(f" Using pre-exported mlir: {self.output_mlir}")
             logger.info(f" Using pre-exported config json: {self.output_config}")
 
-        output_vmfb = str(
-            self.create_file(suffix=".vmfb", prefix=self.dir_path + model_name)
-        )
+        output_vmfb = str(self.create_file(prefix=prefix, suffix=".vmfb"))
 
         self.compile_to_vmfb(
             output_mlir=self.output_mlir,
