@@ -4,6 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from datetime import datetime
 import os
 import unittest
 import pytest
@@ -14,19 +15,25 @@ from sharktank.utils.export_artifacts import (
     IreeBenchmarkException,
 )
 from sharktank.utils.testing import (
-    TempDirTestBase,
     is_mi300x,
     is_nightly,
 )
 
 
 @pytest.mark.usefixtures("get_iree_flags")
-class BaseBenchmarkTest(TempDirTestBase):
-    cur_dir = os.path.dirname(os.path.abspath(__file__))
-    models_dir = os.path.dirname(cur_dir)
-    tests_dir = os.path.dirname(models_dir)
-    sharktank_dir = os.path.dirname(tests_dir)
-    repo_root = os.path.dirname(sharktank_dir)
+class BaseBenchmarkTest(unittest.TestCase):
+    directory_created = False
+    current_date = datetime.now()
+    dir_path_suffix = current_date.strftime("%Y-%m-%d")
+    repo_root = Path(__file__).resolve().parents[4]
+    dir_path = repo_root / dir_path_suffix
+
+    @classmethod
+    def setUpClass(cls):
+        """This method will be run once per class to create the directory."""
+        if not cls.directory_created:
+            os.makedirs(cls.dir_path, exist_ok=True)
+            cls.directory_created = True
 
     def setUp(self):
         super().setUp()
@@ -141,7 +148,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         self.irpa_path_fp8_attnf8 = (
             self.artifacts_dir / "fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa"
         )
-        self.dir_path = self._temp_dir / "llama-8b"
+        self.dir_path = self.__class__.dir_path / "llama-8b"
         Path(self.dir_path).mkdir(parents=True, exist_ok=True)
 
         self.llama8b_f16_torch_sdpa_artifacts = ExportArtifacts(
@@ -314,7 +321,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         self.irpa_path = self.weights_dir / "llama3.1_70b_instruct_fp16.irpa"
         self.irpa_path_fp8 = self.artifacts_dir / "fp8/llama70b_fp8.irpa"
         self.tensor_parallelism_size = 8
-        self.dir_path = self._temp_dir / "llama-70b"
+        self.dir_path = self.__class__.dir_path / "llama-70b"
         Path(self.dir_path).mkdir(parents=True, exist_ok=True)
         self.llama70b_f16_torch_sdpa_artifacts_tp1 = ExportArtifacts(
             irpa_path=str(self.irpa_path),
@@ -677,7 +684,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         )
         self.irpa_path_fp8 = self.artifacts_dir / "f8/llama3.1_405b_fp8.irpa"
         self.tensor_parallelism_size = 8
-        self.dir_path = self._temp_dir / "llama-405b"
+        self.dir_path = self.__class__.dir_path / "llama-405b"
         Path(self.dir_path).mkdir(parents=True, exist_ok=True)
 
         self.llama405b_f16_torch_sdpa_artifacts = ExportArtifacts(
