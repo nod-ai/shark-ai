@@ -329,13 +329,13 @@ class ExportArtifacts:
                 "--iree-hal-memoization=true",
             ]
 
-        cmd = subprocess.list2cmdline(compile_args)
-
-        logger.info(f" Launching compile command:\n" f"cd {cwd} && {cmd}")
-        proc = subprocess.run(cmd, shell=True, capture_output=True, cwd=cwd)
-        return_code = proc.returncode
-        if return_code != 0:
-            raise IreeCompileException(proc, cwd)
+        self._run_cmd(
+            cmd=subprocess.list2cmdline(compile_args),
+            cwd=str(cwd),
+            run_msg="Launching compile command",
+            success_msg="Compiled to VMFB successfully",
+            exception=IreeCompileException,
+        )
 
     def iree_benchmark_vmfb(
         self,
@@ -406,12 +406,13 @@ class ExportArtifacts:
             *devices,
             *args,
         ]
-        cmd = subprocess.list2cmdline(run_args)
-        logger.info(f" Launching run command:\n" f"cd {cwd} && {cmd}")
-        proc = subprocess.run(cmd, shell=True, stdout=sys.stdout, cwd=cwd)
-        return_code = proc.returncode
-        if return_code != 0:
-            raise IreeRunException(proc, cwd)
+        self._run_cmd(
+            cmd=subprocess.list2cmdline(run_args),
+            cwd=str(cwd),
+            run_msg="Launching run command",
+            success_msg="Run completed successfully",
+            exception=IreeRunException,
+        )
 
     def create_file(self, *, suffix, prefix):
         # TODO: This looks scary. Should not be doing an fopen just to ensure the path exists, who closes this?
