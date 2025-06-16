@@ -46,9 +46,9 @@ class BaseBenchmarkTest(TempDirTestBase):
         *,
         benchmark_fn: str,
         input_path: Path,
-        tensor_parallelism_size=1,
-        benchmark_repetitions=3,
-    ):
+        tensor_parallelism_size: int = 1,
+        benchmark_repetitions: int = 3,
+    ) -> list[str]:
         benchmark_args = [
             f"--function={benchmark_fn}",
         ]
