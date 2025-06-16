@@ -28,8 +28,12 @@ extern "C" __global__ void topk_F32I32(const float *__restrict__ inputValues,
   uint laneID = threadIdx.x;
 
   int linearIndex = groupID;
-  const float *batchInput = inputValues + linearIndex * reductionSize;
-  const int32_t *batchIndices = inputIndices + linearIndex * reductionSize;
+  int64_t linearIndex64 = linearIndex;
+  int64_t reductionSize64 = reductionSize;
+  int64_t reductionOffset = linearIndex64 * reductionSize64;
+
+  const float *batchInput = inputValues + reductionOffset;
+  const int32_t *batchIndices = inputIndices + reductionOffset;
   float *batchOutputValues = outputValues + linearIndex * k;
   int32_t *batchOutputIndices = outputIndices + linearIndex * k;
 

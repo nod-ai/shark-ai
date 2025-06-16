@@ -303,12 +303,14 @@ def load_iree_module(
     devices: List[iree.runtime.HalDevice],
     parameters_path: Optional[str] = None,
     debug_sink: Optional[iree.runtime.HalModuleDebugSink] = None,
-    tensor_parallel_size: int = _same_as_device_count,
+    tensor_parallel_size: int = 1,
+    pipeline_parallel_size: int = 1,
 ) -> Tuple[iree.runtime.VmModule, iree.runtime.VmContext, iree.runtime.VmInstance]:
     """The VmContext and VmInstance need to outlive the VmModule and any device
     buffers."""
-    if tensor_parallel_size == _same_as_device_count:
-        tensor_parallel_size = len(devices)
+    parallel_size = tensor_parallel_size * pipeline_parallel_size
+    assert parallel_size == len(devices)
+
     vm_instance = iree.runtime.VmInstance()
     hal_module = iree.runtime.create_hal_module(
         instance=vm_instance, devices=devices, debug_sink=debug_sink
@@ -317,15 +319,17 @@ def load_iree_module(
     if parameters_path is not None:
         params_path = Path(parameters_path)
         parameter_index = iree.runtime.ParameterIndex()
-        if tensor_parallel_size == len(devices):
+        if parallel_size == len(devices):
             # TODO: make IREE able to load the parameters from the top parameter file
             # without having to specify the parameter file for each shard separately.
-            handles = get_file_handle(shard_count=len(devices), weight_path=params_path)
+            handles = get_file_handle(
+                shard_count=tensor_parallel_size, weight_path=params_path
+            )
             for handle in handles:
                 parameter_index.load_from_file_handle(handle, "irpa")
         else:
             raise NotImplementedError(
-                "TODO: implement mixture of pipeline and tensor parallelism"
+                f"pipeline_parallelism_size * tensor_parallelism_size {parallel_size} != len(devices) {len(devices)}"
             )
         parameter_provider = parameter_index.create_provider(scope="model")
         parameters_module = iree.runtime.create_io_parameters_module(
