@@ -150,6 +150,18 @@ class ExportArtifacts:
             **init_kwargs,
         )
 
+    def _run_cmd(
+        self, cmd: str, cwd: str, run_msg: str, success_msg: str, exception: Exception
+    ):
+        """Helper function to run a command and handle exceptions."""
+        logger.info(f"{run_msg}:\n" f"cd {cwd} && {cmd}")
+        proc = subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd=cwd)
+        return_code = proc.returncode
+        if return_code != 0:
+            raise exception(proc, cwd)
+        else:
+            logger.info(f"{success_msg}:\n" f"{proc.stdout}")
+
     def timeit(func):
         def wrapper(*args, **kwargs):
             start = time.time()
@@ -248,18 +260,13 @@ class ExportArtifacts:
         if self.use_hf:
             export_args.append("--use-hf")
 
-        cwd = self.sharktank_dir
-        cmd = subprocess.list2cmdline(export_args)
-
-        logger.info(f" Exporting mlir:\n" f"cd {cwd} && {cmd}")
-
-        proc = subprocess.run(cmd, shell=True, capture_output=True, cwd=cwd, text=True)
-        if proc.returncode != 0:
-            raise ExportMlirException(proc, cwd)
-        else:
-            logger.info(f" Exported to mlir successfully:\n" f"{proc.stdout}")
-
-        return proc.returncode
+        self._run_cmd(
+            cmd=subprocess.list2cmdline(export_args),
+            cwd=self.sharktank_dir,
+            run_msg="Exporting MLIR",
+            success_msg="Exported to MLIR successfully",
+            exception=ExportMlirException,
+        )
 
     @timeit
     def compile_to_vmfb(
@@ -298,13 +305,13 @@ class ExportArtifacts:
                 "--iree-hal-memoization=true",
             ]
 
-        cmd = subprocess.list2cmdline(compile_args)
-
-        logger.info(f" Launching compile command:\n" f"cd {cwd} && {cmd}")
-        proc = subprocess.run(cmd, shell=True, capture_output=True, cwd=cwd)
-        return_code = proc.returncode
-        if return_code != 0:
-            raise IreeCompileException(proc, cwd)
+        self._run_cmd(
+            cmd=subprocess.list2cmdline(compile_args),
+            cwd=cwd,
+            run_msg="Launching compile command",
+            success_msg="Compiled MLIR successfully",
+            exception=IreeCompileException,
+        )
 
     def iree_benchmark_vmfb(
         self,
@@ -354,12 +361,14 @@ class ExportArtifacts:
         benchmark_args += devices
         benchmark_args += args
         benchmark_args += [str(benchmark_filename)]
-        cmd = subprocess.list2cmdline(benchmark_args)
-        logger.info(f" Launching run command:\n" f"cd {cwd} && {cmd}")
-        proc = subprocess.run(cmd, shell=True, stdout=sys.stdout, cwd=cwd)
-        return_code = proc.returncode
-        if return_code != 0:
-            raise IreeBenchmarkException(proc, cwd)
+
+        self._run_cmd(
+            cmd=subprocess.list2cmdline(benchmark_args),
+            cwd=str(cwd),
+            run_msg="Launching benchmark command",
+            success_msg="Benchmarked successfully",
+            exception=IreeBenchmarkException,
+        )
 
     def create_file(self, *, suffix, prefix):
         # TODO: This looks scary. Should not be doing an fopen just to ensure the path exists, who closes this?
