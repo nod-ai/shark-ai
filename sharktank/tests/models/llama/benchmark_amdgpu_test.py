@@ -280,22 +280,22 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         self.export_compile_benchmark()
 
     @is_nightly
-    def testBenchmark8B_fp8_attnf8_TP1_Non_Decomposed_Input_Len_2048(self):
-        self.output_name = self.dir_path / "fp8_attnf8_2048_tp1"
-        self.export_artifact = self.llama8b_fp8_attnf8_sdpa_artifacts
-        self.irpa_path = self.irpa_path_fp8_attnf8
-        self.prefill_args = self.prefill_args_nondecomposed_fp8_2048
-        self.decode_args = self.decode_args_nondecomposed_fp8_2048
-
-        self.export_compile_benchmark()
-
-    @is_nightly
     def testBenchmark8B_fp8_attnf8_TP1_Non_Decomposed_Input_Len_128(self):
         self.output_name = self.dir_path / "fp8_attnf8_128_tp1"
         self.export_artifact = self.llama8b_fp8_attnf8_sdpa_artifacts
         self.irpa_path = self.irpa_path_fp8_attnf8
         self.prefill_args = self.prefill_args_nondecomposed_fp8_128
         self.decode_args = self.decode_args_nondecomposed_fp8_128
+
+        self.export_compile_benchmark()
+
+    @is_nightly
+    def testBenchmark8B_fp8_attnf8_TP1_Non_Decomposed_Input_Len_2048(self):
+        self.output_name = self.dir_path / "fp8_attnf8_2048_tp1"
+        self.export_artifact = self.llama8b_fp8_attnf8_sdpa_artifacts
+        self.irpa_path = self.irpa_path_fp8_attnf8
+        self.prefill_args = self.prefill_args_nondecomposed_fp8_2048
+        self.decode_args = self.decode_args_nondecomposed_fp8_2048
 
         self.export_compile_benchmark()
 
