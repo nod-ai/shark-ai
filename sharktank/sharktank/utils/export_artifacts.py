@@ -56,28 +56,28 @@ class ExportMlirException(ExportArtifactsException):
         super().__init__(process, cwd, export_stage="export_paged_llama_v1.py")
 
 
-class IreeBenchmarkException(Exception):
+class IreeBenchmarkException(ExportArtifactsException):
     """IREE benchmark runtime exception."""
 
     def __init__(self, process: subprocess.CompletedProcess, cwd: str):
         super().__init__(process, cwd, export_stage="iree-benchmark-module")
 
 
-class IreeCompileException(Exception):
+class IreeCompileException(ExportArtifactsException):
     """IREE compiler exception."""
 
     def __init__(self, process: subprocess.CompletedProcess, cwd: str):
         super().__init__(process, cwd, export_stage="iree-compile")
 
 
-class IreeRunException(Exception):
+class IreeRunException(ExportArtifactsException):
     """Runtime exception."""
 
     def __init__(self, process: subprocess.CompletedProcess, cwd: str):
         super().__init__(process, cwd, export_stage="iree-run-module")
 
 
-class IrpaShardException(Exception):
+class IrpaShardException(ExportArtifactsException):
     """IRPA sharding exception."""
 
     def __init__(self, process: subprocess.CompletedProcess, cwd: str):
@@ -151,7 +151,12 @@ class ExportArtifacts:
         )
 
     def _run_cmd(
-        self, cmd: str, cwd: str, run_msg: str, success_msg: str, exception: Exception
+        self,
+        cmd: str,
+        cwd: str,
+        run_msg: str,
+        success_msg: str,
+        exception: ExportArtifactsException,
     ):
         """Helper function to run a command and handle exceptions."""
         logger.info(f"{run_msg}:\n" f"cd {cwd} && {cmd}")
