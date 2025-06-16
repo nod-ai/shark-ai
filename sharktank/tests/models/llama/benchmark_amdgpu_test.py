@@ -87,43 +87,37 @@ class BaseBenchmarkTest(unittest.TestCase):
         return benchmark_args
 
     def export_compile_benchmark(self, skip_decode: bool = False):
-        output_mlir = self.export_artifact.create_file(
-            prefix=self.output_name, suffix=".mlir"
-        )
-        output_json = self.export_artifact.create_file(
-            prefix=self.output_name, suffix=".json"
-        )
-        output_vmfb = self.export_artifact.create_file(
-            prefix=self.output_name, suffix=".vmfb"
-        )
-        output_benchmark = self.export_artifact.create_file(
+        mlir = self.export_artifact.create_file(prefix=self.output_name, suffix=".mlir")
+        json = self.export_artifact.create_file(prefix=self.output_name, suffix=".json")
+        vmfb = self.export_artifact.create_file(prefix=self.output_name, suffix=".vmfb")
+        benchmark = self.export_artifact.create_file(
             prefix=self.output_name, suffix=".txt"
         )
         self.export_artifact.export_to_mlir(
-            output_mlir=output_mlir,
-            output_config=output_json,
+            output_mlir=mlir,
+            output_config=json,
         )
         self.export_artifact.compile_to_vmfb(
-            output_mlir=str(output_mlir),
-            output_vmfb=output_vmfb,
+            output_mlir=str(mlir),
+            output_vmfb=vmfb,
             hal_dump_path=self.output_name,
             cwd=self.repo_root,
             args=self.compile_args,
         )
         self.export_artifact.iree_benchmark_vmfb(
             hip_device_id=self.iree_device,
-            vmfb_name=output_vmfb,
+            vmfb_name=vmfb,
             irpa_path=self.irpa_path,
-            benchmark_filename=output_benchmark,
+            benchmark_filename=benchmark,
             args=self.prefill_args,
             cwd=self.repo_root,
         )
         if not skip_decode:
             self.export_artifact.iree_benchmark_vmfb(
                 hip_device_id=self.iree_device,
-                vmfb_name=output_vmfb,
+                vmfb_name=vmfb,
                 irpa_path=self.irpa_path,
-                benchmark_filename=output_benchmark,
+                benchmark_filename=benchmark,
                 args=self.decode_args,
                 cwd=self.repo_root,
             )
