@@ -17,7 +17,6 @@ from sharktank.utils.testing import (
     TempDirTestBase,
     is_mi300x,
     is_nightly,
-    is_llama_8b,
 )
 
 
@@ -254,7 +253,6 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             ">>",
         ]
 
-    @is_llama_8b
     def testBenchmark8B_f16_TP1_Non_Decomposed_Input_Len_128(self):
         self.output_name = self.dir_path / "f16_torch_128_tp1"
         self.export_artifact = self.llama8b_f16_torch_sdpa_artifacts
