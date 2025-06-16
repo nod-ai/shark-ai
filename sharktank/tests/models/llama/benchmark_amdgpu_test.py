@@ -22,18 +22,13 @@ from sharktank.utils.testing import (
 
 @pytest.mark.usefixtures("get_iree_flags")
 class BaseBenchmarkTest(unittest.TestCase):
-    directory_created = False
-    current_date = datetime.now()
-    dir_path_suffix = current_date.strftime("%Y-%m-%d")
+    dir_path_suffix = datetime.now().strftime("%Y-%m-%d")
     repo_root = Path(__file__).resolve().parents[4]
     dir_path = repo_root / dir_path_suffix
 
     @classmethod
     def setUpClass(cls):
-        """This method will be run once per class to create the directory."""
-        if not cls.directory_created:
-            os.makedirs(cls.dir_path, exist_ok=True)
-            cls.directory_created = True
+        os.makedirs(cls.dir_path, exist_ok=True)
 
     def setUp(self):
         super().setUp()
@@ -140,8 +135,9 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         super().setUp()
         # TODO: add numpy files to Azure and download from it
         self.artifacts_dir = Path("/shark-dev/8b")
-        self.weights_dir = self.artifacts_dir / "instruct/weights"
-        self.irpa_path = self.weights_dir / "llama3.1_8b_instruct_fp16.irpa"
+        self.irpa_path_fp16 = (
+            self.artifacts_dir / "instruct/weights/llama3.1_8b_instruct_fp16.irpa"
+        )
         self.irpa_path_fp8 = (
             self.artifacts_dir / "fp8/native_fp8_e4m3fnuz_llama3_8b.irpa"
         )
@@ -152,7 +148,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         Path(self.dir_path).mkdir(parents=True, exist_ok=True)
 
         self.llama8b_f16_torch_sdpa_artifacts = ExportArtifacts(
-            irpa_path=str(self.irpa_path),
+            irpa_path=str(self.irpa_path_fp16),
             batch_size=4,
             iree_hip_target="gfx942",
             iree_hal_target_device="hip",
@@ -190,37 +186,27 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             kv_cache_dtype="float8_e4m3fnuz",
             use_attention_mask=True,
         )
-        self.prefill_args_bs4_128_stride_32_f16 = (
-            self.artifacts_dir / "prefill_args_bs4_128_stride_32_tp1"
-        )
-        self.decode_args_bs4_128_stride_32_f16 = (
-            self.artifacts_dir / "decode_args_bs4_128_stride_32_tp1"
-        )
-        self.prefill_args_bs4_2048_stride_32_f16 = (
-            self.artifacts_dir / "prefill_args_bs4_2048_stride_32"
-        )
-        self.decode_args_bs4_2048_stride_32_f16 = (
-            self.artifacts_dir / "decode_args_bs4_2048_stride_32"
-        )
+
         # default fp8 input size here is 128
-        self.prefill_args_fp8 = self.artifacts_dir / "prefill_args_fp8"
-        self.decode_args_fp8 = self.artifacts_dir / "decode_args_fp8"
         self.iree_run_prefill_nondecomposed_args_fp16 = self.save_benchmarks(
             benchmark_fn="prefill_bs4",
-            input_path=self.prefill_args_bs4_128_stride_32_f16,
+            input_path=self.artifacts_dir / "prefill_args_bs4_128_stride_32_tp1",
         )
         self.iree_run_decode_nondecomposed_args_fp16 = self.save_benchmarks(
             benchmark_fn="decode_bs4",
-            input_path=self.decode_args_bs4_128_stride_32_f16,
+            input_path=self.artifacts_dir / "decode_args_bs4_128_stride_32_tp1",
         )
         self.iree_run_prefill_nondecomposed_args_fp16_2048 = self.save_benchmarks(
             benchmark_fn="prefill_bs4",
-            input_path=self.prefill_args_bs4_2048_stride_32_f16,
+            input_path=self.artifacts_dir / "prefill_args_bs4_2048_stride_32",
         )
         self.iree_run_decode_nondecomposed_args_fp16_2048 = self.save_benchmarks(
             benchmark_fn="decode_bs4",
-            input_path=self.decode_args_bs4_2048_stride_32_f16,
+            input_path=self.artifacts_dir / "decode_args_bs4_2048_stride_32",
         )
+
+        self.prefill_args_fp8 = self.artifacts_dir / "prefill_args_fp8"
+        self.decode_args_fp8 = self.artifacts_dir / "decode_args_fp8"
         self.iree_run_prefill_args_fp8 = [
             "--function=prefill_bs4",
             f"--input=4x128xi64=@{self.prefill_args_fp8}/tokens.bin",
@@ -263,7 +249,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
     def testBenchmark8B_f16_TP1_Non_Decomposed_Input_Len_128(self):
         self.output_name = self.dir_path / "f16_torch_128_tp1"
         self.export_artifact = self.llama8b_f16_torch_sdpa_artifacts
-        self.irpa_path = self.irpa_path
+        self.irpa_path = self.irpa_path_fp16
         self.prefill_args = self.iree_run_prefill_nondecomposed_args_fp16
         self.decode_args = self.iree_run_decode_nondecomposed_args_fp16
 
@@ -273,7 +259,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
     def testBenchmark8B_f16_TP1_Non_Decomposed_Input_Len_2048(self):
         self.output_name = self.dir_path / "f16_torch_2048_tp1"
         self.export_artifact = self.llama8b_f16_torch_sdpa_artifacts
-        self.irpa_path = self.irpa_path
+        self.irpa_path = self.irpa_path_fp16
         self.prefill_args = self.iree_run_prefill_nondecomposed_args_fp16_2048
         self.decode_args = self.iree_run_decode_nondecomposed_args_fp16_2048
 
