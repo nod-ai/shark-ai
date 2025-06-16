@@ -227,7 +227,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         output_benchmark = self.llama8b_f16_torch_sdpa_artifacts.create_file(
             suffix=".txt", prefix=output_file_name
         )
-        export_return_code = self.llama8b_f16_torch_sdpa_artifacts.export_to_mlir(
+        self.llama8b_f16_torch_sdpa_artifacts.export_to_mlir(
             output_mlir=output_mlir,
             output_config=output_json,
         )
@@ -272,7 +272,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         output_benchmark = self.llama8b_f16_torch_sdpa_artifacts.create_file(
             suffix=".txt", prefix=output_file_name
         )
-        export_return_code = self.llama8b_f16_torch_sdpa_artifacts.export_to_mlir(
+        self.llama8b_f16_torch_sdpa_artifacts.export_to_mlir(
             output_mlir=output_mlir,
             output_config=output_json,
         )
@@ -317,7 +317,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         output_benchmark = self.llama8b_fp8_torch_sdpa_artifacts.create_file(
             suffix=".txt", prefix=output_file_name
         )
-        export_return_code = self.llama8b_fp8_torch_sdpa_artifacts.export_to_mlir(
+        self.llama8b_fp8_torch_sdpa_artifacts.export_to_mlir(
             output_mlir=output_mlir,
             output_config=output_json,
         )
@@ -362,7 +362,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         output_benchmark = self.llama8b_fp8_attnf8_sdpa_artifacts.create_file(
             suffix=".txt", prefix=output_file_name
         )
-        export_return_code = self.llama8b_fp8_attnf8_sdpa_artifacts.export_to_mlir(
+        self.llama8b_fp8_attnf8_sdpa_artifacts.export_to_mlir(
             output_mlir=output_mlir,
             output_config=output_json,
         )
@@ -407,7 +407,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         output_benchmark = self.llama8b_fp8_attnf8_sdpa_artifacts.create_file(
             suffix=".txt", prefix=output_file_name
         )
-        export_return_code = self.llama8b_fp8_attnf8_sdpa_artifacts.export_to_mlir(
+        self.llama8b_fp8_attnf8_sdpa_artifacts.export_to_mlir(
             output_mlir=output_mlir,
             output_config=output_json,
         )
@@ -578,7 +578,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         output_benchmark = self.llama70b_f16_torch_sdpa_artifacts_tp1.create_file(
             suffix=".txt", prefix=output_file_name
         )
-        export_return_code = self.llama70b_f16_torch_sdpa_artifacts_tp1.export_to_mlir(
+        self.llama70b_f16_torch_sdpa_artifacts_tp1.export_to_mlir(
             output_mlir=output_mlir,
             output_config=output_json,
         )
@@ -622,7 +622,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         output_benchmark = self.llama70b_f16_torch_sdpa_artifacts_tp1.create_file(
             suffix=".txt", prefix=output_file_name
         )
-        export_return_code = self.llama70b_f16_torch_sdpa_artifacts_tp1.export_to_mlir(
+        self.llama70b_f16_torch_sdpa_artifacts_tp1.export_to_mlir(
             output_mlir=output_mlir,
             output_config=output_json,
         )
@@ -676,7 +676,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             self.llama70b_f16_torch_sdpa_artifacts_tp8.irpa_path = (
                 output_shard_file_name
             )
-        export_return_code = self.llama70b_f16_torch_sdpa_artifacts_tp8.export_to_mlir(
+        self.llama70b_f16_torch_sdpa_artifacts_tp8.export_to_mlir(
             output_mlir=output_mlir,
             output_config=output_json,
         )
@@ -728,7 +728,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             self.llama70b_f16_torch_sdpa_artifacts_tp8.irpa_path = (
                 output_shard_file_name
             )
-        export_return_code = self.llama70b_f16_torch_sdpa_artifacts_tp8.export_to_mlir(
+        self.llama70b_f16_torch_sdpa_artifacts_tp8.export_to_mlir(
             output_mlir=output_mlir,
             output_config=output_json,
         )
@@ -770,7 +770,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         output_vmfb = self.llama70b_fp8_torch_sdpa_artifacts_tp1.create_file(
             suffix=".vmfb", prefix=output_file_name
         )
-        export_return_code = self.llama70b_fp8_torch_sdpa_artifacts_tp1.export_to_mlir(
+        self.llama70b_fp8_torch_sdpa_artifacts_tp1.export_to_mlir(
             output_mlir=output_mlir,
             output_config=output_json,
         )
@@ -910,7 +910,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         )
         if output_shard_file_name.exists():
             self.llama405b_f16_torch_sdpa_artifacts.irpa_path = output_shard_file_name
-        export_return_code = self.llama405b_f16_torch_sdpa_artifacts.export_to_mlir(
+        self.llama405b_f16_torch_sdpa_artifacts.export_to_mlir(
             output_mlir=output_mlir,
             output_config=output_json,
         )
@@ -951,7 +951,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         )
         if output_shard_file_name.exists():
             self.llama405b_f16_torch_sdpa_artifacts.irpa_path = output_shard_file_name
-        export_return_code = self.llama405b_f16_torch_sdpa_artifacts.export_to_mlir(
+        self.llama405b_f16_torch_sdpa_artifacts.export_to_mlir(
             output_mlir=output_mlir,
             output_config=output_json,
         )
@@ -992,7 +992,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         )
         if output_shard_file_name.exists():
             self.llama405b_fp8_torch_sdpa_artifacts.irpa_path = output_shard_file_name
-        export_return_code = self.llama405b_fp8_torch_sdpa_artifacts.export_to_mlir(
+        self.llama405b_fp8_torch_sdpa_artifacts.export_to_mlir(
             output_mlir=output_mlir,
             output_config=output_json,
         )
