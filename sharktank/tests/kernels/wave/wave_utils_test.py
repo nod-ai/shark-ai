@@ -19,9 +19,10 @@ class WaveUtilsTest(unittest.TestCase):
         to convert the public `func.func` emitted by wave_compile into a
         `private` one so that it gets removed after inlining.
 
-        A public `func.func` is retained after inlining (not discarded),
-        which causes duplicate symbols or unused functions.
-        Making it private allows the inliner to remove it after use.
+        If the public `func.func` from `wave_compile()` is retained
+        after inlining, it causes duplicate/unused functions at
+        IREE runtime during eager execution. Making it private allows
+        the inline pass to remove it after use.
         """
 
         # Original wave_compile() result with a public func.func
@@ -102,10 +103,11 @@ class WaveUtilsTest(unittest.TestCase):
             inlined_private,
         )
 
-        # Public wave_func_call gets not removed
+        # Public wave_func_call remains, which becomes a duplicate
+        # of func.func @main after async invocations
         self.assertIn("func.func @wave_func_call", inlined_public)
         # Private wave_func_call gets removed
-        self.assertNotIn("func.func @wave_func_call", inlined_private)
+        self.assertNotIn("func.func private @wave_func_call", inlined_private)
 
         # Util function gets removed in both cases
         self.assertNotIn(
