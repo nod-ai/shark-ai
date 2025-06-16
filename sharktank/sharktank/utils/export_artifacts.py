@@ -205,18 +205,13 @@ class ExportArtifacts:
             str(self.tensor_parallelism_size),
         ]
 
-        cwd = self.sharktank_dir
-        cmd = subprocess.list2cmdline(shard_irpa_args)
-
-        logger.info(f"Sharding irpa file:\n" f"cd {cwd} && {cmd}")
-
-        proc = subprocess.run(cmd, shell=True, capture_output=True, cwd=cwd, text=True)
-        if proc.returncode != 0:
-            raise IrpaShardException(proc, cwd)
-        else:
-            logger.info(f"Sharded irpa file successfully:\n" f"{proc.stdout}")
-
-        return proc.returncode
+        self._run_cmd(
+            cmd=subprocess.list2cmdline(shard_irpa_args),
+            cwd=self.sharktank_dir,
+            run_msg="Sharding irpa file",
+            success_msg="Sharded irpa file successfully",
+            exception=IrpaShardException,
+        )
 
     @timeit
     def export_to_mlir(
