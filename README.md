@@ -30,7 +30,7 @@
 | sharktank/sharktank/kernels/mmtfp.py                                          |       41 |        2 |     95% |     68-69 |
 | sharktank/sharktank/kernels/pooling\_nchw\_sum.py                             |       38 |        0 |    100% |           |
 | sharktank/sharktank/kernels/rotary.py                                         |       31 |        0 |    100% |           |
-| sharktank/sharktank/kernels/topk.py                                           |       28 |        0 |    100% |           |
+| sharktank/sharktank/kernels/topk.py                                           |       30 |        0 |    100% |           |
 | sharktank/sharktank/layers/\_\_init\_\_.py                                    |       15 |        0 |    100% |           |
 | sharktank/sharktank/layers/activations.py                                     |        3 |        0 |    100% |           |
 | sharktank/sharktank/layers/base.py                                            |      177 |       27 |     85% |131, 206-209, 224, 242, 259-260, 269, 298, 366-374, 385-398, 400, 404-407, 411, 417, 424 |
@@ -205,7 +205,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |       26 |        0 |    100% |           |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **19319** | **3975** | **79%** |           |
+|                                                                     **TOTAL** | **19321** | **3975** | **79%** |           |
 
 
 ## Setup coverage badge
