@@ -150,6 +150,30 @@ class ExportArtifacts:
             **init_kwargs,
         )
 
+    def _prepare_params_and_devices(
+        self, irpa_path: str, hip_device_id: str
+    ) -> tuple[List[str], List[str]]:
+        if self.parallelism_size > 1:
+            base_irpa_path, _ = os.path.splitext(irpa_path)
+            rocr_visible_devices = [
+                f"ROCR_VISIBLE_DEVICES={','.join(str(i) for i in range(self.parallelism_size))}"
+            ]
+            params = [f"--parameters=model={base_irpa_path}.irpa"]
+            params += [
+                f"--parameters=model={base_irpa_path}.rank{i}.irpa"
+                for i in range(self.tensor_parallelism_size)
+            ]
+            devices = [f"--device=hip://{i}" for i in range(self.parallelism_size)]
+        else:
+            hip_device_arg = int(hip_device_id.split("://")[1])
+            rocr_visible_devices = [
+                f"ROCR_VISIBLE_DEVICES={','.join(str(i) for i in range(hip_device_arg + 1))}"
+            ]
+            params = [f"--parameters=model={irpa_path}"]
+            devices = [f"--device={hip_device_id}"]
+
+        return params, devices, rocr_visible_devices
+
     def _run_cmd(
         self,
         cmd: str,
@@ -305,37 +329,13 @@ class ExportArtifacts:
                 "--iree-hal-memoization=true",
             ]
 
-        self._run_cmd(
-            cmd=subprocess.list2cmdline(compile_args),
-            cwd=cwd,
-            run_msg="Launching compile command",
-            success_msg="Compiled MLIR successfully",
-            exception=IreeCompileException,
-        )
+        cmd = subprocess.list2cmdline(compile_args)
 
-    def _prepare_params_and_devices(
-        self, irpa_path: str, hip_device_id: str
-    ) -> tuple[List[str], List[str]]:
-        if self.parallelism_size > 1:
-            base_irpa_path, _ = os.path.splitext(irpa_path)
-            rocr_visible_devices = [
-                f"ROCR_VISIBLE_DEVICES={','.join(str(i) for i in range(self.parallelism_size))}"
-            ]
-            params = [f"--parameters=model={base_irpa_path}.irpa"]
-            params += [
-                f"--parameters=model={base_irpa_path}.rank{i}.irpa"
-                for i in range(self.tensor_parallelism_size)
-            ]
-            devices = [f"--device=hip://{i}" for i in range(self.parallelism_size)]
-        else:
-            hip_device_arg = int(hip_device_id.split("://")[1])
-            rocr_visible_devices = [
-                f"ROCR_VISIBLE_DEVICES={','.join(str(i) for i in range(hip_device_arg + 1))}"
-            ]
-            params = [f"--parameters=model={irpa_path}"]
-            devices = [f"--device={hip_device_id}"]
-
-        return params, devices, rocr_visible_devices
+        logger.info(f" Launching compile command:\n" f"cd {cwd} && {cmd}")
+        proc = subprocess.run(cmd, shell=True, capture_output=True, cwd=cwd)
+        return_code = proc.returncode
+        if return_code != 0:
+            raise IreeCompileException(proc, cwd)
 
     def iree_benchmark_vmfb(
         self,
@@ -383,6 +383,7 @@ class ExportArtifacts:
             exception=IreeBenchmarkException,
         )
 
+    @timeit
     def iree_run_vmfb(
         self,
         *,
