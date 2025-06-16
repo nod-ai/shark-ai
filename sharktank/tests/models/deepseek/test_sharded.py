@@ -180,6 +180,7 @@ class DeepseekShardedTest(TempDirTestBase):
                 module_path=iree_module_path,
                 devices=iree_devices,
                 parameters_path=sharded_parameters_path,
+                tensor_parallel_size=tensor_parallelism_size,
             )
 
             torch_like_iree_module = TorchLikeIreeModule(
