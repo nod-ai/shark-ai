@@ -291,6 +291,7 @@ class ShardedLlamaTest(unittest.TestCase):
         sharded_parameters_path = f"{path_prefix}parameters.irpa"
         sharded_dataset.save(sharded_parameters_path)
         sharded_dataset = Dataset.load(sharded_parameters_path, mmap=False)
+        shard_count = self.sharded_config.tensor_parallelism_size
 
         model = PagedLlmModelV1(self.theta, self.config)
         sharded_model = PagedLlmModelV1(sharded_dataset.root_theta, self.sharded_config)
@@ -333,9 +334,7 @@ class ShardedLlamaTest(unittest.TestCase):
             if dump_enabled:
                 output.save_mlir(f"{path_prefix}program.mlir")
             output.session.set_flags(
-                *get_iree_compiler_flags_from_object(
-                    self, self.sharded_config.tensor_parallelism_size
-                )
+                *get_iree_compiler_flags_from_object(self, shard_count)
             )
             output.compile(
                 save_to=iree_module_path,
@@ -357,7 +356,7 @@ class ShardedLlamaTest(unittest.TestCase):
 
         iree_devices = get_iree_devices(
             device=self.iree_device,
-            device_count=self.sharded_config.tensor_parallelism_size,
+            device_count=shard_count,
         )
 
         def run_iree_module(iree_devices: list[iree.runtime.HalDevice]):
@@ -365,6 +364,7 @@ class ShardedLlamaTest(unittest.TestCase):
                 module_path=iree_module_path,
                 devices=iree_devices,
                 parameters_path=sharded_parameters_path,
+                tensor_parallel_size=shard_count,
             )
 
             # Run prefill step.
