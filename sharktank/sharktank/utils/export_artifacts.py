@@ -49,7 +49,7 @@ class ExportArtifactsException(Exception):
         )
 
 
-class MlirExportException(ExportArtifactsException):
+class ExportMlirException(ExportArtifactsException):
     """shark-ai export MLIR exception."""
 
     def __init__(self, process: subprocess.CompletedProcess, cwd: str):
@@ -255,7 +255,7 @@ class ExportArtifacts:
 
         proc = subprocess.run(cmd, shell=True, capture_output=True, cwd=cwd, text=True)
         if proc.returncode != 0:
-            raise MlirExportException(proc, cwd)
+            raise ExportMlirException(proc, cwd)
         else:
             logger.info(f" Exported to mlir successfully:\n" f"{proc.stdout}")
 
