@@ -70,7 +70,7 @@ class IreeCompileException(Exception):
         super().__init__(process, cwd, export_stage="iree-compile")
 
 
-class IreeRunModuleException(Exception):
+class IreeRunException(Exception):
     """Runtime exception."""
 
     def __init__(self, process: subprocess.CompletedProcess, cwd: str):
