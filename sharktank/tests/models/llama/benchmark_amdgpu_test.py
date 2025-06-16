@@ -4,19 +4,14 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import logging
 import os
-import sys
 import unittest
 import pytest
-import subprocess
 from pathlib import Path
-from typing import List
 from sharktank.utils.export_artifacts import (
     ExportArtifacts,
     ExportMlirException,
     IreeBenchmarkException,
-    IreeCompileException,
 )
 from sharktank.utils.testing import (
     TempDirTestBase,
