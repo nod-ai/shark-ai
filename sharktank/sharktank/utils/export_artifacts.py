@@ -313,6 +313,30 @@ class ExportArtifacts:
             exception=IreeCompileException,
         )
 
+    def _prepare_params_and_devices(
+        self, irpa_path: str, hip_device_id: str
+    ) -> tuple[List[str], List[str]]:
+        if self.parallelism_size > 1:
+            base_irpa_path, _ = os.path.splitext(irpa_path)
+            rocr_visible_devices = [
+                f"ROCR_VISIBLE_DEVICES={','.join(str(i) for i in range(self.parallelism_size))}"
+            ]
+            params = [f"--parameters=model={base_irpa_path}.irpa"]
+            params += [
+                f"--parameters=model={base_irpa_path}.rank{i}.irpa"
+                for i in range(self.tensor_parallelism_size)
+            ]
+            devices = [f"--device=hip://{i}" for i in range(self.parallelism_size)]
+        else:
+            hip_device_arg = int(hip_device_id.split("://")[1])
+            rocr_visible_devices = [
+                f"ROCR_VISIBLE_DEVICES={','.join(str(i) for i in range(hip_device_arg + 1))}"
+            ]
+            params = [f"--parameters=model={irpa_path}"]
+            devices = [f"--device={hip_device_id}"]
+
+        return params, devices, rocr_visible_devices
+
     def iree_benchmark_vmfb(
         self,
         *,
@@ -332,30 +356,19 @@ class ExportArtifacts:
             compile_cmd: Command used to compile the program, for inclusion in error messages.
         Raises Exception if running fails for some reason.
         """
-        benchmark_args = []
-        if self.parallelism_size > 1:
-            base_irpa_path, _ = os.path.splitext(irpa_path)
-            rocr_visible_devices = [
-                f"ROCR_VISIBLE_DEVICES={','.join(str(i) for i in range(self.parallelism_size))}"
-            ]
-            params = [f"--parameters=model={base_irpa_path}.irpa"]
-            params += [
-                f"--parameters=model={base_irpa_path}.rank{i}.irpa"
-                for i in range(self.tensor_parallelism_size)
-            ]
-            devices = [f"--device=hip://{i}" for i in range(self.parallelism_size)]
-        else:
-            hip_device_arg = int(hip_device_id.split("://")[1])
-            rocr_visible_devices = [
-                f"ROCR_VISIBLE_DEVICES={','.join(str(i) for i in range(hip_device_arg + 1))}"
-            ]
-            params = [f"--parameters=model={irpa_path}"]
-            devices = [f"--device={hip_device_id}"]
-        benchmark_args += rocr_visible_devices
-        benchmark_args += [
+        params, devices, rocr_visible_devices = self._prepare_params_and_devices(
+            irpa_path, hip_device_id
+        )
+
+        benchmark_args = [
+            *rocr_visible_devices,
             "iree-benchmark-module",
             "--hip_use_streams=true",
             f"--module={vmfb_name}",
+            *params,
+            *devices,
+            *args,
+            str(benchmark_filename),
         ]
         benchmark_args += params
         benchmark_args += devices
@@ -369,6 +382,35 @@ class ExportArtifacts:
             success_msg="Benchmarked successfully",
             exception=IreeBenchmarkException,
         )
+
+    def iree_run_vmfb(
+        self,
+        *,
+        hip_device_id: str,
+        vmfb_name: str,
+        irpa_path: str,
+        args: List[str],
+        cwd: str | Path,
+    ):
+        params, devices, rocr_visible_devices = self._prepare_params_and_devices(
+            irpa_path, hip_device_id
+        )
+
+        run_args = [
+            *rocr_visible_devices,
+            "iree-run-module",
+            "--hip_use_streams=true",
+            f"--module={vmfb_name}",
+            *params,
+            *devices,
+            *args,
+        ]
+        cmd = subprocess.list2cmdline(run_args)
+        logger.info(f" Launching run command:\n" f"cd {cwd} && {cmd}")
+        proc = subprocess.run(cmd, shell=True, stdout=sys.stdout, cwd=cwd)
+        return_code = proc.returncode
+        if return_code != 0:
+            raise IreeRunException(proc, cwd)
 
     def create_file(self, *, suffix, prefix):
         # TODO: This looks scary. Should not be doing an fopen just to ensure the path exists, who closes this?
