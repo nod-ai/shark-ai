@@ -228,6 +228,7 @@ class PerplexityIree:
             devices=self.devices,
             parameters_path=self.weight_path_str,
             tensor_parallel_size=shard_count,
+            pipeline_parallel_size=self.pipeline_parallelism_size,
         )
 
     def assemble_batch(self, token_batch: torch.tensor, devices) -> torch.tensor:
