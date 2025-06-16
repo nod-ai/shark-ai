@@ -202,7 +202,9 @@ class ExportArtifacts:
         if proc.returncode != 0:
             raise IrpaShardException(proc, cwd)
         else:
-            logger.info(f" Exported to mlir successfully:\n" f"{proc.stdout}")
+            logger.info(f"Sharded irpa file successfully:\n" f"{proc.stdout}")
+
+        return proc.returncode
 
     @timeit
     def export_to_mlir(
