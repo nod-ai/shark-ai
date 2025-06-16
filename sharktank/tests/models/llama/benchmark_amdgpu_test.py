@@ -83,6 +83,7 @@ class BaseBenchmarkTest(unittest.TestCase):
 
         benchmark_args += [f"--input=@{input_path}/seq_block_ids.npy"]
 
+        # TODO: Support pipeline parallelism
         if tensor_parallelism_size == 1:
             benchmark_args += [
                 f"--input=@{input_path}/cs_f16.npy",
