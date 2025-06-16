@@ -5,7 +5,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import logging
-from datetime import datetime
 import os
 import sys
 import unittest
@@ -20,6 +19,7 @@ from sharktank.utils.export_artifacts import (
     IreeCompileException,
 )
 from sharktank.utils.testing import (
+    TempDirTestBase,
     is_mi300x,
     is_nightly,
     is_llama_8b,
@@ -27,28 +27,15 @@ from sharktank.utils.testing import (
 
 
 @pytest.mark.usefixtures("get_iree_flags")
-class BaseBenchmarkTest(unittest.TestCase):
-    directory_created = False
-    current_date = datetime.now()
-    dir_path_suffix = current_date.strftime("%Y-%m-%d")
+class BaseBenchmarkTest(TempDirTestBase):
     cur_dir = os.path.dirname(os.path.abspath(__file__))
     models_dir = os.path.dirname(cur_dir)
     tests_dir = os.path.dirname(models_dir)
     sharktank_dir = os.path.dirname(tests_dir)
     repo_root = os.path.dirname(sharktank_dir)
-    dir_path = Path(repo_root + "/" + dir_path_suffix)
-    tensor_parallelism_size = 1
-    pipeline_parallelism_size = 1
-
-    @classmethod
-    def setUpClass(cls):
-        """This method will be run once per class to create the directory."""
-        if not cls.directory_created:
-            if not os.path.exists(cls.dir_path):
-                os.makedirs(cls.dir_path)
-            cls.directory_created = True
 
     def setUp(self):
+        super().setUp()
         self.compile_args = [
             "--iree-opt-level=O3",
             "--iree-hal-indirect-command-buffers=true",
@@ -56,6 +43,8 @@ class BaseBenchmarkTest(unittest.TestCase):
             "--iree-hal-memoization=true",
             "--iree-stream-affinity-solver-max-iterations=1024",
         ]
+        self.tensor_parallelism_size = 1
+        self.pipeline_parallelism_size = 1
 
     def save_benchmarks(
         self,
@@ -116,9 +105,9 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         self.irpa_path_fp8_attnf8 = (
             self.artifacts_dir / "fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa"
         )
-        self.dir_path_8b = self.dir_path / "llama-8b"
-        self.temp_dir_8b = Path(self.dir_path_8b)
-        self.temp_dir_8b.mkdir(parents=True, exist_ok=True)
+        self.dir_path = self._temp_dir / "llama-8b"
+        Path(self.dir_path).mkdir(parents=True, exist_ok=True)
+        self.temp_dir_8b
         self.llama8b_f16_torch_sdpa_artifacts = ExportArtifacts(
             irpa_path=str(self.irpa_path),
             batch_size=4,
@@ -230,7 +219,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
 
     @is_llama_8b
     def testBenchmark8B_f16_TP1_Non_Decomposed_Input_Len_128(self):
-        output_file_name = self.dir_path_8b / "f16_torch_128_tp1"
+        output_file_name = self.dir_path / "f16_torch_128_tp1"
         output_mlir = self.llama8b_f16_torch_sdpa_artifacts.create_file(
             suffix=".mlir", prefix=output_file_name
         )
@@ -275,7 +264,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
 
     @is_nightly
     def testBenchmark8B_f16_TP1_Non_Decomposed_Input_Len_2048(self):
-        output_file_name = self.dir_path_8b / "f16_torch_2048_tp1"
+        output_file_name = self.dir_path / "f16_torch_2048_tp1"
         output_mlir = self.llama8b_f16_torch_sdpa_artifacts.create_file(
             suffix=".mlir", prefix=output_file_name
         )
@@ -320,7 +309,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
 
     @is_nightly
     def testBenchmark8B_fp8_TP1_Non_Decomposed(self):
-        output_file_name = self.dir_path_8b / "fp8_torch_tp1"
+        output_file_name = self.dir_path / "fp8_torch_tp1"
         output_mlir = self.llama8b_fp8_torch_sdpa_artifacts.create_file(
             suffix=".mlir", prefix=output_file_name
         )
@@ -365,7 +354,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
 
     @is_nightly
     def testBenchmark8B_fp8_attnf8_TP1_Non_Decomposed_Input_Len_2048(self):
-        output_file_name = self.dir_path_8b / "fp8_attnf8_2048_tp1"
+        output_file_name = self.dir_path / "fp8_attnf8_2048_tp1"
         output_mlir = self.llama8b_fp8_attnf8_sdpa_artifacts.create_file(
             suffix=".mlir", prefix=output_file_name
         )
@@ -410,7 +399,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
 
     @is_nightly
     def testBenchmark8B_fp8_attnf8_TP1_Non_Decomposed_Input_Len_128(self):
-        output_file_name = self.dir_path_8b / "fp8_attnf8_128_tp1"
+        output_file_name = self.dir_path / "fp8_attnf8_128_tp1"
         output_mlir = self.llama8b_fp8_attnf8_sdpa_artifacts.create_file(
             suffix=".mlir", prefix=output_file_name
         )
@@ -465,9 +454,8 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         self.irpa_path = self.weights_dir / "llama3.1_70b_instruct_fp16.irpa"
         self.irpa_path_fp8 = self.artifacts_dir / "fp8/llama70b_fp8.irpa"
         self.tensor_parallelism_size = 8
-        self.dir_path_70b = self.dir_path / "llama-70b"
-        self.temp_dir_70b = Path(self.dir_path_70b)
-        self.temp_dir_70b.mkdir(parents=True, exist_ok=True)
+        self.dir_path = self._temp_dir / "llama-70b"
+        Path(self.dir_path).mkdir(parents=True, exist_ok=True)
         self.llama70b_f16_torch_sdpa_artifacts_tp1 = ExportArtifacts(
             irpa_path=str(self.irpa_path),
             batch_size=4,
@@ -582,7 +570,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         ]
 
     def testBenchmark70B_f16_TP1_Non_Decomposed_Input_Len_128(self):
-        output_file_name = self.dir_path_70b / "f16_torch_128_tp1"
+        output_file_name = self.dir_path / "f16_torch_128_tp1"
         output_mlir = self.llama70b_f16_torch_sdpa_artifacts_tp1.create_file(
             suffix=".mlir", prefix=output_file_name
         )
@@ -626,7 +614,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         )
 
     def testBenchmark70B_f16_TP1_Non_Decomposed_Input_Len_2048(self):
-        output_file_name = self.dir_path_70b / "f16_torch_2048_tp1"
+        output_file_name = self.dir_path / "f16_torch_2048_tp1"
         output_mlir = self.llama70b_f16_torch_sdpa_artifacts_tp1.create_file(
             suffix=".mlir", prefix=output_file_name
         )
@@ -675,7 +663,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         raises=IreeBenchmarkException,
     )
     def testBenchmark70B_f16_TP8_Non_Decomposed_Input_Len_128(self):
-        output_file_name = self.dir_path_70b / "f16_torch_128_tp8"
+        output_file_name = self.dir_path / "f16_torch_128_tp8"
         output_mlir = self.llama70b_f16_torch_sdpa_artifacts_tp8.create_file(
             suffix=".mlir", prefix=output_file_name
         )
@@ -727,7 +715,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         raises=IreeBenchmarkException,
     )
     def testBenchmark70B_f16_TP8_Non_Decomposed_Input_Len_2048(self):
-        output_file_name = self.dir_path_70b / "f16_torch_2048_tp8"
+        output_file_name = self.dir_path / "f16_torch_2048_tp8"
         output_mlir = self.llama70b_f16_torch_sdpa_artifacts_tp8.create_file(
             suffix=".mlir", prefix=output_file_name
         )
@@ -777,7 +765,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         reason="70b fp8 irpa does not exist", strict=True, raises=ExportMlirException
     )
     def testBenchmark70B_fp8_TP1_Non_Decomposed(self):
-        output_file_name = self.dir_path_70b / "fp8_torch_tp1"
+        output_file_name = self.dir_path / "fp8_torch_tp1"
         output_mlir = self.llama70b_fp8_torch_sdpa_artifacts_tp1.create_file(
             suffix=".mlir", prefix=output_file_name
         )
@@ -829,9 +817,9 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         )
         self.irpa_path_fp8 = self.artifacts_dir / "f8/llama3.1_405b_fp8.irpa"
         self.tensor_parallelism_size = 8
-        self.dir_path_405b = self.dir_path / "llama-405b"
-        self.temp_dir_405b = Path(self.dir_path_405b)
-        self.temp_dir_405b.mkdir(parents=True, exist_ok=True)
+        self.dir_path = self._temp_dir / "llama-405b"
+        Path(self.dir_path).mkdir(parents=True, exist_ok=True)
+
         self.llama405b_f16_torch_sdpa_artifacts = ExportArtifacts(
             irpa_path=str(self.irpa_path),
             batch_size=4,
@@ -911,7 +899,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         reason="Benchmarking Error", strict=True, raises=IreeBenchmarkException
     )
     def testBenchmark405B_f16_TP8_Non_Decomposed_Input_Len_128(self):
-        output_file_name = self.dir_path_405b / "f16_torch_128"
+        output_file_name = self.dir_path / "f16_torch_128"
         output_mlir = self.llama405b_f16_torch_sdpa_artifacts.create_file(
             suffix=".mlir", prefix=output_file_name
         )
@@ -952,7 +940,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         reason="Benchmarking Error", strict=True, raises=IreeBenchmarkException
     )
     def testBenchmark405B_f16_TP8_Non_Decomposed_Input_Len_2048(self):
-        output_file_name = self.dir_path_405b / "f16_torch_2048"
+        output_file_name = self.dir_path / "f16_torch_2048"
         output_mlir = self.llama405b_f16_torch_sdpa_artifacts.create_file(
             suffix=".mlir", prefix=output_file_name
         )
@@ -993,7 +981,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         reason="KeyError in theta.py", strict=True, raises=ExportMlirException
     )
     def testBenchmark405B_fp8_TP8_Non_Decomposed(self):
-        output_file_name = self.dir_path_405b / "fp8_torch"
+        output_file_name = self.dir_path / "fp8_torch"
         output_mlir = self.llama405b_fp8_torch_sdpa_artifacts.create_file(
             suffix=".mlir", prefix=output_file_name
         )
