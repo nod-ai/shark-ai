@@ -71,7 +71,7 @@ class IreeCompileException(Exception):
 
 
 class IreeRunModuleException(Exception):
-    """Runtime exception that preserves the command line and error output."""
+    """Runtime exception."""
 
     def __init__(self, process: subprocess.CompletedProcess, cwd: str):
         super().__init__(process, cwd, export_stage="iree-run-module")
