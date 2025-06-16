@@ -122,7 +122,10 @@ class BasePagedAttentionCache:
     """
 
     def __init__(
-        self, page_pool: PagePool, tokens_per_page: int, use_ref_counts: bool = False
+        self,
+        page_pool: PagePool,
+        tokens_per_page: int,
+        use_ref_counts: bool = True,
     ):
         self.page_pool = page_pool
         self.tokens_per_page = tokens_per_page
