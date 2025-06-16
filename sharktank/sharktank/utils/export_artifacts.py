@@ -49,7 +49,7 @@ class ExportArtifactsException(Exception):
         )
 
 
-class MlirExportException(ExportArtifactsException):
+class ExportMlirException(ExportArtifactsException):
     """shark-ai export MLIR exception."""
 
     def __init__(self, process: subprocess.CompletedProcess, cwd: str):
