@@ -1061,18 +1061,24 @@ class PagedAttention:
                 attn_output = kernels.flash_attention(q, k, v)
             return attn_output
 
-        # Non-decomposed
-        if softcap is not None:
-            raise ValueError("softcap not supported yet")
+        elif attention_kernel == "torch":
+            # Non-decomposed
+            if softcap is not None:
+                raise ValueError("softcap not supported yet")
 
-        return ops.scaled_dot_product_attention(
-            q=q,  # [bs, ..., sl, dim]
-            k=k,  # [bs, ..., sl, dim]
-            v=v,  # [bs, ..., sl, dim]
-            a=mask,  # [bs, ..., sl, sl]
-            is_causal=mask is None,  # assumes causal masking when true
-            scale=scale,  # defaults to 1/sqrt(dim)
-        )
+            return ops.scaled_dot_product_attention(
+                q=q,  # [bs, ..., sl, dim]
+                k=k,  # [bs, ..., sl, dim]
+                v=v,  # [bs, ..., sl, dim]
+                a=mask,  # [bs, ..., sl, sl]
+                is_causal=mask is None,  # assumes causal masking when true
+                scale=scale,  # defaults to 1/sqrt(dim)
+            )
+        else:
+            raise ValueError(
+                f"Unsupported attention kernel: {attention_kernel}. "
+                "Supported kernels: decomposed, sharktank, torch."
+            )
 
     def forward_decode(
         self,

@@ -266,13 +266,6 @@ class ExportArtifacts:
             f"--pipeline-parallelism-size={self.pipeline_parallelism_size}",
         ]
 
-        # TODO: This check should be handled by the export script.
-        assert self.attention_kernel in [
-            "decomposed",
-            "torch",
-            "sharktank",
-        ], "Only torch (sdpa), decomposed or sharktank --attention-kernel types are supported"
-
         export_args.append(f"--attention-kernel={self.attention_kernel}")
 
         if self.kv_cache_dtype is not None:
