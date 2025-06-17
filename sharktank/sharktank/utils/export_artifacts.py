@@ -364,10 +364,6 @@ class ExportArtifacts:
             *args,
             str(benchmark_filename),
         ]
-        benchmark_args += params
-        benchmark_args += devices
-        benchmark_args += args
-        benchmark_args += [str(benchmark_filename)]
 
         self._run_cmd(
             cmd=subprocess.list2cmdline(benchmark_args),
