@@ -173,6 +173,12 @@ def pytest_addoption(parser):
         help="Llama3.1 70b model path",
     )
     parser.addoption(
+        "--llama3-70b-f16-tp8-model-path",
+        type=Path,
+        action="store",
+        help="Llama3.1 70b tp8 model path",
+    )
+    parser.addoption(
         "--llama3-70b-f8-model-path",
         type=Path,
         action="store",
