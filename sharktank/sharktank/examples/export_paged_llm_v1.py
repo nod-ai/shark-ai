@@ -303,6 +303,13 @@ def main():
             if args.logits_normalization == "log_softmax":
                 logits = ops.elementwise(torch.log, ops.softmax(logits, dim=-1))
 
+            if args.prefill_final_logits:
+                last_seq_lens = seq_lens
+                bsi = torch.tensor(list(range(logits.shape[0])))
+
+                logits = logits[bsi, last_seq_lens - 1]
+                logits = logits.unsqueeze(1)
+
             top_k = args.top_k
             if top_k is None:
                 return logits
