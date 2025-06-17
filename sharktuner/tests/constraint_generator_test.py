@@ -182,16 +182,19 @@ def test_generate_solutions_tile_and_fuse_contraction_padding(
         assert len(solutions) > 0, "No solutions generated with TileAndFuse pipeline."
         for solution in solutions:
             assert len(solution) == 1, f"Expected a single-item list, got: {solution}"
-            config_name, compilation_info_attr = solution[0]
+            config = solution[0]
+            assert isinstance(
+                config, common.TuningConfiguration
+            ), f"Expected TuningConfiguration, got: {type(config)}"
 
             assert (
-                config_name == "compilation_info"
-            ), f"Expected key 'compilation_info', got: {config_name}"
+                config.name == "compilation_info"
+            ), f"Expected key 'compilation_info', got: {config.name}"
             assert isinstance(
-                compilation_info_attr, iree_codegen.CompilationInfoAttr
-            ), f"Expected CompilationInfoAttr, got: {type(compilation_info_attr)}"
+                config.configuration, iree_codegen.CompilationInfoAttr
+            ), f"Expected CompilationInfoAttr, got: {type(config.configuration)}"
 
-            lowering_config = compilation_info_attr.lowering_config
+            lowering_config = config.configuration.lowering_config
             assert "padding =" in str(
                 lowering_config
             ), f"Missing padding in lowering config: {lowering_config}"
@@ -258,16 +261,19 @@ def test_generate_solutions_tile_and_fuse_conv_padding(
         assert len(solutions) > 0, "No solutions generated with TileAndFuse pipeline."
         for solution in solutions:
             assert len(solution) == 1, f"Expected a single-item list, got: {solution}"
-            config_name, compilation_info_attr = solution[0]
+            config = solution[0]
+            assert isinstance(
+                config, common.TuningConfiguration
+            ), f"Expected TuningConfiguration, got: {type(config)}"
 
             assert (
-                config_name == "compilation_info"
-            ), f"Expected key 'compilation_info', got: {config_name}"
+                config.name == "compilation_info"
+            ), f"Expected key 'compilation_info', got: {config.name}"
             assert isinstance(
-                compilation_info_attr, iree_codegen.CompilationInfoAttr
-            ), f"Expected CompilationInfoAttr, got: {type(compilation_info_attr)}"
+                config.configuration, iree_codegen.CompilationInfoAttr
+            ), f"Expected CompilationInfoAttr, got: {type(config.configuration)}"
 
-            lowering_config = compilation_info_attr.lowering_config
+            lowering_config = config.configuration.lowering_config
             assert "padding =" in str(
                 lowering_config
             ), f"Missing padding in lowering config: {lowering_config}"

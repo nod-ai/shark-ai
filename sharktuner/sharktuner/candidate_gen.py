@@ -42,12 +42,17 @@ class DispatchTuner(dispatch_parser.DispatchParser):
     @abstractmethod
     def get_td_spec(
         self,
-        config: list[tuple[str, ir.Attribute]],
+        config_list: list[common.TuningConfiguration],
     ) -> ir.Module:
         """
-        Generates a transform dialect spec from a config list.
-        The config is a list of (str, Attribute) tuples, such as:
-            [("compilation_info", CompilationInfoAttr), ...]
+        Generates a transform dialect spec from a list of TuningConfiguration objects.
+
+        Each TuningConfiguration specifies a name (e.g., "compilation_info") and
+        its corresponding MLIR attribute (e.g., CompilationInfoAttr) to be applied
+        to the dispatch root operation.
+
+        Example:
+            TuningConfiguration(name="compilation_info", configuration=CompilationInfoAttr(...))
         """
         pass
 
@@ -85,12 +90,12 @@ class ContractionOpInterfaceTuner(
 
     def get_td_spec(
         self,
-        config: list[tuple[str, ir.Attribute]],
+        config_list: list[common.TuningConfiguration],
     ) -> ir.Module:
         contraction_op = self.get_root_op()
         func_name = self.get_root_op_func_name()
         return spec_builder.build_td_spec(
-            contraction_op.context, contraction_op, config, func_name
+            contraction_op.context, contraction_op, config_list, func_name
         )
 
 
@@ -107,11 +112,13 @@ class ConvolutionOpInterfaceTuner(
 
     def get_td_spec(
         self,
-        config: list[tuple[str, ir.Attribute]],
+        config_list: list[common.TuningConfiguration],
     ) -> ir.Module:
         conv_op = self.get_root_op()
         func_name = self.get_root_op_func_name()
-        return spec_builder.build_td_spec(conv_op.context, conv_op, config, func_name)
+        return spec_builder.build_td_spec(
+            conv_op.context, conv_op, config_list, func_name
+        )
 
 
 def get_default_output_dir() -> str:

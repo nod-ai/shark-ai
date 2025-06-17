@@ -100,7 +100,11 @@ def test_spec_builder(tuner_ctx: common.TunerContext) -> None:
     spec_module = spec_builder.build_td_spec(
         tuner_ctx.mlir_ctx,
         root_op,
-        [("compilation_info", compilation_info)],
+        [
+            common.TuningConfiguration(
+                name="compilation_info", configuration=compilation_info
+            )
+        ],
         "match_matmul",
     )
     assert spec_module
@@ -140,8 +144,12 @@ def test_spec_builder(tuner_ctx: common.TunerContext) -> None:
         }
     )
     config_list = [
-        ("compilation_info", compilation_info),
-        ("decomposition_config", decomposition_config),
+        common.TuningConfiguration(
+            name="compilation_info", configuration=compilation_info
+        ),
+        common.TuningConfiguration(
+            name="decomposition_config", configuration=decomposition_config
+        ),
     ]
 
     spec_module = spec_builder.build_td_spec(
