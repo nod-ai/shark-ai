@@ -276,8 +276,8 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
 
         self.export_compile_benchmark()
 
-    @is_nightly
     @parameterized.expand((((128,), (2048,))))
+    @is_nightly
     def test_benchmark8B_fp8_attnf8_tp1(self, input_size: int):
         self.output_name = self.dir_path / f"fp8_attnf8_{input_size}_tp1"
         self.export_artifact = self.llama8b_fp8_attnf8_sdpa_artifacts
