@@ -135,7 +135,7 @@ class ExportArtifacts:
         self.use_hf = use_hf
 
     def __del__(self):
-        shutil.rmtree(self._temp_dir, ignore_errors=True)
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
 
     @staticmethod
     def from_config(
