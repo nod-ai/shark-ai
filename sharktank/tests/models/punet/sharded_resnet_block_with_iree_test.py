@@ -119,11 +119,14 @@ def run_test_toy_size_sharded_resnet_block_with_iree(artifacts_dir: Path):
     condition=(sys.platform != "win32"),
     raises=iree.compiler.CompilerToolError,
     reason=(
-        "The compiler crashes."
-        " See IREE issue https://github.com/iree-org/iree/issues/21049."
+        "The compiler crashes. "
+        "See IREE issue https://github.com/iree-org/iree/issues/21049. "
+        "It also failed once with "
+        "Error code: -6 "
+        "Diagnostics: "
+        "malloc(): unsorted double linked list corrupted"
     ),
     strict=True,
-    match=re.escape(r"Error code: -11"),
 )
 @xfail(
     condition=(sys.platform == "win32"),
@@ -138,11 +141,6 @@ def run_test_toy_size_sharded_resnet_block_with_iree(artifacts_dir: Path):
         "'!stream.timepoint'"
     ),
     strict=True,
-    match=re.escape(
-        r"error: 'stream.async.execute' op operand #0 must be variadic of resource or "
-        r"external resource or transient resource or variable resource or constant "
-        r"resource or staging resource, but got '!stream.timepoint'"
-    ),
 )
 def test_toy_size_sharded_resnet_block_with_iree(tmp_path: Path):
     """Test sharding, exportation and execution with IREE local-task of a Resnet block.
