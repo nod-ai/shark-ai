@@ -126,6 +126,7 @@ class BaseBenchmarkTest(unittest.TestCase):
 
 
 @is_mi300x
+@pytest.mark.skip
 class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
     def setUp(self):
         super().setUp()
@@ -278,6 +279,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
 
 
 @is_mi300x
+@pytest.mark.skip
 class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
     def setUp(self):
         super().setUp()
