@@ -109,7 +109,7 @@ class ExportArtifacts:
         cwd: Optional[str] = None,
     ):
         self.tmp_dir = Path(tempfile.mkdtemp(type(self).__qualname__))
-        self.cwd = cwd if cwd is not None else str(self.tmp_dir)
+        self.cwd = str(cwd if cwd is not None else self.tmp_dir)
         Path(self.cwd).mkdir(parents=True, exist_ok=True)
 
         self.irpa_path = irpa_path
@@ -184,17 +184,18 @@ class ExportArtifacts:
     def _run_cmd(
         self,
         cmd: str,
-        cwd: str,
         run_msg: str,
         success_msg: str,
         exception: ExportArtifactsException,
     ):
         """Helper function to run a command and handle exceptions."""
-        logger.info(f"{run_msg}:\n" f"cd {cwd} && {cmd}")
-        proc = subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd=cwd)
+        logger.info(f"{run_msg}:\n" f"cd {self.cwd} && {cmd}")
+        proc = subprocess.run(
+            cmd, shell=True, capture_output=True, text=True, cwd=self.cwd
+        )
         return_code = proc.returncode
         if return_code != 0:
-            raise exception(proc, cwd)
+            raise exception(proc, self.cwd)
         else:
             logger.info(f"{success_msg}:\n" f"{proc.stdout}")
 
@@ -296,13 +297,9 @@ class ExportArtifacts:
         *,
         output_mlir,
         output_vmfb,
-        cwd: str | None = None,
         hal_dump_path: Optional[Path] = None,
         args: Optional[List[str]] = None,
     ):
-        if cwd is None:
-            cwd = os.getcwd()
-
         # TODO: Control flag to enable multiple backends
         compile_args = [
             f"iree-compile",
@@ -329,7 +326,6 @@ class ExportArtifacts:
 
         self._run_cmd(
             cmd=subprocess.list2cmdline(compile_args),
-            cwd=str(cwd),
             run_msg="Launching compile command",
             success_msg="Compiled to VMFB successfully",
             exception=IreeCompileException,
@@ -343,14 +339,12 @@ class ExportArtifacts:
         irpa_path: str,
         benchmark_filename: Optional[Path] = None,
         args: List[str],
-        cwd: str | Path,
     ):
         """Runs a compiled program with the given args using `iree-benchmark-module`.
         This assumes that the `iree-benchmark-module` command is available (usually via PATH).
         Args:
             vmfb_name: Name of the .vmfb file (relative to `cwd`).
             args: List of arguments to pass to `iree-benchmark-module`.
-            cwd: Working directory to run the command within. (either string or Path works)
             compile_cmd: Command used to compile the program, for inclusion in error messages.
         Raises Exception if running fails for some reason.
         """
@@ -371,7 +365,6 @@ class ExportArtifacts:
 
         self._run_cmd(
             cmd=subprocess.list2cmdline(benchmark_args),
-            cwd=str(cwd),
             run_msg="Launching benchmark command",
             success_msg="Benchmarked successfully",
             exception=IreeBenchmarkException,

@@ -112,7 +112,6 @@ class BaseBenchmarkTest(unittest.TestCase):
             irpa_path=self.irpa_path,
             benchmark_filename=benchmark,
             args=self.prefill_args,
-            cwd=self.repo_root,
         )
         if not skip_decode:
             self.export_artifact.iree_benchmark_vmfb(
@@ -121,7 +120,6 @@ class BaseBenchmarkTest(unittest.TestCase):
                 irpa_path=self.irpa_path,
                 benchmark_filename=benchmark,
                 args=self.decode_args,
-                cwd=self.repo_root,
             )
 
 
@@ -143,6 +141,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             tensor_parallelism_size=self.tensor_parallelism_size,
             pipeline_parallelism_size=self.pipeline_parallelism_size,
             block_seq_stride=32,
+            cwd=self.repo_root,
         )
         self.llama8b_fp8_torch_sdpa_artifacts = ExportArtifacts(
             irpa_path=self.llama3_8b_f8_model,
@@ -153,6 +152,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             tensor_parallelism_size=self.tensor_parallelism_size,
             pipeline_parallelism_size=self.pipeline_parallelism_size,
             block_seq_stride=32,
+            cwd=self.repo_root,
             use_hf=True,
             activation_dtype="bfloat16",
             attention_dtype="bfloat16",
@@ -167,6 +167,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             tensor_parallelism_size=self.tensor_parallelism_size,
             pipeline_parallelism_size=self.pipeline_parallelism_size,
             block_seq_stride=32,
+            cwd=self.repo_root,
             use_hf=True,
             activation_dtype="bfloat16",
             attention_dtype="float8_e4m3fnuz",
@@ -300,6 +301,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             tensor_parallelism_size=1,
             pipeline_parallelism_size=1,
             block_seq_stride=32,
+            cwd=self.repo_root,
         )
         self.llama70b_f16_torch_sdpa_artifacts_tp8 = ExportArtifacts(
             irpa_path=self.llama3_70b_f16_tp8_model,
@@ -310,6 +312,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             tensor_parallelism_size=self.tensor_parallelism_size,
             pipeline_parallelism_size=1,
             block_seq_stride=32,
+            cwd=self.repo_root,
         )
         self.llama70b_fp8_torch_sdpa_artifacts_tp1 = ExportArtifacts(
             irpa_path=self.llama3_70b_f8_model,
@@ -320,6 +323,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             tensor_parallelism_size=1,
             pipeline_parallelism_size=1,
             block_seq_stride=32,
+            cwd=self.repo_root,
             activation_dtype="bfloat16",
             attention_dtype="bfloat16",
             kv_cache_dtype="float8_e4m3fnuz",
@@ -450,6 +454,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             tensor_parallelism_size=self.tensor_parallelism_size,
             pipeline_parallelism_size=self.pipeline_parallelism_size,
             block_seq_stride=32,
+            cwd=self.repo_root,
         )
         self.llama405b_fp8_torch_sdpa_artifacts = ExportArtifacts(
             irpa_path=self.llama3_405b_f8_tp8_model,
@@ -460,6 +465,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             tensor_parallelism_size=self.tensor_parallelism_size,
             pipeline_parallelism_size=self.pipeline_parallelism_size,
             block_seq_stride=32,
+            cwd=self.repo_root,
             activation_dtype="bfloat16",
             attention_dtype="bfloat16",
             kv_cache_dtype="float8_e4m3fnuz",
