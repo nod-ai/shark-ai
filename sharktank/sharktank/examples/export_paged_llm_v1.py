@@ -53,7 +53,7 @@ def main():
     dataset_type = cli.get_input_data_files(args)
     dataset_type = "irpa" if "irpa" in dataset_type else "gguf"
     dataset = cli.get_input_dataset(args)
-    hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
+    hp = configs.LlamaHParams(**dataset.properties["hparams"])
     if "tensor_parallelism_size" in dataset.properties:
         dataset_tensor_parallelism_size = dataset.properties["tensor_parallelism_size"]
         if dataset_tensor_parallelism_size != args.tensor_parallelism_size:
@@ -69,6 +69,8 @@ def main():
     block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
         dataset.root_theta, args.pipeline_parallelism_size
     )
+    if hp.model_arch == "llama4":
+        rope_layers = [i for i in range(hp.block_count) if int((i + 1) % 4 != 0)]
 
     llama_config = LlamaModelConfig(
         hp,
@@ -83,6 +85,14 @@ def main():
         activation_dtype=args.activation_dtype,
         attention_dtype=args.attention_dtype,
         kv_cache_dtype=args.kv_cache_dtype,
+        use_qk_norm=True if hp.model_arch == "llama4" else args.use_qk_norm,
+        rope_layers=rope_layers if hp.model_arch == "llama4" else None,
+        attention_chunk_size=args.attention_chunk_size,
+        attn_temperature_tuning=True
+        if hp.model_arch == "llama4"
+        else args.attn_temperature_tuning,
+        floor_scale=args.floor_scale,
+        attn_scale=args.attn_scale,
     )
     llama_config.fake_quant = args.fake_quant
 
