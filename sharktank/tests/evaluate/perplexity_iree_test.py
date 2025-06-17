@@ -123,10 +123,12 @@ class PerplexityTest(unittest.TestCase):
 
         self.prepare_argv(
             extra_args=(
-                f"--attention-dtype=bfloat16",
+                f"--attention-dtype=float8_e4m3fnuz",
                 f"--activation-dtype=bfloat16",
                 f"--kv-cache-dtype=float8_e4m3fnuz",
                 "--use-hf",
+                "--use-attention-mask",
+                "--attention-kernel=sharktank",
             )
         )
         self.run_and_check_perplexity()
@@ -177,14 +179,8 @@ class PerplexityTest(unittest.TestCase):
         self.run_and_check_perplexity()
 
     @is_deepseek
-    @xfail(
-        raises=IreeCompileException,
-        reason="https://github.com/iree-org/iree/issues/21058",
-        strict=True,
-        match="error: 'stream.async.dispatch'",
-    )
     def test_deepseek_v3(self):
-        # DeepSeek v3 pipeline parallelism
+        # DeepSeek v3
         self.model_name = "deepseek_v3_iree"
         self.irpa_file = self.deepseek_v3_model
         self.tokenizer = self.deepseek_v3_tokenizer
@@ -199,7 +195,7 @@ class PerplexityTest(unittest.TestCase):
         match="Error code: 245",
     )
     @is_nightly
-    def test_deepseek_v3_tp(self):
+    def test_deepseek_v3_tp2(self):
         # DeepSeek v3 tensor parallelism
         self.model_name = "deepseek_v3_iree"
         self.irpa_file = self.deepseek_v3_tp2_model
@@ -210,7 +206,7 @@ class PerplexityTest(unittest.TestCase):
         self.run_and_check_perplexity()
 
     @is_nightly
-    def test_deepseek_v3_pp(self):
+    def test_deepseek_v3_pp2(self):
         # DeepSeek v3 pipeline parallelism
         self.model_name = "deepseek_v3_iree"
         self.irpa_file = self.deepseek_v3_model

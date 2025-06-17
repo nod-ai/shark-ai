@@ -24,7 +24,7 @@ from sharktank.types import (
     unbox_tensor,
 )
 from sharktank.types.sharding import Conv2DSplitOutputChannelSharding
-from sharktank.utils.iree import with_iree_device_context
+from sharktank.utils.iree import with_iree_device_context, load_iree_module
 import iree.runtime
 from typing import List, Optional
 import os
@@ -60,7 +60,6 @@ def run_iree_module(
 ) -> ShardedTensor:
     shard_count = sharded_input_image.shard_count
     hal_driver = iree.runtime.get_driver("local-task")
-    vm_instance = iree.runtime.VmInstance()
     available_devices = hal_driver.query_available_devices()
     # Use the same actual device for all devices.
     devices = [
@@ -68,32 +67,14 @@ def run_iree_module(
     ]
 
     def run_iree_module(devices: list[iree.runtime.HalDevice]):
-        hal_module = iree.runtime.create_hal_module(
-            instance=vm_instance, devices=devices
-        )
-        params_path = Path(parameters_path)
-        # TODO: make IREE able to load the parameters from the top parameter file
-        # without having to specify the parameter file for each shard separately.
-        parameter_index = iree.runtime.ParameterIndex()
-        for i in range(shard_count):
-            parameter_index.load(
-                file_path=str(
-                    Path(params_path).with_suffix(f".rank{i}{params_path.suffix}")
-                )
-            )
-        parameter_provider = parameter_index.create_provider(scope="model")
-        parameters_module = iree.runtime.create_io_parameters_module(
-            vm_instance, parameter_provider
-        )
-
-        vm_module = iree.runtime.VmModule.mmap(vm_instance, str(module_path))
-
-        # The context needs to be destroyed after the buffers, although
-        # it is not associate with them on the API level.
         global vm_context
-        vm_context = iree.runtime.VmContext(
-            instance=vm_instance, modules=(hal_module, parameters_module, vm_module)
+        vm_module, vm_context, _ = load_iree_module(
+            module_path=module_path,
+            devices=devices,
+            parameters_path=parameters_path,
+            tensor_parallel_size=shard_count,
         )
+
         module_input_args = [
             iree.runtime.asdevicearray(
                 devices[i], sharded_input_image.shards[i].as_torch().to("cpu").numpy()
@@ -174,14 +155,14 @@ def run_test_sharded_conv2d_with_iree(
 
         compile_iree_module(
             export_output=exported_module,
-            module_path=module_path,
+            module_path=str(module_path),
             shard_count=shard_count,
         )
 
     actual_result = run_iree_module(
         sharded_input_image=sharded_input_image,
-        module_path=module_path,
-        parameters_path=parameters_path,
+        module_path=str(module_path),
+        parameters_path=str(parameters_path),
     )
     assert len(actual_result.shards) == len(expected_result.shards)
     assert actual_result.shard_dim == expected_result.shard_dim

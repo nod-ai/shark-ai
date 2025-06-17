@@ -7,9 +7,11 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import logging
-from typing import List, Callable, Union
+from typing import List
 
-from .config import DecodeConfig, TokenSelectionStrategy
+from .config import TokenSelectionStrategyConfig
+from .scorer import BaseBeamScorer
+
 from ..messages import LlmInferenceExecRequest
 
 import shortfin.array as sfnp
@@ -19,37 +21,28 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class TokenSelectionStrategyConfig:
-    """Configuration for token selection strategies."""
-
-    decode_config: DecodeConfig
-    prefill_callback: Callable[[LlmInferenceExecRequest], None]
-    decode_callback: Callable[[LlmInferenceExecRequest], None]
-    decode_begin_callback: Callable[[int], None]
-    decode_end_callback: Callable[[int], None]
-    results_callback: Callable[[Union[int, List[int]]], None]
-    eos_token_id: int
-
-
-@dataclass
 class BaseTokenSelectionStrategy(ABC):
     """Abstract class for implementing token selection strategies."""
 
     token_selection_strategy_config: TokenSelectionStrategyConfig
+    scorer: BaseBeamScorer | None
 
     def _log_sampling_method(self):
         """Log the sampling method used for token selection."""
         decode_config = self.token_selection_strategy_config.decode_config
-        strategy = decode_config.token_selection_strategy
-        if isinstance(strategy, TokenSelectionStrategy):
-            strategy = strategy.name
-        logger.info(f"Using {strategy.lower()} selection method...")
+        num_beams = decode_config.num_beams
+        strategy = "indepdent" if not decode_config.use_beam_search else "beam_search"
+        logger.debug(f"Using {strategy} selection method with {num_beams} beams...")
 
         if decode_config.top_k is not None:
-            logger.info(f"Using `top_k` sampling with `top_k == {decode_config.top_k}`")
+            logger.debug(
+                f"Using `top_k` sampling with `top_k == {decode_config.top_k}`"
+            )
 
         if decode_config.top_p is not None:
-            logger.info(f"Using `top_p` sampling with `top_p == {decode_config.top_p}`")
+            logger.debug(
+                f"Using `top_p` sampling with `top_p == {decode_config.top_p}`"
+            )
 
     def replicate_inference_exec_requests(
         self, exec_req: LlmInferenceExecRequest, replicate: int
@@ -98,10 +91,7 @@ class BaseTokenSelectionStrategy(ABC):
 
         decode_config = token_selection_strategy_config.decode_config
         # TODO: This is only temporary until streaming is enabled for `MultiHypothesis`
-        if (
-            decode_config.token_selection_strategy == TokenSelectionStrategy.INDEPENDENT
-            and decode_config.num_beams == 1
-        ):
+        if not decode_config.use_beam_search and decode_config.num_beams == 1:
             token_selection_strategy_config.results_callback(token_int)
 
         exec_req.input_token_ids.append(token_int)

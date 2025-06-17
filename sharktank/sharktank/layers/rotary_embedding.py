@@ -35,6 +35,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         pipeline_parallelism: bool = False,
         dtype: torch.dtype = torch.float32,
         devices: tuple[int, ...] | None = None,
+        model_arch: Optional[str] = None,
     ):
         super().__init__()
         self.device = device
@@ -52,6 +53,7 @@ class RotaryEmbeddingLayer(BaseLayer):
             if devices is not None
             else tuple(range(self.tensor_parallelism_size))
         )
+        self.model_arch = model_arch
 
     @property
     def rotary_embed_table(self):
@@ -162,6 +164,22 @@ class RotaryEmbeddingLayer(BaseLayer):
         # xq_, xk_ shape: bs, sl, _, dim
         xt_ = xt
         _, sl, _, _ = xt_.shape
+
+        if self.model_arch == "llama4":
+            freqs_cis_real = rotary_embed_table[0][
+                :, : rotary_embed_table[0].shape[1] // 2
+            ]
+            freqs_cis_imag = rotary_embed_table[1][
+                :, : rotary_embed_table[0].shape[1] // 2
+            ]
+            # TODO: don't use complex numbers as the compiler does better without them.
+            freqs_cis = torch.view_as_complex(
+                torch.stack([freqs_cis_real, freqs_cis_imag], dim=-1)
+            )
+            freqs_cis = freqs_cis.unsqueeze(0)
+            xt_ = torch.view_as_complex(xt.float().reshape(*xt.shape[:-1], -1, 2))
+            xt_out = torch.view_as_real(xt_ * freqs_cis[:, :, None, :]).flatten(3)
+            return xt_out.type_as(xt)
 
         if self.use_hf:
             freqs_cis = rotary_embed_table

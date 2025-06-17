@@ -8,16 +8,16 @@ from typing import Callable, List, Union
 
 from .base_token_selection_strategy import (
     BaseTokenSelectionStrategy,
-    TokenSelectionStrategyConfig,
 )
 
 from .config import (
     DecodeConfig,
-    TokenSelectionStrategy,
     get_strategy_from_str,
+    TokenSelectionStrategy,
+    TokenSelectionStrategyConfig,
 )
-from .beam_search_token_selection_strategy import BeamSearchTokenSelectionStrategy
-from .independent_token_selection_strategy import IndependentTokenSelectionStrategy
+from .scorer import BeamSearchScorer, DefaultScorer
+from .token_selector import TokenSelector
 from .sampler import Sampler
 
 
@@ -44,13 +44,6 @@ def build_token_selector_config(
     Returns:
         TokenSelectionStrategyConfig: Instantiated config for token selector.
     """
-    if decode_config.token_selection_strategy not in {
-        strategy for strategy in TokenSelectionStrategy
-    }:
-        raise NotImplementedError(
-            f"Unsupported token selection strategy: {decode_config.token_selection_strategy}.\n"
-            f"Supported strategies: {','.join([strategy.name for strategy in TokenSelectionStrategy])}"
-        )
     return TokenSelectionStrategyConfig(
         decode_config,
         prefill_callback=prefill_batcher.submit,
@@ -77,39 +70,32 @@ def build_token_selector(
     Returns:
         BaseTokenSelectionStrategy: Instantiated token selector. Either `IndependentTokenSelectionStrategy` or `BeamSearchTokenSelectionStrategy`.
     """
-    strategy_map = {
-        TokenSelectionStrategy.INDEPENDENT: IndependentTokenSelectionStrategy,
-        TokenSelectionStrategy.BEAM_SEARCH: BeamSearchTokenSelectionStrategy,
-    }
-    if config.decode_config.token_selection_strategy not in strategy_map:
-        raise NotImplementedError(
-            f"Unsupported token selection strategy: {config.decode_config.token_selection_strategy}.\n"
-            f"Supported strategies: {','.join([strategy.name for strategy in TokenSelectionStrategy])}"
-        )
-
-    return strategy_map[config.decode_config.token_selection_strategy](
-        token_selection_strategy_config=config
+    scorer = (
+        BeamSearchScorer(config=config)
+        if config.decode_config.use_beam_search
+        else DefaultScorer(config=config)
     )
+
+    return TokenSelector(token_selection_strategy_config=config, scorer=scorer)
 
 
 def is_multi_response(decode_config: DecodeConfig) -> bool:
-    strategy = decode_config.token_selection_strategy
+    use_beam_search = decode_config.use_beam_search
     num_beams = decode_config.num_beams
 
-    return strategy == TokenSelectionStrategy.BEAM_SEARCH or (
-        strategy == TokenSelectionStrategy.INDEPENDENT and num_beams > 1
-    )
+    return use_beam_search or num_beams > 1
 
 
 __all__ = [
-    "BaseTokenSelectionStrategy",
-    "TokenSelectionStrategyConfig",
-    "TokenSelectionStrategy",
-    "Sampler",
-    "BeamSearchTokenSelectionStrategy",
-    "IndependentTokenSelectionStrategy",
     "build_token_selector",
     "build_token_selector_config",
+    "BaseTokenSelectionStrategy",
+    "BeamSearchScorer",
+    "DefaultScorer",
     "get_strategy_from_str",
     "is_multi_response",
+    "Sampler",
+    "TokenSelectionStrategyConfig",
+    "TokenSelectionStrategy",
+    "TokenSelector",
 ]

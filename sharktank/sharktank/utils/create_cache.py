@@ -19,6 +19,7 @@ def create_paged_kv_cache(config: LlamaModelConfig) -> PagedAttention:
         pipeline_to_device_map=config.pipeline_to_device_map,
         attn_head_count=hp.attention_head_count_kv,
         attn_head_dim=hp.attn_head_dim,
+        attn_type=attn_type_map[hp.model_arch],
         cache_partition_count=2,  # One for each of K/V.
         block_seq_stride=config.block_seq_stride,
         device=config.device,

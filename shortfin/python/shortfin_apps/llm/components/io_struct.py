@@ -26,6 +26,20 @@ DEFAULT_MAX_COMPLETION_TOKENS = 50
 MAX_TOP_P = 0.99
 MIN_TOP_P = 0.01
 
+"""
+This constant is used to indicate that an optional value was not provided in `SamplingParams`.
+The reason for this, instead of using `None`, is to allow for the distinction
+between a value that was explicitly set to `None` and a value that was not provided.
+
+This prevents confusion in cases where `None` indicates something functional
+for some params, like disabling `top_k` or `top_p` sampling if set to None,
+versus other cases where `None` indicates that we should use the server default.
+
+This allows us to still generically load from these fields in `DecodeConfig`,
+without specific logic as well.
+"""
+NOT_PROVIDED = "NOT_PROVIDED"
+
 
 @dataclass
 class SamplingParams:
@@ -36,14 +50,18 @@ class SamplingParams:
     # Temperature to use during generation
     temperature: float = DEFAULT_TEMPERATURE
     # Use `top_k` sampling during token selection process
-    top_k: int | None = None
+    top_k: int = NOT_PROVIDED
     # Use `top_p` sampling during token selection process
-    top_p: float | None = None
+    top_p: float = NOT_PROVIDED
+    # Number of beams to use during generation
+    num_beams: int = NOT_PROVIDED
+    # Whether to use beam search during generation
+    use_beam_search: bool = NOT_PROVIDED
 
     def __post_init__(self):
         # Ensure temperature is within acceptable range
         self.temperature = min(MAX_TEMPERATURE, max(self.temperature, MIN_TEMPERATURE))
-        if self.top_p is not None:
+        if self.top_p != NOT_PROVIDED:
             self.top_p = min(MAX_TOP_P, max(self.top_p, MIN_TOP_P))
 
 
