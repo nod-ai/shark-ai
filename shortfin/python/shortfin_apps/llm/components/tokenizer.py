@@ -33,7 +33,9 @@ class Tokenizer:
         return Tokenizer(raw_tk)
 
     @staticmethod
-    def from_tokenizer_json_file(json_path: Path | str, eos_token: str):
+    def from_tokenizer_json_file(json_path: Path | str, eos_token: str | dict):
+        if isinstance(eos_token, dict):
+            eos_token = eos_token["content"]
         return Tokenizer(
             tokenizers.Tokenizer.from_file(str(json_path)), eos_token=eos_token
         )

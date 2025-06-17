@@ -35,20 +35,24 @@ class iree_topk(CustomOp):
 
         result_desc = ksel.result_descs[0]
         result_shape = result_desc.t.shape
+        bs = result_shape[0]
         k = result_shape[-1]
+
+        bs = "D" if bs == -1 else bs
 
         input_tensor_type = RankedTensorType(input.type)
         input_asm_type, input_ident, input_dtype = unpack_tensor_type(input.type)
 
         # Generate specialization signature and types.
         template_file = "topk_dynamic.mlir"
-        target_function_name = f"sharktank_topk_{k}_{input_dtype}"
+        target_function_name = f"sharktank_topk_{bs}_{k}_{input_dtype}"
 
         # Template params
         input_tensor_type = input_asm_type
         indices_tensor_type = f"tensor<?x?xi32>"
-        values_out_tensor_type = f"tensor<?x{k}x{input_dtype}>"
-        indices_out_tensor_type = f"tensor<?x{k}xi32>"
+
+        values_out_tensor_type = ksel.result_descs[0].mlir_type_asm
+        indices_out_tensor_type = ksel.result_descs[1].mlir_type_asm
 
         target_function = inline_template_function(
             kb,
@@ -58,6 +62,7 @@ class iree_topk(CustomOp):
             indices_tensor_type=indices_tensor_type,
             values_out_tensor_type=values_out_tensor_type,
             indices_out_tensor_type=indices_out_tensor_type,
+            bs=bs,
             k=k,
             dtype=str(input_dtype),
         )

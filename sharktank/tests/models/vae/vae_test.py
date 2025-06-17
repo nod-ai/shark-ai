@@ -124,6 +124,11 @@ class VaeSDXLDecoderTest(TempDirTestBase):
 
         torch.testing.assert_close(ref_results, results)
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason="Compile error uses <LARGE_NUM> bytes of shared memory; exceeded the limit of 65536 bytes: "
+        "https://github.com/iree-org/iree/issues/20875",
+    )
     @pytest.mark.expensive
     def testVaeIreeVsHuggingFace(self):
         dtype = getattr(torch, "float32")
@@ -350,6 +355,11 @@ class VaeFluxDecoderTest(TempDirTestBase):
             rtol=rtol,
         )
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason="Compile error uses <LARGE_NUM> bytes of shared memory; exceeded the limit of 65536 bytes: "
+        "https://github.com/iree-org/iree/issues/20875",
+    )
     @pytest.mark.expensive
     @with_vae_data
     def testVaeIreeVsHuggingFace(self):
