@@ -24,6 +24,8 @@ from iree.compiler.ir import (
     Module,
     Context,
 )
+import torch
+
 
 __all__ = [
     "wave_bhsd_flash_attention",
@@ -78,8 +80,8 @@ N = StaticDim.N  # head_size_kv
 K1 = StaticDim.K1  # head_size
 K2 = StaticDim.K2  # kv_seq_len
 
-F16 = Dtype.F16
-F32 = Dtype.F32
+F16 = Dtype.F16(torch.float16)
+F32 = Dtype.F32(torch.float32)
 
 
 @mlir_kernel(
