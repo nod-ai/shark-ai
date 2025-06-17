@@ -130,15 +130,13 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
     def setUp(self):
         super().setUp()
         # TODO: add numpy files to Azure and download from it
-        self.artifact_dir = Path("/shark-dev/8b")
+        artifact_dir = Path("/shark-dev/8b")
         self.irpa_path_fp16 = (
-            self.artifact_dir / "instruct/weights/llama3.1_8b_instruct_fp16.irpa"
+            artifact_dir / "instruct/weights/llama3.1_8b_instruct_fp16.irpa"
         )
-        self.irpa_path_fp8 = (
-            self.artifact_dir / "fp8/native_fp8_e4m3fnuz_llama3_8b.irpa"
-        )
+        self.irpa_path_fp8 = artifact_dir / "fp8/native_fp8_e4m3fnuz_llama3_8b.irpa"
         self.irpa_path_fp8_attnf8 = (
-            self.artifact_dir / "fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa"
+            artifact_dir / "fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa"
         )
         self.dir_path = self.__class__.dir_path / "llama-8b"
         Path(self.dir_path).mkdir(parents=True, exist_ok=True)
@@ -187,12 +185,12 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         self.prefill_args_fp16 = {
             128: self.save_benchmarks(
                 benchmark_fn="prefill_bs4",
-                input_path=self.artifact_dir / "prefill_args_bs4_128_stride_32_tp1",
+                input_path=artifact_dir / "prefill_args_bs4_128_stride_32_tp1",
                 tensor_parallelism_size=self.tensor_parallelism_size,
             ),
             2048: self.save_benchmarks(
                 benchmark_fn="prefill_bs4",
-                input_path=self.artifact_dir / "prefill_args_bs4_2048_stride_32",
+                input_path=artifact_dir / "prefill_args_bs4_2048_stride_32",
                 tensor_parallelism_size=self.tensor_parallelism_size,
             ),
         }
@@ -200,18 +198,18 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         self.decode_args_fp16 = {
             128: self.save_benchmarks(
                 benchmark_fn="decode_bs4",
-                input_path=self.artifact_dir / "decode_args_bs4_128_stride_32_tp1",
+                input_path=artifact_dir / "decode_args_bs4_128_stride_32_tp1",
                 tensor_parallelism_size=self.tensor_parallelism_size,
             ),
             2048: self.save_benchmarks(
                 benchmark_fn="decode_bs4",
-                input_path=self.artifact_dir / "decode_args_bs4_2048_stride_32",
+                input_path=artifact_dir / "decode_args_bs4_2048_stride_32",
                 tensor_parallelism_size=self.tensor_parallelism_size,
             ),
         }
 
-        prefill_args_fp8 = self.artifact_dir / "prefill_args_fp8"
-        decode_args_fp8 = self.artifact_dir / "decode_args_fp8"
+        prefill_args_fp8 = artifact_dir / "prefill_args_fp8"
+        decode_args_fp8 = artifact_dir / "decode_args_fp8"
         self.prefill_args_fp8 = {
             128: [
                 "--function=prefill_bs4",
@@ -294,10 +292,10 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
     def setUp(self):
         super().setUp()
         # TODO: add numpy files to Azure and download from it
-        self.artifact_dir = Path("/shark-dev/70b")
-        self.weights_dir = self.artifact_dir / "instruct/weights"
+        artifact_dir = Path("/shark-dev/70b")
+        self.weights_dir = artifact_dir / "instruct/weights"
         self.irpa_path_fp16 = self.weights_dir / "llama3.1_70b_instruct_fp16.irpa"
-        self.irpa_path_fp8 = self.artifact_dir / "fp8/llama70b_fp8.irpa"
+        self.irpa_path_fp8 = artifact_dir / "fp8/llama70b_fp8.irpa"
         self.tensor_parallelism_size = 8
         self.dir_path = self.__class__.dir_path / "llama-70b"
         Path(self.dir_path).mkdir(parents=True, exist_ok=True)
@@ -339,25 +337,24 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             1: {
                 128: self.save_benchmarks(
                     benchmark_fn="prefill_bs4",
-                    input_path=self.artifact_dir / "prefill_args_bs4_128_stride_32",
+                    input_path=artifact_dir / "prefill_args_bs4_128_stride_32",
                     tensor_parallelism_size=1,
                 ),
                 2048: self.save_benchmarks(
                     benchmark_fn="prefill_bs4",
-                    input_path=self.artifact_dir / "prefill_args_bs4_2048_stride_32",
+                    input_path=artifact_dir / "prefill_args_bs4_2048_stride_32",
                     tensor_parallelism_size=1,
                 ),
             },
             8: {
                 128: self.save_benchmarks(
                     benchmark_fn="prefill_bs4",
-                    input_path=self.artifact_dir / "prefill_args_bs4_128_stride_32_tp8",
+                    input_path=artifact_dir / "prefill_args_bs4_128_stride_32_tp8",
                     tensor_parallelism_size=self.tensor_parallelism_size,
                 ),
                 2048: self.save_benchmarks(
                     benchmark_fn="prefill_bs4",
-                    input_path=self.artifact_dir
-                    / "prefill_args_bs4_2048_stride_32_tp8",
+                    input_path=artifact_dir / "prefill_args_bs4_2048_stride_32_tp8",
                     tensor_parallelism_size=self.tensor_parallelism_size,
                 ),
             },
@@ -367,31 +364,31 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             1: {
                 128: self.save_benchmarks(
                     benchmark_fn="decode_bs4",
-                    input_path=self.artifact_dir / "decode_args_bs4_128_stride_32",
+                    input_path=artifact_dir / "decode_args_bs4_128_stride_32",
                     tensor_parallelism_size=1,
                 ),
                 2048: self.save_benchmarks(
                     benchmark_fn="decode_bs4",
-                    input_path=self.artifact_dir / "decode_args_bs4_2048_stride_32",
+                    input_path=artifact_dir / "decode_args_bs4_2048_stride_32",
                     tensor_parallelism_size=1,
                 ),
             },
             8: {
                 128: self.save_benchmarks(
                     benchmark_fn="decode_bs4",
-                    input_path=self.artifact_dir / "decode_args_bs4_128_stride_32_tp8",
+                    input_path=artifact_dir / "decode_args_bs4_128_stride_32_tp8",
                     tensor_parallelism_size=self.tensor_parallelism_size,
                 ),
                 2048: self.save_benchmarks(
                     benchmark_fn="decode_bs4",
-                    input_path=self.artifact_dir / "decode_args_bs4_2048_stride_32_tp8",
+                    input_path=artifact_dir / "decode_args_bs4_2048_stride_32_tp8",
                     tensor_parallelism_size=self.tensor_parallelism_size,
                 ),
             },
         }
 
-        self.prefill_args_fp8 = self.artifact_dir / "prefill_args_fp8"
-        self.decode_args_fp8 = self.artifact_dir / "decode_args_fp8"
+        self.prefill_args_fp8 = artifact_dir / "prefill_args_fp8"
+        self.decode_args_fp8 = artifact_dir / "decode_args_fp8"
         self.iree_run_prefill_args_fp8 = [
             "--function=prefill_bs4",
             f"--input=@{self.prefill_args_fp8}/tokens.npy",
@@ -444,15 +441,16 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
     def setUp(self):
         super().setUp()
         # TODO: add numpy files to Azure and download from it
-        self.artifact_dir = Path("/shark-dev/405b")
-        self.weights_dir = self.artifact_dir / "instruct/weights"
+        artifact_dir = Path("/shark-dev/405b")
+        self.weights_dir = artifact_dir / "instruct/weights"
         self.irpa_path_fp16 = Path(
             "/shark-dev/data/llama3.1/weights/405b/fp16/llama3.1_405b_fp16.irpa"
         )
-        self.irpa_path_fp8 = self.artifact_dir / "f8/llama3.1_405b_fp8.irpa"
-        self.tensor_parallelism_size = 8
+        self.irpa_path_fp8 = artifact_dir / "f8/llama3.1_405b_fp8.irpa"
         self.dir_path = self.__class__.dir_path / "llama-405b"
         Path(self.dir_path).mkdir(parents=True, exist_ok=True)
+
+        self.tensor_parallelism_size = 8
 
         self.llama405b_f16_torch_sdpa_artifacts = ExportArtifacts(
             irpa_path=str(self.irpa_path_fp16),
@@ -481,30 +479,30 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         self.prefill_args_tp8_fp16 = {
             128: self.save_benchmarks(
                 benchmark_fn="prefill_bs4",
-                input_path=self.artifact_dir / "prefill_args_bs4_128_stride_32_tp8",
+                input_path=artifact_dir / "prefill_args_bs4_128_stride_32_tp8",
                 tensor_parallelism_size=self.tensor_parallelism_size,
             ),
             2048: self.save_benchmarks(
                 benchmark_fn="prefill_bs4",
-                input_path=self.artifact_dir / "prefill_args_bs4_2048_stride_32_tp8",
+                input_path=artifact_dir / "prefill_args_bs4_2048_stride_32_tp8",
                 tensor_parallelism_size=self.tensor_parallelism_size,
             ),
         }
         self.decode_args_tp8_fp16 = {
             128: self.save_benchmarks(
                 benchmark_fn="decode_bs4",
-                input_path=self.artifact_dir / "decode_args_bs4_128_stride_32_tp8",
+                input_path=artifact_dir / "decode_args_bs4_128_stride_32_tp8",
                 tensor_parallelism_size=self.tensor_parallelism_size,
             ),
             2048: self.save_benchmarks(
                 benchmark_fn="decode_bs4",
-                input_path=self.artifact_dir / "decode_args_bs4_2048_stride_32_tp8",
+                input_path=artifact_dir / "decode_args_bs4_2048_stride_32_tp8",
                 tensor_parallelism_size=self.tensor_parallelism_size,
             ),
         }
 
-        self.prefill_args_fp8 = self.artifact_dir / "prefill_args_fp8"
-        self.decode_args_fp8 = self.artifact_dir / "decode_args_fp8"
+        self.prefill_args_fp8 = artifact_dir / "prefill_args_fp8"
+        self.decode_args_fp8 = artifact_dir / "decode_args_fp8"
         self.iree_run_prefill_args_fp8 = [
             "--function=prefill_bs4",
             f"--input=@{self.prefill_args_fp8}/tokens.npy",
