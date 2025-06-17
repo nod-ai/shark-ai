@@ -184,7 +184,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         )
 
         # default fp8 input size here is 128
-        self.prefill_args_nondecomposed_fp16 = {
+        self.prefill_args_fp16 = {
             128: self.save_benchmarks(
                 benchmark_fn="prefill_bs4",
                 input_path=self.artifact_dir / "prefill_args_bs4_128_stride_32_tp1",
@@ -197,7 +197,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             ),
         }
 
-        self.decode_args_nondecomposed_fp16 = {
+        self.decode_args_fp16 = {
             128: self.save_benchmarks(
                 benchmark_fn="decode_bs4",
                 input_path=self.artifact_dir / "decode_args_bs4_128_stride_32_tp1",
@@ -212,7 +212,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
 
         prefill_args_fp8 = self.artifact_dir / "prefill_args_fp8"
         decode_args_fp8 = self.artifact_dir / "decode_args_fp8"
-        self.prefill_args_nondecomposed_fp8 = {
+        self.prefill_args_fp8 = {
             128: [
                 "--function=prefill_bs4",
                 f"--input=4x128xi64=@{prefill_args_fp8}/tokens.bin",
@@ -233,7 +233,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             ],
         }
 
-        self.decode_args_nondecomposed_fp8 = {
+        self.decode_args_fp8 = {
             128: [
                 "--function=decode_bs4",
                 f"--input=4x1xi64=@{decode_args_fp8}/next_tokens.bin",
@@ -257,33 +257,33 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         }
 
     @parameterized.expand((((128,), (2048,))))
-    def test_benchmark8B_f16_tp1_non_decomposed(self, input_size: int):
+    def test_benchmark8B_f16_tp1(self, input_size: int):
         self.output_name = self.dir_path / f"f16_torch_{input_size}_tp1"
         self.export_artifact = self.llama8b_f16_torch_sdpa_artifacts
         self.irpa_path = self.irpa_path_fp16
-        self.prefill_args = self.prefill_args_nondecomposed_fp16[input_size]
-        self.decode_args = self.decode_args_nondecomposed_fp16[input_size]
+        self.prefill_args = self.prefill_args_fp16[input_size]
+        self.decode_args = self.decode_args_fp16[input_size]
 
         self.export_compile_benchmark()
 
     @is_nightly
-    def testBenchmark8B_fp8_TP1_Non_Decomposed_Input_len_128(self):
+    def test_benchmark8B_fp8_tp1_input_len_128(self):
         self.output_name = self.dir_path / "fp8_torch_tp1"
         self.export_artifact = self.llama8b_fp8_torch_sdpa_artifacts
         self.irpa_path = self.irpa_path_fp8
-        self.prefill_args = self.prefill_args_nondecomposed_fp8_128
-        self.decode_args = self.decode_args_nondecomposed_fp8_128
+        self.prefill_args = self.prefill_args_fp8[128]
+        self.decode_args = self.decode_args_fp8[128]
 
         self.export_compile_benchmark()
 
     @is_nightly
     @parameterized.expand((((128,), (2048,))))
-    def testBenchmark8B_fp8_attnf8_tp1_non_decomposed(self, input_size: int):
+    def test_benchmark8B_fp8_attnf8_tp1(self, input_size: int):
         self.output_name = self.dir_path / f"fp8_attnf8_{input_size}_tp1"
         self.export_artifact = self.llama8b_fp8_attnf8_sdpa_artifacts
         self.irpa_path = self.irpa_path_fp8_attnf8
-        self.prefill_args = self.prefill_args_nondecomposed_fp8[input_size]
-        self.decode_args = self.decode_args_nondecomposed_fp8[input_size]
+        self.prefill_args = self.prefill_args_fp8[input_size]
+        self.decode_args = self.decode_args_fp8[input_size]
 
         self.export_compile_benchmark()
 
@@ -335,7 +335,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             kv_cache_dtype="float8_e4m3fnuz",
         )
 
-        self.prefill_args_nondecomposed_fp16 = {
+        self.prefill_args_fp16 = {
             1: {
                 128: self.save_benchmarks(
                     benchmark_fn="prefill_bs4",
@@ -363,7 +363,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             },
         }
 
-        self.decode_args_nondecomposed_fp16 = {
+        self.decode_args_fp16 = {
             1: {
                 128: self.save_benchmarks(
                     benchmark_fn="decode_bs4",
@@ -416,19 +416,19 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         strict=False,
         raises=IreeBenchmarkException,
     )
-    def test_benchmark70B_f16_non_decompose(self, input_size: int, tp: int):
+    def test_benchmark70B_f16(self, input_size: int, tp: int):
         self.output_name = self.dir_path / f"f16_torch_{input_size}_tp{tp}"
         self.export_artifact = self.llama70b_f16_torch_sdpa_artifacts_tp1
         self.irpa_path = self.irpa_path_fp16
-        self.prefill_args = self.prefill_args_nondecomposed_fp16[tp][input_size]
-        self.decode_args = self.decode_args_nondecomposed_fp16[tp][input_size]
+        self.prefill_args = self.prefill_args_fp16[tp][input_size]
+        self.decode_args = self.decode_args_fp16[tp][input_size]
 
         self.export_compile_benchmark()
 
     @pytest.mark.xfail(
         reason="70b fp8 irpa does not exist", strict=True, raises=ExportMlirException
     )
-    def testBenchmark70B_fp8_TP1_Non_Decomposed(self):
+    def test_benchmark70B_fp8_tp1(self):
         self.output_name = self.dir_path / "fp8_torch_tp1"
         self.export_artifact = self.llama70b_fp8_torch_sdpa_artifacts_tp1
         self.irpa_path = self.irpa_path_fp8
@@ -478,7 +478,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             kv_cache_dtype="float8_e4m3fnuz",
         )
 
-        self.prefill_args_nondecomposed_tp8_fp16 = {
+        self.prefill_args_tp8_fp16 = {
             128: self.save_benchmarks(
                 benchmark_fn="prefill_bs4",
                 input_path=self.artifact_dir / "prefill_args_bs4_128_stride_32_tp8",
@@ -490,7 +490,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
                 tensor_parallelism_size=self.tensor_parallelism_size,
             ),
         }
-        self.decode_args_nondecomposed_tp8_fp16 = {
+        self.decode_args_tp8_fp16 = {
             128: self.save_benchmarks(
                 benchmark_fn="decode_bs4",
                 input_path=self.artifact_dir / "decode_args_bs4_128_stride_32_tp8",
@@ -527,19 +527,19 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
     @pytest.mark.xfail(
         reason="Benchmarking Error", strict=True, raises=IreeBenchmarkException
     )
-    def test_benchmark405B_f16_tp8_non_decomposed(self, input_size: int):
+    def test_benchmark405B_f16_tp8(self, input_size: int):
         self.output_name = self.dir_path / f"f16_torch_{input_size}"
         self.export_artifact = self.llama405b_f16_torch_sdpa_artifacts
         self.irpa_path = self.irpa_path_fp16
-        self.prefill_args = self.prefill_args_nondecomposed_tp8_fp16[input_size]
-        self.decode_args = self.decode_args_nondecomposed_tp8_fp16[input_size]
+        self.prefill_args = self.prefill_args_tp8_fp16[input_size]
+        self.decode_args = self.decode_args_tp8_fp16[input_size]
 
         self.export_compile_benchmark(skip_decode=True)  # TODO: Enable decode
 
     @pytest.mark.xfail(
         reason="KeyError in theta.py", strict=True, raises=ExportMlirException
     )
-    def testBenchmark405B_fp8_TP8_Non_Decomposed(self):
+    def test_benchmark405B_fp8_tp8(self):
         self.output_name = self.dir_path / "fp8_torch"
         self.export_artifact = self.llama405b_fp8_torch_sdpa_artifacts
         self.irpa_path = self.irpa_path_fp8
