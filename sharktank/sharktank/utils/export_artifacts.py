@@ -90,7 +90,7 @@ class ExportArtifacts:
     def __init__(
         self,
         *,
-        irpa_path: str,
+        irpa_path: str | Path,
         batch_size: int,
         attention_kernel: str,
         tensor_parallelism_size: int,
@@ -103,9 +103,10 @@ class ExportArtifacts:
         use_hf: bool = False,
         activation_dtype: str = "float16",
         attention_dtype: str = "float16",
-        kv_cache_dtype: Optional[str] = None,
-        output_mlir: Optional[str] = None,
-        output_config: Optional[str] = None,
+        kv_cache_dtype: Optional[str | Path] = None,
+        output_mlir: Optional[str | Path] = None,
+        output_config: Optional[str | Path] = None,
+        output_vmfb: Optional[str | Path] = None,
         output_name: Optional[str] = None,
         cwd: Optional[str] = None,
     ):
@@ -147,6 +148,11 @@ class ExportArtifacts:
                     else ""
                 )
             )
+        self.output_vmfb = (
+            output_vmfb
+            if output_vmfb is None
+            else self.output_name.with_suffix(".vmfb")
+        )
 
     def __del__(self):
         shutil.rmtree(self.tmp_dir, ignore_errors=True)
@@ -272,12 +278,13 @@ class ExportArtifacts:
         output_config: str,
         skip_decode: Optional[bool] = None,
     ):
+        self.output_mlir = output_mlir
         export_args = [
             "python3",
             "-m",
             "sharktank.examples.export_paged_llm_v1",
             f"--irpa-file={self.irpa_path}",
-            f"--output-mlir={output_mlir}",
+            f"--output-mlir={self.output_mlir}",
             f"--output-config={output_config}",
             f"--bs-prefill={self.batch_size}",
             f"--bs-decode={self.batch_size}",
@@ -310,16 +317,14 @@ class ExportArtifacts:
     def compile_to_vmfb(
         self,
         *,
-        output_mlir,
-        output_vmfb,
         hal_dump_path: Optional[Path] = None,
         args: Optional[List[str]] = None,
     ):
         # TODO: Control flag to enable multiple backends
         compile_args = [
             f"iree-compile",
-            f"{output_mlir}",
-            f"-o={output_vmfb}",
+            f"{self.output_mlir}",
+            f"-o={self.output_vmfb}",
         ]
         compile_args += get_iree_compiler_flags_from_object(
             self, device_count=self.parallelism_size
@@ -415,7 +420,6 @@ class ExportArtifacts:
         )
 
     def get_artifacts(self):
-        output_vmfb = self.output_name.with_suffix(".vmfb")
         if self.output_mlir is None:
             self.output_mlir = self.output_name.with_suffix(".mlir")
             self.output_config = self.output_name.with_suffix(".json")
@@ -428,9 +432,6 @@ class ExportArtifacts:
             logger.info(f" Using pre-exported mlir: {self.output_mlir}")
             logger.info(f" Using pre-exported config json: {self.output_config}")
 
-        self.compile_to_vmfb(
-            output_mlir=self.output_mlir,
-            output_vmfb=output_vmfb,
-        )
+        self.compile_to_vmfb()
 
-        return output_vmfb
+        return self.output_vmfb
