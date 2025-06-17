@@ -105,6 +105,7 @@ class ExportArtifacts:
         output_mlir: Optional[str] = None,
         output_config: Optional[str] = None,
     ):
+        # TODO: Can use temp directory instead
         self.sharktank_dir = str(
             Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent
         )
@@ -149,6 +150,30 @@ class ExportArtifacts:
             kv_cache_dtype=kv_cache_dtype,
             **init_kwargs,
         )
+
+    def _prepare_params_and_devices(
+        self, irpa_path: str, hip_device_id: str
+    ) -> tuple[List[str], List[str]]:
+        if self.parallelism_size > 1:
+            base_irpa_path, _ = os.path.splitext(irpa_path)
+            rocr_visible_devices = [
+                f"ROCR_VISIBLE_DEVICES={','.join(str(i) for i in range(self.parallelism_size))}"
+            ]
+            params = [f"--parameters=model={base_irpa_path}.irpa"]
+            params += [
+                f"--parameters=model={base_irpa_path}.rank{i}.irpa"
+                for i in range(self.tensor_parallelism_size)
+            ]
+            devices = [f"--device=hip://{i}" for i in range(self.parallelism_size)]
+        else:
+            hip_device_arg = int(hip_device_id.split("://")[1])
+            rocr_visible_devices = [
+                f"ROCR_VISIBLE_DEVICES={','.join(str(i) for i in range(hip_device_arg + 1))}"
+            ]
+            params = [f"--parameters=model={irpa_path}"]
+            devices = [f"--device={hip_device_id}"]
+
+        return params, devices, rocr_visible_devices
 
     def _run_cmd(
         self,
@@ -242,13 +267,6 @@ class ExportArtifacts:
             f"--pipeline-parallelism-size={self.pipeline_parallelism_size}",
         ]
 
-        # TODO: This check should be handled by the export script.
-        assert self.attention_kernel in [
-            "decomposed",
-            "torch",
-            "sharktank",
-        ], "Only torch (sdpa), decomposed or sharktank --attention-kernel types are supported"
-
         export_args.append(f"--attention-kernel={self.attention_kernel}")
 
         if self.kv_cache_dtype is not None:
@@ -307,9 +325,9 @@ class ExportArtifacts:
 
         self._run_cmd(
             cmd=subprocess.list2cmdline(compile_args),
-            cwd=cwd,
+            cwd=str(cwd),
             run_msg="Launching compile command",
-            success_msg="Compiled MLIR successfully",
+            success_msg="Compiled to VMFB successfully",
             exception=IreeCompileException,
         )
 
@@ -332,30 +350,19 @@ class ExportArtifacts:
             compile_cmd: Command used to compile the program, for inclusion in error messages.
         Raises Exception if running fails for some reason.
         """
-        benchmark_args = []
-        if self.parallelism_size > 1:
-            base_irpa_path, _ = os.path.splitext(irpa_path)
-            rocr_visible_devices = [
-                f"ROCR_VISIBLE_DEVICES={','.join(str(i) for i in range(self.parallelism_size))}"
-            ]
-            params = [f"--parameters=model={base_irpa_path}.irpa"]
-            params += [
-                f"--parameters=model={base_irpa_path}.rank{i}.irpa"
-                for i in range(self.tensor_parallelism_size)
-            ]
-            devices = [f"--device=hip://{i}" for i in range(self.parallelism_size)]
-        else:
-            hip_device_arg = int(hip_device_id.split("://")[1])
-            rocr_visible_devices = [
-                f"ROCR_VISIBLE_DEVICES={','.join(str(i) for i in range(hip_device_arg + 1))}"
-            ]
-            params = [f"--parameters=model={irpa_path}"]
-            devices = [f"--device={hip_device_id}"]
-        benchmark_args += rocr_visible_devices
-        benchmark_args += [
+        params, devices, rocr_visible_devices = self._prepare_params_and_devices(
+            irpa_path, hip_device_id
+        )
+
+        benchmark_args = [
+            *rocr_visible_devices,
             "iree-benchmark-module",
             "--hip_use_streams=true",
             f"--module={vmfb_name}",
+            *params,
+            *devices,
+            *args,
+            str(benchmark_filename),
         ]
         benchmark_args += params
         benchmark_args += devices
@@ -370,19 +377,50 @@ class ExportArtifacts:
             exception=IreeBenchmarkException,
         )
 
-    def create_file(self, *, suffix, prefix):
-        # TODO: This looks scary. Should not be doing an fopen just to ensure the path exists, who closes this?
+    @timeit
+    def iree_run_vmfb(
+        self,
+        *,
+        hip_device_id: str,
+        vmfb_name: str,
+        irpa_path: str,
+        args: List[str],
+        cwd: str | Path,
+    ):
+        params, devices, rocr_visible_devices = self._prepare_params_and_devices(
+            irpa_path, hip_device_id
+        )
+
+        run_args = [
+            *rocr_visible_devices,
+            "iree-run-module",
+            "--hip_use_streams=true",
+            f"--module={vmfb_name}",
+            *params,
+            *devices,
+            *args,
+        ]
+        self._run_cmd(
+            cmd=subprocess.list2cmdline(run_args),
+            cwd=str(cwd),
+            run_msg="Launching run command",
+            success_msg="Run completed successfully",
+            exception=IreeRunException,
+        )
+
+    def create_file(self, *, prefix, suffix):
+        # TODO: This looks scary. Should not be doing an fopen just to ensure the path exists, who closes this?\
+        # TODO: May not longer be needed, verify
         file_path = Path(prefix).with_suffix(suffix)
         f = open(file_path, "w")
         return file_path
 
     def get_artifacts(self):
-
-        self.dir_path = (
+        # TODO: Change to use temp directory.
+        dir_path = (
             self.sharktank_dir + "/" + "perplexity_ci_artifacts/"
         )  # TODO: Remove this hardcoded path
-        temp_dir = Path(self.dir_path)
-        temp_dir.mkdir(parents=True, exist_ok=True)
+        Path(dir_path).mkdir(parents=True, exist_ok=True)
 
         model_name = (
             str(self.irpa_path).split("/")[-1].rsplit(".", 1)[0].replace(".", "_")
@@ -394,14 +432,11 @@ class ExportArtifacts:
                 else ""
             )
         )
+        prefix = dir_path + model_name
 
         if self.output_mlir is None:
-            self.output_mlir = str(
-                self.create_file(suffix=".mlir", prefix=self.dir_path + model_name)
-            )
-            self.output_config = str(
-                self.create_file(suffix=".json", prefix=self.dir_path + model_name)
-            )
+            self.output_mlir = str(self.create_file(prefix=prefix, suffix=".mlir"))
+            self.output_config = str(self.create_file(prefix=prefix, suffix=".json"))
 
             self.export_to_mlir(
                 output_mlir=self.output_mlir,
@@ -411,9 +446,7 @@ class ExportArtifacts:
             logger.info(f" Using pre-exported mlir: {self.output_mlir}")
             logger.info(f" Using pre-exported config json: {self.output_config}")
 
-        output_vmfb = str(
-            self.create_file(suffix=".vmfb", prefix=self.dir_path + model_name)
-        )
+        output_vmfb = str(self.create_file(prefix=prefix, suffix=".vmfb"))
 
         self.compile_to_vmfb(
             output_mlir=self.output_mlir,

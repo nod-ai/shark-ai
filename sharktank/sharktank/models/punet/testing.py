@@ -12,6 +12,7 @@ from sharktank.models.punet.sharding import ResnetBlock2DSplitOutputChannelsShar
 from sharktank.transforms.dataset import set_float_dtype
 from sharktank.types.tensors import *
 from sharktank.types.theta import Theta, Dataset
+from sharktank.utils.export import export
 from sharktank.utils.iree import flatten_for_iree_signature
 from sharktank.utils.testing import make_rand_torch
 from typing import Any, List
@@ -245,11 +246,21 @@ def export_sharded_toy_resnet_block_iree_test_data(
         sharded_input_image = ops.reshard_split(input_image, dim=1, count=shard_count)
         sharded_input_time_emb = ops.replicate(input_time_emb, count=shard_count)
 
+        fxb = aot.FxProgramsBuilder(sharded_resnet_block)
         args = (
             sharded_input_image,
             sharded_input_time_emb,
         )
-        exported_resnet_block = aot.export(sharded_resnet_block, args=args)
+        # Export handles device affinities of sharded tensor arguments automatically.
+        export(
+            ResnetBlock2D.forward,
+            fx_builder=fxb,
+            args=args,
+            strict=False,
+        )
+        exported_resnet_block = aot.export(
+            fxb,
+        )
         exported_resnet_block.save_mlir(mlir_path)
 
         expected_result = reference_resnet_block(

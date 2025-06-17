@@ -165,6 +165,11 @@ def add_model_options(parser: argparse.ArgumentParser):
         help="Return the log softmax of the logits",
         choices=["none", "softmax", "log_softmax"],
     )
+    parser.add_argument(
+        "--prefill-final-logits",
+        help="Return only the final logits",
+        action="store_true",
+    )
 
 
 def add_model_input_options(parser: argparse.ArgumentParser):
