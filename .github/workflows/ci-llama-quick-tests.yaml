@@ -80,7 +80,7 @@ jobs:
             --llama3-70b-f16-tp8-model-path="/shark-dev/70b/instruct/weights/tp8/llama3.1_70b_instruct_fp16_tp8.irpa" \
             --llama3-70b-f8-model-path="/shark-dev/70b/fp8/llama70b_fp8.irpa" \
             --llama3-405b-f16-tp8-model-path="/shark-dev/405b/instruct/weights/tp8/llama3.1_405b_fp16_tp8.irpa" \
-            --llama3-405b-f8-tp8-model-path="/shark-dev/405b/f8/tp8/llama3.1_405b_fp8_tp8_parameters.irpa" \ \
+            --llama3-405b-f8-tp8-model-path="/shark-dev/405b/f8/tp8/llama3.1_405b_fp8_tp8_parameters.irpa" \
 
       - name: Upload llama executable files
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
