@@ -358,7 +358,7 @@ def get_model_artifacts(request: FixtureRequest):
         request, "--llama3-8b-f8-model-path", "llama3_8b_f8_model"
     )
     model_path["llama3_8b_f8_attnf8_model_path"] = set_fixture_from_cli_option(
-        request, "--llama3-8b-f8-model-path", "llama3_8b_f8_attnf8_model"
+        request, "--llama3-8b-f8-attnf8-model-path", "llama3_8b_f8_attnf8_model"
     )
     model_path["llama3_70b_tokenizer_path"] = set_fixture_from_cli_option(
         request, "--llama3-70b-tokenizer-path", "llama3_70b_tokenizer"
