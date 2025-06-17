@@ -59,7 +59,7 @@ class MooncakePagedAttentionCacheAllocation(TriePagedAttentionCacheAllocation):
         tokens: List[int],
         remaining_length: int,
         new_pages: List[PageInfo],
-    ) -> None:
+    ) -> bool:
         """Update the pages with Mooncake store data.
 
         This method will check if there are any pages have been stored in Mooncake, if so, retrieve them and populate the new pages in page pool.
@@ -73,9 +73,6 @@ class MooncakePagedAttentionCacheAllocation(TriePagedAttentionCacheAllocation):
             logger.warning("Mooncake store is not initialized, skipping update.")
             return
 
-        self._pages.extend(new_pages)
-        self.number_of_published_pages = len(self._pages)
-
         if remaining_length > 0:
             logger.debug(
                 f"Updating {remaining_length} remaining tokens with new pages."
@@ -85,8 +82,21 @@ class MooncakePagedAttentionCacheAllocation(TriePagedAttentionCacheAllocation):
             num_of_updated_pages = self.retrieve_pages_from_mooncake_store(
                 remaining_tokens, new_pages
             )
-            tokens_for_publish = tokens[:start_token_idx] + remaining_tokens
-            super().publish_pages_for_tokens(tokens, publish_incomplete_page=False)
+            if num_of_updated_pages != len(new_pages):
+                logger.warning(
+                    f"No pages were successfully updated from Mooncake store."
+                )
+                return False
+            else:
+                logger.info(
+                    f"Successfully updated {num_of_updated_pages} pages from Mooncake store."
+                )
+                # comment out the following lines as extending pages causes mooncake cache to have different results from the original trie cache.
+                # self._pages.extend(new_pages)
+                # self.number_of_published_pages = len(self._pages)
+                # tokens_for_publish = tokens[:start_token_idx] + remaining_tokens
+                # super().publish_pages_for_tokens(tokens, publish_incomplete_page=False)
+                return True
 
     def send_pages_to_mooncake_store(self, tokens) -> None:
         """Send the pages to Mooncake store for persistent storage.
@@ -180,6 +190,8 @@ class MooncakePagedAttentionCache(TriePagedAttentionCache):
         self.mooncake_store = MooncakeStore(mooncake_config)
         self.mooncake_keys: Set[str] = set()
         logger.info(f"Mooncake store enabled with config: {self.mooncake_config_path}")
+        # self._mooncake_value is only used to debug if we the value retrieved from Mooncake is the same as the on sent to Mooncake store.
+        self._mooncake_value = []
 
     def token_ids_to_key(self, token_ids: List[int]) -> str:
         """Convert a list of token ids to a unique key string.
@@ -219,6 +231,9 @@ class MooncakePagedAttentionCache(TriePagedAttentionCache):
             self.mooncake_keys.add(key)
             self.mooncake_store.put_int_list(key, value)
             logger.debug(f"Page with key {key} sent to Mooncake store successfully.")
+            import copy
+
+            self._mooncake_value = copy.deepcopy(value)
 
     def update_page_from_mooncake(
         self,
@@ -243,9 +258,26 @@ class MooncakePagedAttentionCache(TriePagedAttentionCache):
                     logger.warning(f"Page with key {key} not found in Mooncake store.")
                     return False
                 self.page_pool.update_page_data(page, value)
+                # Debugging to check if the value retrieved from Mooncake store is the same as the one sent to Mooncake store.
+                if len(self.mooncake_keys) == 1:
+                    if len(value) != len(self._mooncake_value):
+                        logger.debug(
+                            f"Page with key {key} has different length than the one sent to Mooncake store"
+                        )
+                    else:
+                        for i in range(len(value)):
+                            if value[i] != self._mooncake_value[i]:
+                                logger.debug(
+                                    f"value[{i}]: {value[i]} != _mooncake_value[{i}]: {self._mooncake_value[i]}"
+                                )
+
+                    logger.debug(
+                        f"value retrived from Mooncake store is same as the one sent to Mooncake store"
+                    )
                 logger.debug(
                     f"Page with key {key} updated successfully from Mooncake store."
                 )
+
                 return True
         return False
 
@@ -306,7 +338,9 @@ class MooncakePagedAttentionCache(TriePagedAttentionCache):
                 cached_pages=matched_pages,
                 newly_acquired_pages=new_pages,
             )
-        allocation.update_pages_with_mooncake_store(tokens, remaining_length, new_pages)
-        cur_node, matched_pages = self._match(tokens)
+        if allocation.update_pages_with_mooncake_store(
+            tokens, remaining_length, new_pages
+        ):
+            cur_node, matched_pages = self._match(tokens)
         cur_node.ref_count.increment()
         return allocation
