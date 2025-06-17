@@ -366,6 +366,9 @@ def get_model_artifacts(request: FixtureRequest):
     model_path["llama3_70b_f16_model_path"] = set_fixture_from_cli_option(
         request, "--llama3-70b-f16-model-path", "llama3_70b_f16_model"
     )
+    model_path["llama3_70b_f16_tp8_model_path"] = set_fixture_from_cli_option(
+        request, "--llama3-70b-f16-tp8-model-path", "llama3_70b_f16_tp8_model"
+    )
     model_path["llama3_70b_f8_model_path"] = set_fixture_from_cli_option(
         request, "--llama3-70b-f8-model-path", "llama3_70b_f8_model"
     )
@@ -375,8 +378,14 @@ def get_model_artifacts(request: FixtureRequest):
     model_path["llama3_405b_f16_model_path"] = set_fixture_from_cli_option(
         request, "--llama3-405b-f16-model-path", "llama3_405b_f16_model"
     )
+    model_path["llama3_405b_f16_tp8_model_path"] = set_fixture_from_cli_option(
+        request, "--llama3-405b-f16-tp8-model-path", "llama3_405b_f16_tp8_model"
+    )
     model_path["llama3_405b_f8_model_path"] = set_fixture_from_cli_option(
         request, "--llama3-405b-f8-model-path", "llama3_405b_f8_model"
+    )
+    model_path["llama3_405b_f8_tp8_model_path"] = set_fixture_from_cli_option(
+        request, "--llama3-405b-f8-tp8-model-path", "llama3_405b_f8_tp8_model"
     )
     model_path["deepseek_v3_tokenizer_path"] = set_fixture_from_cli_option(
         request, "--deepseek-v3-tokenizer-path", "deepseek_v3_tokenizer"

@@ -405,7 +405,9 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
     def test_benchmark70B_f16(self, input_size: int, tp: int):
         self.output_name = self.dir_path / f"f16_torch_{input_size}_tp{tp}"
         self.export_artifact = self.llama70b_f16_torch_sdpa_artifacts_tp1
-        self.irpa_path = self.llama3_70b_f16_model
+        self.irpa_path = (
+            self.llama3_70b_f16_model if tp == 1 else self.llama3_70b_f16_tp8_model
+        )
         self.prefill_args = self.prefill_args_fp16[tp][input_size]
         self.decode_args = self.decode_args_fp16[tp][input_size]
 
@@ -436,7 +438,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         self.tensor_parallelism_size = 8
 
         self.llama405b_f16_torch_sdpa_artifacts = ExportArtifacts(
-            irpa_path=self.llama3_405b_f16_model,
+            irpa_path=self.llama3_405b_f16_tp8_model,
             batch_size=4,
             iree_hip_target="gfx942",
             iree_hal_target_device="hip",
@@ -446,7 +448,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             block_seq_stride=32,
         )
         self.llama405b_fp8_torch_sdpa_artifacts = ExportArtifacts(
-            irpa_path=self.llama3_405b_f8_model,
+            irpa_path=self.llama3_405b_f8_tp8_model,
             batch_size=4,
             iree_hip_target="gfx942",
             iree_hal_target_device="hip",
@@ -511,7 +513,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
     def test_benchmark405B_f16_tp8(self, input_size: int):
         self.output_name = self.dir_path / f"f16_torch_{input_size}"
         self.export_artifact = self.llama405b_f16_torch_sdpa_artifacts
-        self.irpa_path = self.llama3_405b_f16_model
+        self.irpa_path = self.llama3_405b_f16_tp8_model
         self.prefill_args = self.prefill_args_tp8_fp16[input_size]
         self.decode_args = self.decode_args_tp8_fp16[input_size]
 
@@ -523,7 +525,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
     def test_benchmark405B_fp8_tp8(self):
         self.output_name = self.dir_path / "fp8_torch"
         self.export_artifact = self.llama405b_fp8_torch_sdpa_artifacts
-        self.irpa_path = self.llama3_405b_f8_model
+        self.irpa_path = self.llama3_405b_f8_tp8_model
         self.prefill_args = self.iree_run_prefill_args_fp8
         self.decode_args = self.iree_run_decode_args_fp8
 
