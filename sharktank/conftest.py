@@ -174,6 +174,12 @@ def pytest_addoption(parser):
         help="Llama3.1 70b model path",
     )
     parser.addoption(
+        "--llama3-70b-f16-tp8-model-path",
+        type=Path,
+        action="store",
+        help="Llama3.1 70b tp8 model path",
+    )
+    parser.addoption(
         "--llama3-70b-f8-model-path",
         type=Path,
         action="store",
@@ -193,11 +199,24 @@ def pytest_addoption(parser):
         help="Llama3.1 405b model path, defaults to 30F CI system path",
     )
     parser.addoption(
+        "--llama3-405b-f16-tp8-model-path",
+        type=Path,
+        action="store",
+        help="Llama3.1 405b tp8 model path.",
+    )
+    parser.addoption(
         "--llama3-405b-f8-model-path",
         type=Path,
         action="store",
         default=None,
         help="Llama3.1 405b f8 model path",
+    )
+    parser.addoption(
+        "--llama3-405b-f8-tp8-model-path",
+        type=Path,
+        action="store",
+        default=None,
+        help="Llama3.1 405b f8 tp8 model path",
     )
     parser.addoption(
         "--deepseek-v3-tokenizer-path",
