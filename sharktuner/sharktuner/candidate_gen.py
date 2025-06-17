@@ -50,9 +50,6 @@ class DispatchTuner(dispatch_parser.DispatchParser):
         Each TuningConfiguration specifies a name (e.g., "compilation_info") and
         its corresponding MLIR attribute (e.g., CompilationInfoAttr) to be applied
         to the dispatch root operation.
-
-        Example:
-            TuningConfiguration(name="compilation_info", configuration=CompilationInfoAttr(...))
         """
         pass
 

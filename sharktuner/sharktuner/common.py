@@ -69,6 +69,9 @@ class TuningConfiguration:
     result of running a tuning spec, along with its name. For example, a common
     tuning configuration would have "compilation_info" as its name, and an
     `iree_codegen.CompilationInfoAttr` as the configuration.
+
+    Example:
+        TuningConfiguration(name="compilation_info", configuration=CompilationInfoAttr(...))
     """
 
     name: str
