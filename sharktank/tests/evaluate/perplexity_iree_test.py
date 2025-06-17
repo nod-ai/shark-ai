@@ -142,6 +142,7 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
+    @pytest.mark.skip(reason="70B fp8 model unavailable")
     @is_sharded
     def test_llama3_70B_f8(self):
         # Llama 3.1 70B non-decomposed
