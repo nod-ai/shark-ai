@@ -224,18 +224,20 @@ class ExportArtifacts:
         return wrapper
 
     @timeit
-    def shard_irpa_file(
-        self,
-        *,
-        irpa_file: str,
-        output_irpa: str,
-    ):
+    def shard_irpa_file(self):
+        irpa_path = Path(self.irpa_path)
+        output_irpa = str(
+            irpa_path.with_name(f"{irpa_path.stem}_sharded{irpa_path.suffix}")
+        )
+        irpa_path = str(irpa_path)
+        self.irpa_path = output_irpa
+
         shard_irpa_args = [
             "python3",
             "-m",
             "sharktank.examples.sharding.shard_llm_dataset",
             "--irpa-file",
-            irpa_file,
+            irpa_path,
             "--output-irpa-file",
             output_irpa,
             "--tensor-parallelism-size",
