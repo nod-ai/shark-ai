@@ -18,7 +18,6 @@ from sharktank.utils.iree import (
 from sharktank.utils.export_artifacts import ExportArtifacts
 from sharktank.examples import export_paged_llm_v1
 from sharktank.layers.mixture_of_experts_block import MoeBlock
-from sharktank.layers.norm import L2Norm
 from sharktank.ops import topk, zeros_like, reshard_like
 
 import torch
@@ -122,36 +121,6 @@ def llama4_toy_sample_inputs(
         )
     )
     return args, kwargs
-
-
-def patch_forward_L2Norm(self, x):
-    dtype = torch.float32
-    x_f = x.to(dtype)
-
-    sqr = x_f.pow(2)
-
-    dims = self.dim if isinstance(self.dim, tuple) else (self.dim,)
-    dims = tuple(d if d >= 0 else x.dim() + d for d in dims)
-
-    permute_dims = [i for i in range(x_f.dim()) if i not in dims] + list(dims)
-    x_perm = x_f.permute(permute_dims)
-    sqr_perm = sqr.permute(permute_dims)
-
-    kept_shape = x_perm.shape[: -len(dims)]
-    x_flat = x_perm.reshape(*kept_shape, -1)
-    sqr_flat = sqr_perm.reshape(*kept_shape, -1)
-
-    var = torch.zeros_like(sqr_flat[..., :1])
-    for i in range(sqr_flat.shape[-1]):
-        var += sqr_flat[..., i : i + 1]
-    var = var / sqr_flat.shape[-1]
-
-    out_flat = x_flat * torch.rsqrt(var + self.epsilon)
-
-    out_perm = out_flat.reshape(*x_perm.shape)
-    invert_perm = [permute_dims.index(i) for i in range(x_f.dim())]
-    out = out_perm.permute(invert_perm)
-    return out.to(dtype=x.dtype)
 
 
 def patch_forward_moe(
@@ -326,7 +295,7 @@ def runCompareIreeAgainstTorchEager(args, atol):
     work_dir = Path(args.work_dir)
 
     MoeBlock.forward = patch_forward_moe
-    L2Norm.forward = patch_forward_L2Norm
+
     # add sample_inputs
     PagedLlmModelV1.sample_inputs = _sample_inputs
     PagedLlmModelV1.input_mask = staticmethod(deterministic_input_mask)
