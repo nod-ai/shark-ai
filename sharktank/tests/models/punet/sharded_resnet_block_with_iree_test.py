@@ -129,11 +129,20 @@ def run_test_toy_size_sharded_resnet_block_with_iree(artifacts_dir: Path):
     condition=(sys.platform == "win32"),
     raises=iree.compiler.CompilerToolError,
     reason=(
-        "Compiler error: operation's operand is unlinked. "
-        "See https://github.com/iree-org/iree/issues/21114"
+        "Used to fail with "
+        "compiler error: operation's operand is unlinked. "
+        "See https://github.com/iree-org/iree/issues/21114. "
+        "Now it fails with error: 'stream.async.execute' op operand #0 must be "
+        "variadic of resource or external resource or transient resource or variable "
+        "resource or constant resource or staging resource, but got "
+        "'!stream.timepoint'"
     ),
     strict=True,
-    match=re.escape(r"error: operation's operand is unlinked"),
+    match=re.escape(
+        r"error: 'stream.async.execute' op operand #0 must be variadic of resource or "
+        r"external resource or transient resource or variable resource or constant "
+        r"resource or staging resource, but got '!stream.timepoint'"
+    ),
 )
 def test_toy_size_sharded_resnet_block_with_iree(tmp_path: Path):
     """Test sharding, exportation and execution with IREE local-task of a Resnet block.
