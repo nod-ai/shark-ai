@@ -28,7 +28,7 @@ from sharktank.types.tensors import (
     torch_tree_flatten,
 )
 from .tree import Tree
-
+from iree.runtime import FileHandle
 import iree.runtime
 
 if TYPE_CHECKING:
@@ -110,6 +110,22 @@ class TorchLikeIreeModule:
             return res
 
         return f
+
+
+def get_file_handle(
+    weight_path: Path,
+    shard_count: int = 1,
+) -> List[FileHandle]:
+    handles = []
+    modified_weight_path = weight_path
+    for i in range(shard_count):
+        if shard_count > 1:
+            modified_weight_path = str(
+                weight_path.with_suffix(f".rank{i}{weight_path.suffix}")
+            )
+        with open(str(modified_weight_path), "rb") as f:
+            handles.append(FileHandle.wrap_fd(f.fileno()))
+    return handles
 
 
 def get_iree_compiler_flags(
@@ -287,12 +303,14 @@ def load_iree_module(
     devices: List[iree.runtime.HalDevice],
     parameters_path: Optional[str] = None,
     debug_sink: Optional[iree.runtime.HalModuleDebugSink] = None,
-    tensor_parallel_size: int = _same_as_device_count,
+    tensor_parallel_size: int = 1,
+    pipeline_parallel_size: int = 1,
 ) -> Tuple[iree.runtime.VmModule, iree.runtime.VmContext, iree.runtime.VmInstance]:
     """The VmContext and VmInstance need to outlive the VmModule and any device
     buffers."""
-    if tensor_parallel_size == _same_as_device_count:
-        tensor_parallel_size = len(devices)
+    parallel_size = tensor_parallel_size * pipeline_parallel_size
+    assert parallel_size == len(devices)
+
     vm_instance = iree.runtime.VmInstance()
     hal_module = iree.runtime.create_hal_module(
         instance=vm_instance, devices=devices, debug_sink=debug_sink
@@ -301,27 +319,24 @@ def load_iree_module(
     if parameters_path is not None:
         params_path = Path(parameters_path)
         parameter_index = iree.runtime.ParameterIndex()
-        if len(devices) > 1 and tensor_parallel_size == len(devices):
+        if parallel_size == len(devices):
             # TODO: make IREE able to load the parameters from the top parameter file
             # without having to specify the parameter file for each shard separately.
-            for i in range(len(devices)):
-                parameter_index.load(
-                    file_path=str(
-                        Path(params_path).with_suffix(f".rank{i}{params_path.suffix}")
-                    )
-                )
-        elif tensor_parallel_size == 1:
-            parameter_index.load(file_path=str(params_path))
+            handles = get_file_handle(
+                shard_count=tensor_parallel_size, weight_path=params_path
+            )
+            for handle in handles:
+                parameter_index.load_from_file_handle(handle, "irpa")
         else:
             raise NotImplementedError(
-                "TODO: implement mixture of pipeline and tensor parallelism"
+                f"pipeline_parallelism_size * tensor_parallelism_size {parallel_size} != len(devices) {len(devices)}"
             )
         parameter_provider = parameter_index.create_provider(scope="model")
         parameters_module = iree.runtime.create_io_parameters_module(
             vm_instance, parameter_provider
         )
         modules.append(parameters_module)
-    vm_module = iree.runtime.VmModule.mmap(vm_instance, str(module_path))
+    vm_module = iree.runtime.VmModule.mmap(vm_instance, module_path)
     modules.append(vm_module)
     vm_context = iree.runtime.VmContext(instance=vm_instance, modules=modules)
     return vm_module, vm_context, vm_instance
