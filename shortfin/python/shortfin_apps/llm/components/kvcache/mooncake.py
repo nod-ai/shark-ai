@@ -3,7 +3,7 @@ This file supports using the Mooncake KVCache as part of the KVCache support in 
 """
 
 import json
-import os
+import pathlib
 
 import logging
 
@@ -24,41 +24,29 @@ class MooncakeConfig:
     Configuration for connecting to mooncake master.
     """
 
-    local_hostname: str
-    metadata_server: str
-    global_segment_size: int
-    local_buffer_size: int
-    protocal: str
-    device_name: str
-    master_server_address: str
+    local_hostname: str = "localhost"
+    metadata_server: str = "localhost:8080"
+    global_segment_size: Optional[int] = 1024**3 * 3  # 3GB
+    local_buffer_size: Optional[int] = 1024**3  # 1GB
+    protocol: str = "tcp"
+    device_name: str = ""
+    master_server_address: str = "localhost:8080"
 
     @staticmethod
     def from_json(json_file: str) -> "MooncakeConfig":
         """
         Load MooncakeConfig from a JSON file.
         """
-        if not os.path.exists(json_file):
+        file_path = pathlib.Path(json_file)
+        if not file_path.exists():
             raise FileNotFoundError(f"Configuration file {json_file} does not exist.")
+        config = None
         with open(json_file, "r") as f:
             config_data = json.load(f)
-        try:
-            config = MooncakeConfig(
-                local_hostname=config_data.get("local_hostname", "localhost"),
-                metadata_server=config_data.get("metadata_server", "localhost:8080"),
-                global_segment_size=config_data.get(
-                    "global_segment_size", 1024 * 1024 * 1024 * 3
-                ),  # 3GB
-                local_buffer_size=config_data.get(
-                    "local_buffer_size", 1024 * 1024 * 1024
-                ),  # 1GB
-                protocal=config_data.get("protocal", "tcp"),
-                device_name=config_data.get("device_name", ""),
-                master_server_address=config_data.get(
-                    "master_server_address", "localhost:8080"
-                ),
-            )
-        except KeyError as e:
-            raise KeyError(f"Missing required configuration key: {e}")
+            try:
+                config = MooncakeConfig(**config_data)
+            except KeyError as e:
+                raise KeyError(f"Missing required configuration key: {e}")
         return config
 
 
@@ -85,7 +73,7 @@ class MooncakeEngine:
         self.engine.initialize_ext(
             config.local_hostname,
             config.metadata_server,
-            config.protocal,
+            config.protocol,
             config.device_name,
             config.master_server_address,
         )
@@ -115,7 +103,7 @@ class MooncakeStore:
                 self.config.metadata_server,
                 self.config.global_segment_size,
                 self.config.local_buffer_size,
-                self.config.protocal,
+                self.config.protocol,
                 self.config.device_name,
                 self.config.master_server_address,
             )
@@ -168,6 +156,9 @@ class MooncakeStore:
             logger.error(f"Failed to get key: {key} from Mooncake KVCache. Error: {e}")
             raise TypeError("Mooncake Store Get Type Error.") from e
 
+        if not value_bytes:
+            return None
+
         if value_bytes:
             data = safetensors_load(value_bytes)
             device_id = int(data["device_id"].item())
@@ -180,7 +171,6 @@ class MooncakeStore:
             value = value_tensor.to(device)
             logger.info(f"Successfully retrieved key: {key} from Mooncake KVCache.")
             return value
-        return None
 
     def get_int_list(self, key: str) -> Optional[list[int]]:
         """

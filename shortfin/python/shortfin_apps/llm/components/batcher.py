@@ -364,15 +364,15 @@ class LlmExecutorProcess(sf.Process):
             if len(result) > 1:
                 indices = result[1]
 
+            logits, indices = await self._transfer_buffer(
+                req_count=req_count, device0=device0, buffers=(logits, indices)
+            )
+
             # publish cache pages
             for r in self.exec_requests:
                 total_tokens = r.start_position + len(r.input_token_ids)
                 number_of_complete_pages = total_tokens // seq_stride
                 r.publish_allocated_pages(number_of_complete_pages)
-
-            logits, indices = await self._transfer_buffer(
-                req_count=req_count, device0=device0, buffers=(logits, indices)
-            )
 
             [arg.release() for arg in args]
 
