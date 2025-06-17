@@ -256,7 +256,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             ],
         }
 
-    @parameterized.expand(tuple(((128,), (2048,))))
+    @parameterized.expand((((128,), (2048,))))
     def test_benchmark8B_f16_tp1_non_decomposed(self, input_size: int):
         self.output_name = self.dir_path / f"f16_torch_{input_size}_tp1"
         self.export_artifact = self.llama8b_f16_torch_sdpa_artifacts
@@ -277,7 +277,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         self.export_compile_benchmark()
 
     @is_nightly
-    @parameterized.expand(tuple(((128,), (2048,))))
+    @parameterized.expand((((128,), (2048,))))
     def testBenchmark8B_fp8_attnf8_tp1_non_decomposed(self, input_size: int):
         self.output_name = self.dir_path / f"fp8_attnf8_{input_size}_tp1"
         self.export_artifact = self.llama8b_fp8_attnf8_sdpa_artifacts
@@ -523,7 +523,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             "--benchmark_repetitions=3",
         ]
 
-    @parameterized.expand(tuple(((128,), (2048,))))
+    @parameterized.expand((((128,), (2048,))))
     @pytest.mark.xfail(
         reason="Benchmarking Error", strict=True, raises=IreeBenchmarkException
     )
