@@ -106,11 +106,12 @@ class ExportArtifacts:
         kv_cache_dtype: Optional[str] = None,
         output_mlir: Optional[str] = None,
         output_config: Optional[str] = None,
+        output_name: Optional[str] = None,
         cwd: Optional[str] = None,
     ):
         self.tmp_dir = Path(tempfile.mkdtemp(type(self).__qualname__))
-        self.cwd = str(cwd if cwd is not None else self.tmp_dir)
-        Path(self.cwd).mkdir(parents=True, exist_ok=True)
+        self.cwd = cwd if cwd is not None else self.tmp_dir
+        self.cwd.mkdir(parents=True, exist_ok=True)
 
         self.irpa_path = irpa_path
         self.output_mlir = output_mlir
@@ -133,6 +134,19 @@ class ExportArtifacts:
         self.attention_dtype = attention_dtype
         self.kv_cache_dtype = kv_cache_dtype
         self.use_hf = use_hf
+
+        self.output_name = output_name
+        if self.output_name is None:
+            self.output_name = self.cwd / (
+                str(self.irpa_path).split("/")[-1].rsplit(".", 1)[0].replace(".", "_")
+                + "_"
+                + self.attention_kernel
+                + (
+                    f"_pp{self.pipeline_parallelism_size}"
+                    if self.pipeline_parallelism_size > 1
+                    else ""
+                )
+            )
 
     def __del__(self):
         shutil.rmtree(self.tmp_dir, ignore_errors=True)
@@ -229,7 +243,6 @@ class ExportArtifacts:
         output_irpa = str(
             irpa_path.with_name(f"{irpa_path.stem}_sharded{irpa_path.suffix}")
         )
-        irpa_path = str(irpa_path)
         self.irpa_path = output_irpa
 
         shard_irpa_args = [
@@ -266,8 +279,8 @@ class ExportArtifacts:
             f"--irpa-file={self.irpa_path}",
             f"--output-mlir={output_mlir}",
             f"--output-config={output_config}",
-            f"--bs-prefill={str(self.batch_size)}",
-            f"--bs-decode={str(self.batch_size)}",
+            f"--bs-prefill={self.batch_size}",
+            f"--bs-decode={self.batch_size}",
             f"--block-seq-stride={self.block_seq_stride}",
             f"--attention-dtype={self.attention_dtype}",
             f"--activation-dtype={self.activation_dtype}",
@@ -401,29 +414,11 @@ class ExportArtifacts:
             exception=IreeRunException,
         )
 
-    def create_file(self, *, prefix, suffix):
-        # TODO: This looks scary. Should not be doing an fopen just to ensure the path exists, who closes this?\
-        # TODO: May not longer be needed, verify
-        file_path = Path(prefix).with_suffix(suffix)
-        f = open(file_path, "w")
-        return file_path
-
     def get_artifacts(self):
-        model_name = (
-            str(self.irpa_path).split("/")[-1].rsplit(".", 1)[0].replace(".", "_")
-            + "_"
-            + self.attention_kernel
-            + (
-                f"_pp{self.pipeline_parallelism_size}"
-                if self.pipeline_parallelism_size > 1
-                else ""
-            )
-        )
-        prefix = self.cwd + model_name
-
+        output_vmfb = self.output_name.with_suffix(".vmfb")
         if self.output_mlir is None:
-            self.output_mlir = str(self.create_file(prefix=prefix, suffix=".mlir"))
-            self.output_config = str(self.create_file(prefix=prefix, suffix=".json"))
+            self.output_mlir = self.output_name.with_suffix(".mlir")
+            self.output_config = self.output_name.with_suffix(".json")
 
             self.export_to_mlir(
                 output_mlir=self.output_mlir,
@@ -432,8 +427,6 @@ class ExportArtifacts:
         else:
             logger.info(f" Using pre-exported mlir: {self.output_mlir}")
             logger.info(f" Using pre-exported config json: {self.output_config}")
-
-        output_vmfb = str(self.create_file(prefix=prefix, suffix=".vmfb"))
 
         self.compile_to_vmfb(
             output_mlir=self.output_mlir,

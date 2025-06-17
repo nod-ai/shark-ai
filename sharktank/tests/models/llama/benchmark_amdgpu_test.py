@@ -89,18 +89,17 @@ class BaseBenchmarkTest(unittest.TestCase):
         return benchmark_args
 
     def export_compile_benchmark(self, skip_decode: bool = False):
-        mlir = self.export_artifact.create_file(prefix=self.output_name, suffix=".mlir")
-        json = self.export_artifact.create_file(prefix=self.output_name, suffix=".json")
-        vmfb = self.export_artifact.create_file(prefix=self.output_name, suffix=".vmfb")
-        benchmark = self.export_artifact.create_file(
-            prefix=self.output_name, suffix=".txt"
-        )
+        mlir = self.output_name.with_suffix(".mlir")
+        json = self.output_name.with_suffix(".json")
+        vmfb = self.output_name.with_suffix(".vmfb")
+        benchmark = self.output_name.with_suffix(".txt")
+
         self.export_artifact.export_to_mlir(
             output_mlir=mlir,
             output_config=json,
         )
         self.export_artifact.compile_to_vmfb(
-            output_mlir=str(mlir),
+            output_mlir=mlir,
             output_vmfb=vmfb,
             hal_dump_path=self.output_name,
             cwd=self.repo_root,
