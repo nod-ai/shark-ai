@@ -472,14 +472,20 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         for i in range(req_count):
             req = self.exec_requests[i]
             sl = len(req.input_token_ids)
-            if req.return_all_logits:
+
+            if logits.shape[1] == 1:
+                logits_item = logits.view(i)
+            elif req.return_all_logits:
                 logits_item = logits.view(i, slice(0, sl))
             else:
                 logits_item = logits.view(i, sl - 1)
 
             index_item = None
             if indices is not None:
-                index_item = indices.view(i, sl - 1)
+                if indices.shape[1] == 1:
+                    index_item = indices.view(i)
+                else:
+                    index_item = indices.view(i, sl - 1)
 
             req.result_logits = logits_item
             req.result_indices = index_item
@@ -588,15 +594,11 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         # Return results.
         for i in range(req_count):
             req = self.exec_requests[i]
-            sl = 1
-            if req.return_all_logits:
-                logits_item = logits.view(i, slice(0, sl))
-            else:
-                logits_item = logits.view(i, sl - 1)
+            logits_item = logits.view(i, 0)
 
             index_item = None
             if indices is not None:
-                index_item = indices.view(i, sl - 1)
+                index_item = indices.view(i, 0)
 
             req.result_logits = logits_item
             req.result_indices = index_item
