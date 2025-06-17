@@ -73,6 +73,7 @@ jobs:
             --run-nightly-tests \
             --iree-hip-target=gfx942 \
             --iree-device=hip://0 \
+            --iree-hal-target-device=hip \
             --llama3-8b-f16-model-path="/shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa" \
             --llama3-8b-f8-model-path="/shark-dev/8b/fp8/native_fp8_e4m3fnuz_llama3_8b.irpa" \
             --llama3-8b-f8-attnf8-model-path="/shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa" \

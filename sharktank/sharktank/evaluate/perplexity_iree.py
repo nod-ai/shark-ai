@@ -149,38 +149,41 @@ class PerplexityIree:
     @timeit
     def compile_model(
         self,
-        output_mlir: str,
-        output_config: str,
-        output_vmfb: str,
+        output_mlir: str | None,
+        output_config: str | None,
+        output_vmfb: str | None,
     ):
-
         logger.info(f" Model: {self.weight_path_str}")
 
         if self.kv_cache_dtype is None:
             self.kv_cache_dtype = self.attention_dtype
-
-        if output_vmfb:
-            self.output_vmfb = output_vmfb
-            logger.info(f" Using pre-compiled vmfb: {self.output_vmfb}")
-        else:
-            export_artifacts = ExportArtifacts(
-                irpa_path=self.weight_path_str,
-                batch_size=self.bs,
-                iree_hip_target=self.iree_hip_target,
-                iree_hal_target_device=self.iree_hal_target_device,
-                attention_kernel=self.attention_kernel,
-                tensor_parallelism_size=self.tensor_parallelism_size,
-                pipeline_parallelism_size=self.pipeline_parallelism_size,
-                block_seq_stride=self.block_seq_stride,
-                use_attention_mask=self.use_attention_mask,
-                activation_dtype=str(self.activation_dtype).split(".")[-1],
-                attention_dtype=str(self.attention_dtype).split(".")[-1],
-                kv_cache_dtype=str(self.kv_cache_dtype).split(".")[-1],
-                use_hf=self.use_hf,
-                output_mlir=output_mlir,
-                output_config=output_config,
-            )
-            self.output_vmfb = export_artifacts.get_artifacts()
+        cwd = (
+            Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent
+            / "perplexity_ci_artifacts/"
+        )
+        export_artifacts = ExportArtifacts(
+            irpa_path=self.weight_path_str,
+            batch_size=self.bs,
+            iree_hip_target=self.iree_hip_target,
+            iree_hal_target_device=self.iree_hal_target_device,
+            hip_device_id=self.iree_devices[0],
+            attention_kernel=self.attention_kernel,
+            tensor_parallelism_size=self.tensor_parallelism_size,
+            pipeline_parallelism_size=self.pipeline_parallelism_size,
+            block_seq_stride=self.block_seq_stride,
+            use_attention_mask=self.use_attention_mask,
+            activation_dtype=str(self.activation_dtype).split(".")[-1],
+            attention_dtype=str(self.attention_dtype).split(".")[-1],
+            kv_cache_dtype=str(self.kv_cache_dtype).split(".")[-1],
+            use_hf=self.use_hf,
+            output_mlir=output_mlir,
+            output_config=output_config,
+            cwd=cwd,
+            skip_if_file_exists=(
+                output_vmfb is not None and Path(output_vmfb).exists()
+            ),
+        )
+        self.output_vmfb = export_artifacts.export_and_compile_llm()
 
     @timeit
     def load_model(
