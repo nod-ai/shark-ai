@@ -4,9 +4,11 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import os
+import shutil
 import sys
 import subprocess
 import logging
+import tempfile
 import time
 from pathlib import Path
 from datetime import timedelta
@@ -104,11 +106,12 @@ class ExportArtifacts:
         kv_cache_dtype: Optional[str] = None,
         output_mlir: Optional[str] = None,
         output_config: Optional[str] = None,
+        cwd: Optional[str] = None,
     ):
-        # TODO: Can use temp directory instead
-        self.sharktank_dir = str(
-            Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent
-        )
+        self.tmp_dir = Path(tempfile.mkdtemp(type(self).__qualname__))
+        self.cwd = cwd if cwd is not None else str(self.tmp_dir)
+        Path(self.cwd).mkdir(parents=True, exist_ok=True)
+
         self.irpa_path = irpa_path
         self.output_mlir = output_mlir
         self.output_config = output_config
@@ -130,6 +133,9 @@ class ExportArtifacts:
         self.attention_dtype = attention_dtype
         self.kv_cache_dtype = kv_cache_dtype
         self.use_hf = use_hf
+
+    def __del__(self):
+        shutil.rmtree(self._temp_dir, ignore_errors=True)
 
     @staticmethod
     def from_config(
@@ -237,7 +243,6 @@ class ExportArtifacts:
 
         self._run_cmd(
             cmd=subprocess.list2cmdline(shard_irpa_args),
-            cwd=self.sharktank_dir,
             run_msg="Sharding irpa file",
             success_msg="Sharded irpa file successfully",
             exception=IrpaShardException,
@@ -280,7 +285,6 @@ class ExportArtifacts:
 
         self._run_cmd(
             cmd=subprocess.list2cmdline(export_args),
-            cwd=self.sharktank_dir,
             run_msg="Exporting MLIR",
             success_msg="Exported to MLIR successfully",
             exception=ExportMlirException,
@@ -381,7 +385,6 @@ class ExportArtifacts:
         vmfb_name: str,
         irpa_path: str,
         args: List[str],
-        cwd: str | Path,
     ):
         params, devices, rocr_visible_devices = self._prepare_params_and_devices(
             irpa_path, hip_device_id
@@ -398,7 +401,6 @@ class ExportArtifacts:
         ]
         self._run_cmd(
             cmd=subprocess.list2cmdline(run_args),
-            cwd=str(cwd),
             run_msg="Launching run command",
             success_msg="Run completed successfully",
             exception=IreeRunException,
@@ -412,12 +414,6 @@ class ExportArtifacts:
         return file_path
 
     def get_artifacts(self):
-        # TODO: Change to use temp directory.
-        dir_path = (
-            self.sharktank_dir + "/" + "perplexity_ci_artifacts/"
-        )  # TODO: Remove this hardcoded path
-        Path(dir_path).mkdir(parents=True, exist_ok=True)
-
         model_name = (
             str(self.irpa_path).split("/")[-1].rsplit(".", 1)[0].replace(".", "_")
             + "_"
@@ -428,7 +424,7 @@ class ExportArtifacts:
                 else ""
             )
         )
-        prefix = dir_path + model_name
+        prefix = self.cwd + model_name
 
         if self.output_mlir is None:
             self.output_mlir = str(self.create_file(prefix=prefix, suffix=".mlir"))
@@ -447,7 +443,6 @@ class ExportArtifacts:
         self.compile_to_vmfb(
             output_mlir=self.output_mlir,
             output_vmfb=output_vmfb,
-            cwd=self.sharktank_dir,
         )
 
         return output_vmfb

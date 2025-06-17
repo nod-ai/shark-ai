@@ -179,6 +179,12 @@ class PerplexityIree:
                 use_hf=self.use_hf,
                 output_mlir=output_mlir,
                 output_config=output_config,
+                cwd=str(
+                    Path(
+                        os.path.dirname(os.path.abspath(__file__))
+                    ).parent.parent.parent
+                    / "perplexity_ci_artifacts/"
+                ),
             )
             self.output_vmfb = export_artifacts.get_artifacts()
 
