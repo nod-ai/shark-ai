@@ -410,11 +410,22 @@ def skip(*decorator_args, **decorator_kwargs):
     return decorator
 
 
-class XfailMatchError(Exception):
-    pass
+def _eval_condition(c: bool | str | None) -> bool:
+    if c is None:
+        return True
+    if isinstance(c, bool):
+        return c
+    raise NotImplementedError(
+        "TODO: implement string condition evaluation the same way as in pytest"
+    )
 
 
-def xfail(*args, match: str | None = None, **kwargs):
+def xfail(
+    condition: bool | None = None,
+    *,
+    match: str | None = None,
+    **kwargs,
+):
     """xfail a test with support for regex matching against the error message.
 
     This wraps the pytest.mark.xfail decorator into a new decorator.
@@ -433,16 +444,23 @@ def xfail(*args, match: str | None = None, **kwargs):
     """
 
     def decorator(test_fn: Callable):
-        @pytest.mark.xfail(*args, **kwargs)
+        if condition is not None:
+            kwargs.update(condition=condition)
+
+        @pytest.mark.xfail(**kwargs)
         @functools.wraps(test_fn)
         def wrapper(*args, **kwargs):
             try:
                 return test_fn(*args, **kwargs)
             except Exception as ex:
-                if match is None or re.search(match, str(ex)):
+                if (
+                    not _eval_condition(condition)
+                    or match is None
+                    or re.search(match, str(ex))
+                ):
                     raise ex
                 else:
-                    raise XfailMatchError(
+                    raise pytest.fail(
                         f'Failed to match error "{ex}" against expected match "{match}"'
                     ) from ex
 
