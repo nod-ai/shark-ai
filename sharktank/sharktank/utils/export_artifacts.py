@@ -432,7 +432,7 @@ class ExportArtifacts:
                 else ""
             )
         )
-        prefix = self.dir_path + model_name
+        prefix = dir_path + model_name
 
         if self.output_mlir is None:
             self.output_mlir = str(self.create_file(prefix=prefix, suffix=".mlir"))
