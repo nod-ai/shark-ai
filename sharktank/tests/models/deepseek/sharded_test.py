@@ -175,7 +175,6 @@ class DeepseekShardedTest(TempDirTestBase):
         )
 
         def run_iree_module(iree_devices: list[iree.runtime.HalDevice]):
-
             iree_module, vm_context, vm_instance = load_iree_module(
                 module_path=iree_module_path,
                 devices=iree_devices,
