@@ -301,7 +301,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             block_seq_stride=32,
         )
         self.llama70b_f16_torch_sdpa_artifacts_tp8 = ExportArtifacts(
-            irpa_path=self.llama3_70b_f16_model,
+            irpa_path=self.llama3_70b_f16_tp8_model,
             batch_size=4,
             iree_hip_target="gfx942",
             iree_hal_target_device="hip",
