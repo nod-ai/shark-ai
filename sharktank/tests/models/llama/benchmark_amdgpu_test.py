@@ -22,7 +22,7 @@ from sharktank.utils.testing import (
 )
 
 
-@pytest.mark.usefixtures("get_iree_flags")
+@pytest.mark.usefixtures("get_iree_flags", "get_model_artifacts")
 class BaseBenchmarkTest(unittest.TestCase):
     dir_path_suffix = datetime.now().strftime("%Y-%m-%d")
     repo_root = Path(__file__).resolve().parents[4]
@@ -131,18 +131,11 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         super().setUp()
         # TODO: add numpy files to Azure and download from it
         artifact_dir = Path("/shark-dev/8b")
-        self.irpa_path_fp16 = (
-            artifact_dir / "instruct/weights/llama3.1_8b_instruct_fp16.irpa"
-        )
-        self.irpa_path_fp8 = artifact_dir / "fp8/native_fp8_e4m3fnuz_llama3_8b.irpa"
-        self.irpa_path_fp8_attnf8 = (
-            artifact_dir / "fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa"
-        )
         self.dir_path = self.__class__.dir_path / "llama-8b"
         Path(self.dir_path).mkdir(parents=True, exist_ok=True)
 
         self.llama8b_f16_torch_sdpa_artifacts = ExportArtifacts(
-            irpa_path=str(self.irpa_path_fp16),
+            irpa_path=self.llama3_8b_f16_model,
             batch_size=4,
             iree_hip_target="gfx942",
             iree_hal_target_device="hip",
@@ -152,7 +145,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             block_seq_stride=32,
         )
         self.llama8b_fp8_torch_sdpa_artifacts = ExportArtifacts(
-            irpa_path=str(self.irpa_path_fp8),
+            irpa_path=self.llama3_8b_f8_model,
             batch_size=4,
             iree_hip_target="gfx942",
             iree_hal_target_device="hip",
@@ -166,7 +159,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             kv_cache_dtype="float8_e4m3fnuz",
         )
         self.llama8b_fp8_attnf8_sdpa_artifacts = ExportArtifacts(
-            irpa_path=str(self.irpa_path_fp8_attnf8),
+            irpa_path=self.llama3_8b_f8_attnf8_model,
             batch_size=4,
             iree_hip_target="gfx942",
             iree_hal_target_device="hip",
@@ -258,7 +251,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
     def test_benchmark8B_f16_tp1(self, input_size: int):
         self.output_name = self.dir_path / f"f16_torch_{input_size}_tp1"
         self.export_artifact = self.llama8b_f16_torch_sdpa_artifacts
-        self.irpa_path = self.irpa_path_fp16
+        self.irpa_path = self.llama3_8b_f16_model
         self.prefill_args = self.prefill_args_fp16[input_size]
         self.decode_args = self.decode_args_fp16[input_size]
 
@@ -268,7 +261,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
     def test_benchmark8B_fp8_tp1_input_len_128(self):
         self.output_name = self.dir_path / "fp8_torch_tp1"
         self.export_artifact = self.llama8b_fp8_torch_sdpa_artifacts
-        self.irpa_path = self.irpa_path_fp8
+        self.irpa_path = self.llama3_8b_f8_model
         self.prefill_args = self.prefill_args_fp8[128]
         self.decode_args = self.decode_args_fp8[128]
 
@@ -279,7 +272,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
     def test_benchmark8B_fp8_attnf8_tp1(self, input_size: int):
         self.output_name = self.dir_path / f"fp8_attnf8_{input_size}_tp1"
         self.export_artifact = self.llama8b_fp8_attnf8_sdpa_artifacts
-        self.irpa_path = self.irpa_path_fp8_attnf8
+        self.irpa_path = self.llama3_8b_f8_attnf8_model
         self.prefill_args = self.prefill_args_fp8[input_size]
         self.decode_args = self.decode_args_fp8[input_size]
 
@@ -293,14 +286,13 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         super().setUp()
         # TODO: add numpy files to Azure and download from it
         artifact_dir = Path("/shark-dev/70b")
-        self.weights_dir = artifact_dir / "instruct/weights"
-        self.irpa_path_fp16 = self.weights_dir / "llama3.1_70b_instruct_fp16.irpa"
-        self.irpa_path_fp8 = artifact_dir / "fp8/llama70b_fp8.irpa"
-        self.tensor_parallelism_size = 8
         self.dir_path = self.__class__.dir_path / "llama-70b"
         Path(self.dir_path).mkdir(parents=True, exist_ok=True)
+
+        self.tensor_parallelism_size = 8
+
         self.llama70b_f16_torch_sdpa_artifacts_tp1 = ExportArtifacts(
-            irpa_path=str(self.irpa_path_fp16),
+            irpa_path=self.llama3_70b_f16_model,
             batch_size=4,
             iree_hip_target="gfx942",
             iree_hal_target_device="hip",
@@ -310,7 +302,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             block_seq_stride=32,
         )
         self.llama70b_f16_torch_sdpa_artifacts_tp8 = ExportArtifacts(
-            irpa_path=str(self.irpa_path_fp16),
+            irpa_path=self.llama3_70b_f16_model,
             batch_size=4,
             iree_hip_target="gfx942",
             iree_hal_target_device="hip",
@@ -320,7 +312,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             block_seq_stride=32,
         )
         self.llama70b_fp8_torch_sdpa_artifacts_tp1 = ExportArtifacts(
-            irpa_path=str(self.irpa_path_fp8),
+            irpa_path=self.llama3_70b_f8_model,
             batch_size=4,
             iree_hip_target="gfx942",
             iree_hal_target_device="hip",
@@ -416,7 +408,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
     def test_benchmark70B_f16(self, input_size: int, tp: int):
         self.output_name = self.dir_path / f"f16_torch_{input_size}_tp{tp}"
         self.export_artifact = self.llama70b_f16_torch_sdpa_artifacts_tp1
-        self.irpa_path = self.irpa_path_fp16
+        self.irpa_path = self.llama3_70b_f16_model
         self.prefill_args = self.prefill_args_fp16[tp][input_size]
         self.decode_args = self.decode_args_fp16[tp][input_size]
 
@@ -428,7 +420,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
     def test_benchmark70B_fp8_tp1(self):
         self.output_name = self.dir_path / "fp8_torch_tp1"
         self.export_artifact = self.llama70b_fp8_torch_sdpa_artifacts_tp1
-        self.irpa_path = self.irpa_path_fp8
+        self.irpa_path = self.llama3_70b_f8_model
         self.prefill_args = self.iree_run_prefill_args_fp8
         self.decode_args = self.iree_run_decode_args_fp8
 
@@ -442,18 +434,13 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         super().setUp()
         # TODO: add numpy files to Azure and download from it
         artifact_dir = Path("/shark-dev/405b")
-        self.weights_dir = artifact_dir / "instruct/weights"
-        self.irpa_path_fp16 = Path(
-            "/shark-dev/data/llama3.1/weights/405b/fp16/llama3.1_405b_fp16.irpa"
-        )
-        self.irpa_path_fp8 = artifact_dir / "f8/llama3.1_405b_fp8.irpa"
         self.dir_path = self.__class__.dir_path / "llama-405b"
         Path(self.dir_path).mkdir(parents=True, exist_ok=True)
 
         self.tensor_parallelism_size = 8
 
         self.llama405b_f16_torch_sdpa_artifacts = ExportArtifacts(
-            irpa_path=str(self.irpa_path_fp16),
+            irpa_path=self.llama3_405b_f16_model,
             batch_size=4,
             iree_hip_target="gfx942",
             iree_hal_target_device="hip",
@@ -463,7 +450,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             block_seq_stride=32,
         )
         self.llama405b_fp8_torch_sdpa_artifacts = ExportArtifacts(
-            irpa_path=str(self.irpa_path_fp8),
+            irpa_path=self.llama3_405b_f8_model,
             batch_size=4,
             iree_hip_target="gfx942",
             iree_hal_target_device="hip",
@@ -528,7 +515,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
     def test_benchmark405B_f16_tp8(self, input_size: int):
         self.output_name = self.dir_path / f"f16_torch_{input_size}"
         self.export_artifact = self.llama405b_f16_torch_sdpa_artifacts
-        self.irpa_path = self.irpa_path_fp16
+        self.irpa_path = self.llama3_405b_f16_model
         self.prefill_args = self.prefill_args_tp8_fp16[input_size]
         self.decode_args = self.decode_args_tp8_fp16[input_size]
 
@@ -540,7 +527,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
     def test_benchmark405B_fp8_tp8(self):
         self.output_name = self.dir_path / "fp8_torch"
         self.export_artifact = self.llama405b_fp8_torch_sdpa_artifacts
-        self.irpa_path = self.irpa_path_fp8
+        self.irpa_path = self.llama3_405b_f8_model
         self.prefill_args = self.iree_run_prefill_args_fp8
         self.decode_args = self.iree_run_decode_args_fp8
 
