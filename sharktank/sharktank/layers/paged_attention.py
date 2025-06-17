@@ -994,6 +994,12 @@ class PagedAttention:
         mask: Optional[torch.Tensor] = None,
         probs_quantizer: Optional[StaticScaledQuantizer] = None,
     ):
+        if attention_kernel not in ["decomposed", "sharktank", "torch"]:
+            raise ValueError(
+                f"Unsupported attention kernel: {attention_kernel}. "
+                "Supported kernels: decomposed, sharktank, torch."
+            )
+
         if self.attn_type == "gqa":
             k, v = self.gqa(head_count_attn, k, v)
 
