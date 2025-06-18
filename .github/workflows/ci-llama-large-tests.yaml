@@ -73,6 +73,14 @@ jobs:
             --run-nightly-tests \
             --iree-hip-target=gfx942 \
             --iree-device=hip://0 \
+            --llama3-8b-f16-model-path="/shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa" \
+            --llama3-8b-f8-model-path="/shark-dev/8b/fp8/native_fp8_e4m3fnuz_llama3_8b.irpa" \
+            --llama3-8b-f8-attnf8-model-path="/shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa" \
+            --llama3-70b-f16-model-path="/shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa" \
+            --llama3-70b-f16-tp8-model-path="/shark-dev/70b/instruct/weights/tp8/llama3.1_70b_instruct_fp16_tp8.irpa" \
+            --llama3-70b-f8-model-path="/shark-dev/70b/fp8/llama70b_fp8.irpa" \
+            --llama3-405b-f16-tp8-model-path="/shark-dev/405b/instruct/weights/tp8/llama3_405b_instruct_fp16_tp8.irpa" \
+            --llama3-405b-f8-tp8-model-path="/shark-dev/405b/f8/tp8/llama3.1_405b_fp8_tp8_parameters.irpa" \
             --html=out/llm/llama/benchmark/index.html
 
       - name: Deploy to GitHub Pages
