@@ -97,13 +97,13 @@ class BaseBenchmarkTest(unittest.TestCase):
         self.export_artifact.iree_benchmark(
             hip_device_id=self.iree_device,
             benchmark_filename=benchmark_filename,
-            args=self.prefill_args,
+            extra_args=self.prefill_args,
         )
         if not skip_decode:
             self.export_artifact.iree_benchmark(
                 hip_device_id=self.iree_device,
                 benchmark_filename=benchmark_filename,
-                args=self.decode_args,
+                extra_args=self.decode_args,
             )
 
 

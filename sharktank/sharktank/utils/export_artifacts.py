@@ -381,7 +381,7 @@ class ExportArtifacts:
         self,
         *,
         hal_dump_path: Optional[Path] = None,
-        args: Optional[List[str]] = None,
+        extra_args: Optional[List[str]] = None,
     ) -> None:
         """
         Compiles the exported MLIR to a VMFB file.
@@ -390,7 +390,7 @@ class ExportArtifacts:
 
         Args:
             hal_dump_path: Optional path where dump HAL files.
-            args: Additional arguments for the IREE compiler.
+            extra_args: Additional arguments for the IREE compiler.
         """
         if self.skip_if_file_exists and Path(self.output_vmfb).exists():
             logger.info(f" Using pre-exported vmfb: {self.output_vmfb}")
@@ -410,8 +410,8 @@ class ExportArtifacts:
                 f"--iree-hal-dump-executable-files-to={hal_dump_path}/files"
             ]
         # Append optional arguments if provided
-        if args:
-            compile_args += args
+        if extra_args:
+            compile_args += extra_args
         else:
             compile_args += [
                 "--iree-opt-level=O3",
@@ -432,7 +432,7 @@ class ExportArtifacts:
         *,
         hip_device_id: str,
         benchmark_filename: Optional[Path] = None,
-        args: List[str],
+        extra_args: List[str],
     ) -> None:
         """
         Runs a compiled program with the given args using `iree-benchmark-module`.
@@ -443,7 +443,7 @@ class ExportArtifacts:
         Args:
             hip_device_id: The HIP device ID to use for benchmarking, e.g., "hip://0".
             benchmark_filename: Optional path to the benchmark file.
-            args: List of arguments to pass to `iree-benchmark-module`.
+            extra_args: List of arguments to pass to `iree-benchmark-module`.
             compile_cmd: Command used to compile the program, for inclusion in error messages.
         """
         params, devices, rocr_visible_devices = self._prepare_params_and_devices(
@@ -457,7 +457,7 @@ class ExportArtifacts:
             f"--module={self.output_vmfb}",
             *params,
             *devices,
-            *args,
+            *extra_args,
             str(benchmark_filename),
         ]
 
@@ -473,7 +473,7 @@ class ExportArtifacts:
         self,
         *,
         hip_device_id: str,
-        args: List[str],
+        extra_args: List[str],
         output_paths: Optional[list[str | Path]] = None,
     ) -> list[torch.Tensor]:
         """
@@ -483,7 +483,7 @@ class ExportArtifacts:
 
         Args:
             hip_device_id: The HIP device ID to use for running the module.
-            args: Additional arguments to pass to the `iree-run-module` command.
+            extra_args: Additional arguments to pass to the `iree-run-module` command.
             output_paths: List of paths to save the output tensors. If None, or empty list, no outputs are saved.
 
         Returns:
@@ -495,8 +495,7 @@ class ExportArtifacts:
         output_paths = [
             Path(path).resolve().with_suffix(".npy") for path in output_paths
         ]
-        for path in output_paths:
-            args.append(f"--output=@{path}")
+        output_path_args = [f"--output=@{path}" for path in output_paths]
 
         params, devices, rocr_visible_devices = self._prepare_params_and_devices(
             hip_device_id
@@ -508,7 +507,8 @@ class ExportArtifacts:
             f"--module={self.output_vmfb}",
             *params,
             *devices,
-            *args,
+            *extra_args,
+            *output_path_args,
         ]
         self._run_cmd(
             cmd=subprocess.list2cmdline(run_args),
@@ -524,7 +524,7 @@ class ExportArtifacts:
         *,
         skip_decode: bool = False,
         hal_dump_path: Optional[Path] = None,
-        compile_args: Optional[List[str]] = None,
+        extra_compile_args: Optional[List[str]] = None,
     ) -> str:
         """
         Helper function to export the LLM to MLIR and compile it to VMFB in one call.
@@ -532,11 +532,11 @@ class ExportArtifacts:
         Args:
             skip_decode: If True, skips the decoding step during export.
             hal_dump_path: Optional path where dump HAL files.
-            compile_args: Additional arguments for the IREE compiler.
+            extra_compile_args: Additional arguments for the IREE compiler.
 
         Returns:
             The path to the compiled VMFB file as a string.
         """
         self.export_llm_to_mlir(skip_decode=skip_decode)
-        self.compile_to_vmfb(args=compile_args, hal_dump_path=hal_dump_path)
+        self.compile_to_vmfb(extra_args=extra_compile_args, hal_dump_path=hal_dump_path)
         return str(self.output_vmfb.resolve())
