@@ -291,7 +291,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         if tokens_per_page <= 0:
             raise ValueError("tokens_per_page must be positive")
 
-        super().__init__(page_pool, tokens_per_page)
+        super().__init__(page_pool, tokens_per_page, use_ref_counts=False)
 
         # Create root node with dummy page
         dummy_page = PageInfo(

@@ -123,7 +123,7 @@ python -m sharktank.utils.hf_datasets llama3_8B_fp16 --local-dir $EXPORT_DIR
 > use our [`sharktank.tools.dump_gguf`](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/tools/dump_gguf.py)
 > script:
 > ```bash
-> python -m sharktank.tools.dump_gguf --gguf-file $EXPORT_DIR/<output_gguf_name>.gguf --save $EXPORT_DIR/<output_irpa_name>.irpa
+> python -m sharktank.tools.dump_gguf --gguf-file $EXPORT_DIR/<output_gguf_name>.gguf --output-irpa $EXPORT_DIR/<output_irpa_name>.irpa
 > ```
 
 ### Define environment variables

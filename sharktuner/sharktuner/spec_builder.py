@@ -35,7 +35,7 @@ def get_placeholder_spec(context: ir.Context) -> ir.Module:
 def build_td_spec(
     context: ir.Context,
     op: ir.Operation,
-    config_list: list[tuple[str, ir.Attribute]],
+    config_list: list[common.TuningConfiguration],
     func_name: str,
 ) -> ir.Module:
     bbargs = []
@@ -79,10 +79,10 @@ def build_td_spec(
 
     config_lines = []
     yield_vars = []
-    for i, (key, attr) in enumerate(config_list):
-        config_var = f"%{key}_{i}"
+    for i, config in enumerate(config_list):
+        config_var = f"%{config.name}_{i}"
         config_lines.append(
-            f"{config_var} = transform.param.constant {attr} -> !transform.any_param"
+            f"{config_var} = transform.param.constant {config.configuration} -> !transform.any_param"
         )
         yield_vars.append(config_var)
     config_block = "\n                ".join(config_lines)
@@ -96,8 +96,8 @@ def build_td_spec(
         for i in range(len(config_list))
     )
     annotation_lines = "\n".join(
-        f'                transform.annotate %op "{key}" = %cfg_{i} : !transform.any_op, !transform.any_param'
-        for i, (key, _) in enumerate(config_list)
+        f'                transform.annotate %op "{config.name}" = %cfg_{i} : !transform.any_op, !transform.any_param'
+        for i, config in enumerate(config_list)
     )
 
     spec_text = f"""\

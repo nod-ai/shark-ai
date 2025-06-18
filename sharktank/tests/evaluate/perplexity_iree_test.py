@@ -158,7 +158,7 @@ class PerplexityTest(unittest.TestCase):
 
     @is_deepseek
     def test_deepseek_v3(self):
-        # DeepSeek v3 pipeline parallelism
+        # DeepSeek v3
         self.model_name = "deepseek_v3_iree"
         self.irpa_file = self.deepseek_v3_model
         self.tokenizer = self.deepseek_v3_tokenizer
@@ -173,7 +173,7 @@ class PerplexityTest(unittest.TestCase):
         match="Error code: 245",
     )
     @is_nightly
-    def test_deepseek_v3_tp(self):
+    def test_deepseek_v3_tp2(self):
         # DeepSeek v3 tensor parallelism
         self.model_name = "deepseek_v3_iree"
         self.irpa_file = self.deepseek_v3_tp2_model
@@ -184,7 +184,7 @@ class PerplexityTest(unittest.TestCase):
         self.run_and_check_perplexity()
 
     @is_nightly
-    def test_deepseek_v3_pp(self):
+    def test_deepseek_v3_pp2(self):
         # DeepSeek v3 pipeline parallelism
         self.model_name = "deepseek_v3_iree"
         self.irpa_file = self.deepseek_v3_model
