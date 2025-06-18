@@ -42,9 +42,6 @@ class BaseBenchmarkTest(unittest.TestCase):
             "--iree-hal-memoization=true",
             "--iree-stream-affinity-solver-max-iterations=1024",
         ]
-        # TODO: Delete these
-        self.tensor_parallelism_size = 1
-        self.pipeline_parallelism_size = 1
         self.artifact_dir = artifact_dir
         self.dir_path = self.__class__.dir_path / dir_path_name
         Path(self.dir_path).mkdir(parents=True, exist_ok=True)
@@ -123,12 +120,12 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             128: self.save_benchmarks(
                 benchmark_fn="prefill_bs4",
                 input_path=self.artifact_dir / "prefill_args_bs4_128_stride_32_tp1",
-                tensor_parallelism_size=self.tensor_parallelism_size,
+                tensor_parallelism_size=1,
             ),
             2048: self.save_benchmarks(
                 benchmark_fn="prefill_bs4",
                 input_path=self.artifact_dir / "prefill_args_bs4_2048_stride_32",
-                tensor_parallelism_size=self.tensor_parallelism_size,
+                tensor_parallelism_size=1,
             ),
         }
 
@@ -136,12 +133,12 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             128: self.save_benchmarks(
                 benchmark_fn="decode_bs4",
                 input_path=self.artifact_dir / "decode_args_bs4_128_stride_32_tp1",
-                tensor_parallelism_size=self.tensor_parallelism_size,
+                tensor_parallelism_size=1,
             ),
             2048: self.save_benchmarks(
                 benchmark_fn="decode_bs4",
                 input_path=self.artifact_dir / "decode_args_bs4_2048_stride_32",
-                tensor_parallelism_size=self.tensor_parallelism_size,
+                tensor_parallelism_size=1,
             ),
         }
 
@@ -199,8 +196,8 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             iree_hip_target="gfx942",
             iree_hal_target_device="hip",
             attention_kernel="torch",
-            tensor_parallelism_size=self.tensor_parallelism_size,
-            pipeline_parallelism_size=self.pipeline_parallelism_size,
+            tensor_parallelism_size=1,
+            pipeline_parallelism_size=1,
             block_seq_stride=32,
             cwd=self.repo_root,
             output_name=self.dir_path / f"f16_torch_{input_size}_tp1",
@@ -218,8 +215,8 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             iree_hip_target="gfx942",
             iree_hal_target_device="hip",
             attention_kernel="torch",
-            tensor_parallelism_size=self.tensor_parallelism_size,
-            pipeline_parallelism_size=self.pipeline_parallelism_size,
+            tensor_parallelism_size=1,
+            pipeline_parallelism_size=1,
             block_seq_stride=32,
             cwd=self.repo_root,
             use_hf=True,
@@ -242,8 +239,8 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             iree_hip_target="gfx942",
             iree_hal_target_device="hip",
             attention_kernel="sharktank",
-            tensor_parallelism_size=self.tensor_parallelism_size,
-            pipeline_parallelism_size=self.pipeline_parallelism_size,
+            tensor_parallelism_size=1,
+            pipeline_parallelism_size=1,
             block_seq_stride=32,
             cwd=self.repo_root,
             use_hf=True,
