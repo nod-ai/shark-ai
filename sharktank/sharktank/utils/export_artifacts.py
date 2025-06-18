@@ -125,6 +125,7 @@ class ExportArtifacts:
 
         self.irpa_path = Path(irpa_path).resolve()
         self.batch_size = batch_size
+        # Note: The following 3 paramaters are used by `get_iree_compiler_flags_from_object`
         self.iree_hip_target = iree_hip_target
         self.iree_hal_target_device = iree_hal_target_device
         self.iree_hal_local_target_device_backends = (
