@@ -94,25 +94,11 @@ class BaseBenchmarkTest(unittest.TestCase):
         return benchmark_args
 
     def export_compile_benchmark(self, skip_decode: bool = False):
-        mlir = self.output_name.with_suffix(".mlir")
-        json = self.output_name.with_suffix(".json")
-        vmfb = self.output_name.with_suffix(".vmfb")
-
-        self.export_artifact.export_to_mlir(
-            output_mlir=mlir,
-            output_config=json,
-        )
-        self.export_artifact.compile_to_vmfb(
-            output_mlir=mlir,
-            output_vmfb=vmfb,
-            hal_dump_path=self.output_name,
-            args=self.compile_args,
-        )
+        self.export_artifact.export_artifacts()
 
         benchmark_filename = self.output_name.with_suffix(".txt")
         self.export_artifact.iree_benchmark_vmfb(
             hip_device_id=self.iree_device,
-            vmfb_name=vmfb,
             irpa_path=self.export_artifact.irpa_path,
             benchmark_filename=benchmark_filename,
             args=self.prefill_args,
@@ -120,7 +106,6 @@ class BaseBenchmarkTest(unittest.TestCase):
         if not skip_decode:
             self.export_artifact.iree_benchmark_vmfb(
                 hip_device_id=self.iree_device,
-                vmfb_name=vmfb,
                 irpa_path=self.export_artifact.irpa_path,
                 benchmark_filename=benchmark_filename,
                 args=self.decode_args,

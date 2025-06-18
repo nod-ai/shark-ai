@@ -186,7 +186,7 @@ class PerplexityIree:
                     / "perplexity_ci_artifacts/"
                 ),
             )
-            self.output_vmfb = export_artifacts.get_artifacts()
+            self.output_vmfb = export_artifacts.export_artifacts()
 
     @timeit
     def load_model(

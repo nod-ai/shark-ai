@@ -148,6 +148,7 @@ class ExportArtifacts:
                     else ""
                 )
             )
+
         self.output_vmfb = output_vmfb
         if output_vmfb is None:
             self.output_name.with_suffix(".vmfb")
@@ -370,7 +371,6 @@ class ExportArtifacts:
         self,
         *,
         hip_device_id: str,
-        vmfb_name: str,
         irpa_path: str,
         benchmark_filename: Optional[Path] = None,
         args: List[str],
@@ -391,7 +391,7 @@ class ExportArtifacts:
             *rocr_visible_devices,
             "iree-benchmark-module",
             "--hip_use_streams=true",
-            f"--module={vmfb_name}",
+            f"--module={self.vmfb_name}",
             *params,
             *devices,
             *args,
@@ -434,7 +434,7 @@ class ExportArtifacts:
             exception=IreeRunException,
         )
 
-    def get_artifacts(
+    def export_artifacts(
         self, *, skip_decode=False, compile_args: Optional[List[str]] = None
     ) -> str:
         self.export_to_mlir(
