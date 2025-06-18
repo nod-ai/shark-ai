@@ -136,8 +136,9 @@ class ExportArtifacts:
         self.use_hf = use_hf
         self.skip_if_file_exists = skip_if_file_exists
 
-        self.output_name = output_name
-        if self.output_name is None:
+        if output_name is not None:
+            self.output_name = Path(output_name)
+        else:
             self.output_name = self.cwd / (
                 str(self.irpa_path).split("/")[-1].rsplit(".", 1)[0].replace(".", "_")
                 + "_"
