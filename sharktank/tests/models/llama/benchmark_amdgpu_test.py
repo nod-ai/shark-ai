@@ -102,7 +102,6 @@ class BaseBenchmarkTest(unittest.TestCase):
             output_mlir=mlir,
             output_vmfb=vmfb,
             hal_dump_path=self.output_name,
-            cwd=self.repo_root,
             args=self.compile_args,
         )
         self.export_artifact.iree_benchmark_vmfb(
@@ -382,23 +381,23 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             },
         }
 
-        self.prefill_args_fp8 = artifact_dir / "prefill_args_fp8"
-        self.decode_args_fp8 = artifact_dir / "decode_args_fp8"
+        prefill_args_fp8_path = artifact_dir / "prefill_args_fp8"
+        decode_args_fp8_path = artifact_dir / "decode_args_fp8"
         self.iree_run_prefill_args_fp8 = [
             "--function=prefill_bs4",
-            f"--input=@{self.prefill_args_fp8}/tokens.npy",
-            f"--input=@{self.prefill_args_fp8}/seq_lens.npy",
-            f"--input=@{self.prefill_args_fp8}/seq_block_ids.npy",
-            f"--input=@{self.prefill_args_fp8}/cache_state_f16.npy",
+            f"--input=@{prefill_args_fp8_path}/tokens.npy",
+            f"--input=@{prefill_args_fp8_path}/seq_lens.npy",
+            f"--input=@{prefill_args_fp8_path}/seq_block_ids.npy",
+            f"--input=@{prefill_args_fp8_path}/cache_state_f16.npy",
             "--benchmark_repetitions=3",
         ]
         self.iree_run_decode_args_fp8 = [
             "--function=decode_bs4",
-            f"--input=@{self.decode_args_fp8}/tokens.npy",
-            f"--input=@{self.decode_args_fp8}/seq_lens.npy",
-            f"--input=@{self.decode_args_fp8}/start_positions.npy",
-            f"--input=@{self.decode_args_fp8}/seq_block_ids.npy",
-            f"--input=@{self.decode_args_fp8}/cache_state_f16.npy",
+            f"--input=@{decode_args_fp8_path}/tokens.npy",
+            f"--input=@{decode_args_fp8_path}/seq_lens.npy",
+            f"--input=@{decode_args_fp8_path}/start_positions.npy",
+            f"--input=@{decode_args_fp8_path}/seq_block_ids.npy",
+            f"--input=@{decode_args_fp8_path}/cache_state_f16.npy",
             "--benchmark_repetitions=3",
         ]
 
@@ -495,23 +494,23 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             ),
         }
 
-        self.prefill_args_fp8 = artifact_dir / "prefill_args_fp8"
-        self.decode_args_fp8 = artifact_dir / "decode_args_fp8"
+        prefill_args_fp8_path = artifact_dir / "prefill_args_fp8"
+        decode_args_fp8_path = artifact_dir / "decode_args_fp8"
         self.iree_run_prefill_args_fp8 = [
             "--function=prefill_bs4",
-            f"--input=@{self.prefill_args_fp8}/tokens.npy",
-            f"--input=@{self.prefill_args_fp8}/seq_lens.npy",
-            f"--input=@{self.prefill_args_fp8}/seq_block_ids.npy",
-            f"--input=@{self.prefill_args_fp8}/cache_state_f16.npy",
+            f"--input=@{prefill_args_fp8_path}/tokens.npy",
+            f"--input=@{prefill_args_fp8_path}/seq_lens.npy",
+            f"--input=@{prefill_args_fp8_path}/seq_block_ids.npy",
+            f"--input=@{prefill_args_fp8_path}/cache_state_f16.npy",
             "--benchmark_repetitions=3",
         ]
         self.iree_run_decode_args_fp8 = [
             "--function=decode_bs4",
-            f"--input=@{self.decode_args_fp8}/tokens.npy",
-            f"--input=@{self.decode_args_fp8}/seq_lens.npy",
-            f"--input=@{self.decode_args_fp8}/start_positions.npy",
-            f"--input=@{self.decode_args_fp8}/seq_block_ids.npy",
-            f"--input=@{self.decode_args_fp8}/cache_state_f16.npy",
+            f"--input=@{decode_args_fp8_path}/tokens.npy",
+            f"--input=@{decode_args_fp8_path}/seq_lens.npy",
+            f"--input=@{decode_args_fp8_path}/start_positions.npy",
+            f"--input=@{decode_args_fp8_path}/seq_block_ids.npy",
+            f"--input=@{decode_args_fp8_path}/cache_state_f16.npy",
             "--benchmark_repetitions=3",
         ]
 
