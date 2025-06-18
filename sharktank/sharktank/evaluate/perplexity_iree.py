@@ -166,6 +166,7 @@ class PerplexityIree:
             batch_size=self.bs,
             iree_hip_target=self.iree_hip_target,
             iree_hal_target_device=self.iree_hal_target_device,
+            hip_device_id=self.iree_devices[0],
             attention_kernel=self.attention_kernel,
             tensor_parallelism_size=self.tensor_parallelism_size,
             pipeline_parallelism_size=self.pipeline_parallelism_size,
