@@ -127,6 +127,11 @@ def add_service_args(parser: argparse.ArgumentParser):
         default=1,
         help="Number of fibers to use per worker.",
     )
+    parser.add_argument(
+        "--disaggregate",
+        action="store_true",
+        help="Disaggregate the prefill and decode invocations to separate HIP streams.",
+    )
 
 
 def parse_args(argv):
