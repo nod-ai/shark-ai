@@ -25,34 +25,13 @@ from sharktank.utils.iree import (
 )
 from sharktank.utils.load_llm import *
 from sharktank.utils.evaluate import *
-from sharktank.utils.testing import TempDirTestBase
+from sharktank.utils.testing import is_mi300x, TempDirTestBase
 from sharktank.utils import debugging
 import os
 
 
 @pytest.mark.usefixtures("get_iree_flags")
 class DeepseekTest(TempDirTestBase):
-    def setUp(self):
-        super().setUp()
-        self.callback_stash = debugging.get_trace_tensor_callback()
-        debugging.set_trace_tensor_callback(
-            debugging.trace_tensor_to_safetensors_callback
-        )
-
-        self.enable_tensor_trace_stash = debugging.flags.enable_tensor_trace
-        # debugging.flags.enable_tensor_trace = True
-
-        self.trace_path_stash = debugging.flags.trace_path
-        debugging.flags.trace_path = Path(
-            "/home/alvasile/repos/shark-ai/sharktank/logits"
-        )
-
-    def tearDown(self):
-        super().tearDown()
-        debugging.set_trace_tensor_callback(self.callback_stash)
-        debugging.flags.enable_tensor_trace = self.enable_tensor_trace_stash
-        debugging.flags.trace_path = self.trace_path_stash
-
     def testCrossEntropy(self):
         theta, config = generate(12345)
         model = PagedLlmModelV1(theta=theta, config=config)
@@ -81,7 +60,7 @@ class DeepseekTest(TempDirTestBase):
 
         assert pytest.approx(9.7477, 1e-4) == cross_entropy
 
-    # @pytest.mark.skip
+    @is_mi300x
     def testUnshardedToySizedModelIREEVsEager(self):
         def tranfer_to_device(node: Theta | dict | AnyTensor, dev: torch.device):
             if isinstance(node, AnyTensor):
@@ -175,7 +154,7 @@ class DeepseekTest(TempDirTestBase):
         eager_logits = torch.tensor(np.load(eager_logits_path), device=token_ids.device)
 
         # 3. Run IREE
-        config.device = torch.device("cpu")
+        config.device = torch.device("cpu")  # Switch back to cpu for tracing
         exporter = ExportArtifacts.from_config(
             config,
             irpa_path=dataset_path,
