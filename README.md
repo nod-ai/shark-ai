@@ -4,7 +4,7 @@
 
 | Name                                                                          |    Stmts |     Miss |   Cover |   Missing |
 |------------------------------------------------------------------------------ | -------: | -------: | ------: | --------: |
-| sharktank/conftest.py                                                         |      121 |       10 |     92% |297, 302, 309, 316, 363, 381, 386-389, 398 |
+| sharktank/conftest.py                                                         |      135 |       10 |     93% |342, 347, 354, 361, 429, 447, 452-455, 464 |
 | sharktank/integration/models/punet/integration\_test.py                       |       94 |       57 |     39% |15-16, 21-31, 52-62, 70-80, 90-101, 110-121, 131-143, 150, 155-167, 174, 185-192, 210-220, 242-255 |
 | sharktank/setup.py                                                            |       18 |       18 |      0% |      7-34 |
 | sharktank/sharktank/\_\_init\_\_.py                                           |        4 |        1 |     75% |        15 |
@@ -61,7 +61,7 @@
 | sharktank/sharktank/models/deepseek/testing.py                                |       22 |        0 |    100% |           |
 | sharktank/sharktank/models/deepseek/toy\_deepseek.py                          |       35 |        9 |     74% | 83-93, 97 |
 | sharktank/sharktank/models/dummy/\_\_init\_\_.py                              |        1 |        0 |    100% |           |
-| sharktank/sharktank/models/dummy/dummy.py                                     |       39 |        0 |    100% |           |
+| sharktank/sharktank/models/dummy/dummy.py                                     |       40 |        0 |    100% |           |
 | sharktank/sharktank/models/flux/\_\_init\_\_.py                               |        1 |        0 |    100% |           |
 | sharktank/sharktank/models/flux/compile.py                                    |        1 |        0 |    100% |           |
 | sharktank/sharktank/models/flux/export.py                                     |       55 |       24 |     56% |35-36, 56, 80, 95-98, 104-127 |
@@ -179,7 +179,7 @@
 | sharktank/tests/models/llama4/llama4\_test.py                                 |       44 |        0 |    100% |           |
 | sharktank/tests/models/llama4/moe\_test.py                                    |       90 |        1 |     99% |       191 |
 | sharktank/tests/models/llama/attention\_test.py                               |       59 |        1 |     98% |       176 |
-| sharktank/tests/models/llama/benchmark\_amdgpu\_test.py                       |      287 |      225 |     22% |44-47, 50, 66-99, 105-219, 232-266, 277-311, 322-356, 367-401, 412-446, 460-573, 584-618, 628-662, 677-715, 729-767, 779-809, 822-900, 914-942, 955-983, 996-1032, 1042 |
+| sharktank/tests/models/llama/benchmark\_amdgpu\_test.py                       |      156 |      108 |     31% |33, 36-45, 55-89, 92-118, 131-227, 252-258, 262-268, 273-279, 286-392, 409-417, 423-429, 436-503, 518-524, 530-536, 540 |
 | sharktank/tests/models/llama/quark\_parity\_test.py                           |       55 |       40 |     27% |21-22, 29-101, 105 |
 | sharktank/tests/models/llama/rot\_emb\_test.py                                |       37 |        1 |     97% |        81 |
 | sharktank/tests/models/llama/sharded\_llama\_test.py                          |      171 |        2 |     99% |  276, 335 |
@@ -205,7 +205,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |       63 |        3 |     95% |   226-238 |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **19373** | **3984** | **79%** |           |
+|                                                                     **TOTAL** | **19257** | **3867** | **80%** |           |
 
 
 ## Setup coverage badge
