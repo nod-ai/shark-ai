@@ -180,7 +180,7 @@ class PerplexityIree:
                 output_vmfb is not None and Path(output_vmfb).exists()
             ),
         )
-        self.output_vmfb = export_artifacts.export_and_compile()
+        self.output_vmfb = export_artifacts.export_and_compile_llm()
 
     @timeit
     def load_model(

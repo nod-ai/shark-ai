@@ -279,7 +279,7 @@ class ExportArtifacts:
         )
 
     @timeit
-    def export_to_mlir(
+    def export_llm_to_mlir(
         self,
         *,
         skip_decode: bool = False,
@@ -443,13 +443,13 @@ class ExportArtifacts:
 
         return [torch.from_numpy(np.load(path)) for path in output_paths]
 
-    def export_and_compile(
+    def export_and_compile_llm(
         self,
         *,
         skip_decode: bool = False,
         hal_dump_path: Optional[Path] = None,
         compile_args: Optional[List[str]] = None,
     ) -> str:
-        self.export_to_mlir(skip_decode=skip_decode)
+        self.export_llm_to_mlir(skip_decode=skip_decode)
         self.compile_to_vmfb(args=compile_args, hal_dump_path=hal_dump_path)
         return str(self.output_vmfb.resolve())

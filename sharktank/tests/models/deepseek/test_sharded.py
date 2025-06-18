@@ -162,7 +162,7 @@ class DeepseekShardedTest(TempDirTestBase):
             output_config=export_config_path,
         )
         # TODO: enable decode
-        export_artifacts.export_and_compile(skip_decode=True)
+        export_artifacts.export_and_compile_llm(skip_decode=True)
 
         iree_devices = get_iree_devices(
             device=self.iree_device,
