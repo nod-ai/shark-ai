@@ -47,7 +47,16 @@ class FiberPool:
             f"{self.name}-new-worker-{self._extra_fibers}"
         )
         self._workers.append(new_worker)
-        fiber = self.sysman.ls.create_fiber(new_worker)
+        fiber = None
+        if not self.sysman.disaggregate:
+            fiber = self.sysman.ls.create_fiber(new_worker)
+        else:
+            devices = self.sysman.ls.devices
+            num_devices = len(devices)
+            fiber = self.sysman.ls.create_fiber(
+                new_worker, devices=[devices[self.size() % num_devices]]
+            )
+
         self._fiber_pool.append(fiber)
         self._extra_fibers += 1
 
@@ -67,21 +76,29 @@ class FiberPool:
             except asyncio.QueueEmpty:
                 if self.resizable:
                     # Resize the fiber pool by adding a new fiber.
-                    if self.sysman.disaggregate:
-                        return self._disaggregated_resize()
                     return self._resize()
 
                 available_index = await self._index_queue.get()
                 return (available_index, self._fiber_pool[available_index])
 
     def _initialize_pool(self):
-        if self.sysman.disaggregate:
-            return self._initialize_disaggregated_pool()
         with self._lock:
             for idx in range(self.init_size):
-                worker = self.sysman.ls.create_worker(f"{self.name}-init-worker-{idx}")
+                worker = self.sysman.ls.create_worker(
+                    f"{self.name}-initial-worker-{idx}"
+                )
                 self._workers.append(worker)
-                fiber = self.sysman.ls.create_fiber(worker)
+
+                fiber = None
+                if self.sysman.disaggregate:
+                    devices = self.sysman.ls.devices
+                    num_devices = len(devices)
+                    fiber = self.sysman.ls.create_fiber(
+                        worker, devices=[devices[idx % num_devices]]
+                    )
+                else:
+                    fiber = self.sysman.ls.create_fiber(worker)
+
                 self._fiber_pool.append(fiber)
                 assert idx < self.size()
                 self._index_queue.put_nowait(idx)
@@ -100,45 +117,3 @@ class FiberPool:
         execution.
         """
         return len(self._fiber_pool)
-
-    # Same reason for separating out disaggregation implementations as pointed out in service.py.
-    def _disaggregated_resize(self):
-        assert (
-            self.sysman.disaggregate
-        ), "Disaggregation requested in FiberPool, but the SystemManager was not constructed with disaggregation enabled."
-
-        devices = self.sysman.ls.devices
-        num_devices = len(devices)
-        new_worker = self.sysman.ls.create_worker(
-            f"{self.name}-new-worker-{self._extra_fibers}"
-        )
-        self._workers.append(new_worker)
-
-        fiber = self.sysman.ls.create_fiber(
-            new_worker, devices=[devices[self.size() % num_devices]]
-        )
-        self._fiber_pool.append(fiber)
-        self._extra_fibers += 1
-        return (
-            self.size() - 1,
-            fiber,
-        )
-
-    def _initialize_disaggregated_pool(self):
-        assert (
-            self.sysman.disaggregate
-        ), "Disaggregation requested in FiberPool, but the SystemManager was not constructed with disaggregation enabled."
-
-        with self._lock:
-            devices = self.sysman.ls.devices
-            num_devices = len(devices)
-            for idx in range(self.init_size):
-                worker = self.sysman.ls.create_worker(f"{self.name}-init-worker-{idx}")
-                self._workers.append(worker)
-
-                fiber = self.sysman.ls.create_fiber(
-                    worker, devices=[devices[idx % num_devices]]
-                )
-                self._fiber_pool.append(fiber)
-                assert idx < self.size()
-                self._index_queue.put_nowait(idx)

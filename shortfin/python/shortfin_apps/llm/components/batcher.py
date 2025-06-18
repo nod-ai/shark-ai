@@ -288,6 +288,7 @@ class LlmExecutorProcess(sf.Process):
         self.program_isolation = program_isolation
 
         self.device0 = fiber.device(0)
+        print(f"{self.device0=}")
         self.cache = cache
 
     async def get_args(self, bs):
