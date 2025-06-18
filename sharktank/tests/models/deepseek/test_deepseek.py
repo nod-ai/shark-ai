@@ -30,7 +30,7 @@ from sharktank.utils import debugging
 import os
 
 
-# @pytest.mark.usefixtures("get_iree_flags")
+@pytest.mark.usefixtures("get_iree_flags")
 class DeepseekTest(TempDirTestBase):
     def setUp(self):
         super().setUp()
@@ -81,27 +81,37 @@ class DeepseekTest(TempDirTestBase):
 
         assert pytest.approx(9.7477, 1e-4) == cross_entropy
 
-    @pytest.mark.skip
-    def test2(self):
+    # @pytest.mark.skip
+    def testUnshardedToySizedModelIREEVsEager(self):
+        def tranfer_to_device(node: Theta | dict | AnyTensor, dev: torch.device):
+            if isinstance(node, AnyTensor):
+                return node.to(dev)
+
+            if isinstance(node, dict):
+                for key in node.keys():
+                    node[key] = tranfer_to_device(node[key], dev)
+                return node
+
+            for key in node.keys:
+                tranfer_to_device(node.tensor(key), dev)
+
         # 0. Setup
         work_dir = self._temp_dir
         theta, config = generate(12345)
-        config.device = "cuda:0"
+        config.device = torch.device("cuda:0")
+
+        tranfer_to_device(theta, config.device)
 
         eager_logits_path = work_dir / "reference_logits.npy"
         iree_logits_name = "iree_logits.npy"
         iree_logits_path = work_dir / iree_logits_name
         token_ids_path = work_dir / "token_ids.npy"
         seq_lens_path = work_dir / "seq_lens.npy"
-        seq_block_ids_before_prefill_path = (
-            work_dir / "seq_block_ids_before_prefill.npy"
-        )
+        seq_block_ids_path = work_dir / "seq_block_ids_before_prefill.npy"
         iree_cache_state_path = work_dir / "iree_cache_state.npy"
 
         dataset_path = work_dir / "parameters.irpa"
-        mlir_path = work_dir / "model.mlir"
-        export_config_path = work_dir / "model_export_config.json"
-        iree_module_path = work_dir / "model.vmfb"
+        output_name = work_dir / "toy_deepseek"
 
         # 1. Get inputs
         ids = [
@@ -113,19 +123,19 @@ class DeepseekTest(TempDirTestBase):
             token_ids=ids,
             pad_to_multiple_of=config.block_seq_stride,
         )
-        token_ids = torch.as_tensor(token_ids)
+        token_ids = torch.as_tensor(token_ids, device=config.device)
         np.save(token_ids_path, token_ids.cpu().numpy())
-        token_ids = torch.tensor(np.load(token_ids_path), device=token_ids.device)
+        token_ids = torch.tensor(np.load(token_ids_path), device=config.device)
 
         batch_size = token_ids.shape[0]
 
-        seq_lens = torch.as_tensor(seq_lens)
+        seq_lens = torch.as_tensor(seq_lens, device=config.device)
         np.save(seq_lens_path, seq_lens.cpu().numpy())
-        seq_lens = torch.tensor(np.load(seq_lens_path), device=seq_lens.device)
+        seq_lens = torch.tensor(np.load(seq_lens_path), device=config.device)
 
-        dataset = Dataset(root_theta=theta, properties=config.to_properties())
-        dataset.save(path=dataset_path)
-        dataset = Dataset.load(dataset_path)
+        Dataset(root_theta=theta, properties=config.to_properties()).save(
+            path=dataset_path
+        )
 
         eager_model = PagedLlmModelV1(theta=theta, config=config)
         generator = TorchGenerator(eager_model)
@@ -146,9 +156,17 @@ class DeepseekTest(TempDirTestBase):
 
         seq_block_ids_before_prefill = eager_batch.pad_block_ids()
         np.save(
-            seq_block_ids_before_prefill_path,
+            seq_block_ids_path,
             seq_block_ids_before_prefill.cpu().numpy(),
         )
+
+        prefill_args = [
+            f"--function=prefill_bs{batch_size}",
+            f"--input=@{token_ids_path}",
+            f"--input=@{seq_lens_path}",
+            f"--input=@{seq_block_ids_path}",
+            f"--input=@{iree_cache_state_path}",
+        ]
 
         # 2. Run Eager
         eager_batch.prefill()
@@ -157,31 +175,20 @@ class DeepseekTest(TempDirTestBase):
         eager_logits = torch.tensor(np.load(eager_logits_path), device=token_ids.device)
 
         # 3. Run IREE
-        export_artifacts = ExportArtifacts.from_config(
+        config.device = torch.device("cpu")
+        exporter = ExportArtifacts.from_config(
             config,
             irpa_path=dataset_path,
             batch_size=batch_size,
-            iree_hip_target="gfx942",
-            iree_hal_target_device="hip",
-            # iree_hal_local_target_device_backends=self.iree_hal_local_target_device_backends,
+            iree_hip_target=self.iree_hip_target,
+            iree_hal_target_device=self.iree_hal_target_device,
+            hip_device_id=self.iree_device,
+            output_name=output_name,
         )
-        export_artifacts.export_to_mlir(
-            output_mlir=mlir_path,
-            output_config=export_config_path,
-            skip_decode=True,  # TODO: enable decode
+        exporter.export_and_compile_llm(skip_decode=True)
+        iree_logits = exporter.iree_run(
+            run_args=prefill_args, output_paths=[iree_logits_path]
         )
-
-        iree_module_path = work_dir / "model.vmfb"
-        export_artifacts.compile_to_vmfb(
-            output_mlir=mlir_path,
-            output_vmfb=iree_module_path,
-            args=[],
-        )
-
-        # export_artifacts.iree_run_vmfb()
-
-        iree_logits_name
-        iree_logits = torch.tensor(np.load(iree_logits_path), device=token_ids.device)
 
         # 4. Compare outputs
         for i, (eager_logits_i, iree_logits_i) in enumerate(
@@ -189,192 +196,6 @@ class DeepseekTest(TempDirTestBase):
         ):
             assert eager_logits_i.shape == iree_logits_i.shape
             same = torch.isclose(eager_logits_i, iree_logits_i, rtol=1.3e-6, atol=1e-5)
-            if not same.all():
-                raise AssertionError(
-                    f"Logits mismatch for batch {i}: "
-                    f"Num mismatch: {(~same).sum()}. {100*same.sum() / same.numel():.1f}% match."
-                )
-
-    def testUnshardedToySizedModelIREEVsEager(self):
-        work_dir = self._temp_dir
-        theta, config = generate(12345)
-        # config.device = "cuda:5"
-
-        ids = [
-            [1, 2, 3, 4],
-            [9, 8, 7, 6],
-            [3, 5, 2, 1],
-        ]
-        token_ids, seq_lens = pad_tokens(
-            token_ids=ids,
-            pad_to_multiple_of=config.block_seq_stride,
-        )
-        token_ids = torch.as_tensor(token_ids)
-        seq_lens = torch.as_tensor(seq_lens)
-        batch_size = token_ids.shape[0]
-
-        dataset = Dataset(root_theta=theta, properties=config.to_properties())
-        dataset_path = work_dir / "parameters.irpa"
-        dataset.save(path=dataset_path)
-        dataset = Dataset.load(dataset_path)
-
-        reference_model = PagedLlmModelV1(theta=theta, config=config)
-        reference_generator = TorchGenerator(reference_model)
-        reference_batch = reference_generator.begin_batch(
-            token_ids=token_ids,
-            seq_lens=seq_lens,
-        )
-        cache_state_before_prefill = deepcopy(reference_batch.cache_state)
-        seq_block_ids_before_prefill = reference_batch.pad_block_ids()
-        reference_batch.prefill()
-        reference_logits = reference_batch.prefill_logits
-        ref_cache_state_after = deepcopy(reference_batch.cache_state)
-
-        np.save(work_dir / "reference_logits.npy", reference_logits.cpu().numpy())
-
-        iree_cache = create_paged_kv_cache(config)
-        # TODO: How come only the iree_cache gets sharded?
-        iree_cache_state = iree_cache.shard_state(deepcopy(cache_state_before_prefill))
-
-        mlir_path = work_dir / "model.mlir"
-        export_config_path = work_dir / "model_export_config.json"
-        export_artifacts = ExportArtifacts.from_config(
-            config,
-            irpa_path=dataset_path,
-            batch_size=batch_size,
-            iree_hip_target="gfx942",
-            iree_hal_target_device="hip",
-            # iree_hal_local_target_device_backends=self.iree_hal_local_target_device_backends,
-        )
-        export_artifacts.export_to_mlir(
-            output_mlir=mlir_path,
-            output_config=export_config_path,
-            skip_decode=True,  # TODO: enable decode
-        )
-
-        iree_module_path = work_dir / "model.vmfb"
-        export_artifacts.compile_to_vmfb(
-            output_mlir=mlir_path,
-            output_vmfb=iree_module_path,
-            args=[],
-        )
-
-        iree_devices = get_iree_devices(
-            device="hip://5",
-            device_count=1,
-        )
-
-        token_ids_path = work_dir / "token_ids.npy"
-        seq_lens_path = work_dir / "seq_lens.npy"
-        seq_block_ids_before_prefill_path = (
-            work_dir / "seq_block_ids_before_prefill.npy"
-        )
-        iree_cache_state_path = work_dir / "iree_cache_state.npy"
-
-        np.save(token_ids_path, token_ids.cpu().numpy())
-        np.save(seq_lens_path, seq_lens.cpu().numpy())
-        np.save(
-            seq_block_ids_before_prefill_path,
-            seq_block_ids_before_prefill.cpu().numpy(),
-        )
-        np.save(iree_cache_state_path, iree_cache_state[0].cpu().numpy())
-
-        def run_iree_module(iree_devices: list[iree.runtime.HalDevice]):
-            cpu_device = get_iree_devices(driver="local-task", device_count=1)
-            iree_buffere_view_trace_callback = (
-                make_hal_buffer_view_trace_default_callback(cpu_device[0])
-            )
-            debug_sink = iree.runtime.HalModuleDebugSink(
-                iree_buffere_view_trace_callback
-            )
-
-            iree_module, vm_context, vm_instance = load_iree_module(
-                module_path=iree_module_path,
-                devices=iree_devices,
-                parameters_path=dataset_path,
-                debug_sink=debug_sink,
-            )
-
-            torch_like_iree_module = TorchLikeIreeModule(
-                module=iree_module, devices=iree_devices, vm_context=vm_context
-            )
-            args = (
-                token_ids,
-                seq_lens,
-                seq_block_ids_before_prefill,
-                iree_cache_state,
-            )
-            iree_result = getattr(torch_like_iree_module, f"prefill_bs{batch_size}")(
-                *args
-            )
-
-            # Make sure we don't leak IREE-backed tensors outside of this function.
-            iree_result = [t.clone() for t in iree_result]
-            iree_logits = iree_result[0]
-            return iree_logits
-
-        iree_logits_w_py = with_iree_device_context(run_iree_module, iree_devices)
-        iree_cache_state_after = deepcopy(iree_cache_state)
-
-        np.save(work_dir / "iree_logits_w_py.npy", iree_logits_w_py.cpu().numpy())
-
-        run_args = [
-            "iree-run-module",
-            "--hip_use_streams=true",
-            f"--parameters=model={dataset_path}",
-            f"--module={iree_module_path}",
-            "--device=hip://5",
-            f"--function=prefill_bs{batch_size}",
-            f"--input=@{token_ids_path}",
-            f"--input=@{seq_lens_path}",
-            f"--input=@{seq_block_ids_before_prefill_path}",
-            f"--input=@{iree_cache_state_path}",
-            "--output=@iree_logits.npy",
-        ]
-        cmd = subprocess.list2cmdline(run_args)
-        print(f" Launching run command:\n" f"cd {work_dir} && {cmd}")
-        proc = subprocess.run(cmd, shell=True, capture_output=True, cwd=work_dir)
-        return_code = proc.returncode
-        if return_code != 0:
-            raise IreeBenchmarkException(proc, work_dir)
-
-        iree_logits_cli = torch.tensor(np.load(work_dir / "iree_logits.npy"))
-
-        # Compare cache state
-        assert len(iree_cache_state_after) == len(ref_cache_state_after)
-        for ref_state_i, iree_state_i in zip(
-            ref_cache_state_after, iree_cache_state_after
-        ):
-            torch.testing.assert_close(iree_state_i, ref_state_i)
-
-        # Compare logits
-        padding_mask = (
-            (token_ids != 0).int().detach().clone().to(token_ids.device).bool()
-        )
-        all_ref_logits, all_iree_logits_w_py, all_iree_logits = [], [], []
-        for i in range(len(ids)):
-            all_ref_logits.append(reference_logits[i, padding_mask[i]])
-            all_iree_logits_w_py.append(iree_logits_w_py[i, padding_mask[i]])
-            all_iree_logits.append(iree_logits_cli[i, padding_mask[i]])
-
-        for i, (iree_logits_py_i, iree_logits_cli_i) in enumerate(
-            zip(all_iree_logits_w_py, all_iree_logits)
-        ):
-            assert iree_logits_py_i.shape == iree_logits_cli_i.shape
-            same = torch.isclose(
-                iree_logits_py_i, iree_logits_cli_i, rtol=1.3e-6, atol=1e-5
-            )
-            if not same.all():
-                raise AssertionError(
-                    f"Logits mismatch for batch {i}: "
-                    f"Num mismatch: {(~same).sum()}. {100*same.sum() / same.numel():.1f}% match."
-                )
-
-        for i, (ref_logits_i, iree_logits_py_i) in enumerate(
-            zip(all_ref_logits, all_iree_logits_w_py)
-        ):
-            assert ref_logits_i.shape == iree_logits_py_i.shape
-            same = torch.isclose(ref_logits_i, iree_logits_py_i, rtol=1.3e-6, atol=1e-5)
             if not same.all():
                 raise AssertionError(
                     f"Logits mismatch for batch {i}: "
