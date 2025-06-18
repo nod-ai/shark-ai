@@ -126,7 +126,6 @@ class BaseBenchmarkTest(unittest.TestCase):
 
 
 @is_mi300x
-@pytest.mark.skip
 class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
     def setUp(self):
         super().setUp()
@@ -258,6 +257,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
 
         self.export_compile_benchmark()
 
+    @is_nightly
     def test_benchmark8B_fp8_tp1_input_len_128(self):
         self.output_name = self.dir_path / "fp8_torch_tp1"
         self.export_artifact = self.llama8b_fp8_torch_sdpa_artifacts
@@ -268,6 +268,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         self.export_compile_benchmark()
 
     @parameterized.expand((((128,), (2048,))))
+    @is_nightly
     def test_benchmark8B_fp8_attnf8_tp1(self, input_size: int):
         self.output_name = self.dir_path / f"fp8_attnf8_{input_size}_tp1"
         self.export_artifact = self.llama8b_fp8_attnf8_sdpa_artifacts
@@ -279,7 +280,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
 
 
 @is_mi300x
-@pytest.mark.skip
+@is_nightly
 class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
     def setUp(self):
         super().setUp()
@@ -429,6 +430,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
 
 
 @is_mi300x
+@is_nightly
 class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
     def setUp(self):
         super().setUp()

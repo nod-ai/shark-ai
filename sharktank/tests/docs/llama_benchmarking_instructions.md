@@ -19,5 +19,5 @@ pytest sharktank/tests/models/llama/benchmark_amdgpu_test.py \
     -k 'testBenchmark70B_f16_TP8_Decomposed' \
     --iree-hip-target=gfx942 \
     --iree-device=hip://0 \
-    --llama3-70b-f16-model-path="/shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa"
+    --llama3-70b-f16-tp8-model-path="/shark-dev/70b/instruct/weights/tp8/llama3.1_70b_instruct_fp16_tp8.irpa"
 ```
