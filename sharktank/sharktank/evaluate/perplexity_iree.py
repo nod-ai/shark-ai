@@ -157,7 +157,10 @@ class PerplexityIree:
 
         if self.kv_cache_dtype is None:
             self.kv_cache_dtype = self.attention_dtype
-
+        cwd = (
+            Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent
+            / "perplexity_ci_artifacts/"
+        )
         export_artifacts = ExportArtifacts(
             irpa_path=self.weight_path_str,
             batch_size=self.bs,
@@ -174,8 +177,7 @@ class PerplexityIree:
             use_hf=self.use_hf,
             output_mlir=output_mlir,
             output_config=output_config,
-            cwd=Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent
-            / "perplexity_ci_artifacts/",
+            cwd=cwd,
             skip_if_file_exists=(
                 output_vmfb is not None and Path(output_vmfb).exists()
             ),
