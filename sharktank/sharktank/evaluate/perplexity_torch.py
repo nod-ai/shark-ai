@@ -48,9 +48,12 @@ class PerplexityTorch:
     def __init__(
         self,
         use_attention_mask: bool = True,
+        prefill_length: int | None = None,
         use_toy_model: bool = False,
     ):
         self.use_attention_mask = use_attention_mask
+        assert prefill_length is None or prefill_length >= 1
+        self.prefill_length = prefill_length
         self.use_toy_model = use_toy_model
 
     def calc_time(self, start, end):
@@ -193,8 +196,8 @@ class PerplexityTorch:
                 "Limiting tokens to context length."
             )
             self.last_token_index = context_length
-        for i in range(self.start, self.last_token_index - 1):
-            logger.debug(f"Iteration: {i}")
+        for i in range(self.prefill_length - 1, self.last_token_index - 1):
+            logger.debug(f"Iteration: {i - self.prefill_length + 1}")
 
             if is_first_token:
 
@@ -249,9 +252,9 @@ class PerplexityTorch:
 
         return ops.cat(
             (
-                pad_logits[:, : self.start + 1],
+                pad_logits[:, : self.prefill_length],
                 out_logits,
-                pad_logits[:, self.start + 1 :],
+                pad_logits[:, self.prefill_length :],
             ),
             dim=1,
         ).to(self.device)
@@ -265,7 +268,8 @@ class PerplexityTorch:
             self.token_ids = token_ids
             self.seq_lens = [len(t) for t in self.token_ids]
             # Add context to improve perplexity by starting at 5th token
-            self.start = 5
+            if self.prefill_length is None:
+                self.prefill_length = 6
             self.page_cache_size = 128
 
             logger.debug(f" Token ids for Evaluation: \n{self.token_ids}\n")
@@ -283,7 +287,8 @@ class PerplexityTorch:
                 )
 
             # Add context to improve perplexity by starting at 10th token
-            self.start = 10
+            if self.prefill_length is None:
+                self.prefill_length = 11
             self.page_cache_size = (
                 len(self.token_ids[0]) // self.generator.model.config.block_seq_stride
             ) * len(test_prompts) + 1
@@ -299,7 +304,7 @@ class PerplexityTorch:
         logger.debug(f"Token ids shape: {self.token_ids.shape}")
 
         return compute_perplexity(
-            self.token_ids, out_logits, self.start, self.last_token_index
+            self.token_ids, out_logits, self.prefill_length - 1, self.last_token_index
         )
 
 
