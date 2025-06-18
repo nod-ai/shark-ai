@@ -463,9 +463,6 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
     3. Quantizes each block to FP4 E2M1 format using the block's scale
     4. Packs the FP4 values 2 per byte
     5. Returns a PlanarQuantizedTensor with BlockScaledFp4Layout
-
-    The per-block scaling provides better accuracy than per-tensor scaling for
-    tensors with varying dynamic ranges across different regions.
     """
 
     def __init__(
@@ -495,47 +492,42 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
         original_shape = t.shape
         total_original_elements = t.numel()
 
-        # Calculate actual blocks needed (avoid unnecessary padding)
+        # Calculate blocks needed after (possible) padding
         actual_num_blocks = (
             total_original_elements + self._block_size - 1
         ) // self._block_size
         total_padded_elements = actual_num_blocks * self._block_size
         pad_size = total_padded_elements - total_original_elements
-
-        # Flatten and pad in one operation (more memory efficient)
         if pad_size > 0:
             values_flat = torch.nn.functional.pad(t.flatten(), (0, pad_size))
         else:
             values_flat = t.flatten()
 
-        # Reshape into blocks (reuse flattened tensor)
+        # Reshape into blocks
         values_blocked = values_flat.view(actual_num_blocks, self._block_size)
 
-        # Compute scales per block using shared utility function
+        # Compute scales per block
         block_max = torch.max(torch.abs(values_blocked), dim=1, keepdim=True)[0]
         scales, scales_float = compute_fp4_block_scales(
             block_max, self._use_power_of_two_scale, self._dtype
         )
 
-        # Quantize each block (in-place division to save memory)
-        values_blocked.div_(scales_float)  # In-place operation
+        # Quantize each block
+        values_blocked.div_(scales_float)
 
-        # Convert to FP4 indices (reuse values_blocked memory)
+        # Convert to FP4 indices
         quantized_indices = float32_to_fp4_e2m1(values_blocked.flatten()).view(
             actual_num_blocks, self._block_size
         )
 
-        # Pack FP4 indices directly (avoid extra view operations)
+        # Pack FP4 indices
         packed_bytes_per_block = self._block_size // 2
         packed_fp4 = pack_fp4_e2m1_to_uint8(quantized_indices.flatten())
-
-        # Reshape packed data efficiently
         packed_fp4_reshaped = packed_fp4.view(actual_num_blocks, packed_bytes_per_block)
 
-        # Create the blocked layout
         layout = BlockScaledFp4Layout(
             shape=list(original_shape),
-            scales=scales,
+            d=scales,
             qs=packed_fp4_reshaped,
             block_size=self._block_size,
             use_power_of_two_scale=self._use_power_of_two_scale,

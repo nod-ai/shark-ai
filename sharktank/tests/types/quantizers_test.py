@@ -349,8 +349,8 @@ class StaticScaledFP4QuantizerTest(TempDirTestBase):
         self.assertIsInstance(quantized_tensor, PlanarQuantizedTensor)
         layout = quantized_tensor.unpack()
         self.assertIsInstance(layout, BlockScaledFp4Layout)
-        self.assertEqual(len(layout.scales), 4)  # 4 blocks
-        self.assertTrue(layout.scales.dtype == torch.int32)  # Integer exponents
+        self.assertEqual(len(layout.d), 4)
+        self.assertTrue(layout.d.dtype == torch.int32)
 
         # Dequantize
         dequantized = quantized_tensor.unpack().dequant()
@@ -366,7 +366,7 @@ class StaticScaledFP4QuantizerTest(TempDirTestBase):
         quantized_tensor_16 = quantizer_16.quantize(orig_value, name="fp4_quantized")
 
         layout_16 = quantized_tensor_16.unpack()
-        self.assertEqual(len(layout_16.scales), 8)  # 8 blocks of 16
+        self.assertEqual(len(layout_16.d), 8)
 
 
 if __name__ == "__main__":

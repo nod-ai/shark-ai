@@ -252,6 +252,16 @@ class BlockScaledLayout(QuantizedLayout):
         return cls(shape, planes["d"], planes["qs"], m=m)
 
     @property
+    def planes(self) -> dict[str, torch.Tensor]:
+        p = {
+            "d": self._d,
+            "qs": self._qs,
+        }
+        if self._m is not None:
+            p["m"] = self._m
+        return p
+
+    @property
     def shape(self) -> list[int]:
         """The flattened shape of the logical (unblocked) result."""
         return self._shape
@@ -265,16 +275,6 @@ class BlockScaledLayout(QuantizedLayout):
     def m(self) -> torch.Tensor:
         """Per block offsets."""
         return self._m
-
-    @property
-    def planes(self) -> dict[str, torch.Tensor]:
-        p = {
-            "d": self._d,
-            "qs": self._qs,
-        }
-        if self._m is not None:
-            p["m"] = self._m
-        return p
 
     @property
     def qs(self) -> torch.Tensor:
@@ -320,8 +320,9 @@ class BlockScaledPackedLayout(BlockScaledLayout):
     def __init__(
         self,
         shape: list[int],
-        qs_packed: torch.Tensor,
         d: torch.Tensor,
+        qs_packed: torch.Tensor,
+        *,
         m: Optional[torch.Tensor] = None,
     ):
         super().__init__(shape, d, qs_packed, m=m)
@@ -362,7 +363,7 @@ class BlockScaledI4Layout(BlockScaledPackedLayout):
         m: Optional[torch.Tensor] = None,
         signed: bool = False,
     ):
-        super().__init__(shape, qs, d, m=m)
+        super().__init__(shape, d, qs, m=m)
         self.signed = signed
 
     @classmethod
@@ -579,21 +580,21 @@ class BlockScaledFp4Layout(QuantizedLayout):
     block size is 32 and the original shape was NxK, then the component
     shapes would be:
 
-    * `scales`: `[N, K // 32]` (per-block scales)
+    * `d`: `[N, K // 32]` (per-block scales)
     * `qs`: `[N, K // 32, 16]` (packed FP4 indices, 32 values packed into 16 bytes)
     """
 
     def __init__(
         self,
         shape: list[int],
-        scales: torch.Tensor,
+        d: torch.Tensor,
         qs: torch.Tensor,
         *,
         block_size: int = 32,
         use_power_of_two_scale: bool = True,
     ):
         self._shape = shape
-        self._scales = scales
+        self._d = d
         self._qs = qs
         self._block_size = block_size
         self._use_power_of_two_scale = use_power_of_two_scale
@@ -613,7 +614,7 @@ class BlockScaledFp4Layout(QuantizedLayout):
         use_power_of_two_scale = metadata.get("use_power_of_two_scale", True)
         return BlockScaledFp4Layout(
             shape,
-            planes["scales"],
+            planes["d"],
             planes["qs"],
             block_size=block_size,
             use_power_of_two_scale=use_power_of_two_scale,
@@ -629,7 +630,7 @@ class BlockScaledFp4Layout(QuantizedLayout):
     @property
     def planes(self) -> dict[str, torch.Tensor]:
         return {
-            "scales": self._scales,
+            "d": self._d,
             "qs": self._qs,
         }
 
@@ -639,9 +640,9 @@ class BlockScaledFp4Layout(QuantizedLayout):
         return self._shape
 
     @property
-    def scales(self) -> torch.Tensor:
+    def d(self) -> torch.Tensor:
         """Per block scales (either float or integer exponents)."""
-        return self._scales
+        return self._d
 
     @property
     def qs(self) -> torch.Tensor:
@@ -673,9 +674,7 @@ class BlockScaledFp4Layout(QuantizedLayout):
         fp4_as_float = fp4_e2m1_to_float32(fp4_indices)
 
         # Scale each block
-        scales_float = convert_fp4_scales_to_float(
-            self.scales, self.use_power_of_two_scale
-        )
+        scales_float = convert_fp4_scales_to_float(self.d, self.use_power_of_two_scale)
         scales_expanded = scales_float.unsqueeze(-1)
         dequantized_blocked = (
             fp4_as_float * scales_expanded
@@ -688,7 +687,7 @@ class BlockScaledFp4Layout(QuantizedLayout):
 
     def __repr__(self):
         return (
-            f"{type(self).__name__}(scales({list(self.scales.shape)}, dtype={self.scales.dtype}), "
+            f"{type(self).__name__}(d({list(self.d.shape)}, dtype={self.d.dtype}), "
             f"qs({list(self._qs.shape)}, dtype={self._qs.dtype}), "
             f"block_size={self.block_size}, use_power_of_two_scale={self.use_power_of_two_scale})"
         )

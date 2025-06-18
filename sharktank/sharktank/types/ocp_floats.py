@@ -158,6 +158,7 @@ def get_fp4_lookup_table(fmt: FloatingPointFormat) -> torch.Tensor:
 
     return _FP4_LOOKUP_TABLES[fmt]
 
+
 """Floating Point Utilities"""
 
 # FP4 constants
@@ -259,4 +260,3 @@ def float32_to_fp4_e2m1(values: torch.Tensor) -> torch.Tensor:
     fp4_indices = torch.argmin(abs_diff, dim=-1)
 
     return fp4_indices.to(torch.uint8)
-
