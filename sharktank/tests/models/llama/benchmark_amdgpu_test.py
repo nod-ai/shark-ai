@@ -407,10 +407,13 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
     )
     def test_benchmark70B_f16(self, input_size: int, tp: int):
         self.output_name = self.dir_path / f"f16_torch_{input_size}_tp{tp}"
-        self.export_artifact = self.llama70b_f16_torch_sdpa_artifacts_tp1
-        self.irpa_path = (
-            self.llama3_70b_f16_model if tp == 1 else self.llama3_70b_f16_tp8_model
-        )
+        if tp == 1:
+            self.export_artifact = self.llama70b_f16_torch_sdpa_artifacts_tp1
+            self.irpa_path = self.llama3_70b_f16_model
+        else:
+            assert tp == 8
+            self.export_artifact = self.llama70b_f16_torch_sdpa_artifacts_tp8
+            self.irpa_path = self.llama3_70b_f16_tp8_model
         self.prefill_args = self.prefill_args_fp16[tp][input_size]
         self.decode_args = self.decode_args_fp16[tp][input_size]
 
