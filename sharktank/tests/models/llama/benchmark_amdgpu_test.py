@@ -92,7 +92,6 @@ class BaseBenchmarkTest(unittest.TestCase):
         mlir = self.output_name.with_suffix(".mlir")
         json = self.output_name.with_suffix(".json")
         vmfb = self.output_name.with_suffix(".vmfb")
-        benchmark = self.output_name.with_suffix(".txt")
 
         self.export_artifact.export_to_mlir(
             output_mlir=mlir,
@@ -104,19 +103,21 @@ class BaseBenchmarkTest(unittest.TestCase):
             hal_dump_path=self.output_name,
             args=self.compile_args,
         )
+
+        benchmark_filename = self.output_name.with_suffix(".txt")
         self.export_artifact.iree_benchmark_vmfb(
             hip_device_id=self.iree_device,
             vmfb_name=vmfb,
-            irpa_path=self.irpa_path,
-            benchmark_filename=benchmark,
+            irpa_path=self.export_artifact.irpa_path,
+            benchmark_filename=benchmark_filename,
             args=self.prefill_args,
         )
         if not skip_decode:
             self.export_artifact.iree_benchmark_vmfb(
                 hip_device_id=self.iree_device,
                 vmfb_name=vmfb,
-                irpa_path=self.irpa_path,
-                benchmark_filename=benchmark,
+                irpa_path=self.export_artifact.irpa_path,
+                benchmark_filename=benchmark_filename,
                 args=self.decode_args,
             )
 
@@ -129,49 +130,6 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         artifact_dir = Path("/shark-dev/8b")
         self.dir_path = self.__class__.dir_path / "llama-8b"
         Path(self.dir_path).mkdir(parents=True, exist_ok=True)
-
-        self.llama8b_f16_torch_sdpa_artifacts = ExportArtifacts(
-            irpa_path=self.llama3_8b_f16_model,
-            batch_size=4,
-            iree_hip_target="gfx942",
-            iree_hal_target_device="hip",
-            attention_kernel="torch",
-            tensor_parallelism_size=self.tensor_parallelism_size,
-            pipeline_parallelism_size=self.pipeline_parallelism_size,
-            block_seq_stride=32,
-            cwd=self.repo_root,
-        )
-        self.llama8b_fp8_torch_sdpa_artifacts = ExportArtifacts(
-            irpa_path=self.llama3_8b_f8_model,
-            batch_size=4,
-            iree_hip_target="gfx942",
-            iree_hal_target_device="hip",
-            attention_kernel="torch",
-            tensor_parallelism_size=self.tensor_parallelism_size,
-            pipeline_parallelism_size=self.pipeline_parallelism_size,
-            block_seq_stride=32,
-            cwd=self.repo_root,
-            use_hf=True,
-            activation_dtype="bfloat16",
-            attention_dtype="bfloat16",
-            kv_cache_dtype="float8_e4m3fnuz",
-        )
-        self.llama8b_fp8_attnf8_sdpa_artifacts = ExportArtifacts(
-            irpa_path=self.llama3_8b_f8_attnf8_model,
-            batch_size=4,
-            iree_hip_target="gfx942",
-            iree_hal_target_device="hip",
-            attention_kernel="sharktank",
-            tensor_parallelism_size=self.tensor_parallelism_size,
-            pipeline_parallelism_size=self.pipeline_parallelism_size,
-            block_seq_stride=32,
-            cwd=self.repo_root,
-            use_hf=True,
-            activation_dtype="bfloat16",
-            attention_dtype="float8_e4m3fnuz",
-            kv_cache_dtype="float8_e4m3fnuz",
-            use_attention_mask=True,
-        )
 
         # default fp8 input size here is 128
         self.prefill_args_fp16 = {
@@ -248,9 +206,18 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
 
     @parameterized.expand((((128,), (2048,))))
     def test_benchmark8B_f16_tp1(self, input_size: int):
-        self.output_name = self.dir_path / f"f16_torch_{input_size}_tp1"
-        self.export_artifact = self.llama8b_f16_torch_sdpa_artifacts
-        self.irpa_path = self.llama3_8b_f16_model
+        self.export_artifact = ExportArtifacts(
+            irpa_path=self.llama3_8b_f16_model,
+            batch_size=4,
+            iree_hip_target="gfx942",
+            iree_hal_target_device="hip",
+            attention_kernel="torch",
+            tensor_parallelism_size=self.tensor_parallelism_size,
+            pipeline_parallelism_size=self.pipeline_parallelism_size,
+            block_seq_stride=32,
+            cwd=self.repo_root,
+            output_name=self.dir_path / f"f16_torch_{input_size}_tp1",
+        )
         self.prefill_args = self.prefill_args_fp16[input_size]
         self.decode_args = self.decode_args_fp16[input_size]
 
@@ -258,9 +225,22 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
 
     @is_nightly
     def test_benchmark8B_fp8_tp1_input_len_128(self):
-        self.output_name = self.dir_path / "fp8_torch_tp1"
-        self.export_artifact = self.llama8b_fp8_torch_sdpa_artifacts
-        self.irpa_path = self.llama3_8b_f8_model
+        self.export_artifact = ExportArtifacts(
+            irpa_path=self.llama3_8b_f8_model,
+            batch_size=4,
+            iree_hip_target="gfx942",
+            iree_hal_target_device="hip",
+            attention_kernel="torch",
+            tensor_parallelism_size=self.tensor_parallelism_size,
+            pipeline_parallelism_size=self.pipeline_parallelism_size,
+            block_seq_stride=32,
+            cwd=self.repo_root,
+            use_hf=True,
+            activation_dtype="bfloat16",
+            attention_dtype="bfloat16",
+            kv_cache_dtype="float8_e4m3fnuz",
+            output_name=self.dir_path / "fp8_torch_tp1",
+        )
         self.prefill_args = self.prefill_args_fp8[128]
         self.decode_args = self.decode_args_fp8[128]
 
@@ -269,9 +249,23 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
     @parameterized.expand((((128,), (2048,))))
     @is_nightly
     def test_benchmark8B_fp8_attnf8_tp1(self, input_size: int):
-        self.output_name = self.dir_path / f"fp8_attnf8_{input_size}_tp1"
-        self.export_artifact = self.llama8b_fp8_attnf8_sdpa_artifacts
-        self.irpa_path = self.llama3_8b_f8_attnf8_model
+        self.export_artifact = ExportArtifacts(
+            irpa_path=self.llama3_8b_f8_attnf8_model,
+            batch_size=4,
+            iree_hip_target="gfx942",
+            iree_hal_target_device="hip",
+            attention_kernel="sharktank",
+            tensor_parallelism_size=self.tensor_parallelism_size,
+            pipeline_parallelism_size=self.pipeline_parallelism_size,
+            block_seq_stride=32,
+            cwd=self.repo_root,
+            use_hf=True,
+            activation_dtype="bfloat16",
+            attention_dtype="float8_e4m3fnuz",
+            kv_cache_dtype="float8_e4m3fnuz",
+            use_attention_mask=True,
+            output_name=self.dir_path / f"fp8_attnf8_{input_size}_tp1",
+        )
         self.prefill_args = self.prefill_args_fp8[input_size]
         self.decode_args = self.decode_args_fp8[input_size]
 

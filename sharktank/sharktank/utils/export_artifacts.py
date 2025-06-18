@@ -107,16 +107,15 @@ class ExportArtifacts:
         output_mlir: Optional[str | Path] = None,
         output_config: Optional[str | Path] = None,
         output_vmfb: Optional[str | Path] = None,
-        output_name: Optional[str] = None,
+        output_name: Optional[str | Path] = None,
         cwd: Optional[str] = None,
+        skip_if_file_exists: bool = False,
     ):
         self.tmp_dir = Path(tempfile.mkdtemp(type(self).__qualname__))
         self.cwd = cwd if cwd is not None else self.tmp_dir
         self.cwd.mkdir(parents=True, exist_ok=True)
 
         self.irpa_path = irpa_path
-        self.output_mlir = output_mlir
-        self.output_config = output_config
         self.batch_size = batch_size
         self.iree_hip_target = iree_hip_target
         self.iree_hal_target_device = iree_hal_target_device
@@ -135,6 +134,7 @@ class ExportArtifacts:
         self.attention_dtype = attention_dtype
         self.kv_cache_dtype = kv_cache_dtype
         self.use_hf = use_hf
+        self.skip_if_file_exists = skip_if_file_exists
 
         self.output_name = output_name
         if self.output_name is None:
@@ -148,11 +148,17 @@ class ExportArtifacts:
                     else ""
                 )
             )
-        self.output_vmfb = (
-            output_vmfb
-            if output_vmfb is None
-            else self.output_name.with_suffix(".vmfb")
-        )
+        self.output_vmfb = output_vmfb
+        if output_vmfb is None:
+            self.output_name.with_suffix(".vmfb")
+
+        self.output_mlir = output_mlir
+        if output_mlir is None:
+            self.output_mlir = self.output_name.with_suffix(".mlir")
+
+        self.output_config = output_config
+        if output_config is None:
+            self.output_config = self.output_name.with_suffix(".json")
 
     def __del__(self):
         shutil.rmtree(self.tmp_dir, ignore_errors=True)
@@ -276,9 +282,18 @@ class ExportArtifacts:
         *,
         output_mlir: str,
         output_config: str,
-        skip_decode: Optional[bool] = None,
+        skip_decode: bool = False,
     ):
         self.output_mlir = output_mlir
+        if (
+            self.skip_if_file_exists
+            and Path(self.output_mlir).exists()
+            and Path(self.output_config).exists()
+        ):
+            logger.info(f" Using pre-exported mlir: {self.output_mlir}")
+            logger.info(f" Using pre-exported config json: {self.output_config}")
+            return
+
         export_args = [
             "python3",
             "-m",
@@ -419,19 +434,13 @@ class ExportArtifacts:
             exception=IreeRunException,
         )
 
-    def get_artifacts(self):
-        if self.output_mlir is None:
-            self.output_mlir = self.output_name.with_suffix(".mlir")
-            self.output_config = self.output_name.with_suffix(".json")
-
-            self.export_to_mlir(
-                output_mlir=self.output_mlir,
-                output_config=self.output_config,
-            )
-        else:
-            logger.info(f" Using pre-exported mlir: {self.output_mlir}")
-            logger.info(f" Using pre-exported config json: {self.output_config}")
-
-        self.compile_to_vmfb()
-
-        return self.output_vmfb
+    def get_artifacts(
+        self, *, skip_decode=False, compile_args: Optional[List[str]] = None
+    ) -> str:
+        self.export_to_mlir(
+            output_mlir=self.output_mlir,
+            output_config=self.output_config,
+            skip_decode=skip_decode,
+        )
+        self.compile_to_vmfb(args=compile_args)
+        return str(self.output_vmfb)
