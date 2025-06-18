@@ -204,6 +204,9 @@ jobs:
       - name: Run Perplexity tests
         run: |
           source ${VENV_DIR}/bin/activate
+          ls -lha /shark-dev/70b/instruct/weights
+          ls -lha /shark-dev/405b/instruct/weights
+          ls -lha /shark-dev/405b
           pytest \
             -n 8 \
             -v \
@@ -222,9 +225,6 @@ jobs:
             --llama3-405b-f8-model-path=/shark-dev/405b/f8/llama3.1_405b_fp8.irpa \
             --html=out/llm/llama/perplexity/sharded/index.html \
             --log-cli-level=INFO
-          ls -lha /shark-dev/70b/instruct/weights
-          ls -lha /shark-dev/405b/instruct/weights
-          ls -lha /shark-dev/405b
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4.0.0
