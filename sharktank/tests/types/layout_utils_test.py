@@ -138,61 +138,6 @@ class FP4Tests(unittest.TestCase):
 
         torch.testing.assert_close(recovered_values, expected, atol=0.0, rtol=0.0)
 
-    def test_fp4_block_quantization(self):
-        """Test FP4 block quantization with configurable block size and power-of-two scales."""
-        original_data = torch.randn(64) * 4.0
-
-        # Power of two scales
-        quantizer = DynamicFp4BlockQuantizer(
-            block_size=32, use_power_of_two_scale=True, name="fp4_quantizer"
-        )
-        quantized_tensor = quantizer.quantize(original_data, name="fp4_quantized")
-
-        self.assertIsInstance(quantized_tensor, PlanarQuantizedTensor)
-        layout = quantized_tensor.unpack()
-        self.assertIsInstance(layout, BlockScaledFp4Layout)
-
-        self.assertTrue(layout.d.dtype == torch.int32)
-        self.assertEqual(len(layout.d), 2)  # Two blocks
-
-        dequantized = quantized_tensor.unpack().dequant()
-
-        self.assertEqual(dequantized.shape, original_data.shape)
-
-        # Float scales
-        quantizer_float = DynamicFp4BlockQuantizer(
-            block_size=32, use_power_of_two_scale=False, name="fp4_quantizer"
-        )
-        quantized_tensor_float = quantizer_float.quantize(
-            original_data, name="fp4_quantized"
-        )
-
-        layout_float = quantized_tensor_float.unpack()
-        self.assertTrue(layout_float.d.dtype == torch.float32)
-
-        dequantized_float = quantized_tensor_float.unpack().dequant()
-
-        self.assertEqual(dequantized_float.shape, original_data.shape)
-
-    def test_fp4_configurable_block_size(self):
-        """Test FP4 block quantization with different block sizes."""
-        original_data = torch.tensor([1.0, 2.0, 3.0, 4.0, -1.0, -2.0])
-
-        quantizer = DynamicFp4BlockQuantizer(
-            block_size=6, use_power_of_two_scale=True, name="fp4_quantizer"
-        )
-        quantized_tensor = quantizer.quantize(original_data, name="fp4_quantized")
-
-        self.assertIsInstance(quantized_tensor, PlanarQuantizedTensor)
-        layout = quantized_tensor.unpack()
-        self.assertIsInstance(layout, BlockScaledFp4Layout)
-
-        self.assertEqual(len(layout.d), 1)
-
-        dequantized = quantized_tensor.unpack().dequant()
-
-        self.assertEqual(dequantized.shape, original_data.shape)
-
 
 class I4Shuffle(unittest.TestCase):
     def test_linearize_interleaved_i4_block(self):
