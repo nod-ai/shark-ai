@@ -13,6 +13,9 @@ import time
 from pathlib import Path
 from datetime import timedelta
 from typing import Any, List, Optional, TYPE_CHECKING
+
+import numpy as np
+import torch
 from sharktank.utils.iree import get_iree_compiler_flags_from_object
 
 if TYPE_CHECKING:
@@ -108,14 +111,14 @@ class ExportArtifacts:
         output_config: Optional[str | Path] = None,
         output_vmfb: Optional[str | Path] = None,
         output_name: Optional[str | Path] = None,
-        cwd: Optional[str] = None,
+        cwd: Optional[str | Path] = None,
         skip_if_file_exists: bool = False,
     ):
         self.tmp_dir = Path(tempfile.mkdtemp(type(self).__qualname__))
-        self.cwd = cwd if cwd is not None else self.tmp_dir
+        self.cwd = Path(cwd if cwd is not None else self.tmp_dir)
         self.cwd.mkdir(parents=True, exist_ok=True)
 
-        self.irpa_path = irpa_path
+        self.irpa_path = Path(irpa_path).resolve()
         self.batch_size = batch_size
         self.iree_hip_target = iree_hip_target
         self.iree_hal_target_device = iree_hal_target_device
@@ -152,7 +155,7 @@ class ExportArtifacts:
 
         self.output_vmfb = output_vmfb
         if output_vmfb is None:
-            self.output_name.with_suffix(".vmfb")
+            self.output_vmfb = self.output_name.with_suffix(".vmfb")
 
         self.output_mlir = output_mlir
         if output_mlir is None:
@@ -215,14 +218,13 @@ class ExportArtifacts:
         run_msg: str,
         success_msg: str,
         exception: ExportArtifactsException,
-    ):
+    ) -> None:
         """Helper function to run a command and handle exceptions."""
         logger.info(f"{run_msg}:\n" f"cd {self.cwd} && {cmd}")
         proc = subprocess.run(
             cmd, shell=True, capture_output=True, text=True, cwd=self.cwd
         )
-        return_code = proc.returncode
-        if return_code != 0:
+        if proc.returncode != 0:
             raise exception(proc, self.cwd)
         else:
             logger.info(f"{success_msg}:\n" f"{proc.stdout}")
@@ -252,11 +254,9 @@ class ExportArtifacts:
         return wrapper
 
     @timeit
-    def shard_irpa_file(self):
-        irpa_path = Path(self.irpa_path)
-        output_irpa = str(
-            irpa_path.with_name(f"{irpa_path.stem}_sharded{irpa_path.suffix}")
-        )
+    def shard_irpa_file(self) -> None:
+        irpa_path = self.irpa_path
+        output_irpa = irpa_path.with_name(f"{irpa_path.stem}_sharded{irpa_path.suffix}")
         self.irpa_path = output_irpa
 
         shard_irpa_args = [
@@ -282,11 +282,8 @@ class ExportArtifacts:
     def export_to_mlir(
         self,
         *,
-        output_mlir: str,
-        output_config: str,
         skip_decode: bool = False,
-    ):
-        self.output_mlir = output_mlir
+    ) -> None:
         if (
             self.skip_if_file_exists
             and Path(self.output_mlir).exists()
@@ -302,7 +299,7 @@ class ExportArtifacts:
             "sharktank.examples.export_paged_llm_v1",
             f"--irpa-file={self.irpa_path}",
             f"--output-mlir={self.output_mlir}",
-            f"--output-config={output_config}",
+            f"--output-config={self.output_config}",
             f"--bs-prefill={self.batch_size}",
             f"--bs-decode={self.batch_size}",
             f"--block-seq-stride={self.block_seq_stride}",
@@ -336,7 +333,11 @@ class ExportArtifacts:
         *,
         hal_dump_path: Optional[Path] = None,
         args: Optional[List[str]] = None,
-    ):
+    ) -> None:
+        if self.skip_if_file_exists and Path(self.output_vmfb).exists():
+            logger.info(f" Using pre-exported vmfb: {self.output_vmfb}")
+            return
+
         # TODO: Control flag to enable multiple backends
         compile_args = [
             f"iree-compile",
@@ -368,31 +369,29 @@ class ExportArtifacts:
             exception=IreeCompileException,
         )
 
-    def iree_benchmark_vmfb(
+    def iree_benchmark(
         self,
         *,
         hip_device_id: str,
-        irpa_path: str,
         benchmark_filename: Optional[Path] = None,
         args: List[str],
-    ):
+    ) -> None:
         """Runs a compiled program with the given args using `iree-benchmark-module`.
         This assumes that the `iree-benchmark-module` command is available (usually via PATH).
         Args:
-            vmfb_name: Name of the .vmfb file (relative to `cwd`).
             args: List of arguments to pass to `iree-benchmark-module`.
             compile_cmd: Command used to compile the program, for inclusion in error messages.
         Raises Exception if running fails for some reason.
         """
         params, devices, rocr_visible_devices = self._prepare_params_and_devices(
-            irpa_path, hip_device_id
+            self.irpa_path, hip_device_id
         )
 
         benchmark_args = [
             *rocr_visible_devices,
             "iree-benchmark-module",
             "--hip_use_streams=true",
-            f"--module={self.vmfb_name}",
+            f"--module={self.output_vmfb}",
             *params,
             *devices,
             *args,
@@ -407,23 +406,30 @@ class ExportArtifacts:
         )
 
     @timeit
-    def iree_run_vmfb(
+    def iree_run(
         self,
         *,
         hip_device_id: str,
-        vmfb_name: str,
-        irpa_path: str,
         args: List[str],
-    ):
-        params, devices, rocr_visible_devices = self._prepare_params_and_devices(
-            irpa_path, hip_device_id
-        )
+        output_paths: Optional[list[str | Path]] = None,
+    ) -> list[torch.Tensor]:
+        if output_paths is None:
+            output_paths = []
 
+        output_paths = [
+            Path(path).resolve().with_suffix(".npy") for path in output_paths
+        ]
+        for path in output_paths:
+            args.append(f"--output=@{path}")
+
+        params, devices, rocr_visible_devices = self._prepare_params_and_devices(
+            self.irpa_path, hip_device_id
+        )
         run_args = [
             *rocr_visible_devices,
             "iree-run-module",
             "--hip_use_streams=true",
-            f"--module={vmfb_name}",
+            f"--module={self.output_vmfb}",
             *params,
             *devices,
             *args,
@@ -435,13 +441,15 @@ class ExportArtifacts:
             exception=IreeRunException,
         )
 
-    def export_artifacts(
-        self, *, skip_decode=False, compile_args: Optional[List[str]] = None
+        return [torch.from_numpy(np.load(path)) for path in output_paths]
+
+    def export_and_compile(
+        self,
+        *,
+        skip_decode: bool = False,
+        hal_dump_path: Optional[Path] = None,
+        compile_args: Optional[List[str]] = None,
     ) -> str:
-        self.export_to_mlir(
-            output_mlir=self.output_mlir,
-            output_config=self.output_config,
-            skip_decode=skip_decode,
-        )
-        self.compile_to_vmfb(args=compile_args)
-        return str(self.output_vmfb)
+        self.export_to_mlir(skip_decode=skip_decode)
+        self.compile_to_vmfb(args=compile_args, hal_dump_path=hal_dump_path)
+        return str(self.output_vmfb.resolve())

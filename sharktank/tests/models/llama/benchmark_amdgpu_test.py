@@ -91,19 +91,17 @@ class BaseBenchmarkTest(unittest.TestCase):
         return benchmark_args
 
     def export_compile_benchmark(self, skip_decode: bool = False):
-        self.export_artifact.export_artifacts()
+        self.export_artifact.export_and_compile()
 
-        benchmark_filename = self.output_name.with_suffix(".txt")
-        self.export_artifact.iree_benchmark_vmfb(
+        benchmark_filename = self.export_artifact.output_name.with_suffix(".txt")
+        self.export_artifact.iree_benchmark(
             hip_device_id=self.iree_device,
-            irpa_path=self.export_artifact.irpa_path,
             benchmark_filename=benchmark_filename,
             args=self.prefill_args,
         )
         if not skip_decode:
-            self.export_artifact.iree_benchmark_vmfb(
+            self.export_artifact.iree_benchmark(
                 hip_device_id=self.iree_device,
-                irpa_path=self.export_artifact.irpa_path,
                 benchmark_filename=benchmark_filename,
                 args=self.decode_args,
             )
@@ -115,7 +113,6 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         super().setUp(artifact_dir=Path("/shark-dev/8b"), dir_path_name="llama-8b")
         # TODO: add numpy files to Azure and download from it
 
-        # default fp8 input size here is 128
         self.prefill_args_fp16 = {
             128: self.save_benchmarks(
                 benchmark_fn="prefill_bs4",
@@ -142,6 +139,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             ),
         }
 
+        # default fp8 input size here is 128
         prefill_args_fp8_path = self.artifact_dir / "prefill_args_fp8"
         decode_args_fp8_path = self.artifact_dir / "decode_args_fp8"
         self.prefill_args_fp8 = {

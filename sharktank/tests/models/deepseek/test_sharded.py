@@ -158,18 +158,11 @@ class DeepseekShardedTest(TempDirTestBase):
             iree_hal_target_device=self.iree_hal_target_device,
             iree_hal_local_target_device_backends=self.iree_hal_local_target_device_backends,
             output_vmfb=iree_module_path,
-        )
-        export_artifacts.export_to_mlir(
             output_mlir=mlir_path,
             output_config=export_config_path,
-            skip_decode=True,  # TODO: enable decode
         )
-
-        export_artifacts.compile_to_vmfb(
-            output_mlir=mlir_path,
-            output_vmfb=iree_module_path,
-            args=[],
-        )
+        # TODO: enable decode
+        export_artifacts.export_and_compile(skip_decode=True)
 
         iree_devices = get_iree_devices(
             device=self.iree_device,
