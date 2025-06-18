@@ -133,6 +133,8 @@ jobs:
           mkdir perplexity_ci_artifacts
           python -m sharktank.models.deepseek.toy_deepseek -o "perplexity_ci_artifacts/toy_deepseek.irpa"
           python -m sharktank.examples.sharding.shard_llm_dataset --irpa-file=perplexity_ci_artifacts/toy_deepseek.irpa --output-irpa=perplexity_ci_artifacts/toy_deepseek_tp2.irpa --tensor-parallelism-size=2
+          ls -lha /shark-dev/405b/instruct/weights
+          ls -lha /shark-dev/405b
           pytest \
             -n 8 \
             -v \
@@ -221,7 +223,7 @@ jobs:
             --llama3-70b-tokenizer-path=/shark-dev/70b/instruct/tokenizer_config.json \
             --llama3-70b-f16-tp8-model-path=/shark-dev/70b/instruct/weights/tp8/llama3.1_70b_instruct_fp16_tp8.irpa \
             --llama3-405b-tokenizer-path=/shark-dev/405b/instruct/tokenizer_config.json \
-            --llama3-405b-f16-model-path=/shark-dev/405b/instruct/weights/llama3.1_405b_fp16.irpa \
+            --llama3-405b-f16-model-path=/shark-dev/405b/instruct/weights/llama3_405b_instruct_fp16.irpa \
             --llama3-405b-f8-model-path=/shark-dev/405b/f8/llama3.1_405b_fp8.irpa \
             --html=out/llm/llama/perplexity/sharded/index.html \
             --log-cli-level=INFO
