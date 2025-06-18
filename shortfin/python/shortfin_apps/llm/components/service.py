@@ -82,7 +82,7 @@ class LlmGenerateService(GenerateService):
             self.prefill_exec_fiber,
             self.decode_exec_fiber,
             self.main_fiber,
-        ) = tuple(self._stream_manager.construct_main_fibers())
+        ) = self._stream_manager.construct_main_fibers()
 
         self.devices = self.prefill_fiber.devices_dict.values()
 
