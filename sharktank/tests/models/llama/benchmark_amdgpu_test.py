@@ -95,13 +95,11 @@ class BaseBenchmarkTest(unittest.TestCase):
 
         benchmark_filename = self.export_artifact.output_name.with_suffix(".txt")
         self.export_artifact.iree_benchmark(
-            hip_device_id=self.iree_device,
             benchmark_filename=benchmark_filename,
             extra_args=self.prefill_args,
         )
         if not skip_decode:
             self.export_artifact.iree_benchmark(
-                hip_device_id=self.iree_device,
                 benchmark_filename=benchmark_filename,
                 extra_args=self.decode_args,
             )
@@ -191,14 +189,15 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         self.export_artifact = ExportArtifacts(
             irpa_path=self.llama3_8b_f16_model,
             batch_size=4,
-            iree_hip_target="gfx942",
-            iree_hal_target_device="hip",
+            iree_hip_target=self.iree_hip_target,
+            iree_hal_target_device=self.iree_hal_target_device,
             attention_kernel="torch",
             tensor_parallelism_size=1,
             pipeline_parallelism_size=1,
             block_seq_stride=32,
             cwd=self.repo_root,
             output_name=self.dir_path / f"f16_torch_{input_size}_tp1",
+            hip_device_id=self.iree_device,
         )
         self.prefill_args = self.prefill_args_fp16[input_size]
         self.decode_args = self.decode_args_fp16[input_size]
@@ -210,8 +209,8 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         self.export_artifact = ExportArtifacts(
             irpa_path=self.llama3_8b_f8_model,
             batch_size=4,
-            iree_hip_target="gfx942",
-            iree_hal_target_device="hip",
+            iree_hip_target=self.iree_hip_target,
+            iree_hal_target_device=self.iree_hal_target_device,
             attention_kernel="torch",
             tensor_parallelism_size=1,
             pipeline_parallelism_size=1,
@@ -234,8 +233,8 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         self.export_artifact = ExportArtifacts(
             irpa_path=self.llama3_8b_f8_attnf8_model,
             batch_size=4,
-            iree_hip_target="gfx942",
-            iree_hal_target_device="hip",
+            iree_hip_target=self.iree_hip_target,
+            iree_hal_target_device=self.iree_hal_target_device,
             attention_kernel="sharktank",
             tensor_parallelism_size=1,
             pipeline_parallelism_size=1,
@@ -352,8 +351,8 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         self.export_artifact = ExportArtifacts(
             irpa_path=irpa_path,
             batch_size=4,
-            iree_hip_target="gfx942",
-            iree_hal_target_device="hip",
+            iree_hip_target=self.iree_hip_target,
+            iree_hal_target_device=self.iree_hal_target_device,
             attention_kernel="torch",
             tensor_parallelism_size=tp,
             pipeline_parallelism_size=1,
@@ -373,8 +372,8 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         self.export_artifact = ExportArtifacts(
             irpa_path=self.llama3_70b_f8_model,
             batch_size=4,
-            iree_hip_target="gfx942",
-            iree_hal_target_device="hip",
+            iree_hip_target=self.iree_hip_target,
+            iree_hal_target_device=self.iree_hal_target_device,
             attention_kernel="torch",
             tensor_parallelism_size=1,
             pipeline_parallelism_size=1,
@@ -451,8 +450,8 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         self.export_artifact = ExportArtifacts(
             irpa_path=self.llama3_405b_f16_tp8_model,
             batch_size=4,
-            iree_hip_target="gfx942",
-            iree_hal_target_device="hip",
+            iree_hip_target=self.iree_hip_target,
+            iree_hal_target_device=self.iree_hal_target_device,
             attention_kernel="torch",
             tensor_parallelism_size=8,
             pipeline_parallelism_size=1,
@@ -472,8 +471,8 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         self.export_artifact = ExportArtifacts(
             irpa_path=self.llama3_405b_f8_tp8_model,
             batch_size=4,
-            iree_hip_target="gfx942",
-            iree_hal_target_device="hip",
+            iree_hip_target=self.iree_hip_target,
+            iree_hal_target_device=self.iree_hal_target_device,
             attention_kernel="torch",
             tensor_parallelism_size=8,
             pipeline_parallelism_size=1,

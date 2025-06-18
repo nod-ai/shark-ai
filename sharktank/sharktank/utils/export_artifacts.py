@@ -118,6 +118,7 @@ class ExportArtifacts:
         output_name: Optional[str | Path] = None,
         cwd: Optional[str | Path] = None,
         skip_if_file_exists: bool = False,
+        hip_device_id: str,
     ):
         self.tmp_dir = Path(tempfile.mkdtemp(type(self).__qualname__))
         self.cwd = Path(cwd if cwd is not None else self.tmp_dir)
@@ -144,6 +145,7 @@ class ExportArtifacts:
         self.kv_cache_dtype = kv_cache_dtype
         self.use_hf = use_hf
         self.skip_if_file_exists = skip_if_file_exists
+        self.hip_device_id = hip_device_id
 
         if output_name is not None:
             self.output_name = Path(output_name)
@@ -201,17 +203,12 @@ class ExportArtifacts:
             **init_kwargs,
         )
 
-    def _prepare_params_and_devices(
-        self, hip_device_id: str
-    ) -> tuple[List[str], List[str]]:
+    def _prepare_params_and_devices(self) -> tuple[List[str], List[str]]:
         """
         Prepares the parameters and devices for the IREE commands based on the IRPA path and HIP device ID.
         Automatically handles tensor parallelism and multiple devices.
 
         Requires at least as many devices on the systems as the parallelism size.
-
-        Args:
-            hip_device_id: The HIP device ID to use, e.g., "hip://0".
 
         Returns:
             A tuple containing:
@@ -231,12 +228,12 @@ class ExportArtifacts:
             ]
             devices = [f"--device=hip://{i}" for i in range(self.parallelism_size)]
         else:
-            hip_device_arg = int(hip_device_id.split("://")[1])
+            hip_device_arg = int(self.hip_device_id.split("://")[1])
             rocr_visible_devices = [
                 f"ROCR_VISIBLE_DEVICES={','.join(str(i) for i in range(hip_device_arg + 1))}"
             ]
             params = [f"--parameters=model={self.irpa_path}"]
-            devices = [f"--device={hip_device_id}"]
+            devices = [f"--device={self.hip_device_id}"]
 
         return params, devices, rocr_visible_devices
 
@@ -431,7 +428,6 @@ class ExportArtifacts:
     def iree_benchmark(
         self,
         *,
-        hip_device_id: str,
         benchmark_filename: Optional[Path] = None,
         extra_args: List[str],
     ) -> None:
@@ -442,14 +438,11 @@ class ExportArtifacts:
         Raises an IreeBenchmarkException if running fails for some reason.
 
         Args:
-            hip_device_id: The HIP device ID to use for benchmarking, e.g., "hip://0".
             benchmark_filename: Optional path to the benchmark file.
             extra_args: List of arguments to pass to `iree-benchmark-module`.
             compile_cmd: Command used to compile the program, for inclusion in error messages.
         """
-        params, devices, rocr_visible_devices = self._prepare_params_and_devices(
-            hip_device_id
-        )
+        params, devices, rocr_visible_devices = self._prepare_params_and_devices()
 
         benchmark_args = [
             *rocr_visible_devices,
@@ -473,7 +466,6 @@ class ExportArtifacts:
     def iree_run(
         self,
         *,
-        hip_device_id: str,
         extra_args: List[str],
         output_paths: Optional[list[str | Path]] = None,
     ) -> list[torch.Tensor]:
@@ -483,7 +475,6 @@ class ExportArtifacts:
         Raises an IreeRunException if running fails for some reason.
 
         Args:
-            hip_device_id: The HIP device ID to use for running the module.
             extra_args: Additional arguments to pass to the `iree-run-module` command.
             output_paths: List of paths to save the output tensors. If None, or empty list, no outputs are saved.
 
@@ -498,9 +489,7 @@ class ExportArtifacts:
         ]
         output_path_args = [f"--output=@{path}" for path in output_paths]
 
-        params, devices, rocr_visible_devices = self._prepare_params_and_devices(
-            hip_device_id
-        )
+        params, devices, rocr_visible_devices = self._prepare_params_and_devices()
         run_args = [
             *rocr_visible_devices,
             "iree-run-module",
