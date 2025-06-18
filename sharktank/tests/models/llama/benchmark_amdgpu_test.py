@@ -32,8 +32,9 @@ class BaseBenchmarkTest(unittest.TestCase):
     def setUpClass(cls):
         os.makedirs(cls.dir_path, exist_ok=True)
 
-    def setUp(self):
+    def setUp(self, artifact_dir: Path, dir_path_name: str):
         super().setUp()
+        self.export_artifact: ExportArtifacts
         self.compile_args = [
             "--iree-opt-level=O3",
             "--iree-hal-indirect-command-buffers=true",
@@ -41,8 +42,12 @@ class BaseBenchmarkTest(unittest.TestCase):
             "--iree-hal-memoization=true",
             "--iree-stream-affinity-solver-max-iterations=1024",
         ]
+        # TODO: Delete these
         self.tensor_parallelism_size = 1
         self.pipeline_parallelism_size = 1
+        self.artifact_dir = artifact_dir
+        self.dir_path = self.__class__.dir_path / dir_path_name
+        Path(self.dir_path).mkdir(parents=True, exist_ok=True)
 
     def save_benchmarks(
         self,
@@ -125,22 +130,19 @@ class BaseBenchmarkTest(unittest.TestCase):
 @is_mi300x
 class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
     def setUp(self):
-        super().setUp()
+        super().setUp(artifact_dir=Path("/shark-dev/8b"), dir_path_name="llama-8b")
         # TODO: add numpy files to Azure and download from it
-        artifact_dir = Path("/shark-dev/8b")
-        self.dir_path = self.__class__.dir_path / "llama-8b"
-        Path(self.dir_path).mkdir(parents=True, exist_ok=True)
 
         # default fp8 input size here is 128
         self.prefill_args_fp16 = {
             128: self.save_benchmarks(
                 benchmark_fn="prefill_bs4",
-                input_path=artifact_dir / "prefill_args_bs4_128_stride_32_tp1",
+                input_path=self.artifact_dir / "prefill_args_bs4_128_stride_32_tp1",
                 tensor_parallelism_size=self.tensor_parallelism_size,
             ),
             2048: self.save_benchmarks(
                 benchmark_fn="prefill_bs4",
-                input_path=artifact_dir / "prefill_args_bs4_2048_stride_32",
+                input_path=self.artifact_dir / "prefill_args_bs4_2048_stride_32",
                 tensor_parallelism_size=self.tensor_parallelism_size,
             ),
         }
@@ -148,34 +150,34 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         self.decode_args_fp16 = {
             128: self.save_benchmarks(
                 benchmark_fn="decode_bs4",
-                input_path=artifact_dir / "decode_args_bs4_128_stride_32_tp1",
+                input_path=self.artifact_dir / "decode_args_bs4_128_stride_32_tp1",
                 tensor_parallelism_size=self.tensor_parallelism_size,
             ),
             2048: self.save_benchmarks(
                 benchmark_fn="decode_bs4",
-                input_path=artifact_dir / "decode_args_bs4_2048_stride_32",
+                input_path=self.artifact_dir / "decode_args_bs4_2048_stride_32",
                 tensor_parallelism_size=self.tensor_parallelism_size,
             ),
         }
 
-        prefill_args_fp8 = artifact_dir / "prefill_args_fp8"
-        decode_args_fp8 = artifact_dir / "decode_args_fp8"
+        prefill_args_fp8_path = self.artifact_dir / "prefill_args_fp8"
+        decode_args_fp8_path = self.artifact_dir / "decode_args_fp8"
         self.prefill_args_fp8 = {
             128: [
                 "--function=prefill_bs4",
-                f"--input=4x128xi64=@{prefill_args_fp8}/tokens.bin",
-                f"--input=4xi64=@{prefill_args_fp8}/seq_lens.bin",
-                f"--input=4x4xi64=@{prefill_args_fp8}/seq_block_ids.bin",
-                f"--input=261x2097152xf8E4M3FNUZ=@{prefill_args_fp8}/cs_f8E4M3FNUZ.bin",
+                f"--input=4x128xi64=@{prefill_args_fp8_path}/tokens.bin",
+                f"--input=4xi64=@{prefill_args_fp8_path}/seq_lens.bin",
+                f"--input=4x4xi64=@{prefill_args_fp8_path}/seq_block_ids.bin",
+                f"--input=261x2097152xf8E4M3FNUZ=@{prefill_args_fp8_path}/cs_f8E4M3FNUZ.bin",
                 "--benchmark_repetitions=10",
                 ">>",
             ],
             2048: [
                 "--function=prefill_bs4",
-                f"--input=4x2048xi64=@{prefill_args_fp8}/2048/prefill_token_ids_4x2048xi64.bin",
-                f"--input=4xi64=@{prefill_args_fp8}/2048/prefill_seq_lens_4xi64.bin",
-                f"--input=4x64xi64=@{prefill_args_fp8}/2048/prefill_seq_block_ids_4x64xi64.bin",
-                f"--input=261x2097152xf8E4M3FNUZ=@{prefill_args_fp8}/2048/prefill_cache_state_261x2097152xf8E4M3FNUZ.bin",
+                f"--input=4x2048xi64=@{prefill_args_fp8_path}/2048/prefill_token_ids_4x2048xi64.bin",
+                f"--input=4xi64=@{prefill_args_fp8_path}/2048/prefill_seq_lens_4xi64.bin",
+                f"--input=4x64xi64=@{prefill_args_fp8_path}/2048/prefill_seq_block_ids_4x64xi64.bin",
+                f"--input=261x2097152xf8E4M3FNUZ=@{prefill_args_fp8_path}/2048/prefill_cache_state_261x2097152xf8E4M3FNUZ.bin",
                 "--benchmark_repetitions=10",
                 ">>",
             ],
@@ -184,21 +186,21 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         self.decode_args_fp8 = {
             128: [
                 "--function=decode_bs4",
-                f"--input=4x1xi64=@{decode_args_fp8}/next_tokens.bin",
-                f"--input=4xi64=@{decode_args_fp8}/seq_lens.bin",
-                f"--input=4xi64=@{decode_args_fp8}/start_positions.bin",
-                f"--input=4x5xi64=@{decode_args_fp8}/seq_block_ids.bin",
-                f"--input=261x2097152xf8E4M3FNUZ=@{decode_args_fp8}/cs_f8E4M3FNUZ.bin",
+                f"--input=4x1xi64=@{decode_args_fp8_path}/next_tokens.bin",
+                f"--input=4xi64=@{decode_args_fp8_path}/seq_lens.bin",
+                f"--input=4xi64=@{decode_args_fp8_path}/start_positions.bin",
+                f"--input=4x5xi64=@{decode_args_fp8_path}/seq_block_ids.bin",
+                f"--input=261x2097152xf8E4M3FNUZ=@{decode_args_fp8_path}/cs_f8E4M3FNUZ.bin",
                 "--benchmark_repetitions=10",
                 ">>",
             ],
             2048: [
                 "--function=decode_bs4",
-                f"--input=4x1xi64=@{decode_args_fp8}/2048/decode_next_tokens_4x1xi64.bin",
-                f"--input=4xi64=@{decode_args_fp8}/2048/decode_seq_lens_4xi64.bin",
-                f"--input=4xi64=@{decode_args_fp8}/2048/decode_start_positions_4xi64.bin",
-                f"--input=4x65xi64=@{decode_args_fp8}/2048/decode_seq_block_ids_tensor_4x65xi64.bin",
-                f"--input=261x2097152xf8E4M3FNUZ=@{decode_args_fp8}/2048/decode_cache_state_261x2097152xf8E4M3FNUZ.bin",
+                f"--input=4x1xi64=@{decode_args_fp8_path}/2048/decode_next_tokens_4x1xi64.bin",
+                f"--input=4xi64=@{decode_args_fp8_path}/2048/decode_seq_lens_4xi64.bin",
+                f"--input=4xi64=@{decode_args_fp8_path}/2048/decode_start_positions_4xi64.bin",
+                f"--input=4x65xi64=@{decode_args_fp8_path}/2048/decode_seq_block_ids_tensor_4x65xi64.bin",
+                f"--input=261x2097152xf8E4M3FNUZ=@{decode_args_fp8_path}/2048/decode_cache_state_261x2097152xf8E4M3FNUZ.bin",
                 "--benchmark_repetitions=10",
                 ">>",
             ],
@@ -276,74 +278,33 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
 @is_nightly
 class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
     def setUp(self):
-        super().setUp()
+        super().setUp(artifact_dir=Path("/shark-dev/70b"), dir_path_name="llama-70b")
         # TODO: add numpy files to Azure and download from it
-        artifact_dir = Path("/shark-dev/70b")
-        self.dir_path = self.__class__.dir_path / "llama-70b"
-        Path(self.dir_path).mkdir(parents=True, exist_ok=True)
-
-        self.tensor_parallelism_size = 8
-
-        self.llama70b_f16_torch_sdpa_artifacts_tp1 = ExportArtifacts(
-            irpa_path=self.llama3_70b_f16_model,
-            batch_size=4,
-            iree_hip_target="gfx942",
-            iree_hal_target_device="hip",
-            attention_kernel="torch",
-            tensor_parallelism_size=1,
-            pipeline_parallelism_size=1,
-            block_seq_stride=32,
-            cwd=self.repo_root,
-        )
-        self.llama70b_f16_torch_sdpa_artifacts_tp8 = ExportArtifacts(
-            irpa_path=self.llama3_70b_f16_tp8_model,
-            batch_size=4,
-            iree_hip_target="gfx942",
-            iree_hal_target_device="hip",
-            attention_kernel="torch",
-            tensor_parallelism_size=self.tensor_parallelism_size,
-            pipeline_parallelism_size=1,
-            block_seq_stride=32,
-            cwd=self.repo_root,
-        )
-        self.llama70b_fp8_torch_sdpa_artifacts_tp1 = ExportArtifacts(
-            irpa_path=self.llama3_70b_f8_model,
-            batch_size=4,
-            iree_hip_target="gfx942",
-            iree_hal_target_device="hip",
-            attention_kernel="torch",
-            tensor_parallelism_size=1,
-            pipeline_parallelism_size=1,
-            block_seq_stride=32,
-            cwd=self.repo_root,
-            activation_dtype="bfloat16",
-            attention_dtype="bfloat16",
-            kv_cache_dtype="float8_e4m3fnuz",
-        )
 
         self.prefill_args_fp16 = {
             1: {
                 128: self.save_benchmarks(
                     benchmark_fn="prefill_bs4",
-                    input_path=artifact_dir / "prefill_args_bs4_128_stride_32",
+                    input_path=self.artifact_dir / "prefill_args_bs4_128_stride_32",
                     tensor_parallelism_size=1,
                 ),
                 2048: self.save_benchmarks(
                     benchmark_fn="prefill_bs4",
-                    input_path=artifact_dir / "prefill_args_bs4_2048_stride_32",
+                    input_path=self.artifact_dir / "prefill_args_bs4_2048_stride_32",
                     tensor_parallelism_size=1,
                 ),
             },
             8: {
                 128: self.save_benchmarks(
                     benchmark_fn="prefill_bs4",
-                    input_path=artifact_dir / "prefill_args_bs4_128_stride_32_tp8",
-                    tensor_parallelism_size=self.tensor_parallelism_size,
+                    input_path=self.artifact_dir / "prefill_args_bs4_128_stride_32_tp8",
+                    tensor_parallelism_size=8,
                 ),
                 2048: self.save_benchmarks(
                     benchmark_fn="prefill_bs4",
-                    input_path=artifact_dir / "prefill_args_bs4_2048_stride_32_tp8",
-                    tensor_parallelism_size=self.tensor_parallelism_size,
+                    input_path=self.artifact_dir
+                    / "prefill_args_bs4_2048_stride_32_tp8",
+                    tensor_parallelism_size=8,
                 ),
             },
         }
@@ -352,31 +313,31 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             1: {
                 128: self.save_benchmarks(
                     benchmark_fn="decode_bs4",
-                    input_path=artifact_dir / "decode_args_bs4_128_stride_32",
+                    input_path=self.artifact_dir / "decode_args_bs4_128_stride_32",
                     tensor_parallelism_size=1,
                 ),
                 2048: self.save_benchmarks(
                     benchmark_fn="decode_bs4",
-                    input_path=artifact_dir / "decode_args_bs4_2048_stride_32",
+                    input_path=self.artifact_dir / "decode_args_bs4_2048_stride_32",
                     tensor_parallelism_size=1,
                 ),
             },
             8: {
                 128: self.save_benchmarks(
                     benchmark_fn="decode_bs4",
-                    input_path=artifact_dir / "decode_args_bs4_128_stride_32_tp8",
-                    tensor_parallelism_size=self.tensor_parallelism_size,
+                    input_path=self.artifact_dir / "decode_args_bs4_128_stride_32_tp8",
+                    tensor_parallelism_size=8,
                 ),
                 2048: self.save_benchmarks(
                     benchmark_fn="decode_bs4",
-                    input_path=artifact_dir / "decode_args_bs4_2048_stride_32_tp8",
-                    tensor_parallelism_size=self.tensor_parallelism_size,
+                    input_path=self.artifact_dir / "decode_args_bs4_2048_stride_32_tp8",
+                    tensor_parallelism_size=8,
                 ),
             },
         }
 
-        prefill_args_fp8_path = artifact_dir / "prefill_args_fp8"
-        decode_args_fp8_path = artifact_dir / "decode_args_fp8"
+        prefill_args_fp8_path = self.artifact_dir / "prefill_args_fp8"
+        decode_args_fp8_path = self.artifact_dir / "decode_args_fp8"
         self.iree_run_prefill_args_fp8 = [
             "--function=prefill_bs4",
             f"--input=@{prefill_args_fp8_path}/tokens.npy",
@@ -402,14 +363,24 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         raises=IreeBenchmarkException,
     )
     def test_benchmark70B_f16(self, input_size: int, tp: int):
-        self.output_name = self.dir_path / f"f16_torch_{input_size}_tp{tp}"
+        output_name = self.dir_path / f"f16_torch_{input_size}_tp{tp}"
         if tp == 1:
-            self.export_artifact = self.llama70b_f16_torch_sdpa_artifacts_tp1
-            self.irpa_path = self.llama3_70b_f16_model
+            irpa_path = self.llama3_70b_f16_model
         else:
             assert tp == 8
-            self.export_artifact = self.llama70b_f16_torch_sdpa_artifacts_tp8
-            self.irpa_path = self.llama3_70b_f16_tp8_model
+            irpa_path = self.llama3_70b_f16_tp8_model
+        self.export_artifact = ExportArtifacts(
+            irpa_path=irpa_path,
+            batch_size=4,
+            iree_hip_target="gfx942",
+            iree_hal_target_device="hip",
+            attention_kernel="torch",
+            tensor_parallelism_size=tp,
+            pipeline_parallelism_size=1,
+            block_seq_stride=32,
+            cwd=self.repo_root,
+            output_name=output_name,
+        )
         self.prefill_args = self.prefill_args_fp16[tp][input_size]
         self.decode_args = self.decode_args_fp16[tp][input_size]
 
@@ -419,9 +390,21 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         reason="70b fp8 irpa does not exist", strict=True, raises=ExportMlirException
     )
     def test_benchmark70B_fp8_tp1(self):
-        self.output_name = self.dir_path / "fp8_torch_tp1"
-        self.export_artifact = self.llama70b_fp8_torch_sdpa_artifacts_tp1
-        self.irpa_path = self.llama3_70b_f8_model
+        self.export_artifact = ExportArtifacts(
+            irpa_path=self.llama3_70b_f8_model,
+            batch_size=4,
+            iree_hip_target="gfx942",
+            iree_hal_target_device="hip",
+            attention_kernel="torch",
+            tensor_parallelism_size=1,
+            pipeline_parallelism_size=1,
+            block_seq_stride=32,
+            cwd=self.repo_root,
+            activation_dtype="bfloat16",
+            attention_dtype="bfloat16",
+            kv_cache_dtype="float8_e4m3fnuz",
+            output_name=self.dir_path / "fp8_torch_tp1",
+        )
         self.prefill_args = self.iree_run_prefill_args_fp8
         self.decode_args = self.iree_run_decode_args_fp8
 
@@ -432,67 +415,36 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
 @is_nightly
 class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
     def setUp(self):
-        super().setUp()
+        super().setUp(artifact_dir=Path("/shark-dev/405b"), dir_path_name="llama-405b")
         # TODO: add numpy files to Azure and download from it
-        artifact_dir = Path("/shark-dev/405b")
-        self.dir_path = self.__class__.dir_path / "llama-405b"
-        Path(self.dir_path).mkdir(parents=True, exist_ok=True)
-
-        self.tensor_parallelism_size = 8
-
-        self.llama405b_f16_torch_sdpa_artifacts = ExportArtifacts(
-            irpa_path=self.llama3_405b_f16_tp8_model,
-            batch_size=4,
-            iree_hip_target="gfx942",
-            iree_hal_target_device="hip",
-            attention_kernel="torch",
-            tensor_parallelism_size=self.tensor_parallelism_size,
-            pipeline_parallelism_size=self.pipeline_parallelism_size,
-            block_seq_stride=32,
-            cwd=self.repo_root,
-        )
-        self.llama405b_fp8_torch_sdpa_artifacts = ExportArtifacts(
-            irpa_path=self.llama3_405b_f8_tp8_model,
-            batch_size=4,
-            iree_hip_target="gfx942",
-            iree_hal_target_device="hip",
-            attention_kernel="torch",
-            tensor_parallelism_size=self.tensor_parallelism_size,
-            pipeline_parallelism_size=self.pipeline_parallelism_size,
-            block_seq_stride=32,
-            cwd=self.repo_root,
-            activation_dtype="bfloat16",
-            attention_dtype="bfloat16",
-            kv_cache_dtype="float8_e4m3fnuz",
-        )
 
         self.prefill_args_tp8_fp16 = {
             128: self.save_benchmarks(
                 benchmark_fn="prefill_bs4",
-                input_path=artifact_dir / "prefill_args_bs4_128_stride_32_tp8",
-                tensor_parallelism_size=self.tensor_parallelism_size,
+                input_path=self.artifact_dir / "prefill_args_bs4_128_stride_32_tp8",
+                tensor_parallelism_size=8,
             ),
             2048: self.save_benchmarks(
                 benchmark_fn="prefill_bs4",
-                input_path=artifact_dir / "prefill_args_bs4_2048_stride_32_tp8",
-                tensor_parallelism_size=self.tensor_parallelism_size,
+                input_path=self.artifact_dir / "prefill_args_bs4_2048_stride_32_tp8",
+                tensor_parallelism_size=8,
             ),
         }
         self.decode_args_tp8_fp16 = {
             128: self.save_benchmarks(
                 benchmark_fn="decode_bs4",
-                input_path=artifact_dir / "decode_args_bs4_128_stride_32_tp8",
-                tensor_parallelism_size=self.tensor_parallelism_size,
+                input_path=self.artifact_dir / "decode_args_bs4_128_stride_32_tp8",
+                tensor_parallelism_size=8,
             ),
             2048: self.save_benchmarks(
                 benchmark_fn="decode_bs4",
-                input_path=artifact_dir / "decode_args_bs4_2048_stride_32_tp8",
-                tensor_parallelism_size=self.tensor_parallelism_size,
+                input_path=self.artifact_dir / "decode_args_bs4_2048_stride_32_tp8",
+                tensor_parallelism_size=8,
             ),
         }
 
-        prefill_args_fp8_path = artifact_dir / "prefill_args_fp8"
-        decode_args_fp8_path = artifact_dir / "decode_args_fp8"
+        prefill_args_fp8_path = self.artifact_dir / "prefill_args_fp8"
+        decode_args_fp8_path = self.artifact_dir / "decode_args_fp8"
         self.iree_run_prefill_args_fp8 = [
             "--function=prefill_bs4",
             f"--input=@{prefill_args_fp8_path}/tokens.npy",
@@ -516,9 +468,18 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         reason="Benchmarking Error", strict=True, raises=IreeBenchmarkException
     )
     def test_benchmark405B_f16_tp8(self, input_size: int):
-        self.output_name = self.dir_path / f"f16_torch_{input_size}"
-        self.export_artifact = self.llama405b_f16_torch_sdpa_artifacts
-        self.irpa_path = self.llama3_405b_f16_tp8_model
+        self.export_artifact = ExportArtifacts(
+            irpa_path=self.llama3_405b_f16_tp8_model,
+            batch_size=4,
+            iree_hip_target="gfx942",
+            iree_hal_target_device="hip",
+            attention_kernel="torch",
+            tensor_parallelism_size=8,
+            pipeline_parallelism_size=1,
+            block_seq_stride=32,
+            cwd=self.repo_root,
+            output_name=self.dir_path / f"f16_torch_{input_size}",
+        )
         self.prefill_args = self.prefill_args_tp8_fp16[input_size]
         self.decode_args = self.decode_args_tp8_fp16[input_size]
 
@@ -528,9 +489,21 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         reason="KeyError in theta.py", strict=True, raises=ExportMlirException
     )
     def test_benchmark405B_fp8_tp8(self):
-        self.output_name = self.dir_path / "fp8_torch"
-        self.export_artifact = self.llama405b_fp8_torch_sdpa_artifacts
-        self.irpa_path = self.llama3_405b_f8_tp8_model
+        self.export_artifact = ExportArtifacts(
+            irpa_path=self.llama3_405b_f8_tp8_model,
+            batch_size=4,
+            iree_hip_target="gfx942",
+            iree_hal_target_device="hip",
+            attention_kernel="torch",
+            tensor_parallelism_size=8,
+            pipeline_parallelism_size=1,
+            block_seq_stride=32,
+            cwd=self.repo_root,
+            activation_dtype="bfloat16",
+            attention_dtype="bfloat16",
+            kv_cache_dtype="float8_e4m3fnuz",
+            output_name=self.dir_path / "fp8_torch",
+        )
         self.prefill_args = self.iree_run_prefill_args_fp8
         self.decode_args = self.iree_run_decode_args_fp8
 
