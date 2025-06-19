@@ -1,24 +1,22 @@
 from sharktank.utils.iree import (
     with_iree_device_context,
     load_iree_module,
-    prepare_iree_module_function_args,
-    flatten_for_iree_signature,
 )
 
-from sharktank.layers.configs import LlamaModelConfig
+from sharktank.layers.configs import LlamaModelConfig, LlamaHParams
 from sharktank.models.llm import PagedLlmModelV1
 from sharktank.models.llama4.toy_llama4 import generate
 from sharktank.types import *
 from sharktank.utils.evaluate import *
 from sharktank.utils.iree import (
     get_iree_devices,
-    make_hal_buffer_view_trace_default_callback,
     TorchLikeIreeModule,
 )
 from sharktank.utils.export_artifacts import ExportArtifacts
 from sharktank.examples import export_paged_llm_v1
 from sharktank.layers.mixture_of_experts_block import MoeBlock
 from sharktank.ops import topk, zeros_like, reshard_like
+from sharktank.utils.testing import TempDirTestBase
 
 import torch
 import logging
@@ -29,6 +27,7 @@ from collections import OrderedDict
 import argparse
 from pathlib import Path
 import sys
+import pytest
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -36,16 +35,7 @@ logger = logging.getLogger(__name__)
 iree_compile_flags = []  # TODO; fill this if we need any flag
 
 
-def _sample_inputs(self, batch_size=1, dtype=torch.int64):
-    return llama4_toy_sample_inputs(
-        self,
-        config=self.config,
-        batch_size=batch_size,
-        dtype=dtype,
-    )
-
-
-def deterministic_attn_mask(inverted_mask):
+def deterministic_attn_mask(inverted_mask: torch.Tensor) -> torch.Tensor:
     L = inverted_mask.shape[-1]
     causal = torch.tril(
         torch.ones(L, L, dtype=inverted_mask.dtype, device=inverted_mask.device)
@@ -53,7 +43,7 @@ def deterministic_attn_mask(inverted_mask):
     return causal.unsqueeze(0)  # (1, L, L)
 
 
-def deterministic_mask(inverted_mask):
+def deterministic_mask(inverted_mask: torch.Tensor) -> torch.Tensor:
     seq_len = inverted_mask.shape[-1]
     causal = torch.tril(
         torch.ones(
@@ -63,41 +53,21 @@ def deterministic_mask(inverted_mask):
     return causal.unsqueeze(0)
 
 
-def deterministic_input_mask(seq_lens, sl, *, device="cpu"):
-    return torch.zeros(seq_lens.size(0), sl, dtype=torch.bool, device=device)
-
-
-def deterministic_page_table(page_count, config, dtype=torch.float16):
-
-    sub_page_dims = (
-        config.hp.attention_head_count_kv,  # 4
-        config.hp.expert_used_count,  # 2
-        config.hp.block_count,  # 4
-        config.block_seq_stride,  # 13
-        config.hp.attn_head_dim,  # 8
-    )
-    flat_dim = math.prod(sub_page_dims)
-    table = torch.arange(page_count * flat_dim, dtype=dtype).view(page_count, flat_dim)
-
-    return [table]
-
-
-def llama4_toy_sample_inputs(
-    model: PagedLlmModelV1,
-    config: LlamaModelConfig,
+def llama4_toy_pefill_sample_inputs(
+    self,
+    # model: PagedLlmModelV1,
     batch_size: int = 1,
     dtype=torch.int64,
 ) -> tuple[tuple[AnyTensor], OrderedDict[str, AnyTensor]]:
 
+    config = self.config
     hp = config.hp
     context_len = hp.context_length
     base = torch.arange(context_len) % hp.vocab_size
     tokens = base.repeat(batch_size, 1).long()
 
     page_count = (len(tokens[0]) // config.block_seq_stride) * batch_size
-    kv_cache_state = deterministic_page_table(
-        page_count, config
-    )  # model.cache.allocate(page_count)
+    kv_cache_state = self.cache.allocate(page_count)
 
     seq_block_ids = torch.arange(
         start=0, end=tokens.numel() // config.block_seq_stride, dtype=dtype
@@ -198,9 +168,7 @@ def patch_forward_moe(
     return moe_output
 
 
-def export_llama4_model_mlir(
-    model_or_parameters_path: PagedLlmModelV1 | PathLike,
-    /,
+def export_llama4_toy_model_mlir(
     output_path: PathLike,
     batch_size: int,
     config: LlamaModelConfig,  # TODO; it can be read from HF when comparing the actual model
@@ -217,6 +185,32 @@ def export_llama4_model_mlir(
         # iree_hal_local_target_device_backends=self.iree_hal_local_target_device_backends,
         use_attention_mask=True,
     )
+
+    # patching PagedLlmModelV1 to add toy parameters to the model
+    __real_init = PagedLlmModelV1.__init__
+
+    def _patched_init(self, theta, config, *args, **kwargs):
+        config.rope_layers = {
+            i for i in range(config.hp.block_count) if (i + 1) % 4 != 0
+        }
+        config.use_qk_norm = True
+        config.attention_chunk_size = 37
+        config.attn_temperature_tuning = True
+        config.floor_scale = 31
+        config.attn_scale = 0.2
+        __real_init(self, theta, config, *args, **kwargs)
+
+    PagedLlmModelV1.__init__ = _patched_init
+
+    # patching from_gguf_props for the toy model
+    _real_from = LlamaHParams.from_gguf_props
+
+    def _patched_from_gguf_props(props):
+        if "hparams" in props:
+            return LlamaHParams(**props["hparams"])
+        return _real_from(props)
+
+    LlamaHParams.from_gguf_props = staticmethod(_patched_from_gguf_props)
 
     cli_args = [
         "export_paged_llm_v1",
@@ -260,7 +254,7 @@ def export_llama4_model_mlir(
     )
 
 
-def export_llama4_iree_parameters(
+def export_llama4_toy_iree_parameters(
     model: PagedLlmModelV1,
     parameters_output_path: PathLike,
     config: LlamaModelConfig,  # TODO; it can be read from HF when comparing the actual model
@@ -268,37 +262,41 @@ def export_llama4_iree_parameters(
     config_dict = {
         "hparams": asdict(config.hp),
     }
-
     dataset = Dataset(config_dict, root_theta=model.theta)
     dataset.save(parameters_output_path)
 
 
-def export_llama4(
+def export_llama4_toy(
     model: PagedLlmModelV1,
-    mlir_output_path: PathLike,
     parameters_output_path: PathLike,
     output_path: PathLike,
     batch_size: int,
     config: LlamaModelConfig,  # TODO; it can be read from HF when comparing the actual model
 ):
-    export_llama4_iree_parameters(model, parameters_output_path, config=config)
-    export_llama4_model_mlir(
-        model, output_path=output_path, config=config, batch_size=batch_size
+    export_llama4_toy_iree_parameters(model, parameters_output_path, config=config)
+    export_llama4_toy_model_mlir(
+        output_path=output_path, config=config, batch_size=batch_size
     )
 
 
-def runCompareIreeAgainstTorchEager(args, atol):
+class TestLlama4IreeEager(TempDirTestBase):
+    def test_compare_iree_against_torch_eager(self):
+        runCompareIreeAgainstTorchEager(tmp_path=self._temp_dir)
+
+
+def runCompareIreeAgainstTorchEager(
+    tmp_path: Path, batch_size: int = 1, atol: float = 1e-1
+):
     seed = 1234
     random.seed(seed)
     torch.manual_seed(seed)
 
-    work_dir = Path(args.work_dir)
+    work_dir = tmp_path
 
     MoeBlock.forward = patch_forward_moe
 
     # add sample_inputs
-    PagedLlmModelV1.sample_inputs = _sample_inputs
-    PagedLlmModelV1.input_mask = staticmethod(deterministic_input_mask)
+    PagedLlmModelV1.sample_inputs = llama4_toy_pefill_sample_inputs
     PagedLlmModelV1.attention_mask = staticmethod(deterministic_attn_mask)
 
     target_theta, target_config = generate(seed)
@@ -307,7 +305,7 @@ def runCompareIreeAgainstTorchEager(args, atol):
         config=target_config,
     )
 
-    _, kw = target_torch_model.sample_inputs(args.batch_size)
+    _, kw = target_torch_model.sample_inputs(batch_size)
     logger.info("running eager prefill for llama4...")
     expected_outputs = target_torch_model.prefill(
         kw["tokens"],
@@ -317,57 +315,34 @@ def runCompareIreeAgainstTorchEager(args, atol):
     )
 
     # Iree model
-    mlir_path = work_dir / "model.mlir"
     parameters_path = work_dir / "parameters.irpa"
 
     logger.info("Exporting llama4 to MLIR...")
-    export_llama4(
+    export_llama4_toy(
         target_torch_model,
         output_path=work_dir,
-        mlir_output_path=mlir_path,
         parameters_output_path=parameters_path,
-        batch_size=args.batch_size,
+        batch_size=batch_size,
         config=target_config,
     )
 
     iree_devices = get_iree_devices(
-        device="hip://5",
+        device="hip://0",
         device_count=1,
     )
     iree_module_path = work_dir / "model.vmfb"
 
     def run_iree_module(iree_devices: list[iree.runtime.HalDevice]):
-        cpu_device = get_iree_devices(driver="local-task", device_count=1)
-        iree_buffere_view_trace_callback = make_hal_buffer_view_trace_default_callback(
-            cpu_device[0]
-        )
-        debug_sink = iree.runtime.HalModuleDebugSink(iree_buffere_view_trace_callback)
 
         iree_module, vm_context, vm_instance = load_iree_module(
             module_path=str(iree_module_path),
             devices=iree_devices,
             parameters_path=str(parameters_path),
-            debug_sink=debug_sink,
         )
-        iree_kw = {
-            "tokens": kw["tokens"],
-            "seq_lens": kw["seq_lens"],
-            "seq_block_ids": kw["seq_block_ids"][0],
-            "cache_state": kw["cache_state"],
-        }
-
-        flat_args = flatten_for_iree_signature(iree_kw)
 
         torch_like_iree_module = TorchLikeIreeModule(
             module=iree_module, devices=iree_devices, vm_context=vm_context
         )
-        """iree_result = run_iree_module_function(
-            module        = iree_module,
-            vm_context    = vm_context,
-            args          = iree_args,
-            device        = iree_devices[0],
-            function_name = "prefill_bs1",
-            )"""
 
         iree_kw_tmp = (
             kw["tokens"],
@@ -376,7 +351,7 @@ def runCompareIreeAgainstTorchEager(args, atol):
             kw["cache_state"],
         )
 
-        iree_result = getattr(torch_like_iree_module, f"prefill_bs{args.batch_size}")(
+        iree_result = getattr(torch_like_iree_module, f"prefill_bs{batch_size}")(
             *iree_kw_tmp
         )
 
@@ -401,11 +376,3 @@ def runCompareIreeAgainstTorchEager(args, atol):
         rtol=0,
         msg=f"Actual vs expected results diff > {atol}",
     )
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--work_dir", type=str)
-    parser.add_argument("--batch_size", type=int)
-    args = parser.parse_args()
-    runCompareIreeAgainstTorchEager(args, atol=1e-1)

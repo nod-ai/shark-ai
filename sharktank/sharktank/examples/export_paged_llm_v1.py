@@ -54,7 +54,6 @@ def main():
     dataset_type = "irpa" if "irpa" in dataset_type else "gguf"
     dataset = cli.get_input_dataset(args)
     hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
-
     if "tensor_parallelism_size" in dataset.properties:
         dataset_tensor_parallelism_size = dataset.properties["tensor_parallelism_size"]
         if dataset_tensor_parallelism_size != args.tensor_parallelism_size:
@@ -70,9 +69,6 @@ def main():
     block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
         dataset.root_theta, args.pipeline_parallelism_size
     )
-    if hp.model_arch == "llama4":
-        rope_layers = [i for i in range(hp.block_count) if int((i + 1) % 4 != 0)]
-
     llama_config = LlamaModelConfig(
         hp,
         tensor_parallelism_size=args.tensor_parallelism_size,
@@ -86,17 +82,8 @@ def main():
         activation_dtype=args.activation_dtype,
         attention_dtype=args.attention_dtype,
         kv_cache_dtype=args.kv_cache_dtype,
-        use_qk_norm=True if hp.model_arch == "llama4" else args.use_qk_norm,
-        rope_layers=rope_layers if hp.model_arch == "llama4" else None,
-        attention_chunk_size=args.attention_chunk_size,
-        attn_temperature_tuning=True
-        if hp.model_arch == "llama4"
-        else args.attn_temperature_tuning,
-        floor_scale=args.floor_scale,
-        attn_scale=args.attn_scale,
     )
     llama_config.fake_quant = args.fake_quant
-
     model = PagedLlmModelV1(dataset.root_theta, llama_config)
 
     def generate_params_json(
@@ -147,6 +134,7 @@ def main():
 
     def setup_cache(model, shard_count):
         if model.config.kv_cache_type == "paged":
+
             cache_state = model.cache.allocate(
                 page_count=hp.context_length // llama_config.block_seq_stride
             )
@@ -208,6 +196,7 @@ def main():
         block_dim = torch.export.Dim("block", min=block_dim_min, max=block_dim_max)
         sl_dim = llama_config.block_seq_stride * block_dim
         seq_block_ids = torch.empty(bs, block_dim_min, dtype=torch.int64)
+
         tokens = torch.empty(
             bs,
             seq_block_ids.shape[1] * llama_config.block_seq_stride,
