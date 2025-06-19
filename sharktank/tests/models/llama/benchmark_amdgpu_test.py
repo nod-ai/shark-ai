@@ -225,7 +225,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         self.prefill_args = self.prefill_args_fp8[128]
         self.decode_args = self.decode_args_fp8[128]
 
-        self.export_compile_benchmark(batch_size=4)
+        self.export_compile_benchmark()
 
     @parameterized.expand((((128,), (2048,))))
     @is_nightly
