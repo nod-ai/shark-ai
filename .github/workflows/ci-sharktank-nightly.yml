@@ -211,7 +211,7 @@ jobs:
           ls -lha /shark-dev/70b/instruct/weights
           ls -lha /shark-dev/405b/instruct/weights
           ls -lha /shark-dev/405b
-          ls -lha /shark-dev/70b/instruct/weights/tp8
+          ls -lha /shark-dev/405b/instruct/weights/tp8
           pytest \
             -n 8 \
             -v \
