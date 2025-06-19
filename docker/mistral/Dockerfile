@@ -5,6 +5,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PATH="/shark-ai/.venv/bin:$PATH" \
     UV_HTTP_TIMEOUT=300
 
+ARG SHARK_AI_COMMIT
+
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     libsm6 \
@@ -36,7 +38,7 @@ ENV PATH="/root/.local/bin:$PATH"
 # Install shark-ai and its dependencies
 RUN git clone https://github.com/nod-ai/shark-ai.git && \
     cd shark-ai && \
-    git checkout b2da6775654266594cfd7519509cd67fb1ef8af1 && \
+    git checkout ${SHARK_AI_COMMIT} && \
     uv venv -p python3.12 && . .venv/bin/activate && \
     uv pip install pip setuptools wheel pybind11 'nanobind<2' numpy~=1.10 pandas && \
     uv pip install  hip-python hip-python-as-cuda -i https://test.pypi.org/simple && \

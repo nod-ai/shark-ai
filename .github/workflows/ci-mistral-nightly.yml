@@ -52,6 +52,7 @@ jobs:
       - name: Build Docker image
         run: |
           docker buildx build \
+            --build-arg SHARK_AI_COMMIT=${{ github.sha }} \
             --cache-from=type=registry,ref=ghcr.io/nod-ai/shark-ai/${DOCKER_IMAGE}:buildcache \
             --cache-to=type=registry,ref=ghcr.io/nod-ai/shark-ai/${DOCKER_IMAGE}:buildcache,mode=max \
             -t ${DOCKER_IMAGE}:${DOCKER_TAG} \
