@@ -104,6 +104,13 @@ def add_service_args(parser: argparse.ArgumentParser):
         help="Algorithm to use for prefix sharing in KV cache",
     )
     parser.add_argument(
+        "--mooncake_config_path",
+        type=str,
+        default="none",
+        help="Path to the Mooncake configuration file. "
+        "By default, it is set to 'none', meaning no Mooncake store will be used.",
+    )
+    parser.add_argument(
         "--num_beams",
         type=int,
         default=1,

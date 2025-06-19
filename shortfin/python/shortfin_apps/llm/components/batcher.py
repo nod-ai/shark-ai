@@ -364,7 +364,6 @@ class LlmExecutorProcess(sf.Process):
             if len(result) > 1:
                 indices = result[1]
 
-            await device0
             # publish cache pages
             for r in self.exec_requests:
                 total_tokens = r.start_position + len(r.input_token_ids)

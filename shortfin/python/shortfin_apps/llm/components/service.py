@@ -122,11 +122,11 @@ class LlmGenerateService(GenerateService):
         page_pool = PagePool(devices=self.devices, config=page_pool_config)
 
         if self.server_params.prefix_sharing_algorithm == "trie":
-            if self.mooncake_config_path is not None:
+            if self.server_params.mooncake_config_path != "none":
                 self.page_cache = MooncakePagedAttentionCache(
                     page_pool=page_pool,
                     tokens_per_page=self.model_params.paged_kv_cache.block_seq_stride,
-                    mooncake_config_path=self.mooncake_config_path,
+                    mooncake_config_path=self.server_params.mooncake_config_path,
                 )
             else:
                 self.page_cache = TriePagedAttentionCache(

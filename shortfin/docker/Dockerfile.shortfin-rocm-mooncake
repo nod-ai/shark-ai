@@ -43,6 +43,6 @@ ENV OUTPUT_CONFIG_PATH=$EXPORT_DIR/config.json
 ENV VMFB_PATH=$EXPORT_DIR/model.vmfb
 ENV BS=4
 ENV ROCR_VISIBLE_DEVICES=0
-ENV MOONCAKE_CONFIG_PATH=/app/models/Mooncake/mooncake.json
+#ENV MOONCAKE_CONFIG_PATH=/app/models/Mooncake/mooncake.json
 
 CMD ["/bin/bash"]

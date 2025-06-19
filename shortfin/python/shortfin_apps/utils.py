@@ -391,11 +391,6 @@ class GenerateService:
         self.fibers_per_device = fibers_per_device
         self.validate_fiber_configuration()
 
-        # Mooncake configuration path
-        self.mooncake_config_path = None
-        if "MOONCAKE_CONFIG_PATH" in os.environ:
-            self.mooncake_config_path = os.getenv("MOONCAKE_CONFIG_PATH")
-
     def set_isolation(self, isolation_str: str = "per_call"):
         """Set the program isolation mode from a string.
 
