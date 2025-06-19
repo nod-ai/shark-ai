@@ -36,7 +36,7 @@ jobs:
         include:
           - runs-on: windows-2022
             python-version: "3.12"
-            torch-version: "2.7.1"
+            torch-version: "2.6.0"
       fail-fast: false
     runs-on: ${{matrix.runs-on}}
     defaults:
@@ -141,7 +141,7 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.12"]
-        torch-version: ["2.7.1"]
+        torch-version: ["2.6.0"]
         iree-target-args: ["--iree-hip-target=gfx942 --iree-hal-target-device=hip"]
         runs-on: [linux-mi300-1gpu-ossci-nod-ai]
       fail-fast: false
