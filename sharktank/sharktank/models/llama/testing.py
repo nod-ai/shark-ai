@@ -7,7 +7,7 @@
 from typing import Optional
 import torch
 
-from sharktank.types.tensors import *
+from sharktank.types import *
 from sharktank.types.theta import Theta
 from sharktank.layers.configs import LlamaModelConfig
 from sharktank.utils.testing import make_rand_torch
@@ -22,8 +22,9 @@ def make_attention_block_theta(
     feature_dim: int,
     ffn_dim: int,
     dtype: torch.dtype | None = None,
+    quantize_qkv: bool = False,
 ) -> Theta:
-    return Theta(
+    sample_theta = Theta(
         {
             "attn_q.weight": DefaultPrimitiveTensor(
                 data=make_rand_torch((feature_dim, feature_dim), dtype=dtype)
@@ -54,6 +55,18 @@ def make_attention_block_theta(
             ),
         }
     )
+    if quantize_qkv:
+        internal_dict = sample_theta.flatten()
+        names = [f"{i}.q_input" for i in ["attn_q", "attn_k", "attn_v"]]
+        for name in names:
+            internal_dict[name] = StaticScaledQuantizer(
+                name=name,
+                scale=torch.tensor(1.0),
+                reciprocal_scale=torch.tensor(1.0),
+                dtype=torch.float8_e4m3fnuz,
+            )
+        sample_theta = Theta(internal_dict)
+    return sample_theta
 
 
 def make_attention_block_ffn_theta_v2(
@@ -65,6 +78,7 @@ def make_attention_block_ffn_theta_v2(
     embedding_length: int,
     feed_forward_length: int,
     dtype: torch.dtype | None = None,
+    quantize_qkv: bool = False,
 ) -> Theta:
     attention_theta = make_llama_attention_block_theta(
         block_idx=block_idx,
@@ -73,6 +87,7 @@ def make_attention_block_ffn_theta_v2(
         head_dim=head_dim,
         embedding_length=embedding_length,
         dtype=dtype,
+        quantize_qkv=quantize_qkv,
     )
     ffn_theta = make_ffn_block_theta(
         block_idx=block_idx,
@@ -116,6 +131,7 @@ def make_random_llama_theta(
     config: LlamaModelConfig,
     vocab_size: Optional[int] = None,
     dtype: Optional[torch.dtype] = None,
+    quantize_qkv: bool = False,
 ) -> Theta:
     if vocab_size is None:
         vocab_size = config.hp.vocab_size
@@ -143,6 +159,7 @@ def make_random_llama_theta(
                 embedding_length=config.hp.embedding_length,
                 feed_forward_length=config.hp.feed_forward_length,
                 dtype=dtype,
+                quantize_qkv=quantize_qkv,
             ).tree
         res[f"blk.{i}"] = block
 

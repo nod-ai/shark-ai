@@ -7,7 +7,7 @@
 from .testing import make_random_llama_theta
 
 from sharktank.layers.configs import LlamaHParams, LlamaModelConfig
-from sharktank.types import Dataset
+from sharktank.types import *
 
 import argparse
 import torch
@@ -17,7 +17,7 @@ parser.add_argument("-s", "--seed", default=12345)
 parser.add_argument("-o", "--output", default="/tmp/toy_llama.irpa")
 
 
-def generate(seed):
+def generate(seed, quantize_qkv=False):
     torch.manual_seed(seed)
     dtype = torch.float16
     block_seq_stride = 16
@@ -52,6 +52,7 @@ def generate(seed):
     theta = make_random_llama_theta(
         config=config,
         vocab_size=vocabulary_size,
+        quantize_qkv=quantize_qkv,
     )
     return theta, config
 
