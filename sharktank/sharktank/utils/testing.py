@@ -111,27 +111,38 @@ class MainRunnerTestBase(TempDirTestBase):
 
 
 class IreeVsEagerLLMTest(TempDirTestBase):
-    """Base class for tests that compare IREE and eager execution of an LLM."""
+    """Class for comparing the results of IREE and eager execution of the same LLM."""
 
-    # TODO: Handle decode too
-    def compare_outputs(self, *, rtol: float | None = None, atol: float | None = None):
-        for i, (eager_i, iree_i) in enumerate(
-            zip(self.eager_result, self.iree_results)
-        ):
+    def compare_outputs(
+        self,
+        *,
+        eager_result: torch.Tensor,
+        iree_result: torch.Tensor,
+        stage_name: str,
+        rtol: float | None = None,
+        atol: float | None = None,
+    ) -> None:
+        """
+        Compare the iree results with the eager results, one sequence at a time.
+
+        Args:
+            eager_result: The result from the eager execution
+            iree_result: The result from the IREE execution
+            stage_name: The name of the stage being compared (e.g., "prefill", "decode")
+            rtol: Relative tolerance for the comparison
+            atol: Absolute tolerance for the comparison
+        """
+        for i, (eager_i, iree_i) in enumerate(zip(eager_result, iree_result)):
             try:
                 torch.testing.assert_close(
                     actual=iree_i, expected=eager_i, rtol=rtol, atol=atol
                 )
             except AssertionError as error:
                 raise AssertionError(
-                    f"Outputs do not match for batch index {i}:\n"
+                    f"Outputs do not match for {stage_name} batch index {i}:\n"
                     f"Eager: {eager_i}\n"
                     f"IREE: {iree_i}\n"
                 ) from error
-
-        if self.skip_decode:
-            return
-        # TODO: Decode comparison
 
     def inplace_transfer_theta(self, node: Theta | dict | AnyTensor, dev: torch.device):
         """
@@ -148,7 +159,7 @@ class IreeVsEagerLLMTest(TempDirTestBase):
         for key in node.keys:
             self.inplace_transfer_theta(node.tensor(key), dev)
 
-    def run_iree_vs_eager(
+    def run_and_compare_iree_vs_eager(
         self, *, rtol: float | None = None, atol: float | None = None
     ):
         """
@@ -156,7 +167,21 @@ class IreeVsEagerLLMTest(TempDirTestBase):
         If comparison passes"""
         self.run_eager()
         self.run_iree()
-        self.compare_outputs(rtol=rtol, atol=atol)
+        self.compare_outputs(
+            eager_result=self.eager_prefill_result,
+            iree_result=self.iree_prefill_result,
+            stage="prefill",
+            rtol=rtol,
+            atol=atol,
+        )
+        if not self.skip_decode:
+            self.compare_outputs(
+                eager_result=self.eager_decode_result,
+                iree_result=self.iree_decode_result,
+                stage="decode",
+                rtol=rtol,
+                atol=atol,
+            )
 
     def setup_variables(
         self,
@@ -179,14 +204,23 @@ class IreeVsEagerLLMTest(TempDirTestBase):
 
         self.config = config
         self.skip_decode = skip_decode
-        self.eager_results_path = work_dir / "reference_logits.npy"
-        iree_results_name = "iree_results.npy"
-        self.iree_result_paths = [work_dir / iree_results_name]
-        self.token_ids_path = work_dir / "token_ids.npy"
+        self.eager_results_prefill_path = work_dir / "reference_results_prefill.npy"
+        self.eager_results_decode_path = work_dir / "reference_results_decode.npy"
+        self.iree_results_prefill_path = [work_dir / "iree_results.npy"]
+        self.iree_results_decode_path = [work_dir / "iree_results.npy"]
+        self.token_ids_prefill_path = work_dir / "token_ids_prefill.npy"
+        self.token_ids_decode_path = work_dir / "token_ids_prefill.npy"
         self.seq_lens_path = work_dir / "seq_lens.npy"
         self.seq_block_ids_path = work_dir / "seq_block_ids_before_prefill.npy"
-        self.iree_cache_state_paths = [
-            work_dir / f"iree_cache_state_{i}.npy"
+        self.iree_cache_state_prefill_paths = [
+            work_dir / f"iree_cache_state_prefill_{i}.npy"
+            for i in range(
+                self.config.pipeline_parallelism_size
+                * self.config.tensor_parallelism_size
+            )
+        ]
+        self.iree_cache_state_decode_paths = [
+            work_dir / f"iree_cache_state_decode_{i}.npy"
             for i in range(
                 self.config.pipeline_parallelism_size
                 * self.config.tensor_parallelism_size
@@ -196,19 +230,20 @@ class IreeVsEagerLLMTest(TempDirTestBase):
         self.dataset_path = work_dir / "parameters.irpa"
         self.output_name = work_dir / model_name
 
-        # 1. Get inputs
         self.config.device = torch.device("cuda:0")
-        token_ids, seq_lens = pad_tokens(
+        token_ids_prefill, seq_lens = pad_tokens(
             token_ids=raw_token_ids,
             pad_to_multiple_of=self.config.block_seq_stride,
         )
-        self.token_ids = torch.as_tensor(token_ids, device=self.config.device)
-        np.save(self.token_ids_path, self.token_ids.cpu().numpy())
-        self.token_ids = torch.tensor(
-            np.load(self.token_ids_path), device=self.config.device
+        self.token_ids_prefill = torch.as_tensor(
+            token_ids_prefill, device=self.config.device
+        )
+        np.save(self.token_ids_prefill_path, self.token_ids_prefill.cpu().numpy())
+        self.token_ids_prefill = torch.tensor(
+            np.load(self.token_ids_prefill_path), device=self.config.device
         )
 
-        self.batch_size = self.token_ids.shape[0]
+        self.batch_size = self.token_ids_prefill.shape[0]
 
         seq_lens = torch.as_tensor(seq_lens, device=self.config.device)
         np.save(self.seq_lens_path, seq_lens.cpu().numpy())
@@ -220,10 +255,10 @@ class IreeVsEagerLLMTest(TempDirTestBase):
 
         self.inplace_transfer_theta(
             theta, self.config.device
-        )  # TODO: Should I do this?
+        )  # TODO: Should I be doing this, or just do everything on the CPU?
         generator = TorchGenerator(PagedLlmModelV1(theta=theta, config=self.config))
         self.eager_batch = generator.begin_batch(
-            token_ids=self.token_ids,
+            token_ids=self.token_ids_prefill,
             seq_lens=seq_lens,
         )
 
@@ -231,45 +266,88 @@ class IreeVsEagerLLMTest(TempDirTestBase):
             self.seq_block_ids_path,
             self.eager_batch.pad_block_ids().cpu().numpy(),
         )
-
-        # TODO: How come only the iree_cache gets sharded?
-        iree_cache = create_paged_kv_cache(self.config)
-        iree_cache_state = iree_cache.shard_state(self.eager_batch.cache_state)
-        for i, cache_state in enumerate(iree_cache_state):
-            np.save(self.iree_cache_state_paths[i], cache_state.cpu().numpy())
+        self.iree_cache = create_paged_kv_cache(self.config)
 
     def run_eager(self):
-        self.eager_batch.prefill()
-        eager_result = self.eager_batch.prefill_logits
-        np.save(self.eager_results_path, eager_result.cpu().numpy())
-        self.eager_result = torch.tensor(
-            np.load(self.eager_results_path), device=torch.device("cpu")
+        """
+        Run the eager execution of the LLM prefill and decode stages.
+        Saveing the cache state before each stage to be used in IREE execution.
+        """
+        # TODO: How come only the iree_cache gets sharded?
+        iree_cache_state = self.iree_cache.shard_state(self.eager_batch.cache_state)
+        for i, cache_state in enumerate(iree_cache_state):
+            np.save(self.iree_cache_state_prefill_paths[i], cache_state.cpu().numpy())
+
+        eager_decode_tokens = self.eager_batch.prefill()
+        np.save(self.token_ids_decode_path, eager_decode_tokens.cpu().numpy())
+
+        eager_prefill_result = self.eager_batch.prefill_logits
+        np.save(self.eager_results_prefill_path, eager_prefill_result.cpu().numpy())
+        self.eager_prefill_result = torch.tensor(
+            np.load(self.eager_results_prefill_path), device=torch.device("cpu")
         )
+
+        if not self.skip_decode:
+            iree_cache_state = self.iree_cache.shard_state(self.eager_batch.cache_state)
+            for i, cache_state in enumerate(iree_cache_state):
+                np.save(
+                    self.iree_cache_state_decode_paths[i], cache_state.cpu().numpy()
+                )
+
+            # Get last logit for each sequence.
+            # Convert to token ids.
+
+            self.eager_batch.decode(token_batch=eager_decode_tokens)
+            eager_decode_result = self.eager_batch.decode_logits
+            np.save(self.eager_results_decode_path, eager_decode_result.cpu().numpy())
+            self.eager_decode_result = torch.tensor(
+                np.load(self.eager_results_decode_path), device=torch.device("cpu")
+            )
+
         self.config.device = torch.device("cpu")  # Switch back to cpu for tracing
 
     def run_iree(self):
+        """
+        Run the iree execution using the inputs from the eager execution.
+        """
         from sharktank.utils.export_artifacts import ExportArtifacts
 
-        prefill_args = [
-            f"--function=prefill_bs{self.batch_size}",
-            f"--input=@{self.token_ids_path}",
-            f"--input=@{self.seq_lens_path}",
-            f"--input=@{self.seq_block_ids_path}",
-            *(f"--input=@{path}" for path in self.iree_cache_state_paths),
-        ]
         exporter = ExportArtifacts.from_config(
             self.config,
             irpa_path=self.dataset_path,
-            batch_size=self.batch_size,
             iree_hip_target=self.iree_hip_target,
             iree_hal_target_device=self.iree_hal_target_device,
             hip_device_id=self.iree_device,
             output_name=self.output_name,
         )
-        exporter.export_and_compile_llm(skip_decode=self.skip_decode)
-        self.iree_results = exporter.iree_run(
-            extra_args=prefill_args, output_paths=self.iree_result_paths
+
+        exporter.export_and_compile_llm(
+            batch_size=self.batch_size, skip_decode=self.skip_decode
         )
+
+        prefill_args = [
+            f"--function=prefill_bs{self.batch_size}",
+            f"--input=@{self.token_ids_prefill_path}",
+            f"--input=@{self.seq_lens_path}",
+            f"--input=@{self.seq_block_ids_path}",
+            *(f"--input=@{path}" for path in self.iree_cache_state_prefill_paths),
+        ]
+        self.iree_prefill_result = exporter.iree_run(
+            extra_args=prefill_args, output_paths=self.iree_results_prefill_path
+        )[0]
+
+        if not self.skip_decode:
+            decode_args = [
+                f"--function=decode_bs{self.batch_size}",
+                f"--input=@{self.token_ids_decode_path}",
+                f"--input=@{self.seq_lens_path}",
+                f"--input=@{self.start_positions_path}",
+                f"--input=@{self.seq_block_ids_path}",
+                *(f"--input=@{path}" for path in self.iree_cache_state_decode_paths),
+            ]
+            self.iree_decode_result = exporter.iree_run(
+                extra_args=decode_args, output_paths=self.iree_results_decode_path
+            )[0]
 
 
 @contextlib.contextmanager

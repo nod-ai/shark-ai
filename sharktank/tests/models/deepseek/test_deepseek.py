@@ -66,6 +66,6 @@ class DeepseekTest(IreeVsEagerLLMTest):
             config=config,
             raw_token_ids=raw_token_ids,
             model_name="toy_deepseek",
-            skip_decode=True,
+            skip_decode=False,
         )
-        self.run_iree_vs_eager()
+        self.run_and_compare_iree_vs_eager()

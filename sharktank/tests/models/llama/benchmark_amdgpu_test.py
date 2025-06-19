@@ -188,7 +188,6 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
     def test_benchmark8B_f16_tp1(self, input_size: int):
         self.export_artifact = ExportArtifacts(
             irpa_path=self.llama3_8b_f16_model,
-            batch_size=4,
             iree_hip_target=self.iree_hip_target,
             iree_hal_target_device=self.iree_hal_target_device,
             attention_kernel="torch",
@@ -202,13 +201,12 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         self.prefill_args = self.prefill_args_fp16[input_size]
         self.decode_args = self.decode_args_fp16[input_size]
 
-        self.export_compile_benchmark()
+        self.export_compile_benchmark(batch_size=4)
 
     @is_nightly
     def test_benchmark8B_fp8_tp1_input_len_128(self):
         self.export_artifact = ExportArtifacts(
             irpa_path=self.llama3_8b_f8_model,
-            batch_size=4,
             iree_hip_target=self.iree_hip_target,
             iree_hal_target_device=self.iree_hal_target_device,
             attention_kernel="torch",
@@ -225,14 +223,13 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         self.prefill_args = self.prefill_args_fp8[128]
         self.decode_args = self.decode_args_fp8[128]
 
-        self.export_compile_benchmark()
+        self.export_compile_benchmark(batch_size=4)
 
     @parameterized.expand((((128,), (2048,))))
     @is_nightly
     def test_benchmark8B_fp8_attnf8_tp1(self, input_size: int):
         self.export_artifact = ExportArtifacts(
             irpa_path=self.llama3_8b_f8_attnf8_model,
-            batch_size=4,
             iree_hip_target=self.iree_hip_target,
             iree_hal_target_device=self.iree_hal_target_device,
             attention_kernel="sharktank",
@@ -250,7 +247,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         self.prefill_args = self.prefill_args_fp8[input_size]
         self.decode_args = self.decode_args_fp8[input_size]
 
-        self.export_compile_benchmark()
+        self.export_compile_benchmark(batch_size=4)
 
 
 @is_mi300x
@@ -350,7 +347,6 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             irpa_path = self.llama3_70b_f16_tp8_model
         self.export_artifact = ExportArtifacts(
             irpa_path=irpa_path,
-            batch_size=4,
             iree_hip_target=self.iree_hip_target,
             iree_hal_target_device=self.iree_hal_target_device,
             attention_kernel="torch",
@@ -363,7 +359,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         self.prefill_args = self.prefill_args_fp16[tp][input_size]
         self.decode_args = self.decode_args_fp16[tp][input_size]
 
-        self.export_compile_benchmark()
+        self.export_compile_benchmark(batch_size=4)
 
     @pytest.mark.xfail(
         reason="70b fp8 irpa does not exist", strict=True, raises=ExportMlirException
@@ -371,7 +367,6 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
     def test_benchmark70B_fp8_tp1(self):
         self.export_artifact = ExportArtifacts(
             irpa_path=self.llama3_70b_f8_model,
-            batch_size=4,
             iree_hip_target=self.iree_hip_target,
             iree_hal_target_device=self.iree_hal_target_device,
             attention_kernel="torch",
@@ -387,7 +382,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         self.prefill_args = self.iree_run_prefill_args_fp8
         self.decode_args = self.iree_run_decode_args_fp8
 
-        self.export_compile_benchmark()
+        self.export_compile_benchmark(batch_size=4)
 
 
 @is_mi300x
@@ -449,7 +444,6 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
     def test_benchmark405B_f16_tp8(self, input_size: int):
         self.export_artifact = ExportArtifacts(
             irpa_path=self.llama3_405b_f16_tp8_model,
-            batch_size=4,
             iree_hip_target=self.iree_hip_target,
             iree_hal_target_device=self.iree_hal_target_device,
             attention_kernel="torch",
@@ -462,7 +456,9 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         self.prefill_args = self.prefill_args_tp8_fp16[input_size]
         self.decode_args = self.decode_args_tp8_fp16[input_size]
 
-        self.export_compile_benchmark(skip_decode=True)  # TODO: Enable decode
+        self.export_compile_benchmark(
+            batch_size=4, skip_decode=True
+        )  # TODO: Enable decode
 
     @pytest.mark.xfail(
         reason="KeyError in theta.py", strict=True, raises=ExportMlirException
@@ -470,7 +466,6 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
     def test_benchmark405B_fp8_tp8(self):
         self.export_artifact = ExportArtifacts(
             irpa_path=self.llama3_405b_f8_tp8_model,
-            batch_size=4,
             iree_hip_target=self.iree_hip_target,
             iree_hal_target_device=self.iree_hal_target_device,
             attention_kernel="torch",
@@ -486,7 +481,9 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         self.prefill_args = self.iree_run_prefill_args_fp8
         self.decode_args = self.iree_run_decode_args_fp8
 
-        self.export_compile_benchmark(skip_decode=True)  # TODO: Enable decode
+        self.export_compile_benchmark(
+            batch_size=4, skip_decode=True
+        )  # TODO: Enable decode
 
 
 if __name__ == "__main__":
