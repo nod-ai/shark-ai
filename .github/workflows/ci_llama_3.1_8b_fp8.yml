@@ -66,12 +66,12 @@ jobs:
         run: |
           bash scripts/run_iree_benchmark.sh --bs-prefill 4 --bs-decode 4 \
              --parameters /shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
-             --model llama-8B-FP8 | $(pwd)/output_artifacts/iree_benchnark.log
+             --model llama-8B-FP8 | tee $(pwd)/output_artifacts/iree_benchmark.log
 
       - name: Run Offline serving :chat
         run: |
           cd shortfin
-          bash scripts/run_offline_serving.sh \
+          bash ../scripts/run_offline_serving.sh \
              --irpa /shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
              --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
              --vmfb ../output_artifacts/output.vmfb \
@@ -81,7 +81,7 @@ jobs:
       - name: Run Offline serving :reasoning
         run: |
           cd shortfin
-          bash scripts/run_offline_serving.sh \
+          bash ../scripts/run_offline_serving.sh \
              --irpa /shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
              --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
              --vmfb ../output_artifacts/output.vmfb \
@@ -91,7 +91,7 @@ jobs:
       - name: Run Offline serving :summary
         run: |
           cd shortfin
-          bash scripts/run_offline_serving.sh \
+          bash ../scripts/run_offline_serving.sh \
              --irpa /shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
              --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
              --vmfb ../output_artifacts/output.vmfb \
