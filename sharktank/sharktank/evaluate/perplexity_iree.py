@@ -63,6 +63,7 @@ class PerplexityIree:
         use_attention_mask,
         use_hf,
         weight_path_str: str,
+        prefill_length: int | None = None,
         use_toy_model: bool = False,
     ):
         self.torch_device = torch_device
@@ -81,6 +82,8 @@ class PerplexityIree:
         self.use_attention_mask = use_attention_mask
         self.use_hf = use_hf
         self.weight_path_str = weight_path_str
+        assert prefill_length is None or prefill_length >= 1
+        self.prefill_length = prefill_length
         self.use_toy_model = use_toy_model
         self.vm_context: iree.runtime.VmContext = None
         self.cache_state: None | list[ireert.DeviceArray] = None
@@ -149,38 +152,41 @@ class PerplexityIree:
     @timeit
     def compile_model(
         self,
-        output_mlir: str,
-        output_config: str,
-        output_vmfb: str,
+        output_mlir: str | None,
+        output_config: str | None,
+        output_vmfb: str | None,
     ):
-
         logger.info(f" Model: {self.weight_path_str}")
 
         if self.kv_cache_dtype is None:
             self.kv_cache_dtype = self.attention_dtype
-
-        if output_vmfb:
-            self.output_vmfb = output_vmfb
-            logger.info(f" Using pre-compiled vmfb: {self.output_vmfb}")
-        else:
-            export_artifacts = ExportArtifacts(
-                irpa_path=self.weight_path_str,
-                batch_size=self.bs,
-                iree_hip_target=self.iree_hip_target,
-                iree_hal_target_device=self.iree_hal_target_device,
-                attention_kernel=self.attention_kernel,
-                tensor_parallelism_size=self.tensor_parallelism_size,
-                pipeline_parallelism_size=self.pipeline_parallelism_size,
-                block_seq_stride=self.block_seq_stride,
-                use_attention_mask=self.use_attention_mask,
-                activation_dtype=str(self.activation_dtype).split(".")[-1],
-                attention_dtype=str(self.attention_dtype).split(".")[-1],
-                kv_cache_dtype=str(self.kv_cache_dtype).split(".")[-1],
-                use_hf=self.use_hf,
-                output_mlir=output_mlir,
-                output_config=output_config,
-            )
-            self.output_vmfb = export_artifacts.get_artifacts()
+        cwd = (
+            Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent
+            / "perplexity_ci_artifacts/"
+        )
+        export_artifacts = ExportArtifacts(
+            irpa_path=self.weight_path_str,
+            batch_size=self.bs,
+            iree_hip_target=self.iree_hip_target,
+            iree_hal_target_device=self.iree_hal_target_device,
+            hip_device_id=self.iree_devices[0],
+            attention_kernel=self.attention_kernel,
+            tensor_parallelism_size=self.tensor_parallelism_size,
+            pipeline_parallelism_size=self.pipeline_parallelism_size,
+            block_seq_stride=self.block_seq_stride,
+            use_attention_mask=self.use_attention_mask,
+            activation_dtype=str(self.activation_dtype).split(".")[-1],
+            attention_dtype=str(self.attention_dtype).split(".")[-1],
+            kv_cache_dtype=str(self.kv_cache_dtype).split(".")[-1],
+            use_hf=self.use_hf,
+            output_mlir=output_mlir,
+            output_config=output_config,
+            cwd=cwd,
+            skip_if_file_exists=(
+                output_vmfb is not None and Path(output_vmfb).exists()
+            ),
+        )
+        self.output_vmfb = export_artifacts.export_and_compile_llm()
 
     @timeit
     def load_model(
@@ -371,11 +377,11 @@ class PerplexityIree:
             out_logits = []
             model_name = Path(self.weight_path_str).name
             for i in tqdm(
-                range(self.start, self.max_prompt_length - 1),
+                range(self.prefill_length - 1, self.max_prompt_length - 1),
                 mininterval=300,
                 desc=f"eval_iree: Calculating logits for {model_name}",
             ):
-                logger.debug(f"Iteration: {i - self.start}")
+                logger.debug(f"Iteration: {i - self.prefill_length + 1}")
 
                 if skip_decode or len(out_logits) == 0:
                     token_batch = self.token_ids[:, : i + 1]
@@ -408,9 +414,9 @@ class PerplexityIree:
             self.cache_state = None  # Remove saved reference to iree.runtime.DeviceArray before leaving function
             return ops.cat(
                 (
-                    pad_logits[:, : self.start + 1],
+                    pad_logits[:, : self.prefill_length],
                     out_logits,
-                    pad_logits[:, self.start + 1 :],
+                    pad_logits[:, self.prefill_length :],
                 ),
                 dim=1,
             ).to(self.torch_device)
@@ -426,7 +432,8 @@ class PerplexityIree:
             self.token_ids = token_ids
             self.seq_lens = [len(t) for t in self.token_ids]
             # Add context to improve perplexity by starting at 5th token
-            self.start = 5
+            if self.prefill_length is None:
+                self.prefill_length = 6
             self.page_cache_size = 128
             logger.debug(f" Token ids for Evaluation: \n{self.token_ids}\n")
 
@@ -443,7 +450,8 @@ class PerplexityIree:
                 )
 
             # Add context to improve perplexity by starting at 10th token
-            self.start = 10
+            if self.prefill_length is None:
+                self.prefill_length = 11
             self.page_cache_size = (
                 len(self.token_ids[0]) // self.generator.model.config.block_seq_stride
             ) * len(test_prompts) + 1
@@ -469,7 +477,7 @@ class PerplexityIree:
         logger.debug(f"Token ids shape: {self.token_ids.shape}")
 
         return compute_perplexity(
-            self.token_ids, out_logits, self.start, self.max_prompt_length
+            self.token_ids, out_logits, self.prefill_length - 1, self.max_prompt_length
         )
 
 
@@ -509,6 +517,7 @@ def run_perplexity_iree(
         use_hf=args.use_hf,
         bs=bs,
         weight_path_str=str(args.irpa_file),
+        prefill_length=args.prefill_length,
         use_toy_model=args.use_toy_model,
     )
 

@@ -328,6 +328,12 @@ def add_evaluate_options(parser: argparse.ArgumentParser):
         type=str,
         help="Custom prompts to run perplexity",
     )
+    parser.add_argument(
+        "--prefill-length",
+        type=int,
+        default=None,
+        help="Number of tokens for prefill before starting decode.",
+    )
 
 
 def get_input_data_files(args) -> Optional[dict[str, list[Path]]]:
