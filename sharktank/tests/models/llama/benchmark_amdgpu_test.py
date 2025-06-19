@@ -202,7 +202,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         self.prefill_args = self.prefill_args_fp16[input_size]
         self.decode_args = self.decode_args_fp16[input_size]
 
-        self.export_compile_benchmark(batch_size=4)
+        self.export_compile_benchmark()
 
     @is_nightly
     def test_benchmark8B_fp8_tp1_input_len_128(self):
@@ -250,7 +250,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         self.prefill_args = self.prefill_args_fp8[input_size]
         self.decode_args = self.decode_args_fp8[input_size]
 
-        self.export_compile_benchmark(batch_size=4)
+        self.export_compile_benchmark()
 
 
 @is_mi300x
@@ -365,7 +365,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         self.prefill_args = self.prefill_args_fp16[tp][input_size]
         self.decode_args = self.decode_args_fp16[tp][input_size]
 
-        self.export_compile_benchmark(batch_size=4)
+        self.export_compile_benchmark()
 
     @pytest.mark.xfail(
         reason="70b fp8 irpa does not exist", strict=True, raises=ExportMlirException
@@ -389,7 +389,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         self.prefill_args = self.iree_run_prefill_args_fp8
         self.decode_args = self.iree_run_decode_args_fp8
 
-        self.export_compile_benchmark(batch_size=4)
+        self.export_compile_benchmark()
 
 
 @is_mi300x
@@ -466,9 +466,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         self.prefill_args = self.prefill_args_tp8_fp16[input_size]
         self.decode_args = self.decode_args_tp8_fp16[input_size]
 
-        self.export_compile_benchmark(
-            batch_size=4, skip_decode=True
-        )  # TODO: Enable decode
+        self.export_compile_benchmark(skip_decode=True)  # TODO: Enable decode
 
     @pytest.mark.xfail(
         reason="KeyError in theta.py", strict=True, raises=ExportMlirException
@@ -492,9 +490,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         self.prefill_args = self.iree_run_prefill_args_fp8
         self.decode_args = self.iree_run_decode_args_fp8
 
-        self.export_compile_benchmark(
-            batch_size=4, skip_decode=True
-        )  # TODO: Enable decode
+        self.export_compile_benchmark(skip_decode=True)  # TODO: Enable decode
 
 
 if __name__ == "__main__":
