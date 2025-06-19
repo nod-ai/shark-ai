@@ -134,7 +134,7 @@ class PerplexityTest(unittest.TestCase):
         self.run_and_check_perplexity()
 
     @is_sharded
-    def test_llama3_70B_f16(self):
+    def test_llama3_70B_f16_pp8(self):
         # Llama 3.1 70B fp16 non-decomposed
         self.model_name = "llama3_70B_f16_iree"
         self.irpa_file = self.llama3_70b_f16_model
@@ -146,7 +146,7 @@ class PerplexityTest(unittest.TestCase):
 
     @pytest.mark.skip(reason="70B fp8 model unavailable")
     @is_sharded
-    def test_llama3_70B_f8(self):
+    def test_llama3_70B_f8_tp8(self):
         # Llama 3.1 70B fp8 non-decomposed
         self.model_name = "llama3_70B_f8_iree"
         self.irpa_file = self.llama3_70b_f8_model
@@ -157,7 +157,7 @@ class PerplexityTest(unittest.TestCase):
         self.run_and_check_perplexity()
 
     @is_sharded
-    def test_llama3_405B_f16(self):
+    def test_llama3_405B_f16_tp8(self):
         # Llama 3.1 405B fp16 non-decomposed
         self.model_name = "llama3_405B_f16_iree"
         self.irpa_file = self.llama3_405b_f16_model
@@ -169,7 +169,7 @@ class PerplexityTest(unittest.TestCase):
 
     @pytest.mark.skip(reason="405B fp8 model unavailable")
     @is_sharded
-    def test_llama3_405B_f8(self):
+    def test_llama3_405B_f8_pp8(self):
         # Llama 3.1 405B fp8 non-decomposed
         self.model_name = "llama3_405B_f8_iree"
         self.irpa_file = self.llama3_405b_f8_model
