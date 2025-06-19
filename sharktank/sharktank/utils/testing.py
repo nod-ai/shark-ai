@@ -193,6 +193,18 @@ class IreeVsEagerLLMTest(TempDirTestBase):
         model_name: str = "model",
         skip_decode: bool = False,
     ):
+        """
+        Setup the variables and objectes needed for the IREE vs eager test.
+
+        Args:
+            theta: The Theta object containing the model parameters.
+            config: The configuration for the model.
+            raw_token_ids: The raw token ids to use for the prefill stage.
+            work_dir: The directory to save the results and intermediate files.
+                      If not provided, a temporary directory is used and will be deleted at the end of the run.
+            model_name: The name of the model to be used in the output files.
+            skip_decode: Whether to skip the decode stage. If True, the decode stage will not be run, and the decode results will not be compared.
+        """
         # Note: Here to prevent circular imports
         from sharktank.models.llm.llm import PagedLlmModelV1
         from sharktank.utils.create_cache import create_paged_kv_cache
