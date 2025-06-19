@@ -79,6 +79,14 @@ jobs:
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
 
+          # Create and switch to results branch if it doesn't exist
+          git fetch origin
+          if git show-ref --quiet refs/heads/${RESULTS_BRANCH}; then
+            git checkout ${RESULTS_BRANCH}
+          else
+            git checkout -b ${RESULTS_BRANCH}
+          fi
+
           # Commit and push changes
           git add results/${RESULTS_FILE}
           git commit -m "Update Mistral test results [skip ci]"
