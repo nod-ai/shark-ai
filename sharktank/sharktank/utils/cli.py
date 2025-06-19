@@ -240,6 +240,21 @@ def add_export_artifacts(parser: argparse.ArgumentParser):
         help="Output file path for compiled vmfb file",
         type=str,
     )
+    parser.add_argument(
+        "--extra-compile-arg",
+        help=(
+            "Additional flag(s) to provide to the IREE compiler. "
+            "E.g. `--extra-compile-arg=--compile-mode=vm --extra-compile-arg=--iree-vm-target-extension-f32`"
+        ),
+        action="append",
+        type=str,
+        default=[],
+    )
+    parser.add_argument(
+        "--skip-if-file-exists",
+        help="Skip generation of files if they exist. E.g. MLIR is already exported.",
+        action=argparse.BooleanOptionalAction,
+    )
 
 
 def add_save_tensor_options(parser: argparse.ArgumentParser):

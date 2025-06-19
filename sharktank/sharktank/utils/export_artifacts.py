@@ -407,16 +407,17 @@ class ExportArtifacts:
             compile_args += [
                 f"--iree-hal-dump-executable-files-to={hal_dump_path}/files"
             ]
+
+        compile_args += [
+            "--iree-opt-level=O3",
+            "--iree-hal-indirect-command-buffers=true",
+            "--iree-stream-resource-memory-model=discrete",
+            "--iree-hal-memoization=true",
+        ]
+
         # Append optional arguments if provided
         if extra_args:
             compile_args += extra_args
-        else:
-            compile_args += [
-                "--iree-opt-level=O3",
-                "--iree-hal-indirect-command-buffers=true",
-                "--iree-stream-resource-memory-model=discrete",
-                "--iree-hal-memoization=true",
-            ]
 
         self._run_cmd(
             cmd=subprocess.list2cmdline(compile_args),
@@ -531,4 +532,4 @@ class ExportArtifacts:
         """
         self.export_llm_to_mlir(batch_size=batch_size, skip_decode=skip_decode)
         self.compile_to_vmfb(extra_args=extra_compile_args, hal_dump_path=hal_dump_path)
-        return str(self.output_vmfb.resolve())
+        return str(Path(self.output_vmfb).resolve())
