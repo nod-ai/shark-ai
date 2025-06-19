@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title id="head-title">index.html</title>
+      <link href="assets/style.css" rel="stylesheet" type="text/css"/>
+  </head>
+  <body>
+    <h1 id="title">index.html</h1>
+    <p>Report generated on 19-Jun-2025 at 12:01:17 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a>
+        v4.1.1</p>
+    <div id="environment-header">
+      <h2>Environment</h2>
+    </div>
+    <table id="environment"></table>
+    <!-- TEMPLATES -->
+      <template id="template_environment_row">
+      <tr>
+        <td></td>
+        <td></td>
+      </tr>
+    </template>
+    <template id="template_results-table__body--empty">
+      <tbody class="results-table-row">
+        <tr id="not-found-message">
+          <td colspan="5">No results found. Check the filters.</th>
+        </tr>
+    </template>
+    <template id="template_results-table__tbody">
+      <tbody class="results-table-row">
+        <tr class="collapsible">
+        </tr>
+        <tr class="extras-row">
+          <td class="extra" colspan="5">
+            <div class="extraHTML"></div>
+            <div class="media">
+              <div class="media-container">
+                  <div class="media-container__nav--left"><</div>
+                  <div class="media-container__viewport">
+                    <img src="" />
+                    <video controls>
+                      <source src="" type="video/mp4">
+                    </video>
+                  </div>
+                  <div class="media-container__nav--right">></div>
+                </div>
+                <div class="media__name"></div>
+                <div class="media__counter"></div>
+            </div>
+            <div class="logwrapper">
+              <div class="logexpander"></div>
+              <div class="log"></div>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </template>
+    <!-- END TEMPLATES -->
+    <div class="summary">
+      <div class="summary__data">
+        <h2>Summary</h2>
+        <div class="additional-summary prefix">
+        </div>
+        <p class="run-count">13 tests took 03:22:23.</p>
+        <p class="filter">(Un)check the boxes to filter the results.</p>
+        <div class="summary__reload">
+          <div class="summary__reload__button hidden" onclick="location.reload()">
+            <div>There are still tests running. <br />Reload this page to get the latest results!</div>
+          </div>
+        </div>
+        <div class="summary__spacer"></div>
+        <div class="controls">
+          <div class="filters">
+            <input checked="true" class="filter" name="filter_checkbox" type="checkbox" data-test-result="failed" disabled/>
+            <span class="failed">0 Failed,</span>
+            <input checked="true" class="filter" name="filter_checkbox" type="checkbox" data-test-result="passed" />
+            <span class="passed">10 Passed,</span>
+            <input checked="true" class="filter" name="filter_checkbox" type="checkbox" data-test-result="skipped" />
+            <span class="skipped">1 Skipped,</span>
+            <input checked="true" class="filter" name="filter_checkbox" type="checkbox" data-test-result="xfailed" />
+            <span class="xfailed">3 Expected failures,</span>
+            <input checked="true" class="filter" name="filter_checkbox" type="checkbox" data-test-result="xpassed" disabled/>
+            <span class="xpassed">0 Unexpected passes,</span>
+            <input checked="true" class="filter" name="filter_checkbox" type="checkbox" data-test-result="error" disabled/>
+            <span class="error">0 Errors,</span>
+            <input checked="true" class="filter" name="filter_checkbox" type="checkbox" data-test-result="rerun" disabled/>
+            <span class="rerun">0 Reruns</span>
+          </div>
+          <div class="collapse">
+            <button id="show_all_details">Show all details</button>&nbsp;/&nbsp;<button id="hide_all_details">Hide all details</button>
+          </div>
+        </div>
+      </div>
+      <div class="additional-summary summary">
+      </div>
+      <div class="additional-summary postfix">
+      </div>
+    </div>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable" data-column-type="result">Result</th>
+          <th class="sortable" data-column-type="testId">Test</th>
+          <th>XFail Reason</th>
+          <th class="sortable" data-column-type="duration">Duration</th>
+          <th>Links</th>
+        </tr>
+      </thead>
+    </table>
+  </body>
+  <footer>
+    <div id="data-container" data-jsonblob="{&#34;environment&#34;: {&#34;Python&#34;: &#34;3.11.13&#34;, &#34;Platform&#34;: &#34;Linux-6.8.0-57-generic-x86_64-with-glibc2.35&#34;, &#34;Packages&#34;: {&#34;pytest&#34;: &#34;8.0.0&#34;, &#34;pluggy&#34;: &#34;1.6.0&#34;}, &#34;Plugins&#34;: {&#34;metadata&#34;: &#34;3.1.1&#34;, &#34;xdist&#34;: &#34;3.5.0&#34;, &#34;html&#34;: &#34;4.1.1&#34;, &#34;cov&#34;: &#34;6.2.1&#34;, &#34;anyio&#34;: &#34;4.9.0&#34;, &#34;timeout&#34;: &#34;2.4.0&#34;}, &#34;CI&#34;: &#34;true&#34;}, &#34;tests&#34;: {&#34;tests/evaluate/perplexity_iree_test.py::PerplexityTest::test_llama3_405B_f16&#34;: [{&#34;extras&#34;: [], &#34;result&#34;: &#34;XFailed&#34;, &#34;testId&#34;: &#34;tests/evaluate/perplexity_iree_test.py::PerplexityTest::test_llama3_405B_f16&#34;, &#34;duration&#34;: &#34;2 ms&#34;, &#34;resultsTableRow&#34;: [&#34;&lt;td class=\&#34;col-result\&#34;&gt;XFailed&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-testId\&#34;&gt;tests/evaluate/perplexity_iree_test.py::PerplexityTest::test_llama3_405B_f16&lt;/td&gt;&#34;, &#34;&lt;td&gt;Compile Error&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-duration\&#34;&gt;2 ms&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-links\&#34;&gt;&lt;/td&gt;&#34;], &#34;log&#34;: &#34;[gw3] linux -- Python 3.11.13 /home/runner/_work/shark-ai/shark-ai/.venv/bin/python\n\nself = &amp;lt;tests.evaluate.perplexity_iree_test.PerplexityTest testMethod=test_llama3_405B_f16&amp;gt;\n\n    @is_nightly\n    @pytest.mark.xfail(reason=&amp;quot;Compile Error&amp;quot;)\n    def test_llama3_405B_f16(self):\n        # Llama 3.1 405B non-decomposed\n        self.model_name = &amp;quot;llama3_405B_f16_iree&amp;quot;\n        self.irpa_file = self.llama3_405b_f16_model\n        self.tokenizer = self.llama3_405b_tokenizer\n        self.pipeline_parallelism_size = 8\n    \n        self.prepare_argv()\n&amp;gt;       self.run_and_check_perplexity()\n\nsharktank/tests/evaluate/perplexity_iree_test.py:145: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \nsharktank/tests/evaluate/perplexity_iree_test.py:67: in run_and_check_perplexity\n    current_perplexity = perplexity_iree.main(self.argv)\nsharktank/sharktank/evaluate/perplexity_iree.py:565: in main\n    dataset = cli.get_input_dataset(args)\nsharktank/sharktank/utils/cli.py:368: in get_input_dataset\n    return Dataset.load(data_files[&amp;quot;irpa&amp;quot;][0], file_type=&amp;quot;irpa&amp;quot;, device=device)\nsharktank/sharktank/types/theta.py:403: in load\n    ds = _dataset_load_helper(path, file_type=file_type, mmap=mmap)\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\npath = PosixPath(&amp;#x27;None&amp;#x27;)\n\n    def _dataset_load_helper(\n        path: Union[str, Path],\n        *,\n        file_type: Optional[str] = None,\n        mmap: bool = True,\n    ) -&amp;gt; Dataset:\n        path = Path(path)\n        suffixes = path.suffixes\n&amp;gt;       if file_type == &amp;quot;gguf&amp;quot; or suffixes[-1] == &amp;quot;.gguf&amp;quot;:\nE       IndexError: list index out of range\n\nsharktank/sharktank/types/theta.py:589: IndexError\n&#34;}], &#34;tests/evaluate/perplexity_iree_test.py::PerplexityTest::test_llama3_405B_f8&#34;: [{&#34;extras&#34;: [], &#34;result&#34;: &#34;XFailed&#34;, &#34;testId&#34;: &#34;tests/evaluate/perplexity_iree_test.py::PerplexityTest::test_llama3_405B_f8&#34;, &#34;duration&#34;: &#34;2 ms&#34;, &#34;resultsTableRow&#34;: [&#34;&lt;td class=\&#34;col-result\&#34;&gt;XFailed&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-testId\&#34;&gt;tests/evaluate/perplexity_iree_test.py::PerplexityTest::test_llama3_405B_f8&lt;/td&gt;&#34;, &#34;&lt;td&gt;Compile Error&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-duration\&#34;&gt;2 ms&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-links\&#34;&gt;&lt;/td&gt;&#34;], &#34;log&#34;: &#34;[gw4] linux -- Python 3.11.13 /home/runner/_work/shark-ai/shark-ai/.venv/bin/python\n\nself = &amp;lt;tests.evaluate.perplexity_iree_test.PerplexityTest testMethod=test_llama3_405B_f8&amp;gt;\n\n    @is_nightly\n    @pytest.mark.xfail(reason=&amp;quot;Compile Error&amp;quot;)\n    def test_llama3_405B_f8(self):\n        # Llama 3.1 405B non-decomposed\n        self.model_name = &amp;quot;llama3_405B_f8_iree&amp;quot;\n        self.irpa_file = self.llama3_405b_f8_model\n        self.tokenizer = self.llama3_405b_tokenizer\n        self.pipeline_parallelism_size = 8\n    \n        self.prepare_argv()\n&amp;gt;       self.run_and_check_perplexity()\n\nsharktank/tests/evaluate/perplexity_iree_test.py:157: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \nsharktank/tests/evaluate/perplexity_iree_test.py:67: in run_and_check_perplexity\n    current_perplexity = perplexity_iree.main(self.argv)\nsharktank/sharktank/evaluate/perplexity_iree.py:565: in main\n    dataset = cli.get_input_dataset(args)\nsharktank/sharktank/utils/cli.py:368: in get_input_dataset\n    return Dataset.load(data_files[&amp;quot;irpa&amp;quot;][0], file_type=&amp;quot;irpa&amp;quot;, device=device)\nsharktank/sharktank/types/theta.py:403: in load\n    ds = _dataset_load_helper(path, file_type=file_type, mmap=mmap)\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\npath = PosixPath(&amp;#x27;None&amp;#x27;)\n\n    def _dataset_load_helper(\n        path: Union[str, Path],\n        *,\n        file_type: Optional[str] = None,\n        mmap: bool = True,\n    ) -&amp;gt; Dataset:\n        path = Path(path)\n        suffixes = path.suffixes\n&amp;gt;       if file_type == &amp;quot;gguf&amp;quot; or suffixes[-1] == &amp;quot;.gguf&amp;quot;:\nE       IndexError: list index out of range\n\nsharktank/sharktank/types/theta.py:589: IndexError\n&#34;}], &#34;tests/evaluate/perplexity_torch_test.py::PerplexityTest::test_llama3_405B_f16&#34;: [{&#34;extras&#34;: [], &#34;result&#34;: &#34;Skipped&#34;, &#34;testId&#34;: &#34;tests/evaluate/perplexity_torch_test.py::PerplexityTest::test_llama3_405B_f16::setup&#34;, &#34;duration&#34;: &#34;0 ms&#34;, &#34;resultsTableRow&#34;: [&#34;&lt;td class=\&#34;col-result\&#34;&gt;Skipped&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-testId\&#34;&gt;tests/evaluate/perplexity_torch_test.py::PerplexityTest::test_llama3_405B_f16::setup&lt;/td&gt;&#34;, &#34;&lt;td&gt;&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-duration\&#34;&gt;0 ms&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-links\&#34;&gt;&lt;/td&gt;&#34;], &#34;log&#34;: &#34;[gw4] linux -- Python 3.11.13 /home/runner/_work/shark-ai/shark-ai/.venv/bin/python\n(&amp;#x27;/home/runner/_work/shark-ai/shark-ai/sharktank/tests/evaluate/perplexity_torch_test.py&amp;#x27;, 80, &amp;#x27;Skipped: Non-decomposed attention is not supported yet&amp;#x27;)\n&#34;}], &#34;tests/evaluate/perplexity_torch_test.py::PerplexityTest::test_deepseek_v3_tp&#34;: [{&#34;extras&#34;: [], &#34;result&#34;: &#34;Passed&#34;, &#34;testId&#34;: &#34;tests/evaluate/perplexity_torch_test.py::PerplexityTest::test_deepseek_v3_tp&#34;, &#34;duration&#34;: &#34;00:00:16&#34;, &#34;resultsTableRow&#34;: [&#34;&lt;td class=\&#34;col-result\&#34;&gt;Passed&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-testId\&#34;&gt;tests/evaluate/perplexity_torch_test.py::PerplexityTest::test_deepseek_v3_tp&lt;/td&gt;&#34;, &#34;&lt;td&gt;&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-duration\&#34;&gt;00:00:16&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-links\&#34;&gt;&lt;/td&gt;&#34;], &#34;log&#34;: &#34;[gw3] linux -- Python 3.11.13 /home/runner/_work/shark-ai/shark-ai/.venv/bin/python\n\n------------------------------ Captured log call -------------------------------\nINFO     eval:perplexity_torch.py:374  Total time taken: 15.12 secs\nINFO     eval:perplexity_torch.py:467 \n{\n  &amp;quot;perplexities&amp;quot;: [\n    1483.613037,\n    5522.26709,\n    3269.623535,\n    289.144318\n  ],\n  &amp;quot;mean_perplexity&amp;quot;: 2641.161995\n}\n\n&#34;}], &#34;tests/evaluate/perplexity_iree_test.py::PerplexityTest::test_deepseek_v3_pp2&#34;: [{&#34;extras&#34;: [], &#34;result&#34;: &#34;Passed&#34;, &#34;testId&#34;: &#34;tests/evaluate/perplexity_iree_test.py::PerplexityTest::test_deepseek_v3_pp2&#34;, &#34;duration&#34;: &#34;00:00:30&#34;, &#34;resultsTableRow&#34;: [&#34;&lt;td class=\&#34;col-result\&#34;&gt;Passed&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-testId\&#34;&gt;tests/evaluate/perplexity_iree_test.py::PerplexityTest::test_deepseek_v3_pp2&lt;/td&gt;&#34;, &#34;&lt;td&gt;&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-duration\&#34;&gt;00:00:30&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-links\&#34;&gt;&lt;/td&gt;&#34;], &#34;log&#34;: &#34;[gw1] linux -- Python 3.11.13 /home/runner/_work/shark-ai/shark-ai/.venv/bin/python\n\n------------------------------ Captured log call -------------------------------\nINFO     eval:perplexity_iree.py:159  Model: perplexity_ci_artifacts/toy_deepseek.irpa\nINFO     eval:export_artifacts.py:256 Exporting MLIR:\ncd /home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts &amp;amp;&amp;amp; python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/toy_deepseek.irpa --output-mlir=/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/toy_deepseek_torch_pp2.mlir --output-config=/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/toy_deepseek_torch_pp2.json --bs-prefill=4 --bs-decode=4 --block-seq-stride=32 --attention-dtype=float16 --activation-dtype=float16 --tensor-parallelism-size=1 --pipeline-parallelism-size=2 --attention-kernel=torch --kv-cache-dtype=float16 --use-attention-mask\nINFO     eval:export_artifacts.py:263 Exported to MLIR successfully:\nExporting prefill_bs4\nExporting decode_bs4\nGENERATED!\nExporting\nSaving to &amp;#x27;/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/toy_deepseek_torch_pp2.mlir&amp;#x27;\n\nINFO     eval:export_artifacts.py:284  export_llm_to_mlir: 19.88 secs\nINFO     eval:export_artifacts.py:256 Launching compile command:\ncd /home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts &amp;amp;&amp;amp; iree-compile /home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/toy_deepseek_torch_pp2.mlir -o=/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/toy_deepseek_torch_pp2.vmfb --iree-hal-target-device=hip[0] --iree-hal-target-device=hip[1] --iree-hip-target=gfx942 --iree-opt-level=O3 --iree-hal-indirect-command-buffers=true --iree-stream-resource-memory-model=discrete --iree-hal-memoization=true\nINFO     eval:export_artifacts.py:263 Compiled to VMFB successfully:\n\nINFO     eval:export_artifacts.py:284  compile_to_vmfb: 9.65 secs\nINFO     eval:perplexity_iree.py:545  Total time taken: 30.06 secs\nINFO     eval:perplexity_iree.py:602 \n{\n  &amp;quot;perplexities&amp;quot;: [\n    1477.978394,\n    5501.58252,\n    3291.592773,\n    289.387085\n  ],\n  &amp;quot;mean_perplexity&amp;quot;: 2640.135193\n}\n\n&#34;}], &#34;tests/evaluate/perplexity_iree_test.py::PerplexityTest::test_deepseek_v3&#34;: [{&#34;extras&#34;: [], &#34;result&#34;: &#34;Passed&#34;, &#34;testId&#34;: &#34;tests/evaluate/perplexity_iree_test.py::PerplexityTest::test_deepseek_v3&#34;, &#34;duration&#34;: &#34;00:00:30&#34;, &#34;resultsTableRow&#34;: [&#34;&lt;td class=\&#34;col-result\&#34;&gt;Passed&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-testId\&#34;&gt;tests/evaluate/perplexity_iree_test.py::PerplexityTest::test_deepseek_v3&lt;/td&gt;&#34;, &#34;&lt;td&gt;&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-duration\&#34;&gt;00:00:30&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-links\&#34;&gt;&lt;/td&gt;&#34;], &#34;log&#34;: &#34;[gw0] linux -- Python 3.11.13 /home/runner/_work/shark-ai/shark-ai/.venv/bin/python\n\n------------------------------ Captured log call -------------------------------\nINFO     eval:perplexity_iree.py:159  Model: perplexity_ci_artifacts/toy_deepseek.irpa\nINFO     eval:export_artifacts.py:256 Exporting MLIR:\ncd /home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts &amp;amp;&amp;amp; python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/toy_deepseek.irpa --output-mlir=/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/toy_deepseek_torch.mlir --output-config=/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/toy_deepseek_torch.json --bs-prefill=4 --bs-decode=4 --block-seq-stride=32 --attention-dtype=float16 --activation-dtype=float16 --tensor-parallelism-size=1 --pipeline-parallelism-size=1 --attention-kernel=torch --kv-cache-dtype=float16\nINFO     eval:export_artifacts.py:263 Exported to MLIR successfully:\nExporting prefill_bs4\nExporting decode_bs4\nGENERATED!\nExporting\nSaving to &amp;#x27;/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/toy_deepseek_torch.mlir&amp;#x27;\n\nINFO     eval:export_artifacts.py:284  export_llm_to_mlir: 20.36 secs\nINFO     eval:export_artifacts.py:256 Launching compile command:\ncd /home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts &amp;amp;&amp;amp; iree-compile /home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/toy_deepseek_torch.mlir -o=/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/toy_deepseek_torch.vmfb --iree-hal-target-device=hip --iree-hip-target=gfx942 --iree-opt-level=O3 --iree-hal-indirect-command-buffers=true --iree-stream-resource-memory-model=discrete --iree-hal-memoization=true\nINFO     eval:export_artifacts.py:263 Compiled to VMFB successfully:\n\nINFO     eval:export_artifacts.py:284  compile_to_vmfb: 9.33 secs\nINFO     eval:perplexity_iree.py:545  Total time taken: 30.23 secs\nINFO     eval:perplexity_iree.py:602 \n{\n  &amp;quot;perplexities&amp;quot;: [\n    1477.978394,\n    5501.58252,\n    3291.592773,\n    289.387085\n  ],\n  &amp;quot;mean_perplexity&amp;quot;: 2640.135193\n}\n\n&#34;}], &#34;tests/evaluate/perplexity_iree_test.py::PerplexityTest::test_deepseek_v3_tp2&#34;: [{&#34;extras&#34;: [], &#34;result&#34;: &#34;XFailed&#34;, &#34;testId&#34;: &#34;tests/evaluate/perplexity_iree_test.py::PerplexityTest::test_deepseek_v3_tp2&#34;, &#34;duration&#34;: &#34;00:00:44&#34;, &#34;resultsTableRow&#34;: [&#34;&lt;td class=\&#34;col-result\&#34;&gt;XFailed&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-testId\&#34;&gt;tests/evaluate/perplexity_iree_test.py::PerplexityTest::test_deepseek_v3_tp2&lt;/td&gt;&#34;, &#34;&lt;td&gt;https://github.com/iree-org/iree/issues/20914&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-duration\&#34;&gt;00:00:44&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-links\&#34;&gt;&lt;/td&gt;&#34;], &#34;log&#34;: &#34;[gw2] linux -- Python 3.11.13 /home/runner/_work/shark-ai/shark-ai/.venv/bin/python\n\nself = &amp;lt;tests.evaluate.perplexity_iree_test.PerplexityTest testMethod=test_deepseek_v3_tp2&amp;gt;\n\n    @xfail(\n        raises=IreeCompileException,\n        reason=&amp;quot;https://github.com/iree-org/iree/issues/20914&amp;quot;,\n        strict=True,\n        match=&amp;quot;Error code: 245&amp;quot;,\n    )\n    @is_nightly\n    def test_deepseek_v3_tp2(self):\n        # DeepSeek v3 tensor parallelism\n        self.model_name = &amp;quot;deepseek_v3_iree&amp;quot;\n        self.irpa_file = self.deepseek_v3_tp2_model\n        self.tokenizer = self.deepseek_v3_tokenizer\n        self.tensor_parallelism_size = 2\n    \n        self.prepare_argv(extra_args=(&amp;quot;--use-toy-model&amp;quot;,))\n&amp;gt;       self.run_and_check_perplexity()\n\nsharktank/tests/evaluate/perplexity_iree_test.py:184: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \nsharktank/tests/evaluate/perplexity_iree_test.py:67: in run_and_check_perplexity\n    current_perplexity = perplexity_iree.main(self.argv)\nsharktank/sharktank/evaluate/perplexity_iree.py:593: in main\n    ppl = run_perplexity_iree(\nsharktank/sharktank/evaluate/perplexity_iree.py:524: in run_perplexity_iree\n    perplexity.compile_model(\nsharktank/sharktank/evaluate/perplexity_iree.py:109: in wrapper\n    result = func(*args, **kwargs)\nsharktank/sharktank/evaluate/perplexity_iree.py:189: in compile_model\n    self.output_vmfb = export_artifacts.export_and_compile_llm()\nsharktank/sharktank/utils/export_artifacts.py:531: in export_and_compile_llm\n    self.compile_to_vmfb(extra_args=extra_compile_args, hal_dump_path=hal_dump_path)\nsharktank/sharktank/utils/export_artifacts.py:268: in wrapper\n    result = func(*args, **kwargs)\nsharktank/sharktank/utils/export_artifacts.py:421: in compile_to_vmfb\n    self._run_cmd(\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nself = &amp;lt;sharktank.utils.export_artifacts.ExportArtifacts object at 0x7c1b53fc8190&amp;gt;\ncmd = &amp;#x27;iree-compile /home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/toy_deepseek_tp2_torch.mlir -o=/home/runner...l=O3 --iree-hal-indirect-command-buffers=true --iree-stream-resource-memory-model=discrete --iree-hal-memoization=true&amp;#x27;\nrun_msg = &amp;#x27;Launching compile command&amp;#x27;\nsuccess_msg = &amp;#x27;Compiled to VMFB successfully&amp;#x27;\nexception = &amp;lt;class &amp;#x27;sharktank.utils.export_artifacts.IreeCompileException&amp;#x27;&amp;gt;\n\n    def _run_cmd(\n        self,\n        cmd: str,\n        run_msg: str,\n        success_msg: str,\n        exception: ExportArtifactsException,\n    ) -&amp;gt; None:\n        &amp;quot;&amp;quot;&amp;quot;\n        Helper function to run a command and handle exceptions.\n    \n        Args:\n            cmd: The command to run as a string.\n            run_msg: Message to log before running the command.\n            success_msg: Message to log if the command runs successfully.\n            exception: The exception class to raise if the command fails.\n        &amp;quot;&amp;quot;&amp;quot;\n        logger.info(f&amp;quot;{run_msg}:\\n&amp;quot; f&amp;quot;cd {self.cwd} &amp;amp;&amp;amp; {cmd}&amp;quot;)\n        proc = subprocess.run(\n            cmd, shell=True, capture_output=True, text=True, cwd=self.cwd\n        )\n        if proc.returncode != 0:\n&amp;gt;           raise exception(proc, self.cwd)\nE           sharktank.utils.export_artifacts.IreeCompileException: Error invoking iree-compile\nE           Error code: 245\nE           Stderr diagnostics:\nE           Please report issues to https://github.com/iree-org/iree/issues and include the crash backtrace.\nE           Stack dump without symbol names (ensure you have llvm-symbolizer in your PATH or set the environment var `LLVM_SYMBOLIZER_PATH` to point to it):\nE           \nE           Stdout diagnostics:\nE           \nE           Invoked with:\nE           \tcd /home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts &amp;amp;&amp;amp; iree-compile /home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/toy_deepseek_tp2_torch.mlir -o=/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/toy_deepseek_tp2_torch.vmfb --iree-hal-target-device=hip[0] --iree-hal-target-device=hip[1] --iree-hip-target=gfx942 --iree-opt-level=O3 --iree-hal-indirect-command-buffers=true --iree-stream-resource-memory-model=discrete --iree-hal-memoization=true\n\nsharktank/sharktank/utils/export_artifacts.py:261: IreeCompileException\n\n------------------------------ Captured log call -------------------------------\nINFO     eval:perplexity_iree.py:159  Model: perplexity_ci_artifacts/toy_deepseek_tp2.irpa\nINFO     eval:export_artifacts.py:256 Exporting MLIR:\ncd /home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts &amp;amp;&amp;amp; python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/toy_deepseek_tp2.irpa --output-mlir=/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/toy_deepseek_tp2_torch.mlir --output-config=/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/toy_deepseek_tp2_torch.json --bs-prefill=4 --bs-decode=4 --block-seq-stride=32 --attention-dtype=float16 --activation-dtype=float16 --tensor-parallelism-size=2 --pipeline-parallelism-size=1 --attention-kernel=torch --kv-cache-dtype=float16 --use-attention-mask\nINFO     eval:export_artifacts.py:263 Exported to MLIR successfully:\nExporting prefill_bs4\nExporting decode_bs4\nGENERATED!\nExporting\nSaving to &amp;#x27;/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/toy_deepseek_tp2_torch.mlir&amp;#x27;\n\nINFO     eval:export_artifacts.py:284  export_llm_to_mlir: 38.26 secs\nINFO     eval:export_artifacts.py:256 Launching compile command:\ncd /home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts &amp;amp;&amp;amp; iree-compile /home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/toy_deepseek_tp2_torch.mlir -o=/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/toy_deepseek_tp2_torch.vmfb --iree-hal-target-device=hip[0] --iree-hal-target-device=hip[1] --iree-hip-target=gfx942 --iree-opt-level=O3 --iree-hal-indirect-command-buffers=true --iree-stream-resource-memory-model=discrete --iree-hal-memoization=true\n\n&#34;}], &#34;tests/evaluate/perplexity_torch_test.py::PerplexityTest::test_deepseek_v3&#34;: [{&#34;extras&#34;: [], &#34;result&#34;: &#34;Passed&#34;, &#34;testId&#34;: &#34;tests/evaluate/perplexity_torch_test.py::PerplexityTest::test_deepseek_v3&#34;, &#34;duration&#34;: &#34;00:00:15&#34;, &#34;resultsTableRow&#34;: [&#34;&lt;td class=\&#34;col-result\&#34;&gt;Passed&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-testId\&#34;&gt;tests/evaluate/perplexity_torch_test.py::PerplexityTest::test_deepseek_v3&lt;/td&gt;&#34;, &#34;&lt;td&gt;&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-duration\&#34;&gt;00:00:15&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-links\&#34;&gt;&lt;/td&gt;&#34;], &#34;log&#34;: &#34;[gw1] linux -- Python 3.11.13 /home/runner/_work/shark-ai/shark-ai/.venv/bin/python\n\n------------------------------ Captured log call -------------------------------\nINFO     eval:perplexity_torch.py:374  Total time taken: 14.48 secs\nINFO     eval:perplexity_torch.py:467 \n{\n  &amp;quot;perplexities&amp;quot;: [\n    1478.516846,\n    5466.473633,\n    3303.35376,\n    290.115479\n  ],\n  &amp;quot;mean_perplexity&amp;quot;: 2634.61493\n}\n\n&#34;}], &#34;tests/evaluate/perplexity_torch_test.py::PerplexityTest::test_deepseek_v3_pp&#34;: [{&#34;extras&#34;: [], &#34;result&#34;: &#34;Passed&#34;, &#34;testId&#34;: &#34;tests/evaluate/perplexity_torch_test.py::PerplexityTest::test_deepseek_v3_pp&#34;, &#34;duration&#34;: &#34;00:00:16&#34;, &#34;resultsTableRow&#34;: [&#34;&lt;td class=\&#34;col-result\&#34;&gt;Passed&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-testId\&#34;&gt;tests/evaluate/perplexity_torch_test.py::PerplexityTest::test_deepseek_v3_pp&lt;/td&gt;&#34;, &#34;&lt;td&gt;&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-duration\&#34;&gt;00:00:16&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-links\&#34;&gt;&lt;/td&gt;&#34;], &#34;log&#34;: &#34;[gw2] linux -- Python 3.11.13 /home/runner/_work/shark-ai/shark-ai/.venv/bin/python\n\n------------------------------ Captured log call -------------------------------\nINFO     eval:perplexity_torch.py:374  Total time taken: 15.39 secs\nINFO     eval:perplexity_torch.py:467 \n{\n  &amp;quot;perplexities&amp;quot;: [\n    1478.516846,\n    5466.473633,\n    3303.35376,\n    290.115479\n  ],\n  &amp;quot;mean_perplexity&amp;quot;: 2634.61493\n}\n\n&#34;}], &#34;tests/evaluate/perplexity_iree_test.py::PerplexityTest::test_llama3_8B_f16&#34;: [{&#34;extras&#34;: [], &#34;result&#34;: &#34;Passed&#34;, &#34;testId&#34;: &#34;tests/evaluate/perplexity_iree_test.py::PerplexityTest::test_llama3_8B_f16&#34;, &#34;duration&#34;: &#34;00:35:07&#34;, &#34;resultsTableRow&#34;: [&#34;&lt;td class=\&#34;col-result\&#34;&gt;Passed&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-testId\&#34;&gt;tests/evaluate/perplexity_iree_test.py::PerplexityTest::test_llama3_8B_f16&lt;/td&gt;&#34;, &#34;&lt;td&gt;&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-duration\&#34;&gt;00:35:07&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-links\&#34;&gt;&lt;/td&gt;&#34;], &#34;log&#34;: &#34;[gw5] linux -- Python 3.11.13 /home/runner/_work/shark-ai/shark-ai/.venv/bin/python\n\n------------------------------ Captured log call -------------------------------\nINFO     eval:perplexity_iree.py:159  Model: /shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa\nINFO     eval:export_artifacts.py:256 Exporting MLIR:\ncd /home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts &amp;amp;&amp;amp; python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=/shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa --output-mlir=/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/llama3_1_8b_fp16_instruct_torch.mlir --output-config=/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/llama3_1_8b_fp16_instruct_torch.json --bs-prefill=32 --bs-decode=32 --block-seq-stride=32 --attention-dtype=float16 --activation-dtype=float16 --tensor-parallelism-size=1 --pipeline-parallelism-size=1 --attention-kernel=torch --kv-cache-dtype=float16\nINFO     eval:export_artifacts.py:263 Exported to MLIR successfully:\nExporting prefill_bs32\nExporting decode_bs32\nGENERATED!\nExporting\nSaving to &amp;#x27;/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/llama3_1_8b_fp16_instruct_torch.mlir&amp;#x27;\n\nINFO     eval:export_artifacts.py:284  export_llm_to_mlir: 00 hrs : 01 mins : 27.46 secs\nINFO     eval:export_artifacts.py:256 Launching compile command:\ncd /home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts &amp;amp;&amp;amp; iree-compile /home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/llama3_1_8b_fp16_instruct_torch.mlir -o=/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/llama3_1_8b_fp16_instruct_torch.vmfb --iree-hal-target-device=hip --iree-hip-target=gfx942 --iree-opt-level=O3 --iree-hal-indirect-command-buffers=true --iree-stream-resource-memory-model=discrete --iree-hal-memoization=true\nINFO     eval:export_artifacts.py:263 Compiled to VMFB successfully:\n\nINFO     eval:export_artifacts.py:284  compile_to_vmfb: 22.20 secs\nINFO     eval:perplexity_iree.py:545  Total time taken: 35.07 mins\nINFO     eval:perplexity_iree.py:602 \n{\n  &amp;quot;perplexities&amp;quot;: [\n    6.687015,\n    20.513952,\n    10.167412,\n    12.140376,\n    7.894892,\n    9.724513,\n    22.748415,\n    8.970593,\n    8.756636,\n    15.657732,\n    8.9249,\n    7.752674,\n    17.347174,\n    5.376957,\n    7.064646,\n    11.452452,\n    8.917556,\n    4.296566,\n    9.754743,\n    82.065048,\n    17.777447,\n    21.936453,\n    15.774948,\n    11.582361,\n    7.129235,\n    12.568204,\n    23.738428,\n    16.882326,\n    11.194194,\n    7.376148,\n    16.312702,\n    5.140256\n  ],\n  &amp;quot;mean_perplexity&amp;quot;: 14.175842\n}\n\n&#34;}], &#34;tests/evaluate/perplexity_iree_test.py::PerplexityTest::test_llama3_8B_f8&#34;: [{&#34;extras&#34;: [], &#34;result&#34;: &#34;Passed&#34;, &#34;testId&#34;: &#34;tests/evaluate/perplexity_iree_test.py::PerplexityTest::test_llama3_8B_f8&#34;, &#34;duration&#34;: &#34;00:35:25&#34;, &#34;resultsTableRow&#34;: [&#34;&lt;td class=\&#34;col-result\&#34;&gt;Passed&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-testId\&#34;&gt;tests/evaluate/perplexity_iree_test.py::PerplexityTest::test_llama3_8B_f8&lt;/td&gt;&#34;, &#34;&lt;td&gt;&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-duration\&#34;&gt;00:35:25&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-links\&#34;&gt;&lt;/td&gt;&#34;], &#34;log&#34;: &#34;[gw0] linux -- Python 3.11.13 /home/runner/_work/shark-ai/shark-ai/.venv/bin/python\n\n------------------------------ Captured log call -------------------------------\nINFO     eval:perplexity_iree.py:159  Model: /shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa\nINFO     eval:export_artifacts.py:256 Exporting MLIR:\ncd /home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts &amp;amp;&amp;amp; python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=/shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa --output-mlir=/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/native_fp8_e4m3fnuz_llama3_8b_sharktank.mlir --output-config=/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/native_fp8_e4m3fnuz_llama3_8b_sharktank.json --bs-prefill=32 --bs-decode=32 --block-seq-stride=32 --attention-dtype=float8_e4m3fnuz --activation-dtype=bfloat16 --tensor-parallelism-size=1 --pipeline-parallelism-size=1 --attention-kernel=sharktank --kv-cache-dtype=float8_e4m3fnuz --use-attention-mask --use-hf\nINFO     eval:export_artifacts.py:263 Exported to MLIR successfully:\nExporting prefill_bs32\nExporting decode_bs32\nGENERATED!\nExporting\nSaving to &amp;#x27;/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/native_fp8_e4m3fnuz_llama3_8b_sharktank.mlir&amp;#x27;\n\nINFO     eval:export_artifacts.py:284  export_llm_to_mlir: 00 hrs : 02 mins : 25.77 secs\nINFO     eval:export_artifacts.py:256 Launching compile command:\ncd /home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts &amp;amp;&amp;amp; iree-compile /home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/native_fp8_e4m3fnuz_llama3_8b_sharktank.mlir -o=/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/native_fp8_e4m3fnuz_llama3_8b_sharktank.vmfb --iree-hal-target-device=hip --iree-hip-target=gfx942 --iree-opt-level=O3 --iree-hal-indirect-command-buffers=true --iree-stream-resource-memory-model=discrete --iree-hal-memoization=true\nINFO     eval:export_artifacts.py:263 Compiled to VMFB successfully:\n\nINFO     eval:export_artifacts.py:284  compile_to_vmfb: 27.19 secs\nINFO     eval:perplexity_iree.py:545  Total time taken: 35.38 mins\nINFO     eval:perplexity_iree.py:602 \n{\n  &amp;quot;perplexities&amp;quot;: [\n    6.458154,\n    20.485258,\n    10.168651,\n    12.266599,\n    8.212864,\n    10.131054,\n    23.328968,\n    9.215477,\n    8.295723,\n    16.162075,\n    9.067561,\n    7.903876,\n    18.178272,\n    5.50915,\n    7.282293,\n    11.729745,\n    9.122839,\n    4.401283,\n    9.988413,\n    93.814766,\n    17.282299,\n    21.573978,\n    16.779978,\n    12.099254,\n    7.232882,\n    12.662062,\n    24.583752,\n    17.897511,\n    11.085416,\n    7.463262,\n    16.729027,\n    5.277087\n  ],\n  &amp;quot;mean_perplexity&amp;quot;: 14.762173\n}\n\n&#34;}], &#34;tests/evaluate/perplexity_iree_test.py::PerplexityTest::test_llama3_8B_f16_pp2&#34;: [{&#34;extras&#34;: [], &#34;result&#34;: &#34;Passed&#34;, &#34;testId&#34;: &#34;tests/evaluate/perplexity_iree_test.py::PerplexityTest::test_llama3_8B_f16_pp2&#34;, &#34;duration&#34;: &#34;00:49:48&#34;, &#34;resultsTableRow&#34;: [&#34;&lt;td class=\&#34;col-result\&#34;&gt;Passed&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-testId\&#34;&gt;tests/evaluate/perplexity_iree_test.py::PerplexityTest::test_llama3_8B_f16_pp2&lt;/td&gt;&#34;, &#34;&lt;td&gt;&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-duration\&#34;&gt;00:49:48&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-links\&#34;&gt;&lt;/td&gt;&#34;], &#34;log&#34;: &#34;[gw6] linux -- Python 3.11.13 /home/runner/_work/shark-ai/shark-ai/.venv/bin/python\n\n------------------------------ Captured log call -------------------------------\nINFO     eval:perplexity_iree.py:159  Model: /shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa\nINFO     eval:export_artifacts.py:256 Exporting MLIR:\ncd /home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts &amp;amp;&amp;amp; python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=/shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa --output-mlir=/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/llama3_1_8b_fp16_instruct_torch_pp2.mlir --output-config=/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/llama3_1_8b_fp16_instruct_torch_pp2.json --bs-prefill=32 --bs-decode=32 --block-seq-stride=32 --attention-dtype=float16 --activation-dtype=float16 --tensor-parallelism-size=1 --pipeline-parallelism-size=2 --attention-kernel=torch --kv-cache-dtype=float16 --use-attention-mask\nINFO     eval:export_artifacts.py:263 Exported to MLIR successfully:\nExporting prefill_bs32\nExporting decode_bs32\nGENERATED!\nExporting\nSaving to &amp;#x27;/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/llama3_1_8b_fp16_instruct_torch_pp2.mlir&amp;#x27;\n\nINFO     eval:export_artifacts.py:284  export_llm_to_mlir: 00 hrs : 01 mins : 39.59 secs\nINFO     eval:export_artifacts.py:256 Launching compile command:\ncd /home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts &amp;amp;&amp;amp; iree-compile /home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/llama3_1_8b_fp16_instruct_torch_pp2.mlir -o=/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/llama3_1_8b_fp16_instruct_torch_pp2.vmfb --iree-hal-target-device=hip[0] --iree-hal-target-device=hip[1] --iree-hip-target=gfx942 --iree-opt-level=O3 --iree-hal-indirect-command-buffers=true --iree-stream-resource-memory-model=discrete --iree-hal-memoization=true\nINFO     eval:export_artifacts.py:263 Compiled to VMFB successfully:\n\nINFO     eval:export_artifacts.py:284  compile_to_vmfb: 20.31 secs\nINFO     eval:perplexity_iree.py:545  Total time taken: 49.77 mins\nINFO     eval:perplexity_iree.py:602 \n{\n  &amp;quot;perplexities&amp;quot;: [\n    6.687015,\n    20.513952,\n    10.167412,\n    12.140376,\n    7.894892,\n    9.724513,\n    22.748415,\n    8.970593,\n    8.756636,\n    15.657732,\n    8.9249,\n    7.752674,\n    17.347174,\n    5.376957,\n    7.064646,\n    11.452452,\n    8.917556,\n    4.296566,\n    9.754743,\n    82.065048,\n    17.777447,\n    21.936453,\n    15.774948,\n    11.582361,\n    7.129235,\n    12.568204,\n    23.738428,\n    16.882326,\n    11.194194,\n    7.376148,\n    16.312702,\n    5.140256\n  ],\n  &amp;quot;mean_perplexity&amp;quot;: 14.175842\n}\n\n&#34;}], &#34;tests/evaluate/perplexity_iree_test.py::PerplexityTest::test_llama3_8B_f16_tp2&#34;: [{&#34;extras&#34;: [], &#34;result&#34;: &#34;Passed&#34;, &#34;testId&#34;: &#34;tests/evaluate/perplexity_iree_test.py::PerplexityTest::test_llama3_8B_f16_tp2&#34;, &#34;duration&#34;: &#34;00:57:19&#34;, &#34;resultsTableRow&#34;: [&#34;&lt;td class=\&#34;col-result\&#34;&gt;Passed&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-testId\&#34;&gt;tests/evaluate/perplexity_iree_test.py::PerplexityTest::test_llama3_8B_f16_tp2&lt;/td&gt;&#34;, &#34;&lt;td&gt;&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-duration\&#34;&gt;00:57:19&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-links\&#34;&gt;&lt;/td&gt;&#34;], &#34;log&#34;: &#34;[gw7] linux -- Python 3.11.13 /home/runner/_work/shark-ai/shark-ai/.venv/bin/python\n\n------------------------------ Captured log call -------------------------------\nINFO     eval:perplexity_iree.py:159  Model: /shark-dev/data/llama3.1/weights/8b/fp16/tp2/llama3.1_8b_instruct_fp16_tp2.irpa\nINFO     eval:export_artifacts.py:256 Exporting MLIR:\ncd /home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts &amp;amp;&amp;amp; python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=/shark-dev/data/llama3.1/weights/8b/fp16/tp2/llama3.1_8b_instruct_fp16_tp2.irpa --output-mlir=/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/llama3_1_8b_instruct_fp16_tp2_torch.mlir --output-config=/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/llama3_1_8b_instruct_fp16_tp2_torch.json --bs-prefill=32 --bs-decode=32 --block-seq-stride=32 --attention-dtype=float16 --activation-dtype=float16 --tensor-parallelism-size=2 --pipeline-parallelism-size=1 --attention-kernel=torch --kv-cache-dtype=float16 --use-attention-mask\nINFO     eval:export_artifacts.py:263 Exported to MLIR successfully:\nExporting prefill_bs32\nExporting decode_bs32\nGENERATED!\nExporting\nSaving to &amp;#x27;/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/llama3_1_8b_instruct_fp16_tp2_torch.mlir&amp;#x27;\n\nINFO     eval:export_artifacts.py:284  export_llm_to_mlir: 00 hrs : 03 mins : 7.60 secs\nINFO     eval:export_artifacts.py:256 Launching compile command:\ncd /home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts &amp;amp;&amp;amp; iree-compile /home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/llama3_1_8b_instruct_fp16_tp2_torch.mlir -o=/home/runner/_work/shark-ai/shark-ai/perplexity_ci_artifacts/llama3_1_8b_instruct_fp16_tp2_torch.vmfb --iree-hal-target-device=hip[0] --iree-hal-target-device=hip[1] --iree-hip-target=gfx942 --iree-opt-level=O3 --iree-hal-indirect-command-buffers=true --iree-stream-resource-memory-model=discrete --iree-hal-memoization=true\nINFO     eval:export_artifacts.py:263 Compiled to VMFB successfully:\n\nINFO     eval:export_artifacts.py:284  compile_to_vmfb: 31.44 secs\nINFO     eval:perplexity_iree.py:545  Total time taken: 57.25 mins\nINFO     eval:perplexity_iree.py:602 \n{\n  &amp;quot;perplexities&amp;quot;: [\n    6.687214,\n    20.502594,\n    10.171208,\n    12.143598,\n    7.897742,\n    9.717634,\n    22.754887,\n    8.967373,\n    8.762905,\n    15.66051,\n    8.927197,\n    7.75218,\n    17.352221,\n    5.368608,\n    7.069531,\n    11.453429,\n    8.919102,\n    4.29506,\n    9.76055,\n    82.178566,\n    17.769718,\n    21.929159,\n    15.766619,\n    11.582674,\n    7.12869,\n    12.56014,\n    23.750458,\n    16.892504,\n    11.196695,\n    7.376408,\n    16.315693,\n    5.141947\n  ],\n  &amp;quot;mean_perplexity&amp;quot;: 14.179775\n}\n\n&#34;}], &#34;tests/evaluate/perplexity_torch_test.py::PerplexityTest::test_llama3_8B_f16&#34;: [{&#34;extras&#34;: [], &#34;result&#34;: &#34;Passed&#34;, &#34;testId&#34;: &#34;tests/evaluate/perplexity_torch_test.py::PerplexityTest::test_llama3_8B_f16&#34;, &#34;duration&#34;: &#34;00:22:15&#34;, &#34;resultsTableRow&#34;: [&#34;&lt;td class=\&#34;col-result\&#34;&gt;Passed&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-testId\&#34;&gt;tests/evaluate/perplexity_torch_test.py::PerplexityTest::test_llama3_8B_f16&lt;/td&gt;&#34;, &#34;&lt;td&gt;&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-duration\&#34;&gt;00:22:15&lt;/td&gt;&#34;, &#34;&lt;td class=\&#34;col-links\&#34;&gt;&lt;/td&gt;&#34;], &#34;log&#34;: &#34;[gw5] linux -- Python 3.11.13 /home/runner/_work/shark-ai/shark-ai/.venv/bin/python\n\n------------------------------ Captured log call -------------------------------\nINFO     eval:perplexity_torch.py:374  Total time taken: 22.2 mins\nINFO     eval:perplexity_torch.py:467 \n{\n  &amp;quot;perplexities&amp;quot;: [\n    6.856246,\n    21.063368,\n    9.682927,\n    11.850838,\n    7.641871,\n    9.402802,\n    22.677076,\n    8.288283,\n    8.578341,\n    15.43225,\n    8.690908,\n    7.474853,\n    17.495705,\n    5.067466,\n    6.401249,\n    10.732333,\n    8.73175,\n    4.320084,\n    9.435838,\n    95.422585,\n    17.027664,\n    21.99684,\n    13.481856,\n    10.778012,\n    6.538146,\n    11.028911,\n    23.166994,\n    16.467405,\n    10.183875,\n    6.644026,\n    15.926413,\n    4.930736\n  ],\n  &amp;quot;mean_perplexity&amp;quot;: 14.169302\n}\n\n&#34;}]}, &#34;renderCollapsed&#34;: [&#34;passed&#34;], &#34;initialSort&#34;: &#34;result&#34;, &#34;title&#34;: &#34;index.html&#34;}"></div>
+    <script>
+      (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
+const { getCollapsedCategory, setCollapsedIds } = require('./storage.js')
+
+class DataManager {
+    setManager(data) {
+        const collapsedCategories = [...getCollapsedCategory(data.renderCollapsed)]
+        const collapsedIds = []
+        const tests = Object.values(data.tests).flat().map((test, index) => {
+            const collapsed = collapsedCategories.includes(test.result.toLowerCase())
+            const id = `test_${index}`
+            if (collapsed) {
+                collapsedIds.push(id)
+            }
+            return {
+                ...test,
+                id,
+                collapsed,
+            }
+        })
+        const dataBlob = { ...data, tests }
+        this.data = { ...dataBlob }
+        this.renderData = { ...dataBlob }
+        setCollapsedIds(collapsedIds)
+    }
+
+    get allData() {
+        return { ...this.data }
+    }
+
+    resetRender() {
+        this.renderData = { ...this.data }
+    }
+
+    setRender(data) {
+        this.renderData.tests = [...data]
+    }
+
+    toggleCollapsedItem(id) {
+        this.renderData.tests = this.renderData.tests.map((test) =>
+            test.id === id ? { ...test, collapsed: !test.collapsed } : test,
+        )
+    }
+
+    set allCollapsed(collapsed) {
+        this.renderData = { ...this.renderData, tests: [...this.renderData.tests.map((test) => (
+            { ...test, collapsed }
+        ))] }
+    }
+
+    get testSubset() {
+        return [...this.renderData.tests]
+    }
+
+    get environment() {
+        return this.renderData.environment
+    }
+
+    get initialSort() {
+        return this.data.initialSort
+    }
+}
+
+module.exports = {
+    manager: new DataManager(),
+}
+
+},{"./storage.js":8}],2:[function(require,module,exports){
+const mediaViewer = require('./mediaviewer.js')
+const templateEnvRow = document.getElementById('template_environment_row')
+const templateResult = document.getElementById('template_results-table__tbody')
+
+function htmlToElements(html) {
+    const temp = document.createElement('template')
+    temp.innerHTML = html
+    return temp.content.childNodes
+}
+
+const find = (selector, elem) => {
+    if (!elem) {
+        elem = document
+    }
+    return elem.querySelector(selector)
+}
+
+const findAll = (selector, elem) => {
+    if (!elem) {
+        elem = document
+    }
+    return [...elem.querySelectorAll(selector)]
+}
+
+const dom = {
+    getStaticRow: (key, value) => {
+        const envRow = templateEnvRow.content.cloneNode(true)
+        const isObj = typeof value === 'object' && value !== null
+        const values = isObj ? Object.keys(value).map((k) => `${k}: ${value[k]}`) : null
+
+        const valuesElement = htmlToElements(
+            values ? `<ul>${values.map((val) => `<li>${val}</li>`).join('')}<ul>` : `<div>${value}</div>`)[0]
+        const td = findAll('td', envRow)
+        td[0].textContent = key
+        td[1].appendChild(valuesElement)
+
+        return envRow
+    },
+    getResultTBody: ({ testId, id, log, extras, resultsTableRow, tableHtml, result, collapsed }) => {
+        const resultBody = templateResult.content.cloneNode(true)
+        resultBody.querySelector('tbody').classList.add(result.toLowerCase())
+        resultBody.querySelector('tbody').id = testId
+        resultBody.querySelector('.collapsible').dataset.id = id
+
+        resultsTableRow.forEach((html) => {
+            const t = document.createElement('template')
+            t.innerHTML = html
+            resultBody.querySelector('.collapsible').appendChild(t.content)
+        })
+
+        if (log) {
+            // Wrap lines starting with "E" with span.error to color those lines red
+            const wrappedLog = log.replace(/^E.*$/gm, (match) => `<span class="error">${match}</span>`)
+            resultBody.querySelector('.log').innerHTML = wrappedLog
+        } else {
+            resultBody.querySelector('.log').remove()
+        }
+
+        if (collapsed) {
+            resultBody.querySelector('.collapsible > td')?.classList.add('collapsed')
+            resultBody.querySelector('.extras-row').classList.add('hidden')
+        } else {
+            resultBody.querySelector('.collapsible > td')?.classList.remove('collapsed')
+        }
+
+        const media = []
+        extras?.forEach(({ name, format_type, content }) => {
+            if (['image', 'video'].includes(format_type)) {
+                media.push({ path: content, name, format_type })
+            }
+
+            if (format_type === 'html') {
+                resultBody.querySelector('.extraHTML').insertAdjacentHTML('beforeend', `<div>${content}</div>`)
+            }
+        })
+        mediaViewer.setup(resultBody, media)
+
+        // Add custom html from the pytest_html_results_table_html hook
+        tableHtml?.forEach((item) => {
+            resultBody.querySelector('td[class="extra"]').insertAdjacentHTML('beforeend', item)
+        })
+
+        return resultBody
+    },
+}
+
+module.exports = {
+    dom,
+    htmlToElements,
+    find,
+    findAll,
+}
+
+},{"./mediaviewer.js":6}],3:[function(require,module,exports){
+const { manager } = require('./datamanager.js')
+const { doSort } = require('./sort.js')
+const storageModule = require('./storage.js')
+
+const getFilteredSubSet = (filter) =>
+    manager.allData.tests.filter(({ result }) => filter.includes(result.toLowerCase()))
+
+const doInitFilter = () => {
+    const currentFilter = storageModule.getVisible()
+    const filteredSubset = getFilteredSubSet(currentFilter)
+    manager.setRender(filteredSubset)
+}
+
+const doFilter = (type, show) => {
+    if (show) {
+        storageModule.showCategory(type)
+    } else {
+        storageModule.hideCategory(type)
+    }
+
+    const currentFilter = storageModule.getVisible()
+    const filteredSubset = getFilteredSubSet(currentFilter)
+    manager.setRender(filteredSubset)
+
+    const sortColumn = storageModule.getSort()
+    doSort(sortColumn, true)
+}
+
+module.exports = {
+    doFilter,
+    doInitFilter,
+}
+
+},{"./datamanager.js":1,"./sort.js":7,"./storage.js":8}],4:[function(require,module,exports){
+const { redraw, bindEvents, renderStatic } = require('./main.js')
+const { doInitFilter } = require('./filter.js')
+const { doInitSort } = require('./sort.js')
+const { manager } = require('./datamanager.js')
+const data = JSON.parse(document.getElementById('data-container').dataset.jsonblob)
+
+function init() {
+    manager.setManager(data)
+    doInitFilter()
+    doInitSort()
+    renderStatic()
+    redraw()
+    bindEvents()
+}
+
+init()
+
+},{"./datamanager.js":1,"./filter.js":3,"./main.js":5,"./sort.js":7}],5:[function(require,module,exports){
+const { dom, find, findAll } = require('./dom.js')
+const { manager } = require('./datamanager.js')
+const { doSort } = require('./sort.js')
+const { doFilter } = require('./filter.js')
+const {
+    getVisible,
+    getCollapsedIds,
+    setCollapsedIds,
+    getSort,
+    getSortDirection,
+    possibleFilters,
+} = require('./storage.js')
+
+const removeChildren = (node) => {
+    while (node.firstChild) {
+        node.removeChild(node.firstChild)
+    }
+}
+
+const renderStatic = () => {
+    const renderEnvironmentTable = () => {
+        const environment = manager.environment
+        const rows = Object.keys(environment).map((key) => dom.getStaticRow(key, environment[key]))
+        const table = document.getElementById('environment')
+        removeChildren(table)
+        rows.forEach((row) => table.appendChild(row))
+    }
+    renderEnvironmentTable()
+}
+
+const addItemToggleListener = (elem) => {
+    elem.addEventListener('click', ({ target }) => {
+        const id = target.parentElement.dataset.id
+        manager.toggleCollapsedItem(id)
+
+        const collapsedIds = getCollapsedIds()
+        if (collapsedIds.includes(id)) {
+            const updated = collapsedIds.filter((item) => item !== id)
+            setCollapsedIds(updated)
+        } else {
+            collapsedIds.push(id)
+            setCollapsedIds(collapsedIds)
+        }
+        redraw()
+    })
+}
+
+const renderContent = (tests) => {
+    const sortAttr = getSort(manager.initialSort)
+    const sortAsc = JSON.parse(getSortDirection())
+    const rows = tests.map(dom.getResultTBody)
+    const table = document.getElementById('results-table')
+    const tableHeader = document.getElementById('results-table-head')
+
+    const newTable = document.createElement('table')
+    newTable.id = 'results-table'
+
+    // remove all sorting classes and set the relevant
+    findAll('.sortable', tableHeader).forEach((elem) => elem.classList.remove('asc', 'desc'))
+    tableHeader.querySelector(`.sortable[data-column-type="${sortAttr}"]`)?.classList.add(sortAsc ? 'desc' : 'asc')
+    newTable.appendChild(tableHeader)
+
+    if (!rows.length) {
+        const emptyTable = document.getElementById('template_results-table__body--empty').content.cloneNode(true)
+        newTable.appendChild(emptyTable)
+    } else {
+        rows.forEach((row) => {
+            if (!!row) {
+                findAll('.collapsible td:not(.col-links', row).forEach(addItemToggleListener)
+                find('.logexpander', row).addEventListener('click',
+                    (evt) => evt.target.parentNode.classList.toggle('expanded'),
+                )
+                newTable.appendChild(row)
+            }
+        })
+    }
+
+    table.replaceWith(newTable)
+}
+
+const renderDerived = () => {
+    const currentFilter = getVisible()
+    possibleFilters.forEach((result) => {
+        const input = document.querySelector(`input[data-test-result="${result}"]`)
+        input.checked = currentFilter.includes(result)
+    })
+}
+
+const bindEvents = () => {
+    const filterColumn = (evt) => {
+        const { target: element } = evt
+        const { testResult } = element.dataset
+
+        doFilter(testResult, element.checked)
+        const collapsedIds = getCollapsedIds()
+        const updated = manager.renderData.tests.map((test) => {
+            return {
+                ...test,
+                collapsed: collapsedIds.includes(test.id),
+            }
+        })
+        manager.setRender(updated)
+        redraw()
+    }
+
+    const header = document.getElementById('environment-header')
+    header.addEventListener('click', () => {
+        const table = document.getElementById('environment')
+        table.classList.toggle('hidden')
+        header.classList.toggle('collapsed')
+    })
+
+    findAll('input[name="filter_checkbox"]').forEach((elem) => {
+        elem.addEventListener('click', filterColumn)
+    })
+
+    findAll('.sortable').forEach((elem) => {
+        elem.addEventListener('click', (evt) => {
+            const { target: element } = evt
+            const { columnType } = element.dataset
+            doSort(columnType)
+            redraw()
+        })
+    })
+
+    document.getElementById('show_all_details').addEventListener('click', () => {
+        manager.allCollapsed = false
+        setCollapsedIds([])
+        redraw()
+    })
+    document.getElementById('hide_all_details').addEventListener('click', () => {
+        manager.allCollapsed = true
+        const allIds = manager.renderData.tests.map((test) => test.id)
+        setCollapsedIds(allIds)
+        redraw()
+    })
+}
+
+const redraw = () => {
+    const { testSubset } = manager
+
+    renderContent(testSubset)
+    renderDerived()
+}
+
+module.exports = {
+    redraw,
+    bindEvents,
+    renderStatic,
+}
+
+},{"./datamanager.js":1,"./dom.js":2,"./filter.js":3,"./sort.js":7,"./storage.js":8}],6:[function(require,module,exports){
+class MediaViewer {
+    constructor(assets) {
+        this.assets = assets
+        this.index = 0
+    }
+
+    nextActive() {
+        this.index = this.index === this.assets.length - 1 ? 0 : this.index + 1
+        return [this.activeFile, this.index]
+    }
+
+    prevActive() {
+        this.index = this.index === 0 ? this.assets.length - 1 : this.index -1
+        return [this.activeFile, this.index]
+    }
+
+    get currentIndex() {
+        return this.index
+    }
+
+    get activeFile() {
+        return this.assets[this.index]
+    }
+}
+
+
+const setup = (resultBody, assets) => {
+    if (!assets.length) {
+        resultBody.querySelector('.media').classList.add('hidden')
+        return
+    }
+
+    const mediaViewer = new MediaViewer(assets)
+    const container = resultBody.querySelector('.media-container')
+    const leftArrow = resultBody.querySelector('.media-container__nav--left')
+    const rightArrow = resultBody.querySelector('.media-container__nav--right')
+    const mediaName = resultBody.querySelector('.media__name')
+    const counter = resultBody.querySelector('.media__counter')
+    const imageEl = resultBody.querySelector('img')
+    const sourceEl = resultBody.querySelector('source')
+    const videoEl = resultBody.querySelector('video')
+
+    const setImg = (media, index) => {
+        if (media?.format_type === 'image') {
+            imageEl.src = media.path
+
+            imageEl.classList.remove('hidden')
+            videoEl.classList.add('hidden')
+        } else if (media?.format_type === 'video') {
+            sourceEl.src = media.path
+
+            videoEl.classList.remove('hidden')
+            imageEl.classList.add('hidden')
+        }
+
+        mediaName.innerText = media?.name
+        counter.innerText = `${index + 1} / ${assets.length}`
+    }
+    setImg(mediaViewer.activeFile, mediaViewer.currentIndex)
+
+    const moveLeft = () => {
+        const [media, index] = mediaViewer.prevActive()
+        setImg(media, index)
+    }
+    const doRight = () => {
+        const [media, index] = mediaViewer.nextActive()
+        setImg(media, index)
+    }
+    const openImg = () => {
+        window.open(mediaViewer.activeFile.path, '_blank')
+    }
+    if (assets.length === 1) {
+        container.classList.add('media-container--fullscreen')
+    } else {
+        leftArrow.addEventListener('click', moveLeft)
+        rightArrow.addEventListener('click', doRight)
+    }
+    imageEl.addEventListener('click', openImg)
+}
+
+module.exports = {
+    setup,
+}
+
+},{}],7:[function(require,module,exports){
+const { manager } = require('./datamanager.js')
+const storageModule = require('./storage.js')
+
+const genericSort = (list, key, ascending, customOrder) => {
+    let sorted
+    if (customOrder) {
+        sorted = list.sort((a, b) => {
+            const aValue = a.result.toLowerCase()
+            const bValue = b.result.toLowerCase()
+
+            const aIndex = customOrder.findIndex((item) => item.toLowerCase() === aValue)
+            const bIndex = customOrder.findIndex((item) => item.toLowerCase() === bValue)
+
+            // Compare the indices to determine the sort order
+            return aIndex - bIndex
+        })
+    } else {
+        sorted = list.sort((a, b) => a[key] === b[key] ? 0 : a[key] > b[key] ? 1 : -1)
+    }
+
+    if (ascending) {
+        sorted.reverse()
+    }
+    return sorted
+}
+
+const durationSort = (list, ascending) => {
+    const parseDuration = (duration) => {
+        if (duration.includes(':')) {
+            // If it's in the format "HH:mm:ss"
+            const [hours, minutes, seconds] = duration.split(':').map(Number)
+            return (hours * 3600 + minutes * 60 + seconds) * 1000
+        } else {
+            // If it's in the format "nnn ms"
+            return parseInt(duration)
+        }
+    }
+    const sorted = list.sort((a, b) => parseDuration(a['duration']) - parseDuration(b['duration']))
+    if (ascending) {
+        sorted.reverse()
+    }
+    return sorted
+}
+
+const doInitSort = () => {
+    const type = storageModule.getSort(manager.initialSort)
+    const ascending = storageModule.getSortDirection()
+    const list = manager.testSubset
+    const initialOrder = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed', 'Skipped', 'Passed']
+
+    storageModule.setSort(type)
+    storageModule.setSortDirection(ascending)
+
+    if (type?.toLowerCase() === 'original') {
+        manager.setRender(list)
+    } else {
+        let sortedList
+        switch (type) {
+        case 'duration':
+            sortedList = durationSort(list, ascending)
+            break
+        case 'result':
+            sortedList = genericSort(list, type, ascending, initialOrder)
+            break
+        default:
+            sortedList = genericSort(list, type, ascending)
+            break
+        }
+        manager.setRender(sortedList)
+    }
+}
+
+const doSort = (type, skipDirection) => {
+    const newSortType = storageModule.getSort(manager.initialSort) !== type
+    const currentAsc = storageModule.getSortDirection()
+    let ascending
+    if (skipDirection) {
+        ascending = currentAsc
+    } else {
+        ascending = newSortType ? false : !currentAsc
+    }
+    storageModule.setSort(type)
+    storageModule.setSortDirection(ascending)
+
+    const list = manager.testSubset
+    const sortedList = type === 'duration' ? durationSort(list, ascending) : genericSort(list, type, ascending)
+    manager.setRender(sortedList)
+}
+
+module.exports = {
+    doInitSort,
+    doSort,
+}
+
+},{"./datamanager.js":1,"./storage.js":8}],8:[function(require,module,exports){
+const possibleFilters = [
+    'passed',
+    'skipped',
+    'failed',
+    'error',
+    'xfailed',
+    'xpassed',
+    'rerun',
+]
+
+const getVisible = () => {
+    const url = new URL(window.location.href)
+    const settings = new URLSearchParams(url.search).get('visible')
+    const lower = (item) => {
+        const lowerItem = item.toLowerCase()
+        if (possibleFilters.includes(lowerItem)) {
+            return lowerItem
+        }
+        return null
+    }
+    return settings === null ?
+        possibleFilters :
+        [...new Set(settings?.split(',').map(lower).filter((item) => item))]
+}
+
+const hideCategory = (categoryToHide) => {
+    const url = new URL(window.location.href)
+    const visibleParams = new URLSearchParams(url.search).get('visible')
+    const currentVisible = visibleParams ? visibleParams.split(',') : [...possibleFilters]
+    const settings = [...new Set(currentVisible)].filter((f) => f !== categoryToHide).join(',')
+
+    url.searchParams.set('visible', settings)
+    window.history.pushState({}, null, unescape(url.href))
+}
+
+const showCategory = (categoryToShow) => {
+    if (typeof window === 'undefined') {
+        return
+    }
+    const url = new URL(window.location.href)
+    const currentVisible = new URLSearchParams(url.search).get('visible')?.split(',').filter(Boolean) ||
+        [...possibleFilters]
+    const settings = [...new Set([categoryToShow, ...currentVisible])]
+    const noFilter = possibleFilters.length === settings.length || !settings.length
+
+    noFilter ? url.searchParams.delete('visible') : url.searchParams.set('visible', settings.join(','))
+    window.history.pushState({}, null, unescape(url.href))
+}
+
+const getSort = (initialSort) => {
+    const url = new URL(window.location.href)
+    let sort = new URLSearchParams(url.search).get('sort')
+    if (!sort) {
+        sort = initialSort || 'result'
+    }
+    return sort
+}
+
+const setSort = (type) => {
+    const url = new URL(window.location.href)
+    url.searchParams.set('sort', type)
+    window.history.pushState({}, null, unescape(url.href))
+}
+
+const getCollapsedCategory = (renderCollapsed) => {
+    let categories
+    if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href)
+        const collapsedItems = new URLSearchParams(url.search).get('collapsed')
+        switch (true) {
+        case !renderCollapsed && collapsedItems === null:
+            categories = ['passed']
+            break
+        case collapsedItems?.length === 0 || /^["']{2}$/.test(collapsedItems):
+            categories = []
+            break
+        case /^all$/.test(collapsedItems) || collapsedItems === null && /^all$/.test(renderCollapsed):
+            categories = [...possibleFilters]
+            break
+        default:
+            categories = collapsedItems?.split(',').map((item) => item.toLowerCase()) || renderCollapsed
+            break
+        }
+    } else {
+        categories = []
+    }
+    return categories
+}
+
+const getSortDirection = () => JSON.parse(sessionStorage.getItem('sortAsc')) || false
+const setSortDirection = (ascending) => sessionStorage.setItem('sortAsc', ascending)
+
+const getCollapsedIds = () => JSON.parse(sessionStorage.getItem('collapsedIds')) || []
+const setCollapsedIds = (list) => sessionStorage.setItem('collapsedIds', JSON.stringify(list))
+
+module.exports = {
+    getVisible,
+    hideCategory,
+    showCategory,
+    getCollapsedIds,
+    setCollapsedIds,
+    getSort,
+    setSort,
+    getSortDirection,
+    setSortDirection,
+    getCollapsedCategory,
+    possibleFilters,
+}
+
+},{}]},{},[4]);
+    </script>
+  </footer>
+</html>
