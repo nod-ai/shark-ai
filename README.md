@@ -178,7 +178,7 @@
 | sharktank/tests/models/llama4/llama4\_test.py                                 |       44 |        0 |    100% |           |
 | sharktank/tests/models/llama4/moe\_test.py                                    |       90 |        1 |     99% |       191 |
 | sharktank/tests/models/llama/attention\_test.py                               |       59 |        1 |     98% |       176 |
-| sharktank/tests/models/llama/benchmark\_amdgpu\_test.py                       |      126 |       78 |     38% |33, 36-47, 57-91, 94-102, 111-164, 189-205, 209-228, 233-253, 260-328, 345-366, 372-390, 397-435, 450-465, 471-489, 493 |
+| sharktank/tests/models/llama/benchmark\_amdgpu\_test.py                       |      126 |       78 |     38% |33, 36-47, 57-91, 94-102, 111-164, 189-205, 209-229, 234-255, 262-330, 347-369, 375-394, 401-439, 454-470, 476-495, 499 |
 | sharktank/tests/models/llama/quark\_parity\_test.py                           |       55 |       40 |     27% |21-22, 29-101, 105 |
 | sharktank/tests/models/llama/rot\_emb\_test.py                                |       37 |        1 |     97% |        81 |
 | sharktank/tests/models/llama/sharded\_llama\_test.py                          |      171 |        2 |     99% |  276, 335 |
