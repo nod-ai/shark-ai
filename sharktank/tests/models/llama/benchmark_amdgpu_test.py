@@ -219,6 +219,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             attention_dtype="bfloat16",
             kv_cache_dtype="float8_e4m3fnuz",
             output_name=self.dir_path / "fp8_torch_tp1",
+            hip_device_id=self.iree_device,
         )
         self.prefill_args = self.prefill_args_fp8[128]
         self.decode_args = self.decode_args_fp8[128]
@@ -243,6 +244,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             kv_cache_dtype="float8_e4m3fnuz",
             use_attention_mask=True,
             output_name=self.dir_path / f"fp8_attnf8_{input_size}_tp1",
+            hip_device_id=self.iree_device,
         )
         self.prefill_args = self.prefill_args_fp8[input_size]
         self.decode_args = self.decode_args_fp8[input_size]
@@ -355,6 +357,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             block_seq_stride=32,
             cwd=self.repo_root,
             output_name=output_name,
+            hip_device_id=self.iree_device,
         )
         self.prefill_args = self.prefill_args_fp16[tp][input_size]
         self.decode_args = self.decode_args_fp16[tp][input_size]
@@ -378,6 +381,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             attention_dtype="bfloat16",
             kv_cache_dtype="float8_e4m3fnuz",
             output_name=self.dir_path / "fp8_torch_tp1",
+            hip_device_id=self.iree_device,
         )
         self.prefill_args = self.iree_run_prefill_args_fp8
         self.decode_args = self.iree_run_decode_args_fp8
@@ -452,6 +456,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             block_seq_stride=32,
             cwd=self.repo_root,
             output_name=self.dir_path / f"f16_torch_{input_size}",
+            hip_device_id=self.iree_device,
         )
         self.prefill_args = self.prefill_args_tp8_fp16[input_size]
         self.decode_args = self.decode_args_tp8_fp16[input_size]
@@ -477,6 +482,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
             attention_dtype="bfloat16",
             kv_cache_dtype="float8_e4m3fnuz",
             output_name=self.dir_path / "fp8_torch",
+            hip_device_id=self.iree_device,
         )
         self.prefill_args = self.iree_run_prefill_args_fp8
         self.decode_args = self.iree_run_decode_args_fp8
