@@ -8,6 +8,7 @@ name: CI - Mistral Nightly
 
 on:
   workflow_dispatch:
+  pull_request:
   schedule:
     # Run daily at 2:00 AM UTC
     - cron: "0 2 * * *"
