@@ -93,81 +93,6 @@ def llama4_toy_pefill_sample_inputs(
     return args, kwargs
 
 
-def patch_forward_moe(
-    self,
-    h: torch.Tensor | ShardedTensor,
-):
-    batch_size, sequence_length, feature_dim = h.shape
-    ffn_input = h.view(-1, feature_dim)
-
-    # For each token, the router calculates the router weights for all experts
-    # shape: (batch_size * sequence_length, expert_count)
-    router_logits = self.ffn_gate_inp(ffn_input)
-    router_weights = self.score_experts(router_logits.to(torch.float))
-
-    router_weights = reshard_like(router_weights, like=ffn_input)
-
-    def pick_first_expert(scores: torch.Tensor, k: int = 1):
-
-        shape = scores.shape[:-1] + (k,)
-        top_idx = torch.zeros(shape, dtype=torch.long, device=scores.device)
-        top_gate = torch.ones(shape, dtype=scores.dtype, device=scores.device)
-        return top_gate, top_idx
-
-    # Select top k experts from router weights
-    if self.n_expert_groups is not None and self.n_limited_groups is not None:
-        scores_for_choice = router_weights.view(-1, self.expert_count)
-
-        group_scores = (
-            router_weights.view(
-                -1, self.n_expert_groups, self.expert_count // self.n_expert_groups
-            )
-            .topk(2, dim=-1)[0]
-            .sum(dim=-1)
-        )
-        group_idx = topk(group_scores, k=self.n_limited_groups, dim=-1)[1]
-        group_mask = zeros_like(group_scores)
-        group_mask.scatter_(1, group_idx, 1)
-        score_mask = (
-            group_mask.unsqueeze(-1)
-            .expand(-1, self.n_expert_groups, self.expert_count // self.n_expert_groups)
-            .reshape(-1, self.expert_count)
-        )
-        scores_for_choice = scores_for_choice.masked_fill(~score_mask.bool(), 0.0)
-        # shape: (batch_size * sequence_length, expert_used_count)
-        expert_gate, top_k_experts = topk(
-            scores_for_choice, k=self.expert_used_count, dim=-1
-        )
-    else:
-        # shape: (batch_size * sequence_length, expert_used_count)
-        """expert_gate, top_k_experts = topk(
-            router_weights, self.expert_used_count, dim=-1
-        )"""
-        expert_gate, top_k_experts = pick_first_expert(
-            router_weights, k=self.expert_used_count
-        )
-
-    if self.normalize_experts:
-        expert_gate /= expert_gate.sum(dim=-1, keepdim=True)
-
-    expert_gate = expert_gate.to(ffn_input.dtype)
-
-    if self.route_scale is not None:
-        expert_gate = expert_gate * self.route_scale
-
-    # shape: (batch_size * sequence_length, feature_dim)
-    moe_output = self.routed_experts(ffn_input, top_k_experts, expert_gate)
-
-    if self.expert_shared_count is not None:
-        moe_output = moe_output + self.shared_experts(ffn_input)
-
-    moe_output = moe_output.reshape(batch_size, sequence_length, feature_dim)
-
-    moe_output = self.layer_output_norm(moe_output)
-
-    return moe_output
-
-
 def export_llama4_toy_model_mlir(
     output_path: PathLike,
     batch_size: int,
@@ -182,7 +107,6 @@ def export_llama4_toy_model_mlir(
         batch_size=batch_size,
         iree_hip_target="gfx942",
         iree_hal_target_device="hip",
-        # iree_hal_local_target_device_backends=self.iree_hal_local_target_device_backends,
         use_attention_mask=True,
     )
 
@@ -292,8 +216,6 @@ def runCompareIreeAgainstTorchEager(
     torch.manual_seed(seed)
 
     work_dir = tmp_path
-
-    MoeBlock.forward = patch_forward_moe
 
     # add sample_inputs
     PagedLlmModelV1.sample_inputs = llama4_toy_pefill_sample_inputs
