@@ -61,11 +61,5 @@ class DeepseekTest(IreeVsEagerLLMTest):
             [3, 5, 2, 1],
         ]
 
-        self.setup_variables(
-            theta=theta,
-            config=config,
-            raw_token_ids=raw_token_ids,
-            model_name="toy_deepseek",
-            skip_decode=False,
-        )
+        self.setup_variables(theta=theta, config=config, raw_token_ids=raw_token_ids)
         self.run_and_compare_iree_vs_eager()
