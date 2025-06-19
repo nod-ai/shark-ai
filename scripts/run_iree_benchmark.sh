@@ -2,13 +2,13 @@
 
 ## model list
 
-#llama 3.1 Instruct 8B	
-#llama 3.1 Instruct 70B	
-#Mistral nemo base 2407	
-#Mistral nemo instruct 2407	
-#Flux-Dev	
-#Flux-Schnell	
-#SDXL	
+#llama 3.1 Instruct 8B
+#llama 3.1 Instruct 70B
+#Mistral nemo base 2407
+#Mistral nemo instruct 2407
+#Flux-Dev
+#Flux-Schnell
+#SDXL
 
 ## input will be
 ##	1> model name
@@ -95,7 +95,7 @@ if [[ $MODEL = "llama-8B-FP8" ]]; then
 		--input=4x4xi64 \
 		--input=261x2097152xf8E4M3FNUZ \
 		--benchmark_repetitions=3 \
-	
+
 	echo "$MODEL decode_bs4"
 	iree-benchmark-module --hip_use_streams=true \
 		--module="$VMFB" \
