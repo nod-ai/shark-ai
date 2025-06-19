@@ -50,7 +50,7 @@ class DeepseekTest(IreeVsEagerLLMTest):
         raises=AssertionError,
         reason="https://github.com/iree-org/iree/issues/21087",
         strict=True,
-        match="Outputs do not match for batch index 0:",
+        match="Outputs do not match for prefill batch index 0:",
     )
     def testUnshardedToySizedModelIREEVsEager(self):
         theta, config = generate(12345)

@@ -170,7 +170,7 @@ class IreeVsEagerLLMTest(TempDirTestBase):
         self.compare_outputs(
             eager_result=self.eager_prefill_result,
             iree_result=self.iree_prefill_result,
-            stage="prefill",
+            stage_name="prefill",
             rtol=rtol,
             atol=atol,
         )
@@ -178,7 +178,7 @@ class IreeVsEagerLLMTest(TempDirTestBase):
             self.compare_outputs(
                 eager_result=self.eager_decode_result,
                 iree_result=self.iree_decode_result,
-                stage="decode",
+                stage_name="decode",
                 rtol=rtol,
                 atol=atol,
             )
@@ -224,6 +224,7 @@ class IreeVsEagerLLMTest(TempDirTestBase):
         self.token_ids_decode_path = work_dir / "token_ids_prefill.npy"
         self.seq_lens_path = work_dir / "seq_lens.npy"
         self.seq_block_ids_path = work_dir / "seq_block_ids_before_prefill.npy"
+        self.start_positions_path = work_dir / "start_positions.npy"
         self.iree_cache_state_prefill_paths = [
             work_dir / f"iree_cache_state_prefill_{i}.npy"
             for i in range(
@@ -261,6 +262,8 @@ class IreeVsEagerLLMTest(TempDirTestBase):
         np.save(self.seq_lens_path, seq_lens.cpu().numpy())
         seq_lens = torch.tensor(np.load(self.seq_lens_path), device=self.config.device)
 
+        np.save(self.start_positions_path, seq_lens.add_(1).cpu().numpy())
+
         Dataset(root_theta=theta, properties=self.config.to_properties()).save(
             path=self.dataset_path
         )
@@ -291,7 +294,6 @@ class IreeVsEagerLLMTest(TempDirTestBase):
             np.save(self.iree_cache_state_prefill_paths[i], cache_state.cpu().numpy())
 
         eager_decode_tokens = self.eager_batch.prefill()
-        np.save(self.token_ids_decode_path, eager_decode_tokens.cpu().numpy())
 
         eager_prefill_result = self.eager_batch.prefill_logits
         np.save(self.eager_results_prefill_path, eager_prefill_result.cpu().numpy())
@@ -300,14 +302,13 @@ class IreeVsEagerLLMTest(TempDirTestBase):
         )
 
         if not self.skip_decode:
+            np.save(self.token_ids_decode_path, eager_decode_tokens.cpu().numpy())
+
             iree_cache_state = self.iree_cache.shard_state(self.eager_batch.cache_state)
             for i, cache_state in enumerate(iree_cache_state):
                 np.save(
                     self.iree_cache_state_decode_paths[i], cache_state.cpu().numpy()
                 )
-
-            # Get last logit for each sequence.
-            # Convert to token ids.
 
             self.eager_batch.decode(token_batch=eager_decode_tokens)
             eager_decode_result = self.eager_batch.decode_logits
