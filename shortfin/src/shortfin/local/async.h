@@ -8,7 +8,12 @@
 #define SHORTFIN_LOCAL_ASYNC_H
 
 #include <any>
+#include <coroutine>
+#include <exception>
 #include <functional>
+#include <future>
+#include <type_traits>
+#include <utility>
 
 #include "shortfin/support/api.h"
 #include "shortfin/support/iree_concurrency.h"
@@ -204,6 +209,196 @@ class SHORTFIN_API TypedFuture : public Future {
     using BaseState::BaseState;
     ResultTy result_;
   };
+};
+
+namespace {
+template <typename T>
+struct type_remap {
+  bool is_void_fut_or_completion_event = false;
+};
+
+template <>
+struct type_remap<shortfin::local::CompletionEvent> {
+  bool is_void_future = false;
+  bool is_void_fut_or_completion_event = true;
+};
+
+template <>
+struct type_remap<shortfin::local::VoidFuture> {
+  bool is_void_future = true;
+  bool is_void_fut_or_completion_event = true;
+};
+}  // namespace
+
+template <typename PromiseTy = void, typename ContainedTy = void>
+class Coroutine {
+ public:
+  struct promise_type;
+  using handle_type = std::coroutine_handle<promise_type>;
+
+  Coroutine(handle_type handle) : handle_(handle) {}
+  // Set this->handle_ to other.handle_ and set other.handle_ to nullptr.
+  Coroutine(Coroutine &&other)
+      : handle_(std::exchange(other.handle_, nullptr)) {}
+  Coroutine(const Coroutine &other) = delete;
+  Coroutine &operator=(const Coroutine &) = delete;
+  Coroutine &operator=(Coroutine &&other) {
+    if (this != &other) {
+      if (handle_) {
+        handle_.destroy();
+        handle_ = std::exchange(other.handle_, nullptr);
+      }
+    }
+    return *this;
+  }
+
+  struct promise_type {
+    promise_type() = default;
+    Coroutine get_return_object() {
+      return Coroutine(handle_type::from_promise(*this));
+    }
+
+    // Immediately start the coroutine's execution.
+    std::suspend_never initial_suspend() noexcept { return {}; }
+    // Since we are not suspending the coroutine at the boundary, it will
+    // destroy its state on its own.
+    std::suspend_never final_suspend() noexcept { return {}; }
+
+    void unhandled_exception() {
+      // If the coro encounters an exception during execution,
+      // it will call this method. We store the exception so our
+      // awaiter can use it to set the future's status.
+      exception_ptr_ = std::current_exception();
+      try {
+        std::rethrow_exception(exception_ptr_);
+      } catch (std::exception &e) {
+        promise_.set_failure(iree::exception_to_status(e));
+      }
+    }
+
+    template <typename U>
+    PromiseTy return_value(U &&u) {
+      promise_.set_result(std::forward(u));
+      std_promise_.set_value(std::forward(u));
+    }
+
+   private:
+    PromiseTy promise_;
+    std::exception_ptr exception_ptr_;
+    std::promise<ContainedTy> std_promise_;
+  };
+
+  std::future<ContainedTy> getPromise() {
+    return handle_.promise().std_promise_.future();
+  }
+
+  void wait() {
+    std::future<ContainedTy> promise = getPromise();
+    promise.wait();
+  }
+
+  ContainedTy &get() {
+    std::future<ContainedTy> promise = getPromise();
+    promise.wait();
+    return promise.get();
+  }
+
+  bool resume() {
+    if (handle_ && !handle_.done()) {
+      handle_.resume();
+      return true;
+    }
+    return false;
+  }
+
+ private:
+  handle_type handle_;
+};
+
+template <typename PromiseTy>
+class Coroutine<
+    PromiseTy,
+    std::enable_if_t<type_remap<PromiseTy>::is_void_fut_or_completion_event>> {
+ public:
+  struct promise_type;
+  using handle_type = std::coroutine_handle<promise_type>;
+
+  Coroutine(handle_type handle) : handle_(handle) {}
+  // Set this->handle_ to other.handle_ and set other.handle_ to nullptr.
+  Coroutine(Coroutine &&other)
+      : handle_(std::exchange(other.handle_, nullptr)) {}
+  Coroutine(const Coroutine &other) = delete;
+  Coroutine &operator=(const Coroutine &) = delete;
+  Coroutine &operator=(Coroutine &&other) {
+    if (this != &other) {
+      if (handle_) {
+        handle_.destroy();
+        handle_ = std::exchange(other.handle_, nullptr);
+      }
+    }
+    return *this;
+  }
+
+  struct promise_type {
+    promise_type() = default;
+    Coroutine get_return_object() {
+      return Coroutine(handle_type::from_promise(*this));
+    }
+
+    // Immediately start the coroutine's execution.
+    std::suspend_never initial_suspend() noexcept { return {}; }
+    // Since we are not suspending the coroutine at the boundary, it will
+    // destroy its state on its own.
+    std::suspend_never final_suspend() noexcept { return {}; }
+
+    void unhandled_exception() {
+      // If the coro encounters an exception during execution,
+      // it will call this method. We store the exception so our
+      // awaiter can use it to set the future's status.
+      exception_ptr_ = std::current_exception();
+      if (!type_remap<PromiseTy>::is_void_future) {
+        return;
+      }
+
+      try {
+        std::rethrow_exception(exception_ptr_);
+      } catch (std::exception &e) {
+        promise_.set_failure(iree::exception_to_status(e));
+      }
+    }
+
+    void return_void() {
+      if (type_remap<PromiseTy>::is_void_future) {
+        promise_.set_success();
+      }
+      std_promise_.set_value();
+    }
+
+   private:
+    PromiseTy promise_;
+    std::exception_ptr exception_ptr_;
+    std::promise<void> std_promise_;
+  };
+
+  std::future<void> getPromise() {
+    return handle_.promise().std_promise_.future();
+  }
+
+  void wait() {
+    std::future<void> promise = getPromise();
+    promise.wait();
+  }
+
+  bool resume() {
+    if (handle_ && !handle_.done()) {
+      handle_.resume();
+      return true;
+    }
+    return false;
+  }
+
+ private:
+  handle_type handle_;
 };
 
 }  // namespace shortfin::local
