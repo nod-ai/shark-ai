@@ -91,7 +91,7 @@ class BaseBenchmarkTest(unittest.TestCase):
         return benchmark_args
 
     def export_compile_benchmark(self, skip_decode: bool = False):
-        self.export_artifact.export_and_compile_llm()
+        self.export_artifact.export_and_compile_llm(batch_size=self.batch_size)
 
         benchmark_filename = self.export_artifact.output_name.with_suffix(".txt")
         self.export_artifact.iree_benchmark(
@@ -110,6 +110,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
     def setUp(self):
         super().setUp(artifact_dir=Path("/shark-dev/8b"), dir_path_name="llama-8b")
         # TODO: add numpy files to Azure and download from it
+        self.batch_size = 4
 
         self.prefill_args_fp16 = {
             128: self.save_benchmarks(
@@ -259,6 +260,8 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         super().setUp(artifact_dir=Path("/shark-dev/70b"), dir_path_name="llama-70b")
         # TODO: add numpy files to Azure and download from it
 
+        self.batch_size = 4
+
         self.prefill_args_fp16 = {
             1: {
                 128: self.save_benchmarks(
@@ -395,6 +398,8 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
     def setUp(self):
         super().setUp(artifact_dir=Path("/shark-dev/405b"), dir_path_name="llama-405b")
         # TODO: add numpy files to Azure and download from it
+
+        self.batch_size = 4
 
         self.prefill_args_tp8_fp16 = {
             128: self.save_benchmarks(
