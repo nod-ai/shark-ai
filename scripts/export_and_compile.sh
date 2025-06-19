@@ -2,7 +2,7 @@
 
 export IRPA_PATH=/shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa
 export PREFILL_BS="1,2,4,8"
-export DECODE_BS="8,16,32,64"
+export DECODE_BS="4,8,16,32,64"
 export DTYPE="fp16"
 export TENSOR_PARALLELISM_SIZE="1,8"
 export OUTPUT_DIR="$(pwd)/output_artifacts"
@@ -42,7 +42,7 @@ while [[ "$1" != "" ]]; do
             echo "Usage: $0 [--<different flags>] "
             echo "--irpa        : path to irpa file"
             echo "--bs-prefill  : prefill BS to be exported. Default: 1,2,4,8"
-            echo "--bs-decode   : decode BS to be exported. Default: 8,16,32,64"
+            echo "--bs-decode   : decode BS to be exported. Default: 4,8,16,32,64"
             echo "--dtype       : Data type to be used. Default: fp16"
             echo "--output_dir  : Absolute path of directory for dumping the artifacts. Default: '\$PWD/output_artifacts' "
             exit 0
