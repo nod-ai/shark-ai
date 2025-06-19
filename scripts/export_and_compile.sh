@@ -44,7 +44,7 @@ while [[ "$1" != "" ]]; do
             echo "--bs-prefill  : prefill BS to be exported. Default: 1,2,4,8"
             echo "--bs-decode   : decode BS to be exported. Default: 8,16,32,64"
             echo "--dtype       : Data type to be used. Default: fp16"
-            echo "--output_dir  : Absolute path of directory for dumping the artifacts. Default: '\$PWD/output_artifacts' " 
+            echo "--output_dir  : Absolute path of directory for dumping the artifacts. Default: '\$PWD/output_artifacts' "
             exit 0
             ;;
         *)
@@ -80,7 +80,7 @@ else
 fi
 end=$(date +%s)
 echo "Time taken for exporting: $((end - start)) seconds"
-    
+
 start=$(date +%s)
 echo "### compiling IR .... "
 mkdir -p $OUTPUT_DIR
