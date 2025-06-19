@@ -7,6 +7,7 @@
 from typing import Optional
 import contextlib
 from pathlib import Path
+import numpy as np
 import pytest
 from os import PathLike
 import functools
@@ -78,6 +79,7 @@ def make_random_mask(shape: tuple[int], dtype: Optional[torch.dtype] = None):
 
 class TempDirTestBase(unittest.TestCase):
     def setUp(self):
+        super().setUp()
         self._temp_dir = Path(tempfile.mkdtemp(type(self).__qualname__))
 
     def tearDown(self):
@@ -106,6 +108,168 @@ class MainRunnerTestBase(TempDirTestBase):
     def assertFileWritten(self, p: Path):
         self.assertTrue(p.exists(), msg=f"Expected file {p} was not created")
         self.assertGreater(p.stat().st_size, 0, msg=f"Expected file {p} had zero size")
+
+
+class IreeVsEagerLLMTest(TempDirTestBase):
+    """Base class for tests that compare IREE and eager execution of an LLM."""
+
+    # TODO: Handle decode too
+    def compare_outputs(self, *, rtol: float | None = None, atol: float | None = None):
+        for i, (eager_i, iree_i) in enumerate(
+            zip(self.eager_result, self.iree_results)
+        ):
+            try:
+                torch.testing.assert_close(
+                    actual=iree_i, expected=eager_i, rtol=rtol, atol=atol
+                )
+            except AssertionError as error:
+                raise AssertionError(
+                    f"Outputs do not match for batch index {i}:\n"
+                    f"Eager: {eager_i}\n"
+                    f"IREE: {iree_i}\n"
+                ) from error
+
+        if self.skip_decode:
+            return
+        # TODO: Decode comparison
+
+    def inplace_transfer_theta(self, node: Theta | dict | AnyTensor, dev: torch.device):
+        """
+        Inplace transfer all of the weights in the given Theta to the specified torch.device to allow for gpu-based eager tests regardless of how the initial weights were created.
+        """
+        if isinstance(node, AnyTensor):
+            return node.to(dev)
+
+        if isinstance(node, dict):
+            for key in node.keys():
+                node[key] = self.inplace_transfer_theta(node[key], dev)
+            return node
+
+        for key in node.keys:
+            self.inplace_transfer_theta(node.tensor(key), dev)
+
+    def run_iree_vs_eager(
+        self, *, rtol: float | None = None, atol: float | None = None
+    ):
+        """
+        Run the IREE and eager execution and compare the outputs.
+        If comparison passes"""
+        self.run_eager()
+        self.run_iree()
+        self.compare_outputs(rtol=rtol, atol=atol)
+
+    def setup_variables(
+        self,
+        *,
+        theta: Theta,
+        config: "LlamaModelConfig",
+        raw_token_ids: list[list[int]],
+        work_dir: Path | None = None,
+        model_name: str = "model",
+        skip_decode: bool = False,
+    ):
+        # Note: Here to prevent circular imports
+        from sharktank.models.llm.llm import PagedLlmModelV1
+        from sharktank.utils.create_cache import create_paged_kv_cache
+        from sharktank.utils.evaluate import pad_tokens
+        from sharktank.utils.load_llm import TorchGenerator
+
+        if work_dir is None:
+            work_dir = self._temp_dir
+
+        self.config = config
+        self.skip_decode = skip_decode
+        self.eager_results_path = work_dir / "reference_logits.npy"
+        iree_results_name = "iree_results.npy"
+        self.iree_result_paths = [work_dir / iree_results_name]
+        self.token_ids_path = work_dir / "token_ids.npy"
+        self.seq_lens_path = work_dir / "seq_lens.npy"
+        self.seq_block_ids_path = work_dir / "seq_block_ids_before_prefill.npy"
+        self.iree_cache_state_paths = [
+            work_dir / f"iree_cache_state_{i}.npy"
+            for i in range(
+                self.config.pipeline_parallelism_size
+                * self.config.tensor_parallelism_size
+            )
+        ]
+
+        self.dataset_path = work_dir / "parameters.irpa"
+        self.output_name = work_dir / model_name
+
+        # 1. Get inputs
+        self.config.device = torch.device("cuda:0")
+        token_ids, seq_lens = pad_tokens(
+            token_ids=raw_token_ids,
+            pad_to_multiple_of=self.config.block_seq_stride,
+        )
+        self.token_ids = torch.as_tensor(token_ids, device=self.config.device)
+        np.save(self.token_ids_path, self.token_ids.cpu().numpy())
+        self.token_ids = torch.tensor(
+            np.load(self.token_ids_path), device=self.config.device
+        )
+
+        self.batch_size = self.token_ids.shape[0]
+
+        seq_lens = torch.as_tensor(seq_lens, device=self.config.device)
+        np.save(self.seq_lens_path, seq_lens.cpu().numpy())
+        seq_lens = torch.tensor(np.load(self.seq_lens_path), device=self.config.device)
+
+        Dataset(root_theta=theta, properties=self.config.to_properties()).save(
+            path=self.dataset_path
+        )
+
+        self.inplace_transfer_theta(
+            theta, self.config.device
+        )  # TODO: Should I do this?
+        generator = TorchGenerator(PagedLlmModelV1(theta=theta, config=self.config))
+        self.eager_batch = generator.begin_batch(
+            token_ids=self.token_ids,
+            seq_lens=seq_lens,
+        )
+
+        np.save(
+            self.seq_block_ids_path,
+            self.eager_batch.pad_block_ids().cpu().numpy(),
+        )
+
+        # TODO: How come only the iree_cache gets sharded?
+        iree_cache = create_paged_kv_cache(self.config)
+        iree_cache_state = iree_cache.shard_state(self.eager_batch.cache_state)
+        for i, cache_state in enumerate(iree_cache_state):
+            np.save(self.iree_cache_state_paths[i], cache_state.cpu().numpy())
+
+    def run_eager(self):
+        self.eager_batch.prefill()
+        eager_result = self.eager_batch.prefill_logits
+        np.save(self.eager_results_path, eager_result.cpu().numpy())
+        self.eager_result = torch.tensor(
+            np.load(self.eager_results_path), device=torch.device("cpu")
+        )
+        self.config.device = torch.device("cpu")  # Switch back to cpu for tracing
+
+    def run_iree(self):
+        from sharktank.utils.export_artifacts import ExportArtifacts
+
+        prefill_args = [
+            f"--function=prefill_bs{self.batch_size}",
+            f"--input=@{self.token_ids_path}",
+            f"--input=@{self.seq_lens_path}",
+            f"--input=@{self.seq_block_ids_path}",
+            *(f"--input=@{path}" for path in self.iree_cache_state_paths),
+        ]
+        exporter = ExportArtifacts.from_config(
+            self.config,
+            irpa_path=self.dataset_path,
+            batch_size=self.batch_size,
+            iree_hip_target=self.iree_hip_target,
+            iree_hal_target_device=self.iree_hal_target_device,
+            hip_device_id=self.iree_device,
+            output_name=self.output_name,
+        )
+        exporter.export_and_compile_llm(skip_decode=self.skip_decode)
+        self.iree_results = exporter.iree_run(
+            extra_args=prefill_args, output_paths=self.iree_result_paths
+        )
 
 
 @contextlib.contextmanager
