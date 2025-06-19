@@ -63,6 +63,26 @@ while [[ "$1" != "" ]]; do
     shift # Move to the next argument
 done
 
+set_tp8_parameters() {
+	irpa_dir_name=$(dirname "$IRPA_PATH")
+	echo "irpa_dir_name: $irpa_dir_name"
+	irpa_base_name=$(basename "$IRPA_PATH" .irpa)
+	echo "irpa_base_name: $irpa_base_name"
+	export IRPA_PATH_RANK0=${irpa_dir_name}/${irpa_base_name}.rank0.irpa
+	export IRPA_PATH_RANK1=${irpa_dir_name}/${irpa_base_name}.rank1.irpa
+	export IRPA_PATH_RANK2=${irpa_dir_name}/${irpa_base_name}.rank2.irpa
+	export IRPA_PATH_RANK3=${irpa_dir_name}/${irpa_base_name}.rank3.irpa
+	export IRPA_PATH_RANK4=${irpa_dir_name}/${irpa_base_name}.rank4.irpa
+	export IRPA_PATH_RANK5=${irpa_dir_name}/${irpa_base_name}.rank5.irpa
+	export IRPA_PATH_RANK6=${irpa_dir_name}/${irpa_base_name}.rank6.irpa
+	export IRPA_PATH_RANK7=${irpa_dir_name}/${irpa_base_name}.rank7.irpa
+
+	for rank in {0..7}; do
+			echo "irpa_path_rank$rank: $IRPA_PATH_RANK0"
+	done
+}
+
+
 if [[ $MODEL = "llama-8B-FP8" ]]; then
 	echo "$MODEL prefill_bs4"
 	iree-benchmark-module --hip_use_streams=true \
@@ -88,6 +108,77 @@ if [[ $MODEL = "llama-8B-FP8" ]]; then
 		--input=4x5xi64 \
 		--input=261x2097152xf8E4M3FNUZ \
 		--benchmark_repetitions=3
+
+elif [[ $MODEL == "llama-70B-FP16-tp8" ]]; then
+	set_tp8_parameters
+	echo "$MODEL prefill_bs$PREFILL_BS"
+	iree-benchmark-module --hip_use_streams=true \
+		--module="$VMFB" \
+		--parameters=model="$IRPA_PATH" \
+		--parameters=model="$IRPA_PATH_RANK0" \
+		--parameters=model="$IRPA_PATH_RANK1" \
+		--parameters=model="$IRPA_PATH_RANK2" \
+		--parameters=model="$IRPA_PATH_RANK3" \
+		--parameters=model="$IRPA_PATH_RANK4" \
+		--parameters=model="$IRPA_PATH_RANK5" \
+		--parameters=model="$IRPA_PATH_RANK6" \
+		--parameters=model="$IRPA_PATH_RANK7" \
+		--device=hip://0 \
+		--device=hip://1 \
+		--device=hip://2 \
+		--device=hip://3 \
+		--device=hip://4 \
+		--device=hip://5 \
+		--device=hip://6 \
+		--device=hip://7 \
+		--function=prefill_bs$PREFILL_BS \
+		--input=@/shark-dev/70b/prefill_args_bs4_128_stride_32_tp8/tokens.npy \
+		--input=@/shark-dev/70b/prefill_args_bs4_128_stride_32_tp8/seq_lens.npy \
+		--input=@/shark-dev/70b/prefill_args_bs4_128_stride_32_tp8/seq_block_ids.npy \
+		--input=@/shark-dev/70b/prefill_args_bs4_128_stride_32_tp8/cs_f16_shard_0.npy \
+		--input=@/shark-dev/70b/prefill_args_bs4_128_stride_32_tp8/cs_f16_shard_1.npy \
+		--input=@/shark-dev/70b/prefill_args_bs4_128_stride_32_tp8/cs_f16_shard_2.npy \
+		--input=@/shark-dev/70b/prefill_args_bs4_128_stride_32_tp8/cs_f16_shard_3.npy \
+		--input=@/shark-dev/70b/prefill_args_bs4_128_stride_32_tp8/cs_f16_shard_4.npy \
+		--input=@/shark-dev/70b/prefill_args_bs4_128_stride_32_tp8/cs_f16_shard_5.npy \
+		--input=@/shark-dev/70b/prefill_args_bs4_128_stride_32_tp8/cs_f16_shard_6.npy \
+		--input=@/shark-dev/70b/prefill_args_bs4_128_stride_32_tp8/cs_f16_shard_7.npy \
+		--benchmark_repetitions=3
+
+	echo "$MODEL decode_bs$DECODE_BS"
+	iree-benchmark-module --hip_use_streams=true \
+		--module="$VMFB" \
+		--parameters=model="$IRPA_PATH" \
+		--parameters=model="$IRPA_PATH_RANK0" \
+		--parameters=model="$IRPA_PATH_RANK1" \
+		--parameters=model="$IRPA_PATH_RANK2" \
+		--parameters=model="$IRPA_PATH_RANK3" \
+		--parameters=model="$IRPA_PATH_RANK4" \
+		--parameters=model="$IRPA_PATH_RANK5" \
+		--parameters=model="$IRPA_PATH_RANK6" \
+		--parameters=model="$IRPA_PATH_RANK7" \
+    --device=hip://0 \
+    --device=hip://1 \
+    --device=hip://2 \
+    --device=hip://3 \
+    --device=hip://4 \
+    --device=hip://5 \
+    --device=hip://6 \
+    --device=hip://7 \
+    --function=decode_bs$DECODE_BS \
+    --input=@/shark-dev/70b/decode_args_bs4_128_stride_32_tp8/next_tokens.npy \
+    --input=@/shark-dev/70b/decode_args_bs4_128_stride_32_tp8/seq_lens.npy \
+    --input=@/shark-dev/70b/decode_args_bs4_128_stride_32_tp8/start_positions.npy \
+    --input=@/shark-dev/70b/decode_args_bs4_128_stride_32_tp8/seq_block_ids.npy \
+    --input=@/shark-dev/70b/decode_args_bs4_128_stride_32_tp8/cs_f16_shard_0.npy \
+    --input=@/shark-dev/70b/decode_args_bs4_128_stride_32_tp8/cs_f16_shard_1.npy \
+    --input=@/shark-dev/70b/decode_args_bs4_128_stride_32_tp8/cs_f16_shard_2.npy \
+    --input=@/shark-dev/70b/decode_args_bs4_128_stride_32_tp8/cs_f16_shard_3.npy \
+    --input=@/shark-dev/70b/decode_args_bs4_128_stride_32_tp8/cs_f16_shard_4.npy \
+    --input=@/shark-dev/70b/decode_args_bs4_128_stride_32_tp8/cs_f16_shard_5.npy \
+    --input=@/shark-dev/70b/decode_args_bs4_128_stride_32_tp8/cs_f16_shard_6.npy \
+    --input=@/shark-dev/70b/decode_args_bs4_128_stride_32_tp8/cs_f16_shard_7.npy \
+		--benchmark_repetitions=3
 else
-	echo "$MODEL Not Implemented"
+	echo "$MODEL test not implemented"
 fi
