@@ -28,6 +28,8 @@ jobs:
     defaults:
       run:
         shell: bash
+    permissions:
+      contents: write
     env:
       DOCKER_IMAGE: shortfin-mistral
       DOCKER_TAG: ${{ github.sha }}
@@ -64,19 +66,10 @@ jobs:
             --build-arg SHARK_AI_COMMIT=${{ steps.set_commit.outputs.commit }} \
             --cache-from=type=registry,ref=ghcr.io/nod-ai/shark-ai/${DOCKER_IMAGE}:buildcache \
             --cache-to=type=registry,ref=ghcr.io/nod-ai/shark-ai/${DOCKER_IMAGE}:buildcache,mode=max \
-            -t ${DOCKER_IMAGE}:${DOCKER_TAG} \
-            -f docker/mistral/Dockerfile .
-          docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest
-
-      - name: Tag Docker image for GHCR
-        run: |
-          docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ghcr.io/nod-ai/shark-ai/${DOCKER_IMAGE}:${DOCKER_TAG}
-          docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ghcr.io/nod-ai/shark-ai/${DOCKER_IMAGE}:latest
-
-      - name: Push Docker image to GHCR
-        run: |
-          docker push ghcr.io/nod-ai/shark-ai/${DOCKER_IMAGE}:${DOCKER_TAG}
-          docker push ghcr.io/nod-ai/shark-ai/${DOCKER_IMAGE}:latest
+            -t ghcr.io/nod-ai/shark-ai/${DOCKER_IMAGE}:${DOCKER_TAG} \
+            -t ghcr.io/nod-ai/shark-ai/${DOCKER_IMAGE}:latest \
+            -f docker/mistral/Dockerfile \
+            --push .
 
       - name: Build artifacts and run benchmarks
         run: |
@@ -109,6 +102,3 @@ jobs:
           git add ${IREE_BENCHMARKS_FILE} ${CLI_BENCHMARKS_FILE}
           git commit -m "Update Mistral test results [skip ci]"
           git push origin ${BENCHMARKS_BRANCH}
-
-    permissions:
-      contents: write
