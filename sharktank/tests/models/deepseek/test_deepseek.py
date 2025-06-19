@@ -87,7 +87,12 @@ class DeepseekTest(TempDirTestBase):
         token_ids_path = work_dir / "token_ids.npy"
         seq_lens_path = work_dir / "seq_lens.npy"
         seq_block_ids_path = work_dir / "seq_block_ids_before_prefill.npy"
-        iree_cache_state_path = work_dir / "iree_cache_state.npy"
+        iree_cache_state_paths = [
+            work_dir / f"iree_cache_state_{i}.npy"
+            for i in range(
+                config.pipeline_parallelism_size * config.tensor_parallelism_size
+            )
+        ]
 
         dataset_path = work_dir / "parameters.irpa"
         output_name = work_dir / "toy_deepseek"
@@ -127,11 +132,12 @@ class DeepseekTest(TempDirTestBase):
         cache_state_before_prefill = deepcopy(eager_batch.cache_state)
         iree_cache = create_paged_kv_cache(config)
         iree_cache_state = iree_cache.shard_state(deepcopy(cache_state_before_prefill))
-        # TODO: Support sharded state for saving
-        np.save(iree_cache_state_path, iree_cache_state[0].cpu().numpy())
-        iree_cache_state = [
-            torch.tensor(np.load(iree_cache_state_path), device=token_ids.device)
-        ]
+        for i in range(len(iree_cache_state)):
+            state_i = iree_cache_state[i]
+            np.save(iree_cache_state_paths[i], state_i.cpu().numpy())
+            iree_cache_state[i] = torch.tensor(
+                np.load(iree_cache_state_paths[i]), device=token_ids.device
+            )
 
         seq_block_ids_before_prefill = eager_batch.pad_block_ids()
         np.save(
@@ -144,7 +150,7 @@ class DeepseekTest(TempDirTestBase):
             f"--input=@{token_ids_path}",
             f"--input=@{seq_lens_path}",
             f"--input=@{seq_block_ids_path}",
-            f"--input=@{iree_cache_state_path}",
+            *(f"--input=@{path}" for path in iree_cache_state_paths),
         ]
 
         # 2. Run Eager
