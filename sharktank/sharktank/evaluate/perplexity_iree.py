@@ -63,6 +63,7 @@ class PerplexityIree:
         use_attention_mask,
         use_hf,
         weight_path_str: str,
+        prefill_length: int | None = None,
         use_toy_model: bool = False,
     ):
         self.torch_device = torch_device
@@ -81,6 +82,8 @@ class PerplexityIree:
         self.use_attention_mask = use_attention_mask
         self.use_hf = use_hf
         self.weight_path_str = weight_path_str
+        assert prefill_length is None or prefill_length >= 1
+        self.prefill_length = prefill_length
         self.use_toy_model = use_toy_model
         self.vm_context: iree.runtime.VmContext = None
         self.cache_state: None | list[ireert.DeviceArray] = None
@@ -374,11 +377,11 @@ class PerplexityIree:
             out_logits = []
             model_name = Path(self.weight_path_str).name
             for i in tqdm(
-                range(self.start, self.max_prompt_length - 1),
+                range(self.prefill_length - 1, self.max_prompt_length - 1),
                 mininterval=300,
                 desc=f"eval_iree: Calculating logits for {model_name}",
             ):
-                logger.debug(f"Iteration: {i - self.start}")
+                logger.debug(f"Iteration: {i - self.prefill_length + 1}")
 
                 if skip_decode or len(out_logits) == 0:
                     token_batch = self.token_ids[:, : i + 1]
@@ -411,9 +414,9 @@ class PerplexityIree:
             self.cache_state = None  # Remove saved reference to iree.runtime.DeviceArray before leaving function
             return ops.cat(
                 (
-                    pad_logits[:, : self.start + 1],
+                    pad_logits[:, : self.prefill_length],
                     out_logits,
-                    pad_logits[:, self.start + 1 :],
+                    pad_logits[:, self.prefill_length :],
                 ),
                 dim=1,
             ).to(self.torch_device)
@@ -429,7 +432,8 @@ class PerplexityIree:
             self.token_ids = token_ids
             self.seq_lens = [len(t) for t in self.token_ids]
             # Add context to improve perplexity by starting at 5th token
-            self.start = 5
+            if self.prefill_length is None:
+                self.prefill_length = 6
             self.page_cache_size = 128
             logger.debug(f" Token ids for Evaluation: \n{self.token_ids}\n")
 
@@ -446,7 +450,8 @@ class PerplexityIree:
                 )
 
             # Add context to improve perplexity by starting at 10th token
-            self.start = 10
+            if self.prefill_length is None:
+                self.prefill_length = 11
             self.page_cache_size = (
                 len(self.token_ids[0]) // self.generator.model.config.block_seq_stride
             ) * len(test_prompts) + 1
@@ -472,7 +477,7 @@ class PerplexityIree:
         logger.debug(f"Token ids shape: {self.token_ids.shape}")
 
         return compute_perplexity(
-            self.token_ids, out_logits, self.start, self.max_prompt_length
+            self.token_ids, out_logits, self.prefill_length - 1, self.max_prompt_length
         )
 
 
@@ -512,6 +517,7 @@ def run_perplexity_iree(
         use_hf=args.use_hf,
         bs=bs,
         weight_path_str=str(args.irpa_file),
+        prefill_length=args.prefill_length,
         use_toy_model=args.use_toy_model,
     )
 

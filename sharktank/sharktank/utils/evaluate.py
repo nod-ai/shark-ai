@@ -23,7 +23,7 @@ def compute_perplexity(
     Args:
           token_ids: Token ids of input prompts (groundtruth)
           logits: Output logits from an LLM
-          start: Index of the first input token to prefill
+          start: Index of the last input token to prefill
           end: Index of the last token that was processed by decode
     Returns:
           Dictionary of list of perplexities per prompt and
