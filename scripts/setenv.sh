@@ -12,7 +12,7 @@ if [[ $1 = "--nightly" ]]; then
 elif [[ $1 = "--stable" ]]; then
     pip install shark-ai[apps]
     pip install torch --index-url https://download.pytorch.org/whl/cpu "torch>=2.4.0,<2.6.0"
-else 
+else
     echo "setenv.sh --nightly : To install nightly release"
     echo "setenv.sh --stable  : To install stable release"
 fi

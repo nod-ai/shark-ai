@@ -19,4 +19,3 @@
 # cd shortfin
 # ../scripts/run_offline_serving.sh --mode chat
 # cd ..
-

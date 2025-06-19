@@ -54,7 +54,7 @@ python -m shortfin_apps.llm.server \
            --vmfb=$VMFB \
            --parameters=$IRPA_PATH \
            --device=hip \
-           --device_ids 0  --port $port & 
+           --device_ids 0  --port $port &
 
 shortfin_process=$!
 
@@ -72,4 +72,3 @@ curl http://localhost:$port/generate \
 
 sleep 10
 kill -9 $shortfin_process
-
