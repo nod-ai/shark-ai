@@ -139,7 +139,7 @@ class PerplexityTest(unittest.TestCase):
         self.model_name = "llama3_70B_f16_iree"
         self.irpa_file = self.llama3_70b_f16_model
         self.tokenizer = self.llama3_70b_tokenizer
-        self.tensor_parallelism_size = 8
+        self.pipeline_parallelism_size = 8
 
         self.prepare_argv()
         self.run_and_check_perplexity()
@@ -151,7 +151,7 @@ class PerplexityTest(unittest.TestCase):
         self.model_name = "llama3_70B_f8_iree"
         self.irpa_file = self.llama3_70b_f8_model
         self.tokenizer = self.llama3_70b_tokenizer
-        self.pipeline_parallelism_size = 8
+        self.tensor_parallelism_size = 8
 
         self.prepare_argv()
         self.run_and_check_perplexity()
@@ -162,7 +162,7 @@ class PerplexityTest(unittest.TestCase):
         self.model_name = "llama3_405B_f16_iree"
         self.irpa_file = self.llama3_405b_f16_model
         self.tokenizer = self.llama3_405b_tokenizer
-        self.pipeline_parallelism_size = 8
+        self.tensor_parallelism_size = 8
 
         self.prepare_argv()
         self.run_and_check_perplexity()
