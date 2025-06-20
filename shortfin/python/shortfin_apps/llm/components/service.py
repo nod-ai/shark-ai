@@ -17,7 +17,7 @@ from .kvcache.base_attention_cache import (
     BasePagedAttentionCache,
 )
 from .kvcache.trie_attention_cache import TriePagedAttentionCache
-from .kvcache.mooncake_attention_cache import MooncakePagedAttentionCache
+from .kvcache.mooncake_cache import MooncakeAttentionCache
 from .kvcache.page_pool import PagePoolConfig, PagePool
 from .manager import LlmSystemManager
 from .service_debug_dumper import SERVICE_DEBUG_DUMPER
@@ -121,18 +121,21 @@ class LlmGenerateService(GenerateService):
         )
         page_pool = PagePool(devices=self.devices, config=page_pool_config)
 
-        if self.server_params.prefix_sharing_algorithm == "trie":
-            if self.server_params.mooncake_config_path != "none":
-                self.page_cache = MooncakePagedAttentionCache(
-                    page_pool=page_pool,
-                    tokens_per_page=self.model_params.paged_kv_cache.block_seq_stride,
-                    mooncake_config_path=self.server_params.mooncake_config_path,
-                )
-            else:
-                self.page_cache = TriePagedAttentionCache(
-                    page_pool=page_pool,
-                    tokens_per_page=self.model_params.paged_kv_cache.block_seq_stride,
-                )
+        if self.server_params.mooncake_config_path != "none":
+            logger.info(
+                f"Using MooncakeAttentionCache with config path: {self.server_params.mooncake_config_path}"
+            )
+            self.page_cache = MooncakeAttentionCache(
+                page_pool=page_pool,
+                tokens_per_page=self.model_params.paged_kv_cache.block_seq_stride,
+                prefix_sharing_algorithm=self.server_params.prefix_sharing_algorithm,
+                mooncake_config_path=self.server_params.mooncake_config_path,
+            )
+        elif self.server_params.prefix_sharing_algorithm == "trie":
+            self.page_cache = TriePagedAttentionCache(
+                page_pool=page_pool,
+                tokens_per_page=self.model_params.paged_kv_cache.block_seq_stride,
+            )
         elif self.server_params.prefix_sharing_algorithm == "none":
             self.page_cache = BasePagedAttentionCache(
                 page_pool=page_pool,
