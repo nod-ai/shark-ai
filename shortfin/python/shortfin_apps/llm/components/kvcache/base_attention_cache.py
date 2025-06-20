@@ -66,6 +66,14 @@ class PageAllocation(ABC):
         """
         ...
 
+    async def update_pages(self, device: sf.ScopedDevice, token_ids: List[int]) -> bool:
+        """
+        Updates the pages in the cache. This is a no-op in the base class.
+        Derived classes may implement this to handle device-specific logic.
+        Returns True if the pages were updated, False otherwise.
+        """
+        return False
+
 
 class BasePagedAttentionCacheAllocation(PageAllocation):
     """Represents a page allocation in the cache."""
