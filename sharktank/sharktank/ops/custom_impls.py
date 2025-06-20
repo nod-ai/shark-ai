@@ -14,6 +14,7 @@ from sharktank.kernels import (
     einsum_2args_q4,
     mmt_block_scaled_offset_q4_unsigned,
     mmt_block_scaled_q8,
+    batched_block_scaled_mmt_fp4,
     mmt_super_block_scaled_offset_q4_unsigned,
     bitcast_to_complex,
     bitcast_to_real,
@@ -22,12 +23,14 @@ from sharktank.kernels import (
 from sharktank.types import (
     BlockScaledLayout,
     BlockScaledI4Layout,
+    BlockScaledFp4Layout,
     PrimitiveTensor,
     QuantizedTensor,
     SuperBlockOffsetScaled_4_6_Layout,
 )
 
 from sharktank.types.tensors import AnyTensor, unbox_tensor
+from sharktank.types.ocp_floats import convert_fp4_scales_to_float
 from .signatures import *
 from ._registry import AllNotOfType
 
@@ -101,6 +104,27 @@ def matmul_generic_tensor_block_scaled_i4(
     return mmt_block_scaled_offset_q4_unsigned(
         a=lhs, d=rhs_unpacked.d, qs=rhs_unpacked.qs_bit_packed, m=rhs_unpacked.m
     )
+
+
+@matmul.override(Tensor, QuantizedTensor)
+def matmul_generic_tensor_block_scaled_fp4(
+    lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
+):
+    """Generic kernel for FP4 E2M1 block scaled layouts."""
+    lhs = unbox_tensor(lhs)
+    if not transpose_rhs:
+        return NotImplemented
+    layout = rhs.layout_type
+    if layout is not BlockScaledFp4Layout:
+        return NotImplemented
+    rhs_unpacked = rhs.unpack()
+
+    # Convert power-of-two scales to float if needed
+    scales_float = convert_fp4_scales_to_float(
+        rhs_unpacked.d, rhs_unpacked.use_power_of_two_scale
+    )
+
+    return batched_block_scaled_mmt_fp4(lhs, scales_float, rhs_unpacked.qs)
 
 
 @matmul.override(Tensor, QuantizedTensor)
