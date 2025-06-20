@@ -170,6 +170,8 @@ class BasePagedAttentionCache:
         return BasePagedAttentionCacheAllocation(pages, cache=self)
 
     def increment_pages(self, pages: List[PageInfo]):
+        if not self.use_ref_counts:
+            return
         with self._ref_count_lock:
             for page in pages:
                 self.ref_counts[page.index] += 1
@@ -177,6 +179,9 @@ class BasePagedAttentionCache:
     def decrement_pages(
         self, pages: List[PageInfo], return_empty_pages: bool = False
     ) -> None | List[PageInfo]:
+        if not self.use_ref_counts:
+            return [] if return_empty_pages else None
+
         with self._ref_count_lock:
             if return_empty_pages:
                 empty_pages = []
