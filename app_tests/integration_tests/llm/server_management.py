@@ -83,8 +83,6 @@ class ServerInstance:
             str(self.port),
             "--prefix_sharing_algorithm",
             self.config.prefix_sharing_algorithm,
-            "--mooncake_config_path",
-            self.config.mooncake_config_path,
             "--num_beams",
             str(self.config.num_beams),
         ]
