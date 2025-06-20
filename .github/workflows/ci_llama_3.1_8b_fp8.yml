@@ -44,7 +44,7 @@ jobs:
         run: |
           echo "date=$(date -u +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
 
-          if [ "$(date -u +%u)" = "1" ]; then
+          if [ "$(date -u +%u)" = "5" ]; then
             echo "IS_SERVING_DAY=true" >> $GITHUB_ENV
           else
             echo "IS_SERVING_DAY=false" >> $GITHUB_ENV
@@ -79,44 +79,53 @@ jobs:
         if: ${{ env.IS_SERVING_DAY == 'true' }}
         run: |
           cd shortfin
+          export ROCR_VISIBLE_DEVICES=0
           bash ../scripts/run_offline_serving.sh \
              --irpa /shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
              --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
              --vmfb ../output_artifacts/output.vmfb \
              --model_config ../output_artifacts/config_attn.json \
              --mode chat | tee ../output_artifacts/offline_serving_chat.log
+          cd ..
 
       - name: Run Offline serving :reasoning
         if: ${{ env.IS_SERVING_DAY == 'true' }}
         run: |
           cd shortfin
+          export ROCR_VISIBLE_DEVICES=0
           bash ../scripts/run_offline_serving.sh \
              --irpa /shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
              --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
              --vmfb ../output_artifacts/output.vmfb \
              --model_config ../output_artifacts/config_attn.json \
              --mode reasoning | tee ../output_artifacts/offline_serving_reasoning.log
+          cd ..
 
       - name: Run Offline serving :summary
         if: ${{ env.IS_SERVING_DAY == 'true' }}
         run: |
           cd shortfin
+          export ROCR_VISIBLE_DEVICES=0
           bash ../scripts/run_offline_serving.sh \
              --irpa /shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
              --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
              --vmfb ../output_artifacts/output.vmfb \
              --model_config ../output_artifacts/config_attn.json \
              --mode summary | tee ../output_artifacts/offline_serving_summary.log
+          cd ..
 
       - name: Run online serving
         if: ${{ env.IS_SERVING_DAY == 'true' }}
         run: |
+          cd shortfin
+          export ROCR_VISIBLE_DEVICES=0
           bash scripts/run_serving.sh \
              --irpa /shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
              --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
              --vmfb ../output_artifacts/output.vmfb \
              --model_config ../output_artifacts/config_attn.json \
              --port 8900 | tee ../output_artifacts/serving.log
+          cd ..
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4.0.0
