@@ -166,7 +166,6 @@ class PerplexityIree:
         )
         export_artifacts = ExportArtifacts(
             irpa_path=self.weight_path_str,
-            batch_size=self.bs,
             iree_hip_target=self.iree_hip_target,
             iree_hal_target_device=self.iree_hal_target_device,
             hip_device_id=self.iree_devices[0],
@@ -186,7 +185,7 @@ class PerplexityIree:
                 output_vmfb is not None and Path(output_vmfb).exists()
             ),
         )
-        self.output_vmfb = export_artifacts.export_and_compile_llm()
+        self.output_vmfb = export_artifacts.export_and_compile_llm(batch_size=self.bs)
 
     @timeit
     def load_model(
