@@ -81,8 +81,10 @@ def main():
             # Save tensors if in num_blocks
             save = True
 
-        if save:
-            logger.info(f"  {tensor.name}: {tensor.shape}, {tensor.dtype}")
+        if save and isinstance(tensor, PrimitiveTensor):
+            logger.info(
+                f"  {tensor.name}: <PrimitiveTensor>({tensor.shape}, {tensor.dtype})"
+            )
             # TODO: Add support to save QuantizedTensor and ShardedTensor
             tensors += [
                 DefaultPrimitiveTensor(data=tensor.as_torch(), name=tensor.name)
@@ -104,6 +106,10 @@ def main():
         elif isinstance(tensor, ShardedTensor):
             for i, pt in enumerate(tensor.shards):
                 logger.debug(f"    {i}: {pt}")
+        else:
+            # Not a tensor. e.g. a Quantizer.
+            logger.info(f"  {tensor.name}: {type(tensor).serialized_name()}")
+            continue
 
         _maybe_dump_tensor(args, tensor)
 
