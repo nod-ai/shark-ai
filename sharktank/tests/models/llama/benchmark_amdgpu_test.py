@@ -187,8 +187,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             ],
         }
 
-    @parameterized.expand((((128,), (2048,))))
-    def test_benchmark8B_f16_tp1(self, input_size: int):
+    def test_benchmark8B_f16_tp1_input_len_128(self):
         self.export_artifact = ExportArtifacts(
             irpa_path=self.llama3_8b_f16_model,
             iree_hip_target=self.iree_hip_target,
@@ -198,11 +197,30 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             pipeline_parallelism_size=1,
             block_seq_stride=32,
             cwd=self.repo_root,
-            output_name=self.dir_path / f"f16_torch_{input_size}_tp1",
+            output_name=self.dir_path / f"f16_torch_{128}_tp1",
             hip_device_id=self.iree_device,
         )
-        self.prefill_args = self.prefill_args_fp16[input_size]
-        self.decode_args = self.decode_args_fp16[input_size]
+        self.prefill_args = self.prefill_args_fp16[128]
+        self.decode_args = self.decode_args_fp16[128]
+
+        self.export_compile_benchmark()
+
+    @is_nightly
+    def test_benchmark8B_f16_tp1_input_len_2048(self):
+        self.export_artifact = ExportArtifacts(
+            irpa_path=self.llama3_8b_f16_model,
+            iree_hip_target=self.iree_hip_target,
+            iree_hal_target_device=self.iree_hal_target_device,
+            attention_kernel="torch",
+            tensor_parallelism_size=1,
+            pipeline_parallelism_size=1,
+            block_seq_stride=32,
+            cwd=self.repo_root,
+            output_name=self.dir_path / f"f16_torch_{2048}_tp1",
+            hip_device_id=self.iree_device,
+        )
+        self.prefill_args = self.prefill_args_fp16[2048]
+        self.decode_args = self.decode_args_fp16[2048]
 
         self.export_compile_benchmark()
 
