@@ -165,30 +165,6 @@ def add_model_options(parser: argparse.ArgumentParser):
         help="Return the log softmax of the logits",
         choices=["none", "softmax", "log_softmax"],
     )
-    parser.add_argument(
-        "--attention-chunk-size",
-        help="chunk sizes in chunk attention used for llama4",
-        type=int,
-        default=37,
-    )
-    parser.add_argument(
-        "--attn-temperature-tuning",
-        help="tunning temperature for llama4",
-        action="store_true",
-    )
-    parser.add_argument(
-        "--attn-scale",
-        help="attention scale used for llama4",
-        type=float,
-        default=0.2,
-    )
-    parser.add_argument(
-        "--floor-scale",
-        help="attention scale used for llama4",
-        type=int,
-        default=31,
-    )
-    parser.add_argument("--use-qk-norm", help="qk_norm for llama4", action="store_true")
 
 
 def add_model_input_options(parser: argparse.ArgumentParser):
