@@ -91,7 +91,9 @@ class BaseBenchmarkTest(unittest.TestCase):
         return benchmark_args
 
     def export_compile_benchmark(self, skip_decode: bool = False):
-        self.export_artifact.export_and_compile_llm(batch_size=self.batch_size)
+        self.export_artifact.export_and_compile_llm(
+            batch_size=self.batch_size, skip_decode=skip_decode
+        )
 
         benchmark_filename = self.export_artifact.output_name.with_suffix(".txt")
         self.export_artifact.iree_benchmark(
