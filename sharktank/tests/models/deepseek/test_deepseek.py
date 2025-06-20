@@ -11,6 +11,7 @@ import torch
 
 from sharktank.models.llm import *
 from sharktank.models.deepseek.toy_deepseek import generate
+from sharktank.utils.export_artifacts import IreeCompileException
 from sharktank.utils.load_llm import *
 from sharktank.utils.evaluate import *
 from sharktank.utils.testing import (
@@ -55,10 +56,10 @@ class CrossEntropyTest(unittest.TestCase):
 @is_mi300x
 class DeepseekIreeVsEagerTest(TempDirTestBase):
     @xfail(
-        raises=AssertionError,
+        raises=IreeCompileException,
         reason="TODO: File issue",
         strict=True,
-        match="'vector.transfer_write' op write affecting operations on global resources are restricted to workgroup",
+        match="op write affecting operations on global resources are restricted to workgroup",
     )
     def testUnshardedToySizedModelIREEVsEager(self):
         theta, config = generate(12345)
