@@ -155,6 +155,38 @@ def pytest_addoption(parser):
         help="Llama3.1 8b f8 model path",
     )
     parser.addoption(
+        "--llama3-8b-f8-attnf8-model-path",
+        type=Path,
+        action="store",
+        default=None,
+        help="Llama3.1 8b f8 attnf8 model path",
+    )
+    parser.addoption(
+        "--llama3-70b-tokenizer-path",
+        type=Path,
+        action="store",
+        help="Llama3.1 70b tokenizer path",
+    )
+    parser.addoption(
+        "--llama3-70b-f16-model-path",
+        type=Path,
+        action="store",
+        help="Llama3.1 70b model path",
+    )
+    parser.addoption(
+        "--llama3-70b-f16-tp8-model-path",
+        type=Path,
+        action="store",
+        help="Llama3.1 70b tp8 model path",
+    )
+    parser.addoption(
+        "--llama3-70b-f8-model-path",
+        type=Path,
+        action="store",
+        default=None,
+        help="Llama3.1 70b f8 model path",
+    )
+    parser.addoption(
         "--llama3-405b-tokenizer-path",
         type=Path,
         action="store",
@@ -167,11 +199,24 @@ def pytest_addoption(parser):
         help="Llama3.1 405b model path, defaults to 30F CI system path",
     )
     parser.addoption(
+        "--llama3-405b-f16-tp8-model-path",
+        type=Path,
+        action="store",
+        help="Llama3.1 405b tp8 model path.",
+    )
+    parser.addoption(
         "--llama3-405b-f8-model-path",
         type=Path,
         action="store",
         default=None,
         help="Llama3.1 405b f8 model path",
+    )
+    parser.addoption(
+        "--llama3-405b-f8-tp8-model-path",
+        type=Path,
+        action="store",
+        default=None,
+        help="Llama3.1 405b f8 tp8 model path",
     )
     parser.addoption(
         "--deepseek-v3-tokenizer-path",
@@ -331,14 +376,35 @@ def get_model_artifacts(request: FixtureRequest):
     model_path["llama3_8b_f8_model_path"] = set_fixture_from_cli_option(
         request, "--llama3-8b-f8-model-path", "llama3_8b_f8_model"
     )
+    model_path["llama3_8b_f8_attnf8_model_path"] = set_fixture_from_cli_option(
+        request, "--llama3-8b-f8-attnf8-model-path", "llama3_8b_f8_attnf8_model"
+    )
+    model_path["llama3_70b_tokenizer_path"] = set_fixture_from_cli_option(
+        request, "--llama3-70b-tokenizer-path", "llama3_70b_tokenizer"
+    )
+    model_path["llama3_70b_f16_model_path"] = set_fixture_from_cli_option(
+        request, "--llama3-70b-f16-model-path", "llama3_70b_f16_model"
+    )
+    model_path["llama3_70b_f16_tp8_model_path"] = set_fixture_from_cli_option(
+        request, "--llama3-70b-f16-tp8-model-path", "llama3_70b_f16_tp8_model"
+    )
+    model_path["llama3_70b_f8_model_path"] = set_fixture_from_cli_option(
+        request, "--llama3-70b-f8-model-path", "llama3_70b_f8_model"
+    )
     model_path["llama3_405b_tokenizer_path"] = set_fixture_from_cli_option(
         request, "--llama3-405b-tokenizer-path", "llama3_405b_tokenizer"
     )
     model_path["llama3_405b_f16_model_path"] = set_fixture_from_cli_option(
         request, "--llama3-405b-f16-model-path", "llama3_405b_f16_model"
     )
+    model_path["llama3_405b_f16_tp8_model_path"] = set_fixture_from_cli_option(
+        request, "--llama3-405b-f16-tp8-model-path", "llama3_405b_f16_tp8_model"
+    )
     model_path["llama3_405b_f8_model_path"] = set_fixture_from_cli_option(
         request, "--llama3-405b-f8-model-path", "llama3_405b_f8_model"
+    )
+    model_path["llama3_405b_f8_tp8_model_path"] = set_fixture_from_cli_option(
+        request, "--llama3-405b-f8-tp8-model-path", "llama3_405b_f8_tp8_model"
     )
     model_path["deepseek_v3_tokenizer_path"] = set_fixture_from_cli_option(
         request, "--deepseek-v3-tokenizer-path", "deepseek_v3_tokenizer"

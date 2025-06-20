@@ -13,7 +13,7 @@ from sharktank.layers.mixture_of_experts_block import MoeBlock
 from sharktank.utils import cli
 from sharktank.types import Theta
 from sharktank.layers.testing import make_random_moe_block_theta
-from sharktank.utils.testing import make_rand_torch
+from sharktank.utils.random import make_rand_torch
 
 
 def main():

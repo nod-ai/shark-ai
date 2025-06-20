@@ -39,7 +39,7 @@ is_nightly = pytest.mark.skipif(
     reason="Run large tests if --run-nightly-tests is passed",
 )
 is_llama_8b = pytest.mark.skipif(
-    'config.getoption("llama3_8b_f16_model_path") is None',
+    'config.getoption("llama3_8b_f16_model_path") is None or config.getoption("llama3_8b_tokenizer_path") is None',
     reason="Run llama tests if --llama3-8b-f16-model-path is passed",
 )
 is_deepseek = pytest.mark.skipif(
@@ -62,18 +62,6 @@ is_cpu_win = pytest.mark.skipif(is_cpu_condition and platform == "win32")
 
 def is_iree_hal_target_device_cpu(v: str, /) -> bool:
     return v.startswith("local") or v == "llvm-cpu"
-
-
-# Range of torch.rand() is [0,1)
-# Range of torch.rand() * 2 - 1 is [-1, 1), includes negative values
-def make_rand_torch(shape: list[int], dtype: Optional[torch.dtype] = torch.float32):
-    return (torch.rand(shape) * 2 - 1).to(dtype=dtype)
-
-
-def make_random_mask(shape: tuple[int], dtype: Optional[torch.dtype] = None):
-    mask = make_rand_torch(shape=shape, dtype=dtype)
-    mask = (mask >= 0).to(dtype=dtype)
-    return mask
 
 
 class TempDirTestBase(unittest.TestCase):
