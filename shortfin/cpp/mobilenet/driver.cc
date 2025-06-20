@@ -35,11 +35,14 @@ int main(int argc, const char **argv) {
 
   shortfin::local::Worker::Options options(
       mnet_server.system().host_allocator(), "main-inference-worker");
-  shortfin::local::Worker &runner =
-      mnet_server.system().CreateWorker(std::move(options));
+  shortfin::local::Worker &runner = mnet_server.system().init_worker();
+  // mnet_server.system().CreateWorker(std::move(options));
 
   auto coro = mnet_server.Run(data);
+  coro.addDoneCallback([&]() { runner.Kill(); });
+
   runner.CallThreadsafe([&]() { coro.resume(); });
-  coro.wait();
+  runner.RunOnCurrentThread();
+
   mnet_server.Shutdown();
 }

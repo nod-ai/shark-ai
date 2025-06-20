@@ -73,7 +73,7 @@ class Mobilenet {
       : system_(local::systems::AMDGPUSystemBuilder().CreateSystem()),
         module_(local::ProgramModule::Load(*system_, modulePath)) {
     queue_ = system_->CreateQueue();
-    processes_per_worker_ = 2;
+    processes_per_worker_ = 1;
     processes_.reserve(processes_per_worker_);
   }
 

@@ -50,7 +50,6 @@ void InferenceProcess::ScheduleOnWorker() {
   auto coro = Run();
   worker.CallThreadsafe([&]() { coro.resume(); });
   coro.wait();
-  Terminate();
 }
 
 local::Coroutine<> InferenceProcess::Run() {
@@ -89,6 +88,7 @@ local::Coroutine<> InferenceProcess::Run() {
     co_await device_.OnSync();
     std::cerr << *result.contents_to_s() << "\n";
   }
+  Terminate();
   co_return;
 }
 
@@ -113,11 +113,15 @@ local::Coroutine<> Mobilenet::Run(std::vector<float> data) {
   std::array<size_t, 4> dims{1, 3, 224, 224};
 
   int count = 1;
+  auto writer = local::QueueWriter(*queue_);
+
   while (count--) {
     InferenceRequest request = InferenceRequest(data);
     local::Message::Ref ref = local::Message::Ref(request);
-    queue_->WriteNoDelay(ref);
+    writer.Write(ref);
   }
+
+  writer.Close();
 
   for (size_t i = 0; i < processes_per_worker_; ++i) {
     local::Worker::Options options(system_->host_allocator(),

@@ -327,6 +327,8 @@ class Coroutine {
       promise_.set_exception(curr_exception_);
     }
 
+    // TODO(vinayakdsci): Add done_callback support for typed coroutines.
+
     template <typename U>
     void return_value(U &&value) {
       promise_.set_value(std::forward<U>(value));
@@ -390,10 +392,27 @@ class Coroutine<void> {
       curr_exception_ = std::current_exception();
       promise_.set_exception(curr_exception_);
     }
-    void return_void() { promise_.set_value(); }
+
+    void return_void() {
+      promise_.set_value();
+      if (done_callback_) {
+        done_callback_();
+      }
+    }
+
+    void addDoneCallback(std::function<void()> callback) {
+      done_callback_ = callback;
+    }
+
+   private:
+    std::function<void()> done_callback_;
   };
 
   void wait() { handle_.promise().promise_.get_future().wait(); }
+
+  void addDoneCallback(std::function<void()> callback) {
+    handle_.promise().addDoneCallback(callback);
+  }
 
   bool resume() {
     if (handle_ && !handle_.done()) {
