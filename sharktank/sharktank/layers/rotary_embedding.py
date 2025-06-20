@@ -169,7 +169,7 @@ class RotaryEmbeddingLayer(BaseLayer):
             if isinstance(rotary_embed_table, ReplicatedTensor):
                 rotary_embed_table = unbox_tensor(rotary_embed_table)
             bs, sl, _, dim = xt.shape
-            dim_half = rotary_embed_table.size(-1) // 2
+            dim_half = rotary_embed_table[0].shape[1] // 2
 
             freqs_cis_real = rotary_embed_table[0][
                 start_index : start_index + sl, :dim_half
