@@ -50,35 +50,6 @@ class MooncakeConfig:
         return config
 
 
-class MooncakeEngine:
-    """
-    Handles the data transfer between the Mooncake KVCache and the Shortfin application.
-    """
-
-    def __init__(self, config: MooncakeConfig):
-        """
-        Initialize the MooncakeEngine with the provided configuration.
-        """
-        try:
-            from mooncake.engine import TransferEngine
-        except ImportError as e:
-            raise ImportError(
-                "Mooncake is not installed. "
-                "Please run "
-                "pip3 install mooncake-transfer-engine "
-                "to install the Mooncake package."
-            ) from e
-        self.engine = TransferEngine()
-        self.config = config
-        self.engine.initialize_ext(
-            config.local_hostname,
-            config.metadata_server,
-            config.protocol,
-            config.device_name,
-            config.master_server_address,
-        )
-
-
 class MooncakeStore:
     """
     MooncakeStore is a wrapper around the Mooncake KVCache.
