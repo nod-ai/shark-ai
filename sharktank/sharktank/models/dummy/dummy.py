@@ -16,6 +16,7 @@ from ...layers import (
     configure_default_export_compile,
 )
 from ...types import Theta, AnyTensor, DefaultPrimitiveTensor
+from sharktank.utils.random import make_rand_torch
 
 __all__ = [
     "DummyModel",
@@ -46,8 +47,6 @@ class DummyModel(ThetaLayer):
         return DummyModelConfig
 
     def generate_random_theta(self) -> Theta:
-        from ...utils.testing import make_rand_torch
-
         rng_seed = self.config.rng_seed
         if rng_seed is None:
             rng_seed = 12345
@@ -72,8 +71,6 @@ class DummyModel(ThetaLayer):
     def sample_inputs(
         self, batch_size: int | None = 1, function: str | None = None
     ) -> tuple[tuple[AnyTensor, ...], OrderedDict[str, AnyTensor]]:
-        from ...utils.testing import make_rand_torch
-
         assert batch_size is not None
         assert function == "forward" or function is None
 
