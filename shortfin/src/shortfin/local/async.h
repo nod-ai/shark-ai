@@ -7,12 +7,17 @@
 #ifndef SHORTFIN_LOCAL_ASYNC_H
 #define SHORTFIN_LOCAL_ASYNC_H
 
+#include <iree/base/status.h>
+#include <iree/base/time.h>
+
 #include <any>
 #include <coroutine>
 #include <exception>
 #include <functional>
+#include <future>
 #include <utility>
 
+#include "shortfin/local/worker.h"
 #include "shortfin/support/api.h"
 #include "shortfin/support/iree_concurrency.h"
 #include "shortfin/support/iree_helpers.h"
@@ -65,14 +70,44 @@ class SHORTFIN_API CompletionEvent {
 
   bool await_ready() { return is_ready(); }
 
-  void await_suspend(std::coroutine_handle<> handle) { while (!is_ready()); }
+  void await_suspend(std::coroutine_handle<> handle) {
+    aggregate_ = Aggregate(&handle);
+    local::Worker *worker = Worker::GetCurrent();
+    worker->WaitOneLowLevel(
+        wait_source_, iree_infinite_timeout(),
+        +[](void *data, iree_loop_t loop,
+            iree_status_t status) noexcept -> iree_status_t {
+          try {
+            SHORTFIN_THROW_IF_ERROR(status);
+            static_cast<CompletionEvent::Aggregate *>(data)->handle_->resume();
+          } catch (...) {
+            static_cast<CompletionEvent::Aggregate *>(data)->exception_ =
+                std::current_exception();
+          }
+          return iree_ok_status();
+        },
+        &aggregate_);
+  }
 
-  void await_resume() {}
+  void await_resume() {
+    if (aggregate_.exception_) {
+      std::rethrow_exception(aggregate_.exception_);
+    }
+  }
+
+  struct Aggregate {
+    Aggregate() : handle_(nullptr), exception_(nullptr) {}
+    Aggregate(std::coroutine_handle<> *handle)
+        : handle_(handle), exception_(nullptr) {}
+    std::coroutine_handle<> *handle_;
+    std::exception_ptr exception_;
+  };
 
  private:
   iree_wait_source_t wait_source_;
   // A baton used to keep any needed backing resource alive.
   std::any resource_baton_;
+  Aggregate aggregate_;
 };
 
 // Object that will eventually be set to some completion state, either a result
@@ -233,7 +268,7 @@ class SHORTFIN_API TypedFuture : public Future {
     AddCallback([handle](Future &) { handle.resume(); });
   }
 
-  ResultTy await_resume() {
+  ResultTy &await_resume() {
     // In case of an exception, propagate. Else return the result.
     iree::slim_mutex_lock_guard guard(state_->lock_);
     ThrowFailureWithLockHeld();
@@ -294,6 +329,7 @@ class Coroutine {
     // promise_type for a TypedFuture.
     // We'll specialise for a VoidFuture.
     T future_;
+    std::promise<void> promise_;
     std::exception_ptr curr_exception_;
 
     promise_type() {}
@@ -302,8 +338,7 @@ class Coroutine {
       return Coroutine(handle_type::from_promise(*this));
     }
 
-    // Do not suspend the coroutine when it begins.
-    std::suspend_never initial_suspend() { return {}; }
+    std::suspend_always initial_suspend() { return {}; }
 
     // Return the custom awaiter when final_suspend is called.
     std::suspend_never final_suspend() noexcept { return {}; }
@@ -323,8 +358,18 @@ class Coroutine {
     template <typename U>
     void return_value(U &&value) {
       future_.set_result(std::forward<U>(value));
+      promise_.set_value();
     }
   };
+
+  void wait() { handle_.promise().promise_.get_future().wait(); }
+  bool resume() {
+    if (handle_ && !handle_.done()) {
+      handle_.resume();
+      return true;
+    }
+    return false;
+  }
 
  private:
   handle_type handle_;
@@ -354,6 +399,7 @@ class Coroutine<T, std::enable_if_t<type_remap<T>::is_untyped>> {
     // promise_type for a TypedFuture.
     // We'll specialise for a VoidFuture.
     T future_;
+    std::promise<void> promise_;
     std::exception_ptr curr_exception_;
 
     promise_type() {}
@@ -362,8 +408,7 @@ class Coroutine<T, std::enable_if_t<type_remap<T>::is_untyped>> {
       return Coroutine(handle_type::from_promise(*this));
     }
 
-    // Do not suspend the coroutine when it begins.
-    std::suspend_never initial_suspend() { return {}; }
+    std::suspend_always initial_suspend() { return {}; }
 
     // Return the custom awaiter when final_suspend is called.
     std::suspend_never final_suspend() noexcept { return {}; }
@@ -382,8 +427,18 @@ class Coroutine<T, std::enable_if_t<type_remap<T>::is_untyped>> {
         future_.set_failure(iree::exception_to_status(e));
       }
     }
-    void return_void() {}
+    void return_void() { promise_.set_value(); }
   };
+
+  void wait() { handle_.promise().promise_.get_future().wait(); }
+
+  bool resume() {
+    if (handle_ && !handle_.done()) {
+      handle_.resume();
+      return true;
+    }
+    return false;
+  }
 
  private:
   handle_type handle_;

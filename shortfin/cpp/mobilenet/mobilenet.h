@@ -10,9 +10,8 @@
 #define SHORTFIN_CPP_MOBILENET_H
 
 #include <filesystem>
+#include <memory>
 
-#include "iree/hal/allocator.h"
-#include "iree/hal/device.h"
 #include "shortfin/array/array.h"
 #include "shortfin/array/dtype.h"
 #include "shortfin/local/async.h"
@@ -30,29 +29,36 @@ namespace cpp {
 
 class InferenceRequest : public local::Message {
  public:
-  InferenceRequest(shortfin::array::device_array rawImageData)
-      : raw_data_(rawImageData) {}
+  InferenceRequest(std::vector<float> rawImageData) : raw_data_(rawImageData) {}
+
+  std::vector<float> &rawImageData() { return raw_data_; }
 
  private:
-  shortfin::array::device_array raw_data_;
+  std::vector<float> raw_data_;
 };
 
 class InferenceProcess : public local::Process {
   using device_array = shortfin::array::device_array;
 
  public:
-  InferenceProcess(local::Fiber fiber, local::Program program,
+  using local::detail::BaseProcess::Launch;
+  InferenceProcess(std::shared_ptr<local::Fiber> fiber, local::Program program,
                    local::Queue &requestQueue, std::span<size_t> dims)
-      : local::Process(fiber.shared_from_this()),
+      : local::Process(fiber),
         program_(program),
         request_reader_(std::move(local::QueueReader(requestQueue))),
-        device_(fiber.device(0)),
+        device_(fiber->device(0)),
         input_(std::move(
+            device_array::for_device(device_, std::span<size_t>{dims},
+                                     shortfin::array::DType::float32()))),
+        result_(std::move(
             device_array::for_device(device_, std::span<size_t>{dims},
                                      shortfin::array::DType::float32()))),
         host_staging_(input_.for_transfer()) {}
 
   void ScheduleOnWorker();
+
+  void dump_result() { std::cerr << *result_.contents_to_s() << std::endl; }
 
   local::Coroutine<local::VoidFuture> Run();
 
@@ -62,6 +68,7 @@ class InferenceProcess : public local::Process {
   local::ScopedDevice device_;
   shortfin::array::device_array input_;
   shortfin::array::device_array host_staging_;
+  shortfin::array::device_array result_;
 };
 
 class Mobilenet {
@@ -74,14 +81,17 @@ class Mobilenet {
     processes_.reserve(processes_per_worker_);
   }
 
-  void startProcesses();
+  ~Mobilenet() { system_->Shutdown(); }
+
+  local::Coroutine<local::VoidFuture> Run();
+  local::System &system() { return *system_; }
 
  private:
   local::SystemPtr system_;
   local::ProgramModule module_;
   local::QueuePtr queue_;
   int processes_per_worker_;
-  std::vector<local::Process *> processes_;
+  std::vector<InferenceProcess *> processes_;
 };
 }  // namespace cpp
 }  // namespace shortfin
