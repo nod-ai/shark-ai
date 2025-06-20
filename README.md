@@ -30,6 +30,8 @@
 | sharktank/sharktank/kernels/pooling\_nchw\_sum.py                             |       38 |        0 |    100% |           |
 | sharktank/sharktank/kernels/rotary.py                                         |       31 |        0 |    100% |           |
 | sharktank/sharktank/kernels/topk.py                                           |       30 |        0 |    100% |           |
+| sharktank/sharktank/kernels/wave/attention.py                                 |       48 |        0 |    100% |           |
+| sharktank/sharktank/kernels/wave/utils.py                                     |        9 |        0 |    100% |           |
 | sharktank/sharktank/layers/\_\_init\_\_.py                                    |       15 |        0 |    100% |           |
 | sharktank/sharktank/layers/activations.py                                     |        3 |        0 |    100% |           |
 | sharktank/sharktank/layers/base.py                                            |      177 |       27 |     85% |131, 206-209, 224, 242, 259-260, 269, 298, 366-374, 385-398, 400, 404-407, 411, 417, 424 |
@@ -146,6 +148,7 @@
 | sharktank/tests/examples/main\_test.py                                        |       24 |        1 |     96% |        45 |
 | sharktank/tests/export\_ir/export\_test.py                                    |       38 |        0 |    100% |           |
 | sharktank/tests/kernels/attention\_template\_test.py                          |       72 |        2 |     97% |  113, 130 |
+| sharktank/tests/kernels/attention\_wave\_test.py                              |       23 |        2 |     91% |    25, 59 |
 | sharktank/tests/kernels/batch\_matmul\_transpose\_b\_test.py                  |       85 |        6 |     93% |110-113, 126, 153 |
 | sharktank/tests/kernels/conv\_2d\_nchw\_fchw\_test.py                         |       42 |        2 |     95% |    63, 91 |
 | sharktank/tests/kernels/einsum\_q4\_test.py                                   |       69 |        3 |     96% |94, 120, 141 |
@@ -157,6 +160,7 @@
 | sharktank/tests/kernels/pooling\_nchw\_sum\_test.py                           |       42 |        2 |     95% |    58, 78 |
 | sharktank/tests/kernels/rotary\_test.py                                       |       18 |        0 |    100% |           |
 | sharktank/tests/kernels/topk\_test.py                                         |       31 |        0 |    100% |           |
+| sharktank/tests/kernels/wave/wave\_utils\_test.py                             |       30 |        0 |    100% |           |
 | sharktank/tests/layers/base\_test.py                                          |       22 |        0 |    100% |           |
 | sharktank/tests/layers/configs\_test.py                                       |       11 |        0 |    100% |           |
 | sharktank/tests/layers/kv\_cache\_test.py                                     |       83 |        0 |    100% |           |
@@ -205,7 +209,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |       63 |        3 |     95% |   226-238 |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **19052** | **3876** | **80%** |           |
+|                                                                     **TOTAL** | **19162** | **3878** | **80%** |           |
 
 
 ## Setup coverage badge
