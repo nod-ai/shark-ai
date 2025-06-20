@@ -41,11 +41,10 @@ from sharktank.types import (
 )
 from sharktank.transforms.dataset import set_float_dtype
 from sharktank.utils.hf_datasets import get_dataset
+from sharktank.utils.random import make_random_mask, make_rand_torch
 from sharktank.utils.testing import (
     is_cpu_condition,
     assert_text_encoder_state_close,
-    make_rand_torch,
-    make_random_mask,
     TempDirTestBase,
     get_test_prompts,
 )
