@@ -250,11 +250,6 @@ def add_export_artifacts(parser: argparse.ArgumentParser):
         type=str,
         default=[],
     )
-    parser.add_argument(
-        "--skip-if-file-exists",
-        help="Skip generation of files if they exist. E.g. MLIR is already exported.",
-        action=argparse.BooleanOptionalAction,
-    )
 
 
 def add_save_tensor_options(parser: argparse.ArgumentParser):
