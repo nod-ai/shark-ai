@@ -166,12 +166,18 @@ class RotaryEmbeddingLayer(BaseLayer):
         _, sl, _, _ = xt_.shape
 
         if self.model_arch == "llama4":
+            if isinstance(rotary_embed_table, ReplicatedTensor):
+                rotary_embed_table = unbox_tensor(rotary_embed_table)
+            bs, sl, _, dim = xt.shape
+            dim_half = rotary_embed_table[0].shape[1] // 2
+
             freqs_cis_real = rotary_embed_table[0][
-                :, : rotary_embed_table[0].shape[1] // 2
+                start_index : start_index + sl, :dim_half
             ]
             freqs_cis_imag = rotary_embed_table[1][
-                :, : rotary_embed_table[0].shape[1] // 2
+                start_index : start_index + sl, :dim_half
             ]
+
             # TODO: don't use complex numbers as the compiler does better without them.
             freqs_cis = torch.view_as_complex(
                 torch.stack([freqs_cis_real, freqs_cis_imag], dim=-1)
@@ -235,6 +241,26 @@ class RotaryEmbeddingLayer(BaseLayer):
             freqs_cis = (cos[:, None, None, :], sin[:, None, None, :])
             return freqs_cis
 
+        if self.model_arch == "llama4":
+            shape = positions_seq.shape
+
+            def _rows_for(t):
+
+                return (
+                    self._compute_rotary_embed_table(t.flatten())
+                    .unflatten(1, shape)
+                    .permute(1, 2, 0, 3)
+                )
+
+            if isinstance(positions_seq, ReplicatedTensor):
+                freqs_cis = ReplicatedTensor(
+                    ts=[_rows_for(s) for s in positions_seq.shards],
+                    devices=positions_seq.devices,
+                )
+            else:
+                freqs_cis = _rows_for(positions_seq)
+
+            return freqs_cis
         if self.use_table:
             freqs_cis = self.rotary_embed_table[positions_seq.flatten()]
         else:
@@ -244,6 +270,7 @@ class RotaryEmbeddingLayer(BaseLayer):
                     self._compute_rotary_embed_table(s.flatten()).unflatten(0, shape)
                     for s in positions_seq.shards
                 ]
+
                 freqs_cis = ReplicatedTensor(ts=ts)
             else:
                 freqs_cis = self._compute_rotary_embed_table(positions_seq.flatten())
@@ -332,6 +359,29 @@ class RotaryEmbeddingLayer(BaseLayer):
             sin = torch.sin(emb).to(self.dtype)
             return (cos, sin)
 
+        if self.model_arch == "llama4":
+            # half-dimension (cos/sin share it)
+            dim_half = dim // 2
+
+            # inverse frequencies  (same formula as classic RoPE)
+            inv_freq = 1.0 / (
+                self.rope_freq_base
+                ** (torch.arange(0, dim_half, device=self.device).float() / dim_half)
+            )  # [dim/2]
+
+            # outer-product  → [max_sl, dim/2]
+            emb = t.unsqueeze(1).float() * inv_freq.unsqueeze(0)
+
+            cos = torch.cos(emb).to(self.dtype)  # [max_sl, dim/2]
+            sin = torch.sin(emb).to(self.dtype)  # [max_sl, dim/2]
+
+            # shape [2, max_sl, dim/2]  : 0 = cos, 1 = sin
+            table = torch.stack((cos, sin), dim=0)
+
+            # duplicate to full `dim` so later code can slice [:, :, :dim//2]
+            table = torch.cat((table, table), dim=-1)  # [2, max_sl, dim]
+
+            return table
         freqs = 1.0 / (
             self.rope_freq_base ** ((torch.arange(0, dim) // 2).float() / dim * 2.0)
         ).to(device=self.device)

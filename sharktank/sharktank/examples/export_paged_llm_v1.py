@@ -69,7 +69,6 @@ def main():
     block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
         dataset.root_theta, args.pipeline_parallelism_size
     )
-
     llama_config = LlamaModelConfig(
         hp,
         tensor_parallelism_size=args.tensor_parallelism_size,
@@ -85,7 +84,6 @@ def main():
         kv_cache_dtype=args.kv_cache_dtype,
     )
     llama_config.fake_quant = args.fake_quant
-
     model = PagedLlmModelV1(dataset.root_theta, llama_config)
 
     def generate_params_json(
@@ -136,6 +134,7 @@ def main():
 
     def setup_cache(model, shard_count):
         if model.config.kv_cache_type == "paged":
+
             cache_state = model.cache.allocate(
                 page_count=hp.context_length // llama_config.block_seq_stride
             )
@@ -197,6 +196,7 @@ def main():
         block_dim = torch.export.Dim("block", min=block_dim_min, max=block_dim_max)
         sl_dim = llama_config.block_seq_stride * block_dim
         seq_block_ids = torch.empty(bs, block_dim_min, dtype=torch.int64)
+
         tokens = torch.empty(
             bs,
             seq_block_ids.shape[1] * llama_config.block_seq_stride,
