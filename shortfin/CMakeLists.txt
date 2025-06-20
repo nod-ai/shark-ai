@@ -57,7 +57,7 @@ option(SHORTFIN_BUNDLE_DEPS "Download dependencies instead of using system libra
 option(SHORTFIN_ENABLE_TRACING "Enable runtime tracing for iree and shortfin" OFF)
 option(SHORTFIN_ENABLE_LTO "Enables LTO if supported" ON)
 option(SHORTFIN_ENABLE_TOKENIZERS "Enables integration of native tokenizers library" OFF)
-option(SHORTFIN_BUILD_CPP_MOBILENET "Build the C++ implementation of the MobileNet server" ON)
+option(SHORTFIN_BUILD_CPP_APPS "Build C++ example apps" ON)
 
 set(SHORTFIN_IREE_SOURCE_DIR "" CACHE FILEPATH "Path to IREE source")
 
@@ -360,6 +360,6 @@ if(SHORTFIN_BUILD_PYTHON_BINDINGS)
 endif()
 
 
-if (SHORTFIN_BUILD_CPP_MOBILENET)
+if (SHORTFIN_BUILD_CPP_APPS)
   add_subdirectory(cpp)
 endif()

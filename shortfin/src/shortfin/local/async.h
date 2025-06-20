@@ -401,7 +401,9 @@ class Coroutine<void> {
     }
 
     void addDoneCallback(std::function<void()> callback) {
-      done_callback_ = callback;
+      if (!done_callback_) {
+        done_callback_ = callback;
+      }
     }
 
    private:

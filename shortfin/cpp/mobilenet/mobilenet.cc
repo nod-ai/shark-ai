@@ -40,7 +40,7 @@ std::variant<array::device_array, array::storage> GetResultFromInvocationRef(
   throw std::invalid_argument(
       fmt::format("Could not marshal ref type {}",
                   shortfin::to_string_view(iree_vm_ref_type_name(type))));
-}  // namespace shortfin::array
+}
 }  // namespace
 
 namespace shortfin {
@@ -50,6 +50,7 @@ void InferenceProcess::ScheduleOnWorker() {
   auto coro = Run();
   worker.CallThreadsafe([&]() { coro.resume(); });
   coro.wait();
+  Terminate();
 }
 
 local::Coroutine<> InferenceProcess::Run() {
@@ -88,7 +89,6 @@ local::Coroutine<> InferenceProcess::Run() {
     co_await device_.OnSync();
     std::cerr << *result.contents_to_s() << "\n";
   }
-  Terminate();
   co_return;
 }
 
@@ -112,7 +112,7 @@ local::Coroutine<> Mobilenet::Run(std::vector<float> data) {
 
   std::array<size_t, 4> dims{1, 3, 224, 224};
 
-  int count = 1;
+  int count = 40;
   auto writer = local::QueueWriter(*queue_);
 
   while (count--) {

@@ -1,3 +1,9 @@
+// Copyright 2024 Advanced Micro Devices, Inc.
+//
+// Licensed under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #include <filesystem>
 #include <fstream>
 
@@ -19,8 +25,8 @@ static std::vector<float> readImageBinary(std::filesystem::path path) {
 
 int main(int argc, const char **argv) {
   if (argc != 3) {
-    std::cerr << "Invalid number of arguments.\nUsage: mnet <VMFB path> <image "
-                 "binary data path>"
+    std::cerr << "Invalid number of arguments.\nUsage: mnet </path/to/VMFB> "
+                 "</path/to/raw/image/data/>"
               << std::endl;
     exit(1);
   }
