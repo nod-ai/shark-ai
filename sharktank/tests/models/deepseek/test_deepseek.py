@@ -56,9 +56,9 @@ class CrossEntropyTest(unittest.TestCase):
 class DeepseekIreeVsEagerTest(TempDirTestBase):
     @xfail(
         raises=AssertionError,
-        reason="https://github.com/iree-org/iree/issues/21087",
+        reason="TODO: File issue",
         strict=True,
-        match="Outputs do not match for prefill batch index 0:",
+        match="'vector.transfer_write' op write affecting operations on global resources are restricted to workgroup",
     )
     def testUnshardedToySizedModelIREEVsEager(self):
         theta, config = generate(12345)
