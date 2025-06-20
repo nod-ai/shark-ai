@@ -31,6 +31,7 @@ from .service_debug_dumper import SERVICE_DEBUG_DUMPER
 
 logger = logging.getLogger(__name__)
 
+STROBE_DELAY_COEFF = 4
 
 ########################################################################################
 # Batcher
@@ -42,8 +43,8 @@ import math
 class LlmBatcherProcess(BatcherProcess):
     """This batcher provides a high-level mechanism for dispatching LLM tasks."""
 
-    STROBE_SHORT_DELAY = 0.065
-    STROBE_LONG_DELAY = 0.065
+    STROBE_SHORT_DELAY = 0.065 // STROBE_DELAY_COEFF
+    STROBE_LONG_DELAY = 0.065 * STROBE_DELAY_COEFF
 
     def __init__(
         self,
@@ -158,8 +159,8 @@ class PrefillBatcherProcess(LlmBatcherProcess):
     committed cache state).
     """
 
-    STROBE_SHORT_DELAY = 0.065
-    STROBE_LONG_DELAY = 0.065
+    STROBE_SHORT_DELAY = 0.065 // STROBE_DELAY_COEFF
+    STROBE_LONG_DELAY = 0.065 * STROBE_DELAY_COEFF
 
     def __init__(
         self,
@@ -214,8 +215,8 @@ class DecodeBatcherProcess(LlmBatcherProcess):
     committed cache state).
     """
 
-    STROBE_SHORT_DELAY = 0.0006
-    STROBE_LONG_DELAY = 0.0006
+    STROBE_SHORT_DELAY = 0.0006 // STROBE_DELAY_COEFF
+    STROBE_LONG_DELAY = 0.0006 * STROBE_DELAY_COEFF
 
     def __init__(
         self,
@@ -302,6 +303,7 @@ class LlmExecutorProcess(sf.Process):
             return buffers
 
         new_buffers = []
+        await device0
         for buffer in buffers:
             if buffer is None:
                 new_buffers.append(None)
@@ -311,7 +313,6 @@ class LlmExecutorProcess(sf.Process):
             host_buffer.copy_from(buffer)
             new_buffers.append(host_buffer)
 
-        await device0
         return tuple(new_buffers)
 
     async def run(self):

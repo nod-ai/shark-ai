@@ -55,13 +55,12 @@ class LlmGenerateService(GenerateService):
         self.server_params = server_params
         self.max_queue_size = max_queue_size
         self.current_queue_size = 0
-        self.main_fiber_pool = FiberPool(
-            self.sysman, self.max_queue_size, resizable=True
-        )
-
         self.set_isolation(program_isolation)
         self._initialize_worker_and_fiber()
         self._initialize_queues()
+        self.main_fiber_pool = FiberPool(
+            self.sysman, self.max_queue_size, resizable=True
+        )
         self._initialize_page_cache()
         self._lock = Lock()
 
