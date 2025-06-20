@@ -47,6 +47,11 @@ def add_cli_args(parser: argparse.ArgumentParser):
         help="Perform a benchmarking run for throughput",
     )
     parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print output in verbose mode",
+    )
+    parser.add_argument(
         "--benchmark_tasks",
         type=int,
         default=None,
@@ -321,18 +326,22 @@ async def main(argv):
 
         print(f"Requests per second: {reqs:2f}")
         latencies = [s.runtime() for s in tasks]
-        print(
-            f"Latencies: av: {np.mean(latencies)}, min: {np.min(latencies)}, max: {np.max(latencies)}, median: {np.median(latencies)}, sd: {np.std(latencies)}"
-        )
+        if args.verbose:
+            print(
+                f"Latencies: av: {np.mean(latencies)}, min: {np.min(latencies)}, max: {np.max(latencies)}, median: {np.median(latencies)}, sd: {np.std(latencies)}"
+            )
         if args.stream:
             ttft = [s.ttft() for s in tasks]
             tpot = [s.tpot() for s in tasks]
-            print(
-                f"TTFT: av: {np.mean(ttft)}, min: {np.min(ttft)}, max: {np.max(ttft)}, median: {np.median(ttft)}, sd: {np.std(ttft)}"
-            )
-            print(
-                f"TPOT: av: {np.mean(tpot)}, min: {np.min(tpot)}, max: {np.max(tpot)}, median: {np.median(tpot)}, sd: {np.std(tpot)}"
-            )
+            if args.verbose:
+                print(
+                    f"TTFT: av: {np.mean(ttft)}, min: {np.min(ttft)}, max: {np.max(ttft)}, median: {np.median(ttft)}, sd: {np.std(ttft)}"
+                )
+                print(
+                    f"TPOT: av: {np.mean(tpot)}, min: {np.min(tpot)}, max: {np.max(tpot)}, median: {np.median(tpot)}, sd: {np.std(tpot)}"
+                )
+            else:
+                print(f"TTFT: {np.mean(ttft)}, TPOT: {np.mean(tpot)}, E2E_latency: {np.mean(latencies)}")
 
     logger.info(f"Shutting down service")
     service.shutdown()
