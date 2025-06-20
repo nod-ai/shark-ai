@@ -110,6 +110,7 @@ class MainRunnerTestBase(TempDirTestBase):
         self.assertGreater(p.stat().st_size, 0, msg=f"Expected file {p} had zero size")
 
 
+@pytest.mark.usefixtures("get_iree_flags", "device")
 @is_mi300x
 class IreeVsEagerLLMTest(TempDirTestBase):
     """
@@ -259,7 +260,7 @@ class IreeVsEagerLLMTest(TempDirTestBase):
             output_name=work_dir / "model",
         )
 
-        self.config.device = torch.device("cuda:0")
+        self.config.device = torch.device(self.device)
         self.inplace_transfer_theta(theta, self.config.device)
 
         token_ids_prefill, seq_lens = pad_tokens(
