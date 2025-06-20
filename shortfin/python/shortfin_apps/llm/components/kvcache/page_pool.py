@@ -180,7 +180,7 @@ class PagePool:
         host_page.copy_from(device_page)
         return host_page.items
 
-    def update_page_data(self, device_id, page: PageInfo, data: List[int]) -> None:
+    def update_device_page(self, device_id, page: PageInfo, data: List[int]) -> None:
         """
         Update the device page with host page.
 

@@ -356,28 +356,36 @@ class LlmExecutorProcess(sf.Process):
                 )
 
             # Invoke VMFB. Logits are of shape [bs, bsl, d].
-            args_device = [arg.device for arg in args]
-            result = await fn(*args_device, fiber=self.fiber)
-
+            logits = []
             indices = None
-            logits = result[0]
-            if len(result) > 1:
-                indices = result[1]
+            if req_count != 0:
+                args_device = [arg.device for arg in args]
+                result = await fn(*args_device, fiber=self.fiber)
 
-            # publish cache pages
-            for r in self.exec_requests:
-                total_tokens = r.start_position + len(r.input_token_ids)
-                number_of_complete_pages = total_tokens // seq_stride
-                r.publish_allocated_pages(number_of_complete_pages)
+                indices = None
+                logits = result[0]
+                if len(result) > 1:
+                    indices = result[1]
 
-            logits, indices = await self._transfer_buffer(
-                req_count=req_count, device0=device0, buffers=(logits, indices)
-            )
+                for r in self.exec_requests:
+                    total_tokens = r.start_position + len(r.input_token_ids)
+                    number_of_complete_pages = total_tokens // seq_stride
+                    r.publish_allocated_pages(number_of_complete_pages)
 
+                logits, indices = await self._transfer_buffer(
+                    req_count=req_count, device0=device0, buffers=(logits, indices)
+                )
+                # Return results.
+                await self.get_results(logits, indices, req_count)
+            else:
+                # publish cache pages
+                for r in self.exec_requests:
+                    total_tokens = r.start_position + len(r.input_token_ids)
+                    number_of_complete_pages = total_tokens // seq_stride
+                    r.publish_allocated_pages(number_of_complete_pages)
+                for req in self.exec_requests:
+                    req.done.set_success()
             [arg.release() for arg in args]
-
-            # Return results.
-            await self.get_results(logits, indices, req_count)
 
         except Exception:
             logger.exception("Fatal error in prefetch invocation")
@@ -465,6 +473,17 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         for page_table in self.page_tables:
             args.append(WrappedAllocation(sfnp.disable_barrier(page_table)))
 
+        updated = True
+        for req in self.exec_requests:
+            if req.allocation is not None:
+                updated = await req.allocation.update_pages(
+                    device=self.device0, token_ids=req.input_token_ids
+                )
+            if not updated:
+                logger.debug("Failed to update pages")
+                break
+        if updated:
+            req_count = 0
         return args, req_count
 
     async def get_results(self, logits, indices, req_count):
