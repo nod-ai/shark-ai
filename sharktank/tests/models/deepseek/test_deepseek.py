@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import pytest
+import unittest
 
 import torch
 
@@ -15,10 +16,8 @@ from sharktank.utils.evaluate import *
 from sharktank.utils.testing import is_mi300x, IreeVsEagerLLMTest, xfail
 
 
-@pytest.mark.usefixtures("get_iree_flags")
-# @is_mi300x  # TODO: This is not working for some reason
-class DeepseekTest(IreeVsEagerLLMTest):
-    def testCrossEntropy(self):
+class CrossEntropyTest(unittest.TestCase):
+    def testUnsharded(self):
         theta, config = generate(12345)
         model = PagedLlmModelV1(theta=theta, config=config)
 
@@ -46,6 +45,9 @@ class DeepseekTest(IreeVsEagerLLMTest):
 
         assert pytest.approx(9.7477, 1e-4) == cross_entropy
 
+
+@pytest.mark.usefixtures("get_iree_flags")
+class DeepseekIreeVsEagerTest(IreeVsEagerLLMTest):
     @xfail(
         raises=AssertionError,
         reason="https://github.com/iree-org/iree/issues/21087",

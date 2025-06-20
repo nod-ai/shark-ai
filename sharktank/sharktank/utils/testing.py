@@ -110,8 +110,13 @@ class MainRunnerTestBase(TempDirTestBase):
         self.assertGreater(p.stat().st_size, 0, msg=f"Expected file {p} had zero size")
 
 
+@is_mi300x
 class IreeVsEagerLLMTest(TempDirTestBase):
-    """Class for comparing the results of IREE and eager execution of the same LLM."""
+    """
+    Class for comparing the results of IREE and eager execution of the same LLM.
+
+    Can only be run on with a gpu enabled version of torch.
+    """
 
     def compare_outputs(
         self,
