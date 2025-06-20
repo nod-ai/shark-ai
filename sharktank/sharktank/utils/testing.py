@@ -150,21 +150,6 @@ class IreeVsEagerLLMTest(TempDirTestBase):
                     f"IREE: {iree_i}\n"
                 ) from error
 
-    def inplace_transfer_theta(self, node: Theta | dict | AnyTensor, dev: torch.device):
-        """
-        Inplace transfer all of the weights in the given Theta to the specified torch.device to allow for gpu-based eager tests regardless of how the initial weights were created.
-        """
-        if isinstance(node, AnyTensor):
-            return node.to(dev)
-
-        if isinstance(node, dict):
-            for key in node.keys():
-                node[key] = self.inplace_transfer_theta(node[key], dev)
-            return node
-
-        for key in node.keys:
-            self.inplace_transfer_theta(node.tensor(key), dev)
-
     def run_and_compare_iree_vs_eager(
         self, *, rtol: float | None = None, atol: float | None = None
     ):
@@ -260,22 +245,24 @@ class IreeVsEagerLLMTest(TempDirTestBase):
             output_name=work_dir / "model",
         )
 
-        self.config.device = torch.device(self.device)
-        self.inplace_transfer_theta(theta, self.config.device)
+        self.config.device = torch.device(self.device)  # Switch to gpu for eager mode
+        theta_for_eager = theta.to(device=self.config.device)
 
-        token_ids_prefill, seq_lens = pad_tokens(
+        prefill_token_ids, prefill_seq_lens = pad_tokens(
             token_ids=raw_token_ids,
             pad_to_multiple_of=self.config.block_seq_stride,
         )
-        token_ids_prefill = torch.as_tensor(
-            token_ids_prefill, device=self.config.device
+        prefill_token_ids = torch.as_tensor(
+            prefill_token_ids, device=self.config.device
         )
-        seq_lens = torch.as_tensor(seq_lens, device=self.config.device)
-        self.batch_size = token_ids_prefill.shape[0]
+        prefill_seq_lens = torch.as_tensor(prefill_seq_lens, device=self.config.device)
+        self.batch_size = prefill_token_ids.shape[0]
 
-        generator = TorchGenerator(PagedLlmModelV1(theta=theta, config=self.config))
+        generator = TorchGenerator(
+            PagedLlmModelV1(theta=theta_for_eager, config=self.config)
+        )
         self.eager_batch = generator.begin_batch(
-            token_ids=token_ids_prefill, seq_lens=seq_lens, dump_path=work_dir
+            token_ids=prefill_token_ids, seq_lens=prefill_seq_lens, dump_path=work_dir
         )
 
     def run_eager(self):
