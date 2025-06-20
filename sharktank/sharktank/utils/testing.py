@@ -64,18 +64,6 @@ def is_iree_hal_target_device_cpu(v: str, /) -> bool:
     return v.startswith("local") or v == "llvm-cpu"
 
 
-# Range of torch.rand() is [0,1)
-# Range of torch.rand() * 2 - 1 is [-1, 1), includes negative values
-def make_rand_torch(shape: list[int], dtype: Optional[torch.dtype] = torch.float32):
-    return (torch.rand(shape) * 2 - 1).to(dtype=dtype)
-
-
-def make_random_mask(shape: tuple[int], dtype: Optional[torch.dtype] = None):
-    mask = make_rand_torch(shape=shape, dtype=dtype)
-    mask = (mask >= 0).to(dtype=dtype)
-    return mask
-
-
 class TempDirTestBase(unittest.TestCase):
     def setUp(self):
         self._temp_dir = Path(tempfile.mkdtemp(type(self).__qualname__))
