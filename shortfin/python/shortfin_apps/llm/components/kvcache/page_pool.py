@@ -177,7 +177,7 @@ class PagePool:
         host_page_table = page_table.for_transfer()
         host_page = host_page_table.view(page.index)
         device_page = page_table.view(page.index)
-        host_page.copy_from(device_view)
+        host_page.copy_from(device_page)
         return host_page.items
 
     def update_page_data(self, device_id, page: PageInfo, data: List[int]) -> None:
