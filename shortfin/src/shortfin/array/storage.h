@@ -172,13 +172,14 @@ class SHORTFIN_API storage : public local::ProgramInvocationMarshalable {
     return timeline_resource_->host_allocator();
   }
 
+  void AddAsInvocationArgument(local::ProgramInvocation *inv,
+                               local::ProgramResourceBarrier barrier) override;
+
  private:
   storage(local::ScopedDevice device, iree::hal_buffer_ptr buffer,
           local::detail::TimelineResource::Ref timeline_resource);
   void AsyncDeallocate();
   // ProgramInvocationMarshalable implementation.
-  void AddAsInvocationArgument(local::ProgramInvocation *inv,
-                               local::ProgramResourceBarrier barrier) override;
   static storage CreateFromInvocationResultRef(
       local::ProgramInvocation *inv,
       local::CoarseInvocationTimelineImporter *timeline_importer,

@@ -7,9 +7,17 @@
 #ifndef SHORTFIN_LOCAL_ASYNC_H
 #define SHORTFIN_LOCAL_ASYNC_H
 
-#include <any>
-#include <functional>
+#include <iree/base/status.h>
+#include <iree/base/time.h>
 
+#include <any>
+#include <coroutine>
+#include <exception>
+#include <functional>
+#include <future>
+#include <utility>
+
+#include "shortfin/local/worker.h"
 #include "shortfin/support/api.h"
 #include "shortfin/support/iree_concurrency.h"
 #include "shortfin/support/iree_helpers.h"
@@ -60,10 +68,46 @@ class SHORTFIN_API CompletionEvent {
   // Access the raw wait source.
   operator const iree_wait_source_t &() { return wait_source_; }
 
+  bool await_ready() { return is_ready(); }
+
+  void await_suspend(std::coroutine_handle<> handle) {
+    aggregate_ = Aggregate(&handle);
+    local::Worker *worker = Worker::GetCurrent();
+    worker->WaitOneLowLevel(
+        wait_source_, iree_infinite_timeout(),
+        +[](void *data, iree_loop_t loop,
+            iree_status_t status) noexcept -> iree_status_t {
+          try {
+            SHORTFIN_THROW_IF_ERROR(status);
+            static_cast<CompletionEvent::Aggregate *>(data)->handle_->resume();
+          } catch (...) {
+            static_cast<CompletionEvent::Aggregate *>(data)->exception_ =
+                std::current_exception();
+          }
+          return iree_ok_status();
+        },
+        &aggregate_);
+  }
+
+  void await_resume() {
+    if (aggregate_.exception_) {
+      std::rethrow_exception(aggregate_.exception_);
+    }
+  }
+
+  struct Aggregate {
+    Aggregate() : handle_(nullptr), exception_(nullptr) {}
+    Aggregate(std::coroutine_handle<> *handle)
+        : handle_(handle), exception_(nullptr) {}
+    std::coroutine_handle<> *handle_;
+    std::exception_ptr exception_;
+  };
+
  private:
   iree_wait_source_t wait_source_;
   // A baton used to keep any needed backing resource alive.
   std::any resource_baton_;
+  Aggregate aggregate_;
 };
 
 // Object that will eventually be set to some completion state, either a result
@@ -155,6 +199,22 @@ class SHORTFIN_API VoidFuture : public Future {
     SetSuccessWithLockHeld();
     IssueCallbacksWithLockHeld();
   }
+
+  bool await_ready() const noexcept {
+    iree::slim_mutex_lock_guard guard(state_->lock_);
+    return state_->done_;
+  }
+
+  void await_suspend(std::coroutine_handle<> handle) {
+    // Add a callback that will resume the handle when the coro
+    // completes.
+    AddCallback([handle](Future &) { handle.resume(); });
+  }
+
+  void await_resume() {
+    // Propagate any exceptions if they occur.
+    ThrowFailure();
+  }
 };
 
 // Value containing Future.
@@ -199,6 +259,22 @@ class SHORTFIN_API TypedFuture : public Future {
     return static_cast<TypedState *>(state_)->result_;
   }
 
+  bool await_ready() const noexcept {
+    iree::slim_mutex_lock_guard guard(state_->lock_);
+    return state_->done_;
+  }
+
+  void await_suspend(std::coroutine_handle<> handle) {
+    AddCallback([handle](Future &) { handle.resume(); });
+  }
+
+  ResultTy &await_resume() {
+    // In case of an exception, propagate. Else return the result.
+    iree::slim_mutex_lock_guard guard(state_->lock_);
+    ThrowFailureWithLockHeld();
+    return static_cast<TypedState *>(state_)->result_;
+  }
+
  private:
   struct SHORTFIN_API TypedState : public BaseState {
     using BaseState::BaseState;
@@ -206,6 +282,150 @@ class SHORTFIN_API TypedFuture : public Future {
   };
 };
 
-}  // namespace shortfin::local
+template <typename T = void, typename Enable = void>
+class Coroutine {
+  struct promise_type;
+  using handle_type = std::coroutine_handle<promise_type>;
 
-#endif  // SHORTFIN_LOCAL_ASYNC_H
+  Coroutine(handle_type handle) : handle_(handle) {}
+  Coroutine(Coroutine &&other)
+      : handle_(std::exchange(other.handle_, nullptr)) {}
+  Coroutine(const Coroutine &other) = delete;
+  Coroutine &operator=(const Coroutine &) = delete;
+  Coroutine &operator=(Coroutine &&other) noexcept {
+    if (this != &other) {
+      if (handle_) {
+        handle_.destroy();
+        handle_ = std::exchange(other.handle_, nullptr);
+      }
+    }
+    return *this;
+  }
+
+  struct promise_type {
+    // promise_type for a TypedFuture.
+    // We'll specialise for a VoidFuture.
+    std::promise<T> promise_;
+    std::exception_ptr curr_exception_;
+
+    promise_type() {}
+
+    Coroutine get_return_object() {
+      return Coroutine(handle_type::from_promise(*this));
+    }
+
+    std::suspend_always initial_suspend() { return {}; }
+
+    // Return the custom awaiter when final_suspend is called.
+    std::suspend_never final_suspend() noexcept { return {}; }
+
+    void unhandled_exception() {
+      // If the coro encounters an exception during execution,
+      // it will call this method. We store the exception so our
+      // awaiter can use it to set the future's status.
+      curr_exception_ = std::current_exception();
+      promise_.set_exception(curr_exception_);
+    }
+
+    // TODO(vinayakdsci): Add done_callback support for typed coroutines.
+
+    template <typename U>
+    void return_value(U &&value) {
+      promise_.set_value(std::forward<U>(value));
+    }
+  };
+
+  void wait() { handle_.promise().promise_.get_future().wait(); }
+  bool resume() {
+    if (handle_ && !handle_.done()) {
+      handle_.resume();
+      return true;
+    }
+    return false;
+  }
+
+ private:
+  handle_type handle_;
+};
+
+template <>
+class Coroutine<void> {
+ public:
+  struct promise_type;
+  using handle_type = std::coroutine_handle<promise_type>;
+  Coroutine(handle_type handle) : handle_(handle) {}
+  Coroutine(Coroutine &&other)
+      : handle_(std::exchange(other.handle_, nullptr)) {}
+  Coroutine(const Coroutine &other) = delete;
+  Coroutine &operator=(const Coroutine &) = delete;
+  Coroutine &operator=(Coroutine &&other) noexcept {
+    if (this != &other) {
+      if (handle_) {
+        handle_.destroy();
+        handle_ = std::exchange(other.handle_, nullptr);
+      }
+    }
+    return *this;
+  }
+
+  struct promise_type {
+    // promise_type for a TypedFuture.
+    // We'll specialise for a VoidFuture.
+    std::promise<void> promise_;
+    std::exception_ptr curr_exception_;
+
+    promise_type() {}
+
+    Coroutine get_return_object() {
+      return Coroutine(handle_type::from_promise(*this));
+    }
+
+    std::suspend_always initial_suspend() { return {}; }
+
+    // Return the custom awaiter when final_suspend is called.
+    std::suspend_never final_suspend() noexcept { return {}; }
+
+    void unhandled_exception() {
+      // If the coro encounters an exception during execution,
+      // it will call this method. We store the exception so our
+      // awaiter can use it to set the future's status.
+      curr_exception_ = std::current_exception();
+      promise_.set_exception(curr_exception_);
+    }
+
+    void return_void() {
+      promise_.set_value();
+      if (done_callback_) {
+        done_callback_();
+      }
+    }
+
+    void addDoneCallback(std::function<void()> callback) {
+      if (!done_callback_) {
+        done_callback_ = callback;
+      }
+    }
+
+   private:
+    std::function<void()> done_callback_;
+  };
+
+  void wait() { handle_.promise().promise_.get_future().wait(); }
+
+  void addDoneCallback(std::function<void()> callback) {
+    handle_.promise().addDoneCallback(callback);
+  }
+
+  bool resume() {
+    if (handle_ && !handle_.done()) {
+      handle_.resume();
+      return true;
+    }
+    return false;
+  }
+
+ private:
+  handle_type handle_;
+};
+}  // namespace shortfin::local
+#endif

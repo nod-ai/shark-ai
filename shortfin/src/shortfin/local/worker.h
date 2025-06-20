@@ -10,12 +10,10 @@
 #include <functional>
 #include <string>
 #include <typeindex>
-#include <typeinfo>
 #include <unordered_map>
 #include <vector>
 
 #include "iree/base/loop_sync.h"
-#include "shortfin/local/async.h"
 #include "shortfin/support/api.h"
 #include "shortfin/support/iree_concurrency.h"
 

@@ -208,13 +208,14 @@ class SHORTFIN_API device_array
 
   std::string to_s() const override;
 
+  void AddAsInvocationArgument(local::ProgramInvocation *inv,
+                               local::ProgramResourceBarrier barrier) override;
+
  protected:
   class storage storage_;
 
  private:
   // ProgramInvocationMarshalable implementation.
-  void AddAsInvocationArgument(local::ProgramInvocation *inv,
-                               local::ProgramResourceBarrier barrier) override;
   static device_array CreateFromInvocationResultRef(
       local::ProgramInvocation *inv,
       local::CoarseInvocationTimelineImporter *timeline_importer,
