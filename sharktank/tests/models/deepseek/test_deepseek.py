@@ -13,7 +13,12 @@ from sharktank.models.llm import *
 from sharktank.models.deepseek.toy_deepseek import generate
 from sharktank.utils.load_llm import *
 from sharktank.utils.evaluate import *
-from sharktank.utils.testing import is_mi300x, IreeVsEagerLLMTest, xfail
+from sharktank.utils.testing import (
+    is_mi300x,
+    IreeVsEagerLLMTester,
+    TempDirTestBase,
+    xfail,
+)
 
 
 class CrossEntropyTest(unittest.TestCase):
@@ -46,7 +51,9 @@ class CrossEntropyTest(unittest.TestCase):
         assert pytest.approx(9.7477, 1e-4) == cross_entropy
 
 
-class DeepseekIreeVsEagerTest(IreeVsEagerLLMTest):
+@pytest.mark.usefixtures("get_iree_flags", "device")
+@is_mi300x
+class DeepseekIreeVsEagerTest(TempDirTestBase):
     @xfail(
         raises=AssertionError,
         reason="https://github.com/iree-org/iree/issues/21087",
@@ -56,11 +63,13 @@ class DeepseekIreeVsEagerTest(IreeVsEagerLLMTest):
     def testUnshardedToySizedModelIREEVsEager(self):
         theta, config = generate(12345)
 
-        raw_token_ids = [
-            [1, 2, 3, 4],
-            [9, 8, 7, 6],
-            [3, 5, 2, 1],
-        ]
-
-        self.setup_variables(theta=theta, config=config, raw_token_ids=raw_token_ids)
-        self.run_and_compare_iree_vs_eager()
+        tester = IreeVsEagerLLMTester(
+            work_dir=self._temp_dir,
+            theta=theta,
+            config=config,
+            torch_device=self.device,
+            iree_device=self.iree_device,
+            iree_hip_target=self.iree_hip_target,
+            iree_hal_target_device=self.iree_hal_target_device,
+        )
+        tester.run_and_compare_iree_vs_eager()

@@ -110,88 +110,39 @@ class MainRunnerTestBase(TempDirTestBase):
         self.assertGreater(p.stat().st_size, 0, msg=f"Expected file {p} had zero size")
 
 
-@pytest.mark.usefixtures("get_iree_flags", "device")
-@is_mi300x
-class IreeVsEagerLLMTest(TempDirTestBase):
+class IreeVsEagerLLMTester:
     """
     Class for comparing the results of IREE and eager execution of the same LLM.
 
     Can only be run on with a gpu enabled version of torch.
     """
 
-    def compare_outputs(
+    def __init__(
         self,
         *,
-        eager_result: torch.Tensor,
-        iree_result: torch.Tensor,
-        stage_name: str,
-        rtol: float | None = None,
-        atol: float | None = None,
-    ) -> None:
-        """
-        Compare the iree results with the eager results, one sequence at a time.
-
-        Args:
-            eager_result: The result from the eager execution
-            iree_result: The result from the IREE execution
-            stage_name: The name of the stage being compared (e.g., "prefill", "decode")
-            rtol: Relative tolerance for the comparison
-            atol: Absolute tolerance for the comparison
-        """
-        for i, (eager_i, iree_i) in enumerate(zip(eager_result, iree_result)):
-            try:
-                torch.testing.assert_close(
-                    actual=iree_i, expected=eager_i, rtol=rtol, atol=atol
-                )
-            except AssertionError as error:
-                raise AssertionError(
-                    f"Outputs do not match for {stage_name} batch index {i}:\n"
-                    f"Eager: {eager_i}\n"
-                    f"IREE: {iree_i}\n"
-                ) from error
-
-    def run_and_compare_iree_vs_eager(
-        self, *, rtol: float | None = None, atol: float | None = None
-    ):
-        """
-        Run the IREE and eager execution and compare the outputs.
-        If comparison passes"""
-        self.run_eager()
-        self.run_iree()
-        self.compare_outputs(
-            eager_result=self.eager_prefill_logits,
-            iree_result=self.iree_prefill_logits,
-            stage_name="prefill",
-            rtol=rtol,
-            atol=atol,
-        )
-        if not self.skip_decode:
-            self.compare_outputs(
-                eager_result=self.eager_decode_logits,
-                iree_result=self.iree_decode_logits,
-                stage_name="decode",
-                rtol=rtol,
-                atol=atol,
-            )
-
-    def setup_variables(
-        self,
-        *,
+        work_dir: Path,
         theta: Theta,
         config: "LlamaModelConfig",
-        raw_token_ids: list[list[int]],
-        work_dir: Path | None = None,
+        torch_device: str,
+        iree_device: str,
+        iree_hip_target: str,
+        iree_hal_target_device: str,
+        raw_token_ids: list[list[int]] | None = None,
         skip_decode: bool = False,
     ):
+
         """
         Setup the variables and objectes needed for the IREE vs eager test.
 
         Args:
+            work_dir: The directory to save the results and intermediate files.
             theta: The Theta object containing the model parameters.
             config: The configuration for the model.
-            raw_token_ids: The raw token ids to use for the prefill stage.
-            work_dir: The directory to save the results and intermediate files.
-                      If not provided, a temporary directory is used and will be deleted at the end of the run.
+            torch_device: The device to use for the eager execution (e.g., "cuda:0" or "cpu").
+            iree_device: The IREE device to use for IREE execution.
+            iree_hip_target: The IREE HIP target to use for IREE execution (e.g, "gfx942").
+            iree_hal_target_device: The IREE HAL target device to use for IREE execution (e.g., "hip" or "llvm-cpu").
+            raw_token_ids: The raw token ids to use for the prefill stage. If none are provided, a static set will be generated.
             skip_decode: Whether to skip the decode stage. If True, the decode stage will not be run, and the decode results will not be compared.
         """
         # Note: Here to prevent circular imports
@@ -201,6 +152,9 @@ class IreeVsEagerLLMTest(TempDirTestBase):
         from sharktank.utils.export_artifacts import ExportArtifacts
 
         work_dir = work_dir if work_dir else self._temp_dir
+
+        if raw_token_ids is None:
+            raw_token_ids = self.generate_raw_token_ids()
 
         self.config = config
         self.skip_decode = skip_decode
@@ -239,13 +193,13 @@ class IreeVsEagerLLMTest(TempDirTestBase):
         self.exporter = ExportArtifacts.from_config(
             self.config,
             irpa_path=self.dataset_path,
-            iree_hip_target=self.iree_hip_target,
-            iree_hal_target_device=self.iree_hal_target_device,
-            hip_device_id=self.iree_device,
+            iree_hip_target=iree_hip_target,
+            iree_hal_target_device=iree_hal_target_device,
+            hip_device_id=iree_device,
             output_name=work_dir / "model",
         )
 
-        self.config.device = torch.device(self.device)  # Switch to gpu for eager mode
+        self.config.device = torch.device(torch_device)  # Switch to gpu for eager mode
         theta_for_eager = theta.to(device=self.config.device)
 
         prefill_token_ids, prefill_seq_lens = pad_tokens(
@@ -264,6 +218,73 @@ class IreeVsEagerLLMTest(TempDirTestBase):
         self.eager_batch = generator.begin_batch(
             token_ids=prefill_token_ids, seq_lens=prefill_seq_lens, dump_path=work_dir
         )
+
+    def compare_outputs(
+        self,
+        *,
+        eager_result: torch.Tensor,
+        iree_result: torch.Tensor,
+        stage_name: str,
+        rtol: float | None = None,
+        atol: float | None = None,
+    ) -> None:
+        """
+        Compare the iree results with the eager results, one sequence at a time.
+
+        Args:
+            eager_result: The result from the eager execution
+            iree_result: The result from the IREE execution
+            stage_name: The name of the stage being compared (e.g., "prefill", "decode")
+            rtol: Relative tolerance for the comparison
+            atol: Absolute tolerance for the comparison
+        """
+        for i, (eager_i, iree_i) in enumerate(zip(eager_result, iree_result)):
+            try:
+                torch.testing.assert_close(
+                    actual=iree_i, expected=eager_i, rtol=rtol, atol=atol
+                )
+            except AssertionError as error:
+                raise AssertionError(
+                    f"Outputs do not match for {stage_name} batch index {i}:\n"
+                    f"Eager: {eager_i}\n"
+                    f"IREE: {iree_i}\n"
+                ) from error
+
+    def generate_raw_token_ids(self):
+        """
+        Generate a static set of raw token ids to use for the prefill stage.
+        """
+        # Use a fixed set of prompts for testing
+        return [
+            [1, 2, 3, 4],
+            [9, 8, 7, 6],
+            [3, 5, 2, 1],
+            [3, 5, 2, 1, 5],  # Adding a longer sequence to test padding
+        ]
+
+    def run_and_compare_iree_vs_eager(
+        self, *, rtol: float | None = None, atol: float | None = None
+    ):
+        """
+        Run the IREE and eager execution and compare the outputs.
+        If comparison passes"""
+        self.run_eager()
+        self.run_iree()
+        self.compare_outputs(
+            eager_result=self.eager_prefill_logits,
+            iree_result=self.iree_prefill_logits,
+            stage_name="prefill",
+            rtol=rtol,
+            atol=atol,
+        )
+        if not self.skip_decode:
+            self.compare_outputs(
+                eager_result=self.eager_decode_logits,
+                iree_result=self.iree_decode_logits,
+                stage_name="decode",
+                rtol=rtol,
+                atol=atol,
+            )
 
     def run_eager(self):
         """
