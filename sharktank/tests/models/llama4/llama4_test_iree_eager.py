@@ -35,6 +35,53 @@ logger = logging.getLogger(__name__)
 iree_compile_flags = []  # TODO; fill this if we need any flag
 
 
+@pytest.fixture(autouse=True)
+def patch_llama4(monkeypatch):
+    # 1 ─ patch __init__
+    real_init = PagedLlmModelV1.__init__
+
+    def _patched_init(self, theta, config, *a, **kw):
+        config.rope_layers = {
+            i for i in range(config.hp.block_count) if (i + 1) % 4 != 0
+        }
+        config.use_qk_norm = True
+        config.attention_chunk_size = 37
+        config.attn_temperature_tuning = True
+        config.floor_scale = 31
+        config.attn_scale = 0.2
+        return real_init(self, theta, config, *a, **kw)
+
+    monkeypatch.setattr(PagedLlmModelV1, "__init__", _patched_init, raising=True)
+
+    # 2 ─ patch from_gguf_props
+    real_from = LlamaHParams.from_gguf_props
+
+    def _patched_from(props):
+        if "hparams" in props:
+            return LlamaHParams(**props["hparams"])
+        return real_from(props)
+
+    monkeypatch.setattr(
+        LlamaHParams, "from_gguf_props", staticmethod(_patched_from), raising=True
+    )
+
+    # 3 ─ patch sample_inputs
+    monkeypatch.setattr(
+        PagedLlmModelV1, "sample_inputs", llama4_toy_pefill_sample_inputs, raising=True
+    )
+
+    # 4 ─ patch attention_mask
+    monkeypatch.setattr(
+        PagedLlmModelV1,
+        "attention_mask",
+        staticmethod(deterministic_attn_mask),
+        raising=True,
+    )
+
+    # fixture yields so pytest knows when to un-patch
+    yield
+
+
 def deterministic_attn_mask(inverted_mask: torch.Tensor) -> torch.Tensor:
     L = inverted_mask.shape[-1]
     causal = torch.tril(
@@ -110,32 +157,6 @@ def export_llama4_toy_model_mlir(
         use_attention_mask=True,
     )
 
-    # patching PagedLlmModelV1 to add toy parameters to the model
-    __real_init = PagedLlmModelV1.__init__
-
-    def _patched_init(self, theta, config, *args, **kwargs):
-        config.rope_layers = {
-            i for i in range(config.hp.block_count) if (i + 1) % 4 != 0
-        }
-        config.use_qk_norm = True
-        config.attention_chunk_size = 37
-        config.attn_temperature_tuning = True
-        config.floor_scale = 31
-        config.attn_scale = 0.2
-        __real_init(self, theta, config, *args, **kwargs)
-
-    PagedLlmModelV1.__init__ = _patched_init
-
-    # patching from_gguf_props for the toy model
-    _real_from = LlamaHParams.from_gguf_props
-
-    def _patched_from_gguf_props(props):
-        if "hparams" in props:
-            return LlamaHParams(**props["hparams"])
-        return _real_from(props)
-
-    LlamaHParams.from_gguf_props = staticmethod(_patched_from_gguf_props)
-
     cli_args = [
         "export_paged_llm_v1",
         "--irpa-file",
@@ -203,9 +224,9 @@ def export_llama4_toy(
     )
 
 
-class TestLlama4IreeEager(TempDirTestBase):
-    def test_compare_iree_against_torch_eager(self):
-        runCompareIreeAgainstTorchEager(tmp_path=self._temp_dir)
+class TestLlama4IreeEager:
+    def test_compare_iree_against_torch_eager(self, tmp_path, patch_llama4):
+        runCompareIreeAgainstTorchEager(tmp_path=tmp_path)
 
 
 def runCompareIreeAgainstTorchEager(
@@ -216,10 +237,6 @@ def runCompareIreeAgainstTorchEager(
     torch.manual_seed(seed)
 
     work_dir = tmp_path
-
-    # add sample_inputs
-    PagedLlmModelV1.sample_inputs = llama4_toy_pefill_sample_inputs
-    PagedLlmModelV1.attention_mask = staticmethod(deterministic_attn_mask)
 
     target_theta, target_config = generate(seed)
     target_torch_model = PagedLlmModelV1(
