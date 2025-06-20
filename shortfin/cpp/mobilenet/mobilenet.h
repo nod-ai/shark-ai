@@ -31,7 +31,7 @@ class InferenceRequest : public local::Message {
  public:
   InferenceRequest(std::vector<float> rawImageData) : raw_data_(rawImageData) {}
 
-  std::vector<float> &rawImageData() { return raw_data_; }
+  std::vector<float> rawImageData() { return raw_data_; }
 
  private:
   std::vector<float> raw_data_;
@@ -51,16 +51,13 @@ class InferenceProcess : public local::Process {
         input_(std::move(
             device_array::for_device(device_, std::span<size_t>{dims},
                                      shortfin::array::DType::float32()))),
-        result_(std::move(
-            device_array::for_device(device_, std::span<size_t>{dims},
-                                     shortfin::array::DType::float32()))),
         host_staging_(input_.for_transfer()) {}
 
   void ScheduleOnWorker();
 
-  void dump_result() { std::cerr << *result_.contents_to_s() << std::endl; }
+  // void dump_result() { std::cerr << *result_.contents_to_s() << std::endl; }
 
-  local::Coroutine<local::VoidFuture> Run();
+  local::Coroutine<> Run();
 
  private:
   local::Program program_;
@@ -68,7 +65,6 @@ class InferenceProcess : public local::Process {
   local::ScopedDevice device_;
   shortfin::array::device_array input_;
   shortfin::array::device_array host_staging_;
-  shortfin::array::device_array result_;
 };
 
 class Mobilenet {
@@ -81,9 +77,12 @@ class Mobilenet {
     processes_.reserve(processes_per_worker_);
   }
 
-  ~Mobilenet() { system_->Shutdown(); }
+  void Shutdown() {
+    system_->Shutdown();
+    system_.reset();
+  }
 
-  local::Coroutine<local::VoidFuture> Run();
+  local::Coroutine<> Run(std::vector<float> data);
   local::System &system() { return *system_; }
 
  private:

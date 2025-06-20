@@ -46,20 +46,25 @@ std::variant<array::device_array, array::storage> GetResultFromInvocationRef(
 namespace shortfin {
 namespace cpp {
 void InferenceProcess::ScheduleOnWorker() {
-  local::Worker *worker = local::Worker::GetCurrent();
-  worker->CallThreadsafe([this]() { this->Run(); });
+  local::Worker &worker = fiber()->worker();
+  auto coro = Run();
+  worker.CallThreadsafe([&]() { coro.resume(); });
+  coro.wait();
   Terminate();
 }
 
-local::Coroutine<local::VoidFuture> InferenceProcess::Run() {
+local::Coroutine<> InferenceProcess::Run() {
   while (auto ref = co_await request_reader_.Read()) {
-    InferenceRequest &request = *(static_cast<InferenceRequest *>(ref.get()));
+    auto host_staging = input_.for_transfer();
+    InferenceRequest &request =
+        *(static_cast<InferenceRequest *>(ref.release()));
+    auto raw_data = request.rawImageData();
     {
-      auto map = host_staging_.typed_data_w<float>();
-      auto raw_data = request.rawImageData();
+      auto map = host_staging.typed_data_w<float>();
       std::copy(raw_data.begin(), raw_data.end(), map.begin());
-      input_.copy_from(host_staging_);
     }
+
+    input_.copy_from(host_staging);
 
     local::ProgramFunction function =
         *program_.LookupFunction("module.torch-jit-export");
@@ -79,13 +84,15 @@ local::Coroutine<local::VoidFuture> InferenceProcess::Run() {
     auto result_arr = std::get<array::device_array>(GetResultFromInvocationRef(
         ptr, ptr->result_ref(0), &timeline_importer));
 
-    result_.copy_from(result_arr);
-
+    auto result = result_arr.for_transfer();
+    result.copy_from(result_arr);
     co_await device_.OnSync();
+    std::cerr << *result.contents_to_s() << "\n";
   }
+  co_return;
 }
 
-local::Coroutine<local::VoidFuture> Mobilenet::Run() {
+local::Coroutine<> Mobilenet::Run(std::vector<float> data) {
   auto device_span = [this]() -> std::vector<const local::Device *> {
     std::vector<const local::Device *> devices;
     for (auto device : system_->devices()) {
@@ -105,6 +112,13 @@ local::Coroutine<local::VoidFuture> Mobilenet::Run() {
 
   std::array<size_t, 4> dims{1, 3, 224, 224};
 
+  int count = 1;
+  while (count--) {
+    InferenceRequest request = InferenceRequest(data);
+    local::Message::Ref ref = local::Message::Ref(request);
+    queue_->WriteNoDelay(ref);
+  }
+
   for (size_t i = 0; i < processes_per_worker_; ++i) {
     local::Worker::Options options(system_->host_allocator(),
                                    fmt::format("inference-worker-{}", i));
@@ -120,8 +134,8 @@ local::Coroutine<local::VoidFuture> Mobilenet::Run() {
 
   for (InferenceProcess *process : processes_) {
     co_await process->OnTermination();
-    process->dump_result();
   }
+  co_return;
 }
 }  // namespace cpp
 }  // namespace shortfin

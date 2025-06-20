@@ -282,29 +282,6 @@ class SHORTFIN_API TypedFuture : public Future {
   };
 };
 
-namespace {
-template <typename T>
-struct type_remap {
-  bool is_void_future = false;
-  bool is_completion_event = false;
-  bool is_untyped = is_completion_event || is_void_future;
-};
-
-template <>
-struct type_remap<CompletionEvent> {
-  static const bool is_void_future = false;
-  static const bool is_completion_event = true;
-  static const bool is_untyped = is_completion_event || is_void_future;
-};
-
-template <>
-struct type_remap<VoidFuture> {
-  static const bool is_void_future = true;
-  static const bool is_completion_event = false;
-  static const bool is_untyped = is_completion_event || is_void_future;
-};
-}  // namespace
-
 template <typename T = void, typename Enable = void>
 class Coroutine {
   struct promise_type;
@@ -328,8 +305,7 @@ class Coroutine {
   struct promise_type {
     // promise_type for a TypedFuture.
     // We'll specialise for a VoidFuture.
-    T future_;
-    std::promise<void> promise_;
+    std::promise<T> promise_;
     std::exception_ptr curr_exception_;
 
     promise_type() {}
@@ -348,17 +324,12 @@ class Coroutine {
       // it will call this method. We store the exception so our
       // awaiter can use it to set the future's status.
       curr_exception_ = std::current_exception();
-      try {
-        std::rethrow_exception(curr_exception_);
-      } catch (std::exception &e) {
-        future_.set_failure(iree::exception_to_status(e));
-      }
+      promise_.set_exception(curr_exception_);
     }
 
     template <typename U>
     void return_value(U &&value) {
-      future_.set_result(std::forward<U>(value));
-      promise_.set_value();
+      promise_.set_value(std::forward<U>(value));
     }
   };
 
@@ -375,8 +346,8 @@ class Coroutine {
   handle_type handle_;
 };
 
-template <typename T>
-class Coroutine<T, std::enable_if_t<type_remap<T>::is_untyped>> {
+template <>
+class Coroutine<void> {
  public:
   struct promise_type;
   using handle_type = std::coroutine_handle<promise_type>;
@@ -398,7 +369,6 @@ class Coroutine<T, std::enable_if_t<type_remap<T>::is_untyped>> {
   struct promise_type {
     // promise_type for a TypedFuture.
     // We'll specialise for a VoidFuture.
-    T future_;
     std::promise<void> promise_;
     std::exception_ptr curr_exception_;
 
@@ -414,18 +384,11 @@ class Coroutine<T, std::enable_if_t<type_remap<T>::is_untyped>> {
     std::suspend_never final_suspend() noexcept { return {}; }
 
     void unhandled_exception() {
-      if (type_remap<T>::is_completion_event) {
-        return;
-      }
       // If the coro encounters an exception during execution,
       // it will call this method. We store the exception so our
       // awaiter can use it to set the future's status.
       curr_exception_ = std::current_exception();
-      try {
-        std::rethrow_exception(curr_exception_);
-      } catch (std::exception &e) {
-        future_.set_failure(iree::exception_to_status(e));
-      }
+      promise_.set_exception(curr_exception_);
     }
     void return_void() { promise_.set_value(); }
   };
