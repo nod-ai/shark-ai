@@ -68,16 +68,27 @@ def multi_turn_question(
         top_ks (Tuple[int  |  None, int  |  None], optional): The top_k values for the two questions. Defaults to (None, None).
     """
     logger.info(f"Running multi-turn question with top_p: {top_ps} and top_k: {top_ks}")
+
+    kwargs = [{"max_tokens": 50, "temperature": 1.0}] * 2
+
+    for i, (top_p, top_k) in enumerate(zip(top_ps, top_ks)):
+        if top_p is not None:
+            kwargs[i]["top_p"] = top_p
+        if top_k is not None:
+            kwargs[i]["top_k"] = top_k
+
     s += sgl.user(question_1)
     s += sgl.assistant(
         sgl.gen(
-            "answer_1", max_tokens=50, temperature=1.0, top_p=top_ps[0], top_k=top_ks[0]
+            "answer_1",
+            **kwargs[0],
         )
     )
     s += sgl.user(question_2)
     s += sgl.assistant(
         sgl.gen(
-            "answer_2", max_tokens=50, temperature=1.0, top_p=top_ps[1], top_k=top_ks[1]
+            "answer_2",
+            **kwargs[1],
         )
     )
 
@@ -163,7 +174,7 @@ def test_multi_turn_qa(
     score_1 = compute_similarity(model, answer_1, first_q_answer)
     if not score_1 > ACCEPTED_THRESHOLD:
         raise AccuracyValidationException(
-            f"Accuracy error between {answer_1} and {first_q_answer}:\n SCORE: {score}"
+            f"Accuracy error between {answer_1} and {first_q_answer}:\n SCORE: {score_1}"
         )
     logger.info("Similarity passed")
 
@@ -178,7 +189,7 @@ def test_multi_turn_qa(
     score_2 = compute_similarity(model, answer_2, second_q_answer)
     if not score_2 > ACCEPTED_THRESHOLD:
         raise AccuracyValidationException(
-            f"Accuracy error between {answer_2} and {second_q_answer}:\n SCORE: {score}"
+            f"Accuracy error between {answer_2} and {second_q_answer}:\n SCORE: {score_2}"
         )
 
     logger.info(

@@ -9,7 +9,7 @@ import torch
 
 from sharktank.types.tensors import *
 from sharktank.types.theta import Theta
-from sharktank.utils.testing import make_rand_torch
+from sharktank.utils.random import make_rand_torch
 from sharktank.layers.testing import (
     make_latent_attention_block_theta,
     make_ffn_block_theta,
