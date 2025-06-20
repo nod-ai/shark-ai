@@ -66,7 +66,6 @@ class PerplexityIree:
         prefill_length: int | None = None,
         use_toy_model: bool = False,
         extra_compile_args: list[str] | None = None,
-        skip_if_file_exists: bool = False,
     ):
         self.torch_device = torch_device
         self.iree_devices = iree_devices
@@ -88,7 +87,6 @@ class PerplexityIree:
         self.prefill_length = prefill_length
         self.use_toy_model = use_toy_model
         self.extra_compile_args = extra_compile_args
-        self.skip_if_file_exists = skip_if_file_exists
         self.vm_context: iree.runtime.VmContext = None
         self.cache_state: None | list[ireert.DeviceArray] = None
 
@@ -186,11 +184,9 @@ class PerplexityIree:
             output_config=output_config,
             output_vmfb=output_vmfb,
             cwd=cwd,
-            skip_if_file_exists=self.skip_if_file_exists,
         )
         self.output_vmfb = export_artifacts.export_and_compile_llm(
-            batch_size=self.bs,
-            extra_compile_args=self.extra_compile_args
+            batch_size=self.bs, extra_compile_args=self.extra_compile_args
         )
 
     @timeit
@@ -525,7 +521,6 @@ def run_perplexity_iree(
         prefill_length=args.prefill_length,
         use_toy_model=args.use_toy_model,
         extra_compile_args=args.extra_compile_arg,
-        skip_if_file_exists=args.skip_if_file_exists,
     )
 
     perplexity.compile_model(
