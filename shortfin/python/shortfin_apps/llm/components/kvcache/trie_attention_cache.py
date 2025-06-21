@@ -224,9 +224,8 @@ class TriePagedAttentionCacheAllocation(PageAllocation):
             raise ValueError("New tokens must be longer than current tokens")
 
         # Check that current tokens are a prefix of new tokens
-        for old_token, new_token in zip(self.tokens, tokens):
-            if old_token != new_token:
-                raise ValueError("New tokens must extend current token sequence")
+        if tokens[: len(self.tokens)] != list(self.tokens):
+            raise ValueError("New tokens must extend current token sequence")
 
         # If tokens are identical, no extension needed
         if len(tokens) == len(self.tokens):
