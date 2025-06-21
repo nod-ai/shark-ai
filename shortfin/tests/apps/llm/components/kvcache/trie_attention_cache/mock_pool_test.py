@@ -220,6 +220,9 @@ def test_basic_allocation(trie_cache, test_sequence):
         == test_sequence["expected_pages"]
     )
     allocation.publish_pages_for_tokens(allocation.tokens)
+    assert allocation.number_of_published_pages == (
+        len(test_sequence["tokens"]) // TEST_PAGE_SIZE
+    )
     allocation.release_pages()
 
 
@@ -479,3 +482,31 @@ def test_reference_counting(trie_cache, ref_count):
     logger.debug("\nCleaning up allocations...")
     for alloc in allocations + fill_allocations:
         alloc.release_pages()
+
+
+@pytest.mark.parametrize(
+    "tokens",
+    [
+        list(range(TEST_PAGE_SIZE * 2)),
+        list(range(TEST_PAGE_SIZE * 3)),
+        list(range(TEST_PAGE_SIZE * 4)),
+    ],
+)
+def test_fork_pages(trie_cache, tokens):
+    """Test that fork_pages correctly creates a forked allocation sharing published pages."""
+    # Create and publish a sequence
+    alloc = trie_cache.acquire_pages_for_tokens(tokens)
+    alloc.publish_pages_for_tokens(alloc.tokens)
+    published_pages = list(alloc.pages)
+    alloc.release_pages()
+
+    # Fork the published sequence
+    forked_alloc = trie_cache.fork_pages(published_pages, tokens)
+    try:
+        # The forked allocation should reference the same pages
+        assert forked_alloc.tokens == tokens
+        assert len(forked_alloc.pages) == len(published_pages)
+        for orig, forked in zip(published_pages, forked_alloc.pages):
+            assert orig.index == forked.index
+    finally:
+        forked_alloc.release_pages()
