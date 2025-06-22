@@ -37,7 +37,6 @@ class TrieNode:
     parent: Optional["TrieNode"] = None
     ref_count: RefCount = None
     access_time: float = 0.0
-    _lock: Lock = Lock()
 
     def __post_init__(self) -> None:
         """Initialize children dict and access time if not provided."""
@@ -56,18 +55,16 @@ class TrieNode:
         Returns:
             The newly created child node
         """
-        with self._lock:
-            new_node = TrieNode(tokens=tokens, page=page, parent=self)
-            self.children[tokens] = new_node
-            return new_node
+        new_node = TrieNode(tokens=tokens, page=page, parent=self)
+        self.children[tokens] = new_node
+        return new_node
 
     def unlink(self) -> None:
         """Remove this node from its parent's children."""
-        with self._lock:
-            if self.parent is not None:
-                if self.tokens in self.parent.children:
-                    del self.parent.children[self.tokens]
-                self.parent = None
+        if self.parent is not None:
+            if self.tokens in self.parent.children:
+                del self.parent.children[self.tokens]
+            self.parent = None
 
     def __hash__(self) -> int:
         """Nodes are uniquely identified by their memory address."""
@@ -128,14 +125,8 @@ class TriePagedAttentionCacheAllocation(PageAllocation):
         """
         # If we have more tokens, publish pages up to the incoming tokens.
         # If incoming has more tokens, replace our tokens with incoming tokens and publish pages up to the incoming tokens.
-
-        def has_common_prefix(tokens1, tokens2):
-            for t1, t2 in zip(tokens1, tokens2):
-                if t1 != t2:
-                    return False
-            return True
-
-        if not has_common_prefix(self.tokens, tokens):
+        min_len = min(len(self.tokens), len(tokens))
+        if list(self.tokens)[:min_len] != tokens[:min_len]:
             raise ValueError(
                 "Tokens provided in publish_pages do not match tokens in allocation"
             )
