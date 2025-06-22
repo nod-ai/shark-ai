@@ -127,8 +127,6 @@ class TriePagedAttentionCacheAllocation(PageAllocation):
         # If incoming has more tokens, replace our tokens with incoming tokens and publish pages up to the incoming tokens.
         min_len = min(len(self.tokens), len(tokens))
         if list(self.tokens)[:min_len] != list(tokens)[:min_len]:
-            print(f"VIVEKAG_DBG:: {self.tokens=}", file=sys.stderr)
-            print(f"VIVEKAG_DBG:: {tokens=}", file=sys.stderr)
             raise ValueError(
                 "Tokens provided in publish_pages do not match tokens in allocation"
             )
