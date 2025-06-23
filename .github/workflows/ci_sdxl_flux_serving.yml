@@ -21,6 +21,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.number || github.sha }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
   test_sdxl_flux_serving:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
@@ -73,11 +76,11 @@ jobs:
           --build_preference compile \
           --hf-token ${HF_TOKEN}
 
-    - name: Run Flux-Schnell (compile)
+    - name: Run Flux-Schnell (precompiled)
       run: |
         bash scripts/run_sdxl_flux.sh \
           --model flux_schnell \
-          --build_preference compile \
+          --build_preference precompiled \
           --hf-token ${HF_TOKEN}
 
     - name: Run Flux-Schnell (compile)
