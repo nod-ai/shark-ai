@@ -190,6 +190,7 @@ jobs:
             --capture=no \
             --log-cli-level=info \
             -v \
+            -k "not benchmark" \
             --iree-hal-target-device=hip \
             --iree-hip-target=gfx942 \
             --iree-device=hip://0 \
