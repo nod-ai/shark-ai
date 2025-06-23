@@ -57,7 +57,7 @@ class CrossEntropyTest(unittest.TestCase):
 class DeepseekIreeVsEagerTest(TempDirTestBase):
     @xfail(
         raises=IreeCompileException,
-        reason="TODO: File issue",
+        reason="https://github.com/iree-org/iree/issues/21165",
         strict=True,
         match="op write affecting operations on global resources are restricted to workgroup",
     )
