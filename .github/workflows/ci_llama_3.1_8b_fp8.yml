@@ -44,7 +44,7 @@ jobs:
         run: |
           echo "date=$(date -u +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
 
-          if [ "$(date -u +%u)" = "5" ]; then
+          if [ "$(date -u +%u)" = "7" ]; then
             echo "IS_SERVING_DAY=true" >> $GITHUB_ENV
           else
             echo "IS_SERVING_DAY=false" >> $GITHUB_ENV
@@ -140,3 +140,47 @@ jobs:
         with:
           name: llama-files
           path: ${{ github.workspace }}/${{ steps.date.outputs.date }}
+
+      - name: Upload log files
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: llama-logs
+          path: output_artifacts/*.log
+
+  # New job to push logs to shark-ai-reports repository
+  push_logs:
+    name: "Push log llama 8B FP8"
+    needs: [test_llama_large]
+    runs-on: linux-mi300-1gpu-ossci-nod-ai
+    steps:
+      - name: Download log artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: llama-logs
+          path: logs
+
+      - name: Checkout Target Repo
+        uses: actions/checkout@v4
+        with:
+          repository: nod-ai/shark-ai-reports
+          token: ${{ secrets.SHARK_AI_REPORTS_GITHUB_TOKEN }}
+          path: shark-ai-reports
+
+      - name: Setup Git Config
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email ""
+
+      - name: Copy Logs to Target Repo
+        run: |
+          date=$(date -u +'%Y-%m-%d')
+          mkdir -p "shark-ai-reports/$date/llama-8b-fp8-logs"
+          cp -v logs/*.log "shark-ai-reports/$date/llama-8b-fp8-logs"
+
+      - name: Commit and Push
+        run: |
+          cd shark-ai-reports
+          git pull
+          git add $date
+          git commit -m "Add CI Llama 8B FP8 logs on $(date -u +'%Y-%m-%d')"
+          git push origin main
