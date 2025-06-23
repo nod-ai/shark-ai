@@ -174,7 +174,7 @@ jobs:
           # Note: We install in three steps in order to satisfy requirements
           # from non default locations first.
           pip install --no-compile \
-            --index-url https://download.pytorch.org/whl/cpu torch==${{matrix.torch-version}}+cpu
+            --index-url https://download.pytorch.org/whl/rocm6.2 torch==${{matrix.torch-version}}+rocm6.2
           pip install -r requirements-iree-pinned.txt
           pip install --no-compile \
             -r sharktank/requirements-tests.txt \
@@ -192,7 +192,8 @@ jobs:
             -v \
             --iree-hal-target-device=hip \
             --iree-hip-target=gfx942 \
-            --iree-device=hip://0
+            --iree-device=hip://0 \
+            --device=cuda:0
 
   test_with_data:
     name: "Data-dependent Tests"
