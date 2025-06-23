@@ -7,7 +7,7 @@
 import torch
 from sharktank.types.theta import Theta
 from sharktank.types.tensors import DefaultPrimitiveTensor, unbox_tensor
-from sharktank.utils.testing import make_rand_torch
+from sharktank.utils.random import make_rand_torch
 from sharktank.types.sharding import *
 
 

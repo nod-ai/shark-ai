@@ -14,7 +14,7 @@ from sharktank.types.tensors import *
 from sharktank.types.theta import Theta, Dataset
 from sharktank.utils.export import export
 from sharktank.utils.iree import flatten_for_iree_signature
-from sharktank.utils.testing import make_rand_torch
+from sharktank.utils.random import make_rand_torch
 from typing import Any, List
 
 import functools

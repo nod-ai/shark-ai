@@ -10,9 +10,10 @@ from sharktank.layers import (
     PagedAttention,
     RotaryEmbeddingLayer,
 )
-from sharktank.layers.testing import make_llama_attention_block_theta, make_rand_torch
+from sharktank.layers.testing import make_llama_attention_block_theta
 from sharktank.types.sharding import PagedLlamaAttentionBlockSharding
 from sharktank.types import SplitPrimitiveTensor, unbox_tensor
+from sharktank.utils.random import make_rand_torch
 import torch
 from sharktank import ops
 from copy import deepcopy

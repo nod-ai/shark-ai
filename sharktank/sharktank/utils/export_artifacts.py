@@ -99,7 +99,6 @@ class ExportArtifacts:
         self,
         *,
         irpa_path: str | Path,
-        batch_size: int,
         attention_kernel: str,
         tensor_parallelism_size: int,
         pipeline_parallelism_size: int,
@@ -117,7 +116,6 @@ class ExportArtifacts:
         output_vmfb: Optional[str | Path] = None,
         output_name: Optional[str | Path] = None,
         cwd: Optional[str | Path] = None,
-        skip_if_file_exists: bool = False,
         hip_device_id: str,
     ):
         self.tmp_dir = Path(tempfile.mkdtemp(type(self).__qualname__))
@@ -125,7 +123,6 @@ class ExportArtifacts:
         self.cwd.mkdir(parents=True, exist_ok=True)
 
         self.irpa_path = Path(irpa_path).resolve()
-        self.batch_size = batch_size
         # Note: The following 3 paramaters are used by `get_iree_compiler_flags_from_object`
         self.iree_hip_target = iree_hip_target
         self.iree_hal_target_device = iree_hal_target_device
@@ -144,7 +141,6 @@ class ExportArtifacts:
         self.attention_dtype = attention_dtype
         self.kv_cache_dtype = kv_cache_dtype
         self.use_hf = use_hf
-        self.skip_if_file_exists = skip_if_file_exists
         self.hip_device_id = hip_device_id
 
         if output_name is not None:
@@ -321,6 +317,7 @@ class ExportArtifacts:
     def export_llm_to_mlir(
         self,
         *,
+        batch_size: int,
         skip_decode: bool = False,
     ) -> None:
         """
@@ -329,13 +326,10 @@ class ExportArtifacts:
         Raises an ExportMlirException if the export fails for some reason.
 
         Args:
+            batch_size: The batch size to use for prefill and decode.
             skip_decode: If True, skips the decoding step during export.
         """
-        if (
-            self.skip_if_file_exists
-            and Path(self.output_mlir).exists()
-            and Path(self.output_config).exists()
-        ):
+        if Path(self.output_mlir).exists() and Path(self.output_config).exists():
             logger.info(f" Using pre-exported mlir: {self.output_mlir}")
             logger.info(f" Using pre-exported config json: {self.output_config}")
             return
@@ -347,8 +341,8 @@ class ExportArtifacts:
             f"--irpa-file={self.irpa_path}",
             f"--output-mlir={self.output_mlir}",
             f"--output-config={self.output_config}",
-            f"--bs-prefill={self.batch_size}",
-            f"--bs-decode={self.batch_size}",
+            f"--bs-prefill={batch_size}",
+            f"--bs-decode={batch_size}",
             f"--block-seq-stride={self.block_seq_stride}",
             f"--attention-dtype={self.attention_dtype}",
             f"--activation-dtype={self.activation_dtype}",
@@ -390,7 +384,7 @@ class ExportArtifacts:
             hal_dump_path: Optional path where dump HAL files.
             extra_args: Additional arguments for the IREE compiler.
         """
-        if self.skip_if_file_exists and Path(self.output_vmfb).exists():
+        if Path(self.output_vmfb).exists():
             logger.info(f" Using pre-exported vmfb: {self.output_vmfb}")
             return
 
@@ -407,16 +401,17 @@ class ExportArtifacts:
             compile_args += [
                 f"--iree-hal-dump-executable-files-to={hal_dump_path}/files"
             ]
+
+        compile_args += [
+            "--iree-opt-level=O3",
+            "--iree-hal-indirect-command-buffers=true",
+            "--iree-stream-resource-memory-model=discrete",
+            "--iree-hal-memoization=true",
+        ]
+
         # Append optional arguments if provided
         if extra_args:
             compile_args += extra_args
-        else:
-            compile_args += [
-                "--iree-opt-level=O3",
-                "--iree-hal-indirect-command-buffers=true",
-                "--iree-stream-resource-memory-model=discrete",
-                "--iree-hal-memoization=true",
-            ]
 
         self._run_cmd(
             cmd=subprocess.list2cmdline(compile_args),
@@ -512,6 +507,7 @@ class ExportArtifacts:
     def export_and_compile_llm(
         self,
         *,
+        batch_size: int,
         skip_decode: bool = False,
         hal_dump_path: Optional[Path] = None,
         extra_compile_args: Optional[List[str]] = None,
@@ -520,6 +516,7 @@ class ExportArtifacts:
         Helper function to export the LLM to MLIR and compile it to VMFB in one call.
 
         Args:
+            batch_size: The batch size to use for prefill and decode.
             skip_decode: If True, skips the decoding step during export.
             hal_dump_path: Optional path where dump HAL files.
             extra_compile_args: Additional arguments for the IREE compiler.
@@ -527,6 +524,6 @@ class ExportArtifacts:
         Returns:
             The path to the compiled VMFB file as a string.
         """
-        self.export_llm_to_mlir(skip_decode=skip_decode)
+        self.export_llm_to_mlir(batch_size=batch_size, skip_decode=skip_decode)
         self.compile_to_vmfb(extra_args=extra_compile_args, hal_dump_path=hal_dump_path)
-        return str(self.output_vmfb.resolve())
+        return str(Path(self.output_vmfb).resolve())

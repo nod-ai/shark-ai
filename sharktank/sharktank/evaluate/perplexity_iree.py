@@ -65,6 +65,7 @@ class PerplexityIree:
         weight_path_str: str,
         prefill_length: int | None = None,
         use_toy_model: bool = False,
+        extra_compile_args: list[str] | None = None,
     ):
         self.torch_device = torch_device
         self.iree_devices = iree_devices
@@ -85,6 +86,7 @@ class PerplexityIree:
         assert prefill_length is None or prefill_length >= 1
         self.prefill_length = prefill_length
         self.use_toy_model = use_toy_model
+        self.extra_compile_args = extra_compile_args
         self.vm_context: iree.runtime.VmContext = None
         self.cache_state: None | list[ireert.DeviceArray] = None
 
@@ -166,7 +168,6 @@ class PerplexityIree:
         )
         export_artifacts = ExportArtifacts(
             irpa_path=self.weight_path_str,
-            batch_size=self.bs,
             iree_hip_target=self.iree_hip_target,
             iree_hal_target_device=self.iree_hal_target_device,
             hip_device_id=self.iree_devices[0],
@@ -181,12 +182,12 @@ class PerplexityIree:
             use_hf=self.use_hf,
             output_mlir=output_mlir,
             output_config=output_config,
+            output_vmfb=output_vmfb,
             cwd=cwd,
-            skip_if_file_exists=(
-                output_vmfb is not None and Path(output_vmfb).exists()
-            ),
         )
-        self.output_vmfb = export_artifacts.export_and_compile_llm()
+        self.output_vmfb = export_artifacts.export_and_compile_llm(
+            batch_size=self.bs, extra_compile_args=self.extra_compile_args
+        )
 
     @timeit
     def load_model(
@@ -519,6 +520,7 @@ def run_perplexity_iree(
         weight_path_str=str(args.irpa_file),
         prefill_length=args.prefill_length,
         use_toy_model=args.use_toy_model,
+        extra_compile_args=args.extra_compile_arg,
     )
 
     perplexity.compile_model(
