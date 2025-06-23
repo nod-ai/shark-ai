@@ -207,6 +207,10 @@ class IreeVsEagerLLMTester:
             token_ids=prefill_token_ids, seq_lens=prefill_seq_lens, dump_path=work_dir
         )
 
+        self.exporter.export_and_compile_llm(
+            batch_size=self.batch_size, skip_decode=self.skip_decode
+        )
+
     def compare_outputs(
         self,
         *,
@@ -309,10 +313,6 @@ class IreeVsEagerLLMTester:
         """
         Run the iree execution using the inputs from the eager execution.
         """
-        self.exporter.export_and_compile_llm(
-            batch_size=self.batch_size, skip_decode=self.skip_decode
-        )
-
         prefill_args = [
             f"--function=prefill_bs{self.batch_size}",
             f"--input=@{self.prefill_token_ids_path}",
