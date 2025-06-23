@@ -24,20 +24,20 @@ def test_request_queue_manager():
     assert queue_manager.current_queue_size == 0
 
     # Add to queue
-    assert queue_manager.add_to_queue(3) == True
-    assert queue_manager.current_queue_size == 3
+    assert queue_manager.add_to_queue(4) == True
+    assert queue_manager.current_queue_size == 4
 
     # Add more to queue
     assert queue_manager.add_to_queue(2) == True
-    assert queue_manager.current_queue_size == 5
+    assert queue_manager.current_queue_size == 6
 
     # Try to add beyond max
     assert queue_manager.add_to_queue(2) == False
-    assert queue_manager.current_queue_size == 5
+    assert queue_manager.current_queue_size == 6
 
     # Remove from queue
     queue_manager.remove_from_queue(3)
-    assert queue_manager.current_queue_size == 2
+    assert queue_manager.current_queue_size == 3
 
     print("All tests passed!")
 

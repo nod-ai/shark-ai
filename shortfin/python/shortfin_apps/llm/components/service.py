@@ -45,7 +45,6 @@ class LlmGenerateService(GenerateService):
         sysman: LlmSystemManager,
         tokenizer: Tokenizer,
         model_params: ModelParams,
-        queue_manager: RequestQueueManager,
         server_params: "ServerParams",
         program_isolation: str = "per_call",
         max_queue_size: int = 3,  # Maximum number of requests in queue
@@ -54,7 +53,7 @@ class LlmGenerateService(GenerateService):
         self.name = name
         self.tokenizer = tokenizer
         self.model_params = model_params
-        queue_manager = RequestQueueManager(model_params)
+        self.queue_manager = RequestQueueManager(model_params)
         self.server_params = server_params
         self.max_queue_size = max_queue_size
         self.current_queue_size = 0
