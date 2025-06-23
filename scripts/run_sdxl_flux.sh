@@ -4,6 +4,7 @@ export BUILD_PREFERENCE="precompiled"
 export PORT=8112
 SCRIPT_DIR=$(dirname $(realpath "$0"))
 SHORTFIN_SRC=$SCRIPT_DIR/../shortfin
+HF_HOME_DIR=${HF_HOME:-"$HOME/.cache/huggingface"}
 
 function wait_for_server() {
     SERVER_UP=0
@@ -148,7 +149,7 @@ if [[ $MODEL = "sdxl" ]]; then
 
 elif [[ $MODEL = "flux_dev" ]]; then
     if [ -z "${FLUX_SNAPSHOT}" ]; then
-        FLUX_SNAPSHOT="$HOME/.cache/huggingface/hub/models--black-forest-labs--FLUX.1-dev/snapshots/0ef5fff789c832c5c7f4e127f94c8b54bbcced44"
+        FLUX_SNAPSHOT="$HF_HOME_DIR/hub/models--black-forest-labs--FLUX.1-dev/snapshots/0ef5fff789c832c5c7f4e127f94c8b54bbcced44"
     fi
 
     FLUX_CONFIG="$SHORTFIN_SRC/python/shortfin_apps/flux/examples/flux_dev_config.json"
@@ -171,7 +172,7 @@ elif [[ $MODEL = "flux_dev" ]]; then
 
 elif [[ $MODEL = "flux_schnell" ]]; then
     if [ -z "${FLUX_SNAPSHOT}" ]; then
-        FLUX_SNAPSHOT="$HOME/.cache/huggingface/hub/models--black-forest-labs--FLUX.1-schnell/snapshots/741f7c3ce8b383c54771c7003378a50191e9efe9"
+        FLUX_SNAPSHOT="$HF_HOME_DIR/hub/models--black-forest-labs--FLUX.1-schnell/snapshots/741f7c3ce8b383c54771c7003378a50191e9efe9"
     fi
 
     FLUX_CONFIG="$SHORTFIN_SRC/python/shortfin_apps/flux/examples/flux_schnell_config.json"
