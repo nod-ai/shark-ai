@@ -133,10 +133,6 @@ jobs:
           mkdir perplexity_ci_artifacts
           python -m sharktank.models.deepseek.toy_deepseek -o "perplexity_ci_artifacts/toy_deepseek.irpa"
           python -m sharktank.examples.sharding.shard_llm_dataset --irpa-file=perplexity_ci_artifacts/toy_deepseek.irpa --output-irpa=perplexity_ci_artifacts/toy_deepseek_tp2.irpa --tensor-parallelism-size=2
-          ls -lha /shark-dev/70b/instruct/weights
-          ls -lha /shark-dev/405b/instruct/weights
-          ls -lha /shark-dev/405b
-          ls -lha /shark-dev/70b/instruct/weights/tp8
           pytest \
             -n 8 \
             -v \
@@ -208,10 +204,6 @@ jobs:
       - name: Run Perplexity tests
         run: |
           source ${VENV_DIR}/bin/activate
-          ls -lha /shark-dev/70b/instruct/weights
-          ls -lha /shark-dev/405b/instruct/weights
-          ls -lha /shark-dev/405b
-          ls -lha /shark-dev/405b/instruct/weights/tp8
           pytest \
             -n 8 \
             -v \
