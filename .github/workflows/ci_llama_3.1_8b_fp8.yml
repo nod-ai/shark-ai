@@ -47,7 +47,7 @@ jobs:
       run: |
         echo "date=$(date -u +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
 
-        if [ "$(date -u +%u)" = "7" ]; then
+        if [ "$(date -u +%u)" = "2" ]; then
           echo "IS_SERVING_DAY=true" >> $GITHUB_ENV
         else
           echo "IS_SERVING_DAY=false" >> $GITHUB_ENV
@@ -169,19 +169,13 @@ jobs:
         token: ${{ secrets.SHARK_AI_REPORTS_GITHUB_TOKEN }}
         path: shark-ai-reports
 
-    - name: Setup Git Config
+    - name: Push artifacts
       run: |
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email ""
-
-    - name: Copy Logs to Target Repo
-      run: |
         date=$(date -u +'%Y-%m-%d')
         mkdir -p "shark-ai-reports/$date/llama-8b-fp8-logs"
         cp -v logs/*.log "shark-ai-reports/$date/llama-8b-fp8-logs"
-
-    - name: Commit and Push
-      run: |
         cd shark-ai-reports
         git pull
         git add $date
