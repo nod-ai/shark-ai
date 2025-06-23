@@ -185,6 +185,7 @@ class IreeVsEagerLLMTester:
             iree_hal_target_device=iree_hal_target_device,
             hip_device_id=iree_device,
             output_name=work_dir / "model",
+            use_attention_mask=True,
         )
 
         self.config.device = torch.device(torch_device)  # Switch to gpu for eager mode
