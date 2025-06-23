@@ -116,7 +116,6 @@ class ExportArtifacts:
         output_vmfb: Optional[str | Path] = None,
         output_name: Optional[str | Path] = None,
         cwd: Optional[str | Path] = None,
-        skip_if_file_exists: bool = False,
         hip_device_id: str,
     ):
         self.tmp_dir = Path(tempfile.mkdtemp(type(self).__qualname__))
@@ -142,7 +141,6 @@ class ExportArtifacts:
         self.attention_dtype = attention_dtype
         self.kv_cache_dtype = kv_cache_dtype
         self.use_hf = use_hf
-        self.skip_if_file_exists = skip_if_file_exists
         self.hip_device_id = hip_device_id
 
         if output_name is not None:
@@ -331,11 +329,7 @@ class ExportArtifacts:
             batch_size: The batch size to use for prefill and decode.
             skip_decode: If True, skips the decoding step during export.
         """
-        if (
-            self.skip_if_file_exists
-            and Path(self.output_mlir).exists()
-            and Path(self.output_config).exists()
-        ):
+        if Path(self.output_mlir).exists() and Path(self.output_config).exists():
             logger.info(f" Using pre-exported mlir: {self.output_mlir}")
             logger.info(f" Using pre-exported config json: {self.output_config}")
             return
@@ -390,7 +384,7 @@ class ExportArtifacts:
             hal_dump_path: Optional path where dump HAL files.
             extra_args: Additional arguments for the IREE compiler.
         """
-        if self.skip_if_file_exists and Path(self.output_vmfb).exists():
+        if Path(self.output_vmfb).exists():
             logger.info(f" Using pre-exported vmfb: {self.output_vmfb}")
             return
 
@@ -407,16 +401,17 @@ class ExportArtifacts:
             compile_args += [
                 f"--iree-hal-dump-executable-files-to={hal_dump_path}/files"
             ]
+
+        compile_args += [
+            "--iree-opt-level=O3",
+            "--iree-hal-indirect-command-buffers=true",
+            "--iree-stream-resource-memory-model=discrete",
+            "--iree-hal-memoization=true",
+        ]
+
         # Append optional arguments if provided
         if extra_args:
             compile_args += extra_args
-        else:
-            compile_args += [
-                "--iree-opt-level=O3",
-                "--iree-hal-indirect-command-buffers=true",
-                "--iree-stream-resource-memory-model=discrete",
-                "--iree-hal-memoization=true",
-            ]
 
         self._run_cmd(
             cmd=subprocess.list2cmdline(compile_args),
@@ -531,4 +526,4 @@ class ExportArtifacts:
         """
         self.export_llm_to_mlir(batch_size=batch_size, skip_decode=skip_decode)
         self.compile_to_vmfb(extra_args=extra_compile_args, hal_dump_path=hal_dump_path)
-        return str(self.output_vmfb.resolve())
+        return str(Path(self.output_vmfb).resolve())
