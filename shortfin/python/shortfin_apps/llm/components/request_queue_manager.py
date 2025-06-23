@@ -9,6 +9,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class RequestQueueManager:
     """
     Manages a thread-safe request queue with a maximum size determined by model parameters.
@@ -31,7 +32,9 @@ class RequestQueueManager:
         """
         with self._lock:
             if self.current_queue_size >= self.max_queue_size:
-                logger.debug(f"Add failed: queue size {self.current_queue_size}, request size {request_size}")
+                logger.debug(
+                    f"Add failed: queue size {self.current_queue_size}, request size {request_size}"
+                )
                 return False
             self.current_queue_size += request_size
             logger.debug(f"Added to queue: new queue size {self.current_queue_size}")
@@ -50,7 +53,11 @@ class RequestQueueManager:
         with self._lock:
             if self.current_queue_size >= request_size:
                 self.current_queue_size -= request_size
-                logger.debug(f"Removed from queue: new queue size {self.current_queue_size}")
+                logger.debug(
+                    f"Removed from queue: new queue size {self.current_queue_size}"
+                )
                 return True
-            logger.debug(f"Remove failed: queue size {self.current_queue_size}, request size {request_size}")
+            logger.debug(
+                f"Remove failed: queue size {self.current_queue_size}, request size {request_size}"
+            )
             return False

@@ -34,5 +34,6 @@ def test_request_queue_manager():
 
     print("All tests passed!")
 
+
 # Run the test
 test_request_queue_manager()
