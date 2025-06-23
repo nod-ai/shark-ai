@@ -156,6 +156,12 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
+    @xfail(
+        raises=IreeCompileException,
+        reason="https://github.com/iree-org/iree/issues/21068",
+        strict=True,
+        match="failed to solve for affinity analysis",
+    )
     @is_sharded
     def test_llama3_405B_f16_tp8(self):
         # Llama 3.1 405B fp16 non-decomposed
