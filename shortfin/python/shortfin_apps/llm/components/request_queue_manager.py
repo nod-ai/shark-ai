@@ -6,7 +6,6 @@
 
 import threading
 import logging
-from .config_struct import ModelParams
 
 logger = logging.getLogger(__name__)
 
@@ -15,26 +14,10 @@ class RequestQueueManager:
     Manages a thread-safe request queue with a maximum size determined by model parameters.
     """
 
-    def __init__(self, model_params: ModelParams):
-        """
-        Initialize the RequestQueueManager.
-
-        Args:
-            model_params: An object with a 'decode_batch_sizes' attribute (list of ints).
-        """
-        self.model_params = model_params
+    def __init__(self, max_queue_size: int):
+        self.max_queue_size = max_queue_size
         self._lock = threading.Lock()
         self.current_queue_size = 0
-        self.max_queue_size = 0
-        self._initialize_queues()
-
-    def _initialize_queues(self):
-        """Initialize the maximum queue size based on model parameters."""
-        if self.model_params.decode_batch_sizes:
-            self.max_queue_size = max(self.model_params.decode_batch_sizes)
-            logger.debug(f"Max queue size set to: {self.max_queue_size}")
-        else:
-            logger.warning("decode_batch_sizes is empty or None. Max queue size set to 0.")
 
     def add_to_queue(self, request_size: int) -> bool:
         """

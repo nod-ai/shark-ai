@@ -10,17 +10,10 @@ import logging
 # Enable logging to see debug output
 logging.basicConfig(level=logging.DEBUG)
 
-# Mock model_params with decode_batch_sizes
-class MockModelParams:
-    def __init__(self, decode_batch_sizes):
-        self.decode_batch_sizes = decode_batch_sizes
-
 # Create a test function
 def test_request_queue_manager():
-    model_params = MockModelParams(decode_batch_sizes=[2, 4, 6])
-    queue_manager = RequestQueueManager(model_params)
+    queue_manager = RequestQueueManager(6)
 
-    assert queue_manager.max_queue_size == 6
     assert queue_manager.current_queue_size == 0
 
     # Add to queue

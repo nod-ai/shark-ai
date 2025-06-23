@@ -53,17 +53,24 @@ class LlmGenerateService(GenerateService):
         self.name = name
         self.tokenizer = tokenizer
         self.model_params = model_params
-        self.queue_manager = RequestQueueManager(model_params)
         self.server_params = server_params
         self.max_queue_size = max_queue_size
-        self.current_queue_size = 0
+        # Use model_params.decode_batch_sizes to decide actual max_queue_size
+        self._initialize_max_queue_size()
         self.main_fiber_pool = FiberPool(
             self.sysman, self.max_queue_size, resizable=True
         )
 
         self.set_isolation(program_isolation)
         self._initialize_worker_and_fiber()
+        self.queue_manager = RequestQueueManager(self.max_queue_size)
         self._initialize_page_cache()
+
+    def _initialize_max_queue_size(self):
+        """Initialize request and response queues"""
+        if self.model_params.decode_batch_sizes:
+            self.max_queue_size = max(self.model_params.decode_batch_sizes)
+            logger.debug(f"Max queue size: {self.max_queue_size}")
 
     def _initialize_worker_and_fiber(self):
         num_workers = self.server_params.workers
