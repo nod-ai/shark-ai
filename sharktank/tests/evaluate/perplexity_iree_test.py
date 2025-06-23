@@ -156,19 +156,19 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
-    # @xfail(
-    #     raises=IreeCompileException,
-    #     reason="https://github.com/iree-org/iree/issues/21068",
-    #     strict=True,
-    #     match="failed to solve for affinity analysis",
-    # )
+    @xfail(
+        raises=IreeCompileException,
+        reason="https://github.com/iree-org/iree/issues/21068",
+        strict=True,
+        match="failed to solve for affinity analysis",
+    )
     @is_sharded
     def test_llama3_405B_f16_tp8(self):
         # Llama 3.1 405B fp16 non-decomposed
         self.model_name = "llama3_405B_f16_iree"
-        self.irpa_file = self.llama3_405b_f16_model
+        self.irpa_file = self.llama3_405b_f16_tp8_model
         self.tokenizer = self.llama3_405b_tokenizer
-        self.pipeline_parallelism_size = 8
+        self.tensor_parallelism_size = 8
 
         self.prepare_argv()
         self.run_and_check_perplexity()
