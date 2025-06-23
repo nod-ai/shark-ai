@@ -17,6 +17,7 @@ from sharktank.utils.export_artifacts import (
     IreeBenchmarkException,
 )
 from sharktank.utils.testing import (
+    is_llama_8b,
     is_mi300x,
     is_nightly,
 )
@@ -187,6 +188,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             ],
         }
 
+    @is_llama_8b
     def test_benchmark8B_f16_tp1_input_len_128(self):
         self.export_artifact = ExportArtifacts(
             irpa_path=self.llama3_8b_f16_model,

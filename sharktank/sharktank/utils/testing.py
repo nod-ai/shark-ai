@@ -39,7 +39,7 @@ is_nightly = pytest.mark.skipif(
     reason="Run large tests if --run-nightly-tests is passed",
 )
 is_llama_8b = pytest.mark.skipif(
-    'config.getoption("llama3_8b_f16_model_path") is None or config.getoption("llama3_8b_tokenizer_path") is None',
+    'config.getoption("llama3_8b_f16_model_path") is None',
     reason="Run llama tests if --llama3-8b-f16-model-path is passed",
 )
 is_deepseek = pytest.mark.skipif(
