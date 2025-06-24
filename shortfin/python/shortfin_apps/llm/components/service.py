@@ -21,17 +21,14 @@ from .kvcache.base_attention_cache import (
 from .kvcache.trie_attention_cache import TriePagedAttentionCache
 from .kvcache.page_pool import PagePoolConfig, PagePool
 from .manager import LlmSystemManager
-from .service_debug_dumper import SERVICE_DEBUG_DUMPER
 from .tokenizer import Tokenizer
+<<<<<<< HEAD
 from .token_selection_strategy import is_multi_response
 from .request_queue_manager import RequestQueueManager
+=======
+>>>>>>> a6793ec1 (Simplify code)
 
-from ...utils import (
-    GenerateService,
-    LLM_DISAGGREGATED_DECODE_DEVICE_IDX,
-    LLM_DISAGGREGATED_PREFILL_DEVICE_IDX,
-)
-from .fiber_pool import FiberPool
+from ...utils import GenerateService
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +84,8 @@ class LlmGenerateService(GenerateService):
         self.devices = self.prefill_fiber.devices_dict.values()
 
         self._initialize_page_cache()
+        self._lock = Lock()
+        self.inference_program_ls: sf.Program | list[sf.Program] = []
 
     def _initialize_max_queue_size(self):
         """Initialize request and response queues"""
@@ -137,7 +136,7 @@ class LlmGenerateService(GenerateService):
             )
 
     def start(self):
-        self._stream_manager.load_program_modules(self)
+        self.load_program_modules()
 
         self.prefill_batcher = PrefillBatcherProcess(
             self.prefill_fiber,
@@ -170,3 +169,30 @@ class LlmGenerateService(GenerateService):
             f"  disaggregated={self.disaggregate}",
             f")",
         )
+
+    def __init_prog_modules(self):
+        component_modules = self.initialize_program_modules("main")
+        indices = []
+        for _ in range(self._stream_manager.num_open_streams()):
+            idx, stream = self._stream_manager.get_stream()
+            indices.append(idx)
+            self.inference_program_ls.append(
+                self.create_program(modules=component_modules, devices=stream)
+            )
+
+        self.prefill_functions = {}
+        self.decode_functions = {}
+
+        for bs in self.model_params.prefill_batch_sizes:
+            self.prefill_functions[bs] = self.inference_program_ls[indices[0]][
+                f"{self.model_params.module_name}.prefill_bs{bs}"
+            ]
+        # Resolve decode entrypoints.
+        self.decode_functions = {}
+        for bs in self.model_params.decode_batch_sizes:
+            self.decode_functions[bs] = self.inference_program_ls[indices[-1]][
+                f"{self.model_params.module_name}.decode_bs{bs}"
+            ]
+
+    def load_program_modules(self):
+        self.__init_prog_modules()

@@ -6,14 +6,9 @@
 
 from ...utils import (
     SystemManager,
-    GenerateService,
-    LLM_DISAGGREGATED_DECODE_DEVICE_IDX,
-    LLM_DISAGGREGATED_PREFILL_DEVICE_IDX,
 )
 from .fiber_pool import FiberPool
 from shortfin import Fiber
-
-LLM_NONDISAGGREGATED_MODULE_IDX = 0
 
 
 class StreamManager:
@@ -30,6 +25,7 @@ class StreamManager:
         self.__fiber_pool = self.__construct_fiber_pool()
         self.__create_fiber = self.__sysman.ls.create_fiber
         self.__create_worker = self.__sysman.ls.create_worker
+        self.__stream_idx = -1
 
     def __construct_fiber_pool(self):
         return FiberPool(
@@ -41,6 +37,11 @@ class StreamManager:
 
     def fiber_pool(self):
         return self.__fiber_pool
+
+    def num_open_streams(self) -> int:
+        if not self.__disaggregate:
+            return 1
+        return len(self.__sysman.ls.devices)
 
     def construct_main_fibers(self) -> tuple[Fiber]:
         # TODO(vinayakdsci): This code path assumes right now that we are only
@@ -75,46 +76,19 @@ class StreamManager:
             ]
         )
 
-    def __init_prog_modules(self, service):
-        component_modules = service.initialize_program_modules("main")
+    def get_stream(self):
         if not self.__disaggregate:
-            service.inference_program = [
-                service.create_program(
-                    modules=component_modules, devices=service.sysman.ls.devices
-                )
-            ]
-        else:
-            service.inference_program = [
-                service.create_program(
-                    modules=component_modules, devices=[self.__devices[idx]]
-                )
-                for idx in range(len(self.__devices))
-            ]
+            return (
+                0,
+                self.__sysman.ls.devices,
+            )
 
-        service.prefill_functions = {}
-        service.decode_functions = {}
-
-        prefill_device_idx = (
-            LLM_NONDISAGGREGATED_MODULE_IDX
-            if not self.__disaggregate
-            else LLM_DISAGGREGATED_PREFILL_DEVICE_IDX
+        self.__stream_idx += 1
+        return (
+            self.__stream_idx,
+            [
+                self.__sysman.ls.devices[
+                    self.__stream_idx % len(self.__sysman.ls.devices)
+                ]
+            ],
         )
-        decode_device_idx = (
-            LLM_NONDISAGGREGATED_MODULE_IDX
-            if not self.__disaggregate
-            else LLM_DISAGGREGATED_DECODE_DEVICE_IDX
-        )
-
-        for bs in service.model_params.prefill_batch_sizes:
-            service.prefill_functions[bs] = service.inference_program[
-                prefill_device_idx
-            ][f"{service.model_params.module_name}.prefill_bs{bs}"]
-        # Resolve decode entrypoints.
-        service.decode_functions = {}
-        for bs in service.model_params.decode_batch_sizes:
-            service.decode_functions[bs] = service.inference_program[decode_device_idx][
-                f"{service.model_params.module_name}.decode_bs{bs}"
-            ]
-
-    def load_program_modules(self, service: GenerateService):
-        self.__init_prog_modules(service)
