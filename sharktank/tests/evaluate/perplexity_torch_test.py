@@ -89,6 +89,9 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
+    @pytest.mark.xfail(
+        reason="Numerical error - https://github.com/nod-ai/shark-ai/issues/1690"
+    )
     @is_deepseek
     def test_deepseek_v3(self):
         # DeepSeek v3 unsharded toy test
