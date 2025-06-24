@@ -85,7 +85,7 @@ class StreamManager:
 
         self.__stream_idx += 1
         return (
-            self.__stream_idx,
+            self.__stream_idx % len(self.__sysman.ls.devices),
             [
                 self.__sysman.ls.devices[
                     self.__stream_idx % len(self.__sysman.ls.devices)
