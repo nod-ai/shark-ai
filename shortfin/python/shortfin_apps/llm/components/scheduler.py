@@ -113,7 +113,7 @@ class WorkloadBuilder:
                 available = self._ideal_batch_size - len(queue)
                 if available > 0:
                     self._occupancy += available
-                    queue.extend(job[:available])
+                    queue.extend(job[available:])
                     job = job[available:]
 
                 if len(job) == 0:

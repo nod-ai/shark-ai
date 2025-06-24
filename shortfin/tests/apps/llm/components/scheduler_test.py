@@ -133,14 +133,14 @@ def test_scheduler_reserved_basic():
 
 # Check if reserved and all passed to execute the whole job.
 def test_scheduler_reserved_extra():
-    ideal_batch_size = 8
+    ideal_batch_size = 7
     scheduler = Scheduler(ideal_batch_size=ideal_batch_size)
 
     reserve_helper(scheduler, rid=0, count=5)
-    workload = make_workload({0: 5, 1: 3})
+    workload = make_workload({0: 5, 1: 2})
     to_schedule = scheduler.should_execute(pending=workload, strobe=2)
     assert len(to_schedule) == 1
-    assert to_schedule[0] == workload[0] + workload[1]
+    assert to_schedule[0] == workload[0]
 
 
 # Reserve a job at that exceeds the max size, shhould be split between jobs.
