@@ -4,7 +4,7 @@ export IRPA_PATH=/shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa
 export PREFILL_BS="1,2,4,8"
 export DECODE_BS="4,8,16,32,64"
 export DTYPE="fp16"
-export TENSOR_PARALLELISM_SIZE="1,8"
+export TENSOR_PARALLELISM_SIZE="1"
 export OUTPUT_DIR="$(pwd)/output_artifacts"
 
 while [[ "$1" != "" ]]; do
@@ -66,6 +66,14 @@ if [[ $DTYPE = "fp8" ]]; then
         --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS --attention-kernel sharktank \
         --attention-dtype=$ATTENTION_DTYPE --activation-dtype=$ACTIVATION_DTYPE --use-attention-mask \
         --use-hf --kv-cache-dtype=$KV_CACHE_DTYPE  --device-block-count 8043
+elif [[ $DTYPE = "mistral_fp8" ]]; then
+    python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=$IRPA_PATH \
+        --output-mlir=$OUTPUT_DIR/output.mlir \
+        --output-config=$OUTPUT_DIR/config_attn.json \
+        --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS --activation-dtype=float16 \
+        --attention-dtype=float16 --use-hf --attention-kernel=torch \
+        --kv-cache-dtype=float8_e4m3fnuz --device-block-count 4096
+
 elif [[ $TENSOR_PARALLELISM_SIZE = "8" ]]; then
     python3 -m sharktank.examples.export_paged_llm_v1  --irpa-file=$IRPA_PATH \
         --output-mlir=$OUTPUT_DIR/output.mlir \
@@ -83,31 +91,31 @@ echo "Time taken for exporting: $((end - start)) seconds"
 
 start=$(date +%s)
 echo "### compiling IR .... "
-mkdir -p $OUTPUT_DIR
 
 if [[ $TENSOR_PARALLELISM_SIZE = "8" ]]; then
-iree-compile $OUTPUT_DIR/output.mlir \
-    --iree-hip-target=gfx942 -o $OUTPUT_DIR/output.vmfb \
-    --iree-hal-target-device="hip[0]" \
-    --iree-hal-target-device="hip[1]" \
-    --iree-hal-target-device="hip[2]" \
-    --iree-hal-target-device="hip[3]" \
-    --iree-hal-target-device="hip[4]" \
-    --iree-hal-target-device="hip[5]" \
-    --iree-hal-target-device="hip[6]" \
-    --iree-hal-target-device="hip[7]" \
-    --iree-opt-level=O3 \
-    --iree-hal-indirect-command-buffers=true \
-    --iree-stream-resource-memory-model=discrete \
-    --iree-hal-memoization=true --iree-codegen-enable-default-tuning-specs=true \
-    --iree-stream-affinity-solver-max-iterations=1024
+    iree-compile $OUTPUT_DIR/output.mlir \
+        --iree-hip-target=gfx942 -o $OUTPUT_DIR/output.vmfb \
+        --iree-hal-target-device="hip[0]" \
+        --iree-hal-target-device="hip[1]" \
+        --iree-hal-target-device="hip[2]" \
+        --iree-hal-target-device="hip[3]" \
+        --iree-hal-target-device="hip[4]" \
+        --iree-hal-target-device="hip[5]" \
+        --iree-hal-target-device="hip[6]" \
+        --iree-hal-target-device="hip[7]" \
+        --iree-opt-level=O3 \
+        --iree-hal-indirect-command-buffers=true \
+        --iree-stream-resource-memory-model=discrete \
+        --iree-hal-memoization=true --iree-codegen-enable-default-tuning-specs=true \
+        --iree-stream-affinity-solver-max-iterations=1024
 else
-iree-compile $OUTPUT_DIR/output.mlir \
-    --iree-hip-target=gfx942 -o $OUTPUT_DIR/output.vmfb \
-    --iree-hal-target-device=hip --iree-opt-level=O3 \
-    --iree-hal-indirect-command-buffers=true \
-    --iree-stream-resource-memory-model=discrete \
-    --iree-hal-memoization=true --iree-codegen-enable-default-tuning-specs=true
+    iree-compile $OUTPUT_DIR/output.mlir \
+        --iree-hip-target=gfx942 -o $OUTPUT_DIR/output.vmfb \
+        --iree-hal-target-device=hip --iree-opt-level=O3 \
+        --iree-hal-indirect-command-buffers=true \
+        --iree-stream-resource-memory-model=discrete \
+        --iree-hal-memoization=true --iree-codegen-enable-default-tuning-specs=true
 fi
+
 end=$(date +%s)
 echo "Time taken for compiling: $((end - start)) seconds"
