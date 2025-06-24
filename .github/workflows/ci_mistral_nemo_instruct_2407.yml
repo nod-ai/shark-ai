@@ -74,6 +74,9 @@ jobs:
           bash scripts/run_iree_benchmark.sh  \
              --parameters /shark-dev/mistral_instruct/instruct.irpa \
              --model mistral-nemo-instruct-fp8  | tee $(pwd)/output_artifacts/iree_benchmark.log
+          python scripts/utils.py \
+            --combine-json $OUTPUT_ARTIFACTS/benchmark_module \
+            --output-json $OUTPUT_ARTIFACTS/consolidated_benchmark.json
 
       - name: Run Offline serving :chat
         if: ${{ env.IS_SERVING_DAY == 'true' }}
@@ -87,6 +90,9 @@ jobs:
              --model_config ../output_artifacts/config_attn.json \
              --mode chat | tee ../output_artifacts/offline_serving_chat.log
           cd ..
+          python scripts/utils.py \
+            --combine-json $OUTPUT_ARTIFACTS/chat \
+            --output-json $OUTPUT_ARTIFACTS/consolidated_chat_serving.json
 
       - name: Run Offline serving :reasoning
         if: ${{ env.IS_SERVING_DAY == 'true' }}
@@ -100,6 +106,9 @@ jobs:
              --model_config ../output_artifacts/config_attn.json \
              --mode reasoning | tee ../output_artifacts/offline_serving_reasoning.log
           cd ..
+          python scripts/utils.py \
+            --combine-json $OUTPUT_ARTIFACTS/reasoning \
+            --output-json $OUTPUT_ARTIFACTS/consolidated_reasoning_serving.json
 
       - name: Run Offline serving :summary
         if: ${{ env.IS_SERVING_DAY == 'true' }}
@@ -113,6 +122,9 @@ jobs:
              --model_config ../output_artifacts/config_attn.json \
              --mode summary | tee ../output_artifacts/offline_serving_summary.log
           cd ..
+          python scripts/utils.py \
+            --combine-json $OUTPUT_ARTIFACTS/summary \
+            --output-json $OUTPUT_ARTIFACTS/consolidated_summary_serving.json
 
       - name: Run online serving
         if: ${{ env.IS_SERVING_DAY == 'true' }}
@@ -145,7 +157,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: llama-logs
-          path: output_artifacts/*.log
+          path: |
+            output_artifacts/consolidated*.json
+            output_artifacts/*.log
 
   # New job to push logs to shark-ai-reports repository
   push_logs:
@@ -172,6 +186,7 @@ jobs:
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d')
         mkdir -p "shark-ai-reports/$date/mistal-nemo-instuct-2407"
+        cp -v logs/*.json "shark-ai-reports/$date/llama-8b-fp8-logs"
         cp -v logs/*.log "shark-ai-reports/$date/mistal-nemo-instuct-2407"
         cd shark-ai-reports
         git pull
