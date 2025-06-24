@@ -71,7 +71,7 @@ jobs:
 
       - name: Run IREE Benchmark Module
         run: |
-          bash scripts/run_iree_benchmark.sh \
+          bash scripts/run_iree_benchmark.sh --bs-prefill 4 --bs-decode 4 \
              --parameters /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa \
              --model llama-8B-FP16 | tee $(pwd)/output_artifacts/iree_benchmark.log
 

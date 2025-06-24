@@ -85,7 +85,7 @@ set_tp8_parameters() {
 
 
 if [[ $MODEL = "llama-8B-FP8" ]]; then
-    echo "$MODEL prefill_bs4"
+    echo "$MODEL prefill_bs4 ISL : 128"
     iree-benchmark-module --hip_use_streams=true \
         --module="$VMFB" \
         --parameters=model="$IRPA_PATH" \
@@ -97,7 +97,7 @@ if [[ $MODEL = "llama-8B-FP8" ]]; then
         --input=261x2097152xf8E4M3FNUZ \
         --benchmark_repetitions=3
 
-    echo "$MODEL decode_bs4"
+    echo "$MODEL decode_bs4 ISL: 128"
     iree-benchmark-module --hip_use_streams=true \
         --module="$VMFB" \
         --parameters=model="$IRPA_PATH" \
@@ -110,9 +110,262 @@ if [[ $MODEL = "llama-8B-FP8" ]]; then
         --input=261x2097152xf8E4M3FNUZ \
         --benchmark_repetitions=3
 
+elif [[ $MODEL == "llama-70B-FP16" ]]; then
+
+    echo "$MODEL prefill_bs$PREFILL_BS ISL: 128"
+    iree-benchmark-module \
+          --hip_use_streams=true \
+          --module=$VMFB \
+          --parameters=model=$IRPA_PATH \
+          --device=hip://4 \
+          --function=prefill_bs4 \
+          --input=@/shark-dev/70b/prefill_args_bs4_128_stride_32/tokens.npy \
+          --input=@/shark-dev/70b/prefill_args_bs4_128_stride_32/seq_lens.npy \
+          --input=@/shark-dev/70b/prefill_args_bs4_128_stride_32/seq_block_ids.npy \
+          --input=@/shark-dev/70b/prefill_args_bs4_128_stride_32/cs_f16.npy \
+          --benchmark_repetitions=3
+
+    echo "$MODEL decode_bs$PREFILL_BS ISL: 128"
+    iree-benchmark-module \
+      --hip_use_streams=true \
+      --module=$VMFB \
+      --parameters=model=8b_fp16.irpa \
+      --device=hip://4 \
+      --function=decode_bs4 \
+      --input=@/shark-dev/70b/decode_args_bs4_128_stride_32/next_tokens.npy \
+      --input=@/shark-dev/70b/decode_args_bs4_128_stride_32/seq_lens.npy \
+      --input=@/shark-dev/70b/decode_args_bs4_128_stride_32/start_positions.npy \
+      --input=@/shark-dev/70b/decode_args_bs4_128_stride_32/seq_block_ids.npy \
+      --input=@/shark-dev/70b/decode_args_bs4_128_stride_32/cs_f16.npy \
+      --benchmark_repetitions=3
+
+    echo "$MODEL prefill_bs$PREFILL_BS ISL: 2048"
+    iree-benchmark-module \
+          --hip_use_streams=true \
+          --module=$VMFB \
+          --parameters=model=$IRPA_PATH \
+          --device=hip://4 \
+          --function=prefill_bs4 \
+          --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32/tokens.npy \
+          --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32/seq_lens.npy \
+          --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32/seq_block_ids.npy \
+          --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32/cs_f16.npy \
+          --benchmark_repetitions=3
+
+    echo "$MODEL decode_bs$PREFILL_BS ISL: 2048"
+    iree-benchmark-module \
+      --hip_use_streams=true \
+      --module=$VMFB \
+      --parameters=model=8b_fp16.irpa \
+      --device=hip://4 \
+      --function=decode_bs4 \
+      --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32/next_tokens.npy \
+      --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32/seq_lens.npy \
+      --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32/start_positions.npy \
+      --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32/seq_block_ids.npy \
+      --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32/cs_f16.npy \
+      --benchmark_repetitions=3
+
+elif [[ $MODEL == "llama-8B-FP16" ]]; then
+
+    echo "$MODEL prefill_bs$PREFILL_BS ISL: 128"
+    iree-benchmark-module \
+          --hip_use_streams=true \
+          --module=$VMFB \
+          --parameters=model=$IRPA_PATH \
+          --device=hip://4 \
+          --function=prefill_bs4 \
+          --input=@/shark-dev/data/llama3.1/weights/8b/prefill_args_bs4_128_stride_32/tokens.npy \
+          --input=@/shark-dev/data/llama3.1/weights/8b/prefill_args_bs4_128_stride_32/seq_lens.npy \
+          --input=@/shark-dev/data/llama3.1/weights/8b/prefill_args_bs4_128_stride_32/seq_block_ids.npy \
+          --input=@/shark-dev/data/llama3.1/weights/8b/prefill_args_bs4_128_stride_32/cs_f16.npy \
+          --benchmark_repetitions=3
+
+    echo "$MODEL decode_bs$PREFILL_BS ISL: 128"
+    iree-benchmark-module \
+      --hip_use_streams=true \
+      --module=$VMFB \
+      --parameters=model=8b_fp16.irpa \
+      --device=hip://4 \
+      --function=decode_bs4 \
+      --input=@/shark-dev/data/llama3.1/weights/8b/decode_args_bs4_128_stride_32/next_tokens.npy \
+      --input=@/shark-dev/data/llama3.1/weights/8b/decode_args_bs4_128_stride_32/seq_lens.npy \
+      --input=@/shark-dev/data/llama3.1/weights/8b/decode_args_bs4_128_stride_32/start_positions.npy \
+      --input=@/shark-dev/data/llama3.1/weights/8b/decode_args_bs4_128_stride_32/seq_block_ids.npy \
+      --input=@/shark-dev/data/llama3.1/weights/8b/decode_args_bs4_128_stride_32/cs_f16.npy \
+      --benchmark_repetitions=3
+
+    echo "$MODEL prefill_bs$PREFILL_BS ISL: 2048"
+    iree-benchmark-module \
+          --hip_use_streams=true \
+          --module=$VMFB \
+          --parameters=model=$IRPA_PATH \
+          --device=hip://4 \
+          --function=prefill_bs4 \
+          --input=@/shark-dev/8b/prefill_args_bs4_2048_stride_32/tokens.npy \
+          --input=@/shark-dev/8b/prefill_args_bs4_2048_stride_32/seq_lens.npy \
+          --input=@/shark-dev/8b/prefill_args_bs4_2048_stride_32/seq_block_ids.npy \
+          --input=@/shark-dev/8b/prefill_args_bs4_2048_stride_32/cs_f16.npy \
+          --benchmark_repetitions=3
+
+    echo "$MODEL decode_bs$PREFILL_BS ISL: 2048"
+    iree-benchmark-module \
+      --hip_use_streams=true \
+      --module=$VMFB \
+      --parameters=model=8b_fp16.irpa \
+      --device=hip://4 \
+      --function=decode_bs4 \
+      --input=@/shark-dev/8b/decode_args_bs4_2048_stride_32/next_tokens.npy \
+      --input=@/shark-dev/8b/decode_args_bs4_2048_stride_32/seq_lens.npy \
+      --input=@/shark-dev/8b/decode_args_bs4_2048_stride_32/start_positions.npy \
+      --input=@/shark-dev/8b/decode_args_bs4_2048_stride_32/seq_block_ids.npy \
+      --input=@/shark-dev/8b/decode_args_bs4_2048_stride_32/cs_f16.npy \
+      --benchmark_repetitions=3
+
+elif [[ $MODEL == "llama-405B-FP16-tp8" ]]; then
+    set_tp8_parameters
+    echo "$MODEL prefill_bs$PREFILL_BS ISL: 128"
+    iree-benchmark-module --hip_use_streams=true \
+        --module="$VMFB" \
+        --parameters=model="$IRPA_PATH" \
+        --parameters=model="$IRPA_PATH_RANK0" \
+        --parameters=model="$IRPA_PATH_RANK1" \
+        --parameters=model="$IRPA_PATH_RANK2" \
+        --parameters=model="$IRPA_PATH_RANK3" \
+        --parameters=model="$IRPA_PATH_RANK4" \
+        --parameters=model="$IRPA_PATH_RANK5" \
+        --parameters=model="$IRPA_PATH_RANK6" \
+        --parameters=model="$IRPA_PATH_RANK7" \
+        --device=hip://0 \
+        --device=hip://1 \
+        --device=hip://2 \
+        --device=hip://3 \
+        --device=hip://4 \
+        --device=hip://5 \
+        --device=hip://6 \
+        --device=hip://7 \
+        --function=prefill_bs$PREFILL_BS \
+        --input=@/shark-dev/405b/prefill_args_bs4_128_stride_32_tp8/tokens.npy \
+        --input=@/shark-dev/405b/prefill_args_bs4_128_stride_32_tp8/seq_lens.npy \
+        --input=@/shark-dev/405b/prefill_args_bs4_128_stride_32_tp8/seq_block_ids.npy \
+        --input=@/shark-dev/405b/prefill_args_bs4_128_stride_32_tp8/cs_f16_shard_0.npy \
+        --input=@/shark-dev/405b/prefill_args_bs4_128_stride_32_tp8/cs_f16_shard_1.npy \
+        --input=@/shark-dev/405b/prefill_args_bs4_128_stride_32_tp8/cs_f16_shard_2.npy \
+        --input=@/shark-dev/405b/prefill_args_bs4_128_stride_32_tp8/cs_f16_shard_3.npy \
+        --input=@/shark-dev/405b/prefill_args_bs4_128_stride_32_tp8/cs_f16_shard_4.npy \
+        --input=@/shark-dev/405b/prefill_args_bs4_128_stride_32_tp8/cs_f16_shard_5.npy \
+        --input=@/shark-dev/405b/prefill_args_bs4_128_stride_32_tp8/cs_f16_shard_6.npy \
+        --input=@/shark-dev/405b/prefill_args_bs4_128_stride_32_tp8/cs_f16_shard_7.npy \
+        --benchmark_repetitions=3
+
+    echo "$MODEL decode_bs$DECODE_BS ISL: 128"
+    iree-benchmark-module --hip_use_streams=true \
+        --module="$VMFB" \
+        --parameters=model="$IRPA_PATH" \
+        --parameters=model="$IRPA_PATH_RANK0" \
+        --parameters=model="$IRPA_PATH_RANK1" \
+        --parameters=model="$IRPA_PATH_RANK2" \
+        --parameters=model="$IRPA_PATH_RANK3" \
+        --parameters=model="$IRPA_PATH_RANK4" \
+        --parameters=model="$IRPA_PATH_RANK5" \
+        --parameters=model="$IRPA_PATH_RANK6" \
+        --parameters=model="$IRPA_PATH_RANK7" \
+        --device=hip://0 \
+        --device=hip://1 \
+        --device=hip://2 \
+        --device=hip://3 \
+        --device=hip://4 \
+        --device=hip://5 \
+        --device=hip://6 \
+        --device=hip://7 \
+        --function=decode_bs$DECODE_BS \
+        --input=@/shark-dev/405b/decode_args_bs4_128_stride_32_tp8/next_tokens.npy \
+        --input=@/shark-dev/405b/decode_args_bs4_128_stride_32_tp8/seq_lens.npy \
+        --input=@/shark-dev/405b/decode_args_bs4_128_stride_32_tp8/start_positions.npy \
+        --input=@/shark-dev/405b/decode_args_bs4_128_stride_32_tp8/seq_block_ids.npy \
+        --input=@/shark-dev/405b/decode_args_bs4_128_stride_32_tp8/cs_f16_shard_0.npy \
+        --input=@/shark-dev/405b/decode_args_bs4_128_stride_32_tp8/cs_f16_shard_1.npy \
+        --input=@/shark-dev/405b/decode_args_bs4_128_stride_32_tp8/cs_f16_shard_2.npy \
+        --input=@/shark-dev/405b/decode_args_bs4_128_stride_32_tp8/cs_f16_shard_3.npy \
+        --input=@/shark-dev/405b/decode_args_bs4_128_stride_32_tp8/cs_f16_shard_4.npy \
+        --input=@/shark-dev/405b/decode_args_bs4_128_stride_32_tp8/cs_f16_shard_5.npy \
+        --input=@/shark-dev/405b/decode_args_bs4_128_stride_32_tp8/cs_f16_shard_6.npy \
+        --input=@/shark-dev/405b/decode_args_bs4_128_stride_32_tp8/cs_f16_shard_7.npy \
+        --benchmark_repetitions=3
+
+
+    echo "$MODEL prefill_bs$PREFILL_BS ISL: 2048"
+    iree-benchmark-module --hip_use_streams=true \
+        --module="$VMFB" \
+        --parameters=model="$IRPA_PATH" \
+        --parameters=model="$IRPA_PATH_RANK0" \
+        --parameters=model="$IRPA_PATH_RANK1" \
+        --parameters=model="$IRPA_PATH_RANK2" \
+        --parameters=model="$IRPA_PATH_RANK3" \
+        --parameters=model="$IRPA_PATH_RANK4" \
+        --parameters=model="$IRPA_PATH_RANK5" \
+        --parameters=model="$IRPA_PATH_RANK6" \
+        --parameters=model="$IRPA_PATH_RANK7" \
+        --device=hip://0 \
+        --device=hip://1 \
+        --device=hip://2 \
+        --device=hip://3 \
+        --device=hip://4 \
+        --device=hip://5 \
+        --device=hip://6 \
+        --device=hip://7 \
+        --function=prefill_bs$PREFILL_BS \
+        --input=@/shark-dev/405b/prefill_args_bs4_2048_stride_32_tp8/tokens.npy \
+        --input=@/shark-dev/405b/prefill_args_bs4_2048_stride_32_tp8/seq_lens.npy \
+        --input=@/shark-dev/405b/prefill_args_bs4_2048_stride_32_tp8/seq_block_ids.npy \
+        --input=@/shark-dev/405b/prefill_args_bs4_2048_stride_32_tp8/cs_f16_shard_0.npy \
+        --input=@/shark-dev/405b/prefill_args_bs4_2048_stride_32_tp8/cs_f16_shard_1.npy \
+        --input=@/shark-dev/405b/prefill_args_bs4_2048_stride_32_tp8/cs_f16_shard_2.npy \
+        --input=@/shark-dev/405b/prefill_args_bs4_2048_stride_32_tp8/cs_f16_shard_3.npy \
+        --input=@/shark-dev/405b/prefill_args_bs4_2048_stride_32_tp8/cs_f16_shard_4.npy \
+        --input=@/shark-dev/405b/prefill_args_bs4_2048_stride_32_tp8/cs_f16_shard_5.npy \
+        --input=@/shark-dev/405b/prefill_args_bs4_2048_stride_32_tp8/cs_f16_shard_6.npy \
+        --input=@/shark-dev/405b/prefill_args_bs4_2048_stride_32_tp8/cs_f16_shard_7.npy \
+        --benchmark_repetitions=3
+
+    echo "$MODEL decode_bs$DECODE_BS ISL: 2048"
+    iree-benchmark-module --hip_use_streams=true \
+        --module="$VMFB" \
+        --parameters=model="$IRPA_PATH" \
+        --parameters=model="$IRPA_PATH_RANK0" \
+        --parameters=model="$IRPA_PATH_RANK1" \
+        --parameters=model="$IRPA_PATH_RANK2" \
+        --parameters=model="$IRPA_PATH_RANK3" \
+        --parameters=model="$IRPA_PATH_RANK4" \
+        --parameters=model="$IRPA_PATH_RANK5" \
+        --parameters=model="$IRPA_PATH_RANK6" \
+        --parameters=model="$IRPA_PATH_RANK7" \
+        --device=hip://0 \
+        --device=hip://1 \
+        --device=hip://2 \
+        --device=hip://3 \
+        --device=hip://4 \
+        --device=hip://5 \
+        --device=hip://6 \
+        --device=hip://7 \
+        --function=decode_bs$DECODE_BS \
+        --input=@/shark-dev/405b/decode_args_bs4_2048_stride_32_tp8/next_tokens.npy \
+        --input=@/shark-dev/405b/decode_args_bs4_2048_stride_32_tp8/seq_lens.npy \
+        --input=@/shark-dev/405b/decode_args_bs4_2048_stride_32_tp8/start_positions.npy \
+        --input=@/shark-dev/405b/decode_args_bs4_2048_stride_32_tp8/seq_block_ids.npy \
+        --input=@/shark-dev/405b/decode_args_bs4_2048_stride_32_tp8/cs_f16_shard_0.npy \
+        --input=@/shark-dev/405b/decode_args_bs4_2048_stride_32_tp8/cs_f16_shard_1.npy \
+        --input=@/shark-dev/405b/decode_args_bs4_2048_stride_32_tp8/cs_f16_shard_2.npy \
+        --input=@/shark-dev/405b/decode_args_bs4_2048_stride_32_tp8/cs_f16_shard_3.npy \
+        --input=@/shark-dev/405b/decode_args_bs4_2048_stride_32_tp8/cs_f16_shard_4.npy \
+        --input=@/shark-dev/405b/decode_args_bs4_2048_stride_32_tp8/cs_f16_shard_5.npy \
+        --input=@/shark-dev/405b/decode_args_bs4_2048_stride_32_tp8/cs_f16_shard_6.npy \
+        --input=@/shark-dev/405b/decode_args_bs4_2048_stride_32_tp8/cs_f16_shard_7.npy \
+        --benchmark_repetitions=3
+
 elif [[ $MODEL == "llama-70B-FP16-tp8" ]]; then
     set_tp8_parameters
-    echo "$MODEL prefill_bs$PREFILL_BS"
+    echo "$MODEL prefill_bs$PREFILL_BS ISL: 128"
     iree-benchmark-module --hip_use_streams=true \
         --module="$VMFB" \
         --parameters=model="$IRPA_PATH" \
@@ -146,7 +399,7 @@ elif [[ $MODEL == "llama-70B-FP16-tp8" ]]; then
         --input=@/shark-dev/70b/prefill_args_bs4_128_stride_32_tp8/cs_f16_shard_7.npy \
         --benchmark_repetitions=3
 
-    echo "$MODEL decode_bs$DECODE_BS"
+    echo "$MODEL decode_bs$DECODE_BS ISL: 128"
     iree-benchmark-module --hip_use_streams=true \
         --module="$VMFB" \
         --parameters=model="$IRPA_PATH" \
@@ -180,6 +433,77 @@ elif [[ $MODEL == "llama-70B-FP16-tp8" ]]; then
         --input=@/shark-dev/70b/decode_args_bs4_128_stride_32_tp8/cs_f16_shard_6.npy \
         --input=@/shark-dev/70b/decode_args_bs4_128_stride_32_tp8/cs_f16_shard_7.npy \
         --benchmark_repetitions=3
+
+
+    echo "$MODEL prefill_bs$PREFILL_BS ISL: 2048"
+    iree-benchmark-module --hip_use_streams=true \
+        --module="$VMFB" \
+        --parameters=model="$IRPA_PATH" \
+        --parameters=model="$IRPA_PATH_RANK0" \
+        --parameters=model="$IRPA_PATH_RANK1" \
+        --parameters=model="$IRPA_PATH_RANK2" \
+        --parameters=model="$IRPA_PATH_RANK3" \
+        --parameters=model="$IRPA_PATH_RANK4" \
+        --parameters=model="$IRPA_PATH_RANK5" \
+        --parameters=model="$IRPA_PATH_RANK6" \
+        --parameters=model="$IRPA_PATH_RANK7" \
+        --device=hip://0 \
+        --device=hip://1 \
+        --device=hip://2 \
+        --device=hip://3 \
+        --device=hip://4 \
+        --device=hip://5 \
+        --device=hip://6 \
+        --device=hip://7 \
+        --function=prefill_bs$PREFILL_BS \
+        --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32_tp8/tokens.npy \
+        --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32_tp8/seq_lens.npy \
+        --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32_tp8/seq_block_ids.npy \
+        --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32_tp8/cs_f16_shard_0.npy \
+        --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32_tp8/cs_f16_shard_1.npy \
+        --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32_tp8/cs_f16_shard_2.npy \
+        --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32_tp8/cs_f16_shard_3.npy \
+        --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32_tp8/cs_f16_shard_4.npy \
+        --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32_tp8/cs_f16_shard_5.npy \
+        --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32_tp8/cs_f16_shard_6.npy \
+        --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32_tp8/cs_f16_shard_7.npy \
+        --benchmark_repetitions=3
+
+    echo "$MODEL decode_bs$DECODE_BS ISL: 2048"
+    iree-benchmark-module --hip_use_streams=true \
+        --module="$VMFB" \
+        --parameters=model="$IRPA_PATH" \
+        --parameters=model="$IRPA_PATH_RANK0" \
+        --parameters=model="$IRPA_PATH_RANK1" \
+        --parameters=model="$IRPA_PATH_RANK2" \
+        --parameters=model="$IRPA_PATH_RANK3" \
+        --parameters=model="$IRPA_PATH_RANK4" \
+        --parameters=model="$IRPA_PATH_RANK5" \
+        --parameters=model="$IRPA_PATH_RANK6" \
+        --parameters=model="$IRPA_PATH_RANK7" \
+        --device=hip://0 \
+        --device=hip://1 \
+        --device=hip://2 \
+        --device=hip://3 \
+        --device=hip://4 \
+        --device=hip://5 \
+        --device=hip://6 \
+        --device=hip://7 \
+        --function=decode_bs$DECODE_BS \
+        --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32_tp8/next_tokens.npy \
+        --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32_tp8/seq_lens.npy \
+        --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32_tp8/start_positions.npy \
+        --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32_tp8/seq_block_ids.npy \
+        --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32_tp8/cs_f16_shard_0.npy \
+        --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32_tp8/cs_f16_shard_1.npy \
+        --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32_tp8/cs_f16_shard_2.npy \
+        --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32_tp8/cs_f16_shard_3.npy \
+        --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32_tp8/cs_f16_shard_4.npy \
+        --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32_tp8/cs_f16_shard_5.npy \
+        --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32_tp8/cs_f16_shard_6.npy \
+        --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32_tp8/cs_f16_shard_7.npy \
+        --benchmark_repetitions=3
+
 elif [[ $MODEL == "mistral-nemo-instruct-fp8" ]]; then
     echo "Running prefill BS1 "
     iree-benchmark-module   --device=hip   --device_allocator=caching \
