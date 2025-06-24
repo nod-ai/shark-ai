@@ -1,5 +1,6 @@
 from typing import Dict, Set, List, Tuple, Optional
 from dataclasses import dataclass
+from threading import Lock
 import time
 import math
 import heapq
@@ -10,8 +11,6 @@ from .base_attention_cache import (
     PageAllocation,
 )
 from .kvcache_utils import RefCount
-import sys
-from threading import Lock
 
 
 @dataclass
@@ -62,8 +61,7 @@ class TrieNode:
     def unlink(self) -> None:
         """Remove this node from its parent's children."""
         if self.parent is not None:
-            if self.tokens in self.parent.children:
-                del self.parent.children[self.tokens]
+            del self.parent.children[self.tokens]
             self.parent = None
 
     def __hash__(self) -> int:
@@ -164,7 +162,6 @@ class TriePagedAttentionCacheAllocation(PageAllocation):
                     "Additional work needed here to support publishing incomplete pages to ensure that we finish up a page before attaching child nodes to it."
                 )
 
-            # cur_node = self.last_cached_node
             cur_node = matched_node
             for token_block, page in zip(unpublished_tokens, unpublished_pages):
                 new_node = cur_node.create_child(token_block, page)
