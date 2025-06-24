@@ -77,14 +77,24 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
-    @pytest.mark.skip(reason="Non-decomposed attention is not supported yet")
     @is_nightly
-    def test_llama3_405B_f16(self):
+    def test_llama3_70B_f16_pp8(self):
+        # Llama 3.1 70B fp16 non-decomposed
+        self.model_name = "llama3_70B_f16_torch"
+        self.irpa_file = self.llama3_70b_f16_model
+        self.tokenizer = self.llama3_70b_tokenizer
+        self.pipeline_parallelism_size = 8
+
+        self.prepare_argv()
+        self.run_and_check_perplexity()
+
+    @is_nightly
+    def test_llama3_405B_f16_pp8(self):
         # Llama 3.1 405B non-decomposed
         self.model_name = "llama3_405B_f16_torch"
         self.irpa_file = self.llama3_405b_f16_model
         self.tokenizer = self.llama3_405b_tokenizer
-        self.tensor_parallelism_size = 8
+        self.pipeline_parallelism_size = 8
 
         self.prepare_argv()
         self.run_and_check_perplexity()
