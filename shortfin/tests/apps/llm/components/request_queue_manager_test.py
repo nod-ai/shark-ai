@@ -5,12 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from shortfin_apps.llm.components.request_queue_manager import RequestQueueManager
-import logging
 
-# Enable logging to see debug output
-logging.basicConfig(level=logging.DEBUG)
-
-# Create a test function
 def test_request_queue_manager():
     queue_manager = RequestQueueManager(6)
 
@@ -31,9 +26,3 @@ def test_request_queue_manager():
     # Remove from queue
     queue_manager.remove_from_queue(3)
     assert queue_manager.current_queue_size == 3
-
-    print("All tests passed!")
-
-
-# Run the test
-test_request_queue_manager()

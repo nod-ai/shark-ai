@@ -31,7 +31,7 @@ class RequestQueueManager:
             True if the request was added successfully, False if the queue is full.
         """
         with self._lock:
-            if self.current_queue_size >= self.max_queue_size:
+            if self.current_queue_size + request_size > self.max_queue_size:
                 logger.debug(
                     f"Add failed: queue size {self.current_queue_size}, request size {request_size}"
                 )
@@ -60,4 +60,5 @@ class RequestQueueManager:
             logger.debug(
                 f"Remove failed: queue size {self.current_queue_size}, request size {request_size}"
             )
+            #TODO https://github.com/nod-ai/shark-ai/issues/1700
             return False
