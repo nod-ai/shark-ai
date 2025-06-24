@@ -20,3 +20,4 @@ sentencepiece
 # Deps needed for shortfin_apps.sd
 pillow
 transformers
+nodeenv
