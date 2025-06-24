@@ -2,8 +2,10 @@
 
 export IRPA_PATH=/shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa
 export TOKENIZER_JSON=/shark-dev/8b/instruct/tokenizer.json
-export VMFB=$(pwd)/../output_artifacts/output.vmfb
-export MODEL_CONFIG=$(pwd)/../output_artifacts/config_attn.json
+SCRIPT_DIR=$(dirname $(realpath "$0"))
+export OUTPUT_DIR="${SCRIPT_DIR}/../output_artifacts"
+export VMFB=${OUTPUT_DIR}/output.vmfb
+export MODEL_CONFIG=${OUTPUT_DIR}/config_attn.json
 export TENSOR_PARALLELISM_SIZE="1"
 export MODE=all
 export CONCURENCY_LIST="4 8 16 32 64 128 256"
@@ -73,43 +75,46 @@ set_tp8_parameters() {
     done
 }
 
+RESULTS_DIR=$OUTPUT_DIR/$MODE
+mkdir -p $RESULTS_DIR
+
 if [[ $TENSOR_PARALLELISM_SIZE = "8" ]]; then
 	set_tp8_parameters
 	if [[ $MODE = "all" ]] || [[ $MODE = "chat"  ]]; then
 	    echo "Starting offline serving for Chat ..."
 	    for conc in $CONCURENCY_LIST ; do
-	        python3 -m shortfin_apps.llm.cli --device hip --tokenizer_json=$TOKENIZER_JSON --model_config=$MODEL_CONFIG --vmfb=$VMFB --parameters $IRPA_PATH $IRPA_PATH_RANK0 $IRPA_PATH_RANK1 $IRPA_PATH_RANK2 $IRPA_PATH_RANK3 $IRPA_PATH_RANK4 $IRPA_PATH_RANK5 $IRPA_PATH_RANK6 $IRPA_PATH_RANK7 --benchmark  --benchmark_tasks=16  --device_ids 0 1 2 3 4 5 6 7  --stream --input_token_length 1024 --decode_steps=1024 --workers_offline=$conc
+	        python3 -m shortfin_apps.llm.cli --device hip --tokenizer_json=$TOKENIZER_JSON --model_config=$MODEL_CONFIG --vmfb=$VMFB --parameters $IRPA_PATH $IRPA_PATH_RANK0 $IRPA_PATH_RANK1 $IRPA_PATH_RANK2 $IRPA_PATH_RANK3 $IRPA_PATH_RANK4 $IRPA_PATH_RANK5 $IRPA_PATH_RANK6 $IRPA_PATH_RANK7 --benchmark  --benchmark_tasks=16  --device_ids 0 1 2 3 4 5 6 7  --stream --input_token_length 1024 --decode_steps=1024 --workers_offline=$conc --output-json $RESULTS_DIR/${conc}.json
 	    done
 	fi
 	if [[ $MODE = "all" ]] || [[ $MODE = "reasoning"  ]]; then
 	    echo "Starting offline serving for Reasoning ..."
 	    for conc in $CONCURENCY_LIST ; do
-	        python3 -m shortfin_apps.llm.cli --device hip --tokenizer_json=$TOKENIZER_JSON --model_config=$MODEL_CONFIG --vmfb=$VMFB --parameters $IRPA_PATH  $IRPA_PATH_RANK0 $IRPA_PATH_RANK1 $IRPA_PATH_RANK2 $IRPA_PATH_RANK3 $IRPA_PATH_RANK4 $IRPA_PATH_RANK5 $IRPA_PATH_RANK6 $IRPA_PATH_RANK7 --benchmark  --benchmark_tasks=16  --device_ids 0 1 2 3 4 5 6 7  --stream --input_token_length 1024 --decode_steps=4096 --workers_offline=$conc
+	        python3 -m shortfin_apps.llm.cli --device hip --tokenizer_json=$TOKENIZER_JSON --model_config=$MODEL_CONFIG --vmfb=$VMFB --parameters $IRPA_PATH  $IRPA_PATH_RANK0 $IRPA_PATH_RANK1 $IRPA_PATH_RANK2 $IRPA_PATH_RANK3 $IRPA_PATH_RANK4 $IRPA_PATH_RANK5 $IRPA_PATH_RANK6 $IRPA_PATH_RANK7 --benchmark  --benchmark_tasks=16  --device_ids 0 1 2 3 4 5 6 7  --stream --input_token_length 1024 --decode_steps=4096 --workers_offline=$conc --output-json $RESULTS_DIR/${conc}.json
 	    done
 	fi
 	if [[ $MODE = "all" ]] || [[ $MODE = "summary"  ]]; then
 	    echo "Starting offline serving for Summary ..."
 	    for conc in $CONCURENCY_LIST ; do
-	        python3 -m shortfin_apps.llm.cli --device hip --tokenizer_json=$TOKENIZER_JSON --model_config=$MODEL_CONFIG --vmfb=$VMFB --parameters $IRPA_PATH  $IRPA_PATH_RANK0 $IRPA_PATH_RANK1 $IRPA_PATH_RANK2 $IRPA_PATH_RANK3 $IRPA_PATH_RANK4 $IRPA_PATH_RANK5 $IRPA_PATH_RANK6 $IRPA_PATH_RANK7  --benchmark  --benchmark_tasks=16  --device_ids 0 1 2 3 4 5 6 7  --stream --input_token_length 4096 --decode_steps=1024 --workers_offline=$conc
+	        python3 -m shortfin_apps.llm.cli --device hip --tokenizer_json=$TOKENIZER_JSON --model_config=$MODEL_CONFIG --vmfb=$VMFB --parameters $IRPA_PATH  $IRPA_PATH_RANK0 $IRPA_PATH_RANK1 $IRPA_PATH_RANK2 $IRPA_PATH_RANK3 $IRPA_PATH_RANK4 $IRPA_PATH_RANK5 $IRPA_PATH_RANK6 $IRPA_PATH_RANK7  --benchmark  --benchmark_tasks=16  --device_ids 0 1 2 3 4 5 6 7  --stream --input_token_length 4096 --decode_steps=1024 --workers_offline=$conc --output-json $RESULTS_DIR/${conc}.json
 	    done
 	fi
 else
 	if [[ $MODE = "all" ]] || [[ $MODE = "chat"  ]]; then
 	    echo "Starting offline serving for Chat ..."
 	    for conc in $CONCURENCY_LIST ; do
-	        python3 -m shortfin_apps.llm.cli --device hip --tokenizer_json=$TOKENIZER_JSON --model_config=$MODEL_CONFIG --vmfb=$VMFB --parameters $IRPA_PATH --benchmark  --benchmark_tasks=16  --device_ids 0  --stream --input_token_length 1024 --decode_steps=1024 --workers_offline=$conc
+	        python3 -m shortfin_apps.llm.cli --device hip --tokenizer_json=$TOKENIZER_JSON --model_config=$MODEL_CONFIG --vmfb=$VMFB --parameters $IRPA_PATH --benchmark  --benchmark_tasks=4  --device_ids 0  --stream --input_token_length 1024 --decode_steps=1024 --workers_offline=$conc --output-json $RESULTS_DIR/${conc}.json
 	    done
 	fi
 	if [[ $MODE = "all" ]] || [[ $MODE = "reasoning"  ]]; then
 	    echo "Starting offline serving for Reasoning ..."
 	    for conc in $CONCURENCY_LIST ; do
-	        python3 -m shortfin_apps.llm.cli --device hip --tokenizer_json=$TOKENIZER_JSON --model_config=$MODEL_CONFIG --vmfb=$VMFB --parameters $IRPA_PATH --benchmark  --benchmark_tasks=16  --device_ids 0  --stream --input_token_length 1024 --decode_steps=4096 --workers_offline=$conc
+	        python3 -m shortfin_apps.llm.cli --device hip --tokenizer_json=$TOKENIZER_JSON --model_config=$MODEL_CONFIG --vmfb=$VMFB --parameters $IRPA_PATH --benchmark  --benchmark_tasks=16  --device_ids 0  --stream --input_token_length 1024 --decode_steps=4096 --workers_offline=$conc --output-json $RESULTS_DIR/${conc}.json
 	    done
 	fi
 	if [[ $MODE = "all" ]] || [[ $MODE = "summary"  ]]; then
 	    echo "Starting offline serving for Summary ..."
 	    for conc in $CONCURENCY_LIST ; do
-	        python3 -m shortfin_apps.llm.cli --device hip --tokenizer_json=$TOKENIZER_JSON --model_config=$MODEL_CONFIG --vmfb=$VMFB --parameters $IRPA_PATH --benchmark  --benchmark_tasks=16  --device_ids 0  --stream --input_token_length 4096 --decode_steps=1024 --workers_offline=$conc
+	        python3 -m shortfin_apps.llm.cli --device hip --tokenizer_json=$TOKENIZER_JSON --model_config=$MODEL_CONFIG --vmfb=$VMFB --parameters $IRPA_PATH --benchmark  --benchmark_tasks=16  --device_ids 0  --stream --input_token_length 4096 --decode_steps=1024 --workers_offline=$conc --output-json $RESULTS_DIR/${conc}.json
 	    done
 	fi
 fi
