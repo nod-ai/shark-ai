@@ -60,5 +60,5 @@ class RequestQueueManager:
             logger.debug(
                 f"Remove failed: queue size {self.current_queue_size}, request size {request_size}"
             )
-            #TODO https://github.com/nod-ai/shark-ai/issues/1700
+            # TODO https://github.com/nod-ai/shark-ai/issues/1700
             return False
