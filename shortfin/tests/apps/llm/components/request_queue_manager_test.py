@@ -6,7 +6,6 @@
 
 from shortfin_apps.llm.components.request_queue_manager import RequestQueueManager
 
-
 def test_request_queue_manager():
     queue_manager = RequestQueueManager(6)
 
@@ -14,6 +13,10 @@ def test_request_queue_manager():
 
     # Add to queue
     assert queue_manager.add_to_queue(4) == True
+    assert queue_manager.current_queue_size == 4
+
+    # Try to add beyond max, when `current_queue_size` < `max_queue_size`
+    assert not queue_manager.add_to_queue(3)
     assert queue_manager.current_queue_size == 4
 
     # Add more to queue
