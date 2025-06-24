@@ -172,7 +172,7 @@ class BasePagedAttentionCache:
     def increment_pages(self, pages: List[PageInfo]):
         if not self.use_ref_counts:
             raise RuntimeError(
-                "BaseAttentionCache should not be initialized with use_ref_counts as False"
+                "BaseAttentionCache must have use_ref_counts enabled to increment/decrement reference counts."
             )
 
         with self._ref_count_lock:
@@ -184,7 +184,7 @@ class BasePagedAttentionCache:
     ) -> None | List[PageInfo]:
         if not self.use_ref_counts:
             raise RuntimeError(
-                "BaseAttentionCache should not be initialized with use_ref_counts as False"
+                "BaseAttentionCache must have use_ref_counts enabled to increment/decrement reference counts."
             )
 
         with self._ref_count_lock:

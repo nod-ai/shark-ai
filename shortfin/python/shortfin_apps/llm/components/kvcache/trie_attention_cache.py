@@ -124,7 +124,7 @@ class TriePagedAttentionCacheAllocation(PageAllocation):
         # If we have more tokens, publish pages up to the incoming tokens.
         # If incoming has more tokens, replace our tokens with incoming tokens and publish pages up to the incoming tokens.
         min_len = min(len(self.tokens), len(tokens))
-        if list(self.tokens)[:min_len] != list(tokens)[:min_len]:
+        if self.tokens[:min_len] != tokens[:min_len]:
             raise ValueError(
                 "Tokens provided in publish_pages do not match tokens in allocation"
             )
@@ -212,7 +212,7 @@ class TriePagedAttentionCacheAllocation(PageAllocation):
             raise ValueError("New tokens must be longer than current tokens")
 
         # Check that current tokens are a prefix of new tokens
-        if tokens[: len(self.tokens)] != list(self.tokens):
+        if tokens[: len(self.tokens)] != self.tokens:
             raise ValueError("New tokens must extend current token sequence")
 
         # If tokens are identical, no extension needed
@@ -386,7 +386,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             if new_pages is not None:
                 return TriePagedAttentionCacheAllocation(
                     cache=self,
-                    tokens=tokens,
+                    tokens=list(tokens),
                     last_cached_node=cur_node,
                     cached_pages=matched_pages,
                     newly_acquired_pages=new_pages,
@@ -403,7 +403,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
 
         return TriePagedAttentionCacheAllocation(
             cache=self,
-            tokens=tokens,
+            tokens=list(tokens),
             last_cached_node=cur_node,
             cached_pages=matched_pages,
             newly_acquired_pages=new_pages,
