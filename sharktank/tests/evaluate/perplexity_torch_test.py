@@ -77,7 +77,7 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
-    @is_nightly
+    @is_sharded
     def test_llama3_70B_f16_pp8(self):
         # Llama 3.1 70B fp16 non-decomposed
         self.model_name = "llama3_70B_f16_torch"
@@ -88,7 +88,7 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
-    @is_nightly
+    @is_sharded
     def test_llama3_405B_f16_pp8(self):
         # Llama 3.1 405B non-decomposed
         self.model_name = "llama3_405B_f16_torch"
