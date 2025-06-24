@@ -75,6 +75,7 @@ set_tp8_parameters() {
     done
 }
 
+
 RESULTS_DIR=$OUTPUT_DIR/$MODE
 mkdir -p $RESULTS_DIR
 
