@@ -111,7 +111,6 @@ def matmul_generic_tensor_block_scaled_fp4(
     lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
 ):
     """Generic kernel for FP4 E2M1 block scaled layouts."""
-    print("[DEBUG] matmul_generic_tensor_block_scaled_fp4 called")
     lhs = unbox_tensor(lhs)
     if not transpose_rhs:
         return NotImplemented
@@ -119,18 +118,11 @@ def matmul_generic_tensor_block_scaled_fp4(
     if layout is not BlockScaledFp4Layout:
         return NotImplemented
     rhs_unpacked = rhs.unpack()
-    print(
-        f"[DEBUG] FP4 matmul: lhs.shape={lhs.shape}, rhs layout={layout}, transpose_rhs={transpose_rhs}"
-    )
 
-    # Convert power-of-two scales to float if needed
     scales_float = convert_fp4_scales_to_float(
         rhs_unpacked.d, rhs_unpacked.use_power_of_two_scale
     )
 
-    print(
-        f"[DEBUG] Calling batched_block_scaled_mmt_fp4 with scales.shape={scales_float.shape}, qs.shape={rhs_unpacked.qs.shape}"
-    )
     return batched_block_scaled_mmt_fp4(lhs, scales_float, rhs_unpacked.qs)
 
 

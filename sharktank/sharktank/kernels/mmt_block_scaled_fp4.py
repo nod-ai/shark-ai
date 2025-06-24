@@ -31,14 +31,10 @@ class batched_block_scaled_mmt_fp4(CustomOp):
     )
 
     def select(self, ksel: KernelSelection):
-        print(
-            "[DEBUG] batched_block_scaled_mmt_fp4.select() called - FP4 kernel path hit!"
-        )
         a_desc = ksel.arg_tensor(0)  # Shape [B, M, K]
         d_desc = ksel.arg_tensor(1)  # Shape [N, K // BLOCK_SIZE]
         qs_desc = ksel.arg_tensor(2)  # Shape [N, K // BLOCK_SIZE, BLOCK_SIZE]
 
-        # a arg
         *a_batch_dims, a_m, a_k = a_desc.t.shape
         torch._check(
             a_desc.t.dtype.is_floating_point,
@@ -49,7 +45,6 @@ class batched_block_scaled_mmt_fp4(CustomOp):
             lambda: f"batched_block_scaled_mmt_fp4 arg 'a': Expected 3d tensor with shape [B, M, K], got {len(a_desc.t.shape)}d tensor {a_desc.t.shape}",
         )
 
-        # qs arg - unpacked FP4 indices
         *qs_batch_dims, qs_n, qs_group0, qs_bs = qs_desc.t.shape
         torch._check(
             (
@@ -64,8 +59,6 @@ class batched_block_scaled_mmt_fp4(CustomOp):
             lambda: f"batched_block_scaled_mmt_fp4 arg 'qs': Expected uint8 (got {qs_desc.t.dtype})",
         )
         block_size = qs_bs
-
-        # d arg - per-block scales
         *d_batch_dims, d_n, d_group0 = d_desc.t.shape
         torch._check(
             (
@@ -80,7 +73,6 @@ class batched_block_scaled_mmt_fp4(CustomOp):
             lambda: f"batched_block_scaled_mmt_fp4 arg 'd': Expected floating point (got {d_desc.t.dtype})",
         )
 
-        # Specialize on K, N, BS
         a_desc.specialize_dims(-1)
         if len(qs_batch_dims) == 0:
             qs_desc.specialize_all_dims()
@@ -89,14 +81,10 @@ class batched_block_scaled_mmt_fp4(CustomOp):
             qs_desc.specialize_dims(1, 2, 3)
             d_desc.specialize_dims(1, 2)
 
-        # Shape [B, M, N]
         c_desc = ksel.return_new_tensor(a_batch_dims + [a_m, d_n], dtype=a_desc.t.dtype)
         c_desc.specialize_dims(-1)
 
     def generate(self, ksel: KernelSelection, kb: KernelBuilder):
-        print(
-            "[DEBUG] batched_block_scaled_mmt_fp4.generate() called - generating FP4 kernel code!"
-        )
         a = kb.arg_value(0)
         a_tensor_type = RankedTensorType(a.type)
         d = kb.arg_value(1)
