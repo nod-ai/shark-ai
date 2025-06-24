@@ -20,9 +20,11 @@ export IRPA_PATH=/shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa
 export PREFILL_BS="1,2,4,8"
 export DECODE_BS="4,8,16,32,64"
 export DTYPE="fp16"
-export OUTPUT_DIR="$(pwd)/output_artifacts"
-export VMFB=$(pwd)/output_artifacts/output.vmfb
-
+SCRIPT_DIR=$(dirname $(realpath "$0"))
+export OUTPUT_DIR="${SCRIPT_DIR}/../output_artifacts"
+export VMFB=${OUTPUT_DIR}/output.vmfb
+export BENCHMARK_DIR=$OUTPUT_DIR/benchmark_module
+mkdir -p $BENCHMARK_DIR
 
 while [[ "$1" != "" ]]; do
     case "$1" in
@@ -82,7 +84,6 @@ set_tp8_parameters() {
             echo "irpa_path_rank$rank: ${!var_name}"
     done
 }
-
 
 if [[ $MODEL = "llama-8B-FP8" ]]; then
     echo "$MODEL prefill_bs4 ISL : 128"

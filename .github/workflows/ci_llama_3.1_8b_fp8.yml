@@ -39,6 +39,7 @@ jobs:
         shell: bash
     env:
       VENV_DIR: ${{ github.workspace }}/.venv
+      OUTPUT_ARTIFACTS: $(pwd)/output_artifacts
     steps:
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -76,7 +77,10 @@ jobs:
       run: |
         bash scripts/run_iree_benchmark.sh --bs-prefill 4 --bs-decode 4 \
            --parameters /shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
-           --model llama-8B-FP8 | tee $(pwd)/output_artifacts/iree_benchmark.log
+           --model llama-8B-FP8 | tee $OUTPUT_ARTIFACTS/iree_benchmark.log
+        python scripts/utils.py \
+          --combine-json $OUTPUT_ARTIFACTS/benchmark_module \
+          --output-json $OUTPUT_ARTIFACTS/consolidated_benchmark.json
 
     - name: Run Offline serving :chat
       if: ${{ env.IS_SERVING_DAY == 'true' }}
@@ -148,7 +152,7 @@ jobs:
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       with:
         name: llama-logs
-        path: output_artifacts/*.log
+        path: output_artifacts/consolidated*.json
 
   # New job to push logs to shark-ai-reports repository
   push_logs:
@@ -175,7 +179,7 @@ jobs:
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d')
         mkdir -p "shark-ai-reports/$date/llama-8b-fp8-logs"
-        cp -v logs/*.log "shark-ai-reports/$date/llama-8b-fp8-logs"
+        cp -v logs/*.json "shark-ai-reports/$date/llama-8b-fp8-logs"
         cd shark-ai-reports
         git pull
         git add $date
