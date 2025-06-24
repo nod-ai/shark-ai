@@ -212,7 +212,7 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv(extra_args=("--use-toy-model",))
         self.run_and_check_perplexity()
 
-    @is_nightly
+    @is_deepseek
     def test_deepseek_v3_pp2(self):
         # DeepSeek v3 pipeline parallelism
         self.model_name = "deepseek_v3_iree"
