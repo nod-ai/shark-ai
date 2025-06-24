@@ -11,12 +11,19 @@ import torch
 
 from sharktank.models.llm import *
 from sharktank.models.deepseek.toy_deepseek import generate
+from sharktank.utils.export_artifacts import IreeCompileException
 from sharktank.utils.load_llm import *
 from sharktank.utils.evaluate import *
+from sharktank.utils.testing import (
+    is_mi300x,
+    IreeVsEagerLLMTester,
+    TempDirTestBase,
+    xfail,
+)
 
 
-class DeepseekTest(unittest.TestCase):
-    def test_deepseek(self):
+class CrossEntropyTest(unittest.TestCase):
+    def testUnsharded(self):
         theta, config = generate(12345)
         model = PagedLlmModelV1(theta=theta, config=config)
 
@@ -43,3 +50,27 @@ class DeepseekTest(unittest.TestCase):
         cross_entropy = torch.nn.functional.cross_entropy(logits, ids)
 
         assert pytest.approx(9.7477, 1e-4) == cross_entropy
+
+
+@pytest.mark.usefixtures("get_iree_flags", "device")
+@is_mi300x
+class DeepseekIreeVsEagerTest(TempDirTestBase):
+    @xfail(
+        raises=IreeCompileException,
+        reason="https://github.com/iree-org/iree/issues/21165",
+        strict=True,
+        match="op write affecting operations on global resources are restricted to workgroup",
+    )
+    def testUnshardedToySizedModelIREEVsEager(self):
+        theta, config = generate(12345)
+
+        tester = IreeVsEagerLLMTester(
+            work_dir=self._temp_dir,
+            theta=theta,
+            config=config,
+            torch_device=self.device,
+            iree_device=self.iree_device,
+            iree_hip_target=self.iree_hip_target,
+            iree_hal_target_device=self.iree_hal_target_device,
+        )
+        tester.run_and_compare_iree_vs_eager()
