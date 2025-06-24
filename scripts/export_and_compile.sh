@@ -5,7 +5,8 @@ export PREFILL_BS="1,2,4,8"
 export DECODE_BS="4,8,16,32,64"
 export DTYPE="fp16"
 export TENSOR_PARALLELISM_SIZE="1"
-export OUTPUT_DIR="$(pwd)/output_artifacts"
+SCRIPT_DIR=$(dirname $(realpath "$0"))
+export OUTPUT_DIR="${SCRIPT_DIR}/../output_artifacts"
 
 while [[ "$1" != "" ]]; do
     case "$1" in
