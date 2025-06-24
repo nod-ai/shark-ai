@@ -31,6 +31,9 @@ class batched_block_scaled_mmt_fp4(CustomOp):
     )
 
     def select(self, ksel: KernelSelection):
+        print(
+            "[DEBUG] batched_block_scaled_mmt_fp4.select() called - FP4 kernel path hit!"
+        )
         a_desc = ksel.arg_tensor(0)  # Shape [B, M, K]
         d_desc = ksel.arg_tensor(1)  # Shape [N, K // BLOCK_SIZE]
         qs_desc = ksel.arg_tensor(2)  # Shape [N, K // BLOCK_SIZE, BLOCK_SIZE]
@@ -91,6 +94,9 @@ class batched_block_scaled_mmt_fp4(CustomOp):
         c_desc.specialize_dims(-1)
 
     def generate(self, ksel: KernelSelection, kb: KernelBuilder):
+        print(
+            "[DEBUG] batched_block_scaled_mmt_fp4.generate() called - generating FP4 kernel code!"
+        )
         a = kb.arg_value(0)
         a_tensor_type = RankedTensorType(a.type)
         d = kb.arg_value(1)
