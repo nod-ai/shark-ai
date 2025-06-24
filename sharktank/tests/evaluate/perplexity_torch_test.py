@@ -16,6 +16,7 @@ from sharktank.utils.testing import (
     is_nightly,
     is_llama_8b,
     is_deepseek,
+    is_sharded,
 )
 
 
