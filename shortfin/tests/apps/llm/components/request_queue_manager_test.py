@@ -6,6 +6,7 @@
 
 from shortfin_apps.llm.components.request_queue_manager import RequestQueueManager
 
+
 def test_request_queue_manager():
     queue_manager = RequestQueueManager(6)
 
