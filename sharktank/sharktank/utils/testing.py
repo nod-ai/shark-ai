@@ -27,6 +27,8 @@ from sys import platform
 from datasets import load_dataset
 
 from sharktank.types import *
+from sharktank.types.pipelining import pipeline_parallelize_theta
+from sharktank.types.sharding import shard_theta
 from .math import cosine_similarity
 
 # TODO: ci-sharktank-nightly should run all nightly CIs and ci-sharktank/test-mi300x should run all pre-submits
@@ -178,6 +180,16 @@ class IreeVsEagerLLMTester:
             self.decode_cache_state_paths.append(work_dir / decode_name)
 
         self.dataset_path = work_dir / "parameters.irpa"
+
+        if self.config.tensor_parallelism_size > 1:
+            theta = shard_theta(theta=theta, config=config)
+
+        # TODO: I don't think these are necessary since export_paged_llm handles this
+        block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
+            theta, self.config.pipeline_parallelism_size
+        )
+        self.config.block_to_pipeline = block_to_pipeline
+        self.config.pipeline_to_devices = pipeline_to_devices
 
         Dataset(root_theta=theta, properties=self.config.to_properties()).save(
             path=self.dataset_path
