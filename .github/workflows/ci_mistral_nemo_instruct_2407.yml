@@ -83,7 +83,7 @@ jobs:
           cd shortfin
           export ROCR_VISIBLE_DEVICES=0
           bash ../scripts/run_serving.sh \
-             --irpa /shark-dev/mistral_instruct/instruct.irpa
+             --irpa /shark-dev/mistral_instruct/instruct.irpa \
              --tokenizer_json /shark-dev/mistral_instruct/tokenizer.json \
              --vmfb ../output_artifacts/output.vmfb \
              --model_config ../output_artifacts/config_attn.json \
