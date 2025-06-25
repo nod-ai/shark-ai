@@ -146,7 +146,7 @@ elif [[ $MODEL == "llama-70B-FP16" ]]; then
       --input=@/shark-dev/70b/decode_args_bs4_128_stride_32/cs_f16.npy \
       --benchmark_repetitions=3 \
       --benchmark_out_format=json \
-      --benchmark_out=$BENCHMARK_DIR/${MODEL}_decode_bs${$DECODE_BS}.json
+      --benchmark_out=$BENCHMARK_DIR/${MODEL}_decode_bs${DECODE_BS}.json
 
     echo "$MODEL prefill_bs$PREFILL_BS ISL: 2048"
     iree-benchmark-module \
@@ -161,7 +161,7 @@ elif [[ $MODEL == "llama-70B-FP16" ]]; then
           --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32/cs_f16.npy \
           --benchmark_repetitions=3 \
           --benchmark_out_format=json \
-          --benchmark_out=$BENCHMARK_DIR/${MODEL}_prefill_bs${$PREFILL_BS}.json
+          --benchmark_out=$BENCHMARK_DIR/${MODEL}_prefill_bs${PREFILL_BS}.json
 
     echo "$MODEL decode_bs$DECODE_BS ISL: 2048"
     iree-benchmark-module \
@@ -177,7 +177,7 @@ elif [[ $MODEL == "llama-70B-FP16" ]]; then
       --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32/cs_f16.npy \
       --benchmark_repetitions=3 \
       --benchmark_out_format=json \
-      --benchmark_out=$BENCHMARK_DIR/${MODEL}_decode_bs${$DECODE_BS}.json
+      --benchmark_out=$BENCHMARK_DIR/${MODEL}_decode_bs${DECODE_BS}.json
 
 elif [[ $MODEL == "llama-8B-FP16" ]]; then
 
@@ -194,7 +194,7 @@ elif [[ $MODEL == "llama-8B-FP16" ]]; then
           --input=@/shark-dev/data/llama3.1/weights/8b/prefill_args_bs4_128_stride_32/cs_f16.npy \
           --benchmark_repetitions=3 \
           --benchmark_out_format=json \
-          --benchmark_out=$BENCHMARK_DIR/${MODEL}_prefill_bs${$PREFILL_BS}.json
+          --benchmark_out=$BENCHMARK_DIR/${MODEL}_prefill_bs${PREFILL_BS}.json
 
     echo "$MODEL decode_bs$DECODE_BS ISL: 128"
     iree-benchmark-module \
@@ -210,7 +210,7 @@ elif [[ $MODEL == "llama-8B-FP16" ]]; then
       --input=@/shark-dev/data/llama3.1/weights/8b/decode_args_bs4_128_stride_32/cs_f16.npy \
       --benchmark_repetitions=3 \
       --benchmark_out_format=json \
-      --benchmark_out=$BENCHMARK_DIR/${MODEL}_decode_bs${$DECODE_BS}.json
+      --benchmark_out=$BENCHMARK_DIR/${MODEL}_decode_bs${DECODE_BS}.json
 
     echo "$MODEL prefill_bs$PREFILL_BS ISL: 2048"
     iree-benchmark-module \
@@ -225,7 +225,7 @@ elif [[ $MODEL == "llama-8B-FP16" ]]; then
           --input=@/shark-dev/8b/prefill_args_bs4_2048_stride_32/cs_f16.npy \
           --benchmark_repetitions=3 \
           --benchmark_out_format=json \
-          --benchmark_out=$BENCHMARK_DIR/${MODEL}_prefill_bs${$PREFILL_BS}.json
+          --benchmark_out=$BENCHMARK_DIR/${MODEL}_prefill_bs${PREFILL_BS}.json
 
     echo "$MODEL decode_bs$DECODE_BS ISL: 2048"
     iree-benchmark-module \
@@ -241,7 +241,7 @@ elif [[ $MODEL == "llama-8B-FP16" ]]; then
       --input=@/shark-dev/8b/decode_args_bs4_2048_stride_32/cs_f16.npy \
       --benchmark_repetitions=3 \
       --benchmark_out_format=json \
-      --benchmark_out=$BENCHMARK_DIR/${MODEL}_decode_bs${$DECODE_BS}.json
+      --benchmark_out=$BENCHMARK_DIR/${MODEL}_decode_bs${DECODE_BS}.json
 
 elif [[ $MODEL == "llama-405B-FP16-tp8" ]]; then
     set_tp8_parameters
@@ -279,7 +279,7 @@ elif [[ $MODEL == "llama-405B-FP16-tp8" ]]; then
         --input=@/shark-dev/405b/prefill_args_bs4_128_stride_32_tp8/cs_f16_shard_7.npy \
         --benchmark_repetitions=3 \
         --benchmark_out_format=json \
-        --benchmark_out=$BENCHMARK_DIR/${MODEL}_prefill_bs${$PREFILL_BS}.json
+        --benchmark_out=$BENCHMARK_DIR/${MODEL}_prefill_bs${PREFILL_BS}.json
 
     echo "$MODEL decode_bs$DECODE_BS ISL: 128"
     iree-benchmark-module --hip_use_streams=true \
@@ -316,7 +316,7 @@ elif [[ $MODEL == "llama-405B-FP16-tp8" ]]; then
         --input=@/shark-dev/405b/decode_args_bs4_128_stride_32_tp8/cs_f16_shard_7.npy \
         --benchmark_repetitions=3 \
         --benchmark_out_format=json \
-        --benchmark_out=$BENCHMARK_DIR/${MODEL}_decode_bs${$DECODE_BS}.json
+        --benchmark_out=$BENCHMARK_DIR/${MODEL}_decode_bs${DECODE_BS}.json
 
     echo "$MODEL prefill_bs$PREFILL_BS ISL: 2048"
     iree-benchmark-module --hip_use_streams=true \
@@ -352,7 +352,7 @@ elif [[ $MODEL == "llama-405B-FP16-tp8" ]]; then
         --input=@/shark-dev/405b/prefill_args_bs4_2048_stride_32_tp8/cs_f16_shard_7.npy \
         --benchmark_repetitions=3 \
         --benchmark_out_format=json \
-        --benchmark_out=$BENCHMARK_DIR/${MODEL}_prefill_bs${$PREFILL_BS}.json
+        --benchmark_out=$BENCHMARK_DIR/${MODEL}_prefill_bs${PREFILL_BS}.json
 
     echo "$MODEL decode_bs$DECODE_BS ISL: 2048"
     iree-benchmark-module --hip_use_streams=true \
@@ -389,7 +389,7 @@ elif [[ $MODEL == "llama-405B-FP16-tp8" ]]; then
         --input=@/shark-dev/405b/decode_args_bs4_2048_stride_32_tp8/cs_f16_shard_7.npy \
         --benchmark_repetitions=3 \
         --benchmark_out_format=json \
-        --benchmark_out=$BENCHMARK_DIR/${MODEL}_decode_bs${$DECODE_BS}.json
+        --benchmark_out=$BENCHMARK_DIR/${MODEL}_decode_bs${DECODE_BS}.json
 
 elif [[ $MODEL == "llama-70B-FP16-tp8" ]]; then
     set_tp8_parameters
@@ -427,7 +427,7 @@ elif [[ $MODEL == "llama-70B-FP16-tp8" ]]; then
         --input=@/shark-dev/70b/prefill_args_bs4_128_stride_32_tp8/cs_f16_shard_7.npy \
         --benchmark_repetitions=3 \
         --benchmark_out_format=json \
-        --benchmark_out=$BENCHMARK_DIR/${MODEL}_prefill_bs${$PREFILL_BS}.json
+        --benchmark_out=$BENCHMARK_DIR/${MODEL}_prefill_bs${PREFILL_BS}.json
 
     echo "$MODEL decode_bs$DECODE_BS ISL: 128"
     iree-benchmark-module --hip_use_streams=true \
@@ -464,7 +464,7 @@ elif [[ $MODEL == "llama-70B-FP16-tp8" ]]; then
         --input=@/shark-dev/70b/decode_args_bs4_128_stride_32_tp8/cs_f16_shard_7.npy \
         --benchmark_repetitions=3 \
         --benchmark_out_format=json \
-        --benchmark_out=$BENCHMARK_DIR/${MODEL}_decode_bs${$DECODE_BS}.json
+        --benchmark_out=$BENCHMARK_DIR/${MODEL}_decode_bs${DECODE_BS}.json
 
     echo "$MODEL prefill_bs$PREFILL_BS ISL: 2048"
     iree-benchmark-module --hip_use_streams=true \
@@ -500,7 +500,7 @@ elif [[ $MODEL == "llama-70B-FP16-tp8" ]]; then
         --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32_tp8/cs_f16_shard_7.npy \
         --benchmark_repetitions=3 \
         --benchmark_out_format=json \
-        --benchmark_out=$BENCHMARK_DIR/${MODEL}_prefill_bs${$PREFILL_BS}.json
+        --benchmark_out=$BENCHMARK_DIR/${MODEL}_prefill_bs${PREFILL_BS}.json
 
     echo "$MODEL decode_bs$DECODE_BS ISL: 2048"
     iree-benchmark-module --hip_use_streams=true \
@@ -537,7 +537,7 @@ elif [[ $MODEL == "llama-70B-FP16-tp8" ]]; then
         --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32_tp8/cs_f16_shard_7.npy \
         --benchmark_repetitions=3 \
         --benchmark_out_format=json \
-        --benchmark_out=$BENCHMARK_DIR/${MODEL}_decode_bs${$DECODE_BS}.json
+        --benchmark_out=$BENCHMARK_DIR/${MODEL}_decode_bs${DECODE_BS}.json
 
 elif [[ $MODEL == "mistral-nemo-instruct-fp8" ]]; then
     echo "Running prefill BS1 "
