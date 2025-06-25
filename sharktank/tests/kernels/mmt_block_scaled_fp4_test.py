@@ -1,4 +1,4 @@
-# Copyright 2024 Advanced Micro Devices, Inc.
+# Copyright 2025 Advanced Micro Devices, Inc.
 #
 # Licensed under the Apache License v2.0 with LLVM Exceptions.
 # See https://llvm.org/LICENSE.txt for license information.
@@ -201,6 +201,10 @@ class TestBatchedBlockScaledMmtFp4:
 
     def test_simple_goldens(self):
         """Test with simple, predictable values where we know the expected output."""
+
+        # TODO: It would be good to replace this with numbers from files extracted
+        # from golden reference implementations, but there is a lack of good mxfp4
+        # libraries to reference easily as of 6/25/2025.
 
         # Test case 1: All ones multiplication
         a = torch.ones(1, 1, 2, dtype=torch.float32)  # [[[1, 1]]]
