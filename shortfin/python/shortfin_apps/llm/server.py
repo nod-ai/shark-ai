@@ -106,9 +106,7 @@ def add_service_args(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--mooncake_config_path",
         type=str,
-        default="none",
-        help="Path to the Mooncake configuration file. "
-        "By default, it is set to 'none', meaning no Mooncake store will be used.",
+        help="Path to the Mooncake configuration file. ",
     )
     parser.add_argument(
         "--num_beams",

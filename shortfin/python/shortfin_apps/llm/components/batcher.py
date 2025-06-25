@@ -409,6 +409,38 @@ class PrefillExecutorProcess(LlmExecutorProcess):
             program_isolation=program_isolation,
         )
 
+    async def update_pages(self):
+        """Update the pages in the local page pool for the requests."""
+        updated = True
+        for req in self.exec_requests:
+            if req.allocation is not None:
+                updated = await req.allocation.update_pages(
+                    device=self.device0, token_ids=req.input_token_ids
+                )
+                if not updated:
+                    logger.warning(
+                        "Failed to update all pages for request %s, allocation: %s",
+                        req,
+                        req.allocation,
+                    )
+
+    async def write_back_pages(self):
+        """Write back the pages in the local page pool for the requests."""
+        for req in self.exec_requests:
+            req.done.set_success()
+            # write back pages to mooncake
+            logger.debug("Writing back pages for request %s", req)
+            if req.allocation is not None:
+                await req.allocation.write_back_pages(
+                    device=self.device0, token_ids=req.input_token_ids
+                )
+                logger.debug("Successfully wrote back pages for request %s", req)
+            else:
+                logger.debug(
+                    "Skipping write back for request %s, allocation is None",
+                    req,
+                )
+
     async def get_args(self, bs):
         seq_stride = self.seq_stride
 
@@ -464,15 +496,8 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         for page_table in self.page_tables:
             args.append(WrappedAllocation(sfnp.disable_barrier(page_table)))
 
-        updated = True
-        for req in self.exec_requests:
-            if req.allocation is not None:
-                updated = await req.allocation.update_pages(
-                    device=self.device0, token_ids=req.input_token_ids
-                )
-            if not updated:
-                logger.debug("Failed to update pages")
-                break
+        await self.update_pages()
+
         return args, req_count
 
     async def get_results(self, logits, indices, req_count):
@@ -497,20 +522,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
             req.result_logits = logits_item
             req.result_indices = index_item
 
-        for req in self.exec_requests:
-            req.done.set_success()
-            # write back pages to mooncake
-            logger.debug("Writing back pages for request %s", req)
-            if req.allocation is not None:
-                await req.allocation.write_back_pages(
-                    device=self.device0, token_ids=req.input_token_ids
-                )
-                logger.debug("Successfully wrote back pages for request %s", req)
-            else:
-                logger.debug(
-                    "Skipping write back for request %s, allocation is None",
-                    req,
-                )
+        await self.write_back_pages()
 
 
 class DecodeExecutorProcess(LlmExecutorProcess):

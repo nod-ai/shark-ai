@@ -121,7 +121,7 @@ class LlmGenerateService(GenerateService):
         )
         page_pool = PagePool(devices=self.devices, config=page_pool_config)
 
-        if self.server_params.mooncake_config_path != "none":
+        if self.server_params.mooncake_config_path is not None:
             logger.info(
                 f"Using MooncakeAttentionCache with config path: {self.server_params.mooncake_config_path}"
             )

@@ -122,7 +122,14 @@ class MooncakePagedAllocation(PageAllocation):
         logger.info(f"Successfully wrote back {len(keys)} pages to Mooncake store.")
 
     async def update_pages(self, device: sf.ScopedDevice, token_ids: List[int]) -> bool:
-        """Update pages in the device."""
+        """Update pages in the device.
+        This method splits the token_ids into keys according to tokens_per_page used in page_pool, retrieves the page correspons to the key from Mooncake and updates corresponding page in the page pool.
+        args:
+            device: Device to update pages on
+            token_ids: List of token ids to update pages for
+        returns:
+            True if all pages were updated successfully, False otherwise
+        """
         page_pool = self.cache.page_pool
         tokens_per_page = self.cache.tokens_per_page
         number_of_pages = math.ceil(len(token_ids) / tokens_per_page)

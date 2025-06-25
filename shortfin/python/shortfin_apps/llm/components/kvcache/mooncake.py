@@ -9,11 +9,15 @@ import logging
 
 from dataclasses import dataclass
 
-import torch
-from safetensors.torch import load as safetensors_load
-from safetensors.torch import save as safetensors_save
+import numpy as np
+
+# from safetensors.torch import load as safetensors_load
+# from safetensors.torch import save as safetensors_save
+from safetensors.numpy import load as safetensors_load
+from safetensors.numpy import save as safetensors_save
 
 from typing import Optional
+from mooncake.store import MooncakeDistributedStore
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +44,7 @@ class MooncakeConfig:
         file_path = pathlib.Path(json_file)
         if not file_path.exists():
             raise FileNotFoundError(f"Configuration file {json_file} does not exist.")
+
         config = None
         with open(json_file, "r") as f:
             config_data = json.load(f)
@@ -57,15 +62,6 @@ class MooncakeStore:
     """
 
     def __init__(self, config: MooncakeConfig):
-        try:
-            from mooncake.store import MooncakeDistributedStore
-        except ImportError as e:
-            raise ImportError(
-                "Mooncake is not installed. "
-                "Please run "
-                "pip3 install mooncake-transfer-engine "
-                "to install the Mooncake package."
-            ) from e
         try:
             self.config = config
             self.store = MooncakeDistributedStore()
@@ -89,15 +85,13 @@ class MooncakeStore:
         # MooncakeDistributedStore will automatically call the destructor, no need to explicitly close it.
         pass
 
-    def put(self, key: str, value: torch.Tensor) -> None:
+    def put(self, key: str, value: np.array) -> None:
         """
         Put a key-value pair into the Mooncake KVCache.
         """
         if not self._connected:
             raise RuntimeError("MooncakeStore is not connected.")
-        device_id = value.device.index if value.is_cuda else -1
-        device_tensor = torch.tensor(device_id, dtype=torch.int32)
-        value_bytes = safetensors_save({"device_id": device_tensor, "value": value})
+        value_bytes = safetensors_save({"value": value})
         try:
             self.store.put(key, value_bytes)
             logger.info(f"Successfully put key: {key} into Mooncake KVCache.")
@@ -110,17 +104,13 @@ class MooncakeStore:
         Put a key-value pair into the Mooncake KVCache with a list of integers.
         This method is specifically for storing lists of integers as tensors.
         """
-        if not self._connected:
-            raise RuntimeError("MooncakeStore is not connected.")
-        value_tensor = torch.tensor(value, dtype=torch.int)
-        self.put(key, value_tensor)
+        value_array = np.array(value, dtype=np.int64)
+        self.put(key, value_array)
 
-    def get(self, key: str) -> Optional[torch.Tensor]:
+    def get(self, key: str) -> Optional[np.array]:
         """
         Get a value from the Mooncake KVCache by key.
         """
-        if not self._connected:
-            raise RuntimeError("MooncakeStore is not connected.")
         try:
             value_bytes = self.store.get(key)
         except TypeError as e:
@@ -132,23 +122,16 @@ class MooncakeStore:
 
         if value_bytes:
             data = safetensors_load(value_bytes)
-            device_id = int(data["device_id"].item())
-            device = (
-                torch.device("cuda", device_id)
-                if device_id >= 0
-                else torch.device("cpu")
-            )
-            value_tensor = data["value"]
-            value = value_tensor.to(device)
+            value_array = data["value"]
             logger.info(f"Successfully retrieved key: {key} from Mooncake KVCache.")
-            return value
+            return value_array
 
     def get_int_list(self, key: str) -> Optional[list[int]]:
         """
         Get a list of integers from the Mooncake KVCache by key.
         This method is specifically for retrieving lists of integers stored as tensors.
         """
-        value_tensor = self.get(key)
-        if value_tensor is not None:
-            return value_tensor.tolist()
+        value_array = self.get(key)
+        if value_array is not None:
+            return value_array.tolist()
         return None
