@@ -82,7 +82,7 @@ jobs:
         run: |
           cd shortfin
           export ROCR_VISIBLE_DEVICES=0
-          bash scripts/run_serving.sh \
+          bash ../scripts/run_serving.sh \
              --irpa /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa \
              --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
              --vmfb ../output_artifacts/output.vmfb \
