@@ -18,7 +18,8 @@ def make_llama_attention_block_theta(
     head_count_kv: int,
     head_dim: int,
     embedding_length: int,
-    dtype: torch.dtype | None = None,
+    dtype: torch.dtype = torch.float32,
+    dtype_norm: torch.dtype = torch.float32,
 ) -> Theta:
     return Theta(
         {
@@ -46,7 +47,7 @@ def make_llama_attention_block_theta(
             ),
             "attn_norm.weight": DefaultPrimitiveTensor(
                 name=f"blk.{block_idx}.attn_norm.weight",
-                data=make_rand_torch((embedding_length), dtype=dtype),
+                data=make_rand_torch((embedding_length), dtype=dtype_norm),
             ),
         }
     )
