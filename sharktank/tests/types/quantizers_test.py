@@ -268,7 +268,9 @@ class DynamicFP4BlockQuantizerTest(TempDirTestBase):
         quantizer = self._roundtrip(quantizer, "_fp4_quantizer")
 
         # Values that are exactly representable in fp4
-        orig_value = torch.tensor([2.0, 4.0, 6.0, 6.0, 1.0, 3.0, -2.0, -4.0], dtype=torch.float32)
+        orig_value = torch.tensor(
+            [2.0, 4.0, 6.0, 6.0, 1.0, 3.0, -2.0, -4.0], dtype=torch.float32
+        )
 
         qt_value = quantizer.quantize(orig_value, name="test_fp4")
         qt_value = self._roundtrip(qt_value, "_fp4_qt_value")
@@ -286,7 +288,9 @@ class DynamicFP4BlockQuantizerTest(TempDirTestBase):
         quantizer = self._roundtrip(quantizer, "_fp4_approx_quantizer")
 
         # Values that are not exactly representable in fp4
-        orig_value = torch.tensor([2.5, 5.0, 7.5, 10.0, 1.25, 3.75, -2.5, -5.0], dtype=torch.float32)
+        orig_value = torch.tensor(
+            [2.5, 5.0, 7.5, 10.0, 1.25, 3.75, -2.5, -5.0], dtype=torch.float32
+        )
 
         qt_value = quantizer.quantize(orig_value, name="test_fp4_approx")
         qt_value = self._roundtrip(qt_value, "_fp4_approx_qt_value")
