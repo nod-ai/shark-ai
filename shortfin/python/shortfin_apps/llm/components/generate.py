@@ -107,10 +107,6 @@ class GenerateItemProcess(sf.Process):
             self.exec_req.request_exec_success.set_success()
             self.exec_req.free_cache_pages()
 
-    async def await_completion(self):
-        await self.exec_req.request_exec_success
-        return self.index
-
     def results_callback(self, result: int | list[list[int]]):
         if is_multi_response(self.decode_config):
             # TODO: Streaming is not supported for multiple responses
@@ -251,7 +247,6 @@ class ClientGenerateBatchProcess(sf.Process):
             else:
                 input_batch = self.tokenize()
 
-            pending = []
             for index, input_tokens in enumerate(input_batch):
                 decode_config = decode_configs[index]
 
@@ -294,17 +289,11 @@ class ClientGenerateBatchProcess(sf.Process):
                     fiber=fiber,
                 )
                 gen_processes.append(gen_process)
-                pending.append(asyncio.create_task(gen_process.await_completion()))
                 gen_process.launch()
 
-            while pending:
-                done, pending = await asyncio.wait(
-                    pending, return_when=asyncio.FIRST_COMPLETED
-                )
-                for task in done:
-                    idx = await task
-                    if not self.responder.is_disconnected():
-                        self.generate_response([gen_processes[idx]], streaming)
+            await asyncio.gather(*gen_processes)
+            if not self.responder.is_disconnected():
+                self.generate_response(gen_processes, streaming)
         finally:
             self.service.main_fiber_pool.return_fiber(indices)
             self.responder.ensure_response()

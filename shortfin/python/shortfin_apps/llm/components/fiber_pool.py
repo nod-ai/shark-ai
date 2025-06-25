@@ -27,17 +27,19 @@ class FiberPool:
         init_size: int,
         resizable: bool = True,
         name: str = "default-fiber-pool",
+        disaggregate: bool = False,
     ):
         self.init_size: int = init_size
         self.resizable: bool = resizable
         self.sysman: LlmSystemManager = sysman
         self.name: str = name
-
+        self.disaggregate = disaggregate
         self._fiber_pool: list[sf.Fiber] = []
         self._workers: list[sf.Worker] = []
         # Keep track of how many extra fibers were created
         # during runtime if `resizable` is set to True.
         self._extra_fibers: int = 0
+        self._created_fibers_on_request: int = 0
         self._index_queue = asyncio.Queue()
         self._lock = Lock()
         self._initialize_pool()
@@ -46,20 +48,8 @@ class FiberPool:
         new_worker = self.sysman.ls.create_worker(
             f"{self.name}-new-worker-{self._extra_fibers}"
         )
-        self._workers.append(new_worker)
-        fiber = None
-        if not self.sysman.disaggregate:
-            fiber = self.sysman.ls.create_fiber(new_worker)
-        else:
-            devices = self.sysman.ls.devices
-            num_devices = len(devices)
-            fiber = self.sysman.ls.create_fiber(
-                new_worker, devices=[devices[self.size() % num_devices]]
-            )
-
-        self._fiber_pool.append(fiber)
+        fiber = self.create_fiber(worker=new_worker)
         self._extra_fibers += 1
-
         return (
             self.size() - 1,
             fiber,
@@ -69,6 +59,7 @@ class FiberPool:
         with self._lock:
             try:
                 idx = self._index_queue.get_nowait()
+                self._index_queue.task_done()
                 return (
                     idx,
                     self._fiber_pool[idx],
@@ -79,6 +70,7 @@ class FiberPool:
                     return self._resize()
 
                 available_index = await self._index_queue.get()
+                self._index_queue.task_done()
                 return (available_index, self._fiber_pool[available_index])
 
     def _initialize_pool(self):
@@ -87,21 +79,27 @@ class FiberPool:
                 worker = self.sysman.ls.create_worker(
                     f"{self.name}-initial-worker-{idx}"
                 )
-                self._workers.append(worker)
-
-                fiber = None
-                if self.sysman.disaggregate:
-                    devices = self.sysman.ls.devices
-                    num_devices = len(devices)
-                    fiber = self.sysman.ls.create_fiber(
-                        worker, devices=[devices[idx % num_devices]]
-                    )
-                else:
-                    fiber = self.sysman.ls.create_fiber(worker)
-
-                self._fiber_pool.append(fiber)
-                assert idx < self.size()
+                self.create_fiber(worker=worker)
                 self._index_queue.put_nowait(idx)
+
+    def create_fiber(self, worker: sf.Worker | None = None) -> sf.Fiber:
+        current_device_idx = len(self._fiber_pool) % len(self.sysman.ls.devices)
+        if worker is None:
+            worker = self.sysman.create_worker(
+                f"{self.name}-worker-on-request-{self._created_fibers_on_request}"
+            )
+            self._created_fibers_on_request += 1
+
+        devices = (
+            self.sysman.ls.devices
+            if not self.disaggregate
+            else [self.sysman.ls.devices[current_device_idx]]
+        )
+
+        fiber = self.sysman.ls.create_fiber(worker, devices=devices)
+        self._workers.append(worker)
+        self._fiber_pool.append(fiber)
+        return fiber
 
     def return_fiber(self, indices: int | list[int]):
         with self._lock:

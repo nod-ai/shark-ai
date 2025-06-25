@@ -26,7 +26,7 @@ def non_disagg_sysman() -> LlmSystemManager:
 
 @pytest.fixture
 def disagg_stream_manager(disagg_sysman) -> StreamManager:
-    sman = StreamManager(disagg_sysman, 32)
+    sman = StreamManager(disagg_sysman, 32, disaggregate=True)
     return sman
 
 

@@ -7,7 +7,6 @@
 from ...utils import (
     SystemManager,
 )
-from .fiber_pool import FiberPool
 from shortfin import Fiber
 
 
@@ -16,27 +15,16 @@ class StreamManager:
         self,
         sysman: SystemManager,
         pool_initialization_size: int,
+        disaggregate: bool = False,
     ):
 
         self.__sysman = sysman
-        self.__disaggregate = self.__sysman.disaggregate
+        self.__disaggregate = disaggregate
         self.__devices = self.__sysman.ls.devices
         self.__pool_init_size = pool_initialization_size
-        self.__fiber_pool = self.__construct_fiber_pool()
         self.__create_fiber = self.__sysman.ls.create_fiber
         self.__create_worker = self.__sysman.ls.create_worker
         self.__stream_idx = -1
-
-    def __construct_fiber_pool(self):
-        return FiberPool(
-            sysman=self.__sysman,
-            init_size=self.__pool_init_size,
-            resizable=True,
-            name="stream_managed_fiber_pool",
-        )
-
-    def fiber_pool(self):
-        return self.__fiber_pool
 
     def num_open_streams(self) -> int:
         if not self.__disaggregate:

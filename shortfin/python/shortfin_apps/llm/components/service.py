@@ -11,6 +11,7 @@ from typing import List
 from threading import Lock
 import shortfin as sf
 
+from .fiber_pool import FiberPool
 from .stream_manager import StreamManager
 
 from .batcher import PrefillBatcherProcess, DecodeBatcherProcess
@@ -22,13 +23,9 @@ from .kvcache.trie_attention_cache import TriePagedAttentionCache
 from .kvcache.page_pool import PagePoolConfig, PagePool
 from .manager import LlmSystemManager
 from .tokenizer import Tokenizer
-<<<<<<< HEAD
-from .token_selection_strategy import is_multi_response
-from .request_queue_manager import RequestQueueManager
-=======
->>>>>>> a6793ec1 (Simplify code)
 
 from ...utils import GenerateService
+from .request_queue_manager import RequestQueueManager
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +58,10 @@ class LlmGenerateService(GenerateService):
         # Use model_params.decode_batch_sizes to decide actual max_queue_size
         self._initialize_max_queue_size()
         self.main_fiber_pool = FiberPool(
-            self.sysman, self.max_queue_size, resizable=True
+            self.sysman,
+            self.max_queue_size,
+            resizable=True,
+            disaggregate=self.disaggregate,
         )
 
         self.set_isolation(program_isolation)
@@ -71,8 +71,8 @@ class LlmGenerateService(GenerateService):
         self._stream_manager = StreamManager(
             self.sysman,
             self.max_queue_size,
+            disaggregate=self.disaggregate,
         )
-        self.main_fiber_pool = self._stream_manager.fiber_pool()
         (
             self.prefill_fiber,
             self.decode_fiber,
