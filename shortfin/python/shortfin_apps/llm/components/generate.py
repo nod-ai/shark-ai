@@ -207,30 +207,30 @@ class ClientGenerateBatchProcess(sf.Process):
         return decode_configs, total_requested_beams
 
     async def run(self):
-        logger.debug("Started ClientBatchGenerateProcess: %r", self)
+        logger.debug("Started ClientBatchGenerateProcess: %r (Thread: %s)", self, threading.current_thread().name)
 
         indices = []
         total_requested_beams = 0
+        (
+            decode_configs,
+            total_requested_beams,
+        ) = self._pre_processing_sampling_params()
+
+        # Try to add request to queue
+        # TODO(@zphoenixrises): Add load testing and integration tests for this.
+        if not self.service.queue_manager.add_to_queue(total_requested_beams):
+            self._return_error_response(
+                status.HTTP_503_SERVICE_UNAVAILABLE,
+                error_message="Server queue is full. Please try again later.",
+                code=ResponseErrorCodes.QUEUE_FULL,
+                extra_fields={
+                    "current_size": self.service.queue_manager.current_queue_size,
+                    "max_size": self.service.max_queue_size,
+                },
+            )
+            return
+
         try:
-            (
-                decode_configs,
-                total_requested_beams,
-            ) = self._pre_processing_sampling_params()
-
-            # Try to add request to queue
-            # TODO(@zphoenixrises): Add load testing and integration tests for this.
-            if not self.service.queue_manager.add_to_queue(total_requested_beams):
-                self._return_error_response(
-                    status.HTTP_503_SERVICE_UNAVAILABLE,
-                    error_message="Server queue is full. Please try again later.",
-                    code=ResponseErrorCodes.QUEUE_FULL,
-                    extra_fields={
-                        "current_size": self.service.queue_manager.current_queue_size,
-                        "max_size": self.service.max_queue_size,
-                    },
-                )
-                return
-
             streaming = self.gen_req.stream
             self.responder.start_response()
             if streaming:
