@@ -219,13 +219,13 @@ class ClientGenerateBatchProcess(sf.Process):
 
             # Try to add request to queue
             # TODO(@zphoenixrises): Add load testing and integration tests for this.
-            if not self.service.add_to_queue(total_requested_beams):
+            if not self.service.queue_manager.add_to_queue(total_requested_beams):
                 self._return_error_response(
                     status.HTTP_503_SERVICE_UNAVAILABLE,
                     error_message="Server queue is full. Please try again later.",
                     code=ResponseErrorCodes.QUEUE_FULL,
                     extra_fields={
-                        "current_size": self.service.current_queue_size,
+                        "current_size": self.service.queue_manager.current_queue_size,
                         "max_size": self.service.max_queue_size,
                     },
                 )
@@ -298,7 +298,7 @@ class ClientGenerateBatchProcess(sf.Process):
             self.responder.ensure_response()
 
             # Remove request from queue when done
-            self.service.remove_from_queue(total_requested_beams)
+            self.service.queue_manager.remove_from_queue(total_requested_beams)
 
     def generate_response(
         self,
