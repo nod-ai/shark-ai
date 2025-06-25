@@ -1142,10 +1142,10 @@ class PagedAttention:
         mask: Optional[torch.Tensor] = None,
         probs_quantizer: Optional[StaticScaledQuantizer] = None,
     ):
-        if attention_kernel not in ["decomposed", "sharktank", "torch"]:
+        if attention_kernel not in ["decomposed", "sharktank", "torch", "wave"]:
             raise ValueError(
                 f"Unsupported attention kernel: {attention_kernel}. "
-                "Supported kernels: decomposed, sharktank, torch."
+                "Supported kernels: decomposed, sharktank, torch, wave."
             )
 
         if self.attn_type == "gqa":
@@ -1218,9 +1218,10 @@ class PagedAttention:
             if mask is None:
                 output = torch.zeros(
                     [q.shape[0], q.shape[1], q.shape[2], v.shape[3]],
-                    dtype=self.attn_dtype,
+                    dtype=torch.float32,
                 )
                 attn_output = wave_bhsd_flash_attention(q, k, v, output)
+                attn_output = attn_output.to(torch.float16)
             return attn_output
 
         # Non-decomposed
