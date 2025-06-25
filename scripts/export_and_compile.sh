@@ -2,7 +2,7 @@
 
 export IRPA_PATH=/shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa
 export PREFILL_BS="1,2,4,8"
-export DECODE_BS="8,16,32,64"
+export DECODE_BS="4,8,16,32,64"
 export DTYPE="fp16"
 export TENSOR_PARALLELISM_SIZE="1"
 SCRIPT_DIR=$(dirname $(realpath "$0"))
