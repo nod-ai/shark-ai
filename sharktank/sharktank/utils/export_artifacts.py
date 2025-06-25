@@ -17,6 +17,7 @@ from typing import Any, List, Optional, TYPE_CHECKING
 import numpy as np
 import torch
 from sharktank.utils.iree import get_iree_compiler_flags_from_object
+from sharktank.examples import export_paged_llm_v1
 
 if TYPE_CHECKING:
     from sharktank.layers import LlamaModelConfig
@@ -335,9 +336,7 @@ class ExportArtifacts:
             return
 
         export_args = [
-            "python3",
-            "-m",
-            "sharktank.examples.export_paged_llm_v1",
+            "export_paged_llm_v1",
             f"--irpa-file={self.irpa_path}",
             f"--output-mlir={self.output_mlir}",
             f"--output-config={self.output_config}",
@@ -360,13 +359,8 @@ class ExportArtifacts:
             export_args.append("--use-attention-mask")
         if self.use_hf:
             export_args.append("--use-hf")
-
-        self._run_cmd(
-            cmd=subprocess.list2cmdline(export_args),
-            run_msg="Exporting MLIR",
-            success_msg="Exported to MLIR successfully",
-            exception=ExportMlirException,
-        )
+        sys.argv = export_args
+        export_paged_llm_v1.main()
 
     @timeit
     def compile_to_vmfb(
