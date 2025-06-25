@@ -50,7 +50,7 @@ class ShardedRotaryLayer(BaseLayer):
         self._devices = (
             devices
             if devices is not None
-            else tuple(range(self.tensor_parallelism_size))
+            else tuple(range(self._tensor_parallelism_size))
         )
 
 
