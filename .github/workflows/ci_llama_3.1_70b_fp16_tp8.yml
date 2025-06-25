@@ -83,7 +83,7 @@ jobs:
         run: |
           cd shortfin
           export ROCR_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
-          bash scripts/run_serving.sh \
+          bash ../scripts/run_serving.sh \
              --irpa /shark-dev/70b/instruct/weights/tp8/llama3_70b_instruct_fp16_tp8.irpa \
              --tokenizer_json /shark-dev/70b/instruct/tokenizer.json \
              --tensor-parallelism-size 8 \
