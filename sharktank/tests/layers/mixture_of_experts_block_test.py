@@ -37,6 +37,7 @@ class MoeBlockTest(unittest.TestCase):
             num_shared_experts=19,
             with_layer_output_norm=True,
             dtype=dtype,
+            dtype_gate_inp=dtype,
         )
         theta.rename_tensors_to_paths()
         model = MoeBlock(
@@ -171,6 +172,7 @@ class MoeBlockTest(unittest.TestCase):
             num_shared_experts=num_shared_experts,
             with_layer_output_norm=True,
             dtype=dtype,
+            dtype_gate_inp=dtype,
         )
 
         moe_with_pre_gather_ffn = MoeBlock(
@@ -278,6 +280,7 @@ class MoeBlockTest(unittest.TestCase):
             num_shared_experts=num_shared_experts,
             with_layer_output_norm=True,
             dtype=dtype,
+            dtype_gate_inp=dtype,
         )
         model_arch = "grok"
         if num_shared_experts > 0:

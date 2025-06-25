@@ -34,7 +34,8 @@ def make_deepseek_attention_block(
     expert_count: int,
     expert_shared_count: int,
     moe_intermediate_size: int,
-    dtype: torch.dtype | None = None,
+    dtype_lo: torch.dtype,
+    dtype_hi: torch.dtype,
 ) -> Theta:
     attention_theta = make_latent_attention_block_theta(
         block_idx=block_idx,
@@ -46,7 +47,8 @@ def make_deepseek_attention_block(
         kv_latent_dim=kv_latent_dim,
         q_lora_rank=q_lora_rank,
         v_head_dim=v_head_dim,
-        dtype=dtype,
+        dtype=dtype_lo,
+        dtype_norm=dtype_hi,
     )
 
     if block_idx >= n_dense_layers:
@@ -57,14 +59,16 @@ def make_deepseek_attention_block(
             num_experts=expert_count,
             num_shared_experts=expert_shared_count,
             with_layer_output_norm=False,
-            dtype=dtype,
+            dtype=dtype_lo,
+            dtype_gate_inp=dtype_hi,
         )
     else:
         ffn_theta = make_ffn_block_theta(
             block_idx=block_idx,
             embedding_length=embedding_length,
             feed_forward_length=feed_forward_length,
-            dtype=dtype,
+            dtype=dtype_lo,
+            dtype_norm=dtype_hi,
         )
     res_dict = attention_theta.tree
     res_dict.update(ffn_theta.tree)
@@ -72,12 +76,17 @@ def make_deepseek_attention_block(
 
 
 def make_random_deepseek_theta(
-    config: LlamaModelConfig, vocab_size: int, dtype: Optional[torch.dtype] = None
+    config: LlamaModelConfig,
+    vocab_size: int,
+    dtype_hi: torch.dtype,
+    dtype_lo: torch.dtype,
 ) -> Theta:
     res = {
         "token_embd.weight": DefaultPrimitiveTensor(
             name="token_embd.weight",
-            data=make_rand_torch((vocab_size, config.hp.embedding_length), dtype=dtype),
+            data=make_rand_torch(
+                (vocab_size, config.hp.embedding_length), dtype=dtype_lo
+            ),
         )
     }
     for i in range(config.hp.block_count):
@@ -96,16 +105,17 @@ def make_random_deepseek_theta(
             expert_count=config.hp.expert_count,
             expert_shared_count=config.hp.expert_shared_count,
             moe_intermediate_size=config.hp.moe_intermediate_size,
-            dtype=dtype,
+            dtype_lo=dtype_lo,
+            dtype_hi=dtype_hi,
         ).tree
 
     res[f"output.weight"] = DefaultPrimitiveTensor(
         name="output.weight",
-        data=make_rand_torch((vocab_size, config.hp.embedding_length), dtype=dtype),
+        data=make_rand_torch((vocab_size, config.hp.embedding_length), dtype=dtype_lo),
     )
     res[f"output_norm.weight"] = DefaultPrimitiveTensor(
         name="output_norm.weight",
-        data=make_rand_torch((config.hp.embedding_length), dtype=dtype),
+        data=make_rand_torch((config.hp.embedding_length), dtype=dtype_hi),
     )
 
     return Theta(res)

@@ -78,6 +78,7 @@ def make_attention_block_ffn_theta_v2(
         block_idx=block_idx,
         embedding_length=embedding_length,
         feed_forward_length=feed_forward_length,
+        dtype_norm=dtype,  # TODO: Move to float32
         dtype=dtype,
     )
     res_dict = attention_theta.tree
@@ -107,6 +108,7 @@ def make_attention_moe_block_random_theta(
         num_shared_experts=config.hp.expert_shared_count,
         with_layer_output_norm=False,
         dtype=dtype,
+        dtype_gate_inp=dtype,
     )
     res_dict.update(moe_theta.tree)
     return Theta(res_dict)
