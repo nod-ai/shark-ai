@@ -84,7 +84,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         )
         self.attention_embedding = nn.ModuleList(
             [
-                RotaryEmbeddingLayer(
+                build_rotary_layer(
                     rope_dimension_count=self.hp.rope_dimension_count,
                     rope_freq_base=self.hp.rope_freq_base,
                     max_seqlen=self.hp.context_length,
