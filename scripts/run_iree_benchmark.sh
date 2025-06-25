@@ -136,7 +136,7 @@ elif [[ $MODEL == "llama-70B-FP16" ]]; then
     iree-benchmark-module \
       --hip_use_streams=true \
       --module=$VMFB \
-      --parameters=model=8b_fp16.irpa \
+      --parameters=model=$IRPA_PATH \
       --device=hip \
       --function=decode_bs4 \
       --input=@/shark-dev/70b/decode_args_bs4_128_stride_32/next_tokens.npy \
@@ -169,7 +169,7 @@ elif [[ $MODEL == "llama-70B-FP16" ]]; then
     iree-benchmark-module \
       --hip_use_streams=true \
       --module=$VMFB \
-      --parameters=model=8b_fp16.irpa \
+      --parameters=model=$IRPA_PATH \
       --device=hip \
       --function=decode_bs4 \
       --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32/next_tokens.npy \
@@ -203,7 +203,7 @@ elif [[ $MODEL == "llama-8B-FP16" ]]; then
     iree-benchmark-module \
       --hip_use_streams=true \
       --module=$VMFB \
-      --parameters=model=8b_fp16.irpa \
+      --parameters=model=$IRPA_PATH \
       --device=hip \
       --function=decode_bs4 \
       --input=@/shark-dev/data/llama3.1/weights/8b/decode_args_bs4_128_stride_32/next_tokens.npy \
@@ -234,7 +234,7 @@ elif [[ $MODEL == "llama-8B-FP16" ]]; then
     iree-benchmark-module \
       --hip_use_streams=true \
       --module=$VMFB \
-      --parameters=model=8b_fp16.irpa \
+      --parameters=model=$IRPA_PATH \
       --device=hip \
       --function=decode_bs4 \
       --input=@/shark-dev/8b/decode_args_bs4_2048_stride_32/next_tokens.npy \
