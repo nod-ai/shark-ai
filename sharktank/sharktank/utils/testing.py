@@ -633,7 +633,7 @@ def assert_logits_kl_divergence_close(
     atol: float,
 ):
     """
-    Calcualte the KL divergence loss between the actual and expected logits tensors.
+    Calculate the KL divergence loss between the actual and expected logits tensors.
     This function calculates it's own log softmax of the logits.
 
     Args:
