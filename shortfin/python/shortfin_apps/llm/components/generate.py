@@ -208,7 +208,11 @@ class ClientGenerateBatchProcess(sf.Process):
         return decode_configs, total_requested_beams
 
     async def run(self):
-        logger.debug("Started ClientBatchGenerateProcess: %r (Thread: %s)", self, threading.current_thread().name)
+        logger.debug(
+            "Started ClientBatchGenerateProcess: %r (Thread: %s)",
+            self,
+            threading.current_thread().name,
+        )
 
         indices = []
         total_requested_beams = 0
