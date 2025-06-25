@@ -30,8 +30,8 @@ class Llama4Test(TempDirTestBase):
             with_ffn_norm=True,
             num_shared_experts=num_shared_experts,
             with_layer_output_norm=False,
-            dtype=dtype,
-            dtype_gate_inp=dtype,
+            dtype_lo=dtype,
+            dtype_hi=dtype,
         )
 
         moe_block = MoeBlock(

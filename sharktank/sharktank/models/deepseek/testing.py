@@ -59,8 +59,8 @@ def make_deepseek_attention_block(
             num_experts=expert_count,
             num_shared_experts=expert_shared_count,
             with_layer_output_norm=False,
-            dtype=dtype_lo,
-            dtype_gate_inp=dtype_hi,
+            dtype_lo=dtype_lo,
+            dtype_hi=dtype_hi,
         )
     else:
         ffn_theta = make_ffn_block_theta(

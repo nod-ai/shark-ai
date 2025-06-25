@@ -113,8 +113,8 @@ def make_attention_moe_block_random_theta(
         with_ffn_norm=True,
         num_shared_experts=config.hp.expert_shared_count,
         with_layer_output_norm=False,
-        dtype=dtype_lo,
-        dtype_gate_inp=dtype_hi,
+        dtype_lo=dtype_lo,
+        dtype_hi=dtype_hi,
     )
     res_dict.update(moe_theta.tree)
     return Theta(res_dict)
