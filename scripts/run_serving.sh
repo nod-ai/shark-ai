@@ -4,7 +4,7 @@ export IRPA_PATH=/sharedfile/attn/fp8_attn.irpa
 export TOKENIZER_JSON=/shark-dev/8b/instruct/tokenizer.json
 export VMFB=$(pwd)/../output_artifacts/output.vmfb
 export MODEL_CONFIG=$(pwd)/../output_artifacts/config_attn.json
-export PORT=8959
+export port=8959
 export TENSOR_PARALLELISM_SIZE=1
 
 
@@ -104,7 +104,7 @@ curl http://localhost:$port/generate \
            -d '{
               "text": "<|begin_of_text|>Name the capital of the United States.<|eot_id|>",
                 "sampling_params": {"max_completion_tokens": 50}
-            }' > inference_output
+            }' > $(pwd)/../output_artifacts/online_serving.log
 
 sleep 10
 kill -9 $shortfin_process
