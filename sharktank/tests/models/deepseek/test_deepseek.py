@@ -64,10 +64,10 @@ class DeepseekCrossEntropyTest(unittest.TestCase):
 @is_mi300x
 class DeepseekIreeVsEagerTest(TempDirTestBase):
     @xfail(
-        raises=AssertionError,
-        reason="https://github.com/iree-org/iree/issues/21087",
+        raises=IreeCompileException,
+        reason="https://github.com/iree-org/iree/issues/21165",
         strict=True,
-        match="Outputs do not match for prefill batch index 0",
+        match="op write affecting operations on global resources are restricted to workgroup",
     )
     def testUnshardedToySizedModelIREEVsEager(self):
         theta, config = generate(12345)
