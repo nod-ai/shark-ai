@@ -4,10 +4,9 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-name: Llama 3.1 8B FP8 Benchmarking Tests
+name: Llama 3.1 405B FP8 Benchmarking Tests
 
 on:
-  pull_request:
   workflow_dispatch:
   schedule:
     # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
