@@ -148,6 +148,7 @@ elif [[ $MODEL == "llama-70B-FP16" ]]; then
       --benchmark_out_format=json \
       --benchmark_out=${BENCHMARK_DIR}/llama-70B-FP16_decode_bs4_128.json
 
+
     echo "llama-70B-FP16 prefill_bs4 ISL: 2048"
     iree-benchmark-module \
           --hip_use_streams=true \
@@ -162,6 +163,7 @@ elif [[ $MODEL == "llama-70B-FP16" ]]; then
           --benchmark_repetitions=3 \
           --benchmark_out_format=json \
           --benchmark_out=${BENCHMARK_DIR}/llama-70B-FP16_prefill_bs4_2048.json
+
 
     echo "llama-70B-FP16 decode_bs4 ISL: 2048"
     iree-benchmark-module \
@@ -178,6 +180,7 @@ elif [[ $MODEL == "llama-70B-FP16" ]]; then
       --benchmark_repetitions=3 \
       --benchmark_out_format=json \
       --benchmark_out=${BENCHMARK_DIR}/llama-70B-FP16_decode_bs4_2048.json
+
 
 elif [[ $MODEL == "llama-8B-FP16" ]]; then
 
