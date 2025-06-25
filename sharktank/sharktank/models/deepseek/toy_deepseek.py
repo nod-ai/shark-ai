@@ -19,7 +19,7 @@ parser.add_argument("-o", "--output", default="/tmp/toy_deepseek.irpa")
 
 def generate(
     seed: int,
-    dtype_lo: torch.dtype = torch.float32,
+    dtype_lo: torch.dtype = torch.float16,
     dtype_hi: torch.dtype = torch.float32,
 ) -> tuple[Theta, LlamaModelConfig]:
     torch.manual_seed(seed=seed)

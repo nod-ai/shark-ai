@@ -9,6 +9,8 @@ import unittest
 
 import torch
 
+from parameterized import parameterized
+
 from sharktank.models.llm import *
 from sharktank.models.deepseek.toy_deepseek import generate
 from sharktank.utils.export_artifacts import IreeCompileException
@@ -22,9 +24,15 @@ from sharktank.utils.testing import (
 )
 
 
-class CrossEntropyTest(unittest.TestCase):
-    def testUnsharded(self):
-        theta, config = generate(12345)
+class DeepseekCrossEntropyTest(unittest.TestCase):
+    @parameterized.expand(
+        [
+            (torch.float16, torch.float32),
+            (torch.float32, torch.float32),
+        ]
+    )
+    def testUnsharded(self, dtype_lo: torch.dtype, dtype_hi: torch.dtype):
+        theta, config = generate(12345, dtype_lo=dtype_lo, dtype_hi=dtype_hi)
         model = PagedLlmModelV1(theta=theta, config=config)
 
         ids = [[3, 22, 13, 114, 90, 232, 61, 13, 244, 13, 212]]
@@ -56,10 +64,10 @@ class CrossEntropyTest(unittest.TestCase):
 @is_mi300x
 class DeepseekIreeVsEagerTest(TempDirTestBase):
     @xfail(
-        raises=IreeCompileException,
-        reason="https://github.com/iree-org/iree/issues/21165",
+        raises=AssertionError,
+        reason="https://github.com/iree-org/iree/issues/21087",
         strict=True,
-        match="op write affecting operations on global resources are restricted to workgroup",
+        match="Outputs do not match for prefill batch index 0",
     )
     def testUnshardedToySizedModelIREEVsEager(self):
         theta, config = generate(12345)

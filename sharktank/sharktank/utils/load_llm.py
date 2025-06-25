@@ -43,13 +43,19 @@ class TorchGenerator:
     def preprocess_prompts(
         self,
         prompts: list[str],
-    ):
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         token_ids = self.tokenizer._encode(texts=prompts, add_start_token=False)
 
         print(f":: Prompt tokens:")
         for idx, prompt in enumerate(prompts):
             print(f"    prompt_{idx}: \n    {prompt.encode()} \n    {token_ids[idx]}\n")
 
+        return self.preprocess_tokens(token_ids)
+
+    def preprocess_tokens(
+        self, token_ids: list[list[int]]
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Preprocess a list of token sequences."""
         token_ids, seq_lens = pad_tokens(
             token_ids, pad_to_multiple_of=self.model.cache.pad_sequence_stride
         )
