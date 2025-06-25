@@ -77,13 +77,19 @@ def pytest_addoption(parser):
         help="Enable all quick tests",
     )
     parser.addoption(
-        "--run-nightly-tests",
+        "--run-nightly-test",
         action="store_true",
-        dest="run-nightly-tests",
+        dest="run-nightly-test",
         default=False,
         help="Enable all nightly tests",
     )
-
+    parser.addoption(
+        "--run-sharded-test",
+        action="store_true",
+        dest="run-sharded-test",
+        default=False,
+        help="Enable all sharded tests",
+    )
     parser.addoption(
         "--with-clip-data",
         action="store_true",
@@ -133,19 +139,19 @@ def pytest_addoption(parser):
         "--llama3-8b-tokenizer-path",
         type=Path,
         action="store",
-        help="Llama3.1 8b tokenizer path, defaults to 30F CI system path",
+        help="Llama3.1 8b tokenizer path",
     )
     parser.addoption(
         "--llama3-8b-f16-model-path",
         type=Path,
         action="store",
-        help="Llama3.1 8b model path, defaults to 30F CI system path",
+        help="Llama3.1 8b model path",
     )
     parser.addoption(
         "--llama3-8b-f16-tp2-model-path",
         type=Path,
         action="store",
-        help="Llama3.1 8b tp2 model path, defaults to 30F CI system path",
+        help="Llama3.1 8b tp2 model path",
     )
     parser.addoption(
         "--llama3-8b-f8-model-path",
@@ -190,13 +196,13 @@ def pytest_addoption(parser):
         "--llama3-405b-tokenizer-path",
         type=Path,
         action="store",
-        help="Llama3.1 405b tokenizer path, defaults to 30F CI system path",
+        help="Llama3.1 405b tokenizer path",
     )
     parser.addoption(
         "--llama3-405b-f16-model-path",
         type=Path,
         action="store",
-        help="Llama3.1 405b model path, defaults to 30F CI system path",
+        help="Llama3.1 405b model path",
     )
     parser.addoption(
         "--llama3-405b-f16-tp8-model-path",

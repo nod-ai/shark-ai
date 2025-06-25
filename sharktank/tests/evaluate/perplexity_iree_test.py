@@ -19,6 +19,7 @@ from sharktank.utils.testing import (
     is_nightly,
     is_deepseek,
     is_llama_8b,
+    is_sharded,
     xfail,
 )
 
@@ -83,7 +84,7 @@ class PerplexityTest(unittest.TestCase):
 
     @is_llama_8b
     def test_llama3_8B_f16(self):
-        # Llama 3.1 8B non-decomposed
+        # Llama 3.1 8B fp16 non-decomposed
         self.model_name = "llama3_8B_f16_iree"
         self.irpa_file = self.llama3_8b_f16_model
         self.tokenizer = self.llama3_8b_tokenizer
@@ -93,7 +94,7 @@ class PerplexityTest(unittest.TestCase):
 
     @is_nightly
     def test_llama3_8B_f16_tp2(self):
-        # Llama 3.1 8B tensor parallelism
+        # Llama 3.1 8B fp16 tensor parallelism
         self.model_name = "llama3_8B_f16_iree"
         self.irpa_file = self.llama3_8b_f16_tp2_model
         self.tokenizer = self.llama3_8b_tokenizer
@@ -104,7 +105,7 @@ class PerplexityTest(unittest.TestCase):
 
     @is_nightly
     def test_llama3_8B_f16_pp2(self):
-        # Llama 3.1 8B pipepiline parallelism
+        # Llama 3.1 8B fp16 pipepiline parallelism
         self.model_name = "llama3_8B_f16_iree"
         self.irpa_file = self.llama3_8b_f16_model
         self.tokenizer = self.llama3_8b_tokenizer
@@ -115,7 +116,7 @@ class PerplexityTest(unittest.TestCase):
 
     @is_nightly
     def test_llama3_8B_f8(self):
-        # Llama 3.1 8B non-decomposed
+        # Llama 3.1 8B fp8 non-decomposed
         self.model_name = "llama3_8B_f8_iree"
         self.irpa_file = self.llama3_8b_f8_model
         self.tokenizer = self.llama3_8b_tokenizer
@@ -132,26 +133,54 @@ class PerplexityTest(unittest.TestCase):
         )
         self.run_and_check_perplexity()
 
-    @is_nightly
-    @pytest.mark.xfail(reason="Compile Error")
-    def test_llama3_405B_f16(self):
-        # Llama 3.1 405B non-decomposed
-        self.model_name = "llama3_405B_f16_iree"
-        self.irpa_file = self.llama3_405b_f16_model
-        self.tokenizer = self.llama3_405b_tokenizer
+    @is_sharded
+    def test_llama3_70B_f16_pp8(self):
+        # Llama 3.1 70B fp16 non-decomposed
+        self.model_name = "llama3_70B_f16_iree"
+        self.irpa_file = self.llama3_70b_f16_model
+        self.tokenizer = self.llama3_70b_tokenizer
         self.pipeline_parallelism_size = 8
 
         self.prepare_argv()
         self.run_and_check_perplexity()
 
-    @is_nightly
-    @pytest.mark.xfail(reason="Compile Error")
-    def test_llama3_405B_f8(self):
-        # Llama 3.1 405B non-decomposed
-        self.model_name = "llama3_405B_f8_iree"
-        self.irpa_file = self.llama3_405b_f8_model
-        self.tokenizer = self.llama3_405b_tokenizer
+    @pytest.mark.skip(reason="70B fp8 model unavailable")
+    @is_sharded
+    def test_llama3_70B_f8_pp8(self):
+        # Llama 3.1 70B fp8 non-decomposed
+        self.model_name = "llama3_70B_f8_iree"
+        self.irpa_file = self.llama3_70b_f8_model
+        self.tokenizer = self.llama3_70b_tokenizer
         self.pipeline_parallelism_size = 8
+
+        self.prepare_argv()
+        self.run_and_check_perplexity()
+
+    @xfail(
+        raises=IreeCompileException,
+        reason="https://github.com/iree-org/iree/issues/21068",
+        strict=True,
+        match="failed to solve for affinity analysis",
+    )
+    @is_sharded
+    def test_llama3_405B_f16_tp8(self):
+        # Llama 3.1 405B fp16 non-decomposed
+        self.model_name = "llama3_405B_f16_iree"
+        self.irpa_file = self.llama3_405b_f16_tp8_model
+        self.tokenizer = self.llama3_405b_tokenizer
+        self.tensor_parallelism_size = 8
+
+        self.prepare_argv()
+        self.run_and_check_perplexity()
+
+    @pytest.mark.skip(reason="405B fp8 model unavailable")
+    @is_sharded
+    def test_llama3_405B_f8_tp8(self):
+        # Llama 3.1 405B fp8 non-decomposed
+        self.model_name = "llama3_405B_f8_iree"
+        self.irpa_file = self.llama3_405b_f8_tp8_model
+        self.tokenizer = self.llama3_405b_tokenizer
+        self.tensor_parallelism_size = 8
 
         self.prepare_argv()
         self.run_and_check_perplexity()

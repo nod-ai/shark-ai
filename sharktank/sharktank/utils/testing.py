@@ -36,8 +36,12 @@ is_pre_submit = pytest.mark.skipif(
     reason="Run quick tests if --run-quick-test is passed",
 )
 is_nightly = pytest.mark.skipif(
-    'not config.getoption("run-nightly-tests")',
-    reason="Run large tests if --run-nightly-tests is passed",
+    'not config.getoption("run-nightly-test")',
+    reason="Run large tests if --run-nightly-test is passed",
+)
+is_sharded = pytest.mark.skipif(
+    'not config.getoption("run-sharded-test")',
+    reason="Run sharded tests if --run-sharded-test is passed",
 )
 is_llama_8b = pytest.mark.skipif(
     'config.getoption("llama3_8b_f16_model_path") is None',
