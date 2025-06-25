@@ -86,7 +86,7 @@ class AttentionBlockTest(unittest.TestCase):
             device="cpu",
             use_hf=True,
         )
-        position_embeddings = attention_embedding.rotary_embed_table
+        position_embeddings = attention_embedding.rotary_embed_table()
         input_tensor = make_rand_torch(
             (1, seq_len, head_count * head_dim), dtype=torch.float32
         )

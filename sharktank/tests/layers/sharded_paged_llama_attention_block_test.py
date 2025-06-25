@@ -167,7 +167,7 @@ class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
 
         sharded_input_tensor = ops.replicate(input_tensor, count=self.shard_count)
         sharded_seq_block_ids = ops.replicate(seq_block_ids, count=self.shard_count)
-        sharded_embedding_module = RotaryEmbeddingLayer(
+        sharded_embedding_module = build_rotary_layer(
             rope_dimension_count=self.rope_dimension_count,
             max_seqlen=self.max_seqlen,
             rope_freq_base=self.rope_freq_base,
