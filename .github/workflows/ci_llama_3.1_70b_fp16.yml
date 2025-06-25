@@ -77,6 +77,19 @@ jobs:
             --combine-json $(pwd)/output_artifacts/benchmark_module \
             --output-json $(pwd)/output_artifacts/consolidated_benchmark.json
 
+      - name: Run online serving
+        if: ${{ env.IS_SERVING_DAY == 'true' }}
+        run: |
+          cd shortfin
+          export ROCR_VISIBLE_DEVICES=0
+          bash scripts/run_serving.sh \
+             --irpa /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa \
+             --tokenizer_json /shark-dev/70b/instruct/tokenizer.json \
+             --vmfb ../output_artifacts/output.vmfb \
+             --model_config ../output_artifacts/config_attn.json \
+             --port 8900 | tee ../output_artifacts/serving.log
+          cd ..
+
       - name: Run Offline serving :chat
         if: ${{ env.IS_SERVING_DAY == 'true' }}
         run: |
@@ -124,19 +137,6 @@ jobs:
           python scripts/utils.py \
             --combine-json $(pwd)/output_artifacts/summary \
             --output-json $(pwd)/output_artifacts/consolidated_summary_serving.json
-
-      - name: Run online serving
-        if: ${{ env.IS_SERVING_DAY == 'true' }}
-        run: |
-          cd shortfin
-          export ROCR_VISIBLE_DEVICES=0
-          bash scripts/run_serving.sh \
-             --irpa /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa \
-             --tokenizer_json /shark-dev/70b/instruct/tokenizer.json \
-             --vmfb ../output_artifacts/output.vmfb \
-             --model_config ../output_artifacts/config_attn.json \
-             --port 8900 | tee ../output_artifacts/serving.log
-          cd ..
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4.0.0
