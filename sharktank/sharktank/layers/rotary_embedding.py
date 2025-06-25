@@ -53,7 +53,6 @@ class ShardedRotaryLayer(BaseLayer):
             else tuple(range(self._tensor_parallelism_size))
         )
 
-
     def rotary_embed_table(self):
         t = self._rotary_layer.create_rotary_embed_table()
         if self._tensor_parallelism_size > 1 or self._pipeline_parallelism:
