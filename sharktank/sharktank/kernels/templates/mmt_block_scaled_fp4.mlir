@@ -1,4 +1,4 @@
-// Copyright 2024 Advanced Micro Devices, Inc.
+// Copyright 2025 Advanced Micro Devices, Inc.
 //
 // Licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -42,7 +42,7 @@ util.func private @sharktank_batched_block_scaled_mmt_fp4_3d_{{n}}_{{k}}_{{bs}}_
 
   // =============================================================================
   // FP4 DEQUANTIZATION SECTION - TEMPORARY WORKAROUND
-  // TODO: Replace with native f4E2M1FN operations when MLIR backend supports it
+  // TODO: Replace with native f4E2M1FN operations when IREE supports it
   // =============================================================================
 
   // FP4 E2M1 lookup table for dequantization (from ocp_floats.py)
