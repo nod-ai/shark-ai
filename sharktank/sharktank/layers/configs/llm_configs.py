@@ -112,9 +112,10 @@ class LlamaHParams:
         expert_count = _optional_int_prop(
             p, f"{name_prefix}.expert_count", default_expert_count
         )
-        defaut_n_dense_layers = 0 if expert_count and expert_count > 0 else None
+        # Changing default_n_dense_layers to 0, gives error in Moe block condition for llama4 in llm.py
+        default_n_dense_layers = None
         n_dense_layers = _optional_int_prop(
-            p, f"{name_prefix}.leading_dense_block_count", defaut_n_dense_layers
+            p, f"{name_prefix}.leading_dense_block_count", default_n_dense_layers
         )
 
         custom_config = get_custom_configs(p, name_prefix)
@@ -256,7 +257,6 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         res["expert_shared_feed_forward_length"] = _int_prop(
             p, f"{name_prefix}.expert_shared_feed_forward_length"
         )
-        res["vocab_size"] = _int_prop(p, f"{name_prefix}.vocab_size")
 
     return res
 
@@ -437,6 +437,17 @@ class LlamaModelConfig:
         res["attention_chunk_size"] = self.attention_chunk_size
         if self.chunked_attention_layers is not None:
             res["chunked_attention_layers"] = list(self.chunked_attention_layers)
+
+        res["use_qk_norm"] = self.use_qk_norm
+        if self.rope_layers is not None:
+            res["rope_layers"] = self.rope_layers
+        if self.attn_temperature_tuning is not None:
+            res["attn_temperature_tuning"] = self.attn_temperature_tuning
+        if self.floor_scale is not None:
+            res["floor_scale"] = self.floor_scale
+        if self.attn_scale is not None:
+            res["attn_scale"] = self.attn_scale
+
         return res
 
     @staticmethod

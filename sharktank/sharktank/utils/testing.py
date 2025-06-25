@@ -43,6 +43,12 @@ is_nightly = pytest.mark.skipif(
 is_sharded = pytest.mark.skipif(
     'not config.getoption("run-sharded-test")',
     reason="Run sharded tests if --run-sharded-test is passed",
+    'not config.getoption("run-nightly-test")',
+    reason="Run large tests if --run-nightly-test is passed",
+)
+is_sharded = pytest.mark.skipif(
+    'not config.getoption("run-sharded-test")',
+    reason="Run sharded tests if --run-sharded-test is passed",
 )
 is_llama_8b = pytest.mark.skipif(
     'config.getoption("llama3_8b_f16_model_path") is None',
@@ -224,14 +230,7 @@ class IreeVsEagerLLMTester:
             use_attention_mask=True,
         )
 
-        # Note: Must be after saving the dataset and creating the exporter but before moving theta to the provided device.
-        block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
-            theta, self.config.pipeline_parallelism_size
-        )
-        self.config.block_to_pipeline_map = block_to_pipeline
-        self.config.pipeline_to_device_map = pipeline_to_devices
-
-        self.config.device = torch.device(torch_device)  # Switch to gpu for eager mode
+        # self.config.device = torch.device(torch_device)  # Switch to gpu for eager mode
         theta_for_eager = theta.to(device=self.config.device)
 
         prefill_token_ids, prefill_seq_lens = pad_tokens(
