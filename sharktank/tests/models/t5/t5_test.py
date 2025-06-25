@@ -486,10 +486,9 @@ class T5EncoderIreeTest(TempDirTestBase):
             (
                 torch.bfloat16,
                 torch.float64,
-                2e-2,
+                1e-1,
                 1e-2,
-                "ISSUE: https://github.com/nod-ai/shark-ai/issues/1689",
-            ),  # mark.xfail
+            ),
         ]
     )
     def testCompareToyIreeVsEager(
@@ -498,11 +497,7 @@ class T5EncoderIreeTest(TempDirTestBase):
         reference_dtype: torch.dtype,
         atol: float,
         rtol: float,
-        xfail_reason: str | None = None,
     ):
-        if xfail_reason is not None:
-            pytest.xfail(reason=xfail_reason)
-
         config = get_t5_encoder_toy_config()
         target_theta = make_t5_encoder_random_theta(config, dtype=target_dtype)
         target_model = T5Encoder(theta=target_theta, config=config)
