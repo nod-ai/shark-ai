@@ -230,7 +230,7 @@ class IreeVsEagerLLMTester:
             use_attention_mask=True,
         )
 
-        self.config.device = torch.device(torch_device)  # Switch to gpu for eager mode
+        # self.config.device = torch.device(torch_device)  # Switch to gpu for eager mode
         theta_for_eager = theta.to(device=self.config.device)
 
         prefill_token_ids, prefill_seq_lens = pad_tokens(
