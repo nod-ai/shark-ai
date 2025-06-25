@@ -15,7 +15,7 @@ import numpy as np
 
 # Import first as it does dep checking and reporting.
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 from shortfin.support.logging_setup import configure_main_logger
 from shortfin.support.responder import AbstractResponder
 
@@ -81,6 +81,11 @@ def add_cli_args(parser: argparse.ArgumentParser):
         type=int,
         default=1,
         help="Number of workers to use when running in `offline` mode.",
+    )
+    parser.add_argument(
+        "--output-json",
+        type=Path,
+        help="Outputs the benchmark results to specified json",
     )
 
 
@@ -222,6 +227,33 @@ class CliResponder(AbstractResponder):
             self._loop.call_soon_threadsafe(self.response.set_result, final_content)
 
 
+def get_metrics(metric: List) -> Dict:
+    result = {
+        "mean": np.mean(metric),
+        "min": np.min(metric),
+        "max": np.max(metric),
+        "median": np.median(metric),
+        "sd": np.std(metric),
+    }
+    return result
+
+
+def generate_report(args, results: List):
+    report = {}
+    report["benchmark_tasks"] = args.benchmark_tasks
+    report["decode_steps"] = args.decode_steps
+    report["input_token_length"] = args.input_token_length
+    report["workers_offline"] = args.workers_offline
+    report["stream"] = args.stream
+    report["benchmark_results"] = results
+
+    result_json = args.output_json
+    if args.output_json.is_dir():
+        result_json = result_json.joinpath("results.json")
+    with open(result_json, "w") as outs:
+        json.dump(report, outs, indent=2)
+
+
 async def main(argv):
     args = parse_args(argv)
     if args.tokenizer_config_json is None:
@@ -319,20 +351,33 @@ async def main(argv):
         total_time = global_timer.elapsed()
         reqs = len(prompts) / total_time
 
-        print(f"Requests per second: {reqs:2f}")
         latencies = [s.runtime() for s in tasks]
-        print(
-            f"Latencies: av: {np.mean(latencies)}, min: {np.min(latencies)}, max: {np.max(latencies)}, median: {np.median(latencies)}, sd: {np.std(latencies)}"
-        )
+        latencies_result = get_metrics(latencies)
+
+        benchmark_results = []
+        if args.output_json:
+            benchmark_results.append({"Requests per second": reqs})
+            benchmark_results.append({"Latencies": latencies_result})
+        else:
+            print(f"Requests per second: {reqs:2f}")
+            print(f"Latencies: {latencies_result}")
+
         if args.stream:
             ttft = [s.ttft() for s in tasks]
             tpot = [s.tpot() for s in tasks]
-            print(
-                f"TTFT: av: {np.mean(ttft)}, min: {np.min(ttft)}, max: {np.max(ttft)}, median: {np.median(ttft)}, sd: {np.std(ttft)}"
-            )
-            print(
-                f"TPOT: av: {np.mean(tpot)}, min: {np.min(tpot)}, max: {np.max(tpot)}, median: {np.median(tpot)}, sd: {np.std(tpot)}"
-            )
+
+            ttft_results = get_metrics(ttft)
+            tpot_results = get_metrics(tpot)
+
+            if args.output_json:
+                benchmark_results.append({"TTFT": ttft_results})
+                benchmark_results.append({"TPOT": tpot_results})
+            else:
+                print(f"TTFT: {ttft_results}")
+                print(f"TPOT: {tpot_results}")
+
+        if args.output_json:
+            generate_report(args, results=benchmark_results)
 
     logger.info(f"Shutting down service")
     service.shutdown()

@@ -4,16 +4,25 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from typing import Optional
+
 import torch
+
+from .ocp_floats import _FP4_MIN_INDEX, _FP4_MAX_INDEX
+
 
 __all__ = [
     "debug_map_tensor_as_hex_string",
     "interleave_linear_i4_block",
     "linearize_interleaved_i4_block",
+    "pack_fp4_e2m1_to_uint8",
+    "pack_nibbles",
     "promote_linear_i2_block_to_i8",
     "promote_linear_i4_block_to_i8",
     "promote_linear_i6_block_to_i8",
     "saturate_cast",
+    "unpack_nibbles",
+    "unpack_uint8_to_fp4_e2m1",
 ]
 
 
@@ -64,26 +73,79 @@ def interleave_linear_i4_block(i8_data: torch.Tensor) -> torch.Tensor:
     return interleaved
 
 
-def promote_linear_i4_block_to_i8(
-    linear_i4_data: torch.Tensor, *, signed: bool = False
-) -> torch.Tensor:
-    """Promote a linear i4 blocked tensor to i8."""
-    linear_i4_data = _view_uint8_tensor(linear_i4_data)
+def unpack_nibbles(packed_data: torch.Tensor, *, signed: bool = False) -> torch.Tensor:
+    """Unpack 4-bit values from uint8 tensor.
+
+    Args:
+        packed_data: Tensor of uint8 values containing packed 4-bit values
+        signed: If True, treat nibbles as signed 4-bit integers
+
+    Returns:
+        Unpacked tensor with shape [..., 2*N] containing individual 4-bit values
+    """
+    packed_data = _view_uint8_tensor(packed_data)
+
+    # Validate tensor type is uint8
+    if packed_data.dtype != torch.uint8:
+        raise TypeError(f"Packed data tensor must be uint8, got {packed_data.dtype}")
+
     if signed:
         # For signed i4 quantities, we have to manipulate the values as
         # right shifts from the high order nibble in order for sign extension
         # to function.
-        low = (linear_i4_data << 4).view(torch.int8) >> 4
-        high = linear_i4_data.view(torch.int8) >> 4
+        low = (packed_data << 4).view(torch.int8) >> 4
+        high = packed_data.view(torch.int8) >> 4
     else:
-        low = linear_i4_data & 0xF
-        high = linear_i4_data >> 4
+        low = packed_data & 0xF
+        high = packed_data >> 4
 
+    # Interleave back to original order
     low = low.unsqueeze(-1)
     high = high.unsqueeze(-1)
     stacked = torch.cat([low, high], dim=-1)
     flat = stacked.flatten(start_dim=-2)
     return flat
+
+
+def pack_nibbles(low: torch.Tensor, high: torch.Tensor) -> torch.Tensor:
+    """Pack pairs of 4-bit values into uint8 tensor.
+
+    Args:
+        low: Tensor of lower nibbles (4-bit values)
+        high: Tensor of upper nibbles (4-bit values)
+
+    Returns:
+        Packed uint8 tensor with shape [..., N//2]
+    """
+    low = _view_uint8_tensor(low)
+    high = _view_uint8_tensor(high)
+
+    # Validate tensor types are uint8
+    if low.dtype != torch.uint8:
+        raise TypeError(f"Low nibble tensor must be uint8, got {low.dtype}")
+    if high.dtype != torch.uint8:
+        raise TypeError(f"High nibble tensor must be uint8, got {high.dtype}")
+
+    # Validate nibble value ranges
+    if torch.any(low > _FP4_MAX_INDEX):
+        max_val = low.max().item()
+        raise ValueError(
+            f"Low nibble values must be in range [{_FP4_MIN_INDEX}, {_FP4_MAX_INDEX}], got maximum value {max_val}."
+        )
+    if torch.any(high > _FP4_MAX_INDEX):
+        max_val = high.max().item()
+        raise ValueError(
+            f"High nibble values must be in range [{_FP4_MIN_INDEX}, {_FP4_MAX_INDEX}], got maximum value {max_val}."
+        )
+
+    return low | (high << 4)
+
+
+def promote_linear_i4_block_to_i8(
+    linear_i4_data: torch.Tensor, *, signed: bool = False
+) -> torch.Tensor:
+    """Promote a linear i4 blocked tensor to i8."""
+    return unpack_nibbles(linear_i4_data, signed=signed)
 
 
 def promote_linear_i2_block_to_i8(linear_i2_data: torch.Tensor) -> torch.Tensor:
@@ -174,3 +236,52 @@ def saturate_cast(
     if not disable_saturate:
         t = t.clamp(iinfo.min, iinfo.max)
     return t.to(dtype=dtype)
+
+
+def pack_fp4_e2m1_to_uint8(fp4_values: torch.Tensor) -> torch.Tensor:
+    """Pack pairs of FP4 E2M1 values into uint8 tensors.
+
+    Args:
+        fp4_values: Tensor of shape [..., N] where N is even, containing
+                   4-bit values as uint8 (0-15 range)
+
+    Returns:
+        Packed tensor of shape [..., N//2] with 2 FP4 values per byte
+    """
+    if fp4_values.shape[-1] % 2 != 0:
+        raise ValueError(
+            f"Last dimension must be even for FP4 packing, got {fp4_values.shape[-1]}. "
+            f"Ensure input tensor has an even number of FP4 values in the last dimension."
+        )
+
+    fp4_values = _view_uint8_tensor(fp4_values)
+
+    # Validate tensor type is uint8
+    if fp4_values.dtype != torch.uint8:
+        raise TypeError(f"FP4 values tensor must be uint8, got {fp4_values.dtype}")
+
+    # Validate FP4 value range
+    if torch.any(fp4_values > _FP4_MAX_INDEX):
+        max_val = fp4_values.max().item()
+        raise ValueError(
+            f"FP4 values must be in range [{_FP4_MIN_INDEX}, {_FP4_MAX_INDEX}], got maximum value {max_val}. "
+            f"Use float32_to_fp4_e2m1() to convert float values to FP4 indices first."
+        )
+
+    # Split into low and high nibbles
+    low_nibbles = fp4_values[..., ::2]  # Even indices (0, 2, 4, ...)
+    high_nibbles = fp4_values[..., 1::2]  # Odd indices (1, 3, 5, ...)
+
+    return pack_nibbles(low_nibbles, high_nibbles)
+
+
+def unpack_uint8_to_fp4_e2m1(packed_data: torch.Tensor) -> torch.Tensor:
+    """Unpack uint8 data into pairs of FP4 E2M1 values.
+
+    Args:
+        packed_data: Tensor of uint8 values with packed FP4 pairs
+
+    Returns:
+        Unpacked tensor with shape [..., 2*N] storing FP4 values in uint8s
+    """
+    return unpack_nibbles(packed_data, signed=False)
