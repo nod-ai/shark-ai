@@ -9,6 +9,7 @@ import dataclasses
 import io
 import json
 import logging
+import threading
 
 from copy import deepcopy
 from typing import List, Tuple
@@ -218,7 +219,8 @@ class ClientGenerateBatchProcess(sf.Process):
 
         # Try to add request to queue
         # TODO(@zphoenixrises): Add load testing and integration tests for this.
-        if not self.service.queue_manager.add_to_queue(total_requested_beams):
+        added_to_queue = self.service.queue_manager.add_to_queue(total_requested_beams)
+        if not added_to_queue:
             self._return_error_response(
                 status.HTTP_503_SERVICE_UNAVAILABLE,
                 error_message="Server queue is full. Please try again later.",
@@ -297,8 +299,8 @@ class ClientGenerateBatchProcess(sf.Process):
             self.service.main_fiber_pool.return_fiber(indices)
             self.responder.ensure_response()
 
-            # Remove request from queue when done
-            self.service.queue_manager.remove_from_queue(total_requested_beams)
+            if added_to_queue:
+                self.service.queue_manager.remove_from_queue(total_requested_beams)
 
     def generate_response(
         self,
