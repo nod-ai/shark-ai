@@ -67,13 +67,13 @@ jobs:
         run: |
           bash scripts/export_and_compile.sh \
              --irpa /shark-dev/mistral_instruct/instruct.irpa \
-             --dtype mistral_fp8 
+             --dtype mistral_fp8
 
       - name: Run IREE Benchmark Module
         run: |
           bash scripts/run_iree_benchmark.sh  \
              --parameters /shark-dev/mistral_instruct/instruct.irpa \
-             --model mistral-nemo-instruct-fp8  
+             --model mistral-nemo-instruct-fp8
           python scripts/utils.py \
             --combine-json $(pwd)/output_artifacts/benchmark_module \
             --output-json $(pwd)/output_artifacts/consolidated_benchmark.json
@@ -88,7 +88,7 @@ jobs:
              --tokenizer_json /shark-dev/mistral_instruct/tokenizer.json \
              --vmfb ../output_artifacts/output.vmfb \
              --model_config ../output_artifacts/config_attn.json \
-             --mode chat 
+             --mode chat
           cd ..
           python scripts/utils.py \
             --combine-json $(pwd)/output_artifacts/chat \
@@ -104,7 +104,7 @@ jobs:
              --tokenizer_json /shark-dev/mistral_instruct/tokenizer.json \
              --vmfb ../output_artifacts/output.vmfb \
              --model_config ../output_artifacts/config_attn.json \
-             --mode reasoning 
+             --mode reasoning
           cd ..
           python scripts/utils.py \
             --combine-json $(pwd)/output_artifacts/reasoning \
@@ -120,7 +120,7 @@ jobs:
              --tokenizer_json /shark-dev/mistral_instruct/tokenizer.json \
              --vmfb ../output_artifacts/output.vmfb \
              --model_config ../output_artifacts/config_attn.json \
-             --mode summary 
+             --mode summary
           cd ..
           python scripts/utils.py \
             --combine-json $(pwd)/output_artifacts/summary \

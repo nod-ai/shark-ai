@@ -30,7 +30,7 @@ jobs:
       matrix:
         version: [3.11]
       fail-fast: false
-    runs-on: linux-mi300-8gpu-ossci-nod-ai 
+    runs-on: linux-mi300-8gpu-ossci-nod-ai
     defaults:
       run:
         shell: bash
@@ -73,7 +73,7 @@ jobs:
         run: |
           bash scripts/run_iree_benchmark.sh --bs-prefill 4 --bs-decode 4 \
              --parameters /shark-dev/405b/tp8/llama3.1_405b_fp16_tp8_parameters.irpa \
-             --model llama-405B-FP16-tp8 
+             --model llama-405B-FP16-tp8
           python scripts/utils.py \
             --combine-json $(pwd)/output_artifacts/benchmark_module \
             --output-json $(pwd)/output_artifacts/consolidated_benchmark.json
@@ -89,7 +89,7 @@ jobs:
              --tensor-parallelism-size 8 \
              --vmfb ../output_artifacts/output.vmfb \
              --model_config ../output_artifacts/config_attn.json \
-             --mode chat 
+             --mode chat
           cd ..
           python scripts/utils.py \
             --combine-json $(pwd)/output_artifacts/chat \
@@ -106,7 +106,7 @@ jobs:
              --tensor-parallelism-size 8 \
              --vmfb ../output_artifacts/output.vmfb \
              --model_config ../output_artifacts/config_attn.json \
-             --mode reasoning 
+             --mode reasoning
           cd ..
           python scripts/utils.py \
             --combine-json $(pwd)/output_artifacts/reasoning \
@@ -123,7 +123,7 @@ jobs:
              --tensor-parallelism-size 8 \
              --vmfb ../output_artifacts/output.vmfb \
              --model_config ../output_artifacts/config_attn.json \
-             --mode summary 
+             --mode summary
           cd ..
           python scripts/utils.py \
             --combine-json $(pwd)/output_artifacts/summary \

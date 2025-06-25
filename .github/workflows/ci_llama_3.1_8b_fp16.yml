@@ -66,14 +66,13 @@ jobs:
       - name: Run export and compile
         run: |
           bash scripts/export_and_compile.sh \
-             --irpa  /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa 
-             
+             --irpa  /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa
 
       - name: Run IREE Benchmark Module
         run: |
           bash scripts/run_iree_benchmark.sh --bs-prefill 4 --bs-decode 4 \
              --parameters /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa \
-             --model llama-8B-FP16 
+             --model llama-8B-FP16
           python scripts/utils.py \
             --combine-json $(pwd)/output_artifacts/benchmark_module \
             --output-json $(pwd)/output_artifacts/consolidated_benchmark.json
@@ -88,7 +87,7 @@ jobs:
              --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
              --vmfb ../output_artifacts/output.vmfb \
              --model_config ../output_artifacts/config_attn.json \
-             --mode chat 
+             --mode chat
           cd ..
           python scripts/utils.py \
             --combine-json $(pwd)/output_artifacts/chat \
@@ -104,7 +103,7 @@ jobs:
              --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
              --vmfb ../output_artifacts/output.vmfb \
              --model_config ../output_artifacts/config_attn.json \
-             --mode reasoning 
+             --mode reasoning
           cd ..
           python scripts/utils.py \
             --combine-json $(pwd)/output_artifacts/reasoning \
@@ -120,7 +119,7 @@ jobs:
              --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
              --vmfb ../output_artifacts/output.vmfb \
              --model_config ../output_artifacts/config_attn.json \
-             --mode summary 
+             --mode summary
           cd ..
           python scripts/utils.py \
             --combine-json $(pwd)/output_artifacts/summary \
