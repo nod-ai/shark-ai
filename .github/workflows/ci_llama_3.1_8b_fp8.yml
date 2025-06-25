@@ -76,10 +76,23 @@ jobs:
       run: |
         bash scripts/run_iree_benchmark.sh --bs-prefill 4 --bs-decode 4 \
            --parameters /shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
-           --model llama-8B-FP8 | tee $(pwd)/output_artifacts/iree_benchmark.log
+           --model llama-8B-FP8
         python scripts/utils.py \
           --combine-json $(pwd)/output_artifacts/benchmark_module \
           --output-json $(pwd)/output_artifacts/consolidated_benchmark.json
+
+    - name: Run online serving
+      if: ${{ env.IS_SERVING_DAY == 'true' }}
+      run: |
+        cd shortfin
+        export ROCR_VISIBLE_DEVICES=0
+        bash ../scripts/run_serving.sh \
+           --irpa /shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
+           --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
+           --vmfb ../output_artifacts/output.vmfb \
+           --model_config ../output_artifacts/config_attn.json \
+           --port 8900 | tee ../output_artifacts/serving.log
+        cd ..
 
     - name: Run Offline serving :chat
       if: ${{ env.IS_SERVING_DAY == 'true' }}
@@ -91,7 +104,7 @@ jobs:
            --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
            --vmfb ../output_artifacts/output.vmfb \
            --model_config ../output_artifacts/config_attn.json \
-           --mode chat | tee ../output_artifacts/offline_serving_chat.log
+           --mode chat
         cd ..
         python scripts/utils.py \
           --combine-json $(pwd)/output_artifacts/chat \
@@ -107,7 +120,7 @@ jobs:
            --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
            --vmfb ../output_artifacts/output.vmfb \
            --model_config ../output_artifacts/config_attn.json \
-           --mode reasoning | tee ../output_artifacts/offline_serving_reasoning.log
+           --mode reasoning
         cd ..
         python scripts/utils.py \
           --combine-json $(pwd)/output_artifacts/reasoning \
@@ -123,24 +136,11 @@ jobs:
            --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
            --vmfb ../output_artifacts/output.vmfb \
            --model_config ../output_artifacts/config_attn.json \
-           --mode summary | tee ../output_artifacts/offline_serving_summary.log
+           --mode summary
         cd ..
         python scripts/utils.py \
           --combine-json $(pwd)/output_artifacts/summary \
           --output-json $(pwd)/output_artifacts/consolidated_summary_serving.json
-
-    - name: Run online serving
-      if: ${{ env.IS_SERVING_DAY == 'true' }}
-      run: |
-        cd shortfin
-        export ROCR_VISIBLE_DEVICES=0
-        bash ../scripts/run_serving.sh \
-           --irpa /shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
-           --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
-           --vmfb ../output_artifacts/output.vmfb \
-           --model_config ../output_artifacts/config_attn.json \
-           --port 8900 | tee ../output_artifacts/serving.log
-        cd ..
 
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4.0.0

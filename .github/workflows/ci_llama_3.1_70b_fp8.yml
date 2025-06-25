@@ -67,52 +67,16 @@ jobs:
         run: |
           bash scripts/export_and_compile.sh \
              --irpa /shark-dev/70b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_70b.irpa \
-             --dtype fp8 
+             --dtype fp8
 
       - name: Run IREE Benchmark Module
         run: |
           bash scripts/run_iree_benchmark.sh --bs-prefill 4 --bs-decode 4 \
              --parameters /shark-dev/70b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_70b.irpa \
-             --model llama-70B-FP8 | tee $(pwd)/output_artifacts/iree_benchmark.log
-
-      - name: Run Offline serving :chat
-        if: ${{ env.IS_SERVING_DAY == 'true' }}
-        run: |
-          cd shortfin
-          export ROCR_VISIBLE_DEVICES=0
-          bash ../scripts/run_offline_serving.sh \
-             --irpa /shark-dev/70b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_70b.irpa \
-             --tokenizer_json /shark-dev/70b/instruct/tokenizer.json \
-             --vmfb ../output_artifacts/output.vmfb \
-             --model_config ../output_artifacts/config_attn.json \
-             --mode chat | tee ../output_artifacts/offline_serving_chat.log
-          cd ..
-
-      - name: Run Offline serving :reasoning
-        if: ${{ env.IS_SERVING_DAY == 'true' }}
-        run: |
-          cd shortfin
-          export ROCR_VISIBLE_DEVICES=0
-          bash ../scripts/run_offline_serving.sh \
-             --irpa /shark-dev/70b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_70b.irpa \
-             --tokenizer_json /shark-dev/70b/instruct/tokenizer.json \
-             --vmfb ../output_artifacts/output.vmfb \
-             --model_config ../output_artifacts/config_attn.json \
-             --mode reasoning | tee ../output_artifacts/offline_serving_reasoning.log
-          cd ..
-
-      - name: Run Offline serving :summary
-        if: ${{ env.IS_SERVING_DAY == 'true' }}
-        run: |
-          cd shortfin
-          export ROCR_VISIBLE_DEVICES=0
-          bash ../scripts/run_offline_serving.sh \
-             --irpa /shark-dev/70b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_70b.irpa \
-             --tokenizer_json /shark-dev/70b/instruct/tokenizer.json \
-             --vmfb ../output_artifacts/output.vmfb \
-             --model_config ../output_artifacts/config_attn.json \
-             --mode summary | tee ../output_artifacts/offline_serving_summary.log
-          cd ..
+             --model llama-70B-FP8
+          python scripts/utils.py \
+            --combine-json $(pwd)/output_artifacts/benchmark_module \
+            --output-json $(pwd)/output_artifacts/consolidated_benchmark.json
 
       - name: Run online serving
         if: ${{ env.IS_SERVING_DAY == 'true' }}
@@ -126,6 +90,54 @@ jobs:
              --model_config ../output_artifacts/config_attn.json \
              --port 8900 | tee ../output_artifacts/serving.log
           cd ..
+
+      - name: Run Offline serving :chat
+        if: ${{ env.IS_SERVING_DAY == 'true' }}
+        run: |
+          cd shortfin
+          export ROCR_VISIBLE_DEVICES=0
+          bash ../scripts/run_offline_serving.sh \
+             --irpa /shark-dev/70b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_70b.irpa \
+             --tokenizer_json /shark-dev/70b/instruct/tokenizer.json \
+             --vmfb ../output_artifacts/output.vmfb \
+             --model_config ../output_artifacts/config_attn.json \
+             --mode chat
+          cd ..
+          python scripts/utils.py \
+            --combine-json $(pwd)/output_artifacts/chat \
+            --output-json $(pwd)/output_artifacts/consolidated_chat_serving.json
+
+      - name: Run Offline serving :reasoning
+        if: ${{ env.IS_SERVING_DAY == 'true' }}
+        run: |
+          cd shortfin
+          export ROCR_VISIBLE_DEVICES=0
+          bash ../scripts/run_offline_serving.sh \
+             --irpa /shark-dev/70b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_70b.irpa \
+             --tokenizer_json /shark-dev/70b/instruct/tokenizer.json \
+             --vmfb ../output_artifacts/output.vmfb \
+             --model_config ../output_artifacts/config_attn.json \
+             --mode reasoning
+          cd ..
+          python scripts/utils.py \
+            --combine-json $(pwd)/output_artifacts/reasoning \
+            --output-json $(pwd)/output_artifacts/consolidated_reasoning_serving.json
+
+      - name: Run Offline serving :summary
+        if: ${{ env.IS_SERVING_DAY == 'true' }}
+        run: |
+          cd shortfin
+          export ROCR_VISIBLE_DEVICES=0
+          bash ../scripts/run_offline_serving.sh \
+             --irpa /shark-dev/70b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_70b.irpa \
+             --tokenizer_json /shark-dev/70b/instruct/tokenizer.json \
+             --vmfb ../output_artifacts/output.vmfb \
+             --model_config ../output_artifacts/config_attn.json \
+             --mode summary
+          cd ..
+          python scripts/utils.py \
+            --combine-json $(pwd)/output_artifacts/summary \
+            --output-json $(pwd)/output_artifacts/consolidated_summary_serving.json
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4.0.0
@@ -145,7 +157,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: llama-logs
-          path: output_artifacts/*.log
+          path: |
+            output_artifacts/consolidated*.json
+            output_artifacts/*.log
 
   # New job to push logs to shark-ai-reports repository
   push_logs:
@@ -172,6 +186,7 @@ jobs:
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d')
         mkdir -p "shark-ai-reports/$date/llama-70b-fp8-logs"
+        cp -v logs/*.json "shark-ai-reports/$date/llama-70b-fp8-logs"
         cp -v logs/*.log "shark-ai-reports/$date/llama-70b-fp8-logs"
         cd shark-ai-reports
         git pull
