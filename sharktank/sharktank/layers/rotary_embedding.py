@@ -11,6 +11,7 @@ import torch
 from .base import BaseLayer
 from sharktank import ops, kernels
 from sharktank.types import (
+    ShardedTensor,
     SplitPrimitiveTensor,
     ReplicatedTensor,
     ShardedTensor,
@@ -81,7 +82,7 @@ class ShardedRotaryLayer(BaseLayer):
         return xt.clone(ts=shards)
 
     def compute_batch_mask(
-        self, start_positions: Union[torch.Tensor, ReplicatedTensor], batch_seq_len: int
+        self, start_positions: Union[torch.Tensor, ShardedTensor], batch_seq_len: int
     ) -> torch.Tensor:
         if isinstance(start_positions, ShardedTensor):
             shards = []
