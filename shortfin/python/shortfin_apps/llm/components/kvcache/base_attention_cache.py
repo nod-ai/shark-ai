@@ -16,6 +16,7 @@ import threading
 from typing import List, Iterable
 
 from .page_pool import PageInfo, PagePool
+import shortfin as sf
 
 
 logger = logging.getLogger(__name__)
@@ -71,7 +72,7 @@ class PageAllocation(ABC):
         Derived classes may implement this to handle device-specific logic.
         Returns True if the pages were updated, False otherwise.
         """
-        return True
+        return False
 
 
 class BasePagedAttentionCacheAllocation(PageAllocation):
