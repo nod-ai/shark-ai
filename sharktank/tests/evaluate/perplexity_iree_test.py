@@ -114,7 +114,7 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
-    @is_nightly
+    @is_llama_8b
     def test_llama3_8B_f8(self):
         # Llama 3.1 8B fp8 non-decomposed
         self.model_name = "llama3_8B_f8_iree"
