@@ -201,9 +201,9 @@ def float32_to_e8m0(values: torch.Tensor) -> torch.Tensor:
 
 
 def convert_fp4_scales_to_float(
-    scales: torch.Tensor, use_power_of_two_scale: bool
+    scales: torch.Tensor, use_fe8m0_scale: bool
 ) -> torch.Tensor:
-    if use_power_of_two_scale:
+    if use_fe8m0_scale:
         return e8m0_to_float32(scales)
     else:
         return scales
@@ -211,25 +211,25 @@ def convert_fp4_scales_to_float(
 
 def compute_fp4_block_scales(
     block_max: torch.Tensor,
-    use_power_of_two_scale: bool,
+    use_fe8m0_scale: bool,
     dtype: torch.dtype = torch.float32,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """Compute FP4 block scales from block maximum values.
 
     Args:
         block_max: Maximum absolute values per block [num_blocks, 1]
-        use_power_of_two_scale: Whether to use power-of-two scales
+        use_fe8m0_scale: Whether to use FE8M0 scales
         dtype: Data type for epsilon calculation
 
     Returns:
         Tuple of (scales, scales_float) where scales are in storage format
         and scales_float are ready for computation
     """
-    if use_power_of_two_scale:
+    if use_fe8m0_scale:
         finfo = torch.finfo(dtype)
         block_max.clamp_(min=finfo.eps)
-        power_of_two_scales = torch.ceil(block_max)
-        e8m0_values = float32_to_e8m0(power_of_two_scales)
+        fe8m0_scales = torch.ceil(block_max)
+        e8m0_values = float32_to_e8m0(fe8m0_scales)
         scales = e8m0_values.squeeze(-1)
         scales_float = e8m0_to_float32(e8m0_values)
     else:
