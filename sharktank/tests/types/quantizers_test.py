@@ -264,7 +264,7 @@ class Fp4BlockQuantizerTestBase(QuantizerTestBase):
 class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
     def testFP4QuantDequant(self):
         quantizer = DynamicFp4BlockQuantizer(
-            block_size=8, use_power_of_two_scale=False, name="fp4_quantizer"
+            block_size=8, use_fe8m0_scale=False, name="fp4_quantizer"
         )
         quantizer = self._roundtrip(quantizer, "_fp4_quantizer")
 
@@ -281,7 +281,7 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
 
     def testFP4QuantDequantApproximation(self):
         quantizer = DynamicFp4BlockQuantizer(
-            block_size=8, use_power_of_two_scale=False, name="fp4_approx_quantizer"
+            block_size=8, use_fe8m0_scale=False, name="fp4_approx_quantizer"
         )
         quantizer = self._roundtrip(quantizer, "_fp4_approx_quantizer")
 
@@ -300,7 +300,7 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
         orig_value = torch.randn(128, dtype=torch.float32) * 3.0
 
         quantizer = DynamicFp4BlockQuantizer(
-            block_size=32, use_power_of_two_scale=True, name="fp4_quantizer"
+            block_size=32, use_fe8m0_scale=True, name="fp4_quantizer"
         )
         quantized_tensor = quantizer.quantize(orig_value, name="fp4_quantized")
 
@@ -318,7 +318,7 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
         # Test with different block size
         quantizer_16 = DynamicFp4BlockQuantizer(
             block_size=16,
-            use_power_of_two_scale=True,
+            use_fe8m0_scale=True,
             name="fp4_quantizer",
         )
         quantized_tensor_16 = quantizer_16.quantize(orig_value, name="fp4_quantized")
@@ -327,12 +327,12 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
         self.assertEqual(len(layout_16.d), 8)
 
     def testFp4BlockQuantization(self):
-        """Test FP4 block quantization with configurable block size and power-of-two scales."""
+        """Test FP4 block quantization with configurable block size and FE8M0 scales."""
         original_data = torch.randn(64, dtype=torch.float32) * 4.0
 
-        # Power of two scales
+        # FE8M0 scales
         quantizer = DynamicFp4BlockQuantizer(
-            block_size=32, use_power_of_two_scale=True, name="fp4_quantizer"
+            block_size=32, use_fe8m0_scale=True, name="fp4_quantizer"
         )
         quantized_tensor = quantizer.quantize(original_data, name="fp4_quantized")
 
@@ -348,7 +348,7 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
 
         # Float scales
         quantizer_float = DynamicFp4BlockQuantizer(
-            block_size=32, use_power_of_two_scale=False, name="fp4_quantizer"
+            block_size=32, use_fe8m0_scale=False, name="fp4_quantizer"
         )
         quantized_tensor_float = quantizer_float.quantize(
             original_data, name="fp4_quantized"
@@ -366,7 +366,7 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
         original_data = torch.randn(60, dtype=torch.float32) * 4.0
 
         quantizer = DynamicFp4BlockQuantizer(
-            block_size=6, use_power_of_two_scale=True, name="fp4_quantizer"
+            block_size=6, use_fe8m0_scale=True, name="fp4_quantizer"
         )
         quantized_tensor = quantizer.quantize(original_data, name="fp4_quantized")
 
@@ -388,7 +388,7 @@ class StaticFp4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
         static_quantizer = StaticFp4BlockQuantizer(
             scales=scales,
             block_size=8,
-            use_power_of_two_scale=False,
+            use_fe8m0_scale=False,
             name="static_fp4_quantizer",
         )
         static_quantizer = self._roundtrip(static_quantizer, "_static_fp4_quantizer")
@@ -407,14 +407,14 @@ class StaticFp4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
     def testStaticFp4PowerOfTwoScales(self):
         orig_value = torch.randn(64, dtype=torch.float32) * 4.0
 
-        # Create static quantizer with manually set power-of-two scales
-        # For 64 elements with block_size=32, we need 2 blocksJ
+        # Create static quantizer with manually set FE8M0 scales
+        # For 64 elements with block_size=32, we need 2 blocks
         scales = torch.tensor([130, 131], dtype=torch.uint8)
 
         static_quantizer = StaticFp4BlockQuantizer(
             scales=scales,
             block_size=32,
-            use_power_of_two_scale=True,
+            use_fe8m0_scale=True,
             name="static_fp4_p2_quantizer",
         )
         static_quantizer = self._roundtrip(static_quantizer, "_static_fp4_p2_quantizer")
@@ -441,7 +441,7 @@ class StaticFp4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
             static_quantizer = StaticFp4BlockQuantizer(
                 scales=scales,
                 block_size=block_size,
-                use_power_of_two_scale=True,
+                use_fe8m0_scale=True,
                 name=f"static_fp4_bs{block_size}",
             )
             qt_value = static_quantizer.quantize(
@@ -453,7 +453,7 @@ class StaticFp4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
             self.assertEqual(len(layout.d), expected_num_blocks)
 
             # Verify scales are preserved
-            torch.testing.assert_equal(layout.d, scales)
+            torch.testing.assert_close(layout.d, scales)
 
             # Test basic functionality
             dequant_value = layout.dequant()

@@ -572,7 +572,7 @@ class BlockScaledFp4Layout(QuantizedLayout):
 
     This layout is specifically designed for FP4 E2M1 block quantization where:
     - FP4 indices are packed 2 per byte in the `qs` tensor
-    - Scales can be either power-of-two (stored as integer exponents) or regular floats
+    - Scales can be either FE8M0 (stored as integer exponents) or regular floats
     - Each block has its own scale for better accuracy
 
 
@@ -591,13 +591,13 @@ class BlockScaledFp4Layout(QuantizedLayout):
         qs: torch.Tensor,
         *,
         block_size: int = 32,
-        use_power_of_two_scale: bool = True,
+        use_fe8m0_scale: bool = True,
     ):
         self._shape = shape
         self._d = d
         self._qs = qs
         self._block_size = block_size
-        self._use_power_of_two_scale = use_power_of_two_scale
+        self._use_fe8m0_scale = use_fe8m0_scale
 
     @classmethod
     def serialized_name(cls) -> str:
@@ -611,20 +611,20 @@ class BlockScaledFp4Layout(QuantizedLayout):
         planes: dict[str, torch.Tensor],
     ):
         block_size = metadata.get("block_size", 32)
-        use_power_of_two_scale = metadata.get("use_power_of_two_scale", True)
+        use_fe8m0_scale = metadata.get("use_fe8m0_scale", True)
         return BlockScaledFp4Layout(
             shape,
             planes["d"],
             planes["qs"],
             block_size=block_size,
-            use_power_of_two_scale=use_power_of_two_scale,
+            use_fe8m0_scale=use_fe8m0_scale,
         )
 
     @property
     def metadata(self) -> dict[str, MetaDataValueType]:
         return {
             "block_size": self._block_size,
-            "use_power_of_two_scale": self._use_power_of_two_scale,
+            "use_fe8m0_scale": self._use_fe8m0_scale,
         }
 
     @property
@@ -659,9 +659,9 @@ class BlockScaledFp4Layout(QuantizedLayout):
         return self._block_size
 
     @property
-    def use_power_of_two_scale(self) -> bool:
-        """Whether scales are power-of-two (integer exponents)."""
-        return self._use_power_of_two_scale
+    def use_fe8m0_scale(self) -> bool:
+        """Whether scales are FE8M0 (integer exponents)."""
+        return self._use_fe8m0_scale
 
     def dequant(self, dtype: Optional[torch.dtype] = None) -> torch.Tensor:
         return self.dequant_blocked(dtype).reshape(self.shape)
@@ -674,7 +674,7 @@ class BlockScaledFp4Layout(QuantizedLayout):
         fp4_as_float = fp4_e2m1_to_float32(fp4_indices)
 
         # Scale each block
-        scales_float = convert_fp4_scales_to_float(self.d, self.use_power_of_two_scale)
+        scales_float = convert_fp4_scales_to_float(self.d, self.use_fe8m0_scale)
         scales_expanded = scales_float.unsqueeze(-1)
         dequantized_blocked = (
             fp4_as_float * scales_expanded
@@ -689,5 +689,5 @@ class BlockScaledFp4Layout(QuantizedLayout):
         return (
             f"{type(self).__name__}(d({list(self.d.shape)}, dtype={self.d.dtype}), "
             f"qs({list(self._qs.shape)}, dtype={self._qs.dtype}), "
-            f"block_size={self.block_size}, use_power_of_two_scale={self.use_power_of_two_scale})"
+            f"block_size={self.block_size}, use_fe8m0_scale={self.use_fe8m0_scale})"
         )
