@@ -60,9 +60,10 @@ class PerplexityTest(unittest.TestCase):
         self.argv.extend(f"--iree-device={device}" for device in self.iree_devices)
 
         # TODO: https://github.com/iree-org/iree/issues/21068
-        self.argv.append(
-            "--extra-compile-arg=--iree-stream-affinity-solver-max-iterations=1024"
-        )
+        if any(llama_size in self._testMethodName for llama_size in ["405", "70"]):
+            self.argv.append(
+                "--extra-compile-arg=--iree-stream-affinity-solver-max-iterations=1024"
+            )
 
         if self.tensor_parallelism_size * self.pipeline_parallelism_size > 1:
             self.argv.append(f"--use-attention-mask")
