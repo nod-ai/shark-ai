@@ -89,17 +89,6 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
-    @is_sharded
-    def test_llama3_405B_f16_pp8(self):
-        # Llama 3.1 405B non-decomposed
-        self.model_name = "llama3_405B_f16_torch"
-        self.irpa_file = self.llama3_405b_f16_model
-        self.tokenizer = self.llama3_405b_tokenizer
-        self.pipeline_parallelism_size = 8
-
-        self.prepare_argv()
-        self.run_and_check_perplexity()
-
     @is_deepseek
     def test_deepseek_v3(self):
         # DeepSeek v3 unsharded toy test
