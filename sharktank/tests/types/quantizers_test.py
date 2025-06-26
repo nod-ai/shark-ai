@@ -268,7 +268,9 @@ class DynamicFP4BlockQuantizerTest(TempDirTestBase):
         quantizer = self._roundtrip(quantizer, "_fp4_quantizer")
 
         # Values that are exactly representable in fp4
-        orig_value = torch.tensor([2.0, 4.0, 6.0, 6.0, 1.0, 3.0, -2.0, -4.0])
+        orig_value = torch.tensor(
+            [2.0, 4.0, 6.0, 6.0, 1.0, 3.0, -2.0, -4.0], dtype=torch.float32
+        )
 
         qt_value = quantizer.quantize(orig_value, name="test_fp4")
         qt_value = self._roundtrip(qt_value, "_fp4_qt_value")
@@ -286,7 +288,9 @@ class DynamicFP4BlockQuantizerTest(TempDirTestBase):
         quantizer = self._roundtrip(quantizer, "_fp4_approx_quantizer")
 
         # Values that are not exactly representable in fp4
-        orig_value = torch.tensor([2.5, 5.0, 7.5, 10.0, 1.25, 3.75, -2.5, -5.0])
+        orig_value = torch.tensor(
+            [2.5, 5.0, 7.5, 10.0, 1.25, 3.75, -2.5, -5.0], dtype=torch.float32
+        )
 
         qt_value = quantizer.quantize(orig_value, name="test_fp4_approx")
         qt_value = self._roundtrip(qt_value, "_fp4_approx_qt_value")
@@ -298,7 +302,7 @@ class DynamicFP4BlockQuantizerTest(TempDirTestBase):
         torch.testing.assert_close(orig_value, dequant_value, atol=1.0, rtol=1.0)
 
     def testFP4BlockQuantization(self):
-        orig_value = torch.randn(128) * 3.0
+        orig_value = torch.randn(128, dtype=torch.float32) * 3.0
 
         quantizer = DynamicFp4BlockQuantizer(
             block_size=32, use_power_of_two_scale=True, name="fp4_quantizer"
@@ -329,7 +333,7 @@ class DynamicFP4BlockQuantizerTest(TempDirTestBase):
 
     def testFp4BlockQuantization(self):
         """Test FP4 block quantization with configurable block size and power-of-two scales."""
-        original_data = torch.randn(64) * 4.0
+        original_data = torch.randn(64, dtype=torch.float32) * 4.0
 
         # Power of two scales
         quantizer = DynamicFp4BlockQuantizer(
@@ -365,7 +369,7 @@ class DynamicFP4BlockQuantizerTest(TempDirTestBase):
 
     def testFp4ConfigurableBlockSize(self):
         """Test FP4 block quantization with different block sizes."""
-        original_data = torch.randn(60) * 4.0
+        original_data = torch.randn(60, dtype=torch.float32) * 4.0
 
         quantizer = DynamicFp4BlockQuantizer(
             block_size=6, use_power_of_two_scale=True, name="fp4_quantizer"
