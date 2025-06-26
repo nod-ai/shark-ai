@@ -35,6 +35,8 @@ from .layout_utils import (
 from .ocp_floats import (
     compute_fp4_block_scales,
     float32_to_fp4_e2m1,
+    e8m0_to_float32,
+    float32_to_e8m0,
 )
 
 from .tensors import (
@@ -267,11 +269,11 @@ class StaticScaledQuantizer(QuantizerTensor):
             if "offset" in raw_tensors:
                 offset = raw_tensors["offset"]
         except KeyError as e:
-            raise IOError("Missing component tensor") from e
+            raise IOError("Missing component tensor 'scale'") from e
         try:
             dtype_name = extra_properties["dtype"]
         except KeyError as e:
-            raise IOError("Missing property") from e
+            raise IOError("Missing property 'dtype' in extra_properties") from e
         axis = int(extra_properties["axis"]) if "axis" in extra_properties else None
         disable_saturate = bool(extra_properties.get("disable_saturate"))
         dtype = serialized_name_to_dtype(dtype_name)
@@ -415,7 +417,7 @@ class DynamicScaledQuantizer(QuantizerTensor):
         try:
             dtype_name = extra_properties["dtype"]
         except KeyError as e:
-            raise IOError("Missing property") from e
+            raise IOError("Missing property 'dtype' in extra_properties") from e
         dtype = serialized_name_to_dtype(dtype_name)
         return cls(
             name=name,
@@ -450,22 +452,24 @@ class DynamicScaledQuantizer(QuantizerTensor):
 
 def pad_tensor_for_block_quantization(t: torch.Tensor, block_size: int) -> torch.Tensor:
     """Pad tensor to make it evenly divisible by block_size.
-    
+
     Args:
         t: Input tensor to pad
         block_size: Size of each block
-        
+
     Returns:
         Padded tensor with shape such that numel() % block_size == 0
     """
     if t.numel() == 0:
         raise ValueError("Cannot pad empty tensor")
-    
+
     total_elements = t.numel()
     pad_size = (block_size - (total_elements % block_size)) % block_size
-    
+
     if pad_size > 0:
-        return torch.nn.functional.pad(t.flatten(), (0, pad_size)).view(*t.shape[:-1], -1)
+        return torch.nn.functional.pad(t.flatten(), (0, pad_size)).view(
+            *t.shape[:-1], -1
+        )
     else:
         return t
 
@@ -475,23 +479,23 @@ def _fp4_block_quantize_tensor(
     scales: torch.Tensor,
     block_size: int,
     use_power_of_two_scale: bool,
-    name: str
+    name: str,
 ) -> PlanarQuantizedTensor:
     """Complete FP4 block quantization: blocking, scaling, quantization, and layout creation.
-    
+
     Args:
         t: Input tensor to quantize (must have numel() % block_size == 0)
         scales: Per-block scales (either float or integer exponents, flat)
         block_size: Size of each block
         use_power_of_two_scale: Whether scales are power-of-two
         name: Name for the resulting tensor
-        
+
     Returns:
         PlanarQuantizedTensor with BlockScaledFp4Layout
     """
     if t.numel() == 0:
         raise ValueError("Cannot quantize empty tensor")
-    
+
     if t.numel() % block_size != 0:
         raise ValueError(
             f"Tensor size {t.numel()} must be divisible by block_size {block_size}. "
@@ -501,24 +505,25 @@ def _fp4_block_quantize_tensor(
     original_shape = t.shape
     num_blocks = t.numel() // block_size
 
-    # Reshape into blocks: [num_blocks, block_size]
-    values_blocked = t.flatten().view(num_blocks, block_size)
-    
-    # Convert scales to float if needed and broadcast for division
-    if use_power_of_two_scale:
-        scales_float = torch.pow(2.0, scales.float()).unsqueeze(-1)
-    else:
-        scales_float = scales.unsqueeze(-1)
+    # Reshape to [..., num_blocks, block_size] to group into blocks
+    # This preserves structure better than flatten().view()
+    values_blocked = t.view(-1, block_size)
 
-    # Scale the blocked values
-    scaled_values = values_blocked / scales_float
-    
-    # Convert to FP4 indices
+    # Prepare scales for broadcasting - add dimension for block_size
+    if use_power_of_two_scale:
+        scales_broadcast = e8m0_to_float32(scales).unsqueeze(-1)
+    else:
+        scales_broadcast = scales.unsqueeze(-1)
+
+    # Scale the blocked values via broadcasting
+    scaled_values = values_blocked / scales_broadcast
+
+    # Convert to FP4 indices (preserves shape)
     quantized_indices = float32_to_fp4_e2m1(scaled_values)
-    
-    # Pack FP4 indices
+
+    # Pack FP4 indices (works on last dimension)
     packed_fp4 = pack_fp4_e2m1_to_uint8(quantized_indices)
-    
+
     # Create layout
     layout = BlockScaledFp4Layout(
         shape=list(original_shape),
@@ -527,7 +532,7 @@ def _fp4_block_quantize_tensor(
         block_size=block_size,
         use_power_of_two_scale=use_power_of_two_scale,
     )
-    
+
     return PlanarQuantizedTensor(
         shape=list(original_shape),
         name=name,
@@ -552,12 +557,12 @@ class StaticFp4BlockQuantizer(QuantizerTensor):
     ):
         super().__init__(shape=scales.shape, name=name)
         if block_size <= 0:
-            raise ValueError(f"block_size must be positive, got {block_size}")
+            raise ValueError(f"Block size must be positive, got {block_size}")
         if block_size % 2 != 0:
             raise ValueError(
-                f"block_size must be even for FP4 packing, got {block_size}"
+                f"Block size must be even for FP4 packing, got {block_size}"
             )
-        
+
         self._scales = scales
         self._block_size = block_size
         self._use_power_of_two_scale = use_power_of_two_scale
@@ -605,14 +610,14 @@ class StaticFp4BlockQuantizer(QuantizerTensor):
             scales = raw_tensors["scales"]
         except KeyError as e:
             raise IOError("Missing component tensor 'scales'") from e
-        
+
         block_size = int(extra_properties.get("block_size", 32))
         use_power_of_two_scale = bool(
             extra_properties.get("use_power_of_two_scale", True)
         )
         dtype_name = extra_properties.get("dtype", "float32")
         dtype = serialized_name_to_dtype(dtype_name)
-        
+
         return cls(
             name=name,
             scales=scales,
@@ -631,7 +636,7 @@ class StaticFp4BlockQuantizer(QuantizerTensor):
         """Adds this tensor to the global archive."""
         scales_name = f"{self.name}:scales"
         builder.add_tensor(scales_name, self._scales)
-        
+
         extra_properties = {
             "block_size": self._block_size,
             "use_power_of_two_scale": self._use_power_of_two_scale,
@@ -640,7 +645,7 @@ class StaticFp4BlockQuantizer(QuantizerTensor):
         raw_tensors = {
             "scales": scales_name,
         }
-        
+
         return InferenceTensorMetadata(
             self.serialized_name(),
             raw_tensors=raw_tensors,
@@ -690,10 +695,10 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
     ):
         super().__init__(shape=(), name=name)
         if block_size <= 0:
-            raise ValueError(f"block_size must be positive, got {block_size}")
+            raise ValueError(f"Block size must be positive, got {block_size}")
         if block_size % 2 != 0:
             raise ValueError(
-                f"block_size must be even for FP4 packing, got {block_size}"
+                f"Block size must be even for FP4 packing, got {block_size}"
             )
         self._block_size = block_size
         self._use_power_of_two_scale = use_power_of_two_scale
@@ -702,7 +707,7 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
     def _quantize_raw_tensor(self, t: torch.Tensor, *, name: str) -> QuantizedTensor:
         """Performs FP4 block quantization on tensor t."""
         t_padded = pad_tensor_for_block_quantization(t, self._block_size)
-        
+
         # Compute scales per block
         num_blocks = t_padded.numel() // self._block_size
         values_blocked = t_padded.flatten().view(num_blocks, self._block_size)
