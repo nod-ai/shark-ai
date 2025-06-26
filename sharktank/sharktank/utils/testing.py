@@ -188,8 +188,8 @@ class IreeVsEagerLLMTester:
         block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
             theta, self.config.pipeline_parallelism_size
         )
-        self.config.block_to_pipeline = block_to_pipeline
-        self.config.pipeline_to_devices = pipeline_to_devices
+        self.config.block_to_pipeline_map = block_to_pipeline
+        self.config.pipeline_to_device_map = pipeline_to_devices
 
         Dataset(root_theta=theta, properties=self.config.to_properties()).save(
             path=self.dataset_path
