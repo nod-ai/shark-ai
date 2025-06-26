@@ -114,7 +114,7 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
-    @is_nightly
+    @is_llama_8b
     def test_llama3_8B_f8(self):
         # Llama 3.1 8B fp8 non-decomposed
         self.model_name = "llama3_8B_f8_iree"
@@ -212,7 +212,7 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv(extra_args=("--use-toy-model",))
         self.run_and_check_perplexity()
 
-    @is_nightly
+    @is_deepseek
     def test_deepseek_v3_pp2(self):
         # DeepSeek v3 pipeline parallelism
         self.model_name = "deepseek_v3_iree"

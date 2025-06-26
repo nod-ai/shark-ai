@@ -139,7 +139,6 @@ jobs:
             sharktank/tests/evaluate/ \
             --run-nightly-test \
             --bs=32 \
-            --device='cuda:0' \
             --iree-device=hip://0 \
             --iree-hip-target=gfx942 \
             --iree-hal-target-device=hip \
@@ -204,13 +203,11 @@ jobs:
         run: |
           source ${VENV_DIR}/bin/activate
           pytest \
-            -n 8 \
             -v \
             -s \
             sharktank/tests/evaluate/ \
             --run-sharded-test \
             --bs=32 \
-            --device='cuda:0' \
             --iree-device=hip://0 \
             --iree-hip-target=gfx942 \
             --iree-hal-target-device=hip \

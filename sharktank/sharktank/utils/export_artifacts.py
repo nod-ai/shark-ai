@@ -143,6 +143,10 @@ class ExportArtifacts:
         self.use_hf = use_hf
         self.hip_device_id = hip_device_id
 
+        self.output_mlir = output_mlir
+        self.output_config = output_config
+        self.output_vmfb = output_vmfb
+
         if output_name is not None:
             self.output_name = Path(output_name)
         else:
@@ -156,18 +160,6 @@ class ExportArtifacts:
                     else ""
                 )
             )
-
-        self.output_vmfb = output_vmfb
-        if output_vmfb is None:
-            self.output_vmfb = self.output_name.with_suffix(".vmfb")
-
-        self.output_mlir = output_mlir
-        if output_mlir is None:
-            self.output_mlir = self.output_name.with_suffix(".mlir")
-
-        self.output_config = output_config
-        if output_config is None:
-            self.output_config = self.output_name.with_suffix(".json")
 
     def __del__(self):
         shutil.rmtree(self.tmp_dir, ignore_errors=True)
@@ -329,10 +321,14 @@ class ExportArtifacts:
             batch_size: The batch size to use for prefill and decode.
             skip_decode: If True, skips the decoding step during export.
         """
-        if Path(self.output_mlir).exists() and Path(self.output_config).exists():
+
+        if self.output_mlir is not None and self.output_config is not None:
             logger.info(f" Using pre-exported mlir: {self.output_mlir}")
             logger.info(f" Using pre-exported config json: {self.output_config}")
             return
+        else:
+            self.output_mlir = self.output_name.with_suffix(".mlir")
+            self.output_config = self.output_name.with_suffix(".json")
 
         export_args = [
             "python3",
@@ -384,11 +380,13 @@ class ExportArtifacts:
             hal_dump_path: Optional path where dump HAL files.
             extra_args: Additional arguments for the IREE compiler.
         """
-        if Path(self.output_vmfb).exists():
+
+        if self.output_vmfb is not None:
             logger.info(f" Using pre-exported vmfb: {self.output_vmfb}")
             return
+        else:
+            self.output_vmfb = self.output_name.with_suffix(".vmfb")
 
-        # TODO: Control flag to enable multiple backends
         compile_args = [
             f"iree-compile",
             f"{self.output_mlir}",
