@@ -28,7 +28,7 @@ pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_torch_test.py -k test_llam
   --llama3-8b-tokenizer-path=tokenizer_config.json \
   --bs=4 \
   --device='cuda:0' \
-  --run-nightly-tests
+  --run-nightly-test
 ```
 
 ##### IREE mode
@@ -40,7 +40,7 @@ pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_iree_test.py -k test_llama
   --iree-device=hip://0 \
   --iree-hip-target=gfx942 \
   --iree-hal-target-device=hip \
-  --run-nightly-tests
+  --run-nightly-test
 ```
 
 For a new model:

@@ -15,7 +15,7 @@ wanted to only run the Llama 3.1 70B F16 Decomposed test:
 pytest sharktank/tests/models/llama/benchmark_amdgpu_test.py \
     -v -s \
     -m "expensive" \
-    --run-nightly-tests \
+    --run-nightly-test \
     -k 'testBenchmark70B_f16_TP8_Decomposed' \
     --iree-hip-target=gfx942 \
     --iree-device=hip://0 \

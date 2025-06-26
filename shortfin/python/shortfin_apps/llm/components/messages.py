@@ -12,6 +12,7 @@ import shortfin.array as sfnp
 from shortfin.interop.fastapi import RequestStatusTracker
 
 from .kvcache.base_attention_cache import BasePagedAttentionCache, PageAllocation
+from .kvcache.trie_attention_cache import TriePagedAttentionCache
 from ...utils import InferenceExecRequest
 
 
@@ -80,9 +81,17 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         new_exec_req.start_position = exec_req.start_position
         new_exec_req.prompt_length = exec_req.prompt_length
         new_exec_req._cache = exec_req._cache
-        new_exec_req.allocation = new_exec_req._cache.fork_pages(
-            exec_req.allocation.pages
-        )
+
+        # check if the cache is instance of TriePagedAttentionCache then
+        # pass token_ids to fork_pages
+        if isinstance(new_exec_req._cache, TriePagedAttentionCache):
+            new_exec_req.allocation = new_exec_req._cache.fork_pages(
+                exec_req.allocation.pages, exec_req.input_token_ids
+            )
+        else:
+            new_exec_req.allocation = new_exec_req._cache.fork_pages(
+                exec_req.allocation.pages
+            )
         return new_exec_req
 
     def reset(self, phase: InferencePhase):
