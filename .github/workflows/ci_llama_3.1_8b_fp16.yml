@@ -4,14 +4,13 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-name: Llama 3.1 8B FP16 Benchmarking Tests
+name: Release: Llama 3.1 8B FP16 Benchmarking Tests
 
 on:
-  pull_request:
   workflow_dispatch:
   schedule:
     # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
-    - cron: "0 11 * * 0-6"
+    - cron: "0 11 * * 2,4,6"
 
 concurrency:
   # A PR number if a pull request and otherwise the commit hash. This cancels
@@ -25,7 +24,7 @@ jobs:
   test_llama_large:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
     timeout-minutes: 240
-    name: "Llama 8B FP16 Benchmarking Tests"
+    name: "Release: Llama 8B FP16 Benchmarking Tests"
     strategy:
       matrix:
         version: [3.11]
@@ -78,7 +77,6 @@ jobs:
             --output-json $(pwd)/output_artifacts/consolidated_benchmark.json
 
       - name: Run online serving
-        if: ${{ env.IS_SERVING_DAY == 'true' }}
         run: |
           cd shortfin
           export ROCR_VISIBLE_DEVICES=0
@@ -94,41 +92,43 @@ jobs:
             --output-json $(pwd)/output_artifacts/consolidated_chat_serving.json
 
       - name: Run Offline serving :chat
-        if: ${{ env.IS_SERVING_DAY == 'true' }}
         run: |
-          cd shortfin
-          export ROCR_VISIBLE_DEVICES=0
-          bash ../scripts/run_offline_serving.sh \
-             --irpa /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa \
-             --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
-             --vmfb ../output_artifacts/output.vmfb \
-             --model_config ../output_artifacts/config_attn.json \
-             --mode chat
-          cd ..
-          python scripts/utils.py \
-            --combine-json $(pwd)/output_artifacts/chat \
-            --output-json $(pwd)/output_artifacts/consolidated_chat_serving.json
+        if [ "$(date +%u)" -eq 2 ]; then  ## Tue
+              cd shortfin
+              export ROCR_VISIBLE_DEVICES=0
+              bash ../scripts/run_offline_serving.sh \
+                 --irpa /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa \
+                 --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
+                 --vmfb ../output_artifacts/output.vmfb \
+                 --model_config ../output_artifacts/config_attn.json \
+                 --mode chat
+              cd ..
+              python scripts/utils.py \
+                --combine-json $(pwd)/output_artifacts/chat \
+                --output-json $(pwd)/output_artifacts/consolidated_chat_serving.json
+        fi
 
       - name: Run Offline serving :reasoning
-        if: ${{ env.IS_SERVING_DAY == 'true' }}
         run: |
-          cd shortfin
-          export ROCR_VISIBLE_DEVICES=0
-          bash ../scripts/run_offline_serving.sh \
-             --irpa /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa \
-             --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
-             --vmfb ../output_artifacts/output.vmfb \
-             --model_config ../output_artifacts/config_attn.json \
-             --mode reasoning
-          cd ..
-          python scripts/utils.py \
-            --combine-json $(pwd)/output_artifacts/reasoning \
-            --output-json $(pwd)/output_artifacts/consolidated_reasoning_serving.json
+        if [ "$(date +%u)" -eq 4 ]; then  ## Thur
+              cd shortfin
+              export ROCR_VISIBLE_DEVICES=0
+              bash ../scripts/run_offline_serving.sh \
+                 --irpa /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa \
+                 --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
+                 --vmfb ../output_artifacts/output.vmfb \
+                 --model_config ../output_artifacts/config_attn.json \
+                 --mode reasoning
+              cd ..
+              python scripts/utils.py \
+                --combine-json $(pwd)/output_artifacts/reasoning \
+                --output-json $(pwd)/output_artifacts/consolidated_reasoning_serving.json
+        fi
 
 
       - name: Run Offline serving :summary
-        if: ${{ env.IS_SERVING_DAY == 'true' }}
         run: |
+        if [ "$(date +%u)" -eq 6 ]; then  ## Sat
           cd shortfin
           export ROCR_VISIBLE_DEVICES=0
           bash ../scripts/run_offline_serving.sh \
@@ -141,6 +141,7 @@ jobs:
           python scripts/utils.py \
             --combine-json $(pwd)/output_artifacts/summary \
             --output-json $(pwd)/output_artifacts/consolidated_summary_serving.json
+        fi
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4.0.0
