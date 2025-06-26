@@ -4,17 +4,16 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-name: SDXL and FLUX Shortfin Serving Tests
+name: Release: SDXL and FLUX Shortfin Serving Tests
 
 on:
-  pull_request:
   workflow_dispatch:
   push:
     branches:
       - "bump-torch-2.6"
   schedule:
   # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
-  - cron: "0 11 * * 0-6"
+  - cron: "0 9 * * 1-5"
 
 concurrency:
   # A PR number if a pull request and otherwise the commit hash. This cancels
@@ -31,7 +30,7 @@ jobs:
   test_sdxl_flux_serving:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
     timeout-minutes: 240
-    name: "SDXL and Flux Shortfin Serving Tests"
+    name: "Release: SDXL and Flux Shortfin Serving Tests"
     strategy:
       matrix:
         version: [ 3.11 ]

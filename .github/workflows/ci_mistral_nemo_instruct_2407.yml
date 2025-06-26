@@ -4,14 +4,13 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-name: Mistral nemo instruct Benchmarking Tests
+name: Release: Mistral nemo instruct Benchmarking Tests
 
 on:
-  pull_request:
   workflow_dispatch:
   schedule:
     # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
-    - cron: "0 11 * * 0-6"
+    - cron: "30 9 * * 1-5"
 
 concurrency:
   # A PR number if a pull request and otherwise the commit hash. This cancels
@@ -25,7 +24,7 @@ jobs:
   test_llama_large:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
     timeout-minutes: 240
-    name: "Mistal nemo instruct 2407 Benchmarking Tests"
+    name: "Release: Mistal nemo instruct 2407 Benchmarking Tests"
     strategy:
       matrix:
         version: [3.11]
@@ -126,7 +125,7 @@ jobs:
 
       - name: Run Offline serving :summary
         run: |
-            if [ "$(date +%u)" -eq 3 ]; then  ## Fri
+            if [ "$(date +%u)" -eq 5 ]; then  ## Fri
                   cd shortfin
                   export ROCR_VISIBLE_DEVICES=0
                   bash ../scripts/run_offline_serving.sh \
