@@ -17,7 +17,6 @@ from safetensors.numpy import load as safetensors_load
 from safetensors.numpy import save as safetensors_save
 
 from typing import Optional
-from mooncake.store import MooncakeDistributedStore
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +61,17 @@ class MooncakeStore:
     """
 
     def __init__(self, config: MooncakeConfig):
+
+        try:
+            from mooncake.store import MooncakeDistributedStore
+        except ImportError as e:
+            raise ImportError(
+                "Mooncake is not installed. "
+                "Please run "
+                "pip3 install mooncake-transfer-engine "
+                "to install the Mooncake package."
+            ) from e
+
         try:
             self.config = config
             self.store = MooncakeDistributedStore()
