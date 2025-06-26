@@ -112,11 +112,6 @@ class LlamaHParams:
         expert_count = _optional_int_prop(
             p, f"{name_prefix}.expert_count", default_expert_count
         )
-        # Changing default_n_dense_layers to 0, gives error in Moe block condition for llama4 in llm.py
-        default_n_dense_layers = None
-        n_dense_layers = _optional_int_prop(
-            p, f"{name_prefix}.leading_dense_block_count", default_n_dense_layers
-        )
 
         custom_config = get_custom_configs(p, name_prefix)
 
@@ -144,7 +139,6 @@ class LlamaHParams:
             moe_intermediate_size=_optional_int_prop(
                 p, f"{name_prefix}.moe_intermediate_size", None
             ),
-            n_dense_layers=n_dense_layers,
             rope_dimension_count=rope_dimension_count,
             rope_freq_base=_optional_float_prop(
                 p, f"{name_prefix}.rope.freq_base", default_rope_freq_base
@@ -245,6 +239,7 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         )
         res["expert_shared_count"] = _int_prop(p, f"{name_prefix}.expert_shared_count")
         res["attn_head_dim"] = res["qk_nope_head_dim"] + res["qk_rope_head_dim"]
+        res["n_dense_layers"] = _int_prop(p, f"{name_prefix}.leading_dense_block_count")
 
     if name_prefix == "llama4":
         res["interleave_moe_layer_step"] = _int_prop(
