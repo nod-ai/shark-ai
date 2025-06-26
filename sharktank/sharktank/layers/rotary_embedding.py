@@ -301,8 +301,14 @@ class RotaryEmbeddingLayer(BaseLayer):
         yarn_beta_slow = self.yarn_beta_slow
         yarn_beta_fast = self.yarn_beta_fast
         yarn_original_context_len = self.yarn_original_context_len
-        any_yarn = any([a is not None for a in [yarn_factor, yarn_beta_fast, yarn_beta_slow, yarn_original_context_len]])
-        use_yarn = all([a is not None for a in [yarn_factor, yarn_beta_fast, yarn_beta_slow, yarn_original_context_len]])
+        reqs = [
+            yarn_factor,
+            yarn_beta_fast,
+            yarn_beta_slow,
+            yarn_original_context_len,
+        ]
+        any_yarn = any([a is not None for a in reqs])
+        use_yarn = all([a is not None for a in reqs])
         assert any_yarn == use_yarn
 
         if use_yarn:
