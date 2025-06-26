@@ -28,7 +28,6 @@ from datasets import load_dataset
 
 from sharktank.types import *
 from sharktank.types.pipelining import pipeline_parallelize_theta
-from sharktank.types.sharding import shard_theta
 from .math import cosine_similarity
 
 # TODO: ci-sharktank-nightly should run all nightly CIs and ci-sharktank/test-mi300x should run all pre-submits
@@ -208,6 +207,8 @@ class IreeVsEagerLLMTester:
         self.dataset_path = work_dir / "parameters.irpa"
 
         if self.config.tensor_parallelism_size > 1:
+            from sharktank.types.sharding import shard_theta
+
             theta = shard_theta(theta=theta, config=config)
 
         Dataset(root_theta=theta, properties=self.config.to_properties()).save(
