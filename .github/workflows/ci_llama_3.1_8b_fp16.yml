@@ -93,7 +93,7 @@ jobs:
 
       - name: Run Offline serving :chat
         run: |
-        if [ "$(date +%u)" -eq 2 ]; then  ## Tue
+        if [ "$(date +%u)" -eq 2 ]; then
               cd shortfin
               export ROCR_VISIBLE_DEVICES=0
               bash ../scripts/run_offline_serving.sh \
@@ -110,7 +110,7 @@ jobs:
 
       - name: Run Offline serving :reasoning
         run: |
-        if [ "$(date +%u)" -eq 4 ]; then  ## Thur
+        if [ "$(date +%u)" -eq 4 ]; then
               cd shortfin
               export ROCR_VISIBLE_DEVICES=0
               bash ../scripts/run_offline_serving.sh \
@@ -128,7 +128,7 @@ jobs:
 
       - name: Run Offline serving :summary
         run: |
-        if [ "$(date +%u)" -eq 6 ]; then  ## Sat
+        if [ "$(date +%u)" -eq 6 ]; then
           cd shortfin
           export ROCR_VISIBLE_DEVICES=0
           bash ../scripts/run_offline_serving.sh \
