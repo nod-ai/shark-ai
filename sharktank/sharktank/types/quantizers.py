@@ -484,7 +484,7 @@ def _fp4_block_quantize_tensor(
     """Complete FP4 block quantization: blocking, scaling, quantization, and layout creation.
 
     Args:
-        t: Input tensor to quantize (must have numel() % block_size == 0)
+        t: Input tensor of shape [..., N] to quantize (must have N % block_size == 0)
         scales: Per-block scales (either float or integer exponents, flat)
         block_size: Size of each block
         use_power_of_two_scale: Whether scales are power-of-two
@@ -495,18 +495,13 @@ def _fp4_block_quantize_tensor(
     """
     if t.numel() == 0:
         raise ValueError("Cannot quantize empty tensor")
-
-    if t.numel() % block_size != 0:
+    if t.shape[-1] % block_size != 0:
         raise ValueError(
-            f"Tensor size {t.numel()} must be divisible by block_size {block_size}. "
+            f"Tensor shape {t.shape[-1]} must be divisible by block_size {block_size}. "
             f"Use pad_tensor_for_block_quantization() to pad the tensor first."
         )
 
-    original_shape = t.shape
-    num_blocks = t.numel() // block_size
-
     # Reshape to [..., num_blocks, block_size] to group into blocks
-    # This preserves structure better than flatten().view()
     values_blocked = t.view(-1, block_size)
 
     # Prepare scales for broadcasting - add dimension for block_size
@@ -526,7 +521,7 @@ def _fp4_block_quantize_tensor(
 
     # Create layout
     layout = BlockScaledFp4Layout(
-        shape=list(original_shape),
+        shape=list(t.shape),
         d=scales,
         qs=packed_fp4,
         block_size=block_size,
@@ -534,7 +529,7 @@ def _fp4_block_quantize_tensor(
     )
 
     return PlanarQuantizedTensor(
-        shape=list(original_shape),
+        shape=list(t.shape),
         name=name,
         layout=layout,
     )
@@ -709,8 +704,7 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
         t_padded = pad_tensor_for_block_quantization(t, self._block_size)
 
         # Compute scales per block
-        num_blocks = t_padded.numel() // self._block_size
-        values_blocked = t_padded.flatten().view(num_blocks, self._block_size)
+        values_blocked = t_padded.view(-1, self._block_size)
         block_max = torch.max(torch.abs(values_blocked), dim=1, keepdim=True)[0]
         scales, _ = compute_fp4_block_scales(
             block_max, self._use_power_of_two_scale, self._dtype

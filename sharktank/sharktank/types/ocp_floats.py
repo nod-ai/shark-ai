@@ -227,8 +227,7 @@ def compute_fp4_block_scales(
     """
     if use_power_of_two_scale:
         finfo = torch.finfo(dtype)
-        block_max.clamp_(min=finfo.eps)  # In-place clamp
-        # Use the inverse function to convert to e8m0 format
+        block_max.clamp_(min=finfo.eps)
         power_of_two_scales = torch.ceil(block_max)
         e8m0_values = float32_to_e8m0(power_of_two_scales)
         scales = e8m0_values.squeeze(-1)
