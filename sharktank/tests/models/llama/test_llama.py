@@ -7,11 +7,11 @@
 
 import unittest
 
-import parameterized
 import pytest
 import torch
 
 from itertools import product
+from parameterized import parameterized
 
 from sharktank.models.llm import *
 from sharktank.models.llama.toy_llama import generate
@@ -60,12 +60,7 @@ class CrossEntropyTest(unittest.TestCase):
 @pytest.mark.usefixtures("get_iree_flags", "device")
 @is_mi300x
 class LlamaIreeVsEagerTest(TempDirTestBase):
-    @parameterized.expand(
-        product(
-            [1, 2],  # tensor_parallelism_size
-            [1, 2],  # pipeline_parallelism_size
-        )
-    )
+    @parameterized.expand(product([1, 2], [1, 2]))
     def testUnshardedToyIreeVsEager(
         self, tensor_parallelism_size: int, pipeline_parallelism_size: int
     ):
