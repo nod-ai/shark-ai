@@ -74,12 +74,6 @@ class LlamaHParams:
     rope_dimension_count: Optional[int] = None
     rope_freq_base: Optional[float] = None
 
-    # Deepseek RoPE+YaRN config
-    rope_scaling_type: Optional[str] = None
-    rope_scaling_factor: Optional[float] = None
-    rope_scaling_original_context_length: Optional[int] = None
-    rope_scaling_yarn_log_multiplier: Optional[float] = None
-
     # MoE config
     expert_count: Optional[int] = None
     expert_used_count: Optional[int] = None
@@ -200,18 +194,6 @@ class LlamaHParams:
             res[f"{self.model_arch}.rope.dimension_count"] = self.rope_dimension_count
         if self.rope_freq_base is not None:
             res[f"{self.model_arch}.rope.freq_base"] = self.rope_freq_base
-        if self.rope_scaling_type is not None:
-            res[f"{self.model_arch}.rope.scaling.type"] = self.rope_scaling_type
-        if self.rope_scaling_factor is not None:
-            res[f"{self.model_arch}.rope.scaling.factor"] = self.rope_scaling_factor
-        if self.rope_scaling_original_context_length is not None:
-            res[
-                f"{self.model_arch}.rope.scaling.original_context_length"
-            ] = self.rope_scaling_original_context_length
-        if self.rope_scaling_yarn_log_multiplier is not None:
-            res[
-                f"{self.model_arch}.rope.scaling.yarn_log_multiplier"
-            ] = self.rope_scaling_yarn_log_multiplier
         if self.expert_feed_forward_length is not None:
             res[
                 f"{self.model_arch}.expert_feed_forward_length"
@@ -261,16 +243,6 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
             p, f"{name_prefix}.n_limited_groups", 4
         )
         res["expert_shared_count"] = _int_prop(p, f"{name_prefix}.expert_shared_count")
-        res["rope_scaling_type"] = _str_prop(p, f"{name_prefix}.rope.scaling.type")
-        res["rope_scaling_factor"] = _float_prop(
-            p, f"{name_prefix}.rope.scaling.factor"
-        )
-        res["rope_scaling_original_context_length"] = _int_prop(
-            p, f"{name_prefix}.rope.scaling.original_context_length"
-        )
-        res["rope_scaling_yarn_log_multiplier"] = _float_prop(
-            p, f"{name_prefix}.rope.scaling.yarn_log_multiplier"
-        )
         res["attn_head_dim"] = res["qk_nope_head_dim"] + res["qk_rope_head_dim"]
 
     if name_prefix == "llama4":
