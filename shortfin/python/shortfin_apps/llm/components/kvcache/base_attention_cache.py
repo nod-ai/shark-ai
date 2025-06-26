@@ -72,7 +72,7 @@ class PageAllocation(ABC):
         Derived classes may implement this to handle device-specific logic.
         Returns True if the pages were updated, False otherwise.
         """
-        return False
+        return True
 
 
 class BasePagedAttentionCacheAllocation(PageAllocation):
