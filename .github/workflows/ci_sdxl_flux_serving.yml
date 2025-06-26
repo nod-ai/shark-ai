@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-name: Release: SDXL and FLUX Shortfin Serving Tests
+name: Release SDXL and FLUX Shortfin Serving Tests
 
 on:
   workflow_dispatch:
