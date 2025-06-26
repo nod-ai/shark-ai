@@ -223,7 +223,7 @@ class IreeVsEagerLLMTester:
             use_attention_mask=True,
         )
 
-        # TODO: I don't think these are necessary since export_paged_llm handles this
+        # Note: Must be after saving the dataset and creating the exporter but before moving theta to the provided device.
         block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
             theta, self.config.pipeline_parallelism_size
         )
