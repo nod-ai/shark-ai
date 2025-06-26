@@ -205,9 +205,9 @@
 | sharktank/tests/tools/sharktank\_test.py                                      |       19 |        0 |    100% |           |
 | sharktank/tests/transforms/dataset\_transforms\_test.py                       |       32 |        1 |     97% |        86 |
 | sharktank/tests/types/dataset\_test.py                                        |       94 |        1 |     99% |       178 |
-| sharktank/tests/types/layout\_utils\_test.py                                  |       75 |        1 |     99% |       226 |
+| sharktank/tests/types/layout\_utils\_test.py                                  |       75 |        1 |     99% |       233 |
 | sharktank/tests/types/layouts\_test.py                                        |       57 |        1 |     98% |       129 |
-| sharktank/tests/types/quantizers\_test.py                                     |      195 |        1 |     99% |       387 |
+| sharktank/tests/types/quantizers\_test.py                                     |      195 |        1 |     99% |       391 |
 | sharktank/tests/types/tensors\_test.py                                        |      164 |        1 |     99% |       221 |
 | sharktank/tests/utils/iree\_test.py                                           |       56 |        6 |     89% | 69-73, 93 |
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
