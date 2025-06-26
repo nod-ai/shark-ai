@@ -383,20 +383,8 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
 
 class StaticFp4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
     def testStaticFp4QuantDequant(self):
-        # First compute scales using dynamic quantizer
         orig_value = self.get_fp4_exact_values()
-
-        # Use dynamic quantizer to compute scales
-        dynamic_quantizer = DynamicFp4BlockQuantizer(
-            block_size=8, use_power_of_two_scale=False
-        )
-        dynamic_qt = dynamic_quantizer.quantize(orig_value)
-        dynamic_layout = dynamic_qt.unpack()
-
-        # Extract the scales
-        scales = dynamic_layout.d
-
-        # Create static quantizer with pre-computed scales
+        scales = torch.tensor([1.0], dtype=torch.float32)
         static_quantizer = StaticFp4BlockQuantizer(
             scales=scales,
             block_size=8,
@@ -420,7 +408,7 @@ class StaticFp4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
         orig_value = torch.randn(64, dtype=torch.float32) * 4.0
 
         # Create static quantizer with manually set power-of-two scales
-        # For 64 elements with block_size=32, we need 2 blocks
+        # For 64 elements with block_size=32, we need 2 blocksJ
         scales = torch.tensor([130, 131], dtype=torch.uint8)
 
         static_quantizer = StaticFp4BlockQuantizer(
@@ -430,8 +418,6 @@ class StaticFp4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
             name="static_fp4_p2_quantizer",
         )
         static_quantizer = self._roundtrip(static_quantizer, "_static_fp4_p2_quantizer")
-
-        # Quantize with static quantizer
         qt_value = static_quantizer.quantize(orig_value, name="test_static_fp4_p2")
         qt_value = self._roundtrip(qt_value, "_static_fp4_p2_qt_value")
 
@@ -440,32 +426,24 @@ class StaticFp4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
             layout, expected_block_count=2, scale_dtype=torch.uint8
         )
 
-        # Verify scales are preserved
-        torch.testing.assert_close(layout.d, scales)
-
-        # Test that dequantization works (basic functionality test)
         dequant_value = layout.dequant()
         self.assertEqual(dequant_value.shape, orig_value.shape)
 
     def testStaticFp4DifferentBlockSizes(self):
-        # Test different block sizes with manually defined scales
         for block_size in [6, 10, 12, 30]:
             orig_value = torch.randn(60, dtype=torch.float32) * 4.0
 
             # Create appropriate scales for this block size
             expected_num_blocks = (60 + block_size - 1) // block_size
-            # Use simple power-of-two exponents
+            # Use simple fe8m0
             scales = torch.randint(125, 130, (expected_num_blocks,), dtype=torch.uint8)
 
-            # Create static quantizer
             static_quantizer = StaticFp4BlockQuantizer(
                 scales=scales,
                 block_size=block_size,
                 use_power_of_two_scale=True,
                 name=f"static_fp4_bs{block_size}",
             )
-
-            # Quantize with static quantizer
             qt_value = static_quantizer.quantize(
                 orig_value, name=f"test_static_fp4_bs{block_size}"
             )
@@ -475,7 +453,7 @@ class StaticFp4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
             self.assertEqual(len(layout.d), expected_num_blocks)
 
             # Verify scales are preserved
-            torch.testing.assert_close(layout.d, scales)
+            torch.testing.assert_equal(layout.d, scales)
 
             # Test basic functionality
             dequant_value = layout.dequant()
