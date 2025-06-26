@@ -358,7 +358,6 @@ class LlmExecutorProcess(sf.Process):
             # Invoke VMFB. Logits are of shape [bs, bsl, d].
             args_device = [arg.device for arg in args]
             result = await fn(*args_device, fiber=self.fiber)
-
             indices = None
             logits = result[0]
             if len(result) > 1:
@@ -410,6 +409,38 @@ class PrefillExecutorProcess(LlmExecutorProcess):
             program_isolation=program_isolation,
         )
 
+    async def update_pages(self):
+        """Update the pages in the local page pool for the requests."""
+        updated = True
+        for req in self.exec_requests:
+            if req.allocation is not None:
+                updated = await req.allocation.update_pages(
+                    device=self.device0, token_ids=req.input_token_ids
+                )
+                if not updated:
+                    logger.warning(
+                        "Failed to update all pages for request %s, allocation: %s",
+                        req,
+                        req.allocation,
+                    )
+
+    async def write_back_pages(self):
+        """Write back the pages in the local page pool for the requests."""
+        for req in self.exec_requests:
+            req.done.set_success()
+            # write back pages to mooncake
+            logger.debug("Writing back pages for request %s", req)
+            if req.allocation is not None:
+                await req.allocation.write_back_pages(
+                    device=self.device0, token_ids=req.input_token_ids
+                )
+                logger.debug("Successfully wrote back pages for request %s", req)
+            else:
+                logger.debug(
+                    "Skipping write back for request %s, allocation is None",
+                    req,
+                )
+
     async def get_args(self, bs):
         seq_stride = self.seq_stride
 
@@ -432,7 +463,6 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         tokens = cache.allocate([bs, bsl], int_dtype)
         seq_lens = cache.allocate([bs], int_dtype)
         seq_block_ids = cache.allocate([bs, block_count], int_dtype)
-
         # Populate tokens.
         for i in range(bs):
             with tokens.host.view(i).map(discard=True) as m:
@@ -466,6 +496,8 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         for page_table in self.page_tables:
             args.append(WrappedAllocation(sfnp.disable_barrier(page_table)))
 
+        await self.update_pages()
+
         return args, req_count
 
     async def get_results(self, logits, indices, req_count):
@@ -490,8 +522,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
             req.result_logits = logits_item
             req.result_indices = index_item
 
-        for req in self.exec_requests:
-            req.done.set_success()
+        await self.write_back_pages()
 
 
 class DecodeExecutorProcess(LlmExecutorProcess):
@@ -569,7 +600,6 @@ class DecodeExecutorProcess(LlmExecutorProcess):
                     block_ids += batch_ids
                     block_ids += [0] * (block_count - len(batch_ids))
             m.items = block_ids
-
         # Transfer to device memory:
         tokens.transfer_to_device()
         start_positions.transfer_to_device()
