@@ -18,7 +18,7 @@ from sharktank.types.ocp_floats import (
     float32_to_fp4_e2m1,
     fp4_e2m1_to_float32,
 )
-from sharktank.types.quantizers import DynamicFp4BlockQuantizer
+from sharktank.types.quantizers import DynamicFp4BlockQuantizer, StaticFp4BlockQuantizer
 from sharktank.utils.testing import TempDirTestBase
 
 
@@ -385,6 +385,120 @@ class DynamicFP4BlockQuantizerTest(TempDirTestBase):
         dequantized = quantized_tensor.unpack().dequant()
 
         self.assertEqual(dequantized.shape, original_data.shape)
+
+
+class StaticFp4BlockQuantizerTest(TempDirTestBase):
+    def _roundtrip(self, it, suffix=""):
+        dataset_path = self._temp_dir / f"poodoo{suffix}.irpa"
+        theta = Theta([it])
+        Dataset({}, theta).save(dataset_path)
+        ds = Dataset.load(dataset_path)
+        return ds.root_theta.tensor(it.name)
+
+    def testStaticFp4QuantDequant(self):
+        # First compute scales using dynamic quantizer
+        orig_value = torch.tensor(
+            [2.0, 4.0, 6.0, 6.0, 1.0, 3.0, -2.0, -4.0], dtype=torch.float32
+        )
+        
+        # Use dynamic quantizer to compute scales
+        dynamic_quantizer = DynamicFp4BlockQuantizer(
+            block_size=8, use_power_of_two_scale=False
+        )
+        dynamic_qt = dynamic_quantizer.quantize(orig_value)
+        dynamic_layout = dynamic_qt.unpack()
+        
+        # Extract the scales
+        scales = dynamic_layout.d
+        
+        # Create static quantizer with pre-computed scales
+        static_quantizer = StaticFp4BlockQuantizer(
+            scales=scales,
+            block_size=8,
+            use_power_of_two_scale=False,
+            name="static_fp4_quantizer"
+        )
+        static_quantizer = self._roundtrip(static_quantizer, "_static_fp4_quantizer")
+        
+        # Quantize with static quantizer
+        qt_value = static_quantizer.quantize(orig_value, name="test_static_fp4")
+        qt_value = self._roundtrip(qt_value, "_static_fp4_qt_value")
+        
+        layout = qt_value.unpack()
+        self.assertIsInstance(layout, BlockScaledFp4Layout)
+        dequant_value = layout.dequant()
+        
+        # Should match original values exactly for representable FP4 values
+        torch.testing.assert_close(orig_value, dequant_value, atol=0.0, rtol=0.0)
+
+    def testStaticFp4PowerOfTwoScales(self):
+        orig_value = torch.randn(64, dtype=torch.float32) * 4.0
+        
+        # Create static quantizer with manually set power-of-two scales
+        # For 64 elements with block_size=32, we need 2 blocks
+        scales = torch.tensor([3, 4], dtype=torch.int32)  # Power-of-two exponents
+        
+        static_quantizer = StaticFp4BlockQuantizer(
+            scales=scales,
+            block_size=32,
+            use_power_of_two_scale=True,
+            name="static_fp4_p2_quantizer"
+        )
+        static_quantizer = self._roundtrip(static_quantizer, "_static_fp4_p2_quantizer")
+        
+        # Quantize with static quantizer
+        qt_value = static_quantizer.quantize(orig_value, name="test_static_fp4_p2")
+        qt_value = self._roundtrip(qt_value, "_static_fp4_p2_qt_value")
+        
+        layout = qt_value.unpack()
+        self.assertIsInstance(layout, BlockScaledFp4Layout)
+        self.assertTrue(layout.d.dtype == torch.int32)
+        self.assertEqual(len(layout.d), 2)  # Two blocks
+        
+        # Verify scales are preserved
+        torch.testing.assert_close(layout.d, scales)
+        
+        # Test that dequantization works (basic functionality test)
+        dequant_value = layout.dequant()
+        self.assertEqual(dequant_value.shape, orig_value.shape)
+
+    def testStaticFp4DifferentBlockSizes(self):
+        # Test different block sizes with manually defined scales
+        for block_size in [6, 10, 12, 30]:
+            orig_value = torch.randn(60, dtype=torch.float32) * 4.0
+            
+            # Create appropriate scales for this block size
+            expected_num_blocks = (60 + block_size - 1) // block_size
+            # Use simple power-of-two exponents
+            scales = torch.randint(0, 5, (expected_num_blocks,), dtype=torch.int32)
+            
+            # Create static quantizer
+            static_quantizer = StaticFp4BlockQuantizer(
+                scales=scales,
+                block_size=block_size,
+                use_power_of_two_scale=True,
+                name=f"static_fp4_bs{block_size}"
+            )
+            
+            # Quantize with static quantizer
+            qt_value = static_quantizer.quantize(orig_value, name=f"test_static_fp4_bs{block_size}")
+            
+            layout = qt_value.unpack()
+            self.assertIsInstance(layout, BlockScaledFp4Layout)
+            self.assertEqual(len(layout.d), expected_num_blocks)
+            
+            # Verify scales are preserved
+            torch.testing.assert_close(layout.d, scales)
+            
+            # Test basic functionality
+            dequant_value = layout.dequant()
+            self.assertEqual(dequant_value.shape, orig_value.shape)
+            
+            # Test that serialization works
+            static_quantizer_rt = self._roundtrip(static_quantizer, f"_static_fp4_bs{block_size}")
+            self.assertEqual(static_quantizer_rt.block_size, block_size)
+            torch.testing.assert_close(static_quantizer_rt.scales, scales)
+
 
 
 if __name__ == "__main__":
