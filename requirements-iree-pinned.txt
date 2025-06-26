@@ -4,4 +4,4 @@
 --find-links https://iree.dev/pip-release-links.html
 iree-base-compiler==3.6.0rc20250624
 iree-base-runtime==3.6.0rc20250624
-iree-turbine==3.6.0rc20250624
+iree-turbine==3.6.0rc20250626
