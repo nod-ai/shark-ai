@@ -64,6 +64,12 @@ class LlamaHParams:
     # Grok Attention config
     attention_softcap: Optional[float] = None
 
+    # YaRN configurations for context window expansion
+    yarn_beta_slow: Optional[float] = None
+    yarn_beta_fast: Optional[float] = None
+    yarn_factor: Optional[float] = None
+    yarn_original_context_len: Optional[int] = None
+
     # RoPE config
     rope_dimension_count: Optional[int] = None
     rope_freq_base: Optional[float] = None
@@ -228,6 +234,12 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
 
     if name_prefix == "grok":
         res["attention_softcap"] = 30.0
+
+    if name_prefix == "llama3":
+        res["yarn_beta_slow"] = 1
+        res["yarn_beta_fast"] = 4
+        res["yarn_factor"] = 8
+        res["yarn_original_context_len"] = 8192
 
     if name_prefix == "deepseek2":
         res["qk_rope_head_dim"] = _optional_int_prop(
