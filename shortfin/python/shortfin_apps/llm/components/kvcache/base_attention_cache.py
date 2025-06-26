@@ -16,7 +16,6 @@ import threading
 from typing import List, Iterable
 
 from .page_pool import PageInfo, PagePool
-import shortfin as sf
 
 
 logger = logging.getLogger(__name__)
