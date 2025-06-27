@@ -40,7 +40,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         attention_kernel: str = "torch",
         v_head_dim: Optional[int] = None,
         rope_dimension_count: Optional[int] = None,
-        attention_scale: Optional[float] = None,
         softcap: Optional[float] = None,
         fake_quant: Optional[bool] = True,
         use_rope: bool = True,
@@ -57,7 +56,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self.head_dim = head_dim
         self.head_count_kv = head_count_kv
         self.attention_kernel = attention_kernel
-        self.attention_scale = attention_scale
         self.rope_dimension_count = rope_dimension_count
         self.softcap = softcap
         self.fake_quant = fake_quant
@@ -103,6 +101,10 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 ),
             )
 
+            # TODO: if self.context_length > self.yarn_original_context_len:
+            #     mscale = 0.1 * self.mscale * math.log(self.yarn_factor) + 1.0
+            #     self.attn_scale = self.attn_scale * mscale * mscale
+
         if self.use_qk_norm:
             self.qk_norm = L2Norm(dim=-1, epsilon=rms_epsilon)
 
@@ -117,11 +119,11 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 "kv_cache.quantizer"
             )
         if "attn_scale" in theta.keys:
-            self.attention_scale = theta("attn_scale").as_torch()
+            self.attn_scale = theta("attn_scale").as_torch()
             self.probs_quantizer = StaticScaledQuantizer(
                 name="attn_scale.quantizer",
-                scale=1.0 / (self.attention_scale * 2.0),
-                reciprocal_scale=self.attention_scale * 2.0,
+                scale=1.0 / (self.attn_scale * 2.0),
+                reciprocal_scale=self.attn_scale * 2.0,
                 dtype=torch.float8_e4m3fnuz,
             )
 
@@ -275,7 +277,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 fake_quant=self.fake_quant,
                 attention_kernel=self.attention_kernel,
                 mask=attention_mask,
-                scale=self.attention_scale,
+                scale=self.attn_scale,
                 softcap=self.softcap,
                 probs_quantizer=self.probs_quantizer,
             )
@@ -293,7 +295,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 fake_quant=self.fake_quant,
                 attention_kernel=self.attention_kernel,
                 mask=attention_mask,
-                scale=self.attention_scale,
+                scale=self.attn_scale,
                 softcap=self.softcap,
                 k_quantizer=self.k_quantizer,
                 v_quantizer=self.v_quantizer,

@@ -14,7 +14,7 @@ When in question, we draw from the vocabulary and normalization they have done
 (and indeed, can bootstrap these off of GGUF files).
 """
 
-from typing import TYPE_CHECKING, ClassVar, Any, Optional, List
+from typing import TYPE_CHECKING, ClassVar, Any, Optional
 from collections import defaultdict
 from os import PathLike
 from dataclasses import asdict, dataclass, field, fields
@@ -48,10 +48,7 @@ class LlamaHParams:
     attn_head_dim: int
     attention_layer_norm_rms_epsilon: float
     attention_head_count_kv: Optional[int] = None
-    # The size of the model's vocabulary.
     vocab_size: Optional[int] = None
-
-    vocab_size: int | None = None
     """TODO: make this non-optional once we don't use artifacts without this value."""
 
     # Deepseek Multi-Latent Attention config
@@ -64,15 +61,18 @@ class LlamaHParams:
     # Grok Attention config
     attention_softcap: Optional[float] = None
 
+    # YaRN configurations for context window expansion
+    yarn_beta_slow: Optional[float] = None
+    yarn_beta_fast: Optional[float] = None
+    yarn_factor: Optional[float] = None
+    yarn_original_context_len: Optional[int] = None
+
     # RoPE config
     rope_dimension_count: Optional[int] = None
     rope_freq_base: Optional[float] = None
 
     # Deepseek RoPE+YaRN config
-    rope_scaling_type: Optional[str] = None
-    rope_scaling_factor: Optional[float] = None
-    rope_scaling_original_context_length: Optional[int] = None
-    rope_scaling_yarn_log_multiplier: Optional[float] = None
+    yarn_mscale: Optional[float] = None
 
     # MoE config
     expert_count: Optional[int] = None
@@ -89,8 +89,6 @@ class LlamaHParams:
 
     # Deepseek MoE config
     expert_shared_count: Optional[int] = None
-    moe_intermediate_size: Optional[int] = None
-    """Size of the MoE experts feed forward network hidden dimension."""
     n_expert_groups: Optional[int] = None
     n_limited_groups: Optional[int] = None
     n_dense_layers: Optional[int] = None
@@ -140,9 +138,6 @@ class LlamaHParams:
             expert_used_count=_optional_int_prop(
                 p, f"{name_prefix}.expert_used_count", default_expert_used_count
             ),
-            moe_intermediate_size=_optional_int_prop(
-                p, f"{name_prefix}.moe_intermediate_size", None
-            ),
             n_dense_layers=n_dense_layers,
             rope_dimension_count=rope_dimension_count,
             rope_freq_base=_optional_float_prop(
@@ -188,24 +183,20 @@ class LlamaHParams:
             res[f"{self.model_arch}.n_expert_groups"] = self.n_expert_groups
         if self.n_limited_groups is not None:
             res[f"{self.model_arch}.n_limited_groups"] = self.n_limited_groups
-        if self.moe_intermediate_size is not None:
-            res[f"{self.model_arch}.moe_intermediate_size"] = self.moe_intermediate_size
         if self.rope_dimension_count is not None:
             res[f"{self.model_arch}.rope.dimension_count"] = self.rope_dimension_count
         if self.rope_freq_base is not None:
             res[f"{self.model_arch}.rope.freq_base"] = self.rope_freq_base
-        if self.rope_scaling_type is not None:
-            res[f"{self.model_arch}.rope.scaling.type"] = self.rope_scaling_type
-        if self.rope_scaling_factor is not None:
-            res[f"{self.model_arch}.rope.scaling.factor"] = self.rope_scaling_factor
-        if self.rope_scaling_original_context_length is not None:
+        if self.yarn_beta_slow is not None:
+            res[f"{self.model_arch}.rope.yarn_beta_slow"] = self.yarn_beta_slow
+        if self.yarn_beta_fast is not None:
+            res[f"{self.model_arch}.rope.yarn_beta_fast"] = self.yarn_beta_fast
+        if self.yarn_factor is not None:
+            res[f"{self.model_arch}.rope.scaling.factor"] = self.yarn_factor
+        if self.yarn_original_context_len is not None:
             res[
                 f"{self.model_arch}.rope.scaling.original_context_length"
-            ] = self.rope_scaling_original_context_length
-        if self.rope_scaling_yarn_log_multiplier is not None:
-            res[
-                f"{self.model_arch}.rope.scaling.yarn_log_multiplier"
-            ] = self.rope_scaling_yarn_log_multiplier
+            ] = self.yarn_original_context_len
         if self.expert_feed_forward_length is not None:
             res[
                 f"{self.model_arch}.expert_feed_forward_length"
@@ -249,16 +240,13 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
             p, f"{name_prefix}.n_limited_groups", 4
         )
         res["expert_shared_count"] = _int_prop(p, f"{name_prefix}.expert_shared_count")
-        res["rope_scaling_type"] = _str_prop(p, f"{name_prefix}.rope.scaling.type")
-        res["rope_scaling_factor"] = _float_prop(
-            p, f"{name_prefix}.rope.scaling.factor"
-        )
-        res["rope_scaling_original_context_length"] = _int_prop(
+        res["yarn_beta_slow"] = 1
+        res["yarn_beta_fast"] = 32
+        res["yarn_factor"] = _float_prop(p, f"{name_prefix}.rope.scaling.factor")
+        res["yarn_original_context_len"] = _int_prop(
             p, f"{name_prefix}.rope.scaling.original_context_length"
         )
-        res["rope_scaling_yarn_log_multiplier"] = _float_prop(
-            p, f"{name_prefix}.rope.scaling.yarn_log_multiplier"
-        )
+        res["yarn_mscale"] = 1.0
         res["attn_head_dim"] = res["qk_nope_head_dim"] + res["qk_rope_head_dim"]
 
     if name_prefix == "llama4":

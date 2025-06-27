@@ -32,6 +32,21 @@ def iterables_equal(
     )
 
 
+def get_files(path, extension):
+    """
+    Fetches a list of files with a given extension in given path
+    """
+    file_list = []
+    for filename in os.listdir(path):
+        if filename.endswith(extension) and os.path.isfile(
+            os.path.join(path, filename)
+        ):
+            file_list.append(os.path.join(path, filename))
+
+    file_list.sort()
+    return file_list
+
+
 class chdir(AbstractContextManager):
     """Context that changes the current working directory.
 
