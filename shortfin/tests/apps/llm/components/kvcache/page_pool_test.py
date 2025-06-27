@@ -6,7 +6,7 @@
 
 import pytest
 import logging
-from shortfin_apps.llm.components.kvcache.page_pool import PagePool, PagePoolConfig
+from shortfin_apps.llm.components.kvcache.page_pool import PagePool
 import shortfin as sf
 import shortfin.host
 import shortfin.array as sfnp
