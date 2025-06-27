@@ -57,6 +57,9 @@ class LinearLayer(ThetaLayer):
         self.qdq_output: Optional[QuantizedTensor] = theta.optional_tensor("qdq_output")
         self.q_output: Optional[QuantizerTensor] = theta.optional_tensor("q_output")
 
+        # TODO: fp8 llama - q and qdq are part of linear.py layer -investigate irpa
+        # & how to navigate this for deepseek
+
     def forward(self, x):
         weight = self.weight
         bias = self.bias

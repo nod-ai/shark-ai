@@ -87,6 +87,13 @@ class MoeBlock(ThetaLayer):
         if theta.optional_tensor("ffn_gate_inp") is not None:
             self.add_module("ffn_gate_inp", LinearLayer(theta("ffn_gate_inp")))
 
+        # TODO: Add e_score_correction_bias to scores
+        # self.bias =  torch.empty(self.expert_used_count))
+        # or
+        # self.bias = self.add_module(
+        #     "e_score_correction_bias", LinearLayer(theta("ffn_gate_e_score_correction_bias"), fake_quant=self.fake_quant)
+        # )
+
         # Add expert_count x FFN
         if isinstance(experts_ffn_moe_block, str):
             if experts_ffn_moe_block == "PreGatherFFNMOE":
@@ -146,7 +153,9 @@ class MoeBlock(ThetaLayer):
 
         # Select top k experts from router weights
         if self.n_expert_groups is not None and self.n_limited_groups is not None:
-            scores_for_choice = router_weights.view(-1, self.expert_count)
+            scores_for_choice = router_weights.view(
+                -1, self.expert_count
+            )  # + self.e_score_correction_bias.unsqueeze(0)
 
             group_scores = (
                 router_weights.view(
