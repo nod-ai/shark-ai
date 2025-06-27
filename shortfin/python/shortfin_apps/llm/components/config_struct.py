@@ -179,7 +179,6 @@ class ModelParams:
     def max_batch_size(self):
         return max(self.max_prefill_batch_size, self.max_decode_batch_size)
 
-    # TODO: Cleanup
     @property
     def has_paged_kv_cache(self):
         return self.paged_kv_cache is not None
