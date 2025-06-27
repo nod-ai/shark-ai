@@ -91,9 +91,6 @@ class ContractionOpInterfaceTuner(
     ) -> ir.Module:
         contraction_op = self.get_root_op()
         func_name = self.get_root_op_func_name()
-
-        # Wrap the single CompilationInfoAttr in a list of (str, Attribute).
-        config_list = [("compilation_info", compilation_info)]
         return spec_builder.build_td_spec(
             contraction_op.context, contraction_op, config_list, func_name
         )
@@ -116,9 +113,6 @@ class ConvolutionOpInterfaceTuner(
     ) -> ir.Module:
         conv_op = self.get_root_op()
         func_name = self.get_root_op_func_name()
-
-        # Wrap the single CompilationInfoAttr in a list of (str, Attribute).
-        config_list = [("compilation_info", compilation_info)]
         return spec_builder.build_td_spec(
             conv_op.context, conv_op, config_list, func_name
         )

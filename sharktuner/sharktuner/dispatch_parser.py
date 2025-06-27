@@ -81,3 +81,13 @@ class ConvolutionOpInterfaceParser(DispatchParser):
         ):
             return False
         return True
+
+
+class AttentionOpInterfaceParser(DispatchParser):
+    def __init__(self, root_op: ir.Operation):
+        super().__init__(root_op)
+
+    def has_valid_root_op(self) -> bool:
+        root_op = self.get_root_op()
+        # TODO(Bangtian): will see whether to use `iree_codegen.isa_attention_op`
+        return root_op.name == "iree_linalg_ext.attention"
