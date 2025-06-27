@@ -10,7 +10,7 @@
 #include <cstdlib>
 #include <sstream>
 
-using namespace fusili::logging;
+using namespace fusili;
 
 TEST_CASE("fusili::logging::isLoggingEnabled", "[logging]") {
   // Create a string stream to capture the output
@@ -18,7 +18,8 @@ TEST_CASE("fusili::logging::isLoggingEnabled", "[logging]") {
   ConditionalStreamer logger(oss);
 
   // When env variable is set to 0, disable logging
-  setenv("FUSILI_LOG_INFO", "0", 1);
+  isLoggingEnabled() = false;
+  // ^ force mimics the effect of setenv("FUSILI_LOG_INFO", "0", 1);
   oss.str("");
   logger << "Hello World";
   REQUIRE(oss.str().empty());
@@ -54,6 +55,10 @@ TEST_CASE("fusili::logging macros", "[logging]") {
   REQUIRE(oss.str() == "Test");
 
   oss.str("");
+  _FUSILI_LOG_ENDL("Test", logger);
+  REQUIRE(oss.str() == "Test\n");
+
+  oss.str("");
   _FUSILI_LOG_LABEL("Test2", logger);
   REQUIRE(oss.str() == "[FUSILI] Test2");
 
@@ -62,27 +67,12 @@ TEST_CASE("fusili::logging macros", "[logging]") {
   REQUIRE(oss.str() == "[FUSILI] Test3\n");
 }
 
-TEST_CASE("fusili::logging::getStream file mode", "[logging]") {
-  const char *test_file = "/tmp/test_fusili_log.txt";
-  setenv("FUSILI_LOG_FILE", test_file, 1);
-  std::ostream &stream = getStream();
-  REQUIRE(&stream != &std::cout);
-  REQUIRE(&stream != &std::cerr);
-  // Check that the stream reference is indeed pointing to
-  // a file stream and not cout / cerr.
-  REQUIRE(dynamic_cast<std::ofstream *>(&stream));
-
-  // Cleanup
-  unsetenv("FUSILI_LOG_FILE");
-  std::remove(test_file);
-}
-
 // This test is disabled because getStream() statically initializes
 // the stream ref picking the first snapshot of FUSILI_LOG_FILE
 // env variable. So subsequent tests that change the env variable (in
 // the same process) will not affect the stream returned by getStream().
 TEST_CASE("fusili::logging::getStream stdout mode", "[logging][.]") {
-  setenv("FUSILI_LOG_FILE", "stdcout", 1);
+  setenv("FUSILI_LOG_FILE", "stdout", 1);
   std::ostream &stream = getStream();
   REQUIRE(&stream == &std::cout);
 
@@ -99,4 +89,23 @@ TEST_CASE("fusili::logging::getStream stderr mode", "[logging][.]") {
   REQUIRE(&stream == &std::cerr);
 
   unsetenv("FUSILI_LOG_FILE");
+}
+
+// This test is disabled because getStream() statically initializes
+// the stream ref picking the first snapshot of FUSILI_LOG_FILE
+// env variable. So subsequent tests that change the env variable (in
+// the same process) will not affect the stream returned by getStream().
+TEST_CASE("fusili::logging::getStream file mode", "[logging][.]") {
+  const char *test_file = "/tmp/test_fusili_log.txt";
+  setenv("FUSILI_LOG_FILE", test_file, 1);
+  std::ostream &stream = getStream();
+  REQUIRE(&stream != &std::cout);
+  REQUIRE(&stream != &std::cerr);
+  // Check that the stream reference is indeed pointing to
+  // a file stream and not cout / cerr.
+  REQUIRE(dynamic_cast<std::ofstream *>(&stream));
+
+  // Cleanup
+  unsetenv("FUSILI_LOG_FILE");
+  std::remove(test_file);
 }

@@ -11,7 +11,6 @@
 #include "context.h"
 
 namespace fusili {
-namespace graph {
 
 class Graph {
 private:
@@ -34,5 +33,4 @@ public:
   }
 };
 
-} // namespace graph
 } // namespace fusili

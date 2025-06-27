@@ -9,7 +9,6 @@
 #include <catch2/catch_test_macros.hpp>
 
 using namespace fusili;
-using namespace fusili::graph;
 
 TEST_CASE("Tensor operations", "[tensor]") {
   Graph graph;
@@ -19,6 +18,9 @@ TEST_CASE("Tensor operations", "[tensor]") {
 
   int64_t uid = 1;
   std::string name = "image";
+
+  TensorAttr tensor_attr;
+  REQUIRE(tensor_attr.validate().is_bad());
 
   // Placeholder for tensor tests
   REQUIRE(true);

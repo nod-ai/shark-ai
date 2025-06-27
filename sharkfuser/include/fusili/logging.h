@@ -11,7 +11,63 @@
 #include <string>
 
 namespace fusili {
-namespace logging {
+
+enum class [[nodiscard]] error_code_t {
+  // Add error codes as needed
+  OK,
+  ATTRIBUTE_NOT_SET,
+  INVALID_ATTRIBUTE
+};
+
+inline const std::string to_string(error_code_t code) {
+  switch (code) {
+  case error_code_t::OK:
+    return "OK";
+  case error_code_t::ATTRIBUTE_NOT_SET:
+    return "ATTRIBUTE_NOT_SET";
+  case error_code_t::INVALID_ATTRIBUTE:
+    return "INVALID_ATTRIBUTE";
+  default:
+    return "UNKNOWN_ERROR_CODE";
+  }
+}
+
+typedef struct [[nodiscard]] error_object {
+  error_code_t code;
+  std::string err_msg;
+
+  error_object() : code(error_code_t::OK), err_msg("") {};
+  error_object(error_code_t err, std::string msg)
+      : code(err), err_msg(std::move(msg)) {};
+
+  error_code_t get_code() const { return code; }
+
+  const std::string &get_message() const { return err_msg; }
+
+  bool is_good() const { return code == error_code_t::OK; }
+
+  bool is_bad() const { return !is_good(); }
+
+  bool operator==(error_code_t compare_code) const {
+    return code == compare_code;
+  }
+
+  bool operator!=(error_code_t compare_code) const {
+    return code != compare_code;
+  }
+
+} error_t;
+
+static inline std::ostream &operator<<(std::ostream &os,
+                                       const error_code_t &mode) {
+  os << to_string(mode);
+  return os;
+}
+
+static inline std::ostream &operator<<(std::ostream &os, error_object &err) {
+  os << err.get_code() << err.get_message();
+  return os;
+}
 
 inline bool &isLoggingEnabled() {
   static bool log_enabled = []() -> bool {
@@ -79,7 +135,6 @@ inline ConditionalStreamer &getLogger() {
   return logger;
 }
 
-} // namespace logging
 } // namespace fusili
 
 // Macros starting with _ are for testing purposes as they allow
@@ -87,9 +142,26 @@ inline ConditionalStreamer &getLogger() {
 #define FUSILI_LOG(X) getLogger() << X
 #define _FUSILI_LOG(X, logger) logger << X
 
+#define FUSILI_LOG_ENDL(X) getLogger() << X << std::endl
+#define _FUSILI_LOG_ENDL(X, logger) logger << X << std::endl
+
 #define FUSILI_LOG_LABEL(X) getLogger() << "[FUSILI] " << X
 #define _FUSILI_LOG_LABEL(X, logger) logger << "[FUSILI] " << X
 
 #define FUSILI_LOG_LABEL_ENDL(X) getLogger() << "[FUSILI] " << X << std::endl
 #define _FUSILI_LOG_LABEL_ENDL(X, logger)                                      \
   logger << "[FUSILI] " << X << std::endl
+
+#define FUSILI_RETURN_ERROR_IF(cond, retval, message)                          \
+  do {                                                                         \
+    if (cond) {                                                                \
+      if (retval == error_code_t::OK) {                                        \
+        FUSILI_LOG_LABEL("INFO: ");                                            \
+      } else {                                                                 \
+        FUSILI_LOG_LABEL("ERROR: ");                                           \
+      }                                                                        \
+      FUSILI_LOG_ENDL(retval << ": " << message << ": (" << #cond ") at "      \
+                             << __FILE__ << ":" << __LINE__);                  \
+      return {retval, message};                                                \
+    }                                                                          \
+  } while (false);
