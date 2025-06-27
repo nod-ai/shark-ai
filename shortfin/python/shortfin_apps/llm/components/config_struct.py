@@ -91,12 +91,11 @@ class PagedKVCacheParams:
     sense of scale only: real workloads will vary.
     """
 
+    # Number of blocks per device for kvcache
+    paged_kv_block_size_elements_per_device: list[int]
+
     # Tokens per page.
     block_seq_stride: int
-
-    # Number of attention heads per block. This can be different from the model's
-    # attention head count due to sharing.
-    attention_head_count_kv: int
 
     # Size of the cache on each device.
     # Default: 256
@@ -183,28 +182,6 @@ class ModelParams:
     @property
     def has_paged_kv_cache(self):
         return self.paged_kv_cache is not None
-
-    @property
-    def paged_kv_unit_size_elements(self) -> int:
-        """Size in elements of each cache line in the attention cache.
-
-        Each cache line can store a unit position stride.
-        """
-        assert self.has_paged_kv_cache
-        size = 1
-        size *= self.transformer_block_count
-        size *= 2  # K and V cache line
-        size *= self.paged_kv_cache.attention_head_count_kv
-        size *= self.attn_head_dim
-        return size
-
-    @property
-    def paged_kv_block_size_elements(self) -> int:
-        """Size in elements of each attention block of {block_position_stride}
-        positions.
-        """
-        assert self.paged_kv_cache is not None
-        return self.paged_kv_unit_size_elements * self.paged_kv_cache.block_seq_stride
 
     @staticmethod
     def load_json(path: Path | str):

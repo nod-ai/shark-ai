@@ -6,7 +6,7 @@
 
 import pytest
 import logging
-from shortfin_apps.llm.components.kvcache.page_pool import PagePool, PagePoolConfig
+from shortfin_apps.llm.components.kvcache.page_pool import PagePool
 import shortfin as sf
 import shortfin.host
 import shortfin.array as sfnp
@@ -19,11 +19,9 @@ logger = logging.getLogger(__name__)
 def setup_pool(generic_device):
     pool = PagePool(
         devices=[generic_device],
-        config=PagePoolConfig(
-            alloc_page_count=256,
-            dtype=sfnp.float16,
-            paged_kv_block_size_elements=393216,
-        ),
+        dtype=sfnp.float16,
+        alloc_page_count=256,
+        paged_kv_block_size_elements_per_device=[393216],
     )
     return pool
 
