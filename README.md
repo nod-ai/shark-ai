@@ -131,7 +131,7 @@
 | sharktank/sharktank/utils/debugging.py                                        |       91 |       29 |     68% |46-63, 67-74, 81-83, 127, 138 |
 | sharktank/sharktank/utils/evaluate.py                                         |       63 |       33 |     48% |32-51, 55, 69-88, 126-145 |
 | sharktank/sharktank/utils/export.py                                           |       70 |        2 |     97% |  179, 212 |
-| sharktank/sharktank/utils/export\_artifacts.py                                |      170 |      117 |     31% |22, 39-47, 61, 68, 75, 82, 89, 121-153, 207-226, 244-251, 255-273, 285-301, 325-360, 384-414, 438-451, 477-503, 525-527 |
+| sharktank/sharktank/utils/export\_artifacts.py                                |      172 |      119 |     31% |22, 39-47, 61, 68, 75, 82, 89, 121-153, 207-226, 244-251, 255-273, 285-301, 325-360, 384-420, 444-457, 483-509, 531-533 |
 | sharktank/sharktank/utils/hf.py                                               |       35 |       24 |     31% |26-54, 64-78 |
 | sharktank/sharktank/utils/hf\_datasets.py                                     |       75 |       22 |     71% |37-55, 65, 73, 82-83, 88, 478-496, 500 |
 | sharktank/sharktank/utils/io.py                                               |       39 |        9 |     77% |65-72, 83-86 |
@@ -213,7 +213,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |       63 |        3 |     95% |   226-238 |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **19807** | **4089** | **79%** |           |
+|                                                                     **TOTAL** | **19809** | **4091** | **79%** |           |
 
 
 ## Setup coverage badge
