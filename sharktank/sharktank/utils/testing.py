@@ -27,6 +27,7 @@ from sys import platform
 from datasets import load_dataset
 
 from sharktank.types import *
+from sharktank.types.pipelining import pipeline_parallelize_theta
 from .math import cosine_similarity
 
 # TODO: ci-sharktank-nightly should run all nightly CIs and ci-sharktank/test-mi300x should run all pre-submits
@@ -151,33 +152,64 @@ class IreeVsEagerLLMTester:
         self.config = config
         self.skip_decode = skip_decode
 
+        parallelism_size = (
+            self.config.tensor_parallelism_size * self.config.pipeline_parallelism_size
+        )
+        rank_shard = ".rank0" if parallelism_size > 1 else ""
+        rank_pipeline = ""
+        if self.config.pipeline_parallelism_size > 1:
+            rank_pipeline = "_0"
+
         # NOTE: These paths must match those used by load_llm.py::Batch when it dumps the values
         self.prefill_iree_logits_path = [work_dir / "prefill_iree_logits.npy"]
         self.prefill_eager_logits_path = work_dir / "prefill_eager_logits.npy"
-        self.prefill_token_ids_path = work_dir / "prefill_token_ids.npy"
+        self.prefill_token_ids_path = work_dir / f"prefill_token_ids{rank_shard}.npy"
         self.prefill_seq_lens_path = work_dir / "prefill_seq_lens.npy"
-        self.prefill_seq_block_ids_path = work_dir / "prefill_seq_block_ids.npy"
+        self.prefill_seq_block_ids_path = (
+            work_dir / f"prefill_seq_block_ids{rank_pipeline}{rank_shard}.npy"
+        )
+
+        # prefill_token_ids_0.rank0.npy
+        # prefill_token_ids.rank0.npy
 
         # NOTE: The _0 is required to match load_llm.py::Batch's syntax.
         self.decode_iree_results_path = [work_dir / "decode_iree_logits.npy"]
         self.decode_eager_logits_path = work_dir / "decode_eager_logits_0.npy"
-        self.decode_next_tokens_path = work_dir / "decode_next_tokens_0.npy"
+        self.decode_next_tokens_path = (
+            work_dir / f"decode_next_tokens_0{rank_shard}.npy"
+        )
         self.decode_seq_lens_path = work_dir / "decode_seq_lens_0.npy"
-        self.decode_seq_block_ids_path = work_dir / "decode_seq_block_ids_0.npy"
-        self.decode_start_positions_path = work_dir / "decode_start_positions_0.npy"
+        self.decode_seq_block_ids_path = (
+            work_dir / f"decode_seq_block_ids{rank_pipeline}_0{rank_shard}.npy"
+        )
+        self.decode_start_positions_path = (
+            work_dir / f"decode_start_positions{rank_pipeline}_0{rank_shard}.npy"
+        )
 
         self.prefill_cache_state_paths = []
         self.decode_cache_state_paths = []
-        for i in range(
-            self.config.pipeline_parallelism_size * self.config.tensor_parallelism_size
-        ):
-            piece = f"_{i}" if i > 0 else ""
-            prefill_name = f"prefill_cache_state{piece}.npy"
-            decode_name = f"decode_cache_state_0{piece}.npy"  # _0 is required
-            self.prefill_cache_state_paths.append(work_dir / prefill_name)
-            self.decode_cache_state_paths.append(work_dir / decode_name)
+        if parallelism_size == 1:
+            # If we are not using parallelism, we only need one cache state file
+            self.prefill_cache_state_paths.append(work_dir / "prefill_cache_state.npy")
+            self.decode_cache_state_paths.append(work_dir / "decode_cache_state_0.npy")
+        else:
+            for pp in range(self.config.pipeline_parallelism_size):
+                for tp in range(self.config.tensor_parallelism_size):
+                    tp_rank = f".rank{tp}"
+                    pp_rank = ""
+                    if config.pipeline_parallelism_size > 1:
+                        pp_rank = f"_{pp}"
+                    prefill_name = f"prefill_cache_state{pp_rank}{tp_rank}.npy"
+                    decode_name = f"decode_cache_state{pp_rank}_0{tp_rank}.npy"
+                    self.prefill_cache_state_paths.append(work_dir / prefill_name)
+                    self.decode_cache_state_paths.append(work_dir / decode_name)
 
         self.dataset_path = work_dir / "parameters.irpa"
+
+        if self.config.tensor_parallelism_size > 1:
+            from sharktank.types.sharding import shard_theta
+
+            theta = shard_theta(theta=theta, config=config)
 
         Dataset(root_theta=theta, properties=self.config.to_properties()).save(
             path=self.dataset_path
@@ -191,6 +223,13 @@ class IreeVsEagerLLMTester:
             output_name=work_dir / "model",
             use_attention_mask=True,
         )
+
+        # Note: Must be after saving the dataset and creating the exporter but before moving theta to the provided device.
+        block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
+            theta, self.config.pipeline_parallelism_size
+        )
+        self.config.block_to_pipeline_map = block_to_pipeline
+        self.config.pipeline_to_device_map = pipeline_to_devices
 
         self.config.device = torch.device(torch_device)  # Switch to gpu for eager mode
         theta_for_eager = theta.to(device=self.config.device)
