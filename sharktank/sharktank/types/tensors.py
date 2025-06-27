@@ -517,11 +517,16 @@ class InferenceTensor(ABC):
         return sum(self, dim=dim, keepdim=keepdim, dtype=dtype)
 
     def topk(
-        self, k: int, dim: int, largest: bool = True, sorted: bool = True
+        self,
+        k: int,
+        dim: int,
+        largest: bool = True,
+        sorted: bool = True,
+        use_linalgext_topk: bool = False,
     ) -> Tuple["AnyTensor"]:
         from sharktank.ops import topk
 
-        return topk(self, k, dim, largest, sorted)
+        return topk(self, k, dim, largest, sorted, use_linalgext_topk)
 
     def transpose(self, dim0: int, dim1: int) -> "AnyTensor":
         from sharktank.ops import transpose
