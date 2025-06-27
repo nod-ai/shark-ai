@@ -104,7 +104,6 @@ class LlamaHParams:
         default_interleave_moe_layer_step = None
         default_rope_freq_base = 500000.0
         default_rope_dimension_count = 128
-
         attention_head_count = _int_prop(p, f"{name_prefix}.attention.head_count")
         rope_dimension_count = _optional_int_prop(
             p, f"{name_prefix}.rope.dimension_count", default_rope_dimension_count

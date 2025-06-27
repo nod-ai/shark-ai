@@ -23,9 +23,6 @@ from sharktank.utils import cli
 
 # TODO: Should be using a base class with the protocol supported.
 from sharktank.models.llm import *
-import sys, inspect
-
-print(">> RUNNING:", __file__)
 
 
 def main():
