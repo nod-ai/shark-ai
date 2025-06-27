@@ -7,7 +7,7 @@
 import math
 import torch
 
-from sharktank.layers import RotaryEmbeddingLayer
+from sharktank.layers.rotary_embedding import build_rotary_layer
 
 
 def validate(xq, em, rope_dims, rope_freq_base, interleaved):
@@ -73,7 +73,7 @@ def test_sharded_rotary_table_interleaved():
 
     # First we setup and get the default rotary embedding layer
     xq = torch.rand((bs, max_seqlen, heads, rope_dims), dtype=torch.float)
-    default_layer = RotaryEmbeddingLayer(
+    default_layer = build_rotary_layer(
         rope_dimension_count=rope_dims,
         max_seqlen=max_seqlen,
         rope_freq_base=rope_freq_base,
@@ -98,7 +98,7 @@ def test_sharded_rotary_table_concatted():
 
     # First we setup and get the default rotary embedding layer
     xq = torch.rand((bs, max_seqlen, heads, rope_dims), dtype=torch.float)
-    default_layer = RotaryEmbeddingLayer(
+    default_layer = build_rotary_layer(
         rope_dimension_count=rope_dims,
         max_seqlen=max_seqlen,
         rope_freq_base=rope_freq_base,

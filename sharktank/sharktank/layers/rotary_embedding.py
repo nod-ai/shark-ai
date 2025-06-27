@@ -11,11 +11,117 @@ import torch
 from .base import BaseLayer
 from sharktank import ops, kernels
 from sharktank.types import (
+    ShardedTensor,
     SplitPrimitiveTensor,
     ReplicatedTensor,
     ShardedTensor,
     unbox_tensor,
 )
+
+
+def build_rotary_layer(
+    tensor_parallelism_size: int = 1,
+    pipeline_parallelism: bool = False,
+    devices=None,
+    **kwargs,
+):
+    rotary_layer = RotaryEmbeddingLayer(**kwargs)
+    return ShardedRotaryLayer(
+        tensor_parallelism_size=tensor_parallelism_size,
+        pipeline_parallelism=pipeline_parallelism,
+        rotary_layer=rotary_layer,
+        devices=devices,
+    )
+
+
+# We wrap a shardless rotary layer so the sharding behavior can be handled independently of the numerics.
+class ShardedRotaryLayer(BaseLayer):
+    def __init__(
+        self,
+        *,
+        tensor_parallelism_size: int,
+        pipeline_parallelism: bool,
+        rotary_layer,
+        devices,
+    ):
+        super().__init__()
+        self._pipeline_parallelism = pipeline_parallelism
+        self._tensor_parallelism_size = tensor_parallelism_size
+        self._rotary_layer = rotary_layer
+        self._devices = (
+            devices
+            if devices is not None
+            else tuple(range(self._tensor_parallelism_size))
+        )
+
+    def rotary_embed_table(self):
+        t = self._rotary_layer.create_rotary_embed_table()
+        if self._tensor_parallelism_size > 1 or self._pipeline_parallelism:
+            # Replicate across all devices, the data is not a lot and the computation is cheap.
+            t = ops.replicate(t, self._tensor_parallelism_size, devices=self._devices)
+
+        return t
+
+    def forward(
+        self,
+        *,
+        xt: Union[torch.Tensor, ShardedTensor],
+        start_index: int,
+    ):
+        table = self.rotary_embed_table()
+
+        if not isinstance(table, ShardedTensor):
+            return self._rotary_layer(
+                xt=xt, start_index=start_index, rotary_embed_table=table
+            )
+
+        shards = [
+            self._rotary_layer(xt=xs, start_index=start_index, rotary_embed_table=ts)
+            for xs, ts in zip(xt.shards, table.shards)
+        ]
+        return xt.clone(ts=shards)
+
+    def compute_batch_mask(
+        self, start_positions: Union[torch.Tensor, ShardedTensor], batch_seq_len: int
+    ) -> torch.Tensor:
+        if isinstance(start_positions, ShardedTensor):
+            shards = []
+            table = self.rotary_embed_table()
+            for s, ts in zip(start_positions.shards, table.shards):
+                shard = self._rotary_layer.compute_batch_mask(
+                    start_positions=s,
+                    batch_seq_len=batch_seq_len,
+                    rotary_embed_table=ts,
+                )
+                shards.append(shard)
+
+            return start_positions.clone(ts=shards)
+
+        return self._rotary_layer.compute_batch_mask(
+            start_positions=start_positions,
+            batch_seq_len=batch_seq_len,
+            rotary_embed_table=self.rotary_embed_table(),
+        )
+
+    def apply_batched_mask(
+        self,
+        *,
+        xt: Union[torch.Tensor, SplitPrimitiveTensor, ReplicatedTensor],
+        mask: Union[torch.Tensor, ReplicatedTensor],
+    ) -> Union[SplitPrimitiveTensor, ReplicatedTensor]:
+
+        if not isinstance(xt, ShardedTensor):
+            return self._rotary_layer.apply_batched_mask(xt=xt, mask=mask)
+
+        assert isinstance(mask, ReplicatedTensor) and mask.shard_count == xt.shard_count
+        xt_shards = [
+            self._rotary_layer.apply_batched_mask(
+                xt=unbox_tensor(xt_shard),
+                mask=unbox_tensor(mask_shard),
+            )
+            for xt_shard, mask_shard in zip(xt.shards, mask.shards)
+        ]
+        return xt.clone(ts=xt_shards)
 
 
 class RotaryEmbeddingLayer(BaseLayer):
@@ -30,10 +136,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         device: Optional[torch.device] = None,
         use_hf: bool = False,
         use_table: bool = True,
-        tensor_parallelism_size: int = 1,
-        pipeline_parallelism: bool = False,
         dtype: torch.dtype = torch.float32,
-        devices: tuple[int, ...] | None = None,
         yarn_beta_slow: float | None = None,
         yarn_beta_fast: float | None = None,
         yarn_factor: float | None = None,
@@ -52,105 +155,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         self.yarn_beta_fast = yarn_beta_fast
         self.yarn_factor = yarn_factor
         self.yarn_original_context_len = yarn_original_context_len
-        self.tensor_parallelism_size = tensor_parallelism_size
-        self.pipeline_parallelism = pipeline_parallelism
-        self.devices = (
-            devices
-            if devices is not None
-            else tuple(range(self.tensor_parallelism_size))
-        )
         self.model_arch = model_arch
-
-    @property
-    def rotary_embed_table(self):
-        return self._create_rotary_embed_table()
-
-    def forward(
-        self,
-        *,
-        xt: Union[torch.Tensor, ShardedTensor],
-        start_index: int,
-    ):
-        table = self.rotary_embed_table
-        if isinstance(xt, ReplicatedTensor):
-            return ReplicatedTensor(
-                ts=[
-                    self.forward_unsharded(
-                        xt=unbox_tensor(s),
-                        start_index=start_index,
-                        rotary_embed_table=unbox_tensor(t),
-                    )
-                    for s, t in zip(xt.shards, table.shards)
-                ],
-                devices=table.devices,
-            )
-
-        if not isinstance(xt, ShardedTensor):
-            return self.forward_unsharded(
-                xt=xt,
-                start_index=start_index,
-                rotary_embed_table=table,
-            )
-
-        if isinstance(xt, SplitPrimitiveTensor):
-            assert (
-                not self.use_hf or xt.shard_dim == len(xt.shape) - 1
-            ), "We rotate the last dim in that case causing awkwardness, so sharding it is disallowed"
-            assert (
-                isinstance(table, ShardedTensor) and xt.shard_count == table.shard_count
-            )
-            rotary_shards = [unbox_tensor(shard) for shard in table.shards]
-
-            xt_shards = [
-                self.forward_unsharded(
-                    xt=unbox_tensor(xt_shard),
-                    start_index=start_index,
-                    rotary_embed_table=rotary_shard,
-                )
-                for xt_shard, rotary_shard in zip(xt.shards, rotary_shards)
-            ]
-            return xt.clone(ts=xt_shards)
-
-        raise NotImplementedError(
-            f"Rotary embedding layer not implemented for input tensor type {type(xt)}"
-        )
-
-    def _create_interleaved_tensor(_, dim):
-        """Creates a tensor which indexes an tensor such that
-        it alternates between elements of its first and second
-        half. Intended for use for HuggingFace's rotation
-        implementation.
-
-        Args:
-          dim: Size of tensor
-
-        Returns:
-          Interleaved indexing tensor
-        """
-        first_half = torch.arange(dim // 2)
-        second_half = torch.arange(dim // 2, dim)
-
-        interleaved_tensor = torch.empty(dim, dtype=torch.long)
-        interleaved_tensor[0::2] = first_half
-        interleaved_tensor[1::2] = second_half
-
-        return interleaved_tensor
-
-    def _create_ordering_tensor(_, dim):
-        """Creates a tensor which indexes an tensor such that
-        it reverses the alternation induced by create_interleaved_tesnor.
-        Intended for use for HuggingFace's rotation implementation.
-
-        Args:
-          dim: Size of tensor
-
-        Returns:
-          Ordering indexing tensor
-        """
-        order_tensor = torch.empty(dim, dtype=torch.long)
-        order_tensor[: dim // 2] = torch.arange(0, dim, 2)
-        order_tensor[dim // 2 :] = torch.arange(1, dim, 2)
-        return order_tensor
 
     @staticmethod
     def rotate_half(x):
@@ -159,7 +164,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         x2 = x[..., x.shape[-1] // 2 :]
         return torch.cat((-x2, x1), dim=-1)
 
-    def forward_unsharded(
+    def forward(
         self,
         *,
         xt: torch.Tensor,
@@ -204,7 +209,7 @@ class RotaryEmbeddingLayer(BaseLayer):
             freqs_cis = freqs_cis[0:sl, :]
         else:
             freqs_cis = torch.arange(sl, device=xt.device) + start_index
-            freqs_cis = self._compute_rotary_embed_table(freqs_cis)
+            freqs_cis = self.compute_rotary_embed_table(freqs_cis)
 
         assert (
             freqs_cis.shape[0] >= sl
@@ -216,7 +221,10 @@ class RotaryEmbeddingLayer(BaseLayer):
         return ops.to(xt_out, xt.dtype)
 
     def compute_batch_mask(
-        self, start_positions: Union[torch.Tensor, ReplicatedTensor], batch_seq_len: int
+        self,
+        start_positions: Union[torch.Tensor, ReplicatedTensor],
+        batch_seq_len: int,
+        rotary_embed_table: torch.Tensor,
     ) -> torch.Tensor:
         # TODO: I'm pretty sure this function is only correct because batch_seq_len is always 1
         """Computes a mask for a batch that can be repeatedly applied.
@@ -236,46 +244,19 @@ class RotaryEmbeddingLayer(BaseLayer):
         self.trace_tensor("rope.positions_seq", positions_seq)
         if self.use_hf:
             assert self.use_table, "use_hf requires use_table"
-            freqs_cis = self.rotary_embed_table
+            freqs_cis = rotary_embed_table
             cos, sin = [x[positions_seq.flatten(), :] for x in freqs_cis]
             freqs_cis = (cos[:, None, None, :], sin[:, None, None, :])
             return freqs_cis
 
         if self.use_table:
-            freqs_cis = self.rotary_embed_table[positions_seq.flatten()]
+            freqs_cis = rotary_embed_table[positions_seq.flatten()]
         else:
-            shape = positions_seq.shape
-            if isinstance(positions_seq, ReplicatedTensor):
-                ts = [
-                    self._compute_rotary_embed_table(s.flatten()).unflatten(0, shape)
-                    for s in positions_seq.shards
-                ]
-                freqs_cis = ReplicatedTensor(ts=ts)
-            else:
-                freqs_cis = self._compute_rotary_embed_table(positions_seq.flatten())
+            freqs_cis = self.compute_rotary_embed_table(positions_seq.flatten())
 
         return freqs_cis.unsqueeze(1)
 
-    def apply_batched_mask(
-        self,
-        *,
-        xt: Union[torch.Tensor, SplitPrimitiveTensor, ReplicatedTensor],
-        mask: Union[torch.Tensor, ReplicatedTensor],
-    ) -> Union[SplitPrimitiveTensor, ReplicatedTensor]:
-        if not isinstance(xt, ShardedTensor):
-            return self.apply_batched_mask_unsharded(xt=xt, mask=mask)
-
-        assert isinstance(mask, ReplicatedTensor) and mask.shard_count == xt.shard_count
-        xt_shards = [
-            self.apply_batched_mask_unsharded(
-                xt=unbox_tensor(xt_shard),
-                mask=unbox_tensor(mask_shard),
-            )
-            for xt_shard, mask_shard in zip(xt.shards, mask.shards)
-        ]
-        return xt.clone(ts=xt_shards)
-
-    def apply_batched_mask_unsharded(self, *, xt: torch.Tensor, mask: torch.Tensor):
+    def apply_batched_mask(self, *, xt: torch.Tensor, mask: torch.Tensor):
         """Applies the embedding to a ragged batch of queries and keys.
 
         This does a more complicated indexing operation for cases when the each
@@ -333,7 +314,7 @@ class RotaryEmbeddingLayer(BaseLayer):
             freqs = torch.where(is_medium_freq, smoothed_inv_freq, inv_freq_llama)
         return freqs
 
-    def _compute_rotary_embed_table(self, t):
+    def compute_rotary_embed_table(self, t):
         dim = self.rope_dimension_count
         if self.use_hf:
 
@@ -356,14 +337,6 @@ class RotaryEmbeddingLayer(BaseLayer):
         freqs = (t.unsqueeze(1) * freqs.unsqueeze(0)).float()
         return freqs
 
-    def _create_rotary_embed_table(self):
+    def create_rotary_embed_table(self):
         t = torch.arange(self.max_seqlen, device=self.device)
-        freqs_cis = self._compute_rotary_embed_table(t)
-        return self._replicate(freqs_cis)
-
-    def _replicate(self, t):
-        if self.tensor_parallelism_size > 1 or self.pipeline_parallelism:
-            # Replicate across all devices, the data is not a lot and the computation is cheap.
-            t = ops.replicate(t, self.tensor_parallelism_size, devices=self.devices)
-
-        return t
+        return self.compute_rotary_embed_table(t)
