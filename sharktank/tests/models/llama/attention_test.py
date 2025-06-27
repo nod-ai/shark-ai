@@ -85,6 +85,10 @@ class AttentionBlockTest(unittest.TestCase):
             max_seqlen=max_seq_len,
             device="cpu",
             use_hf=True,
+            yarn_beta_slow=1,
+            yarn_beta_fast=4,
+            yarn_factor=8,
+            yarn_original_context_len=8192,
         )
         position_embeddings = attention_embedding.rotary_embed_table
         input_tensor = make_rand_torch(

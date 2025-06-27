@@ -29,12 +29,15 @@ class RotaryEmbeddingLayer(BaseLayer):
         rope_freq_base: Optional[float],
         device: Optional[torch.device] = None,
         use_hf: bool = False,
-        rope_scaling_type: Optional[str] = None,
         use_table: bool = True,
         tensor_parallelism_size: int = 1,
         pipeline_parallelism: bool = False,
         dtype: torch.dtype = torch.float32,
         devices: tuple[int, ...] | None = None,
+        yarn_beta_slow: float | None = None,
+        yarn_beta_fast: float | None = None,
+        yarn_factor: float | None = None,
+        yarn_original_context_len: int | None = None,
         model_arch: Optional[str] = None,
     ):
         super().__init__()
@@ -42,10 +45,13 @@ class RotaryEmbeddingLayer(BaseLayer):
         self.rope_dimension_count = rope_dimension_count
         self.max_seqlen = max_seqlen
         self.use_hf = use_hf
-        self.rope_scaling_type = rope_scaling_type
         self.use_table = use_table
         self.dtype = dtype
         self.rope_freq_base = rope_freq_base if rope_freq_base is not None else 10000.0
+        self.yarn_beta_slow = yarn_beta_slow
+        self.yarn_beta_fast = yarn_beta_fast
+        self.yarn_factor = yarn_factor
+        self.yarn_original_context_len = yarn_original_context_len
         self.tensor_parallelism_size = tensor_parallelism_size
         self.pipeline_parallelism = pipeline_parallelism
         self.devices = (
@@ -290,6 +296,43 @@ class RotaryEmbeddingLayer(BaseLayer):
 
         return xt_out.type_as(xt)
 
+    def _apply_yarn(self, freqs):
+        yarn_factor = self.yarn_factor
+        yarn_beta_slow = self.yarn_beta_slow
+        yarn_beta_fast = self.yarn_beta_fast
+        yarn_original_context_len = self.yarn_original_context_len
+        reqs = [
+            yarn_factor,
+            yarn_beta_fast,
+            yarn_beta_slow,
+            yarn_original_context_len,
+        ]
+        any_yarn = any([a is not None for a in reqs])
+        use_yarn = all([a is not None for a in reqs])
+        assert any_yarn == use_yarn
+
+        if use_yarn:
+            low_freq_wavelen = yarn_original_context_len / yarn_beta_slow
+            high_freq_wavelen = yarn_original_context_len / yarn_beta_fast
+
+            inv_freq = freqs
+            wavelen = 2 * torch.pi / inv_freq
+            inv_freq_llama = torch.where(
+                wavelen > low_freq_wavelen, inv_freq / yarn_factor, inv_freq
+            )
+
+            smooth_factor = (yarn_original_context_len / wavelen - yarn_beta_slow) / (
+                yarn_beta_fast - yarn_beta_slow
+            )
+            smoothed_inv_freq = (
+                1 - smooth_factor
+            ) * inv_freq_llama / yarn_factor + smooth_factor * inv_freq_llama
+            is_medium_freq = ~(wavelen < high_freq_wavelen) * ~(
+                wavelen > low_freq_wavelen
+            )
+            freqs = torch.where(is_medium_freq, smoothed_inv_freq, inv_freq_llama)
+        return freqs
+
     def _compute_rotary_embed_table(self, t):
         dim = self.rope_dimension_count
         if self.use_hf:
@@ -298,33 +341,7 @@ class RotaryEmbeddingLayer(BaseLayer):
                 self.rope_freq_base
                 ** (torch.arange(0, dim, 2, dtype=torch.int64).float() / dim)
             )
-            ### from llama3 embedding changes
-            # TODO: get these values from Dataset
-            factor = 8  # in the original implementation
-            low_freq_factor = 1  # in the original implementation
-            high_freq_factor = 4
-            old_context_len = 8192
-
-            low_freq_wavelen = old_context_len / low_freq_factor
-            high_freq_wavelen = old_context_len / high_freq_factor
-
-            inv_freq = freqs
-            wavelen = 2 * torch.pi / inv_freq
-            inv_freq_llama = torch.where(
-                wavelen > low_freq_wavelen, inv_freq / factor, inv_freq
-            )
-
-            smooth_factor = (old_context_len / wavelen - low_freq_factor) / (
-                high_freq_factor - low_freq_factor
-            )
-            smoothed_inv_freq = (
-                1 - smooth_factor
-            ) * inv_freq_llama / factor + smooth_factor * inv_freq_llama
-            is_medium_freq = ~(wavelen < high_freq_wavelen) * ~(
-                wavelen > low_freq_wavelen
-            )
-            freqs = torch.where(is_medium_freq, smoothed_inv_freq, inv_freq_llama)
-
+            freqs = self._apply_yarn(freqs)
             freqs = torch.cat((freqs, freqs), dim=-1).to(device=self.device)
             emb = t.unsqueeze(1).float() * freqs.unsqueeze(0).float()
 
@@ -335,6 +352,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         freqs = 1.0 / (
             self.rope_freq_base ** ((torch.arange(0, dim) // 2).float() / dim * 2.0)
         ).to(device=self.device)
+        freqs = self._apply_yarn(freqs)
         freqs = (t.unsqueeze(1) * freqs.unsqueeze(0)).float()
         return freqs
 
