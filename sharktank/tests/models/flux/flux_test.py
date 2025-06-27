@@ -71,7 +71,7 @@ def convert_input_dtype(input: dict[str, torch.Tensor], dtype: torch.dtype):
     )
 
 
-@pytest.mark.usefixtures("path_prefix", "get_iree_flags")
+@pytest.mark.usefixtures("path_prefix", "iree_flags")
 class FluxTest(TempDirTestBase):
     def setUp(self):
         super().setUp()

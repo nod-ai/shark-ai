@@ -42,7 +42,7 @@ from iree.turbine.aot import FxProgramsBuilder, export
 import iree
 
 
-@pytest.mark.usefixtures("caching", "path_prefix", "get_iree_flags")
+@pytest.mark.usefixtures("caching", "path_prefix", "iree_flags")
 class ShardedLlamaTest(unittest.TestCase):
     def setUp(self):
         torch.random.manual_seed(123456)
