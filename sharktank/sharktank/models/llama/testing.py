@@ -64,8 +64,8 @@ def make_attention_block_ffn_theta_v2(
     head_dim: int,
     embedding_length: int,
     feed_forward_length: int,
-    dtype_lo: torch.dtype,
-    dtype_hi: torch.dtype,
+    dtype_rest: torch.dtype,
+    dtype_norm: torch.dtype,
 ) -> Theta:
     attention_theta = make_llama_attention_block_theta(
         block_idx=block_idx,
@@ -73,15 +73,15 @@ def make_attention_block_ffn_theta_v2(
         head_count_kv=head_count_kv,
         head_dim=head_dim,
         embedding_length=embedding_length,
-        dtype=dtype_lo,
-        dtype_norm=dtype_hi,
+        dtype=dtype_rest,
+        dtype_norm=dtype_norm,
     )
     ffn_theta = make_ffn_block_theta(
         block_idx=block_idx,
         embedding_length=embedding_length,
         feed_forward_length=feed_forward_length,
-        dtype_norm=dtype_hi,
-        dtype=dtype_lo,
+        dtype_norm=dtype_norm,
+        dtype=dtype_rest,
     )
     res_dict = attention_theta.tree
     res_dict.update(ffn_theta.tree)
@@ -91,8 +91,8 @@ def make_attention_block_ffn_theta_v2(
 def make_attention_moe_block_random_theta(
     block_idx: int,
     config: LlamaModelConfig,
-    dtype_lo: torch.dtype,
-    dtype_hi: torch.dtype,
+    dtype_rest: torch.dtype,
+    dtype_norm: torch.dtype,
 ) -> Theta:
     res_dict = {}
     attention_theta = make_llama_attention_block_theta(
@@ -101,8 +101,8 @@ def make_attention_moe_block_random_theta(
         head_count_kv=config.hp.attention_head_count_kv,
         head_dim=config.hp.attn_head_dim,
         embedding_length=config.hp.embedding_length,
-        dtype=dtype_lo,
-        dtype_norm=dtype_hi,
+        dtype=dtype_rest,
+        dtype_norm=dtype_norm,
     )
     res_dict.update(attention_theta.tree)
     moe_theta = make_random_moe_block_theta(
@@ -113,8 +113,8 @@ def make_attention_moe_block_random_theta(
         with_ffn_norm=True,
         num_shared_experts=config.hp.expert_shared_count,
         with_layer_output_norm=False,
-        dtype_lo=dtype_lo,
-        dtype_hi=dtype_hi,
+        dtype_rest=dtype_rest,
+        dtype_norm=dtype_norm,
     )
     res_dict.update(moe_theta.tree)
     return Theta(res_dict)
@@ -123,8 +123,8 @@ def make_attention_moe_block_random_theta(
 def make_random_llama_theta(
     config: LlamaModelConfig,
     vocab_size: Optional[int] = None,
-    dtype_lo: torch.dtype = torch.float16,
-    dtype_hi: torch.dtype = torch.float32,
+    dtype_rest: torch.dtype = torch.float16,
+    dtype_norm: torch.dtype = torch.float32,
 ) -> Theta:
     if vocab_size is None:
         vocab_size = config.hp.vocab_size
@@ -133,7 +133,7 @@ def make_random_llama_theta(
         "token_embd.weight": DefaultPrimitiveTensor(
             name="token_embd.weight",
             data=make_rand_torch(
-                (vocab_size, config.hp.embedding_length), dtype=dtype_lo
+                (vocab_size, config.hp.embedding_length), dtype=dtype_rest
             ),
         )
     }
@@ -142,7 +142,7 @@ def make_random_llama_theta(
         if is_moe_block:
             # This is used in Llama 4.
             block = make_attention_moe_block_random_theta(
-                config=config, block_idx=i, dtype_lo=dtype_lo, dtype_hi=dtype_hi
+                config=config, block_idx=i, dtype_rest=dtype_rest, dtype_norm=dtype_norm
             ).tree
         else:
             block = make_attention_block_ffn_theta_v2(
@@ -152,18 +152,20 @@ def make_random_llama_theta(
                 head_dim=config.hp.attn_head_dim,
                 embedding_length=config.hp.embedding_length,
                 feed_forward_length=config.hp.feed_forward_length,
-                dtype_lo=dtype_lo,
-                dtype_hi=dtype_hi,
+                dtype_rest=dtype_rest,
+                dtype_norm=dtype_norm,
             ).tree
         res[f"blk.{i}"] = block
 
     res[f"output.weight"] = DefaultPrimitiveTensor(
         name="output.weight",
-        data=make_rand_torch((vocab_size, config.hp.embedding_length), dtype=dtype_lo),
+        data=make_rand_torch(
+            (vocab_size, config.hp.embedding_length), dtype=dtype_rest
+        ),
     )
     res[f"output_norm.weight"] = DefaultPrimitiveTensor(
         name="output_norm.weight",
-        data=make_rand_torch((1, config.hp.embedding_length), dtype=dtype_hi),
+        data=make_rand_torch((1, config.hp.embedding_length), dtype=dtype_norm),
     )
 
     return Theta(res)

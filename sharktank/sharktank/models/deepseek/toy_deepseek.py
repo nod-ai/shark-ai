@@ -19,8 +19,8 @@ parser.add_argument("-o", "--output", default="/tmp/toy_deepseek.irpa")
 
 def generate(
     seed: int,
-    dtype_lo: torch.dtype = torch.float16,
-    dtype_hi: torch.dtype = torch.float32,
+    dtype_rest: torch.dtype = torch.float16,
+    dtype_norm: torch.dtype = torch.float32,
 ) -> tuple[Theta, LlamaModelConfig]:
     torch.manual_seed(seed=seed)
 
@@ -65,15 +65,15 @@ def generate(
             route_scale=2.5,
         ),
         block_seq_stride=block_seq_stride,
-        activation_dtype=dtype_hi,
-        attention_dtype=dtype_hi,
+        activation_dtype=dtype_norm,
+        attention_dtype=dtype_norm,
     )
 
     theta = make_random_deepseek_theta(
         config=config,
         vocab_size=vocabulary_size,
-        dtype_hi=dtype_hi,
-        dtype_lo=dtype_lo,
+        dtype_rest=dtype_rest,
+        dtype_norm=dtype_norm,
     )
     return theta, config
 

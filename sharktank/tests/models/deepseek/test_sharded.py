@@ -50,7 +50,7 @@ class DeepseekShardedTest(TempDirTestBase):
         pipeline_parallelism_size: int,
         dtype: torch.dtype,
     ):
-        theta, config = generate(12345, dtype_lo=dtype)
+        theta, config = generate(12345, dtype_rest=dtype)
         reference_model = PagedLlmModelV1(theta=theta, config=config)
         reference_generator = TorchGenerator(reference_model)
 

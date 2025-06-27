@@ -31,8 +31,8 @@ class DeepseekCrossEntropyTest(unittest.TestCase):
             (torch.float32, torch.float32),
         ]
     )
-    def testUnsharded(self, dtype_lo: torch.dtype, dtype_hi: torch.dtype):
-        theta, config = generate(12345, dtype_lo=dtype_lo, dtype_hi=dtype_hi)
+    def testUnsharded(self, dtype_rest: torch.dtype, dtype_norm: torch.dtype):
+        theta, config = generate(12345, dtype_rest=dtype_rest, dtype_norm=dtype_norm)
         model = PagedLlmModelV1(theta=theta, config=config)
 
         ids = [[3, 22, 13, 114, 90, 232, 61, 13, 244, 13, 212]]

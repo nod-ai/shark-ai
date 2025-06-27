@@ -19,8 +19,8 @@ parser.add_argument("-o", "--output", default="/tmp/toy_llama.irpa")
 
 def generate(
     seed,
-    dtype_lo: torch.dtype = torch.float16,
-    dtype_hi: torch.dtype = torch.float32,
+    dtype_rest: torch.dtype = torch.float16,
+    dtype_norm: torch.dtype = torch.float32,
 ):
     torch.manual_seed(seed)
     block_seq_stride = 16
@@ -48,15 +48,15 @@ def generate(
             model_arch="llama",
         ),
         block_seq_stride=block_seq_stride,
-        activation_dtype=dtype_lo,
-        attention_dtype=dtype_lo,
+        activation_dtype=dtype_rest,
+        attention_dtype=dtype_rest,
     )
 
     theta = make_random_llama_theta(
         config=config,
         vocab_size=vocabulary_size,
-        dtype_lo=dtype_lo,
-        dtype_hi=dtype_hi,
+        dtype_rest=dtype_rest,
+        dtype_norm=dtype_norm,
     )
     return theta, config
 
