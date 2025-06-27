@@ -25,11 +25,7 @@ from shortfin_apps.llm.components.kvcache.trie_attention_cache import (
 from shortfin_apps.llm.components.kvcache.base_attention_cache import (
     CacheAllocationFailure,
 )
-from shortfin_apps.llm.components.kvcache.page_pool import (
-    PagePool,
-    PageInfo,
-    PagePoolConfig,
-)
+from shortfin_apps.llm.components.kvcache.page_pool import PagePool, PageInfo
 
 logger = logging.getLogger(__name__)
 
@@ -129,13 +125,12 @@ def page_pool(mock_device, mock_device_array):
     sf.array.device_array.for_device = mock_for_device
 
     try:
-        config = PagePoolConfig(
+        pool = PagePool(
+            devices=[mock_device],
             dtype=sfnp.float16,
             alloc_page_count=TEST_POOL_CAPACITY,
-            paged_kv_block_size_elements=128,
+            paged_kv_block_size_elements_per_device=[128],
         )
-
-        pool = PagePool(devices=[mock_device], config=config)
         pool.page_tables = [mock_device_array]
         return pool
     finally:
