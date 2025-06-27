@@ -128,6 +128,144 @@ def test_paged(dtype: torch.dtype):
     torch.testing.assert_close(check_concat_1, read_back[1])
 
 
+@pytest.mark.parametrize(
+    "dtype,write_seq_len",
+    [
+        # Test all relevant dtypes
+        (torch.float32, 8),
+        (torch.float8_e4m3fnuz, 8),
+        (torch.bfloat16, 8),
+        (torch.float16, 8),
+        # # Test edge cases
+        (torch.float32, 4),
+        (torch.float32, 13),
+        (torch.float32, 0),
+        (torch.float32, 24),
+    ],
+)
+def test_write_range(dtype: torch.dtype, write_seq_len: int):
+    bs = 4
+    seq_length = 24
+    attn_head_count = 8
+    attn_head_dim = 16
+    transformer_block_count = 4
+    block_seq_stride = 4
+
+    cache = PagedAttention(
+        block_seq_stride=block_seq_stride,
+        transformer_block_count=transformer_block_count,
+        attn_head_count=attn_head_count,
+        attn_head_dim=attn_head_dim,
+        cache_dtype=dtype,
+        attn_dtype=dtype,
+        device=None,
+    )
+
+    # Allocate cache
+    page_count = bs * seq_length // block_seq_stride
+    page_ids = torch.arange(page_count, dtype=torch.int64).view(
+        bs, seq_length // block_seq_stride
+    )
+    allocation = cache.allocate(page_count=page_count)
+
+    for t in allocation:
+        t[...] = torch.full(t.shape, 0.0).to(dtype=dtype)
+
+    # Create data to write
+    shape = (bs, write_seq_len, attn_head_count, attn_head_dim)
+    write_ones = torch.rand(*shape).to(dtype=dtype)
+    write_twos = torch.rand(*shape).to(dtype=dtype)
+
+    cache_partitions = [write_ones, write_twos]
+    start_positions = torch.full((bs,), seq_length - write_seq_len, dtype=torch.int64)
+
+    write_page_ids = page_ids[:, : seq_length // block_seq_stride]
+
+    # Write the full range starting at start_positions
+    cache.write_range(
+        state=allocation,
+        cache_partitions=cache_partitions,
+        transformer_block_index=1,
+        seq_positions=start_positions,
+        page_ids=page_ids,
+    )
+
+    # Read back and check
+    read_back = cache.read(
+        allocation,
+        transformer_block_index=1,
+        page_ids=write_page_ids,
+    )
+
+    # Check that the correct slice was written
+    check_1 = read_back[0][:, seq_length - write_seq_len :]
+    torch.testing.assert_close(
+        check_1,
+        write_ones,
+    )
+    check_2 = read_back[1][:, seq_length - write_seq_len :]
+    torch.testing.assert_close(
+        check_2,
+        write_twos,
+    )
+
+
+def test_write_range_varied_start_positions():
+    # Configuration
+    bs = 4
+    seq_length = 24
+    write_seq_len = 5
+    attn_head_count = 8
+    attn_head_dim = 16
+    transformer_block_count = 4
+    block_seq_stride = 4
+    dtype = torch.float32
+
+    cache = PagedAttention(
+        block_seq_stride=block_seq_stride,
+        transformer_block_count=transformer_block_count,
+        attn_head_count=attn_head_count,
+        attn_head_dim=attn_head_dim,
+        cache_dtype=dtype,
+        attn_dtype=dtype,
+        device=None,
+    )
+
+    page_count = bs * (seq_length // block_seq_stride)
+    page_ids = torch.arange(page_count, dtype=torch.int64).view(bs, -1)
+    allocation = cache.allocate(page_count=page_count)
+    for t in allocation:
+        t[...] = torch.full(t.shape, 0.0).to(dtype=dtype)
+
+    shape = (bs, write_seq_len, attn_head_count, attn_head_dim)
+    write_ones = torch.rand(*shape).to(dtype=dtype)
+    write_twos = torch.rand(*shape).to(dtype=dtype)
+    cache_partitions = [write_ones, write_twos]
+
+    start_positions = torch.tensor([0, 3, 7, 12], dtype=torch.int64)
+
+    cache.write_range(
+        state=allocation,
+        cache_partitions=cache_partitions,
+        transformer_block_index=2,
+        seq_positions=start_positions,
+        page_ids=page_ids,
+    )
+
+    read_back = cache.read(
+        allocation,
+        transformer_block_index=2,
+        page_ids=page_ids,
+    )
+
+    for part_id, written in enumerate(cache_partitions):
+        for i in range(bs):
+            start = start_positions[i].item()
+            expected = written[i]
+            actual = read_back[part_id][i, start : start + write_seq_len]
+            torch.testing.assert_close(actual, expected)
+
+
 def test_sharded_paged():
     bs = 4
     seq_length = 24
