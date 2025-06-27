@@ -21,7 +21,7 @@ from sharktank.utils.testing import (
 
 
 @pytest.mark.usefixtures(
-    "get_model_artifacts",
+    "model_artifacts",
     "tensor_parallelism_size",
     "baseline_perplexity_scores",
     "batch_size",

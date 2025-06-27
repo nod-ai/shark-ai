@@ -23,7 +23,7 @@ from sharktank.utils.testing import (
 )
 
 
-@pytest.mark.usefixtures("get_iree_flags", "get_model_artifacts")
+@pytest.mark.usefixtures("iree_flags", "model_artifacts")
 class BaseBenchmarkTest(unittest.TestCase):
     dir_path_suffix = datetime.now().strftime("%Y-%m-%d")
     repo_root = Path(__file__).resolve().parents[4]
