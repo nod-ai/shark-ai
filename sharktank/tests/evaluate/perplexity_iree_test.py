@@ -199,7 +199,7 @@ class PerplexityTest(unittest.TestCase):
         raises=IreeCompileException,
         reason="https://github.com/iree-org/iree/issues/20914",
         strict=True,
-        match="Error code: 245",
+        match="operation destroyed but still has uses",
     )
     @is_nightly
     def test_deepseek_v3_tp2(self):

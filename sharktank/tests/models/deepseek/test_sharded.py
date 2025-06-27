@@ -5,14 +5,13 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
-import unittest
-from copy import deepcopy
-
 import torch
 import iree
 import pytest
 import torch
-import unittest
+
+from copy import deepcopy
+from itertools import product
 from parameterized import parameterized
 
 from sharktank.models.deepseek.toy_deepseek import generate
@@ -30,7 +29,7 @@ from sharktank.utils.iree import (
     TorchLikeIreeModule,
     with_iree_device_context,
 )
-from sharktank.utils.testing import TempDirTestBase
+from sharktank.utils.testing import TempDirTestBase, assert_logits_kl_divergence_close
 from sharktank.examples.sharding import shard_llm_dataset
 
 
@@ -38,16 +37,39 @@ from sharktank.examples.sharding import shard_llm_dataset
 class DeepseekShardedTest(TempDirTestBase):
     @parameterized.expand(
         [
-            (2, 1),
-            (1, 2),
-            (2, 2),
+            (tp, pp, dtype)
+            for (tp, pp), dtype in product(
+                [(2, 1), (1, 2), (2, 2)],
+                [torch.float32, torch.float16],
+            )
         ]
     )
     def testParallelToySizedModelEagerVsUnsharded(
-        self, tensor_parallelism_size: int, pipeline_parallelism_size: int
+        self,
+        tensor_parallelism_size: int,
+        pipeline_parallelism_size: int,
+        dtype: torch.dtype,
     ):
-        theta, config = generate(12345)
+        theta, config = generate(12345, dtype_rest=dtype)
+        reference_model = PagedLlmModelV1(theta=theta, config=config)
+        reference_generator = TorchGenerator(reference_model)
 
+        tokens = [[3, 22, 13, 114, 90, 232, 61, 13, 244, 13, 212]]
+        token_ids, seq_lens = pad_tokens(
+            token_ids=tokens,
+            pad_to_multiple_of=config.block_seq_stride,
+            device=torch.device("cpu"),
+        )
+
+        # Reference results
+        reference_batch = reference_generator.begin_batch(
+            token_ids=token_ids,
+            seq_lens=seq_lens,
+        )
+        reference_batch.prefill()
+        reference_logits = reference_batch.prefill_logits
+
+        # Sharded results
         sharded_config = deepcopy(config)
         sharded_config.tensor_parallelism_size = tensor_parallelism_size
         sharded_config.pipeline_parallelism_size = pipeline_parallelism_size
@@ -62,35 +84,17 @@ class DeepseekShardedTest(TempDirTestBase):
         sharded_config.block_to_pipeline_map = block_to_pipeline
         sharded_config.pipeline_to_device_map = pipeline_to_devices
 
-        reference_model = PagedLlmModelV1(theta=theta, config=config)
-        target_model = PagedLlmModelV1(theta=sharded_theta, config=sharded_config)
-
-        ids = [[3, 22, 13, 114, 90, 232, 61, 13, 244, 13, 212]]
-        token_ids, seq_lens = pad_tokens(
-            token_ids=ids,
-            pad_to_multiple_of=config.block_seq_stride,
-        )
-        token_ids = torch.as_tensor(token_ids)
-        seq_lens = torch.as_tensor(seq_lens)
-
-        reference_generator = TorchGenerator(reference_model)
-        reference_batch = reference_generator.begin_batch(
+        sharded_model = PagedLlmModelV1(theta=sharded_theta, config=sharded_config)
+        sharded_generator = TorchGenerator(sharded_model)
+        sharded_batch = sharded_generator.begin_batch(
             token_ids=token_ids,
             seq_lens=seq_lens,
         )
-        reference_batch.prefill()
-        reference_logits = reference_batch.prefill_logits
+        sharded_batch.prefill()
+        sharded_logits = sharded_batch.prefill_logits
 
-        target_generator = TorchGenerator(target_model)
-        target_batch = target_generator.begin_batch(
-            token_ids=token_ids,
-            seq_lens=seq_lens,
-        )
-        target_batch.prefill()
-        target_logits = target_batch.prefill_logits
-
-        torch.testing.assert_close(
-            target_logits, reference_logits, atol=2e-4, rtol=2e-2
+        assert_logits_kl_divergence_close(
+            actual=sharded_logits, expected=reference_logits, atol=1e-6
         )
 
         # TODO: test decode step and maybe verify the paged cache is close.

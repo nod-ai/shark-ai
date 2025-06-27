@@ -627,6 +627,31 @@ def assert_text_encoder_state_close(
     )
 
 
+def assert_logits_kl_divergence_close(
+    actual: torch.Tensor,
+    expected: torch.Tensor,
+    atol: float,
+):
+    """
+    Calculate the KL divergence loss between the actual and expected logits tensors.
+    This function calculates it's own log softmax of the logits.
+
+    Args:
+        actual: The actual logits tensor.
+        expected: The expected logits tensor.
+        atol: The absolute tolerance for the KL divergence loss.
+    """
+    actual_probabilities = actual.log_softmax(dim=2, dtype=torch.float32)
+    expected_probabilities = expected.log_softmax(dim=2, dtype=torch.float32)
+
+    kl_loss = torch.nn.KLDivLoss(reduction="batchmean", log_target=True)
+    loss = kl_loss(input=actual_probabilities, target=expected_probabilities)
+
+    assert torch.all(
+        loss.abs() <= atol
+    ), f"KL divergence loss {loss} is greater than the allowed tolerance {atol}."
+
+
 SHARKTANK_TEST_SKIP_ENV_VAR = "SHARKTANK_TEST_SKIP"
 
 
