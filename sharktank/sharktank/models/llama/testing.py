@@ -123,13 +123,12 @@ def make_attention_moe_block_random_theta(
 def make_random_llama_theta(
     config: LlamaModelConfig,
     vocab_size: Optional[int] = None,
-    dtype_lo: torch.dtype = torch.float32,
+    dtype_lo: torch.dtype = torch.float16,
     dtype_hi: torch.dtype = torch.float32,
 ) -> Theta:
     if vocab_size is None:
         vocab_size = config.hp.vocab_size
-    if dtype_lo is None:
-        dtype_lo = config.dtype
+
     res = {
         "token_embd.weight": DefaultPrimitiveTensor(
             name="token_embd.weight",
