@@ -61,8 +61,6 @@ class DeepseekShardedTest(TempDirTestBase):
             device=torch.device("cpu"),
         )
 
-        reference_generator.preprocess_tokens(tokens)
-
         # Reference results
         reference_batch = reference_generator.begin_batch(
             token_ids=token_ids,
