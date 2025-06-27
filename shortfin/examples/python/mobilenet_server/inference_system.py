@@ -52,11 +52,17 @@ class InferenceProcess(sf.Process):
             (result1,) = await self.main_function(self.device_input, fiber=self.fiber)
             (result2,) = await self.main_function(self.device_input, fiber=self.fiber)
 
+            result1_host = result1.for_transfer()
+            result1_host.copy_from(result1)
+
+            result2_host = result2.for_transfer()
+            result2_host.copy_from(result2)
+
             # TODO: Implement await on individual results. The accounting is
             # there but currently we can only await on the device itself.
             await self.device
-            print("Result 1:", result1)
-            print("Result 2:", result2)
+            print("Result 1:", result1_host)
+            print("Result 2:", result2_host)
 
             # Explicit invocation object.
             # inv = self.main_function.invocation(fiber=self.fiber)
@@ -82,7 +88,7 @@ class InferenceProcess(sf.Process):
 
 class Main:
     def __init__(self, lsys: sf.System, home_dir: Path):
-        self.processes_per_worker = 2
+        self.processes_per_worker = 50
         self.lsys = lsys
         self.home_dir = home_dir
         self.request_queue = lsys.create_queue("request")
@@ -128,23 +134,25 @@ class Main:
 def run_cli(home_dir: Path, argv):
     def client():
         # Create a random image.
-        print("Preparing requests...")
-        writer = main.request_queue.writer()
+        for _ in range(1000):
+            print("Preparing requests...")
+            writer = main.request_queue.writer()
 
-        # Dumb way to prepare some data to feed [1, 3, 224, 224] f32.
-        import array
+            # Dumb way to prepare some data to feed [1, 3, 224, 224] f32.
+            import array
 
-        dummy_data = array.array(
-            "f", ([0.2] * (224 * 224)) + ([0.4] * (224 * 224)) + ([-0.2] * (224 * 224))
-        )
-        # dummy_data = array.array("f", [0.2] * (3 * 224 * 224))
-        message = InferenceRequest(dummy_data)
-        writer(message)
+            dummy_data = array.array(
+                "f",
+                ([0.2] * (224 * 224)) + ([0.4] * (224 * 224)) + ([-0.2] * (224 * 224)),
+            )
+            # dummy_data = array.array("f", [0.2] * (3 * 224 * 224))
+            message = InferenceRequest(dummy_data)
+            writer(message)
 
-        # Done.
-        writer.close()
+            # Done.
+            writer.close()
 
-    sf.SystemBuilder.default_system_type = "hostcpu"
+    sf.SystemBuilder.default_system_type = "amdgpu"
     lsys = sf.SystemBuilder().create_system()
     main = Main(lsys, home_dir)
     lsys.init_worker.call_threadsafe(client)
