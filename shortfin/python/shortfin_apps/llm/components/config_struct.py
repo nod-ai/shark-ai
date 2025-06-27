@@ -184,20 +184,6 @@ class ModelParams:
     def has_paged_kv_cache(self):
         return self.paged_kv_cache is not None
 
-    @property
-    def paged_kv_block_size_elements(self) -> int:
-        """Size in elements of each attention block of {block_position_stride}
-        positions.
-        """
-        # TODO: Return from json
-        assert self.paged_kv_cache is not None
-        size = 1
-        size *= self.transformer_block_count
-        size *= 2  # K and V cache line
-        size *= self.paged_kv_cache.attention_head_count_kv
-        size *= self.attn_head_dim
-        return size * self.paged_kv_cache.block_seq_stride
-
     @staticmethod
     def load_json(path: Path | str):
         with open(path, "rt") as f:
