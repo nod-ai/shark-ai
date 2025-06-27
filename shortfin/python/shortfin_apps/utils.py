@@ -17,6 +17,17 @@ import shortfin as sf
 from shortfin.interop.support.device_setup import get_selected_devices
 
 
+# Define disaggregation constants here for cleaner imports.
+LLM_DISAGGREGATED_PREFILL_DEVICE_IDX = 0
+LLM_DISAGGREGATED_DECODE_DEVICE_IDX = 1
+
+# Number of devices to use for disaggregation.
+# NOTE: This may change in the future, depending on how
+# many streams we use for prefill/decode.
+LLM_DISAGGREGATED_PREFILL_NUM_STREAMS = 1
+LLM_DISAGGREGATED_DECODE_NUM_STREAMS = 1
+
+
 def get_system_args(parser):
     parser.add_argument(
         "--device",
@@ -65,12 +76,18 @@ class SystemManager:
         amdgpu_allocators: Optional[bool] = None,
         logger_name: str = __name__,
         shutdown_system: bool = True,
+        disaggregated_invocation: bool = False,
     ):
         self.logger = logging.getLogger(logger_name)
 
         self.shutdown_system = shutdown_system
+        self.disaggregate = disaggregated_invocation
 
         if any(x in device for x in ["local-task", "cpu"]):
+            if self.disaggregate:
+                self.logger.warning(
+                    "Request for disaggregated prefilling with `--disaggregate` will have no effect in a CPU System."
+                )
             self.ls = sf.host.CPUSystemBuilder().create_system()
         elif any(x in device for x in ["hip", "amdgpu"]):
             if amdgpu_allocators is None:
@@ -91,6 +108,14 @@ class SystemManager:
             if device_ids:
                 sb.visible_devices = sb.available_devices
                 sb.visible_devices = get_selected_devices(sb, device_ids)
+            if self.disaggregate:
+                assert (
+                    len(sb.visible_devices) == 1
+                ), "Unsupported: Disaggregated prefilling is not yet supported on multiple physical GPU devices. Run `export ROCR_VISIBLE_DEVICES=<device_id>` in your terminal or pass `--device_id <device_id>` to the server."
+                sb.logical_devices_per_physical_device = (
+                    LLM_DISAGGREGATED_PREFILL_NUM_STREAMS
+                    + LLM_DISAGGREGATED_DECODE_NUM_STREAMS
+                )
             self.ls = sb.create_system()
 
         self.logger.info(f"Created local system with {self.ls.device_names} devices")
