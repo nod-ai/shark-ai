@@ -109,13 +109,13 @@ class AttentionBlockTest(unittest.TestCase):
             max_position_embeddings=max_seq_len,
             rms_norm_eps=rms_epsilon,
             rope_theta=10000,
-            rope_scaling = {
+            rope_scaling={
                 "factor": 8.0,
                 "low_freq_factor": 1.0,
                 "high_freq_factor": 4.0,
                 "original_max_position_embeddings": 8192,
                 "rope_type": "llama3",
-            }
+            },
         )
         llama_attention_block = LlamaAttention(
             config=llama_config, layer_idx=block_index
@@ -167,7 +167,9 @@ class AttentionBlockTest(unittest.TestCase):
             config=llama_config, layer_idx=block_index
         )
         llama_rotary_embedding = LlamaRotaryEmbedding(config=llama_config)
-        position_embeddings = llama_rotary_embedding(input_tensor, torch.arange(seq_len).unsqueeze(0))
+        position_embeddings = llama_rotary_embedding(
+            input_tensor, torch.arange(seq_len).unsqueeze(0)
+        )
         llama_decoder_layer.self_attn = llama_attention_block
         llama_decoder_layer.mlp = llama_mlp
         llama_decoder_layer.input_layernorm = llama_input_layernorm

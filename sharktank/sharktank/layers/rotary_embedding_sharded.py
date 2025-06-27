@@ -27,7 +27,7 @@ def build_rotary_layer(
     tensor_parallelism_size: int = 1,
     pipeline_parallelism: bool = False,
     devices=None,
-    dtype = torch.float32,
+    dtype=torch.float32,
     **kwargs,
 ):
     rope_freq_base = 10000.0 if rope_freq_base is None else rope_freq_base
@@ -36,7 +36,8 @@ def build_rotary_layer(
         rope_theta=rope_freq_base,
         head_dim=rope_dimension_count,
         interleaved=not use_hf,
-        **kwargs)
+        **kwargs,
+    )
     return ShardedRotaryLayer(
         tensor_parallelism_size=tensor_parallelism_size,
         pipeline_parallelism=pipeline_parallelism,
@@ -72,8 +73,12 @@ class ShardedRotaryLayer(BaseLayer):
         t_0, t_1 = self._rotary_layer.compute_sincos_cache(t, dtype=self._dtype)
         if self._tensor_parallelism_size > 1 or self._pipeline_parallelism:
             # Replicate across all devices, the data is not a lot and the computation is cheap.
-            t_0 = ops.replicate(t_0, self._tensor_parallelism_size, devices=self._devices)
-            t_1 = ops.replicate(t_1, self._tensor_parallelism_size, devices=self._devices)
+            t_0 = ops.replicate(
+                t_0, self._tensor_parallelism_size, devices=self._devices
+            )
+            t_1 = ops.replicate(
+                t_1, self._tensor_parallelism_size, devices=self._devices
+            )
 
         return t_0, t_1
 
@@ -87,9 +92,7 @@ class ShardedRotaryLayer(BaseLayer):
         table_0, table_1 = self.rotary_embed_table(t)
 
         if not isinstance(table_0, ShardedTensor):
-            return self._rotary_layer(
-                q=xt, sincos_cache=(table_0, table_1)
-            )
+            return self._rotary_layer(q=xt, sincos_cache=(table_0, table_1))
 
         shards = [
             self._rotary_layer(q=xs, sincos_cache=(ts_0, ts_1))
@@ -111,7 +114,9 @@ class ShardedRotaryLayer(BaseLayer):
                 shards_0.append(table_0)
                 shards_1.append(table_1)
 
-            return start_positions.clone(ts=shards_0), start_positions.clone(ts=shards_1)
+            return start_positions.clone(ts=shards_0), start_positions.clone(
+                ts=shards_1
+            )
 
         positions_seq = torch.arange(0, batch_seq_len)
         positions_seq = positions_seq.unsqueeze(0) + start_positions.unsqueeze(1)
@@ -128,13 +133,24 @@ class ShardedRotaryLayer(BaseLayer):
         if not isinstance(xt, ShardedTensor):
             return self._rotary_layer(q=xt, sincos_cache=mask)
 
-        assert isinstance(mask[0], ReplicatedTensor) and mask[0].shard_count == xt.shard_count
-        assert isinstance(mask[1], ReplicatedTensor) and mask[1].shard_count == xt.shard_count
+        assert (
+            isinstance(mask[0], ReplicatedTensor)
+            and mask[0].shard_count == xt.shard_count
+        )
+        assert (
+            isinstance(mask[1], ReplicatedTensor)
+            and mask[1].shard_count == xt.shard_count
+        )
         xt_shards = [
             self._rotary_layer(
                 q=unbox_tensor(xt_shard),
-                sincos_cache=(unbox_tensor(mask_sin_shard), unbox_tensor(mask_cos_shard))
+                sincos_cache=(
+                    unbox_tensor(mask_sin_shard),
+                    unbox_tensor(mask_cos_shard),
+                ),
             )
-            for xt_shard, mask_sin_shard, mask_cos_shard in zip(xt.shards, mask[0].shards, mask[1].shards)
+            for xt_shard, mask_sin_shard, mask_cos_shard in zip(
+                xt.shards, mask[0].shards, mask[1].shards
+            )
         ]
         return xt.clone(ts=xt_shards)
