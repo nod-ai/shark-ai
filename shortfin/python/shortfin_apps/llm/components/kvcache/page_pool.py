@@ -32,22 +32,7 @@ class PageInfo:
     pool: PagePool
 
 
-@dataclass
-class PagePoolConfig:
-    """
-    Hyperparameters for the page pool.
-    """
-
-    dtype: sf.dtype
-    alloc_page_count: int
-
-    paged_kv_block_size_elements: int  # size of a single page as # of elements
-    # (e.g. one configuration for llama3.1 8b hax 32x2x16x8x128=1048576 elements where:
-    # 32: number of transformer blocks
-    # 2: one for k + one for v
-    # 16: tokens per page
-    # 8: head count (32 heads, but every 4 heads share the same kv buffer)
-    # 128: hidden dimension
+# TODO: Delete all usages of PagePoolConfig
 
 
 class PagePool:
@@ -73,10 +58,26 @@ class PagePool:
     `radix_tree.py`.
     """
 
-    def __init__(self, *, devices: Sequence[sf.ScopedDevice], config: PagePoolConfig):
+    def __init__(
+        self,
+        *,
+        devices: Sequence[sf.ScopedDevice],
+        dtype: sf.dtype,
+        alloc_page_count: int,
+        paged_kv_block_size_elements_per_device: list[int],
+    ):
+        """
+        Args:
+            paged_kv_block_size_elements: Number of elements in a single page.
+                e.g. one configuration for llama3.1 8b hax 32x2x16x8x128=1048576 elements where:
+                32: number of transformer blocks
+                2: one for k + one for v
+                16: tokens per page
+                8: head count (32 heads, but every 4 heads share the same kv buffer)
+                128: hidden dimension
+        """
         self._lock = threading.Lock()
         self.devices = list(devices)
-        self.config = config
         self.page_tables: list[sf.array.device_array] = []
 
         # Setup accounting structs.
@@ -85,26 +86,26 @@ class PagePool:
                 index=i,
                 pool=self,
             )
-            for i in range(self.config.alloc_page_count)
+            for i in range(alloc_page_count)
         ]
 
         self.available_pages = list(self.attn_page_entries)
 
         # Initialize a page table on each device.
-        page_table_shape = [
-            self.config.alloc_page_count,
-            self.config.paged_kv_block_size_elements // len(devices),
-        ]
-        for device in devices:
+        assert len(devices) == len(paged_kv_block_size_elements_per_device)
+        for device, paged_kv_block_size_elements in zip(
+            devices, paged_kv_block_size_elements_per_device
+        ):
+            page_table_shape = [alloc_page_count, paged_kv_block_size_elements]
             logging.info(
                 "Allocating page table (shape=%r, dtype=%r, size=%s) on %r",
                 page_table_shape,
-                self.config.dtype,
-                human_size(config.dtype.compute_dense_nd_size(page_table_shape)),
+                dtype,
+                human_size(dtype.compute_dense_nd_size(page_table_shape)),
                 device,
             )
             page_table = sf.array.device_array.for_device(
-                device, page_table_shape, self.config.dtype
+                device, page_table_shape, dtype
             )
             page_table_host = page_table.for_transfer()
             with page_table_host.map(discard=True) as m:
