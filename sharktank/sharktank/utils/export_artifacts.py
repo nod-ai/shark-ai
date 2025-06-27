@@ -248,8 +248,7 @@ class ExportArtifacts:
             cmd,
             shell=True,
             cwd=self.cwd,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
+            capture_output=True,
             text=True,
         )
         if proc.returncode != 0:
@@ -339,7 +338,8 @@ class ExportArtifacts:
 
         export_args = [
             "python3",
-            "-m" "sharktank.examples.export_paged_llm_v1",
+            "-m",
+            "sharktank.examples.export_paged_llm_v1",
             f"--irpa-file={self.irpa_path}",
             f"--output-mlir={self.output_mlir}",
             f"--output-config={self.output_config}",
