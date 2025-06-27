@@ -55,7 +55,13 @@ class DeepseekShardedTest(TempDirTestBase):
         reference_generator = TorchGenerator(reference_model)
 
         tokens = [[3, 22, 13, 114, 90, 232, 61, 13, 244, 13, 212]]
-        token_ids, seq_lens = reference_generator.preprocess_tokens(tokens)
+        token_ids, seq_lens = pad_tokens(
+            token_ids=tokens,
+            pad_to_multiple_of=config.block_seq_stride,
+            device=torch.device("cpu"),
+        )
+
+        reference_generator.preprocess_tokens(tokens)
 
         # Reference results
         reference_batch = reference_generator.begin_batch(
