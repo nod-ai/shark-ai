@@ -9,7 +9,6 @@ import dataclasses
 import io
 import json
 import logging
-import threading
 
 from copy import deepcopy
 from typing import List, Tuple
@@ -208,11 +207,7 @@ class ClientGenerateBatchProcess(sf.Process):
         return decode_configs, total_requested_beams
 
     async def run(self):
-        logger.debug(
-            "Started ClientBatchGenerateProcess: %r (Thread: %s)",
-            self,
-            threading.current_thread().name,
-        )
+        logger.debug("Started ClientBatchGenerateProcess: %r", self)
 
         indices = []
         total_requested_beams = 0
