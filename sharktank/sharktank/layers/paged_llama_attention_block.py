@@ -12,7 +12,6 @@ from sharktank.types import *
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
 from .norm import RMSNormLayer, L2Norm
-from .rotary_embedding import RotaryEmbeddingLayer
 from .latent_attention_block import LatentAttentionBlock
 from .paged_attention import PagedAttention, attn_type_map
 from sharktank import ops
@@ -140,7 +139,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self,
         x: torch.Tensor | ReplicatedTensor,
         start_index: int,
-        embedding: RotaryEmbeddingLayer,
+        embedding,
         embedding_batch_mask: torch.Tensor,
     ):
         bs, batch_seq_len, _ = x.shape
@@ -179,7 +178,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self,
         x: torch.Tensor | ReplicatedTensor,
         start_index: int,
-        embedding: RotaryEmbeddingLayer,
+        embedding,
         embedding_batch_mask: torch.Tensor,
     ):
         """
@@ -209,7 +208,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self,
         h: torch.Tensor | ShardedTensor,
         *,
-        embedding: RotaryEmbeddingLayer,
+        embedding,
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor,
         start_index: Optional[int] = None,

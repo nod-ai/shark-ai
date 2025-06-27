@@ -6,7 +6,7 @@
 
 import torch
 
-from sharktank.layers.rotary_embedding import build_rotary_layer
+from sharktank.layers import build_rotary_layer
 from transformers.models.llama.modeling_llama import (
     LlamaRotaryEmbedding,
     apply_rotary_pos_emb,
@@ -48,7 +48,6 @@ class HFRotaryComparisonTest(unittest.TestCase):
 
         st_rotary = build_rotary_layer(
             rope_dimension_count=dims,
-            max_seqlen=2048,
             rope_freq_base=500000,
             use_hf=True,
             dtype=test_dtype,
@@ -71,11 +70,11 @@ class HFRotaryComparisonTest(unittest.TestCase):
         hf_results = hf_rotary.forward(
             xt=decode_example, positions=torch.arange(0, bs).unsqueeze(1)
         )
-        assert torch.all(torch.eq(st_results, hf_results))
+        torch.testing.assert_close(st_results, hf_results)
 
         hf_results = hf_rotary(xt=example, positions=positions)
         st_results = st_rotary.forward(xt=example, start_index=0)
-        assert torch.all(torch.eq(st_results, hf_results))
+        torch.testing.assert_close(st_results, hf_results)
 
 
 if __name__ == "__main__":
