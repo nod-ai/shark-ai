@@ -47,14 +47,12 @@ class LlmGenerateService(GenerateService):
         model_params: ModelParams,
         server_params: "ServerParams",
         program_isolation: str = "per_call",
-        max_queue_size: int = 3,  # Maximum number of requests in queue
     ):
         super().__init__(sysman)
         self.name = name
         self.tokenizer = tokenizer
         self.model_params = model_params
         self.server_params = server_params
-        self.max_queue_size = max_queue_size
         # Use model_params.decode_batch_sizes to decide actual max_queue_size
         self._initialize_max_queue_size()
         self.main_fiber_pool = FiberPool(
@@ -70,6 +68,7 @@ class LlmGenerateService(GenerateService):
         """Initialize request and response queues"""
         if self.model_params.decode_batch_sizes:
             self.max_queue_size = max(self.model_params.decode_batch_sizes)
+            # self.max_queue_size *= self.server_params.max_concurrent_requests
             logger.debug(f"Max queue size: {self.max_queue_size}")
 
     def _initialize_worker_and_fiber(self):
@@ -97,10 +96,11 @@ class LlmGenerateService(GenerateService):
 
     def _initialize_page_cache(self):
         """Initialize page pool and attention cache."""
-        page_pool_config = PagePoolConfig(
+        page_pool = PagePool(
+            devices=self.devices,
             dtype=self.model_params.paged_kv_cache.kv_cache_dtype,
             alloc_page_count=self.model_params.paged_kv_cache.device_block_count,
-            paged_kv_block_size_elements=self.model_params.paged_kv_block_size_elements,
+            paged_kv_block_size_elements_per_device=self.model_params.paged_kv_block_size_elements_per_device,
         )
         page_pool = PagePool(devices=self.devices, config=page_pool_config)
 
