@@ -110,7 +110,8 @@ def create_fp4_block_quantizer(weight_tensor: torch.Tensor, scale_tensor: torch.
     
     # Convert U8 scales to appropriate format
     # Quark uses E8M0 format for FP4 scales
-    scales = scale_tensor.flatten().to(torch.float32)
+    # Keep the original 2D shape instead of flattening
+    scales = scale_tensor.to(torch.float32)
     
     # Infer original tensor shape
     original_shape = infer_original_tensor_shape(weight_tensor, scale_tensor, block_size, "fp4")
