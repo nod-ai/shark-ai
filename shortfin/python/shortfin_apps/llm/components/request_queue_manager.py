@@ -40,15 +40,15 @@ class RequestQueueManager:
             logger.debug(f"Added to queue: new queue size {self.current_queue_size}")
             return True
 
-    def remove_from_queue(self, request_size: int) -> bool:
+    def remove_from_queue(self, request_size: int) -> None:
         """
         Remove a request from the queue.
 
         Args:
             request_size: The size of the request to remove.
 
-        Returns:
-            True if the request was removed successfully, False if not enough items in the queue.
+        Raises:
+            RuntimeError: If the queue does not have enough items to remove.
         """
         with self._lock:
             if self.current_queue_size >= request_size:
@@ -56,9 +56,10 @@ class RequestQueueManager:
                 logger.debug(
                     f"Removed from queue: new queue size {self.current_queue_size}"
                 )
-                return True
-            logger.debug(
-                f"Remove failed: queue size {self.current_queue_size}, request size {request_size}"
-            )
-            # TODO https://github.com/nod-ai/shark-ai/issues/1700
-            return False
+            else:
+                error_msg = (
+                    f"Remove failed: queue size {self.current_queue_size}, "
+                    f"request size {request_size}"
+                )
+                logger.debug(error_msg)
+                raise RuntimeError(error_msg)
