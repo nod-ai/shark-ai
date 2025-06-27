@@ -42,31 +42,6 @@ TEST_CASE("fusili::logging::isLoggingEnabled", "[logging]") {
   REQUIRE(!isLoggingEnabled());
 }
 
-TEST_CASE("fusili::logging macros", "[logging]") {
-  std::ostringstream oss;
-  ConditionalStreamer logger(oss);
-
-  // Enable logging
-  isLoggingEnabled() = true;
-
-  // Test logging macros
-  oss.str("");
-  _FUSILI_LOG("Test", logger);
-  REQUIRE(oss.str() == "Test");
-
-  oss.str("");
-  _FUSILI_LOG_ENDL("Test", logger);
-  REQUIRE(oss.str() == "Test\n");
-
-  oss.str("");
-  _FUSILI_LOG_LABEL("Test2", logger);
-  REQUIRE(oss.str() == "[FUSILI] Test2");
-
-  oss.str("");
-  _FUSILI_LOG_LABEL_ENDL("Test3", logger);
-  REQUIRE(oss.str() == "[FUSILI] Test3\n");
-}
-
 // This test is disabled because getStream() statically initializes
 // the stream ref picking the first snapshot of FUSILI_LOG_FILE
 // env variable. So subsequent tests that change the env variable (in

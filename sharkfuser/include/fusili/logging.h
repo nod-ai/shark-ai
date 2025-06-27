@@ -9,6 +9,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <unordered_map>
 
 namespace fusili {
 
@@ -19,18 +20,10 @@ enum class [[nodiscard]] error_code_t {
   INVALID_ATTRIBUTE
 };
 
-inline const std::string to_string(error_code_t code) {
-  switch (code) {
-  case error_code_t::OK:
-    return "OK";
-  case error_code_t::ATTRIBUTE_NOT_SET:
-    return "ATTRIBUTE_NOT_SET";
-  case error_code_t::INVALID_ATTRIBUTE:
-    return "INVALID_ATTRIBUTE";
-  default:
-    return "UNKNOWN_ERROR_CODE";
-  }
-}
+static const std::unordered_map<error_code_t, std::string> error_code_str = {
+    {error_code_t::OK, "OK"},
+    {error_code_t::ATTRIBUTE_NOT_SET, "ATTRIBUTE_NOT_SET"},
+    {error_code_t::INVALID_ATTRIBUTE, "INVALID_ATTRIBUTE"}};
 
 typedef struct [[nodiscard]] error_object {
   error_code_t code;
@@ -59,8 +52,12 @@ typedef struct [[nodiscard]] error_object {
 } error_t;
 
 static inline std::ostream &operator<<(std::ostream &os,
-                                       const error_code_t &mode) {
-  os << to_string(mode);
+                                       const error_code_t &code) {
+  auto it = error_code_str.find(code);
+  if (it != error_code_str.end())
+    os << it->second;
+  else
+    os << "UNKNOWN_ERROR_CODE";
   return os;
 }
 
@@ -137,29 +134,29 @@ inline ConditionalStreamer &getLogger() {
 
 } // namespace fusili
 
-// Macros starting with _ are for testing purposes as they allow
-// passing a custom logger which can be intercepted for testing
+#define FUSILI_COLOR_RED "\033[31m"
+#define FUSILI_COLOR_GREEN "\033[32m"
+#define FUSILI_COLOR_YELLOW "\033[33m"
+#define FUSILI_COLOR_RESET "\033[0m"
+
 #define FUSILI_LOG(X) getLogger() << X
-#define _FUSILI_LOG(X, logger) logger << X
-
 #define FUSILI_LOG_ENDL(X) getLogger() << X << std::endl
-#define _FUSILI_LOG_ENDL(X, logger) logger << X << std::endl
-
-#define FUSILI_LOG_LABEL(X) getLogger() << "[FUSILI] " << X
-#define _FUSILI_LOG_LABEL(X, logger) logger << "[FUSILI] " << X
-
+#define FUSILI_LOG_RED(X)                                                      \
+  getLogger() << FUSILI_COLOR_RED << "[FUSILI] " << X << FUSILI_COLOR_RESET
+#define FUSILI_LOG_GREEN(X)                                                    \
+  getLogger() << FUSILI_COLOR_GREEN << "[FUSILI] " << X << FUSILI_COLOR_RESET
+#define FUSILI_LOG_YELLOW(X)                                                   \
+  getLogger() << FUSILI_COLOR_YELLOW << "[FUSILI] " << X << FUSILI_COLOR_RESET
 #define FUSILI_LOG_LABEL_ENDL(X) getLogger() << "[FUSILI] " << X << std::endl
-#define _FUSILI_LOG_LABEL_ENDL(X, logger)                                      \
-  logger << "[FUSILI] " << X << std::endl
 
 #define FUSILI_RETURN_ERROR_IF(cond, retval, message)                          \
   do {                                                                         \
     if (cond) {                                                                \
-      if (retval == error_code_t::OK) {                                        \
-        FUSILI_LOG_LABEL("INFO: ");                                            \
-      } else {                                                                 \
-        FUSILI_LOG_LABEL("ERROR: ");                                           \
-      }                                                                        \
+      if (retval == error_code_t::OK)                                          \
+        FUSILI_LOG_YELLOW("INFO: ");                                           \
+      else                                                                     \
+        FUSILI_LOG_RED("ERROR: ");                                             \
+                                                                               \
       FUSILI_LOG_ENDL(retval << ": " << message << ": (" << #cond ") at "      \
                              << __FILE__ << ":" << __LINE__);                  \
       return {retval, message};                                                \
