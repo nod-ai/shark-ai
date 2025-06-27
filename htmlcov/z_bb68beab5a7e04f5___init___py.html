@@ -54,8 +54,8 @@
             </div>
         </aside>
         <h2>
-            <span class="text">15 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">15<span class="text"> run</span></button>
+            <span class="text">16 statements &nbsp;</span>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">16<span class="text"> run</span></button>
             <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">0<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_bb68beab5a7e04f5_activations_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.1">coverage.py v7.9.1</a>,
-            created at 2025-06-27 05:08 +0000
+            created at 2025-06-27 14:40 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -92,16 +92,17 @@
     <p class="run"><span class="n"><a id="t10" href="#t10">10</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">causal_llm</span> <span class="key">import</span> <span class="nam">BaseCausalLMModel</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t11" href="#t11">11</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">linear</span> <span class="key">import</span> <span class="nam">LinearLayer</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t12" href="#t12">12</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">norm</span> <span class="key">import</span> <span class="nam">RMSNormLayer</span><span class="op">,</span> <span class="nam">LayerNorm</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t13" href="#t13">13</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">rotary_embedding</span> <span class="key">import</span> <span class="nam">RotaryEmbeddingLayer</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t14" href="#t14">14</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">token_embedding</span> <span class="key">import</span> <span class="nam">TokenEmbeddingLayer</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t15" href="#t15">15</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">paged_llama_attention_block</span> <span class="key">import</span> <span class="nam">PagedLlamaAttentionBlock</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t16" href="#t16">16</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">ffn_block</span> <span class="key">import</span> <span class="nam">FFN</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t17" href="#t17">17</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">ffn_moe_block</span> <span class="key">import</span> <span class="nam">PreGatherFFNMOE</span><span class="op">,</span> <span class="nam">DenseFFNMOE</span><span class="op">,</span> <span class="nam">SparseFFNMOE</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t18" href="#t18">18</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">mixture_of_experts_block</span> <span class="key">import</span> <span class="nam">MoeBlock</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t19" href="#t19">19</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">mmdit</span> <span class="key">import</span> <span class="nam">MMDITDoubleBlock</span><span class="op">,</span> <span class="nam">MMDITSingleBlock</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t20" href="#t20">20</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">modulation</span> <span class="key">import</span> <span class="nam">ModulationLayer</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t21" href="#t21">21</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t22" href="#t22">22</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">configs</span> <span class="key">import</span> <span class="op">*</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t13" href="#t13">13</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">rotary_embedding</span> <span class="key">import</span> <span class="nam">build_rotary_layer</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t14" href="#t14">14</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">rotary_embedding</span> <span class="key">import</span> <span class="nam">RotaryEmbeddingLayer</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t15" href="#t15">15</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">token_embedding</span> <span class="key">import</span> <span class="nam">TokenEmbeddingLayer</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t16" href="#t16">16</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">paged_llama_attention_block</span> <span class="key">import</span> <span class="nam">PagedLlamaAttentionBlock</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t17" href="#t17">17</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">ffn_block</span> <span class="key">import</span> <span class="nam">FFN</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t18" href="#t18">18</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">ffn_moe_block</span> <span class="key">import</span> <span class="nam">PreGatherFFNMOE</span><span class="op">,</span> <span class="nam">DenseFFNMOE</span><span class="op">,</span> <span class="nam">SparseFFNMOE</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t19" href="#t19">19</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">mixture_of_experts_block</span> <span class="key">import</span> <span class="nam">MoeBlock</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t20" href="#t20">20</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">mmdit</span> <span class="key">import</span> <span class="nam">MMDITDoubleBlock</span><span class="op">,</span> <span class="nam">MMDITSingleBlock</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t21" href="#t21">21</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">modulation</span> <span class="key">import</span> <span class="nam">ModulationLayer</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t22" href="#t22">22</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t23" href="#t23">23</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">configs</span> <span class="key">import</span> <span class="op">*</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
     <div class="content">
@@ -111,7 +112,7 @@
             <a class="nav" href="z_bb68beab5a7e04f5_activations_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.1">coverage.py v7.9.1</a>,
-            created at 2025-06-27 05:08 +0000
+            created at 2025-06-27 14:40 +0000
         </p>
     </div>
 </footer>

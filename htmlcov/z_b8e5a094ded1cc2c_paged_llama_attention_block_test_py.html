@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_b8e5a094ded1cc2c_pipelined_paged_attention_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.1">coverage.py v7.9.1</a>,
-            created at 2025-06-27 05:08 +0000
+            created at 2025-06-27 14:40 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -100,7 +100,7 @@
     <p class="run"><span class="n"><a id="t18" href="#t18">18</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">layers</span> <span class="key">import</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t19" href="#t19">19</a></span><span class="t">    <span class="nam">PagedLlamaAttentionBlock</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t20" href="#t20">20</a></span><span class="t">    <span class="nam">PagedAttention</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t21" href="#t21">21</a></span><span class="t">    <span class="nam">RotaryEmbeddingLayer</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t21" href="#t21">21</a></span><span class="t">    <span class="nam">build_rotary_layer</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t22" href="#t22">22</a></span><span class="t"><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t23" href="#t23">23</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">layers</span><span class="op">.</span><span class="nam">testing</span> <span class="key">import</span> <span class="nam">make_llama_attention_block_theta</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t24" href="#t24">24</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">types</span><span class="op">.</span><span class="nam">tensors</span> <span class="key">import</span> <span class="nam">DefaultPrimitiveTensor</span>&nbsp;</span><span class="r"></span></p>
@@ -173,7 +173,7 @@
     <p class="pln"><span class="n"><a id="t91" href="#t91">91</a></span><span class="t">            <span class="nam">self</span><span class="op">.</span><span class="nam">batch_size</span><span class="op">,</span> <span class="op">-</span><span class="num">1</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t92" href="#t92">92</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t93" href="#t93">93</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t94" href="#t94">94</a></span><span class="t">        <span class="nam">embedding_module</span> <span class="op">=</span> <span class="nam">RotaryEmbeddingLayer</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t94" href="#t94">94</a></span><span class="t">        <span class="nam">embedding_module</span> <span class="op">=</span> <span class="nam">build_rotary_layer</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t95" href="#t95">95</a></span><span class="t">            <span class="nam">rope_dimension_count</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">rope_dimension_count</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t96" href="#t96">96</a></span><span class="t">            <span class="nam">max_seqlen</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">max_seqlen</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t97" href="#t97">97</a></span><span class="t">            <span class="nam">rope_freq_base</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">rope_freq_base</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -223,7 +223,7 @@
             <a class="nav" href="z_b8e5a094ded1cc2c_pipelined_paged_attention_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.1">coverage.py v7.9.1</a>,
-            created at 2025-06-27 05:08 +0000
+            created at 2025-06-27 14:40 +0000
         </p>
     </div>
 </footer>

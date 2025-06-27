@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_2680bd164de65b43_benchmark_amdgpu_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.1">coverage.py v7.9.1</a>,
-            created at 2025-06-27 05:08 +0000
+            created at 2025-06-27 14:40 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -91,7 +91,7 @@
     <p class="run"><span class="n"><a id="t9" href="#t9">9</a></span><span class="t"><span class="key">import</span> <span class="nam">torch</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t10" href="#t10">10</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t11" href="#t11">11</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">layers</span><span class="op">.</span><span class="nam">configs</span><span class="op">.</span><span class="nam">llm_configs</span> <span class="key">import</span> <span class="op">*</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t12" href="#t12">12</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">layers</span><span class="op">.</span><span class="nam">rotary_embedding</span> <span class="key">import</span> <span class="nam">RotaryEmbeddingLayer</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t12" href="#t12">12</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">layers</span><span class="op">.</span><span class="nam">rotary_embedding</span> <span class="key">import</span> <span class="nam">build_rotary_layer</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t13" href="#t13">13</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">layers</span><span class="op">.</span><span class="nam">paged_attention</span> <span class="key">import</span> <span class="nam">PagedAttention</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t14" href="#t14">14</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">models</span><span class="op">.</span><span class="nam">llm</span> <span class="key">import</span> <span class="nam">AttentionFFNBlock</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t15" href="#t15">15</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">models</span><span class="op">.</span><span class="nam">llama</span><span class="op">.</span><span class="nam">testing</span> <span class="key">import</span> <span class="op">*</span>&nbsp;</span><span class="r"></span></p>
@@ -161,7 +161,7 @@
     <p class="pln"><span class="n"><a id="t79" href="#t79">79</a></span><span class="t">            <span class="nam">cache</span><span class="op">=</span><span class="nam">paged_kv_cache</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t80" href="#t80">80</a></span><span class="t">            <span class="nam">config</span><span class="op">=</span><span class="nam">llama_config</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t81" href="#t81">81</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t82" href="#t82">82</a></span><span class="t">        <span class="nam">attention_embedding</span> <span class="op">=</span> <span class="nam">RotaryEmbeddingLayer</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t82" href="#t82">82</a></span><span class="t">        <span class="nam">attention_embedding</span> <span class="op">=</span> <span class="nam">build_rotary_layer</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t83" href="#t83">83</a></span><span class="t">            <span class="nam">rope_dimension_count</span><span class="op">=</span><span class="nam">rope_dimension_count</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t84" href="#t84">84</a></span><span class="t">            <span class="nam">rope_freq_base</span><span class="op">=</span><span class="nam">rope_freq_base</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t85" href="#t85">85</a></span><span class="t">            <span class="nam">max_seqlen</span><span class="op">=</span><span class="nam">max_seq_len</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -172,7 +172,7 @@
     <p class="pln"><span class="n"><a id="t90" href="#t90">90</a></span><span class="t">            <span class="nam">yarn_factor</span><span class="op">=</span><span class="num">8</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t91" href="#t91">91</a></span><span class="t">            <span class="nam">yarn_original_context_len</span><span class="op">=</span><span class="num">8192</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t92" href="#t92">92</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t93" href="#t93">93</a></span><span class="t">        <span class="nam">position_embeddings</span> <span class="op">=</span> <span class="nam">attention_embedding</span><span class="op">.</span><span class="nam">rotary_embed_table</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t93" href="#t93">93</a></span><span class="t">        <span class="nam">position_embeddings</span> <span class="op">=</span> <span class="nam">attention_embedding</span><span class="op">.</span><span class="nam">rotary_embed_table</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t94" href="#t94">94</a></span><span class="t">        <span class="nam">input_tensor</span> <span class="op">=</span> <span class="nam">make_rand_torch</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t95" href="#t95">95</a></span><span class="t">            <span class="op">(</span><span class="num">1</span><span class="op">,</span> <span class="nam">seq_len</span><span class="op">,</span> <span class="nam">head_count</span> <span class="op">*</span> <span class="nam">head_dim</span><span class="op">)</span><span class="op">,</span> <span class="nam">dtype</span><span class="op">=</span><span class="nam">torch</span><span class="op">.</span><span class="nam">float32</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t96" href="#t96">96</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -269,7 +269,7 @@
             <a class="nav" href="z_2680bd164de65b43_benchmark_amdgpu_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.1">coverage.py v7.9.1</a>,
-            created at 2025-06-27 05:08 +0000
+            created at 2025-06-27 14:40 +0000
         </p>
     </div>
 </footer>

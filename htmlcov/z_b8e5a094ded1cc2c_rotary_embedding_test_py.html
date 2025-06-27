@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_b8e5a094ded1cc2c_sharded_conv2d_with_iree_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.1">coverage.py v7.9.1</a>,
-            created at 2025-06-27 05:08 +0000
+            created at 2025-06-27 14:40 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -89,7 +89,7 @@
     <p class="run"><span class="n"><a id="t7" href="#t7">7</a></span><span class="t"><span class="key">import</span> <span class="nam">math</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t8" href="#t8">8</a></span><span class="t"><span class="key">import</span> <span class="nam">torch</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t9" href="#t9">9</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t10" href="#t10">10</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">layers</span> <span class="key">import</span> <span class="nam">RotaryEmbeddingLayer</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t10" href="#t10">10</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">layers</span><span class="op">.</span><span class="nam">rotary_embedding</span> <span class="key">import</span> <span class="nam">build_rotary_layer</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t11" href="#t11">11</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t12" href="#t12">12</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t13" href="#t13">13</a></span><span class="t"><span class="key">def</span> <span class="nam">validate</span><span class="op">(</span><span class="nam">xq</span><span class="op">,</span> <span class="nam">em</span><span class="op">,</span> <span class="nam">rope_dims</span><span class="op">,</span> <span class="nam">rope_freq_base</span><span class="op">,</span> <span class="nam">interleaved</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -155,7 +155,7 @@
     <p class="pln"><span class="n"><a id="t73" href="#t73">73</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t74" href="#t74">74</a></span><span class="t">    <span class="com"># First we setup and get the default rotary embedding layer</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t75" href="#t75">75</a></span><span class="t">    <span class="nam">xq</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">rand</span><span class="op">(</span><span class="op">(</span><span class="nam">bs</span><span class="op">,</span> <span class="nam">max_seqlen</span><span class="op">,</span> <span class="nam">heads</span><span class="op">,</span> <span class="nam">rope_dims</span><span class="op">)</span><span class="op">,</span> <span class="nam">dtype</span><span class="op">=</span><span class="nam">torch</span><span class="op">.</span><span class="nam">float</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t76" href="#t76">76</a></span><span class="t">    <span class="nam">default_layer</span> <span class="op">=</span> <span class="nam">RotaryEmbeddingLayer</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t76" href="#t76">76</a></span><span class="t">    <span class="nam">default_layer</span> <span class="op">=</span> <span class="nam">build_rotary_layer</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t77" href="#t77">77</a></span><span class="t">        <span class="nam">rope_dimension_count</span><span class="op">=</span><span class="nam">rope_dims</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t78" href="#t78">78</a></span><span class="t">        <span class="nam">max_seqlen</span><span class="op">=</span><span class="nam">max_seqlen</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t79" href="#t79">79</a></span><span class="t">        <span class="nam">rope_freq_base</span><span class="op">=</span><span class="nam">rope_freq_base</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -180,7 +180,7 @@
     <p class="pln"><span class="n"><a id="t98" href="#t98">98</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t99" href="#t99">99</a></span><span class="t">    <span class="com"># First we setup and get the default rotary embedding layer</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t100" href="#t100">100</a></span><span class="t">    <span class="nam">xq</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">rand</span><span class="op">(</span><span class="op">(</span><span class="nam">bs</span><span class="op">,</span> <span class="nam">max_seqlen</span><span class="op">,</span> <span class="nam">heads</span><span class="op">,</span> <span class="nam">rope_dims</span><span class="op">)</span><span class="op">,</span> <span class="nam">dtype</span><span class="op">=</span><span class="nam">torch</span><span class="op">.</span><span class="nam">float</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t101" href="#t101">101</a></span><span class="t">    <span class="nam">default_layer</span> <span class="op">=</span> <span class="nam">RotaryEmbeddingLayer</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t101" href="#t101">101</a></span><span class="t">    <span class="nam">default_layer</span> <span class="op">=</span> <span class="nam">build_rotary_layer</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t102" href="#t102">102</a></span><span class="t">        <span class="nam">rope_dimension_count</span><span class="op">=</span><span class="nam">rope_dims</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t103" href="#t103">103</a></span><span class="t">        <span class="nam">max_seqlen</span><span class="op">=</span><span class="nam">max_seqlen</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t104" href="#t104">104</a></span><span class="t">        <span class="nam">rope_freq_base</span><span class="op">=</span><span class="nam">rope_freq_base</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -203,7 +203,7 @@
             <a class="nav" href="z_b8e5a094ded1cc2c_sharded_conv2d_with_iree_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.1">coverage.py v7.9.1</a>,
-            created at 2025-06-27 05:08 +0000
+            created at 2025-06-27 14:40 +0000
         </p>
     </div>
 </footer>
