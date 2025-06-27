@@ -74,6 +74,7 @@ class LinearLayer(ThetaLayer):
         elif qdq_input is not None:
             x = qdq_input.quantize(x).unpack().dequant()
 
+        print(x.shape, weight.shape)
         y = ops.linear(x, weight, bias)
 
         if isinstance(y, QuantizedTensor):

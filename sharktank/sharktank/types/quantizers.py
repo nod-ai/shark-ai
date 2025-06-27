@@ -35,6 +35,8 @@ from .layout_utils import (
 from .ocp_floats import (
     compute_fp4_block_scales,
     float32_to_fp4_e2m1,
+    e8m0_to_float32,
+    float32_to_e8m0,
 )
 
 from .tensors import (
@@ -53,6 +55,7 @@ __all__ = [
     "DynamicFp4BlockQuantizer",
     "DynamicScaledQuantizer",
     "QuantizerTensor",
+    "StaticFp4BlockQuantizer",
     "StaticScaledQuantizer",
 ]
 
@@ -266,11 +269,11 @@ class StaticScaledQuantizer(QuantizerTensor):
             if "offset" in raw_tensors:
                 offset = raw_tensors["offset"]
         except KeyError as e:
-            raise IOError("Missing component tensor") from e
+            raise IOError("Missing component tensor 'scale'") from e
         try:
             dtype_name = extra_properties["dtype"]
         except KeyError as e:
-            raise IOError("Missing property") from e
+            raise IOError("Missing property 'dtype' in extra_properties") from e
         axis = int(extra_properties["axis"]) if "axis" in extra_properties else None
         disable_saturate = bool(extra_properties.get("disable_saturate"))
         dtype = serialized_name_to_dtype(dtype_name)
@@ -414,7 +417,7 @@ class DynamicScaledQuantizer(QuantizerTensor):
         try:
             dtype_name = extra_properties["dtype"]
         except KeyError as e:
-            raise IOError("Missing property") from e
+            raise IOError("Missing property 'dtype' in extra_properties") from e
         dtype = serialized_name_to_dtype(dtype_name)
         return cls(
             name=name,
@@ -447,9 +450,217 @@ class DynamicScaledQuantizer(QuantizerTensor):
         return f"DynamicScaledQuantizer({self.name}) " f"-> dtype={self._dtype})"
 
 
-# TODO: We should make a StaticBlockQuantizer too.
-# We can probably refactor this and DynamicFp4BlockQuantizer to work with other block dtypes, rather than making
-# specific quantizers for each dtype.
+def pad_tensor_for_block_quantization(t: torch.Tensor, block_size: int) -> torch.Tensor:
+    """Pad tensor to make the last dimension evenly divisible by block_size.
+
+    Args:
+        t: Input tensor to pad
+        block_size: Size of each block
+
+    Returns:
+        Padded tensor with shape such that t.shape[-1] % block_size == 0
+    """
+    if t.numel() == 0:
+        raise ValueError("Cannot pad empty tensor")
+
+    last_dim_size = t.shape[-1]
+    pad_size = (block_size - (last_dim_size % block_size)) % block_size
+
+    if pad_size > 0:
+        return torch.nn.functional.pad(t, (0, pad_size))
+    else:
+        return t
+
+
+def _fp4_block_quantize_tensor(
+    t: torch.Tensor,
+    scales: torch.Tensor,
+    block_size: int,
+    use_fe8m0_scale: bool,
+    name: str,
+) -> PlanarQuantizedTensor:
+    """Complete FP4 block quantization: blocking, scaling, quantization, and layout creation.
+
+    Args:
+        t: Input tensor of shape [..., N] to quantize (must have N % block_size == 0)
+        scales: Per-block scales (either float or integer exponents, flat)
+        block_size: Size of each block
+        use_fe8m0_scale: Whether scales are FE8M0
+        name: Name for the resulting tensor
+
+    Returns:
+        PlanarQuantizedTensor with BlockScaledFp4Layout
+    """
+    if t.numel() == 0:
+        raise ValueError("Cannot quantize empty tensor")
+    if t.shape[-1] % block_size != 0:
+        raise ValueError(
+            f"Tensor shape {t.shape[-1]} must be divisible by block_size {block_size}. "
+            f"Use pad_tensor_for_block_quantization() to pad the tensor first."
+        )
+
+    # Reshape to [..., num_blocks, block_size] to group into blocks
+    values_blocked = t.view(-1, block_size)
+
+    # Prepare scales for broadcasting - add dimension for block_size
+    if use_fe8m0_scale:
+        scales_broadcast = e8m0_to_float32(scales).unsqueeze(-1)
+    else:
+        scales_broadcast = scales.unsqueeze(-1)
+
+    # Scale the blocked values via broadcasting
+    scaled_values = values_blocked / scales_broadcast
+
+    # Convert to FP4 indices (preserves shape)
+    quantized_indices = float32_to_fp4_e2m1(scaled_values)
+
+    # Pack FP4 indices (works on last dimension)
+    packed_fp4 = pack_fp4_e2m1_to_uint8(quantized_indices)
+
+    # Create layout
+    layout = BlockScaledFp4Layout(
+        shape=list(t.shape),
+        d=scales,
+        qs=packed_fp4,
+        block_size=block_size,
+        use_fe8m0_scale=use_fe8m0_scale,
+    )
+
+    return PlanarQuantizedTensor(
+        shape=list(t.shape),
+        name=name,
+        layout=layout,
+    )
+
+
+@register_inference_tensor
+class StaticFp4BlockQuantizer(QuantizerTensor):
+    """Quantizer that produces a `BlockScaledFp4Layout` with pre-computed static
+    per-block scales, specifically designed for FP4 E2M1 quantization.
+    """
+
+    def __init__(
+        self,
+        *,
+        scales: torch.Tensor,
+        block_size: int = 32,
+        use_fe8m0_scale: bool = True,
+        dtype: torch.dtype = torch.float32,
+        name: str = UnnamedTensorName,
+    ):
+        super().__init__(shape=scales.shape, name=name)
+        if block_size <= 0:
+            raise ValueError(f"Block size must be positive, got {block_size}")
+        if block_size % 2 != 0:
+            raise ValueError(
+                f"Block size must be even for FP4 packing, got {block_size}"
+            )
+
+        self._scales = scales
+        self._block_size = block_size
+        self._use_fe8m0_scale = use_fe8m0_scale
+        self._dtype = dtype
+
+    def _quantize_raw_tensor(self, t: torch.Tensor, *, name: str) -> QuantizedTensor:
+        """Performs FP4 block quantization on tensor t using pre-computed scales."""
+
+        return _fp4_block_quantize_tensor(
+            t=t,
+            scales=self.scales,
+            block_size=self._block_size,
+            use_fe8m0_scale=self._use_fe8m0_scale,
+            name=name,
+        )
+
+    @property
+    def scales(self) -> torch.Tensor:
+        return self._scales
+
+    @property
+    def block_size(self) -> int:
+        return self._block_size
+
+    @property
+    def use_fe8m0_scale(self) -> bool:
+        return self._use_fe8m0_scale
+
+    @property
+    def dtype(self) -> torch.dtype:
+        return self._dtype
+
+    @classmethod
+    def serialized_name(cls) -> str:
+        return "StaticFp4BlockQuantizer"
+
+    @classmethod
+    def create(
+        cls,
+        name: str,
+        raw_tensors: dict[str, torch.Tensor],
+        extra_properties: dict[str, Any],
+    ):
+        try:
+            scales = raw_tensors["scales"]
+        except KeyError as e:
+            raise IOError("Missing component tensor 'scales'") from e
+
+        block_size = int(extra_properties.get("block_size", 32))
+        use_fe8m0_scale = bool(extra_properties.get("use_fe8m0_scale", True))
+        dtype_name = extra_properties.get("dtype", "float32")
+        dtype = serialized_name_to_dtype(dtype_name)
+
+        return cls(
+            name=name,
+            scales=scales,
+            block_size=block_size,
+            use_fe8m0_scale=use_fe8m0_scale,
+            dtype=dtype,
+        )
+
+    @property
+    def globals(self) -> dict[str, torch.Tensor]:
+        return {
+            f"{self.name}:scales": self._scales,
+        }
+
+    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
+        """Adds this tensor to the global archive."""
+        scales_name = f"{self.name}:scales"
+        builder.add_tensor(scales_name, self._scales)
+
+        extra_properties = {
+            "block_size": self._block_size,
+            "use_fe8m0_scale": self._use_fe8m0_scale,
+            "dtype": dtype_to_serialized_name(self._dtype),
+        }
+        raw_tensors = {
+            "scales": scales_name,
+        }
+
+        return InferenceTensorMetadata(
+            self.serialized_name(),
+            raw_tensors=raw_tensors,
+            extra_properties=extra_properties,
+        )
+
+    def _clone_with_globals(
+        self, new_globals: dict[str, torch.Tensor]
+    ) -> "InferenceTensor":
+        return StaticFp4BlockQuantizer(
+            name=self.name,
+            scales=new_globals[f"{self.name}:scales"],
+            block_size=self.block_size,
+            use_fe8m0_scale=self.use_fe8m0_scale,
+            dtype=self.dtype,
+        )
+
+    def __repr__(self):
+        return (
+            f"StaticFp4BlockQuantizer({self.name}, scales={self.scales.shape}, "
+            f"block_size={self.block_size}, "
+            f"use_fe8m0_scale={self.use_fe8m0_scale}, "
+            f"dtype={self.dtype})"
+        )
 
 
 @register_inference_tensor
@@ -469,74 +680,38 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
         self,
         *,
         block_size: int = 32,
-        use_power_of_two_scale: bool = True,
+        use_fe8m0_scale: bool = True,
         dtype: torch.dtype = torch.float32,
         name: str = UnnamedTensorName,
     ):
         super().__init__(shape=(), name=name)
         if block_size <= 0:
-            raise ValueError(f"block_size must be positive, got {block_size}")
+            raise ValueError(f"Block size must be positive, got {block_size}")
         if block_size % 2 != 0:
             raise ValueError(
-                f"block_size must be even for FP4 packing, got {block_size}"
+                f"Block size must be even for FP4 packing, got {block_size}"
             )
         self._block_size = block_size
-        self._use_power_of_two_scale = use_power_of_two_scale
+        self._use_fe8m0_scale = use_fe8m0_scale
         self._dtype = dtype
 
     def _quantize_raw_tensor(self, t: torch.Tensor, *, name: str) -> QuantizedTensor:
         """Performs FP4 block quantization on tensor t."""
-        if t.numel() == 0:
-            raise ValueError("Cannot quantize empty tensor")
-
-        original_shape = t.shape
-        total_original_elements = t.numel()
-
-        # Calculate blocks needed after (possible) padding
-        actual_num_blocks = (
-            total_original_elements + self._block_size - 1
-        ) // self._block_size
-        total_padded_elements = actual_num_blocks * self._block_size
-        pad_size = total_padded_elements - total_original_elements
-        if pad_size > 0:
-            values_flat = torch.nn.functional.pad(t.flatten(), (0, pad_size))
-        else:
-            values_flat = t.flatten()
-
-        # Reshape into blocks
-        values_blocked = values_flat.view(actual_num_blocks, self._block_size)
+        t_padded = pad_tensor_for_block_quantization(t, self._block_size)
 
         # Compute scales per block
+        values_blocked = t_padded.view(-1, self._block_size)
         block_max = torch.max(torch.abs(values_blocked), dim=1, keepdim=True)[0]
-        scales, scales_float = compute_fp4_block_scales(
-            block_max, self._use_power_of_two_scale, self._dtype
+        scales, _ = compute_fp4_block_scales(
+            block_max, self._use_fe8m0_scale, self._dtype
         )
 
-        # Quantize each block
-        values_blocked.div_(scales_float)
-
-        # Convert to FP4 indices
-        quantized_indices = float32_to_fp4_e2m1(values_blocked.flatten()).view(
-            actual_num_blocks, self._block_size
-        )
-
-        # Pack FP4 indices
-        packed_bytes_per_block = self._block_size // 2
-        packed_fp4 = pack_fp4_e2m1_to_uint8(quantized_indices.flatten())
-        packed_fp4_reshaped = packed_fp4.view(actual_num_blocks, packed_bytes_per_block)
-
-        layout = BlockScaledFp4Layout(
-            shape=list(original_shape),
-            d=scales,
-            qs=packed_fp4_reshaped,
+        return _fp4_block_quantize_tensor(
+            t=t_padded,
+            scales=scales,
             block_size=self._block_size,
-            use_power_of_two_scale=self._use_power_of_two_scale,
-        )
-
-        return PlanarQuantizedTensor(
-            shape=list(original_shape),
+            use_fe8m0_scale=self._use_fe8m0_scale,
             name=name,
-            layout=layout,
         )
 
     @property
@@ -544,8 +719,8 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
         return self._block_size
 
     @property
-    def use_power_of_two_scale(self) -> bool:
-        return self._use_power_of_two_scale
+    def use_fe8m0_scale(self) -> bool:
+        return self._use_fe8m0_scale
 
     @property
     def dtype(self) -> torch.dtype:
@@ -563,13 +738,11 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
         extra_properties: dict[str, Any],
     ):
         block_size = int(extra_properties.get("block_size", 32))
-        use_power_of_two_scale = bool(
-            extra_properties.get("use_power_of_two_scale", True)
-        )
+        use_fe8m0_scale = bool(extra_properties.get("use_fe8m0_scale", True))
         return cls(
             name=name,
             block_size=block_size,
-            use_power_of_two_scale=use_power_of_two_scale,
+            use_fe8m0_scale=use_fe8m0_scale,
         )
 
     @property
@@ -580,7 +753,7 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
         """Adds this tensor to the global archive."""
         extra_properties = {
             "block_size": self._block_size,
-            "use_power_of_two_scale": self._use_power_of_two_scale,
+            "use_fe8m0_scale": self._use_fe8m0_scale,
         }
         raw_tensors = {}
         return InferenceTensorMetadata(
@@ -595,13 +768,13 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
         return DynamicFp4BlockQuantizer(
             name=self.name,
             block_size=self.block_size,
-            use_power_of_two_scale=self.use_power_of_two_scale,
+            use_fe8m0_scale=self.use_fe8m0_scale,
         )
 
     def __repr__(self):
         return (
             f"DynamicFp4BlockQuantizer({self.name}, block_size={self.block_size}, "
-            f"use_power_of_two_scale={self.use_power_of_two_scale})"
+            f"use_fe8m0_scale={self.use_fe8m0_scale})"
         )
 
 

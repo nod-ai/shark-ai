@@ -82,11 +82,15 @@ def main():
             save = True
 
         if save:
-            logger.info(f"  {tensor.name}: {tensor.shape}, {tensor.dtype}")
-            # TODO: Add support to save QuantizedTensor and ShardedTensor
-            tensors += [
-                DefaultPrimitiveTensor(data=tensor.as_torch(), name=tensor.name)
-            ]
+            #logger.info(f"  {tensor.name}: {tensor.shape}, {tensor.dtype}")
+            if isinstance(tensor, (QuantizedTensor, QuantizerTensor)):
+                # Preserve quantized tensors and quantizers as-is
+                tensors += [tensor]
+            else:
+                # Convert primitive tensors
+                tensors += [
+                    DefaultPrimitiveTensor(data=tensor.as_torch(), name=tensor.name)
+                ]
 
         if isinstance(tensor, PrimitiveTensor):
             torch_tensor = tensor.as_torch()
@@ -101,6 +105,8 @@ def main():
                 logger.debug(f"    {unpacked}")
             except NotImplementedError:
                 logger.warning(f"    Unpacking NOT IMPLEMENTED for {tensor.name}")
+        elif isinstance(tensor, QuantizerTensor):
+            logger.debug(f"    : QuantizerTensor({type(tensor).__name__})")
         elif isinstance(tensor, ShardedTensor):
             for i, pt in enumerate(tensor.shards):
                 logger.debug(f"    {i}: {pt}")
@@ -130,6 +136,8 @@ def _maybe_dump_tensor(args, t: InferenceTensor):
             layout: QuantizedLayout = t.unpack()
             dq = layout.dequant()
             np.save(dir / f"{t.name}.dequant.npy", dq.detach().numpy())
+        elif isinstance(t, QuantizerTensor):
+            logger.info(f"Skipping dump of QuantizerTensor {t.name} (no tensor data to dump)")
         else:
             logger.error(f"Unexpected tensor type: {type(t)}")
             raise AssertionError(f"Unexpected tensor type: {type(t)}")
