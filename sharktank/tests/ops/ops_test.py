@@ -445,7 +445,52 @@ class TestScatterAdd(unittest.TestCase):
         assert ops.equal(actual, expected)
 
 
+@pytest.mark.usefixtures("device")
 class TestTopK(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(0)
+
+    @parameterized.expand(
+        [
+            (-1, 2, True, False, (10, 20, 30), None, True, torch.float32),
+            (-1, 2, True, False, (128, 2, 2), None, True, torch.float32),
+        ]
+    )
+    def testTopKWithoutTies(
+        self, dim, k, largest, sorted, shape, chunk_size, use_linalgext_topk, dtype
+    ):
+        numels = math.prod(shape)
+        # Make sure all elements are unique to avoid ties as topk is not stable.
+        # Then the sorted indices should match.
+        t = torch.randperm(numels, dtype=dtype, device=self.device).view(shape)
+        assert t.unique().numel() == t.numel()
+
+        expected_values, expected_indices = torch.topk(
+            t, dim=dim, k=k, largest=largest, sorted=sorted
+        )
+        actual_values, actual_indices = ops.topk(
+            t,
+            dim=dim,
+            k=k,
+            largest=largest,
+            sorted=sorted,
+            use_linalgext_topk=use_linalgext_topk,
+            chunk_size=chunk_size,
+        )
+
+        expected_values_sorted = expected_values.sort(dim=dim)[0]
+        actual_values_sorted = actual_values.sort(dim=dim)[0]
+
+        expected_indices_sorted = expected_indices.sort(dim=dim)[0]
+        actual_indices_sorted = actual_indices.sort(dim=dim)[0]
+
+        torch.testing.assert_close(
+            actual_values_sorted, expected_values_sorted, rtol=0, atol=0
+        )
+        torch.testing.assert_close(
+            actual_indices_sorted, expected_indices_sorted, rtol=0, atol=0
+        )
+
     @parameterized.expand(
         [
             (-1, 4, True, True, (1, 1, 256), 16, False),
@@ -461,7 +506,7 @@ class TestTopK(unittest.TestCase):
         self, dim, k, largest, _sorted, shape, chunk_size, use_linalgext_topk
     ):
         numels = math.prod(shape)
-        tensor = torch.arange(numels) * 173 + 129
+        tensor = torch.arange(numels, device=self.device) * 173 + 129
         tensor = tensor % numels
         tensor = tensor.to(torch.float16).view(shape)
 
