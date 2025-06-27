@@ -314,7 +314,7 @@ class RotaryEmbeddingLayer(BaseLayer):
             freqs = torch.where(is_medium_freq, smoothed_inv_freq, inv_freq_llama)
         return freqs
 
-    def _compute_rotary_embed_table(self, t):
+    def compute_rotary_embed_table(self, t):
         dim = self.rope_dimension_count
         if self.use_hf:
 
