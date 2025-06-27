@@ -32,9 +32,6 @@ class PageInfo:
     pool: PagePool
 
 
-# TODO: Delete all usages of PagePoolConfig
-
-
 class PagePool:
     """Page table based attention cache.
 
