@@ -277,14 +277,17 @@ class ClientGenerateBatchProcess(sf.Process):
                     else self.gen_req.text
                 )
 
-                input_token_ids= (
-                    input_tokens
-                    if is_pretokenized
-                    else input_tokens.ids
-                )
+                input_token_ids = input_tokens if is_pretokenized else input_tokens.ids
 
                 # return error reponse if no pages available
-                needed_pages_num = math.ceil(len(input_token_ids) / self.service.model_params.paged_kv_cache.block_seq_stride) + total_requested_beams - 1
+                needed_pages_num = (
+                    math.ceil(
+                        len(input_token_ids)
+                        / self.service.model_params.paged_kv_cache.block_seq_stride
+                    )
+                    + total_requested_beams
+                    - 1
+                )
                 available_pages_num = len(self.service.page_pool.available_pages)
                 if needed_pages_num > available_pages_num:
                     self._return_error_response(
