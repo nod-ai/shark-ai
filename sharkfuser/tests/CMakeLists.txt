@@ -20,6 +20,7 @@ add_executable(sharkfuser_tests
   test_tensor.cpp
   test_logging.cpp
   test_attributes.cpp
+  test_context.cpp
 )
 target_link_libraries(sharkfuser_tests PRIVATE sharkfuser Catch2::Catch2WithMain)
 add_test(NAME sharkfuser_tests COMMAND sharkfuser_tests)

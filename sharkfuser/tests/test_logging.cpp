@@ -12,7 +12,7 @@
 
 using namespace fusili;
 
-TEST_CASE("fusili::logging::isLoggingEnabled", "[logging]") {
+TEST_CASE("ConditionalStreamer conditioned on isLoggingEnabled", "[logging]") {
   // Create a string stream to capture the output
   std::ostringstream oss;
   ConditionalStreamer logger(oss);
@@ -46,7 +46,7 @@ TEST_CASE("fusili::logging::isLoggingEnabled", "[logging]") {
 // the stream ref picking the first snapshot of FUSILI_LOG_FILE
 // env variable. So subsequent tests that change the env variable (in
 // the same process) will not affect the stream returned by getStream().
-TEST_CASE("fusili::logging::getStream stdout mode", "[logging][.]") {
+TEST_CASE("getStream stdout mode", "[logging][.]") {
   setenv("FUSILI_LOG_FILE", "stdout", 1);
   std::ostream &stream = getStream();
   REQUIRE(&stream == &std::cout);
@@ -58,7 +58,7 @@ TEST_CASE("fusili::logging::getStream stdout mode", "[logging][.]") {
 // the stream ref picking the first snapshot of FUSILI_LOG_FILE
 // env variable. So subsequent tests that change the env variable (in
 // the same process) will not affect the stream returned by getStream().
-TEST_CASE("fusili::logging::getStream stderr mode", "[logging][.]") {
+TEST_CASE("getStream stderr mode", "[logging][.]") {
   setenv("FUSILI_LOG_FILE", "stderr", 1);
   std::ostream &stream = getStream();
   REQUIRE(&stream == &std::cerr);
@@ -70,7 +70,7 @@ TEST_CASE("fusili::logging::getStream stderr mode", "[logging][.]") {
 // the stream ref picking the first snapshot of FUSILI_LOG_FILE
 // env variable. So subsequent tests that change the env variable (in
 // the same process) will not affect the stream returned by getStream().
-TEST_CASE("fusili::logging::getStream file mode", "[logging][.]") {
+TEST_CASE("getStream file mode", "[logging][.]") {
   const char *test_file = "/tmp/test_fusili_log.txt";
   setenv("FUSILI_LOG_FILE", test_file, 1);
   std::ostream &stream = getStream();
