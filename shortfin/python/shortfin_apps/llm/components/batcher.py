@@ -411,15 +411,15 @@ class PrefillExecutorProcess(LlmExecutorProcess):
 
     async def update_pages(self):
         """Update the pages in the local page pool for the requests."""
-        updated = True
         for req in self.exec_requests:
             if req.allocation is not None:
-                updated = await req.allocation.update_pages(
+                num_updated_pages = await req.allocation.update_pages(
                     device=self.device0, token_ids=req.input_token_ids
                 )
-                if not updated:
-                    logger.warning(
-                        "Failed to update all pages for request %s, allocation: %s",
+                if num_updated_pages > 0:
+                    logger.debug(
+                        "Updated %d pages for request %s, allocation: %s",
+                        num_updated_pages,
                         req,
                         req.allocation,
                     )
@@ -431,15 +431,17 @@ class PrefillExecutorProcess(LlmExecutorProcess):
             # write back pages to mooncake
             logger.debug("Writing back pages for request %s", req)
             if req.allocation is not None:
-                await req.allocation.write_back_pages(
+                num_stored_pages = await req.allocation.write_back_pages(
                     device=self.device0, token_ids=req.input_token_ids
                 )
                 logger.debug("Successfully wrote back pages for request %s", req)
-            else:
-                logger.debug(
-                    "Skipping write back for request %s, allocation is None",
-                    req,
-                )
+                if num_stored_pages > 0:
+                    logger.debug(
+                        "Wrote back %d pages for request %s, allocation: %s",
+                        num_stored_pages,
+                        req,
+                        req.allocation,
+                    )
 
     async def get_args(self, bs):
         seq_stride = self.seq_stride

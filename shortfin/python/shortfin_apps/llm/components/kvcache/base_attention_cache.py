@@ -63,16 +63,17 @@ class PageAllocation(ABC):
         """
         Writes back the pages to the mooncake. This is a no-op in the base class.
         Derived classes may implement this to handle device-specific logic.
+        return number of pages written back to the distributed store
         """
-        ...
+        return 0
 
     async def update_pages(self, device: sf.ScopedDevice, token_ids: List[int]) -> bool:
         """
         Updates the pages in the cache. This is a no-op in the base class.
         Derived classes may implement this to handle device-specific logic.
-        Returns True if the pages were updated, False otherwise.
+        Returns number of pages updated from distributed store.
         """
-        return False
+        return 0
 
 
 class BasePagedAttentionCacheAllocation(PageAllocation):

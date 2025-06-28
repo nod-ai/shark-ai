@@ -14,7 +14,7 @@ from .trie_attention_cache import (
     TrieNode,
     TriePagedAttentionCacheAllocation,
 )
-from .mooncake import MooncakeConfig, MooncakeStore
+
 import shortfin as sf
 
 import logging
@@ -81,13 +81,14 @@ class MooncakePagedAllocation(PageAllocation):
 
     async def write_back_pages(
         self, device: sf.ScopedDevice, token_ids: List[int]
-    ) -> None:
+    ) -> int:
         """read pages from device and send them to the Mooncake store."""
         page_pool = self.cache.page_pool
         tokens_per_page = self.cache.tokens_per_page
         number_of_pages = math.ceil(len(token_ids) / tokens_per_page)
         # copy pages from the device
         device_id = device.raw_device.node_affinity
+
         logger.debug(
             f"Write_back_pages for Device ID: {device_id}, number of tokens: {len(token_ids)}, Number of pages: {number_of_pages}, Tokens per page: {tokens_per_page}"
         )
@@ -120,8 +121,9 @@ class MooncakePagedAllocation(PageAllocation):
             logger.debug(f"Writing back page to Mooncake store with key: {key}")
             mooncake_store.put_int_list(key, value)
         logger.info(f"Successfully wrote back {len(keys)} pages to Mooncake store.")
+        return len(keys)
 
-    async def update_pages(self, device: sf.ScopedDevice, token_ids: List[int]) -> bool:
+    async def update_pages(self, device: sf.ScopedDevice, token_ids: List[int]) -> int:
         """Update pages in the device.
         This method splits the token_ids into keys according to tokens_per_page used in page_pool, retrieves the page correspons to the key from Mooncake and updates corresponding page in the page pool.
         args:
@@ -154,7 +156,7 @@ class MooncakePagedAllocation(PageAllocation):
                 logger.warning(
                     f"Page not found in Mooncake store for key: {key}. Skipping updating this and the rest of tokens."
                 )
-                continue
+                break
             logger.debug(f"Got page for key: {key} from Mooncake store")
             # Get the page from the page pool
             values.append(value)
@@ -169,13 +171,7 @@ class MooncakePagedAllocation(PageAllocation):
             )
         await device
         logger.info(f"Updated {len(values)} pages in the device.")
-        if len(values) == number_of_pages:
-            return True
-        else:
-            logger.warning(
-                f"Only updated {len(values)} out of {number_of_pages} pages in the device."
-            )
-            return False
+        return len(values)
 
 
 class MooncakeAttentionCache(BasePagedAttentionCache):
@@ -194,14 +190,16 @@ class MooncakeAttentionCache(BasePagedAttentionCache):
         tokens_per_page: int,
         prefix_sharing_algorithm: str,
         mooncake_config_path: str,
+        mooncake_store=None,
     ):
         """Initialize the mooncacke cache.
 
         Args:
-            mooncake_config_path: Path to Mooncake configuration file
-            prefix_sharing_algorithm: Algorithm to use for prefix sharing
             page_pool: Pool to allocate pages from
             tokens_per_page: Number of tokens per page
+            prefix_sharing_algorithm: Algorithm to use for prefix sharing
+            mooncake_config_path: Path to Mooncake configuration file
+            mooncake_store: Optional MooncakeStore instance. If not provided, a new instance will be created using the configuration file.
         """
         if prefix_sharing_algorithm == "trie":
             self.page_cache = TriePagedAttentionCache(
@@ -214,11 +212,17 @@ class MooncakeAttentionCache(BasePagedAttentionCache):
                 tokens_per_page=tokens_per_page,
             )
 
-        self.mooncake_config_path = mooncake_config_path
-        mooncake_config = MooncakeConfig.from_json(self.mooncake_config_path)
-        self.mooncake_store = MooncakeStore(mooncake_config)
-        self.mooncake_keys: Set[str] = set()
-        logger.info(f"Mooncake store enabled with config: {self.mooncake_config_path}")
+        if mooncake_store is None:
+            from .mooncake import MooncakeConfig, MooncakeStore
+
+            self.mooncake_config_path = mooncake_config_path
+            mooncake_config = MooncakeConfig.from_json(self.mooncake_config_path)
+            self._mooncake_store = MooncakeStore(mooncake_config)
+            logger.info(
+                f"Mooncake store enabled with config: {self.mooncake_config_path}"
+            )  #
+        else:
+            self._mooncake_store = mooncake_store
 
     @property
     def page_pool(self) -> PagePool:
@@ -234,6 +238,15 @@ class MooncakeAttentionCache(BasePagedAttentionCache):
     def use_ref_counts(self) -> bool:
         """Return whether to use reference counts for pages."""
         return self.page_cache.use_ref_counts
+
+    @property
+    def mooncake_store(self):
+        """Return the Mooncake store associated with this cache."""
+        return self._mooncake_store
+
+    @mooncake_store.setter
+    def mooncake_store(self, store):
+        self._mooncake_store = store
 
     def acquire_pages_for_tokens(
         self, tokens: List[int], extra_token_slots: int = 1
@@ -270,3 +283,8 @@ class MooncakeAttentionCache(BasePagedAttentionCache):
 
     def fork_pages(self, pages: List[PageInfo]) -> List[PageInfo]:
         return self.page_cache.fork_pages(pages)
+
+    def close_mooncake_store(self):
+        """Close the Mooncake store connection. This function is only used in unit tests for cleanup mock mooncake store."""
+        if self._mooncake_store:
+            self._mooncake_store.close()
