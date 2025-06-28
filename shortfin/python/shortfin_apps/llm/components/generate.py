@@ -9,6 +9,7 @@ import dataclasses
 import io
 import json
 import logging
+import math
 
 from copy import deepcopy
 from typing import List, Tuple
@@ -283,9 +284,9 @@ class ClientGenerateBatchProcess(sf.Process):
                 )
 
                 # return error reponse if no pages available
-                needed_pages_num = math.ceil(len(request.input_token_ids) / self.service.model_params.paged_kv_cache.block_seq_stride) + total_requested_beams - 1
+                needed_pages_num = math.ceil(len(input_token_ids) / self.service.model_params.paged_kv_cache.block_seq_stride) + total_requested_beams - 1
                 available_pages_num = len(self.service.page_pool.available_pages)
-                if needed_pages > available_pages_num:
+                if needed_pages_num > available_pages_num:
                     self._return_error_response(
                         status.HTTP_400_BAD_REQUEST,
                         error_message="Not enough pages for the new request",
@@ -305,7 +306,7 @@ class ClientGenerateBatchProcess(sf.Process):
                     self.gen_req,
                     index,
                     input_text=input_text,
-                    input_token_ids,
+                    input_token_ids=input_token_ids,
                     eos_token_id=self.tokenizer.eos_token_id,
                     decode_config=decode_config,
                     status_tracker=self.responder.get_status_tracker(),
