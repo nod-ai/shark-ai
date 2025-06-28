@@ -407,6 +407,12 @@ class ExportArtifacts:
             "--iree-hal-memoization=true",
         ]
 
+        # TODO: https://github.com/iree-org/iree/issues/21068
+        if any(
+            llama_size in str(self.irpa_path) for llama_size in ["405", "70"]
+        ) and all("max-iterations" not in arg for arg in compile_args):
+            compile_args += "--iree-stream-affinity-solver-max-iterations=1024"
+
         # Append optional arguments if provided
         if extra_args:
             compile_args += extra_args
