@@ -102,16 +102,16 @@ class LlmGenerateService(GenerateService):
             alloc_page_count=self.model_params.paged_kv_cache.device_block_count,
             paged_kv_block_size_elements=self.model_params.paged_kv_block_size_elements,
         )
-        page_pool = PagePool(devices=self.devices, config=page_pool_config)
+        self.page_pool = PagePool(devices=self.devices, config=page_pool_config)
 
         if self.server_params.prefix_sharing_algorithm == "trie":
             self.page_cache = TriePagedAttentionCache(
-                page_pool=page_pool,
+                page_pool=self.page_pool,
                 tokens_per_page=self.model_params.paged_kv_cache.block_seq_stride,
             )
         elif self.server_params.prefix_sharing_algorithm == "none":
             self.page_cache = BasePagedAttentionCache(
-                page_pool=page_pool,
+                page_pool=self.page_pool,
                 tokens_per_page=self.model_params.paged_kv_cache.block_seq_stride,
             )
         else:

@@ -236,8 +236,6 @@ class ClientGenerateBatchProcess(sf.Process):
             if streaming:
                 self.responder.stream_start()
 
-            # Launch all individual generate processes and wait for them to finish.
-            gen_processes = []
             input_ids = self.gen_req.input_ids
             is_pretokenized = input_ids is not None
             # TODO: We should send this to an executor and await the results.
@@ -246,6 +244,8 @@ class ClientGenerateBatchProcess(sf.Process):
             else:
                 input_batch = self.tokenize()
 
+            # Launch all individual generate processes and wait for them to finish.
+            gen_processes = []
             for index, input_tokens in enumerate(input_batch):
                 decode_config = decode_configs[index]
 
@@ -270,23 +270,42 @@ class ClientGenerateBatchProcess(sf.Process):
                     )
                     return
 
-                idx, fiber = await self.service.main_fiber_pool.get()
-                indices.append(idx)
-
                 input_text = (
                     self.gen_req.text[index]
                     if not is_pretokenized and not self.gen_req.is_single
                     else self.gen_req.text
                 )
 
+                input_token_ids= (
+                    input_tokens
+                    if is_pretokenized
+                    else input_tokens.ids
+                )
+
+                # return error reponse if no pages available
+                needed_pages_num = math.ceil(len(request.input_token_ids) / self.service.model_params.paged_kv_cache.block_seq_stride) + total_requested_beams - 1
+                available_pages_num = len(self.service.page_pool.available_pages)
+                if needed_pages > available_pages_num:
+                    self._return_error_response(
+                        status.HTTP_400_BAD_REQUEST,
+                        error_message="Not enough pages for the new request",
+                        code=ResponseErrorCodes.PAGE_FULL,
+                        extra_fields={
+                            "available_page": available_pages_num,
+                            "requested_page": needed_pages_num,
+                        },
+                    )
+                    return
+
+                idx, fiber = await self.service.main_fiber_pool.get()
+                indices.append(idx)
+
                 gen_process = GenerateItemProcess(
                     self,
                     self.gen_req,
                     index,
                     input_text=input_text,
-                    input_token_ids=input_tokens
-                    if is_pretokenized
-                    else input_tokens.ids,
+                    input_token_ids,
                     eos_token_id=self.tokenizer.eos_token_id,
                     decode_config=decode_config,
                     status_tracker=self.responder.get_status_tracker(),
