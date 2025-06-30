@@ -12,9 +12,9 @@
 #include <variant>
 #include <vector>
 
-#include "../context.h"
-#include "../logging.h"
-#include "../types.h"
+#include "fusili/context.h"
+#include "fusili/logging.h"
+#include "fusili/types.h"
 
 namespace fusili {
 
@@ -69,7 +69,7 @@ private:
 
   // Unique identifier for every tensor in the graph
   uid_t uid = 0;
-  bool uid_assigned = false;
+  bool uid_set = false;
 
 public:
   TensorAttr() = default;
@@ -147,30 +147,29 @@ public:
 
   TensorAttr &set_uid(uid_t const value) {
     uid = value;
-    uid_assigned = true;
+    uid_set = true;
     return *this;
   }
 
   TensorAttr &clear_uid() {
     uid = 0;
-    uid_assigned = false;
+    uid_set = false;
     return *this;
   }
 
   // Getters
-  std::string get_name() const { return name; }
+  const std::string &get_name() const { return name; }
 
   DataType_t get_data_type() const { return data_type; }
 
-  std::vector<int64_t> get_dim() const { return dim; }
+  const std::vector<int64_t> &get_dim() const { return dim; }
 
-  std::vector<int64_t> get_stride() const { return stride; }
+  const std::vector<int64_t> &get_stride() const { return stride; }
 
   int64_t get_volume() const {
     int64_t volume = 1ul;
-    for (const int64_t &d : dim) {
+    for (const int64_t &d : dim)
       volume *= d;
-    }
     return volume;
   }
 
@@ -182,7 +181,7 @@ public:
 
   uid_t get_uid() const { return uid; }
 
-  bool has_uid() const { return uid_assigned; }
+  bool has_uid() const { return uid_set; }
 };
 
 } // namespace fusili

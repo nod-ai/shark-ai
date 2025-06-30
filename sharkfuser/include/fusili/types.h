@@ -11,22 +11,16 @@ namespace fusili {
 enum class DataType_t {
   NOT_SET,
 
+  HALF,
   FLOAT,
   DOUBLE,
-  HALF,
   INT8,
   INT32,
-  INT8x4,
-  UINT8,
-  UINT8x4,
-  INT8x32,
-  BFLOAT16,
   INT64,
+  BFLOAT16,
   BOOLEAN,
   FP8_E4M3,
   FP8_E5M2,
-  FAST_FLOAT_FOR_FP8,
-  FP8_E8M0,
   FP4_E2M1,
 };
 

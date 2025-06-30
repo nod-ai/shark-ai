@@ -6,6 +6,22 @@
 
 #pragma once
 
-#include "attributes/tensor_attributes.h"
+#include "fusili/attributes/tensor_attributes.h"
 
-namespace fusili {} // namespace fusili
+namespace fusili {
+
+template <typename DerivedT> class AttributesCRTP {
+private:
+  DerivedT &self() { return static_cast<DerivedT &>(*this); }
+  const DerivedT &self() const { return static_cast<const DerivedT &>(*this); }
+
+public:
+  std::string name;
+
+  DerivedT &set_name(const std::string &name_) {
+    name = name_;
+    return self();
+  }
+};
+
+} // namespace fusili
