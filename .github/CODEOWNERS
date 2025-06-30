@@ -1,0 +1,15 @@
+# Codeowners for shark-ai Github Repository.
+# The listed owners will automatically be added as reviewers to PRs that modify
+# paths matching the specified patterns.
+# Refer to https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+# for syntax of this file (tl;dr: syntax is like .gitignore. Last matching rule
+# takes precedence).
+# Because of the precedence, rules for directories are listed topologically.
+
+# Sharktank
+
+## Sharktank Layers
+/sharktank/sharktank/layers/paged_attention.py @Groverkss @IanWood1
+
+## Sharktank Kernels
+/sharktank/sharktank/kernels @Groverkss
