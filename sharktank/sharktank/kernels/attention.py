@@ -24,7 +24,7 @@ N = StaticDim.N
 I_DTYPE = Dtype.I_DTYPE
 M_DTYPE = Dtype.M_DTYPE
 S_DTYPE = Dtype.S_DTYPE
-O_DTYPE = Dtype.O_DTYPE(torch.float32)
+O_DTYPE = Dtype.O_DTYPE(torch.float16)
 
 
 @mlir_kernel(
@@ -64,8 +64,8 @@ def flash_attention(q, k, v, scale, result=None):
       }
       ins(%q, %k, %v, %s_c : !q, !k, !v, !scale_dtype)
       outs(%empty : !result) {
-        ^bb0(%score : f32):
-          iree_linalg_ext.yield %score : f32
+        ^bb0(%score : O_DTYPE):
+          iree_linalg_ext.yield %score : O_DTYPE
       } -> !result
 
       util.return %result : !result
@@ -114,8 +114,8 @@ def masked_flash_attention(q, k, v, mask, scale, result=None):
       }
       ins(%q, %k, %v, %s_c, %mask : !q, !k, !v, !scale_dtype, !mask)
       outs(%empty : !result) {
-        ^bb0(%score : f32):
-          iree_linalg_ext.yield %score : f32
+        ^bb0(%score : O_DTYPE):
+          iree_linalg_ext.yield %score : O_DTYPE
       } -> !result
 
       util.return %result : !result
