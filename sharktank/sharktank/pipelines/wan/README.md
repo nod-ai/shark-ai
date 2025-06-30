@@ -61,6 +61,10 @@ HIP_VISIBLE_DEVICES=1 iree-run-module --module=wan2_1_umt5xxl_gfx942.vmfb --inpu
 ```
 ### CLIP (TODO)
 
+### Transformer
+```
+HIP_VISIBLE_DEVICES=1 iree-run-module --module=wan2_1_transformer_512x512_gfx942.vmfb --input=@wan_tformer_x.npy --input=@wan_tformer_t.npy --input=@wan_tformer_context.npy --function=forward_t2v_bs1 --device=hip://0 --parameters=model=wan_transformer_dataset.irpa
+```
 ### VAE
 ```
 HIP_VISIBLE_DEVICES=1 iree-run-module --module=wan2_1_vae_512x512_gfx942.vmfb --input=@vae_encode_input.npy --function=encode --device=hip://0 --parameters=model=wan2_1_vae_bf16.irpa &> vae_out.txt

@@ -21,7 +21,7 @@ def attention(
     causal=False,
     window_size=(-1, -1),
     deterministic=False,
-    dtype=torch.bfloat16,
+    dtype=torch.float32,
     fa_version=None,
 ):
     if q_lens is not None or k_lens is not None:

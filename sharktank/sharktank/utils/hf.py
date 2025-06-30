@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import Optional
+from typing import Optional, List
 from os import PathLike
 import os
 import json
@@ -40,7 +40,7 @@ def import_hf_dataset(
                 )
                 for name in st.keys()
             ]
-
+            print([name for name in st.keys()])
     theta = Theta(tensors)
     props = {
         "meta": meta_params,
@@ -60,8 +60,10 @@ def import_hf_dataset_from_hub(
     subfolder: str | None = None,
     config_subpath: str | None = None,
     output_irpa_file: PathLike | None = None,
+    allow_patterns: str | List[str] | None = None,
 ) -> Dataset | None:
-    model_dir = Path(snapshot_download(repo_id=repo_id, revision=revision))
+    model_dir = Path(snapshot_download(repo_id=repo_id, revision=revision, allow_patterns=allow_patterns))
+    print(model_dir)
     if subfolder is not None:
         model_dir /= subfolder
     if config_subpath is None:
