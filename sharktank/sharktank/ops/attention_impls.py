@@ -54,7 +54,7 @@ def masked_flash_attention(q, k, v, a):
 
 
 # TODO: apply similar thing to masked_flash_attention
-def flash_attention(q, k, v, scale):
+def flash_attention(q, k, v, a=None, is_causal=False, scale=1.0):
     scale = torch.scalar_tensor(1.0 / math.sqrt(q.shape[-1]), dtype=torch.float32)
 
     q, qscale = _extract_linear_scale(q)
