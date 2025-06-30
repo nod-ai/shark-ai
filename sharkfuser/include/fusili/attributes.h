@@ -17,10 +17,39 @@ private:
 
 public:
   std::string name;
+  DataType_t compute_data_type = DataType_t::NOT_SET;
 
-  DerivedT &set_name(const std::string &name_) {
+  const std::string &get_name() const { return name; }
+
+  DerivedT &set_name(std::string const &name_) {
     name = name_;
     return self();
+  }
+
+  DerivedT &set_compute_data_type(DataType_t const value) {
+    compute_data_type = value;
+    return self();
+  }
+
+  void fill_from_context(Context const &context) {
+    if (compute_data_type == DataType_t::NOT_SET) {
+      set_compute_data_type(context.get_compute_data_type());
+    }
+
+    // Every class that derives from AttributeCRTP should have two maps:
+    //  std::unordered_map<input_names, std::shared_ptr<TensorAttr>> inputs;
+    //  std::unordered_map<output_names, std::shared_ptr<TensorAttr>> outputs;
+    // These are used to populate metadata (e.g. data types) from the context.
+
+    for (auto &[_, tensor] : self().inputs) {
+      if (tensor)
+        tensor->fill_from_context(context);
+    }
+
+    for (auto &[_, tensor] : self().outputs) {
+      if (tensor)
+        tensor->fill_from_context(context);
+    }
   }
 };
 
