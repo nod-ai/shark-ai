@@ -496,9 +496,9 @@ WAN_CROSSATTENTION_CLASSES = {
 }
 
 # This layer norm is used when non weight provided in irpa.
-def layer_norm(inp: torch.Tensor):
+def layer_norm(inp: torch.Tensor, eps=1e-6):
     return ops.layer_norm(
-        inp.float(), normalized_shape=(inp.shape[-1],), weight=None, bias=None, eps=1e-6
+        inp.float(), normalized_shape=(inp.shape[-1],), weight=None, bias=None, eps=eps
     ).type_as(inp)
 
     
