@@ -11,6 +11,7 @@ from abc import ABCMeta, abstractmethod
 
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import linalg, func  # type: ignore
+from iree.compiler.dialects import iree_codegen  # type: ignore
 
 from . import common
 
@@ -89,5 +90,4 @@ class AttentionOpInterfaceParser(DispatchParser):
 
     def has_valid_root_op(self) -> bool:
         root_op = self.get_root_op()
-        # TODO(Bangtian): will see whether to use `iree_codegen.isa_attention_op`
-        return root_op.name == "iree_linalg_ext.attention"
+        return iree_codegen.isa_attention_op(root_op)
