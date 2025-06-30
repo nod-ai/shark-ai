@@ -84,3 +84,46 @@ TEST_CASE("getStream file mode", "[logging][.]") {
   unsetenv("FUSILI_LOG_FILE");
   std::remove(test_file);
 }
+
+TEST_CASE("error_t and error_code_t operators and methods", "[logging]") {
+  SECTION("Default constructed error_t is OK") {
+    fusili::error_t err;
+    REQUIRE(err.code == error_code_t::OK);
+    REQUIRE(err.get_code() == error_code_t::OK);
+    REQUIRE(err.get_message() == "");
+    REQUIRE(err.is_good());
+    REQUIRE(!err.is_bad());
+    REQUIRE(err == error_code_t::OK);
+  }
+
+  SECTION("Custom error_t construction and comparison") {
+    fusili::error_t err(error_code_t::ATTRIBUTE_NOT_SET, "missing attribute");
+    REQUIRE(err.code == error_code_t::ATTRIBUTE_NOT_SET);
+    REQUIRE(err.get_code() == error_code_t::ATTRIBUTE_NOT_SET);
+    REQUIRE(err.get_message() == "missing attribute");
+    REQUIRE(!err.is_good());
+    REQUIRE(err.is_bad());
+    REQUIRE(err == error_code_t::ATTRIBUTE_NOT_SET);
+  }
+
+  SECTION("operator<< for error_code_t") {
+    std::ostringstream oss;
+    oss << error_code_t::OK;
+    REQUIRE(oss.str() == "OK");
+    oss.str("");
+    oss << error_code_t::ATTRIBUTE_NOT_SET;
+    REQUIRE(oss.str() == "ATTRIBUTE_NOT_SET");
+    oss.str("");
+    oss << static_cast<error_code_t>(9999); // Unknown code
+    REQUIRE(oss.str() == "UNKNOWN_ERROR_CODE");
+  }
+
+  SECTION("operator<< for error_t") {
+    fusili::error_t err(error_code_t::INVALID_ATTRIBUTE, "bad attr");
+    std::ostringstream oss;
+    oss << err;
+    // Should contain both code and message
+    REQUIRE(oss.str().find("INVALID_ATTRIBUTE") != std::string::npos);
+    REQUIRE(oss.str().find("bad attr") != std::string::npos);
+  }
+}
