@@ -54,6 +54,7 @@ class LlmBatcherProcess(BatcherProcess):
         functions: dict[int, sf.ProgramFunction],
         ideal_batch_size: int,
         program_isolation: str,
+        exec_fiber: Fiber | None = None,
     ):
         super().__init__(fiber=fiber)
         self.name = name
@@ -67,8 +68,8 @@ class LlmBatcherProcess(BatcherProcess):
         self.page_seq_stride = self.model_params.paged_kv_cache.block_seq_stride
         self.scheduler = Scheduler(ideal_batch_size=self.ideal_batch_size)
         self.cache = DeviceArrayCache(fiber.device(0))
-
         self.program_isolation = program_isolation
+        self.exec_fiber = exec_fiber
 
     def handle_inference_request(self, request):
         """Handle an inference request."""
@@ -120,7 +121,11 @@ class LlmBatcherProcess(BatcherProcess):
         scheduled = []
         for job in to_schedule:
             scheduled = scheduled + job
-            self.board(cache, self.fiber, job)
+            self.board(
+                cache,
+                self.exec_fiber if self.exec_fiber is not None else self.fiber,
+                job,
+            )
             logger.debug("Post boarding cache state: %r", cache)
 
         pending = set(pending) - set(scheduled)
@@ -168,6 +173,7 @@ class PrefillBatcherProcess(LlmBatcherProcess):
         model_params: ModelParams,
         prefill_functions: dict[int, sf.ProgramFunction],
         program_isolation: str,
+        exec_fiber: Fiber | None = None,
     ):
         super().__init__(
             name="prefill",
@@ -177,6 +183,7 @@ class PrefillBatcherProcess(LlmBatcherProcess):
             functions=prefill_functions,
             ideal_batch_size=max(model_params.prefill_batch_sizes),
             program_isolation=program_isolation,
+            exec_fiber=exec_fiber,
         )
 
     def make_process(self, cache: BasePagedAttentionCache, fiber: Fiber):
@@ -224,6 +231,7 @@ class DecodeBatcherProcess(LlmBatcherProcess):
         model_params: ModelParams,
         decode_functions: dict[int, sf.ProgramFunction],
         program_isolation: str,
+        exec_fiber: Fiber | None = None,
     ):
         super().__init__(
             name="decode",
@@ -233,6 +241,7 @@ class DecodeBatcherProcess(LlmBatcherProcess):
             functions=decode_functions,
             ideal_batch_size=max(model_params.decode_batch_sizes),
             program_isolation=program_isolation,
+            exec_fiber=exec_fiber,
         )
 
     def make_process(self, cache: BasePagedAttentionCache, fiber: Fiber):

@@ -88,23 +88,24 @@ class GenerateItemProcess(sf.Process):
         self.is_multi_response = is_multi_response(self.decode_config)
         self.streamed_tokens_index = 0
         self._status_tracker = status_tracker
-
-    async def run(self):
-        exec_req = LlmInferenceExecRequest(
+        self.exec_req = LlmInferenceExecRequest(
             phase=InferencePhase.PREFILL,
             input_token_ids=self.input_token_ids,
             rid=self.gen_req.rid,
             status_tracker=self._status_tracker,
         )
-        exec_req._cache = self.client.prefill_batcher.page_cache
+
+    async def run(self):
+        self.exec_req._cache = self.client.prefill_batcher.page_cache
         try:
             # Prefill result.
-            await self.token_selector.prefill(exec_req)
+            await self.token_selector.prefill(self.exec_req)
 
             # Decode loop.
-            await self.token_selector.decode(exec_req)
+            await self.token_selector.decode(self.exec_req)
         finally:
-            exec_req.free_cache_pages()
+            self.exec_req.request_exec_success.set_success()
+            self.exec_req.free_cache_pages()
 
     def results_callback(self, result: int | list[list[int]]):
         if is_multi_response(self.decode_config):

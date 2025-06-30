@@ -25,6 +25,7 @@ from fastapi import FastAPI
 
 from contextlib import asynccontextmanager
 import logging
+import os
 
 
 def get_eos_from_tokenizer_config(json_path):
@@ -71,6 +72,7 @@ class ShortfinLlmLifecycleManager:
             async_caching=server_params.amdgpu_async_caching,
             amdgpu_allocators=server_params.amdgpu_allocators,
             amdgpu_allow_device_reuse=server_params.amdgpu_allow_device_reuse,
+            disaggregated_invocation=args.disaggregate,
         )
 
         # Setup each service we are hosting.

@@ -11,6 +11,8 @@ from typing import List
 from threading import Lock
 import shortfin as sf
 
+from .fiber_pool import FiberPool
+from .stream_manager import StreamManager
 
 from .batcher import PrefillBatcherProcess, DecodeBatcherProcess
 from .config_struct import ModelParams, ServerParams
@@ -20,13 +22,10 @@ from .kvcache.base_attention_cache import (
 from .kvcache.trie_attention_cache import TriePagedAttentionCache
 from .kvcache.page_pool import PagePoolConfig, PagePool
 from .manager import LlmSystemManager
-from .service_debug_dumper import SERVICE_DEBUG_DUMPER
 from .tokenizer import Tokenizer
-from .token_selection_strategy import is_multi_response
-from .request_queue_manager import RequestQueueManager
 
 from ...utils import GenerateService
-from .fiber_pool import FiberPool
+from .request_queue_manager import RequestQueueManager
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +33,7 @@ logger = logging.getLogger(__name__)
 class LlmGenerateService(GenerateService):
     """Top level service interface for generating text against a model."""
 
-    inference_program: sf.Program
+    inference_program: sf.Program | list[sf.Program]
     prefill_functions: dict[int, sf.ProgramFunction]
     decode_functions: dict[int, sf.ProgramFunction]
 
@@ -54,17 +53,39 @@ class LlmGenerateService(GenerateService):
         self.tokenizer = tokenizer
         self.model_params = model_params
         self.server_params = server_params
+        self.disaggregate = server_params.disaggregate
         self.max_queue_size = max_queue_size
         # Use model_params.decode_batch_sizes to decide actual max_queue_size
         self._initialize_max_queue_size()
         self.main_fiber_pool = FiberPool(
-            self.sysman, self.max_queue_size, resizable=True
+            self.sysman,
+            self.max_queue_size,
+            resizable=True,
+            disaggregate=self.disaggregate,
         )
 
         self.set_isolation(program_isolation)
-        self._initialize_worker_and_fiber()
         self.queue_manager = RequestQueueManager(self.max_queue_size)
+        self.current_queue_size = 0
+        self.set_isolation(program_isolation)
+        self._stream_manager = StreamManager(
+            self.sysman,
+            self.max_queue_size,
+            disaggregate=self.disaggregate,
+        )
+        (
+            self.prefill_fiber,
+            self.decode_fiber,
+            self.prefill_exec_fiber,
+            self.decode_exec_fiber,
+            self.main_fiber,
+        ) = self._stream_manager.construct_main_fibers()
+
+        self.devices = self.prefill_fiber.devices_dict.values()
+
         self._initialize_page_cache()
+        self._lock = Lock()
+        self.inference_program_ls: sf.Program | list[sf.Program] = []
 
     def _initialize_max_queue_size(self):
         """Initialize request and response queues"""
@@ -72,28 +93,23 @@ class LlmGenerateService(GenerateService):
             self.max_queue_size = max(self.model_params.decode_batch_sizes)
             logger.debug(f"Max queue size: {self.max_queue_size}")
 
-    def _initialize_worker_and_fiber(self):
-        num_workers = self.server_params.workers
-        fibers_per_worker = self.server_params.fibers_per_worker
+    def add_to_queue(self, num_beams: int) -> bool:
+        """Try to add a request to the queue. Returns True if successful, False if queue is full."""
+        with self._lock:
+            if self.current_queue_size >= self.max_queue_size:
+                return False
+            self.current_queue_size += num_beams
+            logger.debug(f"Adding to queue, queue size: {self.current_queue_size}")
+            return True
 
-        logger.info(
-            f"Creating {num_workers} workers, with {fibers_per_worker} fibers per worker..."
-        )
-
-        self.main_worker = self.sysman.ls.create_worker(f"{self.name}-inference-main-0")
-        self.main_fiber = self.sysman.ls.create_fiber(self.main_worker)
-
-        self.prefill_worker = self.sysman.ls.create_worker(
-            f"{self.name}-inference-prefill-0"
-        )
-        self.prefill_fiber = self.sysman.ls.create_fiber(self.prefill_worker)
-
-        self.decode_worker = self.sysman.ls.create_worker(
-            f"{self.name}-inference-decode-0"
-        )
-        self.decode_fiber = self.sysman.ls.create_fiber(self.decode_worker)
-
-        self.devices = self.prefill_fiber.devices_dict.values()
+    def remove_from_queue(self, num_beams: int):
+        """Remove a request from the queue."""
+        with self._lock:
+            if self.current_queue_size >= num_beams:
+                self.current_queue_size -= num_beams
+                logger.debug(
+                    f"Removing from queue, queue size: {self.current_queue_size}"
+                )
 
     def _initialize_page_cache(self):
         """Initialize page pool and attention cache."""
@@ -120,11 +136,7 @@ class LlmGenerateService(GenerateService):
             )
 
     def start(self):
-        component_modules = self.initialize_program_modules("main")
-        self.inference_program = self.create_program(
-            modules=component_modules, devices=self.sysman.ls.devices
-        )
-        self.initialize_function_references()
+        self.load_program_modules()
 
         self.prefill_batcher = PrefillBatcherProcess(
             self.prefill_fiber,
@@ -132,6 +144,7 @@ class LlmGenerateService(GenerateService):
             self.model_params,
             self.prefill_functions,
             self.prog_isolation,
+            exec_fiber=self.prefill_exec_fiber,
         )
 
         self.decode_batcher = DecodeBatcherProcess(
@@ -140,23 +153,11 @@ class LlmGenerateService(GenerateService):
             self.model_params,
             self.decode_functions,
             self.prog_isolation,
+            exec_fiber=self.decode_exec_fiber,
         )
 
         self.prefill_batcher.launch()
         self.decode_batcher.launch()
-
-    def initialize_function_references(self):
-        self.prefill_functions = {}
-        for bs in self.model_params.prefill_batch_sizes:
-            self.prefill_functions[bs] = self.inference_program[
-                f"{self.model_params.module_name}.prefill_bs{bs}"
-            ]
-        # Resolve decode entrypoints.
-        self.decode_functions = {}
-        for bs in self.model_params.decode_batch_sizes:
-            self.decode_functions[bs] = self.inference_program[
-                f"{self.model_params.module_name}.decode_bs{bs}"
-            ]
 
     def __repr__(self):
         return (
@@ -164,6 +165,34 @@ class LlmGenerateService(GenerateService):
             f"  model_params={self.model_params}\n"
             f"  server_params={self.server_params}\n"
             f"  inference_modules={self.inference_modules}\n"
-            f"  page_cache={self.page_cache}\n"
-            f")"
+            f"  page_cache={self.page_cache}\n",
+            f"  disaggregated={self.disaggregate}",
+            f")",
         )
+
+    def __init_prog_modules(self):
+        component_modules = self.initialize_program_modules("main")
+        indices = []
+        for _ in range(self._stream_manager.num_open_streams()):
+            idx, stream = self._stream_manager.get_stream()
+            indices.append(idx)
+            self.inference_program_ls.append(
+                self.create_program(modules=component_modules, devices=stream)
+            )
+
+        self.prefill_functions = {}
+        self.decode_functions = {}
+
+        for bs in self.model_params.prefill_batch_sizes:
+            self.prefill_functions[bs] = self.inference_program_ls[indices[0]][
+                f"{self.model_params.module_name}.prefill_bs{bs}"
+            ]
+        # Resolve decode entrypoints.
+        self.decode_functions = {}
+        for bs in self.model_params.decode_batch_sizes:
+            self.decode_functions[bs] = self.inference_program_ls[indices[-1]][
+                f"{self.model_params.module_name}.decode_bs{bs}"
+            ]
+
+    def load_program_modules(self):
+        self.__init_prog_modules()
