@@ -73,8 +73,8 @@ jobs:
             sharktank/tests/evaluate/ \
             --run-quick-test \
             --bs=4 \
-            --device='cuda:3' \
-            --iree-device=hip://2 \
+            --device='cuda:0' \
+            --iree-device=hip://0 \
             --iree-hip-target=gfx942 \
             --iree-hal-target-device=hip \
             --llama3-8b-f16-model-path=/shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa \

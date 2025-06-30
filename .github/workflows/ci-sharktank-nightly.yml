@@ -80,7 +80,7 @@ jobs:
             --with-vae-data \
             --iree-hal-target-device=hip \
             --iree-hip-target=gfx942 \
-            --iree-device=hip://3 \
+            --iree-device=hip://0 \
             sharktank/tests \
             --durations=0 \
             -m "expensive" \
@@ -140,7 +140,7 @@ jobs:
             --run-nightly-test \
             --bs=32 \
             --device='cuda:4' \
-            --iree-device=hip://5 \
+            --iree-device=hip://0 \
             --iree-hip-target=gfx942 \
             --iree-hal-target-device=hip \
             --llama3-8b-f16-model-path=/shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa \
