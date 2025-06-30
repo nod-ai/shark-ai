@@ -280,16 +280,8 @@ class ClientGenerateBatchProcess(sf.Process):
                 input_token_ids = input_tokens if is_pretokenized else input_tokens.ids
 
                 # return error reponse if no pages available
-                needed_pages_num = (
-                    math.ceil(
-                        len(input_token_ids)
-                        / self.service.model_params.paged_kv_cache.block_seq_stride
-                    )
-                    + total_requested_beams
-                    - 1
-                )
                 available_pages_num = len(self.service.page_pool.available_pages)
-                if needed_pages_num > available_pages_num:
+                if not self.service.rate_limiter.check_memory_availability(input_token_ids_len=len(input_token_ids), available_pages=available_pages_num):
                     self._return_error_response(
                         status.HTTP_400_BAD_REQUEST,
                         error_message="Not enough pages for the new request",

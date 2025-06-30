@@ -24,6 +24,7 @@ from .service_debug_dumper import SERVICE_DEBUG_DUMPER
 from .tokenizer import Tokenizer
 from .token_selection_strategy import is_multi_response
 from .request_queue_manager import RequestQueueManager
+from .rate_limiter import RateLimiter
 
 from ...utils import GenerateService
 from .fiber_pool import FiberPool
@@ -64,6 +65,7 @@ class LlmGenerateService(GenerateService):
         self.set_isolation(program_isolation)
         self._initialize_worker_and_fiber()
         self.queue_manager = RequestQueueManager(self.max_queue_size)
+        self.rate_limiter = RateLimiter(model_params=self.model_params, server_params=self.server_params)
         self._initialize_page_cache()
 
     def _initialize_max_queue_size(self):
