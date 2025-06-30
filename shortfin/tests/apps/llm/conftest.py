@@ -26,7 +26,11 @@ from shortfin_apps.llm.components.device_array_cache import DeviceArrayCache
 from shortfin_apps.llm.components.kvcache.base_attention_cache import (
     BasePagedAttentionCache,
 )
-from shortfin_apps.llm.components.kvcache.page_pool import PagePool, PageInfo
+from shortfin_apps.llm.components.kvcache.page_pool import (
+    PagePool,
+    PageInfo,
+    PagePoolConfig,
+)
 
 
 @pytest.fixture(scope="function")
@@ -71,6 +75,7 @@ class MockPagePool(PagePool):
             self._queue.put(page)
             self.attn_page_entries.append(page)
 
+        self.available_pages = self.attn_page_entries.copy()
         self.page_tables = []
 
         # Set up a basic page table with shape [num_pages, 16].
@@ -86,6 +91,12 @@ class MockPagePool(PagePool):
             m.fill(0)
         page_table_host.copy_to(page_table)
         self.page_tables.append(page_table)
+
+        self.config = PagePoolConfig(
+            dtype=sfnp.float32,
+            alloc_page_count=total_pages,
+            paged_kv_block_size_elements=TEST_PAGE_SIZE,
+        )
 
     def acquire_free_pages(self, count: int) -> List[PageInfo]:
         try:
