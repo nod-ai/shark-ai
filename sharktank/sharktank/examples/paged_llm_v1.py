@@ -17,7 +17,7 @@ from sharktank.utils.load_llm import *
 from sharktank.utils import cli
 
 
-def main():
+def main(cli_args: list[str] | None = None):
     """
     Run LLM inference in torch/eager mode. Use --device='cuda:0' to run on AMD GPU
     Args:
@@ -38,27 +38,28 @@ def main():
     cli.add_model_input_options(parser)
     cli.add_save_tensor_options(parser)
 
-    args = cli.parse(parser)
+    args = cli.parse(parser, args=cli_args)
 
     device = torch.device(args.device) if args.device else None
     dataset = cli.get_input_dataset(args)
     tokenizer = cli.get_tokenizer(args)
 
-    config = LlamaModelConfig(
-        hp=configs.LlamaHParams.from_gguf_props(dataset.properties),
-        block_seq_stride=args.block_seq_stride,
-        device=device,
-        activation_dtype=args.activation_dtype,
-        attention_dtype=args.attention_dtype,
-        attention_kernel=args.attention_kernel,
-        kv_cache_dtype=args.kv_cache_dtype,
-        use_hf=args.use_hf,
-        tensor_parallelism_size=args.tensor_parallelism_size,
-        pipeline_parallelism_size=args.pipeline_parallelism_size,
-        fake_quant=args.fake_quant,
-    )
+    config = LlamaModelConfig.from_properties(dataset.properties)
+    config.block_seq_stride = args.block_seq_stride
+    config.device = device
+    config.activation_dtype = args.activation_dtype
+    config.attention_dtype = args.attention_dtype
+    config.attention_kernel = args.attention_kernel
+    config.kv_cache_dtype = args.kv_cache_dtype
+    config.use_hf = args.use_hf
+    config.pipeline_parallelism_size = args.pipeline_parallelism_size
+    config.fake_quant = args.fake_quant
 
-    if config.tensor_parallelism_size > 1:
+    if args.tensor_parallelism_size != config.tensor_parallelism_size:
+        assert (
+            config.tensor_parallelism_size == 1
+        ), "Can't tensor-shard theta that is already sharded"
+        config.tensor_parallelism_size = args.tensor_parallelism_size
         dataset.root_theta = shard_theta(dataset.root_theta, config)
 
     model = PagedLlmModelV1(dataset.root_theta, config)
@@ -69,9 +70,21 @@ def main():
         intermediates_saver = SaveModuleResultTensorsPatch()
         intermediates_saver.patch_child_modules(model)
 
-    generator = TorchGenerator(model, tokenizer)
+    generator = TorchGenerator(model, tokenizer, max_decode_steps=args.max_decode_steps)
 
-    token_ids, seq_lens = generator.preprocess_prompts(prompts=args.prompt)
+    assert (
+        args.prompt is None or args.prompt_seq_len is None
+    ), 'CLI args "--prompt-seq-len" and "--prompt" are mutually exclusive'
+    assert (
+        args.prompt is not None or args.prompt_seq_len is not None
+    ), 'Exactly one of CLI args "--prompt-seq-len" and "--prompt" must be provided.'
+    if args.prompt_seq_len is not None:
+        torch.random.manual_seed(0)
+        token_ids, seq_lens = generator.generate_random_tokens(
+            batch_size=args.bs, prompt_seq_len=args.prompt_seq_len
+        )
+    else:
+        token_ids, seq_lens = generator.preprocess_prompts(prompts=args.prompt)
     batch = generator.begin_batch(
         token_ids=token_ids,
         seq_lens=seq_lens,
