@@ -61,6 +61,22 @@ def as_torch_or_none(tensor: Optional[InferenceTensor]) -> Optional[torch.Tensor
     return tensor.as_torch()
 
 
+def get_torch_dtype(dtype_str: Optional[str]) -> Optional[torch.dtype]:
+    """Convert string dtype to torch dtype."""
+    if dtype_str is None:
+        return None
+    dtype_map = {
+        "float32": torch.float32,
+        "float16": torch.float16,
+        "bfloat16": torch.bfloat16,
+    }
+    if dtype_str not in dtype_map:
+        raise ValueError(
+            f"Unsupported dtype: {dtype_str}. Supported: {list(dtype_map.keys())}"
+        )
+    return dtype_map[dtype_str]
+
+
 def detect_quantization_format(
     weight_tensor: torch.Tensor, scale_tensor: torch.Tensor, block_size: int = 32
 ) -> str:
@@ -187,6 +203,7 @@ def apply_per_layer_quant(
     n_head: int,
     split_sizes: list[int],
     block_size: int = 32,
+    output_scale_dtype: Optional[torch.dtype] = None,
 ):
     """Take the quantization parameters and hf weights from the imported Theta
     and create InferenceTensors out of them, converting their names to gguf format
@@ -219,6 +236,10 @@ def apply_per_layer_quant(
     output_quant_scale = as_torch_or_none(layer_theta.optional_tensor("output_scale"))
     if output_quant_scale and output_quant_scale.dtype is torch.bfloat16:
         output_quant_scale = output_quant_scale.to(torch.float32)
+
+    # Cast output_scale to specified dtype if provided
+    if output_quant_scale is not None and output_scale_dtype is not None:
+        output_quant_scale = output_quant_scale.to(output_scale_dtype)
     if weight_quant_scale is None:
         print("weight quant scale not found for layer ", layer_name)
         return
@@ -439,6 +460,12 @@ def main(argv):
         default="fe8m0",
         help="Scale format for FP4 quantization (default: fe8m0)",
     )
+    parser.add_argument(
+        "--output-scale-dtype",
+        type=str,
+        default=None,
+        help="Data type to cast output_scale to (e.g., float32, float16, bfloat16)",
+    )
     args = cli.parse(parser, args=argv)
 
     config_json_path: Path = args.config_json
@@ -489,6 +516,9 @@ def main(argv):
     updated_tensors: dict[str, InferenceTensor] = {}
     model_layers = [f"model.layers.{i}" for i in range(num_layers)]
 
+    # Convert output_scale_dtype string to torch dtype
+    output_scale_dtype = get_torch_dtype(args.output_scale_dtype)
+
     sub_layers = [
         "mlp.gate_proj",
         "mlp.down_proj",
@@ -508,6 +538,7 @@ def main(argv):
                 n_head=head_count[0],
                 split_sizes=split_sizes,
                 block_size=args.fp4_block_size,
+                output_scale_dtype=output_scale_dtype,
             )
 
     # Update the non quantized weights (norm layers)
