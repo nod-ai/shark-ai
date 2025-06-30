@@ -14,6 +14,7 @@ from .linear import LinearLayer
 from .norm import RMSNormLayer, L2Norm
 from .latent_attention_block import LatentAttentionBlock
 from .paged_attention import PagedAttention, attn_type_map
+from .rotary_embedding_sharded import ShardedRotaryLayer
 from sharktank import ops
 
 __all__ = [
@@ -139,7 +140,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self,
         x: torch.Tensor | ReplicatedTensor,
         start_index: int,
-        embedding,
+        embedding: ShardedRotaryLayer,
         embedding_batch_mask: torch.Tensor,
     ):
         bs, batch_seq_len, _ = x.shape
