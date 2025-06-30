@@ -281,7 +281,10 @@ class ClientGenerateBatchProcess(sf.Process):
 
                 # return error reponse if no pages available
                 available_pages_num = len(self.service.page_pool.available_pages)
-                if not self.service.rate_limiter.check_memory_availability(input_token_ids_len=len(input_token_ids), available_pages=available_pages_num):
+                if not self.service.rate_limiter.check_memory_availability(
+                    input_token_ids_len=len(input_token_ids),
+                    available_pages=available_pages_num,
+                ):
                     self._return_error_response(
                         status.HTTP_400_BAD_REQUEST,
                         error_message="Not enough pages for the new request",
