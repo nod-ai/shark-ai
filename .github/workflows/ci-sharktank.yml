@@ -250,7 +250,7 @@ jobs:
             --with-quark-data \
             --iree-hal-target-device=hip \
             --iree-hip-target=gfx942 \
-            --iree-device=hip://0 \
+            --iree-device=hip://1 \
             sharktank/tests/models/llama/quark_parity_test.py \
             --durations=0 \
             --timeout=800
