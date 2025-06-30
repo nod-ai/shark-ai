@@ -23,6 +23,7 @@ import sys
 import torch
 
 from sharktank.types import *
+from sharktank.types.tensors import serialized_name_to_dtype
 from sharktank.layers.configs.llm_configs import (
     _int_prop,
     _float_prop,
@@ -99,6 +100,7 @@ def apply_per_layer_quant(
     updated_tensors: dict[str, InferenceTensor],
     n_head: int,
     split_sizes: list[int],
+    output_scale_dtype: Optional[torch.dtype] = None,
 ):
     """Take the quantization parameters and hf weights from the imported Theta
     and create InferenceTensors out of them, converting their names to gguf format
@@ -125,6 +127,10 @@ def apply_per_layer_quant(
     output_quant_scale = as_torch_or_none(layer_theta.optional_tensor("output_scale"))
     if output_quant_scale and output_quant_scale.dtype is torch.bfloat16:
         output_quant_scale = output_quant_scale.to(torch.float32)
+
+    # Cast output_scale to specified dtype if provided
+    if output_quant_scale is not None and output_scale_dtype is not None:
+        output_quant_scale = output_quant_scale.to(output_scale_dtype)
     if weight_quant_scale is None:
         print("weight quant scale not found for layer ", layer_name)
         return
@@ -327,6 +333,12 @@ def main(argv):
         help="Base model to use for split sizes to decompose the qkv tensor. Default is 7b, 70b is also supported.",
         choices=["7b", "70b", "405b"],
     )
+    parser.add_argument(
+        "--output-scale-dtype",
+        type=str,
+        default=None,
+        help="Data type to cast output_scale to (e.g., float32, float16, bfloat16)",
+    )
     args = cli.parse(parser, args=argv)
 
     config_json_path: Path = args.config_json
@@ -377,6 +389,13 @@ def main(argv):
     updated_tensors: dict[str, InferenceTensor] = {}
     model_layers = [f"model.layers.{i}" for i in range(num_layers)]
 
+    # Convert output_scale_dtype string to torch dtype
+    output_scale_dtype = (
+        serialized_name_to_dtype.get(args.output_scale_dtype)
+        if args.output_scale_dtype
+        else None
+    )
+
     sub_layers = [
         "mlp.gate_proj",
         "mlp.down_proj",
@@ -395,6 +414,7 @@ def main(argv):
                 updated_tensors,
                 n_head=head_count[0],
                 split_sizes=split_sizes,
+                output_scale_dtype=output_scale_dtype,
             )
 
     # Update the non quantized weights (norm layers)
