@@ -6,7 +6,7 @@
 
 import torch
 
-from sharktank.layers.rotary_embedding import RotaryEmbeddingLayer
+from sharktank.layers.rotary_embedding import build_rotary_layer
 from transformers.models.llama.modeling_llama import (
     LlamaRotaryEmbedding,
     apply_rotary_pos_emb,
@@ -46,7 +46,7 @@ class HFRotaryComparisonTest(unittest.TestCase):
                 xt = xt.transpose(1, 2)
                 return apply_rotary_pos_emb(xt, xt, cos, sin)[0].transpose(1, 2)
 
-        st_rotary = RotaryEmbeddingLayer(
+        st_rotary = build_rotary_layer(
             rope_dimension_count=dims,
             max_seqlen=2048,
             rope_freq_base=500000,
@@ -67,9 +67,7 @@ class HFRotaryComparisonTest(unittest.TestCase):
         mask = st_rotary.compute_batch_mask(
             start_positions=torch.arange(0, bs), batch_seq_len=1
         )
-        st_results = st_rotary.apply_batched_mask_unsharded(
-            xt=decode_example, mask=mask
-        )
+        st_results = st_rotary.apply_batched_mask(xt=decode_example, mask=mask)
         hf_results = hf_rotary.forward(
             xt=decode_example, positions=torch.arange(0, bs).unsqueeze(1)
         )

@@ -9,7 +9,7 @@ import unittest
 import torch
 
 from sharktank.layers.configs.llm_configs import *
-from sharktank.layers.rotary_embedding import RotaryEmbeddingLayer
+from sharktank.layers.rotary_embedding import build_rotary_layer
 from sharktank.layers.paged_attention import PagedAttention
 from sharktank.models.llm import AttentionFFNBlock
 from sharktank.models.llama.testing import *
@@ -79,7 +79,7 @@ class AttentionBlockTest(unittest.TestCase):
             cache=paged_kv_cache,
             config=llama_config,
         )
-        attention_embedding = RotaryEmbeddingLayer(
+        attention_embedding = build_rotary_layer(
             rope_dimension_count=rope_dimension_count,
             rope_freq_base=rope_freq_base,
             max_seqlen=max_seq_len,
@@ -90,7 +90,7 @@ class AttentionBlockTest(unittest.TestCase):
             yarn_factor=8,
             yarn_original_context_len=8192,
         )
-        position_embeddings = attention_embedding.rotary_embed_table
+        position_embeddings = attention_embedding.rotary_embed_table()
         input_tensor = make_rand_torch(
             (1, seq_len, head_count * head_dim), dtype=torch.float32
         )
