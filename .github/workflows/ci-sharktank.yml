@@ -26,6 +26,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  test_punet:
+    name: "Integration Tests - punet"
+    runs-on: nodai-amdgpu-mi250-x86-64
+    env:
+      VENV_DIR: ${{ github.workspace }}/.venv
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v3
+
+      - name: "Setup Python venv"
+        run: python3.11 -m venv ${VENV_DIR}
+
+      - name: Install pip deps
+        run: |
+          source ${VENV_DIR}/bin/activate
+          python -m pip install --no-compile --upgrade pip
+          pip install --no-compile -r pytorch-rocm-requirements.txt
+          pip install --no-compile -f https://iree.dev/pip-release-links.html --src deps \
+            -e "git+https://github.com/iree-org/iree-turbine.git#egg=iree-turbine"
+          pip install --no-compile -r requirements.txt -r sharktank/requirements-tests.txt -e sharktank/ shortfin/
+      - name: Run punet tests
+        run: |
+          source ${VENV_DIR}/bin/activate
+          pytest -v sharktank/ -m model_punet
+
   test:
     name: "Unit Tests (${{ matrix.runs-on }}, ${{ matrix.python-version }}, ${{ matrix.torch-version }})"
     strategy:
