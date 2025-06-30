@@ -61,8 +61,16 @@ is_not_cpu_condition = (
     "not is_iree_hal_target_device_cpu(config.getoption('iree_hal_target_device'))"
 )
 is_hip_condition = "config.getoption('iree_hal_target_device') == 'hip'"
+is_torch_device_hip_condition = (
+    "exec('from sharktank.utils.testing import is_torch_device_hip') or "
+    "is_torch_device_hip(config.getoption('device'))"
+)
 is_cpu = pytest.mark.skipif(is_not_cpu_condition)
 is_cpu_win = pytest.mark.skipif(is_cpu_condition and platform == "win32")
+
+
+def is_torch_device_hip(device: str, /):
+    return device.startswith("cuda") and hasattr(torch.version, "hip")
 
 
 def is_iree_hal_target_device_cpu(v: str, /) -> bool:

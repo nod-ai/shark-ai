@@ -21,7 +21,11 @@ from sharktank import ops
 from sharktank.types import *
 from sharktank.layers import BaseLayer
 from sharktank.utils import debugging
-from sharktank.utils.testing import TempDirTestBase
+from sharktank.utils.testing import (
+    TempDirTestBase,
+    is_torch_device_hip_condition,
+    xfail,
+)
 from sharktank.utils.iree import (
     with_iree_device_context,
     get_iree_devices,
@@ -445,24 +449,38 @@ class TestScatterAdd(unittest.TestCase):
         assert ops.equal(actual, expected)
 
 
-@pytest.mark.usefixtures("device")
-class TestTopK(unittest.TestCase):
-    def setUp(self):
-        torch.random.manual_seed(0)
-
-    @parameterized.expand(
+class TestTopK:
+    @pytest.mark.xfail(
+        condition=is_torch_device_hip_condition,
+        strict=True,
+        raises=AssertionError,
+        match="Tensor-likes are not equal",
+        reason="iree_linalg_ext.topk is buggy on HIP. See https://github.com/iree-org/iree/issues/21202.",
+    )
+    @pytest.mark.parametrize(
+        "dim, k, largest, sorted, shape, chunk_size, use_linalgext_topk, dtype",
         [
             (-1, 2, True, False, (10, 20, 30), None, True, torch.float32),
             (-1, 2, True, False, (128, 2, 2), None, True, torch.float32),
-        ]
+        ],
     )
     def testTopKWithoutTies(
-        self, dim, k, largest, sorted, shape, chunk_size, use_linalgext_topk, dtype
+        self,
+        dim: int,
+        k: int,
+        largest: bool,
+        sorted: bool,
+        shape: tuple[int, ...],
+        chunk_size: int | None,
+        use_linalgext_topk: bool,
+        dtype: torch.dtype,
+        device: str,
+        deterministic_random_seed,
     ):
         numels = math.prod(shape)
         # Make sure all elements are unique to avoid ties as topk is not stable.
         # Then the sorted indices should match.
-        t = torch.randperm(numels, dtype=dtype, device=self.device).view(shape)
+        t = torch.randperm(numels, dtype=dtype, device=device).view(shape)
         assert t.unique().numel() == t.numel()
 
         expected_values, expected_indices = torch.topk(
@@ -491,7 +509,8 @@ class TestTopK(unittest.TestCase):
             actual_indices_sorted, expected_indices_sorted, rtol=0, atol=0
         )
 
-    @parameterized.expand(
+    @pytest.mark.parametrize(
+        "dim, k, largest, _sorted, shape, chunk_size, use_linalgext_topk",
         [
             (-1, 4, True, True, (1, 1, 256), 16, False),
             (-1, 4, True, True, (1, 1, 256), 8, False),
@@ -499,14 +518,38 @@ class TestTopK(unittest.TestCase):
             (-1, 4, False, True, (1, 1, 256), 16, False),
             (-1, 4, False, False, (1, 1, 256), 16, False),
             (-1, 2, True, True, (2, 1, 6), 3, False),
-            (-1, 4, True, False, (1, 1, 64), 8, True),
-        ]
+            pytest.param(
+                -1,
+                4,
+                True,
+                False,
+                (1, 1, 64),
+                8,
+                True,
+                marks=pytest.mark.xfail(
+                    condition=is_torch_device_hip_condition,
+                    strict=True,
+                    raises=AssertionError,
+                    match="Tensor-likes are not equal",
+                    reason="iree_linalg_ext.topk is buggy on HIP. See https://github.com/iree-org/iree/issues/21202.",
+                ),
+            ),
+        ],
     )
     def testSplitTopKLastDim(
-        self, dim, k, largest, _sorted, shape, chunk_size, use_linalgext_topk
+        self,
+        dim: int,
+        k: int,
+        largest: bool,
+        _sorted: bool,
+        shape: tuple[int, ...],
+        chunk_size: int | None,
+        use_linalgext_topk: bool,
+        device: str,
+        deterministic_random_seed,
     ):
         numels = math.prod(shape)
-        tensor = torch.arange(numels, device=self.device) * 173 + 129
+        tensor = torch.arange(numels, device=device) * 173 + 129
         tensor = tensor % numels
         tensor = tensor.to(torch.float16).view(shape)
 

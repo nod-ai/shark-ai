@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from pytest import FixtureRequest
 from typing import Optional, Any
+import re
 
 
 # Tests under each top-level directory will get a mark.
@@ -305,6 +306,7 @@ def set_fixture(request: FixtureRequest, name: str, value: Any):
         return value
     else:
         setattr(request.cls, name, value)
+        return value
 
 
 def set_fixture_from_cli_option(
@@ -447,6 +449,49 @@ def get_iree_flags(request: FixtureRequest):
     )
 
 
+@pytest.fixture(scope="function")
+def deterministic_random_seed():
+    """Seed all RNGs (torch, numpy, builtin) with never-changing seed.
+    At fixture teardown return the original RNG states."""
+    import torch
+    import numpy as np
+    import random
+    from sharktank.utils.random import fork_numpy_singleton_rng, fork_builtin_rng
+
+    with torch.random.fork_rng(), fork_numpy_singleton_rng(seed=0), fork_builtin_rng(
+        seed=0
+    ):
+        torch.random.manual_seed(0)
+        np.random.seed(0)
+        random.seed(0)
+        yield
+
+
+# @pytest.fixture(autouse=True)
+# def xfail_handler(request: pytest.FixtureRequest):
+#     yield # This separates setup and teardown
+
+#     report = request.node.stash[phase_report_key]
+#     # if report["setup"].failed:
+#     #     print("setting up a test failed", request.node.nodeid)
+#     # elif report["setup"].skipped:
+#     #     print("setting up a test skipped", request.node.nodeid)
+#     # elif ("call" not in report) or report["call"].failed:
+#     #     print("executing test failed or skipped", request.node.nodeid)
+
+#     marker = request.node.get_closest_marker("xfail")
+#     if marker and "match" in marker.kwargs:
+#         if "call" in report and report["call"].get_result().failed:
+#             call_report = report["call"]
+#             match = marker["match"]
+#             if not re.search(match, str(call_report.exception)):
+#                 raise pytest.fail(
+#                         f'Failed to match error "{call_report.exception}" against expected match "{match}"'
+#                     ) from ex
+#             else:
+#                 pass
+
+
 # The following three functions allow us to add a "XFail Reason" column to the html reports for each test
 @pytest.hookimpl(optionalhook=True)
 def pytest_html_results_table_header(cells):
@@ -461,10 +506,31 @@ def pytest_html_results_table_row(report, cells):
         cells.insert(2, f"<td></td>")
 
 
-@pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_makereport(item, call):
+phase_report_key = pytest.StashKey[dict[str, pytest.CollectReport]]()
+
+
+@pytest.hookimpl(hookwrapper=True, trylast=True)
+def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo):
     outcome = yield
     report = outcome.get_result()
 
     if report.when == "call" and hasattr(item, "wasxfail"):
         report.wasxfail = item.wasxfail
+
+    marker = item.get_closest_marker("xfail")
+    if report.when == "call" and marker and "match" in marker.kwargs:
+        if report.failed or call.excinfo and call.excinfo.typename == "XFailed":
+            match = marker.kwargs["match"]
+            # if not re.search(match, str(outcome.exception)):
+            #     try:
+            #         raise pytest.fail(
+            #                 f'Failed to match error "{outcome.exception}" against expected match "{match}"'
+            #             ) from outcome.exception
+            #     except Exception as ex:
+            #         outcome.exception = ex
+
+    # # store test results for each phase of a call, which can
+    # # be "setup", "call", "teardown"
+    # item.stash.setdefault(phase_report_key, {})[report.when] = outcome
+
+    return outcome
