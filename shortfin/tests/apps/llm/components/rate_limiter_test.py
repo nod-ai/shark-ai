@@ -7,31 +7,29 @@
 import math
 import pytest
 from unittest.mock import MagicMock
-from types import SimpleNamespace
+from shortfin_apps.llm.components.rate_limiter import RateLimiter
 
+def create_rate_limiter(stride: int, num_beams: int):
+    mock_model_params = MagicMock()
+    mock_model_params.paged_kv_cache.block_seq_stride = stride
 
-@pytest.fixture
-def mock_model_params():
-    mock = MagicMock()
-    mock.paged_kv_cache.block_seq_stride = 4
-    return mock
-
-@pytest.mark.parametrize("num_beams,input_len,available_pages,expected", [
-    (8, 16, 12, True),   # ceil(16/4) + 8 - 1 = 11
-    (8, 16, 10, False),  # 11 > 10
-    (1, 12, 4, True),    # ceil(12/4) + 1 - 1 = 3
-    (1, 12, 2, False),   # 3 > 2
-])
-def test_check_memory_availability(mock_model_params, num_beams, input_len, available_pages, expected):
     mock_server_params = MagicMock()
-    mock_server_params.decode_config = SimpleNamespace(num_beams=num_beams)
+    mock_server_params.decode_config.num_beams = num_beams
 
-    rate_limiter = RateLimiter(
+    return RateLimiter(
         model_params=mock_model_params,
         server_params=mock_server_params
     )
 
+@pytest.mark.parametrize("num_beams, input_len, available_pages, expected", [
+    (1, 64, 2, True),   # needed_pages = ceil(64/32) + 1 - 1 = 2
+    (1, 64, 1, False),  # needed_pages = 2
+    (8, 64, 9, True),   # needed_pages = ceil(64/32) + 8 - 1 = 9
+    (8, 64, 8, False),  # needed_pages = 9
+])
+def test_check_memory_availability(num_beams, input_len, available_pages, expected):
+    rate_limiter = create_rate_limiter(stride=32, num_beams=num_beams)
     assert rate_limiter.check_memory_availability(
         input_token_ids_len=input_len,
         available_pages=available_pages
-    ) == expected
+    ) is expected
