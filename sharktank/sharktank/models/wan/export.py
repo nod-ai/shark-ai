@@ -7,9 +7,10 @@
 import os
 from os import PathLike
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 from collections import OrderedDict
-import math
+import functools
+import logging
 
 from sharktank.types import Dataset, AnyTensor
 from sharktank.layers import create_model, model_config_presets, ThetaLayer
@@ -25,8 +26,9 @@ from iree.turbine.aot import *
 import numpy as np
 
 import torch
-import torch.nn as nn
 
+torch.random.manual_seed(0)
+logger = logging.getLogger(__name__)
 wan_transformer_default_batch_sizes = [1]
 
 class WanTransformerWrapped(ThetaLayer):
@@ -47,24 +49,7 @@ class WanTransformerWrapped(ThetaLayer):
         context = [context.type(torch.bfloat16)]
         res = self.model.forward(x, t, context)
         return [r.type(torch.float16) for r in res]
-    
-    def _get_noise(
-        self,
-        batch_size: int,
-        num_frames: int,
-        height: int,
-        width: int,
-        dtype: torch.dtype = torch.float16,
-    ):
-        F = num_frames
-        return [torch.randn(
-            self.vae_z_dim,
-            (F - 1) // self.vae_stride[0] + 1,
-            # allow for packing
-            height // self.vae_stride[1],
-            width // self.vae_stride[2],
-            dtype=dtype,
-        )] * batch_size
+
 
     def sample_inputs(
         self, batch_size: int = 1, function: Optional[str] = None
@@ -76,7 +61,7 @@ class WanTransformerWrapped(ThetaLayer):
         # input config
       
         # Get wan model input
-        model_input = self._get_noise(
+        model_input = self.model._get_noise(
             batch_size,
             self.num_frames,
             self.height,
@@ -84,15 +69,17 @@ class WanTransformerWrapped(ThetaLayer):
         )
         if function == "forward_t2v":
             context_shape = (28, 4096)
-            self.model.set_export_config(seq_len=75600)
             args = tuple()
             kwargs = OrderedDict(
                 (
                     ("x", model_input[0]),
-                    ("t", torch.tensor([999], dtype=torch.int64)),
+                    ("t", torch.tensor([999], dtype=torch.float16)),
                     ("context", torch.rand(context_shape, dtype=torch.float16)),
                 )
             )
+            print(kwargs["x"].shape, kwargs["x"].dtype)
+            print(kwargs["t"].shape)
+            print(kwargs["context"].shape)
         # else:
         #     args = tuple()
         #     self.set_export_config(seq_len=max_seq_len)
@@ -112,6 +99,9 @@ def export_wan_transformer_model_mlir(
     model_or_parameters_path: WanModel | PathLike,
     output_path: PathLike,
     batch_sizes: list[int] = wan_transformer_default_batch_sizes,
+    height: int = 512,
+    width: int = 512,
+    num_frames: int = 81,
 ):
     if isinstance(model_or_parameters_path, (PathLike, str)):
         dataset = Dataset.load(model_or_parameters_path)
@@ -124,18 +114,20 @@ def export_wan_transformer_model_mlir(
         )
     else:
         model = model_or_parameters_path
-    
+    model.set_export_config(height=height, width=width, frame_num=num_frames)
     for t in model.theta.flatten().values():
         ExternalTensorTrait(external_name=t.name, external_scope="").set(t.as_torch())
     fn_bs_map = {
         "forward_t2v": [*batch_sizes]
     }
-    wrapped_model = WanTransformerWrapped(model)
-    # golden = wrapped_model.forward(**wrapped_model.sample_inputs(function="forward_t2v")[1])
-    # np.save("wan_tformer_out.npy", golden)
-    # for name, sample_input in wrapped_model.sample_inputs(function="forward_t2v")[1].items():
-    #     np.save(f"wan_tformer_{name}.npy", sample_input)
-
+    print("Instantiating model...")
+    wrapped_model = WanTransformerWrapped(model, num_frames, height, width)
+    sample_inputs = wrapped_model.sample_inputs(function="forward_t2v")[1]
+    golden = wrapped_model.forward(**sample_inputs)
+    np.save("wan_tformer_out.npy", golden[0])
+    for name, sample_input in sample_inputs.items():
+        np.save(f"wan_tformer_{name}.npy", sample_input)
+    print("Exporting MLIR...")
     export_model_mlir(wrapped_model, output_path=output_path, function_batch_sizes_map=fn_bs_map)
 
 
@@ -144,14 +136,21 @@ def import_wan_transformer_dataset_from_huggingface(
     revision: str | None = None,
     subfolder: str | None = None,
     parameters_output_path: PathLike | None = None,
+    dtype: str | None = None,
 ) -> Dataset | None:
-    return import_hf_dataset_from_hub(
+    dataset = import_hf_dataset_from_hub(
         repo_id=repo_id,
         revision=revision,
         subfolder=subfolder,
         config_subpath="config.json",
-        output_irpa_file=parameters_output_path,
+        allow_patterns=["diffusion_pytorch_model*", "config*"]
     )
+    if dtype:
+        dataset.root_theta = dataset.root_theta.transform(
+            functools.partial(set_float_dtype, dtype=dtype)
+        )
+    dataset.save(parameters_output_path, io_report_callback=logger.debug)
+    return parameters_output_path
 
 
 def export_wan_transformer_from_huggingface(
@@ -159,12 +158,18 @@ def export_wan_transformer_from_huggingface(
     mlir_output_path: PathLike,
     parameters_output_path: PathLike,
     batch_sizes: list[int] = wan_transformer_default_batch_sizes,
+    height: int = 512,
+    width: int = 512,
+    num_frames: int = 81,
+    dtype: torch.dtype = torch.bfloat16,
 ):
-    import_wan_transformer_dataset_from_huggingface(
-        repo_id=repo_id, parameters_output_path=parameters_output_path
-    )
+    if not os.path.exists(parameters_output_path):
+        print(f"Wan2.1 transformer IRPA not found. Importing from huggingface ({repo_id})")
+        import_wan_transformer_dataset_from_huggingface(
+            repo_id=repo_id, parameters_output_path=parameters_output_path, dtype=dtype
+        )
     export_wan_transformer_model_mlir(
-        parameters_output_path, output_path=mlir_output_path, batch_sizes=batch_sizes
+        parameters_output_path, output_path=mlir_output_path, batch_sizes=batch_sizes, height=height, width=width, num_frames=num_frames
     )
 
 
