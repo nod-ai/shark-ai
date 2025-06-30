@@ -86,6 +86,20 @@ def main():
     )
     llama_config.fake_quant = args.fake_quant
 
+    # Debug: Check theta structure and block count
+    print(f"DEBUG: hp.block_count = {hp.block_count}")
+    theta_keys = list(dataset.root_theta.keys)
+    print(f"DEBUG: Available keys in theta: {theta_keys}")
+    if "blk" in theta_keys:
+        actual_block_count = len(dataset.root_theta("blk").keys)
+        print(f"DEBUG: Number of blocks in theta['blk']: {actual_block_count}")
+        if hp.block_count != actual_block_count:
+            print(
+                f"WARNING: Mismatch between hp.block_count ({hp.block_count}) and actual blocks in theta ({actual_block_count})"
+            )
+            print(f"Setting hp.block_count to 125")
+            hp.block_count = 125
+
     model = PagedLlmModelV1(dataset.root_theta, llama_config)
 
     def generate_params_json(

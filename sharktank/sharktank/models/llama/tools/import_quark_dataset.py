@@ -61,32 +61,41 @@ def as_torch_or_none(tensor: Optional[InferenceTensor]) -> Optional[torch.Tensor
     return tensor.as_torch()
 
 
-def detect_quantization_format(weight_tensor: torch.Tensor, scale_tensor: torch.Tensor, block_size: int = 32) -> str:
+def detect_quantization_format(
+    weight_tensor: torch.Tensor, scale_tensor: torch.Tensor, block_size: int = 32
+) -> str:
     """Detect whether weights are FP4 or FP8 based on tensor shapes."""
     weight_elements = weight_tensor.numel()
     scale_elements = scale_tensor.numel()
-    
+
     # For FP4: 2 values packed per byte, so weight_elements * 2 / block_size should equal scale_elements
     expected_fp4_blocks = (weight_elements * 2 + block_size - 1) // block_size
-    
-    # For FP8: 1 value per byte, so weight_elements / block_size should equal scale_elements  
+
+    # For FP8: 1 value per byte, so weight_elements / block_size should equal scale_elements
     expected_fp8_blocks = (weight_elements + block_size - 1) // block_size
-    
-    if abs(scale_elements - expected_fp4_blocks) < abs(scale_elements - expected_fp8_blocks):
+
+    if abs(scale_elements - expected_fp4_blocks) < abs(
+        scale_elements - expected_fp8_blocks
+    ):
         return "fp4"
     else:
         return "fp8"
 
 
-def infer_original_tensor_shape(weight_tensor: torch.Tensor, scale_tensor: torch.Tensor, block_size: int, format: str) -> list[int]:
+def infer_original_tensor_shape(
+    weight_tensor: torch.Tensor,
+    scale_tensor: torch.Tensor,
+    block_size: int,
+    format: str,
+) -> list[int]:
     """Infer original tensor shape from quantized weight and scale tensors."""
     if format == "fp4":
         # FP4: 2 values packed per byte
         total_elements = weight_tensor.numel() * 2
     else:
-        # FP8: 1 value per byte  
+        # FP8: 1 value per byte
         total_elements = weight_tensor.numel()
-    
+
     # Use scale tensor shape to help infer dimensions
     scale_shape = scale_tensor.shape
     if len(scale_shape) == 2:
@@ -101,19 +110,26 @@ def infer_original_tensor_shape(weight_tensor: torch.Tensor, scale_tensor: torch
         raise ValueError(f"Unsupported scale tensor shape: {scale_shape}")
 
 
-def create_fp4_block_quantizer(weight_tensor: torch.Tensor, scale_tensor: torch.Tensor, layer_name: str, block_size: int = 32) -> 'PlanarQuantizedTensor':
+def create_fp4_block_quantizer(
+    weight_tensor: torch.Tensor,
+    scale_tensor: torch.Tensor,
+    layer_name: str,
+    block_size: int = 32,
+) -> "PlanarQuantizedTensor":
     """Create StaticFp4BlockQuantizer from Quark FP4 weights and scales."""
     from sharktank.types.quantizers import StaticFp4BlockQuantizer
     from sharktank.types.layouts import BlockScaledFp4Layout
     from sharktank.types.tensors import PlanarQuantizedTensor
-    
+
     # Convert U8 scales to appropriate format
     # Quark uses E8M0 format for FP4 scales
-    scales = scale_tensor.flatten().to(torch.float32)
-    
+    scales = scale_tensor.to(torch.float32)
+
     # Infer original tensor shape
-    original_shape = infer_original_tensor_shape(weight_tensor, scale_tensor, block_size, "fp4")
-    
+    original_shape = infer_original_tensor_shape(
+        weight_tensor, scale_tensor, block_size, "fp4"
+    )
+
     # Create the FP4 block layout directly
     layout = BlockScaledFp4Layout(
         shape=original_shape,
@@ -122,13 +138,13 @@ def create_fp4_block_quantizer(weight_tensor: torch.Tensor, scale_tensor: torch.
         block_size=block_size,
         use_fe8m0_scale=True,
     )
-    
+
     quantized_tensor = PlanarQuantizedTensor(
         shape=original_shape,
         name=layer_name,
         layout=layout,
     )
-    
+
     return quantized_tensor
 
 
@@ -183,7 +199,7 @@ def apply_per_layer_quant(
     weight = layer_theta.tensor("weight").as_torch()
 
     quant_format = detect_quantization_format(weight, weight_quant_scale, block_size)
-    
+
     if quant_format == "fp4":
         quantized_weight = weight
     else:
@@ -412,16 +428,16 @@ def main(argv):
         choices=["7b", "70b", "405b"],
     )
     parser.add_argument(
-        "--fp4-block-size", 
-        type=int, 
+        "--fp4-block-size",
+        type=int,
         default=32,
-        help="Block size for FP4 quantization (default: 32)"
+        help="Block size for FP4 quantization (default: 32)",
     )
     parser.add_argument(
-        "--fp4-scale-format", 
-        choices=["fe8m0", "float"], 
+        "--fp4-scale-format",
+        choices=["fe8m0", "float"],
         default="fe8m0",
-        help="Scale format for FP4 quantization (default: fe8m0)"
+        help="Scale format for FP4 quantization (default: fe8m0)",
     )
     args = cli.parse(parser, args=argv)
 

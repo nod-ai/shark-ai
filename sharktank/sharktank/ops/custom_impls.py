@@ -120,10 +120,27 @@ def matmul_generic_tensor_block_scaled_fp4(
     rhs_unpacked = rhs.unpack()
 
     scales_float = convert_fp4_scales_to_float(
-        rhs_unpacked.d, rhs_unpacked.use_power_of_two_scale
+        rhs_unpacked.d, rhs_unpacked.use_fe8m0_scale
     )
 
-    return batched_block_scaled_mmt_fp4(lhs, scales_float, rhs_unpacked.qs)
+    # Reshape scales if they are 1D
+    if scales_float.dim() == 1:
+        # Infer the 2D shape from the quantized tensor shape and block size
+        n, k = rhs_unpacked.shape
+        num_blocks_per_row = k // rhs_unpacked.block_size
+        expected_shape = [n, num_blocks_per_row]
+        scales_float = scales_float.reshape(expected_shape)
+
+    # Get the unpacked FP4 indices and reshape to 3D blocked format
+    qs = rhs_unpacked.qs  # This is unpacked but flattened [N, K]
+    n, k = rhs_unpacked.shape
+    block_size = rhs_unpacked.block_size
+    num_blocks = k // block_size
+
+    # Reshape from [N, K] to [N, num_blocks, block_size]
+    qs_blocked = qs.reshape(n, num_blocks, block_size)
+
+    return batched_block_scaled_mmt_fp4(lhs, scales_float, qs_blocked)
 
 
 @matmul.override(Tensor, QuantizedTensor)

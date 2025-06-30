@@ -54,12 +54,12 @@ class TestBatchedBlockScaledMmtFp4:
         k: int,
         block_size: int,
         dtype: torch.dtype,
-        use_power_of_two_scale: bool = False,
+        use_fe8m0_scale: bool = False,
     ):
         """Helper method to create FP4 test data with consistent setup."""
         num_blocks = k // block_size
 
-        if use_power_of_two_scale:
+        if use_fe8m0_scale:
             d = torch.randint(-8, 8, (n, num_blocks)).to(dtype)
         else:
             d = torch.randn(n, num_blocks, dtype=dtype)
@@ -78,7 +78,7 @@ class TestBatchedBlockScaledMmtFp4:
         d: torch.Tensor,
         qs_packed: torch.Tensor,
         block_size: int,
-        use_power_of_two_scale: bool = False,
+        use_fe8m0_scale: bool = False,
     ):
         """Helper method to create PlanarQuantizedTensor with BlockScaledFp4Layout."""
         layout = BlockScaledFp4Layout(
@@ -86,7 +86,7 @@ class TestBatchedBlockScaledMmtFp4:
             d=d,
             qs=qs_packed,
             block_size=block_size,
-            use_power_of_two_scale=use_power_of_two_scale,
+            use_fe8m0_scale=use_fe8m0_scale,
         )
         return PlanarQuantizedTensor(shape=[n, k], layout=layout)
 
@@ -144,7 +144,7 @@ class TestBatchedBlockScaledMmtFp4:
 
         a = torch.randn(batch_size, m, k, dtype=dtype)
         d_exponents, fp4_indices, qs_packed = self._create_fp4_test_data(
-            n, k, block_size, dtype, use_power_of_two_scale=True
+            n, k, block_size, dtype, use_fe8m0_scale=True
         )
 
         d_actual = torch.pow(2.0, d_exponents)
@@ -152,7 +152,7 @@ class TestBatchedBlockScaledMmtFp4:
             a, d_actual, qs_packed, block_size
         )
 
-        d_float = convert_fp4_scales_to_float(d_exponents, use_power_of_two_scale=True)
+        d_float = convert_fp4_scales_to_float(d_exponents, use_fe8m0_scale=True)
         actual = batched_block_scaled_mmt_fp4(a, d_float, fp4_indices)
 
         torch.testing.assert_close(actual, expected, rtol=1e-3, atol=1e-3)
@@ -174,7 +174,7 @@ class TestBatchedBlockScaledMmtFp4:
         if use_proper_scaling:
             weight_reshaped = weight.reshape(n, 1, k)
             block_max = torch.abs(weight_reshaped).max(dim=-1, keepdim=True)[0]
-            _, d = compute_fp4_block_scales(block_max, use_power_of_two_scale=False)
+            _, d = compute_fp4_block_scales(block_max, use_fe8m0_scale=False)
             d = d.squeeze(-1)
 
             fp4_indices = torch.zeros_like(weight_reshaped, dtype=torch.uint8)
