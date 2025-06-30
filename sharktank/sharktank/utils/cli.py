@@ -180,6 +180,12 @@ def add_model_input_options(parser: argparse.ArgumentParser):
         nargs="+",
         help="Custom prompt strings to run LLM or perplexity",
     )
+    parser.add_argument(
+        "--max-decode-steps",
+        type=int,
+        default=None,
+        help="Maximum number of decode steps to perform.",
+    )
 
 
 def add_iree_flags(parser: argparse.ArgumentParser):
