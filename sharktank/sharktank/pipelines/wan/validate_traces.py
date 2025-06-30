@@ -4,6 +4,24 @@ import os
 import re
 import torch
 
+'''
+Compares trace tensor output from a reference impl saved in TRACE_PATH
+with traces outputted via an iree-run-module invocation of a compiled module piped to a text file. e.g.:
+
+- run a module with pytorch runtime that has trace tensor annotations:
+
+TURBINE_LLM_DEBUG="tensor_trace=True,trace_path=./traces" python my_torch_inference.py
+
+- run an IREE module with trace tensors in it, piping output to a text file:
+
+iree-run-module <args> &> iree_trace.txt
+
+- run this script
+
+python validate_traces.py --file=iree_trace.txt
+
+'''
+
 TRACE_PATH = "./traces"
 
 FRAMES = 1
