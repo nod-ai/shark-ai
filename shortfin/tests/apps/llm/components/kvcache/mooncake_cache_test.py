@@ -97,27 +97,49 @@ def mooncake_cache(page_pool, mooncake_store):
     )
 
 
+test_data = [
+    # Tokens                                keys  Case Name
+    ([], 0, "empty_token_list"),
+    (list(range(TEST_PAGE_SIZE // 2)), 1, "partial_page"),
+    (list(range(TEST_PAGE_SIZE)), 1, "exact_page"),
+    (list(range(TEST_PAGE_SIZE + 1)), 2, "just_over_one_page"),
+    (list(range(TEST_PAGE_SIZE * 2)), 2, "multiple_exact_pages"),
+    (list(range(TEST_PAGE_SIZE * 2 + 1)), 3, "multiple_pages_with_rema"),
+    (list(range(TEST_PAGE_SIZE * 3)), 3, "three_exact_pages"),
+    (list(range(1)), 1, "single_token"),
+    (list(range(TEST_PAGE_SIZE - 1)), 1, "almost_full_page"),
+]
+
 # fmt: off
 @pytest.mark.parametrize(
-   "tokens,expected_pages,case_name",
-   [   # Tokens                                Pages  Case Name
-       ([],                                    0,     "empty_token_list"),
-       (list(range(TEST_PAGE_SIZE // 2)),      1,     "partial_page"),
-       (list(range(TEST_PAGE_SIZE)),           1,     "exact_page"),
-       (list(range(TEST_PAGE_SIZE + 1)),       2,     "just_over_one_page"),
-       (list(range(TEST_PAGE_SIZE * 2)),       2,     "multiple_exact_pages"),
-       (list(range(TEST_PAGE_SIZE * 2 + 1)),   3,     "multiple_pages_with_remainder"),
-       (list(range(TEST_PAGE_SIZE * 3)),       3,     "three_exact_pages"),
-       (list(range(1)),                        1,     "single_token"),
-       (list(range(TEST_PAGE_SIZE - 1)),       1,     "almost_full_page"),
-   ],
+   "tokens,expected_keys,case_name", test_data
 )
 # fmt: on
 def test_write_back_pages(
-    mooncake_cache, real_device, tokens, expected_pages, case_name
+    mooncake_cache, real_device, tokens, expected_keys, case_name
 ):
     async def main():
         allocation = mooncake_cache.acquire_pages_for_tokens(tokens)
         num_stored_kvs = await allocation.write_back_pages(real_device, tokens)
         assert num_stored_kvs == expected_pages, f"Failed case: {case_name}"
+        allocation.release_pages()
+
+
+# fmt: off
+@pytest.mark.parametrize(
+   "tokens,expected_keys,case_name", test_data
+)
+def test_update_pages(
+    mooncake_cache, real_device, tokens, expected_keys, case_name
+):
+    async def main():
+        allocation = mooncake_cache.acquire_pages_for_tokens(tokens)
+        num_stored_kvs = await allocation.write_back_pages(real_device, tokens)
+        laste_written_values = allocation.last_written_back_values
+        num_updated_kvs = await allocation.update_pages(real_device, tokens)
+        last_updated_values = allocation.last_updated_values
+        assert num_stored_kvs == expected_keys, f"Failed case: {case_name}"
+        assert num_updated_kvs == expected_keys, f"Failed case: {case_name}"
+        assert(laste_written_values == last_updated_values), \
+            f"Last written values do not match last updated values in case: {case_name}"
         allocation.release_pages()

@@ -43,6 +43,8 @@ class MooncakePagedAllocation(PageAllocation):
     def __init__(self, allocation: PageAllocation, cache: BasePagedAttentionCache):
         self._allocation = allocation
         self._cache = cache
+        self._last_written_back_values = []
+        self._last_updated_values = []
 
     @property
     def pages(self) -> List[PageInfo]:
@@ -53,6 +55,16 @@ class MooncakePagedAllocation(PageAllocation):
     def cache(self) -> BasePagedAttentionCache:
         """Return the cache associated with this allocation."""
         return self._cache
+
+    @property
+    def last_written_back_values(self) -> List[Tuple[str, List[int]]]:
+        """Return the last written back values."""
+        return self._last_written_back_values
+
+    @property
+    def last_updated_values(self) -> List[Tuple[str, List[int]]]:
+        """Return the last updated values."""
+        return self._last_updated_values
 
     def publish_pages_for_tokens(
         self, tokens, *, publish_incomplete_page=False
@@ -113,6 +125,7 @@ class MooncakePagedAllocation(PageAllocation):
             key = token_ids_to_key(page_tokens)
             keys.append(key)
             values.append(value)
+            self._last_written_back_values.append(tuple(key, value))
 
         await device
 
@@ -160,6 +173,7 @@ class MooncakePagedAllocation(PageAllocation):
             logger.debug(f"Got page for key: {key} from Mooncake store")
             # Get the page from the page pool
             values.append(value)
+            self._last_updated_values.append(tuple(key, value))
 
         for i in range(len(values)):
             page_info = self.pages[i]
