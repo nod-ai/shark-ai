@@ -109,7 +109,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         self.yarn_factor = yarn_factor
         self.yarn_original_context_len = yarn_original_context_len
 
-    def _compute_theta(self):
+    def _compute_theta(self, device):
         # TODO: Add rope scaling.
         dim = self.head_dim
         # The original paper creates a d/2 dimensional space to represent
@@ -119,7 +119,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         #   theta = 10000^{-2 (i - 1) / d}, i \in [1, 2, ..., d/2]
         # which is a convoluted way of saying
         #   theta = (1/base)^{i / d}, i \in range(0, dim, 2)
-        freqs = 1.0 / (self.rope_theta ** (torch.arange(0, dim, 2).to(torch.float32) / dim))
+        freqs = 1.0 / (self.rope_theta ** (torch.arange(0, dim, 2, device=device).to(torch.float32) / dim))
         freqs = self._apply_yarn(freqs)
         return freqs
 
@@ -173,7 +173,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         device: device for the sin/cos cache
         output: [bs, seq_len, 1, head_dim // 2], [bs, seq_len, 1, head_dim // 2]
         """
-        theta = self._compute_theta()
+        theta = self._compute_theta(device=position_ids.device)
         theta_expanded = (
             theta[None, :, None].float().expand(position_ids.shape[0], -1, 1)
         )
