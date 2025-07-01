@@ -203,7 +203,7 @@ def apply_per_layer_quant(
     n_head: int,
     split_sizes: list[int],
     block_size: int = 32,
-    output_scale_dtype: Optional[torch.dtype] = None,
+    weight_dtype_override: Optional[torch.dtype] = None,
 ):
     """Take the quantization parameters and hf weights from the imported Theta
     and create InferenceTensors out of them, converting their names to gguf format
@@ -238,8 +238,8 @@ def apply_per_layer_quant(
         output_quant_scale = output_quant_scale.to(torch.float32)
 
     # Cast output_scale to specified dtype if provided
-    if output_quant_scale is not None and output_scale_dtype is not None:
-        output_quant_scale = output_quant_scale.to(output_scale_dtype)
+    if output_quant_scale is not None and weight_dtype_override is not None:
+        output_quant_scale = output_quant_scale.to(weight_dtype_override)
     if weight_quant_scale is None:
         print("weight quant scale not found for layer ", layer_name)
         return
@@ -376,13 +376,18 @@ def convert_hf_hparams_to_gguf(hf_hparams: dict[str, any]) -> dict[str, any]:
 
 
 def update_norm_layer(
-    quant_theta: Theta, layer_name: str, updated_tensors: dict[str, InferenceTensor]
+    quant_theta: Theta,
+    layer_name: str,
+    updated_tensors: dict[str, InferenceTensor],
+    weight_dtype_override: Optional[torch.dtype] = None,
 ):
     """Convert layernames for non quantized tensors and add them to the updated_tensors dict"""
     for sub in ["input_layernorm", "post_attention_layernorm"]:
         sub_name = layer_name + "." + sub
         new_name = hf_to_gguf(sub_name) + ".weight"
-        single_replace(quant_theta, sub_name, new_name, updated_tensors)
+        single_replace(
+            quant_theta, sub_name, new_name, updated_tensors, weight_dtype_override
+        )
 
     if "self_attn" in quant_theta(layer_name).keys:
         layer_idx = layer_name.split(".")[-1]
@@ -393,6 +398,8 @@ def update_norm_layer(
                 .as_torch()
                 .to(torch.float32)
             )
+            if weight_dtype_override is not None:
+                kv_cache_scale = kv_cache_scale.to(weight_dtype_override)
             new_name = f"blk.{layer_idx}.kv_cache"
             updated_tensors[new_name] = StaticScaledQuantizer(
                 name=new_name + ".quantizer",
@@ -409,6 +416,8 @@ def update_norm_layer(
                 .to(torch.float32)
                 * 2.0
             )
+            if weight_dtype_override is not None:
+                prob_output_scale = prob_output_scale.to(weight_dtype_override)
             new_name = f"blk.{layer_idx}.attn_scale"
             updated_tensors[new_name] = DefaultPrimitiveTensor(
                 name=new_name, data=prob_output_scale
@@ -422,8 +431,11 @@ def single_replace(
     layer_name: str,
     gguf_name: str,
     updated_tensors: dict[str, InferenceTensor],
+    dtype_override: Optional[torch.dtype] = None,
 ):
     data = quant_theta(layer_name).tensor("weight").as_torch()
+    if dtype_override is not None and data.dtype != dtype_override:
+        data = data.to(dtype_override)
     updated_tensors[gguf_name] = DefaultPrimitiveTensor(name=gguf_name, data=data)
 
 
@@ -461,10 +473,10 @@ def main(argv):
         help="Scale format for FP4 quantization (default: fe8m0)",
     )
     parser.add_argument(
-        "--output-scale-dtype",
+        "--weight-dtype-override",
         type=str,
         default=None,
-        help="Data type to cast output_scale to (e.g., float32, float16, bfloat16)",
+        help="Data type to cast output_scale and certain weights to (e.g., float32, float16, bfloat16)",
     )
     args = cli.parse(parser, args=argv)
 
@@ -516,8 +528,12 @@ def main(argv):
     updated_tensors: dict[str, InferenceTensor] = {}
     model_layers = [f"model.layers.{i}" for i in range(num_layers)]
 
-    # Convert output_scale_dtype string to torch dtype
-    output_scale_dtype = get_torch_dtype(args.output_scale_dtype)
+    # Convert weight_dtype_override string to torch dtype
+    weight_dtype_override = (
+        serialized_name_to_dtype.get(args.weight_dtype_override)
+        if args.weight_dtype_override
+        else None
+    )
 
     sub_layers = [
         "mlp.gate_proj",
@@ -538,7 +554,7 @@ def main(argv):
                 n_head=head_count[0],
                 split_sizes=split_sizes,
                 block_size=args.fp4_block_size,
-                output_scale_dtype=output_scale_dtype,
+                weight_dtype_override=weight_dtype_override,
             )
 
     # Update the non quantized weights (norm layers)
@@ -547,6 +563,7 @@ def main(argv):
             quant_theta,
             layer_idx,
             updated_tensors,
+            weight_dtype_override,
         )
 
     # The stragglers
@@ -556,7 +573,9 @@ def main(argv):
         ("lm_head", "output.weight"),
     ]
     for layer, new_name in stragglers:
-        single_replace(quant_theta, layer, new_name, updated_tensors)
+        single_replace(
+            quant_theta, layer, new_name, updated_tensors, weight_dtype_override
+        )
 
     new_theta = Theta(updated_tensors)
     # Make a new Dataset from the updated properties and tensors.
