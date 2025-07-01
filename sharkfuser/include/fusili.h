@@ -6,7 +6,8 @@
 
 #pragma once
 
-#include "fusili/attributes.h"
+#include "fusili/attributes/attributes.h"
+#include "fusili/attributes/tensor_attributes.h"
 #include "fusili/context.h"
 #include "fusili/graph.h"
 #include "fusili/logging.h"

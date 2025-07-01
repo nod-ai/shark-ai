@@ -12,9 +12,9 @@
 #include <variant>
 #include <vector>
 
-#include "fusili/context.h"
-#include "fusili/logging.h"
-#include "fusili/types.h"
+#include "../context.h"
+#include "../logging.h"
+#include "../types.h"
 
 namespace fusili {
 
@@ -167,7 +167,7 @@ public:
   const std::vector<int64_t> &get_stride() const { return stride; }
 
   int64_t get_volume() const {
-    int64_t volume = 1ul;
+    int64_t volume = 1;
     for (const int64_t &d : dim)
       volume *= d;
     return volume;

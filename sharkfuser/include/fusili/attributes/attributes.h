@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include "fusili/attributes/tensor_attributes.h"
+#include "tensor_attributes.h"
 
 namespace fusili {
 
