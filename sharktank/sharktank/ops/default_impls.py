@@ -15,6 +15,7 @@ import torch.nn.functional as F
 from numbers import Number
 
 from sharktank.types import (
+    DefaultPrimitiveTensor,
     PrimitiveTensor,
     QuantizedTensor,
     InferenceTensor,
@@ -673,8 +674,8 @@ def split_default(
 
 
 @to.override(Tensor)
-def to_default(tensor: Tensor, *args, **kwargs) -> Tensor:
-    return unbox_tensor(tensor).to(*args, **kwargs)
+def to_default(tensor: Tensor, *args, **kwargs) -> PrimitiveTensor:
+    return DefaultPrimitiveTensor(data=unbox_tensor(tensor).to(*args, **kwargs))
 
 
 @trace_tensor.override(AllOfExprsVariadic(IsOfType(Tensor, InferenceTensor)))
@@ -917,8 +918,17 @@ def _split_topk(
 
 
 @view.override(Tensor)
-def view_default(tensor: Union[Tensor, PrimitiveTensor], shape: List[int]) -> Tensor:
-    return unbox_tensor(tensor).view(*shape)
+def view_default(
+    tensor: Union[Tensor, PrimitiveTensor],
+    shape: List[int] | None,
+    dtype: torch.Tensor | None,
+) -> Tensor:
+    assert shape is None or dtype is None
+    assert shape is not None or dtype is not None
+    if shape is not None:
+        return unbox_tensor(tensor).view(*shape)
+    else:
+        return unbox_tensor(tensor).view(dtype)
 
 
 @view.override(QuantizedTensor)

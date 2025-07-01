@@ -132,8 +132,8 @@ class T5EncoderEagerTest(TestCase):
         target_results = target_model(**input_kwargs)
         logger.info("Comparing outputs...")
         assert_close(
-            target_results["last_hidden_state"],
-            reference_results["last_hidden_state"],
+            unbox_tensor(target_results["last_hidden_state"]),
+            unbox_tensor(reference_results["last_hidden_state"]),
         )
 
     def runTestV1_1CompareTorchEagerHuggingFace(
@@ -652,14 +652,18 @@ class T5AttentionTest(TestCase):
             query_length=batch_seq_len,
         )
 
-        hidden_states = ops.to(reference_hidden_states, dtype=target_dtype)
-        mask = ops.to(reference_mask, dtype=target_dtype)
+        hidden_states = unbox_tensor(
+            ops.to(reference_hidden_states, dtype=target_dtype)
+        )
+        mask = unbox_tensor(ops.to(reference_mask, dtype=target_dtype))
         actual_outputs = model(
             hidden_states=DefaultPrimitiveTensor(data=hidden_states),
             mask=DefaultPrimitiveTensor(data=mask),
         )
         actual_outputs = tree_map(
-            lambda t: None if t is None else ops.to(t, dtype=reference_dtype),
+            lambda t: None
+            if t is None
+            else unbox_tensor(ops.to(t, dtype=reference_dtype)),
             actual_outputs,
         )
 
@@ -760,9 +764,13 @@ class T5AttentionTest(TestCase):
             position_bias=reference_position_bias,
         )
 
-        hidden_states = ops.to(reference_hidden_states, dtype=target_dtype)
-        mask = ops.to(reference_mask, dtype=target_dtype)
-        position_bias = ops.to(reference_position_bias, dtype=target_dtype)
+        hidden_states = unbox_tensor(
+            ops.to(reference_hidden_states, dtype=target_dtype)
+        )
+        mask = unbox_tensor(ops.to(reference_mask, dtype=target_dtype))
+        position_bias = unbox_tensor(
+            ops.to(reference_position_bias, dtype=target_dtype)
+        )
         actual_outputs = model(
             hidden_states=DefaultPrimitiveTensor(data=hidden_states),
             attention_mask=DefaultPrimitiveTensor(data=mask),
@@ -772,7 +780,9 @@ class T5AttentionTest(TestCase):
             unbox_tensor(t) if t is not None else t for t in actual_outputs
         ]
         actual_outputs = tree_map(
-            lambda t: None if t is None else ops.to(t, dtype=reference_dtype),
+            lambda t: None
+            if t is None
+            else unbox_tensor(ops.to(t, dtype=reference_dtype)),
             actual_outputs,
         )
 
@@ -851,12 +861,16 @@ class T5LayerFFTest(TestCase):
             hidden_states=reference_hidden_states,
         )
 
-        hidden_states = ops.to(reference_hidden_states, dtype=target_dtype)
+        hidden_states = unbox_tensor(
+            ops.to(reference_hidden_states, dtype=target_dtype)
+        )
         actual_output = model(
             hidden_states=DefaultPrimitiveTensor(data=hidden_states),
         )
         actual_output = tree_map(
-            lambda t: None if t is None else ops.to(t, dtype=reference_dtype),
+            lambda t: None
+            if t is None
+            else unbox_tensor(ops.to(t, dtype=reference_dtype)),
             actual_output,
         )
 
