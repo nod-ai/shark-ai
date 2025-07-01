@@ -22,3 +22,15 @@ def set_float_dtype(tensor: InferenceTensor, dtype: torch.dtype) -> InferenceTen
         )
 
     return tensor
+
+
+def convert_dtype(
+    tensor: InferenceTensor, dtype_map: dict[torch.dtype, torch.dtype]
+) -> InferenceTensor:
+    for src_dtype, tgt_dtype in dtype_map.items():
+        if src_dtype == tensor.dtype:
+            res = tensor.to(dtype=tgt_dtype)
+            res.name = tensor.name
+            return res
+
+    return tensor
