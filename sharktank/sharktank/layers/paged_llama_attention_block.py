@@ -179,7 +179,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self,
         x: torch.Tensor | ReplicatedTensor,
         start_index: int,
-        embedding,
+        embedding: ShardedRotaryLayer,
         embedding_batch_mask: torch.Tensor,
     ):
         """
@@ -209,7 +209,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self,
         h: torch.Tensor | ShardedTensor,
         *,
-        embedding,
+        embedding: ShardedRotaryLayer,
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor,
         start_index: Optional[int] = None,
