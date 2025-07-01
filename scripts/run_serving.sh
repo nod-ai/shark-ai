@@ -79,9 +79,9 @@ if [[ $TENSOR_PARALLELISM_SIZE = "8" ]]; then
 	           --tokenizer_json=$TOKENIZER_JSON \
 	           --model_config=$MODEL_CONFIG \
 	           --vmfb=$VMFB \
-	           --parameters=$IRPA_PATH $IRPA_PATH_RANK0 $IRPA_PATH_RANK1 $IRPA_PATH_RANK2 $IRPA_PATH_RANK3 $IRPA_PATH_RANK4 $IRPA_PATH_RANK5 $IRPA_PATH_RANK6 $IRPA_PATH_RANK7 \
+	           --parameters $IRPA_PATH $IRPA_PATH_RANK0 $IRPA_PATH_RANK1 $IRPA_PATH_RANK2 $IRPA_PATH_RANK3 $IRPA_PATH_RANK4 $IRPA_PATH_RANK5 $IRPA_PATH_RANK6 $IRPA_PATH_RANK7 \
 	           --device=hip \
-	           --device_ids 0  --port $port &
+	           --device_ids 0 1 2 3 4 5 6 7  --port $port &
 	shortfin_process=$!
 else
 	python -m shortfin_apps.llm.server \
