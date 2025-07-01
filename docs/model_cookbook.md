@@ -121,7 +121,8 @@ python ~/llama.cpp/convert_hf_to_gguf.py --outtype f32 --outfile /tmp/mistral-7b
 python -m sharktank.examples.paged_llm_v1 \
   --gguf-file=/tmp/mistral-7b-v0.1-f32.gguf \
   --tokenizer-config-json=/tmp/mistral-7b/tokenizer_config.json \
-  --prompt "Write a story about llamas"
+  --prompt "Write a story about llamas" \
+  --device='cuda:0'
 
 # Export as MLIR
 python -m sharktank.examples.export_paged_llm_v1 \
@@ -151,7 +152,8 @@ For example, to run the
 ```bash
 python -m sharktank.examples.paged_llm_v1 \
   --hf-dataset=open_llama_3b_v2_q8_0_gguf \
-  --prompt "Write a story about llamas"
+  --prompt "Write a story about llamas" \
+  --device='cuda:0'
 
 open-llama-3b-v2-q8_0.gguf: 100%|█████████████████████████████| 3.64G/3.64G [01:35<00:00, 38.3MB/s]
 tokenizer.model: 100%|███████████████████████████████████████████| 512k/512k [00:00<00:00, 128MB/s]
@@ -272,5 +274,6 @@ python -m sharktank.examples.paged_llm_v1 \
   --dump-prompt-len=128 \
   --bs=4 \
   --dump-decode-steps=1 \
-  --dump-path='/tmp'
+  --dump-path='/tmp' \
+  --device='cuda:0'
 ```
