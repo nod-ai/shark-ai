@@ -14,7 +14,7 @@ from .linear import LinearLayer
 from .norm import RMSNormLayer, L2Norm
 from .latent_attention_block import LatentAttentionBlock
 from .paged_attention import PagedAttention, attn_type_map
-from .rotary_embedding_sharded import ShardedRotaryLayer
+from .rotary_embedding import ShardedRotaryLayer
 from sharktank import ops
 
 __all__ = [
