@@ -77,9 +77,8 @@ class WanTransformerWrapped(ThetaLayer):
                     ("context", torch.rand(context_shape, dtype=torch.float16)),
                 )
             )
-            print(kwargs["x"].shape, kwargs["x"].dtype)
-            print(kwargs["t"].shape)
-            print(kwargs["context"].shape)
+        else:
+            raise ValueError(f"Received invalid specifier for `function` to export: {function}")
         # else:
         #     args = tuple()
         #     self.set_export_config(seq_len=max_seq_len)
@@ -131,7 +130,7 @@ def export_wan_transformer_model_mlir(
     export_model_mlir(wrapped_model, output_path=output_path, function_batch_sizes_map=fn_bs_map)
 
 
-def import_wan_transformer_dataset_from_huggingface(
+def import_wan_transformer_dataset_from_hugging_face(
     repo_id: str,
     revision: str | None = None,
     subfolder: str | None = None,
@@ -153,7 +152,7 @@ def import_wan_transformer_dataset_from_huggingface(
     return parameters_output_path
 
 
-def export_wan_transformer_from_huggingface(
+def export_wan_transformer_from_hugging_face(
     repo_id: str,
     mlir_output_path: PathLike,
     parameters_output_path: PathLike,
@@ -164,8 +163,8 @@ def export_wan_transformer_from_huggingface(
     dtype: torch.dtype = torch.bfloat16,
 ):
     if not os.path.exists(parameters_output_path):
-        print(f"Wan2.1 transformer IRPA not found. Importing from huggingface ({repo_id})")
-        import_wan_transformer_dataset_from_huggingface(
+        print(f"Wan2.1 transformer IRPA not found. Importing from hugging_face ({repo_id})")
+        import_wan_transformer_dataset_from_hugging_face(
             repo_id=repo_id, parameters_output_path=parameters_output_path, dtype=dtype
         )
     export_wan_transformer_model_mlir(

@@ -3,7 +3,7 @@ from argparse import ArgumentParser
 from typing import Optional
 from pathlib import Path
 
-from sharktank.models.wan.export import export_wan_transformer_from_huggingface, wan_transformer_default_batch_sizes
+from sharktank.models.wan.export import export_wan_transformer_from_hugging_face, wan_transformer_default_batch_sizes
 
 def main(args: Optional[list[str]] = None):
     parser = ArgumentParser(
@@ -37,7 +37,7 @@ def main(args: Optional[list[str]] = None):
         default=81
     )
     args = parser.parse_args(args=args)
-    export_wan_transformer_from_huggingface(
+    export_wan_transformer_from_hugging_face(
         repo_id=args.repo_id,
         mlir_output_path=args.mlir_path,
         parameters_output_path=args.params_path,
@@ -46,7 +46,7 @@ def main(args: Optional[list[str]] = None):
         width=args.width,
         num_frames=args.num_frames
     )
-    print("export_wan_transformer_from_huggingface done")
+    print("export_wan_transformer_from_hugging_face done")
 
 if __name__ == "__main__":
     main()

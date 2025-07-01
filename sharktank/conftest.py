@@ -103,6 +103,15 @@ def pytest_addoption(parser):
         ),
     )
     parser.addoption(
+        "--with-wan-data",
+        action="store_true",
+        default=False,
+        help=(
+            "Enable tests that use wan data like models that is not a part of the source "
+            "code. The user is expected to provide the data"
+        ),
+    )
+    parser.addoption(
         "--with-t5-data",
         action="store_true",
         default=False,
@@ -196,6 +205,12 @@ def pytest_addoption(parser):
         type=Path,
         action="store",
         help="Deepseek v3 tp8 sharded model path",
+    )
+    parser.addoption(
+        "--wan2-1-1p3b-model-path",
+        type=Path,
+        action="store",
+        help="Wan2.1 1.3b unsharded model path",
     )
 
     # To obtain a T5 GGUF file you can use llama.cpp's convert_hf_to_gguf.py.
@@ -400,6 +415,11 @@ def get_model_artifacts(request: FixtureRequest):
         request,
         "--google-t5-v1-1-xxl-f32-model-path",
         "google__t5_v1_1_xxl_f32_model",
+    )
+    model_path["wan2-1_1p3b_model_path"] = set_fixture_from_cli_option(
+        request,
+        "--wan2-1-1p3b-model-path",
+        "wan2-1_1p3b_model_path",
     )
     return model_path
 

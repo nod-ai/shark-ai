@@ -1,12 +1,11 @@
 # Copyright 2024-2025 The Alibaba Wan Team Authors. All rights reserved.
 import math
-from collections import defaultdict
-from einops import rearrange
+from collections import OrderedDict
 import numpy as np
 import torch
 import torch.nn as nn
 
-from attention import attention
+from sharktank.models.wan import attention
 
 from typing import Any, Optional, List
 from dataclasses import dataclass
@@ -967,3 +966,33 @@ class WanModel(ThetaLayer):
             u = u.reshape(c, *[i * j for i, j in zip(v, self.patch_size)])
             out.append(u)
         return out
+    
+    def sample_inputs(
+        self, batch_size: int = 1, function: Optional[str] = "forward"
+    ) -> tuple[tuple[AnyTensor], OrderedDict[str, AnyTensor]]:
+        if not (function is None or function == "forward"):
+            raise ValueError(f'Only function "forward" is supported. Got "{function}"')
+        
+        # Prepare inputs
+        # input config
+      
+        # Get wan model input
+        model_input = self.model._get_noise(
+            batch_size,
+            self.num_frames,
+            self.height,
+            self.width,
+        )
+        if function == "forward":
+            context_shape = (28, 4096)
+            args = tuple()
+            kwargs = OrderedDict(
+                (
+                    ("x", model_input[0]),
+                    ("t", torch.tensor([999], dtype=torch.float16)),
+                    ("context", torch.rand(context_shape, dtype=torch.float16)),
+                )
+            )
+        else:
+            raise ValueError(f"Received invalid specifier for `function` to export: {function}")
+        return args, kwargs

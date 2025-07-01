@@ -40,7 +40,6 @@ def import_hf_dataset(
                 )
                 for name in st.keys()
             ]
-            print([name for name in st.keys()])
     theta = Theta(tensors)
     props = {
         "meta": meta_params,
