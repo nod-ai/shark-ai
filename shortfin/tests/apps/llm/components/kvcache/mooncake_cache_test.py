@@ -120,6 +120,7 @@ def test_write_back_pages(
         num_stored_kvs = await allocation.write_back_pages(real_devices[0], tokens)
         assert num_stored_kvs == expected_keys, f"Failed case: {case_name}"
         allocation.release_pages()
+        mooncake_cache.close_mooncake_store()
 
     lsys.run(_test_write_back_pages())
 
@@ -129,9 +130,9 @@ def test_write_back_pages(
    "tokens,expected_keys,case_name", test_data
 )
 def test_update_pages(
-    mooncake_cache, real_devices, tokens, expected_keys, case_name
+    lsys, mooncake_cache, real_devices, tokens, expected_keys, case_name
 ):
-    async def main():
+    async def _test_update_pages():
         allocation = mooncake_cache.acquire_pages_for_tokens(tokens)
         num_stored_kvs = await allocation.write_back_pages(real_devices[0], tokens)
         laste_written_values = allocation.last_written_back_values
@@ -142,3 +143,5 @@ def test_update_pages(
         assert(laste_written_values == last_updated_values), \
             f"Last written values do not match last updated values in case: {case_name}"
         allocation.release_pages()
+        mooncake_cache.close_mooncake_store()
+    lsys.run(_test_update_pages())

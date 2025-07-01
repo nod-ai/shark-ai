@@ -33,6 +33,24 @@ def token_ids_to_key(token_ids: List[int]) -> str:
     return key
 
 
+def get_device_id(device: sf.ScopedDevice) -> int:
+    """Extract the device ID from a ScopedDevice object.
+    Args:
+        device: ScopedDevice object
+    Returns:
+        Device ID as an integer
+    """
+    device_name = (
+        device.fiber.device_names[0] if device.fiber.device_names else "unknown"
+    )
+    idx = len(device_name) - 1
+    while idx >= 0 and device_name[idx].isdigit():
+        idx -= 1
+    if idx >= 0:
+        return int(device_name[idx + 1 :])
+    return 0
+
+
 class MooncakePagedAllocation(PageAllocation):
     """Allocation for Mooncake store.
 
@@ -102,12 +120,7 @@ class MooncakePagedAllocation(PageAllocation):
         device_name = (
             device.fiber.device_names[0] if device.fiber.device_names else "unknown"
         )
-        device_id = 0
-        idx = len(device_name) - 1
-        while idx >= 0 and device_name[idx].isdigit():
-            idx -= 1
-        if idx >= 0:
-            device_id = int(device_name[idx + 1 :])
+        device_id = get_device_id(device)
 
         logger.debug(
             f"Write_back_pages for Device ID: {device_id}, number of tokens: {len(token_ids)}, Number of pages: {number_of_pages}, Tokens per page: {tokens_per_page}"
@@ -156,7 +169,7 @@ class MooncakePagedAllocation(PageAllocation):
         page_pool = self.cache.page_pool
         tokens_per_page = self.cache.tokens_per_page
         number_of_pages = math.ceil(len(token_ids) / tokens_per_page)
-        device_id = device.raw_device.node_affinity
+        device_id = get_device_id(device)
         logger.debug(
             f"Update_pages for Device ID: {device_id}, number of tokens: {len(token_ids)}, Number of pages: {number_of_pages}, Tokens per page: {tokens_per_page}"
         )
