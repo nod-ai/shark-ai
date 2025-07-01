@@ -19,11 +19,11 @@ TEST_CASE("Tensor operations", "[tensor]") {
   int64_t uid = 1;
   std::string name = "image";
 
-  // auto X = graph.tensor(TensorAttr()
-  //                           .set_name(name)
-  //                           .set_dim({8, 32, 16, 16})
-  //                           .set_stride({32 * 16 * 16, 1, 32 * 16, 32})
-  //                           .set_uid(uid));
+  auto X = graph.tensor(TensorAttr()
+                            .set_name(name)
+                            .set_dim({8, 32, 16, 16})
+                            .set_stride({32 * 16 * 16, 1, 32 * 16, 32})
+                            .set_uid(uid));
 
   TensorAttr tensor_attr;
   REQUIRE(tensor_attr.validate().is_bad());
