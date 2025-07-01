@@ -23,7 +23,7 @@ I64 = Dtype.I64
 def sharktank_gather(source, indices, result=None):
     mlir = """
     module {
-    util.func @{{kernel_name}}(%source: !source, %indices: !indices) -> !result {
+    util.func private @{{kernel_name}}(%source: !source, %indices: !indices) -> !result {
       %c0 = arith.constant 0 : index
       %n_dim = tensor.dim %source, %c0 : !source
       %empty = tensor.empty(%n_dim) : !result
