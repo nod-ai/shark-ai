@@ -88,6 +88,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
                     rope_dimension_count=self.hp.rope_dimension_count,
                     rope_freq_base=self.hp.rope_freq_base,
                     use_hf=self.config.use_hf,
+                    device=self.device,
                     tensor_parallelism_size=self.config.tensor_parallelism_size,
                     pipeline_parallelism=config.pipeline_parallelism_size > 1,
                     devices=self.cache.pipeline_to_device_map[pipeline],

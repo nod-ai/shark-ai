@@ -28,6 +28,7 @@ def build_rotary_layer(
     pipeline_parallelism: bool = False,
     devices=None,
     dtype=torch.float32,
+    device: torch.device = None,
     **kwargs,
 ):
     rope_freq_base = 10000.0 if rope_freq_base is None else rope_freq_base
@@ -44,6 +45,7 @@ def build_rotary_layer(
         rotary_layer=rotary_layer,
         devices=devices,
         dtype=dtype,
+        device=device,
     )
 
 
@@ -56,13 +58,15 @@ class ShardedRotaryLayer(BaseLayer):
         pipeline_parallelism: bool,
         rotary_layer,
         devices,
-        dtype,
+        device: torch.device,
+        dtype: torch.dtype,
     ):
         super().__init__()
         self._dtype = dtype
         self._pipeline_parallelism = pipeline_parallelism
         self._tensor_parallelism_size = tensor_parallelism_size
         self._rotary_layer = rotary_layer
+        self._device = device
         self._devices = (
             devices
             if devices is not None
@@ -88,7 +92,7 @@ class ShardedRotaryLayer(BaseLayer):
         xt: Union[torch.Tensor, ShardedTensor],
         start_index: int,
     ):
-        t = torch.arange(xt.shape[1]).unsqueeze(0) + start_index
+        t = torch.arange(xt.shape[1], device=self._device).unsqueeze(0) + start_index
         table_0, table_1 = self.rotary_embed_table(t)
 
         if not isinstance(table_0, ShardedTensor):
@@ -108,7 +112,7 @@ class ShardedRotaryLayer(BaseLayer):
             shards_0 = []
             shards_1 = []
             for ss in start_positions.shards:
-                positions_seq = torch.arange(0, batch_seq_len)
+                positions_seq = torch.arange(0, batch_seq_len, device=self._device)
                 positions_seq = positions_seq.unsqueeze(0) + ss.unsqueeze(1)
                 table_0, table_1 = self.rotary_embed_table(positions_seq)
                 shards_0.append(table_0)
@@ -118,7 +122,7 @@ class ShardedRotaryLayer(BaseLayer):
                 ts=shards_1
             )
 
-        positions_seq = torch.arange(0, batch_seq_len)
+        positions_seq = torch.arange(0, batch_seq_len, device=self._device)
         positions_seq = positions_seq.unsqueeze(0) + start_positions.unsqueeze(1)
         table_0, table_1 = self.rotary_embed_table(positions_seq)
         return table_0, table_1

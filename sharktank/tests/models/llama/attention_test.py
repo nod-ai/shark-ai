@@ -83,6 +83,7 @@ class AttentionBlockTest(unittest.TestCase):
         attention_embedding = build_rotary_layer(
             rope_dimension_count=rope_dimension_count,
             rope_freq_base=rope_freq_base,
+            device="cpu",
             use_hf=True,
             yarn_beta_slow=1,
             yarn_beta_fast=4,
