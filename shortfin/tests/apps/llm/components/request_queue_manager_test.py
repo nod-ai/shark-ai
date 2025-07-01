@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 from shortfin_apps.llm.components.request_queue_manager import RateLimiter
 from shortfin_apps.llm.components.request_queue_manager import RequestQueueManager
 
+
 def test_request_queue_manager():
     queue_manager = RequestQueueManager(6)
 
@@ -34,6 +35,7 @@ def test_request_queue_manager():
     queue_manager.remove_from_queue(3)
     assert queue_manager.current_queue_size == 3
 
+
 def create_rate_limiter(stride: int, num_beams: int):
     mock_model_params = MagicMock()
     mock_model_params.paged_kv_cache.block_seq_stride = stride
@@ -53,7 +55,6 @@ def create_rate_limiter(stride: int, num_beams: int):
         (8, 64, 8, False),  # needed_pages = 9
     ],
 )
-
 def test_check_memory_availability(num_beams, input_len, available_pages, expected):
     rate_limiter = create_rate_limiter(stride=32, num_beams=num_beams)
     assert (

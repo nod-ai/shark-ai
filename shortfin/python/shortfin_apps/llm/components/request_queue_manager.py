@@ -11,6 +11,7 @@ from .config_struct import ModelParams, ServerParams
 
 logger = logging.getLogger(__name__)
 
+
 class RateLimiter:
     def __init__(
         self,
@@ -34,6 +35,7 @@ class RateLimiter:
             return True
 
         return False
+
 
 class RequestQueueManager:
     """
