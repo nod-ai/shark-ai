@@ -401,7 +401,7 @@ def main(argv):
 
     # Convert weight_dtype_override string to torch dtype
     weight_dtype_override = (
-        serialized_name_to_dtype.get(args.weight_dtype_override)
+        serialized_name_to_dtype(args.weight_dtype_override)
         if args.weight_dtype_override
         else None
     )
