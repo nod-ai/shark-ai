@@ -22,13 +22,14 @@ def require_deps():
 import shortfin as sf
 import shortfin.array as sfnp
 
+from shortfin_apps.llm.components.device_array_cache import DeviceArrayCache
 from shortfin_apps.llm.components.kvcache.base_attention_cache import (
     BasePagedAttentionCache,
 )
 from shortfin_apps.llm.components.kvcache.page_pool import PagePool, PageInfo
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def lsys():
     sc = sf.host.CPUSystemBuilder()
     lsys = sc.create_system()
@@ -36,14 +37,25 @@ def lsys():
     lsys.shutdown()
 
 
-@pytest.fixture(scope="module")
-def fiber(lsys):
-    return lsys.create_fiber()
+@pytest.fixture(scope="function")
+def worker(lsys):
+    worker = lsys.create_worker("test-worker")
+    yield worker
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
+def fiber(lsys, worker):
+    return lsys.create_fiber(worker)
+
+
+@pytest.fixture(scope="function")
 def device(fiber):
     return fiber.device(0)
+
+
+@pytest.fixture(scope="function")
+def device_array_cache(device):
+    return DeviceArrayCache(device=device)
 
 
 TEST_PAGE_SIZE = 16
