@@ -137,7 +137,7 @@ while [[ "$1" != "" ]]; do
     shift # Move to the next argument
 done
 
-export OUTPUT_DIR="${SCRIPT_DIR}/../output_artifacts/${MODEL}"
+export OUTPUT_DIR="${SCRIPT_DIR}/../output_artifacts/${MODEL}/${BUILD_PREFERENCE}"
 mkdir -p $OUTPUT_DIR
 
 if [[ $MODEL = "sdxl" ]]; then
