@@ -66,6 +66,7 @@ def detect_quantization_format(
     weight_tensor: torch.Tensor, scale_tensor: torch.Tensor, block_size: int = 32
 ) -> str:
     """Detect whether weights are FP4 or FP8 based on tensor shapes."""
+    # TODO: Expand on this to support other dtypes including mxfp6 quantization
     weight_elements = weight_tensor.numel()
     scale_elements = scale_tensor.numel()
 
@@ -118,9 +119,6 @@ def create_fp4_block_quantizer(
     block_size: int = 32,
 ) -> "PlanarQuantizedTensor":
     """Create StaticFp4BlockQuantizer from Quark FP4 weights and scales."""
-    from sharktank.types.quantizers import StaticFp4BlockQuantizer
-    from sharktank.types.layouts import BlockScaledFp4Layout
-    from sharktank.types.tensors import PlanarQuantizedTensor
 
     # Convert U8 scales to appropriate format
     # Quark uses E8M0 format for FP4 scales

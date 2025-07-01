@@ -82,7 +82,16 @@ def main():
             save = True
 
         if save:
-            # logger.info(f"  {tensor.name}: {tensor.shape}, {tensor.dtype}")
+            attrs = dict()
+            for attr in ["name", "shape", "dtype"]:
+                try:
+                    if hasattr(tensor, attr):
+                        attrs[attr] = getattr(tensor, attr)
+                    else:
+                        attrs[attr] = "(N/A)"
+                except:
+                    attrs[attr] = "(N/A)"
+            logger.info(f"  {attrs['name']}: {attrs['shape']}, {attrs['dtype']}")
             if isinstance(tensor, (QuantizedTensor, QuantizerTensor)):
                 # Preserve quantized tensors and quantizers as-is
                 tensors += [tensor]
