@@ -38,6 +38,7 @@ from sharktank.utils.iree import (
 from sharktank.types import (
     DefaultPrimitiveTensor,
     dtype_to_serialized_short_name,
+    unbox_tensor,
 )
 from sharktank.transforms.dataset import set_float_dtype
 from sharktank.utils.hf_datasets import get_dataset
@@ -447,7 +448,9 @@ class ClipTextEagerTest(TestCase):
 
         actual_outputs = model(input_ids=DefaultPrimitiveTensor(data=input_ids))
         actual_outputs = tree_map(
-            lambda t: None if t is None else ops.to(t, dtype=reference_dtype),
+            lambda t: None
+            if t is None
+            else unbox_tensor(ops.to(t, dtype=reference_dtype)),
             actual_outputs,
         )
 
@@ -513,10 +516,14 @@ class ClipAttentionTest(TestCase):
             causal_attention_mask=reference_causal_attention_mask,
         )
 
-        hidden_states = ops.to(reference_hidden_states, dtype=target_dtype)
-        attention_mask = ops.to(reference_attention_mask, dtype=target_dtype)
-        causal_attention_mask = ops.to(
-            reference_causal_attention_mask, dtype=target_dtype
+        hidden_states = unbox_tensor(
+            ops.to(reference_hidden_states, dtype=target_dtype)
+        )
+        attention_mask = unbox_tensor(
+            ops.to(reference_attention_mask, dtype=target_dtype)
+        )
+        causal_attention_mask = unbox_tensor(
+            ops.to(reference_causal_attention_mask, dtype=target_dtype)
         )
         actual_outputs = model(
             hidden_states=DefaultPrimitiveTensor(data=hidden_states),
@@ -524,7 +531,9 @@ class ClipAttentionTest(TestCase):
             causal_attention_mask=DefaultPrimitiveTensor(data=causal_attention_mask),
         )
         actual_outputs = tree_map(
-            lambda t: None if t is None else ops.to(t, dtype=reference_dtype),
+            lambda t: None
+            if t is None
+            else unbox_tensor(ops.to(t, dtype=reference_dtype)),
             actual_outputs,
         )
 
@@ -587,10 +596,14 @@ class ClipEncoderLayerTest(TestCase):
             causal_attention_mask=reference_causal_attention_mask,
         )
 
-        hidden_states = ops.to(reference_hidden_states, dtype=target_dtype)
-        attention_mask = ops.to(reference_attention_mask, dtype=target_dtype)
-        causal_attention_mask = ops.to(
-            reference_causal_attention_mask, dtype=target_dtype
+        hidden_states = unbox_tensor(
+            ops.to(reference_hidden_states, dtype=target_dtype)
+        )
+        attention_mask = unbox_tensor(
+            ops.to(reference_attention_mask, dtype=target_dtype)
+        )
+        causal_attention_mask = unbox_tensor(
+            ops.to(reference_causal_attention_mask, dtype=target_dtype)
         )
         actual_outputs = model(
             hidden_states=DefaultPrimitiveTensor(data=hidden_states),
@@ -598,7 +611,9 @@ class ClipEncoderLayerTest(TestCase):
             causal_attention_mask=DefaultPrimitiveTensor(data=causal_attention_mask),
         )
         actual_outputs = tree_map(
-            lambda t: None if t is None else ops.to(t, dtype=reference_dtype),
+            lambda t: None
+            if t is None
+            else unbox_tensor(ops.to(t, dtype=reference_dtype)),
             actual_outputs,
         )
 
@@ -662,10 +677,14 @@ class ClipEncoderTest(TestCase):
             causal_attention_mask=reference_causal_attention_mask,
         )
 
-        inputs_embeds = ops.to(reference_inputs_embeds, dtype=target_dtype)
-        attention_mask = ops.to(reference_attention_mask, dtype=target_dtype)
-        causal_attention_mask = ops.to(
-            reference_causal_attention_mask, dtype=target_dtype
+        inputs_embeds = unbox_tensor(
+            ops.to(reference_inputs_embeds, dtype=target_dtype)
+        )
+        attention_mask = unbox_tensor(
+            ops.to(reference_attention_mask, dtype=target_dtype)
+        )
+        causal_attention_mask = unbox_tensor(
+            ops.to(reference_causal_attention_mask, dtype=target_dtype)
         )
         actual_outputs = model(
             inputs_embeds=DefaultPrimitiveTensor(data=inputs_embeds),
@@ -673,7 +692,9 @@ class ClipEncoderTest(TestCase):
             causal_attention_mask=DefaultPrimitiveTensor(data=causal_attention_mask),
         )
         actual_outputs = tree_map(
-            lambda t: None if t is None else ops.to(t, dtype=reference_dtype),
+            lambda t: None
+            if t is None
+            else unbox_tensor(ops.to(t, dtype=reference_dtype)),
             actual_outputs,
         )
 

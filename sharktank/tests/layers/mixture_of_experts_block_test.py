@@ -207,7 +207,9 @@ class MoeBlockTest(unittest.TestCase):
         )
         res_pre_gather = moe_with_pre_gather_ffn(input)
         res_dense = moe_with_dense_ffn(input)
-        torch.testing.assert_close(res_pre_gather, res_dense)
+        torch.testing.assert_close(
+            unbox_tensor(res_pre_gather), unbox_tensor(res_dense)
+        )
 
     @parameterized.expand(
         [
@@ -319,7 +321,7 @@ class MoeBlockTest(unittest.TestCase):
             torch.rand([batch_size, sequence_length, feature_dim], dtype=dtype) - 0.5
         )
         sharded_input = replicate(input, count=tensor_parallelism_size)
-        expected = block(input)
+        expected = unbox_tensor(block(input))
         actual = sharded_block(sharded_input)
         actual = unbox_tensor(reshard_like(actual, like=expected))
         torch.testing.assert_close(actual, expected)

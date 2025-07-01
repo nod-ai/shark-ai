@@ -35,8 +35,8 @@ def test_sharded_rotary_table():
         max_seqlen=max_seqlen,
         rope_freq_base=rope_freq_base,
     )
-    oq = default_layer(xt=xq, start_index=0)
-    ok = default_layer(xt=xk, start_index=0)
+    oq = unbox_tensor(default_layer(xt=xq, start_index=0))
+    ok = unbox_tensor(default_layer(xt=xk, start_index=0))
 
     # Then we can shard the same inputs and layer
     xq = SplitPrimitiveTensor(ts=xq, shard_dim=2, shard_count=4)

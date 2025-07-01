@@ -318,6 +318,7 @@ class InferenceTensor(ABC):
             ("memory_format" in kwargs)
             or ("dtype" in kwargs)
             or isinstance(arg0, torch.dtype)
+            or arg0 is None
         )
 
         if device_overload:
@@ -538,15 +539,38 @@ class InferenceTensor(ABC):
 
         return unsqueeze(self, dim)
 
+    @overload
+    def view(self, dtype: torch.dtype) -> "AnyTensor":
+        ...
+
+    @overload
     def view(self, *args: Union[List[List[int]], List[int]]) -> "AnyTensor":
+        ...
+
+    def view(
+        self,
+        *args: Union[List[List[int]], List[int], torch.dtype],
+        dtype: torch.dtype | None = None,
+    ) -> "AnyTensor":
         from sharktank.ops import view
 
-        if all(isinstance(a, int) or isinstance(a, torch.SymInt) for a in args):
+        shape = None
+
+        if len(args) > 0 and all(
+            isinstance(a, int) or isinstance(a, torch.SymInt) for a in args
+        ):
             shape = args
+        elif len(args) == 1:
+            if isinstance(args[0], torch.dtype):
+                assert dtype is None
+                dtype = args[0]
+            else:
+                assert isinstance(args[0], Sequence)
+                shape = args[0]
         else:
-            assert len(args) == 1
-            shape = args[0]
-        return view(self, shape)
+            assert dtype is not None
+
+        return view(self, shape=shape, dtype=dtype)
 
     def __gt__(self, lhs: Union["AnyTensor", Number]) -> "AnyTensor":
         from sharktank.ops import elementwise
@@ -563,6 +587,16 @@ class InferenceTensor(ABC):
         # Assumes commutative addition due to torch elementwise ops not handling
         # numbers on the lhs.
         return self.__add__(lhs)
+
+    def __sub__(self, rhs):
+        from sharktank.ops import elementwise
+
+        return elementwise(torch.sub, self, rhs)
+
+    def __rsub__(self, lhs):
+        # Assumes commutative addition due to torch elementwise ops not handling
+        # numbers on the lhs.
+        return self.__sub__(lhs)
 
     def __mod__(self, rhs):
         from sharktank.ops import elementwise
@@ -667,6 +701,7 @@ class DefaultPrimitiveTensor(PrimitiveTensor):
         name: str = UnnamedTensorName,
     ):
         super().__init__(name=name, shape=list(data.shape))
+        assert isinstance(data, torch.Tensor), "data argument must be torch.Tensor"
         self._data = data
 
     @classmethod
