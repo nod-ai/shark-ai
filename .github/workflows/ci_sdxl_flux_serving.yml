@@ -96,9 +96,9 @@ jobs:
         with:
           name: generated-images
           path: |
-            output_artifacts/sdxl*
-            output_artifacts/flux_dev*
-            output_artifacts/flux_schnell*
+            output_artifacts/sdxl/
+            output_artifacts/flux_dev/
+            output_artifacts/flux_schnell/
 
       - name: Cleanup artifacts
         run: |
@@ -108,7 +108,7 @@ jobs:
   # New job to push logs to shark-ai-reports repository
   push_logs:
     name: "Push sdxl/flux generated images"
-    needs: [test_sdxl_flux_serving]
+    needs: [ test_sdxl_flux_serving ]
     runs-on: linux-mi300-1gpu-ossci-nod-ai
     steps:
       - name: Download log artifacts
