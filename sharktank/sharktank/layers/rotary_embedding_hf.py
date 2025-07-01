@@ -119,7 +119,10 @@ class RotaryEmbeddingLayer(BaseLayer):
         #   theta = 10000^{-2 (i - 1) / d}, i \in [1, 2, ..., d/2]
         # which is a convoluted way of saying
         #   theta = (1/base)^{i / d}, i \in range(0, dim, 2)
-        freqs = 1.0 / (self.rope_theta ** (torch.arange(0, dim, 2, device=device).to(torch.float32) / dim))
+        freqs = 1.0 / (
+            self.rope_theta
+            ** (torch.arange(0, dim, 2, device=device).to(torch.float32) / dim)
+        )
         freqs = self._apply_yarn(freqs)
         return freqs
 
