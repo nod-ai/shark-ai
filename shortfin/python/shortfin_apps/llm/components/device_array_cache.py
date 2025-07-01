@@ -160,4 +160,4 @@ class DeviceArrayCache:
     def free(self):
         with self._cache_lock:
             del self._cache
-            self._cache = []
+            self._cache = {}

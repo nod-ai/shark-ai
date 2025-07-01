@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from pytest import FixtureRequest
 from typing import Optional, Any
+from dataclasses import dataclass
 
 
 # Tests under each top-level directory will get a mark.
@@ -305,6 +306,7 @@ def set_fixture(request: FixtureRequest, name: str, value: Any):
         return value
     else:
         setattr(request.cls, name, value)
+        return value
 
 
 def set_fixture_from_cli_option(
@@ -368,7 +370,7 @@ def batch_size(request: FixtureRequest) -> Optional[str]:
 
 
 @pytest.fixture(scope="class")
-def get_model_artifacts(request: FixtureRequest):
+def model_artifacts(request: FixtureRequest) -> dict[str, str]:
     model_path = {}
     model_path["llama3_8b_tokenizer_path"] = set_fixture_from_cli_option(
         request, "--llama3-8b-tokenizer-path", "llama3_8b_tokenizer"
@@ -427,23 +429,36 @@ def get_model_artifacts(request: FixtureRequest):
     return model_path
 
 
+@dataclass
+class IreeFlags:
+    iree_device: str
+    iree_hip_target: str
+    iree_hal_target_device: str
+    iree_hal_local_target_device_backends: str
+
+
 @pytest.fixture(scope="class")
-def get_iree_flags(request: FixtureRequest):
-    model_path = {}
+def iree_flags(request: FixtureRequest) -> IreeFlags:
     iree_device = request.config.getoption("iree_device")
     if not isinstance(iree_device, str) and len(iree_device) == 1:
         iree_device = iree_device[0]
     set_fixture(request, "iree_device", iree_device)
-    model_path["iree_hip_target"] = set_fixture_from_cli_option(
+    iree_hip_target = set_fixture_from_cli_option(
         request, "--iree-hip-target", "iree_hip_target"
     )
-    model_path["iree_hal_target_device"] = set_fixture_from_cli_option(
+    iree_hal_target_device = set_fixture_from_cli_option(
         request, "--iree-hal-target-device", "iree_hal_target_device"
     )
-    model_path["iree_hal_local_target_device_backends"] = set_fixture_from_cli_option(
+    iree_hal_local_target_device_backends = set_fixture_from_cli_option(
         request,
         "--iree-hal-local-target-device-backends",
         "iree_hal_local_target_device_backends",
+    )
+    return IreeFlags(
+        iree_device=iree_device,
+        iree_hip_target=iree_hip_target,
+        iree_hal_target_device=iree_hal_target_device,
+        iree_hal_local_target_device_backends=iree_hal_local_target_device_backends,
     )
 
 
