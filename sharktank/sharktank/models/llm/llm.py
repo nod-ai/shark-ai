@@ -119,6 +119,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         # [bs, batch_seq_len]
         tokens: torch.Tensor,
         *,
+        sequence_lengths: torch.Tensor,
         # [bs|1, 1, batch_seq_len, batch_seq_len]
         attention_mask: Union[torch.Tensor, None],
         # [bs, batch_seq_len // block_seq_stride]
@@ -152,6 +153,8 @@ class PagedLlmModelV1(BaseCausalLMModel):
                 h,
                 embedding=self.attention_embedding,
                 start_index=0,
+                sequence_lengths=sequence_lengths,
+                attention_mask=mask[pipeline],
                 attention_mask=mask,
                 cache_state=cache_state,
                 seq_block_ids=seq_block_ids,
@@ -175,6 +178,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         # [bs, 1]
         tokens: torch.Tensor,
         *,
+        sequence_lengths: torch.Tensor,
         # [bs, 1, 1, batch_seq_len]
         attention_mask: torch.Tensor,
         # [bs] of starting positions
@@ -206,6 +210,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
                 start_positions=start_positions,
                 embedding=self.attention_embedding,
                 embedding_batch_mask=embedding_batch_masks,
+                sequence_lengths=sequence_lengths,
                 attention_mask=attention_mask,
                 cache_state=cache_state,
                 seq_block_ids=seq_block_ids,
@@ -372,6 +377,7 @@ class AttentionFFNBlock(ThetaLayer):
         seq_block_ids: torch.Tensor | ReplicatedTensor,
         start_index: Optional[int] = None,
         start_positions: Optional[torch.Tensor] = None,
+        sequence_lengths: torch.Tensor | ReplicatedTensor,
         attention_mask: list[Union[torch.Tensor, ReplicatedTensor]] = None,
         embedding_batch_mask: tuple[InferenceTensor, InferenceTensor]
         | InferenceTensor
@@ -384,6 +390,7 @@ class AttentionFFNBlock(ThetaLayer):
             seq_block_ids=seq_block_ids,
             start_index=start_index,
             start_positions=start_positions,
+            sequence_lengths=sequence_lengths,
             attention_mask=attention_mask,
             embedding_batch_mask=embedding_batch_mask,
             cache_state=cache_state,

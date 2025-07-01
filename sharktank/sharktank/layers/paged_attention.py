@@ -27,6 +27,7 @@ from sharktank.types import (
 from sharktank import ops, kernels
 from sharktank.kernels.mlir_kernel import *
 from sharktank.types.tensors import AnyTensor
+from sharktank.kernels import wave
 
 __all__ = ["PagedAttention", "attn_type_map"]
 
@@ -572,6 +573,71 @@ class PagedAttention:
             scale=scale,  # defaults to 1/sqrt(dim)
         )
 
+    def decode_attention(
+        self,
+        *,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        head_count_attn: int,
+        attention_kernel: str,
+        fake_quant: Optional[bool],
+        softcap: Optional[float] = None,
+        scale: Optional[torch.Tensor] = None,
+        # Represents the prompt + generated tokens, if any
+        sequence_lengths: torch.Tensor,
+        mask: Optional[torch.Tensor] = None,
+    ):
+        if self.attn_type == "gqa":
+            key, value = self.gqa(head_count_attn, key, value)
+
+        if isinstance(key, ShardedTensor) and type(key) is not type(query):
+            key = ops.reshard_like(key, like=query)
+
+        if isinstance(value, ShardedTensor) and type(value) is not type(query):
+            value = ops.reshard_like(value, like=query)
+
+        # TODO: Hack cuz query is sometimes torch.float32
+        query = query.to(torch.float16)
+
+        # Wave kernel expects different shapes
+        query = query.transpose(1, 2)
+
+        num_sequences, num_query_heads, max_query_seq_len, query_head_dimension = (
+            query.shape
+        )
+        dynamic_kv_seq_len: torch.SymInt
+        _, dynamic_kv_seq_len, num_kv_heads, kv_head_dimension = key.shape
+
+        # TODO: are these useful as docs?
+        # TODO: does query ever have a different head dimension from key-value?
+        assert (num_sequences, query_head_dimension) == (
+            key.shape[0],
+            kv_head_dimension,
+        )
+        assert key.shape == value.shape
+        assert max_query_seq_len == 1
+
+        # TODO: Copied from `self.attention`, not sure if it's correct. Why is `mask` optional anyways?
+        if mask is None:
+            raise NotImplementedError("oof no mask rip n spaghetti")
+            mask = torch.full((num_sequences, max_query_seq_len), float("-inf"))
+            mask = torch.triu(mask, diagonal=1)[None, None, :, :]
+
+        output = wave.paged_decode_attention(
+            query.view(num_sequences, num_query_heads, query_head_dimension),
+            key.view(
+                num_sequences * dynamic_kv_seq_len, num_kv_heads, query_head_dimension
+            ),
+            value.view(
+                num_sequences * dynamic_kv_seq_len, num_kv_heads, kv_head_dimension
+            ),
+            sequence_lengths,
+            self.device,
+        ).view(num_sequences, num_query_heads, max_query_seq_len, kv_head_dimension)
+
+        return output
+
     def forward_decode(
         self,
         *,
@@ -588,9 +654,10 @@ class PagedAttention:
         fake_quant: Optional[bool],
         softcap: Optional[float] = None,
         scale: Optional[float] = None,
+        sequence_lengths: torch.Tensor,
         mask: Optional[torch.Tensor] = None,
-        k_quantizer: StaticScaledQuantizer = None,
-        v_quantizer: StaticScaledQuantizer = None,
+        k_quantizer: StaticScaledQuantizer | None = None,
+        v_quantizer: StaticScaledQuantizer | None = None,
     ):
         # Write our one updated cache row into the cache.
         self.write_timestep(
@@ -614,11 +681,19 @@ class PagedAttention:
         k = pack_raw_tensor(k, k_quantizer)
         v = pack_raw_tensor(v, v_quantizer)
 
-        return self.attention(
-            q=q,
-            k=k,
-            v=v,
+        q = q.to(torch.float16)
+        k = k.to(torch.float16)
+        v = v.to(torch.float16)
+
+        import time
+
+        # start = time.time()
+        out_wave = self.decode_attention(
+            query=q,
+            key=k,
+            value=v,
             head_count_attn=head_count_attn,
+            sequence_lengths=sequence_lengths,
             attention_kernel=attention_kernel,
             cache_quantizer=cache_quantizer,
             fake_quant=fake_quant,
@@ -626,6 +701,30 @@ class PagedAttention:
             scale=scale,
             mask=mask,
         )
+        # elapsed_wave = time.time() - start
+        # start = time.time()
+        # out_ref = self.attention(
+        #     q=q,
+        #     k=k,
+        #     v=v,
+        #     head_count_attn=head_count_attn,
+        #     attention_kernel=attention_kernel,
+        #     fake_quant=fake_quant,
+        #     softcap=softcap,
+        #     scale=scale,
+        #     mask=mask,
+        # )
+        # elapsed_ref = time.time() - start
+
+        # print(
+        #     f"Wave is {elapsed_ref / elapsed_wave:.3f} faster, took {elapsed_wave} compared to ref {elapsed_ref}"
+        # )
+
+        # torch.testing.assert_close(
+        #     out_wave, out_ref, msg=f"wave: {out_wave}, ref: {out_ref}"
+        # )
+
+        return out_wave
 
     def forward_prefill(
         self,

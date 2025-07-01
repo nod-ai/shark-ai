@@ -134,10 +134,10 @@ def export_llm_v1(
         ):
             return model.decode(
                 tokens,
-                seq_lens,
-                start_positions,
-                seq_block_ids,
-                cache_state,
+                attention_mask=attention_mask,
+                start_positions=start_positions,
+                seq_block_ids=seq_block_ids,
+                cache_state=cache_state,
             )
 
     if not export_config.skip_prefill:
