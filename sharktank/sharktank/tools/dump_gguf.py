@@ -82,7 +82,7 @@ def main():
             save = True
 
         if save:
-            #logger.info(f"  {tensor.name}: {tensor.shape}, {tensor.dtype}")
+            # logger.info(f"  {tensor.name}: {tensor.shape}, {tensor.dtype}")
             if isinstance(tensor, (QuantizedTensor, QuantizerTensor)):
                 # Preserve quantized tensors and quantizers as-is
                 tensors += [tensor]
@@ -137,7 +137,9 @@ def _maybe_dump_tensor(args, t: InferenceTensor):
             dq = layout.dequant()
             np.save(dir / f"{t.name}.dequant.npy", dq.detach().numpy())
         elif isinstance(t, QuantizerTensor):
-            logger.info(f"Skipping dump of QuantizerTensor {t.name} (no tensor data to dump)")
+            logger.info(
+                f"Skipping dump of QuantizerTensor {t.name} (no tensor data to dump)"
+            )
         else:
             logger.error(f"Unexpected tensor type: {type(t)}")
             raise AssertionError(f"Unexpected tensor type: {type(t)}")
