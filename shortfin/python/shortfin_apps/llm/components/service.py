@@ -24,7 +24,7 @@ from .service_debug_dumper import SERVICE_DEBUG_DUMPER
 from .tokenizer import Tokenizer
 from .token_selection_strategy import is_multi_response
 from .request_queue_manager import RequestQueueManager
-from .rate_limiter import RateLimiter
+from .request_queue_manager import RateLimiter
 
 from ...utils import GenerateService
 from .fiber_pool import FiberPool
