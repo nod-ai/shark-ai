@@ -151,6 +151,31 @@ class LlamaHParams:
             **custom_config,
         )
 
+    @staticmethod
+    def from_hf_props(hf_hparams: dict[str, Any]):
+        hp = hf_hparams["hparams"]
+        attention_head_count = _int_prop(hp, "num_attention_heads")
+        attn_head_dim = int(
+            _int_prop(hp, "hidden_size") // _int_prop(hp, "num_attention_heads")
+        )
+        attn_head_dim = int(_optional_int_prop(hp, "head_dim", attn_head_dim))
+
+        gguf_props = {
+            "llama.context_length": _int_prop(hp, "max_position_embeddings"),
+            "llama.embedding_length": _int_prop(hp, "hidden_size"),
+            "llama.block_count": _int_prop(hp, "num_hidden_layers"),
+            "llama.feed_forward_length": _int_prop(hp, "intermediate_size"),
+            "llama.rope.dimension_count": attn_head_dim,
+            "llama.attention.head_count": attention_head_count,
+            "llama.attention.layer_norm_rms_epsilon": _float_prop(hp, "rms_norm_eps"),
+            "llama.attention.head_count_kv": _optional_int_prop(
+                hp, "num_key_value_heads", attention_head_count
+            ),
+            "general.architecture": "llama",
+        }
+
+        return LlamaHParams.from_gguf_props(gguf_props)
+
     def to_gguf_props(self) -> dict[str, Any]:
         res = {
             "general.architecture": self.model_arch,
