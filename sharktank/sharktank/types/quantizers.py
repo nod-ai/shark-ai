@@ -23,11 +23,18 @@ import torch
 from sharktank.utils.io import ShardedArchiveBuilder
 
 from .layouts import (
+    BlockScaledFp4Layout,
     TensorScaledLayout,
 )
 
 from .layout_utils import (
+    pack_fp4_e2m1_to_uint8,
     saturate_cast,
+)
+
+from .ocp_floats import (
+    compute_fp4_block_scales,
+    float32_to_fp4_e2m1,
 )
 
 from .tensors import (
@@ -43,6 +50,7 @@ from .tensors import (
 )
 
 __all__ = [
+    "DynamicFp4BlockQuantizer",
     "DynamicScaledQuantizer",
     "QuantizerTensor",
     "StaticScaledQuantizer",
@@ -437,6 +445,164 @@ class DynamicScaledQuantizer(QuantizerTensor):
 
     def __repr__(self):
         return f"DynamicScaledQuantizer({self.name}) " f"-> dtype={self._dtype})"
+
+
+# TODO: We should make a StaticBlockQuantizer too.
+# We can probably refactor this and DynamicFp4BlockQuantizer to work with other block dtypes, rather than making
+# specific quantizers for each dtype.
+
+
+@register_inference_tensor
+class DynamicFp4BlockQuantizer(QuantizerTensor):
+    """Quantizer that produces a `BlockScaledFp4Layout` with dynamically computed
+    per-block scales, specifically designed for FP4 E2M1 quantization.
+
+    This quantizer:
+    1. Divides the input tensor into blocks of `block_size` elements
+    2. Computes a dynamic scale for each block based on the block's max absolute value
+    3. Quantizes each block to FP4 E2M1 format using the block's scale
+    4. Packs the FP4 values 2 per byte
+    5. Returns a PlanarQuantizedTensor with BlockScaledFp4Layout
+    """
+
+    def __init__(
+        self,
+        *,
+        block_size: int = 32,
+        use_power_of_two_scale: bool = True,
+        dtype: torch.dtype = torch.float32,
+        name: str = UnnamedTensorName,
+    ):
+        super().__init__(shape=(), name=name)
+        if block_size <= 0:
+            raise ValueError(f"block_size must be positive, got {block_size}")
+        if block_size % 2 != 0:
+            raise ValueError(
+                f"block_size must be even for FP4 packing, got {block_size}"
+            )
+        self._block_size = block_size
+        self._use_power_of_two_scale = use_power_of_two_scale
+        self._dtype = dtype
+
+    def _quantize_raw_tensor(self, t: torch.Tensor, *, name: str) -> QuantizedTensor:
+        """Performs FP4 block quantization on tensor t."""
+        if t.numel() == 0:
+            raise ValueError("Cannot quantize empty tensor")
+
+        original_shape = t.shape
+        total_original_elements = t.numel()
+
+        # Calculate blocks needed after (possible) padding
+        actual_num_blocks = (
+            total_original_elements + self._block_size - 1
+        ) // self._block_size
+        total_padded_elements = actual_num_blocks * self._block_size
+        pad_size = total_padded_elements - total_original_elements
+        if pad_size > 0:
+            values_flat = torch.nn.functional.pad(t.flatten(), (0, pad_size))
+        else:
+            values_flat = t.flatten()
+
+        # Reshape into blocks
+        values_blocked = values_flat.view(actual_num_blocks, self._block_size)
+
+        # Compute scales per block
+        block_max = torch.max(torch.abs(values_blocked), dim=1, keepdim=True)[0]
+        scales, scales_float = compute_fp4_block_scales(
+            block_max, self._use_power_of_two_scale, self._dtype
+        )
+
+        # Quantize each block
+        values_blocked.div_(scales_float)
+
+        # Convert to FP4 indices
+        quantized_indices = float32_to_fp4_e2m1(values_blocked.flatten()).view(
+            actual_num_blocks, self._block_size
+        )
+
+        # Pack FP4 indices
+        packed_bytes_per_block = self._block_size // 2
+        packed_fp4 = pack_fp4_e2m1_to_uint8(quantized_indices.flatten())
+        packed_fp4_reshaped = packed_fp4.view(actual_num_blocks, packed_bytes_per_block)
+
+        layout = BlockScaledFp4Layout(
+            shape=list(original_shape),
+            d=scales,
+            qs=packed_fp4_reshaped,
+            block_size=self._block_size,
+            use_power_of_two_scale=self._use_power_of_two_scale,
+        )
+
+        return PlanarQuantizedTensor(
+            shape=list(original_shape),
+            name=name,
+            layout=layout,
+        )
+
+    @property
+    def block_size(self) -> int:
+        return self._block_size
+
+    @property
+    def use_power_of_two_scale(self) -> bool:
+        return self._use_power_of_two_scale
+
+    @property
+    def dtype(self) -> torch.dtype:
+        return self._dtype
+
+    @classmethod
+    def serialized_name(cls) -> str:
+        return "DynamicFp4BlockQuantizer"
+
+    @classmethod
+    def create(
+        cls,
+        name: str,
+        raw_tensors: dict[str, torch.Tensor],
+        extra_properties: dict[str, Any],
+    ):
+        block_size = int(extra_properties.get("block_size", 32))
+        use_power_of_two_scale = bool(
+            extra_properties.get("use_power_of_two_scale", True)
+        )
+        return cls(
+            name=name,
+            block_size=block_size,
+            use_power_of_two_scale=use_power_of_two_scale,
+        )
+
+    @property
+    def globals(self) -> dict[str, torch.Tensor]:
+        return {}
+
+    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
+        """Adds this tensor to the global archive."""
+        extra_properties = {
+            "block_size": self._block_size,
+            "use_power_of_two_scale": self._use_power_of_two_scale,
+        }
+        raw_tensors = {}
+        return InferenceTensorMetadata(
+            self.serialized_name(),
+            raw_tensors=raw_tensors,
+            extra_properties=extra_properties,
+        )
+
+    def _clone_with_globals(
+        self, new_globals: dict[str, torch.Tensor]
+    ) -> "InferenceTensor":
+        return DynamicFp4BlockQuantizer(
+            name=self.name,
+            block_size=self.block_size,
+            use_power_of_two_scale=self.use_power_of_two_scale,
+        )
+
+    def __repr__(self):
+        return (
+            f"DynamicFp4BlockQuantizer({self.name}, block_size={self.block_size}, "
+            f"use_power_of_two_scale={self.use_power_of_two_scale})"
+        )
 
 
 def _norm_per_axis_param(
