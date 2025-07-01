@@ -10,7 +10,7 @@
 
 using namespace fusili;
 
-TEST_CASE("Tensor operations", "[tensor]") {
+TEST_CASE("Tensor query based on uid", "[tensor]") {
   Graph graph;
   graph.set_io_data_type(DataType_t::HALF)
       .set_intermediate_data_type(DataType_t::FLOAT)
@@ -25,6 +25,9 @@ TEST_CASE("Tensor operations", "[tensor]") {
                             .set_stride({32 * 16 * 16, 1, 32 * 16, 32})
                             .set_uid(uid));
 
-  TensorAttr tensor_attr;
-  REQUIRE(tensor_attr.validate().is_bad());
+  // A new TensorAttr to populate via querying the graph
+  TensorAttr t;
+  REQUIRE(t.get_name() == "");
+  REQUIRE(graph.query_tensor_of_uid(uid, t).is_good());
+  REQUIRE(t.get_name() == X->get_name());
 }
