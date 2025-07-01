@@ -33,7 +33,6 @@ function run_sdxl_model() {
 
     echo "Server with PID $SHORTFIN_PROCESS is ready to accept requests on port $PORT....."
 
-    OUTPUT_DIR=$(mktemp -d)
     echo "Sending request to the server...."
     python -m shortfin_apps.sd.simple_client --port $PORT --outputdir $OUTPUT_DIR
 
@@ -74,7 +73,6 @@ function run_flux_model() {
 
     echo "Server with PID $SHORTFIN_PROCESS is ready to accept requests on port $PORT....."
 
-    OUTPUT_DIR=$(mktemp -d)
     echo "Sending request to the server...."
     python -m shortfin_apps.flux.simple_client --port $PORT --outputdir $OUTPUT_DIR
 
@@ -138,6 +136,9 @@ while [[ "$1" != "" ]]; do
     esac
     shift # Move to the next argument
 done
+
+export OUTPUT_DIR="${SCRIPT_DIR}/../output_artifacts/${MODEL}"
+mkdir -p $OUTPUT_DIR
 
 if [[ $MODEL = "sdxl" ]]; then
     run_sdxl_model
