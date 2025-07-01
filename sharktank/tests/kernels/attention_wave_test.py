@@ -44,12 +44,12 @@ class wave_attention(unittest.TestCase):
             mlir_asm,
         )
         self.assertIn(
-            ("func.func private @wave_flash_attention_4_32_dyn_128_f16_f32"),
+            ("func.func private @wave_flash_attention_B_dyn_H_dyn_M_dyn_128_f16_f32"),
             mlir_asm,
         )
         self.assertIn(
             (
-                "util.func private @wave_bhsd_flash_attention_B_4_H_32_M_K1_128_f16_B_4_H_32_K2_K1_128_f16_B_4_H_32_K2_N_128_f16_B_4_H_32_M_N_128_f32_B_4_H_32_M_N_128_f32"
+                "util.func private @wave_bhsd_flash_attention_B_H_M_K1_128_f16_B_H_K2_K1_128_f16_B_H_K2_N_128_f16_B_H_M_N_128_f32_B_H_M_N_128_f32"
             ),
             mlir_asm,
         )
