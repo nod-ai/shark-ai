@@ -8,7 +8,13 @@ from typing import Optional
 
 import torch
 
-from sharktank.types import *
+from sharktank.types import (
+    ReplicatedTensor,
+    StaticScaledQuantizer,
+    QuantizerTensor,
+    ShardedTensor,
+    InferenceTensor,
+)
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
 from .norm import RMSNormLayer, L2Norm
@@ -72,9 +78,9 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self.attn_scale = attn_scale
 
         self.attn_type = attn_type_map[self.model_arch]
-        assert (
-            self.attn_type == self.paged_attention.attn_type
-        ), f"Attention type mismatch: {self.attn_type} != {self.paged_attention.attn_type}"
+        assert self.attn_type == self.paged_attention.attn_type, (
+            f"Attention type mismatch: {self.attn_type} != {self.paged_attention.attn_type}"
+        )
 
         self.k_quantizer = None
         self.v_quantizer = None
@@ -214,6 +220,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         seq_block_ids: torch.Tensor,
         start_index: Optional[int] = None,
         start_positions: Optional[torch.Tensor | ReplicatedTensor] = None,
+        sequence_lengths: torch.Tensor,
         attention_mask: Optional[torch.Tensor | ReplicatedTensor] = None,
         embedding_batch_mask: None
         | tuple[InferenceTensor, InferenceTensor]
@@ -296,6 +303,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 cache_quantizer=self.cache_quantizer,
                 fake_quant=self.fake_quant,
                 attention_kernel=self.attention_kernel,
+                sequence_lengths=sequence_lengths,
                 mask=attention_mask,
                 scale=self.attention_scale,
                 softcap=self.softcap,

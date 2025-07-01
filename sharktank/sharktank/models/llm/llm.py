@@ -149,6 +149,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         # [bs, batch_seq_len]
         tokens: Union[torch.Tensor, ReplicatedTensor],
         *,
+        sequence_lengths: torch.Tensor | ReplicatedTensor,
         # [[bs|1, 1, batch_seq_len, batch_seq_len] x self.config.pipeline_parallelism_size]
         attention_mask: list[Union[torch.Tensor, ReplicatedTensor, None]],
         # [bs, batch_seq_len // block_seq_stride]
@@ -195,6 +196,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
                 h,
                 embedding=self.attention_embedding[pipeline],
                 start_index=0,
+                sequence_lengths=sequence_lengths,
                 attention_mask=mask[pipeline],
                 cache_state=cache_state,
                 seq_block_ids=seq_block_ids[pipeline],
@@ -219,6 +221,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         # [bs, 1]
         tokens: Union[torch.Tensor, ReplicatedTensor],
         *,
+        sequence_lengths: torch.Tensor | ReplicatedTensor,
         # [[bs, 1, 1, batch_seq_len] x self.config.pipeline_parallelism_size]
         attention_mask: list[Union[torch.Tensor, ReplicatedTensor]],
         # [bs] of starting positions
@@ -285,6 +288,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
                 start_positions=start_positions[pipeline],
                 embedding=self.attention_embedding[pipeline],
                 embedding_batch_mask=embedding_batch_masks[pipeline],
+                sequence_lengths=sequence_lengths,
                 attention_mask=attention_mask[pipeline],
                 cache_state=cache_state,
                 seq_block_ids=seq_block_ids[pipeline],
@@ -452,6 +456,7 @@ class AttentionFFNBlock(ThetaLayer):
         seq_block_ids: torch.Tensor | ReplicatedTensor,
         start_index: Optional[int] = None,
         start_positions: Optional[torch.Tensor] = None,
+        sequence_lengths: torch.Tensor | ReplicatedTensor,
         attention_mask: list[Union[torch.Tensor, ReplicatedTensor]] = None,
         embedding_batch_mask: tuple[InferenceTensor, InferenceTensor]
         | InferenceTensor
@@ -464,6 +469,7 @@ class AttentionFFNBlock(ThetaLayer):
             seq_block_ids=seq_block_ids,
             start_index=start_index,
             start_positions=start_positions,
+            sequence_lengths=sequence_lengths,
             attention_mask=attention_mask,
             embedding_batch_mask=embedding_batch_mask,
             cache_state=cache_state,

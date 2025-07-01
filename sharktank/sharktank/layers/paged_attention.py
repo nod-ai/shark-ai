@@ -30,6 +30,11 @@ from sharktank.types import (
 )
 from sharktank import ops, kernels
 from sharktank.kernels.mlir_kernel import *
+from iree.turbine.kernel.wave.templates.paged_decode_attention import (
+    get_paged_decode_intermediate_arrays_shapes,
+    paged_decode_attention_shape,
+)
+from sharktank.kernels import wave
 
 __all__ = ["PagedAttention", "attn_type_map"]
 
@@ -373,9 +378,7 @@ class KVCache:
 
         positions = torch.arange(seq_len, device=device, dtype=torch.int64).unsqueeze(
             0
-        ) + seq_positions.unsqueeze(
-            1
-        )  # [bs, seq_len]
+        ) + seq_positions.unsqueeze(1)  # [bs, seq_len]
 
         # Compute the logical page indices from `seq_positions`
         logical_page_index = positions // self.block_seq_stride  # [bs, seq_len]
@@ -1212,6 +1215,123 @@ class PagedAttention:
             scale=scale,  # defaults to 1/sqrt(dim)
         )
 
+    def decode_attention(
+        self,
+        *,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        head_count_attn: int,
+        cache_quantizer: Optional[QuantizerTensor],
+        attention_kernel: str,
+        fake_quant: Optional[bool],
+        softcap: Optional[float] = None,
+        scale: Optional[torch.Tensor] = None,
+        # Represents the prompt + generated tokens, if any
+        sequence_lengths: torch.Tensor,
+        mask: Optional[torch.Tensor] = None,
+        probs_quantizer: Optional[StaticScaledQuantizer] = None,
+    ):
+        if self.attn_type == "gqa":
+            key, value = self.gqa(head_count_attn, key, value)
+
+        # Fake quant is already dequantized when stored in the cache.
+        if cache_quantizer and not fake_quant:
+            key = cache_quantizer.dequantize_raw_tensor(
+                key, self.attn_dtype, name="xk_deq"
+            )
+            value = cache_quantizer.dequantize_raw_tensor(
+                value, self.attn_dtype, name="xv_deq"
+            )
+
+        if isinstance(key, ShardedTensor) and type(key) is not type(query):
+            key = ops.reshard_like(key, like=query)
+
+        if isinstance(value, ShardedTensor) and type(value) is not type(query):
+            value = ops.reshard_like(value, like=query)
+
+        # TODO: Hack cuz query is sometimes torch.float32
+        query = query.to(torch.float16)
+
+        # Wave kernel expects different shapes
+        query = query.transpose(1, 2)
+
+        num_sequences, num_query_heads, max_query_seq_len, query_head_dim = query.shape
+        dynamic_kv_seq_len: torch.SymInt
+        _, dynamic_kv_seq_len, num_kv_heads, kv_head_dim = key.shape
+
+        # TODO: are these useful as docs?
+        # TODO: does query ever have a different head dimension from key-value?
+        assert (num_sequences, query_head_dim) == (key.shape[0], kv_head_dim)
+        assert key.shape == value.shape
+        assert max_query_seq_len == 1
+
+        seq_lens_sum = torch.sum(sequence_lengths).item()
+
+        # Setup for Wave kernel
+        # TODO: should this be hardcoded
+        NUM_KV_SPLITS = 8  # TODO: determine thru heuristics
+        BLOCK_SIZE = 32  # TODO: need to tune through profiling, or figure out how other frameworks heuristically determine this
+        LOGIT_CAP = 0.0
+        
+        request_indices = torch.cat(
+            (
+                torch.zeros((1,), dtype=torch.int32, device=self.device),
+                torch.cumsum(sequence_lengths[:-1], dim=0, dtype=torch.int32),
+            )
+        )
+        assert request_indices.shape == (num_sequences,)
+        # Aka the block table
+        kv_indices = request_indices.new_empty(seq_lens_sum)
+        logits_shape, logits_max_shape = get_paged_decode_intermediate_arrays_shapes(
+            paged_decode_attention_shape(
+                num_query_heads,
+                num_kv_heads,
+                query_head_dim,
+                kv_head_dim,
+                BLOCK_SIZE,
+                num_sequences,
+            ),
+            NUM_KV_SPLITS,
+        )
+        phase_0_logits = torch.empty(
+            logits_shape,
+            dtype=torch.float32,
+            device=self.device,
+        )
+        phase_0_logits_max = phase_0_logits.new_empty(
+            logits_max_shape,
+        )
+
+        output_buf = torch.empty(
+            (num_sequences, num_query_heads, kv_head_dim),
+            dtype=torch.float32,
+            device=self.device,
+        )
+
+        # TODO: Copied from `self.attention`, not sure if it's correct. Why is `mask` optional anyways?
+        if mask is None:
+            raise NotImplementedError("oof no mask rip n spaghetti")
+            mask = torch.full((num_sequences, max_query_seq_len), float("-inf"))
+            mask = torch.triu(mask, diagonal=1)[None, None, :, :]
+
+        output = wave.paged_decode_attention(
+            query.view(num_sequences, num_query_heads, query_head_dim),
+            key.view(num_sequences * dynamic_kv_seq_len, num_kv_heads, query_head_dim),
+            value.view(
+                num_sequences * dynamic_kv_seq_len, num_kv_heads, query_head_dim
+            ),  # TODO: use kv_head_dimension?
+            output_buf,
+            request_indices,
+            kv_indices,
+            phase_0_logits,
+            phase_0_logits_max,
+        )
+
+        return output.view(
+            num_sequences, num_query_heads, max_query_seq_len, kv_head_dim
+        )
+
     def forward_decode(
         self,
         *,
@@ -1228,9 +1348,10 @@ class PagedAttention:
         fake_quant: Optional[bool],
         softcap: Optional[float] = None,
         scale: Optional[float] = None,
+        sequence_lengths: torch.Tensor,
         mask: Optional[torch.Tensor] = None,
-        k_quantizer: StaticScaledQuantizer = None,
-        v_quantizer: StaticScaledQuantizer = None,
+        k_quantizer: StaticScaledQuantizer | None = None,
+        v_quantizer: StaticScaledQuantizer | None = None,
     ):
         # Write our one updated cache row into the cache.
         self.write_timestep(
@@ -1254,11 +1375,12 @@ class PagedAttention:
         k = pack_raw_tensor(k, k_quantizer)
         v = pack_raw_tensor(v, v_quantizer)
 
-        return self.attention(
-            q=q,
-            k=k,
-            v=v,
+        return self.decode_attention(
+            query=q,
+            key=k,
+            value=v,
             head_count_attn=head_count_attn,
+            sequence_lengths=sequence_lengths,
             attention_kernel=attention_kernel,
             cache_quantizer=cache_quantizer,
             fake_quant=fake_quant,

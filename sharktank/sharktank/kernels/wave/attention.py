@@ -131,4 +131,6 @@ def wave_bhsd_flash_attention(q, k, v, c, result=None):
     )
     mlir = "module {" + mlir_wave_kernel + "}"
 
+    print(mlir)
+
     return MLIRSpec(mlir)

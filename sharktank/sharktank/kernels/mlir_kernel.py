@@ -238,7 +238,7 @@ def mlir_kernel(
                 # Create input descriptions.
                 input_descs = [sel.arg_tensor(i) for i in range(len(input_args))]
 
-                # Specialize static dimensions.
+                # Specialize static dimensions
                 for sym_ty, desc in zip(inputs, input_descs):
                     static_dims = [
                         i for i, dim in enumerate(sym_ty.shapes) if not dim.dynamic
@@ -369,7 +369,7 @@ def mlir_kernel(
                     except MLIRError as e:
                         lines = asm.splitlines()
                         lines_numbered = "\n".join(
-                            [f"      {str(i+1):>5}: {l}" for i, l in enumerate(lines)]
+                            [f"      {str(i + 1):>5}: {l}" for i, l in enumerate(lines)]
                         )
                         raise RuntimeError(
                             f"Error parsing generated op template:"
