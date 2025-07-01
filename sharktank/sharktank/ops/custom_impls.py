@@ -111,6 +111,9 @@ def matmul_generic_tensor_block_scaled_fp4(
     lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
 ):
     """Generic kernel for FP4 E2M1 block scaled layouts."""
+    # Notes for avi:
+    # LHS is going to come in as a fp16/fp32 tensor
+    # DynamicFp4BlockQuantizer will convert it to Fp4 format that you need
     lhs = unbox_tensor(lhs)
     if not transpose_rhs:
         return NotImplemented
@@ -124,6 +127,23 @@ def matmul_generic_tensor_block_scaled_fp4(
     )
 
     return batched_block_scaled_mmt_fp4(lhs, scales_float, rhs_unpacked.qs)
+    # Call your kernel here instead (should mostly work):
+    """lhs = unbox_tensor(lhs)
+    if not transpose_rhs:
+        return NotImplemented
+    layout = rhs.layout_type
+    if layout is not BlockScaledFp4Layout:
+        return NotImplemented
+    rhs_unpacked = rhs.unpack()
+    quantizer = DynamicFp4BlockQuantizer(block_size=32, use_fe8m0_scales=True, name="matmul_input_quantizer")
+    lhs_quantized = quantizer.quantize(lhs)
+    lhs_unpacked = lhs_quantized.unpack()
+
+    scales_float = convert_fp4_scales_to_float(
+        rhs_unpacked.d, rhs_unpacked.use_power_of_two_scale
+    )
+
+    return wave_fp4_matmul_kernel(lhs_unpacked.qs, lhs_unpacked.d, rhs_unpacked.qs, rhs_unpacked.d)"""
 
 
 @matmul.override(Tensor, QuantizedTensor)
