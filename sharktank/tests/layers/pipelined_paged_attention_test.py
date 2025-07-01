@@ -4,6 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import math
 import unittest
 from sharktank.layers import PagedAttention
 import torch
@@ -226,6 +227,74 @@ class PipelinedPagedAttentionTest(unittest.TestCase):
             transformer_block_index=transformer_block_index,
             page_ids=pipelined_page_ids,
         )
+        self.assert_equal_unpipelined_and_pipelined_cache_states(
+            cache_state, pipelined_cache_state
+        )
+
+    def testWriteRange(self):
+        (
+            cache_state,
+            pipelined_cache_state,
+        ) = self.make_unpipelined_and_pipelined_equal_cache_states()
+
+        # Keep the range modest so we don't exceed page count
+        write_seq_len = 10
+        cache_partitions = [
+            torch.rand(
+                self.batch_size,
+                write_seq_len,
+                self.attn_head_count,
+                self.attn_head_dim,
+            )
+            for _ in range(self.cache_partition_count)
+        ]
+
+        transformer_block_index = 3
+        seq_positions = torch.full((self.batch_size,), 1, dtype=torch.int64)
+
+        # Compute max token index we need to write
+        max_token_index = seq_positions.max().item() + write_seq_len
+        needed_pages = math.ceil(max_token_index / self.block_seq_stride)
+        assert self.batch_size * needed_pages <= self.page_count
+
+        page_ids = torch.randperm(self.batch_size * needed_pages).reshape(
+            self.batch_size, needed_pages
+        )
+
+        # Write to unpipelined cache
+        self.cache.write_range(
+            state=cache_state,
+            cache_partitions=cache_partitions,
+            transformer_block_index=transformer_block_index,
+            seq_positions=seq_positions,
+            page_ids=page_ids,
+        )
+
+        # Prepare replicated/pipelined data for pipelined cache
+        pipeline = self.block_to_pipeline_map[transformer_block_index]
+        devices = self.pipeline_to_device_map[pipeline]
+
+        pipelined_cache_partitions = deepcopy(
+            [
+                ops.replicate(t, count=self.shard_count, devices=devices)
+                for t in cache_partitions
+            ]
+        )
+        pipelined_page_ids = ops.replicate(
+            page_ids, count=self.shard_count, devices=devices
+        )
+        pipelined_seq_positions = ops.replicate(
+            seq_positions, count=self.shard_count, devices=devices
+        )
+
+        self.pipelined_cache.write_range(
+            state=pipelined_cache_state,
+            cache_partitions=pipelined_cache_partitions,
+            transformer_block_index=transformer_block_index,
+            seq_positions=pipelined_seq_positions,
+            page_ids=pipelined_page_ids,
+        )
+
         self.assert_equal_unpipelined_and_pipelined_cache_states(
             cache_state, pipelined_cache_state
         )

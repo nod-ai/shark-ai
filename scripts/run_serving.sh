@@ -1,0 +1,110 @@
+#!/bin/bash
+
+export IRPA_PATH=/sharedfile/attn/fp8_attn.irpa
+export TOKENIZER_JSON=/shark-dev/8b/instruct/tokenizer.json
+export VMFB=$(pwd)/../output_artifacts/output.vmfb
+export MODEL_CONFIG=$(pwd)/../output_artifacts/config_attn.json
+export port=8959
+export TENSOR_PARALLELISM_SIZE=1
+
+
+while [[ "$1" != "" ]]; do
+    case "$1" in
+        --irpa)
+            shift
+            export IRPA_PATH=$1
+            ;;
+        --tokenizer_json)
+            shift
+            export TOKENIZER_JSON=$1
+            ;;
+        --vmfb)
+            shift
+            export VMFB=$1
+            ;;
+        --model_config)
+            shift
+            export MODEL_CONFIG=$1
+            ;;
+        --port)
+            shift
+            export port=$1
+            ;;
+        --tensor-parallelism-size)
+            shift
+            export TENSOR_PARALLELISM_SIZE=$1
+            ;;
+        -h|--help)
+            echo "Usage: $0 [--<different flags>] "
+            echo "--irpa            : path to irpa file"
+            echo "--tokenizer_json  : model tokenizer json file path "
+            echo "--tensor-parallelism-size : TP size. default 1"
+            echo "--vmfb            : vmfb file path"
+            echo "--port            : port number on which client-server will run. default: 8959"
+            echo "--model_config    : model config json file path"
+            exit 0
+            ;;
+        *)
+            echo "Invalid argument: $1"
+            exit 1
+            ;;
+    esac
+    shift # Move to the next argument
+done
+
+set_tp8_parameters() {
+    irpa_dir_name=$(dirname "$IRPA_PATH")
+    echo "irpa_dir_name: $irpa_dir_name"
+    irpa_base_name=$(basename "$IRPA_PATH" .irpa)
+    echo "irpa_base_name: $irpa_base_name"
+    export IRPA_PATH_RANK0=${irpa_dir_name}/${irpa_base_name}.rank0.irpa
+    export IRPA_PATH_RANK1=${irpa_dir_name}/${irpa_base_name}.rank1.irpa
+    export IRPA_PATH_RANK2=${irpa_dir_name}/${irpa_base_name}.rank2.irpa
+    export IRPA_PATH_RANK3=${irpa_dir_name}/${irpa_base_name}.rank3.irpa
+    export IRPA_PATH_RANK4=${irpa_dir_name}/${irpa_base_name}.rank4.irpa
+    export IRPA_PATH_RANK5=${irpa_dir_name}/${irpa_base_name}.rank5.irpa
+    export IRPA_PATH_RANK6=${irpa_dir_name}/${irpa_base_name}.rank6.irpa
+    export IRPA_PATH_RANK7=${irpa_dir_name}/${irpa_base_name}.rank7.irpa
+
+    for rank in {0..7}; do
+            var_name="IRPA_PATH_RANK$rank"
+            echo "irpa_path_rank$rank: ${!var_name}"
+    done
+}
+
+echo "Running server ..."
+if [[ $TENSOR_PARALLELISM_SIZE = "8" ]]; then
+	set_tp8_parameters
+	python -m shortfin_apps.llm.server \
+	           --tokenizer_json=$TOKENIZER_JSON \
+	           --model_config=$MODEL_CONFIG \
+	           --vmfb=$VMFB \
+	           --parameters=$IRPA_PATH $IRPA_PATH_RANK0 $IRPA_PATH_RANK1 $IRPA_PATH_RANK2 $IRPA_PATH_RANK3 $IRPA_PATH_RANK4 $IRPA_PATH_RANK5 $IRPA_PATH_RANK6 $IRPA_PATH_RANK7 \
+	           --device=hip \
+	           --device_ids 0  --port $port &
+	shortfin_process=$!
+else
+	python -m shortfin_apps.llm.server \
+	           --tokenizer_json=$TOKENIZER_JSON \
+	           --model_config=$MODEL_CONFIG \
+	           --vmfb=$VMFB \
+	           --parameters=$IRPA_PATH \
+	           --device=hip \
+	           --device_ids 0  --port $port &
+	shortfin_process=$!
+fi
+
+echo $shortfin_process
+
+sleep 50
+echo "Running Client ..."
+
+curl http://localhost:$port/generate \
+           -H "Content-Type: application/json" \
+           -d '{
+              "text": "<|begin_of_text|>Name the capital of the United States.<|eot_id|>",
+                "sampling_params": {"max_completion_tokens": 50}
+            }' > $(pwd)/../output_artifacts/online_serving.log
+
+sleep 10
+kill -9 $shortfin_process

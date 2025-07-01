@@ -99,7 +99,15 @@ class MooncakePagedAllocation(PageAllocation):
         tokens_per_page = self.cache.tokens_per_page
         number_of_pages = math.ceil(len(token_ids) / tokens_per_page)
         # copy pages from the device
-        device_id = device.raw_device.node_affinity
+        device_name = (
+            device.fiber.device_names[0] if device.fiber.device_names else "unknown"
+        )
+        device_id = 0
+        idx = len(device_name) - 1
+        while idx >= 0 and device_name[idx].isdigit():
+            idx -= 1
+        if idx >= 0:
+            device_id = int(device_name[idx + 1 :])
 
         logger.debug(
             f"Write_back_pages for Device ID: {device_id}, number of tokens: {len(token_ids)}, Number of pages: {number_of_pages}, Tokens per page: {tokens_per_page}"
@@ -125,7 +133,7 @@ class MooncakePagedAllocation(PageAllocation):
             key = token_ids_to_key(page_tokens)
             keys.append(key)
             values.append(value)
-            self._last_written_back_values.append(tuple(key, value))
+            self._last_written_back_values.append((key, value))
 
         await device
 
@@ -173,7 +181,7 @@ class MooncakePagedAllocation(PageAllocation):
             logger.debug(f"Got page for key: {key} from Mooncake store")
             # Get the page from the page pool
             values.append(value)
-            self._last_updated_values.append(tuple(key, value))
+            self._last_updated_values.append((key, value))
 
         for i in range(len(values)):
             page_info = self.pages[i]

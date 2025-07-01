@@ -10,7 +10,7 @@ from copy import deepcopy
 import torch
 
 from sharktank.layers.paged_llama_attention_block import PagedLlamaAttentionBlock
-from sharktank.layers.rotary_embedding import RotaryEmbeddingLayer
+from sharktank.layers.rotary_embedding import build_rotary_layer
 from sharktank.layers.testing import make_rand_torch
 
 from sharktank.models.deepseek.toy_deepseek import generate
@@ -117,7 +117,7 @@ class ShardedPagedLatentAttentionBlockTest(unittest.TestCase):
             sharded_cache_state,
         ) = make_unsharded_and_sharded_equal_cache_states()
 
-        embedding = RotaryEmbeddingLayer(
+        embedding = build_rotary_layer(
             rope_dimension_count=hp.rope_dimension_count,
             rope_freq_base=hp.rope_freq_base,
             max_seqlen=hp.context_length,
@@ -144,7 +144,7 @@ class ShardedPagedLatentAttentionBlockTest(unittest.TestCase):
             cache_state=cache_state,
         )
 
-        sharded_embedding = RotaryEmbeddingLayer(
+        sharded_embedding = build_rotary_layer(
             rope_dimension_count=hp.rope_dimension_count,
             rope_freq_base=hp.rope_freq_base,
             max_seqlen=hp.context_length,

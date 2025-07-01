@@ -139,6 +139,7 @@ jobs:
             sharktank/tests/evaluate/ \
             --run-nightly-test \
             --bs=32 \
+            --device='cuda:0' \
             --iree-device=hip://0 \
             --iree-hip-target=gfx942 \
             --iree-hal-target-device=hip \

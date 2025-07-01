@@ -538,61 +538,63 @@ def test_free_pages_use_ref_count(
     ],
 )
 # fmt: on
-@pytest.mark.asyncio
-@pytest.mark.xfail(reason="xfailed for flakiness on the new-pages-should-be-all-1s assertion. See https://github.com/nod-ai/shark-ai/issues/1176")
-async def test_fork_pages(cache_ref_count, tokens, expected_pages, case_name):
-    ref_counts = cache_ref_count.ref_counts
+# @pytest.mark.xfail(reason="xfailed for flakiness on the new-pages-should-be-all-1s assertion. See https://github.com/nod-ai/shark-ai/issues/1176")
+def test_fork_pages(lsys, cache_ref_count, tokens, expected_pages, case_name):
+    async def _test_fork_pages():
+        ref_counts = cache_ref_count.ref_counts
 
-    allocation = cache_ref_count.acquire_pages_for_tokens(tokens)
-    pages = allocation.pages
+        allocation = cache_ref_count.acquire_pages_for_tokens(tokens)
+        pages = allocation.pages
 
-    last_page = pages[-1]
-    # Update index of last page in `page_tables` with all `1s`
-    page_tables = cache_ref_count.page_pool.page_tables
-    with page_tables[0].view(last_page.index).map(discard=True) as m:
-        m.fill(1)
+        last_page = pages[-1]
+        # Update index of last page in `page_tables` with all `1s`
+        page_tables = cache_ref_count.page_pool.page_tables
+        with page_tables[0].view(last_page.index).map(discard=True) as m:
+            m.fill(1)
 
-    new_allocation = cache_ref_count.fork_pages(pages)
-    new_pages = new_allocation.pages
-    # The await here allows the data to finish copying over,
-    # before we check the values.
-    await asyncio.sleep(0.1)
-    pages.pop(-1)
-    new_last_page = new_pages.pop(-1)
+        new_allocation = cache_ref_count.fork_pages(pages)
+        new_pages = new_allocation.pages
+        # The await here allows the data to finish copying over,
+        # before we check the values.
+        await page_tables[0].device
+        pages.pop(-1)
+        new_last_page = new_pages.pop(-1)
 
-    assert (
-        last_page.index != new_last_page.index
-    ), f"Fork Error in {case_name}: Last pages should be different."
-
-    # All pages are shared, except for the last one
-    for i in range(len(pages)):
         assert (
-            pages[i] == new_pages[i]
-        ), f"Fork Error in {case_name}: Page {i} should be shared."
+            last_page.index != new_last_page.index
+        ), f"Fork Error in {case_name}: Last pages should be different."
 
-    # Ref counts should be `2` for shared pages,
-    # and `1` for last pages
-    for page in pages:
+        # All pages are shared, except for the last one
+        for i in range(len(pages)):
+            assert (
+                pages[i] == new_pages[i]
+            ), f"Fork Error in {case_name}: Page {i} should be shared."
+
+        # Ref counts should be `2` for shared pages,
+        # and `1` for last pages
+        for page in pages:
+            assert (
+                ref_counts[page.index] == 2
+            ), f"Fork Error in {case_name}: Page {page.index} should have ref_count 2."
+
         assert (
-            ref_counts[page.index] == 2
-        ), f"Fork Error in {case_name}: Page {page.index} should have ref_count 2."
+            ref_counts[last_page.index] == 1
+        ), f"Fork Error in {case_name}: Last page should have ref_count 1."
+        assert (
+            ref_counts[new_last_page.index] == 1
+        ), f"Fork Error in {case_name}: New last page should have ref_count 1."
 
-    assert (
-        ref_counts[last_page.index] == 1
-    ), f"Fork Error in {case_name}: Last page should have ref_count 1."
-    assert (
-        ref_counts[new_last_page.index] == 1
-    ), f"Fork Error in {case_name}: New last page should have ref_count 1."
+        original_page_table = page_tables[0].view(last_page.index).items.tolist()
+        new_page_table = page_tables[0].view(new_last_page.index).items.tolist()
 
-    original_page_table = page_tables[0].view(last_page.index).items.tolist()
-    new_page_table = page_tables[0].view(new_last_page.index).items.tolist()
+        assert all(
+            val == 1.0 for val in new_page_table
+        ), f"Fork Error in {case_name}: New last page should be filled with 1s."
+        assert (
+            original_page_table == new_page_table
+        ), f"Fork Error in {case_name}: Page data should be the same."
 
-    assert all(
-        val == 1.0 for val in new_page_table
-    ), f"Fork Error in {case_name}: New last page should be filled with 1s."
-    assert (
-        original_page_table == new_page_table
-    ), f"Fork Error in {case_name}: Page data should be the same."
+    lsys.run(_test_fork_pages())
 
 
 @pytest.mark.asyncio

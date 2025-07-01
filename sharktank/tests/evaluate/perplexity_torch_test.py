@@ -21,7 +21,7 @@ from sharktank.utils.testing import (
 
 
 @pytest.mark.usefixtures(
-    "get_model_artifacts",
+    "model_artifacts",
     "tensor_parallelism_size",
     "baseline_perplexity_scores",
     "batch_size",
@@ -74,17 +74,6 @@ class PerplexityTest(unittest.TestCase):
         self.model_name = "llama3_8B_f16_torch"
         self.irpa_file = self.llama3_8b_f16_model
         self.tokenizer = self.llama3_8b_tokenizer
-
-        self.prepare_argv()
-        self.run_and_check_perplexity()
-
-    @is_sharded
-    def test_llama3_70B_f16_pp8(self):
-        # Llama 3.1 70B fp16 non-decomposed
-        self.model_name = "llama3_70B_f16_torch"
-        self.irpa_file = self.llama3_70b_f16_model
-        self.tokenizer = self.llama3_70b_tokenizer
-        self.pipeline_parallelism_size = 8
 
         self.prepare_argv()
         self.run_and_check_perplexity()

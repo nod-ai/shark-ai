@@ -62,25 +62,22 @@ def mooncake_store():
 
 
 @pytest.fixture
-def real_device():
-    """Create a real device using the system manager"""
-    sc = sf.host.CPUSystemBuilder()
-    with sc.create_system() as ls:
-        worker = ls.create_worker("test-worker")
-        fiber = ls.create_fiber(worker)
-        yield list(fiber.devices_dict.values())[0]  # Get the first device
+def real_devices(lsys):
+    """Create real devices using the cpuSystem"""
+    worker = lsys.create_worker("test-worker")
+    fiber = lsys.create_fiber(worker)
+    yield list(fiber.devices_dict.values())
 
 
 @pytest.fixture
-def page_pool(real_device):
+def page_pool(real_devices):
     """Create a real PagePool with test parameters"""
     config = PagePoolConfig(
         dtype=sfnp.float32,  # Using float32 as requested
         alloc_page_count=TEST_POOL_CAPACITY,  # Using 256 pages as requested
         paged_kv_block_size_elements=TEST_BLOCK_SIZE,  # Using small block size (8) for testing
     )
-
-    return PagePool(devices=[real_device], config=config)
+    return PagePool(devices=real_devices, config=config)
 
 
 @pytest.fixture
@@ -116,13 +113,15 @@ test_data = [
 )
 # fmt: on
 def test_write_back_pages(
-    mooncake_cache, real_device, tokens, expected_keys, case_name
+    lsys, mooncake_cache, real_devices, tokens, expected_keys, case_name
 ):
-    async def main():
+    async def _test_write_back_pages():
         allocation = mooncake_cache.acquire_pages_for_tokens(tokens)
-        num_stored_kvs = await allocation.write_back_pages(real_device, tokens)
-        assert num_stored_kvs == expected_pages, f"Failed case: {case_name}"
+        num_stored_kvs = await allocation.write_back_pages(real_devices[0], tokens)
+        assert num_stored_kvs == expected_keys, f"Failed case: {case_name}"
         allocation.release_pages()
+
+    lsys.run(_test_write_back_pages())
 
 
 # fmt: off
@@ -130,13 +129,13 @@ def test_write_back_pages(
    "tokens,expected_keys,case_name", test_data
 )
 def test_update_pages(
-    mooncake_cache, real_device, tokens, expected_keys, case_name
+    mooncake_cache, real_devices, tokens, expected_keys, case_name
 ):
     async def main():
         allocation = mooncake_cache.acquire_pages_for_tokens(tokens)
-        num_stored_kvs = await allocation.write_back_pages(real_device, tokens)
+        num_stored_kvs = await allocation.write_back_pages(real_devices[0], tokens)
         laste_written_values = allocation.last_written_back_values
-        num_updated_kvs = await allocation.update_pages(real_device, tokens)
+        num_updated_kvs = await allocation.update_pages(real_devices[0], tokens)
         last_updated_values = allocation.last_updated_values
         assert num_stored_kvs == expected_keys, f"Failed case: {case_name}"
         assert num_updated_kvs == expected_keys, f"Failed case: {case_name}"

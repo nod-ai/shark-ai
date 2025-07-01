@@ -6,6 +6,7 @@ fastapi
 aiohttp==3.11.3
 onnx
 uvicorn
+scikit-image
 
 # Libraries needed to build in dev setups.
 setuptools

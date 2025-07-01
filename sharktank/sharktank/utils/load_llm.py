@@ -43,7 +43,7 @@ class TorchGenerator:
     def preprocess_prompts(
         self,
         prompts: list[str],
-    ):
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         token_ids = self.tokenizer._encode(texts=prompts, add_start_token=False)
 
         print(f":: Prompt tokens:")
@@ -51,11 +51,10 @@ class TorchGenerator:
             print(f"    prompt_{idx}: \n    {prompt.encode()} \n    {token_ids[idx]}\n")
 
         token_ids, seq_lens = pad_tokens(
-            token_ids, pad_to_multiple_of=self.model.cache.pad_sequence_stride
+            token_ids,
+            pad_to_multiple_of=self.model.cache.pad_sequence_stride,
+            device=self.model.device,
         )
-
-        token_ids = torch.tensor(token_ids, device=self.model.device)
-        seq_lens = torch.tensor(seq_lens, device=self.model.device)
 
         return token_ids, seq_lens
 

@@ -18,7 +18,7 @@ from iree.turbine import aot
 from sharktank.layers import (
     PagedLlamaAttentionBlock,
     PagedAttention,
-    RotaryEmbeddingLayer,
+    build_rotary_layer,
 )
 from sharktank.layers.testing import make_llama_attention_block_theta
 from sharktank.types.tensors import DefaultPrimitiveTensor
@@ -91,7 +91,7 @@ class PagedLlamaAttentionBlockTest(unittest.TestCase):
             self.batch_size, -1
         )
 
-        embedding_module = RotaryEmbeddingLayer(
+        embedding_module = build_rotary_layer(
             rope_dimension_count=self.rope_dimension_count,
             max_seqlen=self.max_seqlen,
             rope_freq_base=self.rope_freq_base,
