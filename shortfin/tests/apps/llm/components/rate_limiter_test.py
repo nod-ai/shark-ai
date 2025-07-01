@@ -4,7 +4,6 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import math
 import pytest
 from unittest.mock import MagicMock
 from shortfin_apps.llm.components.rate_limiter import RateLimiter
