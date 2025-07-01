@@ -22,7 +22,7 @@ def main():
     Run LLM inference in torch/eager mode. Use --device='cuda:0' to run on AMD GPU
     Args:
         --prompt: list[str] - Custom space separated prompts
-        --prompt-seq-len: int - Generate random token ids for given seq len and bs and save prefill & first decode step input args as npy files
+        --dump-prompt-len: int - Generate random token ids for given seq len and bs and save prefill & first decode step input args as npy files
         --dump-path: str - Path to save prefill and decode input args as npy files
         --dump-decode-steps: int - Number of decode steps to dump decode args (defaults to 1 decode step)
         --bs: int - batch size, for custom prompts, bs is number of given prompts (defaults to 4)
@@ -43,6 +43,12 @@ def main():
     device = torch.device(args.device) if args.device else None
     dataset = cli.get_input_dataset(args)
     tokenizer = cli.get_tokenizer(args)
+
+    dump_prompt_len = args.dump_prompt_len
+
+    assert args.prompt or (
+        dump_prompt_len and args.bs
+    ), "Pass --prompt for list of custom prompts or --dump-prompt-len and --bs to generate random token ids"
 
     config = LlamaModelConfig(
         hp=configs.LlamaHParams.from_gguf_props(dataset.properties),
@@ -71,13 +77,16 @@ def main():
 
     generator = TorchGenerator(model, tokenizer)
 
-    token_ids, seq_lens = generator.preprocess_prompts(prompts=args.prompt)
+    token_ids, seq_lens = generator.preprocess_prompts(
+        prompts=args.prompt, dump_prompt_len=dump_prompt_len, bs=args.bs
+    )
     batch = generator.begin_batch(
         token_ids=token_ids,
         seq_lens=seq_lens,
+        use_attention_mask=args.use_attention_mask,
         dump_path=args.dump_path,
         dump_decode_steps=args.dump_decode_steps,
-        use_attention_mask=args.use_attention_mask,
+        dump_prompt_len=dump_prompt_len,
     )
     results = batch.prefill()
     batch.print_current_results()
@@ -90,7 +99,6 @@ def main():
         counter = 0
         while not batch.done:
             results = batch.decode(results)
-            batch.print_current_results()
 
             if args.save_intermediates_path:
                 intermediates_saver.save_file(
