@@ -7,11 +7,11 @@
 name: Release SDXL and FLUX Shortfin Serving Tests
 
 on:
-  pull_request:
   workflow_dispatch:
-  schedule:
-    # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
-    - cron: "0 9 * * 1-5"
+  pull_request:
+  push:
+    branches:
+      - main
 
 concurrency:
   # A PR number if a pull request and otherwise the commit hash. This cancels
@@ -144,3 +144,4 @@ jobs:
           git add $date
           git commit -m "Add sdxl/flux images on $(date -u +'%Y-%m-%d')"
           git push origin test_report
+          rm -rf gen_images
