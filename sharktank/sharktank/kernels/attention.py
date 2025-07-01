@@ -64,8 +64,8 @@ def flash_attention(q, k, v, scale, result=None):
       }
       ins(%q, %k, %v, %s_c : !q, !k, !v, !scale_dtype)
       outs(%empty : !result) {
-        ^bb0(%score : O_DTYPE):
-          iree_linalg_ext.yield %score : O_DTYPE
+        ^bb0(%score : f16):
+          iree_linalg_ext.yield %score : f16
       } -> !result
 
       util.return %result : !result
@@ -114,8 +114,8 @@ def masked_flash_attention(q, k, v, mask, scale, result=None):
       }
       ins(%q, %k, %v, %s_c, %mask : !q, !k, !v, !scale_dtype, !mask)
       outs(%empty : !result) {
-        ^bb0(%score : O_DTYPE):
-          iree_linalg_ext.yield %score : O_DTYPE
+        ^bb0(%score : f16):
+          iree_linalg_ext.yield %score : f16
       } -> !result
 
       util.return %result : !result

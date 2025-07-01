@@ -7,6 +7,7 @@
 
 from collections.abc import Iterable
 from typing import Union
+import torch
 from torch import Tensor
 
 
@@ -119,6 +120,13 @@ def matmul_generic_tensor_block_scaled_fp4(
         return NotImplemented
     rhs_unpacked = rhs.unpack()
 
+    # Store original dtype for conversion back
+    original_dtype = lhs.dtype
+
+    # Convert lhs to fp32 to avoid dtype casting issues in the kernel
+    if lhs.dtype != torch.float32:
+        lhs = lhs.to(torch.float32)
+
     scales_float = convert_fp4_scales_to_float(
         rhs_unpacked.d, rhs_unpacked.use_fe8m0_scale
     )
@@ -140,7 +148,13 @@ def matmul_generic_tensor_block_scaled_fp4(
     # Reshape from [N, K] to [N, num_blocks, block_size]
     qs_blocked = qs.reshape(n, num_blocks, block_size)
 
-    return batched_block_scaled_mmt_fp4(lhs, scales_float, qs_blocked)
+    result = batched_block_scaled_mmt_fp4(lhs, scales_float, qs_blocked)
+
+    # Convert result back to original dtype if needed
+    if result.dtype != original_dtype:
+        result = result.to(original_dtype)
+
+    return result
 
 
 @matmul.override(Tensor, QuantizedTensor)
