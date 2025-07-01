@@ -988,7 +988,6 @@ def view_default(
     else:
         return unbox_tensor(tensor).view(dtype)
 
-
 @view.override(QuantizedTensor)
 def view_QuantizedTensor(tensor: QuantizedTensor, shape):
     unpacked = tensor.unpack()
