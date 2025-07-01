@@ -127,8 +127,6 @@ def apply_per_layer_quant(
     output_quant_scale = as_torch_or_none(layer_theta.optional_tensor("output_scale"))
     if output_quant_scale and output_quant_scale.dtype is torch.bfloat16:
         output_quant_scale = output_quant_scale.to(torch.float32)
-
-    # Cast output_scale to specified dtype if provided
     if output_quant_scale is not None and weight_dtype_override is not None:
         output_quant_scale = output_quant_scale.to(weight_dtype_override)
     if weight_quant_scale is None:
