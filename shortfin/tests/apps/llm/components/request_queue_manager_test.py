@@ -7,6 +7,7 @@
 import pytest
 from shortfin_apps.llm.components.request_queue_manager import RequestQueueManager
 
+
 def test_remove_from_queue_raises_exception():
     manager = RequestQueueManager(max_queue_size=10)
     manager.add_to_queue(5)
@@ -16,12 +17,14 @@ def test_remove_from_queue_raises_exception():
 
     assert "Remove failed" in str(exc_info.value)
 
+
 def test_remove_from_queue_success():
     manager = RequestQueueManager(max_queue_size=10)
     manager.add_to_queue(5)
 
     # This should not raise an exception
     manager.remove_from_queue(5)
+
 
 def test_request_queue_manager():
     queue_manager = RequestQueueManager(6)
