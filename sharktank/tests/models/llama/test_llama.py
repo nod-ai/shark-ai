@@ -63,7 +63,7 @@ class CrossEntropyTest(unittest.TestCase):
         assert pytest.approx(0.577, 1e-2) == cross_entropy
 
 
-@pytest.mark.usefixtures("get_iree_flags", "device")
+@pytest.mark.usefixtures("iree_flags", "device")
 @is_mi300x
 class LlamaIreeVsEagerTest(TempDirTestBase):
     @parameterized.expand(product([1, 2], [1, 2]))
