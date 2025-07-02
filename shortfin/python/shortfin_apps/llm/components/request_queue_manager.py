@@ -27,9 +27,13 @@ class RateLimiter:
     ):
         stride = self.model_params.paged_kv_cache.block_seq_stride
         total_requested_beams = self.server_params.decode_config.num_beams
-        needed_pages = (
-            math.ceil(input_token_ids_len / stride) + total_requested_beams - 1
-        )
+        input_pages = math.ceil(input_token_ids_len / stride)
+        copy_pages = total_requested_beams - 1
+
+        output_pages_for_one_beam = math.ceil((input_token_ids_len + self.server_params.decode_config.max_completion_tokens) / stride) - input_pages
+        output_pages_total = num_beam * output_pages_for_one_beam
+        needed_pages = input_pages + copy_pages + output_pages_total
+        logger.debug(f"Needed pages for request {needed_pages}")
 
         if needed_pages <= available_pages:
             return True
