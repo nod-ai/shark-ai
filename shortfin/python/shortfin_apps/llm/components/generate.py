@@ -14,7 +14,7 @@ from copy import deepcopy
 from typing import List, Tuple
 
 import shortfin as sf
-import shortfin.array as sfnp
+import threading
 
 # TODO: Have a generic "Responder" interface vs just the concrete impl.
 from shortfin.interop.fastapi import RequestStatusTracker
@@ -61,7 +61,6 @@ class GenerateItemProcess(sf.Process):
         input_token_ids: list[int],
         eos_token_id: int,
         decode_config: DecodeConfig,
-        status_tracker: RequestStatusTracker,
         fiber: sf.Fiber,
     ):
         super().__init__(fiber=fiber)
@@ -87,20 +86,20 @@ class GenerateItemProcess(sf.Process):
         )
         self.is_multi_response = is_multi_response(self.decode_config)
         self.streamed_tokens_index = 0
-        self._status_tracker = status_tracker
+
+    def cancel(self):
+        self.token_selector.cancel()
 
     async def run(self):
         exec_req = LlmInferenceExecRequest(
             phase=InferencePhase.PREFILL,
             input_token_ids=self.input_token_ids,
             rid=self.gen_req.rid,
-            status_tracker=self._status_tracker,
         )
         exec_req._cache = self.client.prefill_batcher.page_cache
         try:
             # Prefill result.
             await self.token_selector.prefill(exec_req)
-
             # Decode loop.
             await self.token_selector.decode(exec_req)
         finally:
@@ -131,9 +130,12 @@ class ClientGenerateBatchProcess(sf.Process):
     """
 
     __slots__ = [
+        "active_processes",
+        "cancelled",
         "complete_infeed",
         "decode_batcher",
         "gen_req",
+        "lock",
         "prefill_batcher",
         "responder",
         "tokenizer",
@@ -156,6 +158,15 @@ class ClientGenerateBatchProcess(sf.Process):
         self.prefill_batcher = service.prefill_batcher
         self.decode_batcher = service.decode_batcher
         self.complete_infeed = self.system.create_queue()
+        self.active_processes = []
+        self.cancelled = False
+        self.lock = threading.Lock()
+
+    def cancel(self):
+        with self.lock as _:
+            self.cancelled = True
+            for process in self.active_processes:
+                process.cancel()
 
     def _check_topk_params(
         self, exported_topk: int | None, requested_topk: int | None
@@ -290,14 +301,22 @@ class ClientGenerateBatchProcess(sf.Process):
                     else input_tokens.ids,
                     eos_token_id=self.tokenizer.eos_token_id,
                     decode_config=decode_config,
-                    status_tracker=self.responder.get_status_tracker(),
                     fiber=fiber,
                 )
                 gen_processes.append(gen_process)
                 gen_process.launch()
 
+            # Track the active processes and cancel as necessary:
+            with self.lock as _:
+                if self.cancelled:
+                    for p in gen_processes:
+                        p.cancel()
+                self.active_processes = gen_processes
+
             await asyncio.gather(*gen_processes)
-            if not self.responder.is_disconnected():
+            if self.cancelled:
+                self.responder.send_response("cancelled")
+            else:
                 self.generate_response(gen_processes, streaming)
         finally:
             self.service.main_fiber_pool.return_fiber(indices)
