@@ -297,9 +297,10 @@ class ClientGenerateBatchProcess(sf.Process):
             await asyncio.gather(*gen_processes)
             if self.cancelled:
                 self.responder.send_error(
-                        error_message="Request cancelled",
-                        code=ResponderErrorCodes.CANCELLED,
-                        extra_fields={})
+                    error_message="Request cancelled",
+                    code=ResponderErrorCodes.CANCELLED,
+                    extra_fields={},
+                )
             else:
                 self.generate_response(gen_processes, streaming)
         finally:
