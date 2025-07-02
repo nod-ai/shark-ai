@@ -12,6 +12,9 @@ on:
   push:
     branches:
       - main
+  schedule:
+    # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
+    - cron: "0 9 * * 1-5"
 
 concurrency:
   # A PR number if a pull request and otherwise the commit hash. This cancels
@@ -100,15 +103,15 @@ jobs:
             output_artifacts/flux_dev/
             output_artifacts/flux_schnell/
 
-      - name: Cleanup artifacts
+      - name: Cleanup output artifacts
         run: |
           rm -rf output_artifacts
-          test ! -d output_artifacts && echo "Output artifacts is removed"
+          test ! -d output_artifacts && echo "Output artifacts are removed"
 
   # New job to push logs to shark-ai-reports repository
-  push_logs:
+  push_images:
     name: "Push sdxl/flux generated images"
-    needs: [ test_sdxl_flux_serving ]
+    needs: [test_sdxl_flux_serving]
     runs-on: linux-mi300-1gpu-ossci-nod-ai
     steps:
       - name: Download log artifacts
@@ -116,13 +119,6 @@ jobs:
         with:
           name: generated-images
           path: gen_images
-
-      - name: Validate Images
-        run: |
-          test -d gen_images && echo "Generated images are found"
-          ls gen_images/sdxl*
-          ls gen_images/flux_dev*
-          ls gen_images/flux_schnell*
 
       - name: Checkout Target Repo
         uses: actions/checkout@v4

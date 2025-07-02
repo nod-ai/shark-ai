@@ -165,6 +165,11 @@ jobs:
             output_artifacts/consolidated*.json
             output_artifacts/*.log
 
+      - name: Cleanup output artifacts
+        run: |
+            rm -rf output_artifacts
+            test ! -d output_artifacts && echo "Output artifacts are removed"
+
   # New job to push logs to shark-ai-reports repository
   push_logs:
     name: "Push log Mistral nemo Instruct 2407"
@@ -197,3 +202,4 @@ jobs:
         git add $date
         git commit -m "Add CI Mistal nemo instruct logs on $(date -u +'%Y-%m-%d')"
         git push origin main
+        rm -rf logs
