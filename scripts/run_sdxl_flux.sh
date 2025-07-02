@@ -6,13 +6,7 @@ SCRIPT_DIR=$(dirname $(realpath "$0"))
 SHORTFIN_SRC=$SCRIPT_DIR/../shortfin
 HF_HOME_DIR=${HF_HOME:-"$HOME/.cache/huggingface"}
 
-function wait_for_server() {
-    SERVER_UP=0
-    while [[ $SERVER_UP != 200 && -e /proc/$SHORTFIN_PROCESS ]]; do
-        SERVER_UP=$(curl -o /dev/null -s -w "%{http_code}\n" http://localhost:$1/health)
-        sleep 3
-    done
-}
+source ${SCRIPT_DIR}/server_utils.sh
 
 function run_sdxl_model() {
     echo "Starting server for $MODEL ..."
