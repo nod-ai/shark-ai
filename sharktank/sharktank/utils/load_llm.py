@@ -161,13 +161,13 @@ class Batch:
 
     @property
     def done(self) -> bool:
-        if (
-            self.max_decode_steps is not None
-            and self.max_decode_steps <= self.decode_step
-        ):
-            return True
         return (
-            len(self.done_result_indices) == self.bs or len(self.parent.free_pages) == 0
+            len(self.done_result_indices) == self.bs
+            or len(self.parent.free_pages) == 0
+            or (
+                self.max_decode_steps is not None
+                and self.max_decode_steps <= self.decode_step
+            )
         )
 
     def detokenize(self) -> list[str]:
@@ -379,7 +379,7 @@ class Batch:
                 _decode_attention_mask,
             )
 
-        if self.dump_path is not None:
+        if self.dump_path is not None and self.dump_decode_steps < self.decode_step:
             print(f"\nSaving decode args to {Path(self.dump_path)}\n")
 
             self.dump_args(
