@@ -6,9 +6,7 @@
 
 import logging
 import os
-
-from dataclasses import dataclass
-from typing import List
+from typing import List, Optional, Tuple, Union
 
 
 import shortfin as sf
@@ -16,7 +14,7 @@ import shortfin.array as sfnp
 
 from shortfin import Fiber
 
-from .device_array_cache import DeviceArrayCache, WrappedAllocation
+from .device_array_cache import DeviceArrayCache, WrappedAllocation, Allocation
 from .scheduler import Scheduler
 from ...utils import BatcherProcess
 
@@ -26,8 +24,7 @@ from .kvcache.base_attention_cache import (
     CacheAllocationFailure,
 )
 
-from .messages import LlmInferenceExecRequest, InferencePhase
-from .service_debug_dumper import SERVICE_DEBUG_DUMPER
+from .messages import LlmInferenceExecRequest
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +54,7 @@ class LlmBatcherProcess(BatcherProcess):
     ):
         super().__init__(fiber=fiber)
         self.name = name
-        self.page_cache = page_cache
+        self.page_cache: BasePagedAttentionCache = page_cache
         self.model_params = model_params
         self.functions = functions
         self.pending: set[LlmInferenceExecRequest] = set()
@@ -66,7 +63,7 @@ class LlmBatcherProcess(BatcherProcess):
         self.ideal_batch_size: int = ideal_batch_size
         self.page_seq_stride = self.model_params.paged_kv_cache.block_seq_stride
         self.scheduler = Scheduler(ideal_batch_size=self.ideal_batch_size)
-        self.cache = DeviceArrayCache(fiber.device(0))
+        self.cache: DeviceArrayCache = DeviceArrayCache(fiber.device(0))
 
         self.program_isolation = program_isolation
 
@@ -96,9 +93,7 @@ class LlmBatcherProcess(BatcherProcess):
         super().custom_message(msg)
 
     async def board_flights(self):
-        await super().board_flights()
-
-    async def board_flights(self):
+        """Make, schedule, and launch a batch of pending requests."""
         # TODO: Add lock on self.pending
         pending = self.pending
         self.pending = set()
@@ -133,6 +128,13 @@ class LlmBatcherProcess(BatcherProcess):
         ...
 
     def board(self, cache: BasePagedAttentionCache, fiber: Fiber, to_schedule: set):
+        """Create and launch an LlmExecutorProcess for the given requests.
+
+        Args:
+            cache (BasePagedAttentionCache): KVCache to use for this flight.
+            fiber (Fiber): Fiber to use for invocation.
+            to_schedule (set): Scheduled requests to be invoked in this flight.
+        """
         # Fill prefill flights.
         assert len(to_schedule) > 0
         assert len(to_schedule) <= self.ideal_batch_size
@@ -264,7 +266,7 @@ class LlmExecutorProcess(sf.Process):
         self,
         name: str,
         fiber: Fiber,
-        cache,
+        cache: DeviceArrayCache,
         functions: dict[int, sf.ProgramFunction],
         seq_stride: int,
         page_tables,
@@ -293,7 +295,24 @@ class LlmExecutorProcess(sf.Process):
     ):
         ...
 
-    async def _transfer_buffer(self, req_count, device0, buffers):
+    async def _transfer_buffer(
+        self,
+        req_count: int,
+        device0: sf.ScopedDevice,
+        buffers: Tuple[sfnp.device_array, Optional[sfnp.device_array]],
+    ) -> Tuple[sfnp.device_array, Optional[sfnp.device_array]]:
+        """Transfer buffer data from device to host after invocation.
+
+        Args:
+            req_count (int): The number of requests in this batch.
+            device0 (sf.ScopedDevice): The device used for invocation.
+            buffers (Tuple[sfnp.device_array, Optional[sfnp.device_array]]): The buffers to be transferred.
+                - The 0th buffer should be the `logits`
+                - The 1st buffer should be the `indices`
+
+        Returns:
+            Tuple[sfnp.device_array, Optional[sfnp.device_array]]: A host-side copy of the given buffers.
+        """
         transfer = any(
             [self.exec_requests[i].return_host_array for i in range(req_count)]
         )
@@ -314,11 +333,51 @@ class LlmExecutorProcess(sf.Process):
         await device0
         return tuple(new_buffers)
 
+    async def _post_run(
+        self,
+        args: List[Union[Allocation, WrappedAllocation]],
+        req_count: int,
+        result: Tuple[sfnp.device_array, Optional[sfnp.device_array]],
+    ):
+        """Process the results after a run.
+
+        Args:
+            args (list[sfnp.device_array]): The arguments used in the run.
+            req_count (int): The number of requests in the batch.
+            result (Tuple[sfnp.device_array, Optional[sfnp.device_array]]): The results of the run.
+        """
+        seq_stride = self.seq_stride
+        device0 = self.fiber.device(0)
+
+        indices = None
+        logits = result[0]
+        if len(result) > 1:
+            indices = result[1]
+
+        # publish cache pages
+        for r in self.exec_requests:
+            total_tokens = r.start_position + len(r.input_token_ids)
+            number_of_complete_pages = total_tokens // seq_stride
+            r.publish_allocated_pages(number_of_complete_pages)
+
+        logits, indices = await self._transfer_buffer(
+            req_count=req_count, device0=device0, buffers=(logits, indices)
+        )
+
+        [arg.release() for arg in args]
+
+        # Return results.
+        await self.get_results(logits, indices, req_count)
+
     async def run(self):
+        """Invoke `prefill` or `decode` function, with IREE, on a batch of requests.
+
+        Raises:
+            RuntimeError: No available entry point for given batch size.
+        """
         try:
             req_bs = len(self.exec_requests)
-            seq_stride = self.seq_stride
-            device0 = self.fiber.device(0)
+
             # Select an entrypoint for the batch.
             entrypoints = self.functions
             for bs, fn in entrypoints.items():
@@ -344,39 +403,10 @@ class LlmExecutorProcess(sf.Process):
                 ),
             )
 
-            # pre-invocation args dump
-            if os.getenv("SHORTFIN_DEBUG_LLM_SERVICE", "False").lower() in (
-                "true",
-                "yes",
-                "1",
-                "y",
-            ):
-                await SERVICE_DEBUG_DUMPER.pre_invocation_debug_dump(
-                    executor=self, local_vars=locals()
-                )
-
             # Invoke VMFB. Logits are of shape [bs, bsl, d].
             args_device = [arg.device for arg in args]
             result = await fn(*args_device, fiber=self.fiber)
-            indices = None
-            logits = result[0]
-            if len(result) > 1:
-                indices = result[1]
-
-            # publish cache pages
-            for r in self.exec_requests:
-                total_tokens = r.start_position + len(r.input_token_ids)
-                number_of_complete_pages = total_tokens // seq_stride
-                r.publish_allocated_pages(number_of_complete_pages)
-
-            logits, indices = await self._transfer_buffer(
-                req_count=req_count, device0=device0, buffers=(logits, indices)
-            )
-
-            [arg.release() for arg in args]
-
-            # Return results.
-            await self.get_results(logits, indices, req_count)
+            await self._post_run(args, req_count, result)
 
         except Exception:
             logger.exception("Fatal error in prefetch invocation")
@@ -393,7 +423,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
     def __init__(
         self,
         fiber: Fiber,
-        cache,
+        cache: DeviceArrayCache,
         functions: dict[int, sf.ProgramFunction],
         seq_stride: int,
         page_tables,
@@ -409,39 +439,19 @@ class PrefillExecutorProcess(LlmExecutorProcess):
             program_isolation=program_isolation,
         )
 
-    async def update_pages(self):
-        """Update the pages in the local page pool for the requests."""
-        updated = True
-        for req in self.exec_requests:
-            if req.allocation is not None:
-                updated = await req.allocation.update_pages(
-                    device=self.device0, token_ids=req.input_token_ids
-                )
-                if not updated:
-                    logger.warning(
-                        "Failed to update all pages for request %s, allocation: %s",
-                        req,
-                        req.allocation,
-                    )
+    async def get_args(
+        self, bs
+    ) -> Tuple[List[Union[Allocation, WrappedAllocation]], int]:
+        """Get the arguments for the prefill invocation.
 
-    async def write_back_pages(self):
-        """Write back the pages in the local page pool for the requests."""
-        for req in self.exec_requests:
-            req.done.set_success()
-            # write back pages to mooncake
-            logger.debug("Writing back pages for request %s", req)
-            if req.allocation is not None:
-                await req.allocation.write_back_pages(
-                    device=self.device0, token_ids=req.input_token_ids
-                )
-                logger.debug("Successfully wrote back pages for request %s", req)
-            else:
-                logger.debug(
-                    "Skipping write back for request %s, allocation is None",
-                    req,
-                )
+        Args:
+            bs (int): The batch size.
 
-    async def get_args(self, bs):
+        Returns:
+            Tuple[List[Union[Allocation, WrappedAllocation]], int]: A tuple containing:
+                - A list of arguments for the invocation.
+                - The number of requests in the batch.
+        """
         seq_stride = self.seq_stride
 
         # Compute block sequence length as maximum sequence length, rounded
@@ -463,6 +473,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         tokens = cache.allocate([bs, bsl], int_dtype)
         seq_lens = cache.allocate([bs], int_dtype)
         seq_block_ids = cache.allocate([bs, block_count], int_dtype)
+
         # Populate tokens.
         for i in range(bs):
             with tokens.host.view(i).map(discard=True) as m:
@@ -496,11 +507,16 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         for page_table in self.page_tables:
             args.append(WrappedAllocation(sfnp.disable_barrier(page_table)))
 
-        await self.update_pages()
-
         return args, req_count
 
     async def get_results(self, logits, indices, req_count):
+        """Get the results after a prefill invocation.
+
+        Args:
+            logits (sfnp.device_array): The logits output from the invocation.
+            indices (sfnp.device_array | None): The indices output from the invocation, if any.
+            req_count (int): The number of requests in the batch.
+        """
         for i in range(req_count):
             req = self.exec_requests[i]
             sl = len(req.input_token_ids)
@@ -522,7 +538,8 @@ class PrefillExecutorProcess(LlmExecutorProcess):
             req.result_logits = logits_item
             req.result_indices = index_item
 
-        await self.write_back_pages()
+        for req in self.exec_requests:
+            req.done.set_success()
 
 
 class DecodeExecutorProcess(LlmExecutorProcess):
@@ -531,11 +548,11 @@ class DecodeExecutorProcess(LlmExecutorProcess):
     def __init__(
         self,
         fiber: Fiber,
-        cache,
+        cache: DeviceArrayCache,
         functions: dict[int, sf.ProgramFunction],
         seq_stride: int,
         page_tables,
-        isolation: sf.ProgramIsolation,
+        program_isolation: sf.ProgramIsolation,
     ):
         super().__init__(
             name="decode_process",
@@ -544,10 +561,22 @@ class DecodeExecutorProcess(LlmExecutorProcess):
             functions=functions,
             seq_stride=seq_stride,
             page_tables=page_tables,
-            program_isolation=isolation,
+            program_isolation=program_isolation,
         )
 
-    async def get_args(self, bs):
+    async def get_args(
+        self, bs
+    ) -> Tuple[List[Union[Allocation, WrappedAllocation]], int]:
+        """Get the arguments for the decode invocation.
+
+        Args:
+            bs (int): The batch size.
+
+        Returns:
+            Tuple[List[Union[Allocation, WrappedAllocation]], int]: A tuple containing:
+                - A list of arguments for the invocation.
+                - The number of requests in the batch.
+        """
         # Compute block sequence length as maximum sequence length, rounded
         # up to the seq_stride.
         seq_stride = self.seq_stride
@@ -555,7 +584,7 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         bsl = int(math.ceil(bsl / seq_stride) * seq_stride)
         block_count = bsl // seq_stride
         req_count = len(self.exec_requests)
-        logger.debug("Prefill bs=%d, bsl=%d", bs, bsl)
+        logger.debug("Decode bs=%d, bsl=%d", bs, bsl)
 
         # Prepare inputs.
         # TODO: Better support in shortfin for h2d. The best way to do it is
@@ -600,6 +629,7 @@ class DecodeExecutorProcess(LlmExecutorProcess):
                     block_ids += batch_ids
                     block_ids += [0] * (block_count - len(batch_ids))
             m.items = block_ids
+
         # Transfer to device memory:
         tokens.transfer_to_device()
         start_positions.transfer_to_device()
@@ -620,7 +650,13 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         return args, req_count
 
     async def get_results(self, logits, indices, req_count):
+        """Get the results after a decode invocation.
 
+        Args:
+            logits (sfnp.device_array): The logits output from the invocation.
+            indices (sfnp.device_array | None): The indices output from the invocation, if any.
+            req_count (int): The number of requests in the batch.
+        """
         # Return results.
         for i in range(req_count):
             req = self.exec_requests[i]

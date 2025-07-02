@@ -211,26 +211,27 @@ class ClientGenerateBatchProcess(sf.Process):
 
         indices = []
         total_requested_beams = 0
+        (
+            decode_configs,
+            total_requested_beams,
+        ) = self._pre_processing_sampling_params()
+
+        # Try to add request to queue
+        # TODO(@zphoenixrises): Add load testing and integration tests for this.
+        added_to_queue = self.service.queue_manager.add_to_queue(total_requested_beams)
+        if not added_to_queue:
+            self._return_error_response(
+                status.HTTP_503_SERVICE_UNAVAILABLE,
+                error_message="Server queue is full. Please try again later.",
+                code=ResponseErrorCodes.QUEUE_FULL,
+                extra_fields={
+                    "current_size": self.service.queue_manager.current_queue_size,
+                    "max_size": self.service.max_queue_size,
+                },
+            )
+            return
+
         try:
-            (
-                decode_configs,
-                total_requested_beams,
-            ) = self._pre_processing_sampling_params()
-
-            # Try to add request to queue
-            # TODO(@zphoenixrises): Add load testing and integration tests for this.
-            if not self.service.queue_manager.add_to_queue(total_requested_beams):
-                self._return_error_response(
-                    status.HTTP_503_SERVICE_UNAVAILABLE,
-                    error_message="Server queue is full. Please try again later.",
-                    code=ResponseErrorCodes.QUEUE_FULL,
-                    extra_fields={
-                        "current_size": self.service.queue_manager.current_queue_size,
-                        "max_size": self.service.max_queue_size,
-                    },
-                )
-                return
-
             streaming = self.gen_req.stream
             self.responder.start_response()
             if streaming:
@@ -272,16 +273,21 @@ class ClientGenerateBatchProcess(sf.Process):
 
                 idx, fiber = await self.service.main_fiber_pool.get()
                 indices.append(idx)
+
+                input_text = (
+                    self.gen_req.text[index]
+                    if not is_pretokenized and not self.gen_req.is_single
+                    else self.gen_req.text
+                )
+
                 gen_process = GenerateItemProcess(
                     self,
                     self.gen_req,
                     index,
-                    (
-                        self.gen_req.text
-                        if self.gen_req.is_single
-                        else self.gen_req.text[index]
-                    ),
-                    input_tokens if is_pretokenized else input_tokens.ids,
+                    input_text=input_text,
+                    input_token_ids=input_tokens
+                    if is_pretokenized
+                    else input_tokens.ids,
                     eos_token_id=self.tokenizer.eos_token_id,
                     decode_config=decode_config,
                     status_tracker=self.responder.get_status_tracker(),
@@ -297,8 +303,8 @@ class ClientGenerateBatchProcess(sf.Process):
             self.service.main_fiber_pool.return_fiber(indices)
             self.responder.ensure_response()
 
-            # Remove request from queue when done
-            self.service.queue_manager.remove_from_queue(total_requested_beams)
+            if added_to_queue:
+                self.service.queue_manager.remove_from_queue(total_requested_beams)
 
     def generate_response(
         self,

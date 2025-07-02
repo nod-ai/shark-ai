@@ -30,6 +30,7 @@ def make_attention_block_ffn_theta_v2(
         head_dim=head_dim,
         embedding_length=embedding_length,
         dtype=dtype,
+        dtype_norm=dtype,  # TODO: Is this correct? Could not verify original model
     )
     moe_theta = make_moe_block_theta(
         block_idx=block_idx,
