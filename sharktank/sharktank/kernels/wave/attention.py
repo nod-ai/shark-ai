@@ -40,7 +40,7 @@ def get_wave_flash_attention_asm(
     is_causal: bool = False,
     is_custom_mask: bool = False,
 ) -> str:
-    base_attention_func, hyperparams, dynamic_symbols = get_bhsd_attention_kernel(
+    (base_attention_func, hyperparams, dynamic_symbols,) = get_bhsd_attention_kernel(
         shape,
         mfma_variant,
         dynamic_dims,
