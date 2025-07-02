@@ -134,7 +134,7 @@ def test_update_pages(
 ):
     async def _test_update_pages():
         allocation = mooncake_cache.acquire_pages_for_tokens(tokens)
-        num_stored_kvs = await allocation.write_back_pages(real_devices[0], tokens)
+        num_stored_kvs = await allocation.write_back_pages(real_devices[0], tokens, store_local=True)
         laste_written_values = allocation.last_written_back_values
         num_updated_kvs = await allocation.update_pages(real_devices[0], tokens)
         last_updated_values = allocation.last_updated_values

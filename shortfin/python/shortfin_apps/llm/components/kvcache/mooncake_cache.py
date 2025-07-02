@@ -110,7 +110,7 @@ class MooncakePagedAllocation(PageAllocation):
         return f"MooncakePagedAllocation(pages={self.pages}, cache={self.cache})"
 
     async def write_back_pages(
-        self, device: sf.ScopedDevice, token_ids: List[int]
+        self, device: sf.ScopedDevice, token_ids: List[int], store_local=False
     ) -> int:
         """read pages from device and send them to the Mooncake store."""
         page_pool = self.cache.page_pool
@@ -146,7 +146,8 @@ class MooncakePagedAllocation(PageAllocation):
             key = token_ids_to_key(page_tokens)
             keys.append(key)
             values.append(value)
-            self._last_written_back_values.append((key, value))
+            if store_local:
+                self._last_written_back_values.append((key, value))
 
         await device
 
