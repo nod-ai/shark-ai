@@ -199,13 +199,13 @@ jobs:
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d')
+        mkdir -p "shark-ai-reports/$date/llama-8b-fp16-logs"
+        cp -v logs/*.json "shark-ai-reports/$date/llama-8b-fp16-logs"
+        cp -v logs/*.log "shark-ai-reports/$date/llama-8b-fp16-logs"
         cd shark-ai-reports
         git pull
         git checkout test_report 2>/dev/null || git checkout -b test_report
         git pull
-        mkdir -p "shark-ai-reports/$date/llama-8b-fp16-logs"
-        cp -v logs/*.json "shark-ai-reports/$date/llama-8b-fp16-logs"
-        cp -v logs/*.log "shark-ai-reports/$date/llama-8b-fp16-logs"
         git add $date
         git commit -m "Add CI Llama 8B FP16 logs on $(date -u +'%Y-%m-%d')"
         git push origin test_report
