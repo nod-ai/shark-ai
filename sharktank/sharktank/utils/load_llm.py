@@ -5,11 +5,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from typing import Optional
+from pathlib import Path
+import logging
 import collections
 import math
-from pathlib import Path
-
 import numpy as np
+
 import torch
 
 from sharktank.layers import *
@@ -20,6 +21,8 @@ from sharktank.ops import replicate, unshard
 from sharktank.utils.debugging import trace_tensor
 from sharktank.utils.tokenizer import InferenceTokenizer
 from sharktank.utils.evaluate import *
+
+logger = logging.getLogger("eval")
 
 
 class TorchGenerator:
@@ -43,18 +46,36 @@ class TorchGenerator:
     def preprocess_prompts(
         self,
         prompts: list[str],
+        bs=int,
+        dump_prompt_len: int = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        token_ids = self.tokenizer._encode(texts=prompts, add_start_token=False)
+        if dump_prompt_len is not None:
+            vocab_size = self.tokenizer.vocab_size
+            token_ids = torch.randint(
+                low=0,
+                high=vocab_size,
+                size=(bs, dump_prompt_len),
+                device=self.model.device,
+            )
+            seq_lens = torch.tensor([dump_prompt_len] * bs, device=self.model.device)
 
-        print(f":: Prompt tokens:")
-        for idx, prompt in enumerate(prompts):
-            print(f"    prompt_{idx}: \n    {prompt.encode()} \n    {token_ids[idx]}\n")
+            logger.debug(f":: Prompt tokens: {token_ids}")
+        else:
+            token_ids = self.tokenizer._encode(texts=prompts, add_start_token=False)
 
-        token_ids, seq_lens = pad_tokens(
-            token_ids,
-            pad_to_multiple_of=self.model.cache.pad_sequence_stride,
-            device=self.model.device,
-        )
+            logger.info(f":: Prompt tokens:")
+            for idx, prompt in enumerate(prompts):
+                logger.info(
+                    f"    prompt_{idx}: \n    {prompt.encode()} \n    {token_ids[idx]}\n"
+                )
+
+            token_ids, seq_lens = pad_tokens(
+                token_ids,
+                pad_to_multiple_of=self.model.cache.pad_sequence_stride,
+                device=self.model.device,
+            )
+
+        logger.info(f":: Prompt tokens shape [bs, seq_len]: {token_ids.shape}")
 
         return token_ids, seq_lens
 
@@ -62,10 +83,11 @@ class TorchGenerator:
         self,
         token_ids: torch.tensor,
         seq_lens: torch.tensor,
+        use_attention_mask: bool = True,
         page_cache_size: int = None,
         dump_path: Path = None,
         dump_decode_steps: int = None,
-        use_attention_mask: bool = True,
+        dump_prompt_len: int = None,
     ) -> "Batch":
         bs = token_ids.shape[0]
 
@@ -83,10 +105,11 @@ class TorchGenerator:
             token_ids=token_ids,
             seq_lens=seq_lens,
             cache_state=cache_state,
+            use_attention_mask=use_attention_mask,
             bs=bs,
             dump_path=dump_path,
             dump_decode_steps=dump_decode_steps,
-            use_attention_mask=use_attention_mask,
+            dump_prompt_len=dump_prompt_len,
         )
 
     def alloc_page(self) -> int:
@@ -103,10 +126,11 @@ class Batch:
         token_ids: torch.Tensor,
         seq_lens: torch.Tensor,
         cache_state: list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
+        use_attention_mask: bool,
         bs: int,
         dump_path: Path,
         dump_decode_steps: int,
-        use_attention_mask: bool,
+        dump_prompt_len: int = None,
     ):
         self.bs = bs
         assert seq_lens.shape[0] == self.bs
@@ -115,12 +139,13 @@ class Batch:
         self.seq_lens = seq_lens
         # TODO: This doesn't appear to handle PP models properly
         self.cache_state = cache_state
+        self.use_attention_mask = use_attention_mask
         self.results: list[list[int]] = [[] for _ in range(self.bs)]
         self.done_result_indices: set[int] = set()
         self.dump_path = dump_path
+        self.dump_prompt_len = dump_prompt_len
         self.dump_decode_steps = dump_decode_steps
         self.decode_step = 0
-        self.use_attention_mask = use_attention_mask
 
         # Assemble the batch.
         seq_stride = self.parent.block_seq_stride
@@ -137,7 +162,9 @@ class Batch:
     @property
     def done(self) -> bool:
         return (
-            len(self.done_result_indices) == self.bs or len(self.parent.free_pages) == 0
+            len(self.done_result_indices) == self.bs
+            or len(self.parent.free_pages) == 0
+            or (self.dump_prompt_len and self.decode_step == self.dump_decode_steps)
         )
 
     def detokenize(self) -> list[str]:
@@ -149,11 +176,11 @@ class Batch:
         else:
             phase = "decode"
 
-        print(f":: {phase} result tokens:")
+        logger.info(f":: {phase} result tokens:")
         results = self.detokenize()
         for i, s in enumerate(results):
             seq_len = int(self.seq_lens[i])
-            print(
+            logger.info(
                 f"   prompt_{i}({len(self.results[i])}, {seq_len}): {s} \n   {self.results[i]}"
             )
 
@@ -253,8 +280,8 @@ class Batch:
                 )
             attention_mask, seq_block_ids = _attention_mask, _seq_block_ids
 
-        if self.dump_path:
-            print(f"\nSaving prefill args to {Path(self.dump_path)}\n")
+        if self.dump_path is not None:
+            logger.info(f"\nSaving prefill args to {Path(self.dump_path)}\n")
 
             self.dump_args(phase="prefill", arg_name="token_ids", arg=token_ids)
             self.dump_args(phase="prefill", arg_name="seq_lens", arg=self.seq_lens)
@@ -346,7 +373,7 @@ class Batch:
             )
 
         if self.dump_path is not None:
-            print(f"\nSaving decode args to {Path(self.dump_path)}\n")
+            logger.info(f"\nSaving decode args to {Path(self.dump_path)}\n")
 
             self.dump_args(
                 phase="decode",
