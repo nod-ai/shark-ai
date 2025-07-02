@@ -274,7 +274,11 @@ class ClientGenerateBatchProcess(sf.Process):
                     else self.gen_req.text
                 )
 
-                rid = self.gen_req.rid if self.gen_req.is_single else self.gen_req.rid[idx]
+                rid = (
+                    self.gen_req.rid
+                    if self.gen_req.is_single
+                    else self.gen_req.rid[idx]
+                )
 
                 gen_process = GenerateItemProcess(
                     prefill_batcher=self.service.prefill_batcher,
