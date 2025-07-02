@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import Mock
 from shortfin_apps.llm.components.request_queue_manager import RateLimiter
 from shortfin_apps.llm.components.request_queue_manager import RequestQueueManager
 
