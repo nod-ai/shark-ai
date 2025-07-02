@@ -35,6 +35,7 @@ def test_request_queue_manager():
     queue_manager.remove_from_queue(3)
     assert queue_manager.current_queue_size == 3
 
+
 @pytest.fixture
 def mock_params():
     model_params = Mock()
@@ -46,6 +47,7 @@ def mock_params():
 
     return model_params, server_params
 
+
 def test_memory_available(mock_params):
     model_params, server_params = mock_params
     limiter = RateLimiter(model_params=model_params, server_params=server_params)
@@ -53,10 +55,13 @@ def test_memory_available(mock_params):
     input_token_ids_len = 128
     available_pages = 30  # Should be enough
 
-    assert limiter.check_memory_availability(
-        input_token_ids_len=input_token_ids_len,
-        available_pages=available_pages
-    ) is True
+    assert (
+        limiter.check_memory_availability(
+            input_token_ids_len=input_token_ids_len, available_pages=available_pages
+        )
+        is True
+    )
+
 
 def test_memory_not_available(mock_params):
     model_params, server_params = mock_params
@@ -65,10 +70,13 @@ def test_memory_not_available(mock_params):
     input_token_ids_len = 128
     available_pages = 5  # Not enough
 
-    assert limiter.check_memory_availability(
-        input_token_ids_len=input_token_ids_len,
-        available_pages=available_pages
-    ) is False
+    assert (
+        limiter.check_memory_availability(
+            input_token_ids_len=input_token_ids_len, available_pages=available_pages
+        )
+        is False
+    )
+
 
 def test_zero_input_tokens(mock_params):
     model_params, server_params = mock_params
@@ -77,8 +85,9 @@ def test_zero_input_tokens(mock_params):
     input_token_ids_len = 0
     available_pages = 10
 
-    assert limiter.check_memory_availability(
-        input_token_ids_len=input_token_ids_len,
-        available_pages=available_pages
-    ) is True
-
+    assert (
+        limiter.check_memory_availability(
+            input_token_ids_len=input_token_ids_len, available_pages=available_pages
+        )
+        is True
+    )

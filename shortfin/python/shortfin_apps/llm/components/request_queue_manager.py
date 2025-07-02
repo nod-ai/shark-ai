@@ -30,10 +30,14 @@ class RateLimiter:
         input_pages = math.ceil(input_token_ids_len / stride)
         copy_pages = total_requested_beams - 1
 
-        output_pages_for_one_beam = math.ceil(self.server_params.decode_config.max_completion_tokens / stride)
+        output_pages_for_one_beam = math.ceil(
+            self.server_params.decode_config.max_completion_tokens / stride
+        )
         output_pages_total = total_requested_beams * output_pages_for_one_beam
         needed_pages = input_pages + copy_pages + output_pages_total
-        logger.debug(f"Needed pages for request is {needed_pages} pages available is {available_pages}")
+        logger.debug(
+            f"Needed pages for request is {needed_pages}, pages available is {available_pages}"
+        )
 
         if needed_pages <= available_pages:
             return True
