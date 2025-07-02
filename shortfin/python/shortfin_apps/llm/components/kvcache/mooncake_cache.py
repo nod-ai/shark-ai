@@ -3,6 +3,8 @@ from dataclasses import dataclass
 import time
 import math
 import heapq
+import hashlib
+import json
 from .page_pool import PagePool, PageInfo
 from .base_attention_cache import (
     BasePagedAttentionCache,
@@ -22,7 +24,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def token_ids_to_key(token_ids: List[int]) -> str:
+def token_ids_to_key_obsolete(token_ids: List[int]) -> str:
     """Convert a list of token ids to a unique key string.
     Args:
         token_ids: List of token ids
@@ -30,6 +32,18 @@ def token_ids_to_key(token_ids: List[int]) -> str:
         A string key representing the token ids
     """
     key = "_".join(map(str, token_ids))
+    return key
+
+
+def token_ids_to_key(token_ids: List[int]) -> str:
+    """Convert a list of token ids to a unique key string.
+    Args:
+        token_ids: List of token ids
+    Returns:
+        A string key representing the token ids
+    """
+    token_strs = json.dumps(token_ids)
+    key = hashlib.sha256(token_strs.encode("utf-8")).hexdigest()
     return key
 
 
@@ -182,13 +196,13 @@ class MooncakePagedAllocation(PageAllocation):
             end_index = min((i + 1) * tokens_per_page, len(token_ids))
             page_tokens = token_ids[start_index:end_index]
             if not page_tokens:
-                logger.warning(f"Skipping empty page for tokens: {page_tokens}")
+                logger.debug(f"Skipping empty page for tokens: {page_tokens}")
                 continue
 
             key = token_ids_to_key(page_tokens)
             value = mooncake_store.get_int_list(key)
             if value is None:
-                logger.warning(
+                logger.debug(
                     f"Page not found in Mooncake store for key: {key}. Skipping updating this and the rest of tokens."
                 )
                 break

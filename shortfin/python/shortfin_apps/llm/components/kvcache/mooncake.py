@@ -101,6 +101,10 @@ class MooncakeStore:
         """
         if not self._connected:
             raise RuntimeError("MooncakeStore is not connected.")
+        # check if the key already exists
+        is_exist = self.store.is_exist(key)
+        if is_exist != 0:  # 0 means the key does not exist
+            return None
         value_bytes = safetensors_save({"value": value})
         try:
             self.store.put(key, value_bytes)
