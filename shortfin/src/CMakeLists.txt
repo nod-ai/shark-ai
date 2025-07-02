@@ -27,6 +27,7 @@ shortfin_public_library(
   LINUX_LD_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/shortfin.ld
   COMPONENTS
     shortfin_array
+    shortfin_llm_components
     shortfin_local
     shortfin_support
     shortfin_systems_factory

@@ -18,6 +18,7 @@
 #if defined(SHORTFIN_HAVE_AMDGPU)
 #include "shortfin/local/systems/amdgpu.h"
 #endif  // SHORTFIN_HAVE_AMDGPU
+#include "shortfin/components/llm/beam_processor.h"
 #include "shortfin/local/systems/host.h"
 #include "shortfin/support/globals.h"
 #include "shortfin/support/logging.h"
@@ -546,6 +547,9 @@ NB_MODULE(lib, m) {
 
   auto array_m = m.def_submodule("array");
   BindArray(array_m);
+
+  auto llm_m = m.def_submodule("llm");
+  BindLLM(llm_m);
 }
 
 void BindLocal(py::module_ &m) {
@@ -1538,5 +1542,59 @@ void BindAMDGPUSystem(py::module_ &global_m) {
   py::class_<local::systems::AMDGPUDevice, local::Device>(m, "AMDGPUDevice");
 }
 #endif  // SHORTFIN_HAVE_AMDGPU
+
+void BindLLM(py::module_ &m) {
+  // Bind BeamState structure
+  py::class_<llm::BeamState>(m, "BeamState")
+      .def(py::init<>())
+      .def(py::init<std::shared_ptr<llm::InferenceRequest>>())
+      .def_rw("exec_req", &llm::BeamState::exec_req)
+      .def_rw("last_token", &llm::BeamState::last_token)
+      .def_rw("score", &llm::BeamState::score)
+      .def_rw("accumulated_normalization",
+              &llm::BeamState::accumulated_normalization);
+
+  // Bind InferenceRequest structure
+  py::class_<llm::InferenceRequest>(m, "InferenceRequest")
+      .def(py::init<>())
+      .def_rw("instance_id", &llm::InferenceRequest::instance_id)
+      .def_rw("input_token_ids", &llm::InferenceRequest::input_token_ids)
+      .def_rw("start_position", &llm::InferenceRequest::start_position)
+      .def_rw("prompt_length", &llm::InferenceRequest::prompt_length)
+      .def_static("copy_request", &llm::InferenceRequest::CopyRequest)
+      .def("update_with_token", &llm::InferenceRequest::UpdateWithToken)
+      .def("free_cache_pages", &llm::InferenceRequest::FreeCachePages);
+
+  // Bind ProcessBeamsResult structure
+  py::class_<llm::ProcessBeamsResult>(m, "ProcessBeamsResult")
+      .def(py::init<>())
+      .def_rw("active_beams", &llm::ProcessBeamsResult::active_beams)
+      .def_rw("completed_beams", &llm::ProcessBeamsResult::completed_beams)
+      .def_rw("success", &llm::ProcessBeamsResult::success)
+      .def_rw("error_message", &llm::ProcessBeamsResult::error_message);
+
+  // Bind BeamProcessor class
+  py::class_<llm::BeamProcessor>(m, "BeamProcessor")
+      .def(py::init<int, int, llm::BeamSelectionCallback>(),
+           py::arg("eos_token_id"), py::arg("num_beams"), py::arg("callback"))
+      .def("process_beams", &llm::BeamProcessor::ProcessBeams,
+           py::arg("current_active_beams"), py::arg("current_completed_beams"),
+           "Process beams using the C++ implementation of the process_beams "
+           "algorithm")
+      .def_prop_ro("eos_token_id", &llm::BeamProcessor::eos_token_id)
+      .def_prop_ro("num_beams", &llm::BeamProcessor::num_beams)
+      .def_static("should_complete_beam",
+                  &llm::BeamProcessor::ShouldCompleteBeam)
+      .def_static("cleanup_beam_resources",
+                  &llm::BeamProcessor::CleanupBeamResources);
+
+  // Bind parallel processing utilities
+  auto parallel_m = m.def_submodule("parallel");
+  parallel_m.def(
+      "process_beam_groups_parallel", &llm::parallel::ProcessBeamGroupsParallel,
+      py::arg("processors"), py::arg("active_beams_batch"),
+      py::arg("completed_beams_batch"),
+      "Process multiple beam groups in parallel using the blocking executor");
+}
 
 }  // namespace shortfin::python

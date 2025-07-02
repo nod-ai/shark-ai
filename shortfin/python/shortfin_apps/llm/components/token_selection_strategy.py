@@ -12,6 +12,7 @@ from typing import Callable, List, Union, Tuple, Dict, Set, Optional, cast
 from enum import Enum, auto
 from abc import ABC, abstractmethod
 from uuid import uuid4
+from line_profiler import profile
 
 from dataclasses_json import dataclass_json, Undefined
 
@@ -517,6 +518,7 @@ class DefaultBeam(BaseBeam):
         return int(tokens[0])
 
 
+@profile
 def build_beam_group(
     exec_req: LlmInferenceExecRequest,
     config: TokenSelectionStrategyConfig,
@@ -563,6 +565,7 @@ class BeamGroup:
         done_signals = [beam.exec_req.done for beam in self.active_beams]
         return await gather(*done_signals)
 
+    @profile
     def process_beams(self):
         beam_selections = self.selection_callback(
             self.active_beams, self.completed_beams
@@ -656,6 +659,7 @@ class DefaultScorer(BaseBeamScorer):
     def score_beams(self, beams: List[DefaultBeam]) -> List[DefaultBeam]:
         return beams
 
+    @profile
     def select_beams(
         self, active_beams: List[DefaultBeam], completed_beams: List[DefaultBeam]
     ) -> List[DefaultBeam]:
@@ -704,6 +708,7 @@ class BeamSearchScorer(BaseBeamScorer):
                 self.normalize_score(beam, self.min_log_prob)
         return sorted_selections
 
+    @profile
     def select_beams(
         self, active_beams: List[BeamSearchBeam], completed_beams: List[BeamSearchBeam]
     ) -> List[BeamSearchBeam]:
@@ -754,6 +759,7 @@ class TokenSelector(BaseTokenSelectionStrategy):
         elif isinstance(beam.last_token, list):
             results_callback(beam.last_token)
 
+    @profile
     async def decode(self, exec_req: LlmInferenceExecRequest):
         self._log_sampling_method()
         config = self.token_selection_strategy_config
@@ -762,10 +768,7 @@ class TokenSelector(BaseTokenSelectionStrategy):
         beam_group = build_beam_group(
             exec_req,
             config,
-            cast(
-                Callable[[List[BaseBeam], List[BaseBeam]], List[BaseBeam]],
-                self.scorer.select_beams,
-            ),
+            self.scorer.select_beams,
         )
         reservations = beam_group.active_beam_count
         config.decode_begin_callback(rid=exec_req.orig_instance_id, count=reservations)
