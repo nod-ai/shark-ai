@@ -189,36 +189,39 @@ class ClientGenerateBatchProcess(sf.Process):
         self.responder.send_response(error_response)
         self.responder.ensure_response()
 
-    def _pre_processing_sampling_params(self) -> Tuple[List[DecodeConfig], int]:
-        """Calculate the total number of beams requested in the generation request."""
+    def get_decode_configs(self) -> List[DecodeConfig]:
+        """
+        Generate decode configurations for each sampling parameter in the generation request.
+
+        Returns:
+            A list of DecodeConfig objects, one per sampling parameter.
+        """
         gen_req = self.gen_req
         decode_configs = []
-        total_requested_beams = 0
 
         sampling_params = (
             [gen_req.sampling_params] if gen_req.is_single else gen_req.sampling_params
         )
+
         for sampling_param in sampling_params:
             decode_config = deepcopy(self.service.server_params.decode_config)
+            decode_config.eos_token_id = self.tokenizer.eos_token_id
             decode_config.update_from_sampling_params(sampling_param)
-            total_requested_beams += decode_config.num_beams
             decode_configs.append(decode_config)
 
-        return decode_configs, total_requested_beams
+        return decode_configs
+
 
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
 
         indices = []
-        total_requested_beams = 0
-        (
-            decode_configs,
-            total_requested_beams,
-        ) = self._pre_processing_sampling_params()
+        decode_configs = self.get_decode_configs()
 
         # Try to add request to queue
         # TODO(@zphoenixrises): Add load testing and integration tests for this.
-        added_to_queue = self.service.queue_manager.add_to_queue(total_requested_beams)
+        request_size = sum(config.num_beams for config in decode_configs)
+        added_to_queue = self.service.queue_manager.add_to_queue(request_size)
         if not added_to_queue:
             self._return_error_response(
                 status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -284,6 +287,7 @@ class ClientGenerateBatchProcess(sf.Process):
                 if not self.service.rate_limiter.check_memory_availability(
                     input_token_ids_len=len(input_token_ids),
                     available_pages=available_pages_num,
+                    decode_config
                 ):
                     self._return_error_response(
                         status.HTTP_400_BAD_REQUEST,
@@ -321,7 +325,7 @@ class ClientGenerateBatchProcess(sf.Process):
             self.responder.ensure_response()
 
             if added_to_queue:
-                self.service.queue_manager.remove_from_queue(total_requested_beams)
+                self.service.queue_manager.remove_from_queue(request_size)
 
     def generate_response(
         self,

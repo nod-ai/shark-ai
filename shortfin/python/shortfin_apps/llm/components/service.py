@@ -65,9 +65,7 @@ class LlmGenerateService(GenerateService):
         self.set_isolation(program_isolation)
         self._initialize_worker_and_fiber()
         self.queue_manager = RequestQueueManager(self.max_queue_size)
-        self.rate_limiter = RateLimiter(
-            model_params=self.model_params, server_params=self.server_params
-        )
+        self.rate_limiter = RateLimiter(model_params=self.model_params)
         self._initialize_page_cache()
 
     def _initialize_max_queue_size(self):
