@@ -8,6 +8,10 @@ name: Release Llama 3.1 8B FP16 Benchmarking Tests
 
 on:
   workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
   schedule:
     # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
     - cron: "0 11 * * 2,4,6"
@@ -67,10 +71,8 @@ jobs:
 
       - name: Run export and compile
         run: |
-          test -d output_artifacts && echo "Output artifacts already exists"
           bash scripts/export_and_compile.sh \
              --irpa  /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa
-          test -d output_artifacts && echo "Output artifacts exists"
 
       - name: Run IREE Benchmark Module
         run: |
@@ -167,10 +169,10 @@ jobs:
             output_artifacts/consolidated*.json
             output_artifacts/*.log
 
-      - name: Cleanup artifacts
+      - name: Cleanup output artifacts
         run: |
             rm -rf output_artifacts
-            test ! -d output_artifacts && echo "Output artifacts is removed"
+            test ! -d output_artifacts && echo "Output artifacts are removed"
 
   # New job to push logs to shark-ai-reports repository
   push_logs:
@@ -205,3 +207,4 @@ jobs:
         git add $date
         git commit -m "Add CI Llama 8B FP16 logs on $(date -u +'%Y-%m-%d')"
         git push origin test_report
+        rm -rf logs
