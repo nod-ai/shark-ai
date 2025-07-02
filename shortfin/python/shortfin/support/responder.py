@@ -5,7 +5,13 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
+from enum import Enum
 from shortfin.support.status_tracker import AbstractStatusTracker
+
+
+class ResponderErrorCodes(Enum):
+    QUEUE_FULL = "QUEUE_FULL"
+    INVALID_REQUEST_ARGS = "INVALID_REQUEST_ARGS"
 
 
 class AbstractResponder:
@@ -18,6 +24,11 @@ class AbstractResponder:
         pass
 
     def ensure_response(self):
+        pass
+
+    def send_error(
+        self, error_message: str, code: ResponderErrorCodes, extra_fields: dict
+    ):
         pass
 
     def send_response(self, response):
