@@ -27,7 +27,7 @@ class RequestQueueManager:
         Attempt to add a request to the queue.
 
         Args:
-            request_size: The size of the request to add.
+            decode_configs: The configurations being asked to add to workload
 
         Returns:
             True if the request was added successfully, False if the queue is full.
@@ -49,7 +49,7 @@ class RequestQueueManager:
         Remove a request from the queue.
 
         Args:
-            request_size: The size of the request to remove.
+            request_size: The configurations being removed to workload
 
         Raises:
             RuntimeError: If the queue does not have enough items to remove.

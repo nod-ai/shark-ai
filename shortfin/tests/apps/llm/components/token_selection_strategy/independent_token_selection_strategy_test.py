@@ -285,13 +285,13 @@ async def test_independent_decode_single(
     decode_config = DecodeConfig(
         num_beams=2,
         max_completion_tokens=1,
+        eos_token_id=-1,
     )
     config = build_token_selector_config(
         decode_config,
         prefill_batcher=FakeBatcher(_batcher_callback, _batcher_workitem_callback),
         decode_batcher=FakeBatcher(_batcher_callback, _batcher_workitem_callback),
         results_callback=_results_callback,
-        eos_token_id=-1,
     )
     token_selector = TokenSelector(
         token_selection_strategy_config=config,
@@ -358,6 +358,7 @@ async def test_independent_decode_multiple_completions(
     decode_config = DecodeConfig(
         num_beams=2,
         max_completion_tokens=5,
+        eos_token_id=-1,
     )
     config = build_token_selector_config(
         decode_config,
@@ -368,7 +369,6 @@ async def test_independent_decode_multiple_completions(
             _batcher_callback_multiple_completions, _batcher_workitem_callback
         ),
         results_callback=_results_callback,
-        eos_token_id=-1,
     )
 
     token_selector = TokenSelector(
@@ -434,6 +434,7 @@ async def test_independent_decode_eos_token(
     decode_config = DecodeConfig(
         num_beams=2,
         max_completion_tokens=5,
+        eos_token_id=-1,
     )
     config = build_token_selector_config(
         decode_config,
@@ -444,7 +445,6 @@ async def test_independent_decode_eos_token(
             _batcher_callback_multiple_completions, _batcher_workitem_callback
         ),
         results_callback=_results_callback,
-        eos_token_id=-1,
     )
 
     token_selector = TokenSelector(
