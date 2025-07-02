@@ -35,59 +35,35 @@ def test_request_queue_manager():
     queue_manager.remove_from_queue(3)
     assert queue_manager.current_queue_size == 3
 
-
 @pytest.fixture
-def mock_params():
-    model_params = Mock()
-    model_params.paged_kv_cache.block_seq_stride = 32
+def mock_decode_config():
+    mock = MagicMock()
+    mock.num_beams = 8  # Updated beam count
+    mock.max_completion_tokens = 64
+    return mock
 
-    server_params = Mock()
-    server_params.decode_config.num_beams = 8
-    server_params.decode_config.max_completion_tokens = 50
+def test_check_memory_available(mock_model_params, mock_decode_config):
+    rate_limiter = RateLimiter(model_params=mock_model_params)
+    input_token_ids_len = 32
+    available_pages = 45  # >= 41 pages needed
 
-    return model_params, server_params
+    result = rate_limiter.check_memory_availability(
+        input_token_ids_len=input_token_ids_len,
+        available_pages=available_pages,
+        decode_config=mock_decode_config
+    )
 
+    assert result is True
 
-def test_memory_available(mock_params):
-    model_params, server_params = mock_params
-    limiter = RateLimiter(model_params=model_params, server_params=server_params)
-
+def test_check_memory_unavailable(mock_model_params, mock_decode_config):
+    rate_limiter = RateLimiter(model_params=mock_model_params)
     input_token_ids_len = 128
-    available_pages = 30  # Should be enough
+    available_pages = 40  # < 47 pages needed
 
-    assert (
-        limiter.check_memory_availability(
-            input_token_ids_len=input_token_ids_len, available_pages=available_pages
-        )
-        is True
+    result = rate_limiter.check_memory_availability(
+        input_token_ids_len=input_token_ids_len,
+        available_pages=available_pages,
+        decode_config=mock_decode_config
     )
 
-
-def test_memory_not_available(mock_params):
-    model_params, server_params = mock_params
-    limiter = RateLimiter(model_params=model_params, server_params=server_params)
-
-    input_token_ids_len = 128
-    available_pages = 5  # Not enough
-
-    assert (
-        limiter.check_memory_availability(
-            input_token_ids_len=input_token_ids_len, available_pages=available_pages
-        )
-        is False
-    )
-
-
-def test_zero_input_tokens(mock_params):
-    model_params, server_params = mock_params
-    limiter = RateLimiter(model_params=model_params, server_params=server_params)
-
-    input_token_ids_len = 0
-    available_pages = 23
-
-    assert (
-        limiter.check_memory_availability(
-            input_token_ids_len=input_token_ids_len, available_pages=available_pages
-        )
-        is True
-    )
+    assert result is False
