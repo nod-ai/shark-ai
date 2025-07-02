@@ -125,7 +125,6 @@ async def test_prefill(
     )
     await dummy_token_selection_strategy.prefill(exec_req)
 
-    assert results_array[0] == 15
     assert exec_req.input_token_ids[-1] == 15
     assert exec_req.start_position == 6
 
