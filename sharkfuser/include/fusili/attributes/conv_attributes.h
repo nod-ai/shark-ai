@@ -56,6 +56,12 @@ public:
   }
 
   // Getters
+  FUSILI_GENERIC_INPUT_TENSOR_GETTER(input_names, X)
+
+  FUSILI_GENERIC_INPUT_TENSOR_GETTER(input_names, W)
+
+  FUSILI_GENERIC_OUTPUT_TENSOR_GETTER(output_names, Y)
+
   const std::vector<int64_t> &get_pre_padding() const { return pre_padding; }
 
   const std::vector<int64_t> &get_post_padding() const { return post_padding; }

@@ -52,4 +52,22 @@ public:
   }
 };
 
+#define FUSILI_GENERIC_INPUT_TENSOR_GETTER(TYPE, NAME)                         \
+  std::shared_ptr<TensorAttr> get_##NAME() const {                             \
+    auto it = inputs.find(TYPE::NAME);                                         \
+    if (it != inputs.end()) {                                                  \
+      return it->second;                                                       \
+    }                                                                          \
+    return nullptr;                                                            \
+  }
+
+#define FUSILI_GENERIC_OUTPUT_TENSOR_GETTER(TYPE, NAME)                        \
+  std::shared_ptr<TensorAttr> get_##NAME() const {                             \
+    auto it = outputs.find(TYPE::NAME);                                        \
+    if (it != outputs.end()) {                                                 \
+      return it->second;                                                       \
+    }                                                                          \
+    return nullptr;                                                            \
+  }
+
 } // namespace fusili

@@ -46,9 +46,9 @@ public:
 
     attributes.fill_from_context(context);
 
-    auto &X = attributes.inputs.find(ConvFPropAttr::input_names::X)->second;
-    auto &W = attributes.inputs.find(ConvFPropAttr::input_names::W)->second;
-    auto &Y = attributes.outputs.find(ConvFPropAttr::output_names::Y)->second;
+    auto X = attributes.get_X();
+    auto W = attributes.get_W();
+    auto Y = attributes.get_Y();
 
     return {error_code_t::OK, ""};
   }
