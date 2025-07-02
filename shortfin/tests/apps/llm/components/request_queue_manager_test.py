@@ -7,6 +7,7 @@
 from shortfin_apps.llm.components.token_selection_strategy.config import DecodeConfig
 from shortfin_apps.llm.components.request_queue_manager import RequestQueueManager
 
+
 def get_decode_configs(beam_count):
     return [DecodeConfig(eos_token_id=0, num_beams=beam_count)]
 

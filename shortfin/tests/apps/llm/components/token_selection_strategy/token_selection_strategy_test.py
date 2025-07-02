@@ -132,7 +132,9 @@ async def test_prefill(
 
 def test_decode_config():
     num_beams = 42
-    decode_config = token_selection_strategy.DecodeConfig(num_beams=num_beams, eos_token_id=0)
+    decode_config = token_selection_strategy.DecodeConfig(
+        num_beams=num_beams, eos_token_id=0
+    )
     assert decode_config.num_beams == 42
     assert not decode_config.use_beam_search
 

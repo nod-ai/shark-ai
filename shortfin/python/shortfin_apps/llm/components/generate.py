@@ -196,8 +196,8 @@ class ClientGenerateBatchProcess(sf.Process):
 
         # Try to add request to queue
         # TODO(@zphoenixrises): Add load testing and integration tests for this.
-        if not self.service.queue_manager.add_to_queue(decode_configs):
-        if not added_to_queue:
+        run_request = self.service.queue_manager.add_to_queue(decode_configs)
+        if not run_request:
             self.responder.send_error(
                 error_message="Server queue is full. Please try again later.",
                 code=ResponderErrorCodes.QUEUE_FULL,
@@ -285,7 +285,8 @@ class ClientGenerateBatchProcess(sf.Process):
         finally:
             self.service.main_fiber_pool.return_fiber(indices)
             self.responder.ensure_response()
-            self.service.queue_manager.remove_from_queue(decode_configs)
+            if run_request:
+                self.service.queue_manager.remove_from_queue(decode_configs)
 
     def generate_response(
         self,
