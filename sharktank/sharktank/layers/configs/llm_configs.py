@@ -104,17 +104,12 @@ class LlamaHParams:
         default_interleave_moe_layer_step = None
         default_rope_freq_base = 500000.0
         default_rope_dimension_count = 128
-
         attention_head_count = _int_prop(p, f"{name_prefix}.attention.head_count")
         rope_dimension_count = _optional_int_prop(
             p, f"{name_prefix}.rope.dimension_count", default_rope_dimension_count
         )
         expert_count = _optional_int_prop(
             p, f"{name_prefix}.expert_count", default_expert_count
-        )
-        defaut_n_dense_layers = 0 if expert_count and expert_count > 0 else None
-        n_dense_layers = _optional_int_prop(
-            p, f"{name_prefix}.leading_dense_block_count", defaut_n_dense_layers
         )
 
         custom_config = get_custom_configs(p, name_prefix)
@@ -143,7 +138,6 @@ class LlamaHParams:
             moe_intermediate_size=_optional_int_prop(
                 p, f"{name_prefix}.moe_intermediate_size", None
             ),
-            n_dense_layers=n_dense_layers,
             rope_dimension_count=rope_dimension_count,
             rope_freq_base=_optional_float_prop(
                 p, f"{name_prefix}.rope.freq_base", default_rope_freq_base
@@ -244,6 +238,7 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         )
         res["expert_shared_count"] = _int_prop(p, f"{name_prefix}.expert_shared_count")
         res["attn_head_dim"] = res["qk_nope_head_dim"] + res["qk_rope_head_dim"]
+        res["n_dense_layers"] = _int_prop(p, f"{name_prefix}.leading_dense_block_count")
 
     if name_prefix == "llama4":
         res["interleave_moe_layer_step"] = _int_prop(
@@ -256,7 +251,6 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         res["expert_shared_feed_forward_length"] = _int_prop(
             p, f"{name_prefix}.expert_shared_feed_forward_length"
         )
-        res["vocab_size"] = _int_prop(p, f"{name_prefix}.vocab_size")
 
     return res
 
@@ -437,6 +431,17 @@ class LlamaModelConfig:
         res["attention_chunk_size"] = self.attention_chunk_size
         if self.chunked_attention_layers is not None:
             res["chunked_attention_layers"] = list(self.chunked_attention_layers)
+
+        res["use_qk_norm"] = self.use_qk_norm
+        if self.rope_layers is not None:
+            res["rope_layers"] = self.rope_layers
+        if self.attn_temperature_tuning is not None:
+            res["attn_temperature_tuning"] = self.attn_temperature_tuning
+        if self.floor_scale is not None:
+            res["floor_scale"] = self.floor_scale
+        if self.attn_scale is not None:
+            res["attn_scale"] = self.attn_scale
+
         return res
 
     @staticmethod

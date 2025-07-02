@@ -242,8 +242,13 @@ class ExportArtifacts:
             exception: The exception class to raise if the command fails.
         """
         logger.info(f"{run_msg}:\n" f"cd {self.cwd} && {cmd}")
+
         proc = subprocess.run(
-            cmd, shell=True, capture_output=True, text=True, cwd=self.cwd
+            cmd,
+            shell=True,
+            cwd=self.cwd,
+            capture_output=True,
+            text=True,
         )
         if proc.returncode != 0:
             raise exception(proc, self.cwd)
