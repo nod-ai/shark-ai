@@ -61,7 +61,7 @@ class DeepseekCrossEntropyTest(unittest.TestCase):
         assert pytest.approx(9.7477, 1e-4) == cross_entropy
 
 
-@pytest.mark.usefixtures("get_iree_flags", "device")
+@pytest.mark.usefixtures("iree_flags", "device")
 @is_mi300x
 class DeepseekIreeVsEagerTest(TempDirTestBase):
     @parameterized.expand(product([1, 2], [1, 2]))
