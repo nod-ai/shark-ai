@@ -15,4 +15,5 @@
 #include "fusili/attributes/conv_attributes.h"
 #include "fusili/attributes/tensor_attributes.h"
 // Nodes
+#include "fusili/node/conv_node.h"
 #include "fusili/node/node.h"

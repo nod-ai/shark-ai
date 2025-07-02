@@ -24,6 +24,7 @@ private:
 public:
   enum class input_names { X, W };
   enum class output_names { Y };
+
   std::unordered_map<input_names, std::shared_ptr<TensorAttr>> inputs;
   std::unordered_map<output_names, std::shared_ptr<TensorAttr>> outputs;
 
