@@ -143,7 +143,7 @@ jobs:
         python-version: ["3.12"]
         torch-version: ["2.5.1"]
         iree-target-args: ["--iree-hip-target=gfx942 --iree-hal-target-device=hip"]
-        runs-on: [linux-mi300-1gpu-ossci-nod-ai]
+        runs-on: [linux-mi300-8gpu-ossci-nod-ai]
       fail-fast: false
     runs-on: ${{matrix.runs-on}}
     defaults:
