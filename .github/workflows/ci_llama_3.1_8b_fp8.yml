@@ -82,7 +82,8 @@ jobs:
            --model llama-8B-FP8
         python scripts/utils.py \
           --combine-json $(pwd)/output_artifacts/benchmark_module \
-          --output-json $(pwd)/output_artifacts/consolidated_benchmark.json
+          --output-json $(pwd)/output_artifacts/consolidated_benchmark.json \
+          --append-isl
 
     - name: Run online serving
       run: |
