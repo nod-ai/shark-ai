@@ -99,7 +99,7 @@ jobs:
 
     - name: Run Offline serving :chat
       run: |
-            if [ "$(date +%u)" -eq 1 ]; then
+            if [ "$(date +%u)" -eq 3 ]; then
                 cd shortfin
                 export ROCR_VISIBLE_DEVICES=0
                 bash ../scripts/run_offline_serving.sh \
@@ -116,7 +116,7 @@ jobs:
 
     - name: Run Offline serving :reasoning
       run: |
-            if [ "$(date +%u)" -eq 3 ]; then
+            if [ "$(date +%u)" -eq 5 ]; then
                 cd shortfin
                 export ROCR_VISIBLE_DEVICES=0
                 bash ../scripts/run_offline_serving.sh \
@@ -203,8 +203,9 @@ jobs:
         cp -v logs/*.json "shark-ai-reports/$date/llama-8b-fp8-logs"
         cp -v logs/*.log "shark-ai-reports/$date/llama-8b-fp8-logs"
         cd shark-ai-reports
-        git pull
+        git pull --rebase origin test_report
         git checkout test_report 2>/dev/null || git checkout -b test_report
+        git pull --rebase origin test_report
         git add $date
         git commit -m "Add CI Llama 8B FP8 logs on $(date -u +'%Y-%m-%d')"
         git push origin test_report
