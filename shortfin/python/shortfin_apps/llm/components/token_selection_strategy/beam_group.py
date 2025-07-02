@@ -452,7 +452,7 @@ def build_beam_group(
     beam_cls = BeamSearchBeam if decode_config.use_beam_search else DefaultBeam
     beams = [beam_cls(exec_req, decode_config=decode_config) for exec_req in exec_reqs]
     return BeamGroup(
-        config.eos_token_id,
+        decode_config.eos_token_id,
         decode_config.num_beams,
         beams,
         selection_callback,
