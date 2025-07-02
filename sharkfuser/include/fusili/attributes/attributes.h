@@ -10,6 +10,10 @@
 
 namespace fusili {
 
+// Every class that derives from AttributeCRTP should have two maps:
+//  std::unordered_map<input_names, std::shared_ptr<TensorAttr>> inputs;
+//  std::unordered_map<output_names, std::shared_ptr<TensorAttr>> outputs;
+// These are used to populate metadata (e.g. data types) from the context.
 template <typename DerivedT> class AttributesCRTP {
 private:
   DerivedT &self() { return static_cast<DerivedT &>(*this); }
@@ -35,11 +39,6 @@ public:
     if (compute_data_type == DataType_t::NOT_SET) {
       set_compute_data_type(context.get_compute_data_type());
     }
-
-    // Every class that derives from AttributeCRTP should have two maps:
-    //  std::unordered_map<input_names, std::shared_ptr<TensorAttr>> inputs;
-    //  std::unordered_map<output_names, std::shared_ptr<TensorAttr>> outputs;
-    // These are used to populate metadata (e.g. data types) from the context.
 
     for (auto &[_, tensor] : self().inputs) {
       if (tensor)

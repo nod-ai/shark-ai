@@ -9,17 +9,35 @@
 #include <memory>
 #include <unordered_set>
 
+#include "attributes/tensor_attributes.h"
 #include "context.h"
+#include "logging.h"
+#include "node/node.h"
 
 namespace fusili {
 
-class Graph {
+class Graph : public INode {
 private:
-  Context context;
   std::unordered_set<std::shared_ptr<TensorAttr>> full_graph_inputs;
   std::unordered_set<std::shared_ptr<TensorAttr>> full_graph_outputs;
 
+  error_t pre_validate_node() const override final {
+    return {error_code_t::OK, ""};
+  }
+
+  error_t infer_properties_node() override final {
+    return {error_code_t::OK, ""};
+  }
+
+  error_t post_validate_node() const override final {
+    return {error_code_t::OK, ""};
+  }
+
 public:
+  Graph() : INode(Context{}) {}
+
+  Type getType() override { return Type::COMPOSITE; }
+
   Graph &set_io_data_type(DataType_t const type);
 
   Graph &set_compute_data_type(DataType_t const type);

@@ -143,11 +143,11 @@ inline ConditionalStreamer &getLogger() {
 
 #define FUSILI_LOG(X) getLogger() << X
 #define FUSILI_LOG_ENDL(X) getLogger() << X << std::endl
-#define FUSILI_LOG_RED(X)                                                      \
+#define FUSILI_LOG_LABEL_RED(X)                                                \
   getLogger() << FUSILI_COLOR_RED << "[FUSILI] " << X << FUSILI_COLOR_RESET
-#define FUSILI_LOG_GREEN(X)                                                    \
+#define FUSILI_LOG_LABEL_GREEN(X)                                              \
   getLogger() << FUSILI_COLOR_GREEN << "[FUSILI] " << X << FUSILI_COLOR_RESET
-#define FUSILI_LOG_YELLOW(X)                                                   \
+#define FUSILI_LOG_LABEL_YELLOW(X)                                             \
   getLogger() << FUSILI_COLOR_YELLOW << "[FUSILI] " << X << FUSILI_COLOR_RESET
 #define FUSILI_LOG_LABEL_ENDL(X) getLogger() << "[FUSILI] " << X << std::endl
 
@@ -155,12 +155,21 @@ inline ConditionalStreamer &getLogger() {
   do {                                                                         \
     if (cond) {                                                                \
       if (retval == error_code_t::OK)                                          \
-        FUSILI_LOG_YELLOW("INFO: ");                                           \
+        FUSILI_LOG_LABEL_YELLOW("INFO: ");                                     \
       else                                                                     \
-        FUSILI_LOG_RED("ERROR: ");                                             \
+        FUSILI_LOG_LABEL_RED("ERROR: ");                                       \
                                                                                \
       FUSILI_LOG_ENDL(retval << ": " << message << ": (" << #cond ") at "      \
                              << __FILE__ << ":" << __LINE__);                  \
       return {retval, message};                                                \
+    }                                                                          \
+  } while (false);
+
+#define FUSILI_CHECK_ERROR(x)                                                  \
+  do {                                                                         \
+    if (auto retval = x; retval.is_bad()) {                                    \
+      FUSILI_LOG_LABEL_RED("ERROR: ");                                         \
+      FUSILI_LOG_ENDL(#x << " at " << __FILE__ << ":" << __LINE__);            \
+      return retval;                                                           \
     }                                                                          \
   } while (false);

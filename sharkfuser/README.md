@@ -26,16 +26,25 @@ Run clang-format:
 find . -path ./build -prune -o \( -type f \( -name "*.cpp" -o -name "*.h" \) -print \) | xargs clang-format -i
 ```
 
-Enable logging:
+Debugging:
+Enable logging (TODO)
+
+Create a fusili graph:
+TODO
 
 
 
 Project Roadmap:
-- [x] Build files, source code layout
-- [ ] `fusili::Graph` datastructures (tensor, node, graph, types)
-- [ ] MLIR ASM emitter
-- [ ] IREE build integration (enable building compiler/runtime deps)
-- [ ] `g->execute()` (calls IREE compiler C API then IREE runtime C API)
-- [ ] Kernel Cache (skip re-compilations upon cache hit)
-- [ ] Op Fusion Templates
-- [ ] Serialization?
+- [x] Build/test infra, logging
+- [ ] Graph, tensor, node datastructures and builder API
+- [ ] conv_fprop MLIR ASM emitter
+- [ ] IREE compiler integration
+- [ ] IREE runtime integration
+- [ ] `g->execute()` (calls IREE compiler/runtime C API)
+- [ ] conv_fprop integration testing
+- [ ] Kernel cache
+- [ ] Elementwise ops (relu?)
+- [ ] Op fusion templates
+- [ ] Python bindings
+- [ ] Serialization
+- [ ] hipDNN integration

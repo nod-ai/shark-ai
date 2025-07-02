@@ -6,9 +6,13 @@
 
 #pragma once
 
-#include "fusili/attributes/attributes.h"
-#include "fusili/attributes/tensor_attributes.h"
 #include "fusili/context.h"
 #include "fusili/graph.h"
 #include "fusili/logging.h"
 #include "fusili/types.h"
+// Attributes
+#include "fusili/attributes/attributes.h"
+#include "fusili/attributes/conv_attributes.h"
+#include "fusili/attributes/tensor_attributes.h"
+// Nodes
+#include "fusili/node/node.h"
