@@ -83,7 +83,7 @@ def test_zero_input_tokens(mock_params):
     limiter = RateLimiter(model_params=model_params, server_params=server_params)
 
     input_token_ids_len = 0
-    available_pages = 10
+    available_pages = 23
 
     assert (
         limiter.check_memory_availability(
