@@ -194,7 +194,6 @@ class ClientGenerateBatchProcess(sf.Process):
 
         return decode_configs
 
-
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
 
@@ -268,7 +267,7 @@ class ClientGenerateBatchProcess(sf.Process):
                 if not self.service.rate_limiter.check_memory_availability(
                     input_token_ids_len=len(input_token_ids),
                     available_pages=available_pages_num,
-                    decode_config=decode_config
+                    decode_config=decode_config,
                 ):
                     self.responder.send_error(
                         error_message="Not enough pages for the new request",

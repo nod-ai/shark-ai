@@ -35,12 +35,14 @@ def test_request_queue_manager():
     queue_manager.remove_from_queue(3)
     assert queue_manager.current_queue_size == 3
 
+
 @pytest.fixture
 def mock_decode_config():
     mock = MagicMock()
     mock.num_beams = 8  # Updated beam count
     mock.max_completion_tokens = 64
     return mock
+
 
 def test_check_memory_available(mock_model_params, mock_decode_config):
     rate_limiter = RateLimiter(model_params=mock_model_params)
@@ -50,10 +52,11 @@ def test_check_memory_available(mock_model_params, mock_decode_config):
     result = rate_limiter.check_memory_availability(
         input_token_ids_len=input_token_ids_len,
         available_pages=available_pages,
-        decode_config=mock_decode_config
+        decode_config=mock_decode_config,
     )
 
     assert result is True
+
 
 def test_check_memory_unavailable(mock_model_params, mock_decode_config):
     rate_limiter = RateLimiter(model_params=mock_model_params)
@@ -63,7 +66,7 @@ def test_check_memory_unavailable(mock_model_params, mock_decode_config):
     result = rate_limiter.check_memory_availability(
         input_token_ids_len=input_token_ids_len,
         available_pages=available_pages,
-        decode_config=mock_decode_config
+        decode_config=mock_decode_config,
     )
 
     assert result is False

@@ -22,7 +22,11 @@ class RateLimiter:
         self.model_params = model_params
 
     def check_memory_availability(
-        self, *, input_token_ids_len: int, available_pages: int, decode_config: DecodeConfig
+        self,
+        *,
+        input_token_ids_len: int,
+        available_pages: int,
+        decode_config: DecodeConfig,
     ):
         stride = self.model_params.paged_kv_cache.block_seq_stride
         total_requested_beams = decode_config.num_beams
