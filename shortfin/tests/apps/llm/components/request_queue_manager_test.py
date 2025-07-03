@@ -38,6 +38,7 @@ def test_request_queue_manager():
     queue_manager.remove_from_queue(3)
     assert queue_manager.current_queue_size == 3
 
+
 def get_model_params():
     return ModelParams(
         max_seq_len=512,
@@ -53,12 +54,13 @@ def get_model_params():
         ),
     )
 
+
 def get_decode_config(beam_count):
     return DecodeConfig(
-            num_beams=beam_count,
-            use_beam_search=True,
-            max_completion_tokens=50,
-            )
+        num_beams=beam_count,
+        use_beam_search=True,
+        max_completion_tokens=50,
+    )
 
 
 def test_check_memory_availability_enough_pages():
