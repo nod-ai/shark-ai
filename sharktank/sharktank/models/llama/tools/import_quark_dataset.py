@@ -62,6 +62,92 @@ def as_torch_or_none(tensor: Optional[InferenceTensor]) -> Optional[torch.Tensor
     return tensor.as_torch()
 
 
+def detect_quantization_format(
+    weight_tensor: torch.Tensor, scale_tensor: torch.Tensor, block_size: int = 32
+) -> str:
+    """Detect whether weights are FP4 or FP8 based on tensor shapes."""
+    # TODO: Expand on this to support other dtypes including mxfp6 quantization
+    weight_elements = weight_tensor.numel()
+    scale_elements = scale_tensor.numel()
+
+    # For FP4: 2 values packed per byte, so weight_elements * 2 / block_size should equal scale_elements
+    expected_fp4_blocks = (weight_elements * 2 + block_size - 1) // block_size
+
+    # For FP8: 1 value per byte, so weight_elements / block_size should equal scale_elements
+    expected_fp8_blocks = (weight_elements + block_size - 1) // block_size
+
+    if abs(scale_elements - expected_fp4_blocks) < abs(
+        scale_elements - expected_fp8_blocks
+    ):
+        return "fp4"
+    else:
+        return "fp8"
+
+
+def infer_original_tensor_shape(
+    weight_tensor: torch.Tensor,
+    scale_tensor: torch.Tensor,
+    block_size: int,
+    format: str,
+) -> list[int]:
+    """Infer original tensor shape from quantized weight and scale tensors."""
+    if format == "fp4":
+        # FP4: 2 values packed per byte
+        total_elements = weight_tensor.numel() * 2
+    else:
+        # FP8: 1 value per byte
+        total_elements = weight_tensor.numel()
+
+    # Use scale tensor shape to help infer dimensions
+    scale_shape = scale_tensor.shape
+    if len(scale_shape) == 2:
+        # Assume [output_dim, input_dim // block_size]
+        output_dim = scale_shape[0]
+        input_dim = scale_shape[1] * block_size
+        return [output_dim, input_dim]
+    elif len(scale_shape) == 1:
+        # Linear layer with single dimension
+        return [scale_shape[0] * block_size]
+    else:
+        raise ValueError(f"Unsupported scale tensor shape: {scale_shape}")
+
+
+def create_fp4_block_quantizer(
+    weight_tensor: torch.Tensor,
+    scale_tensor: torch.Tensor,
+    layer_name: str,
+    block_size: int = 32,
+) -> "PlanarQuantizedTensor":
+    """Create StaticFp4BlockQuantizer from Quark FP4 weights and scales."""
+
+    # Convert U8 scales to appropriate format
+    # Quark uses E8M0 format for FP4 scales
+    # Keep the original 2D shape instead of flattening
+    scales = scale_tensor.to(torch.float32)
+
+    # Infer original tensor shape
+    original_shape = infer_original_tensor_shape(
+        weight_tensor, scale_tensor, block_size, "fp4"
+    )
+
+    # Create the FP4 block layout directly
+    layout = BlockScaledFp4Layout(
+        shape=original_shape,
+        d=scales,
+        qs=weight_tensor,  # Already packed FP4 data
+        block_size=block_size,
+        use_fe8m0_scale=True,
+    )
+
+    quantized_tensor = PlanarQuantizedTensor(
+        shape=original_shape,
+        name=layer_name,
+        layout=layout,
+    )
+
+    return quantized_tensor
+
+
 def hf_to_gguf(layer_name: str) -> str:
     assert layer_name.startswith("model.layers")
     mapping = {
@@ -100,6 +186,7 @@ def apply_per_layer_quant(
     updated_tensors: dict[str, InferenceTensor],
     n_head: int,
     split_sizes: list[int],
+    block_size: int = 32,
     weight_dtype_override: Optional[torch.dtype] = None,
 ):
     """Take the quantization parameters and hf weights from the imported Theta
@@ -112,9 +199,15 @@ def apply_per_layer_quant(
         weight_quant_scale = weight_quant_scale.to(torch.float32)
     weight = layer_theta.tensor("weight").as_torch()
 
-    # It looks dumb but, this step is required for numerical correctness against quark.
-    # weight = weight.view(torch.float8_e4m3fn)
-    weight = (weight.to(torch.float64) * weight_quant_scale).to(torch.float32)
+    quant_format = detect_quantization_format(weight, weight_quant_scale, block_size)
+
+    if quant_format == "fp4":
+        quantized_weight = weight
+    else:
+        # It looks dumb but, this step is required for numerical correctness against quark.
+        # weight = weight.view(torch.float8_e4m3fn)
+        weight = (weight.to(torch.float64) * weight_quant_scale).to(torch.float32)
+        quantized_weight = None  # Will be created in quantize_weight function
 
     weight_quant_zero_point = layer_theta.optional_tensor("weight_zero_point")
     if weight_quant_zero_point == None:
@@ -122,7 +215,7 @@ def apply_per_layer_quant(
     else:
         weight_quant_zero_point = weight_quant_zero_point.as_torch()
     input_quant_scale = as_torch_or_none(layer_theta.optional_tensor("input_scale"))
-    if input_quant_scale.dtype is torch.bfloat16:
+    if input_quant_scale is not None and input_quant_scale.dtype is torch.bfloat16:
         input_quant_scale = input_quant_scale.to(torch.float32)
     output_quant_scale = as_torch_or_none(layer_theta.optional_tensor("output_scale"))
     if output_quant_scale and output_quant_scale.dtype is torch.bfloat16:
@@ -141,18 +234,24 @@ def apply_per_layer_quant(
         weight_scale: torch.Tensor,
         weight_zp: Optional[torch.Tensor],
     ):
-        # Our scale is the reciprocal of the quark scale
-        # We multiply scale by two to account for diff between fnuz and fn
-        weight_quantizer = StaticScaledQuantizer(
-            scale=1.0 / (weight_scale * 2.0),
-            reciprocal_scale=(weight_scale * 2.0),
-            offset=None
-            if (weight_zp is None or torch.count_nonzero(weight_zp) == 0)
-            else weight_zp,
-            dtype=torch.float8_e4m3fnuz,
-        )
-        weight_quant = weight_quantizer.quantize(weight, name=weight_name)
-        updated_tensors[weight_quant.name] = weight_quant
+        if quant_format == "fp4":
+            fp4_tensor = create_fp4_block_quantizer(
+                quantized_weight, weight_scale, weight_name, block_size
+            )
+            updated_tensors[weight_name] = fp4_tensor
+        else:
+            # Our scale is the reciprocal of the quark scale
+            # We multiply scale by two to account for diff between fnuz and fn
+            weight_quantizer = StaticScaledQuantizer(
+                scale=1.0 / (weight_scale * 2.0),
+                reciprocal_scale=(weight_scale * 2.0),
+                offset=None
+                if (weight_zp is None or torch.count_nonzero(weight_zp) == 0)
+                else weight_zp,
+                dtype=torch.float8_e4m3fnuz,
+            )
+            weight_quant = weight_quantizer.quantize(weight, name=weight_name)
+            updated_tensors[weight_quant.name] = weight_quant
 
     # In older quark models the qkv layer is fused. Unfuse.
     if "qkv" in layer_name:
@@ -344,6 +443,18 @@ def main(argv):
         choices=["7b", "70b", "405b"],
     )
     parser.add_argument(
+        "--fp4-block-size",
+        type=int,
+        default=32,
+        help="Block size for FP4 quantization (default: 32)",
+    )
+    parser.add_argument(
+        "--fp4-scale-format",
+        choices=["fe8m0", "float"],
+        default="fe8m0",
+        help="Scale format for FP4 quantization (default: fe8m0)",
+    )
+    parser.add_argument(
         "--weight-dtype-override",
         type=str,
         default=None,
@@ -424,6 +535,7 @@ def main(argv):
                 updated_tensors,
                 n_head=head_count[0],
                 split_sizes=split_sizes,
+                block_size=args.fp4_block_size,
                 weight_dtype_override=weight_dtype_override,
             )
 
