@@ -6,8 +6,46 @@
 
 import threading
 import logging
+import math
+from .config_struct import ModelParams
+from .token_selection_strategy.config import DecodeConfig
 
 logger = logging.getLogger(__name__)
+
+
+class RateLimiter:
+    def __init__(
+        self,
+        *,
+        model_params: ModelParams,
+    ):
+        self.model_params = model_params
+
+    def check_memory_availability(
+        self,
+        *,
+        input_token_ids_len: int,
+        available_pages: int,
+        decode_config: DecodeConfig,
+    ):
+        stride = self.model_params.paged_kv_cache.block_seq_stride
+        total_requested_beams = decode_config.num_beams
+        input_pages = math.ceil(input_token_ids_len / stride)
+        copy_pages = total_requested_beams - 1
+
+        output_pages_for_one_beam = math.ceil(
+            decode_config.max_completion_tokens / stride
+        )
+        output_pages_total = total_requested_beams * output_pages_for_one_beam
+        needed_pages = input_pages + copy_pages + output_pages_total
+        logger.debug(
+            f"Needed pages for request is {needed_pages}, pages available is {available_pages}"
+        )
+
+        if needed_pages <= available_pages:
+            return True
+
+        return False
 
 
 class RequestQueueManager:

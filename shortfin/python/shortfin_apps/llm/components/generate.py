@@ -172,36 +172,38 @@ class ClientGenerateBatchProcess(sf.Process):
         )
         return False
 
-    def _pre_processing_sampling_params(self) -> Tuple[List[DecodeConfig], int]:
-        """Calculate the total number of beams requested in the generation request."""
+    def get_decode_configs(self) -> List[DecodeConfig]:
+        """
+        Generate decode configurations for each sampling parameter in the generation request.
+
+        Returns:
+            A list of DecodeConfig objects, one per sampling parameter.
+        """
         gen_req = self.gen_req
         decode_configs = []
-        total_requested_beams = 0
 
         sampling_params = (
             [gen_req.sampling_params] if gen_req.is_single else gen_req.sampling_params
         )
+
         for sampling_param in sampling_params:
             decode_config = deepcopy(self.service.server_params.decode_config)
+            decode_config.eos_token_id = self.tokenizer.eos_token_id
             decode_config.update_from_sampling_params(sampling_param)
-            total_requested_beams += decode_config.num_beams
             decode_configs.append(decode_config)
 
-        return decode_configs, total_requested_beams
+        return decode_configs
 
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
 
         indices = []
-        total_requested_beams = 0
-        (
-            decode_configs,
-            total_requested_beams,
-        ) = self._pre_processing_sampling_params()
+        decode_configs = self.get_decode_configs()
 
         # Try to add request to queue
         # TODO(@zphoenixrises): Add load testing and integration tests for this.
-        added_to_queue = self.service.queue_manager.add_to_queue(total_requested_beams)
+        request_size = sum(config.num_beams for config in decode_configs)
+        added_to_queue = self.service.queue_manager.add_to_queue(request_size)
         if not added_to_queue:
             self.responder.send_error(
                 error_message="Server queue is full. Please try again later.",
@@ -219,8 +221,6 @@ class ClientGenerateBatchProcess(sf.Process):
             if streaming:
                 self.responder.stream_start()
 
-            # Launch all individual generate processes and wait for them to finish.
-            gen_processes = []
             input_ids = self.gen_req.input_ids
             is_pretokenized = input_ids is not None
             # TODO: We should send this to an executor and await the results.
@@ -229,6 +229,8 @@ class ClientGenerateBatchProcess(sf.Process):
             else:
                 input_batch = self.tokenize()
 
+            # Launch all individual generate processes and wait for them to finish.
+            gen_processes = []
             for index, input_tokens in enumerate(input_batch):
                 decode_config = decode_configs[index]
 
@@ -252,23 +254,40 @@ class ClientGenerateBatchProcess(sf.Process):
                     )
                     return
 
-                idx, fiber = await self.service.main_fiber_pool.get()
-                indices.append(idx)
-
                 input_text = (
                     self.gen_req.text[index]
                     if not is_pretokenized and not self.gen_req.is_single
                     else self.gen_req.text
                 )
 
+                input_token_ids = input_tokens if is_pretokenized else input_tokens.ids
+
+                # return error reponse if no pages available
+                available_pages_num = len(self.service.page_pool.available_pages)
+                if not self.service.rate_limiter.check_memory_availability(
+                    input_token_ids_len=len(input_token_ids),
+                    available_pages=available_pages_num,
+                    decode_config=decode_config,
+                ):
+                    self.responder.send_error(
+                        error_message="Not enough pages for the new request",
+                        code=ResponderErrorCodes.PAGE_FULL,
+                        extra_fields={
+                            "available_page": available_pages_num,
+                            "requested_page": needed_pages_num,
+                        },
+                    )
+                    return
+
+                idx, fiber = await self.service.main_fiber_pool.get()
+                indices.append(idx)
+
                 gen_process = GenerateItemProcess(
                     self,
                     self.gen_req,
                     index,
                     input_text=input_text,
-                    input_token_ids=input_tokens
-                    if is_pretokenized
-                    else input_tokens.ids,
+                    input_token_ids=input_token_ids,
                     eos_token_id=self.tokenizer.eos_token_id,
                     decode_config=decode_config,
                     status_tracker=self.responder.get_status_tracker(),
@@ -285,7 +304,7 @@ class ClientGenerateBatchProcess(sf.Process):
             self.responder.ensure_response()
 
             if added_to_queue:
-                self.service.queue_manager.remove_from_queue(total_requested_beams)
+                self.service.queue_manager.remove_from_queue(request_size)
 
     def generate_response(
         self,

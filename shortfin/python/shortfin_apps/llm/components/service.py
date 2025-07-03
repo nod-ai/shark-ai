@@ -24,6 +24,7 @@ from .service_debug_dumper import SERVICE_DEBUG_DUMPER
 from .tokenizer import Tokenizer
 from .token_selection_strategy import is_multi_response
 from .request_queue_manager import RequestQueueManager
+from .request_queue_manager import RateLimiter
 
 from ...utils import GenerateService
 from .fiber_pool import FiberPool
@@ -64,6 +65,7 @@ class LlmGenerateService(GenerateService):
         self.set_isolation(program_isolation)
         self._initialize_worker_and_fiber()
         self.queue_manager = RequestQueueManager(self.max_queue_size)
+        self.rate_limiter = RateLimiter(model_params=self.model_params)
         self._initialize_page_cache()
 
     def _initialize_max_queue_size(self):
@@ -102,16 +104,16 @@ class LlmGenerateService(GenerateService):
             alloc_page_count=self.model_params.paged_kv_cache.device_block_count,
             paged_kv_block_size_elements=self.model_params.paged_kv_block_size_elements,
         )
-        page_pool = PagePool(devices=self.devices, config=page_pool_config)
+        self.page_pool = PagePool(devices=self.devices, config=page_pool_config)
 
         if self.server_params.prefix_sharing_algorithm == "trie":
             self.page_cache = TriePagedAttentionCache(
-                page_pool=page_pool,
+                page_pool=self.page_pool,
                 tokens_per_page=self.model_params.paged_kv_cache.block_seq_stride,
             )
         elif self.server_params.prefix_sharing_algorithm == "none":
             self.page_cache = BasePagedAttentionCache(
-                page_pool=page_pool,
+                page_pool=self.page_pool,
                 tokens_per_page=self.model_params.paged_kv_cache.block_seq_stride,
             )
         else:
