@@ -48,6 +48,7 @@ def _results_callback(token: int | List[int]):
 def test_build_token_selector_config():
     decode_config = token_selection_strategy.DecodeConfig(
         max_completion_tokens=42,
+        eos_token_id=0,
     )
 
     config = token_selection_strategy.build_token_selector_config(
@@ -55,26 +56,25 @@ def test_build_token_selector_config():
         prefill_batcher=FakeBatcher(_batcher_callback, _batcher_workitem_callback),
         decode_batcher=FakeBatcher(_batcher_callback, _batcher_workitem_callback),
         results_callback=_results_callback,
-        eos_token_id=0,
     )
 
     assert config.prefill_callback == _batcher_callback
     assert config.decode_callback == _batcher_callback
     assert config.results_callback == _results_callback
-    assert config.eos_token_id == 0
+    assert config.decode_config.eos_token_id == 0
     assert config.decode_config.max_completion_tokens == 42
 
 
 def test_build_token_selector():
     decode_config = token_selection_strategy.DecodeConfig(
         max_completion_tokens=42,
+        eos_token_id=0,
     )
     config = token_selection_strategy.build_token_selector_config(
         decode_config,
         prefill_batcher=FakeBatcher(_batcher_callback, _batcher_workitem_callback),
         decode_batcher=FakeBatcher(_batcher_callback, _batcher_workitem_callback),
         results_callback=_results_callback,
-        eos_token_id=0,
     )
     token_selector = token_selection_strategy.build_token_selector(
         config,
@@ -110,6 +110,7 @@ async def test_prefill(
 
     decode_config = token_selection_strategy.DecodeConfig(
         max_completion_tokens=1,
+        eos_token_id=0,
     )
 
     config = token_selection_strategy.build_token_selector_config(
@@ -117,7 +118,6 @@ async def test_prefill(
         prefill_batcher=FakeBatcher(_batcher_callback, _batcher_workitem_callback),
         decode_batcher=FakeBatcher(_batcher_callback, _batcher_workitem_callback),
         results_callback=_results_callback,
-        eos_token_id=0,
     )
     dummy_token_selection_strategy = DummyTokenSelectionStrategy(
         token_selection_strategy_config=config,
@@ -132,12 +132,15 @@ async def test_prefill(
 
 def test_decode_config():
     num_beams = 42
-    decode_config = token_selection_strategy.DecodeConfig(num_beams)
+    decode_config = token_selection_strategy.DecodeConfig(
+        num_beams=num_beams, eos_token_id=0
+    )
     assert decode_config.num_beams == 42
     assert not decode_config.use_beam_search
 
     decode_config = token_selection_strategy.DecodeConfig(
-        num_beams,
+        eos_token_id=0,
+        num_beams=num_beams,
         use_beam_search=True,
     )
 

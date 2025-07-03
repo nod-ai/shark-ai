@@ -9,6 +9,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+from .token_selection_strategy.config import DecodeConfig
+
 
 class RequestQueueManager:
     """
@@ -20,16 +22,18 @@ class RequestQueueManager:
         self._lock = threading.Lock()
         self.current_queue_size = 0
 
-    def add_to_queue(self, request_size: int) -> bool:
+    def add_to_queue(self, decode_configs: list[DecodeConfig]) -> bool:
         """
         Attempt to add a request to the queue.
 
         Args:
-            request_size: The size of the request to add.
+            decode_configs: The configurations being asked to add to workload
 
         Returns:
             True if the request was added successfully, False if the queue is full.
         """
+        request_size = sum(config.num_beams for config in decode_configs)
+
         with self._lock:
             if self.current_queue_size + request_size > self.max_queue_size:
                 logger.debug(
@@ -40,16 +44,18 @@ class RequestQueueManager:
             logger.debug(f"Added to queue: new queue size {self.current_queue_size}")
             return True
 
-    def remove_from_queue(self, request_size: int) -> None:
+    def remove_from_queue(self, decode_configs: list[DecodeConfig]) -> None:
         """
         Remove a request from the queue.
 
         Args:
-            request_size: The size of the request to remove.
+            request_size: The configurations being removed to workload
 
         Raises:
             RuntimeError: If the queue does not have enough items to remove.
         """
+        request_size = sum(config.num_beams for config in decode_configs)
+
         with self._lock:
             if self.current_queue_size >= request_size:
                 self.current_queue_size -= request_size
