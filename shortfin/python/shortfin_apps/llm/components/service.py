@@ -18,7 +18,7 @@ from .kvcache.base_attention_cache import (
     BasePagedAttentionCache,
 )
 from .kvcache.trie_attention_cache import TriePagedAttentionCache
-from .kvcache.page_pool import PagePool
+from .kvcache.page_pool import PagePoolConfig, PagePool
 from .manager import LlmSystemManager
 from .service_debug_dumper import SERVICE_DEBUG_DUMPER
 from .tokenizer import Tokenizer
@@ -96,12 +96,14 @@ class LlmGenerateService(GenerateService):
 
     def _initialize_page_cache(self):
         """Initialize page pool and attention cache."""
-        page_pool = PagePool(
-            devices=self.devices,
+        page_pool_config = PagePoolConfig(
             dtype=self.model_params.paged_kv_cache.kv_cache_dtype,
             alloc_page_count=self.model_params.paged_kv_cache.device_block_count,
+            paged_kv_block_size_elements=self.model_params.paged_kv_block_size_elements,
             paged_kv_block_size_elements_per_device=self.model_params.paged_kv_cache.paged_kv_block_size_elements_per_device,
         )
+
+        page_pool = PagePool(devices=self.devices, config=page_pool_config)
 
         if self.server_params.prefix_sharing_algorithm == "trie":
             self.page_cache = TriePagedAttentionCache(
