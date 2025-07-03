@@ -90,7 +90,7 @@ jobs:
       # leak checker by default. Here we suppress any ASAN features needed to
       # pass the build. Test configuration is done specially just for that step.
       ASAN_OPTIONS: detect_leaks=0,detect_odr_violation=0
-      LSAN_OPTIONS: suppressions=${{ github.workspace }}/shortfin/build_tools/python_lsan_suppressions.txt:exitcode=1
+      LSAN_OPTIONS: suppressions=${{ github.workspace }}/shortfin/build_tools/python_lsan_suppressions.txt
     steps:
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -152,4 +152,4 @@ jobs:
       working-directory: ${{ env.LIBSHORTFIN_DIR }}
       run: |
         eval "$(pyenv init - bash)"
-        pytest -s --durations=10 --timeout=30 --maxfail=1 --exitfirst
+        pytest -s --durations=10 --timeout=30
