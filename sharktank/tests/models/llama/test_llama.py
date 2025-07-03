@@ -69,7 +69,7 @@ class LlamaIreeVsEagerTest(TempDirTestBase):
     @parameterized.expand(product([1, 2], [1, 2]))
     @xfail(
         raises=AssertionError,
-        reason="TODO: Need to investigate further",
+        reason="https://github.com/nod-ai/shark-ai/issues/1758",
         strict=True,
         match="Outputs do not match for prefill batch index 0",
     )
