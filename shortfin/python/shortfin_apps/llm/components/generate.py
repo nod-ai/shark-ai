@@ -18,9 +18,7 @@ import shortfin.array as sfnp
 
 # TODO: Have a generic "Responder" interface vs just the concrete impl.
 from shortfin.interop.fastapi import RequestStatusTracker
-from shortfin.support.responder import AbstractResponder
-from fastapi.responses import JSONResponse
-from fastapi import status
+from shortfin.support.responder import AbstractResponder, ResponderErrorCodes
 
 from .config_struct import DecodeConfig
 from .io_struct import (
@@ -30,7 +28,6 @@ from .io_struct import (
     PromptResponse,
 )
 from .messages import LlmInferenceExecRequest, InferencePhase
-from .error_codes import ResponseErrorCodes
 from .service import LlmGenerateService
 from .token_selection_strategy import (
     TokenSelector,
@@ -175,20 +172,6 @@ class ClientGenerateBatchProcess(sf.Process):
         )
         return False
 
-    def _return_error_response(
-        self,
-        status_code: int,
-        error_message: str,
-        code: ResponseErrorCodes,
-        extra_fields: dict,
-    ):
-        error_response = JSONResponse(
-            status_code=status_code,
-            content={"error": error_message, "code": code.value, **extra_fields},
-        )
-        self.responder.send_response(error_response)
-        self.responder.ensure_response()
-
     def _pre_processing_sampling_params(self) -> Tuple[List[DecodeConfig], int]:
         """Calculate the total number of beams requested in the generation request."""
         gen_req = self.gen_req
@@ -220,10 +203,9 @@ class ClientGenerateBatchProcess(sf.Process):
         # TODO(@zphoenixrises): Add load testing and integration tests for this.
         added_to_queue = self.service.queue_manager.add_to_queue(total_requested_beams)
         if not added_to_queue:
-            self._return_error_response(
-                status.HTTP_503_SERVICE_UNAVAILABLE,
+            self.responder.send_error(
                 error_message="Server queue is full. Please try again later.",
-                code=ResponseErrorCodes.QUEUE_FULL,
+                code=ResponderErrorCodes.QUEUE_FULL,
                 extra_fields={
                     "current_size": self.service.queue_manager.current_queue_size,
                     "max_size": self.service.max_queue_size,
@@ -260,10 +242,9 @@ class ClientGenerateBatchProcess(sf.Process):
                     exported_topk,
                     requested_topk,
                 ):
-                    self._return_error_response(
-                        status.HTTP_400_BAD_REQUEST,
+                    self.responder.send_error(
                         error_message="Requested top-k larger than exported top-k",
-                        code=ResponseErrorCodes.INVALID_REQUEST_ARGS,
+                        code=ResponderErrorCodes.INVALID_REQUEST_ARGS,
                         extra_fields={
                             "exported_topk": exported_topk,
                             "requested_topk": requested_topk,
