@@ -37,19 +37,26 @@ def test_request_queue_manager():
 
 
 @pytest.fixture
-def mock_decode_config():
-    mock = MagicMock()
-    mock.num_beams = 8  # Updated beam count
-    mock.max_completion_tokens = 64
+def mock_model_params():
+    mock = Mock()
+    mock.paged_kv_cache.block_seq_stride = 32
     return mock
 
 
-def test_check_memory_available(mock_model_params, mock_decode_config):
-    rate_limiter = RateLimiter(model_params=mock_model_params)
-    input_token_ids_len = 32
-    available_pages = 45  # >= 41 pages needed
+@pytest.fixture
+def mock_decode_config():
+    mock = Mock()
+    mock.num_beams = 8
+    mock.max_completion_tokens = 50
+    return mock
 
-    result = rate_limiter.check_memory_availability(
+
+def test_check_memory_availability_enough_pages(mock_model_params, mock_decode_config):
+    limiter = RateLimiter(model_params=mock_model_params)
+    input_token_ids_len = 64  # 2 pages
+    available_pages = 25  # Should be enough
+
+    result = limiter.check_memory_availability(
         input_token_ids_len=input_token_ids_len,
         available_pages=available_pages,
         decode_config=mock_decode_config,
@@ -58,12 +65,14 @@ def test_check_memory_available(mock_model_params, mock_decode_config):
     assert result is True
 
 
-def test_check_memory_unavailable(mock_model_params, mock_decode_config):
-    rate_limiter = RateLimiter(model_params=mock_model_params)
-    input_token_ids_len = 128
-    available_pages = 40  # < 47 pages needed
+def test_check_memory_availability_not_enough_pages(
+    mock_model_params, mock_decode_config
+):
+    limiter = RateLimiter(model_params=mock_model_params)
+    input_token_ids_len = 64  # 2 pages
+    available_pages = 15  # Not enough
 
-    result = rate_limiter.check_memory_availability(
+    result = limiter.check_memory_availability(
         input_token_ids_len=input_token_ids_len,
         available_pages=available_pages,
         decode_config=mock_decode_config,
