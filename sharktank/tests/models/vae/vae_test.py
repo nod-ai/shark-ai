@@ -57,7 +57,7 @@ with_vae_data = pytest.mark.skipif("not config.getoption('with_vae_data')")
 
 
 @with_vae_data
-@pytest.mark.usefixtures("get_iree_flags")
+@pytest.mark.usefixtures("iree_flags")
 class VaeSDXLDecoderTest(TempDirTestBase):
     def setUp(self):
         super().setUp()
@@ -226,7 +226,7 @@ class VaeSDXLDecoderTest(TempDirTestBase):
         torch.testing.assert_close(ref_results, iree_result, atol=3e-5, rtol=6e-6)
 
 
-@pytest.mark.usefixtures("get_iree_flags")
+@pytest.mark.usefixtures("iree_flags")
 class VaeFluxDecoderTest(TempDirTestBase):
     def setUp(self):
         super().setUp()

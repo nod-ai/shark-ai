@@ -104,7 +104,8 @@ def pad_tokens(
     token_ids: list[list[int]],
     pad_to_multiple_of: int,
     pad_token: int = 0,
-):
+    device: torch.device | None = None,
+) -> tuple[list[list[int]] | torch.Tensor, list[int] | torch.Tensor]:
     lengths, max_length = get_prompt_lengths(token_ids)
     if pad_to_multiple_of > 1:
         max_length = int(
@@ -113,6 +114,10 @@ def pad_tokens(
     for row in token_ids:
         pad_count = max_length - len(row)
         row.extend(pad_count * [pad_token])
+
+    if device is not None:
+        token_ids = torch.tensor(token_ids, device=device)
+        lengths = torch.tensor(lengths, device=device)
 
     return token_ids, lengths
 

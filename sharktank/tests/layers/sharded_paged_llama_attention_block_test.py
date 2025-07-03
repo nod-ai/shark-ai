@@ -8,7 +8,7 @@ import unittest
 from sharktank.layers import (
     PagedLlamaAttentionBlock,
     PagedAttention,
-    RotaryEmbeddingLayer,
+    build_rotary_layer,
 )
 from sharktank.layers.testing import make_llama_attention_block_theta
 from sharktank.types.sharding import PagedLlamaAttentionBlockSharding
@@ -134,7 +134,7 @@ class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
         seq_block_ids = torch.arange(self.batch_size * self.block_seqlen).view(
             self.batch_size, -1
         )
-        embedding_module = RotaryEmbeddingLayer(
+        embedding_module = build_rotary_layer(
             rope_dimension_count=self.rope_dimension_count,
             max_seqlen=self.max_seqlen,
             rope_freq_base=self.rope_freq_base,
@@ -167,7 +167,7 @@ class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
 
         sharded_input_tensor = ops.replicate(input_tensor, count=self.shard_count)
         sharded_seq_block_ids = ops.replicate(seq_block_ids, count=self.shard_count)
-        sharded_embedding_module = RotaryEmbeddingLayer(
+        sharded_embedding_module = build_rotary_layer(
             rope_dimension_count=self.rope_dimension_count,
             max_seqlen=self.max_seqlen,
             rope_freq_base=self.rope_freq_base,

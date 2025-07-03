@@ -328,7 +328,7 @@ class T5EncoderEagerTest(TestCase):
         )
 
 
-@pytest.mark.usefixtures("caching", "get_iree_flags", "path_prefix")
+@pytest.mark.usefixtures("caching", "iree_flags", "path_prefix")
 class T5EncoderIreeTest(TempDirTestBase):
     def setUp(self):
         super().setUp()

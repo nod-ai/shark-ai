@@ -25,8 +25,8 @@ from sharktank.utils.testing import (
 
 
 @pytest.mark.usefixtures(
-    "get_model_artifacts",
-    "get_iree_flags",
+    "model_artifacts",
+    "iree_flags",
     "tensor_parallelism_size",
     "baseline_perplexity_scores",
     "batch_size",
@@ -114,7 +114,7 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
-    @is_nightly
+    @is_llama_8b
     def test_llama3_8B_f8(self):
         # Llama 3.1 8B fp8 non-decomposed
         self.model_name = "llama3_8B_f8_iree"
@@ -199,7 +199,7 @@ class PerplexityTest(unittest.TestCase):
         raises=IreeCompileException,
         reason="https://github.com/iree-org/iree/issues/20914",
         strict=True,
-        match="Error code: 245",
+        match="operation destroyed but still has uses",
     )
     @is_nightly
     def test_deepseek_v3_tp2(self):
@@ -212,7 +212,7 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv(extra_args=("--use-toy-model",))
         self.run_and_check_perplexity()
 
-    @is_nightly
+    @is_deepseek
     def test_deepseek_v3_pp2(self):
         # DeepSeek v3 pipeline parallelism
         self.model_name = "deepseek_v3_iree"

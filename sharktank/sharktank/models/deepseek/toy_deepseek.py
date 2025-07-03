@@ -12,18 +12,19 @@ from sharktank.types import Dataset, Theta
 import argparse
 import torch
 
-from dataclasses import asdict
-
 parser = argparse.ArgumentParser()
 parser.add_argument("-s", "--seed", default=12345)
 parser.add_argument("-o", "--output", default="/tmp/toy_deepseek.irpa")
 
 
-def generate(seed: int) -> tuple[Theta, LlamaModelConfig]:
+def generate(
+    seed: int,
+    dtype_rest: torch.dtype = torch.float16,
+    dtype_norm: torch.dtype = torch.float32,
+) -> tuple[Theta, LlamaModelConfig]:
     torch.manual_seed(seed=seed)
 
     # Constants
-    dtype = torch.float32
     rope_dimension_count = 64
     block_seq_stride = 32
 
@@ -62,19 +63,17 @@ def generate(seed: int) -> tuple[Theta, LlamaModelConfig]:
             n_limited_groups=2,
             n_dense_layers=3,
             route_scale=2.5,
-            rope_scaling_type="yarn",
-            rope_scaling_factor=40.0,
-            rope_scaling_original_context_length=4096,
-            rope_scaling_yarn_log_multiplier=0.10000000149011612,
         ),
         block_seq_stride=block_seq_stride,
-        activation_dtype=dtype,
-        attention_dtype=dtype,
+        activation_dtype=dtype_norm,
+        attention_dtype=dtype_norm,
     )
 
     theta = make_random_deepseek_theta(
         config=config,
         vocab_size=vocabulary_size,
+        dtype_rest=dtype_rest,
+        dtype_norm=dtype_norm,
     )
     return theta, config
 

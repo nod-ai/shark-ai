@@ -43,7 +43,7 @@ class TorchGenerator:
     def preprocess_prompts(
         self,
         prompts: list[str],
-    ):
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         token_ids = self.tokenizer._encode(texts=prompts, add_start_token=False)
 
         print(f":: Prompt tokens:")
@@ -51,11 +51,10 @@ class TorchGenerator:
             print(f"    prompt_{idx}: \n    {prompt.encode()} \n    {token_ids[idx]}\n")
 
         token_ids, seq_lens = pad_tokens(
-            token_ids, pad_to_multiple_of=self.model.cache.pad_sequence_stride
+            token_ids,
+            pad_to_multiple_of=self.model.cache.pad_sequence_stride,
+            device=self.model.device,
         )
-
-        token_ids = torch.tensor(token_ids, device=self.model.device)
-        seq_lens = torch.tensor(seq_lens, device=self.model.device)
 
         return token_ids, seq_lens
 
@@ -237,7 +236,7 @@ class Batch:
                 token_ids, count=shard_count, devices=pipeline_to_device_map[0]
             )
             _attention_mask, _seq_block_ids = [], []
-            for pipeline, devices in enumerate(pipeline_to_device_map):
+            for devices in pipeline_to_device_map:
                 _attention_mask.append(
                     replicate(
                         attention_mask,
