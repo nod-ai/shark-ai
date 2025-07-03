@@ -96,10 +96,10 @@ class LlmGenerateService(GenerateService):
 
     def _initialize_page_cache(self):
         """Initialize page pool and attention cache."""
-        page_pool = PagePool(
-            devices=self.devices,
+        page_pool_config = PagePoolConfig(
             dtype=self.model_params.paged_kv_cache.kv_cache_dtype,
             alloc_page_count=self.model_params.paged_kv_cache.device_block_count,
+            paged_kv_block_size_elements=self.model_params.paged_kv_block_size_elements,
             paged_kv_block_size_elements_per_device=self.model_params.paged_kv_cache.paged_kv_block_size_elements_per_device,
         )
         page_pool = PagePool(devices=self.devices, config=page_pool_config)

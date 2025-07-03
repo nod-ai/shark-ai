@@ -18,8 +18,7 @@ from dataclasses import dataclass
 from shortfin_apps.llm.components.kvcache.trie_attention_cache import (
     TriePagedAttentionCache,
 )
-from shortfin_apps.llm.components.kvcache.page_pool import PagePool
-
+from shortfin_apps.llm.components.kvcache.page_pool import PagePool, PagePoolConfig
 
 # Test constants
 TEST_PAGE_SIZE = 16  # Tokens per page
@@ -47,14 +46,13 @@ def real_device():
 @pytest.fixture
 def page_pool(real_device):
     """Create a real PagePool with test parameters"""
-    return PagePool(
-        devices=[real_device],
+    config = PagePoolConfig(
         dtype=sfnp.float32,  # Using float32 as requested
         alloc_page_count=TEST_POOL_CAPACITY,  # Using 256 pages as requested
-        paged_kv_block_size_elements_per_device=[
-            TEST_BLOCK_SIZE
-        ],  # Using small block size (8) for testing
+        paged_kv_block_size_elements=TEST_BLOCK_SIZE,  # Using small block size (8) for testing
     )
+
+    return PagePool(devices=[real_device], config=config)
 
 
 @pytest.fixture
