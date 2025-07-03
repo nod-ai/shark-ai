@@ -270,10 +270,9 @@ class ClientGenerateBatchProcess(sf.Process):
                     available_pages=available_pages_num,
                     decode_config=decode_config
                 ):
-                    self._return_error_response(
-                        status.HTTP_400_BAD_REQUEST,
+                    self.responder.send_error(
                         error_message="Not enough pages for the new request",
-                        code=ResponseErrorCodes.PAGE_FULL,
+                        code=ResponderErrorCodes.PAGE_FULL,
                         extra_fields={
                             "available_page": available_pages_num,
                             "requested_page": needed_pages_num,

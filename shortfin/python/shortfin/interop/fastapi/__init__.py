@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 _fastapi_response_map = {
     ResponderErrorCodes.INVALID_REQUEST_ARGS: status.HTTP_400_BAD_REQUEST,
     ResponderErrorCodes.QUEUE_FULL: status.HTTP_503_SERVICE_UNAVAILABLE,
+    ResponderErrorCodes.PAGE_FULL: status.HTTP_503_SERVICE_UNAVAILABLE,
 }
 
 
