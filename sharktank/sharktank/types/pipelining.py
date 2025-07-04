@@ -12,6 +12,7 @@ from iree.turbine.aot import DeviceTensorTrait, ExternalTensorTrait
 from sharktank.types import (
     DefaultPrimitiveTensor,
     PrimitiveTensor,
+    PlanarQuantizedTensor,
     ReplicatedTensor,
     ShardedTensor,
     Theta,
@@ -38,13 +39,15 @@ def pipeline_parallelize_theta(
         """
         Parallelize the block data in place.
         """
+        print("block_data", block_data, len(block_data), block_data)
         assert len(block_data) == 1
         key = list(block_data.keys())[0]
+
         tensor = block_data[key]
 
         (old_shards, old_devices) = (
             ([tensor], (0,))
-            if isinstance(tensor, PrimitiveTensor)
+            if isinstance(tensor, (PrimitiveTensor, PlanarQuantizedTensor))
             else (tensor.shards, tensor.devices)
         )
         new_shards = ShardedTensor.move_shards_to_new_devices(
@@ -52,6 +55,8 @@ def pipeline_parallelize_theta(
         )
 
         for i, (old_shard, new_shard) in enumerate(zip(old_shards, new_shards)):
+            # old_shard. doesnt have _data when quantized type
+            print("old_shard", old_shard.layout.planes.items())
             DeviceTensorTrait(new_devices[i]).set(new_shard._data)
             if old_tensor_trait := ExternalTensorTrait.get(old_shard._data):
                 ExternalTensorTrait(
@@ -89,7 +94,8 @@ def pipeline_parallelize_theta(
 
         block_data = theta.tensor("blk", blk_idx)
         for t_name in block_data.keys():
-            parallelize_in_place(block_data[t_name], devices)
+            print("t_name", t_name)
+            parallelize_in_place(list(block_data[t_name].items())[0], devices)
 
     parallelize_in_place(theta.tensor("token_embd"), pipeline_to_devices[0])
     parallelize_in_place(theta.tensor("output_norm"), pipeline_to_devices[-1])

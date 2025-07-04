@@ -691,7 +691,7 @@ def transfer_to_logical_device_default(tensor: Tensor, ordinal: int):
     )
 
 
-@barrier_on_logical_device.override(Tensor)
+@barrier_on_logical_device.override(AllOfType(AnyTensor, QuantizedTensor))
 def barrier_on_device_default(tensor: Tensor, ordinal: int):
     return iree.turbine.ops.iree.barrier_on_logical_device(
         f"{ordinal}", unbox_tensor(tensor)
