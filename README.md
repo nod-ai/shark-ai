@@ -180,7 +180,7 @@
 | sharktank/tests/layers/sharded\_paged\_llama\_attention\_block\_test.py       |       76 |        0 |    100% |           |
 | sharktank/tests/layers/sharded\_rotary\_embedding\_test.py                    |       27 |        0 |    100% |           |
 | sharktank/tests/models/clip/clip\_test.py                                     |      251 |       53 |     79% |89, 94-109, 119, 129, 209-253, 298-325, 350-384, 393, 403 |
-| sharktank/tests/models/deepseek/test\_deepseek.py                             |       44 |       10 |     77% |     77-96 |
+| sharktank/tests/models/deepseek/test\_deepseek.py                             |       47 |       13 |     72% |    77-100 |
 | sharktank/tests/models/deepseek/test\_sharded.py                              |       87 |       12 |     86% |   169-204 |
 | sharktank/tests/models/flux/flux\_test.py                                     |      155 |       72 |     54% |61-63, 67-68, 82, 127-182, 193-211, 220-238, 284, 291, 298-317, 327-353, 363, 372, 381-389, 393 |
 | sharktank/tests/models/grok/test\_grok.py                                     |       25 |        0 |    100% |           |
@@ -191,7 +191,7 @@
 | sharktank/tests/models/llama/quark\_parity\_test.py                           |       55 |       40 |     27% |21-22, 29-101, 105 |
 | sharktank/tests/models/llama/rot\_emb\_test.py                                |       37 |        1 |     97% |        82 |
 | sharktank/tests/models/llama/sharded\_llama\_test.py                          |      171 |        2 |     99% |  278, 337 |
-| sharktank/tests/models/llama/test\_llama.py                                   |       49 |       12 |     76% |    79-100 |
+| sharktank/tests/models/llama/test\_llama.py                                   |       42 |        5 |     88% |     79-92 |
 | sharktank/tests/models/punet/resnet\_test.py                                  |       41 |        1 |     98% |        94 |
 | sharktank/tests/models/punet/sharded\_resnet\_block\_with\_iree\_test.py      |       45 |       12 |     73% |    78-115 |
 | sharktank/tests/models/punet/up\_down\_block\_test.py                         |       48 |        1 |     98% |       148 |
@@ -214,7 +214,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |       63 |        3 |     95% |   226-238 |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **20119** | **4134** | **79%** |           |
+|                                                                     **TOTAL** | **20115** | **4130** | **79%** |           |
 
 
 ## Setup coverage badge
