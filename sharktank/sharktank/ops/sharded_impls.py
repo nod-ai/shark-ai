@@ -1874,7 +1874,10 @@ def unsqueeze_split(tensor: SplitPrimitiveTensor, dim: int) -> SplitPrimitiveTen
 
 
 @view.override(SplitPrimitiveTensor)
-def view_split(tensor: SplitPrimitiveTensor, shape: List[int]) -> SplitPrimitiveTensor:
+def view_split(
+    tensor: SplitPrimitiveTensor, shape: List[int] | None, dtype: torch.Tensor | None
+) -> SplitPrimitiveTensor:
+    assert dtype is None, "Not supported"
     shard_dim = tensor.shard_dim
     mapping = _calculate_view_dimension_mapping(from_shape=tensor.shape, to_shape=shape)
     if len(mapping[shard_dim]) != 1:
