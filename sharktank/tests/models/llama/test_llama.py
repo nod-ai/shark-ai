@@ -69,7 +69,7 @@ class LlamaIreeVsEagerTest(TempDirTestBase):
     @parameterized.expand(product([1, 2], [1, 2]))
     @xfail(
         raises=AssertionError,
-        reason="https://github.com/iree-org/iree/issues/21087",
+        reason="https://github.com/nod-ai/shark-ai/issues/1758",
         strict=True,
         match="Outputs do not match for prefill batch index 0",
     )
@@ -80,21 +80,13 @@ class LlamaIreeVsEagerTest(TempDirTestBase):
         config.tensor_parallelism_size = tensor_parallelism_size
         config.pipeline_parallelism_size = pipeline_parallelism_size
 
-        try:
-            tester = IreeVsEagerLLMTester(
-                work_dir=self._temp_dir,
-                theta=theta,
-                config=config,
-                torch_device=self.device,
-                iree_device=self.iree_device,
-                iree_hip_target=self.iree_hip_target,
-                iree_hal_target_device=self.iree_hal_target_device,
-            )
-        except IreeCompileException as e:
-            if tensor_parallelism_size == pipeline_parallelism_size == 2:
-                pytest.xfail(reason="https://github.com/iree-org/iree/issues/21203")
-            else:
-                raise e
-        if tensor_parallelism_size == pipeline_parallelism_size == 2:
-            raise AssertionError("Test expected to fail with tp == pp == 2.")
+        tester = IreeVsEagerLLMTester(
+            work_dir=self._temp_dir,
+            theta=theta,
+            config=config,
+            torch_device=self.device,
+            iree_device=self.iree_device,
+            iree_hip_target=self.iree_hip_target,
+            iree_hal_target_device=self.iree_hal_target_device,
+        )
         tester.run_and_compare_iree_vs_eager()
