@@ -14,7 +14,7 @@ import torch
 from iree.compiler.passmanager import PassManager
 from iree.compiler.ir import Context, Module
 import iree.turbine.aot as aot
-from sharktank.kernels.wave.attention import wave_bhsd_flash_attention
+from sharktank.kernels.wave.attention import wave_bhsd_masked_flash_attention
 from parameterized import parameterized
 
 
@@ -22,7 +22,7 @@ class wave_attention(unittest.TestCase):
     def test_wave_attention_causal(self):
         class WaveBhsdModule(torch.nn.Module):
             def forward(self, q, k, v, output):
-                return wave_bhsd_flash_attention(q, k, v, output)
+                return wave_bhsd_masked_flash_attention(q, k, v, output)
 
         e = aot.export(
             WaveBhsdModule(),
@@ -44,12 +44,14 @@ class wave_attention(unittest.TestCase):
             mlir_asm,
         )
         self.assertIn(
-            ("func.func private @wave_flash_attention_B_dyn_H_dyn_M_dyn_128_f16_f32"),
+            (
+                "func.func private @wave_masked_flash_attention_B_dyn_H_dyn_M_dyn_128_f16_f32"
+            ),
             mlir_asm,
         )
         self.assertIn(
             (
-                "util.func private @wave_bhsd_flash_attention_B_H_M_K1_128_f16_B_H_K2_K1_128_f16_B_H_K2_N_128_f16_B_H_M_N_128_f32_B_H_M_N_128_f32"
+                "util.func private @wave_bhsd_masked_flash_attention_B_H_M_K1_128_f16_B_H_K2_K1_128_f16_B_H_K2_N_128_f16_B_H_M_N_128_f32_B_H_M_N_128_f32"
             ),
             mlir_asm,
         )
