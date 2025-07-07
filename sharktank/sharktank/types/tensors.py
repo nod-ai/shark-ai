@@ -1353,7 +1353,7 @@ class ReplicatedTensor(ShardedTensor):
         will be replicated that many times.
         """
         if devices is None:
-            num_shards = shard_count if isinstance(ts, torch.Tensor) else len(ts)
+            num_shards = len(ts) if isinstance(ts, list) else shard_count
             devices = tuple(range(num_shards))
 
         if isinstance(ts, torch.Tensor):

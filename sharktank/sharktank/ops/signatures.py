@@ -1089,10 +1089,10 @@ def _replicate_trampoline(
     devices: tuple[int, ...] | None = None,
 ) -> ShardedTensor:
     tensors = (input,)
-    if isinstance(input, (torch.Tensor, PrimitiveTensor)):
-        devices = devices if devices is not None else tuple(range(count))
-    else:
+    if isinstance(input, ShardedTensor):
         assert devices is None
+    else:
+        devices = devices if devices is not None else tuple(range(count))
 
     for override in d.find_overrides(tensors):
         result = override(input, count=count, devices=devices)
