@@ -28,7 +28,7 @@ import torch
 
 
 __all__ = [
-    "wave_bhsd_flash_attention",
+    "wave_bhsd_masked_flash_attention",
 ]
 
 
@@ -87,7 +87,7 @@ F32 = Dtype.F32(torch.float32)
     ),
     results=(MLIRTensor[B, H, M, N, F32],),
 )
-def wave_bhsd_flash_attention(q, k, v, c, result=None):
+def wave_bhsd_masked_flash_attention(q, k, v, c, result=None):
     batch_size, num_heads, q_s, q_d = q.type.shape
     v_batch_size, num_heads_kv, v_s, v_d = v.type.shape
     shape = AttentionShape(
@@ -109,7 +109,7 @@ def wave_bhsd_flash_attention(q, k, v, c, result=None):
     num_heads = num_heads if num_heads >= 0 else "H_dyn"
     q_s = q_s if q_s >= 0 else "M_dyn"
 
-    wave_kernel_name = f"wave_flash_attention_{batch_size}_{num_heads}_{q_s}_{v_d}_{i_type_str}_{o_type_str}"
+    wave_kernel_name = f"wave_masked_flash_attention_{batch_size}_{num_heads}_{q_s}_{v_d}_{i_type_str}_{o_type_str}"
 
     wave_asm = get_wave_flash_attention_asm(
         wave_kernel_name,

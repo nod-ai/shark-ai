@@ -30,7 +30,7 @@ from sharktank.types import (
 )
 from sharktank import ops, kernels
 from sharktank.kernels.mlir_kernel import *
-from sharktank.kernels.wave.attention import wave_bhsd_flash_attention
+from sharktank.kernels.wave.attention import wave_bhsd_masked_flash_attention
 
 __all__ = ["PagedAttention", "attn_type_map"]
 
@@ -1216,16 +1216,16 @@ class PagedAttention:
             return attn_output
         elif attention_kernel == "wave":
             if mask is not None:
-                # TODO: support attention kernel with mask
-                pass
-            else:
                 output = torch.zeros(
                     [q.shape[0], q.shape[1], q.shape[2], v.shape[3]],
                     dtype=torch.float32,
                 )
-                attn_output = wave_bhsd_flash_attention(q, k, v, output)
+                attn_output = wave_bhsd_masked_flash_attention(q, k, v, output)
                 attn_output = attn_output.to(torch.float16)
                 return attn_output
+            else:
+                # TODO: support wave flash attention w/o is_causal mask
+                pass
 
         # Non-decomposed
         if softcap is not None:
