@@ -170,7 +170,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         if self.inference_norm:
             h *= math.sqrt(h.shape[-1])
 
-        if self.config.attention_chunk_size is not None:
+        if self.config.hp.attention_chunk_size is not None:
             chunked_attention_mask = [
                 ops.replicate(
                     self.chunked_attention_mask(attention_mask[pipeline]),
@@ -185,8 +185,8 @@ class PagedLlmModelV1(BaseCausalLMModel):
             if block_idx == 0:
                 self.trace_tensor(f"llama.attn_block.{block_idx}.input", h)
             use_chunked_attention = (
-                self.config.attention_chunk_size is not None
-                and block_idx in self.config.rope_layers
+                self.config.hp.attention_chunk_size is not None
+                and block_idx in self.config.hp.rope_layers
             )  # <=> use rope
             if use_chunked_attention:
                 mask = chunked_attention_mask
@@ -331,14 +331,14 @@ class AttentionFFNBlock(ThetaLayer):
 
         if config.hp.model_arch == "llama4":
             use_rope = (
-                block_index in config.rope_layers if config.rope_layers else False
+                block_index in config.hp.rope_layers if config.hp.rope_layers else False
             )
         else:
             use_rope = True
 
         use_qk_norm = (
-            block_index in config.rope_layers and config.use_qk_norm
-            if config.rope_layers
+            block_index in config.hp.rope_layers and config.hp.use_qk_norm
+            if config.hp.rope_layers
             else False
         )
         self.add_module(
@@ -359,9 +359,9 @@ class AttentionFFNBlock(ThetaLayer):
                 model_arch=config.hp.model_arch,
                 use_rope=use_rope,
                 use_qk_norm=use_qk_norm,
-                attn_temperature_tuning=config.attn_temperature_tuning,
-                floor_scale=config.floor_scale,
-                attn_scale=config.attn_scale,
+                attn_temperature_tuning=config.hp.attn_temperature_tuning,
+                floor_scale=config.hp.floor_scale,
+                attn_scale=config.hp.attn_scale,
             ),
         )
 

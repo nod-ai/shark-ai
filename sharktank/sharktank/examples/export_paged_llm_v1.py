@@ -69,7 +69,25 @@ def main():
     block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
         dataset.root_theta, args.pipeline_parallelism_size
     )
-    llama_config = LlamaModelConfig.from_properties(dataset.properties)
+    print("data set properties: ", dataset)
+    hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
+    llama_config = LlamaModelConfig(
+        hp,
+        tensor_parallelism_size=args.tensor_parallelism_size,
+        pipeline_parallelism_size=args.pipeline_parallelism_size,
+        block_to_pipeline_map=block_to_pipeline,
+        pipeline_to_device_map=pipeline_to_devices,
+        use_hf=args.use_hf,
+        static_tables=False,  # Rely on the compiler for hoisting tables.
+        attention_kernel=args.attention_kernel,
+        block_seq_stride=args.block_seq_stride,
+        activation_dtype=args.activation_dtype,
+        attention_dtype=args.attention_dtype,
+        kv_cache_dtype=args.kv_cache_dtype,
+    )
+    llama_config.fake_quant = args.fake_quant
+    print("here are configs; ", llama_config)
+    """llama_config = LlamaModelConfig.from_properties(dataset.properties)
     hp = llama_config.hp
     llama_config.tensor_parallelism_size = args.tensor_parallelism_size
     llama_config.pipeline_parallelism_size = args.pipeline_parallelism_size
@@ -82,7 +100,7 @@ def main():
     llama_config.activation_dtype = args.activation_dtype
     llama_config.attention_dtype = args.attention_dtype
     llama_config.kv_cache_dtype = args.kv_cache_dtype
-    llama_config.fake_quant = args.fake_quant
+    llama_config.fake_quant = args.fake_quant"""
 
     model = PagedLlmModelV1(dataset.root_theta, llama_config)
 

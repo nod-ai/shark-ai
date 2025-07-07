@@ -14,7 +14,7 @@ import torch
 def config_to_hugging_face_text_config(config: LlamaModelConfig) -> Llama4TextConfig:
     moe_layers = None
     if config.hp.interleave_moe_layer_step is None:
-        moe_layers = config.moe_layers
+        moe_layers = config.hp.moe_layers
     rope_scaling = {
         "factor": 8.0,
         "high_freq_factor": 4.0,
@@ -23,7 +23,7 @@ def config_to_hugging_face_text_config(config: LlamaModelConfig) -> Llama4TextCo
         "rope_type": "llama3",
     }
     # Hugging Face hardcodes RoPE layers.
-    assert list(config.rope_layers) == [
+    assert list(config.hp.rope_layers) == [
         i for i in range(config.hp.block_count) if int((i + 1) % 4 != 0)
     ]
     return Llama4TextConfig(
@@ -44,11 +44,11 @@ def config_to_hugging_face_text_config(config: LlamaModelConfig) -> Llama4TextCo
         moe_layers=moe_layers,
         interleave_moe_layer_step=config.hp.interleave_moe_layer_step,
         rope_scaling=rope_scaling,
-        attention_chunk_size=config.attention_chunk_size,
+        attention_chunk_size=config.hp.attention_chunk_size,
         torch_dtype=config.dtype,
-        attn_temperature_tuning=config.attn_temperature_tuning,
-        floor_scale=config.floor_scale,
-        attn_scale=config.attn_scale,
+        attn_temperature_tuning=config.hp.attn_temperature_tuning,
+        floor_scale=config.hp.floor_scale,
+        attn_scale=config.hp.attn_scale,
         attn_implementation="sdpa",
     )
 
@@ -158,16 +158,16 @@ def make_toy_model_config(dtype: torch.dtype) -> LlamaModelConfig:
             expert_shared_feed_forward_length=expert_feed_forward_length,
             interleave_moe_layer_step=2,
             model_arch="llama4",
+            rope_layers=rope_layers,
+            attention_chunk_size=37,
+            attn_temperature_tuning=True,
+            floor_scale=31,
+            attn_scale=0.2,
+            use_qk_norm=True,
         ),
         block_seq_stride=block_seq_stride,
         activation_dtype=dtype,
         attention_dtype=dtype,
-        dtype=dtype,
-        use_qk_norm=True,
         use_hf=True,
-        rope_layers=rope_layers,
-        attention_chunk_size=37,
-        attn_temperature_tuning=True,
-        floor_scale=31,
-        attn_scale=0.2,
+        dtype=dtype,
     )
