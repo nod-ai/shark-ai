@@ -8,10 +8,6 @@ name: Release Llama 3.1 8B FP16 Benchmarking Tests
 
 on:
   workflow_dispatch:
-  pull_request:
-  push:
-    branches:
-      - main
   schedule:
     # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
     - cron: "0 11 * * 2,4,6"
@@ -98,7 +94,7 @@ jobs:
 
       - name: Run Offline serving :chat
         run: |
-            if [ "$(date +%u)" -eq 3 ]; then
+            if [ "$(date +%u)" -eq 2 ]; then
                   cd shortfin
                   export ROCR_VISIBLE_DEVICES=0
                   bash ../scripts/run_offline_serving.sh \
@@ -199,14 +195,12 @@ jobs:
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d')
+        mkdir -p "shark-ai-reports/$date/llama-8b-fp16-logs"
+        cp -v logs/*.json "shark-ai-reports/$date/llama-8b-fp16-logs"
+        cp -v logs/*.log "shark-ai-reports/$date/llama-8b-fp16-logs"
         cd shark-ai-reports
-        git update-ref -d refs/heads/test_report
         git pull
-        git checkout test_report 2>/dev/null || git checkout -b test_report
-        mkdir -p "$date/llama-8b-fp16-logs"
-        cp -v ../logs/*.json "$date/llama-8b-fp16-logs"
-        cp -v ../logs/*.log "$date/llama-8b-fp16-logs"
         git add $date
         git commit -m "Add CI Llama 8B FP16 logs on $(date -u +'%Y-%m-%d')"
-        git push origin test_report
+        git push origin main
         rm -rf ../logs

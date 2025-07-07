@@ -8,10 +8,6 @@ name: Release Llama 3.1 70B FP16 TP8 Benchmarking Tests
 
 on:
   workflow_dispatch:
-  pull_request:
-  push:
-    branches:
-      - main
   schedule:
     # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
     - cron: "0 9 * * 1"
@@ -202,8 +198,7 @@ jobs:
         cp -v logs/*.log "shark-ai-reports/$date/llama-70b-fp16-tp8-logs"
         cd shark-ai-reports
         git pull
-        git checkout test_report 2>/dev/null || git checkout -b test_report
         git add $date
         git commit -m "Add CI Llama 70B FP16 TP8 logs on $(date -u +'%Y-%m-%d')"
-        git push origin test_report
-        rm -rf logs
+        git push origin main
+        rm -rf ../logs

@@ -99,7 +99,7 @@ jobs:
                 cd shortfin
                   export ROCR_VISIBLE_DEVICES=0
                   bash ../scripts/run_offline_serving.sh \
-                     --irpa /shark-dev/mistral_instruct/instruct.irpa
+                     --irpa /shark-dev/mistral_instruct/instruct.irpa \
                      --tokenizer_json /shark-dev/mistral_instruct/tokenizer.json \
                      --vmfb ../output_artifacts/output.vmfb \
                      --model_config ../output_artifacts/config_attn.json \
@@ -116,7 +116,7 @@ jobs:
                   cd shortfin
                   export ROCR_VISIBLE_DEVICES=0
                   bash ../scripts/run_offline_serving.sh \
-                     --irpa /shark-dev/mistral_instruct/instruct.irpa
+                     --irpa /shark-dev/mistral_instruct/instruct.irpa \
                      --tokenizer_json /shark-dev/mistral_instruct/tokenizer.json \
                      --vmfb ../output_artifacts/output.vmfb \
                      --model_config ../output_artifacts/config_attn.json \
@@ -133,7 +133,7 @@ jobs:
                   cd shortfin
                   export ROCR_VISIBLE_DEVICES=0
                   bash ../scripts/run_offline_serving.sh \
-                     --irpa /shark-dev/mistral_instruct/instruct.irpa
+                     --irpa /shark-dev/mistral_instruct/instruct.irpa \
                      --tokenizer_json /shark-dev/mistral_instruct/tokenizer.json \
                      --vmfb ../output_artifacts/output.vmfb \
                      --model_config ../output_artifacts/config_attn.json \
@@ -203,4 +203,4 @@ jobs:
         git add $date
         git commit -m "Add CI Mistal nemo instruct logs on $(date -u +'%Y-%m-%d')"
         git push origin main
-        rm -rf logs
+        rm -rf ../logs

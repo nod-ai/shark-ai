@@ -8,7 +8,7 @@ export VMFB=${OUTPUT_DIR}/output.vmfb
 export MODEL_CONFIG=${OUTPUT_DIR}/config_attn.json
 export TENSOR_PARALLELISM_SIZE="1"
 export MODE=all
-export CONCURENCY_LIST="4 8"
+export CONCURENCY_LIST="4 8 16 32 64 128 256"
 
 
 while [[ "$1" != "" ]]; do
@@ -109,13 +109,13 @@ else
 	if [[ $MODE = "all" ]] || [[ $MODE = "reasoning"  ]]; then
 	    echo "Starting offline serving for Reasoning ..."
 	    for conc in $CONCURENCY_LIST ; do
-	        python3 -m shortfin_apps.llm.cli --device hip --tokenizer_json=$TOKENIZER_JSON --model_config=$MODEL_CONFIG --vmfb=$VMFB --parameters $IRPA_PATH --benchmark  --benchmark_tasks=16  --device_ids 0  --stream --input_token_length 1024 --decode_steps=64 --workers_offline=$conc --output-json $RESULTS_DIR/${conc}.json
+	        python3 -m shortfin_apps.llm.cli --device hip --tokenizer_json=$TOKENIZER_JSON --model_config=$MODEL_CONFIG --vmfb=$VMFB --parameters $IRPA_PATH --benchmark  --benchmark_tasks=16  --device_ids 0  --stream --input_token_length 1024 --decode_steps=4096 --workers_offline=$conc --output-json $RESULTS_DIR/${conc}.json
 	    done
 	fi
 	if [[ $MODE = "all" ]] || [[ $MODE = "summary"  ]]; then
 	    echo "Starting offline serving for Summary ..."
 	    for conc in $CONCURENCY_LIST ; do
-	        python3 -m shortfin_apps.llm.cli --device hip --tokenizer_json=$TOKENIZER_JSON --model_config=$MODEL_CONFIG --vmfb=$VMFB --parameters $IRPA_PATH --benchmark  --benchmark_tasks=16  --device_ids 0  --stream --input_token_length 4096 --decode_steps=64 --workers_offline=$conc --output-json $RESULTS_DIR/${conc}.json
+	        python3 -m shortfin_apps.llm.cli --device hip --tokenizer_json=$TOKENIZER_JSON --model_config=$MODEL_CONFIG --vmfb=$VMFB --parameters $IRPA_PATH --benchmark  --benchmark_tasks=16  --device_ids 0  --stream --input_token_length 4096 --decode_steps=1024 --workers_offline=$conc --output-json $RESULTS_DIR/${conc}.json
 	    done
 	fi
 fi
