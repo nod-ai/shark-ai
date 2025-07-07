@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
+from typing import Callable
 from sharktank.types.layouts import BlockScaledFp4Layout
 from ._registry import *
 from sharktank.types.tensors import (
@@ -28,14 +29,29 @@ def replicate_quantized(
 @transfer_to_logical_device.override(
     TensorQuantizedWithLayoutType(BlockScaledFp4Layout)
 )
-def transfer_to_logical_device_default(tensor: PlanarQuantizedTensor, ordinal: int):
+def transfer_to_logical_device_block_scaled_fp4(
+    tensor: PlanarQuantizedTensor, ordinal: int
+):
+    return transfer_or_barrier(
+        iree.turbine.ops.iree.transfer_to_logical_device, tensor, ordinal
+    )
+
+
+@barrier_on_logical_device.override(TensorQuantizedWithLayoutType(BlockScaledFp4Layout))
+def barrier_on_logical_device_block_scaled_fp4(
+    tensor: PlanarQuantizedTensor, ordinal: int
+):
+    return transfer_or_barrier(
+        iree.turbine.ops.iree.barrier_on_logical_device, tensor, ordinal
+    )
+
+
+def transfer_or_barrier(
+    operation: Callable, tensor: PlanarQuantizedTensor, ordinal: int
+):
     layout_old: BlockScaledFp4Layout = tensor.layout
-    _d = iree.turbine.ops.iree.transfer_to_logical_device(
-        f"{ordinal}", tensor.layout._d
-    )
-    _qs = iree.turbine.ops.iree.transfer_to_logical_device(
-        f"{ordinal}", layout_old.qs_bit_packed
-    )
+    _d = operation(f"{ordinal}", tensor.layout._d)
+    _qs = operation(f"{ordinal}", layout_old.qs_bit_packed)
     layout_new = BlockScaledFp4Layout(
         layout_old.shape,
         _d,
