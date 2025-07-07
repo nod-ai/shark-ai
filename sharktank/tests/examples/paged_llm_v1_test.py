@@ -8,12 +8,16 @@ import pytest
 import torch
 
 from pathlib import Path
+from sharktank.examples import paged_llm_v1
 from sharktank.models.llama.testing import make_random_llama_theta
 from sharktank.models.llama import toy_llama
 from sharktank.types import Dataset
-from sharktank.examples import paged_llm_v1
+from sharktank.utils.testing import is_mi300x
 
 
+@pytest.mark.skipif(
+    not torch.cuda.is_available(), reason="Run only on GPU for fast execution."
+)
 @pytest.mark.parametrize(
     "dtype,tensor_parallelism_size",
     [
@@ -38,5 +42,6 @@ def test_smoke_paged_llm_v1(
             "--prompt-seq-len=2",
             "--max-decode-steps=1",
             f"--tensor-parallelism-size={tensor_parallelism_size}",
+            "--device=cuda:0",
         ]
     )
