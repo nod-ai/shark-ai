@@ -6,9 +6,19 @@
 
 from typing import Any, Callable, List
 from collections.abc import Iterable
+from collections import Counter
 from operator import eq
 import os
 from contextlib import AbstractContextManager
+
+
+def verify_exactly_one_is_not_none(**kwargs):
+    count = 0
+    for v in kwargs.values():
+        if v is not None:
+            count += 1
+    if count != 1:
+        raise ValueError(f"Exactly one of {kwargs.keys()} must be set.")
 
 
 def longest_equal_range(l1: List[Any], l2: List[Any]) -> int:
