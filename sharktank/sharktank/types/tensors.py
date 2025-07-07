@@ -904,7 +904,7 @@ class ShardedTensor(InferenceTensor):
     def __init__(
         self,
         *,
-        ts: list[torch.Tensor] | list[DefaultPrimitiveTensor],
+        ts: list[torch.Tensor] | list[DefaultPrimitiveTensor] | list[QuantizedTensor],
         shape: list[int],
         shard_dim: int | None,
         name: str = UnnamedTensorName,
@@ -913,13 +913,13 @@ class ShardedTensor(InferenceTensor):
         super().__init__(name=name, shape=shape)
         self.shard_dim = shard_dim
         self._devices = devices
-        self._shards: tuple[DefaultPrimitiveTensor] = tuple(
+        self._shards: tuple[DefaultPrimitiveTensor] | tuple[QuantizedTensor] = tuple(
             DefaultPrimitiveTensor(
                 name=f"{name}.shard.{i}",
                 data=t,
             )
             if isinstance(t, torch.Tensor)
-            else t
+            else t  # TODO: Provide names for QuantizedTensors as well.
             for i, t in enumerate(ts)
         )
 
@@ -1356,7 +1356,7 @@ class ReplicatedTensor(ShardedTensor):
             num_shards = len(ts) if isinstance(ts, list) else shard_count
             devices = tuple(range(num_shards))
 
-        if isinstance(ts, torch.Tensor):
+        if isinstance(ts, (torch.Tensor, QuantizedTensor)):
             assert shard_count is not None
             from sharktank.ops import transfer_to_logical_device
 

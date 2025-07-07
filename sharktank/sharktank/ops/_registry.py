@@ -24,6 +24,7 @@ __all__ = [
     "overridable",
     "SignatureDispatcher",
     "BoolTypeExpr",
+    "TensorQuantizedWithLayoutType",
 ]
 
 _TargetOverride = collections.namedtuple(
@@ -191,6 +192,7 @@ class AllNotOfType(BoolTypeExpr):
 
 
 IsOfType = AllOfType
+TensorQuantizedWithLayoutType = AllOfType
 
 
 class SignatureDispatcher:
@@ -264,6 +266,17 @@ class SignatureDispatcher:
             # Slow-path try to find it.
             found_targets = self._match_targets(type_spec)
             self._target_cache[type_spec] = found_targets
+
+        if any(isinstance(t, QuantizedTensor) for t in tensors):
+            # Check for layout specific versions of the overrides.
+            type_spec = tuple(
+                type(t.layout if isinstance(t, QuantizedTensor) else t) for t in tensors
+            )
+            layout_targets = self._target_cache.get(type_spec)
+            if layout_targets is None:
+                layout_targets = self._match_targets(type_spec)
+                self._target_cache[type_spec] = layout_targets
+            found_targets.extend(layout_targets)
         return reversed(found_targets)
 
     def fail(self, tensors: tuple[Any, ...]):
