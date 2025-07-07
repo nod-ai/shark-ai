@@ -172,7 +172,7 @@ class ClientGenerateBatchProcess(sf.Process):
         )
         return False
 
-    def get_decode_configs(self) -> Tuple[List[DecodeConfig], int]:
+    def get_decode_configs(self) -> List[DecodeConfig]:
         """Calculate the total number of beams requested in the generation request."""
         gen_req = self.gen_req
         decode_configs = []
