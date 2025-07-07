@@ -31,3 +31,8 @@ def test_request_queue_manager():
     # Remove from queue
     queue_manager.remove_from_queue(3)
     assert queue_manager.current_queue_size == 3
+
+def test_py_test_leak():
+    i = 5
+    j = 6
+    assert i+j == 11
