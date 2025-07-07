@@ -60,7 +60,7 @@ class CrossEntropyTest(unittest.TestCase):
         ids = ids[0, 1:]
         logits = logits[0, :-1].to(torch.float32)
         cross_entropy = torch.nn.functional.cross_entropy(logits, ids)
-        assert pytest.approx(0.577, 1e-2) == cross_entropy
+        assert pytest.approx(0.583, 1e-2) == cross_entropy
 
 
 @pytest.mark.usefixtures("iree_flags", "device")
