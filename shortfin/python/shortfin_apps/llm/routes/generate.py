@@ -29,5 +29,5 @@ async def generate_request(gen_req: GenerateReqInput, request: Request):
     ).launch()
     tracker.add_cancellable(process)
     response = await responder.response
-    response.close()
+    responder.close()
     return response
