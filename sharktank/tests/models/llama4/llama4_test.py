@@ -11,7 +11,8 @@ from sharktank.models.llm import PagedLlmModelV1
 import transformers
 import torch
 import pytest
-from sharktank.utils.testing import is_mi300x
+from sharktank.utils.testing import is_mi300x, IreeVsEagerLLMTester
+import random
 
 
 def convert_hf_2D_input_mask_to_4D_attention_mask(
@@ -94,3 +95,30 @@ class Llama4Test(TempDirTestBase):
         )
 
         torch.testing.assert_close(hf_output.logits, output, atol=2e-4, rtol=2e-2)
+
+
+@pytest.mark.usefixtures("iree_flags", "device")
+@is_mi300x
+class TestLlama4IreeEager(TempDirTestBase):
+    def helper_run(self, dtype, atol, rtol):
+        seed = 1234
+        random.seed(seed)
+        torch.manual_seed(seed)
+        config = make_toy_model_config(dtype=dtype)
+        theta = make_random_llama_theta(config=config)
+
+        tester = IreeVsEagerLLMTester(
+            work_dir=self._temp_dir,
+            theta=theta,
+            config=config,
+            torch_device=self.device,
+            iree_device=self.iree_device,
+            iree_hip_target=self.iree_hip_target,
+            iree_hal_target_device=self.iree_hal_target_device,
+            skip_decode=True,
+        )
+        tester.run_and_compare_iree_vs_eager(atol=atol, rtol=rtol)
+
+    def testUnshardedToySizedModelIREEVsEager(self):
+        for dtype, atol, rtol in [(torch.float16, 1e-1, 1e-1)]:
+            self.helper_run(dtype=dtype, atol=atol, rtol=rtol)
