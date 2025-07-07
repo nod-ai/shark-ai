@@ -55,7 +55,6 @@ class RequestStatusTracker(AbstractStatusTracker):
 
     async def _monitor_disconnection(self):
         while not self._is_disconnected:
-            print("Monitoring")
             if await self._request.is_disconnected():
                 with self._lock as _:
                     self._is_disconnected = True
