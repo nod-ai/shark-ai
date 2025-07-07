@@ -42,9 +42,15 @@ class DispatchTuner(dispatch_parser.DispatchParser):
     @abstractmethod
     def get_td_spec(
         self,
-        compilation_info: iree_codegen.CompilationInfoAttr,
+        config_list: list[common.TuningConfiguration],
     ) -> ir.Module:
-        """Generate a transform dialect spec that applies the compilation info attr."""
+        """
+        Generates a transform dialect spec from a list of TuningConfiguration objects.
+
+        Each TuningConfiguration specifies a name (e.g., "compilation_info") and
+        its corresponding MLIR attribute (e.g., CompilationInfoAttr) to be applied
+        to the dispatch root operation.
+        """
         pass
 
     @abstractmethod
@@ -81,12 +87,12 @@ class ContractionOpInterfaceTuner(
 
     def get_td_spec(
         self,
-        compilation_info: iree_codegen.CompilationInfoAttr,
+        config_list: list[common.TuningConfiguration],
     ) -> ir.Module:
         contraction_op = self.get_root_op()
         func_name = self.get_root_op_func_name()
         return spec_builder.build_td_spec(
-            contraction_op.context, contraction_op, compilation_info, func_name
+            contraction_op.context, contraction_op, config_list, func_name
         )
 
 
@@ -103,12 +109,12 @@ class ConvolutionOpInterfaceTuner(
 
     def get_td_spec(
         self,
-        compilation_info: iree_codegen.CompilationInfoAttr,
+        config_list: list[common.TuningConfiguration],
     ) -> ir.Module:
         conv_op = self.get_root_op()
         func_name = self.get_root_op_func_name()
         return spec_builder.build_td_spec(
-            conv_op.context, conv_op, compilation_info, func_name
+            conv_op.context, conv_op, config_list, func_name
         )
 
 

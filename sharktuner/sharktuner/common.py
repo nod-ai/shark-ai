@@ -62,6 +62,22 @@ class TunerContext:
         return self.mlir_ctx.__exit__(exc_type, exc_value, traceback)
 
 
+@dataclass
+class TuningConfiguration:
+    """
+    A TuningConfiguration contains an attribute that will be set on an op as a
+    result of running a tuning spec, along with its name. For example, a common
+    tuning configuration would have "compilation_info" as its name, and an
+    `iree_codegen.CompilationInfoAttr` as the configuration.
+
+    Example:
+        TuningConfiguration(name="compilation_info", configuration=CompilationInfoAttr(...))
+    """
+
+    name: str
+    configuration: ir.Attribute
+
+
 class DispatchKind(Enum):
     conv = 0
     contraction = 1

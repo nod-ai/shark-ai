@@ -55,7 +55,7 @@ with_vae_data = pytest.mark.skipif("not config.getoption('with_vae_data')")
 
 
 @with_vae_data
-@pytest.mark.usefixtures("get_iree_flags")
+@pytest.mark.usefixtures("iree_flags")
 class VaeSDXLDecoderTest(TempDirTestBase):
     def setUp(self):
         super().setUp()
@@ -124,11 +124,6 @@ class VaeSDXLDecoderTest(TempDirTestBase):
 
         torch.testing.assert_close(ref_results, results)
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="Compile error uses <LARGE_NUM> bytes of shared memory; exceeded the limit of 65536 bytes: "
-        "https://github.com/iree-org/iree/issues/20875",
-    )
     @pytest.mark.expensive
     def testVaeIreeVsHuggingFace(self):
         dtype = getattr(torch, "float32")
@@ -229,7 +224,7 @@ class VaeSDXLDecoderTest(TempDirTestBase):
         torch.testing.assert_close(ref_results, iree_result, atol=3e-5, rtol=6e-6)
 
 
-@pytest.mark.usefixtures("get_iree_flags")
+@pytest.mark.usefixtures("iree_flags")
 class VaeFluxDecoderTest(TempDirTestBase):
     def setUp(self):
         super().setUp()
@@ -355,11 +350,6 @@ class VaeFluxDecoderTest(TempDirTestBase):
             rtol=rtol,
         )
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="Compile error uses <LARGE_NUM> bytes of shared memory; exceeded the limit of 65536 bytes: "
-        "https://github.com/iree-org/iree/issues/20875",
-    )
     @pytest.mark.expensive
     @with_vae_data
     def testVaeIreeVsHuggingFace(self):

@@ -626,8 +626,8 @@ class TestTraceTensors(TempDirTestBase):
             debug_sink = iree.runtime.HalModuleDebugSink(
                 iree_buffere_view_trace_callback
             )
-            iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
-                module_path=iree_module_path,
+            iree_module, iree_vm_context, _ = load_iree_module(
+                module_path=str(iree_module_path),
                 devices=iree_devices,
                 debug_sink=debug_sink,
             )

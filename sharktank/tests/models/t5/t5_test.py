@@ -47,10 +47,9 @@ from sharktank.models.t5.testing import (
     covert_t5_encoder_to_hugging_face,
     make_t5_encoder_random_theta,
 )
+from sharktank.utils.random import make_rand_torch, make_random_mask
 from sharktank.utils.testing import (
     assert_text_encoder_state_close,
-    make_rand_torch,
-    make_random_mask,
     skip,
     TempDirTestBase,
     get_test_prompts,
@@ -329,7 +328,7 @@ class T5EncoderEagerTest(TestCase):
         )
 
 
-@pytest.mark.usefixtures("caching", "get_iree_flags", "path_prefix")
+@pytest.mark.usefixtures("caching", "iree_flags", "path_prefix")
 class T5EncoderIreeTest(TempDirTestBase):
     def setUp(self):
         super().setUp()

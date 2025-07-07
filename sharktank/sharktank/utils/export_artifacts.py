@@ -4,13 +4,18 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import os
+import shutil
 import sys
 import subprocess
 import logging
+import tempfile
 import time
 from pathlib import Path
 from datetime import timedelta
 from typing import Any, List, Optional, TYPE_CHECKING
+
+import numpy as np
+import torch
 from sharktank.utils.iree import get_iree_compiler_flags_from_object
 
 if TYPE_CHECKING:
@@ -25,45 +30,12 @@ logger.root.handlers[0].setFormatter(
 )
 
 
-class ExportMlirException(Exception):
-    """shark-ai export MLIR exception that preserves the command line and error output."""
+class ExportArtifactsException(Exception):
+    """Base exception for export artifacts errors that preserves the command line and error output."""
 
-    def __init__(self, process: subprocess.CompletedProcess, cwd: str):
-        try:
-            errs = process.stderr.decode("utf-8")
-        except:
-            errs = str(process.stderr)
-        super().__init__(
-            f"Error invoking export_paged_llama_v1.py\n"
-            f"Error code: {process.returncode}\n"
-            f"Stderr diagnostics:\n{errs}\n\n"
-            f"Invoked with:\n"
-            f"  cd {cwd} && {process.args}\n\n"
-        )
-
-
-class IreeCompileException(Exception):
-    """Compiler exception that preserves the command line and error output."""
-
-    def __init__(self, process: subprocess.CompletedProcess, cwd: str):
-        try:
-            errs = process.stderr.decode("utf-8")
-        except:
-            errs = str(process.stderr)
-        super().__init__(
-            f"Error invoking iree-compile\n"
-            f"Error code: {process.returncode}\n"
-            f"Stderr diagnostics:\n{errs}\n\n"
-            f"Invoked with:\n"
-            f"  cd {cwd} && {process.args}\n\n"
-        )
-
-
-class IreeBenchmarkException(Exception):
-    """Runtime exception that preserves the command line and error output."""
-
-    def __init__(self, process: subprocess.CompletedProcess, cwd: str):
-        # iree-run-module sends output to both stdout and stderr
+    def __init__(
+        self, process: subprocess.CompletedProcess, cwd: str, export_stage: str
+    ):
         try:
             errs = process.stderr.decode("utf-8")
         except:
@@ -73,21 +45,60 @@ class IreeBenchmarkException(Exception):
         except:
             outs = str(process.stdout)
         super().__init__(
-            f"Error invoking iree-benchmark-module\n"
+            f"Error invoking {export_stage}\n"
             f"Error code: {process.returncode}\n"
             f"Stderr diagnostics:\n{errs}\n"
             f"Stdout diagnostics:\n{outs}\n"
-            f"Run with:\n"
-            f"  cd {cwd} && {process.args}\n\n"
+            f"Invoked with:\n"
+            f"\tcd {cwd} && {process.args}\n\n"
         )
 
 
+class ExportMlirException(ExportArtifactsException):
+    """shark-ai export MLIR exception."""
+
+    def __init__(self, process: subprocess.CompletedProcess, cwd: str):
+        super().__init__(process, cwd, export_stage="export_paged_llama_v1.py")
+
+
+class IreeBenchmarkException(ExportArtifactsException):
+    """IREE benchmark runtime exception."""
+
+    def __init__(self, process: subprocess.CompletedProcess, cwd: str):
+        super().__init__(process, cwd, export_stage="iree-benchmark-module")
+
+
+class IreeCompileException(ExportArtifactsException):
+    """IREE compiler exception."""
+
+    def __init__(self, process: subprocess.CompletedProcess, cwd: str):
+        super().__init__(process, cwd, export_stage="iree-compile")
+
+
+class IreeRunException(ExportArtifactsException):
+    """Runtime exception."""
+
+    def __init__(self, process: subprocess.CompletedProcess, cwd: str):
+        super().__init__(process, cwd, export_stage="iree-run-module")
+
+
+class IrpaShardException(ExportArtifactsException):
+    """IRPA sharding exception."""
+
+    def __init__(self, process: subprocess.CompletedProcess, cwd: str):
+        super().__init__(process, cwd, export_stage="shard_llm_dataset.py")
+
+
 class ExportArtifacts:
+    """
+    Class to manage export artifacts for LLM models, including sharding IRPA files,
+    exporting to MLIR, compiling to VMFB, and running the resulting VMFB.
+    """
+
     def __init__(
         self,
         *,
-        irpa_path: str,
-        batch_size: int,
+        irpa_path: str | Path,
         attention_kernel: str,
         tensor_parallelism_size: int,
         pipeline_parallelism_size: int,
@@ -99,17 +110,20 @@ class ExportArtifacts:
         use_hf: bool = False,
         activation_dtype: str = "float16",
         attention_dtype: str = "float16",
-        kv_cache_dtype: Optional[str] = None,
-        output_mlir: Optional[str] = None,
-        output_config: Optional[str] = None,
+        kv_cache_dtype: Optional[str | Path] = None,
+        output_mlir: Optional[str | Path] = None,
+        output_config: Optional[str | Path] = None,
+        output_vmfb: Optional[str | Path] = None,
+        output_name: Optional[str | Path] = None,
+        cwd: Optional[str | Path] = None,
+        hip_device_id: str,
     ):
-        self.sharktank_dir = str(
-            Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent
-        )
-        self.irpa_path = irpa_path
-        self.output_mlir = output_mlir
-        self.output_config = output_config
-        self.batch_size = batch_size
+        self.tmp_dir = Path(tempfile.mkdtemp(type(self).__qualname__))
+        self.cwd = Path(cwd if cwd is not None else self.tmp_dir)
+        self.cwd.mkdir(parents=True, exist_ok=True)
+
+        self.irpa_path = Path(irpa_path).resolve()
+        # Note: The following 3 paramaters are used by `get_iree_compiler_flags_from_object`
         self.iree_hip_target = iree_hip_target
         self.iree_hal_target_device = iree_hal_target_device
         self.iree_hal_local_target_device_backends = (
@@ -127,11 +141,40 @@ class ExportArtifacts:
         self.attention_dtype = attention_dtype
         self.kv_cache_dtype = kv_cache_dtype
         self.use_hf = use_hf
+        self.hip_device_id = hip_device_id
+
+        self.output_mlir = output_mlir
+        self.output_config = output_config
+        self.output_vmfb = output_vmfb
+
+        if output_name is not None:
+            self.output_name = Path(output_name)
+        else:
+            self.output_name = self.cwd / (
+                str(self.irpa_path).split("/")[-1].rsplit(".", 1)[0].replace(".", "_")
+                + "_"
+                + self.attention_kernel
+                + (
+                    f"_pp{self.pipeline_parallelism_size}"
+                    if self.pipeline_parallelism_size > 1
+                    else ""
+                )
+            )
+
+    def __del__(self):
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
 
     @staticmethod
     def from_config(
         config: "LlamaModelConfig", /, **init_kwargs: dict[str, Any]
     ) -> "ExportArtifacts":
+        """
+        Creates an ExportArtifacts instance from a LlamaModelConfig object.
+
+        Args:
+            config: The LlamaModelConfig object containing model configuration.
+            init_kwargs: Additional keyword arguments to pass to the ExportArtifacts constructor.
+        """
         properties = config.to_properties()
         kv_cache_dtype = (
             properties["kv_cache_dtype"] if "kv_cache_dtype" in properties else None
@@ -147,6 +190,66 @@ class ExportArtifacts:
             kv_cache_dtype=kv_cache_dtype,
             **init_kwargs,
         )
+
+    def _prepare_params_and_devices(self) -> tuple[List[str], List[str]]:
+        """
+        Prepares the parameters and devices for the IREE commands based on the IRPA path and HIP device ID.
+        Automatically handles tensor parallelism and multiple devices.
+
+        Requires at least as many devices on the systems as the parallelism size.
+
+        Returns:
+            A tuple containing:
+            - A list of parameters for the IREE command.
+            - A list of device arguments for the IREE command.
+            - A list of environment variables for the ROCr visible devices.
+        """
+        if self.parallelism_size > 1:
+            base_irpa_path, _ = os.path.splitext(self.irpa_path)
+            rocr_visible_devices = [
+                f"ROCR_VISIBLE_DEVICES={','.join(str(i) for i in range(self.parallelism_size))}"
+            ]
+            params = [f"--parameters=model={base_irpa_path}.irpa"]
+            if self.tensor_parallelism_size > 1:
+                params += [
+                    f"--parameters=model={base_irpa_path}.rank{i}.irpa"
+                    for i in range(self.tensor_parallelism_size)
+                ]
+            devices = [f"--device=hip://{i}" for i in range(self.parallelism_size)]
+        else:
+            hip_device_arg = int(self.hip_device_id.split("://")[1])
+            rocr_visible_devices = [
+                f"ROCR_VISIBLE_DEVICES={','.join(str(i) for i in range(hip_device_arg + 1))}"
+            ]
+            params = [f"--parameters=model={self.irpa_path}"]
+            devices = [f"--device={self.hip_device_id}"]
+
+        return params, devices, rocr_visible_devices
+
+    def _run_cmd(
+        self,
+        cmd: str,
+        run_msg: str,
+        success_msg: str,
+        exception: ExportArtifactsException,
+    ) -> None:
+        """
+        Helper function to run a command and handle exceptions.
+
+        Args:
+            cmd: The command to run as a string.
+            run_msg: Message to log before running the command.
+            success_msg: Message to log if the command runs successfully.
+            exception: The exception class to raise if the command fails.
+        """
+        logger.info(f"{run_msg}:\n" f"cd {self.cwd} && {cmd}")
+        proc = subprocess.run(
+            cmd, shell=True, capture_output=True, text=True, cwd=self.cwd
+        )
+        if proc.returncode != 0:
+            raise exception(proc, self.cwd)
+        else:
+            logger.info(f"{success_msg}:\n" f"{proc.stdout}")
 
     def timeit(func):
         def wrapper(*args, **kwargs):
@@ -173,69 +276,76 @@ class ExportArtifacts:
         return wrapper
 
     @timeit
-    def shard_irpa_file(
-        self,
-        *,
-        irpa_file: str,
-        output_irpa: str,
-    ):
+    def shard_irpa_file(self) -> None:
+        """
+        Shards the IRPA file into multiple smaller files based on the tensor parallelism size.
+        Replaces the orignal IRPA file path with that of the sharded version.
+
+        Raises an IrpaShardException if the sharding fails for some reason.
+        """
+        irpa_path = self.irpa_path
+        output_irpa = irpa_path.with_name(f"{irpa_path.stem}_sharded{irpa_path.suffix}")
+        self.irpa_path = output_irpa
+
         shard_irpa_args = [
             "python3",
             "-m",
             "sharktank.examples.sharding.shard_llm_dataset",
             "--irpa-file",
-            irpa_file,
+            irpa_path,
             "--output-irpa-file",
             output_irpa,
             "--tensor-parallelism-size",
             str(self.tensor_parallelism_size),
         ]
 
-        cwd = self.sharktank_dir
-        cmd = subprocess.list2cmdline(shard_irpa_args)
-
-        logger.info(f"Sharding irpa file:\n" f"cd {cwd} && {cmd}")
-
-        proc = subprocess.run(cmd, shell=True, capture_output=True, cwd=cwd, text=True)
-        if proc.returncode != 0:
-            logger.error(
-                f"Error sharding irpa file with shard_llm_dataset.py\n"
-                f"{proc.stdout+proc.stderr}"
-            )
-        else:
-            logger.info(f"Sharded irpa file successfully:\n" f"{proc.stdout}")
-
-        return proc.returncode
+        self._run_cmd(
+            cmd=subprocess.list2cmdline(shard_irpa_args),
+            run_msg="Sharding irpa file",
+            success_msg="Sharded irpa file successfully",
+            exception=IrpaShardException,
+        )
 
     @timeit
-    def export_to_mlir(
+    def export_llm_to_mlir(
         self,
         *,
-        output_mlir: str,
-        output_config: str,
-        skip_decode: Optional[bool] = None,
-    ):
+        batch_size: int,
+        skip_decode: bool = False,
+    ) -> None:
+        """
+        Exports the LLM to MLIR format using the `export_paged_llm_v1` script.
+
+        Raises an ExportMlirException if the export fails for some reason.
+
+        Args:
+            batch_size: The batch size to use for prefill and decode.
+            skip_decode: If True, skips the decoding step during export.
+        """
+
+        if self.output_mlir is not None and self.output_config is not None:
+            logger.info(f" Using pre-exported mlir: {self.output_mlir}")
+            logger.info(f" Using pre-exported config json: {self.output_config}")
+            return
+        else:
+            self.output_mlir = self.output_name.with_suffix(".mlir")
+            self.output_config = self.output_name.with_suffix(".json")
+
         export_args = [
             "python3",
             "-m",
             "sharktank.examples.export_paged_llm_v1",
             f"--irpa-file={self.irpa_path}",
-            f"--output-mlir={output_mlir}",
-            f"--output-config={output_config}",
-            f"--bs-prefill={str(self.batch_size)}",
-            f"--bs-decode={str(self.batch_size)}",
+            f"--output-mlir={self.output_mlir}",
+            f"--output-config={self.output_config}",
+            f"--bs-prefill={batch_size}",
+            f"--bs-decode={batch_size}",
             f"--block-seq-stride={self.block_seq_stride}",
             f"--attention-dtype={self.attention_dtype}",
             f"--activation-dtype={self.activation_dtype}",
             f"--tensor-parallelism-size={self.tensor_parallelism_size}",
             f"--pipeline-parallelism-size={self.pipeline_parallelism_size}",
         ]
-
-        assert self.attention_kernel in [
-            "decomposed",
-            "torch",
-            "sharktank",
-        ], "Only torch (sdpa), decomposed or sharktank --attention-kernel types are supported"
 
         export_args.append(f"--attention-kernel={self.attention_kernel}")
 
@@ -248,37 +358,40 @@ class ExportArtifacts:
         if self.use_hf:
             export_args.append("--use-hf")
 
-        cwd = self.sharktank_dir
-        cmd = subprocess.list2cmdline(export_args)
-
-        logger.info(f" Exporting mlir:\n" f"cd {cwd} && {cmd}")
-
-        proc = subprocess.run(cmd, shell=True, capture_output=True, cwd=cwd, text=True)
-        if proc.returncode != 0:
-            raise ExportMlirException(proc, cwd)
-        else:
-            logger.info(f" Exported to mlir successfully:\n" f"{proc.stdout}")
-
-        return proc.returncode
+        self._run_cmd(
+            cmd=subprocess.list2cmdline(export_args),
+            run_msg="Exporting MLIR",
+            success_msg="Exported to MLIR successfully",
+            exception=ExportMlirException,
+        )
 
     @timeit
     def compile_to_vmfb(
         self,
         *,
-        output_mlir,
-        output_vmfb,
-        cwd: str | None = None,
         hal_dump_path: Optional[Path] = None,
-        args: Optional[List[str]] = None,
-    ):
-        if cwd is None:
-            cwd = os.getcwd()
+        extra_args: Optional[List[str]] = None,
+    ) -> None:
+        """
+        Compiles the exported MLIR to a VMFB file.
 
-        # TODO: Control flag to enable multiple backends
+        Raises an IreeCompileException if compilation fails for some reason.
+
+        Args:
+            hal_dump_path: Optional path where dump HAL files.
+            extra_args: Additional arguments for the IREE compiler.
+        """
+
+        if self.output_vmfb is not None:
+            logger.info(f" Using pre-exported vmfb: {self.output_vmfb}")
+            return
+        else:
+            self.output_vmfb = self.output_name.with_suffix(".vmfb")
+
         compile_args = [
             f"iree-compile",
-            f"{output_mlir}",
-            f"-o={output_vmfb}",
+            f"{self.output_mlir}",
+            f"-o={self.output_vmfb}",
         ]
         compile_args += get_iree_compiler_flags_from_object(
             self, device_count=self.parallelism_size
@@ -287,126 +400,135 @@ class ExportArtifacts:
             compile_args += [
                 f"--iree-hal-dump-executable-files-to={hal_dump_path}/files"
             ]
+
+        compile_args += [
+            "--iree-opt-level=O3",
+            "--iree-hal-indirect-command-buffers=true",
+            "--iree-stream-resource-memory-model=discrete",
+            "--iree-hal-memoization=true",
+        ]
+
+        # TODO: https://github.com/iree-org/iree/issues/21068
+        if any(
+            llama_size in str(self.irpa_path) for llama_size in ["405", "70"]
+        ) and all("max-iterations" not in arg for arg in compile_args):
+            compile_args += ["--iree-stream-affinity-solver-max-iterations=1024"]
+
         # Append optional arguments if provided
-        if args:
-            compile_args += args
-        else:
-            compile_args += [
-                "--iree-opt-level=O3",
-                "--iree-hal-indirect-command-buffers=true",
-                "--iree-stream-resource-memory-model=discrete",
-                "--iree-hal-memoization=true",
-            ]
+        if extra_args:
+            compile_args += extra_args
 
-        cmd = subprocess.list2cmdline(compile_args)
+        self._run_cmd(
+            cmd=subprocess.list2cmdline(compile_args),
+            run_msg="Launching compile command",
+            success_msg="Compiled to VMFB successfully",
+            exception=IreeCompileException,
+        )
 
-        logger.info(f" Launching compile command:\n" f"cd {cwd} && {cmd}")
-        proc = subprocess.run(cmd, shell=True, capture_output=True, cwd=cwd)
-        return_code = proc.returncode
-        if return_code != 0:
-            raise IreeCompileException(proc, cwd)
-
-    def iree_benchmark_vmfb(
+    def iree_benchmark(
         self,
         *,
-        hip_device_id: str,
-        vmfb_name: str,
-        irpa_path: str,
         benchmark_filename: Optional[Path] = None,
-        args: List[str],
-        cwd: str | Path,
-    ):
-        """Runs a compiled program with the given args using `iree-benchmark-module`.
-        This assumes that the `iree-benchmark-module` command is available (usually via PATH).
-        Args:
-            vmfb_name: Name of the .vmfb file (relative to `cwd`).
-            args: List of arguments to pass to `iree-benchmark-module`.
-            cwd: Working directory to run the command within. (either string or Path works)
-            compile_cmd: Command used to compile the program, for inclusion in error messages.
-        Raises Exception if running fails for some reason.
+        extra_args: List[str],
+    ) -> None:
         """
-        benchmark_args = []
-        if self.parallelism_size > 1:
-            base_irpa_path, _ = os.path.splitext(irpa_path)
-            rocr_visible_devices = [
-                f"ROCR_VISIBLE_DEVICES={','.join(str(i) for i in range(self.parallelism_size))}"
-            ]
-            params = [f"--parameters=model={base_irpa_path}.irpa"]
-            params += [
-                f"--parameters=model={base_irpa_path}.rank{i}.irpa"
-                for i in range(self.tensor_parallelism_size)
-            ]
-            devices = [f"--device=hip://{i}" for i in range(self.parallelism_size)]
-        else:
-            hip_device_arg = int(hip_device_id.split("://")[1])
-            rocr_visible_devices = [
-                f"ROCR_VISIBLE_DEVICES={','.join(str(i) for i in range(hip_device_arg + 1))}"
-            ]
-            params = [f"--parameters=model={irpa_path}"]
-            devices = [f"--device={hip_device_id}"]
-        benchmark_args += rocr_visible_devices
-        benchmark_args += [
+        Runs a compiled program with the given args using `iree-benchmark-module`.
+        This assumes that the `iree-benchmark-module` command is available (usually via PATH).
+
+        Raises an IreeBenchmarkException if running fails for some reason.
+
+        Args:
+            benchmark_filename: Optional path to the benchmark file.
+            extra_args: List of arguments to pass to `iree-benchmark-module`.
+            compile_cmd: Command used to compile the program, for inclusion in error messages.
+        """
+        params, devices, rocr_visible_devices = self._prepare_params_and_devices()
+
+        benchmark_args = [
+            *rocr_visible_devices,
             "iree-benchmark-module",
             "--hip_use_streams=true",
-            f"--module={vmfb_name}",
+            f"--module={self.output_vmfb}",
+            *params,
+            *devices,
+            *extra_args,
+            str(benchmark_filename),
         ]
-        benchmark_args += params
-        benchmark_args += devices
-        benchmark_args += args
-        benchmark_args += [str(benchmark_filename)]
-        cmd = subprocess.list2cmdline(benchmark_args)
-        logger.info(f" Launching run command:\n" f"cd {cwd} && {cmd}")
-        proc = subprocess.run(cmd, shell=True, stdout=sys.stdout, cwd=cwd)
-        return_code = proc.returncode
-        if return_code != 0:
-            raise IreeBenchmarkException(proc, cwd)
 
-    def create_file(self, *, suffix, prefix):
-        file_path = Path(prefix).with_suffix(suffix)
-        f = open(file_path, "w")
-        return file_path
-
-    def get_artifacts(self):
-
-        self.dir_path = self.sharktank_dir + "/" + "perplexity_ci_artifacts/"
-        temp_dir = Path(self.dir_path)
-        temp_dir.mkdir(parents=True, exist_ok=True)
-
-        model_name = (
-            str(self.irpa_path).split("/")[-1].rsplit(".", 1)[0].replace(".", "_")
-            + "_"
-            + self.attention_kernel
-            + (
-                f"_pp{self.pipeline_parallelism_size}"
-                if self.pipeline_parallelism_size > 1
-                else ""
-            )
+        self._run_cmd(
+            cmd=subprocess.list2cmdline(benchmark_args),
+            run_msg="Launching benchmark command",
+            success_msg="Benchmarked successfully",
+            exception=IreeBenchmarkException,
         )
 
-        if self.output_mlir is None:
-            self.output_mlir = str(
-                self.create_file(suffix=".mlir", prefix=self.dir_path + model_name)
-            )
-            self.output_config = str(
-                self.create_file(suffix=".json", prefix=self.dir_path + model_name)
-            )
+    @timeit
+    def iree_run(
+        self,
+        *,
+        extra_args: List[str],
+        output_paths: Optional[list[str | Path]] = None,
+    ) -> list[torch.Tensor]:
+        """
+        Run the compiled module using `iree-run-module` with the specified HIP device ID and additional arguments.
 
-            self.export_to_mlir(
-                output_mlir=self.output_mlir,
-                output_config=self.output_config,
-            )
-        else:
-            logger.info(f" Using pre-exported mlir: {self.output_mlir}")
-            logger.info(f" Using pre-exported config json: {self.output_config}")
+        Raises an IreeRunException if running fails for some reason.
 
-        output_vmfb = str(
-            self.create_file(suffix=".vmfb", prefix=self.dir_path + model_name)
+        Args:
+            extra_args: Additional arguments to pass to the `iree-run-module` command.
+            output_paths: List of paths to save the output tensors. If None, or empty list, no outputs are saved.
+
+        Returns:
+            A list of torch tensors loaded from the output paths, if any.
+        """
+        if output_paths is None:
+            output_paths = []
+
+        output_paths = [
+            Path(path).resolve().with_suffix(".npy") for path in output_paths
+        ]
+        output_path_args = [f"--output=@{path}" for path in output_paths]
+
+        params, devices, rocr_visible_devices = self._prepare_params_and_devices()
+        run_args = [
+            *rocr_visible_devices,
+            "iree-run-module",
+            "--hip_use_streams=true",
+            f"--module={self.output_vmfb}",
+            *params,
+            *devices,
+            *extra_args,
+            *output_path_args,
+        ]
+        self._run_cmd(
+            cmd=subprocess.list2cmdline(run_args),
+            run_msg="Launching run command",
+            success_msg="Run completed successfully",
+            exception=IreeRunException,
         )
 
-        self.compile_to_vmfb(
-            output_mlir=self.output_mlir,
-            output_vmfb=output_vmfb,
-            cwd=self.sharktank_dir,
-        )
+        return [torch.from_numpy(np.load(path)) for path in output_paths]
 
-        return output_vmfb
+    def export_and_compile_llm(
+        self,
+        *,
+        batch_size: int,
+        skip_decode: bool = False,
+        hal_dump_path: Optional[Path] = None,
+        extra_compile_args: Optional[List[str]] = None,
+    ) -> str:
+        """
+        Helper function to export the LLM to MLIR and compile it to VMFB in one call.
+
+        Args:
+            batch_size: The batch size to use for prefill and decode.
+            skip_decode: If True, skips the decoding step during export.
+            hal_dump_path: Optional path where dump HAL files.
+            extra_compile_args: Additional arguments for the IREE compiler.
+
+        Returns:
+            The path to the compiled VMFB file as a string.
+        """
+        self.export_llm_to_mlir(batch_size=batch_size, skip_decode=skip_decode)
+        self.compile_to_vmfb(extra_args=extra_compile_args, hal_dump_path=hal_dump_path)
+        return str(Path(self.output_vmfb).resolve())

@@ -165,6 +165,11 @@ def add_model_options(parser: argparse.ArgumentParser):
         help="Return the log softmax of the logits",
         choices=["none", "softmax", "log_softmax"],
     )
+    parser.add_argument(
+        "--prefill-final-logits",
+        help="Return only the final logits",
+        action="store_true",
+    )
 
 
 def add_model_input_options(parser: argparse.ArgumentParser):
@@ -234,6 +239,16 @@ def add_export_artifacts(parser: argparse.ArgumentParser):
         "--output-vmfb",
         help="Output file path for compiled vmfb file",
         type=str,
+    )
+    parser.add_argument(
+        "--extra-compile-arg",
+        help=(
+            "Additional flag(s) to provide to the IREE compiler. "
+            "E.g. `--extra-compile-arg=--compile-mode=vm --extra-compile-arg=--iree-vm-target-extension-f32`"
+        ),
+        action="append",
+        type=str,
+        default=[],
     )
 
 
@@ -322,6 +337,12 @@ def add_evaluate_options(parser: argparse.ArgumentParser):
         nargs="+",
         type=str,
         help="Custom prompts to run perplexity",
+    )
+    parser.add_argument(
+        "--prefill-length",
+        type=int,
+        default=None,
+        help="Number of tokens for prefill before starting decode.",
     )
 
 

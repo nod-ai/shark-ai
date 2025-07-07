@@ -8,7 +8,7 @@ import torch
 
 from sharktank.types.tensors import *
 from sharktank.types.theta import Theta
-from sharktank.utils.testing import make_rand_torch
+from sharktank.utils.random import make_rand_torch
 from sharktank.layers.testing import make_llama_attention_block_theta
 from sharktank.layers.configs import LlamaModelConfig
 
@@ -30,6 +30,7 @@ def make_attention_block_ffn_theta_v2(
         head_dim=head_dim,
         embedding_length=embedding_length,
         dtype=dtype,
+        dtype_norm=dtype,  # TODO: Is this correct? Could not verify original model
     )
     moe_theta = make_moe_block_theta(
         block_idx=block_idx,
