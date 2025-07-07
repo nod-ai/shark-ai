@@ -16,16 +16,24 @@ def test_request_queue_manager():
     queue_manager = RequestQueueManager(6)
 
     # Add to queue
-    assert queue_manager.add_to_queue(get_decode_configs(4))
+    id0 = queue_manager.add_to_queue(get_decode_configs(4))
+    assert id0 is not None
 
     # Try to add beyond max, when `current_queue_size` < `max_queue_size`
-    assert not queue_manager.add_to_queue(get_decode_configs(3))
+    id1 = queue_manager.add_to_queue(get_decode_configs(3))
+    assert id1 is None
 
     # Add more to queue
-    assert queue_manager.add_to_queue(get_decode_configs(2))
+    id2 = queue_manager.add_to_queue(get_decode_configs(2))
+    assert id2 is not None
 
     # Try to add beyond max
-    assert not queue_manager.add_to_queue(get_decode_configs(2))
+    id3 = queue_manager.add_to_queue(get_decode_configs(2))
+    assert id3 is None
 
     # Remove from queue
-    queue_manager.remove_from_queue(get_decode_configs(3))
+    queue_manager.remove_from_queue(id2)
+
+    tasks = queue_manager.current_tasks()
+    assert len(tasks) == 1
+    assert id0 in tasks
