@@ -38,9 +38,13 @@ class RequestStatusTracker(AbstractStatusTracker):
         super().__init__()
         self._request = request
         self._is_disconnected = False
-        self._loop.create_task(self._monitor_disconnection())
+        self._task = self._loop.create_task(self._monitor_disconnection())
         self._cancellable = []
         self._lock = threading.Lock()
+
+    def close(self):
+        if self._task is not None:
+            self._task.cancel()
 
     def add_cancellable(self, cancellable):
         with self._lock as _:
@@ -51,6 +55,7 @@ class RequestStatusTracker(AbstractStatusTracker):
 
     async def _monitor_disconnection(self):
         while not self._is_disconnected:
+            print("Monitoring")
             if await self._request.is_disconnected():
                 with self._lock as _:
                     self._is_disconnected = True
@@ -91,6 +96,9 @@ class FastAPIResponder(AbstractResponder):
         self.responded = False
         self._streaming_queue: asyncio.Queue | None = None
         self._status_tracker = RequestStatusTracker(request)
+
+    def close(self):
+        self._status_tracker.close()
 
     def is_disconnected(self) -> bool:
         return self._status_tracker.is_disconnected()

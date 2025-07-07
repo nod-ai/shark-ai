@@ -18,6 +18,9 @@ class AbstractStatusTracker:
         except RuntimeError:
             print("Warning: No running loop found")
 
+    def close(self):
+        pass
+
     def is_disconnected(self) -> bool:
         """Returns True if the connection/request is considered disconnected."""
         return False

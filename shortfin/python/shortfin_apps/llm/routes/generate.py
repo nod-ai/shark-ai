@@ -28,4 +28,6 @@ async def generate_request(gen_req: GenerateReqInput, request: Request):
         service, gen_req, responder, fiber=service.main_fiber
     ).launch()
     tracker.add_cancellable(process)
-    return await responder.response
+    response = await responder.response
+    response.close()
+    return response

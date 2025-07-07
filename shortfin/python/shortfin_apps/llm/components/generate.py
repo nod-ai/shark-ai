@@ -17,7 +17,6 @@ import shortfin as sf
 import threading
 
 # TODO: Have a generic "Responder" interface vs just the concrete impl.
-from shortfin.interop.fastapi import RequestStatusTracker
 from shortfin.support.responder import AbstractResponder, ResponderErrorCodes
 
 from .config_struct import DecodeConfig
