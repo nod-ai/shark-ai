@@ -4,6 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import pytest
+import gc
 
 import shortfin.array as sfnp
 
@@ -64,28 +65,40 @@ def get_decode_config(beam_count):
 
 
 def test_check_memory_availability_enough_pages():
-    limiter = RateLimiter(model_params=get_model_params())
+    model_params = get_model_params()
+    limiter = RateLimiter(model_params=model_params)
     input_token_ids_len = 64  # 2 pages
     available_pages = 25  # Should be enough
 
+    decode_config = get_decode_config(8)
     result = limiter.check_memory_availability(
         input_token_ids_len=input_token_ids_len,
         available_pages=available_pages,
-        decode_config=get_decode_config(8),
+        decode_config=decode_config,
     )
 
     assert result is True
+    del limiter
+    del model_params
+    del decode_config
+    gc.collect()
 
 
 def test_check_memory_availability_not_enough_pages():
-    limiter = RateLimiter(model_params=get_model_params())
+    model_params = get_model_params()
+    limiter = RateLimiter(model_params=model_params)
     input_token_ids_len = 64  # 2 pages
     available_pages = 15  # Not enough
 
+    decode_config = get_decode_config(8)
     result = limiter.check_memory_availability(
         input_token_ids_len=input_token_ids_len,
         available_pages=available_pages,
-        decode_config=get_decode_config(8),
+        decode_config=decode_config,
     )
 
     assert result is False
+    del limiter
+    del model_params
+    del decode_config
+    gc.collect()
