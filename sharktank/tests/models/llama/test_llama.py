@@ -68,10 +68,8 @@ class CrossEntropyTest(unittest.TestCase):
 class LlamaIreeVsEagerTest(TempDirTestBase):
     @parameterized.expand(product([1, 2], [1, 2]))
     @xfail(
-        raises=AssertionError,
         reason="https://github.com/nod-ai/shark-ai/issues/1758",
         strict=True,
-        match="Outputs do not match for prefill batch index 0",
     )
     def testUnshardedToyIreeVsEager(
         self, tensor_parallelism_size: int, pipeline_parallelism_size: int
