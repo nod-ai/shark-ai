@@ -88,4 +88,3 @@ class LlamaIreeVsEagerTest(TempDirTestBase):
             iree_hal_target_device=self.iree_hal_target_device,
         )
         tester.run_and_compare_iree_vs_eager()
-
