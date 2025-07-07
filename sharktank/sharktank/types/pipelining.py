@@ -58,16 +58,17 @@ def pipeline_parallelize_theta(
                     old_tensor_trait.external_name,
                 ).set(new_shard._data)
 
-        if isinstance(tensor, PrimitiveTensor):
+        if isinstance(tensor, ShardedTensor):
+            new_tensor = tensor.clone(ts=new_shards, devices=new_devices)
+        else:
             new_tensor = ReplicatedTensor(
                 ts=new_shards, name=tensor.name, devices=new_devices
             )
-        else:
-            new_tensor = ShardedTensor(ts=new_shards, devices=new_devices)
+
         block_data[key] = new_tensor
 
     _t = theta.tensor("token_embd")["weight"]
-    shard_count = 1 if isinstance(_t, DefaultPrimitiveTensor) else _t.shard_count
+    shard_count = _t.shard_count if isinstance(_t, ShardedTensor) else 1
 
     block_indices = theta.tensor("blk").keys()
     block_count = len(block_indices)
