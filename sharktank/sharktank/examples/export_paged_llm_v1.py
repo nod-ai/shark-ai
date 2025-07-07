@@ -138,6 +138,7 @@ def main():
             "logits_normalization": logits_normalization,
             "top_k": args.top_k,
             "paged_kv_cache": {
+                "attention_head_count_kv": hp.attention_head_count_kv,
                 "block_seq_stride": llama_config.block_seq_stride,
                 "device_block_count": args.device_block_count,  # so that this makes its way into the config file & can be edited.
                 "kv_cache_dtype": kv_cache_dtype,
