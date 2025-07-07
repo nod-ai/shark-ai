@@ -56,6 +56,78 @@ class wave_attention(unittest.TestCase):
             mlir_asm,
         )
 
+class wave_prefill(unittest.TestCase):
+    def test_wave_prefill_attention(self):
+        class WaveBhsdModule(torch.nn.Module):
+            def forward(self, q, k, v, output):
+                return wave_bhsd_prefill_attention(q, k, v, output)
+
+        e = aot.export(
+            WaveBhsdModule(),
+            args=(
+                torch.empty((4, 32, 128, 128), dtype=torch.float16),
+                torch.empty((4, 32, 128, 128), dtype=torch.float16),
+                torch.empty((4, 32, 128, 128), dtype=torch.float16),
+                torch.empty((4, 32, 128, 128), dtype=torch.float32),
+            ),
+        )
+        e.verify()
+        mlir_asm = str(e.mlir_module)
+        self.assertIn(
+            ("func.func @main"),
+            mlir_asm,
+        )
+        self.assertIn(
+            ("stream.executable private @base_attention"),
+            mlir_asm,
+        )
+        self.assertIn(
+            ("func.func private @wave_flash_attention_B_dyn_H_dyn_M_dyn_128_f16_f32"),
+            mlir_asm,
+        )
+        self.assertIn(
+            (
+                "util.func private @wave_bhsd_flash_attention_B_H_M_K1_128_f16_B_H_K2_K1_128_f16_B_H_K2_N_128_f16_B_H_M_N_128_f32_B_H_M_N_128_f32"
+            ),
+            mlir_asm,
+        )
+
+# class wave_prefill(unittest.TestCase):
+#     def test_wave_prefill_attention(self):
+#         class WaveBhsdPrefillModule(torch.nn.Module):
+#             def forward(self, q, k, v, output):
+#                 return wave_bhsd_prefill_attention(q, k, v, output)
+
+#         e = aot.export(
+#             WaveBhsdPrefillModule(),
+#             args=(
+#                 torch.empty((4, 32, 128, 128), dtype=torch.float16),
+#                 torch.empty((4, 32, 128, 128), dtype=torch.float16),
+#                 torch.empty((4, 32, 128, 128), dtype=torch.float16),
+#                 torch.empty((4, 32, 128, 128), dtype=torch.float32),
+#             ),
+#         )
+#         e.verify()
+#         mlir_asm = str(e.mlir_module)
+#         self.assertIn(
+#             ("func.func @main"),
+#             mlir_asm,
+#         )
+#         self.assertIn(
+#             ("stream.executable private @base_attention"),
+#             mlir_asm,
+#         )
+#         self.assertIn(
+#             ("func.func private @wave_flash_attention_B_dyn_H_dyn_M_dyn_128_f16_f32"),
+#             mlir_asm,
+#         )
+#         self.assertIn(
+#             (
+#                 "util.func private @wave_bhsd_flash_attention_B_H_M_K1_128_f16_B_H_K2_K1_128_f16_B_H_K2_N_128_f16_B_H_M_N_128_f32_B_H_M_N_128_f32"
+#             ),
+#             mlir_asm,
+#         )
+
 
 if __name__ == "__main__":
     unittest.main()

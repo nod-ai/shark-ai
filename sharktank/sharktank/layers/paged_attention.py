@@ -30,7 +30,7 @@ from sharktank.types import (
 )
 from sharktank import ops, kernels
 from sharktank.kernels.mlir_kernel import *
-from sharktank.kernels.wave.attention import wave_bhsd_masked_flash_attention
+from sharktank.kernels.wave.attention import wave_bhsd_flash_attention, wave_prefill_attention
 
 __all__ = ["PagedAttention", "attn_type_map"]
 
@@ -1166,7 +1166,7 @@ class PagedAttention:
         if isinstance(v, ShardedTensor) and type(v) != type(q):
             v = ops.reshard_like(v, like=q)
 
-        if attention_kernel == "decomposed":
+        if attention_kernel == "decomposed" or attention_kernel == "wave":
             if isinstance(q, PlanarQuantizedTensor):
                 q = q.unpack().dequantize()
             if isinstance(k, PlanarQuantizedTensor):
@@ -1187,7 +1187,7 @@ class PagedAttention:
             if mask is None:
                 mask = torch.full(
                     (attn_weights.shape[2], attn_weights.shape[3]), float("-inf")
-                )
+                ).to('cuda:0')
                 mask = torch.triu(mask, diagonal=1)[None, None, :, :]
                 attn_weights = attn_weights + mask
             else:
@@ -1272,12 +1272,18 @@ class PagedAttention:
             page_ids=seq_block_ids,
         )
 
+        print(cache_state)
+        raise ValueError()
+
         # Restore from the cache.
         k, v = self.read(
             cache_state,
             transformer_block_index=block_index,
             page_ids=seq_block_ids,
         )
+
+        print(k.shape, v.shape, "decode")
+
 
         k = pack_raw_tensor(k, k_quantizer)
         v = pack_raw_tensor(v, v_quantizer)
@@ -1303,6 +1309,8 @@ class PagedAttention:
         v: torch.Tensor,
         cache_state: List[torch.Tensor],
         seq_block_ids: torch.Tensor,
+        offsets: Optional[torch.Tensor] = None,
+        sequence_lengths: Optional[torch.Tensor] = None,
         block_index: int,
         attention_kernel: str,
         head_count_attn: int,
@@ -1319,6 +1327,31 @@ class PagedAttention:
             transformer_block_index=block_index,
             page_ids=seq_block_ids,
         )
+
+        print(seq_block_ids)
+        print(k.shape, v.shape, "prefill")
+        if len(seq_block_ids) >= 8:
+            raise ValueError()
+
+        if attention_kernel == "wave":
+            offsets = seq_block_ids.flatten(0).to(dtype=torch.int32) * self.block_seq_stride         # [B*S]
+            seq_lens = torch.full_like(offsets, self.block_seq_stride, dtype=torch.int32)
+            print(self.block_seq_stride, seq_lens, offsets)
+            # now gather and flatten:
+            # k_contig, v_contig = self.kv_cache.read( ... )  # each [B, S, H_kv*head_dim]
+            # # reorder into [B*S, H_kv, head_dim]:
+            # k_contig = k_contig.view(-1, self.head_count_kv, self.attn_head_dim)
+            # v_contig = v_contig.view(-1, self.head_count_kv, self.attn_head_dim)
+            print("dkjfaiudsbfsiud")
+            if mask is None:
+                output = torch.zeros(
+                    [q.shape[0], q.shape[1], q.shape[2], v.shape[3]],
+                    dtype=torch.float32,
+                )
+                attn_output = wave_prefill_attention(q, k, v, offsets, seq_lens, output)
+                print(attn_output, "dfisufd")
+                attn_output = attn_output.to(torch.float16)
+            return attn_output
 
         return self.attention(
             q=q,
