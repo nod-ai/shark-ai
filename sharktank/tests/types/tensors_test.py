@@ -217,5 +217,19 @@ class ShardedTensorTest(unittest.TestCase):
             assert ett_orig.external_name == ett_clone.external_name
 
 
+class ShardedQuantizedTest(unittest.TestCase):
+    def testPlanarQuantizedTensorSaveLoad(self):
+        pqt1 = PlanarQuantizedTensor(
+            name="t1", shape=[128, 1024], layout=_createTestLayout()
+        )
+        qt_rep = ReplicatedTensor(ts=pqt1, shard_count=3)
+
+        # rep = ReplicatedTensor(ts=torch.tensor([1, 2, 3]), shard_count=3)
+        globals = qt_rep.globals
+        qt_rep2 = qt_rep._clone_with_globals(globals)
+        assert ops.equal(unbox_tensor(qt_rep), unbox_tensor(qt_rep2))
+        pass
+
+
 if __name__ == "__main__":
     unittest.main()
