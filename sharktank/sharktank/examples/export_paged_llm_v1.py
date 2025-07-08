@@ -69,7 +69,7 @@ def main():
     block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
         dataset.root_theta, args.pipeline_parallelism_size
     )
-
+    hp.block_count = 125
     llama_config = LlamaModelConfig(
         hp,
         tensor_parallelism_size=args.tensor_parallelism_size,
