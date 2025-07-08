@@ -119,7 +119,7 @@ class PagePool:
                 return None
             return [self.available_pages.pop() for _ in range(count)]
 
-    def get_available_pages_num(self) -> int
+    def get_available_pages_num(self) -> int:
         with self._lock:
             available = len(self.available_pages)
             return available
