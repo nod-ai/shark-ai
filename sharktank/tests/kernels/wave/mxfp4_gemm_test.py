@@ -14,7 +14,7 @@ import torch
 from iree.compiler.passmanager import PassManager
 from iree.compiler.ir import Context, Module
 import iree.turbine.aot as aot
-from sharktank.kernels.wave.gemm import wave_mxfp4_gemm
+from sharktank.kernels.wave.mxfp4_gemm import wave_mxfp4_batched_gemm
 from parameterized import parameterized
 
 
@@ -22,7 +22,7 @@ class wave_fp4_gemm(unittest.TestCase):
     def test_wave_fp4_gemm(self):
         class WaveMxfp4Module(torch.nn.Module):
             def forward(self, x, x_scales, w_t, w_scales, output):
-                return wave_mxfp4_gemm(x, x_scales, w_t, w_scales, output)
+                return wave_mxfp4_batched_gemm(x, x_scales, w_t, w_scales, output)
 
         e = aot.export(
             WaveMxfp4Module(),

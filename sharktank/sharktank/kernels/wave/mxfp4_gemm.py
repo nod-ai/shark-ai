@@ -13,7 +13,7 @@ from iree.turbine.kernel.wave.templates.vanilla_attention import (
 from iree.turbine.kernel.wave.scheduling.schedule import SchedulingType
 from iree.turbine.kernel.wave.compile import wave_compile, WaveCompileOptions
 from iree.turbine.kernel.wave.templates.attention_common import AttentionShape
-from iree.turbine.kernel.wave.constraints import MMAType
+from iree.turbine.kernel.wave.constraints import ScaledMMAType
 from iree.turbine.kernel.wave.utils.general_utils import (
     get_default_scheduling_params,
 )
@@ -32,8 +32,7 @@ __all__ = [
 ]
 
 
-def get_wave_mxfp4_bmm_asm(
-    target_function_name: str,
+def wave_mxfp4_batched_gemm(
     shape: tuple[int],
     mfma_variant: ScaledMMAType,
     enable_scheduling: SchedulingType,
@@ -101,12 +100,24 @@ def get_wave_mxfp4_bmm_asm(
         BLOCK_M: 256,
         BLOCK_N: 128,
         BLOCK_K: 256,
-        N: shape[1],
-        K: shape[2],
+        N: shape[2],
+        K: shape[3],
     }
     hyperparams.update(get_default_scheduling_params())
 
     dynamic_symbols = [B, M]
+    return batched_gemm, hyperparams, dynamic_symbols
+
+
+def get_wave_mxfp4_bmm_asm(
+    target_function_name: str,
+    shape: tuple[int],
+    mfma_variant: ScaledMMAType,
+    enable_scheduling: SchedulingType,
+):
+    batched_gemm_func, hyperparams, dynamic_symbols = wave_mxfp4_batched_gemm(
+        shape, mfma_variant, enable_scheduling
+    )
     options = WaveCompileOptions(
         subs=hyperparams,
         canonicalize=True,
@@ -116,22 +127,54 @@ def get_wave_mxfp4_bmm_asm(
     options = set_default_run_config(options)
 
     with Context() as ctx:
-        batched_gemm = wave_compile(options, batched_gemm)
+        batched_gemm = wave_compile(options, batched_gemm_func)
 
     asm = batched_gemm.asm
     return asm
 
 
+B = DynDim.B
+M = DynDim.M
+N = StaticDim.N
+K = StaticDim.K
+
+UI8 = Dtype.UI8(torch.uint8)
+F32 = Dtype.F32(torch.float32)
+
+
 @mlir_kernel(
     inputs=(
-        MLIRTensor[B, H, M, K1, F16],
-        MLIRTensor[B, H, K2, K1, F16],
-        MLIRTensor[B, H, K2, N, F16],
-        MLIRTensor[B, H, M, N, F32],
+        MLIRTensor[B, M, K / 2, UI8],
+        MLIRTensor[B, M, K / 32, UI8],
+        MLIRTensor[N, K / 2, UI8],
+        MLIRTensor[N, K / 32, UI8],
+        MLIRTensor[B, M, N, F32],
     ),
-    results=(MLIRTensor[B, H, M, N, F32],),
+    results=(MLIRTensor[B, M, N, F32],),
 )
 def wave_mxfp4_bmm(x, x_scales, w_t, w_scales, out, result=None):
+    batch_size, m, half_k = x.type.shape
+    n, half_k = w_t.type.shape
+    k = half_k * 2
+    shape = (
+        batch_size,
+        m,
+        n,
+        k,
+    )
+    mfma_variant = ScaledMMAType.F32_16x16x128_F8F6F4
+    i_type_str = "ui8"
+    o_type_str = "f32"
+    batch_size = batch_size if batch_size >= 0 else "B_dyn"
+    m = m if m >= 0 else "M_dyn"
+    wave_kernel_name = f"wave_mxfp4_bmm_{batch_size}_{m}_{n}_{i_type_str}_{o_type_str}"
+
+    wave_asm = get_wave_mxfp4_bmm_asm(
+        wave_kernel_name,
+        shape,
+        mfma_variant,
+        SchedulingType.NONE,
+    )
     mlir = ""
 
     return MLIRSpec(mlir)
