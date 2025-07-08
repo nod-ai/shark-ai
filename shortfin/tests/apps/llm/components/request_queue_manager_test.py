@@ -38,6 +38,7 @@ def test_request_queue_manager():
     assert len(tasks) == 1
     assert id0 in tasks
 
+
 def test_py_test_leak():
     i = 5
     j = 6
