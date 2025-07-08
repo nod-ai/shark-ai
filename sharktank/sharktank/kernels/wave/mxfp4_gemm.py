@@ -195,7 +195,6 @@ def wave_mxfp4_bmm(x, x_scales, w_t, w_scales, out, result=None):
     }}
     """
     )
-    breakpoint()
 
     mlir = "module {" + mlir_wave_kernel + "}"
 
