@@ -78,7 +78,8 @@ jobs:
              --model llama-405B-FP16-tp8
           python scripts/utils.py \
             --combine-json $(pwd)/output_artifacts/benchmark_module \
-            --output-json $(pwd)/output_artifacts/consolidated_benchmark.json
+            --output-json $(pwd)/output_artifacts/consolidated_benchmark.json \
+            --append-isl
 
       - name: Run online serving
         run: |
@@ -163,6 +164,11 @@ jobs:
             output_artifacts/consolidated*.json
             output_artifacts/*.log
 
+      - name: Cleanup output artifacts
+        run: |
+            rm -rf output_artifacts
+            test ! -d output_artifacts && echo "Output artifacts are removed"
+
   # New job to push logs to shark-ai-reports repository
   push_logs:
     name: "Push log llama 405B FP16 TP8"
@@ -195,3 +201,4 @@ jobs:
         git add $date
         git commit -m "Add CI Llama 405B FP16 TP8 logs on $(date -u +'%Y-%m-%d')"
         git push origin main
+        rm -rf ../logs
