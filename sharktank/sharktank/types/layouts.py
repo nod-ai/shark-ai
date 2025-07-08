@@ -164,11 +164,12 @@ class TensorScaledLayout(QuantizedLayout):
             shape=qs.shape, d=self.d, qs=qs, m=self.m, dtype=self.dtype
         )
 
-    def transpose(self, *args, **kwargs):
+    def transpose(self, *args, **kwargs) -> "TensorScaledLayout":
+        # TODO: Why was only qs getting transposed?
         qs = self.qs.transpose(*args, **kwargs)
-        return TensorScaledLayout(
-            shape=qs.shape, d=self.d, qs=qs, m=self.m, dtype=self.dtype
-        )
+        d = self.d.transpose(*args, **kwargs)
+        m = self.m.transpose(*args, **kwargs) if self.m is not None else None
+        return TensorScaledLayout(shape=qs.shape, d=d, qs=qs, m=m, dtype=self.dtype)
 
     def dequant(self, dtype: Optional[torch.dtype] = None) -> torch.Tensor:
         return self.dequant_blocked(dtype)
@@ -298,6 +299,10 @@ class BlockScaledLayout(QuantizedLayout):
         scaled = d * qs.to(dtype)
         shifted = scaled if m is None else scaled + m
         return shifted
+
+    def transpose(self, *args, **kwargs):
+        # TODO: unpack and repack qs to transpose correctly
+        return NotImplemented
 
     def __repr__(self):
         r = (
@@ -552,6 +557,9 @@ class SuperBlockOffsetScaled_4_6_Layout(QuantizedLayout):
         dmin_scaled = (dmin * sb_mins).unsqueeze(-1)
         return d_scaled * qs - dmin_scaled
 
+    def transpose(self, *args, **kwargs):
+        return NotImplemented
+
     def __repr__(self):
         r = (
             f"{type(self).__name__}(d({list(self.d.shape)}, dtype={self.d.dtype}), "
@@ -566,6 +574,7 @@ class SuperBlockOffsetScaled_4_6_Layout(QuantizedLayout):
         return r
 
 
+# TODO: Why is this not inheriting from BlockScaledPackedLayout?
 @register_quantized_layout
 class BlockScaledFp4Layout(QuantizedLayout):
     """Block-quantized FP4 E2M1 representation
@@ -684,6 +693,17 @@ class BlockScaledFp4Layout(QuantizedLayout):
             dequantized_blocked = dequantized_blocked.to(dtype=dtype)
 
         return dequantized_blocked
+
+    def transpose(self, *args, **kwargs):
+        _q = pack_fp4_e2m1_to_uint8(self.qs.transpose(*args, **kwargs))
+        _d = self.d.transpose(*args, **kwargs)
+        return BlockScaledFp4Layout(
+            _q.shape,
+            _d,
+            _q,
+            block_size=self.block_size,
+            use_fe8m0_scale=self.use_fe8m0_scale,
+        )
 
     def __repr__(self):
         return (

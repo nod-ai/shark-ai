@@ -116,6 +116,11 @@ class QuantizedLayout(ABC):
         """Additional metadata needed to reconstruct a layout."""
         return None
 
+    @abstractmethod
+    def transpose(self, *args, **kwargs) -> "QuantizedLayout":
+        """Returns a new QuantizedLayout with the given dimensions transposed."""
+        ...
+
 
 QuantizedLayoutT = TypeVar("QuantizedLayoutT", bound=QuantizedLayout)
 

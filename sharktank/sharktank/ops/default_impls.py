@@ -21,11 +21,17 @@ from sharktank.types import (
     PlanarQuantizedTensor,
     BlockScaledI4Layout,
     TensorScaledLayout,
+    BlockScaledFp4Layout,
 )
 
 from sharktank.kernels.topk import iree_topk
 
-from sharktank.types.tensors import DefaultPrimitiveTensor, unbox_tensor, AnyTensor
+from sharktank.types.tensors import (
+    DefaultPrimitiveTensor,
+    QuantizedLayout,
+    unbox_tensor,
+    AnyTensor,
+)
 from ._registry import AllOfType, AllOfExprs, AllOfExprsVariadic, IsOfType
 from .signatures import *
 import iree.turbine.ops.iree
@@ -713,18 +719,14 @@ def transpose_default(
 
 @transpose.override(QuantizedTensor)
 def transpose_QuantizedTensor(tensor: QuantizedTensor, dim0: int, dim1: int):
-    unpacked = tensor.unpack()
-    if isinstance(unpacked, TensorScaledLayout):
-        shape = list(unpacked._shape)
-        tmp = shape[dim0]
-        shape[dim0] = shape[dim1]
-        shape[dim1] = tmp
-        new_qs = unpacked._qs.transpose(dim0, dim1)
-        layout = TensorScaledLayout(
-            shape=shape, d=unpacked._d, qs=new_qs, m=unpacked._m
-        )
-        return PlanarQuantizedTensor(shape=shape, layout=layout)
-    return NotImplemented
+    new_shape = list(tensor.shape)
+    new_shape[dim0], new_shape[dim1] = new_shape[dim1], new_shape[dim0]
+
+    new_layout = tensor.unpack().transpose(dim0, dim1)
+    if not isinstance(new_layout, QuantizedLayout):
+        return NotImplemented
+
+    return PlanarQuantizedTensor(shape=new_shape, layout=new_layout)
 
 
 # Sharded default impls (do nothing).
