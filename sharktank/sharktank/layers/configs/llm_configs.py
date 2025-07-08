@@ -97,17 +97,8 @@ class LlamaHParams:
     route_scale: Optional[float] = None
 
     # Llama 4 configs
-    # Specifies the size of each chunk used during chunked attention computation.
-    attention_chunk_size: Optional[int] = None
-
-    # A list of layer indices where chunked attention is applied instead of full attention.
-    chunked_attention_layers: Optional[set[int]] = None
-
-    # Indices of layers that use RoPE after the attention.
-    rope_layers: Optional[list[int]] = None
-
-    use_qk_norm: bool = False
-    # If True, applies normalization to the query and key vectors in attention.
+    # Ensure all layers are rope if `nope_layer_interval` is None.
+    no_rope_layer_step: Optional[list[int]] = None
 
     # In HuggingFace transformers, this field is represented as an int, but it is only ever used as a boolean.
     # For clarity and correctness, it should be a bool: if True, enables attention temperature tuning.
@@ -122,8 +113,6 @@ class LlamaHParams:
     @staticmethod
     def from_gguf_props(p: dict[str, Any]):
         name_prefix = p.get("general.architecture", "llama")
-        print("here and name-prefix", name_prefix)
-        print("p", p)
         default_expert_count = 0
         default_expert_used_count = 0
         default_interleave_moe_layer_step = None
@@ -167,12 +156,11 @@ class LlamaHParams:
             rope_freq_base=_optional_float_prop(
                 p, f"{name_prefix}.rope.freq_base", default_rope_freq_base
             ),
-            rope_layers=_str_prop(p, f"{name_prefix}.rope_layers", None),
-            attention_chunk_size=_optional_int_prop(
-                p, f"{name_prefix}.attention_chunk_size", None
+            no_rope_layer_step=_optional_int_prop(
+                p, f"{name_prefix}.no_rope_layer_step", None
             ),
-            chunked_attention_layers=_str_prop(
-                p, f"{name_prefix}.chunked_attention_layers", None
+            attn_temperature_tuning=_optional_bool_prop(
+                p, f"{name_prefix}.attn_temperature_tuning", None
             ),
             attn_scale=_optional_float_prop(p, f"{name_prefix}.attn_scale", None),
             floor_scale=_optional_int_prop(p, f"{name_prefix}.floor_scale", None),
@@ -237,15 +225,8 @@ class LlamaHParams:
         if self.vocab_size is not None:
             res[f"{self.model_arch}.vocab_size"] = self.vocab_size
 
-        res[f"{self.model_arch}.attention_chunk_size"] = self.attention_chunk_size
-        if self.chunked_attention_layers is not None:
-            res[f"{self.model_arch}.chunked_attention_layers"] = list(
-                self.chunked_attention_layers
-            )
-
-        res[f"{self.model_arch}.use_qk_norm"] = self.use_qk_norm
-        if self.rope_layers is not None:
-            res[f"{self.model_arch}.rope_layers"] = self.rope_layers
+        if self.no_rope_layer_step is not None:
+            res[f"{self.model_arch}.no_rope_layer_step"] = self.no_rope_layer_step
         if self.attn_temperature_tuning is not None:
             res[
                 f"{self.model_arch}.attn_temperature_tuning"
@@ -335,6 +316,21 @@ def _str_prop(p: dict[str, Any], name: str) -> str:
         raise KeyError(f"Property '{name}' not found (among keys {p.keys()})")
 
 
+def _optional_bool_prop(
+    p: dict[str, Any],
+    name: str,
+    default_value: bool | None,
+) -> bool | None:
+    value = p.get(name, default_value)
+
+    if value is None:
+        return None
+    try:
+        return bool(value)
+    except ValueError as e:
+        raise ValueError(f"Property '{name}' expected to be a bool and was not") from e
+
+
 def _optional_float_prop(
     p: dict[str, Any], name: str, default_value: float | None
 ) -> float | None:
@@ -415,8 +411,21 @@ class LlamaModelConfig:
     # be the difference of many gigabytes of static data being embedded in
     # the program and not.
     static_tables: bool = True
+
+    # A list of layer indices where chunked attention is applied instead of full attention.
+    chunked_attention_layers: Optional[set[int]] = None
+
+    # Specifies the size of each chunk used during chunked attention computation.
+    attention_chunk_size: Optional[int] = None
+
+    # If True, applies normalization to the query and key vectors in attention.
+    use_qk_norm: bool = False
+
     # Indices of layers that are MoE.
     moe_layers: Optional[list[int]] = None
+
+    # Indices of layers for rope for llama4
+    rope_layers: Optional[list[int]] = None
 
     # The default data type to use for model parameters and computations.
     dtype: Optional[torch.dtype] = None
@@ -442,6 +451,13 @@ class LlamaModelConfig:
         if isinstance(self.dtype, str):
             self.dtype = serialized_name_to_dtype(self.dtype)
 
+        if self.hp.no_rope_layer_step is not None:
+            self.rope_layers = [
+                i
+                for i in range(self.hp.block_count)
+                if int((i + 1) % self.hp.no_rope_layer_step != 0)
+            ]
+
     def to_properties(self) -> "PropertyValueType":
         res = self.hp.to_gguf_props()
         res["kv_cache_type"] = self.kv_cache_type
@@ -458,6 +474,10 @@ class LlamaModelConfig:
         res["attention_kernel"] = self.attention_kernel
         res["use_hf"] = self.use_hf
         res["static_tables"] = self.static_tables
+        res["use_qk_norm"] = self.use_qk_norm
+        res["attention_chunk_size"] = self.attention_chunk_size
+        if self.chunked_attention_layers is not None:
+            res["chunked_attention_layers"] = list(self.chunked_attention_layers)
 
         return res
 

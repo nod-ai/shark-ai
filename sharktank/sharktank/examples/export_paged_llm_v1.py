@@ -53,7 +53,7 @@ def main():
     dataset_type = cli.get_input_data_files(args)
     dataset_type = "irpa" if "irpa" in dataset_type else "gguf"
     dataset = cli.get_input_dataset(args)
-
+    hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
     if "tensor_parallelism_size" in dataset.properties:
         dataset_tensor_parallelism_size = dataset.properties["tensor_parallelism_size"]
         if dataset_tensor_parallelism_size != args.tensor_parallelism_size:
@@ -69,8 +69,7 @@ def main():
     block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
         dataset.root_theta, args.pipeline_parallelism_size
     )
-    print("data set properties: ", dataset)
-    hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
+
     llama_config = LlamaModelConfig(
         hp,
         tensor_parallelism_size=args.tensor_parallelism_size,
@@ -86,21 +85,8 @@ def main():
         kv_cache_dtype=args.kv_cache_dtype,
     )
     llama_config.fake_quant = args.fake_quant
-    print("here are configs; ", llama_config)
-    """llama_config = LlamaModelConfig.from_properties(dataset.properties)
-    hp = llama_config.hp
-    llama_config.tensor_parallelism_size = args.tensor_parallelism_size
-    llama_config.pipeline_parallelism_size = args.pipeline_parallelism_size
-    llama_config.block_to_pipeline_map = block_to_pipeline
-    llama_config.pipeline_to_device_map = pipeline_to_devices
-    llama_config.use_hf = args.use_hf
-    llama_config.static_tables = (False,)  # Rely on the compiler for hoisting tables.
-    llama_config.attention_kernel = args.attention_kernel
-    llama_config.block_seq_stride = args.block_seq_stride
-    llama_config.activation_dtype = args.activation_dtype
-    llama_config.attention_dtype = args.attention_dtype
-    llama_config.kv_cache_dtype = args.kv_cache_dtype
-    llama_config.fake_quant = args.fake_quant"""
+    llama_config.use_qk_norm = args.use_qk_norm
+    llama_config.attention_chunk_size = args.attention_chunk_size
 
     model = PagedLlmModelV1(dataset.root_theta, llama_config)
 

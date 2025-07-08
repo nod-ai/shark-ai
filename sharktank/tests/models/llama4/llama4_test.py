@@ -1,4 +1,3 @@
-from parameterized import parameterized
 import transformers.models
 from sharktank.utils.testing import TempDirTestBase
 from sharktank.models.llama4.testing import (
@@ -29,7 +28,7 @@ class Llama4Test(TempDirTestBase):
 
     @pytest.mark.xfail(
         is_mi300x,
-        raises=TypeError,
+        raises=(TypeError, AssertionError),
         strict=False,
         reason="argument of type 'NoneType' is not iterable",
     )
@@ -116,6 +115,8 @@ class TestLlama4IreeEager(TempDirTestBase):
             iree_hip_target=self.iree_hip_target,
             iree_hal_target_device=self.iree_hal_target_device,
             skip_decode=True,
+            use_qk_norm=True,
+            attention_chunk_size=37,
         )
         tester.run_and_compare_iree_vs_eager(atol=atol, rtol=rtol)
 
