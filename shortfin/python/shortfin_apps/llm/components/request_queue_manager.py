@@ -13,6 +13,7 @@ from .token_selection_strategy.config import DecodeConfig
 
 logger = logging.getLogger(__name__)
 
+
 class RequestQueueManager:
     """
     Manages a thread-safe request queue with a maximum size determined by model parameters.
@@ -23,7 +24,7 @@ class RequestQueueManager:
         self,
         *,
         model_params: ModelParams,
-        max_queue_size: int=3, # Maximum number of requests in queue
+        max_queue_size: int = 3,  # Maximum number of requests in queue
     ):
         self._max_queue_size = max_queue_size
         self._lock = threading.Lock()

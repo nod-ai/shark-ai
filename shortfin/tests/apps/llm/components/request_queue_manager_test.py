@@ -9,8 +9,10 @@ from shortfin_apps.llm.components.config_struct import ModelParams, PagedKVCache
 from shortfin_apps.llm.components.token_selection_strategy.config import DecodeConfig
 from shortfin_apps.llm.components.request_queue_manager import RequestQueueManager
 
+
 def get_decode_configs(beam_count):
     return [DecodeConfig(eos_token_id=0, num_beams=beam_count)]
+
 
 def get_model_params(max_queue_size):
     return ModelParams(
@@ -27,6 +29,7 @@ def get_model_params(max_queue_size):
         ),
     )
 
+
 def get_decode_config(beam_count):
     return DecodeConfig(
         num_beams=beam_count,
@@ -34,8 +37,11 @@ def get_decode_config(beam_count):
         max_completion_tokens=50,
     )
 
+
 def test_request_queue_manager():
-    queue_manager = RequestQueueManager(model_params=get_model_params(6), )
+    queue_manager = RequestQueueManager(
+        model_params=get_model_params(6),
+    )
 
     # Add to queue
     id0 = queue_manager.add_to_queue(get_decode_configs(4))
@@ -59,6 +65,7 @@ def test_request_queue_manager():
     tasks = queue_manager.current_tasks()
     assert len(tasks) == 1
     assert id0 in tasks
+
 
 def test_check_memory_availability_enough_pages():
     queue_manager = RequestQueueManager(model_params=get_model_params(4))
