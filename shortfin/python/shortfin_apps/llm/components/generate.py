@@ -53,6 +53,7 @@ class GenerateItemProcess(sf.Process):
         self,
         *,
         gen_req: GenerateReqInput,
+        client,
         prefill_batcher,
         decode_batcher,
         page_cache,
@@ -64,6 +65,7 @@ class GenerateItemProcess(sf.Process):
         fiber: sf.Fiber,
     ):
         super().__init__(fiber=fiber)
+        self.client = client
         self.gen_req = gen_req
         self.rid = rid
         self.input_text = input_text
@@ -263,6 +265,7 @@ class ClientGenerateBatchProcess(sf.Process):
                 )
 
                 gen_process = GenerateItemProcess(
+                    client=self,
                     prefill_batcher=self.service.prefill_batcher,
                     decode_batcher=self.service.decode_batcher,
                     page_cache=self.service.page_cache,
