@@ -41,4 +41,3 @@ def test_request_queue_manager():
     tasks = queue_manager.current_tasks()
     assert len(tasks) == 1
     assert id0 in tasks
-
