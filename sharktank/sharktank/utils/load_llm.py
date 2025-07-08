@@ -86,7 +86,7 @@ class TorchGenerator:
         seq_lens: torch.tensor,
         page_cache_size: int = None,
         dump_path: Path = None,
-        dump_decode_steps: int = None,
+        dump_decode_steps: int = 1,
         use_attention_mask: bool = True,
     ) -> "Batch":
         bs = token_ids.shape[0]
@@ -379,7 +379,7 @@ class Batch:
                 _decode_attention_mask,
             )
 
-        if self.dump_path is not None and self.dump_decode_steps < self.decode_step:
+        if self.dump_path is not None and self.decode_step < self.dump_decode_steps:
             print(f"\nSaving decode args to {Path(self.dump_path)}\n")
 
             self.dump_args(
