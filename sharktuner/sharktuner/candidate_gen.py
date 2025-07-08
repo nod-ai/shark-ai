@@ -91,9 +91,6 @@ class ContractionOpInterfaceTuner(
     ) -> ir.Module:
         contraction_op = self.get_root_op()
         func_name = self.get_root_op_func_name()
-
-        # Wrap the single CompilationInfoAttr in a list of (str, Attribute).
-        config_list = [("compilation_info", compilation_info)]
         return spec_builder.build_td_spec(
             contraction_op.context, contraction_op, config_list, func_name
         )
@@ -116,11 +113,30 @@ class ConvolutionOpInterfaceTuner(
     ) -> ir.Module:
         conv_op = self.get_root_op()
         func_name = self.get_root_op_func_name()
-
-        # Wrap the single CompilationInfoAttr in a list of (str, Attribute).
-        config_list = [("compilation_info", compilation_info)]
         return spec_builder.build_td_spec(
             conv_op.context, conv_op, config_list, func_name
+        )
+
+
+class AttentionOpInterfaceTuner(
+    DispatchTuner, dispatch_parser.AttentionOpInterfaceParser
+):
+    def __init__(self, root_op: ir.Operation):
+        super().__init__(root_op)
+
+    def get_constraint_generator(self) -> constraint_generator.ConstraintGenerator:
+        return constraint_generator.AttentionOpInterfaceConstraintGenerator(
+            self.get_root_op()
+        )
+
+    def get_td_spec(
+        self,
+        config_list: list[common.TuningConfiguration],
+    ) -> ir.Module:
+        attention_op = self.get_root_op()
+        func_name = self.get_root_op_func_name()
+        return spec_builder.build_td_spec(
+            attention_op.context, attention_op, config_list, func_name
         )
 
 
@@ -142,6 +158,7 @@ def generate_configs_and_td_specs(
     dispatch_tuners: list[type[DispatchTuner]] = [
         ContractionOpInterfaceTuner,
         ConvolutionOpInterfaceTuner,
+        AttentionOpInterfaceTuner,
     ]
 
     root_op_list = iree_codegen.get_tuner_root_ops(input_module)
