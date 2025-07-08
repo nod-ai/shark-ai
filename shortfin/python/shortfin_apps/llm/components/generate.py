@@ -260,7 +260,7 @@ class ClientGenerateBatchProcess(sf.Process):
 
                 # return error reponse if no pages available
                 available_pages_num = len(self.service.page_pool.available_pages)
-                if not self.service.rate_limiter.check_memory_availability(
+                if not self.service.queue_manager.check_memory_availability(
                     input_token_ids_len=len(input_token_ids),
                     available_pages=available_pages_num,
                     decode_config=decode_config,

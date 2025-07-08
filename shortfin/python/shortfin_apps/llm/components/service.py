@@ -24,7 +24,6 @@ from .service_debug_dumper import SERVICE_DEBUG_DUMPER
 from .tokenizer import Tokenizer
 from .token_selection_strategy import is_multi_response
 from .request_queue_manager import RequestQueueManager
-from .request_queue_manager import RateLimiter
 
 from ...utils import GenerateService
 from .fiber_pool import FiberPool
@@ -48,31 +47,24 @@ class LlmGenerateService(GenerateService):
         model_params: ModelParams,
         server_params: "ServerParams",
         program_isolation: str = "per_call",
-        max_queue_size: int = 3,  # Maximum number of requests in queue
     ):
         super().__init__(sysman)
         self.name = name
         self.tokenizer = tokenizer
+
         self.model_params = model_params
+        self.queue_manager = RequestQueueManager(model_params=self.model_params)
+        self.max_queue_size = self.queue_manager._max_queue_size
+
         self.server_params = server_params
-        self.max_queue_size = max_queue_size
-        # Use model_params.decode_batch_sizes to decide actual max_queue_size
-        self._initialize_max_queue_size()
+
         self.main_fiber_pool = FiberPool(
             self.sysman, self.max_queue_size, resizable=True
         )
 
         self.set_isolation(program_isolation)
         self._initialize_worker_and_fiber()
-        self.queue_manager = RequestQueueManager(self.max_queue_size)
-        self.rate_limiter = RateLimiter(model_params=self.model_params)
         self._initialize_page_cache()
-
-    def _initialize_max_queue_size(self):
-        """Initialize request and response queues"""
-        if self.model_params.decode_batch_sizes:
-            self.max_queue_size = max(self.model_params.decode_batch_sizes)
-            logger.debug(f"Max queue size: {self.max_queue_size}")
 
     def _initialize_worker_and_fiber(self):
         num_workers = self.server_params.workers

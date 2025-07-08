@@ -9,64 +9,39 @@ import logging
 import math
 from .config_struct import ModelParams
 from typing import Optional
-
-logger = logging.getLogger(__name__)
-
 from .token_selection_strategy.config import DecodeConfig
 
-
-class RateLimiter:
-    def __init__(
-        self,
-        *,
-        model_params: ModelParams,
-    ):
-        self.model_params = model_params
-
-    def check_memory_availability(
-        self,
-        *,
-        input_token_ids_len: int,
-        available_pages: int,
-        decode_config: DecodeConfig,
-    ):
-        stride = self.model_params.paged_kv_cache.block_seq_stride
-        total_requested_beams = decode_config.num_beams
-        input_pages = math.ceil(input_token_ids_len / stride)
-        copy_pages = total_requested_beams - 1
-
-        output_pages_for_one_beam = math.ceil(
-            decode_config.max_completion_tokens / stride
-        )
-        output_pages_total = total_requested_beams * output_pages_for_one_beam
-        needed_pages = input_pages + copy_pages + output_pages_total
-        logger.debug(
-            f"Needed pages for request is {needed_pages}, pages available is {available_pages}"
-        )
-
-        if needed_pages <= available_pages:
-            return True
-
-        return False
-
+logger = logging.getLogger(__name__)
 
 class RequestQueueManager:
     """
     Manages a thread-safe request queue with a maximum size determined by model parameters.
+    Also includes memory availability checks
     """
 
-    def __init__(self, max_queue_size: int):
+    def __init__(
+        self,
+        *,
+        model_params: ModelParams,
+        max_queue_size: int=3, # Maximum number of requests in queue
+    ):
         self._max_queue_size = max_queue_size
         self._lock = threading.Lock()
         self._current_queue_size = 0
         self._current_id = 0
         self._current_tasks = {}
 
+        self.model_params = model_params
+        # Use model_params.decode_batch_sizes to decide actual _max_queue_size
+        if self.model_params.decode_batch_sizes:
+            self._max_queue_size = max(self.model_params.decode_batch_sizes)
+            logger.debug(f"Max queue size: {self._max_queue_size}")
+
     def current_tasks(self):
         with self._lock:
             return self._current_tasks.keys()
 
-    def add_to_queue(self, decode_configs: list[DecodeConfig]) -> bool:
+    def add_to_queue(self, decode_configs: list[DecodeConfig]) -> Optional[int]:
         """
         Attempt to add a request to the queue.
 
@@ -74,7 +49,7 @@ class RequestQueueManager:
             decode_configs: The configurations being asked to add to workload
 
         Returns:
-            True if the request was added successfully, False if the queue is full.
+            ID if the request was added successfully, None if the queue is full.
         """
         request_size = sum(config.num_beams for config in decode_configs)
 
@@ -96,12 +71,10 @@ class RequestQueueManager:
         Remove a request from the queue.
 
         Args:
-            request_size: The configurations being removed to workload
-
+            id: The ID of the request to remove
         Raises:
-            RuntimeError: If the queue does not have enough items to remove.
+            RuntimeError: If the queue does not have the request ID.
         """
-
         with self._lock:
             if id not in self._current_tasks:
                 error_msg = (
@@ -117,3 +90,37 @@ class RequestQueueManager:
             logger.debug(
                 f"Removed from queue: new queue size {self._current_queue_size}"
             )
+
+    def check_memory_availability(
+        self,
+        *,
+        input_token_ids_len: int,
+        available_pages: int,
+        decode_config: DecodeConfig,
+    ) -> bool:
+        """
+        Check if there is enough memory (paged KV cache) available for the request.
+
+        Args:
+            input_token_ids_len: Length of input tokens
+            available_pages: Number of available memory pages
+            decode_config: Configuration for decoding
+
+        Returns:
+            True if enough memory is available, False otherwise.
+        """
+        stride = self.model_params.paged_kv_cache.block_seq_stride
+        total_requested_beams = decode_config.num_beams
+        input_pages = math.ceil(input_token_ids_len / stride)
+        copy_pages = total_requested_beams - 1
+
+        output_pages_for_one_beam = math.ceil(
+            decode_config.max_completion_tokens / stride
+        )
+        output_pages_total = total_requested_beams * output_pages_for_one_beam
+        needed_pages = input_pages + copy_pages + output_pages_total
+        logger.debug(
+            f"Needed pages for request is {needed_pages}, pages available is {available_pages}"
+        )
+
+        return needed_pages <= available_pages
