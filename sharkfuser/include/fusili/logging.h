@@ -16,13 +16,15 @@ namespace fusili {
 enum class [[nodiscard]] error_code_t {
   // Add error codes as needed
   OK,
+  NOT_IMPLEMENTED,
   ATTRIBUTE_NOT_SET,
   INVALID_ATTRIBUTE,
-  TENSOR_NOT_FOUND
+  TENSOR_NOT_FOUND,
 };
 
 static const std::unordered_map<error_code_t, std::string> error_code_str = {
     {error_code_t::OK, "OK"},
+    {error_code_t::NOT_IMPLEMENTED, "NOT_IMPLEMENTED"},
     {error_code_t::ATTRIBUTE_NOT_SET, "ATTRIBUTE_NOT_SET"},
     {error_code_t::INVALID_ATTRIBUTE, "INVALID_ATTRIBUTE"},
     {error_code_t::TENSOR_NOT_FOUND, "TENSOR_NOT_FOUND"}};

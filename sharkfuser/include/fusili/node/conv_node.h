@@ -46,9 +46,49 @@ public:
 
     attributes.fill_from_context(context);
 
-    auto X = attributes.get_X();
-    auto W = attributes.get_W();
-    auto Y = attributes.get_Y();
+    // Default layouts for now
+    auto x_t = attributes.get_X(); // NHWC
+    auto w_t = attributes.get_W(); // KCRS
+    auto y_t = attributes.get_Y(); // NKPQ
+
+    auto const &x_dim = x_t->get_dim();
+    auto const &w_dim = w_t->get_dim();
+    auto const &y_dim = y_t->get_dim();
+
+    if (y_dim.empty()) {
+      FUSILI_RETURN_ERROR_IF(
+          true, error_code_t::NOT_IMPLEMENTED,
+          "Convolution node shape inference not implemented yet");
+
+      // auto y_dim_inferred = std::vector<int64_t>(x_dim.size(), 1);
+
+      // auto const &pre_padding = attributes.get_pre_padding();
+      // auto const &post_padding = attributes.get_post_padding();
+      // auto const &stride = attributes.get_stride();
+      // auto const &dilation = attributes.get_dilation();
+
+      // // N
+      // y_dim_inferred[0] = x_dim[0]; // Batch size
+
+      // // K
+      // y_dim_inferred[1] = w_dim[0]; // Number of filters
+
+      // // PQ
+      // for (size_t dim = 2; dim < x_dim.size(); ++dim) {
+      //   y_dim_inferred[dim] =
+      //       1 + (x_dim[dim] - dilation[dim - 2] * (w_dim[dim] - 1) - 1 +
+      //            pre_padding[dim - 2] + post_padding[dim - 2]) /
+      //               stride[dim - 2];
+      // }
+
+      // y_t->set_dim(y_dim_inferred);
+    }
+
+    if (y_t->get_stride().empty()) {
+      FUSILI_RETURN_ERROR_IF(
+          true, error_code_t::NOT_IMPLEMENTED,
+          "Convolution node stride inference not implemented yet");
+    }
 
     return {error_code_t::OK, ""};
   }

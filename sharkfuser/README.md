@@ -46,5 +46,6 @@ Project Roadmap:
 - [ ] Elementwise ops (relu?)
 - [ ] Op fusion templates
 - [ ] Python bindings
+- [ ] Shape inference for static dims
 - [ ] Serialization
 - [ ] hipDNN integration
