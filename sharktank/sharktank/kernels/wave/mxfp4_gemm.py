@@ -7,9 +7,9 @@
 from sharktank.kernels.base import *
 from sharktank.kernels.mlir_kernel import *
 from sharktank.kernels.wave.utils import get_wave_module_body_asm
-from iree.turbine.kernel.wave.templates.vanilla_attention import (
-    get_bhsd_attention_kernel,
-)
+import iree.turbine.kernel.lang as tkl
+import iree.turbine.kernel.wave as tkw
+from iree.turbine.kernel.lang.global_symbols import *
 from iree.turbine.kernel.wave.scheduling.schedule import SchedulingType
 from iree.turbine.kernel.wave.compile import wave_compile, WaveCompileOptions
 from iree.turbine.kernel.wave.templates.attention_common import AttentionShape
@@ -136,7 +136,8 @@ def get_wave_mxfp4_bmm_asm(
 B = DynDim.B
 M = DynDim.M
 N = StaticDim.N
-K = StaticDim.K
+HALF_K = StaticDim.HALF_K
+K_OVER_THIRTYTWO = StaticDim.K_OVER_THIRTYTWO
 
 UI8 = Dtype.UI8(torch.uint8)
 F32 = Dtype.F32(torch.float32)
@@ -144,10 +145,10 @@ F32 = Dtype.F32(torch.float32)
 
 @mlir_kernel(
     inputs=(
-        MLIRTensor[B, M, K / 2, UI8],
-        MLIRTensor[B, M, K / 32, UI8],
-        MLIRTensor[N, K / 2, UI8],
-        MLIRTensor[N, K / 32, UI8],
+        MLIRTensor[B, M, HALF_K, UI8],
+        MLIRTensor[B, M, K_OVER_THIRTYTWO, UI8],
+        MLIRTensor[N, HALF_K, UI8],
+        MLIRTensor[N, K_OVER_THIRTYTWO, UI8],
         MLIRTensor[B, M, N, F32],
     ),
     results=(MLIRTensor[B, M, N, F32],),
@@ -175,6 +176,27 @@ def wave_mxfp4_bmm(x, x_scales, w_t, w_scales, out, result=None):
         mfma_variant,
         SchedulingType.NONE,
     )
-    mlir = ""
+
+    wave_asm_module = Module.parse(wave_asm)
+    wave_asm_body = get_wave_module_body_asm(wave_asm_module)
+
+    mlir_wave_kernel = (
+        "\n{% raw %}\n"
+        + wave_asm_body
+        + "\n{% endraw %}\n"
+        + f"""
+    util.func private @{{{{kernel_name}}}}(%x : !x, %x_scales : !x_scales, %w_t : !w_t, %w_scales : !w_scales, %out : !out) -> !result {{
+        %c0 = arith.constant 0 : index
+        %b = tensor.dim %x, %c0 : !x
+        %c1 = arith.constant 1 : index
+        %m = tensor.dim %x, %c1 : !x
+        %result = func.call @{wave_kernel_name}(%x, %x_scales, %w_t, %w_scales, %b, %m) : (!x, !x_scales, !w_t, !w_scales, !out, index, index) -> !result
+        util.return %result : !result
+    }}
+    """
+    )
+    breakpoint()
+
+    mlir = "module {" + mlir_wave_kernel + "}"
 
     return MLIRSpec(mlir)
