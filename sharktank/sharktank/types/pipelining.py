@@ -40,39 +40,36 @@ def pipeline_parallelize_theta(
         """
         Parallelize the block data in place.
         """
-        keys = list(block_data.keys())
-        assert len(keys) == 1
-        for key in keys:
-            tensor = block_data[key]
+        assert len(block_data) == 1
+        block_key = list(block_data.keys())[0]
+        tensor = block_data[block_key]
 
-            # TODO: Handle Quantizer here
+        old_shards, old_devices = [tensor], (0,)
+        if isinstance(tensor, ShardedTensor):
+            old_shards, old_devices = tensor.shards, tensor.devices
 
-            old_shards, old_devices = [tensor], (0,)
-            if isinstance(tensor, ShardedTensor):
-                old_shards, old_devices = tensor.shards, tensor.devices
+        new_shards = ShardedTensor.move_shards_to_new_devices(
+            old_shards, old_devices=old_devices, new_devices=new_devices
+        )
 
-            new_shards = ShardedTensor.move_shards_to_new_devices(
-                old_shards, old_devices=old_devices, new_devices=new_devices
-            )
-
-            # TODO: Need to copy device and external tensor traits of Layout conponents.
-            #       Might be best to have each class handle that itself so this doesn't become a long chain of if-statements.
-            for i, (old_shard, new_shard) in enumerate(zip(old_shards, new_shards)):
-                DeviceTensorTrait(new_devices[i]).set(new_shard._data)
-                if old_tensor_trait := ExternalTensorTrait.get(old_shard._data):
+        for i, (old_shard, new_shard) in enumerate(zip(old_shards, new_shards)):
+            old_globals, new_globals = old_shard.globals, new_shard.globals
+            for key in new_globals.keys():
+                DeviceTensorTrait(new_devices[i]).set(new_globals[key])
+                if old_tensor_trait := ExternalTensorTrait.get(old_globals[key]):
                     ExternalTensorTrait(
                         old_tensor_trait.external_scope,
                         old_tensor_trait.external_name,
-                    ).set(new_shard._data)
+                    ).set(new_globals[key])
 
-            if isinstance(tensor, ShardedTensor):
-                new_tensor = tensor.clone(ts=new_shards, devices=new_devices)
-            else:
-                new_tensor = ReplicatedTensor(
-                    ts=new_shards, name=tensor.name, devices=new_devices
-                )
+        if isinstance(tensor, ShardedTensor):
+            new_tensor = tensor.clone(ts=new_shards, devices=new_devices)
+        else:
+            new_tensor = ReplicatedTensor(
+                ts=new_shards, name=tensor.name, devices=new_devices
+            )
 
-            block_data[key] = new_tensor
+            block_data[block_key] = new_tensor
 
     _t = theta.tensor("token_embd")["weight"]
     shard_count = _t.shard_count if isinstance(_t, ShardedTensor) else 1
