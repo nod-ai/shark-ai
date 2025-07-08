@@ -14,7 +14,7 @@ import torch
 def config_to_hugging_face_text_config(config: LlamaModelConfig) -> Llama4TextConfig:
     moe_layers = None
     if config.hp.interleave_moe_layer_step is None:
-        moe_layers = config.hp.moe_layers
+        moe_layers = config.moe_layers
     rope_scaling = {
         "factor": 8.0,
         "high_freq_factor": 4.0,

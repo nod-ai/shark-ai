@@ -410,7 +410,7 @@ class AttentionFFNBlock(ThetaLayer):
         experts_ffn_moe_block = "DenseFFNMOE"
         if config.hp.model_arch == "llama4":
             is_moe_block = block_index in config.moe_layers
-            experts_ffn_moe_block = "DenseFFNMOE"
+            experts_ffn_moe_block = "PreGatherFFNMOE"
 
         n_dense_layers = config.hp.n_dense_layers
         if (
