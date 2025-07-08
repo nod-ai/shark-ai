@@ -12,6 +12,7 @@ import torch
 import pytest
 from sharktank.utils.testing import is_mi300x, IreeVsEagerLLMTester
 import random
+from parameterized import parameterized
 
 
 def convert_hf_2D_input_mask_to_4D_attention_mask(
@@ -120,6 +121,10 @@ class TestLlama4IreeEager(TempDirTestBase):
         )
         tester.run_and_compare_iree_vs_eager(atol=atol, rtol=rtol)
 
-    def testUnshardedToySizedModelIREEVsEager(self):
-        for dtype, atol, rtol in [(torch.float16, 1e-1, 1e-1)]:
-            self.helper_run(dtype=dtype, atol=atol, rtol=rtol)
+    @parameterized.expand(
+        [
+            (torch.float16, 1e-1, 1e-1),
+        ]
+    )
+    def testUnshardedToySizedModelIREEVsEager(self, dtype, atol, rtol):
+        self.helper_run(dtype=dtype, atol=atol, rtol=rtol)
