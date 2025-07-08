@@ -51,12 +51,15 @@ class GenerateItemProcess(sf.Process):
 
     def __init__(
         self,
-        client: "ClientGenerateBatchProcess",
+        *,
         gen_req: GenerateReqInput,
-        index: int,
+        client,
+        prefill_batcher,
+        decode_batcher,
+        page_cache,
+        rid: int,
         input_text: str,
         input_token_ids: list[int],
-        eos_token_id: int,
         decode_config: DecodeConfig,
         status_tracker: RequestStatusTracker,
         fiber: sf.Fiber,
@@ -64,19 +67,18 @@ class GenerateItemProcess(sf.Process):
         super().__init__(fiber=fiber)
         self.client = client
         self.gen_req = gen_req
-        self.index = index
+        self.rid = rid
         self.input_text = input_text
         self.input_token_ids = input_token_ids
         self.result_token_ids: list[int] = []
-        self.eos_token_id = eos_token_id
         self.decode_config = decode_config
+        self.cache = page_cache
         self.token_selector_config: TokenSelectionStrategyConfig = (
             build_token_selector_config(
                 decode_config,
-                prefill_batcher=self.client.prefill_batcher,
-                decode_batcher=self.client.decode_batcher,
+                prefill_batcher=prefill_batcher,
+                decode_batcher=decode_batcher,
                 results_callback=self.results_callback,
-                eos_token_id=self.eos_token_id,
             )
         )
         self.token_selector: TokenSelector = build_token_selector(
@@ -93,7 +95,7 @@ class GenerateItemProcess(sf.Process):
             rid=self.gen_req.rid,
             status_tracker=self._status_tracker,
         )
-        exec_req._cache = self.client.prefill_batcher.page_cache
+        exec_req._cache = self.cache
         try:
             # Prefill result.
             await self.token_selector.prefill(exec_req)
@@ -172,37 +174,32 @@ class ClientGenerateBatchProcess(sf.Process):
         )
         return False
 
-    def _pre_processing_sampling_params(self) -> Tuple[List[DecodeConfig], int]:
+    def get_decode_configs(self) -> List[DecodeConfig]:
         """Calculate the total number of beams requested in the generation request."""
         gen_req = self.gen_req
         decode_configs = []
-        total_requested_beams = 0
 
         sampling_params = (
             [gen_req.sampling_params] if gen_req.is_single else gen_req.sampling_params
         )
         for sampling_param in sampling_params:
             decode_config = deepcopy(self.service.server_params.decode_config)
+            decode_config.eos_token_id = self.tokenizer.eos_token_id
             decode_config.update_from_sampling_params(sampling_param)
-            total_requested_beams += decode_config.num_beams
             decode_configs.append(decode_config)
 
-        return decode_configs, total_requested_beams
+        return decode_configs
 
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
 
         indices = []
-        total_requested_beams = 0
-        (
-            decode_configs,
-            total_requested_beams,
-        ) = self._pre_processing_sampling_params()
+        decode_configs = self.get_decode_configs()
 
         # Try to add request to queue
         # TODO(@zphoenixrises): Add load testing and integration tests for this.
-        added_to_queue = self.service.queue_manager.add_to_queue(total_requested_beams)
-        if not added_to_queue:
+        run_request = self.service.queue_manager.add_to_queue(decode_configs)
+        if not run_request:
             self.responder.send_error(
                 error_message="Server queue is full. Please try again later.",
                 code=ResponderErrorCodes.QUEUE_FULL,
@@ -261,15 +258,23 @@ class ClientGenerateBatchProcess(sf.Process):
                     else self.gen_req.text
                 )
 
+                rid = (
+                    self.gen_req.rid
+                    if self.gen_req.is_single
+                    else self.gen_req.rid[idx]
+                )
+
                 gen_process = GenerateItemProcess(
-                    self,
-                    self.gen_req,
-                    index,
+                    client=self,
+                    prefill_batcher=self.service.prefill_batcher,
+                    decode_batcher=self.service.decode_batcher,
+                    page_cache=self.service.page_cache,
+                    gen_req=self.gen_req,
+                    rid=rid,
                     input_text=input_text,
                     input_token_ids=input_tokens
                     if is_pretokenized
                     else input_tokens.ids,
-                    eos_token_id=self.tokenizer.eos_token_id,
                     decode_config=decode_config,
                     status_tracker=self.responder.get_status_tracker(),
                     fiber=fiber,
@@ -283,9 +288,7 @@ class ClientGenerateBatchProcess(sf.Process):
         finally:
             self.service.main_fiber_pool.return_fiber(indices)
             self.responder.ensure_response()
-
-            if added_to_queue:
-                self.service.queue_manager.remove_from_queue(total_requested_beams)
+            self.service.queue_manager.remove_from_queue(run_request)
 
     def generate_response(
         self,
@@ -343,11 +346,7 @@ class ClientGenerateBatchProcess(sf.Process):
         result_tokens = gen_process.result_token_ids[
             gen_process.streamed_tokens_index :
         ]
-        rid = (
-            gen_process.gen_req.rid
-            if gen_process.gen_req.is_single
-            else gen_process.gen_req.rid[gen_process.index]
-        )
+        rid = gen_process.rid
         if not self.gen_req.return_input_ids:
             (result_text,) = self.tokenizer.decode([result_tokens])
             out.write(f"data({rid}): ".encode())
