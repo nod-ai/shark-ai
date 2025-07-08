@@ -128,7 +128,6 @@ def matmul_generic_tensor_block_scaled_fp4(
     scales_float = convert_fp4_scales_to_float(
         rhs_unpacked.d, rhs_unpacked.use_power_of_two_scale
     )
-    breakpoint()
     output = torch.zeros(
         [lhs.shape[0], lhs.shape[1], rhs_unpacked[0]],
         dtype=torch.float32,
