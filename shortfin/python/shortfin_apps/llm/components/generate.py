@@ -259,10 +259,9 @@ class ClientGenerateBatchProcess(sf.Process):
                 input_token_ids = input_tokens if is_pretokenized else input_tokens.ids
 
                 # return error reponse if no pages available
-                available_pages_num = len(self.service.page_pool.available_pages)
                 if not self.service.queue_manager.check_memory_availability(
                     input_token_ids_len=len(input_token_ids),
-                    available_pages=available_pages_num,
+                    available_pages=self.service.page_pool.get_available_pages_num(),
                     decode_config=decode_config,
                 ):
                     self.responder.send_error(
