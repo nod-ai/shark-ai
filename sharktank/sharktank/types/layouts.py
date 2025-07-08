@@ -86,6 +86,8 @@ class TensorScaledLayout(QuantizedLayout):
         m: Optional[torch.Tensor] = None,
         dtype: Optional[torch.dtype] = None,
     ):
+        assert len(d.shape) == 1, "Non-scale not yet tested"
+        assert m is None or len(m.shape) == 1, "Non-scale not yet tested"
         self._shape = shape
         self._d = d
         self._qs = qs
@@ -165,11 +167,10 @@ class TensorScaledLayout(QuantizedLayout):
         )
 
     def transpose(self, *args, **kwargs) -> "TensorScaledLayout":
-        # TODO: Why was only qs getting transposed?
         qs = self.qs.transpose(*args, **kwargs)
-        d = self.d.transpose(*args, **kwargs)
-        m = self.m.transpose(*args, **kwargs) if self.m is not None else None
-        return TensorScaledLayout(shape=qs.shape, d=d, qs=qs, m=m, dtype=self.dtype)
+        return TensorScaledLayout(
+            shape=qs.shape, d=self.d, qs=qs, m=self.m, dtype=self.dtype
+        )
 
     def dequant(self, dtype: Optional[torch.dtype] = None) -> torch.Tensor:
         return self.dequant_blocked(dtype)
