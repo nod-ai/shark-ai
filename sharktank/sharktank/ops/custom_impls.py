@@ -130,7 +130,7 @@ def matmul_generic_tensor_block_scaled_fp4(
     )
     breakpoint()
     output = torch.zeros(
-        [q.shape[0], q.shape[1], q.shape[2], v.shape[3]],
+        [lhs.shape[0], lhs.shape[1], rhs_unpacked[0]],
         dtype=torch.float32,
     )
     return wave_mxfp4_bmm(

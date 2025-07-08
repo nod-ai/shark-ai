@@ -14,7 +14,7 @@ import torch
 from iree.compiler.passmanager import PassManager
 from iree.compiler.ir import Context, Module
 import iree.turbine.aot as aot
-from sharktank.kernels.wave.mxfp4_gemm import wave_mxfp4_batched_gemm
+from sharktank.kernels.wave.mxfp4_gemm import wave_mxfp4_bmm
 from parameterized import parameterized
 
 
@@ -22,7 +22,7 @@ class wave_fp4_gemm(unittest.TestCase):
     def test_wave_fp4_gemm(self):
         class WaveMxfp4Module(torch.nn.Module):
             def forward(self, x, x_scales, w_t, w_scales, output):
-                return wave_mxfp4_batched_gemm(x, x_scales, w_t, w_scales, output)
+                return wave_mxfp4_bmm(x, x_scales, w_t, w_scales, output)
 
         e = aot.export(
             WaveMxfp4Module(),
@@ -50,7 +50,7 @@ class wave_fp4_gemm(unittest.TestCase):
         )
         self.assertIn(
             (
-                "util.func private @wave_util_mxfp4_bmm_B_M_K/2_512_ui8_B_M_K/32_32_ui8_N_K/2_512_ui8_N_K/32_32_ui8_B_M_N_1024_f32"
+                "util.func private @wave_util_mxfp4_bmm_B_M_HALF_K_512_ui8_B_M_K_OVER_THIRTYTWO_32_ui8_N_HALF_K_512_ui8_N_K_OVER_THIRTYTWO_32_ui8_B_M_N_1024_f32"
             ),
             mlir_asm,
         )
