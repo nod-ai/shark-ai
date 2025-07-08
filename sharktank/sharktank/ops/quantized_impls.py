@@ -6,6 +6,8 @@
 
 
 from typing import Callable
+
+from torch import Tensor
 from sharktank.types.layouts import BlockScaledFp4Layout
 from ._registry import *
 from sharktank.types.tensors import (
@@ -26,40 +28,26 @@ def replicate_quantized(
     return ReplicatedTensor(ts=input, shard_count=count, devices=devices)
 
 
-@transfer_to_logical_device.override(PlanarQuantizedTensor)
+@transfer_to_logical_device.override(QuantizedTensor)
 def transfer_to_logical_device_planar_quantized_tensor(
-    tensor: PlanarQuantizedTensor, ordinal: int
+    tensor: QuantizedTensor, ordinal: int
 ):
     return transfer_or_barrier(
         iree.turbine.ops.iree.transfer_to_logical_device, tensor, ordinal
     )
 
 
-@barrier_on_logical_device.override(PlanarQuantizedTensor)
+@barrier_on_logical_device.override(QuantizedTensor)
 def barrier_on_logical_device__planar_quantized_tensor(
-    tensor: PlanarQuantizedTensor, ordinal: int
+    tensor: QuantizedTensor, ordinal: int
 ):
     return transfer_or_barrier(
         iree.turbine.ops.iree.barrier_on_logical_device, tensor, ordinal
     )
 
 
-def transfer_or_barrier(
-    operation: Callable, tensor: PlanarQuantizedTensor, ordinal: int
-):
-    # TODO: Rewrite using transform_globals and _clone_with_globals.
-    layout_old: BlockScaledFp4Layout = tensor.layout
-    _d = operation(f"{ordinal}", tensor.layout._d)
-    _qs = operation(f"{ordinal}", layout_old.qs_bit_packed)
-    layout_new = BlockScaledFp4Layout(
-        layout_old.shape,
-        _d,
-        _qs,
-        block_size=layout_old.block_size,
-        use_fe8m0_scale=layout_old.use_fe8m0_scale,
-    )
-    return PlanarQuantizedTensor(
-        shape=tensor.shape,
-        layout=layout_new,
-        name=tensor.name,
-    )
+def transfer_or_barrier(operation: Callable, tensor: QuantizedTensor, ordinal: int):
+    def operation_transform(globals: dict[str, Tensor]) -> dict[str, Tensor]:
+        return {k: operation(f"{ordinal}", v) for k, v in globals.items()}
+
+    return tensor.transform_globals(operation_transform)
