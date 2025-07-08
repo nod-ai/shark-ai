@@ -913,14 +913,16 @@ class ShardedTensor(InferenceTensor):
         super().__init__(name=name, shape=shape)
         self.shard_dim = shard_dim
         self._devices = devices
+
+        _shards = []
+        for i, t in enumerate(ts):
+            if isinstance(t, Tensor):
+                _shards.append(DefaultPrimitiveTensor(name=f"{name}.shard.{i}", data=t))
+                continue
+            _shards.append(t)
+
         self._shards: tuple[DefaultPrimitiveTensor] | tuple[QuantizedTensor] = tuple(
-            DefaultPrimitiveTensor(
-                name=f"{name}.shard.{i}",
-                data=t,
-            )
-            if isinstance(t, torch.Tensor)
-            else t  # TODO: Provide names for QuantizedTensors as well.
-            for i, t in enumerate(ts)
+            _shards
         )
 
     def __invert__(self):
@@ -1031,7 +1033,11 @@ class ShardedTensorBase(ShardedTensor):
 
     @property
     def globals(self) -> dict[str, torch.Tensor]:
-        return {pt.name: pt._data for pt in self._shards}
+        _globals = {}
+        for shard in self._shards:
+            for name, tensor in shard.globals.items():
+                _globals[name] = tensor
+        return _globals
 
     def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
         for i, pt in enumerate(self._shards):
@@ -1363,6 +1369,9 @@ class ReplicatedTensor(ShardedTensor):
             ts = [
                 transfer_to_logical_device(ts, devices[i]) for i in range(shard_count)
             ]
+            for i in range(len(ts)):
+                if isinstance(ts[i], QuantizedTensor):
+                    ts[i].name = f"{name}.shard.{i}"
             shard_count = None
 
         assert shard_count is None
@@ -1398,7 +1407,11 @@ class ReplicatedTensor(ShardedTensor):
 
     @property
     def globals(self) -> dict[str, torch.Tensor]:
-        return {pt.name: pt._data for pt in self._shards}
+        _globals = {}
+        for shard in self._shards:
+            for name, tensor in shard.globals.items():
+                _globals[name] = tensor
+        return _globals
 
     def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
         builder.for_rank(0).add_tensor(self.name, self._shards[0]._data)
@@ -1413,9 +1426,14 @@ class ReplicatedTensor(ShardedTensor):
     def _clone_with_globals(
         self, new_globals: dict[str, torch.Tensor]
     ) -> "InferenceTensor":
+        # NOTE: Assuming that the type of each shard does not change
+        all_new_keys = list(self.globals.keys())
         ts = []
-        for k in self.globals.keys():
-            ts.append(new_globals[k])
+        for i, shard in enumerate(self._shards):
+            shard_i_key = f".shard.{i}"
+            matching_keys = [k for k in all_new_keys if shard_i_key in k]
+            new_sub_globals = {k: new_globals.pop(k) for k in matching_keys}
+            ts.append(shard[i]._clone_with_globals(new_sub_globals))
         return ReplicatedTensor(
             name=self.name,
             ts=ts,
