@@ -123,6 +123,8 @@ def get_wave_mxfp4_bmm_asm(
         canonicalize=True,
         schedule=enable_scheduling,
         dynamic_symbols=dynamic_symbols,
+        func_name=target_function_name,
+        compile_to_mlir=True,
     )
     options = set_default_run_config(options)
 
@@ -190,7 +192,7 @@ def wave_mxfp4_bmm(x, x_scales, w_t, w_scales, out, result=None):
         %b = tensor.dim %x, %c0 : !x
         %c1 = arith.constant 1 : index
         %m = tensor.dim %x, %c1 : !x
-        %result = func.call @{wave_kernel_name}(%x, %x_scales, %w_t, %w_scales, %b, %m) : (!x, !x_scales, !w_t, !w_scales, !out, index, index) -> !result
+        %result = func.call @{wave_kernel_name}(%x, %x_scales, %w_t, %w_scales, %out, %b, %m) : (!x, !x_scales, !w_t, !w_scales, !out, index, index) -> !result
         util.return %result : !result
     }}
     """

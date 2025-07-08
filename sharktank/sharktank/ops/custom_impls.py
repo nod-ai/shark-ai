@@ -129,7 +129,7 @@ def matmul_generic_tensor_block_scaled_fp4(
         rhs_unpacked.d, rhs_unpacked.use_power_of_two_scale
     )
     output = torch.zeros(
-        [lhs.shape[0], lhs.shape[1], rhs_unpacked[0]],
+        [lhs.shape()[0], lhs.shape()[1], rhs_unpacked.shape()[0]],
         dtype=torch.float32,
     )
     return wave_mxfp4_bmm(
