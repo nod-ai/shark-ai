@@ -141,16 +141,16 @@ N = StaticDim.N
 HALF_K = StaticDim.HALF_K
 K_OVER_THIRTYTWO = StaticDim.K_OVER_THIRTYTWO
 
-UI8 = Dtype.UI8(torch.uint8)
+I8 = Dtype.UI8(torch.int8)
 F32 = Dtype.F32(torch.float32)
 
 
 @mlir_kernel(
     inputs=(
-        MLIRTensor[B, M, HALF_K, UI8],
-        MLIRTensor[B, M, K_OVER_THIRTYTWO, UI8],
-        MLIRTensor[N, HALF_K, UI8],
-        MLIRTensor[N, K_OVER_THIRTYTWO, UI8],
+        MLIRTensor[B, M, HALF_K, I8],
+        MLIRTensor[B, M, K_OVER_THIRTYTWO, I8],
+        MLIRTensor[N, HALF_K, I8],
+        MLIRTensor[N, K_OVER_THIRTYTWO, I8],
         MLIRTensor[B, M, N, F32],
     ),
     results=(MLIRTensor[B, M, N, F32],),
@@ -166,7 +166,7 @@ def wave_mxfp4_bmm(x, x_scales, w_t, w_scales, out, result=None):
         k,
     )
     mfma_variant = ScaledMMAType.F32_16x16x128_F8F6F4
-    i_type_str = "ui8"
+    i_type_str = "i8"
     o_type_str = "f32"
     batch_size = batch_size if batch_size >= 0 else "B_dyn"
     m = m if m >= 0 else "M_dyn"
