@@ -41,6 +41,7 @@ def test_request_queue_manager():
     assert len(tasks) == 1
     assert id0 in tasks
 
+
 def get_model_params():
     return ModelParams(
         max_seq_len=512,
@@ -56,12 +57,13 @@ def get_model_params():
         ),
     )
 
+
 def get_decode_config(beam_count):
     return DecodeConfig(
-            num_beams=beam_count,
-            use_beam_search=True,
-            max_completion_tokens=50,
-            )
+        num_beams=beam_count,
+        use_beam_search=True,
+        max_completion_tokens=50,
+    )
 
 
 def test_check_memory_availability_enough_pages():
@@ -76,6 +78,7 @@ def test_check_memory_availability_enough_pages():
     )
 
     assert result is True
+
 
 def test_check_memory_availability_not_enough_pages():
     limiter = RateLimiter(model_params=get_model_params())
