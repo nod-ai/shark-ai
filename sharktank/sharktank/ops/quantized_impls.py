@@ -26,10 +26,8 @@ def replicate_quantized(
     return ReplicatedTensor(ts=input, shard_count=count, devices=devices)
 
 
-@transfer_to_logical_device.override(
-    TensorQuantizedWithLayoutType(BlockScaledFp4Layout)
-)
-def transfer_to_logical_device_block_scaled_fp4(
+@transfer_to_logical_device.override(PlanarQuantizedTensor)
+def transfer_to_logical_device_planar_quantized_tensor(
     tensor: PlanarQuantizedTensor, ordinal: int
 ):
     return transfer_or_barrier(
@@ -37,8 +35,8 @@ def transfer_to_logical_device_block_scaled_fp4(
     )
 
 
-@barrier_on_logical_device.override(TensorQuantizedWithLayoutType(BlockScaledFp4Layout))
-def barrier_on_logical_device_block_scaled_fp4(
+@barrier_on_logical_device.override(PlanarQuantizedTensor)
+def barrier_on_logical_device__planar_quantized_tensor(
     tensor: PlanarQuantizedTensor, ordinal: int
 ):
     return transfer_or_barrier(
@@ -49,6 +47,7 @@ def barrier_on_logical_device_block_scaled_fp4(
 def transfer_or_barrier(
     operation: Callable, tensor: PlanarQuantizedTensor, ordinal: int
 ):
+    # TODO: Rewrite using transform_globals and _clone_with_globals.
     layout_old: BlockScaledFp4Layout = tensor.layout
     _d = operation(f"{ordinal}", tensor.layout._d)
     _qs = operation(f"{ordinal}", layout_old.qs_bit_packed)
