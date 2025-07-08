@@ -7,7 +7,7 @@
 import threading
 import logging
 import math
-from .config_struct import ModelParams
+from .config_struct import ModelParams, PagedKVCacheParams
 from typing import Optional
 from .token_selection_strategy.config import DecodeConfig
 
