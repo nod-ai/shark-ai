@@ -4,8 +4,9 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import shortfin.array as sfnp
 import threading
+
+import shortfin.array as sfnp
 
 
 class Allocation:
@@ -122,10 +123,10 @@ class DeviceArrayCache:
                 new_cache = {idx: self._cache[idx] for idx in to_keep}
                 new_table = {}
                 for idx in to_keep:
-                    key = self.create_key(allocation=self._cache[idx])
-                    if key not in new_table:
-                        new_table[key] = []
-                    new_table[key].append(idx)
+                    new_key = self.create_key(allocation=self._cache[idx])
+                    if new_key not in new_table:
+                        new_table[new_key] = []
+                    new_table[new_key].append(idx)
 
                 self._cache = new_cache
                 self._shape_table = new_table
