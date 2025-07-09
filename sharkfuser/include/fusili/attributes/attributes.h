@@ -48,6 +48,24 @@ public:
     return self();
   }
 
+  template <typename KeyT>
+  std::shared_ptr<TensorAttr> get_input(KeyT key) const {
+    auto it = self().inputs.find(key);
+    if (it != self().inputs.end()) {
+      return it->second;
+    }
+    return nullptr;
+  }
+
+  template <typename KeyT>
+  std::shared_ptr<TensorAttr> get_output(KeyT key) const {
+    auto it = self().outputs.find(key);
+    if (it != self().outputs.end()) {
+      return it->second;
+    }
+    return nullptr;
+  }
+
   void fill_from_context(Context const &context) {
     if (compute_data_type == DataType_t::NOT_SET) {
       set_compute_data_type(context.get_compute_data_type());
@@ -67,20 +85,12 @@ public:
 
 #define FUSILI_GENERIC_INPUT_TENSOR_GETTER(KTYPE, NAME)                        \
   std::shared_ptr<TensorAttr> get_##NAME() const {                             \
-    auto it = inputs.find(KTYPE::NAME);                                        \
-    if (it != inputs.end()) {                                                  \
-      return it->second;                                                       \
-    }                                                                          \
-    return nullptr;                                                            \
+    return get_input(KTYPE::NAME);                                             \
   }
 
 #define FUSILI_GENERIC_OUTPUT_TENSOR_GETTER(KTYPE, NAME)                       \
   std::shared_ptr<TensorAttr> get_##NAME() const {                             \
-    auto it = outputs.find(KTYPE::NAME);                                       \
-    if (it != outputs.end()) {                                                 \
-      return it->second;                                                       \
-    }                                                                          \
-    return nullptr;                                                            \
+    return get_output(KTYPE::NAME);                                            \
   }
 
 #define FUSILI_GENERIC_INPUT_TENSOR_SETTER(RTYPE, KTYPE, NAME)                 \
