@@ -16,7 +16,6 @@ class ResponderErrorCodes(Enum):
     CANCELLED = "CANCELLED"
 
 
-
 class AbstractResponder:
     """Interface for a responder to"""
 
