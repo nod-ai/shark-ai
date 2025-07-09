@@ -87,7 +87,15 @@ class ShardedRotaryLayer(BaseLayer):
         if isinstance(start_positions, ShardedTensor):
             shards = []
             table = self.rotary_embed_table()
-            for s, ts in zip(start_positions.shards, table.shards):
+            # use-hf
+            if isinstance(table, tuple):
+                table = [
+                    (shard_x, shard_y)
+                    for shard_x, shard_y in zip(table[0].shards, table[1].shards)
+                ]
+            else:
+                table = [x for x in table.shards]
+            for s, ts in zip(start_positions.shards, table):
                 shard = self._rotary_layer.compute_batch_mask(
                     start_positions=s,
                     batch_seq_len=batch_seq_len,
