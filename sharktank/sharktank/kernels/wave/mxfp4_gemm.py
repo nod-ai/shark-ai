@@ -141,7 +141,7 @@ N = StaticDim.N
 HALF_K = StaticDim.HALF_K
 K_OVER_THIRTYTWO = StaticDim.K_OVER_THIRTYTWO
 
-I8 = Dtype.UI8(torch.int8)
+I8 = Dtype.I8(torch.int8)
 F32 = Dtype.F32(torch.float32)
 
 
