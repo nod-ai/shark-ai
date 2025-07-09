@@ -103,7 +103,6 @@ else()
   endif()
 endif()
 
-
 # Build samples
 if(SHARKFUSER_BUILD_SAMPLES)
   message(STATUS "Building SharkFuser samples")
@@ -116,3 +115,9 @@ if(SHARKFUSER_BUILD_TESTS)
   add_subdirectory(tests)
   enable_testing()
 endif()
+
+configure_file(
+  ${CMAKE_SOURCE_DIR}/CTestCustom.cmake.in
+  ${CMAKE_BINARY_DIR}/CTestCustom.cmake
+  COPYONLY
+)
