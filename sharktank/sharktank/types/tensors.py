@@ -887,7 +887,7 @@ class PlanarQuantizedTensor(QuantizedTensor):
         )
 
     def __repr__(self):
-        return f"PlanarQuantized({self.name}, {self.shape}, layout={self.layout})"
+        return f"PlanarQuantizedTensor({self.name}, {self.shape}, layout={self.layout})"
 
 
 ########################################################################################
