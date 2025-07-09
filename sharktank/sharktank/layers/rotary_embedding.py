@@ -8,6 +8,8 @@ from typing import Optional, Union
 
 import torch
 
+from sharktank.types.tensors import InferenceTensor
+
 from .base import BaseLayer
 from sharktank import ops, kernels
 from sharktank.types import (
@@ -54,7 +56,9 @@ class ShardedRotaryLayer(BaseLayer):
             else tuple(range(self._tensor_parallelism_size))
         )
 
-    def rotary_embed_table(self):
+    def rotary_embed_table(
+        self,
+    ) -> tuple[InferenceTensor, InferenceTensor] | InferenceTensor:
         t = self._rotary_layer.create_rotary_embed_table()
         if self._tensor_parallelism_size > 1 or self._pipeline_parallelism:
             # Replicate across all devices, the data is not a lot and the computation is cheap.
@@ -167,9 +171,11 @@ class RotaryEmbeddingLayer(BaseLayer):
     def forward(
         self,
         *,
-        xt: torch.Tensor,
+        xt: InferenceTensor,
         start_index: int,
-        rotary_embed_table: Optional[torch.Tensor],
+        rotary_embed_table: InferenceTensor
+        | tuple[InferenceTensor, InferenceTensor]
+        | None,
     ):
         # freqs_cis shape: max_sl, dim
         # xq_, xk_ shape: bs, sl, _, dim
@@ -314,7 +320,9 @@ class RotaryEmbeddingLayer(BaseLayer):
             freqs = torch.where(is_medium_freq, smoothed_inv_freq, inv_freq_llama)
         return freqs
 
-    def compute_rotary_embed_table(self, t):
+    def compute_rotary_embed_table(
+        self, t: torch.Tensor
+    ) -> tuple[InferenceTensor, InferenceTensor] | InferenceTensor:
         dim = self.rope_dimension_count
         if self.use_hf:
 
@@ -337,6 +345,8 @@ class RotaryEmbeddingLayer(BaseLayer):
         freqs = (t.unsqueeze(1) * freqs.unsqueeze(0)).float()
         return freqs
 
-    def create_rotary_embed_table(self):
+    def create_rotary_embed_table(
+        self,
+    ) -> tuple[InferenceTensor, InferenceTensor] | InferenceTensor:
         t = torch.arange(self.max_seqlen, device=self.device)
         return self.compute_rotary_embed_table(t)
