@@ -6,6 +6,8 @@ export VMFB=$(pwd)/../output_artifacts/output.vmfb
 export MODEL_CONFIG=$(pwd)/../output_artifacts/config_attn.json
 export port=8959
 export TENSOR_PARALLELISM_SIZE=1
+SCRIPT_DIR=$(dirname $(realpath "$0"))
+source ${SCRIPT_DIR}/server_utils.sh
 
 
 while [[ "$1" != "" ]]; do
@@ -94,9 +96,15 @@ else
 	shortfin_process=$!
 fi
 
-echo $shortfin_process
+wait_for_server $port
 
-sleep 50
+if [[ ! -e /proc/$shortfin_process ]]; then
+    echo "Failed to start the server"
+    exit 1
+fi
+
+echo "Server with PID $shortfin_process is ready to accept requests on port $port....."
+
 echo "Running Client ..."
 
 curl http://localhost:$port/generate \

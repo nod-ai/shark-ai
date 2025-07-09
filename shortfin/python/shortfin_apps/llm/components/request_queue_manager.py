@@ -6,8 +6,11 @@
 
 import threading
 import logging
+from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+from .token_selection_strategy.config import DecodeConfig
 
 
 class RequestQueueManager:
@@ -16,50 +19,64 @@ class RequestQueueManager:
     """
 
     def __init__(self, max_queue_size: int):
-        self.max_queue_size = max_queue_size
+        self._max_queue_size = max_queue_size
         self._lock = threading.Lock()
-        self.current_queue_size = 0
+        self._current_queue_size = 0
+        self._current_id = 0
+        self._current_tasks = {}
 
-    def add_to_queue(self, request_size: int) -> bool:
+    def current_tasks(self):
+        with self._lock:
+            return self._current_tasks.keys()
+
+    def add_to_queue(self, decode_configs: list[DecodeConfig]) -> bool:
         """
         Attempt to add a request to the queue.
 
         Args:
-            request_size: The size of the request to add.
+            decode_configs: The configurations being asked to add to workload
 
         Returns:
             True if the request was added successfully, False if the queue is full.
         """
-        with self._lock:
-            if self.current_queue_size + request_size > self.max_queue_size:
-                logger.debug(
-                    f"Add failed: queue size {self.current_queue_size}, request size {request_size}"
-                )
-                return False
-            self.current_queue_size += request_size
-            logger.debug(f"Added to queue: new queue size {self.current_queue_size}")
-            return True
+        request_size = sum(config.num_beams for config in decode_configs)
 
-    def remove_from_queue(self, request_size: int) -> None:
+        with self._lock:
+            if self._current_queue_size + request_size > self._max_queue_size:
+                logger.debug(
+                    f"Add failed: queue size {self._current_queue_size}, request size {request_size}"
+                )
+                return None
+            self._current_id += 1
+            self._current_queue_size += request_size
+            assert self._current_id not in self._current_tasks
+            self._current_tasks[self._current_id] = request_size
+            logger.debug(f"Added to queue: new queue size {self._current_queue_size}")
+            return self._current_id
+
+    def remove_from_queue(self, id: Optional[int]) -> None:
         """
         Remove a request from the queue.
 
         Args:
-            request_size: The size of the request to remove.
+            request_size: The configurations being removed to workload
 
         Raises:
             RuntimeError: If the queue does not have enough items to remove.
         """
+
         with self._lock:
-            if self.current_queue_size >= request_size:
-                self.current_queue_size -= request_size
-                logger.debug(
-                    f"Removed from queue: new queue size {self.current_queue_size}"
-                )
-            else:
+            if id not in self._current_tasks:
                 error_msg = (
-                    f"Remove failed: queue size {self.current_queue_size}, "
-                    f"request size {request_size}"
+                    f"Remove failed: queue size {self._current_queue_size}, "
+                    f"request id {id}"
                 )
                 logger.debug(error_msg)
                 raise RuntimeError(error_msg)
+
+            request_size = self._current_tasks[id]
+            del self._current_tasks[id]
+            self._current_queue_size -= request_size
+            logger.debug(
+                f"Removed from queue: new queue size {self._current_queue_size}"
+            )

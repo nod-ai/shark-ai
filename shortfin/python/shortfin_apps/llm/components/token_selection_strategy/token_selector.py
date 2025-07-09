@@ -26,24 +26,6 @@ class TokenSelector(BaseTokenSelectionStrategy):
     scorer: BeamSearchScorer | DefaultScorer
     min_log_prob: float = 0.0
 
-    def _stream_single_beam(self, beam_group: BeamGroup):
-        """Stream a single beam for the `multi_greedy` strategy.
-
-        Args:
-            beam_group (BeamGroup): The group of beams to process.
-
-        Returns:
-            List[IndependentBeam]: Beams with new token selected.
-        """
-        results_callback = self.token_selection_strategy_config.results_callback
-
-        assert (
-            beam_group.num_beams == 1
-        ), "Streaming is not supported for multi-hypothesis yet."
-
-        beam = beam_group.active_beams[0]
-        results_callback(beam.last_token)
-
     async def decode(
         self,
         exec_req: LlmInferenceExecRequest,
@@ -98,9 +80,6 @@ class TokenSelector(BaseTokenSelectionStrategy):
             if not beam_group.active_beams:
                 break
 
-            if config.decode_config.num_beams == 1 and not use_beam_search:
-                self._stream_single_beam(beam_group)
-
         config.decode_end_callback(rid=exec_req.orig_instance_id, count=reservations)
         beam_group.clean_up()
 
@@ -127,24 +106,12 @@ class TokenSelector(BaseTokenSelectionStrategy):
 
     def get_results(self, beam_group: BeamGroup):
         config = self.token_selection_strategy_config
-        use_beam_search = config.decode_config.use_beam_search
-        # Tokens were streamed as they were selected, for single beam case
-        if config.decode_config.num_beams == 1 and not use_beam_search:
-            return
 
         results = [
             beam.exec_req.input_token_ids[beam.exec_req.prompt_length :]
             for beam in beam_group.completed_beams
         ]
         if len(results) < beam_group.num_beams:
-            if use_beam_search:
-                results = self._get_results_beam_search(beam_group, results)
-            else:
-                results.extend(
-                    [
-                        beam.exec_req.input_token_ids[beam.exec_req.prompt_length :]
-                        for beam in beam_group.active_beams
-                    ]
-                )
+            results = self._get_results_beam_search(beam_group, results)
 
         config.results_callback(results)
