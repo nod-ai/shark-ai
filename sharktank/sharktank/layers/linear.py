@@ -13,6 +13,7 @@ from sharktank.types import (
     QuantizedTensor,
     QuantizerTensor,
 )
+from .quarot import QuaRotTransform
 
 __all__ = [
     "LinearLayer",
@@ -39,6 +40,7 @@ class LinearLayer(ThetaLayer):
         weight_name: str = "weight",
         bias_name: str = "bias",
         fake_quant: bool = False,
+        use_quarot: bool = False,
     ):
         super().__init__(theta)
         self._simulate_native_quant = True
@@ -57,6 +59,13 @@ class LinearLayer(ThetaLayer):
         self.qdq_output: Optional[QuantizedTensor] = theta.optional_tensor("qdq_output")
         self.q_output: Optional[QuantizerTensor] = theta.optional_tensor("q_output")
 
+        # QuaRot support
+        self.use_quarot = use_quarot
+        self.quarot_transform = None
+        if use_quarot:
+            hidden_dim = self.weight.shape[1]
+            self.quarot_transform = QuaRotTransform(theta, hidden_dim)
+
     def forward(self, x):
         weight = self.weight
         bias = self.bias
@@ -74,7 +83,12 @@ class LinearLayer(ThetaLayer):
         elif qdq_input is not None:
             x = ops.quantize(x, qdq_input).unpack().dequant()
 
-        y = ops.linear(x, weight, bias)
+        if self.quarot_transform:
+            x = self.quarot_transform.forward(x)
+            x_quantized = self.quarot_transform.quantizer.quantize(x)
+            y = ops.linear(x_quantized, weight, bias)
+        else:
+            y = ops.linear(x, weight, bias)
 
         if isinstance(y, QuantizedTensor):
             y = y.unpack().dequant()
