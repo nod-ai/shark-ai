@@ -37,6 +37,9 @@ Worker = _sfl.local.Worker
 # Array is auto-imported.
 from . import array
 
+# LLM components.
+llm = _sfl.llm
+
 # System namespaces.
 from . import amdgpu
 from . import host
@@ -62,6 +65,8 @@ __all__ = [
     "SystemBuilder",
     "VoidFuture",
     "Worker",
+    # LLM components.
+    "llm",
     # System namespaces.
     "amdgpu",
     "host",
