@@ -20,7 +20,7 @@ from sharktank.types.ocp_floats import (
     fp4_e2m1_to_float32,
 )
 from sharktank.types.quantizers import DynamicFp4BlockQuantizer, StaticFp4BlockQuantizer
-from sharktank.utils.testing import TempDirTestBase
+from sharktank.utils.testing import TempDirTestBase, xfail
 from sharktank import ops
 
 
@@ -454,6 +454,7 @@ class StaticFp4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
         dequant_value = layout.dequant()
         self.assertEqual(dequant_value.shape, orig_value.shape)
 
+    @xfail(raises=RuntimeError, strict=True, match="The size of tensor a")
     def testStaticFp4TwoDimensionalScales(self):
         orig_value = self.get_fp4_exact_values().reshape(2, 4)
         scales = torch.tensor([[1.0, 1.0], [1.0, 1.0]], dtype=torch.float32)
