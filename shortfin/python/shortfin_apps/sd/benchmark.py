@@ -1,4 +1,4 @@
-# Copyright 2024 Advanced Micro Devices, Inc.
+# Copyright 2025 Advanced Micro Devices, Inc.
 #
 # Licensed under the Apache License v2.0 with LLVM Exceptions.
 # See https://llvm.org/LICENSE.txt for license information.
@@ -13,7 +13,6 @@ import numpy as np
 import sys
 import time
 import os
-import copy
 import subprocess
 
 # Import first as it does dep checking and reporting.
@@ -21,10 +20,10 @@ from shortfin.support.logging_setup import native_handler
 import shortfin as sf
 
 
-from .components.messages import InferenceExecRequest, InferencePhase, SDXLInferenceExecRequest
+from .components.messages import InferencePhase, SDXLInferenceExecRequest
 from .components.config_struct import ModelParams
 from .components.manager import SystemManager
-from .components.service import GenerateService, InferenceExecutorProcess, SDXLGenerateService
+from .components.service import InferenceExecutorProcess, SDXLGenerateService
 from .components.tokenizer import Tokenizer
 
 
@@ -162,7 +161,7 @@ class MicroSDXLExecutor(sf.Process):
         self.batch_size = args.batch_size
         self.exec = None
         self.imgs = None
-        self.prompt = "" #" ".join(["one" for _ in range(input_token_length)])
+        self.prompt = ""
         self.neg_prompt = args.neg_prompt
         self.steps = args.steps
         self.guidance_scale = args.guidance_scale
@@ -171,7 +170,7 @@ class MicroSDXLExecutor(sf.Process):
     async def run(self):
         # mostly its also defined as a method of the Process class probably envoked during launch call.
         
-        sample = [np.ones([1, 4, 128, 128], dtype=np.float16)] * self.batch_size
+        # sample = [np.ones([1, 4, 128, 128], dtype=np.float16)] * self.batch_size
         
         self.exec = SDXLInferenceExecRequest(
             prompt=self.prompt,
@@ -204,7 +203,7 @@ class MicroSDXLExecutor(sf.Process):
         return
 
 class SDXLSampleProcessor:
-    def __init__(self, service, prompt, neg_prompt, steps, guidance_scale):
+    def __init__(self, service, prompt):
         self.service = service
         self.max_procs = 2
         self.num_procs = 0
@@ -299,10 +298,7 @@ def prepare_service(args):
 
 async def run_benchmark(sysman,
     args,
-    input_token_length,
-    neg_prompt, 
-    steps, 
-    guidance_scale,
+    input_token_length
 ):
     """Execute the benchmark and return raw data."""
     model_params, tokenizers, vmfbs, params = prepare_service(args)
@@ -310,7 +306,7 @@ async def run_benchmark(sysman,
     
     prompt = " ".join(["one" for _ in range(input_token_length)])
 
-    for idx, device in enumerate(sysman.ls.device_names):
+    for idx, _ in enumerate(sysman.ls.device_names):
         services.add(
             create_service(
                 model_params,
@@ -328,7 +324,7 @@ async def run_benchmark(sysman,
     procs_per_service = 2
     for service in services:
         for i in range(procs_per_service):
-            sample_processor = SDXLSampleProcessor(service, prompt, neg_prompt, steps, guidance_scale)
+            sample_processor = SDXLSampleProcessor(service, prompt)
             procs.add(sample_processor)
 
     samples = args.samples
@@ -376,11 +372,10 @@ async def run_benchmark(sysman,
 
 async def run_all_benchmarks(
     sysman,
-    args,
-    input_token_lengths: List[int] = [1024],
+    args
 ):
-    all_results = []
-    throughput_results = []
+    
+    input_token_lengths = args.input_token_lengths
 
     for input_token_length in input_token_lengths:
         
@@ -392,9 +387,6 @@ async def run_all_benchmarks(
             sysman=sysman,
             args=args,
             input_token_length=int(input_token_length),
-            neg_prompt=args.neg_prompt, 
-            steps=args.steps, 
-            guidance_scale=args.guidance_scale
         )
 
 def main():
@@ -582,7 +574,7 @@ def main():
 
     sysman = SystemManager(args.device, args.device_ids, args.amdgpu_async_allocations)
     
-    asyncio.run(run_all_benchmarks(sysman, args, args.input_token_lengths))
+    asyncio.run(run_all_benchmarks(sysman, args))
 
 if __name__ == "__main__":
     main()
