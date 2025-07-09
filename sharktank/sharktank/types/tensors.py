@@ -972,6 +972,14 @@ class ShardedTensor(InferenceTensor):
     def dtype(self) -> torch.dtype:
         return self.shards[0].dtype
 
+    @property
+    def globals(self) -> dict[str, torch.Tensor]:
+        _globals = {}
+        for shard in self.shards:
+            for name, tensor in shard.globals.items():
+                _globals[name] = tensor
+        return _globals
+
     @staticmethod
     def move_shards_to_new_devices(
         shards: Tuple[torch.Tensor | DefaultPrimitiveTensor, ...],
@@ -1028,14 +1036,6 @@ class ShardedTensorBase(ShardedTensor):
     @classmethod
     def serialized_name(cls) -> str:
         return cls.__name__
-
-    @property
-    def globals(self) -> dict[str, torch.Tensor]:
-        _globals = {}
-        for shard in self._shards:
-            for name, tensor in shard.globals.items():
-                _globals[name] = tensor
-        return _globals
 
     def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
         for i, pt in enumerate(self._shards):
@@ -1407,14 +1407,6 @@ class ReplicatedTensor(ShardedTensor):
     @classmethod
     def serialized_name(cls) -> str:
         return "ReplicatedTensor"
-
-    @property
-    def globals(self) -> dict[str, torch.Tensor]:
-        _globals = {}
-        for shard in self._shards:
-            for name, tensor in shard.globals.items():
-                _globals[name] = tensor
-        return _globals
 
     def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
         builder.for_rank(0).add_tensor(self.name, self._shards[0]._data)
