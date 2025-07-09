@@ -696,10 +696,12 @@ class BlockScaledFp4Layout(QuantizedLayout):
         return dequantized_blocked
 
     def transpose(self, *args, **kwargs):
-        _q = pack_fp4_e2m1_to_uint8(self.qs.transpose(*args, **kwargs))
+        qs = self.qs.transpose(*args, **kwargs)
+        new_shape = qs.shape
+        _q = pack_fp4_e2m1_to_uint8(qs)
         _d = self.d.transpose(*args, **kwargs)
         return BlockScaledFp4Layout(
-            _q.shape,
+            new_shape,
             _d,
             _q,
             block_size=self.block_size,
