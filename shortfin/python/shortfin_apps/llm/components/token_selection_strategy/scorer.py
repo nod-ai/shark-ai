@@ -46,7 +46,7 @@ class BaseBeamScorer(ABC):
         """
 
     @abstractmethod
-    def score_beams(beams: List[BaseBeam]) -> List[BaseBeam]:
+    def score_beams(beams: List[BaseBeam], k: int, normalize: bool) -> List[BaseBeam]:
         """Score a group of beams.
 
         Args:
@@ -108,7 +108,9 @@ class DefaultScorer(BaseBeamScorer):
     def normalize_score(self, beam: DefaultBeam, value: float) -> None:
         pass
 
-    def score_beams(self, beams: List[DefaultBeam]) -> List[DefaultBeam]:
+    def score_beams(
+        self, beams: List[DefaultBeam], k: int, normalize: bool
+    ) -> List[DefaultBeam]:
         return beams
 
     def select_beams(

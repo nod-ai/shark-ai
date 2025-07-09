@@ -89,11 +89,6 @@ class BaseTokenSelectionStrategy(ABC):
             token = sfnp.argmax(exec_req.result_logits)
             token_int = token.items[0]
 
-        decode_config = token_selection_strategy_config.decode_config
-        # TODO: This is only temporary until streaming is enabled for `MultiHypothesis`
-        if not decode_config.use_beam_search and decode_config.num_beams == 1:
-            token_selection_strategy_config.results_callback(token_int)
-
         exec_req.input_token_ids.append(token_int)
         exec_req.start_position = len(exec_req.input_token_ids) - 1
 
