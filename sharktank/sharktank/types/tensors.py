@@ -1056,13 +1056,16 @@ class ShardedTensorBase(ShardedTensor):
         self, new_globals: dict[str, torch.Tensor]
     ) -> "InferenceTensor":
         # NOTE: Assuming that the type of each shard does not change
-        all_new_keys = list(self.globals.keys())
-        ts = []
-        for i, shard in enumerate(self._shards):
-            shard_i_key = f".shard.{i}"
-            matching_keys = [k for k in all_new_keys if shard_i_key in k]
-            new_sub_globals = {k: new_globals.pop(k) for k in matching_keys}
-            ts.append(shard._clone_with_globals(new_sub_globals))
+        if len(self._shards) == 1:
+            ts = [self._shards[0]._clone_with_globals(new_globals)]
+        else:
+            all_new_keys = list(new_globals.keys())
+            ts = []
+            for i, shard in enumerate(self._shards):
+                shard_i_key = f".shard.{i}"
+                matching_keys = [k for k in all_new_keys if shard_i_key in k]
+                new_sub_globals = {k: new_globals.pop(k) for k in matching_keys}
+                ts.append(shard._clone_with_globals(new_sub_globals))
         return self.__class__(
             name=self.name,
             shape=self.shape,
@@ -1427,13 +1430,16 @@ class ReplicatedTensor(ShardedTensor):
         self, new_globals: dict[str, torch.Tensor]
     ) -> "ReplicatedTensor":
         # NOTE: Assuming that the type of each shard does not change
-        all_new_keys = list(self.globals.keys())
-        ts = []
-        for i, shard in enumerate(self._shards):
-            shard_i_key = f".shard.{i}"
-            matching_keys = [k for k in all_new_keys if shard_i_key in k]
-            new_sub_globals = {k: new_globals.pop(k) for k in matching_keys}
-            ts.append(shard._clone_with_globals(new_sub_globals))
+        if len(self._shards) == 1:
+            ts = [self._shards[0]._clone_with_globals(new_globals)]
+        else:
+            all_new_keys = list(new_globals.keys())
+            ts = []
+            for i, shard in enumerate(self._shards):
+                shard_i_key = f".shard.{i}"
+                matching_keys = [k for k in all_new_keys if shard_i_key in k]
+                new_sub_globals = {k: new_globals.pop(k) for k in matching_keys}
+                ts.append(shard._clone_with_globals(new_sub_globals))
         return ReplicatedTensor(
             name=self.name,
             ts=ts,
