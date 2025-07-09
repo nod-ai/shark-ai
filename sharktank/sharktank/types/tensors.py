@@ -981,17 +981,13 @@ class ShardedTensor(InferenceTensor):
     ) -> Tuple[DefaultPrimitiveTensor, ...]:
         from sharktank.ops import transfer_to_logical_device, barrier_on_logical_device
 
-        new_shard_tensors = tuple(
+        return tuple(
             (
                 transfer_to_logical_device(shard, new_devices[j])
                 if new_devices[j] != old_devices[j]
                 else barrier_on_logical_device(shard, new_devices[j])
             )
             for j, shard in enumerate(shards)
-        )
-        return tuple(
-            DefaultPrimitiveTensor(name=orig_dpt.name, data=new_shard_tensor)
-            for orig_dpt, new_shard_tensor in zip(shards, new_shard_tensors)
         )
 
 
