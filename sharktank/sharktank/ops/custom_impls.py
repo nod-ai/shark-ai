@@ -8,13 +8,13 @@
 from collections.abc import Iterable
 from typing import Union
 from torch import Tensor
+import torch
 
 
 from sharktank.kernels import (
     einsum_2args_q4,
     mmt_block_scaled_offset_q4_unsigned,
     mmt_block_scaled_q8,
-    batched_block_scaled_mmt_fp4,
     mmt_super_block_scaled_offset_q4_unsigned,
     bitcast_to_complex,
     bitcast_to_real,
@@ -30,6 +30,7 @@ from sharktank.types import (
     QuantizedTensor,
     SuperBlockOffsetScaled_4_6_Layout,
 )
+from sharktank.types.quantizers import DynamicFp4BlockQuantizer
 
 from sharktank.types.tensors import AnyTensor, unbox_tensor
 from sharktank.types.ocp_floats import convert_fp4_scales_to_float
@@ -121,19 +122,16 @@ def matmul_generic_tensor_block_scaled_fp4(
         return NotImplemented
     rhs_unpacked = rhs.unpack()
     quantizer = DynamicFp4BlockQuantizer(
-        block_size=32, use_fe8m0_scales=True, name="matmul_input_quantizer"
+        block_size=32, use_fe8m0_scale=True, name="matmul_input_quantizer"
     )
     lhs_quantized = quantizer.quantize(lhs)
     lhs_unpacked = lhs_quantized.unpack()
-    scales_float = convert_fp4_scales_to_float(
-        rhs_unpacked.d, rhs_unpacked.use_power_of_two_scale
-    )
     output = torch.zeros(
-        [lhs.shape()[0], lhs.shape()[1], rhs_unpacked.shape()[0]],
+        [lhs.shape[0], lhs.shape[1], rhs_unpacked.shape[0]],
         dtype=torch.float32,
     )
     return wave_mxfp4_bmm(
-        lhs_unpacked.d, lhs_unpacked.qs, rhs_unpacked.d, rhs_unpacked.qs, output
+        lhs_unpacked.qs, lhs_unpacked.d, rhs_unpacked.qs, rhs_unpacked.d, output
     )
 
 
