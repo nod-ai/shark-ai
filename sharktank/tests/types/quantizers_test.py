@@ -454,6 +454,28 @@ class StaticFp4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
         dequant_value = layout.dequant()
         self.assertEqual(dequant_value.shape, orig_value.shape)
 
+    def testStaticFp4TwoDimensionalScales(self):
+        orig_value = self.get_fp4_exact_values().reshape(2, 4)
+        scales = torch.tensor([[1.0, 1.0], [1.0, 1.0]], dtype=torch.float32)
+        # scales = torch.tensor([1.0], dtype=torch.float32)
+        static_quantizer = StaticFp4BlockQuantizer(
+            scales=scales,
+            block_size=2,
+            use_fe8m0_scale=False,
+            name="static_fp4_quantizer",
+        )
+        static_quantizer = self._roundtrip(static_quantizer, "_static_fp4_p2_quantizer")
+        qt_value = static_quantizer.quantize(orig_value, name="test_static_fp4_p2")
+        qt_value = self._roundtrip(qt_value, "_static_fp4_p2_qt_value")
+
+        layout = qt_value.unpack()
+        self.assert_layout_properties(
+            layout, expected_block_count=2, scale_dtype=torch.uint8
+        )
+
+        dequant_value = layout.dequant()
+        self.assertEqual(dequant_value.shape, orig_value.shape)
+
     def testStaticFp4DifferentBlockSizes(self):
         for block_size in [6, 10, 12, 30]:
             orig_value = torch.randn(60, dtype=torch.float32) * 4.0
