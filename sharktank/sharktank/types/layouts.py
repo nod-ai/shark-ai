@@ -165,7 +165,6 @@ class TensorScaledLayout(QuantizedLayout):
         )
 
     def transpose(self, *args, **kwargs) -> "TensorScaledLayout":
-        # TODO: Why was only qs getting transposed?
         qs = self.qs.transpose(*args, **kwargs)
         d = self.d.transpose(*args, **kwargs)
         m = self.m.transpose(*args, **kwargs) if self.m is not None else None
