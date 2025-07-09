@@ -14,26 +14,26 @@ namespace fusili {
 
 class ConvFPropNode : public NodeCRTP<ConvFPropNode> {
 public:
-  ConvFPropAttr attributes;
+  ConvFPropAttr attr;
 
-  ConvFPropNode(ConvFPropAttr &&attributes_, Context const &ctx)
-      : NodeCRTP(ctx), attributes(std::move(attributes_)) {}
+  ConvFPropNode(ConvFPropAttr &&attr_, Context const &ctx)
+      : NodeCRTP(ctx), attr(std::move(attr_)) {}
 
   Type getType() override final { return Type::CONVOLUTION; }
 
   error_t pre_validate_node() const override final {
     FUSILI_LOG_LABEL_ENDL("INFO: Validating node Type::Convolution "
-                          << attributes.name << "...");
-    FUSILI_RETURN_ERROR_IF(attributes.get_pre_padding().empty(),
+                          << attr.get_name() << "...");
+    FUSILI_RETURN_ERROR_IF(attr.get_pre_padding().empty(),
                            error_code_t::ATTRIBUTE_NOT_SET,
                            "Conv pre-padding not set");
-    FUSILI_RETURN_ERROR_IF(attributes.get_post_padding().empty(),
+    FUSILI_RETURN_ERROR_IF(attr.get_post_padding().empty(),
                            error_code_t::ATTRIBUTE_NOT_SET,
                            "Conv post-padding not set");
-    FUSILI_RETURN_ERROR_IF(attributes.get_stride().empty(),
+    FUSILI_RETURN_ERROR_IF(attr.get_stride().empty(),
                            error_code_t::ATTRIBUTE_NOT_SET,
                            "Conv stride not set");
-    FUSILI_RETURN_ERROR_IF(attributes.get_dilation().empty(),
+    FUSILI_RETURN_ERROR_IF(attr.get_dilation().empty(),
                            error_code_t::ATTRIBUTE_NOT_SET,
                            "Conv dilation not set");
     return {error_code_t::OK, ""};
@@ -42,14 +42,14 @@ public:
   error_t infer_properties_node() override final {
     FUSILI_LOG_LABEL_ENDL(
         "INFO: Inferring properties for node Type::Convolution "
-        << attributes.name << "...");
+        << attr.get_name() << "...");
 
-    attributes.fill_from_context(context);
+    attr.fill_from_context(context);
 
     // Default layouts for now
-    auto x_t = attributes.get_X(); // NHWC
-    auto w_t = attributes.get_W(); // KCRS
-    auto y_t = attributes.get_Y(); // NKPQ
+    auto x_t = attr.get_X(); // NHWC
+    auto w_t = attr.get_W(); // KCRS
+    auto y_t = attr.get_Y(); // NKPQ
 
     auto const &x_dim = x_t->get_dim();
     auto const &w_dim = w_t->get_dim();
@@ -62,10 +62,10 @@ public:
 
       // auto y_dim_inferred = std::vector<int64_t>(x_dim.size(), 1);
 
-      // auto const &pre_padding = attributes.get_pre_padding();
-      // auto const &post_padding = attributes.get_post_padding();
-      // auto const &stride = attributes.get_stride();
-      // auto const &dilation = attributes.get_dilation();
+      // auto const &pre_padding = attr.get_pre_padding();
+      // auto const &post_padding = attr.get_post_padding();
+      // auto const &stride = attr.get_stride();
+      // auto const &dilation = attr.get_dilation();
 
       // // N
       // y_dim_inferred[0] = x_dim[0]; // Batch size

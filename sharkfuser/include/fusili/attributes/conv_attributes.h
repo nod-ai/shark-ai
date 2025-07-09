@@ -29,6 +29,12 @@ public:
   std::unordered_map<output_names, std::shared_ptr<TensorAttr>> outputs;
 
   // Setters
+  FUSILI_GENERIC_INPUT_TENSOR_SETTER(ConvFPropAttr, input_names, X)
+
+  FUSILI_GENERIC_INPUT_TENSOR_SETTER(ConvFPropAttr, input_names, W)
+
+  FUSILI_GENERIC_OUTPUT_TENSOR_SETTER(ConvFPropAttr, output_names, Y)
+
   ConvFPropAttr &set_pre_padding(std::vector<int64_t> const &padding) {
     pre_padding = padding;
     return *this;

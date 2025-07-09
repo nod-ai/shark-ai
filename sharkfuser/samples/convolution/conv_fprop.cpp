@@ -7,12 +7,37 @@
 #include <fusili.h>
 
 #include <catch2/catch_test_macros.hpp>
+#include <memory>
 
 using namespace fusili;
 
 TEST_CASE("Convolution fprop", "[conv][graph]") {
   int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
 
-  // Placeholder for the proper conv sample, just to get dir structure in place
-  REQUIRE(true);
+  auto graph = std::make_shared<Graph>();
+  graph->set_io_data_type(DataType_t::HALF)
+      .set_compute_data_type(DataType_t::FLOAT);
+
+  auto X = graph->tensor(TensorAttr()
+                             .set_name("image")
+                             .set_dim({n, c, h, w})
+                             .set_stride({c * h * w, 1, c * w, c}));
+
+  auto W = graph->tensor(TensorAttr()
+                             .set_name("filter")
+                             .set_dim({k, c, r, s})
+                             .set_stride({c * r * s, 1, c * s, c}));
+
+  auto conv_attr = ConvFPropAttr()
+                       .set_padding({0, 0})
+                       .set_stride({1, 1})
+                       .set_dilation({1, 1})
+                       .set_name("conv_fprop");
+
+  auto Y = graph->conv_fprop(X, W, conv_attr);
+
+  Y->set_output(true);
+
+  REQUIRE(Y->get_is_virtual() == false);
+  REQUIRE(Y->get_name() == "conv_fprop::Y");
 }

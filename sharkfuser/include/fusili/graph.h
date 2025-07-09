@@ -12,6 +12,7 @@
 #include "attributes/tensor_attributes.h"
 #include "context.h"
 #include "logging.h"
+#include "node/conv_node.h"
 #include "node/node.h"
 
 namespace fusili {
@@ -20,6 +21,13 @@ class Graph : public INode {
 private:
   std::unordered_set<std::shared_ptr<TensorAttr>> full_graph_inputs;
   std::unordered_set<std::shared_ptr<TensorAttr>> full_graph_outputs;
+
+  std::shared_ptr<TensorAttr> output_tensor(std::string const &name) {
+    auto tensor = std::make_shared<TensorAttr>();
+    tensor->set_name(name).set_is_virtual(true);
+    full_graph_outputs.insert(tensor);
+    return tensor;
+  }
 
   error_t pre_validate_node() const override final {
     return {error_code_t::OK, ""};
@@ -47,6 +55,10 @@ public:
   error_t query_tensor_of_uid(int64_t const uid, TensorAttr &tensor) const;
 
   std::shared_ptr<TensorAttr> tensor(TensorAttr const &tensor);
+
+  std::shared_ptr<TensorAttr> conv_fprop(std::shared_ptr<TensorAttr> const &x,
+                                         std::shared_ptr<TensorAttr> const &w,
+                                         ConvFPropAttr &attributes);
 };
 
 inline Graph &Graph::set_io_data_type(DataType_t const type) {
@@ -66,8 +78,27 @@ inline Graph &Graph::set_intermediate_data_type(DataType_t const type) {
 
 inline std::shared_ptr<TensorAttr> Graph::tensor(TensorAttr const &tensor) {
   auto tensor_ptr = std::make_shared<TensorAttr>(tensor);
-  full_graph_inputs.emplace(tensor_ptr);
+  full_graph_inputs.insert(tensor_ptr);
   return tensor_ptr;
+}
+
+inline std::shared_ptr<TensorAttr>
+Graph::conv_fprop(std::shared_ptr<TensorAttr> const &x,
+                  std::shared_ptr<TensorAttr> const &w, ConvFPropAttr &attr) {
+
+  // Set inputs
+  attr.set_X(x).set_W(w);
+
+  // Set outputs
+  if (attr.get_name().empty())
+    attr.set_name(std::to_string(sub_nodes.size()));
+  auto y = output_tensor(attr.get_name() + "::Y");
+  attr.set_Y(y);
+
+  sub_nodes.emplace_back(
+      std::make_unique<ConvFPropNode>(std::move(attr), context));
+
+  return y;
 }
 
 inline error_t Graph::query_tensor_of_uid(int64_t const uid,

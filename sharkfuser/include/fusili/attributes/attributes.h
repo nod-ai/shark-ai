@@ -19,8 +19,9 @@ private:
   DerivedT &self() { return static_cast<DerivedT &>(*this); }
   const DerivedT &self() const { return static_cast<const DerivedT &>(*this); }
 
-public:
   std::string name;
+
+public:
   DataType_t compute_data_type = DataType_t::NOT_SET;
 
   const std::string &get_name() const { return name; }
@@ -32,6 +33,18 @@ public:
 
   DerivedT &set_compute_data_type(DataType_t const value) {
     compute_data_type = value;
+    return self();
+  }
+
+  template <typename KeyT>
+  DerivedT &set_input(KeyT key, std::shared_ptr<TensorAttr> const &tensor) {
+    self().inputs[key] = tensor;
+    return self();
+  }
+
+  template <typename KeyT>
+  DerivedT &set_output(KeyT key, std::shared_ptr<TensorAttr> const &tensor) {
+    self().outputs[key] = tensor;
     return self();
   }
 
@@ -52,22 +65,32 @@ public:
   }
 };
 
-#define FUSILI_GENERIC_INPUT_TENSOR_GETTER(TYPE, NAME)                         \
+#define FUSILI_GENERIC_INPUT_TENSOR_GETTER(KTYPE, NAME)                        \
   std::shared_ptr<TensorAttr> get_##NAME() const {                             \
-    auto it = inputs.find(TYPE::NAME);                                         \
+    auto it = inputs.find(KTYPE::NAME);                                        \
     if (it != inputs.end()) {                                                  \
       return it->second;                                                       \
     }                                                                          \
     return nullptr;                                                            \
   }
 
-#define FUSILI_GENERIC_OUTPUT_TENSOR_GETTER(TYPE, NAME)                        \
+#define FUSILI_GENERIC_OUTPUT_TENSOR_GETTER(KTYPE, NAME)                       \
   std::shared_ptr<TensorAttr> get_##NAME() const {                             \
-    auto it = outputs.find(TYPE::NAME);                                        \
+    auto it = outputs.find(KTYPE::NAME);                                       \
     if (it != outputs.end()) {                                                 \
       return it->second;                                                       \
     }                                                                          \
     return nullptr;                                                            \
+  }
+
+#define FUSILI_GENERIC_INPUT_TENSOR_SETTER(RTYPE, KTYPE, NAME)                 \
+  RTYPE &set_##NAME(std::shared_ptr<TensorAttr> const &tensor) {               \
+    return set_input(KTYPE::NAME, tensor);                                     \
+  }
+
+#define FUSILI_GENERIC_OUTPUT_TENSOR_SETTER(RTYPE, KTYPE, NAME)                \
+  RTYPE &set_##NAME(std::shared_ptr<TensorAttr> const &tensor) {               \
+    return set_output(KTYPE::NAME, tensor);                                    \
   }
 
 } // namespace fusili
