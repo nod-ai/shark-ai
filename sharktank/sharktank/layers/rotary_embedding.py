@@ -62,7 +62,13 @@ class ShardedRotaryLayer(BaseLayer):
         t = self._rotary_layer.create_rotary_embed_table()
         if self._tensor_parallelism_size > 1 or self._pipeline_parallelism:
             # Replicate across all devices, the data is not a lot and the computation is cheap.
-            t = ops.replicate(t, self._tensor_parallelism_size, devices=self._devices)
+            tp = self._tensor_parallelism_size
+            if isinstance(t, tuple):
+                t0 = ops.replicate(t[0], tp, devices=self._devices)
+                t1 = ops.replicate(t[1], tp, devices=self._devices)
+                t = (t0, t1)
+            else:
+                t = ops.replicate(t, tp, devices=self._devices)
 
         return t
 
@@ -74,15 +80,25 @@ class ShardedRotaryLayer(BaseLayer):
     ):
         table = self.rotary_embed_table()
 
-        if not isinstance(table, ShardedTensor):
+        # Check if table is a ShardedTensor or a tuple of ShardedTensors
+        is_sharded = isinstance(table, ShardedTensor)
+        is_sharded |= isinstance(table, tuple) and isinstance(table[0], ShardedTensor)
+        if not is_sharded:
             return self._rotary_layer(
                 xt=xt, start_index=start_index, rotary_embed_table=table
             )
 
-        shards = [
-            self._rotary_layer(xt=xs, start_index=start_index, rotary_embed_table=ts)
-            for xs, ts in zip(xt.shards, table.shards)
-        ]
+        shards = []
+        for i, xs in enumerate(xt.shards):
+            if isinstance(table, tuple):
+                ts = (table[0].shards[i], table[1].shards[i])
+            else:
+                ts = table.shards[i]
+            shards.append(
+                self._rotary_layer(
+                    xt=xs, start_index=start_index, rotary_embed_table=ts
+                )
+            )
         return xt.clone(ts=shards)
 
     def compute_batch_mask(
