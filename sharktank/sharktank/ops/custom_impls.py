@@ -130,9 +130,14 @@ def matmul_generic_tensor_block_scaled_fp4(
         [lhs.shape[0], lhs.shape[1], rhs_unpacked.shape[0]],
         dtype=torch.float32,
     )
+    # TODO: fix quantization so the flatten is not necessary
     return wave_mxfp4_bmm(
-        lhs_unpacked.qs, lhs_unpacked.d, rhs_unpacked.qs, rhs_unpacked.d, output
-    )
+        lhs_unpacked.qs.flatten(start_dim=-2),
+        lhs_unpacked.d,
+        rhs_unpacked.qs,
+        rhs_unpacked.d,
+        output,
+    ).to(torch.float16)
 
 
 @matmul.override(Tensor, QuantizedTensor)
