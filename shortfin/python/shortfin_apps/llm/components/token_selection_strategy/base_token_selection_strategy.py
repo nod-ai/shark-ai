@@ -26,6 +26,10 @@ class BaseTokenSelectionStrategy(ABC):
 
     token_selection_strategy_config: TokenSelectionStrategyConfig
     scorer: BaseBeamScorer | None
+    cancelled: bool = False
+
+    def cancel(self):
+        self.cancelled = True
 
     def _log_sampling_method(self):
         """Log the sampling method used for token selection."""
@@ -72,7 +76,7 @@ class BaseTokenSelectionStrategy(ABC):
             int: Token generated from prefill.
         """
 
-        if exec_req.status_tracker.is_disconnected():
+        if self.cancelled:
             return
 
         token_selection_strategy_config = self.token_selection_strategy_config

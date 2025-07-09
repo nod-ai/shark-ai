@@ -13,6 +13,8 @@ class ResponderErrorCodes(Enum):
     QUEUE_FULL = "QUEUE_FULL"
     INVALID_REQUEST_ARGS = "INVALID_REQUEST_ARGS"
     PAGE_FULL = "PAGE_FULL"
+    CANCELLED = "CANCELLED"
+
 
 
 class AbstractResponder:
@@ -40,9 +42,3 @@ class AbstractResponder:
 
     def stream_part(self, content: bytes | None):
         pass
-
-    def get_status_tracker(self):
-        return AbstractStatusTracker()
-
-    def is_disconnected(self):
-        return False

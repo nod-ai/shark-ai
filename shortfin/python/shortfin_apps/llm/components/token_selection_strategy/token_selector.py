@@ -35,6 +35,9 @@ class TokenSelector(BaseTokenSelectionStrategy):
         Args:
             exec_req (LlmInferenceExecRequest): Initial inference request, post prefill.
         """
+        if self.cancelled:
+            return
+
         self._log_sampling_method()
 
         config = self.token_selection_strategy_config
@@ -51,7 +54,7 @@ class TokenSelector(BaseTokenSelectionStrategy):
         reservations = beam_group.active_beam_count
         config.decode_begin_callback(rid=exec_req.orig_instance_id, count=reservations)
         for _ in range(config.decode_config.max_completion_tokens):
-            if exec_req.status_tracker.is_disconnected():
+            if self.cancelled:
                 break
 
             active_beam_count = len(beam_group.active_beams)
