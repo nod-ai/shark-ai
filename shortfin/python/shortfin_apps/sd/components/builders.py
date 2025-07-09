@@ -6,6 +6,7 @@
 
 from iree.build import *
 from iree.build.executor import FileNamespace, BuildAction, BuildContext, BuildFile
+from iree.turbine.aot.build_actions import turbine_generate
 
 import itertools
 import os
@@ -14,10 +15,9 @@ import shortfin.array as sfnp
 import copy
 import re
 import gc
-import logging
-import urllib
 
 from shortfin_apps.sd.components.config_struct import ModelParams
+from shortfin_apps.sd.components.exports import export_sdxl_model
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
 parent = os.path.dirname(this_dir)
@@ -30,7 +30,7 @@ dtype_to_filetag = {
     sfnp.bfloat16: "bf16",
 }
 
-ARTIFACT_VERSION = "06032025"
+ARTIFACT_VERSION = "11182024"
 SDXL_BUCKET = (
     f"https://sharkpublic.blob.core.windows.net/sharkpublic/sdxl/{ARTIFACT_VERSION}/"
 )
@@ -60,15 +60,12 @@ def get_mlir_filenames(model_params: ModelParams, model=None) -> list:
 
 
 def get_vmfb_filenames(
-    model_params: ModelParams,
-    model=None,
-    target: str = "gfx942",
-    driver: str = "amdgpu",
+    model_params: ModelParams, model=None, target: str = "amdgpu-gfx942"
 ) -> list:
     vmfb_filenames = []
     file_stems = get_file_stems(model_params)
     for stem in file_stems:
-        vmfb_filenames.extend([stem + "_" + target + "_" + driver + ".vmfb"])
+        vmfb_filenames.extend([stem + "_" + target + ".vmfb"])
     return filter_by_model(vmfb_filenames, model)
 
 
@@ -96,12 +93,10 @@ def get_params_filename(model_params: ModelParams, model=None, splat: bool = Fal
         dtype_to_filetag[model_params.clip_dtype],
         dtype_to_filetag[model_params.unet_dtype],
     ]
-    if model_params.use_punet:
-        modnames.append("punet")
-        mod_precs.append(model_params.unet_quant_dtype)
-    else:
-        modnames.append("unet")
-        mod_precs.append(dtype_to_filetag[model_params.unet_dtype])
+    # We're only using the punet i8 dataset in all cases, at the moment.
+    # This is all pretty hokey and could be ModelParams driven.
+    modnames.append("punet")
+    mod_precs.append("i8")
     if splat == "True":
         for idx, mod in enumerate(modnames):
             params_filenames.extend(
@@ -135,7 +130,7 @@ def get_file_stems(model_params: ModelParams) -> list[str]:
         denoise_dict = {
             "scheduled_unet": "scheduled_unet",
         }
-    elif model_params.use_punet:
+    elif model_params.use_i8_punet or model_params.use_fp8_punet:
         denoise_dict = {
             "unet": "punet",
             "scheduler": model_params.scheduler_id + "Scheduler",
@@ -174,7 +169,12 @@ def get_file_stems(model_params: ModelParams) -> list[str]:
                 getattr(model_params, f"{mod}_dtype", sfnp.float16)
             ]
         else:
-            dtype_str = model_params.unet_quant_dtype
+            if model_params.use_i8_punet:
+                dtype_str = "i8"
+            elif model_params.use_fp8_punet:
+                dtype_str = "fp8"
+            else:
+                dtype_str = dtype_to_filetag[model_params.unet_dtype]
         ord_params.extend([[dtype_str]])
         for x in list(itertools.product(*ord_params)):
             file_stems.extend(["_".join(x)])
@@ -211,13 +211,7 @@ def needs_file(filename, ctx, url=None, namespace=FileNamespace.GEN) -> bool:
         filekey = os.path.join(ctx.path, filename)
         ctx.executor.all[filekey] = None
     except RuntimeError:
-        filekey = os.path.join(ctx.path, filename)
-        out_file = ctx.executor.all[filekey].get_fs_path()
-        if os.path.exists(out_file):
-            return False
-        else:
-            ctx.executor.all[filekey] = None
-            return True
+        return False
 
     if os.path.exists(out_file):
         if url and not is_valid_size(out_file, url):
@@ -227,8 +221,8 @@ def needs_file(filename, ctx, url=None, namespace=FileNamespace.GEN) -> bool:
     return True
 
 
-def needs_compile(filename, target, driver, ctx) -> bool:
-    vmfb_name = f"{filename}_{target}_{driver}.vmfb"
+def needs_compile(filename, target, ctx) -> bool:
+    vmfb_name = f"{filename}_{target}.vmfb"
     namespace = FileNamespace.BIN
     return needs_file(vmfb_name, ctx, namespace=namespace)
 
@@ -320,8 +314,6 @@ def parse_mlir_name(mlir_path):
         width = None
         decomp_attn = True
     precision = [x for x in terms if x in ["i8", "fp8", "fp16", "fp32"]][0]
-    if all(x in terms for x in ["fp8", "ocp"]):
-        precision = "fp8_ocp"
     max_length = 64
     return batch_size, height, width, decomp_attn, precision, max_length
 
@@ -364,27 +356,24 @@ def sdxl(
     model_params = ModelParams.load_json(model_json)
     ctx = executor.BuildContext.current()
     update = needs_update(ctx)
-    driver = "amdgpu" if "gfx" in target else "cpu"
 
     mlir_bucket = SDXL_BUCKET + "mlir/"
     vmfb_bucket = SDXL_BUCKET + "vmfbs/"
+    if "gfx" in target:
+        target = "amdgpu-" + target
 
     params_filename = get_params_filename(model_params, model=model, splat=splat)
     mlir_filenames = get_mlir_filenames(model_params, model)
-    vmfb_filenames = get_vmfb_filenames(
-        model_params, model=model, target=target, driver=driver
-    )
+    vmfb_filenames = get_vmfb_filenames(model_params, model=model, target=target)
+
+    if params_filename is not None:
+        params_filepath = ctx.allocate_file(
+            params_filename, FileNamespace.GEN
+        ).get_fs_path()
+    else:
+        params_filepath = None
 
     if build_preference == "export":
-        from iree.turbine.aot.build_actions import turbine_generate
-        from shortfin_apps.sd.components.exports import export_sdxl_model
-
-        if params_filename is not None:
-            params_filepath = ctx.allocate_file(
-                params_filename, FileNamespace.GEN
-            ).get_fs_path()
-        else:
-            params_filepath = None
         for idx, mlir_path in enumerate(mlir_filenames):
             # If generating multiple MLIR, we only save the weights the first time.
             needs_gen_params = False
@@ -456,19 +445,18 @@ def sdxl(
     if build_preference != "precompiled":
         for idx, f in enumerate(copy.deepcopy(vmfb_filenames)):
             # We return .vmfb file stems for the compile builder.
-            mlir_stem = "_".join(f.split("_")[:-2])
-            vmfb_stem = f.split(f"_{driver}.vmfb")[0]
-            if needs_file(f, ctx, namespace=FileNamespace.BIN) or force_update:
+            file_stem = "_".join(f.split("_")[:-1])
+            if needs_compile(file_stem, target, ctx) or force_update:
                 for mlirname in mlir_filenames:
-                    if mlir_stem in mlirname:
+                    if file_stem in mlirname:
                         mlir_source = mlirname
                         break
-                if not mlir_source:
-                    raise FileNotFoundError(f"MLIR source for {f} not found.")
-                obj = compile(name=vmfb_stem, source=mlir_source)
+                obj = compile(name=file_stem, source=mlir_source)
                 vmfb_filenames[idx] = obj[0]
             else:
-                vmfb_filenames[idx] = get_cached(f, ctx, FileNamespace.BIN)
+                vmfb_filenames[idx] = get_cached(
+                    f"{file_stem}_{target}.vmfb", ctx, FileNamespace.BIN
+                )
     else:
         vmfb_urls = get_url_map(vmfb_filenames, vmfb_bucket)
         for f, url in vmfb_urls.items():
