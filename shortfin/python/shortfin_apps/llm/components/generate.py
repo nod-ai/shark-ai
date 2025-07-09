@@ -84,8 +84,6 @@ class GenerateItemProcess(sf.Process):
         self.token_selector: TokenSelector = build_token_selector(
             self.token_selector_config,
         )
-        self.is_multi_response = is_multi_response(self.decode_config)
-        self.streamed_tokens_index = 0
         self._status_tracker = status_tracker
 
     async def run(self):
@@ -105,17 +103,8 @@ class GenerateItemProcess(sf.Process):
         finally:
             exec_req.free_cache_pages()
 
-    def results_callback(self, result: int | list[list[int]]):
-        if is_multi_response(self.decode_config):
-            # TODO: Streaming is not supported for multiple responses
-            self.result_token_ids = result
-            return
-
-        self._append_token(result)
-
-    def _append_token(self, token: int):
-        self.result_token_ids.append(token)
-        self.client.stream_results(self)
+    def results_callback(self, result: list[list[int]]):
+        self.result_token_ids = result
 
 
 class ClientGenerateBatchProcess(sf.Process):
@@ -311,18 +300,10 @@ class ClientGenerateBatchProcess(sf.Process):
             self.responder.send_response(out.getvalue())
             return
 
-        response_map = {}
+        response_map = {p.input_text: [] for p in gen_processes}
 
         for p in gen_processes:
-            response_map[p.input_text] = []
-
-        for p in gen_processes:
-            token_ids = p.result_token_ids
-
-            if not p.is_multi_response:
-                token_ids = [token_ids]
-
-            decoded = self.tokenizer.decode(token_ids)
+            decoded = self.tokenizer.decode(p.result_token_ids)
             rs = [GeneratedResponse(d) for d in decoded]
             response_map[p.input_text] += rs
 
@@ -338,26 +319,6 @@ class ClientGenerateBatchProcess(sf.Process):
         out = io.BytesIO()
         out.write(response.encode())
         self.responder.send_response(out.getvalue())
-
-    def stream_results(self, gen_process: GenerateItemProcess):
-        if not self.gen_req.stream:
-            return
-        out = io.BytesIO()
-        result_tokens = gen_process.result_token_ids[
-            gen_process.streamed_tokens_index :
-        ]
-        rid = gen_process.rid
-        if not self.gen_req.return_input_ids:
-            (result_text,) = self.tokenizer.decode([result_tokens])
-            out.write(f"data({rid}): ".encode())
-            out.write(result_text.encode())
-            out.write(b"\n\n")
-        else:
-            out.write(f"data({rid}): ".encode())
-            out.write(str(result_tokens[0]).encode())
-            out.write(b"\n\n")
-        self.responder.stream_part(out.getvalue())
-        gen_process.streamed_tokens_index += len(result_tokens)
 
     def tokenize(self) -> list[Encoding]:
         gen_req = self.gen_req
