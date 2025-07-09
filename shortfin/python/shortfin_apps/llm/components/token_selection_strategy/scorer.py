@@ -1,5 +1,12 @@
+# Copyright 2025 Advanced Micro Devices, Inc.
+#
+# Licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Callable
+import shortfin as sf
 
 from .beam_group import BaseBeam, DefaultBeam, BeamSearchBeam
 
@@ -46,7 +53,9 @@ class BaseBeamScorer(ABC):
         """
 
     @abstractmethod
-    def score_beams(beams: List[BaseBeam], k: int, normalize: bool) -> List[BaseBeam]:
+    def score_beams(
+        self, beams: List[BaseBeam], k: int, normalize: bool
+    ) -> List[BaseBeam]:
         """Score a group of beams.
 
         Args:
@@ -58,7 +67,7 @@ class BaseBeamScorer(ABC):
 
     @abstractmethod
     def select_beams(
-        active_beams: List[BaseBeam], complete_beams: List[BaseBeam]
+        self, active_beams: List[BaseBeam], complete_beams: List[BaseBeam]
     ) -> List[BaseBeam]:
         """Select the next candidate set of beams for decode invocation.
 
@@ -76,6 +85,99 @@ class BaseBeamScorer(ABC):
 
         This is useful when reusing the scorer for multiple decoding iterations.
         """
+
+    def create_cpp_selection_callback(self):
+        """Create a selection callback compatible with C++ BeamProcessor.
+
+        This method converts the Python beam scorer logic into a callback function
+        that can be used with the C++ BeamProcessor implementation.
+
+        Returns:
+            Callable: A function that takes (active_beams, completed_beams) and returns selected beams
+        """
+
+        def selection_callback(cpp_active_beams, cpp_completed_beams):
+            # Convert C++ BeamState objects to Python BaseBeam objects
+            py_active_beams = []
+            for cpp_beam in cpp_active_beams:
+                py_beam = self._convert_cpp_beam_to_python(cpp_beam)
+                py_active_beams.append(py_beam)
+
+            py_completed_beams = []
+            for cpp_beam in cpp_completed_beams:
+                py_beam = self._convert_cpp_beam_to_python(cpp_beam)
+                py_completed_beams.append(py_beam)
+
+            # Use the existing select_beams logic
+            selected_py_beams = self.select_beams(py_active_beams, py_completed_beams)
+
+            # Convert selected beams back to C++ BeamState objects
+            selected_cpp_beams = []
+            for py_beam in selected_py_beams:
+                cpp_beam = self._convert_python_beam_to_cpp(py_beam)
+                selected_cpp_beams.append(cpp_beam)
+
+            return selected_cpp_beams
+
+        return selection_callback
+
+    def _convert_cpp_beam_to_python(self, cpp_beam: sf.llm.BeamState) -> BaseBeam:
+        """Convert C++ BeamState to Python BaseBeam."""
+        # Create a mock Python execution request from C++ data
+        from ..messages import LlmInferenceExecRequest
+
+        # Create a minimal exec_req that matches the interface expected by BaseBeam
+        class MockExecRequest:
+            def __init__(self, cpp_req):
+                self.instance_id = cpp_req.instance_id
+                self.input_token_ids = cpp_req.input_token_ids.copy()
+                self.start_position = cpp_req.start_position
+                self.prompt_length = cpp_req.prompt_length
+                self.result_logits = None  # Will be populated when needed
+                self.result_indices = None
+
+            def copy_exec_request(self):
+                copy = MockExecRequest(self)
+                return copy
+
+        mock_exec_req = MockExecRequest(cpp_beam.exec_req)
+
+        # Create the appropriate beam type based on config
+        if (
+            hasattr(self.config, "decode_config")
+            and self.config.decode_config.use_beam_search
+        ):
+            py_beam = BeamSearchBeam(
+                mock_exec_req, decode_config=self.config.decode_config
+            )
+        else:
+            py_beam = DefaultBeam(
+                mock_exec_req, decode_config=self.config.decode_config
+            )
+
+        # Copy beam state
+        py_beam.score = cpp_beam.score
+        py_beam.accumulated_normalization = cpp_beam.accumulated_normalization
+        py_beam.last_token = cpp_beam.last_token
+
+        return py_beam
+
+    def _convert_python_beam_to_cpp(self, py_beam: BaseBeam) -> sf.llm.BeamState:
+        """Convert Python BaseBeam to C++ BeamState."""
+        # Create C++ InferenceRequest
+        cpp_req = sf.llm.InferenceRequest()
+        cpp_req.instance_id = py_beam.exec_req.instance_id
+        cpp_req.input_token_ids = py_beam.exec_req.input_token_ids.copy()
+        cpp_req.start_position = py_beam.exec_req.start_position
+        cpp_req.prompt_length = py_beam.exec_req.prompt_length
+
+        # Create C++ BeamState
+        cpp_beam = sf.llm.BeamState(cpp_req)
+        cpp_beam.score = py_beam.score
+        cpp_beam.accumulated_normalization = py_beam.accumulated_normalization
+        cpp_beam.last_token = py_beam.last_token
+
+        return cpp_beam
 
     def penalize_brevity(
         self,
@@ -214,11 +316,11 @@ class BeamSearchScorer(BaseBeamScorer):
         """Handle the selection of the `top_k` beams within a decode step.
 
         Args:
-            active_beams (List[IndependentBeam]): Beams that are still active.
-            completed_beams (Set[IndependentBeam]): Beams that have been completed.
+            active_beams (List[BeamSearchBeam]): Beams that are still active.
+            completed_beams (List[BeamSearchBeam]): Beams that have been completed.
 
         Returns:
-            List[IndependentBeam]: The `top_k` selections, containing necessary info for `beam_group` to handle choosing and processing beams.
+            List[BeamSearchBeam]: The `top_k` selections, containing necessary info for `beam_group` to handle choosing and processing beams.
         """
         config = self.config
         num_beams = config.decode_config.num_beams
@@ -239,7 +341,7 @@ class BeamSearchScorer(BaseBeamScorer):
         if len(selections) < k:
             beams_to_add = num_beams - len(selections)
             for _ in range(beams_to_add):
-                new_beam = BeamSearchBeam.clone(self.scorer.top_beam)
+                new_beam = BeamSearchBeam.clone(self.top_beam)
                 selections.append(new_beam)
 
         selections = self.score_beams(selections, k)

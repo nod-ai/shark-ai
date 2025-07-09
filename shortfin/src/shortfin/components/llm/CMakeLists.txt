@@ -9,8 +9,10 @@ shortfin_cc_component(
     shortfin_llm_components
   HDRS
     beam_processor.h
+    beam_scorer.h
   SRCS
     beam_processor.cc
+    beam_scorer.cc
   COMPONENTS
     shortfin_support
 )

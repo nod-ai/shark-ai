@@ -19,6 +19,7 @@
 #include "shortfin/local/systems/amdgpu.h"
 #endif  // SHORTFIN_HAVE_AMDGPU
 #include "shortfin/components/llm/beam_processor.h"
+#include "shortfin/components/llm/beam_scorer.h"
 #include "shortfin/local/systems/host.h"
 #include "shortfin/support/globals.h"
 #include "shortfin/support/logging.h"
@@ -1587,6 +1588,48 @@ void BindLLM(py::module_ &m) {
                   &llm::BeamProcessor::ShouldCompleteBeam)
       .def_static("cleanup_beam_resources",
                   &llm::BeamProcessor::CleanupBeamResources);
+
+  // Bind DecodeConfig structure
+  py::class_<llm::DecodeConfig>(m, "DecodeConfig")
+      .def(py::init<>())
+      .def_rw("num_beams", &llm::DecodeConfig::num_beams)
+      .def_rw("temperature", &llm::DecodeConfig::temperature)
+      .def_rw("top_k", &llm::DecodeConfig::top_k)
+      .def_rw("top_p", &llm::DecodeConfig::top_p)
+      .def_rw("use_beam_search", &llm::DecodeConfig::use_beam_search)
+      .def_rw("eos_token_id", &llm::DecodeConfig::eos_token_id)
+      .def_rw("length_penalty", &llm::DecodeConfig::length_penalty);
+
+  // Bind LogitsData structure
+  py::class_<llm::LogitsData>(m, "LogitsData")
+      .def(py::init<const std::vector<float> &, int>(), py::arg("logits"),
+           py::arg("vocab_size") = -1)
+      .def_rw("logits", &llm::LogitsData::logits)
+      .def_rw("indices", &llm::LogitsData::indices)
+      .def_rw("vocab_size", &llm::LogitsData::vocab_size);
+
+  // Bind BaseBeamScorer abstract class
+  py::class_<llm::BaseBeamScorer>(m, "BaseBeamScorer")
+      .def("create_selection_callback",
+           &llm::BaseBeamScorer::CreateSelectionCallback,
+           "Create a selection callback for use with BeamProcessor")
+      .def("update_score", &llm::BaseBeamScorer::UpdateScore, py::arg("beam"),
+           py::arg("value"))
+      .def("finalize_score", &llm::BaseBeamScorer::FinalizeScore,
+           py::arg("beam"))
+      .def("reset", &llm::BaseBeamScorer::Reset);
+
+  // Bind DefaultScorer class
+  py::class_<llm::DefaultScorer, llm::BaseBeamScorer>(m, "DefaultScorer")
+      .def(py::init<const llm::DecodeConfig &>(), py::arg("config"));
+
+  // Bind BeamSearchScorer class
+  py::class_<llm::BeamSearchScorer, llm::BaseBeamScorer>(m, "BeamSearchScorer")
+      .def(py::init<const llm::DecodeConfig &>(), py::arg("config"));
+
+  // Bind factory function
+  m.def("create_beam_scorer", &llm::CreateBeamScorer, py::arg("config"),
+        "Create appropriate beam scorer based on configuration");
 
   // Bind parallel processing utilities
   auto parallel_m = m.def_submodule("parallel");
