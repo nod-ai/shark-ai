@@ -48,7 +48,7 @@ class QuaRotTransformTest(unittest.TestCase):
         """Test QuaRotTransform with deterministic values."""
         hidden_dim = 32  # Use 32 to match block_size
         x = torch.zeros(1, 1, 32, dtype=torch.float32)
-        x[0, 0, :4] = torch.tensor([1.0, 2.0, 3.0, 4.0])
+        x[0, 0, :4] = torch.tensor([1.0, 2.0, 3.0, 4.0], dtype=torch.float32)
 
         signs = torch.ones(32, dtype=torch.int8)
         signs[:4] = torch.tensor([1, -1, 1, -1], dtype=torch.int8)
@@ -113,7 +113,7 @@ class QuaRotLinearLayerTest(unittest.TestCase):
 
         # Create deterministic input with padding - use quantization-friendly values
         x = torch.zeros(1, 1, 64, dtype=torch.float32)
-        x[0, 0, :4] = torch.tensor([8.0, 0.0, -8.0, 0.0])
+        x[0, 0, :4] = torch.tensor([8.0, 0.0, -8.0, 0.0], dtype=torch.float32)
 
         theta_temp = Theta([])
         transform = QuaRotTransform(theta_temp, hidden_dim, seed=42)
