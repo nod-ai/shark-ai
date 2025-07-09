@@ -25,7 +25,7 @@ from sharktank.types import (
 
 from sharktank.kernels.topk import iree_topk
 
-from sharktank.types.tensors import unbox_tensor, AnyTensor
+from sharktank.types.tensors import unbox_tensor, AnyTensor, DefaultPrimitiveTensor
 from ._registry import AllOfType, AllOfExprs, AllOfExprsVariadic, IsOfType
 from .signatures import *
 import iree.turbine.ops.iree
@@ -686,16 +686,22 @@ def trace_tensor(key: str, *tensors: tuple[AnyTensor, ...]):
 
 @transfer_to_logical_device.override(Tensor)
 def transfer_to_logical_device_default(tensor: Tensor, ordinal: int):
-    return iree.turbine.ops.iree.transfer_to_logical_device(
+    transfered = iree.turbine.ops.iree.transfer_to_logical_device(
         f"{ordinal}", unbox_tensor(tensor)
     )
+    if isinstance(tensor, DefaultPrimitiveTensor):
+        transfered = DefaultPrimitiveTensor(data=transfered, name=tensor.name)
+    return transfered
 
 
 @barrier_on_logical_device.override(Tensor)
 def barrier_on_device_default(tensor: Tensor, ordinal: int):
-    return iree.turbine.ops.iree.barrier_on_logical_device(
+    barriered = iree.turbine.ops.iree.barrier_on_logical_device(
         f"{ordinal}", unbox_tensor(tensor)
     )
+    if isinstance(tensor, DefaultPrimitiveTensor):
+        barriered = DefaultPrimitiveTensor(data=barriered, name=tensor.name)
+    return barriered
 
 
 @transpose.override(Tensor)
