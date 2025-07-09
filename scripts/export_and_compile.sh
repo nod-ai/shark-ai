@@ -26,8 +26,8 @@ while [[ "$1" != "" ]]; do
             shift
             export DTYPE=$1
             if [[ "$DTYPE" = "fp8" ]]; then
-                export ATTENTION_DTYPE="float8_e4m3fnuz"
-                export ACTIVATION_DTYPE="bfloat16"
+                export ATTENTION_DTYPE="float16"
+                export ACTIVATION_DTYPE="float16"
                 export KV_CACHE_DTYPE="float8_e4m3fnuz"
             fi
             ;;

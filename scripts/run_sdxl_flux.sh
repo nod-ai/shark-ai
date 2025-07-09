@@ -6,13 +6,7 @@ SCRIPT_DIR=$(dirname $(realpath "$0"))
 SHORTFIN_SRC=$SCRIPT_DIR/../shortfin
 HF_HOME_DIR=${HF_HOME:-"$HOME/.cache/huggingface"}
 
-function wait_for_server() {
-    SERVER_UP=0
-    while [[ $SERVER_UP != 200 && -e /proc/$SHORTFIN_PROCESS ]]; do
-        SERVER_UP=$(curl -o /dev/null -s -w "%{http_code}\n" http://localhost:$1/health)
-        sleep 3
-    done
-}
+source ${SCRIPT_DIR}/server_utils.sh
 
 function run_sdxl_model() {
     echo "Starting server for $MODEL ..."
@@ -33,7 +27,6 @@ function run_sdxl_model() {
 
     echo "Server with PID $SHORTFIN_PROCESS is ready to accept requests on port $PORT....."
 
-    OUTPUT_DIR=$(mktemp -d)
     echo "Sending request to the server...."
     python -m shortfin_apps.sd.simple_client --port $PORT --outputdir $OUTPUT_DIR
 
@@ -43,7 +36,6 @@ function run_sdxl_model() {
     python image_verifier.py --ref-images $SCRIPT_DIR/refs/sdxl/snow_cat_ref.png --gen-images $OUTPUT_DIR/$GEN_IMAGE
     RESULT=$?
 
-    rm -rf $OUTPUT_DIR
     kill -9 $SHORTFIN_PROCESS
     return $RESULT
 }
@@ -74,7 +66,6 @@ function run_flux_model() {
 
     echo "Server with PID $SHORTFIN_PROCESS is ready to accept requests on port $PORT....."
 
-    OUTPUT_DIR=$(mktemp -d)
     echo "Sending request to the server...."
     python -m shortfin_apps.flux.simple_client --port $PORT --outputdir $OUTPUT_DIR
 
@@ -84,7 +75,6 @@ function run_flux_model() {
     python image_verifier.py --ref-images $SCRIPT_DIR/refs/$MODEL/snow_cat_ref.png --gen-images $OUTPUT_DIR/$GEN_IMAGE
     RESULT=$?
 
-    rm -rf $OUTPUT_DIR
     kill -9 $SHORTFIN_PROCESS
     return $RESULT
 }
@@ -138,6 +128,9 @@ while [[ "$1" != "" ]]; do
     esac
     shift # Move to the next argument
 done
+
+export OUTPUT_DIR="${SCRIPT_DIR}/../output_artifacts/${MODEL}/${BUILD_PREFERENCE}"
+mkdir -p $OUTPUT_DIR
 
 if [[ $MODEL = "sdxl" ]]; then
     run_sdxl_model

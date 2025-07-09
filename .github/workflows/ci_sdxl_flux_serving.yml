@@ -8,12 +8,9 @@ name: Release SDXL and FLUX Shortfin Serving Tests
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - "bump-torch-2.6"
   schedule:
-  # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
-  - cron: "0 9 * * 1-5"
+    # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
+    - cron: "0 9 * * 1-5"
 
 concurrency:
   # A PR number if a pull request and otherwise the commit hash. This cancels
@@ -33,7 +30,7 @@ jobs:
     name: "Release: SDXL and Flux Shortfin Serving Tests"
     strategy:
       matrix:
-        version: [ 3.11 ]
+        version: [3.11]
       fail-fast: false
     runs-on: linux-mi300-1gpu-ossci-nod-ai
     defaults:
@@ -44,51 +41,98 @@ jobs:
       HF_HOME: "/shark-cache/data/huggingface"
       HF_TOKEN: ${{ secrets.HF_FLUX_TOKEN }}
     steps:
-    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-    - name: "Setting up Python"
-      id: setup_python
-      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
-      with:
-        python-version: ${{matrix.version}}
-    - name: Create Python venv
-      run: |
-        python -m venv ${VENV_DIR}
-        source ${VENV_DIR}/bin/activate
+      - name: "Setting up Python"
+        id: setup_python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: ${{matrix.version}}
+      - name: Create Python venv
+        run: |
+          python -m venv ${VENV_DIR}
+          source ${VENV_DIR}/bin/activate
 
-    - name: Install pip deps
-      run: bash scripts/setenv.sh --nightly
+      - name: Install pip deps
+        run: bash scripts/setenv.sh --nightly
 
-    - name: Run SDXL (precompiled)
-      run: |
-        bash scripts/run_sdxl_flux.sh \
-          --model sdxl \
-          --build_preference precompiled
+      - name: Run SDXL (precompiled)
+        run: |
+          bash scripts/run_sdxl_flux.sh \
+            --model sdxl \
+            --build_preference precompiled
 
-    - name: Run Flux-Dev (precompiled)
-      run: |
-        bash scripts/run_sdxl_flux.sh \
-          --model flux_dev \
-          --build_preference precompiled \
-          --hf-token ${HF_TOKEN}
+      - name: Run Flux-Dev (precompiled)
+        run: |
+          bash scripts/run_sdxl_flux.sh \
+            --model flux_dev \
+            --build_preference precompiled \
+            --hf-token ${HF_TOKEN}
 
-    - name: Run Flux-Dev (compile)
-      run: |
-        bash scripts/run_sdxl_flux.sh \
-          --model flux_dev \
-          --build_preference compile \
-          --hf-token ${HF_TOKEN}
+      - name: Run Flux-Dev (compile)
+        run: |
+          bash scripts/run_sdxl_flux.sh \
+            --model flux_dev \
+            --build_preference compile \
+            --hf-token ${HF_TOKEN}
 
-    - name: Run Flux-Schnell (precompiled)
-      run: |
-        bash scripts/run_sdxl_flux.sh \
-          --model flux_schnell \
-          --build_preference precompiled \
-          --hf-token ${HF_TOKEN}
+      - name: Run Flux-Schnell (precompiled)
+        run: |
+          bash scripts/run_sdxl_flux.sh \
+            --model flux_schnell \
+            --build_preference precompiled \
+            --hf-token ${HF_TOKEN}
 
-    - name: Run Flux-Schnell (compile)
-      run: |
-        bash scripts/run_sdxl_flux.sh \
-          --model flux_schnell \
-          --build_preference compile \
-          --hf-token ${HF_TOKEN}
+      - name: Run Flux-Schnell (compile)
+        run: |
+          bash scripts/run_sdxl_flux.sh \
+            --model flux_schnell \
+            --build_preference compile \
+            --hf-token ${HF_TOKEN}
+
+      - name: Upload images
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: generated-images
+          path: |
+            output_artifacts/sdxl/
+            output_artifacts/flux_dev/
+            output_artifacts/flux_schnell/
+
+      - name: Cleanup output artifacts
+        run: |
+          rm -rf output_artifacts
+          test ! -d output_artifacts && echo "Output artifacts are removed"
+
+  # New job to push logs to shark-ai-reports repository
+  push_images:
+    name: "Push sdxl/flux generated images"
+    needs: [test_sdxl_flux_serving]
+    runs-on: linux-mi300-1gpu-ossci-nod-ai
+    steps:
+      - name: Download log artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: generated-images
+          path: gen_images
+
+      - name: Checkout Target Repo
+        uses: actions/checkout@v4
+        with:
+          repository: nod-ai/shark-ai-reports
+          token: ${{ secrets.SHARK_AI_REPORTS_GITHUB_TOKEN }}
+          path: shark-ai-reports
+
+      - name: Push artifacts
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email ""
+          date=$(date -u +'%Y-%m-%d')
+          mkdir -p "shark-ai-reports/$date/generated-images"
+          cp -vr gen_images/* "shark-ai-reports/$date/generated-images/"
+          cd shark-ai-reports
+          git pull
+          git add $date
+          git commit -m "Add sdxl/flux images on $(date -u +'%Y-%m-%d')"
+          git push origin main
+          rm -rf ../gen_images

@@ -26,7 +26,6 @@ def build_token_selector_config(
     prefill_batcher,
     decode_batcher,
     results_callback: Callable[[Union[int, List[int]]], None],
-    eos_token_id: int,
 ) -> TokenSelectionStrategyConfig:
     """Build a configuration class for a given token selection strategy.
 
@@ -51,7 +50,6 @@ def build_token_selector_config(
         decode_begin_callback=decode_batcher.reserve_workitem,
         decode_end_callback=decode_batcher.complete_workitem,
         results_callback=results_callback,
-        eos_token_id=eos_token_id,
     )
 
 

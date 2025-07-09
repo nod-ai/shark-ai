@@ -466,7 +466,7 @@ def main(argv):
     params_path: Path = args.params
     # TODO: find a way to get this programatically so we don't have to flag for it
     split_sizes = [4096, 4096, 4096] if args.model_base == "7b" else [8192, 1024, 1024]
-    layers_per_base = {"7b": 32, "70b": 40, "405b": 125}
+    layers_per_base = {"7b": 32, "70b": 40, "405b": 126}
     num_layers = layers_per_base[args.model_base]
     # Construct the pre-transform dataset.
     dataset_props = _get_dataset_props(_load_json(config_json_path))
