@@ -49,9 +49,14 @@ include(CTest)
 option(SHARKFUSER_BUILD_TESTS "Builds C++ tests" ON)
 option(SHARKFUSER_BUILD_SAMPLES "Builds C++ samples" ON)
 option(SHARKFUSER_SYSTEMS_AMDGPU "Builds for AMD GPU systems" ON)
+option(SHARKFUSER_DEBUG_BUILD "Enable debug build options" ON)
 
 set(SHARKFUSER_IREE_SOURCE_DIR "" CACHE FILEPATH "Path to local IREE source directory")
 
+if(SHARKFUSER_DEBUG_BUILD)
+  message(STATUS "Setting CMAKE_BUILD_TYPE to Debug")
+  set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Debug build" FORCE)
+endif()
 
 message(STATUS "SharkFuser supported systems:")
 if(SHARKFUSER_SYSTEMS_AMDGPU)

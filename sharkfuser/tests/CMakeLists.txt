@@ -23,6 +23,8 @@ add_executable(sharkfuser_tests
   test_context.cpp
 )
 target_link_libraries(sharkfuser_tests PRIVATE sharkfuser Catch2::Catch2WithMain)
+target_compile_options(sharkfuser_tests PRIVATE -coverage -O0 -g)
+target_link_options(sharkfuser_tests PRIVATE -coverage)
 add_test(NAME sharkfuser_tests COMMAND sharkfuser_tests)
 set_tests_properties(
   sharkfuser_tests PROPERTIES

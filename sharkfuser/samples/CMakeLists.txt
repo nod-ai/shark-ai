@@ -20,6 +20,8 @@ add_executable(sharkfuser_samples
   convolution/conv_fprop.cpp
 )
 target_link_libraries(sharkfuser_samples PRIVATE sharkfuser Catch2::Catch2WithMain)
+target_compile_options(sharkfuser_samples PRIVATE -coverage -O0 -g)
+target_link_options(sharkfuser_samples PRIVATE -coverage)
 add_test(NAME sharkfuser_samples COMMAND sharkfuser_samples)
 
 # Place executable in the bin directory

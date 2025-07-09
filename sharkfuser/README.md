@@ -16,6 +16,11 @@ cmake --build build --target all
 ctest --test-dir build
 ```
 
+Code coverage:
+```shell
+ctest --test-dir build -T test -T coverage
+```
+
 Re-run failed tests verbosely:
 ```shell
 ctest --test-dir build --rerun-failed --output-on-failure

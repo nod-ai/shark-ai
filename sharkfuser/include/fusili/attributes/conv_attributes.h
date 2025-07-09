@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "attributes.h"
+#include "tensor_attributes.h"
 
 namespace fusili {
 
