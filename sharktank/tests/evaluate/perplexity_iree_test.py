@@ -25,8 +25,8 @@ from sharktank.utils.testing import (
 
 
 @pytest.mark.usefixtures(
-    "get_model_artifacts",
-    "get_iree_flags",
+    "model_artifacts",
+    "iree_flags",
     "tensor_parallelism_size",
     "baseline_perplexity_scores",
     "batch_size",

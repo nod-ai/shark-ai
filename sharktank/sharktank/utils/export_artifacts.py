@@ -210,10 +210,11 @@ class ExportArtifacts:
                 f"ROCR_VISIBLE_DEVICES={','.join(str(i) for i in range(self.parallelism_size))}"
             ]
             params = [f"--parameters=model={base_irpa_path}.irpa"]
-            params += [
-                f"--parameters=model={base_irpa_path}.rank{i}.irpa"
-                for i in range(self.tensor_parallelism_size)
-            ]
+            if self.tensor_parallelism_size > 1:
+                params += [
+                    f"--parameters=model={base_irpa_path}.rank{i}.irpa"
+                    for i in range(self.tensor_parallelism_size)
+                ]
             devices = [f"--device=hip://{i}" for i in range(self.parallelism_size)]
         else:
             hip_device_arg = int(self.hip_device_id.split("://")[1])
@@ -411,7 +412,7 @@ class ExportArtifacts:
         if any(
             llama_size in str(self.irpa_path) for llama_size in ["405", "70"]
         ) and all("max-iterations" not in arg for arg in compile_args):
-            compile_args += "--iree-stream-affinity-solver-max-iterations=1024"
+            compile_args += ["--iree-stream-affinity-solver-max-iterations=1024"]
 
         # Append optional arguments if provided
         if extra_args:

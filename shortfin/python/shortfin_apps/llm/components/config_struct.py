@@ -20,8 +20,7 @@ from typing import List, Optional
 
 from dataclasses_json import dataclass_json, Undefined
 
-from .token_selection_strategy import DecodeConfig
-from .token_selection_strategy import LogitsNormalization
+from .token_selection_strategy.config import DecodeConfig, LogitsNormalization
 
 import shortfin.array as sfnp
 
