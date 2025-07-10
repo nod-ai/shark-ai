@@ -168,9 +168,7 @@ class Batch:
         return (
             len(self.done_result_indices) == self.bs
             or len(self.parent.free_pages) == 0
-            or (
-                self.max_decode_steps <= self.decode_step
-            )
+            or (self.max_decode_steps <= self.decode_step)
         )
 
     def detokenize(self) -> list[str]:
