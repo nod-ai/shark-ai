@@ -138,6 +138,7 @@ def parse_args(argv):
     )
     return parser.parse_args(argv)
 
+
 def run_server(argv, log_config=uvicorn.config.LOGGING_CONFIG, port: int | None = None):
     args = parse_args(argv)
     if args.tokenizer_config_json is None:
