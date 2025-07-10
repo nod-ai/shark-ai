@@ -917,8 +917,18 @@ def _split_topk(
 
 
 @view.override(Tensor)
-def view_default(tensor: Union[Tensor, PrimitiveTensor], shape: List[int]) -> Tensor:
-    return unbox_tensor(tensor).view(*shape)
+def view_default(
+    tensor: Union[Tensor, PrimitiveTensor],
+    shape: List[int] | None,
+    dtype: torch.dtype | None,
+) -> Tensor:
+    assert (shape is None) ^ (
+        dtype is None
+    ), "Exactly one of shape or dtype must be provided"
+    if shape is not None:
+        return unbox_tensor(tensor).view(*shape)
+    else:
+        return unbox_tensor(tensor).view(dtype)
 
 
 @view.override(QuantizedTensor)
