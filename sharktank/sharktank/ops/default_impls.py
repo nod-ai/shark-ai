@@ -21,7 +21,6 @@ from sharktank.types import (
     PlanarQuantizedTensor,
     BlockScaledI4Layout,
     TensorScaledLayout,
-    BlockScaledFp4Layout,
 )
 
 from sharktank.kernels.topk import iree_topk
