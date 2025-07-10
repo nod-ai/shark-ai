@@ -257,7 +257,7 @@ class BlockScaledLayout(QuantizedLayout):
             "d": self._d,
             "qs": self._qs,
         }
-        if self._m is not None:
+        if hasattr(self, "_m") and self._m is not None:
             p["m"] = self._m
         return p
 
@@ -423,6 +423,9 @@ class BlockScaledI4Layout(BlockScaledPackedLayout):
     @property
     def metadata(self) -> dict[str, MetaDataValueType]:
         return {"signed": self.signed}
+
+    def pack_qs(self, qs: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError("Need inverse of promote_linear_i4_block_to_i8")
 
     def unpack_qs(self, qs: torch.Tensor) -> torch.Tensor:
         """Unpack the underlying bit-packed tensor into logical values."""
