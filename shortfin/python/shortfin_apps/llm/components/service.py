@@ -11,13 +11,13 @@ from typing import List
 from threading import Lock
 import shortfin as sf
 
+
 from .batcher import PrefillBatcherProcess, DecodeBatcherProcess
 from .config_struct import ModelParams, ServerParams
 from .kvcache.base_attention_cache import (
     BasePagedAttentionCache,
 )
 from .kvcache.trie_attention_cache import TriePagedAttentionCache
-from .kvcache.mooncake_cache import MooncakeAttentionCache
 from .kvcache.page_pool import PagePoolConfig, PagePool
 from .manager import LlmSystemManager
 from .service_debug_dumper import SERVICE_DEBUG_DUMPER
@@ -104,17 +104,7 @@ class LlmGenerateService(GenerateService):
         )
         page_pool = PagePool(devices=self.devices, config=page_pool_config)
 
-        if self.server_params.mooncake_config_path is not None:
-            logger.info(
-                f"Using MooncakeAttentionCache with config path: {self.server_params.mooncake_config_path}"
-            )
-            self.page_cache = MooncakeAttentionCache(
-                page_pool=page_pool,
-                tokens_per_page=self.model_params.paged_kv_cache.block_seq_stride,
-                prefix_sharing_algorithm=self.server_params.prefix_sharing_algorithm,
-                mooncake_config_path=self.server_params.mooncake_config_path,
-            )
-        elif self.server_params.prefix_sharing_algorithm == "trie":
+        if self.server_params.prefix_sharing_algorithm == "trie":
             self.page_cache = TriePagedAttentionCache(
                 page_pool=page_pool,
                 tokens_per_page=self.model_params.paged_kv_cache.block_seq_stride,
