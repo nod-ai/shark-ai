@@ -10,8 +10,8 @@ Specifications describing how
 
 from iree.turbine.aot import DeviceTensorTrait, ExternalTensorTrait
 from sharktank.types import (
-    DefaultPrimitiveTensor,
     PrimitiveTensor,
+    QuantizedTensor,
     ReplicatedTensor,
     ShardedTensor,
     Theta,
@@ -19,8 +19,6 @@ from sharktank.types import (
 
 
 from typing import Tuple
-
-from sharktank.types.tensors import QuantizedTensor
 
 
 def pipeline_parallelize_theta(
