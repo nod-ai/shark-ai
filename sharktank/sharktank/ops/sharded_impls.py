@@ -747,7 +747,7 @@ def linear_sharded(
     accum_dtype,
 ) -> SplitPrimitiveTensor:
     # TODO: handle different dtypes
-    result = matmul(input, weight.mT)
+    result = matmul(input, weight, transpose_rhs=True)
     if bias is not None:
         result = elementwise(torch.add, result, bias)
     return result
@@ -758,7 +758,7 @@ def linear_sharded(
 # Then we want the default implementation to handle it.
 for types in itertools.product([Tensor, ShardedTensor], repeat=3):
     if tuple(types) != (Tensor,) * 3:
-        linear.override(*types, auto_dequant=True)(linear_sharded)
+        linear.override(*types, auto_dequant=True)(linear_sharded)  # TODO: ?
 for types in itertools.product([Tensor, ShardedTensor], repeat=2):
     if tuple(types) != (Tensor,) * 2:
         linear.override(*types, auto_dequant=True)(linear_sharded)
