@@ -716,14 +716,20 @@ def transpose_default(
     return torch.transpose(unbox_tensor(tensor), dim0, dim1)
 
 
-@transpose.override(QuantizedTensor)
-def transpose_QuantizedTensor(tensor: QuantizedTensor, dim0: int, dim1: int):
+@transpose.override(PlanarQuantizedTensor)
+def transpose_PlanarQuantizedTensor(
+    tensor: PlanarQuantizedTensor, dim0: int, dim1: int
+):
+    # TODO: Can we use layour.shape instead?
     new_shape = list(tensor.shape)
     new_shape[dim0], new_shape[dim1] = new_shape[dim1], new_shape[dim0]
 
     new_layout = tensor.unpack().transpose(dim0, dim1)
     if not isinstance(new_layout, QuantizedLayout):
         return NotImplemented
+    new_shape = new_layout.sh
+
+    return PlanarQuantizedTensor(shape=new_shape, layout=new_layout)
 
     return PlanarQuantizedTensor(shape=new_shape, layout=new_layout)
 

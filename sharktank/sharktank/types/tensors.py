@@ -109,6 +109,8 @@ class QuantizedLayout(ABC):
 
         When transforming, the name will form a local suffix (i.e. ":name")
         for stored values by combining the global name with the ":" separator.
+
+        NOTE: Any bitpacked values will NOT be unpacked by this method.
         """
         ...
 
