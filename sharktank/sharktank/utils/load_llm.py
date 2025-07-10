@@ -51,36 +51,20 @@ class TorchGenerator:
     def preprocess_prompts(
         self,
         prompts: list[str],
-        bs=int,
-        dump_prompt_len: int = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        if dump_prompt_len is not None:
-            vocab_size = self.tokenizer.vocab_size
-            token_ids = torch.randint(
-                low=0,
-                high=vocab_size,
-                size=(bs, dump_prompt_len),
-                device=self.model.device,
-            )
-            seq_lens = torch.tensor([dump_prompt_len] * bs, device=self.model.device)
+        token_ids = self.tokenizer._encode(texts=prompts, add_start_token=False)
 
-            logger.debug(f":: Prompt tokens: {token_ids}")
-        else:
-            token_ids = self.tokenizer._encode(texts=prompts, add_start_token=False)
-
-            logger.info(f":: Prompt tokens:")
-            for idx, prompt in enumerate(prompts):
-                logger.info(
-                    f"    prompt_{idx}: \n    {prompt.encode()} \n    {token_ids[idx]}\n"
-                )
-
-            token_ids, seq_lens = pad_tokens(
-                token_ids,
-                pad_to_multiple_of=self.model.cache.pad_sequence_stride,
-                device=self.model.device,
+        logger.info(f":: Prompt tokens:")
+        for idx, prompt in enumerate(prompts):
+            logger.info(
+                f"    prompt_{idx}: \n    {prompt.encode()} \n    {token_ids[idx]}\n"
             )
 
-        logger.info(f":: Prompt tokens shape [bs, seq_len]: {token_ids.shape}")
+        token_ids, seq_lens = pad_tokens(
+            token_ids,
+            pad_to_multiple_of=self.model.cache.pad_sequence_stride,
+            device=self.model.device,
+        )
 
         return token_ids, seq_lens
 
@@ -105,7 +89,6 @@ class TorchGenerator:
         self,
         token_ids: torch.tensor,
         seq_lens: torch.tensor,
-        use_attention_mask: bool = True,
         page_cache_size: int = None,
         dump_path: Path = None,
         dump_decode_steps: int = 1,
@@ -127,7 +110,6 @@ class TorchGenerator:
             token_ids=token_ids,
             seq_lens=seq_lens,
             cache_state=cache_state,
-            use_attention_mask=use_attention_mask,
             bs=bs,
             dump_path=dump_path,
             dump_decode_steps=dump_decode_steps,
@@ -149,7 +131,6 @@ class Batch:
         token_ids: torch.Tensor,
         seq_lens: torch.Tensor,
         cache_state: list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
-        use_attention_mask: bool,
         bs: int,
         dump_path: Path,
         dump_decode_steps: int,
@@ -163,11 +144,9 @@ class Batch:
         self.seq_lens = seq_lens
         # TODO: This doesn't appear to handle PP models properly
         self.cache_state = cache_state
-        self.use_attention_mask = use_attention_mask
         self.results: list[list[int]] = [[] for _ in range(self.bs)]
         self.done_result_indices: set[int] = set()
         self.dump_path = dump_path
-        self.dump_prompt_len = dump_prompt_len
         self.dump_decode_steps = dump_decode_steps
         self.decode_step = 0
         self.use_attention_mask = use_attention_mask
