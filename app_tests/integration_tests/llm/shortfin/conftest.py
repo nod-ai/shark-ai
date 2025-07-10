@@ -36,8 +36,18 @@ def test_device(request):
 @pytest.fixture(scope="session")
 def model_artifacts(tmp_path_factory, request, test_device):
     """Prepares model artifacts in a cached directory."""
-    model_config = request.param
-    model_config.device_settings = get_device_settings_by_name(test_device)
+    model_config: ModelConfig = request.param
+    settings_key = test_device
+
+    if test_device == "cpu" and model_config.tensor_parallelism_size is not None:
+        pytest.skip("Skipping CPU tests with tensor parallelism")
+
+    if (
+        model_config.tensor_parallelism_size is not None
+        and model_config.tensor_parallelism_size > 1
+    ):
+        settings_key += f"_tp{model_config.tensor_parallelism_size}"
+    model_config.device_settings = get_device_settings_by_name(settings_key)
     cache_key = hashlib.md5(str(model_config).encode()).hexdigest()
 
     cache_dir = tmp_path_factory.mktemp("model_cache")
@@ -67,12 +77,18 @@ def server(model_artifacts, request):
         artifacts=model_artifacts,
         device_settings=model_config.device_settings,
         prefix_sharing_algorithm=request.param.get("prefix_sharing", "none"),
+        use_beam_search=request.param.get("use_beam_search", False),
+        num_beams=request.param.get("num_beams", 1),
     )
 
     server_instance = ServerInstance(server_config)
     server_instance.start()
-    process, port = server_instance.process, server_instance.port
-    yield process, port
+    process, port, config = (
+        server_instance.process,
+        server_instance.port,
+        server_instance.config,
+    )
+    yield process, port, config
 
     process.terminate()
     process.wait()

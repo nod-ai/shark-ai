@@ -1,8 +1,9 @@
 import asyncio
 import math
+import numpy as np
 import random
 import pytest
-from typing import Any, List
+from typing import List, Union
 from unittest.mock import patch
 
 from shortfin_apps.llm.components.kvcache.base_attention_cache import (
@@ -11,7 +12,7 @@ from shortfin_apps.llm.components.kvcache.base_attention_cache import (
 from shortfin_apps.llm.components.messages import LlmInferenceExecRequest
 from shortfin_apps.llm.components.token_selection_strategy.beam_group import (
     BeamGroup,
-    Beam,
+    BaseBeam,
 )
 from shortfin_apps.llm.components.token_selection_strategy.config import (
     LogitsNormalization,
@@ -37,20 +38,34 @@ def exec_req_list(exec_req, cache, dummy_pages):
     yield exec_reqs
 
 
-class DummyBeam(Beam):
+class DummyBeam(BaseBeam):
     def sample_logits(self):
         pass
 
-    def update_score(self, value: float):
+    def sample_default(
+        self, logits: np.array, indices: Union[np.array, None], num_completed_beams: int
+    ):
         pass
 
-    def update_exec_req(self):
+    def sample_top_k(
+        self,
+        logits: np.array,
+        indices: Union[np.array, None],
+        top_k: int,
+        num_completed_beams: int,
+    ):
         pass
 
-    def normalize_score(self, value: float):
+    def sample_top_p(
+        self,
+        tokens: np.array,
+        probs: np.array,
+        top_p: float,
+        num_completed_beams: int,
+    ):
         pass
 
-    def update_final_score(self):
+    def get_results(self, tokens: np.array, probs: np.array):
         pass
 
 
@@ -75,24 +90,24 @@ def test_beam_apply_temperature(device, exec_req, decode_config):
 
     with patch.object(sfnp, "divide") as temp_mock:
         expected = value / temperature
-        logits = beam.exec_req.result_logits
-        result = beam.apply_temperature(logits).items.tolist()
+        logits = np.array(beam.exec_req.result_logits)
+        result = beam.apply_temperature(logits)[0][0].tolist()
         assert all(approximately_equal(expected, logit) for logit in result)
         temp_mock.assert_not_called()
 
     temperature = 0.5
     beam.decode_config.temperature = temperature
     expected = value / temperature
-    logits = beam.exec_req.result_logits
-    result = beam.apply_temperature(logits).items.tolist()
+    logits = np.array(beam.exec_req.result_logits)
+    result = beam.apply_temperature(logits)[0][0].tolist()
     assert all(approximately_equal(expected, logit) for logit in result)
 
     temperature = 1.5
     beam.exec_req.result_logits.items = data
     beam.decode_config.temperature = temperature
     expected = value / temperature
-    logits = beam.exec_req.result_logits
-    result = beam.apply_temperature(logits).items.tolist()
+    logits = np.array(beam.exec_req.result_logits)
+    result = beam.apply_temperature(logits)[0][0].tolist()
     assert all(approximately_equal(expected, logit) for logit in result)
 
 
@@ -115,8 +130,8 @@ def test_convert_logits_normalization_none(device, exec_req, decode_config):
     results = beam.convert_logits_normalization(
         decode_config.logits_normalization,
         LogitsNormalization.NONE,
-        src,
-    ).items.tolist()
+        np.array(src),
+    )[0][0].tolist()
 
     assert approximately_equal(expected, results)
 
@@ -126,8 +141,8 @@ def test_convert_logits_normalization_none(device, exec_req, decode_config):
     results = beam.convert_logits_normalization(
         decode_config.logits_normalization,
         LogitsNormalization.SOFTMAX,
-        src,
-    ).items.tolist()
+        np.array(src),
+    )[0][0].tolist()
 
     assert approximately_equal(expected, results)
 
@@ -137,8 +152,8 @@ def test_convert_logits_normalization_none(device, exec_req, decode_config):
     results = beam.convert_logits_normalization(
         decode_config.logits_normalization,
         LogitsNormalization.LOG_SOFTMAX,
-        src,
-    ).items.tolist()
+        np.array(src),
+    )[0][0].tolist()
     assert approximately_equal(expected, results)
 
 
@@ -162,8 +177,8 @@ def test_convert_logits_normalization_softmax(device, exec_req, decode_config):
     results = beam.convert_logits_normalization(
         decode_config.logits_normalization,
         LogitsNormalization.SOFTMAX,
-        softmax_logits,
-    ).items.tolist()
+        np.array(softmax_logits),
+    )[0][0].tolist()
 
     assert approximately_equal(expected, results)
 
@@ -173,8 +188,8 @@ def test_convert_logits_normalization_softmax(device, exec_req, decode_config):
     results = beam.convert_logits_normalization(
         decode_config.logits_normalization,
         LogitsNormalization.LOG_SOFTMAX,
-        softmax_logits,
-    ).items.tolist()
+        np.array(softmax_logits),
+    )[0][0].tolist()
 
     assert approximately_equal(expected, results)
 
@@ -199,8 +214,8 @@ def test_convert_logits_normalization_log_softmax(device, exec_req, decode_confi
     results = beam.convert_logits_normalization(
         decode_config.logits_normalization,
         LogitsNormalization.LOG_SOFTMAX,
-        log_softmax_logits,
-    ).items.tolist()
+        np.array(log_softmax_logits),
+    )[0][0].tolist()
 
     assert approximately_equal(expected, results)
 
@@ -210,8 +225,8 @@ def test_convert_logits_normalization_log_softmax(device, exec_req, decode_confi
     result = beam.convert_logits_normalization(
         decode_config.logits_normalization,
         LogitsNormalization.SOFTMAX,
-        log_softmax_logits,
-    ).items.tolist()
+        np.array(log_softmax_logits),
+    )[0][0].tolist()
 
     assert approximately_equal(expected, result)
 
@@ -226,13 +241,13 @@ def test__sample_logits_top_k(decode_config, device, exec_req):
 
     beam = DummyBeam(exec_req, decode_config)
     top_k = len(random_hot_tokens)
-    tokens, probs = beam._sample_logits_top_k(logits, top_k, top_k)
+    tokens, probs = beam._sample_logits_top_k(np.array(logits), None, top_k, top_k)
 
     assert len(tokens) == 3
     assert [token in random_hot_tokens for token in tokens]
 
     expected = [0.33] * 3
-    assert approximately_equal(probs, expected, rel_tol=1e-1)
+    assert approximately_equal(probs.tolist(), expected, rel_tol=1e-1)
 
 
 def test__sample_logits_top_p(decode_config, exec_req):
@@ -248,14 +263,19 @@ def test__sample_logits_top_p(decode_config, exec_req):
     expected_tokens = random_hot_tokens.copy()
     expected_probs = [0.33] * 3
 
+    beam.decode_config.top_k = -1
     tokens, probs = beam._sample_logits_top_p(
-        tokens, probs, top_p, len(random_hot_tokens)
+        np.array(tokens),
+        np.array(probs),
+        top_p,
+        len(random_hot_tokens),
+        return_probs=True,
     )
     assert len(tokens) == 3
     assert len(probs) == 3
 
     assert all(token in expected_tokens for token in tokens)
-    assert approximately_equal(probs, expected_probs)
+    assert approximately_equal(probs.tolist(), expected_probs)
 
 
 def test__to_softmax(decode_config, device, exec_req):
@@ -269,8 +289,6 @@ def test__to_softmax(decode_config, device, exec_req):
     expected_probs = [0.33] * 3
     results_probs = beam._to_softmax(
         data,
-        sfnp.float32,
-        device,
         LogitsNormalization.NONE,
     )
     results_probs = [results_probs[i] for i in random_hot_tokens]
@@ -281,8 +299,6 @@ def test__to_softmax(decode_config, device, exec_req):
     expected_probs = [0.33] * 3
     results_probs = beam._to_softmax(
         data,
-        sfnp.float16,
-        device,
         LogitsNormalization.NONE,
     )
     results_probs = [results_probs[i] for i in random_hot_tokens]

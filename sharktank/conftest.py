@@ -6,8 +6,11 @@
 
 from pathlib import Path
 import pytest
+import re
+
+from dataclasses import dataclass
 from pytest import FixtureRequest
-from typing import Optional, Any
+from typing import Any, Generator, Optional
 
 
 # Tests under each top-level directory will get a mark.
@@ -70,20 +73,26 @@ def pytest_addoption(parser):
         help="List a torch device, (e.g., 'cuda:0')",
     )
     parser.addoption(
-        "--run-quick-llama-test",
+        "--run-quick-test",
         action="store_true",
-        dest="run-quick-llama-test",
+        dest="run-quick-test",
         default=False,
-        help="Run large llama tests if passed",
+        help="Enable all quick tests",
     )
     parser.addoption(
-        "--run-nightly-llama-tests",
+        "--run-nightly-test",
         action="store_true",
-        dest="run-nightly-llama-tests",
+        dest="run-nightly-test",
         default=False,
-        help="Enable all llama benchmarking tests",
+        help="Enable all nightly tests",
     )
-
+    parser.addoption(
+        "--run-sharded-test",
+        action="store_true",
+        dest="run-sharded-test",
+        default=False,
+        help="Enable all sharded tests",
+    )
     parser.addoption(
         "--with-clip-data",
         action="store_true",
@@ -133,19 +142,19 @@ def pytest_addoption(parser):
         "--llama3-8b-tokenizer-path",
         type=Path,
         action="store",
-        help="Llama3.1 8b tokenizer path, defaults to 30F CI system path",
+        help="Llama3.1 8b tokenizer path",
     )
     parser.addoption(
         "--llama3-8b-f16-model-path",
         type=Path,
         action="store",
-        help="Llama3.1 8b model path, defaults to 30F CI system path",
+        help="Llama3.1 8b model path",
     )
     parser.addoption(
         "--llama3-8b-f16-tp2-model-path",
         type=Path,
         action="store",
-        help="Llama3.1 8b tp2 model path, defaults to 30F CI system path",
+        help="Llama3.1 8b tp2 model path",
     )
     parser.addoption(
         "--llama3-8b-f8-model-path",
@@ -155,16 +164,54 @@ def pytest_addoption(parser):
         help="Llama3.1 8b f8 model path",
     )
     parser.addoption(
+        "--llama3-8b-f8-attnf8-model-path",
+        type=Path,
+        action="store",
+        default=None,
+        help="Llama3.1 8b f8 attnf8 model path",
+    )
+    parser.addoption(
+        "--llama3-70b-tokenizer-path",
+        type=Path,
+        action="store",
+        help="Llama3.1 70b tokenizer path",
+    )
+    parser.addoption(
+        "--llama3-70b-f16-model-path",
+        type=Path,
+        action="store",
+        help="Llama3.1 70b model path",
+    )
+    parser.addoption(
+        "--llama3-70b-f16-tp8-model-path",
+        type=Path,
+        action="store",
+        help="Llama3.1 70b tp8 model path",
+    )
+    parser.addoption(
+        "--llama3-70b-f8-model-path",
+        type=Path,
+        action="store",
+        default=None,
+        help="Llama3.1 70b f8 model path",
+    )
+    parser.addoption(
         "--llama3-405b-tokenizer-path",
         type=Path,
         action="store",
-        help="Llama3.1 405b tokenizer path, defaults to 30F CI system path",
+        help="Llama3.1 405b tokenizer path",
     )
     parser.addoption(
         "--llama3-405b-f16-model-path",
         type=Path,
         action="store",
-        help="Llama3.1 405b model path, defaults to 30F CI system path",
+        help="Llama3.1 405b model path",
+    )
+    parser.addoption(
+        "--llama3-405b-f16-tp8-model-path",
+        type=Path,
+        action="store",
+        help="Llama3.1 405b tp8 model path.",
     )
     parser.addoption(
         "--llama3-405b-f8-model-path",
@@ -173,39 +220,36 @@ def pytest_addoption(parser):
         default=None,
         help="Llama3.1 405b f8 model path",
     )
-
-    # To obtain a T5 GGUF file you can use llama.cpp's convert_hf_to_gguf.py.
-    # https://github.com/ggerganov/llama.cpp/blob/9abe9eeae98b11fa93b82632b264126a010225ff/convert_hf_to_gguf.py
-    # E.g.
-    # git lfs install
-    # git clone https://huggingface.co/google/t5-v1_1-small
-    # convert_hf_to_gguf.py \
-    #     --outfile t5-v1_1-small.gguf \
-    #     --outtype=f32 \
-    #     t5-v1_1-small
     parser.addoption(
-        "--google-t5-v1-1-small-f32-model-path",
+        "--llama3-405b-f8-tp8-model-path",
         type=Path,
-        default="/data/t5/small/google__t5-v1_1-small_f32.gguf",
-        help="Google T5 v1.1 small float32 model path",
+        action="store",
+        default=None,
+        help="Llama3.1 405b f8 tp8 model path",
     )
     parser.addoption(
-        "--google-t5-v1-1-small-bf16-model-path",
+        "--deepseek-v3-tokenizer-path",
         type=Path,
-        default="/data/t5/small/google__t5-v1_1-small_bf16.gguf",
-        help="Google T5 v1.1 small bfloat16 model path",
+        action="store",
+        help="Deepkseek v3 tokenizer path",
     )
     parser.addoption(
-        "--google-t5-v1-1-xxl-f32-model-path",
+        "--deepseek-v3-model-path",
         type=Path,
-        default="/data/t5/xxl/google__t5-v1_1-xxl_f32.gguf",
-        help="Google T5 v1.1 XXL float32 model path",
+        action="store",
+        help="Deepseek v3 unsharded model path",
     )
     parser.addoption(
-        "--google-t5-v1-1-xxl-bf16-model-path",
+        "--deepseek-v3-tp2-model-path",
         type=Path,
-        default="/data/t5/xxl/google__t5-v1_1-xxl_bf16.gguf",
-        help="Google T5 v1.1 XXL bfloat16 model path",
+        action="store",
+        help="Deepseek v3 tp2 sharded model path",
+    )
+    parser.addoption(
+        "--deepseek-v3-tp8-model-path",
+        type=Path,
+        action="store",
+        help="Deepseek v3 tp8 sharded model path",
     )
 
     parser.addoption(
@@ -264,6 +308,7 @@ def set_fixture(request: FixtureRequest, name: str, value: Any):
         return value
     else:
         setattr(request.cls, name, value)
+        return value
 
 
 def set_fixture_from_cli_option(
@@ -327,7 +372,7 @@ def batch_size(request: FixtureRequest) -> Optional[str]:
 
 
 @pytest.fixture(scope="class")
-def get_model_artifacts(request: FixtureRequest):
+def model_artifacts(request: FixtureRequest) -> dict[str, str]:
     model_path = {}
     model_path["llama3_8b_tokenizer_path"] = set_fixture_from_cli_option(
         request, "--llama3-8b-tokenizer-path", "llama3_8b_tokenizer"
@@ -341,50 +386,81 @@ def get_model_artifacts(request: FixtureRequest):
     model_path["llama3_8b_f8_model_path"] = set_fixture_from_cli_option(
         request, "--llama3-8b-f8-model-path", "llama3_8b_f8_model"
     )
+    model_path["llama3_8b_f8_attnf8_model_path"] = set_fixture_from_cli_option(
+        request, "--llama3-8b-f8-attnf8-model-path", "llama3_8b_f8_attnf8_model"
+    )
+    model_path["llama3_70b_tokenizer_path"] = set_fixture_from_cli_option(
+        request, "--llama3-70b-tokenizer-path", "llama3_70b_tokenizer"
+    )
+    model_path["llama3_70b_f16_model_path"] = set_fixture_from_cli_option(
+        request, "--llama3-70b-f16-model-path", "llama3_70b_f16_model"
+    )
+    model_path["llama3_70b_f16_tp8_model_path"] = set_fixture_from_cli_option(
+        request, "--llama3-70b-f16-tp8-model-path", "llama3_70b_f16_tp8_model"
+    )
+    model_path["llama3_70b_f8_model_path"] = set_fixture_from_cli_option(
+        request, "--llama3-70b-f8-model-path", "llama3_70b_f8_model"
+    )
     model_path["llama3_405b_tokenizer_path"] = set_fixture_from_cli_option(
         request, "--llama3-405b-tokenizer-path", "llama3_405b_tokenizer"
     )
     model_path["llama3_405b_f16_model_path"] = set_fixture_from_cli_option(
         request, "--llama3-405b-f16-model-path", "llama3_405b_f16_model"
     )
+    model_path["llama3_405b_f16_tp8_model_path"] = set_fixture_from_cli_option(
+        request, "--llama3-405b-f16-tp8-model-path", "llama3_405b_f16_tp8_model"
+    )
     model_path["llama3_405b_f8_model_path"] = set_fixture_from_cli_option(
         request, "--llama3-405b-f8-model-path", "llama3_405b_f8_model"
     )
-    model_path["google__t5_v1_1_small_f32_model_path"] = set_fixture_from_cli_option(
-        request,
-        "--google-t5-v1-1-small-f32-model-path",
-        "google__t5_v1_1_small_f32_model",
+    model_path["llama3_405b_f8_tp8_model_path"] = set_fixture_from_cli_option(
+        request, "--llama3-405b-f8-tp8-model-path", "llama3_405b_f8_tp8_model"
     )
-    model_path["google__t5_v1_1_small_bf16_model_path"] = set_fixture_from_cli_option(
-        request,
-        "--google-t5-v1-1-small-bf16-model-path",
-        "google__t5_v1_1_small_bf16_model",
+    model_path["deepseek_v3_tokenizer_path"] = set_fixture_from_cli_option(
+        request, "--deepseek-v3-tokenizer-path", "deepseek_v3_tokenizer"
     )
-    model_path["google__t5_v1_1_xxl_f32_model_path"] = set_fixture_from_cli_option(
-        request,
-        "--google-t5-v1-1-xxl-f32-model-path",
-        "google__t5_v1_1_xxl_f32_model",
+    model_path["deepseek_v3_model_path"] = set_fixture_from_cli_option(
+        request, "--deepseek-v3-model-path", "deepseek_v3_model"
+    )
+    model_path["deepseek_v3_tp2_model_path"] = set_fixture_from_cli_option(
+        request, "--deepseek-v3-tp2-model-path", "deepseek_v3_tp2_model"
+    )
+    model_path["deepseek_v3_tp8_model_path"] = set_fixture_from_cli_option(
+        request, "--deepseek-v3-tp8-model-path", "deepseek_v3_tp8_model"
     )
     return model_path
 
 
+@dataclass
+class IreeFlags:
+    iree_device: str
+    iree_hip_target: str
+    iree_hal_target_device: str
+    iree_hal_local_target_device_backends: str
+
+
 @pytest.fixture(scope="class")
-def get_iree_flags(request: FixtureRequest):
-    model_path = {}
+def iree_flags(request: FixtureRequest) -> IreeFlags:
     iree_device = request.config.getoption("iree_device")
     if not isinstance(iree_device, str) and len(iree_device) == 1:
         iree_device = iree_device[0]
     set_fixture(request, "iree_device", iree_device)
-    model_path["iree_hip_target"] = set_fixture_from_cli_option(
+    iree_hip_target = set_fixture_from_cli_option(
         request, "--iree-hip-target", "iree_hip_target"
     )
-    model_path["iree_hal_target_device"] = set_fixture_from_cli_option(
+    iree_hal_target_device = set_fixture_from_cli_option(
         request, "--iree-hal-target-device", "iree_hal_target_device"
     )
-    model_path["iree_hal_local_target_device_backends"] = set_fixture_from_cli_option(
+    iree_hal_local_target_device_backends = set_fixture_from_cli_option(
         request,
         "--iree-hal-local-target-device-backends",
         "iree_hal_local_target_device_backends",
+    )
+    return IreeFlags(
+        iree_device=iree_device,
+        iree_hip_target=iree_hip_target,
+        iree_hal_target_device=iree_hal_target_device,
+        iree_hal_local_target_device_backends=iree_hal_local_target_device_backends,
     )
 
 
@@ -402,10 +478,60 @@ def pytest_html_results_table_row(report, cells):
         cells.insert(2, f"<td></td>")
 
 
-@pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_makereport(item, call):
-    outcome = yield
-    report = outcome.get_result()
+def evaluate_mark_conditions(item: pytest.Item, mark: pytest.Mark) -> bool:
+    # TODO: avoid non-API imports.
+    from _pytest.skipping import evaluate_condition
 
-    if report.when == "call" and hasattr(item, "wasxfail"):
+    if "condition" not in mark.kwargs:
+        conditions = mark.args
+    else:
+        conditions = (mark.kwargs["condition"],)
+
+    if not conditions:
+        return True
+
+    return any(evaluate_condition(item, mark, condition)[0] for condition in conditions)
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_makereport(
+    item: pytest.Item, call: pytest.CallInfo[None]
+) -> Generator[None, pytest.TestReport, pytest.TestReport]:
+    report = yield
+
+    if (
+        report.when == "call"
+        and hasattr(item, "wasxfail")
+        and not hasattr(report, "wasxfail")
+    ):
         report.wasxfail = item.wasxfail
+
+    # Regex match against exception message.
+    if call.when == "call":
+        for xfail_mark in item.iter_markers(name="xfail"):
+            if (
+                item.config.option.runxfail
+                or "match" not in xfail_mark.kwargs
+                or (report.skipped and not hasattr(report, "wasxfail"))
+            ):
+                continue
+
+            match = xfail_mark.kwargs["match"]
+            if call.excinfo is not None:
+                # TODO: avoid non-API imports.
+                # The problem is that we want to skip matching on an explicitly xfailed
+                # test from within the test.
+                # Like that we are consistent with how pytest matches against the
+                # exception type. Explicit xfails are skipped.
+                from _pytest.outcomes import XFailed
+
+                if isinstance(
+                    call.excinfo.value, XFailed
+                ) or not evaluate_mark_conditions(item, xfail_mark):
+                    continue
+
+                if not re.search(match, str(call.excinfo.value)):
+                    report.outcome = "failed"
+                    break
+
+    return report

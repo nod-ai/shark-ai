@@ -137,8 +137,47 @@ def add_model_options(parser: argparse.ArgumentParser):
         action="store_true",
     )
     parser.add_argument(
+        "--use-qk-norm",
+        help="q and k got normalized in attention layer. for llama4",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--use-toy-model",
+        help="Generates toy model",
+        action="store_true",
+    )
+    parser.add_argument(
         "--top-k",
-        help="Export with a `top_k` kernel. If `top_k` == 1, argmax is exported.",
+        help="Export with a `top_k` kernel. If `top_k` == 1, argmax is exported."
+        "Otherwise, `topk_k{k} is exported.",
+        type=int,
+        default=None,
+    )
+    parser.add_argument(
+        "--top-k-chunk-size",
+        help="Size of chunks to split into when exporting `top_k`.",
+        type=int,
+        default=1024,
+    )
+    parser.add_argument(
+        "--use-linalgext-topk",
+        action="store_true",
+        help="Whether to use the linalg_ext topk implementation",
+    )
+    parser.add_argument(
+        "--logits-normalization",
+        default="none",
+        help="Return the log softmax of the logits",
+        choices=["none", "softmax", "log_softmax"],
+    )
+    parser.add_argument(
+        "--prefill-final-logits",
+        help="Return only the final logits",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--attention-chunk-size",
+        help="the size of each chunk used during chunked attention computation",
         type=int,
         default=None,
     )
@@ -151,6 +190,12 @@ def add_model_input_options(parser: argparse.ArgumentParser):
         "--prompt",
         nargs="+",
         help="Custom prompt strings to run LLM or perplexity",
+    )
+    parser.add_argument(
+        "--max-decode-steps",
+        type=int,
+        default=None,
+        help="Maximum number of decode steps to perform.",
     )
 
 
@@ -211,6 +256,16 @@ def add_export_artifacts(parser: argparse.ArgumentParser):
         "--output-vmfb",
         help="Output file path for compiled vmfb file",
         type=str,
+    )
+    parser.add_argument(
+        "--extra-compile-arg",
+        help=(
+            "Additional flag(s) to provide to the IREE compiler. "
+            "E.g. `--extra-compile-arg=--compile-mode=vm --extra-compile-arg=--iree-vm-target-extension-f32`"
+        ),
+        action="append",
+        type=str,
+        default=[],
     )
 
 
@@ -299,6 +354,12 @@ def add_evaluate_options(parser: argparse.ArgumentParser):
         nargs="+",
         type=str,
         help="Custom prompts to run perplexity",
+    )
+    parser.add_argument(
+        "--prefill-length",
+        type=int,
+        default=None,
+        help="Number of tokens for prefill before starting decode.",
     )
 
 

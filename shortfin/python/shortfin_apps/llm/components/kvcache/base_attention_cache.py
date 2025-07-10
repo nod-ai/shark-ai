@@ -122,7 +122,10 @@ class BasePagedAttentionCache:
     """
 
     def __init__(
-        self, page_pool: PagePool, tokens_per_page: int, use_ref_counts: bool = False
+        self,
+        page_pool: PagePool,
+        tokens_per_page: int,
+        use_ref_counts: bool = True,
     ):
         self.page_pool = page_pool
         self.tokens_per_page = tokens_per_page
@@ -167,6 +170,11 @@ class BasePagedAttentionCache:
         return BasePagedAttentionCacheAllocation(pages, cache=self)
 
     def increment_pages(self, pages: List[PageInfo]):
+        if not self.use_ref_counts:
+            raise RuntimeError(
+                "BaseAttentionCache must have use_ref_counts enabled to increment/decrement reference counts."
+            )
+
         with self._ref_count_lock:
             for page in pages:
                 self.ref_counts[page.index] += 1
@@ -174,6 +182,11 @@ class BasePagedAttentionCache:
     def decrement_pages(
         self, pages: List[PageInfo], return_empty_pages: bool = False
     ) -> None | List[PageInfo]:
+        if not self.use_ref_counts:
+            raise RuntimeError(
+                "BaseAttentionCache must have use_ref_counts enabled to increment/decrement reference counts."
+            )
+
         with self._ref_count_lock:
             if return_empty_pages:
                 empty_pages = []

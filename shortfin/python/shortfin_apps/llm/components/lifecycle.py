@@ -25,7 +25,6 @@ from fastapi import FastAPI
 
 from contextlib import asynccontextmanager
 import logging
-import os
 
 
 def get_eos_from_tokenizer_config(json_path):
@@ -58,22 +57,18 @@ class ShortfinLlmLifecycleManager:
 
         if server_params.decode_config is None:
             decode_config = DecodeConfig(
-                args.num_beams,
-                args.token_selection_strategy,
+                num_beams=args.num_beams,
+                use_beam_search=args.use_beam_search,
                 logits_normalization=model_params.logits_normalization,
             )
             server_params.decode_config = decode_config
-
-        # use number of workers as number of logical device per physical device
-        os.environ["SHORTFIN_AMDGPU_LOGICAL_DEVICES_PER_PHYSICAL_DEVICE"] = str(
-            server_params.workers
-        )
 
         # Setup system (configure devices, etc).
         sysman = LlmSystemManager(
             device=args.device,
             device_ids=server_params.device_ids,
             async_allocs=server_params.amdgpu_async_allocations,
+            async_caching=server_params.amdgpu_async_caching,
             amdgpu_allocators=server_params.amdgpu_allocators,
             amdgpu_allow_device_reuse=server_params.amdgpu_allow_device_reuse,
         )

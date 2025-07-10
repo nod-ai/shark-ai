@@ -5,6 +5,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import logging
+import numpy as np
+from typing import Tuple, Union
+
+import shortfin.array as sfnp
 
 from abc import ABC, abstractmethod
 from asyncio import gather
@@ -12,27 +16,17 @@ from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Set
 from uuid import uuid4
 
-import shortfin as sf
-import shortfin.array as sfnp
-
-from .base_token_selection_strategy import DecodeConfig
-from .config import LogitsNormalization
+from .config import DecodeConfig, LogitsNormalization, TokenSelectionStrategyConfig
 from .sampler import Sampler
 from ..messages import LlmInferenceExecRequest
 
-from shortfin_apps.utils import (
-    convert_int_to_float,
-    convert_float_to_int,
-    convert_list_to_device_array,
-)
-
 logger = logging.getLogger(__name__)
 
+TOP_P_DEFAULT_SELECTION = 32
 
-# TODO: Define `top_p` function in base class when enabled in
-# shortfin.
+
 @dataclass
-class Beam(ABC):
+class BaseBeam(ABC):
     exec_req: LlmInferenceExecRequest
 
     decode_config: DecodeConfig
@@ -43,7 +37,121 @@ class Beam(ABC):
     accumulated_normalization: float = 0.0
     last_token: int | None = None
 
-    def apply_temperature(self, logits: sfnp.device_array):
+    @abstractmethod
+    def sample_default(
+        self, logits: np.array, indices: Union[np.array, None], num_completed_beams: int
+    ):
+        """Sample the logits using the default sampling strategy for a give `Beam`.
+
+        Args:
+            logits (np.array): The logits from which to select.
+            indices (np.array | None): Optional pre-selected indices.
+        """
+
+    @abstractmethod
+    def sample_top_k(
+        self,
+        logits: np.array,
+        indices: Union[np.array, None],
+        top_k: int,
+        num_completed_beams: int,
+    ):
+        """Sample the top-k tokens from the logits.
+
+        Args:
+            logits (np.array): The logits from which to select.
+            indices (np.array | None): Optional pre-selected indices.
+            top_k (int): The number of top tokens to select.
+            num_completed_beams (int): Number of completed beams.
+        """
+
+    @abstractmethod
+    def sample_top_p(
+        self,
+        tokens: np.array,
+        probs: np.array,
+        top_p: float,
+        num_completed_beams: int,
+    ) -> Tuple[np.array, np.array]:
+        """Sample the top-p tokens from the logits.
+
+        Args:
+            tokens (np.array): The tokens to sample from.
+            probs (np.array): The probabilities of the tokens.
+            top_p (float): The cumulative probability threshold for sampling.
+            num_completed_beams (int): Number of completed beams.
+        """
+
+    @abstractmethod
+    def get_results(
+        self, tokens: np.array, probs: np.array
+    ) -> Tuple[np.array, np.array]:
+        """Convert the results to a format suitable for the beam.
+
+        Args:
+            tokens (np.array): The selected tokens.
+            probs (np.array): The probabilities of the selected tokens.
+        """
+
+    @staticmethod
+    def replicate_inference_exec_requests(
+        exec_req: LlmInferenceExecRequest,
+        replicate: int,
+    ) -> List[LlmInferenceExecRequest]:
+        """Replicate inference requests for each beam."""
+        exec_reqs = [exec_req]
+        for _ in range(replicate):
+            exec_reqs.append(LlmInferenceExecRequest.copy_exec_request(exec_req))
+
+        return exec_reqs
+
+    @classmethod
+    def clone(cls, beam: "BaseBeam") -> "BaseBeam":
+        return cls(
+            exec_req=beam.exec_req,
+            score=beam.score,
+            accumulated_normalization=beam.accumulated_normalization,
+            last_token=beam.last_token,
+            decode_config=beam.decode_config,
+        )
+
+    def sample_logits(self, num_completed_beams: int):
+        """Define how to sample and select tokens for a give `Beam`"""
+        exec_req = self.exec_req
+        decode_config = self.decode_config
+
+        top_k = decode_config.top_k
+        top_p = decode_config.top_p
+
+        decode_config = self.decode_config
+        logits = np.array(exec_req.result_logits)
+        indices = exec_req.result_indices
+
+        if (top_k, top_p) == (None, None):
+            return self.sample_default(logits, indices, num_completed_beams)
+
+        indices = np.array(indices) if indices is not None else None
+        if top_k is not None:
+            tokens, probs = self.sample_top_k(
+                logits,
+                indices,
+                top_k,
+                num_completed_beams,
+            )
+        else:
+            tokens, probs = logits, indices
+
+        if top_p is not None:
+            tokens, probs = self.sample_top_p(tokens, probs, top_p, num_completed_beams)
+
+        return self.get_results(tokens, probs)
+
+    def update_exec_req(self):
+        """Update the `LlmInferenceExecRequest` with the selected token."""
+        self.exec_req.input_token_ids.append(self.last_token)
+        self.exec_req.start_position += 1
+
+    def apply_temperature(self, logits: np.array) -> np.array:
         """Apply temperature to the logits of a decode invocation.
 
         Args:
@@ -51,27 +159,44 @@ class Beam(ABC):
         """
         if self.decode_config.temperature == 1.0:
             return logits
-        return sfnp.divide(logits, self.decode_config.temperature)
+        return np.divide(logits, self.decode_config.temperature)
+
+    def _softmax(self, logits: Union[np.array, sfnp.device_array]) -> np.array:
+        if isinstance(logits, sfnp.device_array):
+            logits = np.array(logits)
+
+        x_max = np.max(logits)
+        e_x = np.exp(logits - x_max)
+        return e_x / np.sum(e_x)
+
+    def _log_softmax(self, logits: Union[np.array, sfnp.device_array]) -> np.array:
+        if isinstance(logits, sfnp.device_array):
+            logits = np.array(logits)
+
+        c = logits.max()
+        shifted_logits = logits - c
+        sumexp = np.log(np.exp(shifted_logits).sum())
+        return shifted_logits - sumexp
 
     def convert_logits_normalization(
         self,
         current: LogitsNormalization,
         target: LogitsNormalization,
-        logits: sfnp.device_array,
+        logits: np.array,
         **kwargs,
-    ) -> sfnp.device_array:
+    ) -> np.array:
         logits_conversion_map = {
             LogitsNormalization.NONE: {
-                LogitsNormalization.LOG_SOFTMAX: sfnp.log_softmax,
-                LogitsNormalization.SOFTMAX: sfnp.softmax,
+                LogitsNormalization.LOG_SOFTMAX: self._log_softmax,
+                LogitsNormalization.SOFTMAX: self._softmax,
                 LogitsNormalization.NONE: lambda logits: logits,
             },
             LogitsNormalization.SOFTMAX: {
-                LogitsNormalization.LOG_SOFTMAX: sfnp.log,
+                LogitsNormalization.LOG_SOFTMAX: np.log,
                 LogitsNormalization.SOFTMAX: lambda logits: logits,
             },
             LogitsNormalization.LOG_SOFTMAX: {
-                LogitsNormalization.SOFTMAX: sfnp.exp,
+                LogitsNormalization.SOFTMAX: np.exp,
                 LogitsNormalization.LOG_SOFTMAX: lambda logits: logits,
             },
         }
@@ -91,94 +216,247 @@ class Beam(ABC):
 
         return converted_logits
 
-    @abstractmethod
-    def sample_logits(self):
-        """Define how to sample and select tokens for a give `Beam`"""
-        pass
-
-    def _to_softmax(
-        self,
-        values: List,
-        dtype: sfnp.DType,
-        device: sf.ScopedDevice,
-        logits_normalization: LogitsNormalization,
-    ):
-        if dtype in [sfnp.float16]:
-            values = [convert_float_to_int(value, dtype) for value in values]
-
-        probs_sf = convert_list_to_device_array(
-            values,
-            [len(values)],
-            device,
-            dtype,
-        )
-
-        if logits_normalization == LogitsNormalization.NONE:
-            probs_sf = self.apply_temperature(probs_sf)
-
-        probs = self.convert_logits_normalization(
-            logits_normalization,
-            LogitsNormalization.SOFTMAX,
-            probs_sf,
-            **{"device_visible": True},
-        ).items.tolist()
-
-        if dtype in [sfnp.float16]:
-            probs = [convert_int_to_float(prob, dtype) for prob in probs]
-
-        return probs
-
-    def _sample_logits_top_k(self, logits: sfnp.device_array, top_k, num_selections):
-        tokens, values = self.sampler.select_top_k(logits, -top_k)
-
+    def _pre_select_top_p(
+        self, logits: np.array, indices: Union[np.array, None]
+    ) -> Tuple[np.array, np.array]:
+        top_p_selection = min(logits.shape[-1], TOP_P_DEFAULT_SELECTION)
+        tokens, values = self.sampler.select_top_k(logits, indices, -top_p_selection)
         probs = self._to_softmax(
             values,
-            logits.dtype,
-            logits.device,
             self.decode_config.logits_normalization,
         )
 
+        if indices is None:
+            sorted_order = np.argsort(probs)[::-1]
+            tokens = tokens[sorted_order]
+            probs = probs[sorted_order]
+
+        return tokens, probs
+
+    def _to_softmax(
+        self,
+        values: np.array,
+        logits_normalization: LogitsNormalization,
+    ):
+        probs = self.convert_logits_normalization(
+            logits_normalization,
+            LogitsNormalization.SOFTMAX,
+            values,
+        )
+
+        return probs
+
+    def _sample_logits_top_k(
+        self,
+        logits: np.array,
+        indices: Union[np.array, None],
+        top_k: int,
+        num_selections: int,
+    ):
+        tokens, values = self.sampler.select_top_k(logits, indices, -top_k)
+
+        probs = self._to_softmax(
+            values,
+            self.decode_config.logits_normalization,
+        )
+
+        if indices is None:
+            sorted_order = np.argsort(probs)[::-1]
+            tokens = tokens[sorted_order]
+            probs = probs[sorted_order]
+
         return self.sampler.sample_top_k(
-            tokens,
-            probs,
+            tokens=tokens,
+            probs=probs,
             k=num_selections,
         )
 
-    def _sample_logits_top_p(self, tokens, probs, top_p, num_selections):
+    def _sample_logits_top_p(
+        self, tokens, probs, top_p, num_selections, return_probs: bool = False
+    ):
+        config = self.decode_config
+        if config.top_k is None:
+            tokens, probs = self._pre_select_top_p(tokens, probs)
+
         return self.sampler.sample_top_p(
             tokens=tokens,
             probs=probs,
             p=top_p,
             k=num_selections,
+            return_probs=return_probs,
         )
 
-    @abstractmethod
-    def update_score(self, value: float):
-        """Update the score of a `beam`.
+
+class BeamSearchBeam(BaseBeam):
+    def _convert_results_to_log_probs(
+        self,
+        probs: np.array,
+    ):
+        log_probs = self.convert_logits_normalization(
+            LogitsNormalization.SOFTMAX,
+            LogitsNormalization.LOG_SOFTMAX,
+            probs,
+        )
+
+        return log_probs.tolist()
+
+    def sample_default(
+        self, logits: np.array, indices: Union[np.array, None], num_completed_beams: int
+    ) -> Tuple[np.array, np.array]:
+        """Sample the logits using the default sampling strategy for a beam search.
 
         Args:
-            value (float): Value to update the score with.
+            logits (np.array): The logits from which to select.
+            indices (np.array | None): Optional pre-selected indices.
+
+        Returns:
+            Tuple[np.array, np.array]: The selected tokens and their probabilities.
         """
-        pass
+        k = self.decode_config.num_beams - num_completed_beams
 
-    @abstractmethod
-    def update_exec_req(self):
-        """Update an `LlmInferenceExecRequest`, after a decode loop"""
-        pass
+        if indices is not None:
+            indices = np.array(indices)
 
-    @abstractmethod
-    def normalize_score(self, value: float):
-        """Normalize the score of a `beam`.
+        tokens, probs = self.sampler.select_top_k(logits, indices, -k)
+
+        if self.decode_config.logits_normalization == LogitsNormalization.NONE:
+            probs = self.apply_temperature(probs)
+
+        log_probs = self.convert_logits_normalization(
+            self.decode_config.logits_normalization,
+            LogitsNormalization.LOG_SOFTMAX,
+            probs,
+        ).tolist()
+
+        return tokens, log_probs
+
+    def sample_top_k(
+        self,
+        logits: np.array,
+        indices: Union[np.array, None],
+        top_k: int,
+        num_completed_beams: int,
+    ) -> Tuple[np.array, np.array]:
+        return self._sample_logits_top_k(
+            logits,
+            indices,
+            top_k,
+            num_selections=self.decode_config.num_beams - num_completed_beams,
+        )
+
+    def sample_top_p(
+        self,
+        tokens: np.array,
+        probs: np.array,
+        top_p: float,
+        num_completed_beams: int,
+    ) -> Tuple[np.array, np.array]:
+        """Sample the top-p tokens from the logits.
 
         Args:
-            value (float): Value to normalize the score with.
-        """
-        pass
+            tokens (np.array): The tokens to sample from.
+            probs (np.array): The probabilities of the tokens.
+            top_p (float): The cumulative probability threshold for sampling.
+            num_completed_beams (int): Number of completed beams.
 
-    @abstractmethod
-    def update_final_score(self):
-        """Define a `final_score` for a given beam, if applicable."""
-        pass
+        Returns:
+            Tuple[np.array, np.array]: The selected tokens and their probabilities.
+        """
+        return self._sample_logits_top_p(
+            tokens,
+            probs,
+            top_p,
+            num_selections=self.decode_config.num_beams - num_completed_beams,
+            return_probs=True,
+        )
+
+    def get_results(
+        self, tokens: np.array, probs: np.array
+    ) -> Tuple[np.array, np.array]:
+        """Convert the results to log probabilities for beam search.
+
+        Args:
+            tokens (np.array): The selected tokens.
+            probs (np.array): The probabilities of the selected tokens.
+
+        Returns:
+            Tuple[np.array, np.array]: The tokens and their log probabilities.
+        """
+        log_probs = self._convert_results_to_log_probs(probs)
+        return tokens, log_probs
+
+
+class DefaultBeam(BaseBeam):
+    def sample_default(self, logits, indices, _):
+        if indices is not None:
+            return indices.items[0]
+
+        return self.sampler.select_greedy(logits)
+
+    def sample_top_k(self, logits, indices, top_k: int, _: int):
+        decode_config = self.decode_config
+
+        num_selections = 1 if decode_config.top_p is None else top_k
+
+        return self._sample_logits_top_k(
+            logits,
+            indices,
+            top_k,
+            num_selections=num_selections,
+        )
+
+    def sample_top_p(
+        self,
+        tokens: np.array,
+        probs: np.array,
+        top_p: float,
+        _,
+    ) -> Tuple[np.array, np.array]:
+        """Sample the top-p tokens from the logits.
+
+        Args:
+            tokens (np.array): The tokens to sample from.
+            probs (np.array): The probabilities of the tokens.
+            top_p (float): The cumulative probability threshold for sampling.
+            num_completed_beams (int): Number of completed beams.
+
+        Returns:
+            Tuple[np.array, np.array]: The selected tokens and their probabilities.
+        """
+        return self._sample_logits_top_p(
+            tokens,
+            probs,
+            top_p,
+            num_selections=1,
+        )
+
+    def get_results(self, tokens, _):
+        return int(tokens[0])
+
+
+def build_beam_group(
+    exec_req: LlmInferenceExecRequest,
+    config: TokenSelectionStrategyConfig,
+    selection_callback: Callable[[List[BaseBeam], List[BaseBeam]], List[BaseBeam]],
+) -> Callable[[LlmInferenceExecRequest], BaseBeam]:
+    """Select the appropriate beam class based on the decode configuration."""
+    decode_config = config.decode_config
+    if not decode_config.use_beam_search and decode_config.num_beams > 1:
+        exec_reqs = BaseBeam.replicate_inference_exec_requests(
+            exec_req,
+            decode_config.num_beams - 1,
+        )
+    else:
+        exec_reqs = [exec_req]
+
+    beam_cls = BeamSearchBeam if decode_config.use_beam_search else DefaultBeam
+    beams = [beam_cls(exec_req, decode_config=decode_config) for exec_req in exec_reqs]
+    return BeamGroup(
+        decode_config.eos_token_id,
+        decode_config.num_beams,
+        beams,
+        selection_callback,
+    )
 
 
 class BeamGroup:
@@ -186,10 +464,10 @@ class BeamGroup:
         self,
         eos_token_id: int,
         num_beams: int,
-        beams: List[Beam],
+        beams: List[BaseBeam],
         selection_callback: Callable[
-            [List[Beam], List[Beam]],
-            List[Beam],
+            [List[BaseBeam], List[BaseBeam]],
+            List[BaseBeam],
         ],
     ):
         self.beam_group_id = str(uuid4())
@@ -197,7 +475,7 @@ class BeamGroup:
         self.num_beams = num_beams
         self.active_beams = beams
         self.selection_callback = selection_callback
-        self.completed_beams: List[Beam] = []
+        self.completed_beams: List[BaseBeam] = []
 
     @property
     def active_beam_count(self):
@@ -212,9 +490,9 @@ class BeamGroup:
             self.active_beams, self.completed_beams
         )
         visited_reqs: Dict[str, LlmInferenceExecRequest] = {}
-        active_beams: List[Beam] = []
+        active_beams: List[BaseBeam] = []
         active_reqs: Set[LlmInferenceExecRequest] = set()
-        completed_beams: List[Beam] = []
+        completed_beams: List[BaseBeam] = []
         completed_reqs: Set[LlmInferenceExecRequest] = set()
 
         for i in range(len(beam_selections)):

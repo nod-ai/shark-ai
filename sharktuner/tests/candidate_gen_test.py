@@ -8,10 +8,7 @@
 Usage: python -m pytest candidate_gen_test.py
 """
 
-import pytest
-
-from typing import Generator
-
+from dataclasses import dataclass, field
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_gpu  # type: ignore
 from iree.compiler.dialects import iree_codegen  # type: ignore
@@ -99,7 +96,9 @@ def test_get_td_spec_contraction(tuner_ctx: common.TunerContext) -> None:
     root_op = root_op_list[0]
 
     tuner = candidate_gen.ContractionOpInterfaceTuner(root_op)
-    td_spec_module = tuner.get_td_spec(compilation_info)
+    td_spec_module = tuner.get_td_spec(
+        [common.TuningConfiguration("compilation_info", compilation_info)]
+    )
     assert td_spec_module
 
     named_sequence_ops: list[transform.NamedSequenceOp] = get_ops_from_module(
@@ -181,7 +180,9 @@ def test_get_td_spec_convolution(tuner_ctx: common.TunerContext) -> None:
     assert len(root_op_list) == 1
     root_op = root_op_list[0]
     tuner = candidate_gen.ConvolutionOpInterfaceTuner(root_op)
-    td_spec_module = tuner.get_td_spec(compilation_info)
+    td_spec_module = tuner.get_td_spec(
+        [common.TuningConfiguration("compilation_info", compilation_info)]
+    )
     assert td_spec_module
 
     named_sequence_ops: list[transform.NamedSequenceOp] = get_ops_from_module(

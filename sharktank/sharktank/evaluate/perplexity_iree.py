@@ -8,7 +8,9 @@ import sys
 import logging
 import json
 import time
+from datetime import timedelta
 from tqdm import tqdm
+from typing import Any
 
 import torch
 import iree.runtime as ireert
@@ -61,6 +63,9 @@ class PerplexityIree:
         use_attention_mask,
         use_hf,
         weight_path_str: str,
+        prefill_length: int | None = None,
+        use_toy_model: bool = False,
+        extra_compile_args: list[str] | None = None,
     ):
         self.torch_device = torch_device
         self.iree_devices = iree_devices
@@ -78,11 +83,60 @@ class PerplexityIree:
         self.use_attention_mask = use_attention_mask
         self.use_hf = use_hf
         self.weight_path_str = weight_path_str
+        assert prefill_length is None or prefill_length >= 1
+        self.prefill_length = prefill_length
+        self.use_toy_model = use_toy_model
+        self.extra_compile_args = extra_compile_args
         self.vm_context: iree.runtime.VmContext = None
         self.cache_state: None | list[ireert.DeviceArray] = None
 
+    def calc_time(self, start, end):
+        total_seconds = end - start
+        time_taken = abs(timedelta(seconds=total_seconds))
+        hours, minutes, seconds = re.split(":", str(time_taken))
+
+        if total_seconds < 1:
+            time_taken = f" {round(total_seconds * 1000, 3)} ms"
+        elif total_seconds < 60:
+            time_taken = "{:.2f} secs".format(round(float(total_seconds), 2))
+        else:
+            time_taken = "{:02d} hrs : {:02d} mins : {:.2f} secs".format(
+                int(hours), int(minutes), round(float(seconds), 2)
+            )
+        return time_taken
+
+    def timeit(func):
+        def wrapper(*args, **kwargs):
+            start = time.time()
+            result = func(*args, **kwargs)
+            end = time.time()
+            total_seconds = end - start
+            time_taken = abs(timedelta(seconds=total_seconds))
+            hours, minutes, seconds = re.split(":", str(time_taken))
+
+            if total_seconds < 1:
+                time_taken = f" {round(total_seconds * 1000, 3)} ms"
+            elif total_seconds < 60:
+                time_taken = "{:.2f} secs".format(round(float(total_seconds), 2))
+            else:
+                time_taken = "{:02d} hrs : {:02d} mins : {:.2f} secs".format(
+                    int(hours), int(minutes), round(float(seconds), 2)
+                )
+            return result
+
+        return wrapper
+
     def print_token_comparison(self, i: int):
-        if i <= self.max_prompt_length:
+        if self.use_toy_model and i <= self.max_prompt_length:
+            batch_predicted_token_id = [[i[-1]] for i in self.batch.results]
+            logger.debug(f"Predicted:")
+            logger.debug(f"{batch_predicted_token_id}")
+
+            expected_token_id = self.token_ids[:, i + 1 : i + 2].tolist()
+            logger.debug(f"Expected:")
+            logger.debug(f"{expected_token_id}")
+
+        elif i <= self.max_prompt_length:
             batch_predicted_token_id = [[i[-1]] for i in self.batch.results]
             batch_predicted_token = self.generator.tokenizer.decode(
                 batch_predicted_token_id
@@ -97,42 +151,48 @@ class PerplexityIree:
             logger.debug(f"{expected_token}")
             logger.debug(f"{expected_token_id}")
 
+    @timeit
     def compile_model(
         self,
-        output_mlir: str,
-        output_config: str,
-        output_vmfb: str,
+        output_mlir: str | None,
+        output_config: str | None,
+        output_vmfb: str | None,
     ):
-
         logger.info(f" Model: {self.weight_path_str}")
 
         if self.kv_cache_dtype is None:
             self.kv_cache_dtype = self.attention_dtype
+        cwd = (
+            Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent
+            / "perplexity_ci_artifacts/"
+        )
+        export_artifacts = ExportArtifacts(
+            irpa_path=self.weight_path_str,
+            iree_hip_target=self.iree_hip_target,
+            iree_hal_target_device=self.iree_hal_target_device,
+            hip_device_id=self.iree_devices[0],
+            attention_kernel=self.attention_kernel,
+            tensor_parallelism_size=self.tensor_parallelism_size,
+            pipeline_parallelism_size=self.pipeline_parallelism_size,
+            block_seq_stride=self.block_seq_stride,
+            use_attention_mask=self.use_attention_mask,
+            activation_dtype=str(self.activation_dtype).split(".")[-1],
+            attention_dtype=str(self.attention_dtype).split(".")[-1],
+            kv_cache_dtype=str(self.kv_cache_dtype).split(".")[-1],
+            use_hf=self.use_hf,
+            output_mlir=output_mlir,
+            output_config=output_config,
+            output_vmfb=output_vmfb,
+            cwd=cwd,
+        )
+        self.output_vmfb = export_artifacts.export_and_compile_llm(
+            batch_size=self.bs, extra_compile_args=self.extra_compile_args
+        )
 
-        if output_vmfb:
-            self.output_vmfb = output_vmfb
-            logger.info(f" Using pre-compiled vmfb: {self.output_vmfb}")
-        else:
-            export_artifacts = ExportArtifacts(
-                irpa_path=self.weight_path_str,
-                batch_size=self.bs,
-                iree_hip_target=self.iree_hip_target,
-                iree_hal_target_device=self.iree_hal_target_device,
-                attention_kernel=self.attention_kernel,
-                tensor_parallelism_size=self.tensor_parallelism_size,
-                pipeline_parallelism_size=self.pipeline_parallelism_size,
-                block_seq_stride=self.block_seq_stride,
-                use_attention_mask=self.use_attention_mask,
-                activation_dtype=str(self.activation_dtype).split(".")[-1],
-                attention_dtype=str(self.attention_dtype).split(".")[-1],
-                kv_cache_dtype=str(self.kv_cache_dtype).split(".")[-1],
-                use_hf=self.use_hf,
-                output_mlir=output_mlir,
-                output_config=output_config,
-            )
-            self.output_vmfb = export_artifacts.get_artifacts()
-
-    def load_model(self, dataset: Dataset, tokenizer: InferenceTokenizer):
+    @timeit
+    def load_model(
+        self, dataset: Dataset, tokenizer: Optional[InferenceTokenizer] = None
+    ):
         hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
 
         pp = self.pipeline_parallelism_size
@@ -162,9 +222,25 @@ class PerplexityIree:
 
         self.generator = TorchGenerator(model, tokenizer)
 
+        shard_count = self.tensor_parallelism_size
+
+        self.devices: list[iree.runtime.HalDevice] = get_iree_devices(
+            device=self.iree_devices,
+            device_count=self.pipeline_parallelism_size * shard_count,
+            allow_repeating=True,
+        )
+
+        self.vm_module, self.vm_context, self.vm_instance = load_iree_module(
+            module_path=self.output_vmfb,
+            devices=self.devices,
+            parameters_path=self.weight_path_str,
+            tensor_parallel_size=shard_count,
+            pipeline_parallel_size=self.pipeline_parallelism_size,
+        )
+
     def assemble_batch(self, token_batch: torch.tensor, devices) -> torch.tensor:
 
-        token_batch, seq_lens_batch = self.generator.tokenizer.pad_tokens(
+        token_batch, seq_lens_batch = pad_tokens(
             token_ids=token_batch.tolist(),
             pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
         )
@@ -191,11 +267,14 @@ class PerplexityIree:
 
         return token_batch
 
+    @timeit
     def prefill_vmfb(
         self, token_batch: torch.tensor, i: int, devices: list[iree.runtime.HalDevice]
     ) -> torch.tensor:
-        logger.debug(f"Prefill input:")
-        logger.debug(f"{self.generator.tokenizer.decode(token_batch)}")
+        if not self.use_toy_model:
+            logger.debug(
+                f"Prefill input:\n{self.generator.tokenizer.decode(token_batch)}"
+            )
 
         token_batch = self.assemble_batch(token_batch, devices)
 
@@ -242,8 +321,9 @@ class PerplexityIree:
     def decode_vmfb(
         self, token_batch: torch.tensor, i: int, devices: list[iree.runtime.HalDevice]
     ) -> torch.tensor:
-        logger.debug("Decode input:")
-        logger.debug(f"{self.generator.tokenizer.decode(token_batch)}")
+        logger.debug(f"Decode input:")
+        if not self.use_toy_model:
+            logger.debug(f"{self.generator.tokenizer.decode(token_batch)}")
         logger.debug(f"{token_batch.tolist()}")
 
         start_positions = [self.batch.seq_lens.clone()]
@@ -294,105 +374,112 @@ class PerplexityIree:
 
     @timeit
     def get_logits(self, skip_decode: bool) -> torch.Tensor:
-        # Add context to improve perplexity by starting at 10th token
-        self.start = 10
-        shard_count = self.tensor_parallelism_size
-
-        vm_instance = ireert.VmInstance()
-        devices: list[iree.runtime.HalDevice] = get_iree_devices(
-            device=self.iree_devices,
-            device_count=self.pipeline_parallelism_size * shard_count,
-            allow_repeating=True,
-        )
-
         def run_iree_module(devices: list[iree.runtime.HalDevice]):
-            hal_module = iree.runtime.create_hal_module(
-                instance=vm_instance, devices=devices
-            )
-            weight_path = Path(self.weight_path_str)
-            parameter_index = iree.runtime.ParameterIndex()
-            if shard_count == 1:
-                parameter_index.load(file_path=str(Path(weight_path)))
-            else:
-                for i in range(shard_count):
-                    parameter_index.load(
-                        file_path=str(
-                            Path(weight_path).with_suffix(
-                                f".rank{i}{weight_path.suffix}"
-                            )
-                        )
-                    )
-
-            parameter_provider = parameter_index.create_provider(scope="model")
-            parameters_module = iree.runtime.create_io_parameters_module(
-                vm_instance, parameter_provider
-            )
-            self.vm_module = iree.runtime.VmModule.mmap(
-                vm_instance, str(self.output_vmfb)
-            )
-            self.vm_context = iree.runtime.VmContext(
-                instance=vm_instance,
-                modules=(hal_module, parameters_module, self.vm_module),
-            )
-
             out_logits = []
+            model_name = Path(self.weight_path_str).name
             for i in tqdm(
-                range(self.start, self.max_prompt_length - 1),
+                range(self.prefill_length - 1, self.max_prompt_length - 1),
                 mininterval=300,
-                desc="eval: Calculating logits",
+                desc=f"eval_iree: Calculating logits for {model_name}",
             ):
-                logger.debug(f"Iteration: {i - self.start}")
+                logger.debug(f"Iteration: {i - self.prefill_length + 1}")
 
                 if skip_decode or len(out_logits) == 0:
                     token_batch = self.token_ids[:, : i + 1]
 
                     prefill_logits = self.prefill_vmfb(token_batch, i, devices).clone()
-                    out_logits.append(prefill_logits[:, -1:, :])
+
+                    last_logits_indices = torch.minimum(
+                        self.seq_lens - 1, torch.tensor(i)
+                    )
+                    last_logits_indices = torch.maximum(
+                        last_logits_indices, torch.tensor(0)
+                    )
+                    last_real_prefill_logits = prefill_logits[
+                        self.batch_indices, last_logits_indices, :
+                    ].unsqueeze(1)
+                    out_logits.append(last_real_prefill_logits)
                 else:
                     token_batch = self.token_ids[:, i : i + 1]
                     decode_logits = self.decode_vmfb(token_batch, i, devices)
                     out_logits.append(decode_logits)
 
             out_logits = ops.cat(out_logits, dim=1)
+
             pad_logits_shape = self.token_ids.shape[1] - out_logits.shape[1]
+
             pad_logits = torch.zeros(
                 out_logits.shape[0], pad_logits_shape, out_logits.shape[2]
             )
 
             self.cache_state = None  # Remove saved reference to iree.runtime.DeviceArray before leaving function
-            return ops.cat((out_logits, pad_logits), 1).to(self.torch_device)
+            return ops.cat(
+                (
+                    pad_logits[:, : self.prefill_length],
+                    out_logits,
+                    pad_logits[:, self.prefill_length :],
+                ),
+                dim=1,
+            ).to(self.torch_device)
 
-        return with_iree_device_context(run_iree_module, devices)
+        return with_iree_device_context(run_iree_module, self.devices)
 
+    @timeit
     def get_perplexity(
-        self, test_prompts: list[str], skip_decode: bool
+        self, test_prompts: list[str], token_ids: list[list[int]], skip_decode: bool
     ) -> dict[str, Any]:
 
-        token_ids, seq_lens = self.generator.tokenizer.encode(
-            test_prompts,
-            pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
-        )
+        if self.use_toy_model:
+            self.token_ids = token_ids
+            self.seq_lens = [len(t) for t in self.token_ids]
+            # Add context to improve perplexity by starting at 5th token
+            if self.prefill_length is None:
+                self.prefill_length = 6
+            self.page_cache_size = 128
+            logger.debug(f" Token ids for Evaluation: \n{self.token_ids}\n")
 
-        logger.debug(f" Prompts for Evaluation:")
-        for idx, prompt in enumerate(test_prompts):
-            logger.debug(
-                f" Prompt {idx}: \nTokens: {prompt.encode()}\nToken ids: {token_ids[idx]}\n"
+        else:
+            self.token_ids, self.seq_lens = self.generator.tokenizer.encode(
+                test_prompts,
+                pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
             )
 
-        self.page_cache_size = (
-            len(token_ids[0]) // self.generator.model.config.block_seq_stride
-        ) * len(test_prompts) + 1
+            logger.debug(f" Prompts for Evaluation:")
+            for idx, prompt in enumerate(test_prompts):
+                logger.debug(
+                    f" Prompt {idx}: \nTokens: {prompt.encode()}\nToken ids: {self.token_ids[idx]}\n"
+                )
 
-        self.max_prompt_length = max(seq_lens)
+            # Add context to improve perplexity by starting at 10th token
+            if self.prefill_length is None:
+                self.prefill_length = 11
+            self.page_cache_size = (
+                len(self.token_ids[0]) // self.generator.model.config.block_seq_stride
+            ) * len(test_prompts) + 1
 
-        self.token_ids = torch.as_tensor(token_ids, device=self.torch_device)
+        self.max_prompt_length = max(self.seq_lens)
+
+        context_length = self.generator.model.config.hp.context_length
+        if self.max_prompt_length > context_length:
+            logger.warning(
+                f"Last token {self.max_prompt_length} exceeds context length {context_length}. "
+                "Limiting tokens to context length."
+            )
+            self.max_prompt_length = context_length
+
+        self.token_ids = torch.as_tensor(self.token_ids, device=self.torch_device)
+        self.seq_lens = torch.tensor(self.seq_lens, device=self.torch_device)
+
+        self.batch_indices = torch.arange(len(self.seq_lens))
 
         out_logits = self.get_logits(skip_decode)
 
         logger.debug(f"Final Logits shape: {out_logits.shape}")
         logger.debug(f"Token ids shape: {self.token_ids.shape}")
 
-        return compute_perplexity(self.token_ids, out_logits, self.start)
+        return compute_perplexity(
+            self.token_ids, out_logits, self.prefill_length - 1, self.max_prompt_length
+        )
 
 
 def run_perplexity_iree(
@@ -405,7 +492,15 @@ def run_perplexity_iree(
 ) -> dict[str, Any]:
     start = time.time()
 
-    test_prompts = args.prompt_list or get_prompts(num_prompts=args.num_prompts)
+    token_ids = None
+    test_prompts = None
+
+    if args.use_toy_model:
+        token_ids = get_token_ids()
+        bs = len(token_ids)
+    else:
+        test_prompts = args.prompt_list or get_prompts(num_prompts=args.num_prompts)
+        bs = len(test_prompts)
 
     perplexity = PerplexityIree(
         torch_device=torch_device,
@@ -421,8 +516,11 @@ def run_perplexity_iree(
         attention_dtype=args.attention_dtype,
         kv_cache_dtype=args.kv_cache_dtype,
         use_hf=args.use_hf,
-        bs=len(test_prompts),
+        bs=bs,
         weight_path_str=str(args.irpa_file),
+        prefill_length=args.prefill_length,
+        use_toy_model=args.use_toy_model,
+        extra_compile_args=args.extra_compile_arg,
     )
 
     perplexity.compile_model(
@@ -430,9 +528,14 @@ def run_perplexity_iree(
         output_config=args.output_config,
         output_vmfb=args.output_vmfb,
     )
-    perplexity.load_model(dataset=dataset, tokenizer=tokenizer)
+    perplexity.load_model(
+        dataset=dataset,
+        tokenizer=tokenizer,
+    )
     perplexity_batch = perplexity.get_perplexity(
-        test_prompts, skip_decode=args.skip_decode
+        test_prompts=test_prompts,
+        token_ids=token_ids,
+        skip_decode=args.skip_decode,
     )
 
     end = time.time()
@@ -462,7 +565,9 @@ def main(argv):
 
     args = cli.parse(parser, args=argv)
     dataset = cli.get_input_dataset(args)
-    tokenizer = cli.get_tokenizer(args)
+    tokenizer = None
+    if not args.use_toy_model:
+        tokenizer = cli.get_tokenizer(args)
 
     logger.setLevel(args.loglevel)
     torch_device = torch.device(args.device) if args.device else None

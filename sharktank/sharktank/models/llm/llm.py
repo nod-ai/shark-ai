@@ -11,9 +11,11 @@ import math
 import torch
 import torch.nn as nn
 
+from sharktank import ops
 from sharktank.layers import *
 from sharktank.types import *
 from sharktank.utils.create_cache import *
+from sharktank import ops
 
 __all__ = [
     "PagedLlmModelV1",
@@ -82,7 +84,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         )
         self.attention_embedding = nn.ModuleList(
             [
-                RotaryEmbeddingLayer(
+                build_rotary_layer(
                     rope_dimension_count=self.hp.rope_dimension_count,
                     rope_freq_base=self.hp.rope_freq_base,
                     max_seqlen=self.hp.context_length,
@@ -92,6 +94,11 @@ class PagedLlmModelV1(BaseCausalLMModel):
                     pipeline_parallelism=config.pipeline_parallelism_size > 1,
                     devices=self.cache.pipeline_to_device_map[pipeline],
                     dtype=self.config.activation_dtype,
+                    yarn_beta_slow=self.hp.yarn_beta_slow,
+                    yarn_beta_fast=self.hp.yarn_beta_fast,
+                    yarn_factor=self.hp.yarn_factor,
+                    yarn_original_context_len=self.hp.yarn_original_context_len,
+                    model_arch=self.config.hp.model_arch,
                 )
                 for pipeline in range(self.config.pipeline_parallelism_size)
             ]
@@ -144,14 +151,15 @@ class PagedLlmModelV1(BaseCausalLMModel):
         # [bs, batch_seq_len]
         tokens: Union[torch.Tensor, ReplicatedTensor],
         *,
-        # [[1, 1, batch_seq_len, batch_seq_len] x self.config.pipeline_parallelism_size]
-        attention_mask: list[Union[torch.Tensor, ReplicatedTensor]],
+        # [[bs|1, 1, batch_seq_len, batch_seq_len] x self.config.pipeline_parallelism_size]
+        attention_mask: list[Union[torch.Tensor, ReplicatedTensor, None]],
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: list[Union[torch.Tensor, ReplicatedTensor]],
         cache_state: list[Union[torch.Tensor, SplitPrimitiveTensor]],
     ):
         self._assert_device(tokens)
-        self._assert_device(*attention_mask, dtype=self.activation_dtype)
+        if not all(mask is None for mask in attention_mask):
+            self._assert_device(*attention_mask, dtype=self.activation_dtype)
         self._assert_device(*seq_block_ids)
         self._assert_device(*cache_state, dtype=self.activation_dtype)
 
@@ -162,22 +170,41 @@ class PagedLlmModelV1(BaseCausalLMModel):
         if self.inference_norm:
             h *= math.sqrt(h.shape[-1])
 
+        if self.config.attention_chunk_size is not None:
+            chunked_attention_mask = [
+                ops.replicate(
+                    self.chunked_attention_mask(attention_mask[pipeline]),
+                    count=len(self.cache.pipeline_to_device_map[pipeline]),
+                    devices=self.cache.pipeline_to_device_map[pipeline],
+                )
+                for pipeline in range(len(self.cache.pipeline_to_device_map))
+            ]
+
         # Iterate over attention blocks.
         for block_idx, block in enumerate(self.attn_blocks):
             if block_idx == 0:
                 self.trace_tensor(f"llama.attn_block.{block_idx}.input", h)
+            use_chunked_attention = (
+                self.config.attention_chunk_size is not None
+                and block_idx in self.config.rope_layers
+            )  # <=> use rope
+            if use_chunked_attention:
+                mask = chunked_attention_mask
+            else:
+                mask = attention_mask
             pipeline = self.cache.block_to_pipeline_map[block_idx]
             h = block(
                 h,
                 embedding=self.attention_embedding[pipeline],
                 start_index=0,
-                attention_mask=attention_mask[pipeline],
+                attention_mask=mask[pipeline],
                 cache_state=cache_state,
                 seq_block_ids=seq_block_ids[pipeline],
             )
             h = self._inter_layer_callback(h, block_idx)
             self.trace_tensor(f"llama.attn_block.{block_idx}.output", h)
 
+        h = h.to(self.config.activation_dtype)
         h = self.output_norm(h)
         logits = self.output_lm_head(h)
 
@@ -265,6 +292,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
             h = self._inter_layer_callback(h, block_idx)
             self.trace_tensor(f"llama.attn_block.{block_idx}.output", h)
 
+        h = h.to(self.config.activation_dtype)
         h = self.output_norm(h)
         logits = self.output_lm_head(h)
 
@@ -301,6 +329,18 @@ class AttentionFFNBlock(ThetaLayer):
             "decomposed" if config.hp.model_arch == "grok" else config.attention_kernel
         )
 
+        if config.hp.model_arch == "llama4":
+            use_rope = (
+                block_index in config.rope_layers if config.rope_layers else False
+            )
+        else:
+            use_rope = True
+
+        use_qk_norm = (
+            block_index in config.rope_layers and config.use_qk_norm
+            if config.rope_layers
+            else False
+        )
         self.add_module(
             "attn",
             PagedLlamaAttentionBlock(
@@ -310,54 +350,88 @@ class AttentionFFNBlock(ThetaLayer):
                 head_count=config.hp.attention_head_count,
                 head_dim=config.hp.attn_head_dim,
                 head_count_kv=config.hp.attention_head_count_kv,
+                v_head_dim=config.hp.v_head_dim,
                 rms_epsilon=config.hp.attention_layer_norm_rms_epsilon,
+                rope_dimension_count=config.hp.rope_dimension_count,
                 attention_kernel=attention_kernel,
                 fake_quant=fake_quant,
                 softcap=config.hp.attention_softcap,
-                block_to_pipeline_map=config.block_to_pipeline_map,
-                pipeline_to_device_map=config.pipeline_to_device_map,
+                model_arch=config.hp.model_arch,
+                use_rope=use_rope,
+                use_qk_norm=use_qk_norm,
+                attn_temperature_tuning=config.hp.attn_temperature_tuning,
+                floor_scale=config.hp.floor_scale,
+                attn_scale=config.hp.attn_scale,
             ),
         )
 
+        # Add FFN norm
+        self.ffn_norm = torch.nn.Identity()
+        if theta.optional_tensor("ffn_norm") is not None:
+            self.ffn_norm = RMSNormLayer(
+                theta("ffn_norm"), epsilon=config.hp.attention_layer_norm_rms_epsilon
+            )
+
         moe_func_map = {
             "llama": (
-                torch.nn.functional.softmax,
+                ops.softmax,
                 torch.nn.functional.silu,
                 True,
                 False,
             ),
             "grok": (
-                torch.nn.functional.softmax,
+                ops.softmax,
                 torch.nn.functional.gelu,
                 True,
                 False,
             ),
             "deepseek2": (
+                ops.sigmoid,
+                torch.nn.functional.silu,
+                True,
+                True,
+            ),
+            "llama4": (
                 torch.nn.functional.sigmoid,
                 torch.nn.functional.silu,
-                False,
                 True,
+                False,
             ),
         }
 
-        if config.hp.expert_count:
-            (
-                score_experts,
-                moe_activation,
-                add_residual,
-                normalize_experts,
-            ) = moe_func_map[config.hp.model_arch]
+        (
+            score_experts,
+            moe_activation,
+            self.add_residual,
+            normalize_experts,
+        ) = moe_func_map[config.hp.model_arch]
 
+        is_moe_block = False
+        experts_ffn_moe_block = "DenseFFNMOE"
+        if config.hp.model_arch == "llama4":
+            is_moe_block = block_index in config.moe_layers
+            experts_ffn_moe_block = "PreGatherFFNMOE"
+
+        n_dense_layers = config.hp.n_dense_layers
+        if (
+            n_dense_layers is not None and block_index >= n_dense_layers
+        ) or is_moe_block:
             self.add_module(
                 "ffn",
                 MoeBlock(
                     theta=theta,
+                    expert_count=config.hp.expert_count,
                     expert_used_count=config.hp.expert_used_count,
+                    expert_shared_count=config.hp.expert_shared_count,
                     rms_epsilon=config.hp.attention_layer_norm_rms_epsilon,
+                    n_expert_groups=config.hp.n_expert_groups,
+                    n_limited_groups=config.hp.n_limited_groups,
+                    route_scale=config.hp.route_scale,
                     moe_activation=moe_activation,
-                    add_residual=add_residual,
+                    experts_ffn_moe_block=experts_ffn_moe_block,
                     score_experts=score_experts,
                     normalize_experts=normalize_experts,
+                    model_arch=config.hp.model_arch,
                 ),
             )
         else:
@@ -365,7 +439,6 @@ class AttentionFFNBlock(ThetaLayer):
                 "ffn",
                 FFN(
                     theta=theta,
-                    rms_epsilon=config.hp.attention_layer_norm_rms_epsilon,
                     fake_quant=fake_quant,
                 ),
             )
@@ -395,6 +468,9 @@ class AttentionFFNBlock(ThetaLayer):
         )
 
         # Feed forward network.
-        final_output = self.ffn(h)
+        final_output = self.ffn(self.ffn_norm(h))
+
+        if self.add_residual:
+            final_output = h + final_output
 
         return final_output

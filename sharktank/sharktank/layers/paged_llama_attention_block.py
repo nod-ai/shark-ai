@@ -6,17 +6,16 @@
 
 from typing import Optional
 
-
 import torch
 
-from sharktank.types import (
-    QuantizerTensor,
-    ReplicatedTensor,
-    StaticScaledQuantizer,
-    Theta,
-)
-from sharktank.layers import *
-
+from sharktank.types import *
+from .base import Theta, ThetaLayer
+from .linear import LinearLayer
+from .norm import RMSNormLayer, L2Norm
+from .rotary_embedding import RotaryEmbeddingLayer
+from .latent_attention_block import LatentAttentionBlock
+from .paged_attention import PagedAttention, attn_type_map
+from sharktank import ops
 
 __all__ = [
     "PagedLlamaAttentionBlock",
@@ -37,49 +36,78 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         head_dim: int,
         head_count_kv: int,
         rms_epsilon: float,
+        model_arch: str,
         attention_kernel: str = "torch",
+        v_head_dim: Optional[int] = None,
+        rope_dimension_count: Optional[int] = None,
         attention_scale: Optional[float] = None,
         softcap: Optional[float] = None,
         fake_quant: Optional[bool] = True,
-        block_to_pipeline_map: tuple[tuple[int, ...], ...] | None = None,
-        pipeline_to_device_map: tuple[tuple[int, ...], ...] | None = None,
+        use_rope: bool = True,
+        use_qk_norm: bool = False,
+        attn_temperature_tuning: bool = False,
+        floor_scale: Optional[float] = None,
+        attn_scale: Optional[float] = None,
     ):
         super().__init__(theta)
-
-        self.paged_attention = PagedAttention(
-            transformer_block_count=cache.transformer_block_count,
-            block_to_pipeline_map=block_to_pipeline_map,
-            pipeline_to_device_map=pipeline_to_device_map,
-            attn_head_count=head_count_kv,
-            attn_head_dim=head_dim,
-            block_seq_stride=cache.block_seq_stride,
-            cache_dtype=cache.cache_dtype,
-            attn_dtype=cache.attn_dtype,
-            device=cache.device,
-            shard_count=cache.shard_count,
-        )
+        self.shard_count = cache.shard_count
+        self.paged_attention = cache
         self.block_index = block_index
         self.head_count = head_count
         self.head_dim = head_dim
         self.head_count_kv = head_count_kv
         self.attention_kernel = attention_kernel
         self.attention_scale = attention_scale
+        self.rope_dimension_count = rope_dimension_count
         self.softcap = softcap
         self.fake_quant = fake_quant
         self.cache_quantizer = None
         self.probs_quantizer = None
+        self.model_arch = model_arch
+        self.v_head_dim = v_head_dim
+        self.use_rope = use_rope
+        self.use_qk_norm = use_qk_norm
+        self.attn_temperature_tuning = attn_temperature_tuning
+        self.floor_scale = floor_scale
+        self.attn_scale = attn_scale
+
+        self.attn_type = attn_type_map[self.model_arch]
+        assert (
+            self.attn_type == self.paged_attention.attn_type
+        ), f"Attention type mismatch: {self.attn_type} != {self.paged_attention.attn_type}"
+
+        self.k_quantizer = None
+        self.v_quantizer = None
+        if self.attn_type == "gqa":
+            self.add_module(
+                "attn_q", LinearLayer(theta("attn_q"), fake_quant=self.fake_quant)
+            )
+            self.add_module(
+                "attn_k", LinearLayer(theta("attn_k"), fake_quant=self.fake_quant)
+            )
+            self.add_module(
+                "attn_v", LinearLayer(theta("attn_v"), fake_quant=self.fake_quant)
+            )
+            self.k_quantizer = self.attn_k.q_output
+            self.v_quantizer = self.attn_v.q_output
+        elif self.attn_type == "mla":
+            self.add_module(
+                "latent_attn",
+                LatentAttentionBlock(
+                    theta,
+                    rms_epsilon=rms_epsilon,
+                    head_count=self.head_count,
+                    head_count_kv=self.head_count_kv,
+                    rope_dimension_count=self.rope_dimension_count,
+                    fake_quant=self.fake_quant,
+                ),
+            )
+
+        if self.use_qk_norm:
+            self.qk_norm = L2Norm(dim=-1, epsilon=rms_epsilon)
 
         self.add_module(
             "attn_norm", RMSNormLayer(theta("attn_norm"), epsilon=rms_epsilon)
-        )
-        self.add_module(
-            "attn_q", LinearLayer(theta("attn_q"), fake_quant=self.fake_quant)
-        )
-        self.add_module(
-            "attn_k", LinearLayer(theta("attn_k"), fake_quant=self.fake_quant)
-        )
-        self.add_module(
-            "attn_v", LinearLayer(theta("attn_v"), fake_quant=self.fake_quant)
         )
         self.add_module(
             "attn_output", LinearLayer(theta("attn_output"), fake_quant=self.fake_quant)
@@ -108,21 +136,13 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 RMSNormLayer(theta("attn_output_norm"), epsilon=rms_epsilon),
             )
 
-    def forward(
+    def gqa_attention(
         self,
-        h: torch.Tensor,
-        *,
+        x: torch.Tensor | ReplicatedTensor,
+        start_index: int,
         embedding: RotaryEmbeddingLayer,
-        # [bs, batch_seq_len // block_seq_stride]
-        seq_block_ids: torch.Tensor,
-        start_index: Optional[int] = None,
-        start_positions: Optional[torch.Tensor | ReplicatedTensor] = None,
-        attention_mask: Optional[torch.Tensor | ReplicatedTensor] = None,
-        embedding_batch_mask: Optional[torch.Tensor] = None,
-        cache_state: list[torch.Tensor] = None,
+        embedding_batch_mask: torch.Tensor,
     ):
-        assert bool(start_index is not None) ^ bool(embedding_batch_mask is not None)
-        x = self.attn_norm(h)
         bs, batch_seq_len, _ = x.shape
 
         xq = self.attn_q(x)
@@ -137,14 +157,100 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         xk = xk.view(bs, batch_seq_len, self.head_count_kv, self.head_dim)
         xv = xv.view(bs, batch_seq_len, self.head_count_kv, self.head_dim)
 
-        # Fast path to start_index based embedding lookup if available.
-        # Falls back to a slower position based index lookup.
-        if start_index is not None:
-            xq = embedding.forward(xt=xq, start_index=start_index)
-            xk = embedding.forward(xt=xk, start_index=start_index)
-        else:
-            xq = embedding.apply_batched_mask(xt=xq, mask=embedding_batch_mask)
-            xk = embedding.apply_batched_mask(xt=xk, mask=embedding_batch_mask)
+        if self.use_rope:
+            # Fast path to start_index based embedding lookup if available.
+            # Falls back to a slower position based index lookup.
+            if start_index is not None:
+                xq = embedding.forward(xt=xq, start_index=start_index)
+                xk = embedding.forward(xt=xk, start_index=start_index)
+            else:
+                xq = embedding.apply_batched_mask(xt=xq, mask=embedding_batch_mask)
+                xk = embedding.apply_batched_mask(xt=xk, mask=embedding_batch_mask)
+
+        if self.attn_q.q_output is not None:
+            xq = self.attn_q.q_output.quantize(xq)
+        if self.attn_k.q_output is not None:
+            xk = self.attn_k.q_output.quantize(xk)
+        if self.attn_v.q_output is not None:
+            xv = self.attn_v.q_output.quantize(xv)
+        return xq, xk, xv
+
+    def pre_process_attention(
+        self,
+        x: torch.Tensor | ReplicatedTensor,
+        start_index: int,
+        embedding: RotaryEmbeddingLayer,
+        embedding_batch_mask: torch.Tensor,
+    ):
+        """
+        x:
+            input token embeddings.
+            shape is (batch_size, sequence_length, embedding_length)
+        """
+        if self.attn_type == "gqa":
+            xq, xk, xv = self.gqa_attention(
+                x,
+                start_index=start_index,
+                embedding=embedding,
+                embedding_batch_mask=embedding_batch_mask,
+            )
+
+        elif self.attn_type == "mla":
+            xq, xk, xv = self.latent_attn(
+                x,
+                start_index=start_index,
+                embedding=embedding,
+                embedding_batch_mask=embedding_batch_mask,
+            )
+
+        return xq, xk, xv
+
+    def forward(
+        self,
+        h: torch.Tensor | ShardedTensor,
+        *,
+        embedding: RotaryEmbeddingLayer,
+        # [bs, batch_seq_len // block_seq_stride]
+        seq_block_ids: torch.Tensor,
+        start_index: Optional[int] = None,
+        start_positions: Optional[torch.Tensor | ReplicatedTensor] = None,
+        attention_mask: Optional[torch.Tensor | ReplicatedTensor] = None,
+        embedding_batch_mask: Optional[torch.Tensor] = None,
+        cache_state: list[torch.Tensor] = None,
+    ):
+        assert bool(start_index is not None) ^ bool(embedding_batch_mask is not None)
+
+        x = self.attn_norm(h)
+
+        xq, xk, xv = self.pre_process_attention(
+            x, start_index, embedding, embedding_batch_mask
+        )
+
+        if self.use_qk_norm:
+            xq = self.qk_norm(xq)
+            xk = self.qk_norm(xk)
+
+        # Use temperature tuning from https://arxiv.org/abs/2501.19399
+        # Ken M. Nakanishi - Scalable-Softmax Is Superior for Attention (2025)
+        if self.attn_temperature_tuning and not self.use_rope:
+            if start_positions is None:
+                cache_position = torch.arange(
+                    0, h.shape[1], dtype=torch.long, device=h.device
+                )
+            else:
+                assert False, "TODO: decode step"
+            attn_scales = (
+                torch.log(
+                    torch.floor((cache_position.float() + 1.0) / self.floor_scale) + 1.0
+                )
+                * self.attn_scale
+                + 1.0
+            ).to(xq.device)
+            input_tokens_shape = h.shape[:-1]
+            attn_scales = attn_scales.view((1, input_tokens_shape[-1], 1, 1)).expand(
+                (*input_tokens_shape, 1, 1)
+            )  # batch size > 1
+            xq = (xq * attn_scales).to(xq.dtype)
 
         # Used by fp8_e4m3fnuz model
         if self.cache_quantizer is not None:
@@ -153,6 +259,10 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 # Probably want to add support for using quantized tensors more directly
                 xk = self.cache_quantizer.quantize(xk).unpack().qs
                 xv = self.cache_quantizer.quantize(xv).unpack().qs
+
+        # Pad final dim of v to match with kv cache
+        if self.attn_type == "mla" and self.head_dim != self.v_head_dim:
+            xv = ops.pad(xv, [0, self.head_dim - self.v_head_dim])
 
         if start_positions is None:
             attn_output = self.paged_attention.forward_prefill(
@@ -187,10 +297,21 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 mask=attention_mask,
                 scale=self.attention_scale,
                 softcap=self.softcap,
+                k_quantizer=self.k_quantizer,
+                v_quantizer=self.v_quantizer,
             )
+        # attn_output is sharded
+        # Drop padded part of attn_output
+        if self.attn_type == "mla" and self.head_dim != self.v_head_dim:
+            attn_output = attn_output[:, :, :, : self.v_head_dim]
 
         attn_output = attn_output.transpose(1, 2)
-        attn_output = attn_output.flatten(2, 3)
+
+        if self.attn_type == "mla":
+            attn_output = attn_output.flatten(2)
+        else:
+            attn_output = attn_output.flatten(2, 3)
+
         # Project.
         attn_output = self.attn_output(attn_output)
         attn_output = self.attn_output_norm(attn_output)

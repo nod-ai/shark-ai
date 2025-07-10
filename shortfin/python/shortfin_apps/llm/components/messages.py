@@ -9,8 +9,10 @@ from uuid import uuid4
 
 import shortfin as sf
 import shortfin.array as sfnp
+from shortfin.interop.fastapi import RequestStatusTracker
 
 from .kvcache.base_attention_cache import BasePagedAttentionCache, PageAllocation
+from .kvcache.trie_attention_cache import TriePagedAttentionCache
 from ...utils import InferenceExecRequest
 
 
@@ -22,7 +24,14 @@ class InferencePhase(Enum):
 class LlmInferenceExecRequest(InferenceExecRequest):
     """Performs a prefill operation."""
 
-    def __init__(self, phase: InferencePhase, input_token_ids: list[int], rid=None):
+    def __init__(
+        self,
+        phase: InferencePhase,
+        input_token_ids: list[int],
+        rid=None,
+        orig_instance_id=None,
+        status_tracker: RequestStatusTracker | None = None,
+    ):
         super().__init__()
         self.phase = phase
         self.start_position: int = 0
@@ -33,6 +42,11 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         # Unique `instance_id` for token selection strategies that may need
         # to differentiate between an original req and a copy of a req.
         self.instance_id = str(uuid4())
+
+        # Unique ID for an InferenceExecRequest shared between copies and executions.
+        self.orig_instance_id = (
+            self.instance_id if orig_instance_id is None else orig_instance_id
+        )
 
         # Response control.
         # If True, return all sequence position logits. If False, return only
@@ -46,10 +60,12 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         # Result logits as [1, sl, d] where 1 is the preserved batch dim,
         # sl is either 1 (not return_all_logits) or >=1 (return_all_logits).
         self.result_logits: sfnp.device_array | None = None
+        self.result_indices: sfnp.device_array | None = None
 
         # Cache pages that have been locked for this request.
         self._cache: BasePagedAttentionCache | None = None
         self.allocation: PageAllocation | None = None
+        self.status_tracker: RequestStatusTracker | None = status_tracker
 
     @classmethod
     def copy_exec_request(
@@ -58,15 +74,24 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         new_exec_req = cls(
             exec_req.phase,
             exec_req.input_token_ids.copy(),
-            exec_req.rid,
+            rid=exec_req.rid,
+            orig_instance_id=exec_req.orig_instance_id,
         )
 
         new_exec_req.start_position = exec_req.start_position
         new_exec_req.prompt_length = exec_req.prompt_length
         new_exec_req._cache = exec_req._cache
-        new_exec_req.allocation = new_exec_req._cache.fork_pages(
-            exec_req.allocation.pages
-        )
+
+        # check if the cache is instance of TriePagedAttentionCache then
+        # pass token_ids to fork_pages
+        if isinstance(new_exec_req._cache, TriePagedAttentionCache):
+            new_exec_req.allocation = new_exec_req._cache.fork_pages(
+                exec_req.allocation.pages, exec_req.input_token_ids
+            )
+        else:
+            new_exec_req.allocation = new_exec_req._cache.fork_pages(
+                exec_req.allocation.pages
+            )
         return new_exec_req
 
     def reset(self, phase: InferencePhase):

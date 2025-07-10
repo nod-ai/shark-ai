@@ -28,6 +28,7 @@ from sharktank.models.vae.tools.run_vae import export_vae
 from sharktank.models.vae.tools.sample_data import get_random_inputs
 from sharktank.tools.import_hf_dataset import import_hf_dataset
 from sharktank.utils.iree import (
+    get_iree_compiler_flags_from_object,
     with_iree_device_context,
     get_iree_devices,
     load_iree_module,
@@ -38,7 +39,6 @@ from sharktank.utils.iree import (
 )
 from sharktank.utils.testing import (
     TempDirTestBase,
-    get_iree_compiler_flags,
     is_cpu_condition,
     is_cpu_win,
     is_mi300x,
@@ -55,7 +55,7 @@ with_vae_data = pytest.mark.skipif("not config.getoption('with_vae_data')")
 
 
 @with_vae_data
-@pytest.mark.usefixtures("get_iree_flags")
+@pytest.mark.usefixtures("iree_flags")
 class VaeSDXLDecoderTest(TempDirTestBase):
     def setUp(self):
         super().setUp()
@@ -153,7 +153,7 @@ class VaeSDXLDecoderTest(TempDirTestBase):
             "--iree-codegen-llvmgpu-use-vector-distribution=true",
             "--iree-execution-model=async-external",
             "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline,iree-preprocessing-pad-to-intrinsics)",
-        ] + get_iree_compiler_flags(self)
+        ] + get_iree_compiler_flags_from_object(self)
 
         iree.compiler.compile_file(
             f"{self._temp_dir}/vae_f16.mlir",
@@ -224,7 +224,7 @@ class VaeSDXLDecoderTest(TempDirTestBase):
         torch.testing.assert_close(ref_results, iree_result, atol=3e-5, rtol=6e-6)
 
 
-@pytest.mark.usefixtures("get_iree_flags")
+@pytest.mark.usefixtures("iree_flags")
 class VaeFluxDecoderTest(TempDirTestBase):
     def setUp(self):
         super().setUp()
@@ -241,7 +241,7 @@ class VaeFluxDecoderTest(TempDirTestBase):
             "--iree-codegen-llvmgpu-use-vector-distribution=true",
             "--iree-execution-model=async-external",
             "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline,iree-preprocessing-pad-to-intrinsics)",
-        ] + get_iree_compiler_flags(self)
+        ] + get_iree_compiler_flags_from_object(self)
 
     @pytest.mark.expensive
     @with_vae_data

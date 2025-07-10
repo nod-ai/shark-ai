@@ -16,6 +16,7 @@ from torch import Tensor, dtype
 from sharktank.types import (
     AnyTensor,
     ShardedTensor,
+    SplitPrimitiveTensor,
     Theta,
     sharding,
     InferenceTensor,
@@ -32,6 +33,8 @@ __all__ = [
     "barrier_on_logical_device",
     "cat",
     "conv2d",
+    "conv3d",
+    "conv1d",
     "einsum_2args",
     "elementwise",
     "embedding_lookup",
@@ -57,6 +60,7 @@ __all__ = [
     "pad",
     "permute",
     "rms_norm",
+    "reduce_scatter",
     "repeat",
     "replicate",
     "reshape",
@@ -68,8 +72,10 @@ __all__ = [
     "scatter_add",
     "sharded_cat",
     "sharded_sum",
+    "sharded_gather",
     "sigmoid",
     "softmax",
+    "split",
     "squeeze",
     "sum",
     "to",
@@ -191,6 +197,110 @@ def conv2d(
 
 @conv2d.trampoline
 def _conv2d_trampoline(
+    d: SignatureDispatcher,
+    input: AnyTensor,
+    weight: AnyTensor,
+    bias: Optional[AnyTensor] = None,
+    *,
+    stride=1,
+    padding=0,
+    dilation=1,
+    groups=1,
+    accum_dtype: Optional[torch.dtype] = None,
+):
+    tensors = [input, weight]
+    if bias is not None:
+        tensors.append(bias)
+    for override in d.find_overrides(tensors):
+        result = override(
+            input,
+            weight,
+            bias,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+            accum_dtype=accum_dtype,
+        )
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
+
+
+@overridable
+def conv3d(
+    input: AnyTensor,
+    weight: AnyTensor,
+    bias: Optional[AnyTensor] = None,
+    *,
+    stride: IntOrSequenceInt = 1,
+    padding: IntOrSequenceInt = 0,
+    dilation: IntOrSequenceInt = 1,
+    groups: IntOrSequenceInt = 1,
+    accum_dtype: Optional[torch.dtype] = None,
+):
+    """Equivalent to torch.nn.functional.conv3d with enhancements:
+
+    * Primitive weight/bias tensors will be promoted to the input dtype.
+    """
+    raise NotImplementedError
+
+
+@conv3d.trampoline
+def _conv3d_trampoline(
+    d: SignatureDispatcher,
+    input: AnyTensor,
+    weight: AnyTensor,
+    bias: Optional[AnyTensor] = None,
+    *,
+    stride=1,
+    padding=0,
+    dilation=1,
+    groups=1,
+    accum_dtype: Optional[torch.dtype] = None,
+):
+    tensors = [input, weight]
+    if bias is not None:
+        tensors.append(bias)
+    for override in d.find_overrides(tensors):
+        result = override(
+            input,
+            weight,
+            bias,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+            accum_dtype=accum_dtype,
+        )
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
+
+
+@overridable
+def conv1d(
+    input: AnyTensor,
+    weight: AnyTensor,
+    bias: Optional[AnyTensor] = None,
+    *,
+    stride: IntOrSequenceInt = 1,
+    padding: IntOrSequenceInt = 0,
+    dilation: IntOrSequenceInt = 1,
+    groups: IntOrSequenceInt = 1,
+    accum_dtype: Optional[torch.dtype] = None,
+):
+    """Equivalent to torch.nn.functional.conv1d with enhancements:
+
+    * Primitive weight/bias tensors will be promoted to the input dtype.
+    """
+    raise NotImplementedError
+
+
+@conv1d.trampoline
+def _conv1d_trampoline(
     d: SignatureDispatcher,
     input: AnyTensor,
     weight: AnyTensor,
@@ -897,6 +1007,25 @@ def _module_register_buffer_trampoline(
         d.fail(args)
 
 
+@overridable(is_trivially_replicable=False)
+def reduce_scatter(tensor: AnyTensor, scatter_dim: int) -> AnyTensor:
+    """Reduces then splits/scatters across the devices."""
+    ...
+
+
+@reduce_scatter.trampoline
+def _reduce_scatter_trampoline(
+    d: SignatureDispatcher, tensor: AnyTensor, scatter_dim: int
+):
+    tensors = (tensor,)
+    for override in d.find_overrides(tensors):
+        result = override(tensor, scatter_dim)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
+
+
 @overridable
 def rms_norm(
     x: AnyTensor, weight: AnyTensor, *, epsilon: float, orig_dtype: torch.dtype
@@ -960,10 +1089,10 @@ def _replicate_trampoline(
     devices: tuple[int, ...] | None = None,
 ) -> ShardedTensor:
     tensors = (input,)
-    if isinstance(input, (torch.Tensor, PrimitiveTensor)):
-        devices = devices if devices is not None else tuple(range(count))
-    else:
+    if isinstance(input, ShardedTensor):
         assert devices is None
+    else:
+        devices = devices if devices is not None else tuple(range(count))
 
     for override in d.find_overrides(tensors):
         result = override(input, count=count, devices=devices)
@@ -1193,15 +1322,42 @@ def _sharded_cat_trampoline(d: SignatureDispatcher, maybe_sharded: AnyTensor):
 
 
 @overridable(is_trivially_replicable=False)
-def sharded_sum(maybe_sharded: AnyTensor):
+def sharded_gather(input: AnyTensor, root_rank: int) -> list[AnyTensor]:
+    """Gather the input tensor from all devices to the given device ordinal."""
+    ...
+
+
+@sharded_gather.trampoline
+def _sharded_gather_trampoline(
+    d: SignatureDispatcher, input: AnyTensor, root_rank: int
+) -> AnyTensor:
+    dispatch_args = (input,)
+    for override in d.find_overrides(dispatch_args):
+        result = override(input, root_rank)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(dispatch_args)
+
+
+@overridable(is_trivially_replicable=False)
+def sharded_sum(maybe_sharded: AnyTensor, root_rank: int = 0) -> AnyTensor:
+    """Reduce across the shards into a single device.
+
+    root_rank:
+        Rank of receiving device within the tensor devices.
+        If sharded, `maybe_sharded.devices[root_rank]` is the destination.
+    """
     ...
 
 
 @sharded_sum.trampoline
-def _sharded_sum_trampoline(d: SignatureDispatcher, maybe_sharded: AnyTensor):
+def _sharded_sum_trampoline(
+    d: SignatureDispatcher, maybe_sharded: AnyTensor, root_rank: int = 0
+):
     tensors = (maybe_sharded,)
     for override in d.find_overrides(tensors):
-        result = override(maybe_sharded)
+        result = override(maybe_sharded, root_rank)
         if result is not NotImplemented:
             return override, result
     else:
@@ -1209,7 +1365,7 @@ def _sharded_sum_trampoline(d: SignatureDispatcher, maybe_sharded: AnyTensor):
 
 
 @overridable
-def sigmoid(tensoir: AnyTensor) -> AnyTensor:
+def sigmoid(tensor: AnyTensor) -> AnyTensor:
     """See torch.sigmoid"""
     ...
 
@@ -1250,6 +1406,30 @@ def _softmax_trampoline(
 
 
 @overridable
+def split(
+    tensor: AnyTensor, split_size_or_sections: int | list[int], dim: int = 0
+) -> tuple[AnyTensor, ...]:
+    """See torch.split"""
+    ...
+
+
+@split.trampoline
+def _split_trampoline(
+    d: SignatureDispatcher,
+    tensor: AnyTensor,
+    split_size_or_sections: int | list[int],
+    dim: int,
+) -> tuple[AnyTensor, ...]:
+    dispatch_args = [tensor]
+    for override in d.find_overrides(dispatch_args):
+        result = override(tensor, split_size_or_sections, dim)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(dispatch_args)
+
+
+@overridable
 def to(tensor: AnyTensor, *args, **kwargs) -> AnyTensor:
     """See torch.Tensor.to"""
     ...
@@ -1267,13 +1447,33 @@ def _to_trampoline(d: SignatureDispatcher, tensor: AnyTensor, *args, **kwargs):
 
 
 @overridable
-def trace_tensor(key: str, *tensors: tuple[AnyTensor]):
+def trace_tensor(key: str, *tensors: tuple[AnyTensor, ...]):
+    """Trace tensor(s) in IREE runtime or in eager mode.
+
+    You can add trace_tensor into your model wherever you want. It will insert a
+    trace op into the IR. Then you can register a callback in the IREE runtime for
+    custom handling of the trace command during execution. For example recording the
+    tensor into a file. There is also a destination/sink for eager execution.
+
+    The trace op will prevent fusion which will influence how the model is compiled.
+    This may change the behavior of the program and cause a numerical issue to
+    disappear if it was the result of op fusion.
+
+    Example usage at sharktank/tests/ops/ops_test.py::TestTraceTensors.
+
+    See:
+    sharktank.utils.debugging.set_trace_tensor_callback
+    sharktank.utils.debugging.trace_tensor_to_safetensors_callback
+    sharktank.utils.debugging.flags.trace_path
+    sharktank.utils.iree.make_hal_buffer_view_trace_default_callback
+    sharktank.layers.BaseLayer.trace_tensor
+    """
     ...
 
 
 @trace_tensor.trampoline
-def _transfer_to_logical_device_trampoline(
-    d: SignatureDispatcher, key: str, *tensors: tuple[AnyTensor]
+def _trace_tensor_trampoline(
+    d: SignatureDispatcher, key: str, *tensors: tuple[AnyTensor, ...]
 ):
     for override in d.find_overrides(tensors):
         result = override(key, *tensors)
@@ -1445,7 +1645,15 @@ def _sum_trampoline(
 
 
 @overridable
-def topk(tensor, k: int, dim: int, largest: bool, sorted: bool) -> AnyTensor:
+def topk(
+    tensor,
+    k: int,
+    dim: int,
+    largest: bool,
+    sorted: bool,
+    chunk_size: Optional[int] = None,
+    use_linalgext_topk: bool = False,
+) -> AnyTensor:
     """See torch.topk"""
     ...
 
@@ -1458,10 +1666,31 @@ def _topk_trampoline(
     dim: int,
     largest: bool = True,
     sorted: bool = True,
+    chunk_size: Optional[int] = None,
+    use_linalgext_topk: bool = False,
 ) -> AnyTensor:
     tensors = (tensor,)
     for override in d.find_overrides(tensors):
-        result = override(tensor, k=k, dim=dim, largest=largest, sorted=sorted)
+        if isinstance(tensor, SplitPrimitiveTensor):
+            result = override(
+                tensor,
+                k=k,
+                dim=dim,
+                largest=largest,
+                sorted=sorted,
+                use_linalgext_topk=use_linalgext_topk,
+            )
+
+        else:
+            result = override(
+                tensor,
+                k=k,
+                dim=dim,
+                largest=largest,
+                sorted=sorted,
+                chunk_size=chunk_size,
+                use_linalgext_topk=use_linalgext_topk,
+            )
         if result is not NotImplemented:
             return override, result
     else:
@@ -1469,18 +1698,23 @@ def _topk_trampoline(
 
 
 @overridable
-def view(tensor: AnyTensor, shape: List[int]) -> AnyTensor:
+def view(
+    tensor: AnyTensor, shape: List[int] | None = None, dtype: torch.Tensor | None = None
+) -> AnyTensor:
     """See torch.Tensor.view"""
     ...
 
 
 @view.trampoline
 def _view_trampoline(
-    d: SignatureDispatcher, tensor: AnyTensor, shape: List[int]
+    d: SignatureDispatcher,
+    tensor: AnyTensor,
+    shape: List[int] | None = None,
+    dtype: torch.Tensor | None = None,
 ) -> AnyTensor:
     tensors = (tensor,)
     for override in d.find_overrides(tensors):
-        result = override(tensor, shape)
+        result = override(tensor, shape, dtype)
         if result is not NotImplemented:
             return override, result
     else:

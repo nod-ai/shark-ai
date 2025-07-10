@@ -8,18 +8,16 @@ from typing import Callable, List, Union
 
 from .base_token_selection_strategy import (
     BaseTokenSelectionStrategy,
-    TokenSelectionStrategyConfig,
 )
 
 from .config import (
     DecodeConfig,
-    TokenSelectionStrategy,
     get_strategy_from_str,
-    is_ref_counted,
+    TokenSelectionStrategy,
+    TokenSelectionStrategyConfig,
 )
-from .beam_search_token_selection_strategy import BeamSearchTokenSelectionStrategy
-from .greedy_token_selection_strategy import GreedyTokenSelectionStrategy
-from .multi_greedy_token_selection_strategy import MultiGreedyTokenSelectionStrategy
+from .scorer import BeamSearchScorer, DefaultScorer
+from .token_selector import TokenSelector
 from .sampler import Sampler
 
 
@@ -28,7 +26,6 @@ def build_token_selector_config(
     prefill_batcher,
     decode_batcher,
     results_callback: Callable[[Union[int, List[int]]], None],
-    eos_token_id: int,
 ) -> TokenSelectionStrategyConfig:
     """Build a configuration class for a given token selection strategy.
 
@@ -46,13 +43,6 @@ def build_token_selector_config(
     Returns:
         TokenSelectionStrategyConfig: Instantiated config for token selector.
     """
-    if decode_config.token_selection_strategy not in {
-        strategy for strategy in TokenSelectionStrategy
-    }:
-        raise NotImplementedError(
-            f"Unsupported token selection strategy: {decode_config.token_selection_strategy}.\n"
-            f"Supported strategies: {','.join([strategy.name for strategy in TokenSelectionStrategy])}"
-        )
     return TokenSelectionStrategyConfig(
         decode_config,
         prefill_callback=prefill_batcher.submit,
@@ -60,7 +50,6 @@ def build_token_selector_config(
         decode_begin_callback=decode_batcher.reserve_workitem,
         decode_end_callback=decode_batcher.complete_workitem,
         results_callback=results_callback,
-        eos_token_id=eos_token_id,
     )
 
 
@@ -77,42 +66,34 @@ def build_token_selector(
         NotImplementedError: Unsupported `TokenSelectionStrategy`.
 
     Returns:
-        BaseTokenSelectionStrategy: Instantiated token selector. Current only `Greedy`, but more will be added.
+        BaseTokenSelectionStrategy: Instantiated token selector. Either `IndependentTokenSelectionStrategy` or `BeamSearchTokenSelectionStrategy`.
     """
-    strategy_map = {
-        TokenSelectionStrategy.GREEDY: GreedyTokenSelectionStrategy,
-        TokenSelectionStrategy.MULTI_GREEDY: MultiGreedyTokenSelectionStrategy,
-        TokenSelectionStrategy.BEAM_SEARCH: BeamSearchTokenSelectionStrategy,
-    }
-    if config.decode_config.token_selection_strategy not in strategy_map:
-        raise NotImplementedError(
-            f"Unsupported token selection strategy: {config.decode_config.token_selection_strategy}.\n"
-            f"Supported strategies: {','.join([strategy.name for strategy in TokenSelectionStrategy])}"
-        )
+    scorer = (
+        BeamSearchScorer(config=config)
+        if config.decode_config.use_beam_search
+        else DefaultScorer(config=config)
+    )
 
-    return strategy_map[config.decode_config.token_selection_strategy](config)
+    return TokenSelector(token_selection_strategy_config=config, scorer=scorer)
 
 
-def is_multi_response(token_selection_strategy: TokenSelectionStrategy):
-    match token_selection_strategy:
-        case TokenSelectionStrategy.MULTI_GREEDY | TokenSelectionStrategy.BEAM_SEARCH:
-            return True
+def is_multi_response(decode_config: DecodeConfig) -> bool:
+    use_beam_search = decode_config.use_beam_search
+    num_beams = decode_config.num_beams
 
-        case _:
-            return False
+    return use_beam_search or num_beams > 1
 
 
 __all__ = [
-    "BaseTokenSelectionStrategy",
-    "TokenSelectionStrategyConfig",
-    "TokenSelectionStrategy",
-    "Sampler",
-    "BeamSearchTokenSelectionStrategy",
-    "GreedyTokenSelectionStrategy",
-    "MultiGreedyTokenSelectionStrategy",
     "build_token_selector",
     "build_token_selector_config",
+    "BaseTokenSelectionStrategy",
+    "BeamSearchScorer",
+    "DefaultScorer",
     "get_strategy_from_str",
-    "is_ref_counted",
     "is_multi_response",
+    "Sampler",
+    "TokenSelectionStrategyConfig",
+    "TokenSelectionStrategy",
+    "TokenSelector",
 ]

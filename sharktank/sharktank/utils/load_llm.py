@@ -4,22 +4,22 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from typing import Optional
 import collections
 import math
 from pathlib import Path
 
 import numpy as np
 import torch
-import numpy as np
 
 from sharktank.layers import *
 from sharktank.types import *
 from sharktank.models.llm import *
-from sharktank.models.llama.tools.data_utils import write_ndarray_to_bin
 
 from sharktank.ops import replicate, unshard
 from sharktank.utils.debugging import trace_tensor
 from sharktank.utils.tokenizer import InferenceTokenizer
+from sharktank.utils.evaluate import *
 
 
 class TorchGenerator:
@@ -28,13 +28,18 @@ class TorchGenerator:
     def __init__(
         self,
         model: PagedLlmModelV1,
-        tokenizer: InferenceTokenizer,
+        tokenizer: Optional[InferenceTokenizer] = None,
         # Need to look at the model more for this.
         end_token: int = 2,
+        max_decode_steps: int | None = None,
     ):
+        """
+        max_decode_steps: maximum number of decode steps to perform.
+        """
         self.model = model
         self.tokenizer = tokenizer
         self.end_token = end_token
+        self.max_decode_steps = max_decode_steps
 
     @property
     def block_seq_stride(self) -> int:
@@ -43,20 +48,36 @@ class TorchGenerator:
     def preprocess_prompts(
         self,
         prompts: list[str],
-    ):
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         token_ids = self.tokenizer._encode(texts=prompts, add_start_token=False)
 
         print(f":: Prompt tokens:")
         for idx, prompt in enumerate(prompts):
             print(f"    prompt_{idx}: \n    {prompt.encode()} \n    {token_ids[idx]}\n")
 
-        token_ids, seq_lens = self.tokenizer.pad_tokens(
-            token_ids, pad_to_multiple_of=self.model.cache.pad_sequence_stride
+        token_ids, seq_lens = pad_tokens(
+            token_ids,
+            pad_to_multiple_of=self.model.cache.pad_sequence_stride,
+            device=self.model.device,
         )
 
+        return token_ids, seq_lens
+
+    def generate_random_tokens(
+        self, batch_size: int, prompt_seq_len: int
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        token_ids = torch.randint(
+            low=0,
+            high=self.model.config.hp.vocab_size,
+            size=[batch_size, prompt_seq_len],
+        )
+        # TODO: refactor to not use list[list[int]] as this is not efficient.
+        token_ids = [[int(t) for t in s] for s in token_ids]
+        token_ids, seq_lens = pad_tokens(
+            token_ids, pad_to_multiple_of=self.model.cache.pad_sequence_stride
+        )
         token_ids = torch.tensor(token_ids, device=self.model.device)
         seq_lens = torch.tensor(seq_lens, device=self.model.device)
-
         return token_ids, seq_lens
 
     def begin_batch(
@@ -65,8 +86,9 @@ class TorchGenerator:
         seq_lens: torch.tensor,
         page_cache_size: int = None,
         dump_path: Path = None,
-        dump_decode_steps: int = None,
-    ):
+        dump_decode_steps: int = 1,
+        use_attention_mask: bool = True,
+    ) -> "Batch":
         bs = token_ids.shape[0]
 
         self.page_cache_size = (
@@ -86,6 +108,8 @@ class TorchGenerator:
             bs=bs,
             dump_path=dump_path,
             dump_decode_steps=dump_decode_steps,
+            use_attention_mask=use_attention_mask,
+            max_decode_steps=self.max_decode_steps,
         )
 
     def alloc_page(self) -> int:
@@ -105,6 +129,8 @@ class Batch:
         bs: int,
         dump_path: Path,
         dump_decode_steps: int,
+        use_attention_mask: bool,
+        max_decode_steps: int | None = None,
     ):
         self.bs = bs
         assert seq_lens.shape[0] == self.bs
@@ -118,6 +144,8 @@ class Batch:
         self.dump_path = dump_path
         self.dump_decode_steps = dump_decode_steps
         self.decode_step = 0
+        self.use_attention_mask = use_attention_mask
+        self.max_decode_steps = max_decode_steps
 
         # Assemble the batch.
         seq_stride = self.parent.block_seq_stride
@@ -134,7 +162,12 @@ class Batch:
     @property
     def done(self) -> bool:
         return (
-            len(self.done_result_indices) == self.bs or len(self.parent.free_pages) == 0
+            len(self.done_result_indices) == self.bs
+            or len(self.parent.free_pages) == 0
+            or (
+                self.max_decode_steps is not None
+                and self.max_decode_steps <= self.decode_step
+            )
         )
 
     def detokenize(self) -> list[str]:
@@ -206,14 +239,17 @@ class Batch:
 
     def prefill(self):
         model = self.parent.model
-        attention_mask = model.attention_mask(
-            model.input_mask(self.seq_lens, self.token_ids.shape[1])
-        )
         seq_block_ids = self.pad_block_ids()
+        token_ids = self.token_ids
         trace_tensor("prefill.token_ids", self.token_ids)
         trace_tensor("prefill.seq_block_ids", seq_block_ids)
-        trace_tensor("prefill.attention_mask", attention_mask)
-        token_ids = self.token_ids
+
+        attention_mask = None
+        if self.use_attention_mask:
+            attention_mask = model.attention_mask(
+                model.input_mask(self.seq_lens, self.token_ids.shape[1])
+            )
+            trace_tensor("prefill.attention_mask", attention_mask)
 
         shard_count = model.config.tensor_parallelism_size
         num_pipelines = model.config.pipeline_parallelism_size
@@ -221,23 +257,32 @@ class Batch:
             seq_block_ids = [seq_block_ids]
             attention_mask = [attention_mask]
         else:
+            pipeline_to_device_map = (
+                model.config.pipeline_to_device_map
+                if model.config.pipeline_to_device_map
+                else [list(range(shard_count))]
+            )
             token_ids = replicate(
-                token_ids, shard_count, devices=model.config.pipeline_to_device_map[0]
+                token_ids, count=shard_count, devices=pipeline_to_device_map[0]
             )
             _attention_mask, _seq_block_ids = [], []
-            for pipeline in range(model.cache.pipeline_count):
-                _attention_mask.append(
-                    replicate(
-                        attention_mask,
-                        count=shard_count,
-                        devices=model.cache.pipeline_to_device_map[pipeline],
+            for devices in pipeline_to_device_map:
+                if attention_mask is None:
+                    _attention_mask.append(None)
+                else:
+                    _attention_mask.append(
+                        replicate(
+                            attention_mask,
+                            count=shard_count,
+                            devices=devices,
+                        )
                     )
-                )
+
                 _seq_block_ids.append(
                     replicate(
                         seq_block_ids,
                         count=shard_count,
-                        devices=model.cache.pipeline_to_device_map[pipeline],
+                        devices=devices,
                     )
                 )
             attention_mask, seq_block_ids = _attention_mask, _seq_block_ids
@@ -296,31 +341,36 @@ class Batch:
             decode_attention_mask = [decode_attention_mask]
             start_positions = [start_positions]
         else:
+            pipeline_to_device_map = (
+                model.config.pipeline_to_device_map
+                if model.config.pipeline_to_device_map
+                else [list(range(shard_count))]
+            )
             token_batch = replicate(
-                token_batch, shard_count, devices=model.config.pipeline_to_device_map[0]
+                token_batch, count=shard_count, devices=pipeline_to_device_map[0]
             )
 
             _start_positions, _seq_block_ids, _decode_attention_mask = [], [], []
-            for pipeline in range(model.cache.pipeline_count):
+            for pipeline, devices in enumerate(pipeline_to_device_map):
                 _start_positions.append(
                     replicate(
                         start_positions,
                         count=shard_count,
-                        devices=model.cache.pipeline_to_device_map[pipeline],
+                        devices=devices,
                     )
                 )
                 _seq_block_ids.append(
                     replicate(
                         seq_block_ids,
                         count=shard_count,
-                        devices=model.cache.pipeline_to_device_map[pipeline],
+                        devices=devices,
                     )
                 )
                 _decode_attention_mask.append(
                     replicate(
                         decode_attention_mask,
                         count=shard_count,
-                        devices=model.cache.pipeline_to_device_map[pipeline],
+                        devices=devices,
                     )
                 )
             start_positions, seq_block_ids, decode_attention_mask = (
@@ -329,7 +379,7 @@ class Batch:
                 _decode_attention_mask,
             )
 
-        if self.dump_path is not None:
+        if self.dump_path is not None and self.decode_step < self.dump_decode_steps:
             print(f"\nSaving decode args to {Path(self.dump_path)}\n")
 
             self.dump_args(

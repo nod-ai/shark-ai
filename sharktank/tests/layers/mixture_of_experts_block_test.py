@@ -10,7 +10,8 @@ from typing import Callable
 
 import torch
 from iree.turbine.aot import *
-from sharktank.models.llama.testing import make_moe_block_theta, make_rand_torch
+from sharktank.layers.testing import make_random_moe_block_theta
+from sharktank.utils.random import make_rand_torch
 from sharktank.layers.mixture_of_experts_block import MoeBlock
 from sharktank.types.sharding import MoeBlockSharding
 from sharktank.ops import reshard, reshard_like, replicate
@@ -22,13 +23,31 @@ class MoeBlockTest(unittest.TestCase):
         torch.random.manual_seed(123)
 
     def testExport(self):
+        dtype = torch.float32
+        batch_size = 3
+        seq_len = 5
+        in_dim = 7
+
+        theta = make_random_moe_block_theta(
+            block_idx=0,
+            in_dim=in_dim,
+            expert_hidden_dim=13,
+            num_experts=17,
+            with_ffn_norm=True,
+            num_shared_experts=19,
+            with_layer_output_norm=True,
+            dtype_rest=dtype,
+            dtype_norm=dtype,
+        )
+        theta.rename_tensors_to_paths()
         model = MoeBlock(
-            theta=make_moe_block_theta()("blk.0"),
+            theta=theta,
+            expert_count=17,
             expert_used_count=2,
             rms_epsilon=1e-5,
         )
         fxb = FxProgramsBuilder(model)
-        input = make_rand_torch((2, 32, 6144))
+        input = make_rand_torch((batch_size, seq_len, in_dim))
 
         @fxb.export_program(name="moe_block", args=(input,), strict=False)
         def _(model, input: torch.Tensor) -> torch.Tensor:
@@ -45,14 +64,12 @@ class MoeBlockTest(unittest.TestCase):
                 n_expert_groups=None,
                 n_limited_groups=None,
                 num_shared_experts=1,
-                shared_expert_hidden_dim=1,
                 batch_size=1,
                 sequence_length=1,
                 rms_epsilon=0.02,
                 moe_activation_fn=torch.nn.functional.silu,
                 score_experts_fn=torch.nn.functional.sigmoid,
                 normalize_experts=True,
-                add_residual=False,
                 route_scale=1.234,
             ),
             param(
@@ -64,14 +81,12 @@ class MoeBlockTest(unittest.TestCase):
                 n_limited_groups=None,
                 expert_used_count=1,
                 num_shared_experts=1,
-                shared_expert_hidden_dim=1,
                 batch_size=1,
                 sequence_length=1,
                 rms_epsilon=0.02,
                 moe_activation_fn=torch.nn.functional.silu,
                 score_experts_fn=torch.nn.functional.sigmoid,
                 normalize_experts=True,
-                add_residual=False,
                 route_scale=1.234,
             ),
             param(
@@ -83,14 +98,12 @@ class MoeBlockTest(unittest.TestCase):
                 n_limited_groups=None,
                 expert_used_count=2,
                 num_shared_experts=1,
-                shared_expert_hidden_dim=1,
                 batch_size=1,
                 sequence_length=1,
                 rms_epsilon=0.02,
                 moe_activation_fn=torch.nn.functional.silu,
                 score_experts_fn=torch.nn.functional.sigmoid,
                 normalize_experts=True,
-                add_residual=False,
                 route_scale=1.234,
             ),
             param(
@@ -102,14 +115,12 @@ class MoeBlockTest(unittest.TestCase):
                 n_limited_groups=2,
                 expert_used_count=2,
                 num_shared_experts=2,
-                shared_expert_hidden_dim=3,
                 batch_size=2,
                 sequence_length=3,
                 rms_epsilon=0.03,
                 moe_activation_fn=torch.nn.functional.gelu,
                 score_experts_fn=torch.nn.functional.softmax,
                 normalize_experts=True,
-                add_residual=True,
                 route_scale=3.21,
             ),
             param(
@@ -121,14 +132,12 @@ class MoeBlockTest(unittest.TestCase):
                 n_limited_groups=2,
                 expert_used_count=2,
                 num_shared_experts=11,
-                shared_expert_hidden_dim=13,
                 batch_size=17,
                 sequence_length=19,
                 rms_epsilon=0.01,
                 moe_activation_fn=torch.nn.functional.silu,
                 score_experts_fn=torch.nn.functional.sigmoid,
                 normalize_experts=False,
-                add_residual=False,
                 route_scale=None,
             ),
         ]
@@ -143,28 +152,27 @@ class MoeBlockTest(unittest.TestCase):
         n_limited_groups: int | None,
         expert_used_count: int,
         num_shared_experts: int,
-        shared_expert_hidden_dim: int,
         batch_size: int,
         sequence_length: int,
         rms_epsilon: float,
         moe_activation_fn: Callable[[torch.Tensor], torch.Tensor],
         score_experts_fn: Callable[[torch.Tensor], torch.Tensor],
         normalize_experts: bool,
-        add_residual: bool,
         route_scale: float,
     ):
         from sharktank.layers.testing import make_random_moe_block_theta
         from sharktank.layers import MoeBlock
 
         theta = make_random_moe_block_theta(
+            block_idx=0,
             in_dim=feature_dim,
             expert_hidden_dim=expert_hidden_dim,
             num_experts=num_experts,
             with_ffn_norm=True,
             num_shared_experts=num_shared_experts,
-            shared_expert_hidden_dim=shared_expert_hidden_dim,
             with_layer_output_norm=True,
-            dtype=dtype,
+            dtype_rest=dtype,
+            dtype_norm=dtype,
         )
 
         moe_with_pre_gather_ffn = MoeBlock(
@@ -178,7 +186,6 @@ class MoeBlockTest(unittest.TestCase):
             experts_ffn_moe_block="PreGatherFFNMOE",
             score_experts=score_experts_fn,
             normalize_experts=normalize_experts,
-            add_residual=add_residual,
             route_scale=route_scale,
         )
         moe_with_dense_ffn = MoeBlock(
@@ -192,7 +199,6 @@ class MoeBlockTest(unittest.TestCase):
             experts_ffn_moe_block="DenseFFNMOE",
             score_experts=score_experts_fn,
             normalize_experts=normalize_experts,
-            add_residual=add_residual,
             route_scale=route_scale,
         )
 
@@ -214,34 +220,30 @@ class MoeBlockTest(unittest.TestCase):
                 n_limited_groups=2,
                 expert_used_count=2,
                 num_shared_experts=5,
-                shared_expert_hidden_dim=6,
                 batch_size=8,
                 sequence_length=9,
                 rms_epsilon=0.01,
                 moe_activation_fn=torch.nn.functional.silu,
                 score_experts_fn=torch.nn.functional.sigmoid,
                 normalize_experts=True,
-                add_residual=False,
                 route_scale=None,
                 tensor_parallelism_size=2,
             ),
             param(
                 dtype=torch.bfloat16,
                 feature_dim=2,
-                expert_hidden_dim=6,
+                expert_hidden_dim=10,
                 num_experts=9,
                 n_expert_groups=3,
                 n_limited_groups=3,
                 expert_used_count=7,
                 num_shared_experts=8,
-                shared_expert_hidden_dim=10,
                 batch_size=2,
                 sequence_length=3,
                 rms_epsilon=0.02,
                 moe_activation_fn=torch.nn.functional.gelu,
                 score_experts_fn=torch.nn.functional.sigmoid,
                 normalize_experts=True,
-                add_residual=False,
                 route_scale=1.1,
                 tensor_parallelism_size=3,
             ),
@@ -257,14 +259,12 @@ class MoeBlockTest(unittest.TestCase):
         n_limited_groups: int | None,
         expert_used_count: int,
         num_shared_experts: int,
-        shared_expert_hidden_dim: int,
         batch_size: int,
         sequence_length: int,
         rms_epsilon: float,
         moe_activation_fn: Callable[[torch.Tensor], torch.Tensor],
         score_experts_fn: Callable[[torch.Tensor], torch.Tensor],
         normalize_experts: bool,
-        add_residual: bool,
         route_scale: float,
         tensor_parallelism_size: int,
     ):
@@ -272,16 +272,22 @@ class MoeBlockTest(unittest.TestCase):
         from sharktank.layers import MoeBlock
 
         theta = make_random_moe_block_theta(
+            block_idx=0,
             in_dim=feature_dim,
             expert_hidden_dim=expert_hidden_dim,
             num_experts=num_experts,
             with_ffn_norm=False,
             num_shared_experts=num_shared_experts,
-            shared_expert_hidden_dim=shared_expert_hidden_dim,
             with_layer_output_norm=True,
-            dtype=dtype,
+            dtype_rest=dtype,
+            dtype_norm=dtype,
         )
-        theta_sharding_spec = MoeBlockSharding(shard_count=tensor_parallelism_size)
+        model_arch = "grok"
+        if num_shared_experts > 0:
+            model_arch = "deepseek2"
+        theta_sharding_spec = MoeBlockSharding(
+            shard_count=tensor_parallelism_size, model_arch=model_arch
+        )
         sharded_theta = reshard(theta, spec=theta_sharding_spec)
 
         block = MoeBlock(
@@ -294,7 +300,6 @@ class MoeBlockTest(unittest.TestCase):
             moe_activation=moe_activation_fn,
             score_experts=score_experts_fn,
             normalize_experts=normalize_experts,
-            add_residual=add_residual,
             route_scale=route_scale,
         )
         sharded_block = MoeBlock(
@@ -307,7 +312,6 @@ class MoeBlockTest(unittest.TestCase):
             moe_activation=moe_activation_fn,
             score_experts=score_experts_fn,
             normalize_experts=normalize_experts,
-            add_residual=add_residual,
             route_scale=route_scale,
         )
 

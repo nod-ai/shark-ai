@@ -5,10 +5,13 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from dataclasses import dataclass, fields
+from typing import Callable, List, Union
 from dataclasses_json import dataclass_json, Undefined
 from enum import Enum, auto
 
-from ..io_struct import DEFAULT_MAX_COMPLETION_TOKENS, DEFAULT_TEMPERATURE
+
+from ..io_struct import DEFAULT_MAX_COMPLETION_TOKENS, DEFAULT_TEMPERATURE, NOT_PROVIDED
+from ..messages import LlmInferenceExecRequest
 
 
 class LogitsNormalization(Enum):
@@ -39,8 +42,7 @@ def get_normalization_from_str(token_selection_strategy: str) -> LogitsNormaliza
 class TokenSelectionStrategy(Enum):
     """Supported token selection strategies."""
 
-    GREEDY = auto()
-    MULTI_GREEDY = auto()
+    INDEPENDENT = auto()
     BEAM_SEARCH = auto()
 
 
@@ -55,22 +57,13 @@ def get_strategy_from_str(token_selection_strategy: str) -> TokenSelectionStrate
     return name_to_strategy[strategy]
 
 
-def is_ref_counted(token_selection_strategy: TokenSelectionStrategy) -> bool:
-    return token_selection_strategy in {
-        TokenSelectionStrategy.MULTI_GREEDY,
-        TokenSelectionStrategy.BEAM_SEARCH,
-    }
-
-
 @dataclass_json(undefined=Undefined.RAISE)
-@dataclass
+@dataclass(kw_only=True)
 class DecodeConfig:
+    eos_token_id: int = 0
 
     # Number of beams to use during generation
     num_beams: int = 1
-
-    # Strategy for selecting tokens during generation
-    token_selection_strategy: str | TokenSelectionStrategy = "greedy"
 
     logits_normalization: LogitsNormalization = LogitsNormalization.NONE
 
@@ -80,19 +73,30 @@ class DecodeConfig:
     # Flatten or stretch logits to increase variability
     temperature: float = DEFAULT_TEMPERATURE
 
+    # Whether or not to use beam search during generation
+    use_beam_search: bool = False
+
     # Use `top_k` sampling strategy in decode loop
     top_k: int | None = None
 
     # Use `top_p` sampling strategy in decode loop
     top_p: int | None = None
 
-    def __post_init__(self):
-        if isinstance(self.token_selection_strategy, str):
-            self.token_selection_strategy = get_strategy_from_str(
-                self.token_selection_strategy
-            )
-
     def update_from_sampling_params(self, sampling_params):
         for field in fields(sampling_params):
+            if getattr(sampling_params, field.name) == NOT_PROVIDED:
+                continue
             if hasattr(self, field.name):
                 setattr(self, field.name, getattr(sampling_params, field.name))
+
+
+@dataclass
+class TokenSelectionStrategyConfig:
+    """Configuration for token selection strategies."""
+
+    decode_config: DecodeConfig
+    prefill_callback: Callable[[LlmInferenceExecRequest], None]
+    decode_callback: Callable[[LlmInferenceExecRequest], None]
+    decode_begin_callback: Callable[[int], None]
+    decode_end_callback: Callable[[int], None]
+    results_callback: Callable[[Union[int, List[int]]], None]

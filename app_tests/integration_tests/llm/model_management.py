@@ -11,7 +11,7 @@ from enum import Enum, auto
 
 from sharktank.utils.hf_datasets import Dataset, RemoteFile, get_dataset
 
-from . import device_settings
+from .device_settings import DeviceSettings
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +89,7 @@ class ModelConfig:
     tensor_parallelism_size: Optional[
         int
     ] = None  # Number of shards for tensor parallelism
+    top_k: Optional[int] = None
 
     def __post_init__(self):
         if self.source == ModelSource.HUGGINGFACE_FROM_GGUF:
@@ -191,8 +192,35 @@ _PREDEFINED_MODELS = {
         dataset_name="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
         model_file="model.irpa",  # This will be the final converted file name
         tokenizer_id="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
+        batch_sizes=(4, 8),
+        device_settings=None,
+    ),
+    "tinystories_llama2_25m_tp2": ModelConfig(
+        source=ModelSource.HUGGINGFACE_FROM_SAFETENSORS,
+        dataset_name="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
+        model_file="model.irpa",  # This will be the final converted file name
+        tokenizer_id="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
+        batch_sizes=(4, 8),
+        device_settings=None,
+        tensor_parallelism_size=2,  # Shard into 2 parts for tensor parallelism
+    ),
+    "tinystories_llama2_25m_gpu_argmax": ModelConfig(
+        source=ModelSource.HUGGINGFACE_FROM_SAFETENSORS,
+        dataset_name="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
+        model_file="model.irpa",  # This will be the final converted file name
+        tokenizer_id="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
         batch_sizes=(4,),
         device_settings=None,
+        top_k=1,
+    ),
+    "tinystories_llama2_25m_gpu_topk_k4": ModelConfig(
+        source=ModelSource.HUGGINGFACE_FROM_SAFETENSORS,
+        dataset_name="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
+        model_file="model.irpa",  # This will be the final converted file name
+        tokenizer_id="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
+        batch_sizes=(4,),
+        device_settings=None,
+        top_k=4,
     ),
 }
 
@@ -315,8 +343,7 @@ class ModelStageManager:
                     "-m",
                     "sharktank.tools.dump_gguf",
                     f"--gguf-file={gguf_path}",
-                    "--save",
-                    str(irpa_path),
+                    f"--output-irpa={str(irpa_path)}",
                 ],
                 check=True,
             )
@@ -476,6 +503,9 @@ class ModelStageManager:
             export_cmd.append(
                 f"--tensor-parallelism-size={self.config.tensor_parallelism_size}"
             )
+
+        if self.config.top_k is not None:
+            export_cmd.append(f"--top-k={self.config.top_k}")
 
         logger.info(f"Running export command: {' '.join(export_cmd)}")
 

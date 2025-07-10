@@ -6,13 +6,16 @@
 
 import unittest
 
+import math
 import numpy as np
+import pytest
 import torch
 import torch.nn.functional as F
 import iree.turbine.aot as aot
 from iree.turbine.aot import FxProgramsBuilder
 import iree.runtime
 import iree.compiler
+from parameterized import parameterized
 import safetensors
 from sharktank import ops
 from sharktank.types import *
@@ -30,42 +33,41 @@ from sharktank.utils.iree import (
 
 
 class ArgmaxTest(unittest.TestCase):
-    def testArgmax(self):
-        for dtype in [torch.float16, torch.float32]:
-            a = torch.zeros(1, 1, 256, dtype=dtype)
-            a[0][0][42] = 42
-            assert ops.argmax(a, -1) == 42
-
-    def testArgmaxDim0(self):
-        for dtype in [torch.float16, torch.float32]:
-            a = torch.zeros(3, 1, 256, dtype=dtype)
-            a[1][0][42] = 42
-            result = ops.argmax(a, 0)
-            assert result[0][42] == 1
-
-    def testArgmaxKeepdim(self):
-        for dtype in [torch.float16, torch.float32]:
-            a = torch.zeros(2, 4, dtype=dtype)
-            a[1][0] = 42
-            a[1][2] = 99
-            a[0][1] = 1
-            a[0][3] = 1
-            result = ops.argmax(a, 0, True)
-            expected = torch.tensor([[1, 0, 1, 0]], dtype=torch.int64)
-            assert result.shape == (1, 4)
-            assert torch.equal(result, expected)
-
-    def testSplitArgmax(self):
-        for dtype in [torch.float16, torch.float32]:
-            a = torch.zeros(1, 1, 256, dtype=dtype)
-            a[0][0][42] = 42
-            assert ops.argmax(a, -1, chunk_size=16) == 42
-
-    def testSplitArgmaxLarge(self):
-        a = torch.zeros(1, 1, 131072, dtype=torch.float16)
+    @parameterized.expand([torch.float16, torch.float32])
+    def testArgmax(self, dtype):
+        a = torch.zeros(1, 1, 256, dtype=dtype)
         a[0][0][42] = 42
-        result = ops.argmax(a, -1, chunk_size=128)
-        assert result == 42
+        assert ops.argmax(a, -1) == 42
+
+    @parameterized.expand([torch.float16, torch.float32])
+    def testArgmaxDim0(self, dtype):
+        a = torch.zeros(3, 1, 256, dtype=dtype)
+        a[1][0][42] = 42
+        result = ops.argmax(a, 0)
+        assert result[0][42] == 1
+
+    @parameterized.expand([torch.float16, torch.float32])
+    def testArgmaxKeepdim(self, dtype):
+        a = torch.zeros(2, 4, dtype=dtype)
+        a[1][0] = 42
+        a[1][2] = 99
+        a[0][1] = 1
+        a[0][3] = 1
+        result = ops.argmax(a, 0, True)
+        expected = torch.tensor([[1, 0, 1, 0]], dtype=torch.int64)
+        assert result.shape == (1, 4)
+        assert torch.equal(result, expected)
+
+    @parameterized.expand(
+        [
+            torch.float16,
+            torch.float32,
+        ]
+    )
+    def testSplitArgmax(self, dtype):
+        a = torch.zeros(1, 1, 256, dtype=dtype)
+        a[0][0][42] = 42
+        assert ops.argmax(a, -1, chunk_size=16) == 42
 
     def testSplitArgmaxDim0(self):
         for dtype in [torch.float16, torch.float32]:
@@ -85,6 +87,32 @@ class ArgmaxTest(unittest.TestCase):
             expected = torch.tensor([[1, 0, 1, 0]], dtype=torch.int64)
             assert result.shape == (1, 4)
             assert torch.equal(result, expected)
+
+    @parameterized.expand(
+        [
+            ([4, 32, 131072], torch.float16),
+            ([4, 32, 131072], torch.float32),
+            ([32, 1, 131072], torch.float16),
+            ([32, 1, 131072], torch.float32),
+        ]
+    )
+    def testSplitArgmaxRandom(self, shape, dtype):
+        a = torch.rand(*shape, dtype=dtype)
+        expected = torch.argmax(a, -1)
+        result = ops.argmax(a, -1, chunk_size=128)
+        assert torch.equal(expected, result)
+
+    def testSplitArgmaxRandomDim0(self):
+        a = torch.rand(4, 32, 131072, dtype=torch.float16)
+        expected = torch.argmax(a, 0)
+        result = ops.argmax(a, 0, chunk_size=2)
+        assert torch.equal(expected, result)
+
+    def testSplitArgmaxInvalidChunkSize(self):
+        a = torch.rand(4, 32, 100, dtype=torch.float32)
+
+        with pytest.raises(ValueError):
+            ops.argmax(a, 0, chunk_size=42)
 
 
 class BroadcastDimsTest(unittest.TestCase):
@@ -279,6 +307,26 @@ class MatmulTest(unittest.TestCase):
     # TODO: mmt_super_block_scaled_offset_q4_unsigned
 
 
+class InvertTest(unittest.TestCase):
+    def testInvertPrimitiveTensor(self):
+        tensor = torch.rand(2, 3).bool()
+        expected_result = ~tensor
+        actual_result = ~DefaultPrimitiveTensor(data=tensor)
+        assert ops.equal(actual_result, expected_result)
+
+    def testInvertReplicatedTensor(self):
+        tensor = torch.rand(2, 3).bool()
+        expected_result = ~tensor
+        actual_result = ~ReplicatedTensor(ts=tensor, shard_count=2)
+        assert ops.equal(actual_result, expected_result)
+
+    def testInvertSplitTensor(self):
+        tensor = torch.rand(2, 3).bool()
+        expected_result = ~tensor
+        actual_result = ~SplitPrimitiveTensor(ts=tensor, shard_dim=0, shard_count=2)
+        assert ops.equal(actual_result, expected_result)
+
+
 class PermuteTest(unittest.TestCase):
     def testPermute(self):
         torch_tensor = torch.rand(3, 4, 5, dtype=torch.float32)
@@ -397,6 +445,102 @@ class TestScatterAdd(unittest.TestCase):
         assert ops.equal(actual, expected)
 
 
+class TestTopK(unittest.TestCase):
+    @parameterized.expand(
+        [
+            (-1, 4, True, True, (1, 1, 256), 16, False),
+            (-1, 4, True, True, (1, 1, 256), 8, False),
+            (-1, 8, True, True, (1, 1, 256), 16, False),
+            (-1, 4, False, True, (1, 1, 256), 16, False),
+            (-1, 4, False, False, (1, 1, 256), 16, False),
+            (-1, 2, True, True, (2, 1, 6), 3, False),
+            (-1, 4, True, False, (1, 1, 64), 8, True),
+        ]
+    )
+    def testSplitTopKLastDim(
+        self, dim, k, largest, _sorted, shape, chunk_size, use_linalgext_topk
+    ):
+        numels = math.prod(shape)
+        tensor = torch.arange(numels) * 173 + 129
+        tensor = tensor % numels
+        tensor = tensor.to(torch.float16).view(shape)
+
+        values_expected, index_expected = torch.topk(tensor, k, dim, largest, _sorted)
+
+        values, index = ops.topk(
+            tensor,
+            k,
+            dim,
+            largest,
+            _sorted,
+            chunk_size=chunk_size,
+            use_linalgext_topk=use_linalgext_topk,
+        )
+
+        if _sorted is False:
+            values = torch.sort(values).values
+            values_expected = torch.sort(values_expected).values
+
+        torch.testing.assert_close(values, values_expected)
+        index = index.to(torch.int64)
+
+        values_from_indices = torch.gather(tensor, -1, index=index)
+        values_from_indices_expected = torch.gather(tensor, -1, index=index_expected)
+
+        if _sorted is False:
+            values_from_indices = torch.sort(values_from_indices).values
+            values_from_indices_expected = torch.sort(
+                values_from_indices_expected
+            ).values
+
+        torch.testing.assert_close(values_from_indices, values_from_indices_expected)
+
+    @parameterized.expand(
+        [
+            (0, 2, True, True, (4, 1, 8), 2),
+            (0, 2, False, True, (4, 1, 8), 2),
+            (0, 2, False, False, (4, 1, 8), 2),
+            (0, 2, True, False, (4, 1, 8), 2),
+            (0, 3, True, True, (6, 2, 12), 3),
+            (0, 4, True, True, (8, 3, 24), 4),
+        ]
+    )
+    def testSplitTopKDim0(self, dim, k, largest, _sorted, shape, chunk_size):
+        numels = math.prod(shape)
+        tensor = torch.arange(numels) * 173 + 129
+        tensor = tensor % numels
+        tensor = tensor.to(torch.float16).view(shape)
+
+        values_expected, index_expected = torch.topk(tensor, k, dim, largest, _sorted)
+
+        values, index = ops.topk(
+            tensor, k, dim, largest, _sorted, chunk_size=chunk_size
+        )
+
+        if not _sorted:
+            values = torch.sort(values, dim=dim).values
+            values_expected = torch.sort(values_expected, dim=dim).values
+
+        torch.testing.assert_close(values, values_expected)
+
+        # Duplicate values may cause differences in indices
+        index_slices = [slice(None)] * tensor.ndim
+        index_slices[dim] = index[0, 0]
+        values_from_indices = tensor[tuple(index_slices)]
+
+        index_slices_expected = [slice(None)] * tensor.ndim
+        index_slices_expected[dim] = index_expected[0, 0]
+        values_from_indices_expected = tensor[tuple(index_slices_expected)]
+
+        if not _sorted:
+            values_from_indices = torch.sort(values_from_indices, dim=dim).values
+            values_from_indices_expected = torch.sort(
+                values_from_indices_expected, dim=dim
+            ).values
+
+        torch.testing.assert_close(values_from_indices, values_from_indices_expected)
+
+
 class TestTraceTensors(TempDirTestBase):
     def setUp(self):
         super().setUp()
@@ -482,8 +626,8 @@ class TestTraceTensors(TempDirTestBase):
             debug_sink = iree.runtime.HalModuleDebugSink(
                 iree_buffere_view_trace_callback
             )
-            iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
-                module_path=iree_module_path,
+            iree_module, iree_vm_context, _ = load_iree_module(
+                module_path=str(iree_module_path),
                 devices=iree_devices,
                 debug_sink=debug_sink,
             )
@@ -543,6 +687,35 @@ class TestTraceTensors(TempDirTestBase):
             assert len(f.keys()) == 1
             recorded_tensor = f.get_tensor("")
         torch.testing.assert_close(recorded_tensor, tensor, rtol=0, atol=0)
+
+
+class ConvTest(unittest.TestCase):
+    def testConv2d(self):
+        # Random input tensor: batch size = 1, channels = 1, height = 5, width = 5
+        input = torch.rand(1, 1, 5, 5)
+        # Random kernel: out_channels = 1, in_channels = 1, kernel_size = 3x3
+        weight = torch.rand(1, 1, 3, 3)
+        result = ops.conv2d(input, weight)
+        expected = torch.conv2d(input, weight)
+        torch.testing.assert_close(result, expected)
+
+    def testConv3d(self):
+        # Random input tensor: batch size = 1, channels = 1, depth = 4, height = 4, width = 4
+        input = torch.rand(1, 1, 4, 4, 4)
+        # Random kernel: out_channels = 1, in_channels = 1, kernel_size = 2x2x2
+        weight = torch.rand(1, 1, 2, 2, 2)
+        result = ops.conv3d(input, weight)
+        expected = torch.conv3d(input, weight)
+        torch.testing.assert_close(result, expected)
+
+    def testConv1d(self):
+        # Random input tensor: batch size = 1, channels = 1, width = 10
+        input = torch.rand(1, 1, 10)
+        # Random kernel: out_channels = 1, in_channels = 1, kernel_size = 3
+        weight = torch.rand(1, 1, 3)
+        result = ops.conv1d(input, weight)
+        expected = torch.conv1d(input, weight)
+        torch.testing.assert_close(result, expected)
 
 
 if __name__ == "__main__":

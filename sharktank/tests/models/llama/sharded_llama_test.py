@@ -14,20 +14,20 @@ import numpy as np
 import torch
 
 from sharktank.layers.configs.llm_configs import *
-from sharktank.types import Dataset, UnreducedTensor, SplitPrimitiveTensor
 from sharktank.models.llm import *
 from sharktank.models.llama.testing import make_random_llama_theta
-from sharktank.models.llama.sharding import shard_theta
+from sharktank.types import Dataset, UnreducedTensor, SplitPrimitiveTensor
+from sharktank.types.sharding import shard_theta
 import sharktank.ops as ops
 
 from sharktank.utils.testing import (
     assert_cosine_similarity_close,
-    get_iree_compiler_flags,
     is_hip_condition,
 )
 from sharktank.utils.math import round_up_to_multiple_of
 from sharktank.utils import iterables_equal
 from sharktank.utils.iree import (
+    get_iree_compiler_flags_from_object,
     with_iree_device_context,
     get_iree_devices,
     load_iree_module,
@@ -42,7 +42,7 @@ from iree.turbine.aot import FxProgramsBuilder, export
 import iree
 
 
-@pytest.mark.usefixtures("caching", "path_prefix", "get_iree_flags")
+@pytest.mark.usefixtures("caching", "path_prefix", "iree_flags")
 class ShardedLlamaTest(unittest.TestCase):
     def setUp(self):
         torch.random.manual_seed(123456)
@@ -87,6 +87,8 @@ class ShardedLlamaTest(unittest.TestCase):
         self.theta = make_random_llama_theta(
             config=self.config,
             vocab_size=self.vocabulary_size,
+            dtype_rest=self.dtype,
+            dtype_norm=self.dtype,
         )
         self.prefill_seq_lens = torch.tensor(
             [14, 9, self.block_seq_stride - 1], dtype=torch.int64
@@ -232,11 +234,9 @@ class ShardedLlamaTest(unittest.TestCase):
             sharded_prefill_result, expected_prefill_result, atol=1e-3, rtol=1e-2
         )
         expected_cache_state = prefill_kwargs["cache_state"][0]
-        actual_cache_state = ops.unshard(
-            sharded_model.cache.unflatten_page_tables(
-                sharded_prefill_kwargs["cache_state"]
-            )[0]
-        ).flatten(start_dim=1)
+        actual_cache_state = sharded_model.cache.unshard_state(
+            sharded_prefill_kwargs["cache_state"]
+        )[0].flatten(start_dim=1)
         torch.testing.assert_close(
             actual_cache_state, expected_cache_state, atol=1e-4, rtol=1e-1
         )
@@ -253,11 +253,9 @@ class ShardedLlamaTest(unittest.TestCase):
             sharded_decode_result, expected_decode_result, atol=1e-4, rtol=1e-5
         )
         expected_decode_cache_state = decode_kwargs["cache_state"][0]
-        actual_decode_cache_state = ops.unshard(
-            sharded_model.cache.unflatten_page_tables(
-                sharded_decode_kwargs["cache_state"]
-            )[0]
-        ).flatten(start_dim=1)
+        actual_decode_cache_state = sharded_model.cache.unshard_state(
+            sharded_decode_kwargs["cache_state"]
+        )[0].flatten(start_dim=1)
         # TODO: investigate why the Windows machine CI is producing a larger numerical
         # error.
         # The Ubuntu CI runs fine with default tolerances.
@@ -295,6 +293,7 @@ class ShardedLlamaTest(unittest.TestCase):
         sharded_parameters_path = f"{path_prefix}parameters.irpa"
         sharded_dataset.save(sharded_parameters_path)
         sharded_dataset = Dataset.load(sharded_parameters_path, mmap=False)
+        shard_count = self.sharded_config.tensor_parallelism_size
 
         model = PagedLlmModelV1(self.theta, self.config)
         sharded_model = PagedLlmModelV1(sharded_dataset.root_theta, self.sharded_config)
@@ -337,9 +336,7 @@ class ShardedLlamaTest(unittest.TestCase):
             if dump_enabled:
                 output.save_mlir(f"{path_prefix}program.mlir")
             output.session.set_flags(
-                *get_iree_compiler_flags(
-                    self, self.sharded_config.tensor_parallelism_size
-                )
+                *get_iree_compiler_flags_from_object(self, shard_count)
             )
             output.compile(
                 save_to=iree_module_path,
@@ -361,7 +358,7 @@ class ShardedLlamaTest(unittest.TestCase):
 
         iree_devices = get_iree_devices(
             device=self.iree_device,
-            device_count=self.sharded_config.tensor_parallelism_size,
+            device_count=shard_count,
         )
 
         def run_iree_module(iree_devices: list[iree.runtime.HalDevice]):
@@ -369,6 +366,7 @@ class ShardedLlamaTest(unittest.TestCase):
                 module_path=iree_module_path,
                 devices=iree_devices,
                 parameters_path=sharded_parameters_path,
+                tensor_parallel_size=shard_count,
             )
 
             # Run prefill step.
@@ -441,14 +439,12 @@ class ShardedLlamaTest(unittest.TestCase):
             atol=atol,
         )
 
-        actual_prefill_cache_state = ops.unshard(
-            sharded_model.cache.unflatten_page_tables([prefill_iree_cache_state])[0]
-        )
-        expected_prefill_cache_state = ops.unshard(
-            sharded_model.cache.unflatten_page_tables(
-                sharded_prefill_kwargs["cache_state"]
-            )[0]
-        )
+        actual_prefill_cache_state = sharded_model.cache.unshard_state(
+            [prefill_iree_cache_state]
+        )[0]
+        expected_prefill_cache_state = sharded_model.cache.unshard_state(
+            sharded_prefill_kwargs["cache_state"]
+        )[0]
         assert_cosine_similarity_close(
             actual_prefill_cache_state, expected_prefill_cache_state, dim=-1, atol=atol
         )
@@ -460,14 +456,12 @@ class ShardedLlamaTest(unittest.TestCase):
             atol=atol,
         )
 
-        actual_decode_cache_state = ops.unshard(
-            sharded_model.cache.unflatten_page_tables([decode_iree_cache_state])[0]
-        )
-        expected_decode_cache_state = ops.unshard(
-            sharded_model.cache.unflatten_page_tables(
-                sharded_decode_kwargs["cache_state"]
-            )[0]
-        )
+        actual_decode_cache_state = sharded_model.cache.unshard_state(
+            [decode_iree_cache_state]
+        )[0]
+        expected_decode_cache_state = sharded_model.cache.unshard_state(
+            sharded_decode_kwargs["cache_state"]
+        )[0]
         assert_cosine_similarity_close(
             actual_decode_cache_state, expected_decode_cache_state, dim=-1, atol=atol
         )

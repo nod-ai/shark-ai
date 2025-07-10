@@ -4,6 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import math
 import unittest
 from sharktank.layers import PagedAttention
 import torch
@@ -68,11 +69,13 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
         cache_state: List[torch.Tensor],
         sharded_cache_state: List[SplitPrimitiveTensor],
     ):
-        sharded_state_as_unsharded = ops.unshard(
-            self.sharded_cache.unflatten_page_tables(sharded_cache_state)[0]
-        ).flatten(start_dim=1)
+        cache_state = self.cache.unshard_state(cache_state)[0]
+        sharded_state_as_unsharded = self.sharded_cache.unshard_state(
+            sharded_cache_state
+        )[0]
+        assert sharded_state_as_unsharded.shape == cache_state.shape
         assert ops.equal(
-            cache_state[0],
+            cache_state,
             sharded_state_as_unsharded,
         )
 
@@ -84,21 +87,6 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
         assert iterables_equal(cache_state[0].shape, sharded_cache_state[0].shape)
         assert sharded_cache_state[0].shard_dim == 1
         assert sharded_cache_state[0].shard_count == self.shard_count
-
-    def testUnflattenPageTable(self):
-        cache_state = self.cache.allocate(self.page_count)
-        sharded_cache_state = self.sharded_cache.allocate(self.page_count)
-
-        unflattened_cache_state = self.cache.unflatten_page_tables(cache_state)[0]
-        sharded_unflattened_cache_state = self.sharded_cache.unflatten_page_tables(
-            sharded_cache_state
-        )[0]
-        assert iterables_equal(
-            unflattened_cache_state.shape, sharded_unflattened_cache_state.shape
-        )
-        assert sharded_unflattened_cache_state.shard_dim == 4
-        assert sharded_unflattened_cache_state.shard_count == self.shard_count
-        assert sharded_unflattened_cache_state.shape[0] == self.page_count
 
     def testRead(self):
         (
@@ -211,6 +199,67 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
             transformer_block_index=transformer_block_index,
             page_ids=sharded_page_ids,
         )
+        self.assert_equal_unsharded_and_sharded_cache_states(
+            cache_state, sharded_cache_state
+        )
+
+    def testWriteRange(self):
+        (
+            cache_state,
+            sharded_cache_state,
+        ) = self.make_unsharded_and_sharded_equal_cache_states()
+
+        write_seq_len = 10
+        cache_partitions = [
+            torch.rand(
+                self.batch_size,
+                write_seq_len,
+                self.attn_head_count,
+                self.attn_head_dim,
+            )
+            for _ in range(self.cache_partition_count)
+        ]
+
+        transformer_block_index = 1
+        seq_positions = torch.full(
+            (self.batch_size,), self.block_seq_len - 1, dtype=torch.int64
+        )
+
+        # Compute max logical page index needed
+        max_token_index = seq_positions.max().item() + write_seq_len
+        needed_pages = math.ceil(max_token_index / self.block_seq_stride)
+
+        # Generate sufficient page_ids to cover all required logical pages
+        assert self.batch_size * needed_pages <= self.page_count
+        page_ids = torch.randperm(self.batch_size * needed_pages).reshape(
+            self.batch_size, needed_pages
+        )
+
+        self.cache.write_range(
+            state=cache_state,
+            cache_partitions=cache_partitions,
+            transformer_block_index=transformer_block_index,
+            seq_positions=seq_positions,
+            page_ids=page_ids,
+        )
+
+        sharded_cache_partitions = deepcopy(
+            [
+                ops.reshard_split(t, dim=2, count=self.shard_count)
+                for t in cache_partitions
+            ]
+        )
+        sharded_seq_positions = ops.replicate(seq_positions, count=self.shard_count)
+        sharded_page_ids = ops.replicate(page_ids, count=self.shard_count)
+
+        self.sharded_cache.write_range(
+            state=sharded_cache_state,
+            cache_partitions=sharded_cache_partitions,
+            transformer_block_index=transformer_block_index,
+            seq_positions=sharded_seq_positions,
+            page_ids=sharded_page_ids,
+        )
+
         self.assert_equal_unsharded_and_sharded_cache_states(
             cache_state, sharded_cache_state
         )

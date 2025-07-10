@@ -9,14 +9,13 @@ import pytest
 from unittest.mock import patch
 from uuid import uuid4
 
+from shortfin.support.status_tracker import AbstractStatusTracker
 from shortfin_apps.llm.components.messages import (
     LlmInferenceExecRequest,
     InferencePhase,
 )
 from shortfin_apps.llm.components.token_selection_strategy import (
-    BaseTokenSelectionStrategy,
     DecodeConfig,
-    TokenSelectionStrategyConfig,
 )
 
 
@@ -36,33 +35,22 @@ def exec_req():
     with patch(
         "shortfin_apps.llm.components.messages.sf.VoidFuture", new=MockVoidFuture
     ):
+
+        class MockStatusTracker(AbstractStatusTracker):
+            def __init__(self):
+                pass
+
+            def is_disconnected(self):
+                return False
+
         yield LlmInferenceExecRequest(
             phase=InferencePhase.PREFILL,
             input_token_ids=[0, 1, 2, 3, 4, 5],
             rid=str(uuid4()),
+            status_tracker=MockStatusTracker(),
         )
 
 
 @pytest.fixture(scope="function")
 def decode_config():
     yield DecodeConfig()
-
-
-class DummyTokenSelectionStrategy(BaseTokenSelectionStrategy):
-    def __init__(self, token_selection_strategy_config: TokenSelectionStrategyConfig):
-        # Initialize with a dummy config instance.
-        self._token_selection_strategy_config = token_selection_strategy_config
-
-    @property
-    def token_selection_strategy_config(self):
-        return self._token_selection_strategy_config
-
-    async def decode(self, exec_req):
-        pass
-
-
-@pytest.fixture(scope="module")
-def dummy_token_selection_strategy():
-    yield DummyTokenSelectionStrategy(
-        None,
-    )

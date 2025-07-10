@@ -4,35 +4,36 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import Any, Optional
+from typing import Optional
 import time
 import random
 import re
+import math
 from datetime import timedelta
-import numpy as np
 from datasets import load_dataset
 
 import torch
 
 
 def compute_perplexity(
-    token_ids: torch.tensor, logits: torch.tensor, start: int
+    token_ids: torch.tensor, logits: torch.tensor, start: int, end: int
 ) -> list[float]:
 
     """Compute perplexity for predicted logits and groundtruth tokens.
     Args:
           token_ids: Token ids of input prompts (groundtruth)
           logits: Output logits from an LLM
-          start: Index of the first input token to prefill
+          start: Index of the last input token to prefill
+          end: Index of the last token that was processed by decode
     Returns:
           Dictionary of list of perplexities per prompt and
     """
 
     attention_mask = (token_ids != 0).int().detach().clone().to(token_ids.device)
 
-    logits = logits[..., : -(start + 1), :].contiguous()
-    token_ids = token_ids[..., start + 1 :].contiguous()
-    attention_mask = attention_mask[..., start + 1 :].contiguous()
+    logits = logits[..., start + 1 : end + 1, :].contiguous()
+    token_ids = token_ids[..., start + 1 : end + 1].contiguous()
+    attention_mask = attention_mask[..., start + 1 : end + 1].contiguous()
 
     assert (
         token_ids.shape == logits.shape[0:2]
@@ -48,6 +49,15 @@ def compute_perplexity(
     perplexity_batch = torch.exp(crossentropy_loss / attention_mask.sum(1)).tolist()
     perplexity_batch = [round(ppl, 6) for ppl in perplexity_batch]
     return perplexity_batch
+
+
+def get_token_ids():
+    return [
+        [3, 4, 5, 56, 76, 23, 2, 65, 49, 3, 98],
+        [4, 65, 49, 32, 98, 5, 2, 23, 13, 58, 9],
+        [5, 2, 23, 13, 58, 9, 3, 4, 5, 56, 76],
+        [3, 4, 5, 65, 49, 32, 98, 5, 2, 23, 13],
+    ]
 
 
 def get_prompts(num_prompts: Optional[int] = None) -> list[str]:
@@ -76,6 +86,40 @@ def get_prompts(num_prompts: Optional[int] = None) -> list[str]:
         test_prompts = test_prompts[0:num_prompts]
 
     return test_prompts
+
+
+def get_prompt_lengths(
+    token_ids: list[list[int]],
+):
+    max_length = 0
+    lengths: list[int] = []
+    for row in token_ids:
+        lengths.append(len(row))
+        max_length = max(max_length, len(row))
+
+    return lengths, max_length
+
+
+def pad_tokens(
+    token_ids: list[list[int]],
+    pad_to_multiple_of: int,
+    pad_token: int = 0,
+    device: torch.device | None = None,
+) -> tuple[list[list[int]] | torch.Tensor, list[int] | torch.Tensor]:
+    lengths, max_length = get_prompt_lengths(token_ids)
+    if pad_to_multiple_of > 1:
+        max_length = int(
+            pad_to_multiple_of * math.ceil(max_length / pad_to_multiple_of)
+        )
+    for row in token_ids:
+        pad_count = max_length - len(row)
+        row.extend(pad_count * [pad_token])
+
+    if device is not None:
+        token_ids = torch.tensor(token_ids, device=device)
+        lengths = torch.tensor(lengths, device=device)
+
+    return token_ids, lengths
 
 
 def timeit(func):

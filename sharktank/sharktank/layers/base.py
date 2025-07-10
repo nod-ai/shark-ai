@@ -28,6 +28,7 @@ __all__ = [
     "create_model",
     "get_model_type_id",
     "model_registry",
+    "register_all_models",
 ]
 
 logger = logging.getLogger(__name__)
@@ -131,7 +132,7 @@ class BaseLayer(nn.Module, metaclass=BaseLayerMetaClass):
 
     def set_recursively_submodules_default_trace_tensor_key_prefix(self):
         """All submodules get a trace key prefix that reflects their nesting with
-        respect to the parent module.
+        respect to the parent modules.
 
         Example:
         ```
@@ -151,16 +152,17 @@ class BaseLayer(nn.Module, metaclass=BaseLayerMetaClass):
 
 
         a = A()
+        a.trace_tensor_key_prefix = "top."
         a.set_recursively_submodules_default_trace_tensor_key_prefix()
         ```
 
         This will result in trace key prefixes
-        a -> ""
-        a.b -> "b."
-        a.b.c -> "b.c."
+        a -> "top."
+        a.b -> "top.b."
+        a.b.c -> "top.b.c."
 
         The trace_tensor method call in C.forward will result in a trace with key
-        "b.c.x".
+        "top.b.c.x".
         """
         _set_recursively_submodules_default_trace_tensor_key_prefix(
             self, self.trace_tensor_key_prefix
@@ -182,6 +184,17 @@ class BaseLayer(nn.Module, metaclass=BaseLayerMetaClass):
         key: str,
         tensors: Dict[str, torch.Tensor] | list[torch.Tensor] | torch.Tensor,
     ):
+        """Trace tensor(s) prefixed by this module's key prefix.
+
+        You can use `set_recursively_submodules_default_trace_tensor_key_prefix` on
+        your top level module to specify a key prefix for it and all its nested
+        submodules.
+
+        See:
+        sharktank.layers.BaseLayer.trace_tensor_key_prefix
+        sharktank.layers.BaseLayer.set_recursively_submodules_default_trace_tensor_key_prefix
+        sharktank.ops.trace_tensor
+        """
         debugging.trace_tensor(f"{self.trace_tensor_key_prefix}{key}", tensors)
 
     def assert_not_nan(self, *ts: torch.Tensor):
@@ -284,6 +297,8 @@ class BaseLayer(nn.Module, metaclass=BaseLayerMetaClass):
         if output_path is None:
             raise ValueError("Missing compile output path.")
 
+        self._save_compile_command(Path(output_path))
+
         from iree.compiler import compile_file
 
         compile_file(
@@ -307,6 +322,26 @@ class BaseLayer(nn.Module, metaclass=BaseLayerMetaClass):
             or self.default_export_batch_sizes
             for export_function in export_functions
         }
+
+    def _save_compile_command(self, module_path: Path):
+        from iree.compiler.tools.core import build_compile_command_line
+        from iree.compiler import TempFileSaver, CompilerOptions
+
+        with TempFileSaver.implicit() as tfs:
+            options = CompilerOptions(
+                output_file=str(module_path), extra_args=self.config.get_compile_args()
+            )
+            compile_command = build_compile_command_line(
+                input_file=str(self.config.mlir_path), tfs=tfs, options=options
+            )
+        compile_command_file = (
+            module_path.parent / f"{module_path.stem}-compile-command"
+        )
+        with open(compile_command_file, "w") as f:
+            f.write(compile_command[0])
+            for arg in compile_command[1:]:
+                f.write(f" {arg}")
+            f.write("\n")
 
 
 class ThetaLayer(BaseLayer):

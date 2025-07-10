@@ -35,6 +35,7 @@ __all__ = [
     "Dataset",
     "flat_to_nested_dict",
     "load_properties",
+    "PropertyValueType",
     "Theta",
     "torch_module_to_theta",
     "mark_export_external_theta",
@@ -121,9 +122,28 @@ class Theta:
         accum = {}
         key_list = list(flat.keys())
         for key in key_list:
-            if key.startswith(name_path):
+            if name_path in key:
                 accum[key] = flat.pop(key)
         self._tree = flat_to_nested_dict(flat)
+        return Theta(flat_to_nested_dict(accum))
+
+    def match_subpath(self, *name_path: str | int, inplace: bool = True) -> "Theta":
+        """
+        prune a subtree from the tree and return it as a new Theta object
+        Args:
+            name_path: layer name
+            inplace: dictates if original theta is altered or not
+        """
+        name_path = ".".join(_norm_name_path(name_path))
+        flat = self.flatten()
+        accum = {}
+        key_list = list(flat.keys())
+        for key in key_list:
+            if name_path in key:
+                accum[key] = flat.pop(key)
+        if inplace:
+            # overwrites original theta
+            self._tree = flat_to_nested_dict(flat)
         return Theta(flat_to_nested_dict(accum))
 
     def flatten(self) -> dict[str, InferenceTensor]:

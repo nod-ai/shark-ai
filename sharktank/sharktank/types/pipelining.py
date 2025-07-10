@@ -23,11 +23,13 @@ from typing import Tuple
 
 def pipeline_parallelize_theta(
     theta: Theta, pipeline_parallelism_size: int
-) -> tuple[tuple[int, ...], tuple[list[int], ...]]:
+) -> tuple[list[int] | None, list[list[int]] | None]:
     """
     Pipeline parallelize theta for LLM.
     Both DeepSeek and Llama.
     """
+    if pipeline_parallelism_size == 1:
+        return None, None
 
     def parallelize_in_place(
         block_data: dict[str, ShardedTensor | PrimitiveTensor],
@@ -64,7 +66,7 @@ def pipeline_parallelize_theta(
         )
 
     _t = theta.tensor("token_embd")["weight"]
-    shard_count = 1 if isinstance(_t, DefaultPrimitiveTensor) else _t.shard_count
+    shard_count = _t.shard_count if isinstance(_t, ShardedTensor) else 1
 
     block_indices = theta.tensor("blk").keys()
     block_count = len(block_indices)
@@ -93,4 +95,4 @@ def pipeline_parallelize_theta(
     parallelize_in_place(theta.tensor("output_norm"), pipeline_to_devices[-1])
     parallelize_in_place(theta.tensor("output"), pipeline_to_devices[-1])
 
-    return tuple(block_to_pipeline), tuple(pipeline_to_devices)
+    return block_to_pipeline, pipeline_to_devices
