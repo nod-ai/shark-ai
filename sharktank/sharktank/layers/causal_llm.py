@@ -158,7 +158,7 @@ class BaseCausalLMModel(ThetaLayer):
             # TODO: handle decode step
             start_index=start_index,
             end_index=end_index,
-        )
+        ).to(attention_mask.device)
 
         return torch.where(
             chunked_boolean_attention_mask,
