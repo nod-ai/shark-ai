@@ -21,7 +21,7 @@ To re-run failed tests verbosely:
 ctest --test-dir build --rerun-failed --output-on-failure
 ```
 
-### Code coverage:
+### Code coverage (using gcov + lcov):
 
 This works with gcc builds (clang support is future work).
 
