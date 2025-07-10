@@ -443,9 +443,10 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         """Update the pages in the local page pool for the requests."""
         for req in self.exec_requests:
             if req.allocation is not None:
-                num_updated_pages = await req.allocation.update_pages(
-                    device=self.device0, token_ids=req.input_token_ids
-                )
+                num_updated_pages = 0
+                # num_updated_pages = await req.allocation.update_pages(
+                #    device=self.device0, token_ids=req.input_token_ids
+                # )
                 if num_updated_pages > 0:
                     logger.debug(
                         "Updated %d pages for request %s, allocation: %s",
@@ -461,74 +462,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
             # write back pages to mooncake
             logger.debug("Writing back pages for request %s", req)
             if req.allocation is not None:
-                num_stored_pages = await req.allocation.write_back_pages(
-                    device=self.device0, token_ids=req.input_token_ids
-                )
-                logger.debug("Successfully wrote back pages for request %s", req)
-                if num_stored_pages > 0:
-                    logger.debug(
-                        "Wrote back %d pages for request %s, allocation: %s",
-                        num_stored_pages,
-                        req,
-                        req.allocation,
-                    )
-
-    async def update_pages(self):
-        """Update the pages in the local page pool for the requests."""
-        for req in self.exec_requests:
-            if req.allocation is not None:
-                num_updated_pages = await req.allocation.update_pages(
-                    device=self.device0, token_ids=req.input_token_ids
-                )
-                if num_updated_pages > 0:
-                    logger.debug(
-                        "Updated %d pages for request %s, allocation: %s",
-                        num_updated_pages,
-                        req,
-                        req.allocation,
-                    )
-
-    async def write_back_pages(self):
-        """Write back the pages in the local page pool for the requests."""
-        for req in self.exec_requests:
-            req.done.set_success()
-            # write back pages to mooncake
-            logger.debug("Writing back pages for request %s", req)
-            if req.allocation is not None:
-                num_stored_pages = await req.allocation.write_back_pages(
-                    device=self.device0, token_ids=req.input_token_ids
-                )
-                logger.debug("Successfully wrote back pages for request %s", req)
-                if num_stored_pages > 0:
-                    logger.debug(
-                        "Wrote back %d pages for request %s, allocation: %s",
-                        num_stored_pages,
-                        req,
-                        req.allocation,
-                    )
-
-    async def update_pages(self):
-        """Update the pages in the local page pool for the requests."""
-        for req in self.exec_requests:
-            if req.allocation is not None:
-                num_updated_pages = await req.allocation.update_pages(
-                    device=self.device0, token_ids=req.input_token_ids
-                )
-                if num_updated_pages > 0:
-                    logger.debug(
-                        "Updated %d pages for request %s, allocation: %s",
-                        num_updated_pages,
-                        req,
-                        req.allocation,
-                    )
-
-    async def write_back_pages(self):
-        """Write back the pages in the local page pool for the requests."""
-        for req in self.exec_requests:
-            req.done.set_success()
-            # write back pages to mooncake
-            logger.debug("Writing back pages for request %s", req)
-            if req.allocation is not None:
+                num_stored_pages = 0
                 num_stored_pages = await req.allocation.write_back_pages(
                     device=self.device0, token_ids=req.input_token_ids
                 )

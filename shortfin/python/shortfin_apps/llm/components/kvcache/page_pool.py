@@ -177,7 +177,8 @@ class PagePool:
         host_page_table = page_table.for_transfer()
         host_page = host_page_table.view(page.index)
         device_page = page_table.view(page.index)
-        host_page.copy_from(device_page)
+        with self._lock:
+            host_page.copy_from(device_page)
         return host_page.items
 
     def update_device_page(self, device_id, page: PageInfo, data: List[int]) -> None:
@@ -196,7 +197,8 @@ class PagePool:
         device_page = page_table.view(page.index)
         with host_page.map(discard=True) as m:
             m.items = data
-        device_page.copy_from(host_page)
+        with self._lock:
+            device_page.copy_from(host_page)
 
 
 ############################## begin radix attention

@@ -131,9 +131,7 @@ class MooncakePagedAllocation(PageAllocation):
         tokens_per_page = self.cache.tokens_per_page
         number_of_pages = math.ceil(len(token_ids) / tokens_per_page)
         # copy pages from the device
-        device_name = (
-            device.fiber.device_names[0] if device.fiber.device_names else "unknown"
-        )
+        device_id = 0
         device_id = get_device_id(device)
 
         logger.debug(
@@ -142,6 +140,8 @@ class MooncakePagedAllocation(PageAllocation):
         keys = []
         values = []
 
+        mooncake_store = self.cache.mooncake_store
+        start = time.perf_counter()
         for i in range(number_of_pages):
             start_index = i * tokens_per_page
             end_index = min((i + 1) * tokens_per_page, len(token_ids))
@@ -149,26 +149,28 @@ class MooncakePagedAllocation(PageAllocation):
             if not page_tokens:
                 logger.warning(f"Skipping empty page for tokens: {page_tokens}")
                 continue
+            if i >= len(self.pages):
+                continue
             page_info = self.pages[i]
             # Get the page from the page pool
             value = page_pool.transfer_page_to_host(device_id=device_id, page=page_info)
+            logger.debug(f"Copied {i+1} pages from device to the host memory")
             if not value:
-                logger.error(f"Failed to get page for tokens: {page_tokens}")
+                logger.debug(f"Failed to get page for tokens: {page_tokens}")
                 continue
 
             # Convert token ids to key
             key = token_ids_to_key(page_tokens)
             keys.append(key)
-            values.append(value)
+            mooncake_store.put_int_list(key, value)
             if store_local:
                 self._last_written_back_values.append((key, value))
+            end = time.perf_counter()
+            if end - start > 1:
+                break
 
         await device
 
-        mooncake_store = self.cache.mooncake_store
-        for key, value in zip(keys, values):
-            logger.debug(f"Writing back page to Mooncake store with key: {key}")
-            mooncake_store.put_int_list(key, value)
         logger.info(f"Successfully wrote back {len(keys)} pages to Mooncake store.")
         return len(keys)
 

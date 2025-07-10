@@ -6,16 +6,10 @@ import json
 import pathlib
 
 import logging
-
 from dataclasses import dataclass
-
 import numpy as np
-
-# from safetensors.torch import load as safetensors_load
-# from safetensors.torch import save as safetensors_save
 from safetensors.numpy import load as safetensors_load
 from safetensors.numpy import save as safetensors_save
-
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -90,6 +84,7 @@ class MooncakeStore:
                 "Please check your Mooncake configuration."
             ) from e
         self._connected = True
+        self._stored_keys = set()
 
     def close(self):
         # MooncakeDistributedStore will automatically call the destructor, no need to explicitly close it.
@@ -102,11 +97,11 @@ class MooncakeStore:
         if not self._connected:
             raise RuntimeError("MooncakeStore is not connected.")
         # check if the key already exists
-        is_exist = self.store.is_exist(key)
-        if is_exist != 0:  # 0 means the key does not exist
+        if key in self._stored_keys:
             return None
         value_bytes = safetensors_save({"value": value})
         try:
+            self._stored_keys.add(key)
             self.store.put(key, value_bytes)
             logger.info(f"Successfully put key: {key} into Mooncake KVCache.")
         except Exception as e:
