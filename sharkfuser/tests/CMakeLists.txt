@@ -23,6 +23,7 @@ add_executable(sharkfuser_tests
   test_tensor_attributes.cpp
   test_conv_attributes.cpp
   test_context.cpp
+  test_conv_node.cpp
 )
 target_link_libraries(sharkfuser_tests PRIVATE sharkfuser Catch2::Catch2WithMain)
 target_compile_options(sharkfuser_tests PRIVATE -coverage -O0 -g)
