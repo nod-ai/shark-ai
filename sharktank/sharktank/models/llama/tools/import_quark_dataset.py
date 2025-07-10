@@ -119,7 +119,7 @@ def create_fp4_block_tensor(
     layer_name: str,
     block_size: int = 32,
 ) -> "PlanarQuantizedTensor":
-    """Create StaticFp4BlockQuantizer from Quark FP4 weights and scales."""
+    """Create BlockScaledFp4Layout from Quark FP4 weights and scales."""
     use_fe8m0 = scale_tensor.dtype == torch.uint8
 
     original_shape = infer_original_tensor_shape(
