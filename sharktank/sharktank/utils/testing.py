@@ -571,9 +571,10 @@ def assert_iterables_equal(
 
 
 def assert_tensor_close(
-    actual: torch.Tensor,
-    expected: torch.Tensor,
-    atol: float,
+    actual: AnyTensorTree,
+    expected: AnyTensorTree,
+    rtol: float | None = None,
+    atol: float | None = None,
     max_outliers_fraction: Optional[float] = None,
     inlier_atol: Optional[float] = None,
 ):
@@ -584,15 +585,38 @@ def assert_tensor_close(
             "max_outliers_fraction and inlier_atol must be provided or not together."
         )
 
+    # Unbox tensors.
+    from sharktank.utils.tree import map_leaves, is_leaf_default
+
+    def is_leaf(x: Any) -> bool:
+        return is_any_tensor(x) or is_leaf_default(x)
+
+    def maybe_unbox(x: Any) -> Any:
+        if is_any_tensor(x):
+            return unbox_tensor(x)
+        return x
+
+    actual = map_leaves(
+        actual,
+        f=maybe_unbox,
+        is_leaf=is_leaf,
+    )
+    expected = map_leaves(
+        expected,
+        f=maybe_unbox,
+        is_leaf=is_leaf,
+    )
+
     try:
         torch.testing.assert_close(
             actual,
             expected,
+            rtol=rtol,
             atol=atol,
-            rtol=0,
         )
 
         if inlier_atol is not None:
+            # TODO: handle trees
             outliers = (actual - expected).abs() > inlier_atol
             outliers_fraction = outliers.count_nonzero() / outliers.numel()
             if outliers_fraction > max_outliers_fraction:
@@ -615,8 +639,8 @@ def assert_tensor_close(
 
 
 def assert_cosine_similarity_close(
-    actual: torch.Tensor,
-    expected: torch.Tensor,
+    actual: AnyTensor,
+    expected: AnyTensor,
     atol: float,
     max_outliers_fraction: Optional[float] = None,
     inlier_atol: Optional[float] = None,
@@ -631,6 +655,7 @@ def assert_cosine_similarity_close(
     assert_tensor_close(
         actual=cos_sim,
         expected=torch.ones_like(cos_sim),
+        rtol=0,
         atol=atol,
         max_outliers_fraction=max_outliers_fraction,
         inlier_atol=inlier_atol,
@@ -638,8 +663,8 @@ def assert_cosine_similarity_close(
 
 
 def assert_text_encoder_state_close(
-    actual: torch.Tensor,
-    expected: torch.Tensor,
+    actual: AnyTensor,
+    expected: AnyTensor,
     atol: float,
     max_outliers_fraction: Optional[float] = None,
     inlier_atol: Optional[float] = None,

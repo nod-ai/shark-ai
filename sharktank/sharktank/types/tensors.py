@@ -19,7 +19,7 @@ from typing import (
     overload,
 )
 from copy import deepcopy
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from numbers import Integral, Number
 
 from abc import ABC, abstractmethod
@@ -41,6 +41,7 @@ from iree.turbine.aot import (
 
 __all__ = [
     "AnyTensor",
+    "AnyTensorTree",
     "DefaultPrimitiveTensor",
     "dtype_to_serialized_name",
     "dtype_to_serialized_short_name",
@@ -543,15 +544,38 @@ class InferenceTensor(ABC):
 
         return unsqueeze(self, dim)
 
+    @overload
+    def view(self, dtype: torch.dtype) -> "AnyTensor":
+        ...
+
+    @overload
     def view(self, *args: Union[List[List[int]], List[int]]) -> "AnyTensor":
+        ...
+
+    def view(
+        self,
+        *args: Union[List[List[int]], List[int], torch.dtype],
+        dtype: torch.dtype | None = None,
+    ) -> "AnyTensor":
         from sharktank.ops import view
 
-        if all(isinstance(a, int) or isinstance(a, torch.SymInt) for a in args):
+        shape = None
+
+        if len(args) > 0 and all(
+            isinstance(a, int) or isinstance(a, torch.SymInt) for a in args
+        ):
             shape = args
+        elif len(args) == 1:
+            if isinstance(args[0], torch.dtype):
+                assert dtype is None
+                dtype = args[0]
+            else:
+                assert isinstance(args[0], Sequence)
+                shape = args[0]
         else:
-            assert len(args) == 1
-            shape = args[0]
-        return view(self, shape)
+            assert dtype is not None
+
+        return view(self, shape=shape, dtype=dtype)
 
     def __gt__(self, lhs: Union["AnyTensor", Number]) -> "AnyTensor":
         from sharktank.ops import elementwise
@@ -1674,6 +1698,11 @@ _DTYPE_TO_SHORT_NAME: dict[torch.dtype, str] = {
 }
 
 AnyTensor = Union[torch.Tensor, InferenceTensor]
+AnyTensorTree = (
+    Mapping[Any, Union[Any, "AnyTensorTree"]]
+    | Iterable[Union[Any, "AnyTensorTree"]]
+    | Any
+)
 
 ########################################################################################
 # Tensor types registration with PyTorch.
