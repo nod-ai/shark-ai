@@ -22,7 +22,7 @@ def main(cli_args: list[str] | None = None):
     Run LLM inference in torch/eager mode. Use --device='cuda:0' to run on AMD GPU
     Args:
         --prompt: list[str] - Custom space separated prompts
-        --dump-prompt-len: int - Generate random token ids for given seq len and bs and save prefill & first decode step input args as npy files
+        --prompt-seq-len: int - Generate random token ids for given seq len and bs and save prefill & first decode step input args as npy files
         --dump-path: str - Path to save prefill and decode input args as npy files
         --dump-decode-steps: int - Number of decode steps to dump decode args (defaults to 1 decode step)
         --max-decode-steps: int - maximum number of decode steps to perform.
@@ -89,10 +89,9 @@ def main(cli_args: list[str] | None = None):
     batch = generator.begin_batch(
         token_ids=token_ids,
         seq_lens=seq_lens,
-        use_attention_mask=args.use_attention_mask,
         dump_path=args.dump_path,
         dump_decode_steps=args.dump_decode_steps,
-        dump_prompt_len=dump_prompt_len,
+        use_attention_mask=args.use_attention_mask,
     )
     results = batch.prefill()
     batch.print_current_results()
