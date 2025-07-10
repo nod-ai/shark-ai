@@ -1075,7 +1075,7 @@ class ShardedTensorBase(ShardedTensor):
         self,
         *,
         shard_dim: int | None,
-        ts: list[torch.Tensor],
+        ts: list[torch.Tensor] | list[DefaultPrimitiveTensor] | list[QuantizedTensor],
         name: str = UnnamedTensorName,
         shape: Optional[list[int]],
         devices: Tuple[int] | None,
@@ -1241,6 +1241,7 @@ def _resolve_ellipsis_in_slicing(key: Tuple[Any], shape: Tuple[int]) -> Tuple[An
     return tuple(res)
 
 
+# TODO: rename to ShardedSplitTensor as now the shards can be any InferenceTensor.
 @register_inference_tensor
 class SplitPrimitiveTensor(ShardedTensorBase):
     """Sharded tensor split along a dimension into primitive tensors.
@@ -1253,7 +1254,7 @@ class SplitPrimitiveTensor(ShardedTensorBase):
         self,
         *,
         shard_dim: int,
-        ts: list[torch.Tensor] | torch.Tensor,
+        ts: list[torch.Tensor | QuantizedTensor] | torch.Tensor | QuantizedTensor,
         shard_count: None | int = None,
         name: str = UnnamedTensorName,
         shape: Optional[list[int]] = None,
@@ -1267,10 +1268,14 @@ class SplitPrimitiveTensor(ShardedTensorBase):
         number of pieces.
         """
         if devices is None:
-            num_shards = shard_count if isinstance(ts, torch.Tensor) else len(ts)
+            num_shards = (
+                shard_count
+                if isinstance(ts, (torch.Tensor, InferenceTensor))
+                else len(ts)
+            )
             devices = tuple(range(num_shards))
 
-        if isinstance(ts, torch.Tensor):
+        if isinstance(ts, (torch.Tensor, InferenceTensor)):
             from sharktank.ops import transfer_to_logical_device
 
             assert shard_count is not None
