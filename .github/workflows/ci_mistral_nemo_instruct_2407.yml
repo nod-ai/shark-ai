@@ -78,7 +78,8 @@ jobs:
              --model mistral-nemo-instruct-fp8
           python scripts/utils.py \
             --combine-json $(pwd)/output_artifacts/benchmark_module \
-            --output-json $(pwd)/output_artifacts/consolidated_benchmark.json
+            --output-json $(pwd)/output_artifacts/consolidated_benchmark.json \
+            --append-isl
 
       - name: Run online serving
         run: |
@@ -98,7 +99,7 @@ jobs:
                 cd shortfin
                   export ROCR_VISIBLE_DEVICES=0
                   bash ../scripts/run_offline_serving.sh \
-                     --irpa /shark-dev/mistral_instruct/instruct.irpa
+                     --irpa /shark-dev/mistral_instruct/instruct.irpa \
                      --tokenizer_json /shark-dev/mistral_instruct/tokenizer.json \
                      --vmfb ../output_artifacts/output.vmfb \
                      --model_config ../output_artifacts/config_attn.json \
@@ -115,7 +116,7 @@ jobs:
                   cd shortfin
                   export ROCR_VISIBLE_DEVICES=0
                   bash ../scripts/run_offline_serving.sh \
-                     --irpa /shark-dev/mistral_instruct/instruct.irpa
+                     --irpa /shark-dev/mistral_instruct/instruct.irpa \
                      --tokenizer_json /shark-dev/mistral_instruct/tokenizer.json \
                      --vmfb ../output_artifacts/output.vmfb \
                      --model_config ../output_artifacts/config_attn.json \
@@ -132,7 +133,7 @@ jobs:
                   cd shortfin
                   export ROCR_VISIBLE_DEVICES=0
                   bash ../scripts/run_offline_serving.sh \
-                     --irpa /shark-dev/mistral_instruct/instruct.irpa
+                     --irpa /shark-dev/mistral_instruct/instruct.irpa \
                      --tokenizer_json /shark-dev/mistral_instruct/tokenizer.json \
                      --vmfb ../output_artifacts/output.vmfb \
                      --model_config ../output_artifacts/config_attn.json \
@@ -164,6 +165,11 @@ jobs:
           path: |
             output_artifacts/consolidated*.json
             output_artifacts/*.log
+
+      - name: Cleanup output artifacts
+        run: |
+            rm -rf output_artifacts
+            test ! -d output_artifacts && echo "Output artifacts are removed"
 
   # New job to push logs to shark-ai-reports repository
   push_logs:
@@ -197,3 +203,4 @@ jobs:
         git add $date
         git commit -m "Add CI Mistal nemo instruct logs on $(date -u +'%Y-%m-%d')"
         git push origin main
+        rm -rf ../logs

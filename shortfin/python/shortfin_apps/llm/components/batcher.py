@@ -584,7 +584,7 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         bsl = int(math.ceil(bsl / seq_stride) * seq_stride)
         block_count = bsl // seq_stride
         req_count = len(self.exec_requests)
-        logger.debug("Prefill bs=%d, bsl=%d", bs, bsl)
+        logger.debug("Decode bs=%d, bsl=%d", bs, bsl)
 
         # Prepare inputs.
         # TODO: Better support in shortfin for h2d. The best way to do it is

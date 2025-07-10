@@ -17,7 +17,7 @@ import numpy as np
 from pathlib import Path
 from typing import Dict, List, Optional
 from shortfin.support.logging_setup import configure_main_logger
-from shortfin.support.responder import AbstractResponder
+from shortfin.support.responder import AbstractResponder, ResponderErrorCodes
 
 from .components.generate import ClientGenerateBatchProcess
 from .components.io_struct import GenerateReqInput, SamplingParams
@@ -166,6 +166,12 @@ class CliResponder(AbstractResponder):
 
     def ensure_response(self):
         self._timer.end()
+
+    def send_error(
+        self, error_message: str, code: ResponderErrorCodes, extra_fields: dict
+    ):
+        self.send_response(f"{code}: {error_message}")
+        self.ensure_response()
 
     def send_response(self, response):
         logger.info(f"{self.name} Sending response")
@@ -316,9 +322,10 @@ async def main(argv):
             gen_req = GenerateReqInput(
                 text=task.prompt, sampling_params=sampling_params, stream=args.stream
             )
-            ClientGenerateBatchProcess(
+            process = ClientGenerateBatchProcess(
                 service, gen_req, responder, fiber=fiber
-            ).launch()
+            )
+            process.launch()
             await responder.response
             task.responder = responder
             task.result = responder.response.result()

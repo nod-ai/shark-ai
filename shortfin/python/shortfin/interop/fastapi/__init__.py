@@ -6,14 +6,16 @@
 
 import asyncio
 import logging
+import threading
 
 from shortfin.support.deps import ShortfinDepNotFoundError
-from shortfin.support.responder import AbstractResponder
+from shortfin.support.responder import AbstractResponder, ResponderErrorCodes
 from shortfin.support.status_tracker import AbstractStatusTracker
 
 try:
+    from fastapi import status
     from fastapi import Request, Response
-    from fastapi.responses import StreamingResponse
+    from fastapi.responses import StreamingResponse, JSONResponse
 except ModuleNotFoundError as e:
     raise ShortfinDepNotFoundError(__name__, "fastapi") from e
 
@@ -24,22 +26,42 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 
+_fastapi_response_map = {
+    ResponderErrorCodes.INVALID_REQUEST_ARGS: status.HTTP_400_BAD_REQUEST,
+    ResponderErrorCodes.QUEUE_FULL: status.HTTP_503_SERVICE_UNAVAILABLE,
+    ResponderErrorCodes.CANCELLED: 499,  # NIGINX code for Client Closed Request
+}
+
 
 class RequestStatusTracker(AbstractStatusTracker):
     def __init__(self, request: Request):
         super().__init__()
         self._request = request
         self._is_disconnected = False
-        self._loop.create_task(self._monitor_disconnection())
+        self._task = self._loop.create_task(self._monitor_disconnection())
+        self._cancellable = []
+        self._lock = threading.Lock()
 
-    def is_disconnected(self) -> bool:
-        return self._is_disconnected
+    def close(self):
+        if self._task is not None:
+            self._task.cancel()
+
+    def add_cancellable(self, cancellable):
+        with self._lock as _:
+            if self._is_disconnected:
+                cancellable.cancel()
+                return
+            self._cancellable.append(cancellable)
 
     async def _monitor_disconnection(self):
         while not self._is_disconnected:
             if await self._request.is_disconnected():
-                self._is_disconnected = True
-                break
+                with self._lock as _:
+                    self._is_disconnected = True
+                    for cancellable in self._cancellable:
+                        cancellable.cancel()
+                    self._cancellable = []
+                    return
             await asyncio.sleep(1)
 
 
@@ -74,6 +96,9 @@ class FastAPIResponder(AbstractResponder):
         self._streaming_queue: asyncio.Queue | None = None
         self._status_tracker = RequestStatusTracker(request)
 
+    def close(self):
+        self._status_tracker.close()
+
     def is_disconnected(self) -> bool:
         return self._status_tracker.is_disconnected()
 
@@ -89,6 +114,21 @@ class FastAPIResponder(AbstractResponder):
         else:
             logging.error("One-shot response not finished. Responding with error.")
             self.send_response(Response(status_code=500))
+
+    def send_error(
+        self, error_message: str, code: ResponderErrorCodes, extra_fields: dict
+    ):
+        """Sends an error response back for the transaction.
+
+        This is intended to sending error responses back to the user
+        """
+        status_code = _fastapi_response_map[code]
+        error_response = JSONResponse(
+            status_code=status_code,
+            content={"error": error_message, "code": code.value, **extra_fields},
+        )
+        self.send_response(error_response)
+        self.ensure_response()
 
     def send_response(self, response: Response | bytes):
         """Sends a response back for this transaction.

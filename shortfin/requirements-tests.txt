@@ -9,7 +9,7 @@ uvicorn
 scikit-image
 
 # Libraries needed to build in dev setups.
-setuptools
+setuptools>=77.0.3
 wheel
 
 # Deps needed for shortfin_apps.llm

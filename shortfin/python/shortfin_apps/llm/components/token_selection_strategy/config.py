@@ -58,8 +58,9 @@ def get_strategy_from_str(token_selection_strategy: str) -> TokenSelectionStrate
 
 
 @dataclass_json(undefined=Undefined.RAISE)
-@dataclass
+@dataclass(kw_only=True)
 class DecodeConfig:
+    eos_token_id: int = 0
 
     # Number of beams to use during generation
     num_beams: int = 1
@@ -99,4 +100,3 @@ class TokenSelectionStrategyConfig:
     decode_begin_callback: Callable[[int], None]
     decode_end_callback: Callable[[int], None]
     results_callback: Callable[[Union[int, List[int]]], None]
-    eos_token_id: int

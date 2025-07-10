@@ -34,10 +34,15 @@ class TorchGenerator:
         tokenizer: Optional[InferenceTokenizer] = None,
         # Need to look at the model more for this.
         end_token: int = 2,
+        max_decode_steps: int | None = None,
     ):
+        """
+        max_decode_steps: maximum number of decode steps to perform.
+        """
         self.model = model
         self.tokenizer = tokenizer
         self.end_token = end_token
+        self.max_decode_steps = max_decode_steps
 
     @property
     def block_seq_stride(self) -> int:
@@ -79,6 +84,23 @@ class TorchGenerator:
 
         return token_ids, seq_lens
 
+    def generate_random_tokens(
+        self, batch_size: int, prompt_seq_len: int
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        token_ids = torch.randint(
+            low=0,
+            high=self.model.config.hp.vocab_size,
+            size=[batch_size, prompt_seq_len],
+        )
+        # TODO: refactor to not use list[list[int]] as this is not efficient.
+        token_ids = [[int(t) for t in s] for s in token_ids]
+        token_ids, seq_lens = pad_tokens(
+            token_ids, pad_to_multiple_of=self.model.cache.pad_sequence_stride
+        )
+        token_ids = torch.tensor(token_ids, device=self.model.device)
+        seq_lens = torch.tensor(seq_lens, device=self.model.device)
+        return token_ids, seq_lens
+
     def begin_batch(
         self,
         token_ids: torch.tensor,
@@ -86,8 +108,8 @@ class TorchGenerator:
         use_attention_mask: bool = True,
         page_cache_size: int = None,
         dump_path: Path = None,
-        dump_decode_steps: int = None,
-        dump_prompt_len: int = None,
+        dump_decode_steps: int = 1,
+        use_attention_mask: bool = True,
     ) -> "Batch":
         bs = token_ids.shape[0]
 
@@ -109,7 +131,8 @@ class TorchGenerator:
             bs=bs,
             dump_path=dump_path,
             dump_decode_steps=dump_decode_steps,
-            dump_prompt_len=dump_prompt_len,
+            use_attention_mask=use_attention_mask,
+            max_decode_steps=self.max_decode_steps,
         )
 
     def alloc_page(self) -> int:
@@ -130,7 +153,8 @@ class Batch:
         bs: int,
         dump_path: Path,
         dump_decode_steps: int,
-        dump_prompt_len: int = None,
+        use_attention_mask: bool,
+        max_decode_steps: int | None = None,
     ):
         self.bs = bs
         assert seq_lens.shape[0] == self.bs
@@ -146,6 +170,8 @@ class Batch:
         self.dump_prompt_len = dump_prompt_len
         self.dump_decode_steps = dump_decode_steps
         self.decode_step = 0
+        self.use_attention_mask = use_attention_mask
+        self.max_decode_steps = max_decode_steps
 
         # Assemble the batch.
         seq_stride = self.parent.block_seq_stride
@@ -164,7 +190,10 @@ class Batch:
         return (
             len(self.done_result_indices) == self.bs
             or len(self.parent.free_pages) == 0
-            or (self.dump_prompt_len and self.decode_step == self.dump_decode_steps)
+            or (
+                self.max_decode_steps is not None
+                and self.max_decode_steps <= self.decode_step
+            )
         )
 
     def detokenize(self) -> list[str]:
@@ -263,14 +292,18 @@ class Batch:
                 token_ids, count=shard_count, devices=pipeline_to_device_map[0]
             )
             _attention_mask, _seq_block_ids = [], []
-            for pipeline, devices in enumerate(pipeline_to_device_map):
-                _attention_mask.append(
-                    replicate(
-                        attention_mask,
-                        count=shard_count,
-                        devices=devices,
+            for devices in pipeline_to_device_map:
+                if attention_mask is None:
+                    _attention_mask.append(None)
+                else:
+                    _attention_mask.append(
+                        replicate(
+                            attention_mask,
+                            count=shard_count,
+                            devices=devices,
+                        )
                     )
-                )
+
                 _seq_block_ids.append(
                     replicate(
                         seq_block_ids,
@@ -372,8 +405,8 @@ class Batch:
                 _decode_attention_mask,
             )
 
-        if self.dump_path is not None:
-            logger.info(f"\nSaving decode args to {Path(self.dump_path)}\n")
+        if self.dump_path is not None and self.decode_step < self.dump_decode_steps:
+            print(f"\nSaving decode args to {Path(self.dump_path)}\n")
 
             self.dump_args(
                 phase="decode",

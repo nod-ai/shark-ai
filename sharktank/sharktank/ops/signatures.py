@@ -1089,10 +1089,10 @@ def _replicate_trampoline(
     devices: tuple[int, ...] | None = None,
 ) -> ShardedTensor:
     tensors = (input,)
-    if isinstance(input, (torch.Tensor, PrimitiveTensor)):
-        devices = devices if devices is not None else tuple(range(count))
-    else:
+    if isinstance(input, ShardedTensor):
         assert devices is None
+    else:
+        devices = devices if devices is not None else tuple(range(count))
 
     for override in d.find_overrides(tensors):
         result = override(input, count=count, devices=devices)
@@ -1698,18 +1698,23 @@ def _topk_trampoline(
 
 
 @overridable
-def view(tensor: AnyTensor, shape: List[int]) -> AnyTensor:
+def view(
+    tensor: AnyTensor, shape: List[int] | None = None, dtype: torch.Tensor | None = None
+) -> AnyTensor:
     """See torch.Tensor.view"""
     ...
 
 
 @view.trampoline
 def _view_trampoline(
-    d: SignatureDispatcher, tensor: AnyTensor, shape: List[int]
+    d: SignatureDispatcher,
+    tensor: AnyTensor,
+    shape: List[int] | None = None,
+    dtype: torch.Tensor | None = None,
 ) -> AnyTensor:
     tensors = (tensor,)
     for override in d.find_overrides(tensors):
-        result = override(tensor, shape)
+        result = override(tensor, shape, dtype)
         if result is not NotImplemented:
             return override, result
     else:

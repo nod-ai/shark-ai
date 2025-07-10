@@ -6,6 +6,8 @@ export VMFB=$(pwd)/../output_artifacts/output.vmfb
 export MODEL_CONFIG=$(pwd)/../output_artifacts/config_attn.json
 export port=8959
 export TENSOR_PARALLELISM_SIZE=1
+SCRIPT_DIR=$(dirname $(realpath "$0"))
+source ${SCRIPT_DIR}/server_utils.sh
 
 
 while [[ "$1" != "" ]]; do
@@ -79,9 +81,9 @@ if [[ $TENSOR_PARALLELISM_SIZE = "8" ]]; then
 	           --tokenizer_json=$TOKENIZER_JSON \
 	           --model_config=$MODEL_CONFIG \
 	           --vmfb=$VMFB \
-	           --parameters=$IRPA_PATH $IRPA_PATH_RANK0 $IRPA_PATH_RANK1 $IRPA_PATH_RANK2 $IRPA_PATH_RANK3 $IRPA_PATH_RANK4 $IRPA_PATH_RANK5 $IRPA_PATH_RANK6 $IRPA_PATH_RANK7 \
+	           --parameters $IRPA_PATH $IRPA_PATH_RANK0 $IRPA_PATH_RANK1 $IRPA_PATH_RANK2 $IRPA_PATH_RANK3 $IRPA_PATH_RANK4 $IRPA_PATH_RANK5 $IRPA_PATH_RANK6 $IRPA_PATH_RANK7 \
 	           --device=hip \
-	           --device_ids 0  --port $port &
+	           --device_ids 0 1 2 3 4 5 6 7  --port $port &
 	shortfin_process=$!
 else
 	python -m shortfin_apps.llm.server \
@@ -94,9 +96,15 @@ else
 	shortfin_process=$!
 fi
 
-echo $shortfin_process
+wait_for_server $port
 
-sleep 50
+if [[ ! -e /proc/$shortfin_process ]]; then
+    echo "Failed to start the server"
+    exit 1
+fi
+
+echo "Server with PID $shortfin_process is ready to accept requests on port $port....."
+
 echo "Running Client ..."
 
 curl http://localhost:$port/generate \
