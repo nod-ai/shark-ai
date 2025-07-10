@@ -19,7 +19,7 @@ from typing import (
     overload,
 )
 from copy import deepcopy
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from numbers import Integral, Number
 
 from abc import ABC, abstractmethod
@@ -41,6 +41,7 @@ from iree.turbine.aot import (
 
 __all__ = [
     "AnyTensor",
+    "AnyTensorTree",
     "DefaultPrimitiveTensor",
     "dtype_to_serialized_name",
     "dtype_to_serialized_short_name",
@@ -1652,6 +1653,11 @@ _DTYPE_TO_SHORT_NAME: dict[torch.dtype, str] = {
 }
 
 AnyTensor = Union[torch.Tensor, InferenceTensor]
+AnyTensorTree = (
+    Mapping[Any, Union[Any, "AnyTensorTree"]]
+    | Iterable[Union[Any, "AnyTensorTree"]]
+    | Any
+)
 
 ########################################################################################
 # Tensor types registration with PyTorch.
