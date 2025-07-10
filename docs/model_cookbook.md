@@ -271,9 +271,10 @@ iree-run-module \
 python -m sharktank.examples.paged_llm_v1 \
   --irpa-file=open_llama_3b_v2_f16.irpa \
   --tokenizer-config-json=tokenizer_config.json \
-  --dump-prompt-len=128 \
+  --prompt-seq-len=128 \
   --bs=4 \
   --dump-decode-steps=1 \
+  --max-decode-steps=1 \
   --dump-path='/tmp' \
   --device='cuda:0'
 ```
