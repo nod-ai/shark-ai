@@ -248,7 +248,9 @@ class IreeVsEagerLLMTester:
             PagedLlmModelV1(theta=theta_for_eager, config=self.config)
         )
         self.eager_batch = generator.begin_batch(
-            token_ids=prefill_token_ids, seq_lens=prefill_seq_lens, dump_path=work_dir
+            token_ids=prefill_token_ids,
+            seq_lens=prefill_seq_lens,
+            dump_path=work_dir,
         )
 
         self.exporter.export_and_compile_llm(
