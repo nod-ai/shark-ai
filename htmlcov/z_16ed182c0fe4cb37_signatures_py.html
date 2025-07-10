@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_16ed182c0fe4cb37_utils_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.2">coverage.py v7.9.2</a>,
-            created at 2025-07-09 22:16 +0000
+            created at 2025-07-10 03:45 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -1171,10 +1171,10 @@
     <p class="pln"><span class="n"><a id="t1089" href="#t1089">1089</a></span><span class="t">    <span class="nam">devices</span><span class="op">:</span> <span class="nam">tuple</span><span class="op">[</span><span class="nam">int</span><span class="op">,</span> <span class="op">...</span><span class="op">]</span> <span class="op">|</span> <span class="key">None</span> <span class="op">=</span> <span class="key">None</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1090" href="#t1090">1090</a></span><span class="t"><span class="op">)</span> <span class="op">-></span> <span class="nam">ShardedTensor</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1091" href="#t1091">1091</a></span><span class="t">    <span class="nam">tensors</span> <span class="op">=</span> <span class="op">(</span><span class="nam">input</span><span class="op">,</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t1092" href="#t1092">1092</a></span><span class="t">    <span class="key">if</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">input</span><span class="op">,</span> <span class="op">(</span><span class="nam">torch</span><span class="op">.</span><span class="nam">Tensor</span><span class="op">,</span> <span class="nam">PrimitiveTensor</span><span class="op">)</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t1093" href="#t1093">1093</a></span><span class="t">        <span class="nam">devices</span> <span class="op">=</span> <span class="nam">devices</span> <span class="key">if</span> <span class="nam">devices</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span> <span class="key">else</span> <span class="nam">tuple</span><span class="op">(</span><span class="nam">range</span><span class="op">(</span><span class="nam">count</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1092" href="#t1092">1092</a></span><span class="t">    <span class="key">if</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">input</span><span class="op">,</span> <span class="nam">ShardedTensor</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1093" href="#t1093">1093</a></span><span class="t">        <span class="key">assert</span> <span class="nam">devices</span> <span class="key">is</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1094" href="#t1094">1094</a></span><span class="t">    <span class="key">else</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t1095" href="#t1095">1095</a></span><span class="t">        <span class="key">assert</span> <span class="nam">devices</span> <span class="key">is</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1095" href="#t1095">1095</a></span><span class="t">        <span class="nam">devices</span> <span class="op">=</span> <span class="nam">devices</span> <span class="key">if</span> <span class="nam">devices</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span> <span class="key">else</span> <span class="nam">tuple</span><span class="op">(</span><span class="nam">range</span><span class="op">(</span><span class="nam">count</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1096" href="#t1096">1096</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1097" href="#t1097">1097</a></span><span class="t">    <span class="key">for</span> <span class="nam">override</span> <span class="key">in</span> <span class="nam">d</span><span class="op">.</span><span class="nam">find_overrides</span><span class="op">(</span><span class="nam">tensors</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1098" href="#t1098">1098</a></span><span class="t">        <span class="nam">result</span> <span class="op">=</span> <span class="nam">override</span><span class="op">(</span><span class="nam">input</span><span class="op">,</span> <span class="nam">count</span><span class="op">=</span><span class="nam">count</span><span class="op">,</span> <span class="nam">devices</span><span class="op">=</span><span class="nam">devices</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -1880,7 +1880,7 @@
             <a class="nav" href="z_16ed182c0fe4cb37_utils_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.2">coverage.py v7.9.2</a>,
-            created at 2025-07-09 22:16 +0000
+            created at 2025-07-10 03:45 +0000
         </p>
     </div>
 </footer>
