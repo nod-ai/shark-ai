@@ -46,13 +46,14 @@ TEST_CASE(
     "AttributesCRTP fill_from_context sets compute_data_type and fills tensors",
     "[attributes_crtp]") {
   DummyAttr attr;
-  auto in = std::make_shared<TensorAttr>();
-  auto out = std::make_shared<TensorAttr>(1.0f);
+  auto in = std::make_shared<TensorAttr>(2.0f);
+  auto out = std::make_shared<TensorAttr>();
   attr.set_input("in", in);
   attr.set_output("out", out);
 
-  REQUIRE(attr.get_input("in")->get_data_type() == DataType_t::NOT_SET);
-  REQUIRE(attr.get_output("out")->get_data_type() == DataType_t::FLOAT);
+  REQUIRE(attr.compute_data_type == DataType_t::NOT_SET);
+  REQUIRE(attr.get_input("in")->get_data_type() == DataType_t::FLOAT);
+  REQUIRE(attr.get_output("out")->get_data_type() == DataType_t::NOT_SET);
 
   Context ctx;
   ctx.set_compute_data_type(DataType_t::DOUBLE)
@@ -61,6 +62,6 @@ TEST_CASE(
 
   attr.fill_from_context(ctx);
   REQUIRE(attr.compute_data_type == DataType_t::DOUBLE);
-  REQUIRE(attr.get_input("in")->get_data_type() == DataType_t::INT32);
-  REQUIRE(attr.get_output("out")->get_data_type() == DataType_t::FLOAT);
+  REQUIRE(attr.get_input("in")->get_data_type() == DataType_t::FLOAT);
+  REQUIRE(attr.get_output("out")->get_data_type() == DataType_t::INT32);
 }
