@@ -170,7 +170,9 @@ def wave_mxfp4_bmm(x, x_scales, w_t, w_scales, out, result=None):
     o_type_str = "f32"
     batch_size = batch_size if batch_size >= 0 else "B_dyn"
     m = m if m >= 0 else "M_dyn"
-    wave_kernel_name = f"wave_mxfp4_bmm_{batch_size}_{m}_{n}_{i_type_str}_{o_type_str}"
+    wave_kernel_name = (
+        f"wave_mxfp4_bmm_{batch_size}_{m}_HALF_K_{half_k}_{i_type_str}_{o_type_str}"
+    )
 
     wave_asm = get_wave_mxfp4_bmm_asm(
         wave_kernel_name,
