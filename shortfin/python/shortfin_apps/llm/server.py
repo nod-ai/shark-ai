@@ -120,18 +120,6 @@ def add_service_args(parser: argparse.ArgumentParser):
         default=False,
         help="Use beam search for decoding.",
     )
-    parser.add_argument(
-        "--workers",
-        type=int,
-        default=1,
-        help="Number of workers to use when running in `server` mode.",
-    )
-    parser.add_argument(
-        "--fibers_per_worker",
-        type=int,
-        default=1,
-        help="Number of fibers to use per worker.",
-    )
 
 
 def parse_args(argv):
