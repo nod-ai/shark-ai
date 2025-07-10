@@ -73,8 +73,7 @@ def main(cli_args: list[str] | None = None):
 
     generator = TorchGenerator(model, tokenizer, max_decode_steps=args.max_decode_steps)
 
-    assert (args.prompt is None) ^ (args.prompt_seq_len is None), 
-    'Exactly one of "--prompt" or "--prompt-seq-len" must be provided'
+    assert (args.prompt is None) ^ (args.prompt_seq_len is None), 'Exactly one of "--prompt" or "--prompt-seq-len" must be provided'
 
     if args.prompt_seq_len is not None:
         torch.random.manual_seed(0)
