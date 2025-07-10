@@ -85,6 +85,8 @@ def main():
         kv_cache_dtype=args.kv_cache_dtype,
     )
     llama_config.fake_quant = args.fake_quant
+    llama_config.use_qk_norm = args.use_qk_norm
+    llama_config.attention_chunk_size = args.attention_chunk_size
 
     model = PagedLlmModelV1(dataset.root_theta, llama_config)
 
