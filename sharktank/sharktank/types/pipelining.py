@@ -20,6 +20,8 @@ from sharktank.types import (
 
 from typing import Tuple
 
+from sharktank.types.tensors import QuantizedTensor
+
 
 def pipeline_parallelize_theta(
     theta: Theta, pipeline_parallelism_size: int
@@ -32,7 +34,7 @@ def pipeline_parallelize_theta(
         return None, None
 
     def parallelize_in_place(
-        block_data: dict[str, ShardedTensor | PrimitiveTensor],
+        block_data: dict[str, ShardedTensor | PrimitiveTensor | QuantizedTensor],
         new_devices: Tuple[int, ...],
     ) -> None:
         """
