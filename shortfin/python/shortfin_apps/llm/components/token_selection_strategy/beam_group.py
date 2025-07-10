@@ -24,19 +24,18 @@ class BeamGroup:
     def __init__(self, exec_req: LlmInferenceExecRequest, decode_config: DecodeConfig):
         exec_reqs = [exec_req]
 
-        if decode_config.use_beam_search and decode_config.num_beams > 1:
+        if not decode_config.use_beam_search and decode_config.num_beams > 1:
             for _ in range(decode_config.num_beams - 1):
                 exec_reqs.append(LlmInferenceExecRequest.copy_exec_request(exec_req))
 
         beam_cls = BeamSearchBeam if decode_config.use_beam_search else DefaultBeam
-        beams = [
+        self._active_beams = [
             beam_cls(exec_req, decode_config=decode_config) for exec_req in exec_reqs
         ]
 
         self._beam_group_id = str(uuid4())
         self._eos_token_id = decode_config.eos_token_id
         self._num_beams = decode_config.num_beams
-        self._active_beams = beams
         self._scorer = (
             BeamSearchScorer(decode_config.num_beams)
             if decode_config.use_beam_search
@@ -56,6 +55,8 @@ class BeamGroup:
     def completed_beam_count(self):
         return len(self._completed_beams)
 
+    # TODO(@zeehanhaque21): If the strategy is not beam search,
+    # we can probably wait on each beam separately.
     async def wait(self):
         done_signals = [beam.exec_req.done for beam in self._active_beams]
         return await gather(*done_signals)
