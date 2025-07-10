@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_b0291ce792c9e4f3_flux_pipeline_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.2">coverage.py v7.9.2</a>,
-            created at 2025-07-10 09:17 +0000
+            created at 2025-07-10 14:13 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -1727,7 +1727,7 @@
     <p class="pln"><span class="n"><a id="t1645" href="#t1645">1645</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1646" href="#t1646">1646</a></span><span class="t">        <span class="nam">actual</span> <span class="op">=</span> <span class="nam">ops</span><span class="op">.</span><span class="nam">sharded_gather</span><span class="op">(</span><span class="nam">tensor_sp</span><span class="op">,</span> <span class="nam">root_rank</span><span class="op">=</span><span class="nam">root_rank</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1647" href="#t1647">1647</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">assertEqual</span><span class="op">(</span><span class="nam">len</span><span class="op">(</span><span class="nam">actual</span><span class="op">)</span><span class="op">,</span> <span class="num">3</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t1648" href="#t1648">1648</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">assertEqual</span><span class="op">(</span><span class="nam">actual</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">.</span><span class="nam">shape</span><span class="op">,</span> <span class="op">(</span><span class="num">2</span><span class="op">,</span> <span class="num">5</span><span class="op">,</span> <span class="num">4</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1648" href="#t1648">1648</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">assertSequenceEqual</span><span class="op">(</span><span class="nam">actual</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">.</span><span class="nam">shape</span><span class="op">,</span> <span class="op">[</span><span class="num">2</span><span class="op">,</span> <span class="num">5</span><span class="op">,</span> <span class="num">4</span><span class="op">]</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1649" href="#t1649">1649</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1650" href="#t1650">1650</a></span><span class="t">        <span class="key">for</span> <span class="nam">i</span><span class="op">,</span> <span class="nam">shard</span> <span class="key">in</span> <span class="nam">enumerate</span><span class="op">(</span><span class="nam">actual</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1651" href="#t1651">1651</a></span><span class="t">            <span class="key">assert</span> <span class="nam">ops</span><span class="op">.</span><span class="nam">equal</span><span class="op">(</span><span class="nam">shard</span><span class="op">,</span> <span class="nam">shards</span><span class="op">[</span><span class="nam">i</span><span class="op">]</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -2207,7 +2207,7 @@
             <a class="nav" href="z_b0291ce792c9e4f3_flux_pipeline_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.2">coverage.py v7.9.2</a>,
-            created at 2025-07-10 09:17 +0000
+            created at 2025-07-10 14:13 +0000
         </p>
     </div>
 </footer>
