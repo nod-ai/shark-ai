@@ -6,7 +6,6 @@
 
 from typing import Any, Callable, List
 from collections.abc import Iterable
-from collections import Counter
 from operator import eq
 import os
 from contextlib import AbstractContextManager
