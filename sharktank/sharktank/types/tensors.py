@@ -979,6 +979,14 @@ class ShardedTensor(InferenceTensor):
     def dtype(self) -> torch.dtype:
         return self.shards[0].dtype
 
+    @property
+    def globals(self) -> dict[str, torch.Tensor]:
+        _globals = {}
+        for shard in self.shards:
+            for name, tensor in shard.globals.items():
+                _globals[name] = tensor
+        return _globals
+
     @staticmethod
     def move_shards_to_new_devices(
         shards: Tuple[Tensor | DefaultPrimitiveTensor | QuantizedTensor, ...],
@@ -1032,14 +1040,6 @@ class ShardedTensorBase(ShardedTensor):
     def serialized_name(cls) -> str:
         return cls.__name__
 
-    @property
-    def globals(self) -> dict[str, torch.Tensor]:
-        _globals = {}
-        for shard in self._shards:
-            for name, tensor in shard.globals.items():
-                _globals[name] = tensor
-        return _globals
-
     def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
         for i, pt in enumerate(self._shards):
             builder.for_rank(i).add_tensor(pt.name, pt._data)
@@ -1059,13 +1059,16 @@ class ShardedTensorBase(ShardedTensor):
         self, new_globals: dict[str, torch.Tensor]
     ) -> "InferenceTensor":
         # NOTE: Assuming that the type of each shard does not change
-        all_new_keys = list(self.globals.keys())
-        ts = []
-        for i, shard in enumerate(self._shards):
-            shard_i_key = f".shard.{i}"
-            matching_keys = [k for k in all_new_keys if shard_i_key in k]
-            new_sub_globals = {k: new_globals.pop(k) for k in matching_keys}
-            ts.append(shard._clone_with_globals(new_sub_globals))
+        if len(self._shards) == 1:
+            ts = [self._shards[0]._clone_with_globals(new_globals)]
+        else:
+            all_new_keys = list(new_globals.keys())
+            ts = []
+            for i, shard in enumerate(self._shards):
+                shard_i_key = f".shard.{i}"
+                matching_keys = [k for k in all_new_keys if shard_i_key in k]
+                new_sub_globals = {k: new_globals.pop(k) for k in matching_keys}
+                ts.append(shard._clone_with_globals(new_sub_globals))
         return self.__class__(
             name=self.name,
             shape=self.shape,
@@ -1411,14 +1414,6 @@ class ReplicatedTensor(ShardedTensor):
     def serialized_name(cls) -> str:
         return "ReplicatedTensor"
 
-    @property
-    def globals(self) -> dict[str, torch.Tensor]:
-        _globals = {}
-        for shard in self._shards:
-            for name, tensor in shard.globals.items():
-                _globals[name] = tensor
-        return _globals
-
     def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
         builder.for_rank(0).add_tensor(self.name, self._shards[0]._data)
         return InferenceTensorMetadata(
@@ -1433,13 +1428,16 @@ class ReplicatedTensor(ShardedTensor):
         self, new_globals: dict[str, torch.Tensor]
     ) -> "ReplicatedTensor":
         # NOTE: Assuming that the type of each shard does not change
-        all_new_keys = list(self.globals.keys())
-        ts = []
-        for i, shard in enumerate(self._shards):
-            shard_i_key = f".shard.{i}"
-            matching_keys = [k for k in all_new_keys if shard_i_key in k]
-            new_sub_globals = {k: new_globals.pop(k) for k in matching_keys}
-            ts.append(shard._clone_with_globals(new_sub_globals))
+        if len(self._shards) == 1:
+            ts = [self._shards[0]._clone_with_globals(new_globals)]
+        else:
+            all_new_keys = list(new_globals.keys())
+            ts = []
+            for i, shard in enumerate(self._shards):
+                shard_i_key = f".shard.{i}"
+                matching_keys = [k for k in all_new_keys if shard_i_key in k]
+                new_sub_globals = {k: new_globals.pop(k) for k in matching_keys}
+                ts.append(shard._clone_with_globals(new_sub_globals))
         return ReplicatedTensor(
             name=self.name,
             ts=ts,
