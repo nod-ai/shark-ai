@@ -439,108 +439,6 @@ class PrefillExecutorProcess(LlmExecutorProcess):
             program_isolation=program_isolation,
         )
 
-    async def update_pages(self):
-        """Update the pages in the local page pool for the requests."""
-        for req in self.exec_requests:
-            if req.allocation is not None:
-                num_updated_pages = await req.allocation.update_pages(
-                    device=self.device0, token_ids=req.input_token_ids
-                )
-                if num_updated_pages > 0:
-                    logger.debug(
-                        "Updated %d pages for request %s, allocation: %s",
-                        num_updated_pages,
-                        req,
-                        req.allocation,
-                    )
-
-    async def write_back_pages(self):
-        """Write back the pages in the local page pool for the requests."""
-        for req in self.exec_requests:
-            req.done.set_success()
-            # write back pages to mooncake
-            logger.debug("Writing back pages for request %s", req)
-            if req.allocation is not None:
-                num_stored_pages = await req.allocation.write_back_pages(
-                    device=self.device0, token_ids=req.input_token_ids
-                )
-                logger.debug("Successfully wrote back pages for request %s", req)
-                if num_stored_pages > 0:
-                    logger.debug(
-                        "Wrote back %d pages for request %s, allocation: %s",
-                        num_stored_pages,
-                        req,
-                        req.allocation,
-                    )
-
-    async def update_pages(self):
-        """Update the pages in the local page pool for the requests."""
-        for req in self.exec_requests:
-            if req.allocation is not None:
-                num_updated_pages = await req.allocation.update_pages(
-                    device=self.device0, token_ids=req.input_token_ids
-                )
-                if num_updated_pages > 0:
-                    logger.debug(
-                        "Updated %d pages for request %s, allocation: %s",
-                        num_updated_pages,
-                        req,
-                        req.allocation,
-                    )
-
-    async def write_back_pages(self):
-        """Write back the pages in the local page pool for the requests."""
-        for req in self.exec_requests:
-            req.done.set_success()
-            # write back pages to mooncake
-            logger.debug("Writing back pages for request %s", req)
-            if req.allocation is not None:
-                num_stored_pages = await req.allocation.write_back_pages(
-                    device=self.device0, token_ids=req.input_token_ids
-                )
-                logger.debug("Successfully wrote back pages for request %s", req)
-                if num_stored_pages > 0:
-                    logger.debug(
-                        "Wrote back %d pages for request %s, allocation: %s",
-                        num_stored_pages,
-                        req,
-                        req.allocation,
-                    )
-
-    async def update_pages(self):
-        """Update the pages in the local page pool for the requests."""
-        for req in self.exec_requests:
-            if req.allocation is not None:
-                num_updated_pages = await req.allocation.update_pages(
-                    device=self.device0, token_ids=req.input_token_ids
-                )
-                if num_updated_pages > 0:
-                    logger.debug(
-                        "Updated %d pages for request %s, allocation: %s",
-                        num_updated_pages,
-                        req,
-                        req.allocation,
-                    )
-
-    async def write_back_pages(self):
-        """Write back the pages in the local page pool for the requests."""
-        for req in self.exec_requests:
-            req.done.set_success()
-            # write back pages to mooncake
-            logger.debug("Writing back pages for request %s", req)
-            if req.allocation is not None:
-                num_stored_pages = await req.allocation.write_back_pages(
-                    device=self.device0, token_ids=req.input_token_ids
-                )
-                logger.debug("Successfully wrote back pages for request %s", req)
-                if num_stored_pages > 0:
-                    logger.debug(
-                        "Wrote back %d pages for request %s, allocation: %s",
-                        num_stored_pages,
-                        req,
-                        req.allocation,
-                    )
-
     async def get_args(
         self, bs
     ) -> Tuple[List[Union[Allocation, WrappedAllocation]], int]:
@@ -575,6 +473,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         tokens = cache.allocate([bs, bsl], int_dtype)
         seq_lens = cache.allocate([bs], int_dtype)
         seq_block_ids = cache.allocate([bs, block_count], int_dtype)
+
         # Populate tokens.
         for i in range(bs):
             with tokens.host.view(i).map(discard=True) as m:
@@ -608,8 +507,6 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         for page_table in self.page_tables:
             args.append(WrappedAllocation(sfnp.disable_barrier(page_table)))
 
-        await self.update_pages()
-
         return args, req_count
 
     async def get_results(self, logits, indices, req_count):
@@ -641,7 +538,8 @@ class PrefillExecutorProcess(LlmExecutorProcess):
             req.result_logits = logits_item
             req.result_indices = index_item
 
-        await self.write_back_pages()
+        for req in self.exec_requests:
+            req.done.set_success()
 
 
 class DecodeExecutorProcess(LlmExecutorProcess):
@@ -731,6 +629,7 @@ class DecodeExecutorProcess(LlmExecutorProcess):
                     block_ids += batch_ids
                     block_ids += [0] * (block_count - len(batch_ids))
             m.items = block_ids
+
         # Transfer to device memory:
         tokens.transfer_to_device()
         start_positions.transfer_to_device()

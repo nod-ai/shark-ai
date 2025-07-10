@@ -117,6 +117,8 @@ class ExportArtifacts:
         output_name: Optional[str | Path] = None,
         cwd: Optional[str | Path] = None,
         hip_device_id: str,
+        use_qk_norm: bool = False,
+        attention_chunk_size: int | None = None,
     ):
         self.tmp_dir = Path(tempfile.mkdtemp(type(self).__qualname__))
         self.cwd = Path(cwd if cwd is not None else self.tmp_dir)
@@ -142,6 +144,8 @@ class ExportArtifacts:
         self.kv_cache_dtype = kv_cache_dtype
         self.use_hf = use_hf
         self.hip_device_id = hip_device_id
+        self.use_qk_norm = use_qk_norm
+        self.attention_chunk_size = attention_chunk_size
 
         self.output_mlir = output_mlir
         self.output_config = output_config
@@ -243,8 +247,13 @@ class ExportArtifacts:
             exception: The exception class to raise if the command fails.
         """
         logger.info(f"{run_msg}:\n" f"cd {self.cwd} && {cmd}")
+
         proc = subprocess.run(
-            cmd, shell=True, capture_output=True, text=True, cwd=self.cwd
+            cmd,
+            shell=True,
+            cwd=self.cwd,
+            capture_output=True,
+            text=True,
         )
         if proc.returncode != 0:
             raise exception(proc, self.cwd)
@@ -357,6 +366,10 @@ class ExportArtifacts:
             export_args.append("--use-attention-mask")
         if self.use_hf:
             export_args.append("--use-hf")
+        if self.use_qk_norm:
+            export_args.append("--use-qk-norm")
+        if self.attention_chunk_size:
+            export_args.append(f"--attention-chunk-size={self.attention_chunk_size}")
 
         self._run_cmd(
             cmd=subprocess.list2cmdline(export_args),

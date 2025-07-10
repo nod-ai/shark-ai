@@ -9,6 +9,7 @@ from typing import Callable
 import unittest
 import itertools
 import pytest
+import re
 from parameterized import parameterized, parameterized_class
 
 import functools
@@ -1645,7 +1646,7 @@ class ShardedGatherTest(unittest.TestCase):
 
         actual = ops.sharded_gather(tensor_sp, root_rank=root_rank)
         self.assertEqual(len(actual), 3)
-        self.assertEqual(actual[0].shape, (2, 5, 4))
+        self.assertSequenceEqual(actual[0].shape, [2, 5, 4])
 
         for i, shard in enumerate(actual):
             assert ops.equal(shard, shards[i])
@@ -1968,7 +1969,7 @@ class TriviallyReplicableTest(unittest.TestCase):
         ),
         strict=True,
         raises=NotImplementedError,
-        match=(
+        match=re.escape(
             "does not have an implementation for argument types:"
             " [<class 'sharktank.types.tensors.ReplicatedTensor'>]"
         ),

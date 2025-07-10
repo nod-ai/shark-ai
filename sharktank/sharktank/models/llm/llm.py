@@ -359,9 +359,9 @@ class AttentionFFNBlock(ThetaLayer):
                 model_arch=config.hp.model_arch,
                 use_rope=use_rope,
                 use_qk_norm=use_qk_norm,
-                attn_temperature_tuning=config.attn_temperature_tuning,
-                floor_scale=config.floor_scale,
-                attn_scale=config.attn_scale,
+                attn_temperature_tuning=config.hp.attn_temperature_tuning,
+                floor_scale=config.hp.floor_scale,
+                attn_scale=config.hp.attn_scale,
             ),
         )
 
