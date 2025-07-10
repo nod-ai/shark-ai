@@ -300,16 +300,16 @@ class BlockScaledLayout(QuantizedLayout):
         return shifted
 
     def transpose(self, *args, **kwargs):
-        d = self.d.transpose(*args, **kwargs)
-        qs = self.qs.transpose(*args, **kwargs)
-        m = self.m.transpose(*args, **kwargs) if self.m is not None else None
+        new_metadata = self.metadata()
+        new_planes = {
+            name: tensor.transpose(*args, **kwargs)
+            for name, tensor in self.planes().items()
+        }
 
-        new_shape = list(qs.shape)
-        return BlockScaledLayout(
-            new_shape,
-            d,
-            qs,
-            m=m,
+        return self.__class__.create(
+            shape=new_planes["qs"].shape,
+            metadata=new_metadata,
+            planes=new_planes,
         )
 
     def __repr__(self):
@@ -346,10 +346,37 @@ class BlockScaledPackedLayout(BlockScaledLayout):
         return self._qs
 
     @property
-    @abstractmethod
     def qs(self) -> torch.Tensor:
         """Logical values (unpacked)."""
+        return self.unpack_qs(self._qs)
+
+    @abstractmethod
+    def pack_qs(self, qs: torch.Tensor) -> torch.Tensor:
+        """Pack the logical values into the underlying bit-packed tensor."""
         ...
+
+    @abstractmethod
+    def unpack_qs(self, qs: torch.Tensor) -> torch.Tensor:
+        """Unpack the underlying bit-packed tensor into logical values."""
+        ...
+
+    def transpose(self, *args, **kwargs):
+        new_metadata = self.metadata()
+        new_planes = {}
+        for plane_name, plane_tensor in self.planes().items():
+            if plane_name == "qs":
+                qs = self.unpack_qs(plane_tensor).transpose(*args, **kwargs)
+                new_shape = qs.shape
+                plane_tensor = self.pack_qs(qs)
+            else:
+                plane_tensor = plane_tensor.transpose(*args, **kwargs)
+            new_planes[plane_name] = plane_tensor
+
+        return self.__class__.create(
+            shape=new_shape,
+            metadata=new_metadata,
+            planes=new_planes,
+        )
 
 
 @register_quantized_layout
@@ -397,13 +424,9 @@ class BlockScaledI4Layout(BlockScaledPackedLayout):
     def metadata(self) -> dict[str, MetaDataValueType]:
         return {"signed": self.signed}
 
-    @property
-    def qs(self) -> torch.Tensor:
-        # `qs` is defined as something that we can do integer arithmetic on
-        # for cases where we only have non-packed kernels available. Therefore,
-        # we promote it to i8. The `qs_packed` is available for the sub-byte
-        # bit pattern.
-        return promote_linear_i4_block_to_i8(self._qs, signed=self.signed)
+    def unpack_qs(self, qs: torch.Tensor) -> torch.Tensor:
+        """Unpack the underlying bit-packed tensor into logical values."""
+        return promote_linear_i4_block_to_i8(qs, signed=self.signed)
 
 
 @register_quantized_layout
@@ -582,9 +605,8 @@ class SuperBlockOffsetScaled_4_6_Layout(QuantizedLayout):
         return r
 
 
-# TODO: Why is this not inheriting from BlockScaledPackedLayout?
 @register_quantized_layout
-class BlockScaledFp4Layout(QuantizedLayout):
+class BlockScaledFp4Layout(BlockScaledPackedLayout):
     """Block-quantized FP4 E2M1 representation
 
     This layout is specifically designed for FP4 E2M1 block quantization where:
@@ -645,31 +667,9 @@ class BlockScaledFp4Layout(QuantizedLayout):
         }
 
     @property
-    def planes(self) -> dict[str, torch.Tensor]:
-        return {
-            "d": self._d,
-            "qs": self._qs,
-        }
-
-    @property
-    def shape(self) -> list[int]:
-        """The flattened shape of the logical (unblocked, unpacked) result."""
-        return self._shape
-
-    @property
-    def d(self) -> torch.Tensor:
-        """Per block scales (either float or integer exponents)."""
-        return self._d
-
-    @property
     def qs(self) -> torch.Tensor:
         """Per sample FP4 indices (unpacked from packed format)."""
         return unpack_uint8_to_fp4_e2m1(self._qs)
-
-    @property
-    def qs_bit_packed(self) -> torch.Tensor:
-        """The packed, blocked raw tensor of uint8s containing FP4 indices (2 indices per byte)."""
-        return self._qs
 
     @property
     def block_size(self) -> int:
@@ -680,8 +680,11 @@ class BlockScaledFp4Layout(QuantizedLayout):
         """Whether scales are FE8M0 (integer exponents)."""
         return self._use_fe8m0_scale
 
-    def dequant(self, dtype: Optional[torch.dtype] = None) -> torch.Tensor:
-        return self.dequant_blocked(dtype).reshape(self.shape)
+    def pack_qs(self, qs: torch.Tensor) -> torch.Tensor:
+        return pack_fp4_e2m1_to_uint8(qs)
+
+    def unpack_qs(self, qs: torch.Tensor) -> torch.Tensor:
+        return unpack_uint8_to_fp4_e2m1(qs)
 
     def dequant_blocked(self, dtype: Optional[torch.dtype] = None) -> torch.Tensor:
         if dtype is None:
@@ -701,19 +704,6 @@ class BlockScaledFp4Layout(QuantizedLayout):
             dequantized_blocked = dequantized_blocked.to(dtype=dtype)
 
         return dequantized_blocked
-
-    def transpose(self, *args, **kwargs):
-        qs = self.qs.transpose(*args, **kwargs)
-        new_shape = qs.shape
-        _q = pack_fp4_e2m1_to_uint8(qs)
-        _d = self.d.transpose(*args, **kwargs)
-        return BlockScaledFp4Layout(
-            new_shape,
-            _d,
-            _q,
-            block_size=self.block_size,
-            use_fe8m0_scale=self.use_fe8m0_scale,
-        )
 
     def __repr__(self):
         return (
