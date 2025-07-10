@@ -280,6 +280,7 @@ def add_save_tensor_options(parser: argparse.ArgumentParser):
         "--dump-path",
         help="Path to dump prefill/decode input tensors to npy files",
         type=str,
+        default=None,
     )
     parser.add_argument(
         "--dump-decode-steps",
@@ -288,7 +289,7 @@ def add_save_tensor_options(parser: argparse.ArgumentParser):
         default=1,
     )
     parser.add_argument(
-        "--dump-prompt-len",
+        "--prompt-seq-len",
         help="Seq len to generate input prompts for prefill",
         type=int,
     )
