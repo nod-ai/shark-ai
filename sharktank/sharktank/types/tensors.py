@@ -904,7 +904,7 @@ class ShardedTensor(InferenceTensor):
     def __init__(
         self,
         *,
-        ts: list[torch.Tensor] | list[DefaultPrimitiveTensor],
+        ts: list[torch.Tensor] | list[DefaultPrimitiveTensor] | list[QuantizedTensor],
         shape: list[int],
         shard_dim: int | None,
         name: str = UnnamedTensorName,
@@ -913,14 +913,16 @@ class ShardedTensor(InferenceTensor):
         super().__init__(name=name, shape=shape)
         self.shard_dim = shard_dim
         self._devices = devices
-        self._shards: tuple[DefaultPrimitiveTensor] = tuple(
-            DefaultPrimitiveTensor(
-                name=f"{name}.shard.{i}",
-                data=t,
-            )
-            if isinstance(t, torch.Tensor)
-            else t
-            for i, t in enumerate(ts)
+
+        _shards = []
+        for i, t in enumerate(ts):
+            if isinstance(t, Tensor):
+                _shards.append(DefaultPrimitiveTensor(name=f"{name}.shard.{i}", data=t))
+                continue
+            _shards.append(t)
+
+        self._shards: tuple[DefaultPrimitiveTensor] | tuple[QuantizedTensor] = tuple(
+            _shards
         )
 
     def __invert__(self):
@@ -1011,7 +1013,7 @@ class ShardedTensorBase(ShardedTensor):
         self,
         *,
         shard_dim: int | None,
-        ts: list[torch.Tensor],
+        ts: list[torch.Tensor] | list[DefaultPrimitiveTensor] | list[QuantizedTensor],
         name: str = UnnamedTensorName,
         shape: Optional[list[int]],
         devices: Tuple[int] | None,
@@ -1177,7 +1179,7 @@ class SplitPrimitiveTensor(ShardedTensorBase):
         self,
         *,
         shard_dim: int,
-        ts: list[torch.Tensor] | torch.Tensor,
+        ts: list[torch.Tensor | QuantizedTensor] | torch.Tensor | QuantizedTensor,
         shard_count: None | int = None,
         name: str = UnnamedTensorName,
         shape: Optional[list[int]] = None,
@@ -1191,10 +1193,14 @@ class SplitPrimitiveTensor(ShardedTensorBase):
         number of pieces.
         """
         if devices is None:
-            num_shards = shard_count if isinstance(ts, torch.Tensor) else len(ts)
+            num_shards = (
+                shard_count
+                if isinstance(ts, (torch.Tensor, InferenceTensor))
+                else len(ts)
+            )
             devices = tuple(range(num_shards))
 
-        if isinstance(ts, torch.Tensor):
+        if isinstance(ts, (torch.Tensor, InferenceTensor)):
             from sharktank.ops import transfer_to_logical_device
 
             assert shard_count is not None
