@@ -67,7 +67,7 @@ def pipeline_parallelize_theta(
                 ts=new_shards, name=tensor.name, devices=new_devices
             )
 
-            block_data[block_key] = new_tensor
+        block_data[block_key] = new_tensor
 
     _t = theta.tensor("token_embd")["weight"]
     shard_count = _t.shard_count if isinstance(_t, ShardedTensor) else 1
