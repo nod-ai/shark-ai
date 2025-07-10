@@ -6,7 +6,7 @@
 
 from fastapi import APIRouter, Request
 
-from shortfin.interop.fastapi import FastAPIResponder
+from shortfin.interop.fastapi import FastAPIResponder, RequestStatusTracker
 
 from ..components.generate import ClientGenerateBatchProcess
 from ..components.io_struct import GenerateReqInput
@@ -22,8 +22,12 @@ async def generate_request(gen_req: GenerateReqInput, request: Request):
     # see shortfin/python/shortfin_apps/llm/components/lifecycle.py
     service: GenerateService = request.app.state.services["default"]
     gen_req.post_init()
+    tracker = RequestStatusTracker(request)
     responder = FastAPIResponder(request)
-    ClientGenerateBatchProcess(
+    process = ClientGenerateBatchProcess(
         service, gen_req, responder, fiber=service.main_fiber
     ).launch()
-    return await responder.response
+    tracker.add_cancellable(process)
+    response = await responder.response
+    responder.close()
+    return response

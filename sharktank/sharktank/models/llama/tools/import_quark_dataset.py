@@ -119,11 +119,7 @@ def create_fp4_block_quantizer(
     block_size: int = 32,
 ) -> "PlanarQuantizedTensor":
     """Create StaticFp4BlockQuantizer from Quark FP4 weights and scales."""
-
-    # Convert U8 scales to appropriate format
-    # Quark uses E8M0 format for FP4 scales
-    # Keep the original 2D shape instead of flattening
-    scales = scale_tensor.to(torch.float32)
+    use_fe8m0 = scale_tensor.dtype == torch.uint8
 
     # Infer original tensor shape
     original_shape = infer_original_tensor_shape(
@@ -133,10 +129,10 @@ def create_fp4_block_quantizer(
     # Create the FP4 block layout directly
     layout = BlockScaledFp4Layout(
         shape=original_shape,
-        d=scales,
+        d=scale_tensor,
         qs=weight_tensor,  # Already packed FP4 data
         block_size=block_size,
-        use_fe8m0_scale=True,
+        use_fe8m0_scale=use_fe8m0,
     )
 
     quantized_tensor = PlanarQuantizedTensor(

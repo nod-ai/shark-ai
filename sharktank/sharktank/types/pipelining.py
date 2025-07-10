@@ -66,7 +66,7 @@ def pipeline_parallelize_theta(
         )
 
     _t = theta.tensor("token_embd")["weight"]
-    shard_count = 1 if isinstance(_t, DefaultPrimitiveTensor) else _t.shard_count
+    shard_count = _t.shard_count if isinstance(_t, ShardedTensor) else 1
 
     block_indices = theta.tensor("blk").keys()
     block_count = len(block_indices)
