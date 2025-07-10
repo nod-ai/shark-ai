@@ -695,7 +695,7 @@ def transfer_to_logical_device_default(tensor: Tensor, ordinal: int):
     transfered = iree.turbine.ops.iree.transfer_to_logical_device(
         f"{ordinal}", unbox_tensor(tensor)
     )
-    if isinstance(tensor, PrimitiveTensor):
+    if isinstance(tensor, DefaultPrimitiveTensor):
         transfered = DefaultPrimitiveTensor(data=transfered, name=tensor.name)
     return transfered
 
@@ -705,7 +705,7 @@ def barrier_on_device_default(tensor: Tensor, ordinal: int):
     barriered = iree.turbine.ops.iree.barrier_on_logical_device(
         f"{ordinal}", unbox_tensor(tensor)
     )
-    if isinstance(tensor, PrimitiveTensor):
+    if isinstance(tensor, DefaultPrimitiveTensor):
         barriered = DefaultPrimitiveTensor(data=barriered, name=tensor.name)
     return barriered
 
