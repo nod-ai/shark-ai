@@ -1645,7 +1645,7 @@ class ShardedGatherTest(unittest.TestCase):
 
         actual = ops.sharded_gather(tensor_sp, root_rank=root_rank)
         self.assertEqual(len(actual), 3)
-        self.assertEqual(actual[0].shape, (2, 5, 4))
+        self.assertSequenceEqual(actual[0].shape, [2, 5, 4])
 
         for i, shard in enumerate(actual):
             assert ops.equal(shard, shards[i])

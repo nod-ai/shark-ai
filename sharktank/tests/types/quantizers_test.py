@@ -259,7 +259,7 @@ class Fp4BlockQuantizerTestBase(QuantizerTestBase):
     def assert_layout_properties(self, layout, expected_block_count, scale_dtype):
         """Assert common properties of FP4 block scaled layouts."""
         self.assertIsInstance(layout, BlockScaledFp4Layout)
-        self.assertEqual(len(layout.d), expected_block_count)
+        self.assertEqual(layout.d.numel(), expected_block_count)
         self.assertEqual(layout.d.dtype, scale_dtype)
 
 
@@ -454,7 +454,6 @@ class StaticFp4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
         dequant_value = layout.dequant()
         self.assertEqual(dequant_value.shape, orig_value.shape)
 
-    @xfail(raises=RuntimeError, strict=True, match="The size of tensor a")
     def testStaticFp4TwoDimensionalScales(self):
         orig_value = self.get_fp4_exact_values().reshape(2, 4)
         scales = torch.tensor([[1.0, 1.0], [1.0, 1.0]], dtype=torch.float32)
@@ -471,7 +470,7 @@ class StaticFp4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
 
         layout = qt_value.unpack()
         self.assert_layout_properties(
-            layout, expected_block_count=2, scale_dtype=torch.uint8
+            layout, expected_block_count=4, scale_dtype=torch.float32
         )
 
         dequant_value = layout.dequant()

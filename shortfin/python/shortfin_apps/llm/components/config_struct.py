@@ -226,6 +226,7 @@ class ServerParams:
 
     # KV cache configuration
     prefix_sharing_algorithm: str = "none"  # none or trie
+    mooncake_config_path: str | None = None  # None or Path to mooncake config file
 
     # Program isolation configuration
     program_isolation: str = "per_call"
