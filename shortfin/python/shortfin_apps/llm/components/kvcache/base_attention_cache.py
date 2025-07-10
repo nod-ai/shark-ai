@@ -16,7 +16,6 @@ import threading
 from typing import List, Iterable
 
 from .page_pool import PageInfo, PagePool
-import shortfin as sf
 
 
 logger = logging.getLogger(__name__)
@@ -56,24 +55,6 @@ class PageAllocation(ABC):
         Extends the allocation to include additional tokens. For details, reference the derived class in trie_attention_cache.py.
         """
         pass
-
-    async def write_back_pages(
-        self, device: sf.ScopedDevice, token_ids: List[int]
-    ) -> None:
-        """
-        Writes back the pages to the mooncake. This is a no-op in the base class.
-        Derived classes may implement this to handle device-specific logic.
-        return number of pages written back to the distributed store
-        """
-        return 0
-
-    async def update_pages(self, device: sf.ScopedDevice, token_ids: List[int]) -> bool:
-        """
-        Updates the pages in the cache. This is a no-op in the base class.
-        Derived classes may implement this to handle device-specific logic.
-        Returns number of pages updated from distributed store.
-        """
-        return 0
 
 
 class BasePagedAttentionCacheAllocation(PageAllocation):
