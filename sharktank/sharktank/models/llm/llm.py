@@ -120,7 +120,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
                     config=self.config,
                     fake_quant=self.fake_quant,
                 )
-                for n in range(2)  # self.hp.block_count)
+                for n in range(self.hp.block_count)
             ]
         )
 
