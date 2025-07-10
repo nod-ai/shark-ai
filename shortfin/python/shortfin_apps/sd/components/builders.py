@@ -222,7 +222,7 @@ def needs_file(filename, ctx, url=None, namespace=FileNamespace.GEN) -> bool:
 
 
 def needs_compile(filename, target, ctx) -> bool:
-    vmfb_name = f"{filename}_{target}.vmfb"
+    vmfb_name = f"{filename}_amdgpu.vmfb"
     namespace = FileNamespace.BIN
     return needs_file(vmfb_name, ctx, namespace=namespace)
 
@@ -455,7 +455,7 @@ def sdxl(
                 vmfb_filenames[idx] = obj[0]
             else:
                 vmfb_filenames[idx] = get_cached(
-                    f"{file_stem}_{target}.vmfb", ctx, FileNamespace.BIN
+                    f"{file_stem}.vmfb", ctx, FileNamespace.BIN
                 )
     else:
         vmfb_urls = get_url_map(vmfb_filenames, vmfb_bucket)
