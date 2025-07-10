@@ -20,7 +20,6 @@ from sharktank.utils.testing import (
     is_mi300x,
     IreeVsEagerLLMTester,
     TempDirTestBase,
-    xfail,
 )
 
 
@@ -67,7 +66,7 @@ class CrossEntropyTest(unittest.TestCase):
 @is_mi300x
 class LlamaIreeVsEagerTest(TempDirTestBase):
     @parameterized.expand(product([1, 2], [1, 2]))
-    @xfail(
+    @pytest.mark.xfail(
         raises=AssertionError,
         reason="https://github.com/nod-ai/shark-ai/issues/1758",
         strict=True,
