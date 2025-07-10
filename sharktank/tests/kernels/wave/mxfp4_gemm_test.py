@@ -27,15 +27,17 @@ class wave_fp4_gemm(unittest.TestCase):
         e = aot.export(
             WaveMxfp4Module(),
             args=(
-                torch.empty((4, 1024, 512), dtype=torch.int8),
-                torch.empty((4, 1024, 32), dtype=torch.int8),
-                torch.empty((1024, 512), dtype=torch.int8),
-                torch.empty((1024, 32), dtype=torch.int8),
+                torch.empty((4, 1024, 512), dtype=torch.uint8),
+                torch.empty((4, 1024, 32), dtype=torch.uint8),
+                torch.empty((1024, 512), dtype=torch.uint8),
+                torch.empty((1024, 32), dtype=torch.uint8),
                 torch.empty((4, 1024, 1024), dtype=torch.float32),
             ),
         )
         e.verify()
         mlir_asm = str(e.mlir_module)
+        with open("test.mlir", "w") as f:
+            f.write(mlir_asm)
         self.assertIn(
             ("func.func @main"),
             mlir_asm,
@@ -45,7 +47,9 @@ class wave_fp4_gemm(unittest.TestCase):
             mlir_asm,
         )
         self.assertIn(
-            ("func.func private @wave_mxfp4_bmm_B_dyn_M_dyn_1024_i8_f32"),
+            (
+                "func.func private @wave_mxfp4_bmm_B_dyn_M_dyn_HALF_K_512_u8_B_dyn_M_dyn_K_OVER_THIRTYTWO_32_u8_N_1024_HALF_K512_u8_N_1024_K_OVER_THIRTYTWO_32_u8_B_dyn_M_dyn_N_1024_f32"
+            ),
             mlir_asm,
         )
         self.assertIn(
