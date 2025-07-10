@@ -483,7 +483,7 @@ def _fp4_block_quantize_tensor(
 
     Args:
         t: Input tensor of shape [..., N] to quantize (must have N % block_size == 0)
-        scales: Per-block scales (either float or integer exponents, flat)
+        scales: Per-block scales (either float or integer exponents, shape matches blocked tensor)
         block_size: Size of each block
         use_fe8m0_scale: Whether scales are FE8M0
         name: Name for the resulting tensor
@@ -500,7 +500,10 @@ def _fp4_block_quantize_tensor(
         )
 
     # Reshape to [..., num_blocks, block_size] to group into blocks
-    values_blocked = t.view(-1, block_size)
+    orig_shape = list(t.shape)
+    num_blocks = orig_shape[-1] // block_size
+    blocked_shape = orig_shape[:-1] + [num_blocks, block_size]
+    values_blocked = t.reshape(blocked_shape)
 
     # Prepare scales for broadcasting - add dimension for block_size
     if use_fe8m0_scale:
@@ -700,8 +703,13 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
         t_padded = pad_tensor_for_block_quantization(t, self._block_size)
 
         # Compute scales per block
-        values_blocked = t_padded.view(-1, self._block_size)
-        block_max = torch.max(torch.abs(values_blocked), dim=1, keepdim=True)[0]
+        orig_shape = list(t_padded.shape)
+        num_blocks = orig_shape[-1] // self._block_size
+        blocked_shape = orig_shape[:-1] + [num_blocks, self._block_size]
+        values_blocked = t_padded.reshape(blocked_shape)
+
+        # Compute max along the block dimension
+        block_max = torch.max(torch.abs(values_blocked), dim=-1, keepdim=False)[0]
         scales, _ = compute_fp4_block_scales(
             block_max, self._use_fe8m0_scale, self._dtype
         )
