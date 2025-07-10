@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for sharktank/sharktank/utils/testing.py: 42%</title>
+    <title>Coverage for sharktank/sharktank/utils/testing.py: 38%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_58284776.png">
     <link rel="stylesheet" href="style_cb_81f8c14c.css" type="text/css">
     <script src="coverage_html_cb_6fb7b396.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>sharktank/sharktank/utils/testing.py</b>:
-            <span class="pc_cov">42%</span>
+            <span class="pc_cov">38%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -54,9 +54,9 @@
             </div>
         </aside>
         <h2>
-            <span class="text">311 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">132<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">179<span class="text"> missing</span></button>
+            <span class="text">296 statements &nbsp;</span>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">113<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">183<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_207dd8757e51dcd3_tokenizer_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.2">coverage.py v7.9.2</a>,
-            created at 2025-07-10 14:13 +0000
+            created at 2025-07-10 14:15 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -796,96 +796,47 @@
     <p class="pln"><span class="n"><a id="t714" href="#t714">714</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t715" href="#t715">715</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t716" href="#t716">716</a></span><span class="t"><span class="key">def</span> <span class="nam">_eval_condition</span><span class="op">(</span><span class="nam">c</span><span class="op">:</span> <span class="nam">bool</span> <span class="op">|</span> <span class="nam">str</span> <span class="op">|</span> <span class="key">None</span><span class="op">)</span> <span class="op">-></span> <span class="nam">bool</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t717" href="#t717">717</a></span><span class="t">    <span class="key">if</span> <span class="nam">c</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t718" href="#t718">718</a></span><span class="t">        <span class="key">return</span> <span class="key">True</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t719" href="#t719">719</a></span><span class="t">    <span class="key">if</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">c</span><span class="op">,</span> <span class="nam">bool</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t720" href="#t720">720</a></span><span class="t">        <span class="key">return</span> <span class="nam">c</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t717" href="#t717">717</a></span><span class="t">    <span class="key">if</span> <span class="nam">c</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t718" href="#t718">718</a></span><span class="t">        <span class="key">return</span> <span class="key">True</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t719" href="#t719">719</a></span><span class="t">    <span class="key">if</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">c</span><span class="op">,</span> <span class="nam">bool</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t720" href="#t720">720</a></span><span class="t">        <span class="key">return</span> <span class="nam">c</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t721" href="#t721">721</a></span><span class="t">    <span class="key">raise</span> <span class="nam">NotImplementedError</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t722" href="#t722">722</a></span><span class="t">        <span class="str">"TODO: implement string condition evaluation the same way as in pytest"</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t723" href="#t723">723</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t724" href="#t724">724</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t725" href="#t725">725</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t726" href="#t726">726</a></span><span class="t"><span class="key">def</span> <span class="nam">xfail</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t727" href="#t727">727</a></span><span class="t">    <span class="nam">condition</span><span class="op">:</span> <span class="nam">bool</span> <span class="op">|</span> <span class="key">None</span> <span class="op">=</span> <span class="key">None</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t728" href="#t728">728</a></span><span class="t">    <span class="op">*</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t729" href="#t729">729</a></span><span class="t">    <span class="nam">match</span><span class="op">:</span> <span class="nam">str</span> <span class="op">|</span> <span class="key">None</span> <span class="op">=</span> <span class="key">None</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t730" href="#t730">730</a></span><span class="t">    <span class="op">**</span><span class="nam">kwargs</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t731" href="#t731">731</a></span><span class="t"><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t732" href="#t732">732</a></span><span class="t">    <span class="str">"""xfail a test with support for regex matching against the error message.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t726" href="#t726">726</a></span><span class="t"><span class="key">def</span> <span class="nam">get_random_test_text_prompts</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t727" href="#t727">727</a></span><span class="t">    <span class="nam">num_prompts</span><span class="op">:</span> <span class="nam">int</span><span class="op">,</span> <span class="nam">min_prompt_length</span><span class="op">:</span> <span class="nam">int</span> <span class="op">|</span> <span class="key">None</span> <span class="op">=</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t728" href="#t728">728</a></span><span class="t"><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t729" href="#t729">729</a></span><span class="t">    <span class="nam">prompts</span> <span class="op">=</span> <span class="nam">load_dataset</span><span class="op">(</span><span class="str">"wikitext"</span><span class="op">,</span> <span class="str">"wikitext-2-raw-v1"</span><span class="op">,</span> <span class="nam">split</span><span class="op">=</span><span class="str">"test"</span><span class="op">)</span><span class="op">[</span><span class="str">"text"</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t730" href="#t730">730</a></span><span class="t">    <span class="key">if</span> <span class="nam">min_prompt_length</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t731" href="#t731">731</a></span><span class="t">        <span class="nam">prompts</span> <span class="op">=</span> <span class="op">[</span><span class="nam">p</span> <span class="key">for</span> <span class="nam">p</span> <span class="key">in</span> <span class="nam">prompts</span> <span class="key">if</span> <span class="nam">len</span><span class="op">(</span><span class="nam">p</span><span class="op">)</span> <span class="op">>=</span> <span class="nam">min_prompt_length</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t732" href="#t732">732</a></span><span class="t">    <span class="key">return</span> <span class="nam">random</span><span class="op">.</span><span class="nam">sample</span><span class="op">(</span><span class="nam">prompts</span><span class="op">,</span> <span class="nam">num_prompts</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t733" href="#t733">733</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t734" href="#t734">734</a></span><span class="t"><span class="str">    This wraps the pytest.mark.xfail decorator into a new decorator.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t735" href="#t735">735</a></span><span class="t"><span class="str">    pytest.mark.xfail does not support matching on the error message, but sometimes we</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t736" href="#t736">736</a></span><span class="t"><span class="str">    need to be more precise on why we expect a failure.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t737" href="#t737">737</a></span><span class="t"><span class="str">    One example is when specifying what compiler error is expected. Just the exception</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t738" href="#t738">738</a></span><span class="t"><span class="str">    type is not enough.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t739" href="#t739">739</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t740" href="#t740">740</a></span><span class="t"><span class="str">    ```</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t741" href="#t741">741</a></span><span class="t"><span class="str">    @xfail(raises=MyError, strict=True, match="my message")</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t742" href="#t742">742</a></span><span class="t"><span class="str">    @test_something():</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t743" href="#t743">743</a></span><span class="t"><span class="str">        raise MyError("my message")</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t744" href="#t744">744</a></span><span class="t"><span class="str">    ```</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t745" href="#t745">745</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t746" href="#t746">746</a></span><span class="t"><span class="str">    *args and **kwargs are passthrough arguments for pytest.mark.xfail.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t747" href="#t747">747</a></span><span class="t"><span class="str">    """</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t748" href="#t748">748</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t749" href="#t749">749</a></span><span class="t">    <span class="key">def</span> <span class="nam">decorator</span><span class="op">(</span><span class="nam">test_fn</span><span class="op">:</span> <span class="nam">Callable</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t750" href="#t750">750</a></span><span class="t">        <span class="key">if</span> <span class="nam">condition</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t751" href="#t751">751</a></span><span class="t">            <span class="nam">kwargs</span><span class="op">.</span><span class="nam">update</span><span class="op">(</span><span class="nam">condition</span><span class="op">=</span><span class="nam">condition</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t752" href="#t752">752</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t753" href="#t753">753</a></span><span class="t">        <span class="op">@</span><span class="nam">pytest</span><span class="op">.</span><span class="nam">mark</span><span class="op">.</span><span class="nam">xfail</span><span class="op">(</span><span class="op">**</span><span class="nam">kwargs</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t754" href="#t754">754</a></span><span class="t">        <span class="op">@</span><span class="nam">functools</span><span class="op">.</span><span class="nam">wraps</span><span class="op">(</span><span class="nam">test_fn</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t755" href="#t755">755</a></span><span class="t">        <span class="key">def</span> <span class="nam">wrapper</span><span class="op">(</span><span class="op">*</span><span class="nam">args</span><span class="op">,</span> <span class="op">**</span><span class="nam">kwargs</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t756" href="#t756">756</a></span><span class="t">            <span class="key">try</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t757" href="#t757">757</a></span><span class="t">                <span class="key">return</span> <span class="nam">test_fn</span><span class="op">(</span><span class="op">*</span><span class="nam">args</span><span class="op">,</span> <span class="op">**</span><span class="nam">kwargs</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t758" href="#t758">758</a></span><span class="t">            <span class="key">except</span> <span class="nam">Exception</span> <span class="key">as</span> <span class="nam">ex</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t759" href="#t759">759</a></span><span class="t">                <span class="key">if</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t760" href="#t760">760</a></span><span class="t">                    <span class="key">not</span> <span class="nam">_eval_condition</span><span class="op">(</span><span class="nam">condition</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t761" href="#t761">761</a></span><span class="t">                    <span class="key">or</span> <span class="nam">match</span> <span class="key">is</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t762" href="#t762">762</a></span><span class="t">                    <span class="key">or</span> <span class="nam">re</span><span class="op">.</span><span class="nam">search</span><span class="op">(</span><span class="nam">match</span><span class="op">,</span> <span class="nam">str</span><span class="op">(</span><span class="nam">ex</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t763" href="#t763">763</a></span><span class="t">                <span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t764" href="#t764">764</a></span><span class="t">                    <span class="key">raise</span> <span class="nam">ex</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t765" href="#t765">765</a></span><span class="t">                <span class="key">else</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t766" href="#t766">766</a></span><span class="t">                    <span class="key">raise</span> <span class="nam">pytest</span><span class="op">.</span><span class="nam">fail</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t767" href="#t767">767</a></span><span class="t">                        <span class="fst">f'</span><span class="fst">Failed to match error "</span><span class="op">{</span><span class="nam">ex</span><span class="op">}</span><span class="fst">" against expected match "</span><span class="op">{</span><span class="nam">match</span><span class="op">}</span><span class="fst">"</span><span class="fst">'</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t768" href="#t768">768</a></span><span class="t">                    <span class="op">)</span> <span class="key">from</span> <span class="nam">ex</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t769" href="#t769">769</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t770" href="#t770">770</a></span><span class="t">        <span class="key">return</span> <span class="nam">wrapper</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t771" href="#t771">771</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t772" href="#t772">772</a></span><span class="t">    <span class="key">return</span> <span class="nam">decorator</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t773" href="#t773">773</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t774" href="#t774">774</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t775" href="#t775">775</a></span><span class="t"><span class="key">def</span> <span class="nam">get_random_test_text_prompts</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t776" href="#t776">776</a></span><span class="t">    <span class="nam">num_prompts</span><span class="op">:</span> <span class="nam">int</span><span class="op">,</span> <span class="nam">min_prompt_length</span><span class="op">:</span> <span class="nam">int</span> <span class="op">|</span> <span class="key">None</span> <span class="op">=</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t777" href="#t777">777</a></span><span class="t"><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t778" href="#t778">778</a></span><span class="t">    <span class="nam">prompts</span> <span class="op">=</span> <span class="nam">load_dataset</span><span class="op">(</span><span class="str">"wikitext"</span><span class="op">,</span> <span class="str">"wikitext-2-raw-v1"</span><span class="op">,</span> <span class="nam">split</span><span class="op">=</span><span class="str">"test"</span><span class="op">)</span><span class="op">[</span><span class="str">"text"</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t779" href="#t779">779</a></span><span class="t">    <span class="key">if</span> <span class="nam">min_prompt_length</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t780" href="#t780">780</a></span><span class="t">        <span class="nam">prompts</span> <span class="op">=</span> <span class="op">[</span><span class="nam">p</span> <span class="key">for</span> <span class="nam">p</span> <span class="key">in</span> <span class="nam">prompts</span> <span class="key">if</span> <span class="nam">len</span><span class="op">(</span><span class="nam">p</span><span class="op">)</span> <span class="op">>=</span> <span class="nam">min_prompt_length</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t781" href="#t781">781</a></span><span class="t">    <span class="key">return</span> <span class="nam">random</span><span class="op">.</span><span class="nam">sample</span><span class="op">(</span><span class="nam">prompts</span><span class="op">,</span> <span class="nam">num_prompts</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t782" href="#t782">782</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t783" href="#t783">783</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t784" href="#t784">784</a></span><span class="t"><span class="key">def</span> <span class="nam">get_frozen_test_text_prompts</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t785" href="#t785">785</a></span><span class="t">    <span class="nam">num_prompts</span><span class="op">:</span> <span class="nam">int</span><span class="op">,</span> <span class="nam">min_prompt_length</span><span class="op">:</span> <span class="nam">int</span> <span class="op">|</span> <span class="key">None</span> <span class="op">=</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t786" href="#t786">786</a></span><span class="t"><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t787" href="#t787">787</a></span><span class="t">    <span class="nam">orig_rng_state</span> <span class="op">=</span> <span class="nam">random</span><span class="op">.</span><span class="nam">getstate</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t788" href="#t788">788</a></span><span class="t">    <span class="key">try</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t789" href="#t789">789</a></span><span class="t">        <span class="nam">random</span><span class="op">.</span><span class="nam">seed</span><span class="op">(</span><span class="num">13910398</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t790" href="#t790">790</a></span><span class="t">        <span class="key">return</span> <span class="nam">get_random_test_text_prompts</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t791" href="#t791">791</a></span><span class="t">            <span class="nam">num_prompts</span><span class="op">=</span><span class="nam">num_prompts</span><span class="op">,</span> <span class="nam">min_prompt_length</span><span class="op">=</span><span class="nam">min_prompt_length</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t792" href="#t792">792</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t793" href="#t793">793</a></span><span class="t">    <span class="key">finally</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t794" href="#t794">794</a></span><span class="t">        <span class="nam">random</span><span class="op">.</span><span class="nam">setstate</span><span class="op">(</span><span class="nam">orig_rng_state</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t795" href="#t795">795</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t796" href="#t796">796</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t797" href="#t797">797</a></span><span class="t"><span class="nam">_test_prompts</span> <span class="op">=</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t798" href="#t798">798</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t799" href="#t799">799</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t800" href="#t800">800</a></span><span class="t"><span class="key">def</span> <span class="nam">get_test_prompts</span><span class="op">(</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t801" href="#t801">801</a></span><span class="t">    <span class="key">global</span> <span class="nam">_test_prompts</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t802" href="#t802">802</a></span><span class="t">    <span class="key">if</span> <span class="nam">_test_prompts</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t803" href="#t803">803</a></span><span class="t">        <span class="nam">_test_prompts</span> <span class="op">=</span> <span class="nam">get_frozen_test_text_prompts</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t804" href="#t804">804</a></span><span class="t">            <span class="nam">num_prompts</span><span class="op">=</span><span class="num">16</span><span class="op">,</span> <span class="nam">min_prompt_length</span><span class="op">=</span><span class="num">50</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t805" href="#t805">805</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t806" href="#t806">806</a></span><span class="t">    <span class="key">return</span> <span class="nam">_test_prompts</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t734" href="#t734">734</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t735" href="#t735">735</a></span><span class="t"><span class="key">def</span> <span class="nam">get_frozen_test_text_prompts</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t736" href="#t736">736</a></span><span class="t">    <span class="nam">num_prompts</span><span class="op">:</span> <span class="nam">int</span><span class="op">,</span> <span class="nam">min_prompt_length</span><span class="op">:</span> <span class="nam">int</span> <span class="op">|</span> <span class="key">None</span> <span class="op">=</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t737" href="#t737">737</a></span><span class="t"><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t738" href="#t738">738</a></span><span class="t">    <span class="nam">orig_rng_state</span> <span class="op">=</span> <span class="nam">random</span><span class="op">.</span><span class="nam">getstate</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t739" href="#t739">739</a></span><span class="t">    <span class="key">try</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t740" href="#t740">740</a></span><span class="t">        <span class="nam">random</span><span class="op">.</span><span class="nam">seed</span><span class="op">(</span><span class="num">13910398</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t741" href="#t741">741</a></span><span class="t">        <span class="key">return</span> <span class="nam">get_random_test_text_prompts</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t742" href="#t742">742</a></span><span class="t">            <span class="nam">num_prompts</span><span class="op">=</span><span class="nam">num_prompts</span><span class="op">,</span> <span class="nam">min_prompt_length</span><span class="op">=</span><span class="nam">min_prompt_length</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t743" href="#t743">743</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t744" href="#t744">744</a></span><span class="t">    <span class="key">finally</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t745" href="#t745">745</a></span><span class="t">        <span class="nam">random</span><span class="op">.</span><span class="nam">setstate</span><span class="op">(</span><span class="nam">orig_rng_state</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t746" href="#t746">746</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t747" href="#t747">747</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t748" href="#t748">748</a></span><span class="t"><span class="nam">_test_prompts</span> <span class="op">=</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t749" href="#t749">749</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t750" href="#t750">750</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t751" href="#t751">751</a></span><span class="t"><span class="key">def</span> <span class="nam">get_test_prompts</span><span class="op">(</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t752" href="#t752">752</a></span><span class="t">    <span class="key">global</span> <span class="nam">_test_prompts</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t753" href="#t753">753</a></span><span class="t">    <span class="key">if</span> <span class="nam">_test_prompts</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t754" href="#t754">754</a></span><span class="t">        <span class="nam">_test_prompts</span> <span class="op">=</span> <span class="nam">get_frozen_test_text_prompts</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t755" href="#t755">755</a></span><span class="t">            <span class="nam">num_prompts</span><span class="op">=</span><span class="num">16</span><span class="op">,</span> <span class="nam">min_prompt_length</span><span class="op">=</span><span class="num">50</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t756" href="#t756">756</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t757" href="#t757">757</a></span><span class="t">    <span class="key">return</span> <span class="nam">_test_prompts</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
     <div class="content">
@@ -895,7 +846,7 @@
             <a class="nav" href="z_207dd8757e51dcd3_tokenizer_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.2">coverage.py v7.9.2</a>,
-            created at 2025-07-10 14:13 +0000
+            created at 2025-07-10 14:15 +0000
         </p>
     </div>
 </footer>
