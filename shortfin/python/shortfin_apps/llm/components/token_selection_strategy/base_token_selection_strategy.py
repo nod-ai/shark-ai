@@ -25,7 +25,6 @@ class BaseTokenSelectionStrategy(ABC):
     """Abstract class for implementing token selection strategies."""
 
     token_selection_strategy_config: TokenSelectionStrategyConfig
-    scorer: BaseBeamScorer | None
     cancelled: bool = False
 
     def cancel(self):
