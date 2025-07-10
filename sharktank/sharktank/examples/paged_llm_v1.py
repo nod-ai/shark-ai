@@ -73,12 +73,9 @@ def main(cli_args: list[str] | None = None):
 
     generator = TorchGenerator(model, tokenizer, max_decode_steps=args.max_decode_steps)
 
-    assert (
-        args.prompt is None or args.prompt_seq_len is None
-    ), 'CLI args "--prompt-seq-len" and "--prompt" are mutually exclusive'
-    assert (
-        args.prompt is not None or args.prompt_seq_len is not None
-    ), 'Exactly one of CLI args "--prompt-seq-len" and "--prompt" must be provided.'
+    assert (args.prompt is None) ^ (args.prompt_seq_len is None), 
+    'Exactly one of "--prompt" or "--prompt-seq-len" must be provided'
+
     if args.prompt_seq_len is not None:
         torch.random.manual_seed(0)
         token_ids, seq_lens = generator.generate_random_tokens(
