@@ -71,9 +71,11 @@ def main(cli_args: list[str] | None = None):
         intermediates_saver = SaveModuleResultTensorsPatch()
         intermediates_saver.patch_child_modules(model)
 
-    generator = TorchGenerator(model, tokenizer, max_decode_steps=args.max_decode_steps)
+    generator = TorchGenerator(model, tokenizer)
 
-    assert (args.prompt is None) ^ (args.prompt_seq_len is None), 'Exactly one of "--prompt" or "--prompt-seq-len" must be provided'
+    assert (args.prompt is None) ^ (
+        args.prompt_seq_len is None
+    ), 'Exactly one of "--prompt" or "--prompt-seq-len" must be provided'
 
     if args.prompt_seq_len is not None:
         torch.random.manual_seed(0)
@@ -87,6 +89,7 @@ def main(cli_args: list[str] | None = None):
         seq_lens=seq_lens,
         dump_path=args.dump_path,
         dump_decode_steps=args.dump_decode_steps,
+        max_decode_steps=args.max_decode_steps,
         use_attention_mask=args.use_attention_mask,
     )
     results = batch.prefill()
