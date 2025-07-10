@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for sharktank/sharktank/layers/rotary_embedding.py: 91%</title>
+    <title>Coverage for sharktank/sharktank/layers/rotary_embedding.py: 96%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_58284776.png">
     <link rel="stylesheet" href="style_cb_81f8c14c.css" type="text/css">
     <script src="coverage_html_cb_6fb7b396.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>sharktank/sharktank/layers/rotary_embedding.py</b>:
-            <span class="pc_cov">91%</span>
+            <span class="pc_cov">96%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">161 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">147<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">14<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">154<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">7<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_bb68beab5a7e04f5_rotary_embedding_hf_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.2">coverage.py v7.9.2</a>,
-            created at 2025-07-10 16:55 +0000
+            created at 2025-07-10 17:44 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -281,20 +281,20 @@
     <p class="run"><span class="n"><a id="t199" href="#t199">199</a></span><span class="t">        <span class="nam">_</span><span class="op">,</span> <span class="nam">sl</span><span class="op">,</span> <span class="nam">_</span><span class="op">,</span> <span class="nam">_</span> <span class="op">=</span> <span class="nam">xt_</span><span class="op">.</span><span class="nam">shape</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t200" href="#t200">200</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t201" href="#t201">201</a></span><span class="t">        <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">model_arch</span> <span class="op">==</span> <span class="str">"llama4"</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t202" href="#t202">202</a></span><span class="t">            <span class="nam">freqs_cis_real</span> <span class="op">=</span> <span class="nam">rotary_embed_table</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">[</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t203" href="#t203">203</a></span><span class="t">                <span class="op">:</span><span class="op">,</span> <span class="op">:</span> <span class="nam">rotary_embed_table</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">.</span><span class="nam">shape</span><span class="op">[</span><span class="num">1</span><span class="op">]</span> <span class="op">//</span> <span class="num">2</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t202" href="#t202">202</a></span><span class="t">            <span class="nam">freqs_cis_real</span> <span class="op">=</span> <span class="nam">rotary_embed_table</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">[</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t203" href="#t203">203</a></span><span class="t">                <span class="nam">start_index</span> <span class="op">:</span> <span class="nam">start_index</span> <span class="op">+</span> <span class="nam">sl</span><span class="op">,</span> <span class="op">:</span> <span class="nam">rotary_embed_table</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">.</span><span class="nam">shape</span><span class="op">[</span><span class="num">1</span><span class="op">]</span> <span class="op">//</span> <span class="num">2</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t204" href="#t204">204</a></span><span class="t">            <span class="op">]</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t205" href="#t205">205</a></span><span class="t">            <span class="nam">freqs_cis_imag</span> <span class="op">=</span> <span class="nam">rotary_embed_table</span><span class="op">[</span><span class="num">1</span><span class="op">]</span><span class="op">[</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t206" href="#t206">206</a></span><span class="t">                <span class="op">:</span><span class="op">,</span> <span class="op">:</span> <span class="nam">rotary_embed_table</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">.</span><span class="nam">shape</span><span class="op">[</span><span class="num">1</span><span class="op">]</span> <span class="op">//</span> <span class="num">2</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t205" href="#t205">205</a></span><span class="t">            <span class="nam">freqs_cis_imag</span> <span class="op">=</span> <span class="nam">rotary_embed_table</span><span class="op">[</span><span class="num">1</span><span class="op">]</span><span class="op">[</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t206" href="#t206">206</a></span><span class="t">                <span class="nam">start_index</span> <span class="op">:</span> <span class="nam">start_index</span> <span class="op">+</span> <span class="nam">sl</span><span class="op">,</span> <span class="op">:</span> <span class="nam">rotary_embed_table</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">.</span><span class="nam">shape</span><span class="op">[</span><span class="num">1</span><span class="op">]</span> <span class="op">//</span> <span class="num">2</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t207" href="#t207">207</a></span><span class="t">            <span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t208" href="#t208">208</a></span><span class="t">            <span class="com"># TODO: don't use complex numbers as the compiler does better without them.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t209" href="#t209">209</a></span><span class="t">            <span class="nam">freqs_cis</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">view_as_complex</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t209" href="#t209">209</a></span><span class="t">            <span class="nam">freqs_cis</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">view_as_complex</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t210" href="#t210">210</a></span><span class="t">                <span class="nam">torch</span><span class="op">.</span><span class="nam">stack</span><span class="op">(</span><span class="op">[</span><span class="nam">freqs_cis_real</span><span class="op">,</span> <span class="nam">freqs_cis_imag</span><span class="op">]</span><span class="op">,</span> <span class="nam">dim</span><span class="op">=</span><span class="op">-</span><span class="num">1</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t211" href="#t211">211</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t212" href="#t212">212</a></span><span class="t">            <span class="nam">freqs_cis</span> <span class="op">=</span> <span class="nam">freqs_cis</span><span class="op">.</span><span class="nam">unsqueeze</span><span class="op">(</span><span class="num">0</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t213" href="#t213">213</a></span><span class="t">            <span class="nam">xt_</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">view_as_complex</span><span class="op">(</span><span class="nam">xt</span><span class="op">.</span><span class="nam">float</span><span class="op">(</span><span class="op">)</span><span class="op">.</span><span class="nam">reshape</span><span class="op">(</span><span class="op">*</span><span class="nam">xt</span><span class="op">.</span><span class="nam">shape</span><span class="op">[</span><span class="op">:</span><span class="op">-</span><span class="num">1</span><span class="op">]</span><span class="op">,</span> <span class="op">-</span><span class="num">1</span><span class="op">,</span> <span class="num">2</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t214" href="#t214">214</a></span><span class="t">            <span class="nam">xt_out</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">view_as_real</span><span class="op">(</span><span class="nam">xt_</span> <span class="op">*</span> <span class="nam">freqs_cis</span><span class="op">[</span><span class="op">:</span><span class="op">,</span> <span class="op">:</span><span class="op">,</span> <span class="key">None</span><span class="op">,</span> <span class="op">:</span><span class="op">]</span><span class="op">)</span><span class="op">.</span><span class="nam">flatten</span><span class="op">(</span><span class="num">3</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t215" href="#t215">215</a></span><span class="t">            <span class="key">return</span> <span class="nam">xt_out</span><span class="op">.</span><span class="nam">type_as</span><span class="op">(</span><span class="nam">xt</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t212" href="#t212">212</a></span><span class="t">            <span class="nam">freqs_cis</span> <span class="op">=</span> <span class="nam">freqs_cis</span><span class="op">.</span><span class="nam">unsqueeze</span><span class="op">(</span><span class="num">0</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t213" href="#t213">213</a></span><span class="t">            <span class="nam">xt_</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">view_as_complex</span><span class="op">(</span><span class="nam">xt</span><span class="op">.</span><span class="nam">float</span><span class="op">(</span><span class="op">)</span><span class="op">.</span><span class="nam">reshape</span><span class="op">(</span><span class="op">*</span><span class="nam">xt</span><span class="op">.</span><span class="nam">shape</span><span class="op">[</span><span class="op">:</span><span class="op">-</span><span class="num">1</span><span class="op">]</span><span class="op">,</span> <span class="op">-</span><span class="num">1</span><span class="op">,</span> <span class="num">2</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t214" href="#t214">214</a></span><span class="t">            <span class="nam">xt_out</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">view_as_real</span><span class="op">(</span><span class="nam">xt_</span> <span class="op">*</span> <span class="nam">freqs_cis</span><span class="op">[</span><span class="op">:</span><span class="op">,</span> <span class="op">:</span><span class="op">,</span> <span class="key">None</span><span class="op">,</span> <span class="op">:</span><span class="op">]</span><span class="op">)</span><span class="op">.</span><span class="nam">flatten</span><span class="op">(</span><span class="num">3</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t215" href="#t215">215</a></span><span class="t">            <span class="key">return</span> <span class="nam">xt_out</span><span class="op">.</span><span class="nam">type_as</span><span class="op">(</span><span class="nam">xt</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t216" href="#t216">216</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t217" href="#t217">217</a></span><span class="t">        <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">use_hf</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t218" href="#t218">218</a></span><span class="t">            <span class="nam">freqs_cis</span> <span class="op">=</span> <span class="nam">rotary_embed_table</span>&nbsp;</span><span class="r"></span></p>
@@ -457,7 +457,7 @@
             <a class="nav" href="z_bb68beab5a7e04f5_rotary_embedding_hf_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.2">coverage.py v7.9.2</a>,
-            created at 2025-07-10 16:55 +0000
+            created at 2025-07-10 17:44 +0000
         </p>
     </div>
 </footer>
