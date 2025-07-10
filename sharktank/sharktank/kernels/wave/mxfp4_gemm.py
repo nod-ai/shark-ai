@@ -129,6 +129,14 @@ def get_wave_mxfp4_bmm_asm(
     options = set_default_run_config(options)
 
     with Context() as ctx:
+        batch_size, m, n, k = shape
+        batch_size = batch_size if batch_size >= 0 else "B_dyn"
+        m = m if m >= 0 else "M_dyn"
+        half_k = k // 2
+        k_over_thirtytwo = k // 32
+        i_type_str = "u8"
+        o_type_str = "f32"
+        batched_gemm_func._name = f"batched_gemm_{batch_size}_{m}_HALF_K_{half_k}_{i_type_str}_{batch_size}_{m}_K_OVER_THIRTYTWO_{k_over_thirtytwo}_{i_type_str}_N_{n}_HALF_K_{half_k}_{i_type_str}_N_{n}_K_OVER_THIRTYTWO_{k_over_thirtytwo}_{i_type_str}_{batch_size}_{m}_N_{n}_{o_type_str}"
         batched_gemm = wave_compile(options, batched_gemm_func)
 
     asm = batched_gemm.asm
@@ -157,6 +165,7 @@ F32 = Dtype.F32(torch.float32)
 )
 def wave_mxfp4_bmm(x, x_scales, w_t, w_scales, out, result=None):
     batch_size, m, half_k = x.type.shape
+    batch_size, m, k_over_thirtytwo = x_scales.type.shape
     n, half_k = w_t.type.shape
     k = half_k * 2
     shape = (
@@ -170,9 +179,7 @@ def wave_mxfp4_bmm(x, x_scales, w_t, w_scales, out, result=None):
     o_type_str = "f32"
     batch_size = batch_size if batch_size >= 0 else "B_dyn"
     m = m if m >= 0 else "M_dyn"
-    wave_kernel_name = (
-        f"wave_mxfp4_bmm_{batch_size}_{m}_HALF_K_{half_k}_{i_type_str}_{o_type_str}"
-    )
+    wave_kernel_name = f"wave_mxfp4_bmm_{batch_size}_{m}_HALF_K_{half_k}_{i_type_str}_{batch_size}_{m}_K_OVER_THIRTYTWO_{k_over_thirtytwo}_{i_type_str}_N_{n}_HALF_K{half_k}_{i_type_str}_N_{n}_K_OVER_THIRTYTWO_{k_over_thirtytwo}_{i_type_str}_{batch_size}_{m}_N_{n}_{o_type_str}"
 
     wave_asm = get_wave_mxfp4_bmm_asm(
         wave_kernel_name,
