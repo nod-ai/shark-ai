@@ -8,6 +8,7 @@
 import torch
 
 from sharktank.layers.rotary_embedding import build_rotary_layer
+from sharktank.utils.testing import assert_tensor_close
 from sharktank import ops
 from sharktank.types import (
     ShardedTensor,
@@ -54,5 +55,5 @@ def test_sharded_rotary_table():
     sq = ops.unshard(sq)
     sk = ops.unshard(sk)
 
-    torch.testing.assert_close(sq, oq)
-    torch.testing.assert_close(sk, ok)
+    assert_tensor_close(sq, oq)
+    assert_tensor_close(sk, ok)

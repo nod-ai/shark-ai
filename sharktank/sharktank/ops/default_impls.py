@@ -15,6 +15,7 @@ import torch.nn.functional as F
 from numbers import Number
 
 from sharktank.types import (
+    DefaultPrimitiveTensor,
     PrimitiveTensor,
     QuantizedTensor,
     InferenceTensor,
@@ -673,8 +674,8 @@ def split_default(
 
 
 @to.override(Tensor)
-def to_default(tensor: Tensor, *args, **kwargs) -> Tensor:
-    return unbox_tensor(tensor).to(*args, **kwargs)
+def to_default(tensor: Tensor, *args, **kwargs) -> PrimitiveTensor:
+    return DefaultPrimitiveTensor(data=unbox_tensor(tensor).to(*args, **kwargs))
 
 
 @trace_tensor.override(AllOfExprsVariadic(IsOfType(Tensor, InferenceTensor)))
