@@ -65,7 +65,7 @@ class TokenSelector(BaseTokenSelectionStrategy):
                     rid=exec_req.orig_instance_id, count=acquire_amount
                 )
                 reservations = active_beam_count
-            #
+
             for beam in beam_group.active_beams:
                 req = beam.exec_req
                 req.reset(InferencePhase.DECODE)
@@ -82,32 +82,3 @@ class TokenSelector(BaseTokenSelectionStrategy):
 
         results = beam_group.get_results()
         config.results_callback(results)
-
-    # def _get_results_beam_search(self, beam_group: BeamGroup, results: List[List[int]]):
-    #     for beam in beam_group.active_beams:
-    #         self.scorer.finalize_score(beam)
-
-    #     active_beams = sorted(
-    #         [beam for beam in beam_group.active_beams],
-    #         key=lambda beam: beam.score,
-    #         reverse=True,
-    #     )
-    #     active_beams = beam_group.active_beams
-    #     active_beams = self.scorer.score_beams(
-    #         active_beams, len(active_beams), normalize=False
-    #     )
-    #     for i in range(beam_group.num_beams - len(results)):
-    #         beam = active_beams[i]
-    #         results.append(beam.exec_req.input_token_ids[beam.exec_req.prompt_length :])
-
-    #     return results
-
-    # def get_results(self, beam_group: BeamGroup):
-    #     config = self.token_selection_strategy_config
-
-    #     results = [
-    #         beam.exec_req.input_token_ids[beam.exec_req.prompt_length :]
-    #         for beam in beam_group.completed_beams
-    #     ]
-    #     if len(results) < beam_group.num_beams:
-    #         results = self._get_results_beam_search(beam_group, results)
