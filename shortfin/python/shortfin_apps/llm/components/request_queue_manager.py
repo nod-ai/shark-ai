@@ -10,6 +10,7 @@ import math
 from .config_struct import ModelParams, PagedKVCacheParams
 from typing import Optional
 from .token_selection_strategy.config import DecodeConfig
+from shortfin.support.responder import AbstractResponder, ResponderErrorCodes
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,8 @@ class RequestQueueManager:
         self,
         *,
         model_params: ModelParams,
+        page_pool: PagePool,
+        responder: FastAPIResponder,
         max_queue_size: int = 3,  # Maximum number of requests in queue
     ):
         self._max_queue_size = max_queue_size
@@ -33,6 +36,8 @@ class RequestQueueManager:
         self._current_tasks = {}
 
         self.model_params = model_params
+        self.page_pool = page_pool
+        self.responder = responder
         # Use model_params.decode_batch_sizes to decide actual _max_queue_size
         if self.model_params.decode_batch_sizes:
             self._max_queue_size = max(self.model_params.decode_batch_sizes)
@@ -42,7 +47,11 @@ class RequestQueueManager:
         with self._lock:
             return self._current_tasks.keys()
 
-    def add_to_queue(self, decode_configs: list[DecodeConfig]) -> Optional[int]:
+    def get_current_queue_size(self)
+        with self._lock:
+            return _current_queue_size
+
+    def add_to_queue(self, *, decode_configs: list[DecodeConfig], input_batch: list[Encoding], is_pretokenized: bool) -> Optional[int]:
         """
         Attempt to add a request to the queue.
 
@@ -56,10 +65,64 @@ class RequestQueueManager:
 
         with self._lock:
             if self._current_queue_size + request_size > self._max_queue_size:
+                self.responder.send_error(
+                    error_message="Server queue is full. Please try again later.",
+                    code=ResponderErrorCodes.QUEUE_FULL,
+                    extra_fields={
+                        "current_size": self.get_current_queue_size(),
+                        "max_size": self.service._max_queue_size,
+                    },
+                )
+
                 logger.debug(
                     f"Request rejected: {self._current_queue_size} (current) + {request_size} (new) > {self._max_queue_size} (max)."
                 )
                 return None
+
+
+        for index, input_tokens in enumerate(input_batch):
+            decode_config = decode_configs[index]
+
+            exported_topk = self.model_params.top_k
+            requested_topk = (
+                        max(decode_config.num_beams, exported_topk or 1)
+                    if decode_config.use_beam_search
+                    else decode_config.top_k
+            )
+            
+            if not self._check_topk_params(
+                exported_topk,
+                requested_topk,
+            ):
+                self.responder.send_error(
+                    error_message="Requested top-k larger than exported top-k",
+                    code=ResponderErrorCodes.INVALID_REQUEST_ARGS,
+                    extra_fields={
+                        "exported_topk": exported_topk,
+                        "requested_topk": requested_topk,
+                    },
+                )
+                return  None
+
+
+            input_token_ids = input_tokens if is_pretokenized else input_tokens.ids
+
+            # return error reponse if no pages available
+            if not _check_memory_availability(
+                input_token_ids_len=len(input_token_ids),
+                available_pages=self.page_pool.get_available_pages_num(),
+                decode_config=decode_config,
+            ):
+                self.responder.send_error(
+                    error_message="Not enough pages for the new request",
+                    code=ResponderErrorCodes.PAGE_FULL,
+                    extra_fields={
+                        "available_page": available_pages_num,
+                        "requested_page": needed_pages_num,
+                    },
+                )
+                return None
+                    
             self._current_id += 1
             self._current_queue_size += request_size
             assert self._current_id not in self._current_tasks
@@ -92,7 +155,7 @@ class RequestQueueManager:
                 f"Removed from queue: new queue size {self._current_queue_size}"
             )
 
-    def check_memory_availability(
+    def _check_memory_availability(
         self,
         *,
         input_token_ids_len: int,

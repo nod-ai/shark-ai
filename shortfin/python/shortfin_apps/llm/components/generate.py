@@ -18,6 +18,7 @@ import threading
 
 # TODO: Have a generic "Responder" interface vs just the concrete impl.
 from shortfin.support.responder import AbstractResponder, ResponderErrorCodes
+from .request_queue_manager import RequestQueueManager
 
 from .config_struct import DecodeConfig
 from .io_struct import (
@@ -148,6 +149,10 @@ class ClientGenerateBatchProcess(sf.Process):
         self.active_processes = []
         self.cancelled = False
         self.lock = threading.Lock()
+        self.queue_manager = RequestQueueManager(model_params=self.service.model_params, page_pool=self.service.page_pool, responder=responder)
+        self.main_fiber_pool = FiberPool(
+            self.service.sysman, self.queue_manager._max_queue_size, resizable=True
+        )
 
     def cancel(self):
         with self.lock as _:
@@ -193,62 +198,26 @@ class ClientGenerateBatchProcess(sf.Process):
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
 
-        indices = []
         decode_configs = self.get_decode_configs()
 
+        input_ids = self.gen_req.input_ids
+        is_pretokenized = input_ids is not None
+        # TODO: We should send this to an executor and await the results.
+        if is_pretokenized:
+            input_batch = [input_ids] if self.gen_req.is_single else input_ids
+        else:
+            input_batch = self.tokenize()
+                
         # Try to add request to queue
         # TODO(@zphoenixrises): Add load testing and integration tests for this.
-        run_request = self.service.queue_manager.add_to_queue(decode_configs)
-        if not run_request:
-            self.responder.send_error(
-                error_message="Server queue is full. Please try again later.",
-                code=ResponderErrorCodes.QUEUE_FULL,
-                extra_fields={
-                    "current_size": self.service.queue_manager._current_queue_size,
-                    "max_size": self.service.max_queue_size,
-                },
-            )
-            return
+        run_request = self.queue_manager.add_to_queue(decode_configs=decode_configs, input_batch=input_batch, is_pretokenized=is_pretokenized)
 
         try:
-            streaming = self.gen_req.stream
-            self.responder.start_response()
-            if streaming:
-                self.responder.stream_start()
-
-            input_ids = self.gen_req.input_ids
-            is_pretokenized = input_ids is not None
-            # TODO: We should send this to an executor and await the results.
-            if is_pretokenized:
-                input_batch = [input_ids] if self.gen_req.is_single else input_ids
-            else:
-                input_batch = self.tokenize()
-
+            indices = []
             # Launch all individual generate processes and wait for them to finish.
             gen_processes = []
             for index, input_tokens in enumerate(input_batch):
                 decode_config = decode_configs[index]
-
-                exported_topk = self.service.model_params.top_k
-                requested_topk = (
-                    max(decode_config.num_beams, exported_topk or 1)
-                    if decode_config.use_beam_search
-                    else decode_config.top_k
-                )
-                if not self._check_topk_params(
-                    exported_topk,
-                    requested_topk,
-                ):
-                    self.responder.send_error(
-                        error_message="Requested top-k larger than exported top-k",
-                        code=ResponderErrorCodes.INVALID_REQUEST_ARGS,
-                        extra_fields={
-                            "exported_topk": exported_topk,
-                            "requested_topk": requested_topk,
-                        },
-                    )
-                    return
-
                 input_text = (
                     self.gen_req.text[index]
                     if not is_pretokenized and not self.gen_req.is_single
@@ -257,23 +226,7 @@ class ClientGenerateBatchProcess(sf.Process):
 
                 input_token_ids = input_tokens if is_pretokenized else input_tokens.ids
 
-                # return error reponse if no pages available
-                if not self.service.queue_manager.check_memory_availability(
-                    input_token_ids_len=len(input_token_ids),
-                    available_pages=self.service.page_pool.get_available_pages_num(),
-                    decode_config=decode_config,
-                ):
-                    self.responder.send_error(
-                        error_message="Not enough pages for the new request",
-                        code=ResponderErrorCodes.PAGE_FULL,
-                        extra_fields={
-                            "available_page": available_pages_num,
-                            "requested_page": needed_pages_num,
-                        },
-                    )
-                    return
-
-                idx, fiber = await self.service.main_fiber_pool.get()
+                idx, fiber = await self.main_fiber_pool.get()
                 indices.append(idx)
 
                 rid = (
@@ -314,9 +267,9 @@ class ClientGenerateBatchProcess(sf.Process):
             else:
                 self.generate_response(gen_processes, streaming)
         finally:
-            self.service.main_fiber_pool.return_fiber(indices)
+            self.main_fiber_pool.return_fiber(indices)
             self.responder.ensure_response()
-            self.service.queue_manager.remove_from_queue(run_request)
+            self.queue_manager.remove_from_queue(run_request)
 
     def generate_response(
         self,
