@@ -40,4 +40,11 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
 
   REQUIRE(Y->get_is_virtual() == false);
   REQUIRE(Y->get_name() == "conv_fprop::Y");
+
+  // Fails because Y is underspecified (dim/stride inference unimplemented)
+  REQUIRE(graph->validate().is_bad());
+
+  // Specify Y's dimensions and strides
+  Y->set_dim({n, k, h, w}).set_stride({k * h * w, 1, k * w, k});
+  REQUIRE(graph->validate().is_good());
 }

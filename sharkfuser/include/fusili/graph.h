@@ -44,6 +44,25 @@ private:
 public:
   Graph() : INode(Context{}) {}
 
+  error_t validate() {
+    FUSILI_LOG_LABEL_ENDL("INFO: Validating graph");
+
+    // Validate inputs
+    for (auto const &input : full_graph_inputs) {
+      FUSILI_CHECK_ERROR(input->validate());
+    }
+
+    // Validate nodes (this infers missing tensor properties)
+    FUSILI_CHECK_ERROR(validate_subtree());
+
+    // Validate outputs
+    for (auto const &output : full_graph_outputs) {
+      FUSILI_CHECK_ERROR(output->validate());
+    }
+
+    return {error_code_t::OK, ""};
+  }
+
   Type getType() override { return Type::COMPOSITE; }
 
   Graph &set_io_data_type(DataType_t const type);

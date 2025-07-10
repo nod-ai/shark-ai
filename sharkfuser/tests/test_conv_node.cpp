@@ -36,7 +36,8 @@ TEST_CASE("ConvFPropNode pre_validate_node passes with all attributes set",
   REQUIRE(node.pre_validate_node().is_good());
 }
 
-TEST_CASE("ConvFPropNode infer_properties_node returns NOT_IMPLEMENTED",
+TEST_CASE("ConvFPropNode infer_properties_node returns NOT_IMPLEMENTED when Y "
+          "is under specified",
           "[conv_node]") {
   Context ctx;
   ConvFPropAttr attr;
@@ -46,10 +47,31 @@ TEST_CASE("ConvFPropNode infer_properties_node returns NOT_IMPLEMENTED",
       .set_stride({1, 1})
       .set_dilation({1, 1});
 
-  attr.set_X(std::make_shared<TensorAttr>(1.0f));
-  attr.set_W(std::make_shared<TensorAttr>(2.0f));
-  attr.set_Y(std::make_shared<TensorAttr>());
+  attr.set_X(std::make_shared<TensorAttr>(1.0f))
+      .set_W(std::make_shared<TensorAttr>(2.0f))
+      // Y is under specified (dim/stride missing)
+      .set_Y(std::make_shared<TensorAttr>());
 
   ConvFPropNode node(std::move(attr), ctx);
   REQUIRE(node.infer_properties_node() == error_code_t::NOT_IMPLEMENTED);
+}
+
+TEST_CASE(
+    "ConvFPropNode infer_properties_node returns OK when Y is fully specified",
+    "[conv_node]") {
+  Context ctx;
+  ConvFPropAttr attr;
+
+  attr.set_pre_padding({0, 0})
+      .set_post_padding({0, 0})
+      .set_stride({1, 1})
+      .set_dilation({1, 1});
+
+  attr.set_X(std::make_shared<TensorAttr>(1.0f))
+      .set_W(std::make_shared<TensorAttr>(2.0f))
+      // Y is fully specified (dim/stride for scalar defaults to {1})
+      .set_Y(std::make_shared<TensorAttr>(3.0f));
+
+  ConvFPropNode node(std::move(attr), ctx);
+  REQUIRE(node.infer_properties_node().is_good());
 }

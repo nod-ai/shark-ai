@@ -56,9 +56,9 @@ public:
     auto const &y_dim = y_t->get_dim();
 
     if (y_dim.empty()) {
-      FUSILI_RETURN_ERROR_IF(
-          true, error_code_t::NOT_IMPLEMENTED,
-          "Convolution node shape inference not implemented yet");
+      FUSILI_RETURN_ERROR_IF(true, error_code_t::NOT_IMPLEMENTED,
+                             "Convolution node shape inference not implemented "
+                             "yet; please specify output tensor dimensions");
 
       // auto y_dim_inferred = std::vector<int64_t>(x_dim.size(), 1);
 
@@ -87,7 +87,8 @@ public:
     if (y_t->get_stride().empty()) {
       FUSILI_RETURN_ERROR_IF(
           true, error_code_t::NOT_IMPLEMENTED,
-          "Convolution node stride inference not implemented yet");
+          "Convolution node stride inference not implemented yet; please "
+          "specify output tensor stride");
     }
 
     return {error_code_t::OK, ""};
