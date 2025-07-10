@@ -93,10 +93,8 @@ def infer_original_tensor_shape(
     """Infer original tensor shape from quantized weight and scale tensors."""
     scale_shape = list(scale_tensor.shape)
 
-    # Original shape is scale shape with last dimension multiplied by block_size
     original_shape = scale_shape[:-1] + [scale_shape[-1] * block_size]
 
-    # Calculate expected weight tensor shape based on format
     if format == "fp4":
         # FP4: 2 values packed per byte
         expected_weight_shape = scale_shape[:-1] + [scale_shape[-1] * block_size // 2]
@@ -104,7 +102,7 @@ def infer_original_tensor_shape(
         # FP8: 1 value per byte
         expected_weight_shape = original_shape
 
-    # Verify weight tensor has the expected shape
+    # Verify weight shape matches scale shape
     if list(weight_tensor.shape) != expected_weight_shape:
         raise ValueError(
             f"Weight tensor shape {list(weight_tensor.shape)} doesn't match "
@@ -124,7 +122,6 @@ def create_fp4_block_tensor(
     """Create StaticFp4BlockQuantizer from Quark FP4 weights and scales."""
     use_fe8m0 = scale_tensor.dtype == torch.uint8
 
-    # Infer original tensor shape
     original_shape = infer_original_tensor_shape(
         weight_tensor, scale_tensor, block_size, "fp4"
     )
@@ -132,15 +129,13 @@ def create_fp4_block_tensor(
     num_blocks = original_shape[-1] // block_size
     packed_block_size = block_size // 2
 
-    # Reshape weight tensor to [..., num_blocks, packed_block_size]
     expected_shape = list(original_shape[:-1]) + [num_blocks, packed_block_size]
     weight_tensor = weight_tensor.view(*expected_shape)
 
-    # Create the FP4 block layout directly
     layout = BlockScaledFp4Layout(
         shape=original_shape,
         d=scale_tensor,
-        qs=weight_tensor,  # Already packed FP4 data
+        qs=weight_tensor,
         block_size=block_size,
         use_fe8m0_scale=use_fe8m0,
     )
