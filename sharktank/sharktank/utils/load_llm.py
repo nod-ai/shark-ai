@@ -34,15 +34,10 @@ class TorchGenerator:
         tokenizer: Optional[InferenceTokenizer] = None,
         # Need to look at the model more for this.
         end_token: int = 2,
-        max_decode_steps: int | None = None,
     ):
-        """
-        max_decode_steps: maximum number of decode steps to perform.
-        """
         self.model = model
         self.tokenizer = tokenizer
         self.end_token = end_token
-        self.max_decode_steps = max_decode_steps
 
     @property
     def block_seq_stride(self) -> int:
@@ -92,6 +87,7 @@ class TorchGenerator:
         page_cache_size: int = None,
         dump_path: Path = None,
         dump_decode_steps: int = 1,
+        max_decode_steps: int = 1,
         use_attention_mask: bool = True,
     ) -> "Batch":
         bs = token_ids.shape[0]
@@ -105,6 +101,9 @@ class TorchGenerator:
         cache_state = self.model.cache.allocate(self.page_cache_size)
         self.free_pages = list(range(1, self.page_cache_size))
 
+        if max_decode_steps < dump_decode_steps:
+            max_decode_steps = dump_decode_steps
+
         return Batch(
             self,
             token_ids=token_ids,
@@ -114,7 +113,7 @@ class TorchGenerator:
             dump_path=dump_path,
             dump_decode_steps=dump_decode_steps,
             use_attention_mask=use_attention_mask,
-            max_decode_steps=self.max_decode_steps,
+            max_decode_steps=max_decode_steps,
         )
 
     def alloc_page(self) -> int:
@@ -135,7 +134,7 @@ class Batch:
         dump_path: Path,
         dump_decode_steps: int,
         use_attention_mask: bool,
-        max_decode_steps: int | None = None,
+        max_decode_steps: int,
     ):
         self.bs = bs
         assert seq_lens.shape[0] == self.bs
@@ -170,8 +169,7 @@ class Batch:
             len(self.done_result_indices) == self.bs
             or len(self.parent.free_pages) == 0
             or (
-                self.max_decode_steps is not None
-                and self.max_decode_steps <= self.decode_step
+                self.max_decode_steps <= self.decode_step
             )
         )
 
