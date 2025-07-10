@@ -6,9 +6,11 @@
 
 from pathlib import Path
 import pytest
-from pytest import FixtureRequest
-from typing import Optional, Any
+import re
+
 from dataclasses import dataclass
+from pytest import FixtureRequest
+from typing import Any, Generator, Optional
 
 
 # Tests under each top-level directory will get a mark.
@@ -476,10 +478,60 @@ def pytest_html_results_table_row(report, cells):
         cells.insert(2, f"<td></td>")
 
 
-@pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_makereport(item, call):
-    outcome = yield
-    report = outcome.get_result()
+def evaluate_mark_conditions(item: pytest.Item, mark: pytest.Mark) -> bool:
+    # TODO: avoid non-API imports.
+    from _pytest.skipping import evaluate_condition
 
-    if report.when == "call" and hasattr(item, "wasxfail"):
+    if "condition" not in mark.kwargs:
+        conditions = mark.args
+    else:
+        conditions = (mark.kwargs["condition"],)
+
+    if not conditions:
+        return True
+
+    return any(evaluate_condition(item, mark, condition)[0] for condition in conditions)
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_makereport(
+    item: pytest.Item, call: pytest.CallInfo[None]
+) -> Generator[None, pytest.TestReport, pytest.TestReport]:
+    report = yield
+
+    if (
+        report.when == "call"
+        and hasattr(item, "wasxfail")
+        and not hasattr(report, "wasxfail")
+    ):
         report.wasxfail = item.wasxfail
+
+    # Regex match against exception message.
+    if call.when == "call":
+        for xfail_mark in item.iter_markers(name="xfail"):
+            if (
+                item.config.option.runxfail
+                or "match" not in xfail_mark.kwargs
+                or (report.skipped and not hasattr(report, "wasxfail"))
+            ):
+                continue
+
+            match = xfail_mark.kwargs["match"]
+            if call.excinfo is not None:
+                # TODO: avoid non-API imports.
+                # The problem is that we want to skip matching on an explicitly xfailed
+                # test from within the test.
+                # Like that we are consistent with how pytest matches against the
+                # exception type. Explicit xfails are skipped.
+                from _pytest.outcomes import XFailed
+
+                if isinstance(
+                    call.excinfo.value, XFailed
+                ) or not evaluate_mark_conditions(item, xfail_mark):
+                    continue
+
+                if not re.search(match, str(call.excinfo.value)):
+                    report.outcome = "failed"
+                    break
+
+    return report

@@ -9,6 +9,7 @@ from typing import Callable
 import unittest
 import itertools
 import pytest
+import re
 from parameterized import parameterized, parameterized_class
 
 import functools
@@ -1968,7 +1969,7 @@ class TriviallyReplicableTest(unittest.TestCase):
         ),
         strict=True,
         raises=NotImplementedError,
-        match=(
+        match=re.escape(
             "does not have an implementation for argument types:"
             " [<class 'sharktank.types.tensors.ReplicatedTensor'>]"
         ),

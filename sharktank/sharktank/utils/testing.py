@@ -723,55 +723,6 @@ def _eval_condition(c: bool | str | None) -> bool:
     )
 
 
-def xfail(
-    condition: bool | None = None,
-    *,
-    match: str | None = None,
-    **kwargs,
-):
-    """xfail a test with support for regex matching against the error message.
-
-    This wraps the pytest.mark.xfail decorator into a new decorator.
-    pytest.mark.xfail does not support matching on the error message, but sometimes we
-    need to be more precise on why we expect a failure.
-    One example is when specifying what compiler error is expected. Just the exception
-    type is not enough.
-
-    ```
-    @xfail(raises=MyError, strict=True, match="my message")
-    @test_something():
-        raise MyError("my message")
-    ```
-
-    *args and **kwargs are passthrough arguments for pytest.mark.xfail.
-    """
-
-    def decorator(test_fn: Callable):
-        if condition is not None:
-            kwargs.update(condition=condition)
-
-        @pytest.mark.xfail(**kwargs)
-        @functools.wraps(test_fn)
-        def wrapper(*args, **kwargs):
-            try:
-                return test_fn(*args, **kwargs)
-            except Exception as ex:
-                if (
-                    not _eval_condition(condition)
-                    or match is None
-                    or re.search(match, str(ex))
-                ):
-                    raise ex
-                else:
-                    raise pytest.fail(
-                        f'Failed to match error "{ex}" against expected match "{match}"'
-                    ) from ex
-
-        return wrapper
-
-    return decorator
-
-
 def get_random_test_text_prompts(
     num_prompts: int, min_prompt_length: int | None = None
 ):
