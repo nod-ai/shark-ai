@@ -184,6 +184,7 @@ def apply_per_layer_quant(
     split_sizes: list[int],
     block_size: int = 32,
     weight_dtype_override: Optional[torch.dtype] = None,
+    quantizer_dtype: torch.dtype = torch.float8_e4m3fnuz,
 ):
     """Take the quantization parameters and hf weights from the imported Theta
     and create InferenceTensors out of them, converting their names to gguf format
@@ -244,7 +245,7 @@ def apply_per_layer_quant(
                 offset=None
                 if (weight_zp is None or torch.count_nonzero(weight_zp) == 0)
                 else weight_zp,
-                dtype=torch.float8_e4m3fnuz,
+                dtype=quantizer_dtype,
             )
             weight_quant = weight_quantizer.quantize(weight, name=weight_name)
             updated_tensors[weight_quant.name] = weight_quant
@@ -286,7 +287,7 @@ def apply_per_layer_quant(
                 name=name,
                 scale=1.0 / (output_quant_scale * 2.0),
                 reciprocal_scale=output_quant_scale * 2.0,
-                dtype=torch.float8_e4m3fnuz,
+                dtype=quantizer_dtype,
             )
         names = [f"{i}.q_input" for i in [q_name, k_name, v_name]]
         for name in names:
@@ -294,7 +295,7 @@ def apply_per_layer_quant(
                 name=name,
                 scale=1.0 / (input_quant_scale * 2.0),
                 reciprocal_scale=input_quant_scale * 2.0,
-                dtype=torch.float8_e4m3fnuz,
+                dtype=quantizer_dtype,
             )
         # Remove the updated tensors from the original tree.
         root_theta.pop(layer_parent + ".q_proj")
@@ -317,14 +318,14 @@ def apply_per_layer_quant(
                 name=new_layer_name + ".q_input",
                 scale=1.0 / (input_quant_scale * 2.0),
                 reciprocal_scale=input_quant_scale * 2.0,
-                dtype=torch.float8_e4m3fnuz,
+                dtype=quantizer_dtype,
             )
         if output_quant_scale is not None:
             updated_tensors[new_layer_name + ".q_output"] = StaticScaledQuantizer(
                 name=new_layer_name + ".q_output",
                 scale=1.0 / (output_quant_scale * 2.0),
                 reciprocal_scale=output_quant_scale * 2.0,
-                dtype=torch.float8_e4m3fnuz,
+                dtype=quantizer_dtype,
             )
 
         # Remove the updated tensor from the original tree.
@@ -358,6 +359,7 @@ def update_norm_layer(
     layer_name: str,
     updated_tensors: dict[str, InferenceTensor],
     weight_dtype_override: Optional[torch.dtype] = None,
+    quantizer_dtype: torch.dtype = torch.float8_e4m3fnuz,
 ):
     """Convert layernames for non quantized tensors and add them to the updated_tensors dict"""
     for sub in ["input_layernorm", "post_attention_layernorm"]:
@@ -383,7 +385,7 @@ def update_norm_layer(
                 name=new_name + ".quantizer",
                 scale=1.0 / (kv_cache_scale * 2.0),
                 reciprocal_scale=kv_cache_scale * 2.0,
-                dtype=torch.float8_e4m3fnuz,
+                dtype=quantizer_dtype,
             )
 
         if "prob_output_scale" in quant_theta(layer_name, "self_attn").keys:
@@ -456,6 +458,12 @@ def main(argv):
         default=None,
         help="Data type to cast output_scale and certain weights to (e.g., float32, float16, bfloat16)",
     )
+    parser.add_argument(
+        "--quantizer-dtype",
+        type=str,
+        default="float8_e4m3fnuz",
+        help="Data type for quantizers (e.g., float8_e4m3fnuz, float8_e4m3fn)",
+    )
     args = cli.parse(parser, args=argv)
 
     config_json_path: Path = args.config_json
@@ -506,12 +514,13 @@ def main(argv):
     updated_tensors: dict[str, InferenceTensor] = {}
     model_layers = [f"model.layers.{i}" for i in range(num_layers)]
 
-    # Convert weight_dtype_override string to torch dtype
     weight_dtype_override = (
         serialized_name_to_dtype(args.weight_dtype_override)
         if args.weight_dtype_override
         else None
     )
+
+    quantizer_dtype = serialized_name_to_dtype(args.quantizer_dtype)
 
     sub_layers = [
         "mlp.gate_proj",
@@ -533,6 +542,7 @@ def main(argv):
                 split_sizes=split_sizes,
                 block_size=args.fp4_block_size,
                 weight_dtype_override=weight_dtype_override,
+                quantizer_dtype=quantizer_dtype,
             )
 
     # Update the non quantized weights (norm layers)
@@ -542,6 +552,7 @@ def main(argv):
             layer_idx,
             updated_tensors,
             weight_dtype_override,
+            quantizer_dtype,
         )
 
     # The stragglers
