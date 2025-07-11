@@ -4,7 +4,8 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#pragma once
+#ifndef FUSILI_H
+#define FUSILI_H
 
 #include "fusili/context.h"
 #include "fusili/graph.h"
@@ -17,3 +18,5 @@
 // Nodes
 #include "fusili/node/conv_node.h"
 #include "fusili/node/node.h"
+
+#endif // FUSILI_H

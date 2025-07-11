@@ -4,7 +4,8 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#pragma once
+#ifndef FUSILI_TYPES_H
+#define FUSILI_TYPES_H
 
 namespace fusili {
 
@@ -25,3 +26,5 @@ enum class DataType_t {
 };
 
 } // namespace fusili
+
+#endif // FUSILI_TYPES_H

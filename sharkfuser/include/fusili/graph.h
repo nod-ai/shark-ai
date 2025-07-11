@@ -4,7 +4,8 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#pragma once
+#ifndef FUSILI_GRAPH_H
+#define FUSILI_GRAPH_H
 
 #include <memory>
 #include <unordered_set>
@@ -139,3 +140,5 @@ inline error_t Graph::query_tensor_of_uid(int64_t const uid,
 }
 
 } // namespace fusili
+
+#endif // FUSILI_GRAPH_H

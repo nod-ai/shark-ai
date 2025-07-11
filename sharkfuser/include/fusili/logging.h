@@ -4,7 +4,8 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#pragma once
+#ifndef FUSILI_LOGGING_H
+#define FUSILI_LOGGING_H
 
 #include <fstream>
 #include <iostream>
@@ -175,3 +176,5 @@ inline ConditionalStreamer &getLogger() {
       return retval;                                                           \
     }                                                                          \
   } while (false);
+
+#endif // FUSILI_LOGGING_H

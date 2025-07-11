@@ -4,7 +4,8 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#pragma once
+#ifndef FUSILI_ATTRIBUTES_CONV_ATTRIBUTES_H
+#define FUSILI_ATTRIBUTES_CONV_ATTRIBUTES_H
 
 #include <memory>
 #include <unordered_map>
@@ -79,3 +80,5 @@ public:
 };
 
 } // namespace fusili
+
+#endif // FUSILI_ATTRIBUTES_CONV_ATTRIBUTES_H
