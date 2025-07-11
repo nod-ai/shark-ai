@@ -119,10 +119,25 @@ class QuantizedLayout(ABC):
         """Additional metadata needed to reconstruct a layout."""
         return None
 
+    @property
     @abstractmethod
+    def shape(self) -> list[int]:
+        """The flattened shape of the logical result."""
+        ...
+
     def transpose(self, *args, **kwargs) -> "QuantizedLayout":
         """Returns a new QuantizedLayout with the given dimensions transposed."""
-        ...
+        new_metadata = self.metadata()
+        new_planes = {
+            name: tensor.transpose(*args, **kwargs)
+            for name, tensor in self.planes().items()
+        }
+
+        return self.__class__.create(
+            shape=new_planes["qs"].shape,
+            metadata=new_metadata,
+            planes=new_planes,
+        )
 
 
 QuantizedLayoutT = TypeVar("QuantizedLayoutT", bound=QuantizedLayout)

@@ -164,12 +164,6 @@ class TensorScaledLayout(QuantizedLayout):
             shape=qs.shape, d=self.d, qs=qs, m=self.m, dtype=self.dtype
         )
 
-    def transpose(self, *args, **kwargs) -> "TensorScaledLayout":
-        qs = self.qs.transpose(*args, **kwargs)
-        d = self.d.transpose(*args, **kwargs)
-        m = self.m.transpose(*args, **kwargs) if self.m is not None else None
-        return TensorScaledLayout(shape=qs.shape, d=d, qs=qs, m=m, dtype=self.dtype)
-
     def dequant(self, dtype: Optional[torch.dtype] = None) -> torch.Tensor:
         return self.dequant_blocked(dtype)
 
@@ -361,22 +355,23 @@ class BlockScaledPackedLayout(BlockScaledLayout):
         ...
 
     def transpose(self, *args, **kwargs):
-        new_metadata = self.metadata()
-        new_planes = {}
-        for plane_name, plane_tensor in self.planes().items():
-            if plane_name == "qs":
-                qs = self.unpack_qs(plane_tensor).transpose(*args, **kwargs)
-                new_shape = qs.shape
-                plane_tensor = self.pack_qs(qs)
-            else:
-                plane_tensor = plane_tensor.transpose(*args, **kwargs)
-            new_planes[plane_name] = plane_tensor
+        if len(kwargs) == 2:
+            dim0, dim1 = kwargs["dim0"], kwargs["dim1"]
+        elif len(args) == 2:
+            dim0, dim1 = args
+        else:
+            assert len(args) + len(kwargs) == 2
+            if "dim0" in kwargs:
+                dim0, dim1 = kwargs["dim0"], args[0]
+            elif "dim1" in kwargs:
+                dim0, dim1 = args[0], kwargs["dim1"]
 
-        return self.__class__.create(
-            shape=new_shape,
-            metadata=new_metadata,
-            planes=new_planes,
-        )
+        last_index = [-1, len(self.qs.shape) - 1]
+        if dim0 in last_index or dim1 in last_index:
+            raise ValueError(
+                "Cannot transpose last dim of BlockScaledPackedLayout tensors."
+            )
+        super().transpose(*args, **kwargs)
 
 
 @register_quantized_layout
@@ -669,11 +664,6 @@ class BlockScaledFp4Layout(BlockScaledPackedLayout):
             "block_size": self._block_size,
             "use_fe8m0_scale": self._use_fe8m0_scale,
         }
-
-    @property
-    def qs(self) -> torch.Tensor:
-        """Per sample FP4 indices (unpacked from packed format)."""
-        return unpack_uint8_to_fp4_e2m1(self._qs)
 
     @property
     def block_size(self) -> int:
