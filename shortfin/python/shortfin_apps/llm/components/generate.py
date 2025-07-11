@@ -190,7 +190,7 @@ class ClientGenerateBatchProcess(sf.Process):
             decode_configs=decode_configs,
             input_batch=input_batch,
             is_pretokenized=is_pretokenized,
-            self.responder,
+            responder=self.responder,
         )
         if run_request is None:
             return
