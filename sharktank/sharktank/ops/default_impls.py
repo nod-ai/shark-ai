@@ -21,7 +21,7 @@ from sharktank.types import (
     InferenceTensor,
     PlanarQuantizedTensor,
     BlockScaledI4Layout,
-    BlockScaledPackedLayout,
+    BlockScaledLayout,
     TensorScaledLayout,
     QuantizedLayout,
     unbox_tensor,
@@ -759,12 +759,10 @@ def transpose_QuantizedLayout(
     tensor: QuantizedLayout, dim0: int, dim1: int
 ) -> QuantizedLayout:
 
-    if isinstance(tensor, BlockScaledPackedLayout):
+    if isinstance(tensor, BlockScaledLayout):
         last_index = [-1, len(tensor.shape) - 1]
         if dim0 in last_index or dim1 in last_index:
-            raise ValueError(
-                "Cannot transpose last dim of BlockScaledPackedLayout tensors."
-            )
+            raise ValueError("Cannot transpose last dim of BlockScaledLayout tensors.")
 
     new_planes = {
         name: tensor.transpose(dim0, dim1) for name, tensor in tensor.planes().items()
