@@ -16,21 +16,20 @@ from numbers import Number
 
 from sharktank.types import (
     PrimitiveTensor,
+    DefaultPrimitiveTensor,
     QuantizedTensor,
     InferenceTensor,
     PlanarQuantizedTensor,
     BlockScaledI4Layout,
+    BlockScaledPackedLayout,
     TensorScaledLayout,
-)
-
-from sharktank.kernels.topk import iree_topk
-
-from sharktank.types.tensors import (
-    DefaultPrimitiveTensor,
     QuantizedLayout,
     unbox_tensor,
     AnyTensor,
 )
+
+from sharktank.kernels.topk import iree_topk
+
 from ._registry import AllOfType, AllOfExprs, AllOfExprsVariadic, IsOfType
 from .signatures import *
 import iree.turbine.ops.iree
@@ -747,12 +746,35 @@ def transpose_default(
 @transpose.override(PlanarQuantizedTensor)
 def transpose_PlanarQuantizedTensor(
     tensor: PlanarQuantizedTensor, dim0: int, dim1: int
-):
+) -> PlanarQuantizedTensor:
     new_layout = tensor.unpack().transpose(dim0, dim1)
     if not isinstance(new_layout, QuantizedLayout):
         return NotImplemented
 
     return PlanarQuantizedTensor(shape=new_layout.shape, layout=new_layout)
+
+
+@transpose.override(QuantizedLayout)
+def transpose_QuantizedLayout(
+    tensor: QuantizedLayout, dim0: int, dim1: int
+) -> QuantizedLayout:
+
+    if isinstance(tensor, BlockScaledPackedLayout):
+        last_index = [-1, len(tensor.shape) - 1]
+        if dim0 in last_index or dim1 in last_index:
+            raise ValueError(
+                "Cannot transpose last dim of BlockScaledPackedLayout tensors."
+            )
+
+    new_planes = {
+        name: tensor.transpose(dim0, dim1) for name, tensor in tensor.planes().items()
+    }
+
+    return tensor.__class__.create(
+        shape=new_planes["qs"].shape,
+        metadata=tensor.metadata,
+        planes=new_planes,
+    )
 
 
 # Sharded default impls (do nothing).

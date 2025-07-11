@@ -127,16 +127,9 @@ class QuantizedLayout(ABC):
 
     def transpose(self, *args, **kwargs) -> "QuantizedLayout":
         """Returns a new QuantizedLayout with the given dimensions transposed."""
-        new_planes = {
-            name: tensor.transpose(*args, **kwargs)
-            for name, tensor in self.planes().items()
-        }
+        import ops
 
-        return self.__class__.create(
-            shape=new_planes["qs"].shape,
-            metadata=self.metadata,
-            planes=new_planes,
-        )
+        return ops.transpose(self, *args, **kwargs)
 
 
 QuantizedLayoutT = TypeVar("QuantizedLayoutT", bound=QuantizedLayout)
