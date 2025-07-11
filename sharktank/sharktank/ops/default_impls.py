@@ -739,8 +739,11 @@ def barrier_on_device_default(tensor: Tensor, ordinal: int):
 @transpose.override(Tensor)
 def transpose_default(
     tensor: Union[Tensor, PrimitiveTensor], dim0: int, dim1: int
-) -> Tensor:
-    return torch.transpose(unbox_tensor(tensor), dim0, dim1)
+) -> Union[Tensor, PrimitiveTensor]:
+    transposed = torch.transpose(unbox_tensor(tensor), dim0, dim1)
+    if isinstance(tensor, PrimitiveTensor):
+        transposed = DefaultPrimitiveTensor(data=transposed, name=tensor.name)
+    return transposed
 
 
 @transpose.override(PlanarQuantizedTensor)
@@ -758,18 +761,23 @@ def transpose_PlanarQuantizedTensor(
 def transpose_QuantizedLayout(
     tensor: QuantizedLayout, dim0: int, dim1: int
 ) -> QuantizedLayout:
-
     if isinstance(tensor, BlockScaledLayout):
         last_index = [-1, len(tensor.shape) - 1]
         if dim0 in last_index or dim1 in last_index:
             raise ValueError("Cannot transpose last dim of BlockScaledLayout tensors.")
 
-    new_planes = {
-        name: tensor.transpose(dim0, dim1) for name, tensor in tensor.planes().items()
-    }
+    new_planes = {}
+    for name, plane in tensor.planes.items():
+        if len(plane.shape) < 2:
+            new_planes[name] = plane
+        else:
+            new_planes[name] = plane.transpose(dim0, dim1)
+
+    new_shape = list(tensor.shape)
+    new_shape[dim0], new_shape[dim1] = new_shape[dim1], new_shape[dim0]
 
     return tensor.__class__.create(
-        shape=new_planes["qs"].shape,
+        shape=new_shape,
         metadata=tensor.metadata,
         planes=new_planes,
     )

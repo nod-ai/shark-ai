@@ -126,10 +126,10 @@ class QuantizedLayout(ABC):
         ...
 
     def transpose(self, *args, **kwargs) -> "QuantizedLayout":
-        """Returns a new QuantizedLayout with the given dimensions transposed."""
-        import ops
+        """Returns a new QuantizedLayout  with the given dimensions transposed."""
+        from sharktank.ops import transpose
 
-        return ops.transpose(self, *args, **kwargs)
+        return transpose(self, *args, **kwargs)
 
 
 QuantizedLayoutT = TypeVar("QuantizedLayoutT", bound=QuantizedLayout)
