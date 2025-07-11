@@ -68,7 +68,6 @@ class LlmGenerateService(GenerateService):
         """Initialize request and response queues"""
         if self.model_params.decode_batch_sizes:
             self.max_queue_size = max(self.model_params.decode_batch_sizes)
-            # self.max_queue_size *= self.model_params.pipeline_parallelism_size
             logger.debug(f"Max queue size: {self.max_queue_size}")
 
     def _initialize_worker_and_fiber(self):
