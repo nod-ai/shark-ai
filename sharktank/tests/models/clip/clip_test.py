@@ -38,12 +38,14 @@ from sharktank.utils.iree import (
 from sharktank.types import (
     DefaultPrimitiveTensor,
     dtype_to_serialized_short_name,
+    unbox_tensor,
 )
 from sharktank.transforms.dataset import set_float_dtype
 from sharktank.utils.hf_datasets import get_dataset
 from sharktank.utils.random import make_random_mask, make_rand_torch
 from sharktank.utils.testing import (
     is_cpu_condition,
+    assert_tensor_close,
     assert_text_encoder_state_close,
     TempDirTestBase,
     get_test_prompts,
@@ -242,7 +244,7 @@ class ClipTextIreeTest(TempDirTestBase):
                 ops.to(iree_result[i], dtype=expected_outputs[i].dtype)
                 for i in range(len(expected_outputs))
             ]
-            return [t.clone() for t in actual_outputs]
+            return [unbox_tensor(t).clone() for t in actual_outputs]
 
         actual_outputs = with_iree_device_context(run_iree_module, iree_devices)
 
@@ -451,9 +453,7 @@ class ClipTextEagerTest(TestCase):
             actual_outputs,
         )
 
-        torch.testing.assert_close(
-            actual_outputs, expected_outputs, atol=atol, rtol=rtol
-        )
+        assert_tensor_close(actual_outputs, expected_outputs, atol=atol, rtol=rtol)
 
 
 class ClipAttentionTest(TestCase):
@@ -519,18 +519,16 @@ class ClipAttentionTest(TestCase):
             reference_causal_attention_mask, dtype=target_dtype
         )
         actual_outputs = model(
-            hidden_states=DefaultPrimitiveTensor(data=hidden_states),
-            attention_mask=DefaultPrimitiveTensor(data=attention_mask),
-            causal_attention_mask=DefaultPrimitiveTensor(data=causal_attention_mask),
+            hidden_states=hidden_states,
+            attention_mask=attention_mask,
+            causal_attention_mask=causal_attention_mask,
         )
         actual_outputs = tree_map(
             lambda t: None if t is None else ops.to(t, dtype=reference_dtype),
             actual_outputs,
         )
 
-        torch.testing.assert_close(
-            actual_outputs, expected_outputs, atol=atol, rtol=rtol
-        )
+        assert_tensor_close(actual_outputs, expected_outputs, atol=atol, rtol=rtol)
 
 
 class ClipEncoderLayerTest(TestCase):
@@ -593,18 +591,16 @@ class ClipEncoderLayerTest(TestCase):
             reference_causal_attention_mask, dtype=target_dtype
         )
         actual_outputs = model(
-            hidden_states=DefaultPrimitiveTensor(data=hidden_states),
-            attention_mask=DefaultPrimitiveTensor(data=attention_mask),
-            causal_attention_mask=DefaultPrimitiveTensor(data=causal_attention_mask),
+            hidden_states=hidden_states,
+            attention_mask=attention_mask,
+            causal_attention_mask=causal_attention_mask,
         )
         actual_outputs = tree_map(
             lambda t: None if t is None else ops.to(t, dtype=reference_dtype),
             actual_outputs,
         )
 
-        torch.testing.assert_close(
-            actual_outputs, expected_outputs, atol=atol, rtol=rtol
-        )
+        assert_tensor_close(actual_outputs, expected_outputs, atol=atol, rtol=rtol)
 
 
 class ClipEncoderTest(TestCase):
@@ -668,15 +664,13 @@ class ClipEncoderTest(TestCase):
             reference_causal_attention_mask, dtype=target_dtype
         )
         actual_outputs = model(
-            inputs_embeds=DefaultPrimitiveTensor(data=inputs_embeds),
-            attention_mask=DefaultPrimitiveTensor(data=attention_mask),
-            causal_attention_mask=DefaultPrimitiveTensor(data=causal_attention_mask),
+            inputs_embeds=inputs_embeds,
+            attention_mask=attention_mask,
+            causal_attention_mask=causal_attention_mask,
         )
         actual_outputs = tree_map(
             lambda t: None if t is None else ops.to(t, dtype=reference_dtype),
             actual_outputs,
         )
 
-        torch.testing.assert_close(
-            actual_outputs, expected_outputs, atol=atol, rtol=rtol
-        )
+        assert_tensor_close(actual_outputs, expected_outputs, atol=atol, rtol=rtol)
