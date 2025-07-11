@@ -264,15 +264,11 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                     ):
                         xk_shards.append(quantizer.quantize(xk_shard).unpack().qs)
                         xv_shards.append(quantizer.quantize(xv_shard).unpack().qs)
-                    xk = ops.replicate(
-                        xk_shards,
-                        self.cache_quantizer.shard_count,
-                        devices=self.cache_quantizer.devices,
+                    xk = ReplicatedTensor(
+                        ts=xk_shards, devices=self.cache_quantizer.devices
                     )
-                    xv = ops.replicate(
-                        xv_shards,
-                        self.cache_quantizer.shard_count,
-                        devices=self.cache_quantizer.devices,
+                    xv = ReplicatedTensor(
+                        ts=xv_shards, devices=self.cache_quantizer.devices
                     )
                 else:
                     xk = self.cache_quantizer.quantize(xk).unpack().qs
