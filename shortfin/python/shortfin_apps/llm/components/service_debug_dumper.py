@@ -19,6 +19,7 @@ from shortfin.array import disable_barrier
 logger = logging.getLogger(__name__)
 
 
+# TODO(stbaione): This class fell behind and needs to be fixed.
 class ServiceDebugDumper:
     def __init__(self):
         """Initialize debug service with a new dump directory for this session."""

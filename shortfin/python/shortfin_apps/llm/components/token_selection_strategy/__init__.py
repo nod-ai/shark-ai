@@ -26,7 +26,6 @@ def build_token_selector_config(
     prefill_batcher,
     decode_batcher,
     results_callback: Callable[[Union[int, List[int]]], None],
-    eos_token_id: int,
 ) -> TokenSelectionStrategyConfig:
     """Build a configuration class for a given token selection strategy.
 
@@ -51,32 +50,7 @@ def build_token_selector_config(
         decode_begin_callback=decode_batcher.reserve_workitem,
         decode_end_callback=decode_batcher.complete_workitem,
         results_callback=results_callback,
-        eos_token_id=eos_token_id,
     )
-
-
-def build_token_selector(
-    config: TokenSelectionStrategyConfig,
-) -> BaseTokenSelectionStrategy:
-    """Build a token selector, given a strategy and a config.
-
-    Args:
-        token_selection_strategy (TokenSelectionStrategy): Strategy to use.
-        config (TokenSelectionStrategyConfig): Config containing necessary parameters for execution.
-
-    Raises:
-        NotImplementedError: Unsupported `TokenSelectionStrategy`.
-
-    Returns:
-        BaseTokenSelectionStrategy: Instantiated token selector. Either `IndependentTokenSelectionStrategy` or `BeamSearchTokenSelectionStrategy`.
-    """
-    scorer = (
-        BeamSearchScorer(config=config)
-        if config.decode_config.use_beam_search
-        else DefaultScorer(config=config)
-    )
-
-    return TokenSelector(token_selection_strategy_config=config, scorer=scorer)
 
 
 def is_multi_response(decode_config: DecodeConfig) -> bool:
@@ -87,7 +61,6 @@ def is_multi_response(decode_config: DecodeConfig) -> bool:
 
 
 __all__ = [
-    "build_token_selector",
     "build_token_selector_config",
     "BaseTokenSelectionStrategy",
     "BeamSearchScorer",

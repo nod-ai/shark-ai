@@ -117,6 +117,8 @@ class ExportArtifacts:
         output_name: Optional[str | Path] = None,
         cwd: Optional[str | Path] = None,
         hip_device_id: str,
+        use_qk_norm: bool = False,
+        attention_chunk_size: int | None = None,
     ):
         self.tmp_dir = Path(tempfile.mkdtemp(type(self).__qualname__))
         self.cwd = Path(cwd if cwd is not None else self.tmp_dir)
@@ -142,6 +144,12 @@ class ExportArtifacts:
         self.kv_cache_dtype = kv_cache_dtype
         self.use_hf = use_hf
         self.hip_device_id = hip_device_id
+        self.use_qk_norm = use_qk_norm
+        self.attention_chunk_size = attention_chunk_size
+
+        self.output_mlir = output_mlir
+        self.output_config = output_config
+        self.output_vmfb = output_vmfb
 
         if output_name is not None:
             self.output_name = Path(output_name)
@@ -156,18 +164,6 @@ class ExportArtifacts:
                     else ""
                 )
             )
-
-        self.output_vmfb = output_vmfb
-        if output_vmfb is None:
-            self.output_vmfb = self.output_name.with_suffix(".vmfb")
-
-        self.output_mlir = output_mlir
-        if output_mlir is None:
-            self.output_mlir = self.output_name.with_suffix(".mlir")
-
-        self.output_config = output_config
-        if output_config is None:
-            self.output_config = self.output_name.with_suffix(".json")
 
     def __del__(self):
         shutil.rmtree(self.tmp_dir, ignore_errors=True)
@@ -218,10 +214,11 @@ class ExportArtifacts:
                 f"ROCR_VISIBLE_DEVICES={','.join(str(i) for i in range(self.parallelism_size))}"
             ]
             params = [f"--parameters=model={base_irpa_path}.irpa"]
-            params += [
-                f"--parameters=model={base_irpa_path}.rank{i}.irpa"
-                for i in range(self.tensor_parallelism_size)
-            ]
+            if self.tensor_parallelism_size > 1:
+                params += [
+                    f"--parameters=model={base_irpa_path}.rank{i}.irpa"
+                    for i in range(self.tensor_parallelism_size)
+                ]
             devices = [f"--device=hip://{i}" for i in range(self.parallelism_size)]
         else:
             hip_device_arg = int(self.hip_device_id.split("://")[1])
@@ -250,8 +247,13 @@ class ExportArtifacts:
             exception: The exception class to raise if the command fails.
         """
         logger.info(f"{run_msg}:\n" f"cd {self.cwd} && {cmd}")
+
         proc = subprocess.run(
-            cmd, shell=True, capture_output=True, text=True, cwd=self.cwd
+            cmd,
+            shell=True,
+            cwd=self.cwd,
+            capture_output=True,
+            text=True,
         )
         if proc.returncode != 0:
             raise exception(proc, self.cwd)
@@ -329,10 +331,14 @@ class ExportArtifacts:
             batch_size: The batch size to use for prefill and decode.
             skip_decode: If True, skips the decoding step during export.
         """
-        if Path(self.output_mlir).exists() and Path(self.output_config).exists():
+
+        if self.output_mlir is not None and self.output_config is not None:
             logger.info(f" Using pre-exported mlir: {self.output_mlir}")
             logger.info(f" Using pre-exported config json: {self.output_config}")
             return
+        else:
+            self.output_mlir = self.output_name.with_suffix(".mlir")
+            self.output_config = self.output_name.with_suffix(".json")
 
         export_args = [
             "python3",
@@ -360,6 +366,10 @@ class ExportArtifacts:
             export_args.append("--use-attention-mask")
         if self.use_hf:
             export_args.append("--use-hf")
+        if self.use_qk_norm:
+            export_args.append("--use-qk-norm")
+        if self.attention_chunk_size:
+            export_args.append(f"--attention-chunk-size={self.attention_chunk_size}")
 
         self._run_cmd(
             cmd=subprocess.list2cmdline(export_args),
@@ -384,11 +394,13 @@ class ExportArtifacts:
             hal_dump_path: Optional path where dump HAL files.
             extra_args: Additional arguments for the IREE compiler.
         """
-        if Path(self.output_vmfb).exists():
+
+        if self.output_vmfb is not None:
             logger.info(f" Using pre-exported vmfb: {self.output_vmfb}")
             return
+        else:
+            self.output_vmfb = self.output_name.with_suffix(".vmfb")
 
-        # TODO: Control flag to enable multiple backends
         compile_args = [
             f"iree-compile",
             f"{self.output_mlir}",
@@ -408,6 +420,12 @@ class ExportArtifacts:
             "--iree-stream-resource-memory-model=discrete",
             "--iree-hal-memoization=true",
         ]
+
+        # TODO: https://github.com/iree-org/iree/issues/21068
+        if any(
+            llama_size in str(self.irpa_path) for llama_size in ["405", "70"]
+        ) and all("max-iterations" not in arg for arg in compile_args):
+            compile_args += ["--iree-stream-affinity-solver-max-iterations=1024"]
 
         # Append optional arguments if provided
         if extra_args:

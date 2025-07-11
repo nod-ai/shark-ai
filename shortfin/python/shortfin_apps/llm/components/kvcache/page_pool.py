@@ -49,6 +49,8 @@ class PagePoolConfig:
     # 8: head count (32 heads, but every 4 heads share the same kv buffer)
     # 128: hidden dimension
 
+    paged_kv_block_size_elements_per_device: List[int] | None = None
+
 
 class PagePool:
     """Page table based attention cache.
@@ -90,17 +92,28 @@ class PagePool:
 
         self.available_pages = list(self.attn_page_entries)
 
+        paged_kv_block_size_elements_per_device = (
+            self.config.paged_kv_block_size_elements_per_device
+        )
+        if paged_kv_block_size_elements_per_device is None:
+            paged_kv_block_size_elements_per_device = [
+                self.config.paged_kv_block_size_elements // len(devices)
+            ] * len(devices)
+        assert len(devices) == len(paged_kv_block_size_elements_per_device)
+
         # Initialize a page table on each device.
-        page_table_shape = [
-            self.config.alloc_page_count,
-            self.config.paged_kv_block_size_elements // len(devices),
-        ]
-        for device in devices:
+        for device, paged_kv_block_size_elements in zip(
+            devices, paged_kv_block_size_elements_per_device
+        ):
+            page_table_shape = [
+                self.config.alloc_page_count,
+                paged_kv_block_size_elements,
+            ]
             logging.info(
                 "Allocating page table (shape=%r, dtype=%r, size=%s) on %r",
                 page_table_shape,
                 self.config.dtype,
-                human_size(config.dtype.compute_dense_nd_size(page_table_shape)),
+                human_size(self.config.dtype.compute_dense_nd_size(page_table_shape)),
                 device,
             )
             page_table = sf.array.device_array.for_device(

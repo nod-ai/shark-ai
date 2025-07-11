@@ -25,13 +25,14 @@ from shortfin_apps.llm.components.messages import (
 )
 from shortfin_apps.llm.components.token_selection_strategy import (
     build_token_selector_config,
-    DecodeConfig,
-    DefaultScorer,
     TokenSelector,
+    DefaultScorer,
 )
 from shortfin_apps.llm.components.token_selection_strategy.beam_group import (
+    BeamGroup,
     DefaultBeam,
 )
+from shortfin_apps.llm.components.token_selection_strategy.config import DecodeConfig
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,7 @@ def exec_req_list(exec_req, cache, dummy_pages):
 @pytest.fixture(scope="function")
 def independent_token_selection_strategy():
     yield TokenSelector(
-        None,
+        token_selection_strategy_config=config,
     )
 
 
@@ -252,11 +253,12 @@ def test_select_greedy(
     beams = [
         DefaultBeam(exec_req, decode_config=decode_config) for exec_req in exec_req_list
     ]
-    token_selector = TokenSelector(
-        token_selection_strategy_config=None,
-        scorer=DefaultScorer(None),
+    beam_group = BeamGroup(
+        exec_req_list[0],
+        decode_config,
+        beams=beams,
     )
-    selections = token_selector.scorer.select_beams(beams, [])
+    selections = beam_group._scorer.select_beams(beams, [])
     assert len(selections) == len(beams)
 
     expected_last_tokens = [i for i in range(len(beams))]
@@ -285,17 +287,16 @@ async def test_independent_decode_single(
     decode_config = DecodeConfig(
         num_beams=2,
         max_completion_tokens=1,
+        eos_token_id=-1,
     )
     config = build_token_selector_config(
         decode_config,
         prefill_batcher=FakeBatcher(_batcher_callback, _batcher_workitem_callback),
         decode_batcher=FakeBatcher(_batcher_callback, _batcher_workitem_callback),
         results_callback=_results_callback,
-        eos_token_id=-1,
     )
     token_selector = TokenSelector(
         token_selection_strategy_config=config,
-        scorer=DefaultScorer(config),
     )
 
     exec_req._cache = cache
@@ -358,6 +359,7 @@ async def test_independent_decode_multiple_completions(
     decode_config = DecodeConfig(
         num_beams=2,
         max_completion_tokens=5,
+        eos_token_id=-1,
     )
     config = build_token_selector_config(
         decode_config,
@@ -368,12 +370,10 @@ async def test_independent_decode_multiple_completions(
             _batcher_callback_multiple_completions, _batcher_workitem_callback
         ),
         results_callback=_results_callback,
-        eos_token_id=-1,
     )
 
     token_selector = TokenSelector(
         token_selection_strategy_config=config,
-        scorer=DefaultScorer(config),
     )
     exec_req._cache = cache
     allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache)
@@ -434,6 +434,7 @@ async def test_independent_decode_eos_token(
     decode_config = DecodeConfig(
         num_beams=2,
         max_completion_tokens=5,
+        eos_token_id=-1,
     )
     config = build_token_selector_config(
         decode_config,
@@ -444,12 +445,10 @@ async def test_independent_decode_eos_token(
             _batcher_callback_multiple_completions, _batcher_workitem_callback
         ),
         results_callback=_results_callback,
-        eos_token_id=-1,
     )
 
     token_selector = TokenSelector(
         token_selection_strategy_config=config,
-        scorer=DefaultScorer(config),
     )
     exec_req._cache = cache
     allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache)

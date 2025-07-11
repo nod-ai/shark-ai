@@ -66,7 +66,8 @@ class FP4Tests(unittest.TestCase):
                 -3.0,
                 -4.0,
                 -6.0,
-            ]
+            ],
+            dtype=torch.float32,
         )
 
         # Convert to FP4 indices and back
@@ -78,10 +79,12 @@ class FP4Tests(unittest.TestCase):
     def test_fp4_conversion_approximation(self):
         """Test that float32 -> FP4 conversion finds nearest representable values."""
         # Test values that need to be approximated
-        test_values = torch.tensor([0.25, 0.75, 1.25, 2.5, 5.0])
+        test_values = torch.tensor([0.25, 0.75, 1.25, 2.5, 5.0], dtype=torch.float32)
         # TODO: Validate this. Not sure the correct way to round.
         # 0.25 is equidistant from 0.0 and 0.5, argmin returns first (0.0)
-        expected_approximations = torch.tensor([0.0, 0.5, 1.0, 2.0, 4.0])
+        expected_approximations = torch.tensor(
+            [0.0, 0.5, 1.0, 2.0, 4.0], dtype=torch.float32
+        )
 
         fp4_indices = float32_to_fp4_e2m1(test_values)
         approximated_values = fp4_e2m1_to_float32(fp4_indices)
@@ -119,22 +122,26 @@ class FP4Tests(unittest.TestCase):
     def test_fp4_edge_cases(self):
         """Test FP4 conversion with edge cases."""
         # Test clamping of out-of-range values
-        large_values = torch.tensor([100.0, -100.0, 1000.0])
+        large_values = torch.tensor([100.0, -100.0, 1000.0], dtype=torch.float32)
         fp4_indices = float32_to_fp4_e2m1(large_values)
         clamped_values = fp4_e2m1_to_float32(fp4_indices)
 
         # Should clamp to representable values
-        expected_max = torch.tensor([6.0, -6.0, 6.0])
+        expected_max = torch.tensor([6.0, -6.0, 6.0], dtype=torch.float32)
         torch.testing.assert_close(clamped_values, expected_max, atol=0.0, rtol=0.0)
 
     def test_fp4_batch_processing(self):
         """Test FP4 operations work with batched tensors."""
-        batch_values = torch.tensor([[0.0, 1.0, 2.0, 3.0], [4.0, 5.0, 6.0, -1.0]])
+        batch_values = torch.tensor(
+            [[0.0, 1.0, 2.0, 3.0], [4.0, 5.0, 6.0, -1.0]], dtype=torch.float32
+        )
 
         fp4_indices = float32_to_fp4_e2m1(batch_values)
         recovered_values = fp4_e2m1_to_float32(fp4_indices)
 
-        expected = torch.tensor([[0.0, 1.0, 2.0, 3.0], [4.0, 4.0, 6.0, -1.0]])
+        expected = torch.tensor(
+            [[0.0, 1.0, 2.0, 3.0], [4.0, 4.0, 6.0, -1.0]], dtype=torch.float32
+        )
 
         torch.testing.assert_close(recovered_values, expected, atol=0.0, rtol=0.0)
 
