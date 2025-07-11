@@ -29,6 +29,6 @@ TEST_CASE("Tensor query based on uid", "[tensor]") {
   // A new TensorAttr to populate via querying the graph
   TensorAttr t;
   REQUIRE(t.get_name() == "");
-  REQUIRE(graph.query_tensor_of_uid(uid, t).is_good());
+  REQUIRE(graph.query_tensor_of_uid(uid, t).is_ok());
   REQUIRE(t.get_name() == X->get_name());
 }

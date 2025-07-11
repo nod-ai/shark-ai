@@ -42,9 +42,9 @@ typedef struct [[nodiscard]] error_object {
 
   const std::string &get_message() const { return err_msg; }
 
-  bool is_good() const { return code == error_code_t::OK; }
+  bool is_ok() const { return code == error_code_t::OK; }
 
-  bool is_bad() const { return !is_good(); }
+  bool is_failure() const { return !is_ok(); }
 
   bool operator==(error_code_t compare_code) const {
     return code == compare_code;
@@ -170,7 +170,7 @@ inline ConditionalStreamer &getLogger() {
 
 #define FUSILI_CHECK_ERROR(x)                                                  \
   do {                                                                         \
-    if (auto retval = x; retval.is_bad()) {                                    \
+    if (auto retval = x; retval.is_failure()) {                                \
       FUSILI_LOG_LABEL_RED("ERROR: ");                                         \
       FUSILI_LOG_ENDL(#x << " at " << __FILE__ << ":" << __LINE__);            \
       return retval;                                                           \

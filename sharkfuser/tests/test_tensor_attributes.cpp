@@ -60,38 +60,38 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
   SECTION("Empty dim fails validation") {
     TensorAttr t;
     t.set_stride({1});
-    REQUIRE(t.validate().is_bad());
+    REQUIRE(t.validate().is_failure());
   }
 
   SECTION("Empty stride fails validation") {
     TensorAttr t;
     t.set_dim({1});
-    REQUIRE(t.validate().is_bad());
+    REQUIRE(t.validate().is_failure());
   }
 
   SECTION("Empty name still validates if dims and strides are set") {
     TensorAttr t;
     t.set_dim({2}).set_stride({1});
-    REQUIRE(t.validate().is_good());
+    REQUIRE(t.validate().is_ok());
   }
 
   SECTION("Dim and stride of different ranks is invalid") {
     TensorAttr t;
     t.set_dim({2}).set_stride({1, 1});
-    REQUIRE(t.validate().is_bad());
+    REQUIRE(t.validate().is_failure());
   }
 
   SECTION("Single dimension tensor") {
     TensorAttr t;
     t.set_name("single").set_dim({5}).set_stride({1});
-    REQUIRE(t.validate().is_good());
+    REQUIRE(t.validate().is_ok());
     REQUIRE(t.get_volume() == 5);
   }
 
   SECTION("Zero dimension in tensor") {
     TensorAttr t;
     t.set_name("zero").set_dim({2, 0, 3}).set_stride({0, 0, 1});
-    REQUIRE(t.validate().is_good());
+    REQUIRE(t.validate().is_ok());
     REQUIRE(t.get_volume() == 0);
   }
 
@@ -99,7 +99,7 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
     TensorAttr t;
     t.set_dim({1}).set_stride({1});
     t.set_is_virtual(true).set_is_scalar(true);
-    REQUIRE(t.validate().is_bad());
+    REQUIRE(t.validate().is_failure());
   }
 
   SECTION("Scalar value set but not marked scalar") {
@@ -107,7 +107,7 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
     REQUIRE(t.get_is_scalar());
     t.set_is_scalar(false);
     REQUIRE(!t.get_is_scalar());
-    REQUIRE(t.validate().is_bad());
+    REQUIRE(t.validate().is_failure());
   }
 
   SECTION("Scalar value not set but marked scalar") {
@@ -116,7 +116,7 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
     REQUIRE(!t.get_is_scalar());
     t.set_is_scalar(true);
     REQUIRE(t.get_is_scalar());
-    REQUIRE(t.validate().is_bad());
+    REQUIRE(t.validate().is_failure());
   }
 }
 

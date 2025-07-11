@@ -54,7 +54,7 @@ TEST_CASE("Graph validate() returns OK for valid graph", "[graph]") {
       "conv");
   auto y = g.conv_fprop(x, w, attr);
   y->set_dim({1, 4, 8, 8}).set_stride({256, 1, 32, 4});
-  REQUIRE(g.validate().is_good());
+  REQUIRE(g.validate().is_ok());
 }
 
 TEST_CASE("Graph query_tensor_of_uid finds tensors by UID", "[graph]") {
@@ -78,9 +78,9 @@ TEST_CASE("Graph query_tensor_of_uid finds tensors by UID", "[graph]") {
   y->set_uid(20);
 
   TensorAttr found;
-  REQUIRE(g.query_tensor_of_uid(10, found).is_good());
+  REQUIRE(g.query_tensor_of_uid(10, found).is_ok());
   REQUIRE(found.get_name() == "X");
-  REQUIRE(g.query_tensor_of_uid(20, found).is_good());
+  REQUIRE(g.query_tensor_of_uid(20, found).is_ok());
   REQUIRE(found.get_name() == "conv::Y");
-  REQUIRE(g.query_tensor_of_uid(999, found).is_bad());
+  REQUIRE(g.query_tensor_of_uid(999, found).is_failure());
 }

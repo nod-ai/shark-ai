@@ -91,8 +91,8 @@ TEST_CASE("error_t and error_code_t operators and methods", "[logging]") {
     REQUIRE(err.code == error_code_t::OK);
     REQUIRE(err.get_code() == error_code_t::OK);
     REQUIRE(err.get_message() == "");
-    REQUIRE(err.is_good());
-    REQUIRE(!err.is_bad());
+    REQUIRE(err.is_ok());
+    REQUIRE(!err.is_failure());
     REQUIRE(err == error_code_t::OK);
   }
 
@@ -101,8 +101,8 @@ TEST_CASE("error_t and error_code_t operators and methods", "[logging]") {
     REQUIRE(err.code == error_code_t::ATTRIBUTE_NOT_SET);
     REQUIRE(err.get_code() == error_code_t::ATTRIBUTE_NOT_SET);
     REQUIRE(err.get_message() == "missing attribute");
-    REQUIRE(!err.is_good());
-    REQUIRE(err.is_bad());
+    REQUIRE(!err.is_ok());
+    REQUIRE(err.is_failure());
     REQUIRE(err == error_code_t::ATTRIBUTE_NOT_SET);
   }
 
