@@ -747,6 +747,79 @@ class TestTraceTensors(TempDirTestBase):
         torch.testing.assert_close(recorded_tensor, tensor, rtol=0, atol=0)
 
 
+class TransposeTest(unittest.TestCase):
+    def testPrimitiveTensor(self):
+        tensor = torch.tensor([[1, 2], [3, 4]])
+        expected_transposed = torch.transpose(tensor, 0, 1)
+
+        transposed_tensor = DefaultPrimitiveTensor(data=tensor).transpose(0, 1)
+        assert isinstance(transposed_tensor, DefaultPrimitiveTensor)
+        retransposed_tensor = transposed_tensor.transpose(0, 1)
+        assert isinstance(retransposed_tensor, DefaultPrimitiveTensor)
+
+        assert torch.equal(expected_transposed, unbox_tensor(transposed_tensor))
+        assert torch.equal(tensor, unbox_tensor(retransposed_tensor))
+
+    def quantized_tensor_helper(
+        self, quantizer: QuantizerTensor, expected: torch.Tensor
+    ):
+        expected_transposed = expected.transpose(0, 1)
+
+        quantized = quantizer.quantize(expected)
+        transposed_quantized = quantized.transpose(0, 1)
+        retransposed_quantized = transposed_quantized.transpose(0, 1)
+
+        dequantized = quantized.layout.dequant()
+        assert torch.equal(expected, dequantized)
+
+        dequantized_transposed = transposed_quantized.layout.dequant()
+        assert torch.equal(expected_transposed, dequantized_transposed)
+
+        dequantized_retransposed = retransposed_quantized.layout.dequant()
+        assert torch.equal(expected, dequantized_retransposed)
+
+    def testTensorScaled(self):
+        expected = torch.tensor([[-6, -4, -2, 0], [-6, -4, -2, 0]], dtype=torch.float32)
+        quantizer = StaticScaledQuantizer(
+            scale=torch.tensor(0.5, dtype=torch.float32),
+            offset=torch.tensor(5.0, dtype=torch.float32),
+            dtype=torch.float32,
+        )
+        self.quantized_tensor_helper(quantizer, expected)
+
+    def testBlockScaledFp4(self):
+        expected = torch.tensor(
+            [[[-6, -4, -2, 0], [-4, -3, -2, -1]], [[6, 4, 2, 1], [4, 3, 1, -1]]],
+            dtype=torch.float32,
+        )
+        quantizer = StaticFp4BlockQuantizer(
+            scales=torch.tensor(1.0, dtype=torch.float32),
+            dtype=torch.float32,
+            block_size=2,
+            use_fe8m0_scale=False,
+        )
+        self.quantized_tensor_helper(quantizer, expected)
+
+    def testBlockScaledFp4ShouldFail(self):
+        expected = torch.tensor(
+            [[-6, -4, -2, 0], [-5, -3, -2, -1]], dtype=torch.float32
+        )
+        quantizer = StaticFp4BlockQuantizer(
+            scales=torch.tensor(0.5, dtype=torch.float32),
+            dtype=torch.float32,
+            block_size=2,
+            use_fe8m0_scale=False,
+        )
+        try:
+            self.quantized_tensor_helper(quantizer, expected)
+        except ValueError as e:
+            assert str(e) == "Cannot transpose last dim of BlockScaledLayout tensors."
+        else:
+            raise AssertionError(
+                "Expected ValueError for BlockScaledFp4Layout transpose, but no exception was raised."
+            )
+
+
 class ConvTest(unittest.TestCase):
     def testConv2d(self):
         # Random input tensor: batch size = 1, channels = 1, height = 5, width = 5
