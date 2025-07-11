@@ -141,7 +141,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         x: torch.Tensor | ReplicatedTensor,
         start_index: int,
         embedding: RotaryEmbeddingLayer,
-        embedding_batch_mask: torch.Tensor,
+        embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
     ):
         bs, batch_seq_len, _ = x.shape
 
@@ -180,7 +180,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         x: torch.Tensor | ReplicatedTensor,
         start_index: int,
         embedding: RotaryEmbeddingLayer,
-        embedding_batch_mask: torch.Tensor,
+        embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
     ):
         """
         x:
@@ -215,7 +215,9 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         start_index: Optional[int] = None,
         start_positions: Optional[torch.Tensor | ReplicatedTensor] = None,
         attention_mask: Optional[torch.Tensor | ReplicatedTensor] = None,
-        embedding_batch_mask: Optional[torch.Tensor] = None,
+        embedding_batch_mask: None
+        | tuple[InferenceTensor, InferenceTensor]
+        | InferenceTensor = None,
         cache_state: list[torch.Tensor] = None,
     ):
         assert bool(start_index is not None) ^ bool(embedding_batch_mask is not None)

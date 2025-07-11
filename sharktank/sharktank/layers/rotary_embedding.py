@@ -103,7 +103,7 @@ class ShardedRotaryLayer(BaseLayer):
 
     def compute_batch_mask(
         self, start_positions: Union[torch.Tensor, ShardedTensor], batch_seq_len: int
-    ) -> torch.Tensor:
+    ) -> tuple[InferenceTensor, InferenceTensor] | InferenceTensor:
         if isinstance(start_positions, ShardedTensor):
             table = self.rotary_embed_table()
             # use-hf
@@ -137,7 +137,7 @@ class ShardedRotaryLayer(BaseLayer):
         self,
         *,
         xt: Union[torch.Tensor, SplitPrimitiveTensor, ReplicatedTensor],
-        mask: Union[torch.Tensor, ReplicatedTensor],
+        mask: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
     ) -> Union[SplitPrimitiveTensor, ReplicatedTensor]:
 
         if not isinstance(xt, ShardedTensor):
@@ -254,10 +254,10 @@ class RotaryEmbeddingLayer(BaseLayer):
 
     def compute_batch_mask(
         self,
-        start_positions: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
+        start_positions: InferenceTensor,
         batch_seq_len: int,
-        rotary_embed_table: torch.Tensor,
-    ) -> torch.Tensor:
+        rotary_embed_table: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
+    ) -> tuple[InferenceTensor, InferenceTensor] | InferenceTensor:
         # TODO: I'm pretty sure this function is only correct because batch_seq_len is always 1
         """Computes a mask for a batch that can be repeatedly applied.
 
@@ -288,7 +288,12 @@ class RotaryEmbeddingLayer(BaseLayer):
 
         return freqs_cis.unsqueeze(1)
 
-    def apply_batched_mask(self, *, xt: torch.Tensor, mask: torch.Tensor):
+    def apply_batched_mask(
+        self,
+        *,
+        xt: torch.Tensor,
+        mask: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
+    ) -> InferenceTensor:
         """Applies the embedding to a ragged batch of queries and keys.
 
         This does a more complicated indexing operation for cases when the each
