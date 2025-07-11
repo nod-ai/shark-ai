@@ -61,7 +61,6 @@ def is_multi_response(decode_config: DecodeConfig) -> bool:
 
 
 __all__ = [
-    "build_token_selector",
     "build_token_selector_config",
     "BaseTokenSelectionStrategy",
     "BeamSearchScorer",
