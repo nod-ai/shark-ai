@@ -30,7 +30,7 @@ dtype_to_filetag = {
     sfnp.bfloat16: "bf16",
 }
 
-ARTIFACT_VERSION = "03062025"
+ARTIFACT_VERSION = "06032025"
 SDXL_BUCKET = (
     f"https://sharkpublic.blob.core.windows.net/sharkpublic/sdxl/{ARTIFACT_VERSION}/"
 )
@@ -227,8 +227,8 @@ def needs_file(filename, ctx, url=None, namespace=FileNamespace.GEN) -> bool:
     return True
 
 
-def needs_compile(filename, target, ctx) -> bool:
-    vmfb_name = f"{filename}_{target}.vmfb"
+def needs_compile(filename, target, driver, ctx) -> bool:
+    vmfb_name = f"{filename}_{target}_{driver}.vmfb"
     namespace = FileNamespace.BIN
     return needs_file(vmfb_name, ctx, namespace=namespace)
 
@@ -364,13 +364,16 @@ def sdxl(
     model_params = ModelParams.load_json(model_json)
     ctx = executor.BuildContext.current()
     update = needs_update(ctx)
+    driver = "amdgpu" if "gfx" in target else "cpu"
 
     mlir_bucket = SDXL_BUCKET + "mlir/"
     vmfb_bucket = SDXL_BUCKET + "vmfbs/"
 
     params_filename = get_params_filename(model_params, model=model, splat=splat)
     mlir_filenames = get_mlir_filenames(model_params, model)
-    vmfb_filenames = get_vmfb_filenames(model_params, model=model, target=target)
+    vmfb_filenames = get_vmfb_filenames(
+        model_params, model=model, target=target, driver=driver
+    )
 
     if build_preference == "export":
         from iree.turbine.aot.build_actions import turbine_generate
@@ -453,8 +456,9 @@ def sdxl(
     if build_preference != "precompiled":
         for idx, f in enumerate(copy.deepcopy(vmfb_filenames)):
             # We return .vmfb file stems for the compile builder.
-            file_stem = "_".join(f.split("_")[:-1])
-            if needs_compile(file_stem, target, ctx) or force_update:
+            mlir_stem = "_".join(f.split("_")[:-2])
+            vmfb_stem = f.split(f"_{driver}.vmfb")[0]
+            if needs_file(f, ctx, namespace=FileNamespace.BIN) or force_update:
                 for mlirname in mlir_filenames:
                     if mlir_stem in mlirname:
                         mlir_source = mlirname
@@ -464,9 +468,7 @@ def sdxl(
                 obj = compile(name=vmfb_stem, source=mlir_source)
                 vmfb_filenames[idx] = obj[0]
             else:
-                vmfb_filenames[idx] = get_cached(
-                    f"{file_stem}_{target}.vmfb", ctx, FileNamespace.BIN
-                )
+                vmfb_filenames[idx] = get_cached(f, ctx, FileNamespace.BIN)
     else:
         vmfb_urls = get_url_map(vmfb_filenames, vmfb_bucket)
         for f, url in vmfb_urls.items():
