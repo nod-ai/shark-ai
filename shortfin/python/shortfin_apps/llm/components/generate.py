@@ -149,7 +149,11 @@ class ClientGenerateBatchProcess(sf.Process):
         self.active_processes = []
         self.cancelled = False
         self.lock = threading.Lock()
-        self.queue_manager = RequestQueueManager(model_params=self.service.model_params, page_pool=self.service.page_pool, responder=responder)
+        self.queue_manager = RequestQueueManager(
+            model_params=self.service.model_params,
+            page_pool=self.service.page_pool,
+            responder=responder,
+        )
         self.main_fiber_pool = FiberPool(
             self.service.sysman, self.queue_manager.get_max_queue_size(), resizable=True
         )
@@ -189,10 +193,14 @@ class ClientGenerateBatchProcess(sf.Process):
             input_batch = [input_ids] if self.gen_req.is_single else input_ids
         else:
             input_batch = self.tokenize()
-                
+
         # Try to add request to queue
         # TODO(@zphoenixrises): Add load testing and integration tests for this.
-        run_request = self.queue_manager.add_to_queue(decode_configs=decode_configs, input_batch=input_batch, is_pretokenized=is_pretokenized)
+        run_request = self.queue_manager.add_to_queue(
+            decode_configs=decode_configs,
+            input_batch=input_batch,
+            is_pretokenized=is_pretokenized,
+        )
         if run_request is None:
             return
 

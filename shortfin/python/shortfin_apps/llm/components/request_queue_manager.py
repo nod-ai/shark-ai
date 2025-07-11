@@ -24,13 +24,14 @@ class RequestQueueManager:
     """
 
     DEFAULT_MAX_QUEUE_SIZE = 3
+
     def __init__(
         self,
         *,
         model_params: ModelParams,
         page_pool: PagePool,
         responder: FastAPIResponder,
-        max_queue_size: int = DEFAULT_MAX_QUEUE_SIZE
+        max_queue_size: int = DEFAULT_MAX_QUEUE_SIZE,
     ):
         self._max_queue_size = max_queue_size
         self._lock = threading.Lock()
@@ -87,7 +88,9 @@ class RequestQueueManager:
         total_beams = decode_config.num_beams
         input_pages = math.ceil(input_token_ids_len / stride)
         copy_pages = total_beams - 1
-        output_pages = total_beams * math.ceil(decode_config.max_completion_tokens / stride)
+        output_pages = total_beams * math.ceil(
+            decode_config.max_completion_tokens / stride
+        )
         needed_pages = input_pages + copy_pages + output_pages
 
         logger.debug(
@@ -96,8 +99,13 @@ class RequestQueueManager:
 
         return needed_pages <= available_pages, needed_pages
 
-
-    def add_to_queue(self, *, decode_configs: list[DecodeConfig], input_batch: list[Encoding], is_pretokenized: bool) -> Optional[int]:
+    def add_to_queue(
+        self,
+        *,
+        decode_configs: list[DecodeConfig],
+        input_batch: list[Encoding],
+        is_pretokenized: bool,
+    ) -> Optional[int]:
         """
         Attempts to add a request to the queue.
         Returns: Request ID if successful, None otherwise.
@@ -120,17 +128,16 @@ class RequestQueueManager:
                 )
                 return None
 
-
         for index, input_tokens in enumerate(input_batch):
             decode_config = decode_configs[index]
 
             exported_topk = self.model_params.top_k
             requested_topk = (
-                    max(decode_config.num_beams, exported_topk or 1)
-                    if decode_config.use_beam_search
-                    else decode_config.top_k
+                max(decode_config.num_beams, exported_topk or 1)
+                if decode_config.use_beam_search
+                else decode_config.top_k
             )
-            
+
             if not self._check_topk_params(
                 exported_topk,
                 requested_topk,
@@ -145,10 +152,9 @@ class RequestQueueManager:
                 )
                 return None
 
-
             input_token_ids = input_tokens if is_pretokenized else input_tokens.ids
 
-            available_pages=self.page_pool.get_available_pages_num()
+            available_pages = self.page_pool.get_available_pages_num()
             is_memory_ok, needed_pages = self._check_memory_availability(
                 input_token_ids_len=len(input_token_ids),
                 available_pages=available_pages,
@@ -166,14 +172,16 @@ class RequestQueueManager:
                     },
                 )
                 return None
-                    
+
         with self._lock:
             self._current_id += 1
             self._current_queue_size += request_size
             assert self._current_id not in self._current_tasks
             self._current_tasks[self._current_id] = request_size
 
-            logger.debug(f"Request added: id={self._current_id}, new queue size={self._current_queue_size}")
+            logger.debug(
+                f"Request added: id={self._current_id}, new queue size={self._current_queue_size}"
+            )
             return self._current_id
 
     def remove_from_queue(self, id: Optional[int]) -> None:
@@ -197,4 +205,6 @@ class RequestQueueManager:
             request_size = self._current_tasks[id]
             del self._current_tasks[id]
             self._current_queue_size -= request_size
-            logger.debug(f"Request removed: id={id}, new queue size={self._current_queue_size}")
+            logger.debug(
+                f"Request removed: id={id}, new queue size={self._current_queue_size}"
+            )
