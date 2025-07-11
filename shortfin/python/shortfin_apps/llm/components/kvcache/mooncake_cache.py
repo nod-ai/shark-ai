@@ -174,7 +174,9 @@ class MooncakePagedAllocation(PageAllocation):
         logger.info(f"Successfully wrote back {len(keys)} pages to Mooncake store.")
         return len(keys)
 
-    async def update_pages(self, device: sf.ScopedDevice, token_ids: List[int]) -> int:
+    async def update_pages(
+        self, device: sf.ScopedDevice, token_ids: List[int], store_local=False
+    ) -> int:
         """Update pages in the device.
         This method splits the token_ids into keys according to tokens_per_page used in page_pool, retrieves the page correspons to the key from Mooncake and updates corresponding page in the page pool.
         args:
@@ -183,6 +185,7 @@ class MooncakePagedAllocation(PageAllocation):
         returns:
             True if all pages were updated successfully, False otherwise
         """
+        num_updated_pages = 0
         page_pool = self.cache.page_pool
         tokens_per_page = self.cache.tokens_per_page
         number_of_pages = math.ceil(len(token_ids) / tokens_per_page)
@@ -190,10 +193,14 @@ class MooncakePagedAllocation(PageAllocation):
         logger.debug(
             f"Update_pages for Device ID: {device_id}, number of tokens: {len(token_ids)}, Number of pages: {number_of_pages}, Tokens per page: {tokens_per_page}"
         )
-
+        #
         mooncake_store = self.cache.mooncake_store
-        values = []
+        start = time.perf_counter()
+
         for i in range(number_of_pages):
+            if i >= len(self.pages):
+                break
+
             start_index = i * tokens_per_page
             end_index = min((i + 1) * tokens_per_page, len(token_ids))
             page_tokens = token_ids[start_index:end_index]
@@ -203,27 +210,35 @@ class MooncakePagedAllocation(PageAllocation):
 
             key = token_ids_to_key(page_tokens)
             value = mooncake_store.get_int_list(key)
+            end = time.perf_counter()
+            if end - start > 1:
+                break
             if value is None:
                 logger.debug(
                     f"Page not found in Mooncake store for key: {key}. Skipping updating this and the rest of tokens."
                 )
                 break
             logger.debug(f"Got page for key: {key} from Mooncake store")
-            # Get the page from the page pool
-            values.append(value)
-            self._last_updated_values.append((key, value))
-
-        for i in range(len(values)):
+            #
             page_info = self.pages[i]
             # Update the page in the page pool
             page_pool.update_device_page(
                 device_id=device_id,
                 page=page_info,
-                data=values[i],
+                data=value,
             )
+            num_updated_pages += 1
+            #
+            if store_local:
+                self._last_updated_values.append((key, value))
+
+            end = time.perf_counter()
+            if end - start > 1:
+                break
         await device
-        logger.info(f"Updated {len(values)} pages in the device.")
-        return len(values)
+
+        logger.info(f"Updated {num_updated_pages} pages in the device.")
+        return num_updated_pages
 
 
 class MooncakeAttentionCache(BasePagedAttentionCache):

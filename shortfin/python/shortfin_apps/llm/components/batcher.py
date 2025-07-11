@@ -444,9 +444,9 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         for req in self.exec_requests:
             if req.allocation is not None:
                 num_updated_pages = 0
-                # num_updated_pages = await req.allocation.update_pages(
-                #    device=self.device0, token_ids=req.input_token_ids
-                # )
+                num_updated_pages = await req.allocation.update_pages(
+                    device=self.device0, token_ids=req.input_token_ids
+                )
                 if num_updated_pages > 0:
                     logger.debug(
                         "Updated %d pages for request %s, allocation: %s",
