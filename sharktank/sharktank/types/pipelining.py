@@ -10,8 +10,8 @@ Specifications describing how
 
 from iree.turbine.aot import DeviceTensorTrait, ExternalTensorTrait
 from sharktank.types import (
-    DefaultPrimitiveTensor,
     PrimitiveTensor,
+    QuantizedTensor,
     ReplicatedTensor,
     ShardedTensor,
     Theta,
@@ -32,7 +32,7 @@ def pipeline_parallelize_theta(
         return None, None
 
     def parallelize_in_place(
-        block_data: dict[str, ShardedTensor | PrimitiveTensor],
+        block_data: dict[str, ShardedTensor | PrimitiveTensor | QuantizedTensor],
         new_devices: Tuple[int, ...],
     ) -> None:
         """
