@@ -16,9 +16,36 @@ from iree.compiler.ir import Context, Module
 import iree.turbine.aot as aot
 from sharktank.kernels.wave.mxfp4_gemm import wave_mxfp4_bmm
 from parameterized import parameterized
+from sharktank.types.quantizers import DynamicFp4BlockQuantizer
+from sharktank.types.tensors import unbox_tensor
 
 
 class wave_fp4_gemm(unittest.TestCase):
+    def test_wave_fp4_gemm_bmm(self):
+        # BMK @ NK = BMN
+        lhs = torch.randint(low=0, high=256, size=(4, 1024, 1024), dtype=torch.float32)
+        rhs = torch.randint(low=0, high=256, size=(1024, 1024), dtype=torch.float32)
+        lhs = unbox_tensor(lhs)
+        quantizer = DynamicFp4BlockQuantizer(
+            block_size=32, use_fe8m0_scale=True, name="matmul_input_quantizer"
+        )
+        lhs_quantized = quantizer.quantize(lhs)
+        lhs_unpacked = lhs_quantized.unpack()
+        rhs = unbox_tensor(rhs)
+        rhs_quantized = quantizer.quantize(rhs)
+        rhs_unpacked = rhs_quantized.unpack()
+        output = torch.zeros(
+            [lhs.shape[0], lhs.shape[1], rhs.shape[0]],
+            dtype=torch.float32,
+        )
+        # wave_output = wave_mxfp4_bmm(
+        #     lhs_unpacked.qs_bit_packed.flatten(start_dim=-2),
+        #     lhs_unpacked.d,
+        #     rhs_unpacked.qs_bit_packed.flatten(start_dim=-2),
+        #     rhs_unpacked.d,
+        #     output,
+        # )
+
     def test_wave_fp4_gemm(self):
         class WaveMxfp4Module(torch.nn.Module):
             def forward(self, x, x_scales, w_t, w_scales, output):

@@ -129,11 +129,11 @@ def pack_nibbles(low: torch.Tensor, high: torch.Tensor) -> torch.Tensor:
     # Validate nibble value ranges - using torch._check for export compatibility
     torch._check(
         low.max().item() <= _FP4_MAX_INDEX,
-        lambda: f"Low nibble values must be in range [{_FP4_MIN_INDEX}, {_FP4_MAX_INDEX}].",
+        f"Low nibble values must be in range [{_FP4_MIN_INDEX}, {_FP4_MAX_INDEX}].",
     )
     torch._check(
         high.max().item() <= _FP4_MAX_INDEX,
-        lambda: f"High nibble values must be in range [{_FP4_MIN_INDEX}, {_FP4_MAX_INDEX}].",
+        f"High nibble values must be in range [{_FP4_MIN_INDEX}, {_FP4_MAX_INDEX}].",
     )
 
     return low | (high << 4)
@@ -261,7 +261,7 @@ def pack_fp4_e2m1_to_uint8(fp4_values: torch.Tensor) -> torch.Tensor:
     # Validate FP4 value range
     torch._check(
         fp4_values.max().item() <= _FP4_MAX_INDEX,
-        lambda: f"FP4 values must be in range [{_FP4_MIN_INDEX}, {_FP4_MAX_INDEX}]. "
+        f"FP4 values must be in range [{_FP4_MIN_INDEX}, {_FP4_MAX_INDEX}]. "
         f"Use float32_to_fp4_e2m1() to convert float values to FP4 indices first.",
     )
 

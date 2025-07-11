@@ -134,7 +134,7 @@ def matmul_generic_tensor_block_scaled_fp4(
     return wave_mxfp4_bmm(
         lhs_unpacked.qs_bit_packed.flatten(start_dim=-2),
         lhs_unpacked.d,
-        rhs_unpacked.qs_bit_packed,
+        rhs_unpacked.qs_bit_packed.flatten(start_dim=-2),
         rhs_unpacked.d,
         output,
     )
