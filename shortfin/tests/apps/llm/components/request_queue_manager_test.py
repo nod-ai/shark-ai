@@ -9,6 +9,7 @@ from shortfin_apps.llm.components.config_struct import ModelParams, PagedKVCache
 from shortfin_apps.llm.components.token_selection_strategy.config import DecodeConfig
 from shortfin_apps.llm.components.request_queue_manager import RequestQueueManager
 from shortfin_apps.llm.components.tokenizer import Encoding
+import pytest
 
 
 @pytest.fixture
