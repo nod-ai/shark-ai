@@ -30,7 +30,7 @@ class ShardingTests(MainRunnerTestBase):
     sys.platform == "win32", reason="https://github.com/nod-ai/shark-ai/issues/698"
 )
 class PipelineTests(MainRunnerTestBase):
-    def testExportFfnNet(self):
+    def testExportPFfnNet(self):
         from sharktank.examples.pipeline.export_ppffn_net import main
 
         irpa_path = self.get_irpa_path("ppffn")
