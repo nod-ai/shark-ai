@@ -105,16 +105,17 @@ class ShardedRotaryLayer(BaseLayer):
         self, start_positions: Union[torch.Tensor, ShardedTensor], batch_seq_len: int
     ) -> torch.Tensor:
         if isinstance(start_positions, ShardedTensor):
-            shards = []
             table = self.rotary_embed_table()
             # use-hf
-            if isinstance(table, tuple):
+            if isinstance(table, ShardedTensor):
+                table = [x for x in table.shards]
+            else:
                 table = [
                     (shard_x, shard_y)
                     for shard_x, shard_y in zip(table[0].shards, table[1].shards)
                 ]
-            else:
-                table = [x for x in table.shards]
+
+            shards = []
             for s, ts in zip(start_positions.shards, table):
                 shard = self._rotary_layer.compute_batch_mask(
                     start_positions=s,
@@ -122,8 +123,9 @@ class ShardedRotaryLayer(BaseLayer):
                     rotary_embed_table=ts,
                 )
                 shards.append(shard)
-
-            return start_positions.clone(ts=shards)
+            return start_positions.clone(
+                ts=shards
+            )  # TODO: There's no way this clone is correct.
 
         return self._rotary_layer.compute_batch_mask(
             start_positions=start_positions,
@@ -252,7 +254,7 @@ class RotaryEmbeddingLayer(BaseLayer):
 
     def compute_batch_mask(
         self,
-        start_positions: Union[torch.Tensor, ReplicatedTensor],
+        start_positions: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
         batch_seq_len: int,
         rotary_embed_table: torch.Tensor,
     ) -> torch.Tensor:
