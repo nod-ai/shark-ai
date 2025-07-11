@@ -83,6 +83,7 @@ def test_add_to_queue_full(manager, responder, encoding_2):
     decode_config = DecodeConfig(
         num_beams=1, top_k=5, use_beam_search=False, max_completion_tokens=10
     )
+    manager.page_pool.get_available_pages_num.return_value = 100
     request_id = manager.add_to_queue(
         decode_configs=[decode_config],
         input_batch=[encoding_2],
