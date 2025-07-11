@@ -16,7 +16,6 @@ import threading
 from typing import List, Iterable
 
 from .page_pool import PageInfo, PagePool
-import shortfin as sf
 
 
 logger = logging.getLogger(__name__)
@@ -57,24 +56,6 @@ class PageAllocation(ABC):
         """
         pass
 
-    async def write_back_pages(
-        self, device: sf.ScopedDevice, token_ids: List[int]
-    ) -> None:
-        """
-        Writes back the pages to the mooncake. This is a no-op in the base class.
-        Derived classes may implement this to handle device-specific logic.
-        return number of pages written back to the distributed store
-        """
-        return 0
-
-    async def update_pages(self, device: sf.ScopedDevice, token_ids: List[int]) -> bool:
-        """
-        Updates the pages in the cache. This is a no-op in the base class.
-        Derived classes may implement this to handle device-specific logic.
-        Returns number of pages updated from distributed store.
-        """
-        return 0
-
 
 class BasePagedAttentionCacheAllocation(PageAllocation):
     """Represents a page allocation in the cache."""
@@ -110,7 +91,11 @@ class BasePagedAttentionCacheAllocation(PageAllocation):
                 pages_needed - len(self._pages)
             )
             if new_pages is None:
-                raise CacheAllocationFailure()
+                raise CacheAllocationFailure(
+                    f"FATAL: Failed to allocate {pages_needed - len(self._pages)} from `PagePool`.\n"
+                    f"Required pages: {pages_needed}, Available pages: {len(self._cache.page_pool.available_pages)}, Total pages: {self._cache.page_pool.config.alloc_page_count}\n"
+                    f"Consider raising the `paged_kv_cache.device_block_count value in the model configuration file."
+                )
             if self._cache.use_ref_counts:
                 self._cache.increment_pages(new_pages)
 
@@ -181,7 +166,11 @@ class BasePagedAttentionCache:
         pages = self.page_pool.acquire_free_pages(pages_needed)
 
         if pages is None:
-            raise CacheAllocationFailure()
+            raise CacheAllocationFailure(
+                f"FATAL: Failed to allocate {pages_needed} from `PagePool`.\n"
+                f"Required pages: {pages_needed}, Available pages: {len(self.page_pool.available_pages)}, Total pages: {self.page_pool.config.alloc_page_count}\n"
+                f"Consider raising the `paged_kv_cache.device_block_count` value in the model configuration file."
+            )
 
         if self.use_ref_counts:
             self.increment_pages(pages)

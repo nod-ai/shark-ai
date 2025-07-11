@@ -24,11 +24,13 @@ from sharktank.utils import debugging
 from sharktank.utils.testing import TempDirTestBase
 from sharktank.utils.iree import (
     with_iree_device_context,
+    get_iree_compiler_flags_from_object,
     get_iree_devices,
     load_iree_module,
     run_iree_module_function,
     prepare_iree_module_function_args,
     make_hal_buffer_view_trace_default_callback,
+    oneshot_iree_run,
 )
 
 
@@ -305,6 +307,62 @@ class MatmulTest(unittest.TestCase):
         )
 
     # TODO: mmt_super_block_scaled_offset_q4_unsigned
+
+
+@pytest.mark.usefixtures("iree_flags")
+class IndexCopyTest(unittest.TestCase):
+    @parameterized.expand([torch.float8_e4m3fnuz, torch.float16])
+    def testEagerVsIREE(self, dtype: torch.dtype):
+        class Module(torch.nn.Module):
+            def forward(
+                self, inout: torch.Tensor, index: torch.Tensor, tensor: torch.Tensor
+            ) -> torch.Tensor:
+                return ops.index_copy_(inout, 0, index, tensor)
+
+        x = torch.zeros(5, 3, dtype=dtype)
+        t = torch.tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=dtype)
+        index = torch.tensor([0, 4, 2])
+
+        module = Module()
+        expected_x = x.clone()
+        module(expected_x, index, t)
+
+        actual_x = x.clone()
+        oneshot_iree_run(
+            module,
+            args=(actual_x, index, t),
+            compile_args=get_iree_compiler_flags_from_object(self),
+            device=self.iree_device,
+        )
+        torch.testing.assert_close(actual_x, expected_x, atol=0, rtol=0)
+
+
+@pytest.mark.usefixtures("iree_flags")
+class IndexPutTest(unittest.TestCase):
+    @parameterized.expand([torch.float8_e4m3fnuz, torch.float16])
+    def testEagerVsIREE(self, dtype: torch.dtype):
+        class Module(torch.nn.Module):
+            def forward(
+                self, inout: torch.Tensor, index: torch.Tensor, tensor: torch.Tensor
+            ) -> torch.Tensor:
+                return ops.index_put_(inout, (index,), tensor)
+
+        x = torch.zeros(5, 3, dtype=dtype)
+        t = torch.tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=dtype)
+        index = torch.tensor([0, 4, 2])
+
+        module = Module()
+        expected_x = x.clone()
+        module(expected_x, index, t)
+
+        actual_x = x.clone()
+        oneshot_iree_run(
+            module,
+            args=(actual_x, index, t),
+            compile_args=get_iree_compiler_flags_from_object(self),
+            device=self.iree_device,
+        )
+        torch.testing.assert_close(actual_x, expected_x, atol=0, rtol=0)
 
 
 class InvertTest(unittest.TestCase):

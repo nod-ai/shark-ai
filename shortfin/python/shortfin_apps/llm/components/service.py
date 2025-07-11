@@ -11,13 +11,13 @@ from typing import List
 from threading import Lock
 import shortfin as sf
 
+
 from .batcher import PrefillBatcherProcess, DecodeBatcherProcess
 from .config_struct import ModelParams, ServerParams
 from .kvcache.base_attention_cache import (
     BasePagedAttentionCache,
 )
 from .kvcache.trie_attention_cache import TriePagedAttentionCache
-from .kvcache.mooncake_cache import MooncakeAttentionCache
 from .kvcache.page_pool import PagePoolConfig, PagePool
 from .manager import LlmSystemManager
 from .service_debug_dumper import SERVICE_DEBUG_DUMPER
@@ -47,14 +47,12 @@ class LlmGenerateService(GenerateService):
         model_params: ModelParams,
         server_params: "ServerParams",
         program_isolation: str = "per_call",
-        max_queue_size: int = 3,  # Maximum number of requests in queue
     ):
         super().__init__(sysman)
         self.name = name
         self.tokenizer = tokenizer
         self.model_params = model_params
         self.server_params = server_params
-        self.max_queue_size = max_queue_size
         # Use model_params.decode_batch_sizes to decide actual max_queue_size
         self._initialize_max_queue_size()
         self.main_fiber_pool = FiberPool(
@@ -73,13 +71,6 @@ class LlmGenerateService(GenerateService):
             logger.debug(f"Max queue size: {self.max_queue_size}")
 
     def _initialize_worker_and_fiber(self):
-        num_workers = self.server_params.workers
-        fibers_per_worker = self.server_params.fibers_per_worker
-
-        logger.info(
-            f"Creating {num_workers} workers, with {fibers_per_worker} fibers per worker..."
-        )
-
         self.main_worker = self.sysman.ls.create_worker(f"{self.name}-inference-main-0")
         self.main_fiber = self.sysman.ls.create_fiber(self.main_worker)
 
@@ -101,20 +92,11 @@ class LlmGenerateService(GenerateService):
             dtype=self.model_params.paged_kv_cache.kv_cache_dtype,
             alloc_page_count=self.model_params.paged_kv_cache.device_block_count,
             paged_kv_block_size_elements=self.model_params.paged_kv_block_size_elements,
+            paged_kv_block_size_elements_per_device=self.model_params.paged_kv_cache.paged_kv_block_size_elements_per_device,
         )
         page_pool = PagePool(devices=self.devices, config=page_pool_config)
 
-        if self.server_params.mooncake_config_path is not None:
-            logger.info(
-                f"Using MooncakeAttentionCache with config path: {self.server_params.mooncake_config_path}"
-            )
-            self.page_cache = MooncakeAttentionCache(
-                page_pool=page_pool,
-                tokens_per_page=self.model_params.paged_kv_cache.block_seq_stride,
-                prefix_sharing_algorithm=self.server_params.prefix_sharing_algorithm,
-                mooncake_config_path=self.server_params.mooncake_config_path,
-            )
-        elif self.server_params.prefix_sharing_algorithm == "trie":
+        if self.server_params.prefix_sharing_algorithm == "trie":
             self.page_cache = TriePagedAttentionCache(
                 page_pool=page_pool,
                 tokens_per_page=self.model_params.paged_kv_cache.block_seq_stride,
