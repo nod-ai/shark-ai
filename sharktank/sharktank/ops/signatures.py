@@ -7,7 +7,7 @@
 """Signatures for dynamic dispatch of ops covering our fundamental tensor types."""
 
 from typing import Optional, Sequence, Union, List, Tuple
-from numbers import Number
+from numbers import Number, Integral
 import math
 
 import torch
@@ -15,6 +15,7 @@ from torch import Tensor, dtype
 
 from sharktank.types import (
     AnyTensor,
+    Slice,
     ShardedTensor,
     SplitPrimitiveTensor,
     Theta,
@@ -40,11 +41,11 @@ __all__ = [
     "embedding_lookup",
     "equal",
     "expand",
+    "extract_slice",
     "flatten",
     "gather",
     "gelu_sigmoid_approximation",
     "gelu_tanh_approximation",
-    "get_index",
     "gemm",
     "group_norm_affine",
     "layer_norm",
@@ -509,9 +510,9 @@ def _expand_trampoline(
 
 
 @overridable
-def get_index(
+def extract_slice(
     tensor: AnyTensor,
-    key: slice,
+    key: Slice,
 ) -> torch.Tensor:
     """Indexes the tensor using the key.
 
@@ -523,8 +524,8 @@ def get_index(
     raise NotImplementedError
 
 
-@get_index.trampoline
-def _get_index_trampoline(d: SignatureDispatcher, tensor: AnyTensor, key: slice):
+@extract_slice.trampoline
+def _extract_slice_trampoline(d: SignatureDispatcher, tensor: AnyTensor, key: Slice):
     tensors = (tensor,)
     for override in d.find_overrides(tensors):
         result = override(tensor, key)

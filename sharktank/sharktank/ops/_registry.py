@@ -54,10 +54,25 @@ def _test_get_last_op_dispatch():
     return _TEST_LAST_OP_DISPATCH
 
 
+Predicate = Callable[..., bool]
+TypePredicate = Callable[[*tuple[type, ...]], bool]
+
+
+# def arg_types(f: Callable[[*tuple[type, ...]], Any]) -> Callable[..., Any]:
+#     @functools.wraps(f)
+#     def wrapper(*args, **kwargs):
+#         type_args = tuple(type(a) for a in args)
+#         type_kwargs = {k: type(v) for k, v in kwargs}
+#         retval = f(*type_args, **type_kwargs)
+#         return retval
+
+#     return wrapper
+
+
 class BoolTypeExpr:
     """Expression that returns bool and accepts types as arguments."""
 
-    def __init__(self, expr: Callable[..., bool]):
+    def __init__(self, expr: Callable[[*tuple[type, ...]], bool]):
         self._expr = expr
 
     def __call__(self, *args: type) -> bool:
