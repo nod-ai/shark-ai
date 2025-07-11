@@ -23,6 +23,10 @@ target_link_libraries(sharkfuser_samples PRIVATE sharkfuser Catch2::Catch2WithMa
 target_compile_options(sharkfuser_samples PRIVATE -coverage -O0 -g)
 target_link_options(sharkfuser_samples PRIVATE -coverage)
 add_test(NAME sharkfuser_samples COMMAND sharkfuser_samples)
+set_tests_properties(
+  sharkfuser_samples PROPERTIES
+  ENVIRONMENT "FUSILI_LOG_INFO=1;FUSILI_LOG_FILE=stdout"
+)
 
 # Place executable in the bin directory
 set_target_properties(
