@@ -75,9 +75,6 @@ class LlamaIreeVsEagerTest(TempDirTestBase):
     def testUnshardedToyIreeVsEager(
         self, tensor_parallelism_size: int, pipeline_parallelism_size: int, use_hf: bool
     ):
-        if use_hf:
-            pytest.xfail(reason="Expected failure needs to be fixed.")
-
         theta, config = generate(12345)
         config.tensor_parallelism_size = tensor_parallelism_size
         config.pipeline_parallelism_size = pipeline_parallelism_size
