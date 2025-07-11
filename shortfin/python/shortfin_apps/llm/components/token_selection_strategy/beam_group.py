@@ -7,7 +7,7 @@
 import logging
 
 from asyncio import gather
-from typing import Dict, List, Set, Type, Optional
+from typing import Dict, List, Set, Optional
 from uuid import uuid4
 
 from .config import DecodeConfig

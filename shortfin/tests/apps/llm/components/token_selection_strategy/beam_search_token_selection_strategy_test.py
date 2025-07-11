@@ -59,9 +59,9 @@ def num_beams():
 
 
 @pytest.fixture(scope="function")
-def decode_config():
+def decode_config(num_beams):
     yield DecodeConfig(
-        num_beams=3,
+        num_beams=num_beams,
         use_beam_search=True,
         max_completion_tokens=1,
         eos_token_id=-1,
@@ -383,7 +383,6 @@ def test_get_results(
         for i in range(lower_range, upper_range):
             exec_req.input_token_ids.append(i)
 
-    num_beams = len(beams)
     config = TokenSelectionStrategyConfig(
         decode_config=decode_config,
         prefill_callback=lambda _: None,

@@ -328,7 +328,7 @@ async def test_wait(exec_req_list, decode_config):
         assert req.done._event.is_set()
 
 
-def test_process_beams_one_req(exec_req, decode_config, device):
+def test_process_beams_one_req(exec_req, decode_config):
     def selection_callback(
         active_beams: List[DummyBeam], _: List[DummyBeam], token: int
     ):
@@ -371,7 +371,7 @@ def test_process_beams_one_req(exec_req, decode_config, device):
         free_cache_mock.assert_called_once()
 
 
-def test_process_beams_multiple_reqs(exec_req_list, decode_config, device):
+def test_process_beams_multiple_reqs(exec_req_list, decode_config):
     def selection_callback_no_completed(active_beams, _):
         selections = []
         for beam in active_beams:
@@ -400,7 +400,6 @@ def test_process_beams_multiple_reqs(exec_req_list, decode_config, device):
         return selections
 
     req_list = exec_req_list.copy()
-    print(f"req_list: {req_list}")
     beams = [DummyBeam(req, decode_config=decode_config) for req in req_list]
     decode_config.num_beams = len(beams)
     decode_config.eos_token_id = 1
@@ -461,7 +460,6 @@ async def test_clean_up(exec_req_list, decode_config):
         exec_req_list[0],
         decode_config,
     )
-    # beam_group._active_beams = beams
     with patch.object(LlmInferenceExecRequest, "free_cache_pages") as free_cache_mock:
         # All active
         beam_group.clean_up()
