@@ -95,7 +95,9 @@ class TokenSelectionStrategyConfig:
     """Configuration for token selection strategies."""
 
     decode_config: DecodeConfig
+    # Callback to submit a prefill request to the batcher
     prefill_callback: Callable[[LlmInferenceExecRequest], None]
+    # Callback to submit a decode request to the batcher
     decode_callback: Callable[[LlmInferenceExecRequest], None]
     decode_begin_callback: Callable[[int], None]
     decode_end_callback: Callable[[int], None]

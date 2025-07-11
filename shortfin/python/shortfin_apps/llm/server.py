@@ -115,18 +115,6 @@ def add_service_args(parser: argparse.ArgumentParser):
         default=False,
         help="Use beam search for decoding.",
     )
-    parser.add_argument(
-        "--workers",
-        type=int,
-        default=1,
-        help="Number of workers to use when running in `server` mode.",
-    )
-    parser.add_argument(
-        "--fibers_per_worker",
-        type=int,
-        default=1,
-        help="Number of fibers to use per worker.",
-    )
 
 
 def parse_args(argv):
@@ -146,29 +134,8 @@ def parse_args(argv):
     return parser.parse_args(argv)
 
 
-def _check_for_per_fiber_bug(args):
-    """This is a temporary check to enable multi-worker and multi-fiber-per-worker
-    for performance benefits.
-
-    TODO: https://github.com/nod-ai/shark-ai/issues/1284
-
-    Raises:
-        NotImplementedError: Raises if per fiber isolation is used with multiple fibers per worker.
-    """
-    isolation = args.program_isolation
-    fibers_per_worker = args.fibers_per_worker
-
-    if isolation == ProgramIsolation.PER_FIBER.name.lower() and fibers_per_worker > 1:
-        raise NotImplementedError(
-            "Per fiber isolation does not currently support multiple fibers per worker. "
-            "Please set `--fibers_per_worker` to 1.\n"
-            "See: https://github.com/nod-ai/shark-ai/issues/1284"
-        )
-
-
 def run_server(argv, log_config=uvicorn.config.LOGGING_CONFIG, port: int | None = None):
     args = parse_args(argv)
-    _check_for_per_fiber_bug(args)
     if args.tokenizer_config_json is None:
         # this is only used for the EOS token
         logging.info("Argument `--tokenizer_config_json` is not provided")

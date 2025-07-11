@@ -118,18 +118,23 @@ class SystemManager:
 
 
 def approximately_equal(a: Any, b: Any, rel_tol=1e-2, abs_tol=0.0) -> bool:
-    """
-    Recursively checks if two nested lists (or scalar values) are approximately equal.
+    """Check if two values are approximately equal.
 
     Args:
-        a: First list or scalar.
-        b: Second list or scalar.
+        a: First value to compare.
+        b: Second value to compare.
         rel_tol: Relative tolerance.
         abs_tol: Absolute tolerance.
 
     Returns:
         True if all corresponding elements are approximately equal.
     """
+    # Handle numpy arrays by converting to lists
+    if hasattr(a, "tolist"):
+        a = a.tolist()
+    if hasattr(b, "tolist"):
+        b = b.tolist()
+
     # If both are lists, iterate element-wise
     if isinstance(a, list) and isinstance(b, list):
         if len(a) != len(b):

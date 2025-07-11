@@ -65,23 +65,6 @@ def test_build_token_selector_config():
     assert config.decode_config.max_completion_tokens == 42
 
 
-def test_build_token_selector():
-    decode_config = token_selection_strategy.DecodeConfig(
-        max_completion_tokens=42,
-        eos_token_id=0,
-    )
-    config = token_selection_strategy.build_token_selector_config(
-        decode_config,
-        prefill_batcher=FakeBatcher(_batcher_callback, _batcher_workitem_callback),
-        decode_batcher=FakeBatcher(_batcher_callback, _batcher_workitem_callback),
-        results_callback=_results_callback,
-    )
-    token_selector = token_selection_strategy.build_token_selector(
-        config,
-    )
-    assert token_selector.token_selection_strategy_config == config
-
-
 @pytest.mark.asyncio
 async def test_prefill(
     device,
@@ -121,7 +104,6 @@ async def test_prefill(
     )
     dummy_token_selection_strategy = DummyTokenSelectionStrategy(
         token_selection_strategy_config=config,
-        scorer=None,
     )
     await dummy_token_selection_strategy.prefill(exec_req)
 
