@@ -37,6 +37,7 @@ from .token_selection_strategy import (
     is_multi_response,
 )
 from .tokenizer import Encoding
+from .fiber_pool import FiberPool
 
 logger = logging.getLogger(__name__)
 
@@ -112,9 +113,6 @@ class ClientGenerateBatchProcess(sf.Process):
     This takes care of several responsibilities:
 
     * Tokenization / Detokenization
-    * Splitting the batch into GenerateItemProcesses
-    * Streaming responses
-    * Final responses
     """
 
     __slots__ = [
@@ -155,28 +153,10 @@ class ClientGenerateBatchProcess(sf.Process):
         )
 
     def cancel(self):
-        with self.lock as _:
+        with self.lock:
             self.cancelled = True
             for process in self.active_processes:
                 process.cancel()
-
-    def _check_topk_params(
-        self, exported_topk: int | None, requested_topk: int | None
-    ) -> bool:
-        if (
-            # Argmax
-            requested_topk is None
-            # CPU-based `beam_search, top_k, and/or top_p`
-            or exported_topk is None
-            # GPU-based `beam_search, top_k, and/or top_p`
-            or exported_topk >= requested_topk
-        ):
-            return True
-
-        logger.error(
-            f"Requested top-k of {requested_topk} larger than exported top-k of {exported_topk}"
-        )
-        return False
 
     def get_decode_configs(self) -> List[DecodeConfig]:
         """Calculate the total number of beams requested in the generation request."""
@@ -211,6 +191,8 @@ class ClientGenerateBatchProcess(sf.Process):
         # Try to add request to queue
         # TODO(@zphoenixrises): Add load testing and integration tests for this.
         run_request = self.queue_manager.add_to_queue(decode_configs=decode_configs, input_batch=input_batch, is_pretokenized=is_pretokenized)
+        if run_request is None:
+            return
 
         try:
             indices = []
@@ -232,7 +214,7 @@ class ClientGenerateBatchProcess(sf.Process):
                 rid = (
                     self.gen_req.rid
                     if self.gen_req.is_single
-                    else self.gen_req.rid[idx]
+                    else self.gen_req.rid[index]
                 )
 
                 gen_process = GenerateItemProcess(
@@ -251,7 +233,7 @@ class ClientGenerateBatchProcess(sf.Process):
                 gen_process.launch()
 
             # Track the active processes and cancel as necessary:
-            with self.lock as _:
+            with self.lock:
                 if self.cancelled:
                     for p in gen_processes:
                         p.cancel()
@@ -265,7 +247,7 @@ class ClientGenerateBatchProcess(sf.Process):
                     extra_fields={},
                 )
             else:
-                self.generate_response(gen_processes, streaming)
+                self.generate_response(gen_processes)
         finally:
             self.main_fiber_pool.return_fiber(indices)
             self.responder.ensure_response()
@@ -274,14 +256,7 @@ class ClientGenerateBatchProcess(sf.Process):
     def generate_response(
         self,
         gen_processes: List[GenerateItemProcess],
-        streaming: bool,
     ):
-        if streaming:
-            logger.debug("Responding to streaming batch")
-            self.responder.stream_part(b"data: [DONE]\n\n")
-            self.responder.stream_part(None)
-            return
-
         logging.debug("Responding to one shot batch")
         result_tokens = [p.result_token_ids for p in gen_processes]
         if self.gen_req.return_input_ids:
