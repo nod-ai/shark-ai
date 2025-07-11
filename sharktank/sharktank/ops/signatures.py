@@ -1699,7 +1699,7 @@ def _topk_trampoline(
 
 @overridable
 def view(
-    tensor: AnyTensor, shape: List[int] | None = None, dtype: torch.Tensor | None = None
+    tensor: AnyTensor, shape: List[int] | None = None, dtype: torch.dtype | None = None
 ) -> AnyTensor:
     """See torch.Tensor.view"""
     ...
@@ -1710,7 +1710,7 @@ def _view_trampoline(
     d: SignatureDispatcher,
     tensor: AnyTensor,
     shape: List[int] | None = None,
-    dtype: torch.Tensor | None = None,
+    dtype: torch.dtype | None = None,
 ) -> AnyTensor:
     tensors = (tensor,)
     for override in d.find_overrides(tensors):

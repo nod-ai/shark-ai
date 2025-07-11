@@ -774,8 +774,6 @@ def transpose_PlanarQuantizedTensor(
     )
     return PlanarQuantizedTensor(shape=new_layout.shape, layout=new_layout)
 
-    return PlanarQuantizedTensor(shape=new_layout.shape, layout=new_layout)
-
 
 # Sharded default impls (do nothing).
 
