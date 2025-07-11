@@ -25,7 +25,7 @@ from sharktank.types import (
 
 from sharktank.kernels.topk import iree_topk
 
-from sharktank.types.tensors import unbox_tensor, AnyTensor
+from sharktank.types.tensors import unbox_tensor, AnyTensor, DefaultPrimitiveTensor
 from ._registry import AllOfType, AllOfExprs, AllOfExprsVariadic, IsOfType
 from .signatures import *
 import iree.turbine.ops.iree
@@ -423,7 +423,21 @@ def index_copy__default(
     index: Union[Tensor, PrimitiveTensor],
     tensor: Union[Tensor, PrimitiveTensor],
 ) -> Union[Tensor, PrimitiveTensor]:
-    unbox_tensor(inout).index_copy_(dim, unbox_tensor(index), unbox_tensor(tensor))
+    index = unbox_tensor(index)
+    tensor = unbox_tensor(tensor)
+    inout_as_torch = unbox_tensor(inout)
+    if (
+        not torch.compiler.is_compiling()
+        and inout_as_torch.is_cpu
+        and inout_as_torch.dtype == torch.float8_e4m3fnuz
+    ):
+        # PyTorch does not have eager implementation for float8_e4m3fnuz in CPU.
+        # We need to view as int8 before performing the operation.
+        # We still want to avoid the bitcasts during export as the IREE compiler has
+        # trouble fusing them.
+        inout_as_torch = inout_as_torch.view(dtype=torch.int8)
+        tensor = tensor.view(dtype=torch.int8)
+    inout_as_torch.index_copy_(dim, index, tensor)
     return inout
 
 
@@ -434,7 +448,21 @@ def index_put__default(
     values: Union[Tensor, PrimitiveTensor],
 ) -> Union[Tensor, PrimitiveTensor]:
     indices = tuple(unbox_tensor(index) for index in indices)
-    unbox_tensor(inout).index_put_(indices, unbox_tensor(values))
+    inout_as_torch = unbox_tensor(inout)
+    values = unbox_tensor(values)
+    if (
+        not torch.compiler.is_compiling()
+        and inout_as_torch.is_cpu
+        and inout_as_torch.dtype == torch.float8_e4m3fnuz
+    ):
+        # PyTorch does not have eager implementation for float8_e4m3fnuz in CPU.
+        # We need to view as int8 before performing the operation.
+        # We still want to avoid the bitcasts during export as the IREE compiler has
+        # trouble fusing them.
+        inout_as_torch = inout_as_torch.view(dtype=torch.int8)
+        values = values.view(dtype=torch.int8)
+
+    inout_as_torch.index_put_(indices, values)
     return inout
 
 
@@ -686,16 +714,22 @@ def trace_tensor(key: str, *tensors: tuple[AnyTensor, ...]):
 
 @transfer_to_logical_device.override(Tensor)
 def transfer_to_logical_device_default(tensor: Tensor, ordinal: int):
-    return iree.turbine.ops.iree.transfer_to_logical_device(
+    transfered = iree.turbine.ops.iree.transfer_to_logical_device(
         f"{ordinal}", unbox_tensor(tensor)
     )
+    if isinstance(tensor, DefaultPrimitiveTensor):
+        transfered = DefaultPrimitiveTensor(data=transfered, name=tensor.name)
+    return transfered
 
 
 @barrier_on_logical_device.override(Tensor)
 def barrier_on_device_default(tensor: Tensor, ordinal: int):
-    return iree.turbine.ops.iree.barrier_on_logical_device(
+    barriered = iree.turbine.ops.iree.barrier_on_logical_device(
         f"{ordinal}", unbox_tensor(tensor)
     )
+    if isinstance(tensor, DefaultPrimitiveTensor):
+        barriered = DefaultPrimitiveTensor(data=barriered, name=tensor.name)
+    return barriered
 
 
 @transpose.override(Tensor)
@@ -917,8 +951,18 @@ def _split_topk(
 
 
 @view.override(Tensor)
-def view_default(tensor: Union[Tensor, PrimitiveTensor], shape: List[int]) -> Tensor:
-    return unbox_tensor(tensor).view(*shape)
+def view_default(
+    tensor: Union[Tensor, PrimitiveTensor],
+    shape: List[int] | None,
+    dtype: torch.dtype | None,
+) -> Tensor:
+    assert (shape is None) ^ (
+        dtype is None
+    ), "Exactly one of shape or dtype must be provided"
+    if shape is not None:
+        return unbox_tensor(tensor).view(*shape)
+    else:
+        return unbox_tensor(tensor).view(dtype)
 
 
 @view.override(QuantizedTensor)

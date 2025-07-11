@@ -91,52 +91,53 @@ def infer_original_tensor_shape(
     format: str,
 ) -> list[int]:
     """Infer original tensor shape from quantized weight and scale tensors."""
+    scale_shape = list(scale_tensor.shape)
+
+    original_shape = scale_shape[:-1] + [scale_shape[-1] * block_size]
+
     if format == "fp4":
         # FP4: 2 values packed per byte
-        total_elements = weight_tensor.numel() * 2
+        expected_weight_shape = scale_shape[:-1] + [scale_shape[-1] * block_size // 2]
     else:
         # FP8: 1 value per byte
-        total_elements = weight_tensor.numel()
+        expected_weight_shape = original_shape
 
-    # Use scale tensor shape to help infer dimensions
-    scale_shape = scale_tensor.shape
-    if len(scale_shape) == 2:
-        # Assume [output_dim, input_dim // block_size]
-        output_dim = scale_shape[0]
-        input_dim = scale_shape[1] * block_size
-        return [output_dim, input_dim]
-    elif len(scale_shape) == 1:
-        # Linear layer with single dimension
-        return [scale_shape[0] * block_size]
-    else:
-        raise ValueError(f"Unsupported scale tensor shape: {scale_shape}")
+    # Verify weight shape matches scale shape
+    if list(weight_tensor.shape) != expected_weight_shape:
+        raise ValueError(
+            f"Weight tensor shape {list(weight_tensor.shape)} doesn't match "
+            f"expected shape {expected_weight_shape} for scale shape {scale_shape} "
+            f"with block_size={block_size} and format={format}"
+        )
+
+    return original_shape
 
 
-def create_fp4_block_quantizer(
+def create_fp4_block_tensor(
     weight_tensor: torch.Tensor,
     scale_tensor: torch.Tensor,
     layer_name: str,
     block_size: int = 32,
 ) -> "PlanarQuantizedTensor":
-    """Create StaticFp4BlockQuantizer from Quark FP4 weights and scales."""
+    """Create BlockScaledFp4Layout from Quark FP4 weights and scales."""
+    use_fe8m0 = scale_tensor.dtype == torch.uint8
 
-    # Convert U8 scales to appropriate format
-    # Quark uses E8M0 format for FP4 scales
-    # Keep the original 2D shape instead of flattening
-    scales = scale_tensor.to(torch.float32)
-
-    # Infer original tensor shape
     original_shape = infer_original_tensor_shape(
         weight_tensor, scale_tensor, block_size, "fp4"
     )
 
-    # Create the FP4 block layout directly
+    num_blocks = original_shape[-1] // block_size
+    packed_block_size = block_size // 2
+
+    expected_shape = list(original_shape[:-1]) + [num_blocks, packed_block_size]
+    weight_tensor = weight_tensor.view(*expected_shape)
+
     layout = BlockScaledFp4Layout(
         shape=original_shape,
-        d=scales,
-        qs=weight_tensor,  # Already packed FP4 data
+        d=scale_tensor,
+        qs=weight_tensor,
         block_size=block_size,
-        use_fe8m0_scale=True,
+        use_fe8m0_scale=use_fe8m0,
     )
 
     quantized_tensor = PlanarQuantizedTensor(
@@ -188,6 +189,7 @@ def apply_per_layer_quant(
     split_sizes: list[int],
     block_size: int = 32,
     weight_dtype_override: Optional[torch.dtype] = None,
+    quantizer_dtype: torch.dtype = torch.float8_e4m3fnuz,
 ):
     """Take the quantization parameters and hf weights from the imported Theta
     and create InferenceTensors out of them, converting their names to gguf format
@@ -235,7 +237,7 @@ def apply_per_layer_quant(
         weight_zp: Optional[torch.Tensor],
     ):
         if quant_format == "fp4":
-            fp4_tensor = create_fp4_block_quantizer(
+            fp4_tensor = create_fp4_block_tensor(
                 quantized_weight, weight_scale, weight_name, block_size
             )
             updated_tensors[weight_name] = fp4_tensor
@@ -248,7 +250,7 @@ def apply_per_layer_quant(
                 offset=None
                 if (weight_zp is None or torch.count_nonzero(weight_zp) == 0)
                 else weight_zp,
-                dtype=torch.float8_e4m3fnuz,
+                dtype=quantizer_dtype,
             )
             weight_quant = weight_quantizer.quantize(weight, name=weight_name)
             updated_tensors[weight_quant.name] = weight_quant
@@ -290,7 +292,7 @@ def apply_per_layer_quant(
                 name=name,
                 scale=1.0 / (output_quant_scale * 2.0),
                 reciprocal_scale=output_quant_scale * 2.0,
-                dtype=torch.float8_e4m3fnuz,
+                dtype=quantizer_dtype,
             )
         names = [f"{i}.q_input" for i in [q_name, k_name, v_name]]
         for name in names:
@@ -298,7 +300,7 @@ def apply_per_layer_quant(
                 name=name,
                 scale=1.0 / (input_quant_scale * 2.0),
                 reciprocal_scale=input_quant_scale * 2.0,
-                dtype=torch.float8_e4m3fnuz,
+                dtype=quantizer_dtype,
             )
         # Remove the updated tensors from the original tree.
         root_theta.pop(layer_parent + ".q_proj")
@@ -321,14 +323,14 @@ def apply_per_layer_quant(
                 name=new_layer_name + ".q_input",
                 scale=1.0 / (input_quant_scale * 2.0),
                 reciprocal_scale=input_quant_scale * 2.0,
-                dtype=torch.float8_e4m3fnuz,
+                dtype=quantizer_dtype,
             )
         if output_quant_scale is not None:
             updated_tensors[new_layer_name + ".q_output"] = StaticScaledQuantizer(
                 name=new_layer_name + ".q_output",
                 scale=1.0 / (output_quant_scale * 2.0),
                 reciprocal_scale=output_quant_scale * 2.0,
-                dtype=torch.float8_e4m3fnuz,
+                dtype=quantizer_dtype,
             )
 
         # Remove the updated tensor from the original tree.
@@ -362,6 +364,7 @@ def update_norm_layer(
     layer_name: str,
     updated_tensors: dict[str, InferenceTensor],
     weight_dtype_override: Optional[torch.dtype] = None,
+    quantizer_dtype: torch.dtype = torch.float8_e4m3fnuz,
 ):
     """Convert layernames for non quantized tensors and add them to the updated_tensors dict"""
     for sub in ["input_layernorm", "post_attention_layernorm"]:
@@ -387,7 +390,7 @@ def update_norm_layer(
                 name=new_name + ".quantizer",
                 scale=1.0 / (kv_cache_scale * 2.0),
                 reciprocal_scale=kv_cache_scale * 2.0,
-                dtype=torch.float8_e4m3fnuz,
+                dtype=quantizer_dtype,
             )
 
         if "prob_output_scale" in quant_theta(layer_name, "self_attn").keys:
@@ -460,6 +463,12 @@ def main(argv):
         default=None,
         help="Data type to cast output_scale and certain weights to (e.g., float32, float16, bfloat16)",
     )
+    parser.add_argument(
+        "--quantizer-dtype",
+        type=str,
+        default="float8_e4m3fnuz",
+        help="Data type for quantizers (e.g., float8_e4m3fnuz, float8_e4m3fn)",
+    )
     args = cli.parse(parser, args=argv)
 
     config_json_path: Path = args.config_json
@@ -510,12 +519,13 @@ def main(argv):
     updated_tensors: dict[str, InferenceTensor] = {}
     model_layers = [f"model.layers.{i}" for i in range(num_layers)]
 
-    # Convert weight_dtype_override string to torch dtype
     weight_dtype_override = (
         serialized_name_to_dtype(args.weight_dtype_override)
         if args.weight_dtype_override
         else None
     )
+
+    quantizer_dtype = serialized_name_to_dtype(args.quantizer_dtype)
 
     sub_layers = [
         "mlp.gate_proj",
@@ -537,6 +547,7 @@ def main(argv):
                 split_sizes=split_sizes,
                 block_size=args.fp4_block_size,
                 weight_dtype_override=weight_dtype_override,
+                quantizer_dtype=quantizer_dtype,
             )
 
     # Update the non quantized weights (norm layers)
@@ -546,6 +557,7 @@ def main(argv):
             layer_idx,
             updated_tensors,
             weight_dtype_override,
+            quantizer_dtype,
         )
 
     # The stragglers
