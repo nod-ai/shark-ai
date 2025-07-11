@@ -127,6 +127,8 @@ class ClientGenerateBatchProcess(sf.Process):
         "tokenizer",
         "decode_config",
         "service",
+        "queue_manager",
+        "main_fiber_pool",
     ]
 
     def __init__(
