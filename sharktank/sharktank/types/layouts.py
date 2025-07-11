@@ -361,22 +361,9 @@ class BlockScaledPackedLayout(BlockScaledLayout):
         ...
 
     def transpose(self, *args, **kwargs):
-        new_metadata = self.metadata()
-        new_planes = {}
-        for plane_name, plane_tensor in self.planes().items():
-            if plane_name == "qs":
-                qs = self.unpack_qs(plane_tensor).transpose(*args, **kwargs)
-                new_shape = qs.shape
-                plane_tensor = self.pack_qs(qs)
-            else:
-                plane_tensor = plane_tensor.transpose(*args, **kwargs)
-            new_planes[plane_name] = plane_tensor
+        # TODO: Make sure we're not transposing the last dim.
 
-        return self.__class__.create(
-            shape=new_shape,
-            metadata=new_metadata,
-            planes=new_planes,
-        )
+        super().transpose(*args, **kwargs)
 
 
 @register_quantized_layout
