@@ -127,7 +127,6 @@ class QuantizedLayout(ABC):
 
     def transpose(self, *args, **kwargs) -> "QuantizedLayout":
         """Returns a new QuantizedLayout with the given dimensions transposed."""
-        new_metadata = self.metadata()
         new_planes = {
             name: tensor.transpose(*args, **kwargs)
             for name, tensor in self.planes().items()
@@ -135,7 +134,7 @@ class QuantizedLayout(ABC):
 
         return self.__class__.create(
             shape=new_planes["qs"].shape,
-            metadata=new_metadata,
+            metadata=self.metadata,
             planes=new_planes,
         )
 
