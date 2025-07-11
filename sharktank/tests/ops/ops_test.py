@@ -4,6 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from itertools import product
 from pathlib import Path
 from typing import Callable
 import unittest
@@ -472,13 +473,80 @@ class TransferAndBarrierTest(TempDirTestBase):
             for line in mlir_contents.splitlines()
         )
 
+    def create_sample_tensor_from_class(
+        self,
+        tensor_class: torch.Tensor.__class__
+        | InferenceTensor.__class__
+        | QuantizedLayout.__class__,
+        shard_count: int = 2,
+    ) -> AnyTensor:
+        base_tensor = torch.tensor([[1, 0, 1], [0, 1, 0]])
+
+        if tensor_class is torch.Tensor:
+            return base_tensor
+
+        raw_tensors = {"": base_tensor.clone()}
+        for i in range(shard_count):
+            raw_tensors[str(i)] = base_tensor.clone()
+        if issubclass(tensor_class, (DefaultPrimitiveTensor, ShardedTensor)):
+            extra_properties = {
+                "shard_count": shard_count,
+                "shape": list(base_tensor.shape),
+            }
+            if tensor_class == SplitPrimitiveTensor:
+                extra_properties["shard_dim"] = 1
+                extra_properties["shape"][extra_properties["shard_dim"]] *= shard_count
+            return tensor_class.create(
+                name="", raw_tensors=raw_tensors, extra_properties=extra_properties
+            )
+
+        if issubclass(tensor_class, QuantizedLayout):
+            metadata = {"block_size": 1, "use_f38m0_scale": True, "signed": True}
+            planes = {
+                key: torch.tensor([1.0])
+                for key in [
+                    "d",
+                    "qs",
+                    "m",
+                    "dmin",
+                    "sb_scales_high",
+                    "sb_scales_low",
+                    "sb_mins_high",
+                    "sb_mins_low",
+                ]
+            }
+            layout = tensor_class.create(
+                shape=base_tensor.shape, metadata=metadata, planes=planes
+            )
+            return PlanarQuantizedTensor(shape=base_tensor.shape, layout=layout)
+
     @parameterized.expand(
         [
-            (ops.transfer_to_logical_device,),
-            (ops.barrier_on_logical_device,),
+            (op, tensor_type)
+            for op, tensor_type in product(
+                [
+                    ops.transfer_to_logical_device,
+                    ops.barrier_on_logical_device,
+                ],
+                [
+                    torch.Tensor,
+                    DefaultPrimitiveTensor,
+                    ReplicatedTensor,
+                    SplitPrimitiveTensor,
+                    UnreducedTensor,
+                    BlockScaledFp4Layout,
+                    BlockScaledI4Layout,
+                    SuperBlockOffsetScaled_4_6_Layout,
+                ],
+            )
         ]
     )
-    def testTransferTorchTensor(self, op: Callable[[AnyTensor, int], AnyTensor]):
+    def testTransferTorchTensor(
+        self,
+        op: Callable[[AnyTensor, int], AnyTensor],
+        tensor_class: torch.Tensor.__class__ | InferenceTensor.__class__,
+    ):
+        tensor = self.create_sample_tensor_from_class(tensor_class)
         tensor = torch.Tensor([1])
         model = self.Module(target_device=self.device_ordinal, op=op)
         fxb = FxProgramsBuilder(model)
