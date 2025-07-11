@@ -22,10 +22,6 @@ def export_sdxl_model(
     decomp_attn=False,
     quant_path=None,
     scheduler_config_path=None,
-<<<<<<< HEAD
-    weights_only=False,
-=======
->>>>>>> f977e8b4 (Small tweaks to local checkpoint usage.)
 ) -> ExportOutput:
     import torch
 
