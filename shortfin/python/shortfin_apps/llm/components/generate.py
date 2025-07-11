@@ -151,7 +151,7 @@ class ClientGenerateBatchProcess(sf.Process):
         self.lock = threading.Lock()
         self.queue_manager = RequestQueueManager(model_params=self.service.model_params, page_pool=self.service.page_pool, responder=responder)
         self.main_fiber_pool = FiberPool(
-            self.service.sysman, self.queue_manager._max_queue_size, resizable=True
+            self.service.sysman, self.queue_manager.get_max_queue_size(), resizable=True
         )
 
     def cancel(self):

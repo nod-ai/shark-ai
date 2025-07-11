@@ -10,7 +10,7 @@ import math
 from .config_struct import ModelParams, PagedKVCacheParams
 from typing import Optional
 from .token_selection_strategy.config import DecodeConfig
-from shortfin.support.responder import AbstractResponder, ResponderErrorCodes
+from shortfin.interop.fastapi import FastAPIResponder
 
 logger = logging.getLogger(__name__)
 
