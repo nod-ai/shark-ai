@@ -10,8 +10,8 @@ Specifications describing how
 
 from iree.turbine.aot import DeviceTensorTrait, ExternalTensorTrait
 from sharktank.types import (
-    DefaultPrimitiveTensor,
     PrimitiveTensor,
+    QuantizedTensor,
     ReplicatedTensor,
     ShardedTensor,
     Theta,

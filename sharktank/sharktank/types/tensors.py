@@ -944,16 +944,16 @@ class ShardedTensor(InferenceTensor):
         super().__init__(name=name, shape=shape)
         self.shard_dim = shard_dim
         self._devices = devices
-
-        _shards = []
-        for i, t in enumerate(ts):
-            if isinstance(t, Tensor):
-                _shards.append(DefaultPrimitiveTensor(name=f"{name}.shard.{i}", data=t))
-                continue
-            _shards.append(t)
-
-        self._shards: tuple[DefaultPrimitiveTensor] | tuple[QuantizedTensor] = tuple(
-            _shards
+        self._shards: tuple[DefaultPrimitiveTensor, ...] | tuple[
+            QuantizedTensor, ...
+        ] = tuple(
+            DefaultPrimitiveTensor(
+                name=f"{name}.shard.{i}",
+                data=t,
+            )
+            if isinstance(t, torch.Tensor)
+            else t
+            for i, t in enumerate(ts)
         )
 
     def __invert__(self):
@@ -1382,7 +1382,7 @@ class ReplicatedTensor(ShardedTensor):
     def __init__(
         self,
         *,
-        ts: list[torch.Tensor] | torch.Tensor,
+        ts: Union[list["AnyTensor"], "AnyTensor"],
         shard_count: None | int = None,
         name: str = UnnamedTensorName,
         devices: Tuple[int] | None = None,
@@ -1397,7 +1397,7 @@ class ReplicatedTensor(ShardedTensor):
             num_shards = len(ts) if isinstance(ts, list) else shard_count
             devices = tuple(range(num_shards))
 
-        if isinstance(ts, (torch.Tensor, QuantizedTensor)):
+        if not isinstance(ts, Sequence):
             assert shard_count is not None
             from sharktank.ops import transfer_to_logical_device
 
@@ -1405,7 +1405,7 @@ class ReplicatedTensor(ShardedTensor):
                 transfer_to_logical_device(ts, devices[i]) for i in range(shard_count)
             ]
             for i in range(len(ts)):
-                if isinstance(ts[i], QuantizedTensor):
+                if isinstance(ts[i], InferenceTensor):
                     ts[i].name = f"{name}.shard.{i}"
             shard_count = None
 

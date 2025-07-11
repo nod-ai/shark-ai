@@ -4,6 +4,9 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from itertools import product
+from pathlib import Path
+from typing import Callable
 import unittest
 
 import math
@@ -427,6 +430,137 @@ class RmsNormTest(unittest.TestCase):
         torch.testing.assert_close(actual, result)
 
     # TODO: Quantized tensor
+
+
+class TransferAndBarrierTest(TempDirTestBase):
+    class Module(BaseLayer):
+        def __init__(
+            self, target_device: int, op: Callable[[AnyTensor, int], AnyTensor]
+        ):
+            super().__init__()
+            self.target_device = target_device
+            self.op = op
+
+        def forward(self, x: AnyTensor):
+            return self.op(x, self.target_device)
+
+    op_to_mlir_name = {
+        ops.transfer_to_logical_device: "flow.tensor.transfer",
+        ops.barrier_on_logical_device: "flow.tensor.barrier",
+    }
+
+    def setUp(self):
+        super().setUp()
+        self.device_ordinal = 1
+        self.mlir_path = self._temp_dir / "model.mlir"
+
+    def look_for_op(self, op: Callable, count: int):
+        """
+        Search through the provided MLIR file and find the specified operation.
+        Will throw and error if the operation is not found or if the count does not match.
+
+        Args:
+            op: The op to search the MLIR for.
+            count: Expected number of occurrences of the operation.
+        """
+        op_name = self.op_to_mlir_name[op]
+        target_device = f"#hal.device.promise<@__device_{self.device_ordinal}>"
+        with open(self.mlir_path, "r") as f:
+            mlir_contents = f.read()
+
+        assert count == sum(
+            op_name in line and target_device in line
+            for line in mlir_contents.splitlines()
+        )
+
+    def create_sample_tensor_from_class(
+        self,
+        tensor_class: torch.Tensor.__class__
+        | InferenceTensor.__class__
+        | QuantizedLayout.__class__,
+        shard_count: int = 2,
+    ) -> AnyTensor:
+        base_tensor = torch.tensor([[1, 0, 1], [0, 1, 0]])
+
+        if tensor_class is torch.Tensor:
+            return base_tensor
+
+        raw_tensors = {"": base_tensor.clone()}
+        for i in range(shard_count):
+            raw_tensors[str(i)] = base_tensor.clone()
+        if issubclass(tensor_class, (DefaultPrimitiveTensor, ShardedTensor)):
+            extra_properties = {
+                "shard_count": shard_count,
+                "shape": list(base_tensor.shape),
+            }
+            if tensor_class == SplitPrimitiveTensor:
+                extra_properties["shard_dim"] = 1
+                extra_properties["shape"][extra_properties["shard_dim"]] *= shard_count
+            return tensor_class.create(
+                name="", raw_tensors=raw_tensors, extra_properties=extra_properties
+            )
+
+        if issubclass(tensor_class, QuantizedLayout):
+            metadata = {"block_size": 1, "use_f38m0_scale": True, "signed": True}
+            planes = {
+                key: torch.tensor([1.0])
+                for key in [
+                    "d",
+                    "qs",
+                    "m",
+                    "dmin",
+                    "sb_scales_high",
+                    "sb_scales_low",
+                    "sb_mins_high",
+                    "sb_mins_low",
+                ]
+            }
+            layout = tensor_class.create(
+                shape=base_tensor.shape, metadata=metadata, planes=planes
+            )
+            return PlanarQuantizedTensor(shape=base_tensor.shape, layout=layout)
+
+    @parameterized.expand(
+        [
+            (op, tensor_type)
+            for op, tensor_type in product(
+                [
+                    ops.transfer_to_logical_device,
+                    ops.barrier_on_logical_device,
+                ],
+                [
+                    torch.Tensor,
+                    DefaultPrimitiveTensor,
+                    ReplicatedTensor,
+                    SplitPrimitiveTensor,
+                    UnreducedTensor,
+                    BlockScaledFp4Layout,
+                    BlockScaledI4Layout,
+                    SuperBlockOffsetScaled_4_6_Layout,
+                ],
+            )
+        ]
+    )
+    def testTransferTorchTensor(
+        self,
+        op: Callable[[AnyTensor, int], AnyTensor],
+        tensor_class: torch.Tensor.__class__ | InferenceTensor.__class__,
+    ):
+        tensor = self.create_sample_tensor_from_class(tensor_class)
+        tensor = torch.Tensor([1])
+        model = self.Module(target_device=self.device_ordinal, op=op)
+        fxb = FxProgramsBuilder(model)
+
+        @fxb.export_program(name="forward", args=(tensor,), strict=False)
+        def _(model, x: AnyTensor):
+            return model(x)
+
+        output = aot.export(fxb)
+        output.save_mlir(self.mlir_path)
+
+        # 3. Look for transfer op
+        count = 1 if isinstance(tensor, torch.Tensor) else len(tensor.globals())
+        self.look_for_op(op, count)
 
 
 class TestOpExport(unittest.TestCase):
