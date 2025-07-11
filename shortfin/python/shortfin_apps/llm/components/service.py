@@ -55,8 +55,7 @@ class LlmGenerateService(GenerateService):
         self._initialize_worker_and_fiber()
         self._initialize_page_cache()
         self.queue_manager = RequestQueueManager(
-            model_params=self.model_params,
-            page_pool=self.page_pool
+            model_params=self.model_params, page_pool=self.page_pool
         )
 
         self.main_fiber_pool = FiberPool(
