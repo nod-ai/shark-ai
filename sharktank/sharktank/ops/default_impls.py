@@ -750,37 +750,29 @@ def transpose_default(
 def transpose_PlanarQuantizedTensor(
     tensor: PlanarQuantizedTensor, dim0: int, dim1: int
 ) -> PlanarQuantizedTensor:
-    new_layout = tensor.unpack().transpose(dim0, dim1)
-    if not isinstance(new_layout, QuantizedLayout):
-        return NotImplemented
+    layout = tensor.unpack()
 
-    return PlanarQuantizedTensor(shape=new_layout.shape, layout=new_layout)
-
-
-@transpose.override(QuantizedLayout)
-def transpose_QuantizedLayout(
-    tensor: QuantizedLayout, dim0: int, dim1: int
-) -> QuantizedLayout:
-    if isinstance(tensor, BlockScaledLayout):
-        last_index = [-1, len(tensor.shape) - 1]
+    if isinstance(layout, BlockScaledLayout):
+        last_index = [-1, len(layout.shape) - 1]
         if dim0 in last_index or dim1 in last_index:
             raise ValueError("Cannot transpose last dim of BlockScaledLayout tensors.")
 
     new_planes = {}
-    for name, plane in tensor.planes.items():
+    for name, plane in layout.planes.items():
         if len(plane.shape) < 2:
             new_planes[name] = plane
         else:
             new_planes[name] = plane.transpose(dim0, dim1)
 
-    new_shape = list(tensor.shape)
+    new_shape = list(layout.shape)
     new_shape[dim0], new_shape[dim1] = new_shape[dim1], new_shape[dim0]
 
-    return tensor.__class__.create(
+    new_layout = layout.__class__.create(
         shape=new_shape,
-        metadata=tensor.metadata,
+        metadata=layout.metadata,
         planes=new_planes,
     )
+    return PlanarQuantizedTensor(shape=new_layout.shape, layout=new_layout)
 
 
 # Sharded default impls (do nothing).

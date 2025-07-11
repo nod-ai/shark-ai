@@ -125,12 +125,6 @@ class QuantizedLayout(ABC):
         """The flattened shape of the logical result."""
         ...
 
-    def transpose(self, *args, **kwargs) -> "QuantizedLayout":
-        """Returns a new QuantizedLayout  with the given dimensions transposed."""
-        from sharktank.ops import transpose
-
-        return transpose(self, *args, **kwargs)
-
 
 QuantizedLayoutT = TypeVar("QuantizedLayoutT", bound=QuantizedLayout)
 
