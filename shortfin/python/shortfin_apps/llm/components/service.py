@@ -21,6 +21,8 @@ from .tokenizer import Tokenizer
 from .token_selection_strategy import is_multi_response
 
 from ...utils import GenerateService
+from .request_queue_manager import RequestQueueManager
+from .fiber_pool import FiberPool
 
 logger = logging.getLogger(__name__)
 
