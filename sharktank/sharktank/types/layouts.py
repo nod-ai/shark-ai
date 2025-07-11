@@ -361,8 +361,22 @@ class BlockScaledPackedLayout(BlockScaledLayout):
         ...
 
     def transpose(self, *args, **kwargs):
-        # TODO: Make sure we're not transposing the last dim.
+        if len(kwargs) == 2:
+            dim0, dim1 = kwargs["dim0"], kwargs["dim1"]
+        elif len(args) == 2:
+            dim0, dim1 = args
+        else:
+            assert len(args) + len(kwargs) == 2
+            if "dim0" in kwargs:
+                dim0, dim1 = kwargs["dim0"], args[0]
+            elif "dim1" in kwargs:
+                dim0, dim1 = args[0], kwargs["dim1"]
 
+        last_index = [-1, len(self.qs.shape) - 1]
+        if dim0 in last_index or dim1 in last_index:
+            raise ValueError(
+                "Cannot transpose last dim of BlockScaledPackedLayout tensors."
+            )
         super().transpose(*args, **kwargs)
 
 
