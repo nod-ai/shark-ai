@@ -110,7 +110,7 @@ Graph::conv_fprop(std::shared_ptr<TensorAttr> const &x,
 
   // Set outputs
   if (attr.get_name().empty())
-    attr.set_name(std::to_string(sub_nodes.size()));
+    attr.set_name("conv_fprop_" + std::to_string(sub_nodes.size()));
   auto y = output_tensor(attr.get_name() + "::Y");
   attr.set_Y(y);
 
