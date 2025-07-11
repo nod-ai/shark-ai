@@ -14,9 +14,18 @@ from shortfin_apps.llm.components.tokenizer import Encoding
 @pytest.fixture
 def model_params():
     return ModelParams(
+        max_seq_len=512,
+        transformer_block_count=42,
+        attn_head_dim=42,
+        prefill_batch_sizes=[4],
         decode_batch_sizes=[2],
         top_k=5,
-        paged_kv_cache=PagedKVCacheParams(block_seq_stride=2)
+        paged_kv_cache=PagedKVCacheParams(
+            block_seq_stride=2,
+            attention_head_count_kv=42,
+            device_block_count=256,
+            kv_cache_dtype=sfnp.float16,
+        ),
     )
 
 @pytest.fixture
