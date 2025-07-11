@@ -5,10 +5,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import logging
-
-from dataclasses import dataclass
-from typing import List
-from threading import Lock
 import shortfin as sf
 
 
@@ -53,10 +49,9 @@ class LlmGenerateService(GenerateService):
         self.model_params = model_params
         self.server_params = server_params
 
-        self._initialize_page_cache()
-
         self.set_isolation(program_isolation)
         self._initialize_worker_and_fiber()
+        self._initialize_page_cache()
 
     def _initialize_worker_and_fiber(self):
         num_workers = self.server_params.workers
