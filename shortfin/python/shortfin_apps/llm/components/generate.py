@@ -127,8 +127,6 @@ class ClientGenerateBatchProcess(sf.Process):
         "tokenizer",
         "decode_config",
         "service",
-        "queue_manager",
-        "main_fiber_pool",
     ]
 
     def __init__(
@@ -149,14 +147,6 @@ class ClientGenerateBatchProcess(sf.Process):
         self.active_processes = []
         self.cancelled = False
         self.lock = threading.Lock()
-        self.queue_manager = RequestQueueManager(
-            model_params=self.service.model_params,
-            page_pool=self.service.page_pool,
-            responder=responder,
-        )
-        self.main_fiber_pool = FiberPool(
-            self.service.sysman, self.queue_manager.get_max_queue_size(), resizable=True
-        )
 
     def cancel(self):
         with self.lock:
@@ -196,10 +186,11 @@ class ClientGenerateBatchProcess(sf.Process):
 
         # Try to add request to queue
         # TODO(@zphoenixrises): Add load testing and integration tests for this.
-        run_request = self.queue_manager.add_to_queue(
+        run_request = self.service.queue_manager.add_to_queue(
             decode_configs=decode_configs,
             input_batch=input_batch,
             is_pretokenized=is_pretokenized,
+            self.responder,
         )
         if run_request is None:
             return
@@ -218,7 +209,7 @@ class ClientGenerateBatchProcess(sf.Process):
 
                 input_token_ids = input_tokens if is_pretokenized else input_tokens.ids
 
-                idx, fiber = await self.main_fiber_pool.get()
+                idx, fiber = await self.service.main_fiber_pool.get()
                 indices.append(idx)
 
                 rid = (
@@ -259,7 +250,7 @@ class ClientGenerateBatchProcess(sf.Process):
             else:
                 self.generate_response(gen_processes)
         finally:
-            self.main_fiber_pool.return_fiber(indices)
+            self.service.main_fiber_pool.return_fiber(indices)
             self.responder.ensure_response()
             self.queue_manager.remove_from_queue(run_request)
 

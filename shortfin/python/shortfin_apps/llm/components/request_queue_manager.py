@@ -30,7 +30,6 @@ class RequestQueueManager:
         *,
         model_params: ModelParams,
         page_pool: PagePool,
-        responder: FastAPIResponder,
         max_queue_size: int = DEFAULT_MAX_QUEUE_SIZE,
     ):
         self._max_queue_size = max_queue_size
@@ -41,7 +40,6 @@ class RequestQueueManager:
 
         self.model_params = model_params
         self.page_pool = page_pool
-        self.responder = responder
         # Use model_params.decode_batch_sizes to decide actual _max_queue_size
         self._max_queue_size = (
             max(model_params.decode_batch_sizes)
@@ -105,6 +103,7 @@ class RequestQueueManager:
         decode_configs: list[DecodeConfig],
         input_batch: list[Encoding],
         is_pretokenized: bool,
+        responder: FastAPIResponder,
     ) -> Optional[int]:
         """
         Attempts to add a request to the queue.
@@ -114,7 +113,7 @@ class RequestQueueManager:
 
         with self._lock:
             if self._current_queue_size + request_size > self._max_queue_size:
-                self.responder.send_error(
+                responder.send_error(
                     error_message="Server queue is full. Please try again later.",
                     code=ResponderErrorCodes.QUEUE_FULL,
                     extra_fields={
@@ -142,7 +141,7 @@ class RequestQueueManager:
                 exported_topk,
                 requested_topk,
             ):
-                self.responder.send_error(
+                responder.send_error(
                     error_message="Requested top-k larger than exported top-k",
                     code=ResponderErrorCodes.INVALID_REQUEST_ARGS,
                     extra_fields={
@@ -163,7 +162,7 @@ class RequestQueueManager:
 
             # return error reponse if no pages available
             if not is_memory_ok:
-                self.responder.send_error(
+                responder.send_error(
                     error_message="Not enough memory pages available.",
                     code=ResponderErrorCodes.PAGE_FULL,
                     extra_fields={
