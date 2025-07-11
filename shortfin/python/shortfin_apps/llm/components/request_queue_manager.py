@@ -109,8 +109,56 @@ class RequestQueueManager:
         Attempts to add a request to the queue.
         Returns: Request ID if successful, None otherwise.
         """
-        request_size = sum(config.num_beams for config in decode_configs)
+        # Step 1: Validate top-k for all configs
+        for decode_config in decode_configs:
+            exported_topk = self.model_params.top_k
+            requested_topk = (
+                max(decode_config.num_beams, exported_topk or 1)
+                if decode_config.use_beam_search
+                else decode_config.top_k
+            )
 
+            if not self._check_topk_params(exported_topk, requested_topk):
+                responder.send_error(
+                    error_message="Requested top-k larger than exported top-k",
+                    code=ResponderErrorCodes.INVALID_REQUEST_ARGS,
+                    extra_fields={
+                        "exported_topk": exported_topk,
+                        "requested_topk": requested_topk,
+                    },
+                )
+                return None
+
+        # Step 2: Pre-calculate total needed pages
+        stride = self.model_params.paged_kv_cache.block_seq_stride
+        available_pages = self.page_pool.get_available_pages_num()
+        total_needed_pages = 0
+
+        for index, input_tokens in enumerate(input_batch):
+            decode_config = decode_configs[index]
+            input_token_ids = input_tokens if is_pretokenized else input_tokens.ids
+
+            input_pages = math.ceil(len(input_token_ids) / stride)
+            copy_pages = decode_config.num_beams - 1
+            output_pages = decode_config.num_beams * math.ceil(
+                decode_config.max_completion_tokens / stride
+            )
+
+            total_needed_pages += input_pages + copy_pages + output_pages
+
+        # Step 3: Check if total memory fits
+        if total_needed_pages > available_pages:
+            responder.send_error(
+                error_message="Not enough memory pages available.",
+                code=ResponderErrorCodes.PAGE_FULL,
+                extra_fields={
+                    "available_page": available_pages,
+                    "requested_page": total_needed_pages,
+                },
+            )
+            return None
+
+        request_size = sum(config.num_beams for config in decode_configs)
         with self._lock:
             if self._current_queue_size + request_size > self._max_queue_size:
                 responder.send_error(
@@ -127,52 +175,6 @@ class RequestQueueManager:
                 )
                 return None
 
-        for index, input_tokens in enumerate(input_batch):
-            decode_config = decode_configs[index]
-
-            exported_topk = self.model_params.top_k
-            requested_topk = (
-                max(decode_config.num_beams, exported_topk or 1)
-                if decode_config.use_beam_search
-                else decode_config.top_k
-            )
-
-            if not self._check_topk_params(
-                exported_topk,
-                requested_topk,
-            ):
-                responder.send_error(
-                    error_message="Requested top-k larger than exported top-k",
-                    code=ResponderErrorCodes.INVALID_REQUEST_ARGS,
-                    extra_fields={
-                        "exported_topk": exported_topk,
-                        "requested_topk": requested_topk,
-                    },
-                )
-                return None
-
-            input_token_ids = input_tokens if is_pretokenized else input_tokens.ids
-
-            available_pages = self.page_pool.get_available_pages_num()
-            is_memory_ok, needed_pages = self._check_memory_availability(
-                input_token_ids_len=len(input_token_ids),
-                available_pages=available_pages,
-                decode_config=decode_config,
-            )
-
-            # return error reponse if no pages available
-            if not is_memory_ok:
-                responder.send_error(
-                    error_message="Not enough memory pages available.",
-                    code=ResponderErrorCodes.PAGE_FULL,
-                    extra_fields={
-                        "available_page": available_pages,
-                        "requested_page": needed_pages,
-                    },
-                )
-                return None
-
-        with self._lock:
             self._current_id += 1
             self._current_queue_size += request_size
             assert self._current_id not in self._current_tasks
