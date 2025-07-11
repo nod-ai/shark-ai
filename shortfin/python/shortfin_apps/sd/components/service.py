@@ -217,7 +217,7 @@ class SDXLBatcherProcess(BatcherProcess):
         super().__init__(fiber=service.meta_fibers[0].fiber)
         self.service = service
         self.batcher_infeed = self.system.create_queue()
-        self.pending_requests: set[InferenceExecRequest] = set()
+        self.pending_requests: set[SDXLInferenceExecRequest] = set()
         self.strobe_enabled = True
         self.strobes: int = 0
         self.ideal_batch_size: int = max(service.model_params.batch_sizes["clip"])
@@ -277,7 +277,7 @@ class InferenceExecutorProcess(sf.Process):
         self.worker_index = meta_fiber.worker_idx
         self.exec_request: SDXLInferenceExecRequest = None
 
-    def assign_command_buffer(self, request: InferenceExecRequest):
+    def assign_command_buffer(self, request: SDXLInferenceExecRequest):
         with self.meta_fiber.lock:
             for cb in self.meta_fiber.command_buffers:
                 if cb.batch_size == self.exec_request.batch_size:
