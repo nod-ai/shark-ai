@@ -13,9 +13,9 @@
 #include <variant>
 #include <vector>
 
-#include "../context.h"
-#include "../logging.h"
-#include "../types.h"
+#include "fusili/context.h"
+#include "fusili/logging.h"
+#include "fusili/types.h"
 
 namespace fusili {
 

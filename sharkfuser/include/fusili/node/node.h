@@ -9,8 +9,8 @@
 
 #include <memory>
 
-#include "../context.h"
-#include "../logging.h"
+#include "fusili/context.h"
+#include "fusili/logging.h"
 
 namespace fusili {
 

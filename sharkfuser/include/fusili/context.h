@@ -9,7 +9,7 @@
 
 #include <string>
 
-#include "types.h"
+#include "fusili/types.h"
 
 namespace fusili {
 

@@ -10,11 +10,11 @@
 #include <memory>
 #include <unordered_set>
 
-#include "attributes/tensor_attributes.h"
-#include "context.h"
-#include "logging.h"
-#include "node/conv_node.h"
-#include "node/node.h"
+#include "fusili/attributes/tensor_attributes.h"
+#include "fusili/context.h"
+#include "fusili/logging.h"
+#include "fusili/node/conv_node.h"
+#include "fusili/node/node.h"
 
 namespace fusili {
 

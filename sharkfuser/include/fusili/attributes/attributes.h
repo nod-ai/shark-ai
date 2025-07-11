@@ -7,7 +7,7 @@
 #ifndef FUSILI_ATTRIBUTES_ATTRIBUTES_H
 #define FUSILI_ATTRIBUTES_ATTRIBUTES_H
 
-#include "tensor_attributes.h"
+#include "fusili/attributes/tensor_attributes.h"
 
 namespace fusili {
 

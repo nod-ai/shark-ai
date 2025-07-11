@@ -7,9 +7,9 @@
 #ifndef FUSILI_NODE_CONV_NODE_H
 #define FUSILI_NODE_CONV_NODE_H
 
-#include "../attributes/conv_attributes.h"
-#include "../context.h"
-#include "node.h"
+#include "fusili/attributes/conv_attributes.h"
+#include "fusili/context.h"
+#include "fusili/node/node.h"
 
 namespace fusili {
 

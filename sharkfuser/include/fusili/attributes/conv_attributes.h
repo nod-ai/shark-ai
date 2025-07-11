@@ -11,8 +11,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "attributes.h"
-#include "tensor_attributes.h"
+#include "fusili/attributes/attributes.h"
+#include "fusili/attributes/tensor_attributes.h"
 
 namespace fusili {
 
