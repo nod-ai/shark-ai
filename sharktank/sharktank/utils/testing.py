@@ -122,6 +122,8 @@ class IreeVsEagerLLMTester:
         iree_hal_target_device: str,
         raw_token_ids: list[list[int]] | None = None,
         skip_decode: bool = False,
+        use_qk_norm: bool = False,
+        attention_chunk_size: Optional[int] = None,
     ):
 
         """
@@ -137,6 +139,8 @@ class IreeVsEagerLLMTester:
             iree_hal_target_device: The IREE HAL target device to use for IREE execution (e.g., "hip" or "llvm-cpu").
             raw_token_ids: The raw token ids to use for the prefill stage. If none are provided, a static set will be generated.
             skip_decode: Whether to skip the decode stage. If True, the decode stage will not be run, and the decode results will not be compared.
+            use_qk_norm: whether to normalize q and k in the attention layer
+            attention_chunk_size: size of chunk of attentions
         """
         # Note: Here to prevent circular imports
         from sharktank.models.llm.llm import PagedLlmModelV1
@@ -222,6 +226,8 @@ class IreeVsEagerLLMTester:
             hip_device_id=iree_device,
             output_name=work_dir / "model",
             use_attention_mask=True,
+            use_qk_norm=use_qk_norm,
+            attention_chunk_size=attention_chunk_size,
         )
 
         # Note: Must be after saving the dataset and creating the exporter but before moving theta to the provided device.

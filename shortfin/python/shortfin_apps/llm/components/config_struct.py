@@ -38,7 +38,7 @@ dataclasses_json.cfg.global_config.encoders[sfnp.DType] = lambda dt: dt.name
 dataclasses_json.cfg.global_config.decoders[sfnp.DType] = _decode_dtype
 
 
-@dataclass_json(undefined=Undefined.RAISE)
+@dataclass_json(undefined=Undefined.EXCLUDE)
 @dataclass
 class PagedKVCacheParams:
     """Parameters for the paged KV cache.
@@ -104,6 +104,9 @@ class PagedKVCacheParams:
 
     # Element type of the KVCache
     kv_cache_dtype: sfnp.DType
+
+    # Number of blocks per device for kvcache
+    paged_kv_block_size_elements_per_device: list[int] | None = None
 
 
 @dataclass_json(undefined=Undefined.RAISE)
@@ -187,9 +190,15 @@ class ModelParams:
     @property
     def paged_kv_unit_size_elements(self) -> int:
         """Size in elements of each cache line in the attention cache.
-
         Each cache line can store a unit position stride.
         """
+        import warnings
+
+        warnings.warn(
+            "Using an old model which relies of deprecated features that will be removed in a future update, please re-export the model.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         assert self.has_paged_kv_cache
         size = 1
         size *= self.transformer_block_count
