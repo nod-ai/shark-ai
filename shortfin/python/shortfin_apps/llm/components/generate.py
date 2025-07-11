@@ -250,7 +250,7 @@ class ClientGenerateBatchProcess(sf.Process):
         finally:
             self.service.main_fiber_pool.return_fiber(indices)
             self.responder.ensure_response()
-            self.queue_manager.remove_from_queue(run_request)
+            self.service.queue_manager.remove_from_queue(run_request)
 
     def generate_response(
         self,
