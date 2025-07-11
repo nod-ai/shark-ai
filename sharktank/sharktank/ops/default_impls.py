@@ -619,11 +619,11 @@ def rms_norm_default(
 
 @rms_norm.override(Tensor, QuantizedTensor)
 def rms_norm_Tensor_QuantizedTensor(
-    x, weight: PrimitiveTensor, *, epsilon: float
+    x, weight: PrimitiveTensor, *, epsilon: float, orig_dtype: Union[None, torch.dtype]
 ) -> Tensor:
     x = unbox_tensor(x)
     weight = weight.unpack().dequant(x.dtype)
-    return rms_norm_default(x, weight, epsilon=epsilon)
+    return rms_norm_default(x, weight, epsilon=epsilon, orig_dtype=orig_dtype)
 
 
 @pad.override(Tensor)
