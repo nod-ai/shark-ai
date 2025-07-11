@@ -16,21 +16,20 @@ from numbers import Number
 
 from sharktank.types import (
     PrimitiveTensor,
+    DefaultPrimitiveTensor,
     QuantizedTensor,
     InferenceTensor,
     PlanarQuantizedTensor,
     BlockScaledI4Layout,
+    BlockScaledLayout,
     TensorScaledLayout,
-)
-
-from sharktank.kernels.topk import iree_topk
-
-from sharktank.types.tensors import (
-    DefaultPrimitiveTensor,
     QuantizedLayout,
     unbox_tensor,
     AnyTensor,
 )
+
+from sharktank.kernels.topk import iree_topk
+
 from ._registry import AllOfType, AllOfExprs, AllOfExprsVariadic, IsOfType
 from .signatures import *
 import iree.turbine.ops.iree
@@ -740,17 +739,40 @@ def barrier_on_device_default(tensor: Tensor, ordinal: int):
 @transpose.override(Tensor)
 def transpose_default(
     tensor: Union[Tensor, PrimitiveTensor], dim0: int, dim1: int
-) -> Tensor:
-    return torch.transpose(unbox_tensor(tensor), dim0, dim1)
+) -> Union[Tensor, PrimitiveTensor]:
+    transposed = torch.transpose(unbox_tensor(tensor), dim0, dim1)
+    if isinstance(tensor, PrimitiveTensor):
+        transposed = DefaultPrimitiveTensor(data=transposed, name=tensor.name)
+    return transposed
 
 
 @transpose.override(PlanarQuantizedTensor)
 def transpose_PlanarQuantizedTensor(
     tensor: PlanarQuantizedTensor, dim0: int, dim1: int
-):
-    new_layout = tensor.unpack().transpose(dim0, dim1)
-    if not isinstance(new_layout, QuantizedLayout):
-        return NotImplemented
+) -> PlanarQuantizedTensor:
+    layout = tensor.unpack()
+
+    if isinstance(layout, BlockScaledLayout):
+        last_index = [-1, len(layout.shape) - 1]
+        if dim0 in last_index or dim1 in last_index:
+            raise ValueError("Cannot transpose last dim of BlockScaledLayout tensors.")
+
+    new_planes = {}
+    for name, plane in layout.planes.items():
+        if len(plane.shape) < 2:
+            new_planes[name] = plane
+        else:
+            new_planes[name] = plane.transpose(dim0, dim1)
+
+    new_shape = list(layout.shape)
+    new_shape[dim0], new_shape[dim1] = new_shape[dim1], new_shape[dim0]
+
+    new_layout = layout.__class__.create(
+        shape=new_shape,
+        metadata=layout.metadata,
+        planes=new_planes,
+    )
+    return PlanarQuantizedTensor(shape=new_layout.shape, layout=new_layout)
 
     return PlanarQuantizedTensor(shape=new_layout.shape, layout=new_layout)
 
