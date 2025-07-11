@@ -125,19 +125,17 @@ class PagedLlmModelV1(BaseCausalLMModel):
         )
 
     def _inter_layer_callback(self, x: ShardedTensor, curr_block: int) -> ShardedTensor:
-        from ... import ops
-
         if self.config.block_to_pipeline_map is None:
             return x
 
         if curr_block >= len(self.config.block_to_pipeline_map) - 1:
             return x
 
-        pipeline_0 = self.config.block_to_pipeline_map[curr_block]
-        pipeline_1 = self.config.block_to_pipeline_map[curr_block + 1]
+        curr_pipeline = self.config.block_to_pipeline_map[curr_block]
+        next_pipeline = self.config.block_to_pipeline_map[curr_block + 1]
 
-        curr_devices = self.config.pipeline_to_device_map[pipeline_0]
-        next_devices = self.config.pipeline_to_device_map[pipeline_1]
+        curr_devices = self.config.pipeline_to_device_map[curr_pipeline]
+        next_devices = self.config.pipeline_to_device_map[next_pipeline]
         if all(d_curr == d_next for d_curr, d_next in zip(curr_devices, next_devices)):
             return x
 

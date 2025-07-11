@@ -63,13 +63,6 @@ class LlmGenerateService(GenerateService):
         )
 
     def _initialize_worker_and_fiber(self):
-        num_workers = self.server_params.workers
-        fibers_per_worker = self.server_params.fibers_per_worker
-
-        logger.info(
-            f"Creating {num_workers} workers, with {fibers_per_worker} fibers per worker..."
-        )
-
         self.main_worker = self.sysman.ls.create_worker(f"{self.name}-inference-main-0")
         self.main_fiber = self.sysman.ls.create_fiber(self.main_worker)
 
@@ -91,6 +84,7 @@ class LlmGenerateService(GenerateService):
             dtype=self.model_params.paged_kv_cache.kv_cache_dtype,
             alloc_page_count=self.model_params.paged_kv_cache.device_block_count,
             paged_kv_block_size_elements=self.model_params.paged_kv_block_size_elements,
+            paged_kv_block_size_elements_per_device=self.model_params.paged_kv_cache.paged_kv_block_size_elements_per_device,
         )
         self.page_pool = PagePool(devices=self.devices, config=page_pool_config)
 

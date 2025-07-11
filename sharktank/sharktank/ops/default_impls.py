@@ -423,7 +423,21 @@ def index_copy__default(
     index: Union[Tensor, PrimitiveTensor],
     tensor: Union[Tensor, PrimitiveTensor],
 ) -> Union[Tensor, PrimitiveTensor]:
-    unbox_tensor(inout).index_copy_(dim, unbox_tensor(index), unbox_tensor(tensor))
+    index = unbox_tensor(index)
+    tensor = unbox_tensor(tensor)
+    inout_as_torch = unbox_tensor(inout)
+    if (
+        not torch.compiler.is_compiling()
+        and inout_as_torch.is_cpu
+        and inout_as_torch.dtype == torch.float8_e4m3fnuz
+    ):
+        # PyTorch does not have eager implementation for float8_e4m3fnuz in CPU.
+        # We need to view as int8 before performing the operation.
+        # We still want to avoid the bitcasts during export as the IREE compiler has
+        # trouble fusing them.
+        inout_as_torch = inout_as_torch.view(dtype=torch.int8)
+        tensor = tensor.view(dtype=torch.int8)
+    inout_as_torch.index_copy_(dim, index, tensor)
     return inout
 
 
@@ -434,7 +448,21 @@ def index_put__default(
     values: Union[Tensor, PrimitiveTensor],
 ) -> Union[Tensor, PrimitiveTensor]:
     indices = tuple(unbox_tensor(index) for index in indices)
-    unbox_tensor(inout).index_put_(indices, unbox_tensor(values))
+    inout_as_torch = unbox_tensor(inout)
+    values = unbox_tensor(values)
+    if (
+        not torch.compiler.is_compiling()
+        and inout_as_torch.is_cpu
+        and inout_as_torch.dtype == torch.float8_e4m3fnuz
+    ):
+        # PyTorch does not have eager implementation for float8_e4m3fnuz in CPU.
+        # We need to view as int8 before performing the operation.
+        # We still want to avoid the bitcasts during export as the IREE compiler has
+        # trouble fusing them.
+        inout_as_torch = inout_as_torch.view(dtype=torch.int8)
+        values = values.view(dtype=torch.int8)
+
+    inout_as_torch.index_put_(indices, values)
     return inout
 
 
