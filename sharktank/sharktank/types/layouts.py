@@ -657,11 +657,6 @@ class BlockScaledFp4Layout(BlockScaledPackedLayout):
         }
 
     @property
-    def qs(self) -> torch.Tensor:
-        """Per sample FP4 indices (unpacked from packed format)."""
-        return unpack_uint8_to_fp4_e2m1(self._qs)
-
-    @property
     def block_size(self) -> int:
         return self._block_size
 
