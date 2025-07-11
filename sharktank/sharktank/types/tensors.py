@@ -1375,7 +1375,7 @@ class ReplicatedTensor(ShardedTensor):
     def __init__(
         self,
         *,
-        ts: list["AnyTensor"] | "AnyTensor",
+        ts: Union[list["AnyTensor"], "AnyTensor"],
         shard_count: None | int = None,
         name: str = UnnamedTensorName,
         devices: Tuple[int] | None = None,
