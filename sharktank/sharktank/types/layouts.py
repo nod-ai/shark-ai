@@ -164,12 +164,6 @@ class TensorScaledLayout(QuantizedLayout):
             shape=qs.shape, d=self.d, qs=qs, m=self.m, dtype=self.dtype
         )
 
-    def transpose(self, *args, **kwargs) -> "TensorScaledLayout":
-        qs = self.qs.transpose(*args, **kwargs)
-        d = self.d.transpose(*args, **kwargs)
-        m = self.m.transpose(*args, **kwargs) if self.m is not None else None
-        return TensorScaledLayout(shape=qs.shape, d=d, qs=qs, m=m, dtype=self.dtype)
-
     def dequant(self, dtype: Optional[torch.dtype] = None) -> torch.Tensor:
         return self.dequant_blocked(dtype)
 
@@ -298,19 +292,6 @@ class BlockScaledLayout(QuantizedLayout):
         scaled = d * qs.to(dtype)
         shifted = scaled if m is None else scaled + m
         return shifted
-
-    def transpose(self, *args, **kwargs):
-        new_metadata = self.metadata()
-        new_planes = {
-            name: tensor.transpose(*args, **kwargs)
-            for name, tensor in self.planes().items()
-        }
-
-        return self.__class__.create(
-            shape=new_planes["qs"].shape,
-            metadata=new_metadata,
-            planes=new_planes,
-        )
 
     def __repr__(self):
         r = (
@@ -591,9 +572,6 @@ class SuperBlockOffsetScaled_4_6_Layout(QuantizedLayout):
         d_scaled = (d * sb_scales).unsqueeze(-1)
         dmin_scaled = (dmin * sb_mins).unsqueeze(-1)
         return d_scaled * qs - dmin_scaled
-
-    def transpose(self, *args, **kwargs):
-        return NotImplemented
 
     def __repr__(self):
         r = (
