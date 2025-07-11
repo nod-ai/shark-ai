@@ -18,7 +18,6 @@ import threading
 
 # TODO: Have a generic "Responder" interface vs just the concrete impl.
 from shortfin.support.responder import AbstractResponder, ResponderErrorCodes
-from .request_queue_manager import RequestQueueManager
 
 from .config_struct import DecodeConfig
 from .io_struct import (
@@ -37,7 +36,6 @@ from .token_selection_strategy import (
     is_multi_response,
 )
 from .tokenizer import Encoding
-from .fiber_pool import FiberPool
 
 logger = logging.getLogger(__name__)
 
