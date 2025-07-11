@@ -239,12 +239,6 @@ class ServerParams:
     # Program isolation configuration
     program_isolation: str = "per_call"
 
-    # Number of shortfin workers to use during generation
-    workers: int = 1
-
-    # Number of fibers to create per worker
-    fibers_per_worker: int = 1
-
     decode_config: DecodeConfig | None = None
 
     # Device configuration

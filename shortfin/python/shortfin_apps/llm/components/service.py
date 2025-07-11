@@ -71,13 +71,6 @@ class LlmGenerateService(GenerateService):
             logger.debug(f"Max queue size: {self.max_queue_size}")
 
     def _initialize_worker_and_fiber(self):
-        num_workers = self.server_params.workers
-        fibers_per_worker = self.server_params.fibers_per_worker
-
-        logger.info(
-            f"Creating {num_workers} workers, with {fibers_per_worker} fibers per worker..."
-        )
-
         self.main_worker = self.sysman.ls.create_worker(f"{self.name}-inference-main-0")
         self.main_fiber = self.sysman.ls.create_fiber(self.main_worker)
 

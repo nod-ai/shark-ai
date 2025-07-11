@@ -109,6 +109,8 @@ class QuantizedLayout(ABC):
 
         When transforming, the name will form a local suffix (i.e. ":name")
         for stored values by combining the global name with the ":" separator.
+
+        NOTE: Any bitpacked values will NOT be unpacked by this method.
         """
         ...
 
@@ -116,6 +118,12 @@ class QuantizedLayout(ABC):
     def metadata(self) -> Optional[dict[str, MetaDataValueType]]:
         """Additional metadata needed to reconstruct a layout."""
         return None
+
+    @property
+    @abstractmethod
+    def shape(self) -> list[int]:
+        """The flattened shape of the logical result."""
+        ...
 
 
 QuantizedLayoutT = TypeVar("QuantizedLayoutT", bound=QuantizedLayout)
