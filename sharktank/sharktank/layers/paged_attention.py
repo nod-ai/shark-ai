@@ -1132,8 +1132,30 @@ class PagedAttention:
 
         # Fake quant is already dequantized when stored in the cache.
         if cache_quantizer and not fake_quant:
-            k = cache_quantizer.dequantize_raw_tensor(k, self.attn_dtype, name="xk_deq")
-            v = cache_quantizer.dequantize_raw_tensor(v, self.attn_dtype, name="xv_deq")
+            if isinstance(cache_quantizer, ReplicatedTensor):
+                k_shards, v_shards = [], []
+                for (quantizer, k_shard, v_shard) in zip(
+                    cache_quantizer.shards, k.shards, v.shards
+                ):
+                    k_shards.append(
+                        quantizer.dequantize_raw_tensor(
+                            k_shard, self.attn_dtype, name="xk_deq"
+                        )
+                    )
+                    v_shards.append(
+                        quantizer.dequantize_raw_tensor(
+                            v_shard, self.attn_dtype, name="xv_deq"
+                        )
+                    )
+                k = ReplicatedTensor(ts=k_shards, devices=cache_quantizer.devices)
+                v = ReplicatedTensor(ts=v_shards, devices=cache_quantizer.devices)
+            else:
+                k = cache_quantizer.dequantize_raw_tensor(
+                    k, self.attn_dtype, name="xk_deq"
+                )
+                v = cache_quantizer.dequantize_raw_tensor(
+                    v, self.attn_dtype, name="xv_deq"
+                )
 
         q = q.transpose(1, 2)
         k = k.transpose(1, 2)
