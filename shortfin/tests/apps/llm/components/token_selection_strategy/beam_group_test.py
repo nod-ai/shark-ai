@@ -328,23 +328,12 @@ async def test_wait(exec_req_list, decode_config):
         assert req.done._event.is_set()
 
 
-def update_beam_exec_req(beam: DummyBeam, device: str):
-    if (
-        not hasattr(beam.exec_req, "result_logits")
-        or beam.exec_req.result_logits is None
-    ):
-        # Mock some logits data
-        result_logits = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
-        data = [1.0] * 16  # Simple uniform logits
-        result_logits.items = data
-        beam.exec_req.result_logits = result_logits
-
-
 def test_process_beams_one_req(exec_req, decode_config, device):
-    def selection_callback(active_beams: List[DummyBeam], _: List[DummyBeam]):
+    def selection_callback(
+        active_beams: List[DummyBeam], _: List[DummyBeam], token: int
+    ):
         selections = []
         for beam in active_beams:
-            token = 0
             beam.last_token = token
             selections.append(beam)
 
@@ -356,25 +345,30 @@ def test_process_beams_one_req(exec_req, decode_config, device):
         decode_config,
         beams=beams,
     )
-    beam_groups._scorer.select_beams = selection_callback
+    beam_groups._scorer.select_beams = (
+        lambda active_beams, completed_beams: selection_callback(
+            active_beams, completed_beams, 1
+        )
+    )
 
-    # Active - should still have beams after processing if we mock the logits properly
-    initial_beam_count = len(beam_groups.active_beams)
+    # Active
     beam_groups.process_beams()
-    # After processing, beams might be moved around, but total should be preserved
-    total_beams = beam_groups.active_beam_count + beam_groups.completed_beam_count
-    assert total_beams == initial_beam_count
+    assert beam_groups.active_beam_count == 1
+    assert beam_groups.completed_beam_count == 0
 
-    # Completed - force completion by setting last_token to eos_token_id
-    for beam in beam_groups.active_beams:
-        beam.last_token = beam_groups._eos_token_id
+    # force completion
+    beam_groups._scorer.select_beams = (
+        lambda active_beams, completed_beams: selection_callback(
+            active_beams, completed_beams, 0
+        )
+    )
 
     with patch.object(LlmInferenceExecRequest, "free_cache_pages") as free_cache_mock:
         beam_groups.process_beams()
         # Now all beams should be completed
         assert beam_groups.active_beam_count == 0
-        assert beam_groups.completed_beam_count > 0
-        assert free_cache_mock.call_count >= 0
+        assert beam_groups.completed_beam_count == 1
+        free_cache_mock.assert_called_once()
 
 
 def test_process_beams_multiple_reqs(exec_req_list, decode_config, device):
