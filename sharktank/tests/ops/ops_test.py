@@ -4,6 +4,8 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from pathlib import Path
+from typing import Callable
 import unittest
 
 import math
@@ -427,6 +429,70 @@ class RmsNormTest(unittest.TestCase):
         torch.testing.assert_close(actual, result)
 
     # TODO: Quantized tensor
+
+
+class TransferAndBarrierTest(TempDirTestBase):
+    class Module(BaseLayer):
+        def __init__(
+            self, target_device: int, op: Callable[[AnyTensor, int], AnyTensor]
+        ):
+            super().__init__()
+            self.target_device = target_device
+            self.op = op
+
+        def forward(self, x: AnyTensor):
+            return self.op(x, self.target_device)
+
+    op_to_mlir_name = {
+        ops.transfer_to_logical_device: "flow.tensor.transfer",
+        ops.barrier_on_logical_device: "flow.tensor.barrier",
+    }
+
+    def setUp(self):
+        super().setUp()
+        self.device_ordinal = 1
+        self.mlir_path = self._temp_dir / "model.mlir"
+
+    def look_for_op(self, op: Callable, count: int):
+        """
+        Search through the provided MLIR file and find the specified operation.
+        Will throw and error if the operation is not found or if the count does not match.
+
+        Args:
+            op: The op to search the MLIR for.
+            count: Expected number of occurrences of the operation.
+        """
+        op_name = self.op_to_mlir_name[op]
+        target_device = f"#hal.device.promise<@__device_{self.device_ordinal}>"
+        with open(self.mlir_path, "r") as f:
+            mlir_contents = f.read()
+
+        assert count == sum(
+            op_name in line and target_device in line
+            for line in mlir_contents.splitlines()
+        )
+
+    @parameterized.expand(
+        [
+            (ops.transfer_to_logical_device,),
+            (ops.barrier_on_logical_device,),
+        ]
+    )
+    def testTransferTorchTensor(self, op: Callable[[AnyTensor, int], AnyTensor]):
+        tensor = torch.Tensor([1])
+        model = self.Module(target_device=self.device_ordinal, op=op)
+        fxb = FxProgramsBuilder(model)
+
+        @fxb.export_program(name="forward", args=(tensor,), strict=False)
+        def _(model, x: AnyTensor):
+            return model(x)
+
+        output = aot.export(fxb)
+        output.save_mlir(self.mlir_path)
+
+        # 3. Look for transfer op
+        count = 1 if isinstance(tensor, torch.Tensor) else len(tensor.globals())
+        self.look_for_op(op, count)
 
 
 class TestOpExport(unittest.TestCase):
