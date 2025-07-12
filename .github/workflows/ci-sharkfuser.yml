@@ -115,6 +115,13 @@ jobs:
         lcov --remove build/coverage.info 'build/*' '/usr/*' --output-file build/coverage.info
         genhtml build/coverage.info --output-directory coverage_report
 
+    - name: Upload coverage report artifact
+      if: ${{ matrix.name == 'Ubuntu (GCC 13, Code Coverage)' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: ${{ env.SHARKFUSER_DIR }}/coverage_report
+
   # Depends on all other jobs to provide an aggregate job status.
   ci_sharkfuser_summary:
     if: always()
