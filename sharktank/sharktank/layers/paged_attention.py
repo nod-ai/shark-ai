@@ -30,6 +30,7 @@ from sharktank.types import (
 )
 from sharktank import ops, kernels
 from sharktank.kernels.mlir_kernel import *
+from sharktank.kernels.wave.attention import wave_bhsd_masked_flash_attention
 
 __all__ = ["PagedAttention", "attn_type_map"]
 
@@ -1121,10 +1122,10 @@ class PagedAttention:
         mask: Optional[torch.Tensor] = None,
         probs_quantizer: Optional[StaticScaledQuantizer] = None,
     ):
-        if attention_kernel not in ["decomposed", "sharktank", "torch"]:
+        if attention_kernel not in ["decomposed", "sharktank", "torch", "wave"]:
             raise ValueError(
                 f"Unsupported attention kernel: {attention_kernel}. "
-                "Supported kernels: decomposed, sharktank, torch."
+                "Supported kernels: decomposed, sharktank, torch, wave."
             )
 
         if self.attn_type == "gqa":
@@ -1193,6 +1194,18 @@ class PagedAttention:
             else:
                 attn_output = kernels.flash_attention(q, k, v)
             return attn_output
+        elif attention_kernel == "wave":
+            if mask is not None:
+                output = torch.zeros(
+                    [q.shape[0], q.shape[1], q.shape[2], v.shape[3]],
+                    dtype=torch.float32,
+                )
+                attn_output = wave_bhsd_masked_flash_attention(q, k, v, output)
+                attn_output = attn_output.to(torch.float16)
+                return attn_output
+            else:
+                # TODO: support wave flash attention w/o is_causal mask
+                pass
 
         # Non-decomposed
         if softcap is not None:
