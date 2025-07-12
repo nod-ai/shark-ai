@@ -31,7 +31,7 @@ env:
 
 jobs:
   build-and-test:
-    name: "Build / Test :: ${{ matrix.name }}"
+    name: "Build & Test :: ${{ matrix.name }}"
     runs-on: ${{ matrix.runs-on }}
     defaults:
       run:
