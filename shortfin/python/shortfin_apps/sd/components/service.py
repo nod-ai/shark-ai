@@ -33,7 +33,7 @@ logger = logging.getLogger("shortfin-sd.service")
 
 
 
-class SDXLGenerateService:
+class SDXLGenerateService(GenerateService):
     """Top level service interface for image generation."""
 
     def __init__(
