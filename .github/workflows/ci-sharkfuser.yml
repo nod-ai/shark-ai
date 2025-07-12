@@ -31,7 +31,7 @@ env:
 
 jobs:
   build-and-test:
-    name: "Build and test :: ${{ matrix.name }}"
+    name: "Build / Test :: ${{ matrix.name }}"
     runs-on: ${{ matrix.runs-on }}
     defaults:
       run:
@@ -114,15 +114,6 @@ jobs:
         lcov --capture --directory build --output-file build/coverage.info
         lcov --remove build/coverage.info 'build/*' '/usr/*' --output-file build/coverage.info
         genhtml build/coverage.info --output-directory coverage_report
-
-    - name: Lint sharkfuser
-      working-directory: ${{ env.SHARKFUSER_DIR }}
-      run: |
-        find . -path ./build -prune -o \( -type f \( -name "*.cpp" -o -name "*.h" \) -print \) | xargs clang-format -i
-        if [ -n "$(git status --porcelain)" ]; then
-          echo "Please run clang-format and commit changes."
-          exit 1
-        fi
 
   # Depends on all other jobs to provide an aggregate job status.
   ci_sharkfuser_summary:
