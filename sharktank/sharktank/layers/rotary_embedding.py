@@ -103,19 +103,34 @@ class ShardedRotaryLayer(BaseLayer):
 
     def compute_batch_mask(
         self, start_positions: Union[torch.Tensor, ShardedTensor], batch_seq_len: int
-    ) -> torch.Tensor:
+    ) -> tuple[InferenceTensor, InferenceTensor] | InferenceTensor:
         if isinstance(start_positions, ShardedTensor):
-            shards = []
             table = self.rotary_embed_table()
-            for s, ts in zip(start_positions.shards, table.shards):
+            if isinstance(table, ShardedTensor):
+                table = [x for x in table.shards]
+            else:  # tuple from --use-hf
+                table = [
+                    (shard_x, shard_y)
+                    for shard_x, shard_y in zip(table[0].shards, table[1].shards)
+                ]
+
+            shards = []
+            for s, ts in zip(start_positions.shards, table):
                 shard = self._rotary_layer.compute_batch_mask(
                     start_positions=s,
                     batch_seq_len=batch_seq_len,
                     rotary_embed_table=ts,
                 )
                 shards.append(shard)
-
-            return start_positions.clone(ts=shards)
+            if isinstance(shards[0], tuple):  # from --use-hf
+                cos = ReplicatedTensor(
+                    ts=[x[0] for x in shards], devices=start_positions.devices
+                )
+                sin = ReplicatedTensor(
+                    ts=[x[1] for x in shards], devices=start_positions.devices
+                )
+                return cos, sin
+            return ReplicatedTensor(ts=shards, devices=start_positions.devices)
 
         return self._rotary_layer.compute_batch_mask(
             start_positions=start_positions,
@@ -127,19 +142,36 @@ class ShardedRotaryLayer(BaseLayer):
         self,
         *,
         xt: Union[torch.Tensor, SplitPrimitiveTensor, ReplicatedTensor],
-        mask: Union[torch.Tensor, ReplicatedTensor],
+        mask: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
     ) -> Union[SplitPrimitiveTensor, ReplicatedTensor]:
-
         if not isinstance(xt, ShardedTensor):
             return self._rotary_layer.apply_batched_mask(xt=xt, mask=mask)
 
-        assert isinstance(mask, ReplicatedTensor) and mask.shard_count == xt.shard_count
+        if isinstance(mask, tuple):
+            assert len(mask) == 2, "Mask should be a tuple of two tensors."
+            assert isinstance(mask[0], ReplicatedTensor) and isinstance(
+                mask[1], ReplicatedTensor
+            )
+            assert (
+                mask[0].shard_count == xt.shard_count
+                and mask[1].shard_count == xt.shard_count
+            )
+            mask_pieces = [
+                (unbox_tensor(cos), unbox_tensor(sin))
+                for (cos, sin) in zip(mask[0].shards, mask[1].shards)
+            ]
+        else:
+            assert (
+                isinstance(mask, ReplicatedTensor)
+                and mask.shard_count == xt.shard_count
+            )
+            mask_pieces = [unbox_tensor(shard) for shard in mask.shards]
         xt_shards = [
             self._rotary_layer.apply_batched_mask(
                 xt=unbox_tensor(xt_shard),
-                mask=unbox_tensor(mask_shard),
+                mask=mask_piece,
             )
-            for xt_shard, mask_shard in zip(xt.shards, mask.shards)
+            for xt_shard, mask_piece in zip(xt.shards, mask_pieces)
         ]
         return xt.clone(ts=xt_shards)
 
@@ -244,10 +276,10 @@ class RotaryEmbeddingLayer(BaseLayer):
 
     def compute_batch_mask(
         self,
-        start_positions: Union[torch.Tensor, ReplicatedTensor],
+        start_positions: InferenceTensor,
         batch_seq_len: int,
-        rotary_embed_table: torch.Tensor,
-    ) -> torch.Tensor:
+        rotary_embed_table: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
+    ) -> tuple[InferenceTensor, InferenceTensor] | InferenceTensor:
         # TODO: I'm pretty sure this function is only correct because batch_seq_len is always 1
         """Computes a mask for a batch that can be repeatedly applied.
 
@@ -278,7 +310,12 @@ class RotaryEmbeddingLayer(BaseLayer):
 
         return freqs_cis.unsqueeze(1)
 
-    def apply_batched_mask(self, *, xt: torch.Tensor, mask: torch.Tensor):
+    def apply_batched_mask(
+        self,
+        *,
+        xt: torch.Tensor,
+        mask: tuple[torch.Tensor, torch.Tensor] | torch.Tensor,
+    ) -> torch.Tensor:
         """Applies the embedding to a ragged batch of queries and keys.
 
         This does a more complicated indexing operation for cases when the each
