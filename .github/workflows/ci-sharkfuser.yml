@@ -72,6 +72,7 @@ jobs:
               -DCMAKE_CXX_COMPILER=g++-13
               -DSHARKFUSER_DEBUG_BUILD=OFF
               -DSHARKFUSER_CODE_COVERAGE=ON
+            additional-packages: lcov
             env:
               FUSILI_LOG_INFO: 0
               FUSILI_LOG_FILE: stdout
@@ -105,7 +106,7 @@ jobs:
       run: |
         ctest --test-dir build --output-on-failure --extra-verbose --timeout 30
 
-    - name: Get code coverage reports
+    - name: Code coverage sharkfuser
       if: ${{ matrix.name == 'Ubuntu (GCC 13, Code Coverage)' }}
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
