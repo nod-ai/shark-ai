@@ -12,7 +12,7 @@ from shortfin.support.status_tracker import AbstractStatusTracker
 class ResponderErrorCodes(Enum):
     QUEUE_FULL = "QUEUE_FULL"
     INVALID_REQUEST_ARGS = "INVALID_REQUEST_ARGS"
-    PAGE_FULL = "PAGE_FULL"
+    KVCACHE_PAGES_FULL = "KVCACHE_PAGES_FULL"
     CANCELLED = "CANCELLED"
 
 

@@ -150,7 +150,7 @@ class RequestQueueManager:
         if total_needed_pages > available_pages:
             responder.send_error(
                 error_message="Not enough memory pages available.",
-                code=ResponderErrorCodes.PAGE_FULL,
+                code=ResponderErrorCodes.KVCACHE_PAGES_FULL,
                 extra_fields={
                     "available_page": available_pages,
                     "requested_page": total_needed_pages,
