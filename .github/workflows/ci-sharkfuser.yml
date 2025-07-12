@@ -93,10 +93,7 @@ jobs:
     - name: Build sharkfuser
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
-        mkdir build
-        cmake -GNinja \
-          -S. \
-          -Bbuild \
+        cmake -GNinja -S. -Bbuild \
           ${{matrix.cmake-options}}
         cmake --build build --target all
 
