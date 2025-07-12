@@ -31,7 +31,6 @@ from .service import LlmGenerateService
 from .token_selection_strategy import (
     TokenSelector,
     TokenSelectionStrategyConfig,
-    build_token_selector,
     build_token_selector_config,
     is_multi_response,
 )
@@ -79,8 +78,8 @@ class GenerateItemProcess(sf.Process):
                 results_callback=self.results_callback,
             )
         )
-        self.token_selector: TokenSelector = build_token_selector(
-            self.token_selector_config,
+        self.token_selector: TokenSelector = TokenSelector(
+            token_selection_strategy_config=self.token_selector_config,
         )
 
     def cancel(self):
@@ -101,7 +100,7 @@ class GenerateItemProcess(sf.Process):
         finally:
             exec_req.free_cache_pages()
 
-    def results_callback(self, result: list[list[int]]):
+    def results_callback(self, result: List[List[int]]):
         self.result_token_ids = result
 
 

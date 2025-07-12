@@ -16,16 +16,20 @@ from numbers import Number
 
 from sharktank.types import (
     PrimitiveTensor,
+    DefaultPrimitiveTensor,
     QuantizedTensor,
     InferenceTensor,
     PlanarQuantizedTensor,
     BlockScaledI4Layout,
+    BlockScaledLayout,
     TensorScaledLayout,
+    QuantizedLayout,
+    unbox_tensor,
+    AnyTensor,
 )
 
 from sharktank.kernels.topk import iree_topk
 
-from sharktank.types.tensors import unbox_tensor, AnyTensor, DefaultPrimitiveTensor
 from ._registry import AllOfType, AllOfExprs, AllOfExprsVariadic, IsOfType
 from .signatures import *
 import iree.turbine.ops.iree
@@ -735,24 +739,40 @@ def barrier_on_device_default(tensor: Tensor, ordinal: int):
 @transpose.override(Tensor)
 def transpose_default(
     tensor: Union[Tensor, PrimitiveTensor], dim0: int, dim1: int
-) -> Tensor:
-    return torch.transpose(unbox_tensor(tensor), dim0, dim1)
+) -> Union[Tensor, PrimitiveTensor]:
+    transposed = torch.transpose(unbox_tensor(tensor), dim0, dim1)
+    if isinstance(tensor, PrimitiveTensor):
+        transposed = DefaultPrimitiveTensor(data=transposed, name=tensor.name)
+    return transposed
 
 
-@transpose.override(QuantizedTensor)
-def transpose_QuantizedTensor(tensor: QuantizedTensor, dim0: int, dim1: int):
-    unpacked = tensor.unpack()
-    if isinstance(unpacked, TensorScaledLayout):
-        shape = list(unpacked._shape)
-        tmp = shape[dim0]
-        shape[dim0] = shape[dim1]
-        shape[dim1] = tmp
-        new_qs = unpacked._qs.transpose(dim0, dim1)
-        layout = TensorScaledLayout(
-            shape=shape, d=unpacked._d, qs=new_qs, m=unpacked._m
-        )
-        return PlanarQuantizedTensor(shape=shape, layout=layout)
-    return NotImplemented
+@transpose.override(PlanarQuantizedTensor)
+def transpose_PlanarQuantizedTensor(
+    tensor: PlanarQuantizedTensor, dim0: int, dim1: int
+) -> PlanarQuantizedTensor:
+    layout = tensor.unpack()
+
+    if isinstance(layout, BlockScaledLayout):
+        last_index = [-1, len(layout.shape) - 1]
+        if dim0 in last_index or dim1 in last_index:
+            raise ValueError("Cannot transpose last dim of BlockScaledLayout tensors.")
+
+    new_planes = {}
+    for name, plane in layout.planes.items():
+        if len(plane.shape) < 2:
+            new_planes[name] = plane
+        else:
+            new_planes[name] = plane.transpose(dim0, dim1)
+
+    new_shape = list(layout.shape)
+    new_shape[dim0], new_shape[dim1] = new_shape[dim1], new_shape[dim0]
+
+    new_layout = layout.__class__.create(
+        shape=new_shape,
+        metadata=layout.metadata,
+        planes=new_planes,
+    )
+    return PlanarQuantizedTensor(shape=new_layout.shape, layout=new_layout)
 
 
 # Sharded default impls (do nothing).
