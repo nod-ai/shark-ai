@@ -71,9 +71,9 @@ class ThetaTest(unittest.TestCase):
         it1 = t1.tensor("a", "b", "c")
         it2 = t2.tensor("a", "b", "c")
         self.assertIsNot(it1, it2)
-        for k in it1.globals.keys():
-            pt1 = it1.globals[k]
-            pt2 = it2.globals[k]
+        for k in it1.subtensors.keys():
+            pt1 = it1.subtensors[k]
+            pt2 = it2.subtensors[k]
             self.assertIsNot(pt1, pt2)
             torch.testing.assert_close(pt1, pt2)
 
@@ -168,7 +168,7 @@ class DatasetTest(unittest.TestCase):
         t_load = ds_load.root_theta.tensor("a", "b", "c")
         print(t_load)
         self.assertEqual(t_load.shape, t_orig.shape)
-        self.assertEqual(t_load.globals.keys(), t_orig.globals.keys())
+        self.assertEqual(t_load.subtensors.keys(), t_orig.subtensors.keys())
         self.assertEqual(t_load.layout.shape, t_orig.layout.shape)
         self.assertEqual(t_load.layout.planes.keys(), t_orig.layout.planes.keys())
         self.assertEqual(t_load.layout.metadata, t_orig.layout.metadata)
