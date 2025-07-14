@@ -27,13 +27,17 @@ add_executable(sharkfuser_tests
   test_graph.cpp
 )
 target_link_libraries(sharkfuser_tests PRIVATE sharkfuser Catch2::Catch2WithMain)
-target_compile_options(sharkfuser_tests PRIVATE -coverage -O0 -g)
-target_link_options(sharkfuser_tests PRIVATE -coverage)
+if(SHARKFUSER_CODE_COVERAGE)
+  target_compile_options(sharkfuser_tests PRIVATE -coverage -O0 -g)
+  target_link_options(sharkfuser_tests PRIVATE -coverage)
+endif()
 add_test(NAME sharkfuser_tests COMMAND sharkfuser_tests)
-set_tests_properties(
-  sharkfuser_tests PROPERTIES
-  ENVIRONMENT "FUSILI_LOG_INFO=1;FUSILI_LOG_FILE=stdout"
-)
+if(SHARKFUSER_DEBUG_BUILD)
+  set_tests_properties(
+    sharkfuser_tests PROPERTIES
+    ENVIRONMENT "FUSILI_LOG_INFO=1;FUSILI_LOG_FILE=stdout"
+  )
+endif()
 
 # Place executable in the bin directory
 set_target_properties(

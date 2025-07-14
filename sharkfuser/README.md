@@ -10,18 +10,20 @@ A side note on naming: 'SharkFuser' is the name of the project (may change as th
 
 ## Developer Guide:
 
-### Build and test:
+### Build and test (debug build):
 ```shell
 cmake -GNinja -S. -Bbuild \
-    -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
-    -DCMAKE_LINKER_TYPE=LLD
+    -DCMAKE_C_COMPILER=clang \
+    -DCMAKE_CXX_COMPILER=clang++ \
+    -DCMAKE_LINKER_TYPE=LLD \
+    -DSHARKFUSER_DEBUG_BUILD=ON
 cmake --build build --target all
 ctest --test-dir build
 ```
 
 To re-run failed tests verbosely:
 ```shell
-ctest --test-dir build --rerun-failed --output-on-failure --verbose
+ctest --test-dir build --rerun-failed --output-on-failure --extra-verbose
 ```
 
 ### Code coverage (using gcov + lcov):
@@ -30,7 +32,10 @@ This works with gcc builds (code coverage with clang instrumentation is future w
 
 To generate code coverage metrics:
 ```shell
-cmake -GNinja -S. -Bbuild
+cmake -GNinja -S. -Bbuild \
+    -DCMAKE_C_COMPILER=gcc \
+    -DCMAKE_CXX_COMPILER=g++ \
+    -DSHARKFUSER_CODE_COVERAGE=ON
 cmake --build build --target all
 ctest --test-dir build -T test -T coverage
 ```
@@ -51,7 +56,7 @@ Run clang-format:
 find . -path ./build -prune -o \( -type f \( -name "*.cpp" -o -name "*.h" \) -print \) | xargs clang-format -i
 ```
 
-Alternatively, run pre-commit which also runs clang-format alongwith a few other formatters (like black):
+Alternatively, run pre-commit which also runs clang-format alongwith a few other lint checks:
 ```shell
 pre-commit run --all-files
 ```
@@ -60,7 +65,7 @@ pre-commit run --all-files
 
 Fusili records execution flow through the logging interface. This is disabled by default but can be enabled for debugging.
 
-To configure logging using environment variables:
+To configure logging behavior using environment variables:
 
 |   Set output stream \ Enable logging           | `FUSILI_LOG_INFO` = 0 | `FUSILI_LOG_INFO` = 1
 | ---------------------------------------------- | ----------------------| ----------------------
@@ -73,7 +78,7 @@ Alternatively, one may call the logging API directly as needed:
 - Calling `fusili::isLoggingEnabled() = <true|false>` has the same effect as setting `FUSILI_LOG_INFO = 1|0`.
 - Calling `fusili::getStream() = <stream_name>` has the same effect as setting the output stream using `FUSILI_LOG_FILE`.
 
-
+Tests and samples that are built with the cmake flag `-DSHARKFUSER_DEBUG_BUILD=ON` have their env variables automatically configured for logging to cout.
 
 ## Project Roadmap
 - [x] Build/test infra, logging, code coverage reporting

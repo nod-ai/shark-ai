@@ -17,7 +17,7 @@ tooling.
 ## Examples
 
 The repository will ultimately grow a curated set of models and tools for
-constructing them, but for the moment, it largely contains some CLI exmaples.
+constructing them, but for the moment, it largely contains some CLI examples.
 These are all under active development and should not yet be expected to work.
 
 
