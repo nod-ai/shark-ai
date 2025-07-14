@@ -20,8 +20,6 @@ from sharktank.types import (
 
 from typing import Tuple
 
-from sharktank.types.tensors import QuantizedTensor
-
 
 def pipeline_parallelize_theta(
     theta: Theta, pipeline_parallelism_size: int
@@ -93,7 +91,6 @@ def pipeline_parallelize_theta(
         pipeline = block_to_pipeline[blk_idx]
         devices = pipeline_to_devices[pipeline]
 
-        # TODO: Make sure this maintains names
         block_data = theta.tensor("blk", blk_idx)
         for t_name in block_data.keys():
             parallelize_in_place(block_data[t_name], devices)
