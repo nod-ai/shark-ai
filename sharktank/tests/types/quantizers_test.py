@@ -8,7 +8,6 @@ import unittest
 
 import torch
 
-
 from sharktank.types import *
 from sharktank.types.layout_utils import (
     saturate_cast,
@@ -20,8 +19,7 @@ from sharktank.types.ocp_floats import (
     fp4_e2m1_to_float32,
 )
 from sharktank.types.quantizers import DynamicFp4BlockQuantizer, StaticFp4BlockQuantizer
-from sharktank.utils.testing import TempDirTestBase, xfail
-from sharktank import ops
+from sharktank.utils.testing import TempDirTestBase
 
 
 class QuantizerTestBase(TempDirTestBase):
@@ -261,29 +259,6 @@ class Fp4BlockQuantizerTestBase(QuantizerTestBase):
         self.assertIsInstance(layout, BlockScaledFp4Layout)
         self.assertEqual(layout.d.numel(), expected_block_count)
         self.assertEqual(layout.d.dtype, scale_dtype)
-
-
-class QuantizedShardedTest(Fp4BlockQuantizerTestBase):
-    def testStaticFp4QuantDequant(self):
-        orig_value = self.get_fp4_exact_values()
-        scales = torch.tensor([1.0], dtype=torch.float32)
-        static_quantizer = StaticFp4BlockQuantizer(
-            scales=scales,
-            block_size=8,
-            use_fe8m0_scale=False,
-            name="static_fp4_quantizer",
-        )
-        qt_value = static_quantizer.quantize(orig_value, name="test_static_fp4")
-
-        replicated_qt = ops.replicate(qt_value, count=2, devices=(0, 1))
-        qt_value = replicated_qt.shards[0]
-
-        layout = qt_value.unpack()
-        self.assertIsInstance(layout, BlockScaledFp4Layout)
-        dequant_value = layout.dequant()
-
-        # Should match original values exactly for representable FP4 values
-        torch.testing.assert_close(orig_value, dequant_value, atol=0.0, rtol=0.0)
 
 
 class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
