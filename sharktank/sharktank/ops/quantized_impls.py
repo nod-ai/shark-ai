@@ -35,7 +35,7 @@ def transfer_to_logical_device_planar_quantized_tensor(
 
 
 @barrier_on_logical_device.override(AnyOfType(QuantizedTensor, QuantizerTensor))
-def barrier_on_logical_device__planar_quantized_tensor(
+def barrier_on_logical_device_planar_quantized_tensor(
     tensor: QuantizedTensor | QuantizerTensor, ordinal: int
 ):
     return transfer_or_barrier(
