@@ -412,7 +412,6 @@ class InferenceExecutorProcess(sf.Process):
             disable=(not self.service.show_progress),
             desc=f"DENOISE (bs{req_bs})",
         ):
-            start = time.time()
             step = cb.steps_arr.view(i)
             if self.service.model_params.use_scheduled_unet:
                 logger.debug(
@@ -458,12 +457,6 @@ class InferenceExecutorProcess(sf.Process):
                 (cb.latents,) = await fns["run_step"](
                     cb.noise_pred, cb.latents, cb.sigma, cb.next_sigma, fiber=self.fiber
                 )
-            duration = time.time() - start
-            accum_step_duration += duration
-        average_step_duration = accum_step_duration / self.exec_request.steps
-        log_duration_str(
-            average_step_duration, "denoise (UNet) single step average", req_bs
-        )
         return
 
     async def _decode(self, device):

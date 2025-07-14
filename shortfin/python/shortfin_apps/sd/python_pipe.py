@@ -18,10 +18,10 @@ import subprocess
 from shortfin.support.logging_setup import native_handler
 import shortfin as sf
 
-from .components.messages import InferenceExecRequest, InferencePhase
+from .components.messages import SDXLInferenceExecRequest, InferencePhase
 from .components.config_struct import ModelParams
 from .components.manager import SystemManager
-from .components.service import GenerateService, InferenceExecutorProcess
+from .components.service import SDXLGenerateService, InferenceExecutorProcess
 from .components.tokenizer import Tokenizer
 
 
@@ -183,7 +183,7 @@ class MicroSDXLExecutor(sf.Process):
             ]
         ] * self.batch_size
         sample = [np.ones([1, 4, 128, 128], dtype=np.float16)] * self.batch_size
-        self.exec = InferenceExecRequest(
+        self.exec = SDXLInferenceExecRequest(
             prompt=None,
             neg_prompt=None,
             input_ids=input_ids,
@@ -258,7 +258,7 @@ def create_service(
     else:
         sysman = SystemManager(device, device_ids, amdgpu_async_allocations)
 
-    sdxl_service = GenerateService(
+    sdxl_service = SDXLGenerateService(
         name="sd",
         sysman=sysman,
         tokenizers=tokenizers,
