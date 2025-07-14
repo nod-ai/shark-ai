@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">825 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">764<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">61<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">766<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">59<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_16ed182c0fe4cb37_signatures_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.2">coverage.py v7.9.2</a>,
-            created at 2025-07-14 21:38 +0000
+            created at 2025-07-14 22:15 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -829,7 +829,7 @@
     <p class="pln"><span class="n"><a id="t747" href="#t747">747</a></span><span class="t">    <span class="nam">accum_dtype</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t748" href="#t748">748</a></span><span class="t"><span class="op">)</span> <span class="op">-></span> <span class="nam">SplitPrimitiveTensor</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t749" href="#t749">749</a></span><span class="t">    <span class="com"># TODO: handle different dtypes</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t750" href="#t750">750</a></span><span class="t">    <span class="nam">result</span> <span class="op">=</span> <span class="nam">matmul</span><span class="op">(</span><span class="nam">input</span><span class="op">,</span> <span class="nam">weight</span><span class="op">.</span><span class="nam">mT</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t750" href="#t750">750</a></span><span class="t">    <span class="nam">result</span> <span class="op">=</span> <span class="nam">matmul</span><span class="op">(</span><span class="nam">input</span><span class="op">,</span> <span class="nam">weight</span><span class="op">,</span> <span class="nam">transpose_rhs</span><span class="op">=</span><span class="key">True</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t751" href="#t751">751</a></span><span class="t">    <span class="key">if</span> <span class="nam">bias</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t752" href="#t752">752</a></span><span class="t">        <span class="nam">result</span> <span class="op">=</span> <span class="nam">elementwise</span><span class="op">(</span><span class="nam">torch</span><span class="op">.</span><span class="nam">add</span><span class="op">,</span> <span class="nam">result</span><span class="op">,</span> <span class="nam">bias</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t753" href="#t753">753</a></span><span class="t">    <span class="key">return</span> <span class="nam">result</span>&nbsp;</span><span class="r"></span></p>
@@ -870,7 +870,7 @@
     <p class="run"><span class="n"><a id="t788" href="#t788">788</a></span><span class="t">    <span class="key">assert</span> <span class="nam">lhs</span><span class="op">.</span><span class="nam">shard_count</span> <span class="op">==</span> <span class="nam">rhs</span><span class="op">.</span><span class="nam">shard_count</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t789" href="#t789">789</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t790" href="#t790">790</a></span><span class="t">    <span class="key">if</span> <span class="nam">transpose_rhs</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t791" href="#t791">791</a></span><span class="t">        <span class="key">return</span> <span class="nam">matmul</span><span class="op">(</span><span class="nam">lhs</span><span class="op">,</span> <span class="nam">rhs</span><span class="op">.</span><span class="nam">mT</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t791" href="#t791">791</a></span><span class="t">        <span class="key">return</span> <span class="nam">matmul</span><span class="op">(</span><span class="nam">lhs</span><span class="op">,</span> <span class="nam">rhs</span><span class="op">.</span><span class="nam">mT</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t792" href="#t792">792</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t793" href="#t793">793</a></span><span class="t">    <span class="nam">rhs_reduction_dim</span> <span class="op">=</span> <span class="nam">len</span><span class="op">(</span><span class="nam">rhs</span><span class="op">.</span><span class="nam">shape</span><span class="op">)</span> <span class="op">-</span> <span class="num">2</span> <span class="key">if</span> <span class="nam">len</span><span class="op">(</span><span class="nam">rhs</span><span class="op">.</span><span class="nam">shape</span><span class="op">)</span> <span class="op">></span> <span class="num">1</span> <span class="key">else</span> <span class="num">0</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t794" href="#t794">794</a></span><span class="t">    <span class="key">if</span> <span class="nam">rhs_reduction_dim</span> <span class="op">==</span> <span class="nam">rhs</span><span class="op">.</span><span class="nam">shard_dim</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -917,7 +917,7 @@
     <p class="run"><span class="n"><a id="t835" href="#t835">835</a></span><span class="t">    <span class="nam">lhs</span> <span class="op">=</span> <span class="nam">unbox_tensor</span><span class="op">(</span><span class="nam">lhs</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t836" href="#t836">836</a></span><span class="t">    <span class="nam">rhs_shard_dim</span> <span class="op">=</span> <span class="nam">rhs</span><span class="op">.</span><span class="nam">shard_dim</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t837" href="#t837">837</a></span><span class="t">    <span class="key">if</span> <span class="nam">transpose_rhs</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t838" href="#t838">838</a></span><span class="t">        <span class="key">assert</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t838" href="#t838">838</a></span><span class="t">        <span class="key">assert</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t839" href="#t839">839</a></span><span class="t">            <span class="nam">rhs_shard_dim</span> <span class="op">==</span> <span class="num">0</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t840" href="#t840">840</a></span><span class="t">        <span class="op">)</span><span class="op">,</span> <span class="fst">f"</span><span class="fst">matmul[split, transposed rhs] must be split on dim 0 but is </span><span class="op">{</span><span class="nam">rhs_shard_dim</span><span class="op">}</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t841" href="#t841">841</a></span><span class="t">    <span class="key">else</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -2053,7 +2053,7 @@
             <a class="nav" href="z_16ed182c0fe4cb37_signatures_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.2">coverage.py v7.9.2</a>,
-            created at 2025-07-14 21:38 +0000
+            created at 2025-07-14 22:15 +0000
         </p>
     </div>
 </footer>
