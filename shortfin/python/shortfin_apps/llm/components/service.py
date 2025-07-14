@@ -107,7 +107,6 @@ class LlmGenerateService(GenerateService):
     def page_pool(self):
         return self.page_cache.page_pool  # Delegates access
 
-
     def start(self):
         component_modules = self.initialize_program_modules("main")
         self.inference_program = self.create_program(
