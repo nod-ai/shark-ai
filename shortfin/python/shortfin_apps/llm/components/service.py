@@ -41,7 +41,7 @@ class LlmGenerateService(GenerateService):
         sysman: LlmSystemManager,
         tokenizer: Tokenizer,
         model_params: ModelParams,
-        server_params: "ServerParams",
+        server_params: ServerParams,
         program_isolation: str = "per_call",
     ):
         super().__init__(sysman)
@@ -86,22 +86,27 @@ class LlmGenerateService(GenerateService):
             paged_kv_block_size_elements=self.model_params.paged_kv_block_size_elements,
             paged_kv_block_size_elements_per_device=self.model_params.paged_kv_cache.paged_kv_block_size_elements_per_device,
         )
-        self.page_pool = PagePool(devices=self.devices, config=page_pool_config)
+        page_pool = PagePool(devices=self.devices, config=page_pool_config)
 
         if self.server_params.prefix_sharing_algorithm == "trie":
             self.page_cache = TriePagedAttentionCache(
-                page_pool=self.page_pool,
+                page_pool=page_pool,
                 tokens_per_page=self.model_params.paged_kv_cache.block_seq_stride,
             )
         elif self.server_params.prefix_sharing_algorithm == "none":
             self.page_cache = BasePagedAttentionCache(
-                page_pool=self.page_pool,
+                page_pool=page_pool,
                 tokens_per_page=self.model_params.paged_kv_cache.block_seq_stride,
             )
         else:
             raise ValueError(
                 f"Unknown prefix_sharing_algorithm {self.server_params.prefix_sharing_algorithm}. Currently only supporting 'trie' and 'none'."
             )
+
+    @property
+    def page_pool(self):
+        return self.page_cache.page_pool  # Delegates access
+
 
     def start(self):
         component_modules = self.initialize_program_modules("main")
