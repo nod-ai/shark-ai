@@ -87,7 +87,7 @@ class TorchGenerator:
         page_cache_size: int = None,
         dump_path: Path = None,
         dump_decode_steps: int = 1,
-        max_decode_steps: int = 1,
+        max_decode_steps: int = 20,
         use_attention_mask: bool = True,
     ) -> "Batch":
         bs = token_ids.shape[0]
@@ -101,8 +101,9 @@ class TorchGenerator:
         cache_state = self.model.cache.allocate(self.page_cache_size)
         self.free_pages = list(range(1, self.page_cache_size))
 
-        if max_decode_steps < dump_decode_steps:
-            max_decode_steps = dump_decode_steps
+        assert (
+            max_decode_steps >= dump_decode_steps
+        ), f"Expected max_decode_steps >= dump_decode_steps but got max_decode_steps={max_decode_steps}, dump_decode_steps={dump_decode_steps}"
 
         return Batch(
             self,
