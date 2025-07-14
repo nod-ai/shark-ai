@@ -35,7 +35,7 @@ def transfer_to_logical_device_planar_quantized_tensor(
 
 
 @barrier_on_logical_device.override(AnyOfType(QuantizedTensor, QuantizerTensor))
-def barrier_on_logical_device__planar_quantized_tensor(
+def barrier_on_logical_device_planar_quantized_tensor(
     tensor: QuantizedTensor | QuantizerTensor, ordinal: int
 ):
     return transfer_or_barrier(
@@ -49,4 +49,6 @@ def transfer_or_barrier(
     def operation_transform(globals: dict[str, Tensor]) -> dict[str, Tensor]:
         return {k: operation(f"{ordinal}", v) for k, v in globals.items()}
 
-    return tensor.transform_globals(operation_transform)
+    return tensor.transform_subtensors(
+        operation_transform, copy_external_tensor_trait=False
+    )
