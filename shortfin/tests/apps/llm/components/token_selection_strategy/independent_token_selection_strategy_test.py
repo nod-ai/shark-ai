@@ -467,7 +467,7 @@ async def test_independent_decode_eos_token(
             logger.info(f"results_array: {results_array}")
             assert len(results_array) == 2
             assert len(results_array[0]) == 5
-            assert results_array[0] == [0, 1, 3, 5 ,7]
+            assert results_array[0] == [0, 1, 3, 5, 7]
 
             assert len(results_array[1]) == 5
             assert results_array[1] == [0, 2, 4, 6, 8]
