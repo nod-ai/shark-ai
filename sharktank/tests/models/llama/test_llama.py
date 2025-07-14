@@ -83,7 +83,6 @@ class LlamaIreeVsEagerTest(TempDirTestBase):
         # from pathlib import Path
         tester = IreeVsEagerLLMTester(
             work_dir=self._temp_dir,
-            # work_dir=Path("/home/alvasile/repos/shark-ai/dump"),
             theta=theta,
             config=config,
             torch_device=self.device,
