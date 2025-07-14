@@ -176,8 +176,8 @@ class MicroSDXLExecutor(sf.Process):
             prompt=self.prompt,
             neg_prompt=self.neg_prompt,
             input_ids=None,
-            height=1024,
-            width=1024,
+            height=self.args.output_image_resolution,
+            width=self.args.output_image_resolution,
             steps=self.steps,
             guidance_scale=self.guidance_scale,
             sample=None,
@@ -298,7 +298,7 @@ def prepare_service(args):
 
 async def run_benchmark(sysman,
     args,
-    input_token_length
+    input_token_length,
 ):
     """Execute the benchmark and return raw data."""
     model_params, tokenizers, vmfbs, params = prepare_service(args)
@@ -376,11 +376,12 @@ async def run_all_benchmarks(
 ):
     
     input_token_lengths = args.input_token_lengths
+    output_image_resolution = args.output_image_resolution
 
     for input_token_length in input_token_lengths:
         
         print(
-            f"\n\nRunning benchmarks with input_token_length = {input_token_length}"
+            f"\n\nRunning benchmarks with input_token_length = {input_token_length} and output image resolution = {output_image_resolution}"
         )
 
         benchmark_data = await run_benchmark(
@@ -527,6 +528,13 @@ def main():
         nargs='+',
         default="32",
         help="Image generation input token length",
+    )
+    parser.add_argument(
+        "--output_image_resolution",
+        type=int,
+        nargs='+',
+        default="1024",
+        help="Image generation output resolution",
     )
     parser.add_argument(
         "--steps",
