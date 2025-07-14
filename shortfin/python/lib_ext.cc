@@ -18,6 +18,7 @@
 #if defined(SHORTFIN_HAVE_AMDGPU)
 #include "shortfin/local/systems/amdgpu.h"
 #endif  // SHORTFIN_HAVE_AMDGPU
+#include "shortfin/components/llm/beam_scorer.h"
 #include "shortfin/local/systems/host.h"
 #include "shortfin/support/globals.h"
 #include "shortfin/support/logging.h"
@@ -546,6 +547,9 @@ NB_MODULE(lib, m) {
 
   auto array_m = m.def_submodule("array");
   BindArray(array_m);
+
+  auto llm_m = m.def_submodule("llm");
+  BindLLM(llm_m);
 }
 
 void BindLocal(py::module_ &m) {
@@ -1539,4 +1543,52 @@ void BindAMDGPUSystem(py::module_ &global_m) {
 }
 #endif  // SHORTFIN_HAVE_AMDGPU
 
+void BindLLM(py::module_ &m) {
+  // Bind DecodeConfig structure
+  py::class_<llm::DecodeConfig>(m, "DecodeConfig")
+      .def(py::init<>())
+      .def_rw("num_beams", &llm::DecodeConfig::num_beams)
+      .def_rw("temperature", &llm::DecodeConfig::temperature)
+      .def_rw("top_k", &llm::DecodeConfig::top_k)
+      .def_rw("top_p", &llm::DecodeConfig::top_p)
+      .def_rw("use_beam_search", &llm::DecodeConfig::use_beam_search)
+      .def_rw("eos_token_id", &llm::DecodeConfig::eos_token_id)
+      .def_rw("length_penalty", &llm::DecodeConfig::length_penalty);
+
+  // Bind LogitsData structure
+  py::class_<llm::LogitsData>(m, "LogitsData")
+      .def(py::init<const std::vector<float> &, int>(), py::arg("logits"),
+           py::arg("vocab_size") = -1)
+      .def_rw("logits", &llm::LogitsData::logits)
+      .def_rw("indices", &llm::LogitsData::indices)
+      .def_rw("vocab_size", &llm::LogitsData::vocab_size);
+
+  // Bind BeamState structure
+  py::class_<llm::BeamState>(m, "BeamState")
+      .def(py::init<>())
+      .def_rw("score", &llm::BeamState::score)
+      .def_rw("accumulated_normalization",
+              &llm::BeamState::accumulated_normalization)
+      .def_rw("last_token", &llm::BeamState::last_token);
+
+  // Bind BaseBeamScorer (abstract base class)
+  py::class_<llm::BaseBeamScorer>(m, "BaseBeamScorer")
+      .def("update_score", &llm::BaseBeamScorer::UpdateScore)
+      .def("finalize_score", &llm::BaseBeamScorer::FinalizeScore)
+      .def("reset", &llm::BaseBeamScorer::Reset)
+      .def("select_beams", &llm::BaseBeamScorer::SelectBeams);
+
+  // Bind DefaultScorer
+  py::class_<llm::DefaultScorer, llm::BaseBeamScorer>(m, "DefaultScorer")
+      .def(py::init<const llm::DecodeConfig &>());
+
+  // Bind BeamSearchScorer
+  py::class_<llm::BeamSearchScorer, llm::BaseBeamScorer>(m, "BeamSearchScorer")
+      .def(py::init<const llm::DecodeConfig &>());
+
+  // Bind factory function
+  m.def("create_beam_scorer", &llm::CreateBeamScorer, py::arg("config"),
+        py::rv_policy::take_ownership,
+        "Create a beam scorer based on the decode configuration");
+}
 }  // namespace shortfin::python
