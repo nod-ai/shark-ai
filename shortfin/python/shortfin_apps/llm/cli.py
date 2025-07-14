@@ -174,6 +174,7 @@ class CliResponder(AbstractResponder):
         self.ensure_response()
 
     def send_response(self, response):
+        print(response.decode("utf-8"))
         logger.info(f"{self.name} Sending response")
         assert not self.responded, "Response already sent"
         if self._loop.is_closed():
