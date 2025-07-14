@@ -520,7 +520,6 @@ class InferenceExecutorProcess(sf.Process):
             disable=(not self.service.show_progress),
             desc=f"DENOISE (bs{req_bs})",
         ):
-            start = time.time()
             step = cb.steps_arr.view(i)
             if self.service.model_params.use_scheduled_unet:
                 logger.debug(
