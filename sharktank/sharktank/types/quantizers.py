@@ -148,7 +148,7 @@ class StaticScaledQuantizer(QuantizerTensor):
         return (
             PlanarQuantizedTensor(
                 shape=t.shape,
-                name=t.name,
+                name=name,
                 layout=TensorScaledLayout(
                     shape=t.shape,
                     d=self._reciprocal_scale,
