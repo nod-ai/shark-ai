@@ -248,35 +248,41 @@ class RotaryEmbeddingLayer(BaseLayer):
         batch_seq_len: int,
         rotary_embed_table: torch.Tensor,
     ) -> torch.Tensor:
-        # TODO: I'm pretty sure this function is only correct because batch_seq_len is always 1
         """Computes a mask for a batch that can be repeatedly applied.
 
         Args:
           start_positions: Tensor of [bs] with start positions for every sequence
             in the batch.
           batch_seq_len: The sequence length dimension of the batch.
+
         Returns:
-          Tensor of [bs, sl, 1, d] that will be later passed to apply_batch_mask.
+          - If use_hf is True, returns a tuple of tensors (cos, sin) of shape [bs, 1, sl, d].
+          - If use_hf is False, a tensor of shape [bs, sl, d]
         """
         self.trace_tensor("rope.start_positions", start_positions)
         positions_seq = torch.arange(0, batch_seq_len, device=self.device).unsqueeze(
             0
-        ) + start_positions.unsqueeze(1)
+        ) + start_positions.unsqueeze(
+            1
+        )  # [bs, sl]
+        flat_positions_seq = positions_seq.flatten()
+
         # Broadcast lookup to [b, ...].
         self.trace_tensor("rope.positions_seq", positions_seq)
         if self.use_hf:
             assert self.use_table, "use_hf requires use_table"
-            freqs_cis = rotary_embed_table
-            cos, sin = [x[positions_seq.flatten(), :] for x in freqs_cis]
-            freqs_cis = (cos[:, None, None, :], sin[:, None, None, :])
-            return freqs_cis
+            cos, sin = [x[flat_positions_seq] for x in rotary_embed_table]
+            cos = cos.unflatten(0, positions_seq.shape).unsqueeze(1)
+            sin = sin.unflatten(0, positions_seq.shape).unsqueeze(1)
+            return cos, sin
 
         if self.use_table:
-            freqs_cis = rotary_embed_table[positions_seq.flatten()]
+            freqs_cis = rotary_embed_table[flat_positions_seq]
         else:
-            freqs_cis = self.compute_rotary_embed_table(positions_seq.flatten())
+            freqs_cis = self.compute_rotary_embed_table(flat_positions_seq)
 
-        return freqs_cis.unsqueeze(1)
+        bs = start_positions.shape[0]
+        return freqs_cis.unflatten(0, (bs, batch_seq_len))
 
     def apply_batched_mask(self, *, xt: torch.Tensor, mask: torch.Tensor):
         """Applies the embedding to a ragged batch of queries and keys.
