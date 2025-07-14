@@ -18,7 +18,6 @@ import subprocess
 from shortfin.support.logging_setup import native_handler
 import shortfin as sf
 
-
 from .components.messages import SDXLInferenceExecRequest, InferencePhase
 from .components.config_struct import ModelParams
 from .components.manager import SystemManager
