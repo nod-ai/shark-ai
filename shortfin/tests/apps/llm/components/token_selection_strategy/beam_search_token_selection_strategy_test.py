@@ -54,15 +54,29 @@ def exec_req_list(exec_req, cache_ref_count, dummy_pages, request):
 
 
 @pytest.fixture(scope="function")
-def beam_search_scorer(decode_config):
-    yield BeamSearchScorer(config=decode_config)
+def num_beams():
+    return 3
 
 
 @pytest.fixture(scope="function")
-def beam_search_token_selection_strategy(beam_search_scorer):
+def decode_config(num_beams):
+    yield DecodeConfig(
+        num_beams=num_beams,
+        use_beam_search=True,
+        max_completion_tokens=1,
+        eos_token_id=-1,
+    )
+
+
+@pytest.fixture(scope="function")
+def beam_search_scorer(num_beams: int):
+    yield BeamSearchScorer(num_beams=num_beams)
+
+
+@pytest.fixture(scope="function")
+def beam_search_token_selection_strategy():
     yield TokenSelector(
-        None,
-        scorer=beam_search_scorer,
+        token_selection_strategy_config=None,
     )
 
 
@@ -348,6 +362,7 @@ def test_beam_search_beam_update_final_score(
 def test_get_results(
     beam_search_token_selection_strategy, decode_config, exec_req_list
 ):
+    decode_config.use_beam_search = True
     beams = [
         BeamSearchBeam(exec_req, decode_config=decode_config)
         for exec_req in exec_req_list
@@ -368,14 +383,8 @@ def test_get_results(
         for i in range(lower_range, upper_range):
             exec_req.input_token_ids.append(i)
 
-    num_beams = len(beams)
     config = TokenSelectionStrategyConfig(
-        decode_config=DecodeConfig(
-            num_beams=num_beams,
-            use_beam_search=True,
-            max_completion_tokens=1,
-            eos_token_id=-1,
-        ),
+        decode_config=decode_config,
         prefill_callback=lambda _: None,
         decode_callback=lambda _: None,
         results_callback=lambda _: None,
@@ -397,28 +406,32 @@ def test_get_results(
 
     # All completed
     beam_group = BeamGroup(
-        eos_token_id=-1,
-        num_beams=len(exec_req_list),
-        beams=[],
-        selection_callback=lambda _: None,
+        exec_req_list[0],
+        decode_config,
+        beams=beams,
     )
-    beam_group.completed_beams = beams
+    beam_group._completed_beams = beams
+    beam_group._active_beams = []
 
-    beam_search_token_selection_strategy.get_results(beam_group)
+    results = beam_group.get_results()
     assert results == expected_results
 
     # All active
-    results = []
-    beam_group.completed_beams = []
-    beam_group.active_beams = beams
-    beam_search_token_selection_strategy.get_results(beam_group)
+    beam_group = BeamGroup(
+        exec_req_list[0],
+        decode_config,
+        beams=beams,
+    )
+    beam_group._completed_beams = []
+    beam_group._active_beams = beams
+    results = beam_group.get_results()
     assert results == expected_results
 
     # Mixed
     results = []
-    beam_group.completed_beams = beams[:2]
-    beam_group.active_beams = beams[2:]
-    beam_search_token_selection_strategy.get_results(beam_group)
+    beam_group._completed_beams = beams[:2]
+    beam_group._active_beams = beams[2:]
+    results = beam_group.get_results()
     assert results == expected_results
 
 
@@ -446,14 +459,9 @@ def test_get_results_extra_reqs(
         for i in range(lower_range, upper_range):
             exec_req.input_token_ids.append(i)
 
-    num_beams = 4
+    num_beams = 3
     config = TokenSelectionStrategyConfig(
-        decode_config=DecodeConfig(
-            num_beams=num_beams,
-            use_beam_search=True,
-            max_completion_tokens=1,
-            eos_token_id=-1,
-        ),
+        decode_config=decode_config,
         prefill_callback=lambda _: None,
         decode_callback=lambda _: None,
         decode_begin_callback=lambda _: None,
@@ -466,7 +474,6 @@ def test_get_results_extra_reqs(
         [6, 7, 8, 9, 10],
         [7, 8, 9, 10, 11],
         [8, 9, 10, 11, 12],
-        [9, 10, 11, 12, 13],
     ]
 
     results = []
@@ -480,29 +487,28 @@ def test_get_results_extra_reqs(
 
     # Completed == `num_beams`
     beam_group = BeamGroup(
-        eos_token_id=-1,
-        num_beams=num_beams,
-        beams=[],
-        selection_callback=lambda _: None,
+        exec_req_list[0],
+        decode_config,
+        beams=beams,
     )
-    beam_group.completed_beams = beams[:num_beams]
-    beam_group.active_beams = beams[num_beams:]
+    beam_group._completed_beams = beams[:num_beams]
+    beam_group._active_beams = beams[num_beams:]
 
-    beam_search_token_selection_strategy.get_results(beam_group)
+    results = beam_group.get_results()
     assert results == expected_results
 
     # Completed < `num_beams`
     results = []
-    beam_group.completed_reqs = beams[: num_beams // 2]
+    beam_group._completed_beams = beams[: num_beams // 2]
     active_beams = beams[num_beams // 2 :]
     score = len(active_beams)
     for beam in active_beams:
         beam.score = score
         score -= 1
 
-    beam_group.active_beams = beams[num_beams // 2 :]
+    beam_group._active_beams = beams[num_beams // 2 :]
 
-    beam_search_token_selection_strategy.get_results(beam_group)
+    results = beam_group.get_results()
     assert len(results) == num_beams
     assert results == expected_results
 
@@ -541,7 +547,6 @@ async def test_beam_search_decode_single(
     )
     beam_search_token_selection_strategy = TokenSelector(
         token_selection_strategy_config=config,
-        scorer=BeamSearchScorer(config=config),
     )
     exec_req._cache = cache_ref_count
     allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache_ref_count)
@@ -627,7 +632,6 @@ async def test_beam_search_decode_multiple_completions(
     )
     beam_search_token_selection_strategy = TokenSelector(
         token_selection_strategy_config=config,
-        scorer=BeamSearchScorer(config=config),
     )
     exec_req._cache = cache_ref_count
     allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache_ref_count)
@@ -719,7 +723,6 @@ async def test_beam_search_decode_eos_token(
     )
     beam_search_token_selection_strategy = TokenSelector(
         token_selection_strategy_config=config,
-        scorer=BeamSearchScorer(config=config),
     )
     exec_req._cache = cache_ref_count
     allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache_ref_count)

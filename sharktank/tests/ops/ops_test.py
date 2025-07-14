@@ -24,11 +24,13 @@ from sharktank.utils import debugging
 from sharktank.utils.testing import TempDirTestBase
 from sharktank.utils.iree import (
     with_iree_device_context,
+    get_iree_compiler_flags_from_object,
     get_iree_devices,
     load_iree_module,
     run_iree_module_function,
     prepare_iree_module_function_args,
     make_hal_buffer_view_trace_default_callback,
+    oneshot_iree_run,
 )
 
 
@@ -305,6 +307,62 @@ class MatmulTest(unittest.TestCase):
         )
 
     # TODO: mmt_super_block_scaled_offset_q4_unsigned
+
+
+@pytest.mark.usefixtures("iree_flags")
+class IndexCopyTest(unittest.TestCase):
+    @parameterized.expand([torch.float8_e4m3fnuz, torch.float16])
+    def testEagerVsIREE(self, dtype: torch.dtype):
+        class Module(torch.nn.Module):
+            def forward(
+                self, inout: torch.Tensor, index: torch.Tensor, tensor: torch.Tensor
+            ) -> torch.Tensor:
+                return ops.index_copy_(inout, 0, index, tensor)
+
+        x = torch.zeros(5, 3, dtype=dtype)
+        t = torch.tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=dtype)
+        index = torch.tensor([0, 4, 2])
+
+        module = Module()
+        expected_x = x.clone()
+        module(expected_x, index, t)
+
+        actual_x = x.clone()
+        oneshot_iree_run(
+            module,
+            args=(actual_x, index, t),
+            compile_args=get_iree_compiler_flags_from_object(self),
+            device=self.iree_device,
+        )
+        torch.testing.assert_close(actual_x, expected_x, atol=0, rtol=0)
+
+
+@pytest.mark.usefixtures("iree_flags")
+class IndexPutTest(unittest.TestCase):
+    @parameterized.expand([torch.float8_e4m3fnuz, torch.float16])
+    def testEagerVsIREE(self, dtype: torch.dtype):
+        class Module(torch.nn.Module):
+            def forward(
+                self, inout: torch.Tensor, index: torch.Tensor, tensor: torch.Tensor
+            ) -> torch.Tensor:
+                return ops.index_put_(inout, (index,), tensor)
+
+        x = torch.zeros(5, 3, dtype=dtype)
+        t = torch.tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=dtype)
+        index = torch.tensor([0, 4, 2])
+
+        module = Module()
+        expected_x = x.clone()
+        module(expected_x, index, t)
+
+        actual_x = x.clone()
+        oneshot_iree_run(
+            module,
+            args=(actual_x, index, t),
+            compile_args=get_iree_compiler_flags_from_object(self),
+            device=self.iree_device,
+        )
+        torch.testing.assert_close(actual_x, expected_x, atol=0, rtol=0)
 
 
 class InvertTest(unittest.TestCase):
@@ -687,6 +745,79 @@ class TestTraceTensors(TempDirTestBase):
             assert len(f.keys()) == 1
             recorded_tensor = f.get_tensor("")
         torch.testing.assert_close(recorded_tensor, tensor, rtol=0, atol=0)
+
+
+class TransposeTest(unittest.TestCase):
+    def testPrimitiveTensor(self):
+        tensor = torch.tensor([[1, 2], [3, 4]])
+        expected_transposed = torch.transpose(tensor, 0, 1)
+
+        transposed_tensor = DefaultPrimitiveTensor(data=tensor).transpose(0, 1)
+        assert isinstance(transposed_tensor, DefaultPrimitiveTensor)
+        retransposed_tensor = transposed_tensor.transpose(0, 1)
+        assert isinstance(retransposed_tensor, DefaultPrimitiveTensor)
+
+        assert torch.equal(expected_transposed, unbox_tensor(transposed_tensor))
+        assert torch.equal(tensor, unbox_tensor(retransposed_tensor))
+
+    def quantized_tensor_helper(
+        self, quantizer: QuantizerTensor, expected: torch.Tensor
+    ):
+        expected_transposed = expected.transpose(0, 1)
+
+        quantized = quantizer.quantize(expected)
+        transposed_quantized = quantized.transpose(0, 1)
+        retransposed_quantized = transposed_quantized.transpose(0, 1)
+
+        dequantized = quantized.layout.dequant()
+        assert torch.equal(expected, dequantized)
+
+        dequantized_transposed = transposed_quantized.layout.dequant()
+        assert torch.equal(expected_transposed, dequantized_transposed)
+
+        dequantized_retransposed = retransposed_quantized.layout.dequant()
+        assert torch.equal(expected, dequantized_retransposed)
+
+    def testTensorScaled(self):
+        expected = torch.tensor([[-6, -4, -2, 0], [-6, -4, -2, 0]], dtype=torch.float32)
+        quantizer = StaticScaledQuantizer(
+            scale=torch.tensor(0.5, dtype=torch.float32),
+            offset=torch.tensor(5.0, dtype=torch.float32),
+            dtype=torch.float32,
+        )
+        self.quantized_tensor_helper(quantizer, expected)
+
+    def testBlockScaledFp4(self):
+        expected = torch.tensor(
+            [[[-6, -4, -2, 0], [-4, -3, -2, -1]], [[6, 4, 2, 1], [4, 3, 1, -1]]],
+            dtype=torch.float32,
+        )
+        quantizer = StaticFp4BlockQuantizer(
+            scales=torch.tensor(1.0, dtype=torch.float32),
+            dtype=torch.float32,
+            block_size=2,
+            use_fe8m0_scale=False,
+        )
+        self.quantized_tensor_helper(quantizer, expected)
+
+    def testBlockScaledFp4ShouldFail(self):
+        expected = torch.tensor(
+            [[-6, -4, -2, 0], [-5, -3, -2, -1]], dtype=torch.float32
+        )
+        quantizer = StaticFp4BlockQuantizer(
+            scales=torch.tensor(0.5, dtype=torch.float32),
+            dtype=torch.float32,
+            block_size=2,
+            use_fe8m0_scale=False,
+        )
+        try:
+            self.quantized_tensor_helper(quantizer, expected)
+        except ValueError as e:
+            assert str(e) == "Cannot transpose last dim of BlockScaledLayout tensors."
+        else:
+            raise AssertionError(
+                "Expected ValueError for BlockScaledFp4Layout transpose, but no exception was raised."
+            )
 
 
 class ConvTest(unittest.TestCase):

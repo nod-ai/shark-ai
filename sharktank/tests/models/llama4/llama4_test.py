@@ -1,4 +1,3 @@
-from parameterized import parameterized
 import transformers.models
 from sharktank.utils.testing import TempDirTestBase
 from sharktank.models.llama4.testing import (
@@ -11,7 +10,10 @@ from sharktank.models.llm import PagedLlmModelV1
 import transformers
 import torch
 import pytest
-from sharktank.utils.testing import is_mi300x
+from sharktank.utils.testing import is_mi300x, IreeVsEagerLLMTester, is_cpu_condition
+import random
+from parameterized import parameterized
+import os
 
 
 def convert_hf_2D_input_mask_to_4D_attention_mask(
@@ -94,3 +96,44 @@ class Llama4Test(TempDirTestBase):
         )
 
         torch.testing.assert_close(hf_output.logits, output, atol=2e-4, rtol=2e-2)
+
+
+@pytest.mark.usefixtures("iree_flags", "device")
+@is_mi300x
+class TestLlama4IreeEager(TempDirTestBase):
+    def helper_run(self, dtype, atol, rtol):
+        seed = 1234
+        random.seed(seed)
+        torch.manual_seed(seed)
+        config = make_toy_model_config(dtype=dtype)
+        theta = make_random_llama_theta(
+            config=config, dtype_rest=dtype, dtype_norm=dtype
+        )
+
+        tester = IreeVsEagerLLMTester(
+            work_dir=self._temp_dir,
+            theta=theta,
+            config=config,
+            torch_device=self.device,
+            iree_device=self.iree_device,
+            iree_hip_target=self.iree_hip_target,
+            iree_hal_target_device=self.iree_hal_target_device,
+            skip_decode=True,
+            use_qk_norm=True,
+            attention_chunk_size=37,
+        )
+        tester.run_and_compare_iree_vs_eager(atol=atol, rtol=rtol)
+
+    @parameterized.expand(
+        [
+            (torch.float16, 1e-1, 1e-1),
+        ]
+    )
+    @pytest.mark.xfail(
+        condition=os.environ.get("PYTEST_ADDOPTS", "").find("--device=cpu") == -1,
+        raises=AssertionError,
+        strict=False,
+        reason="Numerical diff on gpu; should move to cross entropy",
+    )
+    def testUnshardedToySizedModelIREEVsEager(self, dtype, atol, rtol):
+        self.helper_run(dtype=dtype, atol=atol, rtol=rtol)

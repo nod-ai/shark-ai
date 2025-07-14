@@ -297,13 +297,7 @@ class KVCache:
             cache_partition = cache_partition.transpose(1, 2)
 
             part_block = ops.to(cache_partition, dtype=page_table.dtype)
-            if page_table.dtype == torch.float8_e4m3fnuz:
-                # Workaround for Torch not supporting torch.Tensor.index_copy_ for f8.
-                page_table_as_int8 = page_table.view(dtype=torch.int8)
-                part_block_as_int8 = part_block.view(dtype=torch.int8)
-                page_table_as_int8.index_copy_(0, index, part_block_as_int8)
-            else:
-                page_table.index_copy_(0, index, part_block)
+            ops.index_copy_(page_table, 0, index, part_block)
 
     def write_timestep(
         self,
@@ -343,14 +337,7 @@ class KVCache:
 
             cache_partition.transpose(1, 2)
             values = ops.to(cache_partition, dtype=page_table.dtype)
-
-            if page_table.dtype == torch.float8_e4m3fnuz:
-                # Workaround for Torch not supporting torch.Tensor.index_copy_ for f8.
-                page_table_as_int8 = page_table.view(dtype=torch.int8)
-                values_int8 = values.view(dtype=torch.int8)
-                page_table_as_int8.index_put_(indices=(index,), values=values_int8)
-            else:
-                page_table.index_put_(indices=(index,), values=values)
+            ops.index_put_(page_table, indices=(index,), values=values)
 
     def write_range(
         self,
@@ -420,14 +407,7 @@ class KVCache:
             # Prepare the values to write.
             values = ops.to(cache_partition, dtype=page_table.dtype)
 
-            if page_table.dtype == torch.float8_e4m3fnuz:
-                # Workaround for Torch not supporting torch.Tensor.index_copy_ for f8.
-                page_table_as_int8 = page_table.view(dtype=torch.int8)
-                values_int8 = values.view(dtype=torch.int8)
-                page_table_as_int8.index_put_(indices=(index,), values=values_int8)
-
-            else:
-                page_table.index_put_(indices=(index,), values=values)
+            ops.index_put_(page_table, indices=(index,), values=values)
 
 
 class ShardedCache:

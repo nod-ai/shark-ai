@@ -19,7 +19,7 @@ from typing import (
     overload,
 )
 from copy import deepcopy
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from numbers import Integral, Number
 
 from abc import ABC, abstractmethod
@@ -41,6 +41,7 @@ from iree.turbine.aot import (
 
 __all__ = [
     "AnyTensor",
+    "AnyTensorTree",
     "DefaultPrimitiveTensor",
     "dtype_to_serialized_name",
     "dtype_to_serialized_short_name",
@@ -108,6 +109,8 @@ class QuantizedLayout(ABC):
 
         When transforming, the name will form a local suffix (i.e. ":name")
         for stored values by combining the global name with the ":" separator.
+
+        NOTE: Any bitpacked values will NOT be unpacked by this method.
         """
         ...
 
@@ -115,6 +118,12 @@ class QuantizedLayout(ABC):
     def metadata(self) -> Optional[dict[str, MetaDataValueType]]:
         """Additional metadata needed to reconstruct a layout."""
         return None
+
+    @property
+    @abstractmethod
+    def shape(self) -> list[int]:
+        """The flattened shape of the logical result."""
+        ...
 
 
 QuantizedLayoutT = TypeVar("QuantizedLayoutT", bound=QuantizedLayout)
@@ -538,15 +547,38 @@ class InferenceTensor(ABC):
 
         return unsqueeze(self, dim)
 
+    @overload
+    def view(self, dtype: torch.dtype) -> "AnyTensor":
+        ...
+
+    @overload
     def view(self, *args: Union[List[List[int]], List[int]]) -> "AnyTensor":
+        ...
+
+    def view(
+        self,
+        *args: Union[List[List[int]], List[int], torch.dtype],
+        dtype: torch.dtype | None = None,
+    ) -> "AnyTensor":
         from sharktank.ops import view
 
-        if all(isinstance(a, int) or isinstance(a, torch.SymInt) for a in args):
+        shape = None
+
+        if len(args) > 0 and all(
+            isinstance(a, int) or isinstance(a, torch.SymInt) for a in args
+        ):
             shape = args
+        elif len(args) == 1:
+            if isinstance(args[0], torch.dtype):
+                assert dtype is None
+                dtype = args[0]
+            else:
+                assert isinstance(args[0], Sequence)
+                shape = args[0]
         else:
-            assert len(args) == 1
-            shape = args[0]
-        return view(self, shape)
+            assert dtype is not None
+
+        return view(self, shape=shape, dtype=dtype)
 
     def __gt__(self, lhs: Union["AnyTensor", Number]) -> "AnyTensor":
         from sharktank.ops import elementwise
@@ -887,7 +919,7 @@ class PlanarQuantizedTensor(QuantizedTensor):
         )
 
     def __repr__(self):
-        return f"PlanarQuantized({self.name}, {self.shape}, layout={self.layout})"
+        return f"PlanarQuantizedTensor({self.name}, {self.shape}, layout={self.layout})"
 
 
 ########################################################################################
@@ -972,6 +1004,14 @@ class ShardedTensor(InferenceTensor):
     def dtype(self) -> torch.dtype:
         return self.shards[0].dtype
 
+    @property
+    def globals(self) -> dict[str, torch.Tensor]:
+        _globals = {}
+        for shard in self.shards:
+            for name, tensor in shard.globals.items():
+                _globals[name] = tensor
+        return _globals
+
     @staticmethod
     def move_shards_to_new_devices(
         shards: Tuple[torch.Tensor | DefaultPrimitiveTensor, ...],
@@ -1025,10 +1065,6 @@ class ShardedTensorBase(ShardedTensor):
     def serialized_name(cls) -> str:
         return cls.__name__
 
-    @property
-    def globals(self) -> dict[str, torch.Tensor]:
-        return {pt.name: pt._data for pt in self._shards}
-
     def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
         for i, pt in enumerate(self._shards):
             builder.for_rank(i).add_tensor(pt.name, pt._data)
@@ -1047,9 +1083,17 @@ class ShardedTensorBase(ShardedTensor):
     def _clone_with_globals(
         self, new_globals: dict[str, torch.Tensor]
     ) -> "InferenceTensor":
-        ts = []
-        for k in self.globals.keys():
-            ts.append(new_globals[k])
+        # NOTE: Assuming that the type of each shard does not change
+        if len(self._shards) == 1:
+            ts = [self._shards[0]._clone_with_globals(new_globals)]
+        else:
+            all_new_keys = list(new_globals.keys())
+            ts = []
+            for i, shard in enumerate(self._shards):
+                shard_i_key = f".shard.{i}"
+                matching_keys = [k for k in all_new_keys if shard_i_key in k]
+                new_sub_globals = {k: new_globals.pop(k) for k in matching_keys}
+                ts.append(shard._clone_with_globals(new_sub_globals))
         return self.__class__(
             name=self.name,
             shape=self.shape,
@@ -1392,10 +1436,6 @@ class ReplicatedTensor(ShardedTensor):
     def serialized_name(cls) -> str:
         return "ReplicatedTensor"
 
-    @property
-    def globals(self) -> dict[str, torch.Tensor]:
-        return {pt.name: pt._data for pt in self._shards}
-
     def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
         builder.for_rank(0).add_tensor(self.name, self._shards[0]._data)
         return InferenceTensorMetadata(
@@ -1408,10 +1448,18 @@ class ReplicatedTensor(ShardedTensor):
 
     def _clone_with_globals(
         self, new_globals: dict[str, torch.Tensor]
-    ) -> "InferenceTensor":
-        ts = []
-        for k in self.globals.keys():
-            ts.append(new_globals[k])
+    ) -> "ReplicatedTensor":
+        # NOTE: Assuming that the type of each shard does not change
+        if len(self._shards) == 1:
+            ts = [self._shards[0]._clone_with_globals(new_globals)]
+        else:
+            all_new_keys = list(new_globals.keys())
+            ts = []
+            for i, shard in enumerate(self._shards):
+                shard_i_key = f".shard.{i}"
+                matching_keys = [k for k in all_new_keys if shard_i_key in k]
+                new_sub_globals = {k: new_globals.pop(k) for k in matching_keys}
+                ts.append(shard._clone_with_globals(new_sub_globals))
         return ReplicatedTensor(
             name=self.name,
             ts=ts,
@@ -1648,6 +1696,11 @@ _DTYPE_TO_SHORT_NAME: dict[torch.dtype, str] = {
 }
 
 AnyTensor = Union[torch.Tensor, InferenceTensor]
+AnyTensorTree = (
+    Mapping[Any, Union[Any, "AnyTensorTree"]]
+    | Iterable[Union[Any, "AnyTensorTree"]]
+    | Any
+)
 
 ########################################################################################
 # Tensor types registration with PyTorch.
