@@ -8,6 +8,8 @@ from typing import Optional, Union
 
 import torch
 
+from sharktank.types.tensors import InferenceTensor
+
 from .base import BaseLayer
 from .rotary_embedding_hf import RotaryEmbeddingLayer
 from sharktank import ops, kernels
@@ -73,7 +75,9 @@ class ShardedRotaryLayer(BaseLayer):
             else tuple(range(self._tensor_parallelism_size))
         )
 
-    def rotary_embed_table(self, t):
+    def rotary_embed_table(
+        self,
+    ) -> tuple[InferenceTensor, InferenceTensor] | InferenceTensor:
         t_0, t_1 = self._rotary_layer.compute_sincos_cache(t, dtype=self._dtype)
         if self._tensor_parallelism_size > 1 or self._pipeline_parallelism:
             # Replicate across all devices, the data is not a lot and the computation is cheap.

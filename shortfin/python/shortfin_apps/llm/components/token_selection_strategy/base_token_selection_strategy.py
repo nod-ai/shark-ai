@@ -25,7 +25,10 @@ class BaseTokenSelectionStrategy(ABC):
     """Abstract class for implementing token selection strategies."""
 
     token_selection_strategy_config: TokenSelectionStrategyConfig
-    scorer: BaseBeamScorer | None
+    cancelled: bool = False
+
+    def cancel(self):
+        self.cancelled = True
 
     def _log_sampling_method(self):
         """Log the sampling method used for token selection."""
@@ -44,21 +47,7 @@ class BaseTokenSelectionStrategy(ABC):
                 f"Using `top_p` sampling with `top_p == {decode_config.top_p}`"
             )
 
-    def replicate_inference_exec_requests(
-        self, exec_req: LlmInferenceExecRequest, replicate: int
-    ) -> List[LlmInferenceExecRequest]:
-        """Replicate an LlmInferenceExecRequest for multi_beam strategies.
-
-        Returns:
-            List[LlmInferenceExecRequest]: List of replicated requests, including the original request.
-        """
-        exec_reqs = [exec_req]
-        for _ in range(replicate):
-            exec_reqs.append(LlmInferenceExecRequest.copy_exec_request(exec_req))
-
-        return exec_reqs
-
-    async def prefill(self, exec_req: LlmInferenceExecRequest) -> int:
+    async def prefill(self, exec_req: LlmInferenceExecRequest):
         """Perform standard `prefill` on an LlmInferenceExecRequest.
 
         This takes an inference exec request and submits it to the batcher
@@ -72,7 +61,7 @@ class BaseTokenSelectionStrategy(ABC):
             int: Token generated from prefill.
         """
 
-        if exec_req.status_tracker.is_disconnected():
+        if self.cancelled:
             return
 
         token_selection_strategy_config = self.token_selection_strategy_config
@@ -88,11 +77,6 @@ class BaseTokenSelectionStrategy(ABC):
         else:
             token = sfnp.argmax(exec_req.result_logits)
             token_int = token.items[0]
-
-        decode_config = token_selection_strategy_config.decode_config
-        # TODO: This is only temporary until streaming is enabled for `MultiHypothesis`
-        if not decode_config.use_beam_search and decode_config.num_beams == 1:
-            token_selection_strategy_config.results_callback(token_int)
 
         exec_req.input_token_ids.append(token_int)
         exec_req.start_position = len(exec_req.input_token_ids) - 1

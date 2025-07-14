@@ -53,30 +53,6 @@ def build_token_selector_config(
     )
 
 
-def build_token_selector(
-    config: TokenSelectionStrategyConfig,
-) -> BaseTokenSelectionStrategy:
-    """Build a token selector, given a strategy and a config.
-
-    Args:
-        token_selection_strategy (TokenSelectionStrategy): Strategy to use.
-        config (TokenSelectionStrategyConfig): Config containing necessary parameters for execution.
-
-    Raises:
-        NotImplementedError: Unsupported `TokenSelectionStrategy`.
-
-    Returns:
-        BaseTokenSelectionStrategy: Instantiated token selector. Either `IndependentTokenSelectionStrategy` or `BeamSearchTokenSelectionStrategy`.
-    """
-    scorer = (
-        BeamSearchScorer(config=config)
-        if config.decode_config.use_beam_search
-        else DefaultScorer(config=config)
-    )
-
-    return TokenSelector(token_selection_strategy_config=config, scorer=scorer)
-
-
 def is_multi_response(decode_config: DecodeConfig) -> bool:
     use_beam_search = decode_config.use_beam_search
     num_beams = decode_config.num_beams
@@ -85,7 +61,6 @@ def is_multi_response(decode_config: DecodeConfig) -> bool:
 
 
 __all__ = [
-    "build_token_selector",
     "build_token_selector_config",
     "BaseTokenSelectionStrategy",
     "BeamSearchScorer",
