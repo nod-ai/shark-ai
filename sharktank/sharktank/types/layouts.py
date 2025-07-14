@@ -293,19 +293,6 @@ class BlockScaledLayout(QuantizedLayout):
         shifted = scaled if m is None else scaled + m
         return shifted
 
-    def transpose(self, *args, **kwargs):
-        new_metadata = self.metadata()
-        new_planes = {
-            name: tensor.transpose(*args, **kwargs)
-            for name, tensor in self.planes().items()
-        }
-
-        return self.__class__.create(
-            shape=new_planes["qs"].shape,
-            metadata=new_metadata,
-            planes=new_planes,
-        )
-
     def __repr__(self):
         r = (
             f"{type(self).__name__}(d({list(self.d.shape)}, dtype={self.d.dtype}), "
@@ -567,9 +554,6 @@ class SuperBlockOffsetScaled_4_6_Layout(QuantizedLayout):
         dmin_scaled = (dmin * sb_mins).unsqueeze(-1)
         return d_scaled * qs - dmin_scaled
 
-    def transpose(self, *args, **kwargs):
-        return NotImplemented
-
     def __repr__(self):
         r = (
             f"{type(self).__name__}(d({list(self.d.shape)}, dtype={self.d.dtype}), "
@@ -678,19 +662,6 @@ class BlockScaledFp4Layout(BlockScaledPackedLayout):
             dequantized_blocked = dequantized_blocked.to(dtype=dtype)
 
         return dequantized_blocked
-
-    def transpose(self, *args, **kwargs):
-        qs = self.qs.transpose(*args, **kwargs)
-        new_shape = qs.shape
-        _q = pack_fp4_e2m1_to_uint8(qs)
-        _d = self.d.transpose(*args, **kwargs)
-        return BlockScaledFp4Layout(
-            new_shape,
-            _d,
-            _q,
-            block_size=self.block_size,
-            use_fe8m0_scale=self.use_fe8m0_scale,
-        )
 
     def __repr__(self):
         return (
