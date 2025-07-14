@@ -77,6 +77,7 @@ class ShardedRotaryLayer(BaseLayer):
 
     def rotary_embed_table(
         self,
+        t : torch.Tensor,
     ) -> tuple[InferenceTensor, InferenceTensor] | InferenceTensor:
         t_0, t_1 = self._rotary_layer.compute_sincos_cache(t, dtype=self._dtype)
         if self._tensor_parallelism_size > 1 or self._pipeline_parallelism:
