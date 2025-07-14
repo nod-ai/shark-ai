@@ -16,7 +16,6 @@ from sharktank.layers import *
 from sharktank.types import *
 from sharktank.utils.create_cache import *
 from sharktank import ops
-from tqdm import tqdm
 
 __all__ = [
     "PagedLlmModelV1",
@@ -180,12 +179,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
             ]
 
         # Iterate over attention blocks.
-        for block_idx, block in tqdm(
-            enumerate(self.attn_blocks),
-            total=len(self.attn_blocks),
-            desc="Prefill:",
-            unit="block",
-        ):
+        for block_idx, block in enumerate(self.attn_blocks):
             if block_idx == 0:
                 self.trace_tensor(f"llama.attn_block.{block_idx}.input", h)
             use_chunked_attention = (
@@ -281,12 +275,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
             h *= math.sqrt(h.shape[-1])
 
         # Iterate over attention blocks.
-        for block_idx, block in tqdm(
-            enumerate(self.attn_blocks),
-            total=len(self.attn_blocks),
-            desc="Decode:",
-            unit="block",
-        ):
+        for block_idx, block in enumerate(self.attn_blocks):
             if block_idx == 0:
                 self.trace_tensor(f"llama.attn_block.{block_idx}.input", h)
             # TODO: Hacky, shouldn't need to read info out of self.cache
