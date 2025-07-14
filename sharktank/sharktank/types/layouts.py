@@ -584,7 +584,6 @@ class SuperBlockOffsetScaled_4_6_Layout(QuantizedLayout):
         return r
 
 
-# TODO: Why is this not inheriting from BlockScaledPackedLayout?
 @register_quantized_layout
 class BlockScaledFp4Layout(BlockScaledPackedLayout):
     """Block-quantized FP4 E2M1 representation
