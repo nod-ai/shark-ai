@@ -137,6 +137,12 @@ class LlmGenerateService(GenerateService):
         self.prefill_batcher.launch()
         self.decode_batcher.launch()
 
+    def shutdown(self):
+        super().shutdown()
+        self.prefill_batcher.shutdown()
+        self.decode_batcher.shutdown()
+        self.page_cache.shutdown()
+
     def initialize_function_references(self):
         self.prefill_functions = {}
         for bs in self.model_params.prefill_batch_sizes:
