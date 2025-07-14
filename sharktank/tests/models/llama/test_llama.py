@@ -80,7 +80,6 @@ class LlamaIreeVsEagerTest(TempDirTestBase):
         config.pipeline_parallelism_size = pipeline_parallelism_size
         config.use_hf = use_hf
 
-        # from pathlib import Path
         tester = IreeVsEagerLLMTester(
             work_dir=self._temp_dir,
             theta=theta,
