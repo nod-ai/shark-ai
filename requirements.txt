@@ -1,4 +1,4 @@
 -r sharktank/requirements.txt
 -r sharktank/requirements-tests.txt
--r shortfin/requirements-tests.txt
+-r shortfin/requirements-tests-nogil.txt
 -r requirements-dev.txt
