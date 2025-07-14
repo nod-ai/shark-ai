@@ -61,7 +61,7 @@ def llm_executor_process(model_params, fiber, device_array_cache):
     return LlmExecutorProcess(
         name="test-executor",
         fiber=fiber,
-        cache=device_array_cache,
+        array_cache=device_array_cache,
         functions=None,
         seq_stride=42,
         page_tables=None,
@@ -73,7 +73,7 @@ def llm_executor_process(model_params, fiber, device_array_cache):
 def prefill_executor_process(model_params, fiber, device_array_cache):
     return PrefillExecutorProcess(
         fiber=fiber,
-        cache=device_array_cache,
+        array_cache=device_array_cache,
         functions=None,
         seq_stride=model_params.paged_kv_cache.block_seq_stride,
         page_tables=None,
@@ -85,7 +85,7 @@ def prefill_executor_process(model_params, fiber, device_array_cache):
 def decode_executor_process(model_params, fiber, device_array_cache):
     return DecodeExecutorProcess(
         fiber=fiber,
-        cache=device_array_cache,
+        array_cache=device_array_cache,
         functions=None,
         seq_stride=model_params.paged_kv_cache.block_seq_stride,
         page_tables=None,
@@ -173,7 +173,7 @@ class TestLlmBatcherProcess:
         llm_batcher_process.board_request = MagicMock(side_effect=lambda _, x: x)
 
         llm_batcher_process.board(
-            llm_batcher_process.cache,
+            llm_batcher_process.array_cache,
             llm_batcher_process.fiber,
             to_schedule,
         )
