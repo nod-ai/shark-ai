@@ -90,38 +90,14 @@ class PerplexityIree:
         self.vm_context: iree.runtime.VmContext = None
         self.cache_state: None | list[ireert.DeviceArray] = None
 
-    def calc_time(self, start, end):
-        total_seconds = end - start
-        time_taken = abs(timedelta(seconds=total_seconds))
-        hours, minutes, seconds = re.split(":", str(time_taken))
-
-        if total_seconds < 1:
-            time_taken = f" {round(total_seconds * 1000, 3)} ms"
-        elif total_seconds < 60:
-            time_taken = "{:.2f} secs".format(round(float(total_seconds), 2))
-        else:
-            time_taken = "{:02d} hrs : {:02d} mins : {:.2f} secs".format(
-                int(hours), int(minutes), round(float(seconds), 2)
-            )
-        return time_taken
-
     def timeit(func):
         def wrapper(*args, **kwargs):
             start = time.time()
             result = func(*args, **kwargs)
             end = time.time()
-            total_seconds = end - start
-            time_taken = abs(timedelta(seconds=total_seconds))
-            hours, minutes, seconds = re.split(":", str(time_taken))
-
-            if total_seconds < 1:
-                time_taken = f" {round(total_seconds * 1000, 3)} ms"
-            elif total_seconds < 60:
-                time_taken = "{:.2f} secs".format(round(float(total_seconds), 2))
-            else:
-                time_taken = "{:02d} hrs : {:02d} mins : {:.2f} secs".format(
-                    int(hours), int(minutes), round(float(seconds), 2)
-                )
+            time_taken = calc_time(start, end)
+            func_name = func.__name__
+            logger.info(f" {func_name}: {time_taken}")
             return result
 
         return wrapper
@@ -152,7 +128,7 @@ class PerplexityIree:
             logger.debug(f"{expected_token_id}")
 
     @timeit
-    def compile_model(
+    def export_compile_model(
         self,
         output_mlir: str | None,
         output_config: str | None,
@@ -267,13 +243,12 @@ class PerplexityIree:
 
         return token_batch
 
-    @timeit
     def prefill_vmfb(
         self, token_batch: torch.tensor, i: int, devices: list[iree.runtime.HalDevice]
     ) -> torch.tensor:
         if not self.use_toy_model:
             logger.debug(
-                f"Prefill input:\n{self.generator.tokenizer.decode(token_batch)}"
+                f"Prefill input:\n\t\t   {self.generator.tokenizer.decode(token_batch)}"
             )
 
         token_batch = self.assemble_batch(token_batch, devices)
@@ -372,8 +347,11 @@ class PerplexityIree:
         self.print_token_comparison(i)
         return decode_logits
 
-    @timeit
     def get_logits(self, skip_decode: bool) -> torch.Tensor:
+        self.prefill_time = 0
+        self.decode_time = []
+        self.decode_steps = 0
+
         def run_iree_module(devices: list[iree.runtime.HalDevice]):
             out_logits = []
             model_name = Path(self.weight_path_str).name
@@ -387,7 +365,9 @@ class PerplexityIree:
                 if skip_decode or len(out_logits) == 0:
                     token_batch = self.token_ids[:, : i + 1]
 
+                    start = time.time()
                     prefill_logits = self.prefill_vmfb(token_batch, i, devices).clone()
+                    self.prefill_time = time.time() - start
 
                     last_logits_indices = torch.minimum(
                         self.seq_lens - 1, torch.tensor(i)
@@ -401,8 +381,11 @@ class PerplexityIree:
                     out_logits.append(last_real_prefill_logits)
                 else:
                     token_batch = self.token_ids[:, i : i + 1]
+                    start = time.time()
                     decode_logits = self.decode_vmfb(token_batch, i, devices)
+                    self.decode_time.append(time.time() - start)
                     out_logits.append(decode_logits)
+                    self.decode_steps += 1
 
             out_logits = ops.cat(out_logits, dim=1)
 
@@ -523,7 +506,7 @@ def run_perplexity_iree(
         extra_compile_args=args.extra_compile_arg,
     )
 
-    perplexity.compile_model(
+    perplexity.export_compile_model(
         output_mlir=args.output_mlir,
         output_config=args.output_config,
         output_vmfb=args.output_vmfb,
@@ -538,13 +521,11 @@ def run_perplexity_iree(
         skip_decode=args.skip_decode,
     )
 
-    end = time.time()
-    total_time = round(end - start, 2)
-    if total_time < 60:
-        total_time = str(total_time) + " secs"
-    else:
-        total_time = str(round(total_time / 60, 2)) + " mins"
-    logger.info(f" Total time taken: {total_time}")
+    logger.info(f" Total time taken: {calc_time(start, time.time())}")
+    logger.info(f" Prefill time: {calc_time(time_diff=perplexity.prefill_time)}")
+    if not args.skip_decode:
+        decode_time = sum(perplexity.decode_time) / perplexity.decode_steps
+        logger.info(f" Decode time per token: {calc_time(time_diff=decode_time)}")
 
     return {
         "perplexities": perplexity_batch,

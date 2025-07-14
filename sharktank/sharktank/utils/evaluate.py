@@ -52,6 +52,9 @@ def compute_perplexity(
 
 
 def get_token_ids():
+    """
+    Default token ids for toy models
+    """
     return [
         [3, 4, 5, 56, 76, 23, 2, 65, 49, 3, 98],
         [4, 65, 49, 32, 98, 5, 2, 23, 13, 58, 9],
@@ -122,24 +125,28 @@ def pad_tokens(
     return token_ids, lengths
 
 
-def timeit(func):
-    def wrapper(*args, **kwargs):
-        start = time.time()
-        result = func(*args, **kwargs)
-        end = time.time()
-        total_seconds = end - start
-        time_taken = abs(timedelta(seconds=total_seconds))
-        hours, minutes, seconds = re.split(":", str(time_taken))
+def calc_time(start=None, end=None, time_diff=None):
+    """
+    Caculates time difference between timestamps and prints it in desired time format
+    """
+    assert (start is None and end is None) ^ (
+        time_diff is None
+    ), "Pass either start and end timestamps or the time_diff"
 
-        if total_seconds < 1:
-            time_taken = f" {round(total_seconds * 1000, 3)} ms"
-        elif total_seconds < 60:
-            time_taken = "{:.2f} secs".format(round(float(total_seconds), 2))
-        else:
-            time_taken = "{:02d} hrs : {:02d} mins : {:.2f} secs".format(
-                int(hours), int(minutes), round(float(seconds), 2)
-            )
+    total_seconds = time_diff or end - start
+    time_taken = abs(timedelta(seconds=total_seconds))
+    hours, minutes, seconds = re.split(":", str(time_taken))
 
-        return result
-
-    return wrapper
+    if total_seconds < 1:
+        time_taken = f" {round(total_seconds * 1000, 3)} ms"
+    elif total_seconds < 60:
+        time_taken = "{:.2f} secs".format(round(float(total_seconds), 2))
+    elif total_seconds < 3600:
+        time_taken = "{:02d} mins : {:.2f} secs".format(
+            int(minutes), round(float(seconds), 2)
+        )
+    else:
+        time_taken = "{:02d} hrs : {:02d} mins : {:.2f} secs".format(
+            int(hours), int(minutes), round(float(seconds), 2)
+        )
+    return time_taken
