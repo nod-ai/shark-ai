@@ -92,8 +92,7 @@ def beam_search_beam(exec_req, decode_config):
 class FakeBatcher:
     def __init__(self, submit_cb, workitem_cb):
         self.submit = submit_cb
-        self.reserve_workitem = workitem_cb
-        self.complete_workitem = workitem_cb
+        self.reserve_workload = workitem_cb
 
 
 def _batcher_workitem_callback(rid: int, count: int):
@@ -534,7 +533,7 @@ async def test_beam_search_decode_single(
     decode_config = DecodeConfig(
         use_beam_search=True,
         num_beams=num_beams,
-        max_completion_tokens=1,
+        max_completion_tokens=2,
         eos_token_id=-1,
     )
     config = build_token_selector_config(
@@ -641,6 +640,7 @@ async def test_beam_search_decode_multiple_completions(
             BeamGroup,
             "clean_up",
         ) as mock_clean_up:
+            await beam_search_token_selection_strategy.prefill(exec_req)
             await beam_search_token_selection_strategy.decode(exec_req)
             assert len(results_array) == num_beams
             expected_tokens = set([0, 1, 2])
