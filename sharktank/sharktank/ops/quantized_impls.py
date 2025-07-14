@@ -49,4 +49,6 @@ def transfer_or_barrier(
     def operation_transform(globals: dict[str, Tensor]) -> dict[str, Tensor]:
         return {k: operation(f"{ordinal}", v) for k, v in globals.items()}
 
-    return tensor.transform_globals(operation_transform)
+    return tensor.transform_subtensors(
+        operation_transform, copy_external_tensor_trait=False
+    )

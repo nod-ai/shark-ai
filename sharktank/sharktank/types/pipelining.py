@@ -51,14 +51,14 @@ def pipeline_parallelize_theta(
         )
 
         for i, (old_shard, new_shard) in enumerate(zip(old_shards, new_shards)):
-            old_globals, new_globals = old_shard.globals, new_shard.globals
-            for key in new_globals.keys():
-                DeviceTensorTrait(new_devices[i]).set(new_globals[key])
-                if old_tensor_trait := ExternalTensorTrait.get(old_globals[key]):
+            old_subtensors, new_subtensors = old_shard.subtensors, new_shard.subtensors
+            for key in new_subtensors.keys():
+                DeviceTensorTrait(new_devices[i]).set(new_subtensors[key])
+                if old_tensor_trait := ExternalTensorTrait.get(old_subtensors[key]):
                     ExternalTensorTrait(
                         old_tensor_trait.external_scope,
                         old_tensor_trait.external_name,
-                    ).set(new_globals[key])
+                    ).set(new_subtensors[key])
 
         if isinstance(tensor, ShardedTensor):
             new_tensor = tensor.clone(ts=new_shards, devices=new_devices)
