@@ -15,6 +15,7 @@ import torch
 from iree.turbine.aot import *
 
 from sharktank.layers import *
+from sharktank.layers.paged_attention import KVCache, PipelinedCache, ShardedCache
 from sharktank.types import *
 from sharktank.types.pipelining import pipeline_parallelize_theta
 from sharktank.utils.math import ceildiv
@@ -91,7 +92,8 @@ def main():
     model = PagedLlmModelV1(dataset.root_theta, llama_config)
 
     def generate_params_json(
-        hp: LlamaHParams,
+        llama_config: LlamaModelConfig,
+        kv_cache: KVCache | ShardedCache | PipelinedCache,
         prefill_bs: list[int],
         decode_bs: list[int],
         logits_normalization: str,
@@ -103,11 +105,27 @@ def main():
         For shortfin, we only write attention_head_count_kv because that's all shortfin needs.
         Note that this is different from hp.attn_head_count when grouped attention shares kvcache between heads.
         """
+        hp = llama_config.hp
+
         kv_cache_dtype = (
             str(llama_config.kv_cache_dtype).split(".")[-1]
             if llama_config.kv_cache_dtype is not None
             else str(llama_config.attention_dtype).split(".")[-1]
         )
+
+        def size_per_device(
+            kv_cache: KVCache | ShardedCache | PipelinedCache,
+        ) -> list[int]:
+            if isinstance(kv_cache, KVCache):
+                return [kv_cache.page_slab_flat_dims]
+            if isinstance(kv_cache, (ShardedCache, PipelinedCache)):
+                ret = []
+                for unsharded_cache in kv_cache.caches:
+                    ret.extend(size_per_device(unsharded_cache))
+                return ret
+            raise TypeError("Unsupported KV cache type: " + str(type(kv_cache)))
+
+        paged_kv_block_size_elements_per_device = size_per_device(kv_cache)
 
         return {
             "module_name": "module",
@@ -124,6 +142,7 @@ def main():
                 "block_seq_stride": llama_config.block_seq_stride,
                 "device_block_count": args.device_block_count,  # so that this makes its way into the config file & can be edited.
                 "kv_cache_dtype": kv_cache_dtype,
+                "paged_kv_block_size_elements_per_device": paged_kv_block_size_elements_per_device,
             },
         }
 
@@ -523,7 +542,11 @@ def main():
             generate_batch_decode(bs)
 
     config = generate_params_json(
-        hp, args.bs_prefill, args.bs_decode, args.logits_normalization
+        llama_config,
+        model.cache.kv_cache,
+        args.bs_prefill,
+        args.bs_decode,
+        args.logits_normalization,
     )
     print("GENERATED!")
 

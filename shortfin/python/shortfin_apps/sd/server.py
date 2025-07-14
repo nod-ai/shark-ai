@@ -332,7 +332,7 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
         type=str,
         required=False,
         default="gfx942",
-        choices=["gfx90a", "gfx942", "gfx1100", "gfx1201"],
+        choices=["gfx90a", "gfx942", "gfx1100", "gfx1201", "gfx950"],
         help="Primary inferencing device LLVM target arch.",
     )
     parser.add_argument(

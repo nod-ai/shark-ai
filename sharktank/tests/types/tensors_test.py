@@ -50,7 +50,7 @@ class PlanarQuantizedTensorTest(unittest.TestCase):
                 new_d[k] = t
             return new_d
 
-        pqt2 = pqt1.transform_globals(transform1, transform2)
+        pqt2 = pqt1.transform_subtensors(transform1, transform2)
         self.assertIsNot(pqt1, pqt2)
         print(pqt2)
         self.assertEqual(pqt2.name, pqt1.name)
