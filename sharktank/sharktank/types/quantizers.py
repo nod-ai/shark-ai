@@ -288,7 +288,7 @@ class StaticScaledQuantizer(QuantizerTensor):
         )
 
     @property
-    def globals(self) -> dict[str, torch.Tensor]:
+    def subtensors(self) -> dict[str, torch.Tensor]:
         d = {
             f"{self.name}:scale": self._scale,
             f"{self.name}:rscale": self._reciprocal_scale,
@@ -323,8 +323,8 @@ class StaticScaledQuantizer(QuantizerTensor):
             extra_properties=extra_properties,
         )
 
-    def _clone_with_globals(
-        self, new_globals: dict[str, torch.Tensor]
+    def _clone_with_subtensors(
+        self, new_subtensors: dict[str, torch.Tensor]
     ) -> "InferenceTensor":
         offset_name = f"{self.name}:offset"
         return StaticScaledQuantizer(
@@ -332,9 +332,9 @@ class StaticScaledQuantizer(QuantizerTensor):
             dtype=self.dtype,
             axis=self.axis,
             disable_saturate=self._disable_saturate,
-            scale=new_globals[f"{self.name}:scale"],
-            reciprocal_scale=new_globals[f"{self.name}:rscale"],
-            offset=new_globals.get(offset_name),
+            scale=new_subtensors[f"{self.name}:scale"],
+            reciprocal_scale=new_subtensors[f"{self.name}:rscale"],
+            offset=new_subtensors.get(offset_name),
         )
 
     def __repr__(self):
@@ -425,7 +425,7 @@ class DynamicScaledQuantizer(QuantizerTensor):
         )
 
     @property
-    def globals(self) -> dict[str, torch.Tensor]:
+    def subtensors(self) -> dict[str, torch.Tensor]:
         return {}
 
     def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
@@ -438,8 +438,8 @@ class DynamicScaledQuantizer(QuantizerTensor):
             extra_properties=extra_properties,
         )
 
-    def _clone_with_globals(
-        self, new_globals: dict[str, torch.Tensor]
+    def _clone_with_subtensors(
+        self, new_subtensors: dict[str, torch.Tensor]
     ) -> "InferenceTensor":
         return DynamicScaledQuantizer(
             name=self.name,
@@ -483,7 +483,7 @@ def _fp4_block_quantize_tensor(
 
     Args:
         t: Input tensor of shape [..., N] to quantize (must have N % block_size == 0)
-        scales: Per-block scales (either float or integer exponents, flat)
+        scales: Per-block scales (either float or integer exponents, shape matches blocked tensor)
         block_size: Size of each block
         use_fe8m0_scale: Whether scales are FE8M0
         name: Name for the resulting tensor
@@ -500,7 +500,10 @@ def _fp4_block_quantize_tensor(
         )
 
     # Reshape to [..., num_blocks, block_size] to group into blocks
-    values_blocked = t.view(-1, block_size)
+    orig_shape = list(t.shape)
+    num_blocks = orig_shape[-1] // block_size
+    blocked_shape = orig_shape[:-1] + [num_blocks, block_size]
+    values_blocked = t.reshape(blocked_shape)
 
     # Prepare scales for broadcasting - add dimension for block_size
     if use_fe8m0_scale:
@@ -618,7 +621,7 @@ class StaticFp4BlockQuantizer(QuantizerTensor):
         )
 
     @property
-    def globals(self) -> dict[str, torch.Tensor]:
+    def subtensors(self) -> dict[str, torch.Tensor]:
         return {
             f"{self.name}:scales": self._scales,
         }
@@ -643,12 +646,12 @@ class StaticFp4BlockQuantizer(QuantizerTensor):
             extra_properties=extra_properties,
         )
 
-    def _clone_with_globals(
-        self, new_globals: dict[str, torch.Tensor]
+    def _clone_with_subtensors(
+        self, new_subtensors: dict[str, torch.Tensor]
     ) -> "InferenceTensor":
         return StaticFp4BlockQuantizer(
             name=self.name,
-            scales=new_globals[f"{self.name}:scales"],
+            scales=new_subtensors[f"{self.name}:scales"],
             block_size=self.block_size,
             use_fe8m0_scale=self.use_fe8m0_scale,
             dtype=self.dtype,
@@ -700,8 +703,13 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
         t_padded = pad_tensor_for_block_quantization(t, self._block_size)
 
         # Compute scales per block
-        values_blocked = t_padded.view(-1, self._block_size)
-        block_max = torch.max(torch.abs(values_blocked), dim=1, keepdim=True)[0]
+        orig_shape = list(t_padded.shape)
+        num_blocks = orig_shape[-1] // self._block_size
+        blocked_shape = orig_shape[:-1] + [num_blocks, self._block_size]
+        values_blocked = t_padded.reshape(blocked_shape)
+
+        # Compute max along the block dimension
+        block_max = torch.max(torch.abs(values_blocked), dim=-1, keepdim=False)[0]
         scales, _ = compute_fp4_block_scales(
             block_max, self._use_fe8m0_scale, self._dtype
         )
@@ -746,7 +754,7 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
         )
 
     @property
-    def globals(self) -> dict[str, torch.Tensor]:
+    def subtensors(self) -> dict[str, torch.Tensor]:
         return {}
 
     def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
@@ -762,8 +770,8 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
             extra_properties=extra_properties,
         )
 
-    def _clone_with_globals(
-        self, new_globals: dict[str, torch.Tensor]
+    def _clone_with_subtensors(
+        self, new_subtensors: dict[str, torch.Tensor]
     ) -> "InferenceTensor":
         return DynamicFp4BlockQuantizer(
             name=self.name,

@@ -141,7 +141,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         x: torch.Tensor | ReplicatedTensor,
         start_index: int,
         embedding: RotaryEmbeddingLayer,
-        embedding_batch_mask: torch.Tensor,
+        embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
     ):
         bs, batch_seq_len, _ = x.shape
 
@@ -180,7 +180,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         x: torch.Tensor | ReplicatedTensor,
         start_index: int,
         embedding: RotaryEmbeddingLayer,
-        embedding_batch_mask: torch.Tensor,
+        embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
     ):
         """
         x:
@@ -215,7 +215,9 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         start_index: Optional[int] = None,
         start_positions: Optional[torch.Tensor | ReplicatedTensor] = None,
         attention_mask: Optional[torch.Tensor | ReplicatedTensor] = None,
-        embedding_batch_mask: Optional[torch.Tensor] = None,
+        embedding_batch_mask: None
+        | tuple[InferenceTensor, InferenceTensor]
+        | InferenceTensor = None,
         cache_state: list[torch.Tensor] = None,
     ):
         assert bool(start_index is not None) ^ bool(embedding_batch_mask is not None)
@@ -234,7 +236,9 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         # Ken M. Nakanishi - Scalable-Softmax Is Superior for Attention (2025)
         if self.attn_temperature_tuning and not self.use_rope:
             if start_positions is None:
-                cache_position = torch.arange(0, h.shape[1], dtype=torch.long)
+                cache_position = torch.arange(
+                    0, h.shape[1], dtype=torch.long, device=h.device
+                )
             else:
                 assert False, "TODO: decode step"
             attn_scales = (
@@ -243,7 +247,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 )
                 * self.attn_scale
                 + 1.0
-            )
+            ).to(xq.device)
             input_tokens_shape = h.shape[:-1]
             attn_scales = attn_scales.view((1, input_tokens_shape[-1], 1, 1)).expand(
                 (*input_tokens_shape, 1, 1)

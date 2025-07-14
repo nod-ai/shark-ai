@@ -14,10 +14,9 @@ from copy import deepcopy
 from typing import List, Tuple
 
 import shortfin as sf
-import shortfin.array as sfnp
+import threading
 
 # TODO: Have a generic "Responder" interface vs just the concrete impl.
-from shortfin.interop.fastapi import RequestStatusTracker
 from shortfin.support.responder import AbstractResponder, ResponderErrorCodes
 
 from .config_struct import DecodeConfig
@@ -32,7 +31,6 @@ from .service import LlmGenerateService
 from .token_selection_strategy import (
     TokenSelector,
     TokenSelectionStrategyConfig,
-    build_token_selector,
     build_token_selector_config,
     is_multi_response,
 )
@@ -52,21 +50,16 @@ class GenerateItemProcess(sf.Process):
     def __init__(
         self,
         *,
-        gen_req: GenerateReqInput,
-        client,
+        rid: int,
         prefill_batcher,
         decode_batcher,
         page_cache,
-        rid: int,
         input_text: str,
         input_token_ids: list[int],
         decode_config: DecodeConfig,
-        status_tracker: RequestStatusTracker,
         fiber: sf.Fiber,
     ):
         super().__init__(fiber=fiber)
-        self.client = client
-        self.gen_req = gen_req
         self.rid = rid
         self.input_text = input_text
         self.input_token_ids = input_token_ids
@@ -81,41 +74,30 @@ class GenerateItemProcess(sf.Process):
                 results_callback=self.results_callback,
             )
         )
-        self.token_selector: TokenSelector = build_token_selector(
-            self.token_selector_config,
+        self.token_selector: TokenSelector = TokenSelector(
+            token_selection_strategy_config=self.token_selector_config,
         )
-        self.is_multi_response = is_multi_response(self.decode_config)
-        self.streamed_tokens_index = 0
-        self._status_tracker = status_tracker
+
+    def cancel(self):
+        self.token_selector.cancel()
 
     async def run(self):
         exec_req = LlmInferenceExecRequest(
             phase=InferencePhase.PREFILL,
             input_token_ids=self.input_token_ids,
-            rid=self.gen_req.rid,
-            status_tracker=self._status_tracker,
+            rid=self.rid,
         )
         exec_req._cache = self.cache
         try:
             # Prefill result.
             await self.token_selector.prefill(exec_req)
-
             # Decode loop.
             await self.token_selector.decode(exec_req)
         finally:
             exec_req.free_cache_pages()
 
-    def results_callback(self, result: int | list[list[int]]):
-        if is_multi_response(self.decode_config):
-            # TODO: Streaming is not supported for multiple responses
-            self.result_token_ids = result
-            return
-
-        self._append_token(result)
-
-    def _append_token(self, token: int):
-        self.result_token_ids.append(token)
-        self.client.stream_results(self)
+    def results_callback(self, result: List[List[int]]):
+        self.result_token_ids = result
 
 
 class ClientGenerateBatchProcess(sf.Process):
@@ -130,9 +112,12 @@ class ClientGenerateBatchProcess(sf.Process):
     """
 
     __slots__ = [
+        "active_processes",
+        "cancelled",
         "complete_infeed",
         "decode_batcher",
         "gen_req",
+        "lock",
         "prefill_batcher",
         "responder",
         "tokenizer",
@@ -155,6 +140,15 @@ class ClientGenerateBatchProcess(sf.Process):
         self.prefill_batcher = service.prefill_batcher
         self.decode_batcher = service.decode_batcher
         self.complete_infeed = self.system.create_queue()
+        self.active_processes = []
+        self.cancelled = False
+        self.lock = threading.Lock()
+
+    def cancel(self):
+        with self.lock as _:
+            self.cancelled = True
+            for process in self.active_processes:
+                process.cancel()
 
     def _check_topk_params(
         self, exported_topk: int | None, requested_topk: int | None
@@ -264,26 +258,36 @@ class ClientGenerateBatchProcess(sf.Process):
                     else self.gen_req.rid[idx]
                 )
 
+                input_tokens = input_tokens if is_pretokenized else input_tokens.ids
+
                 gen_process = GenerateItemProcess(
-                    client=self,
                     prefill_batcher=self.service.prefill_batcher,
                     decode_batcher=self.service.decode_batcher,
                     page_cache=self.service.page_cache,
-                    gen_req=self.gen_req,
                     rid=rid,
                     input_text=input_text,
-                    input_token_ids=input_tokens
-                    if is_pretokenized
-                    else input_tokens.ids,
+                    input_token_ids=input_tokens,
                     decode_config=decode_config,
-                    status_tracker=self.responder.get_status_tracker(),
                     fiber=fiber,
                 )
                 gen_processes.append(gen_process)
                 gen_process.launch()
 
+            # Track the active processes and cancel as necessary:
+            with self.lock as _:
+                if self.cancelled:
+                    for p in gen_processes:
+                        p.cancel()
+                self.active_processes = gen_processes
+
             await asyncio.gather(*gen_processes)
-            if not self.responder.is_disconnected():
+            if self.cancelled:
+                self.responder.send_error(
+                    error_message="Request cancelled",
+                    code=ResponderErrorCodes.CANCELLED,
+                    extra_fields={},
+                )
+            else:
                 self.generate_response(gen_processes, streaming)
         finally:
             self.service.main_fiber_pool.return_fiber(indices)
@@ -311,18 +315,10 @@ class ClientGenerateBatchProcess(sf.Process):
             self.responder.send_response(out.getvalue())
             return
 
-        response_map = {}
+        response_map = {p.input_text: [] for p in gen_processes}
 
         for p in gen_processes:
-            response_map[p.input_text] = []
-
-        for p in gen_processes:
-            token_ids = p.result_token_ids
-
-            if not p.is_multi_response:
-                token_ids = [token_ids]
-
-            decoded = self.tokenizer.decode(token_ids)
+            decoded = self.tokenizer.decode(p.result_token_ids)
             rs = [GeneratedResponse(d) for d in decoded]
             response_map[p.input_text] += rs
 
@@ -338,26 +334,6 @@ class ClientGenerateBatchProcess(sf.Process):
         out = io.BytesIO()
         out.write(response.encode())
         self.responder.send_response(out.getvalue())
-
-    def stream_results(self, gen_process: GenerateItemProcess):
-        if not self.gen_req.stream:
-            return
-        out = io.BytesIO()
-        result_tokens = gen_process.result_token_ids[
-            gen_process.streamed_tokens_index :
-        ]
-        rid = gen_process.rid
-        if not self.gen_req.return_input_ids:
-            (result_text,) = self.tokenizer.decode([result_tokens])
-            out.write(f"data({rid}): ".encode())
-            out.write(result_text.encode())
-            out.write(b"\n\n")
-        else:
-            out.write(f"data({rid}): ".encode())
-            out.write(str(result_tokens[0]).encode())
-            out.write(b"\n\n")
-        self.responder.stream_part(out.getvalue())
-        gen_process.streamed_tokens_index += len(result_tokens)
 
     def tokenize(self) -> list[Encoding]:
         gen_req = self.gen_req

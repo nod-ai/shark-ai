@@ -19,10 +19,10 @@ from typing import Dict, List, Optional
 from shortfin.support.logging_setup import configure_main_logger
 from shortfin.support.responder import AbstractResponder, ResponderErrorCodes
 
-from .components.generate import ClientGenerateBatchProcess
-from .components.io_struct import GenerateReqInput, SamplingParams
-from .components.lifecycle import ShortfinLlmLifecycleManager
-from .server import add_service_args
+from shortfin_apps.llm.components.generate import ClientGenerateBatchProcess
+from shortfin_apps.llm.components.io_struct import GenerateReqInput, SamplingParams
+from shortfin_apps.llm.components.lifecycle import ShortfinLlmLifecycleManager
+from shortfin_apps.llm.server import add_service_args
 
 
 logger = logging.getLogger(__name__)
@@ -322,9 +322,10 @@ async def main(argv):
             gen_req = GenerateReqInput(
                 text=task.prompt, sampling_params=sampling_params, stream=args.stream
             )
-            ClientGenerateBatchProcess(
+            process = ClientGenerateBatchProcess(
                 service, gen_req, responder, fiber=fiber
-            ).launch()
+            )
+            process.launch()
             await responder.response
             task.responder = responder
             task.result = responder.response.result()

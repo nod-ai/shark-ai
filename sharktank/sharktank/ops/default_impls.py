@@ -16,16 +16,20 @@ from numbers import Number
 
 from sharktank.types import (
     PrimitiveTensor,
+    DefaultPrimitiveTensor,
     QuantizedTensor,
     InferenceTensor,
     PlanarQuantizedTensor,
     BlockScaledI4Layout,
+    BlockScaledLayout,
     TensorScaledLayout,
+    QuantizedLayout,
+    unbox_tensor,
+    AnyTensor,
 )
 
 from sharktank.kernels.topk import iree_topk
 
-from sharktank.types.tensors import unbox_tensor, AnyTensor
 from ._registry import AllOfType, AllOfExprs, AllOfExprsVariadic, IsOfType
 from .signatures import *
 import iree.turbine.ops.iree
@@ -423,7 +427,21 @@ def index_copy__default(
     index: Union[Tensor, PrimitiveTensor],
     tensor: Union[Tensor, PrimitiveTensor],
 ) -> Union[Tensor, PrimitiveTensor]:
-    unbox_tensor(inout).index_copy_(dim, unbox_tensor(index), unbox_tensor(tensor))
+    index = unbox_tensor(index)
+    tensor = unbox_tensor(tensor)
+    inout_as_torch = unbox_tensor(inout)
+    if (
+        not torch.compiler.is_compiling()
+        and inout_as_torch.is_cpu
+        and inout_as_torch.dtype == torch.float8_e4m3fnuz
+    ):
+        # PyTorch does not have eager implementation for float8_e4m3fnuz in CPU.
+        # We need to view as int8 before performing the operation.
+        # We still want to avoid the bitcasts during export as the IREE compiler has
+        # trouble fusing them.
+        inout_as_torch = inout_as_torch.view(dtype=torch.int8)
+        tensor = tensor.view(dtype=torch.int8)
+    inout_as_torch.index_copy_(dim, index, tensor)
     return inout
 
 
@@ -434,7 +452,21 @@ def index_put__default(
     values: Union[Tensor, PrimitiveTensor],
 ) -> Union[Tensor, PrimitiveTensor]:
     indices = tuple(unbox_tensor(index) for index in indices)
-    unbox_tensor(inout).index_put_(indices, unbox_tensor(values))
+    inout_as_torch = unbox_tensor(inout)
+    values = unbox_tensor(values)
+    if (
+        not torch.compiler.is_compiling()
+        and inout_as_torch.is_cpu
+        and inout_as_torch.dtype == torch.float8_e4m3fnuz
+    ):
+        # PyTorch does not have eager implementation for float8_e4m3fnuz in CPU.
+        # We need to view as int8 before performing the operation.
+        # We still want to avoid the bitcasts during export as the IREE compiler has
+        # trouble fusing them.
+        inout_as_torch = inout_as_torch.view(dtype=torch.int8)
+        values = values.view(dtype=torch.int8)
+
+    inout_as_torch.index_put_(indices, values)
     return inout
 
 
@@ -686,39 +718,61 @@ def trace_tensor(key: str, *tensors: tuple[AnyTensor, ...]):
 
 @transfer_to_logical_device.override(Tensor)
 def transfer_to_logical_device_default(tensor: Tensor, ordinal: int):
-    return iree.turbine.ops.iree.transfer_to_logical_device(
+    transfered = iree.turbine.ops.iree.transfer_to_logical_device(
         f"{ordinal}", unbox_tensor(tensor)
     )
+    if isinstance(tensor, DefaultPrimitiveTensor):
+        transfered = DefaultPrimitiveTensor(data=transfered, name=tensor.name)
+    return transfered
 
 
 @barrier_on_logical_device.override(Tensor)
 def barrier_on_device_default(tensor: Tensor, ordinal: int):
-    return iree.turbine.ops.iree.barrier_on_logical_device(
+    barriered = iree.turbine.ops.iree.barrier_on_logical_device(
         f"{ordinal}", unbox_tensor(tensor)
     )
+    if isinstance(tensor, DefaultPrimitiveTensor):
+        barriered = DefaultPrimitiveTensor(data=barriered, name=tensor.name)
+    return barriered
 
 
 @transpose.override(Tensor)
 def transpose_default(
     tensor: Union[Tensor, PrimitiveTensor], dim0: int, dim1: int
-) -> Tensor:
-    return torch.transpose(unbox_tensor(tensor), dim0, dim1)
+) -> Union[Tensor, PrimitiveTensor]:
+    transposed = torch.transpose(unbox_tensor(tensor), dim0, dim1)
+    if isinstance(tensor, PrimitiveTensor):
+        transposed = DefaultPrimitiveTensor(data=transposed, name=tensor.name)
+    return transposed
 
 
-@transpose.override(QuantizedTensor)
-def transpose_QuantizedTensor(tensor: QuantizedTensor, dim0: int, dim1: int):
-    unpacked = tensor.unpack()
-    if isinstance(unpacked, TensorScaledLayout):
-        shape = list(unpacked._shape)
-        tmp = shape[dim0]
-        shape[dim0] = shape[dim1]
-        shape[dim1] = tmp
-        new_qs = unpacked._qs.transpose(dim0, dim1)
-        layout = TensorScaledLayout(
-            shape=shape, d=unpacked._d, qs=new_qs, m=unpacked._m
-        )
-        return PlanarQuantizedTensor(shape=shape, layout=layout)
-    return NotImplemented
+@transpose.override(PlanarQuantizedTensor)
+def transpose_PlanarQuantizedTensor(
+    tensor: PlanarQuantizedTensor, dim0: int, dim1: int
+) -> PlanarQuantizedTensor:
+    layout = tensor.unpack()
+
+    if isinstance(layout, BlockScaledLayout):
+        last_index = [-1, len(layout.shape) - 1]
+        if dim0 in last_index or dim1 in last_index:
+            raise ValueError("Cannot transpose last dim of BlockScaledLayout tensors.")
+
+    new_planes = {}
+    for name, plane in layout.planes.items():
+        if len(plane.shape) < 2:
+            new_planes[name] = plane
+        else:
+            new_planes[name] = plane.transpose(dim0, dim1)
+
+    new_shape = list(layout.shape)
+    new_shape[dim0], new_shape[dim1] = new_shape[dim1], new_shape[dim0]
+
+    new_layout = layout.__class__.create(
+        shape=new_shape,
+        metadata=layout.metadata,
+        planes=new_planes,
+    )
+    return PlanarQuantizedTensor(shape=new_layout.shape, layout=new_layout)
 
 
 # Sharded default impls (do nothing).
@@ -917,8 +971,18 @@ def _split_topk(
 
 
 @view.override(Tensor)
-def view_default(tensor: Union[Tensor, PrimitiveTensor], shape: List[int]) -> Tensor:
-    return unbox_tensor(tensor).view(*shape)
+def view_default(
+    tensor: Union[Tensor, PrimitiveTensor],
+    shape: List[int] | None,
+    dtype: torch.dtype | None,
+) -> Tensor:
+    assert (shape is None) ^ (
+        dtype is None
+    ), "Exactly one of shape or dtype must be provided"
+    if shape is not None:
+        return unbox_tensor(tensor).view(*shape)
+    else:
+        return unbox_tensor(tensor).view(dtype)
 
 
 @view.override(QuantizedTensor)

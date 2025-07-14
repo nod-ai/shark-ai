@@ -20,7 +20,6 @@ from sharktank.utils.testing import (
     is_mi300x,
     IreeVsEagerLLMTester,
     TempDirTestBase,
-    xfail,
 )
 
 
@@ -66,19 +65,20 @@ class CrossEntropyTest(unittest.TestCase):
 @pytest.mark.usefixtures("iree_flags", "device")
 @is_mi300x
 class LlamaIreeVsEagerTest(TempDirTestBase):
-    @parameterized.expand(product([1, 2], [1, 2]))
-    @xfail(
+    @parameterized.expand(product([1, 2], [1, 2], [False, True]))
+    @pytest.mark.xfail(
         raises=AssertionError,
         reason="https://github.com/nod-ai/shark-ai/issues/1758",
         strict=True,
         match="Outputs do not match for prefill batch index 0",
     )
     def testUnshardedToyIreeVsEager(
-        self, tensor_parallelism_size: int, pipeline_parallelism_size: int
+        self, tensor_parallelism_size: int, pipeline_parallelism_size: int, use_hf: bool
     ):
         theta, config = generate(12345)
         config.tensor_parallelism_size = tensor_parallelism_size
         config.pipeline_parallelism_size = pipeline_parallelism_size
+        config.use_hf = use_hf
 
         tester = IreeVsEagerLLMTester(
             work_dir=self._temp_dir,
