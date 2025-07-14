@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for sharktank/sharktank/types/ocp_floats.py: 76%</title>
+    <title>Coverage for sharktank/sharktank/types/ocp_floats.py: 77%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_58284776.png">
     <link rel="stylesheet" href="style_cb_81f8c14c.css" type="text/css">
     <script src="coverage_html_cb_6fb7b396.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>sharktank/sharktank/types/ocp_floats.py</b>:
-            <span class="pc_cov">76%</span>
+            <span class="pc_cov">77%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -54,9 +54,9 @@
             </div>
         </aside>
         <h2>
-            <span class="text">80 statements &nbsp;</span>
+            <span class="text">79 statements &nbsp;</span>
             <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">61<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">19<span class="text"> missing</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">18<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_ac4d1a0e8fe3aae7_pipelining_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.2">coverage.py v7.9.2</a>,
-            created at 2025-07-14 19:33 +0000
+            created at 2025-07-14 21:38 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -336,40 +336,39 @@
     <p class="pln"><span class="n"><a id="t254" href="#t254">254</a></span><span class="t"><span class="str">    Raises:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t255" href="#t255">255</a></span><span class="t"><span class="str">        ValueError: If indices are outside the valid range [0, 15]</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t256" href="#t256">256</a></span><span class="t"><span class="str">    """</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t257" href="#t257">257</a></span><span class="t">    <span class="key">if</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">any</span><span class="op">(</span><span class="nam">fp4_indices</span> <span class="op">&lt;</span> <span class="nam">_FP4_MIN_INDEX</span><span class="op">)</span> <span class="key">or</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">any</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t258" href="#t258">258</a></span><span class="t">        <span class="nam">fp4_indices</span> <span class="op">></span> <span class="nam">_FP4_MAX_INDEX</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t259" href="#t259">259</a></span><span class="t">    <span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t260" href="#t260">260</a></span><span class="t">        <span class="key">raise</span> <span class="nam">ValueError</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t261" href="#t261">261</a></span><span class="t">            <span class="fst">f"</span><span class="fst">FP4 indices must be in range [</span><span class="op">{</span><span class="nam">_FP4_MIN_INDEX</span><span class="op">}</span><span class="fst">, </span><span class="op">{</span><span class="nam">_FP4_MAX_INDEX</span><span class="op">}</span><span class="fst">], got min=</span><span class="op">{</span><span class="nam">fp4_indices</span><span class="op">.</span><span class="nam">min</span><span class="op">(</span><span class="op">)</span><span class="op">.</span><span class="nam">item</span><span class="op">(</span><span class="op">)</span><span class="op">}</span><span class="fst">, max=</span><span class="op">{</span><span class="nam">fp4_indices</span><span class="op">.</span><span class="nam">max</span><span class="op">(</span><span class="op">)</span><span class="op">.</span><span class="nam">item</span><span class="op">(</span><span class="op">)</span><span class="op">}</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t262" href="#t262">262</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t263" href="#t263">263</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t264" href="#t264">264</a></span><span class="t">    <span class="nam">lookup_table</span> <span class="op">=</span> <span class="nam">get_fp4_lookup_table</span><span class="op">(</span><span class="nam">FloatingPointFormat</span><span class="op">.</span><span class="nam">E2M1</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t265" href="#t265">265</a></span><span class="t">    <span class="key">return</span> <span class="nam">lookup_table</span><span class="op">[</span><span class="nam">fp4_indices</span><span class="op">.</span><span class="nam">long</span><span class="op">(</span><span class="op">)</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t257" href="#t257">257</a></span><span class="t">    <span class="nam">torch</span><span class="op">.</span><span class="nam">_check</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t258" href="#t258">258</a></span><span class="t">        <span class="nam">fp4_indices</span><span class="op">.</span><span class="nam">min</span><span class="op">(</span><span class="op">)</span><span class="op">.</span><span class="nam">item</span><span class="op">(</span><span class="op">)</span> <span class="op">>=</span> <span class="nam">_FP4_MIN_INDEX</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t259" href="#t259">259</a></span><span class="t">        <span class="key">or</span> <span class="nam">fp4_indices</span><span class="op">.</span><span class="nam">max</span><span class="op">(</span><span class="op">)</span><span class="op">.</span><span class="nam">item</span><span class="op">(</span><span class="op">)</span> <span class="op">&lt;=</span> <span class="nam">_FP4_MAX_INDEX</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t260" href="#t260">260</a></span><span class="t">        <span class="fst">f"</span><span class="fst">FP4 indices must be in range [</span><span class="op">{</span><span class="nam">_FP4_MIN_INDEX</span><span class="op">}</span><span class="fst">, </span><span class="op">{</span><span class="nam">_FP4_MAX_INDEX</span><span class="op">}</span><span class="fst">], got min=</span><span class="op">{</span><span class="nam">fp4_indices</span><span class="op">.</span><span class="nam">min</span><span class="op">(</span><span class="op">)</span><span class="op">.</span><span class="nam">item</span><span class="op">(</span><span class="op">)</span><span class="op">}</span><span class="fst">, max=</span><span class="op">{</span><span class="nam">fp4_indices</span><span class="op">.</span><span class="nam">max</span><span class="op">(</span><span class="op">)</span><span class="op">.</span><span class="nam">item</span><span class="op">(</span><span class="op">)</span><span class="op">}</span><span class="fst">"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t261" href="#t261">261</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t262" href="#t262">262</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t263" href="#t263">263</a></span><span class="t">    <span class="nam">lookup_table</span> <span class="op">=</span> <span class="nam">get_fp4_lookup_table</span><span class="op">(</span><span class="nam">FloatingPointFormat</span><span class="op">.</span><span class="nam">E2M1</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t264" href="#t264">264</a></span><span class="t">    <span class="key">return</span> <span class="nam">lookup_table</span><span class="op">[</span><span class="nam">fp4_indices</span><span class="op">.</span><span class="nam">long</span><span class="op">(</span><span class="op">)</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t265" href="#t265">265</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t266" href="#t266">266</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t267" href="#t267">267</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t268" href="#t268">268</a></span><span class="t"><span class="key">def</span> <span class="nam">float32_to_fp4_e2m1</span><span class="op">(</span><span class="nam">values</span><span class="op">:</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">Tensor</span><span class="op">)</span> <span class="op">-></span> <span class="nam">torch</span><span class="op">.</span><span class="nam">Tensor</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t269" href="#t269">269</a></span><span class="t">    <span class="str">"""Convert float32 values to FP4 E2M1 format indices via quantization.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t270" href="#t270">270</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t271" href="#t271">271</a></span><span class="t"><span class="str">    Finds the closest FP4 E2M1 representation for each input value by computing</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t272" href="#t272">272</a></span><span class="t"><span class="str">    absolute differences with all possible FP4 values and selecting the minimum.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t273" href="#t273">273</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t274" href="#t274">274</a></span><span class="t"><span class="str">    Args:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t275" href="#t275">275</a></span><span class="t"><span class="str">        values: Input tensor of float32 values to quantize</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t276" href="#t276">276</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t277" href="#t277">277</a></span><span class="t"><span class="str">    Returns:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t278" href="#t278">278</a></span><span class="t"><span class="str">        torch.Tensor: FP4 indices as unpacked uint8 values in range [0, 15]</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t279" href="#t279">279</a></span><span class="t"><span class="str">    """</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t280" href="#t280">280</a></span><span class="t">    <span class="nam">lookup_table</span> <span class="op">=</span> <span class="nam">get_fp4_lookup_table</span><span class="op">(</span><span class="nam">FloatingPointFormat</span><span class="op">.</span><span class="nam">E2M1</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t281" href="#t281">281</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t282" href="#t282">282</a></span><span class="t">    <span class="com"># Find closest FP4 value for each input</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t283" href="#t283">283</a></span><span class="t">    <span class="nam">values_expanded</span> <span class="op">=</span> <span class="nam">values</span><span class="op">.</span><span class="nam">unsqueeze</span><span class="op">(</span><span class="op">-</span><span class="num">1</span><span class="op">)</span>  <span class="com"># [..., 1]</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t284" href="#t284">284</a></span><span class="t">    <span class="nam">lookup_expanded</span> <span class="op">=</span> <span class="nam">lookup_table</span><span class="op">.</span><span class="nam">unsqueeze</span><span class="op">(</span><span class="num">0</span><span class="op">)</span><span class="op">.</span><span class="nam">expand</span><span class="op">(</span><span class="op">*</span><span class="nam">values</span><span class="op">.</span><span class="nam">shape</span><span class="op">,</span> <span class="op">-</span><span class="num">1</span><span class="op">)</span>  <span class="com"># [..., 16]</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t285" href="#t285">285</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t286" href="#t286">286</a></span><span class="t">    <span class="com"># Compute absolute differences and find minimum</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t287" href="#t287">287</a></span><span class="t">    <span class="nam">abs_diff</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">abs</span><span class="op">(</span><span class="nam">values_expanded</span> <span class="op">-</span> <span class="nam">lookup_expanded</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t288" href="#t288">288</a></span><span class="t">    <span class="nam">fp4_indices</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">argmin</span><span class="op">(</span><span class="nam">abs_diff</span><span class="op">,</span> <span class="nam">dim</span><span class="op">=</span><span class="op">-</span><span class="num">1</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t289" href="#t289">289</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t290" href="#t290">290</a></span><span class="t">    <span class="key">return</span> <span class="nam">fp4_indices</span><span class="op">.</span><span class="nam">to</span><span class="op">(</span><span class="nam">torch</span><span class="op">.</span><span class="nam">uint8</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t267" href="#t267">267</a></span><span class="t"><span class="key">def</span> <span class="nam">float32_to_fp4_e2m1</span><span class="op">(</span><span class="nam">values</span><span class="op">:</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">Tensor</span><span class="op">)</span> <span class="op">-></span> <span class="nam">torch</span><span class="op">.</span><span class="nam">Tensor</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t268" href="#t268">268</a></span><span class="t">    <span class="str">"""Convert float32 values to FP4 E2M1 format indices via quantization.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t269" href="#t269">269</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t270" href="#t270">270</a></span><span class="t"><span class="str">    Finds the closest FP4 E2M1 representation for each input value by computing</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t271" href="#t271">271</a></span><span class="t"><span class="str">    absolute differences with all possible FP4 values and selecting the minimum.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t272" href="#t272">272</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t273" href="#t273">273</a></span><span class="t"><span class="str">    Args:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t274" href="#t274">274</a></span><span class="t"><span class="str">        values: Input tensor of float32 values to quantize</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t275" href="#t275">275</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t276" href="#t276">276</a></span><span class="t"><span class="str">    Returns:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t277" href="#t277">277</a></span><span class="t"><span class="str">        torch.Tensor: FP4 indices as unpacked uint8 values in range [0, 15]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t278" href="#t278">278</a></span><span class="t"><span class="str">    """</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t279" href="#t279">279</a></span><span class="t">    <span class="nam">lookup_table</span> <span class="op">=</span> <span class="nam">get_fp4_lookup_table</span><span class="op">(</span><span class="nam">FloatingPointFormat</span><span class="op">.</span><span class="nam">E2M1</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t280" href="#t280">280</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t281" href="#t281">281</a></span><span class="t">    <span class="com"># Find closest FP4 value for each input</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t282" href="#t282">282</a></span><span class="t">    <span class="nam">values_expanded</span> <span class="op">=</span> <span class="nam">values</span><span class="op">.</span><span class="nam">unsqueeze</span><span class="op">(</span><span class="op">-</span><span class="num">1</span><span class="op">)</span>  <span class="com"># [..., 1]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t283" href="#t283">283</a></span><span class="t">    <span class="nam">lookup_expanded</span> <span class="op">=</span> <span class="nam">lookup_table</span><span class="op">.</span><span class="nam">unsqueeze</span><span class="op">(</span><span class="num">0</span><span class="op">)</span><span class="op">.</span><span class="nam">expand</span><span class="op">(</span><span class="op">*</span><span class="nam">values</span><span class="op">.</span><span class="nam">shape</span><span class="op">,</span> <span class="op">-</span><span class="num">1</span><span class="op">)</span>  <span class="com"># [..., 16]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t284" href="#t284">284</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t285" href="#t285">285</a></span><span class="t">    <span class="com"># Compute absolute differences and find minimum</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t286" href="#t286">286</a></span><span class="t">    <span class="nam">abs_diff</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">abs</span><span class="op">(</span><span class="nam">values_expanded</span> <span class="op">-</span> <span class="nam">lookup_expanded</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t287" href="#t287">287</a></span><span class="t">    <span class="nam">fp4_indices</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">argmin</span><span class="op">(</span><span class="nam">abs_diff</span><span class="op">,</span> <span class="nam">dim</span><span class="op">=</span><span class="op">-</span><span class="num">1</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t288" href="#t288">288</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t289" href="#t289">289</a></span><span class="t">    <span class="key">return</span> <span class="nam">fp4_indices</span><span class="op">.</span><span class="nam">to</span><span class="op">(</span><span class="nam">torch</span><span class="op">.</span><span class="nam">uint8</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
     <div class="content">
@@ -379,7 +378,7 @@
             <a class="nav" href="z_ac4d1a0e8fe3aae7_pipelining_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.2">coverage.py v7.9.2</a>,
-            created at 2025-07-14 19:33 +0000
+            created at 2025-07-14 21:38 +0000
         </p>
     </div>
 </footer>
