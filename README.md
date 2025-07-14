@@ -50,8 +50,8 @@
 | sharktank/sharktank/layers/modulation.py                                      |       21 |        0 |    100% |           |
 | sharktank/sharktank/layers/norm.py                                            |       37 |        0 |    100% |           |
 | sharktank/sharktank/layers/paged\_attention.py                                |      478 |       22 |     95% |136, 143-149, 210, 757, 1125, 1135-1136, 1143, 1146, 1150, 1152, 1154, 1173, 1179-1184, 1189-1195, 1199 |
-| sharktank/sharktank/layers/paged\_llama\_attention\_block.py                  |      122 |       11 |     91% |116, 120-121, 134, 171, 173, 175, 241, 257-261 |
-| sharktank/sharktank/layers/rotary\_embedding.py                               |      161 |        7 |     96% |67-69, 94, 233-234, 277 |
+| sharktank/sharktank/layers/paged\_llama\_attention\_block.py                  |      122 |       11 |     91% |116, 120-121, 134, 171, 173, 175, 243, 259-263 |
+| sharktank/sharktank/layers/rotary\_embedding.py                               |      174 |       15 |     91% |67-69, 94, 112, 126-132, 151-159, 265-266, 309 |
 | sharktank/sharktank/layers/rotary\_embedding\_hf.py                           |       54 |        0 |    100% |           |
 | sharktank/sharktank/layers/testing.py                                         |       44 |        1 |     98% |       302 |
 | sharktank/sharktank/layers/token\_embedding.py                                |       12 |        0 |    100% |           |
@@ -77,7 +77,7 @@
 | sharktank/sharktank/models/llama/testing.py                                   |       35 |        0 |    100% |           |
 | sharktank/sharktank/models/llama/toy\_llama.py                                |       28 |        6 |     79% | 66-72, 76 |
 | sharktank/sharktank/models/llm/\_\_init\_\_.py                                |        1 |        0 |    100% |           |
-| sharktank/sharktank/models/llm/llm.py                                         |      135 |        4 |     97% |213, 273, 298, 301 |
+| sharktank/sharktank/models/llm/llm.py                                         |      135 |        4 |     97% |213, 275, 300, 303 |
 | sharktank/sharktank/models/llm/testing.py                                     |       13 |       13 |      0% |      1-32 |
 | sharktank/sharktank/models/punet/config.py                                    |       84 |       34 |     60% |70-82, 87-91, 98-122, 126-130 |
 | sharktank/sharktank/models/punet/layers.py                                    |      324 |      191 |     41% |135-180, 195-226, 258, 280-285, 303-330, 341-355, 366-388, 393-397, 400-410, 418-444, 452-499, 513-519, 524-529, 616-624, 627-631, 654-659, 668-695, 720-725, 728, 738-739, 742-744 |
@@ -194,7 +194,7 @@
 | sharktank/tests/models/llama/quark\_parity\_test.py                           |       55 |       40 |     27% |21-22, 29-101, 105 |
 | sharktank/tests/models/llama/rot\_emb\_test.py                                |       37 |        1 |     97% |        82 |
 | sharktank/tests/models/llama/sharded\_llama\_test.py                          |      171 |        2 |     99% |  278, 337 |
-| sharktank/tests/models/llama/test\_llama.py                                   |       45 |        8 |     82% |     78-95 |
+| sharktank/tests/models/llama/test\_llama.py                                   |       43 |        6 |     86% |     78-92 |
 | sharktank/tests/models/punet/resnet\_test.py                                  |       41 |        1 |     98% |        94 |
 | sharktank/tests/models/punet/sharded\_resnet\_block\_with\_iree\_test.py      |       43 |       12 |     72% |    76-113 |
 | sharktank/tests/models/punet/up\_down\_block\_test.py                         |       48 |        1 |     98% |       148 |
@@ -217,7 +217,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |       88 |        4 |     95% |   279-292 |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **20541** | **4149** | **80%** |           |
+|                                                                     **TOTAL** | **20552** | **4155** | **80%** |           |
 
 
 ## Setup coverage badge

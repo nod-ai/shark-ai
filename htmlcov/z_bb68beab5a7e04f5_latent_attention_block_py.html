@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_bb68beab5a7e04f5_linear_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.2">coverage.py v7.9.2</a>,
-            created at 2025-07-14 19:08 +0000
+            created at 2025-07-14 19:33 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -138,7 +138,7 @@
     <p class="pln"><span class="n"><a id="t56" href="#t56">56</a></span><span class="t">        <span class="nam">h</span><span class="op">:</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">Tensor</span> <span class="op">|</span> <span class="nam">ShardedTensor</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t57" href="#t57">57</a></span><span class="t">        <span class="nam">start_index</span><span class="op">:</span> <span class="nam">int</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t58" href="#t58">58</a></span><span class="t">        <span class="nam">embedding</span><span class="op">:</span> <span class="nam">RotaryEmbeddingLayer</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t59" href="#t59">59</a></span><span class="t">        <span class="nam">embedding_batch_mask</span><span class="op">:</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">Tensor</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t59" href="#t59">59</a></span><span class="t">        <span class="nam">embedding_batch_mask</span><span class="op">:</span> <span class="nam">tuple</span><span class="op">[</span><span class="nam">InferenceTensor</span><span class="op">,</span> <span class="nam">InferenceTensor</span><span class="op">]</span> <span class="op">|</span> <span class="nam">InferenceTensor</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t60" href="#t60">60</a></span><span class="t">    <span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t61" href="#t61">61</a></span><span class="t">        <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">wq</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t62" href="#t62">62</a></span><span class="t">            <span class="nam">q</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">wq</span><span class="op">(</span><span class="nam">h</span><span class="op">)</span><span class="op">.</span><span class="nam">unflatten</span><span class="op">(</span><span class="num">2</span><span class="op">,</span> <span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">head_count</span><span class="op">,</span> <span class="op">-</span><span class="num">1</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -196,7 +196,7 @@
             <a class="nav" href="z_bb68beab5a7e04f5_linear_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.2">coverage.py v7.9.2</a>,
-            created at 2025-07-14 19:08 +0000
+            created at 2025-07-14 19:33 +0000
         </p>
     </div>
 </footer>
