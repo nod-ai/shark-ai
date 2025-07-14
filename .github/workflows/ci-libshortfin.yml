@@ -38,7 +38,7 @@ jobs:
       fail-fast: false
       matrix:
         name: ["Ubuntu (Clang)(full)", "Ubuntu (Clang)(host-only)", "Windows (MSVC)"]
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.11", "3.12"]
         include:
           - name: Ubuntu (Clang)(full)
             runs-on: ubuntu-24.04
@@ -93,8 +93,6 @@ jobs:
               SHORTFIN_PY_RUNTIME: default
         exclude:
           # TODO: Include additional Python versions for Windows after build got fixed
-          - name: Windows (MSVC)
-            python-version: "3.10"
           - name: Windows (MSVC)
             python-version: "3.11"
 
