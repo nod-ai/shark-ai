@@ -383,7 +383,7 @@ class ExportArtifacts:
         """
 
         if self.output_vmfb is not None:
-            logger.info(f" Using pre-exported vmfb: {self.output_vmfb}")
+            logger.info(f" Using pre-compiled vmfb: {self.output_vmfb}")
             return
         else:
             self.output_vmfb = self.output_name.with_suffix(".vmfb")
@@ -529,6 +529,10 @@ class ExportArtifacts:
         Returns:
             The path to the compiled VMFB file as a string.
         """
+        if self.output_vmfb is not None:
+            logger.info(f" Using pre-compiled vmfb: {self.output_vmfb}")
+            return str(Path(self.output_vmfb).resolve())
+
         self.export_llm_to_mlir(batch_size=batch_size, skip_decode=skip_decode)
         self.compile_to_vmfb(extra_args=extra_compile_args, hal_dump_path=hal_dump_path)
         return str(Path(self.output_vmfb).resolve())
