@@ -45,10 +45,6 @@ class TokenSelector(BaseTokenSelectionStrategy):
             config.decode_config,
         )
 
-        active_beam_count = beam_group.active_beam_count
-        config.decode_reserve_callback(
-            rid=exec_req.orig_instance_id, count=active_beam_count
-        )
         for _ in range(config.decode_config.max_completion_tokens - 1):
             if self.cancelled:
                 break

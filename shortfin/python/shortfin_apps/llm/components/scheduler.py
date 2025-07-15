@@ -55,16 +55,19 @@ class Workgroup:
         return self._size + count <= self._max_size
 
     def resize(self, *, rid, count):
-        old_size = 0 if rid not in self._members else self._members[rid]
+        old_count = 0 if rid not in self._members else self._members[rid]
+
+        if count == old_count:
+            return
 
         if count == 0:
-            if old_size != 0:
+            if old_count != 0:
                 self._members.pop(rid)
-                self._size = self._size - old_size
+                self._size = self._size - old_count
             return
 
         self._members[rid] = count
-        self._size = self._size + count - old_size
+        self._size = self._size + count - old_count
 
     def schedule(self, *, pending, strobe: int):
         pending = [pending[rid] for rid in pending if rid in self._members]
@@ -236,17 +239,15 @@ class Scheduler:
         workgroup = self._workgroups[wid]
 
         workgroup.resize(rid=rid, count=0)
-        self._workgroups.pop(wid)
+        if workgroup.is_empty():
+            self._workgroups.pop(wid)
 
-        remove = True
         for wid in self._workgroups:
             workgroup = self._workgroups[wid]
             if workgroup.has_member(rid=rid):
-                remove = False
                 break
 
-        if remove:
-            self._workgroup_placement.pop(rid)
+        self._workgroup_placement.pop(rid)
 
     def handle_scheduler(self, msg):
         if isinstance(msg, UpdateWorkload):
