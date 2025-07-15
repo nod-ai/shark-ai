@@ -63,6 +63,7 @@ class CrossEntropyTest(unittest.TestCase):
 
 
 @pytest.mark.usefixtures("iree_flags", "device")
+@is_mi300x
 class LlamaIreeVsEagerTest(TempDirTestBase):
     @parameterized.expand(product([1, 2], [1, 2], [False, True]))
     @pytest.mark.xfail(
