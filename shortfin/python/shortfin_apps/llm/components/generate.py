@@ -178,6 +178,7 @@ class ClientGenerateBatchProcess(sf.Process):
 
         # Try to add request to queue
         # TODO(@zphoenixrises): Add load testing and integration tests for this.
+<<<<<<< HEAD
         run_request = self.service.queue_manager.add_to_queue(
             decode_configs=decode_configs,
             input_batch=input_batch,
@@ -185,6 +186,18 @@ class ClientGenerateBatchProcess(sf.Process):
             responder=self.responder,
         )
         if run_request is None:
+=======
+        run_request = self.service.queue_manager.add_to_queue(decode_configs)
+        if not run_request:
+            self.responder.send_error(
+                error_message="Server queue is full. Please try again later.",
+                code=ResponderErrorCodes.QUEUE_FULL,
+                extra_fields={
+                    "current_size": self.service.queue_manager._current_queue_size,
+                    "max_size": self.service.max_queue_size,
+                },
+            )
+>>>>>>> c4bd6dc32 (woofwip local)
             return
 
         try:

@@ -38,6 +38,10 @@ class LlamaHParams:
     Comments are only provided if they differ from this source.
     """
 
+    # Woof Config
+    attention_global_layer_schedule: list
+    share_kv_sched: list
+
     # Attention config
     model_arch: str
     context_length: int
@@ -244,6 +248,12 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
 
     if name_prefix == "grok":
         res["attention_softcap"] = 30.0
+
+    if name_prefix == "woof":
+        res["attention_global_layer_schedule"] = p[
+            "woof.attention.global_layer_schedule"
+        ]
+        res["share_kv_sched"] = p["woof.share_kv_schedule"]
 
     if name_prefix == "llama3":
         res["yarn_beta_slow"] = 1

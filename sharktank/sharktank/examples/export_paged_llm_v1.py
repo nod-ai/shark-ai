@@ -17,10 +17,17 @@ from sharktank.layers.configs import LlamaModelConfig, LlamaHParams
 from sharktank.layers.paged_attention import CacheAllocation
 from sharktank.types import Theta
 from sharktank.utils import cli
+<<<<<<< HEAD
 from sharktank.utils.math import ceildiv
 from sharktank.models.llm import PagedLlmModelV1
 from sharktank.models.llm.config import ExportConfig
 from sharktank.models.llm.export import ServicePagedLlmModelV1, build_service_config
+=======
+
+# TODO: Should be using a base class with the protocol supported.
+from sharktank.models.llm import *
+from sharktank.models.llm.woof import *
+>>>>>>> c4bd6dc32 (woofwip local)
 
 
 def export_llm_v1(
@@ -36,9 +43,97 @@ def export_llm_v1(
     if export_config.top_k is not None and export_config.top_k < 1:
         raise NotImplementedError(f"`top-k` value must be >= 1.")
 
+<<<<<<< HEAD
     model = PagedLlmModelV1(theta, llama_config)
     model = ServicePagedLlmModelV1(model=model, config=export_config)
     hp = llama_config.hp
+=======
+    if args.attention_kernel == "sharktank":
+        ops.attention_impls.register_attention_override_by_name(
+            "masked_flash_attention"
+        )
+    dataset_type = cli.get_input_data_files(args)
+    dataset_type = "irpa" if "irpa" in dataset_type else "gguf"
+    dataset = cli.get_input_dataset(args)
+    hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
+    if "tensor_parallelism_size" in dataset.properties:
+        dataset_tensor_parallelism_size = dataset.properties["tensor_parallelism_size"]
+        if dataset_tensor_parallelism_size != args.tensor_parallelism_size:
+            raise ValueError(
+                f"Tensor parallelism size mismatch: dataset={dataset_tensor_parallelism_size} while arg={args.tensor_parallelism_size}. Wrong value for --tensor-parallelism-size."
+            )
+    else:
+        if args.tensor_parallelism_size != 1:
+            raise ValueError(
+                f"Unsharded dataset file provided, but specified --tensor-parallelism-size={args.tensor_parallelism_size}. Likely wrong dataset provided."
+            )
+
+    block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
+        dataset.root_theta, args.pipeline_parallelism_size
+    )
+
+    llama_config = LlamaModelConfig(
+        hp,
+        tensor_parallelism_size=args.tensor_parallelism_size,
+        pipeline_parallelism_size=args.pipeline_parallelism_size,
+        block_to_pipeline_map=block_to_pipeline,
+        pipeline_to_device_map=pipeline_to_devices,
+        use_hf=args.use_hf,
+        static_tables=False,  # Rely on the compiler for hoisting tables.
+        attention_kernel=args.attention_kernel,
+        block_seq_stride=args.block_seq_stride,
+        activation_dtype=args.activation_dtype,
+        attention_dtype=args.attention_dtype,
+        kv_cache_dtype=args.kv_cache_dtype,
+    )
+    llama_config.fake_quant = args.fake_quant
+
+    model = PagedWoofModelV1(dataset.root_theta, llama_config)
+
+    def generate_params_json(
+        hp: LlamaHParams,
+        prefill_bs: list[int],
+        decode_bs: list[int],
+        logits_normalization: str,
+    ) -> Dict[str, Any]:
+        """
+        Generate config.json for shortfin.
+
+
+        For shortfin, we only write attention_head_count_kv because that's all shortfin needs.
+        Note that this is different from hp.attn_head_count when grouped attention shares kvcache between heads.
+        """
+        kv_cache_dtype = (
+            str(llama_config.kv_cache_dtype).split(".")[-1]
+            if llama_config.kv_cache_dtype is not None
+            else str(llama_config.attention_dtype).split(".")[-1]
+        )
+
+        return {
+            "module_name": "module",
+            "module_abi_version": 1,
+            "max_seq_len": hp.context_length,
+            "attn_head_dim": hp.attn_head_dim,
+            "prefill_batch_sizes": prefill_bs,
+            "decode_batch_sizes": decode_bs,
+            "transformer_block_count": hp.block_count,
+            "logits_normalization": logits_normalization,
+            "top_k": args.top_k,
+            "paged_kv_cache": {
+                "attention_head_count_kv": hp.attention_head_count_kv,
+                "block_seq_stride": llama_config.block_seq_stride,
+                "device_block_count": args.device_block_count,  # so that this makes its way into the config file & can be edited.
+                "kv_cache_dtype": kv_cache_dtype,
+            },
+        }
+
+    # Unrolling cache updates by batch row makes dynamo sad without an
+    # override. There may be a better way to do this.
+    import torch._dynamo.config as dynamo_config
+
+    # TODO: Seems removed from 2.3+
+    # dynamo_config.max_loop_unroll_nodes = 0
+>>>>>>> c4bd6dc32 (woofwip local)
 
     fxb = FxProgramsBuilder(model)
 

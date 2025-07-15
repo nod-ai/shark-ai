@@ -37,6 +37,7 @@ attn_type_map = {
     "grok": "gqa",
     "deepseek2": "mla",
     "llama4": "gqa",
+    "woof": "gqa",
 }
 
 

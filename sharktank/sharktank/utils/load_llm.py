@@ -138,6 +138,8 @@ class Batch:
         max_decode_steps: int,
     ):
         self.bs = bs
+        print(bs)
+        print(seq_lens.shape)
         assert seq_lens.shape[0] == self.bs
         self.parent = parent
         self.token_ids = token_ids

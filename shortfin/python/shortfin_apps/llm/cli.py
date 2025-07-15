@@ -306,6 +306,7 @@ async def main(argv):
 
         def ttft(self):
             if self.responder is not None:
+                print(self.responder.token_times)
                 return self.responder.token_times[0]
             return 0
 
@@ -377,6 +378,7 @@ async def main(argv):
             print(f"Latencies: {latencies_result}")
 
         if args.stream:
+            print([s for s in tasks])
             ttft = [s.ttft() for s in tasks]
             tpot = [s.tpot() for s in tasks]
 

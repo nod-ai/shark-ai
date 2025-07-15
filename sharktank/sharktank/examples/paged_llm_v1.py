@@ -64,7 +64,7 @@ def main(cli_args: list[str] | None = None):
         config.tensor_parallelism_size = args.tensor_parallelism_size
         dataset.root_theta = shard_theta(dataset.root_theta, config)
 
-    model = PagedLlmModelV1(dataset.root_theta, config)
+    model = PagedWoofModelV1(dataset.root_theta, config)
 
     if args.save_intermediates_path:
         from sharktank.utils.patching import SaveModuleResultTensorsPatch
