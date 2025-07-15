@@ -150,6 +150,8 @@ inline error_t Graph::query_tensor_of_uid(int64_t const uid,
           "Tensor with UID " + std::to_string(uid) + " not found"};
 }
 
+// Given a TensorAttr, create a shared pointer and add it to the graph's
+// inputs. This allows the graph to manage the lifetime of the input tensor.
 inline std::shared_ptr<TensorAttr> Graph::tensor(TensorAttr const &tensor) {
   auto tensor_ptr = std::make_shared<TensorAttr>(tensor);
   full_graph_inputs.insert(tensor_ptr);
@@ -160,9 +162,9 @@ inline std::shared_ptr<TensorAttr>
 Graph::conv_fprop(std::shared_ptr<TensorAttr> const &x,
                   std::shared_ptr<TensorAttr> const &w,
                   ConvFPropAttr &conv_attr) {
+  // Populate names when not set
   if (conv_attr.get_name().empty())
     conv_attr.set_name("conv_fprop_" + std::to_string(sub_nodes.size()));
-
   if (x->get_name().empty())
     x->set_name(conv_attr.get_name() + "::X");
   if (w->get_name().empty())
@@ -175,6 +177,7 @@ Graph::conv_fprop(std::shared_ptr<TensorAttr> const &x,
   auto y = output_tensor(conv_attr.get_name() + "::Y");
   conv_attr.set_Y(y);
 
+  // Create node and add to sub_nodes
   sub_nodes.emplace_back(
       std::make_unique<ConvFPropNode>(std::move(conv_attr), context));
 

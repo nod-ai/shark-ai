@@ -56,6 +56,11 @@ TEST_CASE("Graph validate() returns OK for valid graph", "[graph]") {
   attr.set_padding({0, 0}).set_stride({1, 1}).set_dilation({1, 1}).set_name(
       "conv");
   auto y = g.conv_fprop(x, w, attr);
+
+  // Fails because y is underspecified (shape/stride inference unimplemented)
+  REQUIRE(g.validate().is_failure());
+
+  // Specify y's shape and strides
   y->set_dim({1, 4, 8, 8}).set_stride({256, 1, 32, 4});
   REQUIRE(g.validate().is_ok());
 }
