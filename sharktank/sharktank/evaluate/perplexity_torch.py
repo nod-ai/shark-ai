@@ -56,38 +56,14 @@ class PerplexityTorch:
         self.prefill_length = prefill_length
         self.use_toy_model = use_toy_model
 
-    def calc_time(self, start, end):
-        total_seconds = end - start
-        time_taken = abs(timedelta(seconds=total_seconds))
-        hours, minutes, seconds = re.split(":", str(time_taken))
-
-        if total_seconds < 1:
-            time_taken = f" {round(total_seconds * 1000, 3)} ms"
-        elif total_seconds < 60:
-            time_taken = "{:.2f} secs".format(round(float(total_seconds), 2))
-        else:
-            time_taken = "{:02d} hrs : {:02d} mins : {:.2f} secs".format(
-                int(hours), int(minutes), round(float(seconds), 2)
-            )
-        return time_taken
-
     def timeit(func):
         def wrapper(*args, **kwargs):
             start = time.time()
             result = func(*args, **kwargs)
             end = time.time()
-            total_seconds = end - start
-            time_taken = abs(timedelta(seconds=total_seconds))
-            hours, minutes, seconds = re.split(":", str(time_taken))
-
-            if total_seconds < 1:
-                time_taken = f" {round(total_seconds * 1000, 3)} ms"
-            elif total_seconds < 60:
-                time_taken = "{:.2f} secs".format(round(float(total_seconds), 2))
-            else:
-                time_taken = "{:02d} hrs : {:02d} mins : {:.2f} secs".format(
-                    int(hours), int(minutes), round(float(seconds), 2)
-                )
+            time_taken = calc_time(start, end)
+            func_name = func.__name__
+            logger.info(f" {func_name}: {time_taken}")
             return result
 
         return wrapper
@@ -184,7 +160,6 @@ class PerplexityTorch:
 
         return token_batch
 
-    @timeit
     def get_logits(self, skip_decode: bool) -> torch.tensor:
 
         is_first_token = True
