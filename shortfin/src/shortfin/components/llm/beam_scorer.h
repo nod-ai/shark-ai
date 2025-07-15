@@ -16,7 +16,6 @@
 
 namespace shortfin::llm {
 
-// Forward declaration for exec request
 class LlmInferenceExecRequest;
 
 // Configuration for decoding

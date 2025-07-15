@@ -77,17 +77,11 @@ std::vector<float> BaseBeamScorer::ApplyTemperature(
 DefaultScorer::DefaultScorer(const DecodeConfig& config)
     : BaseBeamScorer(config) {}
 
-void DefaultScorer::UpdateScore(BeamState& beam, float value) {
-  // Default scorer doesn't accumulate scores
-}
+void DefaultScorer::UpdateScore(BeamState& beam, float value) {}
 
-void DefaultScorer::FinalizeScore(BeamState& beam) {
-  // Default scorer doesn't need finalization
-}
+void DefaultScorer::FinalizeScore(BeamState& beam) {}
 
-void DefaultScorer::Reset() {
-  // Default scorer doesn't need state reset
-}
+void DefaultScorer::Reset() {}
 
 std::vector<BeamState> DefaultScorer::SelectBeams(
     const std::vector<BeamState>& active_beams,
@@ -97,13 +91,9 @@ std::vector<BeamState> DefaultScorer::SelectBeams(
 
   // Sample logits for each active beam for it to select its next token.
   for (const auto& beam : active_beams) {
-    // Create a copy of the beam for the selection
     BeamState selected_beam = beam;
 
-    // In the Python implementation, this calls
-    // beam.sample_logits(len(completed_beams)) For now, we'll use a simple
-    // token sampling approach In a real implementation, this would get logits
-    // from the inference request
+    // TODO(@zeeshanhaque21): Get logits from the inference request
     int sampled_token = SampleToken(LogitsData({0.1f, 0.2f, 0.7f}));
     selected_beam.last_token = sampled_token;
 
@@ -266,9 +256,7 @@ std::vector<BeamState> BeamSearchScorer::SelectBeams(
 
   // Parse each beam to select the next candidates
   for (const auto& beam : active_beams) {
-    // Sample multiple tokens for this beam - in Python this calls
-    // beam.sample_logits(len(completed_beams)) which returns top_tokens,
-    // top_values
+    // TODO(@zeeshanhaque21): Get logits from the inference request
     auto sampled_tokens = SampleLogits(LogitsData({0.1f, 0.2f, 0.7f}), k);
 
     for (size_t i = 0; i < sampled_tokens.first.size(); ++i) {

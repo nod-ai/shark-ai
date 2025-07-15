@@ -11,6 +11,7 @@ from typing import List, Optional, Tuple, Union
 
 import shortfin as sf
 import shortfin.array as sfnp
+from abc import abstractmethod
 
 from shortfin import Fiber
 
@@ -121,10 +122,14 @@ class LlmBatcherProcess(BatcherProcess):
         pending = set(pending) - set(scheduled)
         self.pending = self.pending | pending
 
+    @abstractmethod
     def make_process(self, cache: BasePagedAttentionCache, fiber: Fiber):
         ...
 
-    def board_request(self, cache, request: LlmInferenceExecRequest):
+    @abstractmethod
+    def board_request(
+        self, cache: BasePagedAttentionCache, request: LlmInferenceExecRequest
+    ):
         ...
 
     def board(self, cache: BasePagedAttentionCache, fiber: Fiber, to_schedule: set):
@@ -191,7 +196,9 @@ class PrefillBatcherProcess(LlmBatcherProcess):
             self.program_isolation,
         )
 
-    def board_request(self, cache, request: LlmInferenceExecRequest):
+    def board_request(
+        self, cache: BasePagedAttentionCache, request: LlmInferenceExecRequest
+    ):
         needed_pages = math.ceil(len(request.input_token_ids) / self.page_seq_stride)
         # allocate kv cache pages
         try:

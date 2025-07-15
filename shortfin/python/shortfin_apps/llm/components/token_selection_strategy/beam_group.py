@@ -34,14 +34,14 @@ class BeamGroup:
         exec_req: LlmInferenceExecRequest,
         decode_config: DecodeConfig,
         beams: Optional[List[BaseBeam]] = None,
-        use_cpp_scorer: bool = True,
+        use_cpp_scorer: bool = False,
     ):
         """Initialize BeamGroup with option to use C++ or Python scorer.
 
         Args:
             exec_req: Initial inference execution request
             decode_config: Configuration for decoding
-            beams: Optional pre-existing beams
+            beams: Optional pre-existing beams. This is only used for testing.
             use_cpp_scorer: If True, use C++ implementation; if False, use Python implementation
         """
         exec_reqs = [exec_req]
@@ -68,7 +68,6 @@ class BeamGroup:
         self._num_beams = decode_config.num_beams
         self._use_native_scorer = use_cpp_scorer and CPP_AVAILABLE
 
-        # Create scorer based on implementation choice
         if self._use_native_scorer:
             logger.debug("Using C++ beam scorer implementation")
             # Convert decode_config to C++ DecodeConfig
