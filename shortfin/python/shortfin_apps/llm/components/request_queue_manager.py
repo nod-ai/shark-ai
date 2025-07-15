@@ -57,23 +57,38 @@ class RequestQueueManager:
         """Returns the maximum queue size."""
         return self._max_queue_size
 
-    def _check_topk_params(
-        self, exported_topk: Optional[int], requested_topk: Optional[int]
-    ) -> bool:
-        if (
-            # Argmax
-            requested_topk is None
-            # CPU-based `beam_search, top_k, and/or top_p`
-            or exported_topk is None
-            # GPU-based `beam_search, top_k, and/or top_p`
-            or exported_topk >= requested_topk
-        ):
-            return True
+    def _check_topk_params(self, decode_configs: list[DecodeConfig], responder: FastAPIResponder) -> bool:
+        for decode_config in decode_configs:
+            exported_topk = self.model_params.top_k
+            requested_topk = (
+                max(decode_config.num_beams, exported_topk or 1)
+                if decode_config.use_beam_search
+                else decode_config.top_k
+            )
 
-        logger.error(
-            f"Requested top-k of {requested_topk} larger than exported top-k of {exported_topk}"
-        )
-        return False
+            if not (
+                # Argmax
+                requested_topk is None
+                # CPU-based `beam_search, top_k, and/or top_p`
+                or exported_topk is None
+                # GPU-based `beam_search, top_k, and/or top_p`
+                or exported_topk >= requested_topk
+            ):
+                logger.error(
+                    f"Requested top-k of {requested_topk} larger than exported top-k of {exported_topk}"
+                )
+
+                responder.send_error(
+                    error_message="Requested top-k larger than exported top-k",
+                    code=ResponderErrorCodes.INVALID_REQUEST_ARGS,
+                    extra_fields={
+                        "exported_topk": exported_topk,
+                        "requested_topk": requested_topk,
+                    },
+                )
+                return False
+
+        return True
 
     def _check_memory_availability(
         self,
@@ -109,25 +124,9 @@ class RequestQueueManager:
         Attempts to add a request to the queue.
         Returns: Request ID if successful, None otherwise.
         """
-        # Step 1: Validate top-k for all configs
-        for decode_config in decode_configs:
-            exported_topk = self.model_params.top_k
-            requested_topk = (
-                max(decode_config.num_beams, exported_topk or 1)
-                if decode_config.use_beam_search
-                else decode_config.top_k
-            )
 
-            if not self._check_topk_params(exported_topk, requested_topk):
-                responder.send_error(
-                    error_message="Requested top-k larger than exported top-k",
-                    code=ResponderErrorCodes.INVALID_REQUEST_ARGS,
-                    extra_fields={
-                        "exported_topk": exported_topk,
-                        "requested_topk": requested_topk,
-                    },
-                )
-                return None
+        if not self._check_topk_params(decode_configs, responder):
+            return None
 
         # Step 2: Pre-calculate total needed pages
         stride = self.model_params.paged_kv_cache.block_seq_stride
