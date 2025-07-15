@@ -8,12 +8,10 @@ import sys
 import logging
 import json
 import time
-from datetime import timedelta
 from tqdm import tqdm
 from typing import Any
 
 import torch
-import iree.runtime as ireert
 
 from sharktank.models.llm import *
 
@@ -27,6 +25,8 @@ from sharktank.utils.create_cache import *
 from sharktank.utils.export_artifacts import *
 from sharktank.utils.evaluate import *
 from sharktank.utils.iree import *
+
+import iree.runtime as ireert
 
 logger = logging.getLogger("eval")
 
@@ -92,9 +92,9 @@ class PerplexityIree:
 
     def timeit(func):
         def wrapper(*args, **kwargs):
-            start = time.time()
+            start = time.time_ns()
             result = func(*args, **kwargs)
-            end = time.time()
+            end = time.time_ns()
             time_taken = calc_time(start, end)
             func_name = func.__name__
             logger.info(f" {func_name}: {time_taken}")
@@ -127,7 +127,6 @@ class PerplexityIree:
             logger.debug(f"{expected_token}")
             logger.debug(f"{expected_token_id}")
 
-    @timeit
     def export_compile_model(
         self,
         output_mlir: str | None,
@@ -350,7 +349,6 @@ class PerplexityIree:
     def get_logits(self, skip_decode: bool) -> torch.Tensor:
         self.prefill_time = 0
         self.decode_time = []
-        self.decode_steps = 0
 
         def run_iree_module(devices: list[iree.runtime.HalDevice]):
             out_logits = []
@@ -365,9 +363,9 @@ class PerplexityIree:
                 if skip_decode or len(out_logits) == 0:
                     token_batch = self.token_ids[:, : i + 1]
 
-                    start = time.time()
+                    start = time.time_ns()
                     prefill_logits = self.prefill_vmfb(token_batch, i, devices).clone()
-                    self.prefill_time = time.time() - start
+                    self.prefill_time = time.time_ns() - start
 
                     last_logits_indices = torch.minimum(
                         self.seq_lens - 1, torch.tensor(i)
@@ -381,11 +379,10 @@ class PerplexityIree:
                     out_logits.append(last_real_prefill_logits)
                 else:
                     token_batch = self.token_ids[:, i : i + 1]
-                    start = time.time()
+                    start = time.time_ns()
                     decode_logits = self.decode_vmfb(token_batch, i, devices)
-                    self.decode_time.append(time.time() - start)
+                    self.decode_time.append(time.time_ns() - start)
                     out_logits.append(decode_logits)
-                    self.decode_steps += 1
 
             out_logits = ops.cat(out_logits, dim=1)
 
@@ -473,7 +470,7 @@ def run_perplexity_iree(
     tensor_parallelism_size: int,
     pipeline_parallelism_size: int,
 ) -> dict[str, Any]:
-    start = time.time()
+    start = time.time_ns()
 
     token_ids = None
     test_prompts = None
@@ -521,10 +518,10 @@ def run_perplexity_iree(
         skip_decode=args.skip_decode,
     )
 
-    logger.info(f" Total time taken: {calc_time(start, time.time())}")
+    logger.info(f" Total time taken: {calc_time(start, time.time_ns())}")
     logger.info(f" Prefill time: {calc_time(time_diff=perplexity.prefill_time)}")
     if not args.skip_decode:
-        decode_time = sum(perplexity.decode_time) / perplexity.decode_steps
+        decode_time = sum(perplexity.decode_time) / len(perplexity.decode_time)
         logger.info(f" Decode time per token: {calc_time(time_diff=decode_time)}")
 
     return {
