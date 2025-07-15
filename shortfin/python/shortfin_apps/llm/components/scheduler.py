@@ -39,9 +39,6 @@ class Workgroup:
     def members(self):
         return set(self._members.keys())
 
-    def get_members(self, members):
-        return set(members) & set(self._members.keys())
-
     def has_member(self, rid):
         return rid in self._members
 
