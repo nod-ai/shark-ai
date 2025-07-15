@@ -1,3 +1,7 @@
 pytest
 requests
 uvicorn
+dataclasses-json
+tokenizers
+huggingface_hub[cli]
+sentencepiece
