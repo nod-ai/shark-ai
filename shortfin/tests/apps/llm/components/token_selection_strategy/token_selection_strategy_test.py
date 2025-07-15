@@ -24,8 +24,7 @@ class DummyTokenSelectionStrategy(token_selection_strategy.BaseTokenSelectionStr
 class FakeBatcher:
     def __init__(self, submit_cb, workitem_cb):
         self.submit = submit_cb
-        self.reserve_workitem = workitem_cb
-        self.complete_workitem = workitem_cb
+        self.reserve_workload = workitem_cb
 
 
 def _batcher_workitem_callback():

@@ -80,11 +80,8 @@ class LlmBatcherProcess(BatcherProcess):
         """Process batches of requests."""
         await self.board_flights()
 
-    def reserve_workitem(self, *, rid, count):
-        return self.scheduler.reserve_workitem(batcher=self, count=count, rid=rid)
-
-    def complete_workitem(self, *, rid, count):
-        return self.scheduler.release_workitem(batcher=self, count=count, rid=rid)
+    def reserve_workload(self, *, rid, count):
+        return self.scheduler.reserve_workload(batcher=self, count=count, rid=rid)
 
     def custom_message(self, msg):
         if self.scheduler.handle_scheduler(msg):
