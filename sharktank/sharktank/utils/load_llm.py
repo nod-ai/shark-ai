@@ -5,11 +5,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from typing import Optional
+from pathlib import Path
+import logging
 import collections
 import math
-from pathlib import Path
-
 import numpy as np
+
 import torch
 
 from sharktank.layers import *
@@ -21,6 +22,8 @@ from sharktank.utils.debugging import trace_tensor
 from sharktank.utils.tokenizer import InferenceTokenizer
 from sharktank.utils.evaluate import *
 
+logger = logging.getLogger("eval")
+
 
 class TorchGenerator:
     """Generator that runs directly on the Torch model."""
@@ -31,15 +34,10 @@ class TorchGenerator:
         tokenizer: Optional[InferenceTokenizer] = None,
         # Need to look at the model more for this.
         end_token: int = 2,
-        max_decode_steps: int | None = None,
     ):
-        """
-        max_decode_steps: maximum number of decode steps to perform.
-        """
         self.model = model
         self.tokenizer = tokenizer
         self.end_token = end_token
-        self.max_decode_steps = max_decode_steps
 
     @property
     def block_seq_stride(self) -> int:
@@ -51,9 +49,11 @@ class TorchGenerator:
     ) -> tuple[torch.Tensor, torch.Tensor]:
         token_ids = self.tokenizer._encode(texts=prompts, add_start_token=False)
 
-        print(f":: Prompt tokens:")
+        logger.info(f":: Prompt tokens:")
         for idx, prompt in enumerate(prompts):
-            print(f"    prompt_{idx}: \n    {prompt.encode()} \n    {token_ids[idx]}\n")
+            logger.info(
+                f"    prompt_{idx}: \n    {prompt.encode()} \n    {token_ids[idx]}\n"
+            )
 
         token_ids, seq_lens = pad_tokens(
             token_ids,
@@ -87,6 +87,7 @@ class TorchGenerator:
         page_cache_size: int = None,
         dump_path: Path = None,
         dump_decode_steps: int = 1,
+        max_decode_steps: int = 20,
         use_attention_mask: bool = True,
     ) -> "Batch":
         bs = token_ids.shape[0]
@@ -100,6 +101,10 @@ class TorchGenerator:
         cache_state = self.model.cache.allocate(self.page_cache_size)
         self.free_pages = list(range(1, self.page_cache_size))
 
+        assert (
+            max_decode_steps >= dump_decode_steps
+        ), f"Expected max_decode_steps >= dump_decode_steps but got max_decode_steps={max_decode_steps}, dump_decode_steps={dump_decode_steps}"
+
         return Batch(
             self,
             token_ids=token_ids,
@@ -109,7 +114,7 @@ class TorchGenerator:
             dump_path=dump_path,
             dump_decode_steps=dump_decode_steps,
             use_attention_mask=use_attention_mask,
-            max_decode_steps=self.max_decode_steps,
+            max_decode_steps=max_decode_steps,
         )
 
     def alloc_page(self) -> int:
@@ -130,7 +135,7 @@ class Batch:
         dump_path: Path,
         dump_decode_steps: int,
         use_attention_mask: bool,
-        max_decode_steps: int | None = None,
+        max_decode_steps: int,
     ):
         self.bs = bs
         assert seq_lens.shape[0] == self.bs
@@ -164,10 +169,7 @@ class Batch:
         return (
             len(self.done_result_indices) == self.bs
             or len(self.parent.free_pages) == 0
-            or (
-                self.max_decode_steps is not None
-                and self.max_decode_steps <= self.decode_step
-            )
+            or (self.max_decode_steps <= self.decode_step)
         )
 
     def detokenize(self) -> list[str]:
@@ -179,11 +181,11 @@ class Batch:
         else:
             phase = "decode"
 
-        print(f":: {phase} result tokens:")
+        logger.info(f":: {phase} result tokens:")
         results = self.detokenize()
         for i, s in enumerate(results):
             seq_len = int(self.seq_lens[i])
-            print(
+            logger.info(
                 f"   prompt_{i}({len(self.results[i])}, {seq_len}): {s} \n   {self.results[i]}"
             )
 
@@ -287,8 +289,8 @@ class Batch:
                 )
             attention_mask, seq_block_ids = _attention_mask, _seq_block_ids
 
-        if self.dump_path:
-            print(f"\nSaving prefill args to {Path(self.dump_path)}\n")
+        if self.dump_path is not None:
+            logger.info(f"\nSaving prefill args to {Path(self.dump_path)}\n")
 
             self.dump_args(phase="prefill", arg_name="token_ids", arg=token_ids)
             self.dump_args(phase="prefill", arg_name="seq_lens", arg=self.seq_lens)

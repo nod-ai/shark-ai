@@ -179,6 +179,7 @@ class PerplexityTorch:
             seq_lens=seq_lens_batch,
             page_cache_size=self.page_cache_size,
             use_attention_mask=self.use_attention_mask,
+            max_decode_steps=self.last_token_index - self.prefill_length - 1,
         )
 
         return token_batch

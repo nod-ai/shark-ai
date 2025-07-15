@@ -49,6 +49,7 @@ from sharktank.models.t5.testing import (
 )
 from sharktank.utils.random import make_rand_torch, make_random_mask
 from sharktank.utils.testing import (
+    assert_tensor_close,
     assert_text_encoder_state_close,
     skip,
     TempDirTestBase,
@@ -243,7 +244,7 @@ class T5EncoderEagerTest(TestCase):
         _, input_kwargs = target_model.sample_inputs(batch_size=2)
 
         def assert_close(actual: torch.Tensor, expected: torch.Tensor):
-            torch.testing.assert_close(
+            assert_tensor_close(
                 actual.to(dtype=expected.dtype), expected, atol=atol, rtol=rtol
             )
 
@@ -655,17 +656,15 @@ class T5AttentionTest(TestCase):
         hidden_states = ops.to(reference_hidden_states, dtype=target_dtype)
         mask = ops.to(reference_mask, dtype=target_dtype)
         actual_outputs = model(
-            hidden_states=DefaultPrimitiveTensor(data=hidden_states),
-            mask=DefaultPrimitiveTensor(data=mask),
+            hidden_states=hidden_states,
+            mask=mask,
         )
         actual_outputs = tree_map(
             lambda t: None if t is None else ops.to(t, dtype=reference_dtype),
             actual_outputs,
         )
 
-        torch.testing.assert_close(
-            actual_outputs, expected_outputs, atol=atol, rtol=rtol
-        )
+        assert_tensor_close(actual_outputs, expected_outputs, atol=atol, rtol=rtol)
 
     @parameterized.expand(
         [
@@ -764,9 +763,9 @@ class T5AttentionTest(TestCase):
         mask = ops.to(reference_mask, dtype=target_dtype)
         position_bias = ops.to(reference_position_bias, dtype=target_dtype)
         actual_outputs = model(
-            hidden_states=DefaultPrimitiveTensor(data=hidden_states),
-            attention_mask=DefaultPrimitiveTensor(data=mask),
-            position_bias=DefaultPrimitiveTensor(data=position_bias),
+            hidden_states=hidden_states,
+            attention_mask=mask,
+            position_bias=position_bias,
         )
         actual_outputs = [
             unbox_tensor(t) if t is not None else t for t in actual_outputs
@@ -776,9 +775,7 @@ class T5AttentionTest(TestCase):
             actual_outputs,
         )
 
-        torch.testing.assert_close(
-            actual_outputs, expected_outputs, atol=atol, rtol=rtol
-        )
+        assert_tensor_close(actual_outputs, expected_outputs, atol=atol, rtol=rtol)
 
 
 class T5LayerFFTest(TestCase):
@@ -853,11 +850,11 @@ class T5LayerFFTest(TestCase):
 
         hidden_states = ops.to(reference_hidden_states, dtype=target_dtype)
         actual_output = model(
-            hidden_states=DefaultPrimitiveTensor(data=hidden_states),
+            hidden_states=hidden_states,
         )
         actual_output = tree_map(
             lambda t: None if t is None else ops.to(t, dtype=reference_dtype),
             actual_output,
         )
 
-        torch.testing.assert_close(actual_output, expected_output, atol=atol, rtol=rtol)
+        assert_tensor_close(actual_output, expected_output, atol=atol, rtol=rtol)

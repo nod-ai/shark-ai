@@ -254,6 +254,8 @@ class PerplexityIree:
             token_ids=token_batch,
             seq_lens=seq_lens_batch,
             page_cache_size=self.page_cache_size,
+            use_attention_mask=self.use_attention_mask,
+            max_decode_steps=self.max_prompt_length - self.prefill_length - 1,
         )
 
         self.cache_state = []

@@ -944,14 +944,10 @@ class TransposeTest(unittest.TestCase):
             block_size=2,
             use_fe8m0_scale=False,
         )
-        try:
+        with pytest.raises(
+            ValueError, match="Cannot transpose last dim of BlockScaledLayout tensors."
+        ):
             self.quantized_tensor_helper(quantizer, expected)
-        except ValueError as e:
-            assert str(e) == "Cannot transpose last dim of BlockScaledLayout tensors."
-        else:
-            raise AssertionError(
-                "Expected ValueError for BlockScaledFp4Layout transpose, but no exception was raised."
-            )
 
 
 class ConvTest(unittest.TestCase):
