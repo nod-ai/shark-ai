@@ -651,9 +651,9 @@ class InferenceTensor(ABC):
         return elementwise(torch.floor_divide, self, rhs)
 
     def __getitem__(self, key):
-        from sharktank.ops import get_index
+        from sharktank.ops import extract_slice
 
-        return get_index(self, key)
+        return extract_slice(self, key)
 
     def _is_deep_equal(self, other: Any, compare_name: bool = True) -> bool:
         if self.shape != other.shape:
