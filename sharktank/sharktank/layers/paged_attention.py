@@ -1181,7 +1181,7 @@ class PagedAttention:
                 attn_output = kernels.flash_attention(q, k, v)
             return attn_output
         elif attention_kernel == "wave":
-            if mask is not None:
+            if mask is None:  # prefill, use wave attn
                 output = torch.zeros(
                     [q.shape[0], q.shape[1], q.shape[2], v.shape[3]],
                     dtype=torch.float32,
@@ -1189,8 +1189,7 @@ class PagedAttention:
                 attn_output = wave_bhsd_masked_flash_attention(q, k, v, output)
                 attn_output = attn_output.to(torch.float16)
                 return attn_output
-            else:
-                # TODO: support wave flash attention w/o is_causal mask
+            else:  # decode, mask is not None
                 pass
 
         # Non-decomposed
