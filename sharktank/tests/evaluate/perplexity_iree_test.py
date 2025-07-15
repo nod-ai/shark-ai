@@ -184,6 +184,12 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
+    @pytest.mark.xfail(
+        raises=IreeCompileException,
+        reason="https://github.com/iree-org/iree/issues/21378",
+        strict=True,
+        match="Stack dump",
+    )
     @is_deepseek
     def test_deepseek_v3(self):
         # DeepSeek v3
