@@ -22,6 +22,8 @@ from sharktank.types.tensors import unbox_tensor
 from iree.turbine.kernel.wave.utils.torch_utils import (
     device_tensor,
 )
+from sharktank.utils.testing import assert_cosine_similarity_close
+
 
 # Note this is specified by the HW and cannot be changed.
 SCALE_GROUP_SIZE = 32
@@ -62,11 +64,15 @@ def e8m0_to_f32(x):
 
 class wave_fp4_gemm(unittest.TestCase):
     def test_fp4_matmul_accuracy(self):
-        torch.manual_seed(0)
+        torch.manual_seed(5)
 
         # Create float32 inputs
-        lhs = torch.randn(4, 1024, 1024)  # shape: [B, M, K]
-        rhs = torch.randn(1024, 1024)  # shape: [K, N]
+        b = 32
+        m = 128
+        k = 16384
+        n = 16384
+        lhs = torch.randn(b, m, k)  # shape: [B, M, K]
+        rhs = torch.randn(k, n)  # shape: [K, N]
         expected = lhs @ rhs
 
         lhs = unbox_tensor(lhs)
@@ -86,7 +92,6 @@ class wave_fp4_gemm(unittest.TestCase):
             lhs_unpacked.d.size(0) * lhs_unpacked.d.size(1), lhs_unpacked.d.size(2)
         )
         w_scales = rhs_unpacked.d
-        breakpoint()
 
         flat_x_f32 = mxfp4_to_f32(flat_x)
         flat_w_f32 = mxfp4_to_f32(flat_w.T)
@@ -99,7 +104,9 @@ class wave_fp4_gemm(unittest.TestCase):
         w_scales = w_scales.repeat_interleave(SCALE_GROUP_SIZE, dim=1).to(torch.float32)
         w_scales_f32 = e8m0_to_f32(w_scales)
         flat_w_f32 = flat_w_f32 * w_scales_f32.T
-        breakpoint()
+        torch_flat_out = torch.mm(flat_x_f32, flat_w_f32)
+        torch_out = torch_flat_out.view(b, m, n)
+        assert_cosine_similarity_close(torch_out, expected, atol=0.1)
 
     def test_wave_fp4_gemm(self):
         class WaveMxfp4Module(torch.nn.Module):
