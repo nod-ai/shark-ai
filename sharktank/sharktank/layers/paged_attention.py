@@ -1118,7 +1118,6 @@ class PagedAttention:
         softcap: Optional[float] = None,
         scale: Optional[torch.Tensor] = None,
         mask: Optional[torch.Tensor] = None,
-        probs_quantizer: Optional[StaticScaledQuantizer] = None,
     ):
         if attention_kernel not in ["decomposed", "sharktank", "torch"]:
             raise ValueError(
@@ -1169,13 +1168,6 @@ class PagedAttention:
             attn_weights = ops.softmax(
                 ops.to(attn_weights, dtype=torch.float32), dim=-1
             )
-            if probs_quantizer is not None:
-                if fake_quant:
-                    attn_weights = (
-                        probs_quantizer.quantize(attn_weights).unpack().dequant()
-                    )
-                else:
-                    attn_weights = probs_quantizer.quantize(attn_weights).unpack().qs
             attn_weights = ops.to(attn_weights, dtype=q.dtype)
             return ops.matmul(attn_weights, v)  # (bs, heads, slen, head_dim)
 
@@ -1274,7 +1266,6 @@ class PagedAttention:
         softcap: Optional[float] = None,
         scale: Optional[float] = None,
         mask: Optional[torch.Tensor] = None,
-        probs_quantizer: Optional[StaticScaledQuantizer] = None,
     ):
         self.write(
             cache_state,
@@ -1293,5 +1284,4 @@ class PagedAttention:
             softcap=softcap,
             scale=scale,
             mask=mask,
-            probs_quantizer=probs_quantizer,
         )
