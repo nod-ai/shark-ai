@@ -535,3 +535,19 @@ def pytest_runtest_makereport(
                     break
 
     return report
+
+
+@pytest.fixture(scope="function")
+def deterministic_random_seed():
+    """Seed all RNGs (torch, numpy, builtin) with never-changing seed.
+    At fixture teardown recover the original RNG states."""
+    import torch
+    import numpy as np
+    import random
+    from sharktank.utils.random import fork_numpy_singleton_rng, fork_builtin_rng
+
+    with torch.random.fork_rng(), fork_numpy_singleton_rng(), fork_builtin_rng():
+        torch.random.manual_seed(0)
+        np.random.seed(0)
+        random.seed(0)
+        yield
