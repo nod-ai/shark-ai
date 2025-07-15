@@ -117,11 +117,12 @@ huggingface-cli login
 huggingface-cli download --local-dir /tmp/mistral-7b mistralai/Mistral-7B-v0.1
 python ~/llama.cpp/convert_hf_to_gguf.py --outtype f32 --outfile /tmp/mistral-7b-v0.1-f32.gguf /tmp/mistral-7b
 
-# Run through reference implementation
+# Run through reference implementation in eager mode
 python -m sharktank.examples.paged_llm_v1 \
   --gguf-file=/tmp/mistral-7b-v0.1-f32.gguf \
   --tokenizer-config-json=/tmp/mistral-7b/tokenizer_config.json \
-  "Prompt"
+  --prompt "Write a story about llamas" \
+  --device='cuda:0'
 
 # Export as MLIR
 python -m sharktank.examples.export_paged_llm_v1 \
@@ -149,7 +150,10 @@ For example, to run the
 [SlyEcho/open_llama_3b_v2_gguf](https://huggingface.co/SlyEcho/open_llama_3b_v2_gguf):
 
 ```bash
-python -m sharktank.examples.paged_llm_v1 --hf-dataset=open_llama_3b_v2_q8_0_gguf "Prompt 1"
+python -m sharktank.examples.paged_llm_v1 \
+  --hf-dataset=open_llama_3b_v2_q8_0_gguf \
+  --prompt "Write a story about llamas" \
+  --device='cuda:0'
 
 open-llama-3b-v2-q8_0.gguf: 100%|█████████████████████████████| 3.64G/3.64G [01:35<00:00, 38.3MB/s]
 tokenizer.model: 100%|███████████████████████████████████████████| 512k/512k [00:00<00:00, 128MB/s]
@@ -259,13 +263,18 @@ iree-run-module \
 
 [Instructions](../sharktank/sharktank/evaluate/README.md) to run perplexity test
 
-## Generating data for llama models
+## Generate sample input tokens for IREE inference/tracy:
+
+`paged_llm_v1` accepts irpa, gguf or HF dataset paths
 
 ```bash
-set TURBINE_DEBUG=log_level=info
-python -m sharktank.models.llama.tools.generate_data \
-  --tokenizer=openlm-research/open_llama_3b_v2 \
-  --config=/tmp/open_llama_3b_v2/open-llama-3b-v2-f16.json \
-  --output-dir=/tmp/open_llama_3b_v2/inputs \
-  --prompt="What is the meaning of life?"
+python -m sharktank.examples.paged_llm_v1 \
+  --irpa-file=open_llama_3b_v2_f16.irpa \
+  --tokenizer-config-json=tokenizer_config.json \
+  --prompt-seq-len=128 \
+  --bs=4 \
+  --dump-decode-steps=1 \
+  --max-decode-steps=1 \
+  --dump-path='/tmp' \
+  --device='cuda:0'
 ```
