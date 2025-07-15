@@ -10,6 +10,7 @@ from sharktank.types.tensors import (
     InferenceTensor,
     PrimitiveTensor,
     DefaultPrimitiveTensor,
+    unbox_tensor,
 )
 from sharktank import ops
 
@@ -17,7 +18,7 @@ from sharktank import ops
 def set_float_dtype(tensor: InferenceTensor, dtype: torch.dtype) -> InferenceTensor:
     if isinstance(tensor, PrimitiveTensor) and tensor.dtype.is_floating_point:
         return DefaultPrimitiveTensor(
-            name=tensor.name, data=ops.to(tensor, dtype=dtype)
+            name=tensor.name, data=unbox_tensor(ops.to(tensor, dtype=dtype))
         )
 
     return tensor

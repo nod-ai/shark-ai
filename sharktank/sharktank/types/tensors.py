@@ -327,6 +327,8 @@ class InferenceTensor(ABC):
 
     def to(self, *args, **kwargs) -> "InferenceTensor":
         arg0 = args[0] if len(args) > 0 else None
+        if arg0 is None and len(kwargs) == 0:
+            return self
         device_overload = ("device" in kwargs) or isinstance(arg0, (str, torch.device))
         other_overload = ("other" in kwargs) or isinstance(arg0, AnyTensor)
         memory_overload = (
@@ -613,6 +615,16 @@ class InferenceTensor(ABC):
         # numbers on the lhs.
         return self.__add__(lhs)
 
+    def __sub__(self, rhs):
+        from sharktank.ops import elementwise
+
+        return elementwise(torch.sub, self, rhs)
+
+    def __rsub__(self, lhs):
+        # Assumes commutative addition due to torch elementwise ops not handling
+        # numbers on the lhs.
+        return self.__sub__(lhs)
+
     def __mod__(self, rhs):
         from sharktank.ops import elementwise
 
@@ -716,6 +728,7 @@ class DefaultPrimitiveTensor(PrimitiveTensor):
         name: str = UnnamedTensorName,
     ):
         super().__init__(name=name, shape=list(data.shape))
+        assert isinstance(data, torch.Tensor), "data argument must be torch.Tensor"
         self._data = data
 
     @classmethod
