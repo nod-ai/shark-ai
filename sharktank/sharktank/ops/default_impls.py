@@ -991,7 +991,9 @@ def view_default(
 
 
 @view.override(QuantizedTensor)
-def view_QuantizedTensor(tensor: QuantizedTensor, shape):
+def view_QuantizedTensor(
+    tensor: QuantizedTensor, shape: list[int], _dtype: torch.dtype | None
+):
     unpacked = tensor.unpack()
     if isinstance(unpacked, TensorScaledLayout):
         new_qs = unpacked._qs.view(shape)
