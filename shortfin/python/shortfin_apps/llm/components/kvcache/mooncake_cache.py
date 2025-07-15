@@ -24,6 +24,13 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def time_out(start, seconds) -> bool:
+    end = time.perf_counter()
+    if end - start > seconds:
+        return True
+    return False
+
+
 def token_ids_to_key_obsolete(token_ids: List[int]) -> str:
     """Convert a list of token ids to a unique key string.
     Args:
@@ -165,8 +172,7 @@ class MooncakePagedAllocation(PageAllocation):
             mooncake_store.put_int_list(key, value)
             if store_local:
                 self._last_written_back_values.append((key, value))
-            end = time.perf_counter()
-            if end - start > 1:
+            if time_out(start, 1):
                 break
 
         await device
@@ -210,8 +216,7 @@ class MooncakePagedAllocation(PageAllocation):
 
             key = token_ids_to_key(page_tokens)
             value = mooncake_store.get_int_list(key)
-            end = time.perf_counter()
-            if end - start > 1:
+            if time_out(start, 1):
                 break
             if value is None:
                 logger.debug(
@@ -232,8 +237,7 @@ class MooncakePagedAllocation(PageAllocation):
             if store_local:
                 self._last_updated_values.append((key, value))
 
-            end = time.perf_counter()
-            if end - start > 1:
+            if time_out(start, 1):
                 break
         await device
 
