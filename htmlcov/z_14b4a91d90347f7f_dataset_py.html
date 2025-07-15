@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_14b4a91d90347f7f_sharding_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.2">coverage.py v7.9.2</a>,
-            created at 2025-07-15 08:19 +0000
+            created at 2025-07-15 16:10 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -92,17 +92,18 @@
     <p class="pln"><span class="n"><a id="t10" href="#t10">10</a></span><span class="t">    <span class="nam">InferenceTensor</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t11" href="#t11">11</a></span><span class="t">    <span class="nam">PrimitiveTensor</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t12" href="#t12">12</a></span><span class="t">    <span class="nam">DefaultPrimitiveTensor</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t13" href="#t13">13</a></span><span class="t"><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t14" href="#t14">14</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span> <span class="key">import</span> <span class="nam">ops</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t15" href="#t15">15</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t13" href="#t13">13</a></span><span class="t">    <span class="nam">unbox_tensor</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t14" href="#t14">14</a></span><span class="t"><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t15" href="#t15">15</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span> <span class="key">import</span> <span class="nam">ops</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t16" href="#t16">16</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t17" href="#t17">17</a></span><span class="t"><span class="key">def</span> <span class="nam">set_float_dtype</span><span class="op">(</span><span class="nam">tensor</span><span class="op">:</span> <span class="nam">InferenceTensor</span><span class="op">,</span> <span class="nam">dtype</span><span class="op">:</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">dtype</span><span class="op">)</span> <span class="op">-></span> <span class="nam">InferenceTensor</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t18" href="#t18">18</a></span><span class="t">    <span class="key">if</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">tensor</span><span class="op">,</span> <span class="nam">PrimitiveTensor</span><span class="op">)</span> <span class="key">and</span> <span class="nam">tensor</span><span class="op">.</span><span class="nam">dtype</span><span class="op">.</span><span class="nam">is_floating_point</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t19" href="#t19">19</a></span><span class="t">        <span class="key">return</span> <span class="nam">DefaultPrimitiveTensor</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t20" href="#t20">20</a></span><span class="t">            <span class="nam">name</span><span class="op">=</span><span class="nam">tensor</span><span class="op">.</span><span class="nam">name</span><span class="op">,</span> <span class="nam">data</span><span class="op">=</span><span class="nam">ops</span><span class="op">.</span><span class="nam">to</span><span class="op">(</span><span class="nam">tensor</span><span class="op">,</span> <span class="nam">dtype</span><span class="op">=</span><span class="nam">dtype</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t21" href="#t21">21</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t22" href="#t22">22</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t23" href="#t23">23</a></span><span class="t">    <span class="key">return</span> <span class="nam">tensor</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t17" href="#t17">17</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t18" href="#t18">18</a></span><span class="t"><span class="key">def</span> <span class="nam">set_float_dtype</span><span class="op">(</span><span class="nam">tensor</span><span class="op">:</span> <span class="nam">InferenceTensor</span><span class="op">,</span> <span class="nam">dtype</span><span class="op">:</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">dtype</span><span class="op">)</span> <span class="op">-></span> <span class="nam">InferenceTensor</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t19" href="#t19">19</a></span><span class="t">    <span class="key">if</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">tensor</span><span class="op">,</span> <span class="nam">PrimitiveTensor</span><span class="op">)</span> <span class="key">and</span> <span class="nam">tensor</span><span class="op">.</span><span class="nam">dtype</span><span class="op">.</span><span class="nam">is_floating_point</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t20" href="#t20">20</a></span><span class="t">        <span class="key">return</span> <span class="nam">DefaultPrimitiveTensor</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t21" href="#t21">21</a></span><span class="t">            <span class="nam">name</span><span class="op">=</span><span class="nam">tensor</span><span class="op">.</span><span class="nam">name</span><span class="op">,</span> <span class="nam">data</span><span class="op">=</span><span class="nam">unbox_tensor</span><span class="op">(</span><span class="nam">ops</span><span class="op">.</span><span class="nam">to</span><span class="op">(</span><span class="nam">tensor</span><span class="op">,</span> <span class="nam">dtype</span><span class="op">=</span><span class="nam">dtype</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t22" href="#t22">22</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t23" href="#t23">23</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t24" href="#t24">24</a></span><span class="t">    <span class="key">return</span> <span class="nam">tensor</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
     <div class="content">
@@ -112,7 +113,7 @@
             <a class="nav" href="z_14b4a91d90347f7f_sharding_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.2">coverage.py v7.9.2</a>,
-            created at 2025-07-15 08:19 +0000
+            created at 2025-07-15 16:10 +0000
         </p>
     </div>
 </footer>
