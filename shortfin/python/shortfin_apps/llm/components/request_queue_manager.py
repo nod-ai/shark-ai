@@ -57,7 +57,9 @@ class RequestQueueManager:
         """Returns the maximum queue size."""
         return self._max_queue_size
 
-    def _check_topk_params(self, decode_configs: list[DecodeConfig], responder: FastAPIResponder) -> bool:
+    def _check_topk_params(
+        self, decode_configs: list[DecodeConfig], responder: FastAPIResponder
+    ) -> bool:
         for decode_config in decode_configs:
             exported_topk = self.model_params.top_k
             requested_topk = (
