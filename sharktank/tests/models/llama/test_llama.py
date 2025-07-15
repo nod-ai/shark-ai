@@ -63,7 +63,6 @@ class CrossEntropyTest(unittest.TestCase):
 
 
 @pytest.mark.usefixtures("iree_flags", "device")
-@is_mi300x
 class LlamaIreeVsEagerTest(TempDirTestBase):
     @parameterized.expand(product([1, 2], [1, 2], [False, True]))
     @pytest.mark.xfail(
@@ -79,13 +78,19 @@ class LlamaIreeVsEagerTest(TempDirTestBase):
         config.pipeline_parallelism_size = pipeline_parallelism_size
         config.use_hf = use_hf
 
-        tester = IreeVsEagerLLMTester(
-            work_dir=self._temp_dir,
-            theta=theta,
-            config=config,
-            torch_device=self.device,
-            iree_device=self.iree_device,
-            iree_hip_target=self.iree_hip_target,
-            iree_hal_target_device=self.iree_hal_target_device,
-        )
-        tester.run_and_compare_iree_vs_eager()
+        try:
+            tester = IreeVsEagerLLMTester(
+                work_dir=self._temp_dir,
+                theta=theta,
+                config=config,
+                torch_device=self.device,
+                iree_device=self.iree_device,
+                iree_hip_target=self.iree_hip_target,
+                iree_hal_target_device=self.iree_hal_target_device,
+            )
+            tester.run_and_compare_iree_vs_eager()
+        except IreeCompileException as e:
+            if tensor_parallelism_size == 2 or pipeline_parallelism_size == 2:
+                pytest.xfail(reason="sharding compilation is broken")
+            else:
+                raise e
