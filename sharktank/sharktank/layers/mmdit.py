@@ -14,6 +14,7 @@ import torch.nn.functional as F
 from torch import Tensor
 
 from sharktank import ops
+from sharktank.types import unbox_tensor
 from .base import ThetaLayer
 from .linear import LinearLayer
 from .modulation import ModulationLayer
@@ -34,7 +35,7 @@ def apply_rope(xq: Tensor, xk: Tensor, freqs_cis: Tensor) -> tuple[Tensor, Tenso
 
 
 def attention(q, k, v, pe):
-    q, k = apply_rope(q, k, pe)  # todo
+    q, k = apply_rope(unbox_tensor(q), unbox_tensor(k), unbox_tensor(pe))  # todo
 
     x = ops.scaled_dot_product_attention(q=q, k=k, v=v, a=None)
     x = ops.permute(x, (0, 2, 1, 3))
@@ -124,9 +125,9 @@ class MMDITDoubleBlock(ThetaLayer):
         )
 
         # run actual attention
-        q = torch.cat((txt_q, img_q), dim=2)
-        k = torch.cat((txt_k, img_k), dim=2)
-        v = torch.cat((txt_v, img_v), dim=2)
+        q = ops.cat((txt_q, img_q), dim=2)
+        k = ops.cat((txt_k, img_k), dim=2)
+        v = ops.cat((txt_v, img_v), dim=2)
 
         attn = attention(q, k, v, pe)
         txt_attn, img_attn = attn[:, : txt.shape[1]], attn[:, txt.shape[1] :]
