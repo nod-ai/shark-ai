@@ -30,9 +30,9 @@ class Llama4Test(TempDirTestBase):
 
     @pytest.mark.xfail(
         is_mi300x,
-        raises=TypeError,
+        raises=AssertionError,
         strict=False,
-        reason="argument of type 'NoneType' is not iterable",
+        reason="bad numerics",
     )
     def testCompareToyEagerVsHuggingFace(self):
         dtype = torch.float32
