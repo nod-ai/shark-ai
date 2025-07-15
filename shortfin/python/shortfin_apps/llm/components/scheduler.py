@@ -51,18 +51,18 @@ class Workgroup:
     def can_add(self, count):
         return self._size + count <= self._max_size
 
+    def remove(self, *, rid):
+        if rid in self._members:
+            old_count = self._members[rid]
+            self._members.pop(rid)
+            self._size = self._size - old_count
+
     def resize(self, *, rid, count):
-        old_count = 0 if rid not in self._members else self._members[rid]
-
-        if count == old_count:
-            return
-
         if count == 0:
-            if old_count != 0:
-                self._members.pop(rid)
-                self._size = self._size - old_count
+            self.remove(rid=rid)
             return
 
+        old_count = 0 if rid not in self._members else self._members[rid]
         self._members[rid] = count
         self._size = self._size + count - old_count
 
@@ -192,8 +192,8 @@ class Scheduler:
                 workgroup.resize(rid=rid, count=count)
                 return
 
-            # Remove the existing workload and readd
-            workgroup.resize(rid=rid, count=0)
+            # If we cannot fit the workgroup in the existing dispatch we need to redistribute:
+            workgroup.remove(rid=rid)
             self._workgroup_placement.pop(rid)
             if workgroup.is_empty():
                 self._workgroups.pop(wid)
@@ -235,7 +235,7 @@ class Scheduler:
         wid = self._workgroup_placement[rid]
         workgroup = self._workgroups[wid]
 
-        workgroup.resize(rid=rid, count=0)
+        workgroup.remove(rid=rid)
         if workgroup.is_empty():
             self._workgroups.pop(wid)
 
