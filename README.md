@@ -202,7 +202,7 @@
 | sharktank/tests/models/punet/up\_down\_block\_test.py                         |       48 |        1 |     98% |       148 |
 | sharktank/tests/models/t5/t5\_test.py                                         |      270 |       59 |     78% |80-108, 146-174, 187-221, 266, 280, 289, 298, 307, 316, 325, 435-477, 526, 535, 544, 553, 562 |
 | sharktank/tests/models/vae/vae\_test.py                                       |      210 |      111 |     47% |61-96, 102-111, 116-125, 129-224, 249-263, 268-281, 356-447, 548-555, 564-568, 573-578, 584 |
-| sharktank/tests/ops/ops\_test.py                                              |      588 |       31 |     95% |159-162, 227-233, 240-246, 253-260, 583-588, 952, 987 |
+| sharktank/tests/ops/ops\_test.py                                              |      585 |       30 |     95% |159-162, 227-233, 240-246, 253-260, 583-588, 983 |
 | sharktank/tests/ops/pipeline\_parallelized\_test.py                           |      152 |        4 |     97% |56, 184, 196, 206 |
 | sharktank/tests/ops/qconv\_test.py                                            |       94 |       12 |     87% |200-236, 240 |
 | sharktank/tests/ops/sharded\_test.py                                          |     1357 |       20 |     99% |553-559, 641, 1778, 1781, 1785, 1808, 1812, 1982, 1986, 1995-1997, 2005, 2119 |
@@ -219,7 +219,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |       88 |        4 |     95% |   279-292 |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **20705** | **4156** | **80%** |           |
+|                                                                     **TOTAL** | **20702** | **4155** | **80%** |           |
 
 
 ## Setup coverage badge
