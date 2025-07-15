@@ -10,8 +10,8 @@
 | sharktank/sharktank/\_\_init\_\_.py                                           |        4 |        1 |     75% |        15 |
 | sharktank/sharktank/build/\_\_init\_\_.py                                     |        1 |        1 |      0% |         7 |
 | sharktank/sharktank/build/actions.py                                          |       45 |       45 |      0% |     7-109 |
-| sharktank/sharktank/evaluate/perplexity\_iree.py                              |      263 |      219 |     17% |70-91, 94-106, 110-125, 130-152, 161-188, 196-233, 243-270, 276-321, 326-375, 379-427, 434-482, 495-551, 558-607, 611 |
-| sharktank/sharktank/evaluate/perplexity\_torch.py                             |      197 |      158 |     20% |54-57, 60-72, 76-91, 96-118, 137-163, 167-185, 190-254, 268-307, 321-377, 402-427, 431-471, 475 |
+| sharktank/sharktank/evaluate/perplexity\_iree.py                              |      249 |      210 |     16% |70-91, 95-101, 106-128, 136-163, 171-208, 218-245, 250-295, 300-349, 352-407, 414-462, 475-529, 536-585, 589 |
+| sharktank/sharktank/evaluate/perplexity\_torch.py                             |      181 |      144 |     20% |54-57, 61-67, 72-94, 113-139, 143-161, 165-229, 243-282, 296-352, 377-402, 406-446, 450 |
 | sharktank/sharktank/examples/paged\_llm\_v1.py                                |       63 |       54 |     14% |32-116, 122 |
 | sharktank/sharktank/examples/pipeline/export\_ppffn\_net.py                   |       83 |        5 |     94% |95, 144, 150, 174, 181 |
 | sharktank/sharktank/examples/sharding/export\_ffn\_net.py                     |       59 |       13 |     78% |51-63, 82, 88, 113, 120 |
@@ -132,9 +132,9 @@
 | sharktank/sharktank/utils/cli.py                                              |      109 |       66 |     39% |35-39, 72-178, 189-194, 205-217, 228-260, 275-296, 307, 320-323, 333, 346-358, 375-376, 378, 392, 397, 406-424 |
 | sharktank/sharktank/utils/create\_cache.py                                    |        7 |        1 |     86% |        12 |
 | sharktank/sharktank/utils/debugging.py                                        |       91 |       29 |     68% |46-63, 67-74, 81-83, 127, 138 |
-| sharktank/sharktank/utils/evaluate.py                                         |       63 |       33 |     48% |32-51, 55, 69-88, 126-145 |
+| sharktank/sharktank/utils/evaluate.py                                         |       59 |       32 |     46% |29-48, 55, 69-88, 129-149 |
 | sharktank/sharktank/utils/export.py                                           |       70 |        2 |     97% |  179, 212 |
-| sharktank/sharktank/utils/export\_artifacts.py                                |      179 |      126 |     30% |22, 39-47, 61, 68, 75, 82, 89, 123-157, 211-231, 249-261, 265-283, 295-311, 335-374, 398-434, 458-471, 497-523, 545-547 |
+| sharktank/sharktank/utils/export\_artifacts.py                                |      174 |      122 |     30% |22, 39-47, 61, 68, 75, 82, 89, 123-157, 211-231, 249-261, 265-271, 283-299, 323-362, 386-422, 446-459, 485-511, 533-539 |
 | sharktank/sharktank/utils/hf.py                                               |       35 |       24 |     31% |26-54, 64-78 |
 | sharktank/sharktank/utils/hf\_datasets.py                                     |       75 |       22 |     71% |37-55, 65, 73, 82-83, 88, 478-496, 500 |
 | sharktank/sharktank/utils/io.py                                               |       39 |        9 |     77% |65-72, 83-86 |
@@ -219,7 +219,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |       88 |        4 |     95% |   279-292 |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **20702** | **4155** | **80%** |           |
+|                                                                     **TOTAL** | **20663** | **4127** | **80%** |           |
 
 
 ## Setup coverage badge
