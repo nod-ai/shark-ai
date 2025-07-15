@@ -22,6 +22,7 @@ class Graph : public INode {
 private:
   std::unordered_set<std::shared_ptr<TensorAttr>> full_graph_inputs;
   std::unordered_set<std::shared_ptr<TensorAttr>> full_graph_outputs;
+  std::unordered_set<TensorAttr::uid_t> used_uids;
 
   std::shared_ptr<TensorAttr> output_tensor(std::string const &name) {
     auto tensor = std::make_shared<TensorAttr>();
@@ -39,6 +40,38 @@ private:
   }
 
   error_t post_validate_node() const override final {
+    return {error_code_t::OK, ""};
+  }
+
+  error_t check_pre_assigned_uids_are_unique() {
+    used_uids.clear();
+
+    for (auto const &input : full_graph_inputs) {
+      if (input->has_uid()) {
+        auto uid = input->get_uid();
+        FUSILI_RETURN_ERROR_IF(used_uids.find(uid) != used_uids.end(),
+                               error_code_t::INVALID_ATTRIBUTE,
+                               "Tensor named " + input->get_name() +
+                                   " uses UID " + std::to_string(uid) +
+                                   " which has already been assigned to "
+                                   "another tensor in the graph");
+        used_uids.insert(uid);
+      }
+    }
+
+    for (auto const &output : full_graph_outputs) {
+      if (output->has_uid()) {
+        auto uid = output->get_uid();
+        FUSILI_RETURN_ERROR_IF(used_uids.find(uid) != used_uids.end(),
+                               error_code_t::INVALID_ATTRIBUTE,
+                               "Tensor named " + output->get_name() +
+                                   " uses UID " + std::to_string(uid) +
+                                   " which has already been assigned to "
+                                   "another tensor in the graph");
+        used_uids.insert(uid);
+      }
+    }
+
     return {error_code_t::OK, ""};
   }
 
@@ -60,6 +93,9 @@ public:
     for (auto const &output : full_graph_outputs) {
       FUSILI_CHECK_ERROR(output->validate());
     }
+
+    // Check for uid uniqueness (when pre-assigned)
+    FUSILI_CHECK_ERROR(check_pre_assigned_uids_are_unique())
 
     return {error_code_t::OK, ""};
   }
