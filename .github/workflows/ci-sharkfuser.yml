@@ -1,0 +1,139 @@
+# Copyright 2025 Advanced Micro Devices, Inc.
+#
+# Licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+name: CI - sharkfuser
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  # A PR number if a pull request and otherwise the commit hash. This cancels
+  # queued and in-progress runs for the same PR (presubmit) or commit
+  # (postsubmit). The workflow name is prepended to avoid conflicts between
+  # different workflows.
+  group: ${{ github.workflow }}-${{ github.event.number || github.sha }}
+  cancel-in-progress: true
+
+env:
+  SHARKFUSER_DIR: ${{ github.workspace }}/sharkfuser/
+
+jobs:
+  build-and-test:
+    name: "Build & Test :: ${{ matrix.name }}"
+    runs-on: ${{ matrix.runs-on }}
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        name: ["Ubuntu (Clang 18, Release)", "Ubuntu (Clang 18, Debug)", "Ubuntu (GCC 13, Code Coverage)"]
+        include:
+          - name: Ubuntu (Clang 18, Release)
+            runs-on: ubuntu-24.04
+            cmake-options:
+              -DCMAKE_C_COMPILER=clang-18
+              -DCMAKE_CXX_COMPILER=clang++-18
+              -DCMAKE_LINKER_TYPE=LLD
+              -DSHARKFUSER_DEBUG_BUILD=OFF
+              -DSHARKFUSER_CODE_COVERAGE=OFF
+            additional-packages: clang lld
+            env:
+              FUSILI_LOG_INFO: 0
+              FUSILI_LOG_FILE: stdout
+          - name: Ubuntu (Clang 18, Debug)
+            runs-on: ubuntu-24.04
+            cmake-options:
+              -DCMAKE_C_COMPILER=clang-18
+              -DCMAKE_CXX_COMPILER=clang++-18
+              -DCMAKE_LINKER_TYPE=LLD
+              -DSHARKFUSER_DEBUG_BUILD=ON
+              -DSHARKFUSER_CODE_COVERAGE=OFF
+            additional-packages: clang lld
+            env:
+              FUSILI_LOG_INFO: 1
+              FUSILI_LOG_FILE: stdout
+          - name: Ubuntu (GCC 13, Code Coverage)
+            runs-on: ubuntu-24.04
+            cmake-options:
+              -DCMAKE_C_COMPILER=gcc-13
+              -DCMAKE_CXX_COMPILER=g++-13
+              -DSHARKFUSER_DEBUG_BUILD=OFF
+              -DSHARKFUSER_CODE_COVERAGE=ON
+            additional-packages: lcov
+            env:
+              FUSILI_LOG_INFO: 0
+              FUSILI_LOG_FILE: stdout
+
+    steps:
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+    - name: Forward matrix environment variables
+      run: |
+        echo "FUSILI_LOG_INFO=${{ matrix.env.FUSILI_LOG_INFO }}" >> $GITHUB_ENV
+        echo "FUSILI_LOG_FILE=${{ matrix.env.FUSILI_LOG_FILE }}" >> $GITHUB_ENV
+
+    - name: Install dependencies
+      run: |
+        sudo apt update
+        sudo apt install cmake ninja-build ${{matrix.additional-packages}}
+
+    - name: Build sharkfuser
+      working-directory: ${{ env.SHARKFUSER_DIR }}
+      run: |
+        cmake -GNinja -S. -Bbuild \
+          ${{matrix.cmake-options}}
+        cmake --build build --target all
+
+    - name: Test sharkfuser
+      if: ${{ matrix.name != 'Ubuntu (GCC 13, Code Coverage)' }}
+      working-directory: ${{ env.SHARKFUSER_DIR }}
+      run: |
+        ctest --test-dir build --output-on-failure --extra-verbose --timeout 30
+
+    - name: Code coverage sharkfuser
+      if: ${{ matrix.name == 'Ubuntu (GCC 13, Code Coverage)' }}
+      working-directory: ${{ env.SHARKFUSER_DIR }}
+      run: |
+        ctest --test-dir build -T test -T coverage --timeout 30
+        lcov --capture --directory build --output-file build/coverage.info
+        lcov --remove build/coverage.info 'build/*' '/usr/*' --output-file build/coverage.info
+        genhtml build/coverage.info --output-directory coverage_report
+
+    - name: Upload code coverage report
+      if: ${{ matrix.name == 'Ubuntu (GCC 13, Code Coverage)' }}
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: coverage-report
+        path: ${{ env.SHARKFUSER_DIR }}/coverage_report
+
+  # Depends on all other jobs to provide an aggregate job status.
+  ci_sharkfuser_summary:
+    if: always()
+    runs-on: ubuntu-24.04
+    needs:
+      - build-and-test
+    steps:
+      - name: Getting failed jobs
+        run: |
+          echo '${{ toJson(needs) }}'
+          FAILED_JOBS="$(echo '${{ toJson(needs) }}' \
+            | jq --raw-output \
+            'map_values(select(.result!="success" and .result!="skipped")) | keys | join(",")' \
+          )"
+          if [[ "${FAILED_JOBS}" != "" ]]; then
+            echo "The following jobs failed: ${FAILED_JOBS}"
+            exit 1
+          fi
