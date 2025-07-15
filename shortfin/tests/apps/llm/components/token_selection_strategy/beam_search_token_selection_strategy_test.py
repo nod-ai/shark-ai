@@ -388,8 +388,7 @@ def test_get_results(
         prefill_callback=lambda _: None,
         decode_callback=lambda _: None,
         results_callback=lambda _: None,
-        decode_begin_callback=lambda _: None,
-        decode_end_callback=lambda _: None,
+        decode_reserve_callback=lambda _: None,
     )
     beam_search_token_selection_strategy.token_selection_strategy_config = config
 
@@ -464,8 +463,7 @@ def test_get_results_extra_reqs(
         decode_config=decode_config,
         prefill_callback=lambda _: None,
         decode_callback=lambda _: None,
-        decode_begin_callback=lambda _: None,
-        decode_end_callback=lambda _: None,
+        decode_reserve_callback=lambda _: None,
         results_callback=lambda _: None,
     )
     beam_search_token_selection_strategy.token_selection_strategy_config = config
