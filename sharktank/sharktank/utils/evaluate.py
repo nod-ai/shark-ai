@@ -138,11 +138,11 @@ def calc_time(start=None, end=None, time_diff=None):
     hours, remainder_seconds = divmod(total_seconds, 3600)
     minutes, seconds = divmod(remainder_seconds, 60)
 
-    if hours > 1:
+    if hours >= 1:
         time_taken = f"{int(hours):02d} hrs :{int(minutes):02d} mins :{round(float(seconds), 2):.2f} secs"
-    elif minutes > 1:
+    elif minutes >= 1:
         time_taken = f"{int(minutes):02d} mins :{round(float(seconds), 2):.2f} secs"
-    elif seconds > 1:
+    elif seconds >= 1:
         time_taken = f"{round(float(seconds), 2):.2f} secs"
     else:
         time_taken = f" {round(seconds * 1000, 3)} ms"
