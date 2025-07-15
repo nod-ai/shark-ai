@@ -102,13 +102,37 @@ public:
 
   Type getType() override { return Type::COMPOSITE; }
 
-  Graph &set_io_data_type(DataType_t const type);
+  Graph &set_io_data_type(DataType_t const type) {
+    context.set_io_data_type(type);
+    return *this;
+  }
 
-  Graph &set_compute_data_type(DataType_t const type);
+  Graph &set_compute_data_type(DataType_t const type) {
+    context.set_compute_data_type(type);
+    return *this;
+  }
 
-  Graph &set_intermediate_data_type(DataType_t const type);
+  Graph &set_intermediate_data_type(DataType_t const type) {
+    context.set_intermediate_data_type(type);
+    return *this;
+  }
 
-  error_t query_tensor_of_uid(int64_t const uid, TensorAttr &tensor) const;
+  error_t query_tensor_of_uid(int64_t const uid, TensorAttr &tensor) const {
+    for (auto const &i_tensor : full_graph_inputs) {
+      if (i_tensor->get_uid() == uid) {
+        tensor = *i_tensor;
+        return {error_code_t::OK, ""};
+      }
+    }
+    for (auto const &o_tensor : full_graph_outputs) {
+      if (o_tensor->get_uid() == uid) {
+        tensor = *o_tensor;
+        return {error_code_t::OK, ""};
+      }
+    }
+    return {error_code_t::TENSOR_NOT_FOUND,
+            "Tensor with UID " + std::to_string(uid) + " not found"};
+  }
 
   std::shared_ptr<TensorAttr> tensor(TensorAttr const &tensor);
 
@@ -116,39 +140,6 @@ public:
                                          std::shared_ptr<TensorAttr> const &w,
                                          ConvFPropAttr &attributes);
 };
-
-inline Graph &Graph::set_io_data_type(DataType_t const type) {
-  context.set_io_data_type(type);
-  return *this;
-}
-
-inline Graph &Graph::set_compute_data_type(DataType_t const type) {
-  context.set_compute_data_type(type);
-  return *this;
-}
-
-inline Graph &Graph::set_intermediate_data_type(DataType_t const type) {
-  context.set_intermediate_data_type(type);
-  return *this;
-}
-
-inline error_t Graph::query_tensor_of_uid(int64_t const uid,
-                                          TensorAttr &tensor) const {
-  for (auto const &i_tensor : full_graph_inputs) {
-    if (i_tensor->get_uid() == uid) {
-      tensor = *i_tensor;
-      return {error_code_t::OK, ""};
-    }
-  }
-  for (auto const &o_tensor : full_graph_outputs) {
-    if (o_tensor->get_uid() == uid) {
-      tensor = *o_tensor;
-      return {error_code_t::OK, ""};
-    }
-  }
-  return {error_code_t::TENSOR_NOT_FOUND,
-          "Tensor with UID " + std::to_string(uid) + " not found"};
-}
 
 // Given a TensorAttr, create a shared pointer and add it to the graph's
 // inputs. This allows the graph to manage the lifetime of the input tensor.
