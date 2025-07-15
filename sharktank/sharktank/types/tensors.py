@@ -327,13 +327,14 @@ class InferenceTensor(ABC):
 
     def to(self, *args, **kwargs) -> "InferenceTensor":
         arg0 = args[0] if len(args) > 0 else None
+        if arg0 is None and len(kwargs) == 0:
+            return self
         device_overload = ("device" in kwargs) or isinstance(arg0, (str, torch.device))
         other_overload = ("other" in kwargs) or isinstance(arg0, AnyTensor)
         memory_overload = (
             ("memory_format" in kwargs)
             or ("dtype" in kwargs)
             or isinstance(arg0, torch.dtype)
-            or arg0 is None
         )
 
         if device_overload:
