@@ -301,16 +301,28 @@ class ClientGenerateBatchProcess(sf.Process):
                 )
 
                 input_tokens = input_tokens if is_pretokenized else input_tokens.ids
-                gen_process = NewGenerateItemProcess(
-                    prefill_batcher=self.service.prefill_batcher,
-                    decode_batcher=self.service.decode_batcher,
-                    page_cache=self.service.page_cache,
-                    rid=rid,
-                    input_text=input_text,
-                    input_token_ids=input_tokens,
-                    decode_config=decode_config,
-                    fiber=fiber,
-                )
+                if self.service.server_params.use_new_decoder:
+                    gen_process = NewGenerateItemProcess(
+                        prefill_batcher=self.service.prefill_batcher,
+                        decode_batcher=self.service.decode_batcher,
+                        page_cache=self.service.page_cache,
+                        rid=rid,
+                        input_text=input_text,
+                        input_token_ids=input_tokens,
+                        decode_config=decode_config,
+                        fiber=fiber,
+                    )
+                else:
+                    gen_process = GenerateItemProcess(
+                        prefill_batcher=self.service.prefill_batcher,
+                        decode_batcher=self.service.decode_batcher,
+                        page_cache=self.service.page_cache,
+                        rid=rid,
+                        input_text=input_text,
+                        input_token_ids=input_tokens,
+                        decode_config=decode_config,
+                        fiber=fiber,
+                    )
                 gen_processes.append(gen_process)
                 gen_process.launch()
 

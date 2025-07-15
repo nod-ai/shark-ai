@@ -23,7 +23,6 @@ from shortfin_apps.llm.components.messages import (
 from typing import Callable, List, Union
 
 
-
 def combine_scores_null():
     raise ValueError("Unimplemented")
 
@@ -122,6 +121,7 @@ class PageManager:
 
     def release_pages(self):
         self._page_pool.free_pages(self._allocated_pages)
+        self._allocated_pages = []
 
 
 class LlmDecoder:
@@ -144,6 +144,7 @@ class LlmDecoder:
         self._rid = rid
         self._page_manager = PageManager(self._page_pool)
         self._lock = threading.Lock()
+        self._cancelled = False
 
         self._select_function = (
             select_topk if self._decode_config.use_beam_search else select_greedy
@@ -285,7 +286,6 @@ class LlmDecoder:
 
             if self._cancelled:
                 break
-
 
         # Remove the reservation:
         self._decode_batcher.reserve_workload(rid=prefill_req.orig_instance_id, count=0)
