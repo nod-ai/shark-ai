@@ -31,7 +31,6 @@ from .service import LlmGenerateService
 from .token_selection_strategy import (
     TokenSelector,
     TokenSelectionStrategyConfig,
-    build_token_selector,
     build_token_selector_config,
     is_multi_response,
 )
@@ -51,20 +50,16 @@ class GenerateItemProcess(sf.Process):
     def __init__(
         self,
         *,
-        gen_req: GenerateReqInput,
-        client,
+        rid: int,
         prefill_batcher,
         decode_batcher,
         page_cache,
-        rid: int,
         input_text: str,
         input_token_ids: list[int],
         decode_config: DecodeConfig,
         fiber: sf.Fiber,
     ):
         super().__init__(fiber=fiber)
-        self.client = client
-        self.gen_req = gen_req
         self.rid = rid
         self.input_text = input_text
         self.input_token_ids = input_token_ids
@@ -79,8 +74,8 @@ class GenerateItemProcess(sf.Process):
                 results_callback=self.results_callback,
             )
         )
-        self.token_selector: TokenSelector = build_token_selector(
-            self.token_selector_config,
+        self.token_selector: TokenSelector = TokenSelector(
+            token_selection_strategy_config=self.token_selector_config,
         )
 
     def cancel(self):
@@ -90,7 +85,7 @@ class GenerateItemProcess(sf.Process):
         exec_req = LlmInferenceExecRequest(
             phase=InferencePhase.PREFILL,
             input_token_ids=self.input_token_ids,
-            rid=self.gen_req.rid,
+            rid=self.rid,
         )
         exec_req._cache = self.cache
         try:
@@ -101,7 +96,7 @@ class GenerateItemProcess(sf.Process):
         finally:
             exec_req.free_cache_pages()
 
-    def results_callback(self, result: list[list[int]]):
+    def results_callback(self, result: List[List[int]]):
         self.result_token_ids = result
 
 
@@ -263,17 +258,15 @@ class ClientGenerateBatchProcess(sf.Process):
                     else self.gen_req.rid[idx]
                 )
 
+                input_tokens = input_tokens if is_pretokenized else input_tokens.ids
+
                 gen_process = GenerateItemProcess(
-                    client=self,
                     prefill_batcher=self.service.prefill_batcher,
                     decode_batcher=self.service.decode_batcher,
                     page_cache=self.service.page_cache,
-                    gen_req=self.gen_req,
                     rid=rid,
                     input_text=input_text,
-                    input_token_ids=input_tokens
-                    if is_pretokenized
-                    else input_tokens.ids,
+                    input_token_ids=input_tokens,
                     decode_config=decode_config,
                     fiber=fiber,
                 )

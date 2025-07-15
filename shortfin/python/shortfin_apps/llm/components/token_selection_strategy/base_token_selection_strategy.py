@@ -25,7 +25,6 @@ class BaseTokenSelectionStrategy(ABC):
     """Abstract class for implementing token selection strategies."""
 
     token_selection_strategy_config: TokenSelectionStrategyConfig
-    scorer: BaseBeamScorer | None
     cancelled: bool = False
 
     def cancel(self):
@@ -48,21 +47,7 @@ class BaseTokenSelectionStrategy(ABC):
                 f"Using `top_p` sampling with `top_p == {decode_config.top_p}`"
             )
 
-    def replicate_inference_exec_requests(
-        self, exec_req: LlmInferenceExecRequest, replicate: int
-    ) -> List[LlmInferenceExecRequest]:
-        """Replicate an LlmInferenceExecRequest for multi_beam strategies.
-
-        Returns:
-            List[LlmInferenceExecRequest]: List of replicated requests, including the original request.
-        """
-        exec_reqs = [exec_req]
-        for _ in range(replicate):
-            exec_reqs.append(LlmInferenceExecRequest.copy_exec_request(exec_req))
-
-        return exec_reqs
-
-    async def prefill(self, exec_req: LlmInferenceExecRequest) -> int:
+    async def prefill(self, exec_req: LlmInferenceExecRequest):
         """Perform standard `prefill` on an LlmInferenceExecRequest.
 
         This takes an inference exec request and submits it to the batcher

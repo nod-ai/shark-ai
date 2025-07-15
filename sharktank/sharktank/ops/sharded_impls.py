@@ -747,7 +747,7 @@ def linear_sharded(
     accum_dtype,
 ) -> SplitPrimitiveTensor:
     # TODO: handle different dtypes
-    result = matmul(input, weight.mT)
+    result = matmul(input, weight, transpose_rhs=True)
     if bias is not None:
         result = elementwise(torch.add, result, bias)
     return result
@@ -1875,7 +1875,7 @@ def unsqueeze_split(tensor: SplitPrimitiveTensor, dim: int) -> SplitPrimitiveTen
 
 @view.override(SplitPrimitiveTensor)
 def view_split(
-    tensor: SplitPrimitiveTensor, shape: List[int] | None, dtype: torch.Tensor | None
+    tensor: SplitPrimitiveTensor, shape: List[int] | None, dtype: torch.dtype | None
 ) -> SplitPrimitiveTensor:
     assert dtype is None, "Not supported"
     shard_dim = tensor.shard_dim

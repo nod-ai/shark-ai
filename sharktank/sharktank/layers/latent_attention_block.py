@@ -56,7 +56,7 @@ class LatentAttentionBlock(ThetaLayer):
         h: torch.Tensor | ShardedTensor,
         start_index: int,
         embedding: RotaryEmbeddingLayer,
-        embedding_batch_mask: torch.Tensor,
+        embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
     ):
         if self.wq is not None:
             q = self.wq(h).unflatten(2, (self.head_count, -1))
