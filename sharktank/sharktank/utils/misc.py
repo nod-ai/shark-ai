@@ -11,6 +11,15 @@ import os
 from contextlib import AbstractContextManager
 
 
+def verify_exactly_one_is_not_none(**kwargs):
+    count = 0
+    for v in kwargs.values():
+        if v is not None:
+            count += 1
+    if count != 1:
+        raise ValueError(f"Exactly one of {kwargs.keys()} must be set.")
+
+
 def longest_equal_range(l1: List[Any], l2: List[Any]) -> int:
     """Find the longest range that is the same from the start of both lists.
     Returns the greatest `i` such that `l1[0:i] == l2[0:i]`."""

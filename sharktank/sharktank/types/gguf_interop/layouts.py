@@ -60,7 +60,7 @@ class Q8_0(QuantizedTensor[BlockScaledLayout]):
         return BlockScaledLayout(self.shape, d, qs)
 
     @property
-    def globals(self):
+    def subtensors(self):
         return {self.name: self.raw}
 
     def __repr__(self):
@@ -153,7 +153,7 @@ class Q4_K(QuantizedTensor[SuperBlockOffsetScaled_4_6_Layout]):
         )
 
     @property
-    def globals(self):
+    def subtensors(self):
         return {self.name: self.raw}
 
     def __repr__(self):
@@ -230,7 +230,7 @@ class Q5_K(QuantizedTensor[BlockScaledI4Layout]):
         raise NotImplementedError
 
     @property
-    def globals(self):
+    def subtensors(self):
         return {self.name: self.raw}
 
     def __repr__(self):
@@ -250,7 +250,7 @@ class Q6_K(QuantizedTensor[BlockScaledI4Layout]):
         raise NotImplementedError
 
     @property
-    def globals(self):
+    def subtensors(self):
         return {self.name: self.raw}
 
     def __repr__(self):
@@ -300,7 +300,7 @@ class Q4_1(QuantizedTensor[BlockScaledI4Layout]):
         return BlockScaledI4Layout(self.shape, d, qs, m=m, signed=False)
 
     @property
-    def globals(self):
+    def subtensors(self):
         return {self.name: self.raw}
 
     def __repr__(self):

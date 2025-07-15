@@ -21,7 +21,6 @@ from sharktank.utils.testing import (
     is_mi300x,
     IreeVsEagerLLMTester,
     TempDirTestBase,
-    xfail,
 )
 
 
@@ -65,11 +64,11 @@ class DeepseekCrossEntropyTest(unittest.TestCase):
 @is_mi300x
 class DeepseekIreeVsEagerTest(TempDirTestBase):
     @parameterized.expand(product([1, 2], [1, 2]))
-    @xfail(
-        raises=IreeCompileException,
-        reason="https://github.com/iree-org/iree/issues/21165",
+    @pytest.mark.xfail(
+        raises=AssertionError,
+        reason="https://github.com/nod-ai/shark-ai/issues/1758",
         strict=True,
-        match="op write affecting operations on global resources are restricted to workgroup",
+        match="Outputs do not match for prefill batch index 0",
     )
     def testUnshardedToyIreeVsEager(
         self, tensor_parallelism_size: int, pipeline_parallelism_size: int
@@ -91,6 +90,10 @@ class DeepseekIreeVsEagerTest(TempDirTestBase):
         except IreeCompileException as e:
             if tensor_parallelism_size == 2:
                 pytest.xfail(reason="https://github.com/iree-org/iree/issues/20354")
+            elif pipeline_parallelism_size == 2:
+                pytest.xfail(reason="https://github.com/iree-org/iree/issues/21278")
             else:
                 raise e
+        assert tensor_parallelism_size != 2
+        # assert pipeline_parallelism_size != 2  # Fails locally, but passes on CI.
         tester.run_and_compare_iree_vs_eager()

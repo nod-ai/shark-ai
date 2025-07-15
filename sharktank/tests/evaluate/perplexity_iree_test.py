@@ -20,7 +20,6 @@ from sharktank.utils.testing import (
     is_deepseek,
     is_llama_8b,
     is_sharded,
-    xfail,
 )
 
 
@@ -156,7 +155,7 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
-    @xfail(
+    @pytest.mark.xfail(
         raises=IreeCompileException,
         reason="https://github.com/iree-org/iree/issues/21068",
         strict=True,
@@ -195,7 +194,7 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv(extra_args=(f"--use-toy-model",))
         self.run_and_check_perplexity()
 
-    @xfail(
+    @pytest.mark.xfail(
         raises=IreeCompileException,
         reason="https://github.com/iree-org/iree/issues/20914",
         strict=True,
