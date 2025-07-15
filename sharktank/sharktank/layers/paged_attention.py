@@ -1130,11 +1130,6 @@ class PagedAttention:
         if self.attn_type == "gqa":
             k, v = self.gqa(head_count_attn, k, v)
 
-        # Fake quant is already dequantized when stored in the cache.
-        if cache_quantizer and not fake_quant:
-            k = cache_quantizer.dequantize_raw_tensor(k, self.attn_dtype, name="xk_deq")
-            v = cache_quantizer.dequantize_raw_tensor(v, self.attn_dtype, name="xv_deq")
-
         q = q.transpose(1, 2)
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)
