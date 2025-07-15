@@ -111,7 +111,7 @@ class ShardedRotaryLayer(BaseLayer):
 
     def compute_batch_mask(
         self, start_positions: Union[torch.Tensor, ShardedTensor], batch_seq_len: int
-    ) -> torch.Tensor:
+    ) -> tuple[InferenceTensor, InferenceTensor] | InferenceTensor:
 
         if isinstance(start_positions, ShardedTensor):
             shards_0 = []
@@ -136,9 +136,8 @@ class ShardedRotaryLayer(BaseLayer):
         self,
         *,
         xt: Union[torch.Tensor, SplitPrimitiveTensor, ReplicatedTensor],
-        mask: tuple[Union[torch.Tensor, ReplicatedTensor]],
+        mask: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
     ) -> Union[SplitPrimitiveTensor, ReplicatedTensor]:
-
         if not isinstance(xt, ShardedTensor):
             return self._rotary_layer(q=xt, sincos_cache=mask)
 

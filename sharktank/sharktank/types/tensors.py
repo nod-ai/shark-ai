@@ -239,7 +239,7 @@ class InferenceTensor(ABC):
 
     @property
     @abstractmethod
-    def globals(self) -> dict[str, torch.Tensor]:
+    def subtensors(self) -> dict[str, torch.Tensor]:
         """Returns a mapping of global name to root tensor.
 
         The primary accessors on an InferenceTensor access the root tensors in
@@ -257,33 +257,39 @@ class InferenceTensor(ABC):
         It is a representational equality."""
         raise NotImplementedError()
 
-    def transform_globals(
-        self, *transforms: Callable[[dict[str, torch.Tensor]], dict[str, torch.Tensor]]
+    def transform_subtensors(
+        self,
+        *transforms: Callable[[dict[str, torch.Tensor]], dict[str, torch.Tensor]],
+        copy_external_tensor_trait: bool = True,
     ) -> "InferenceTensor":
         """Appplies transformation functions to the InferenceTensors backing
-        globals.
+        tensors.
 
-        Each transformation must produce a new dict of a form that the subclass
-        can handle. Practically, this means that placement and layout related
-        changes are always allowed, while more invasive changes (like dtype)
-        are more case by case.
+        Args:
+            transforms: A sequence of transformation functions.
+                        Each transformation must produce a new dict of a form that the subclass can handle.
+                        Practically, this means that placement and layout related changes are always allowed,
+                        while more invasive changes (like dtype) are more case by case.
+            copy_external_tensor_trait: If True, will copy the ExternalTensorTrait from the previous subtensors to the new ones, if it exists.
 
-        Returns a new InferenceTensor, mutated.
+        Returns:
+            A new InferenceTensor, mutated.
         """
-        prev_globals = self.globals
+        prev_subtensors = self.subtensors
         for transform in transforms:
-            next_globals = transform(prev_globals)
-            # Copy any metadata from prior to next.
-            for k, prev_t in prev_globals.items():
-                new_t = next_globals.get(k)
-                if new_t is None:
-                    continue
-                if new_t is not prev_t:
-                    ext_trait = ExternalTensorTrait.get(prev_t)
-                    if ext_trait is not None:
-                        ext_trait.set(new_t)
-            prev_globals = next_globals
-        return self._clone_with_globals(prev_globals)
+            next_subtensors = transform(prev_subtensors)
+            if copy_external_tensor_trait:
+                # Copy any metadata from prior to next.
+                for k, prev_t in prev_subtensors.items():
+                    new_t = next_subtensors.get(k)
+                    if new_t is None:
+                        continue
+                    if new_t is not prev_t:
+                        ext_trait = ExternalTensorTrait.get(prev_t)
+                        if ext_trait is not None:
+                            ext_trait.set(new_t)
+            prev_subtensors = next_subtensors
+        return self._clone_with_subtensors(prev_subtensors)
 
     @overload
     def to(
@@ -334,7 +340,7 @@ class InferenceTensor(ABC):
             # This makes our type inconsistent with torch tensors.
             # If we use this to transform a theta we want to change the theta.
             # If we want to use this in a computation we don't want to change the theta.
-            return self.transform_globals(
+            return self.transform_subtensors(
                 lambda d: {k: t.to(*args, **kwargs) for k, t in d.items()}
             )
         elif other_overload:
@@ -349,11 +355,22 @@ class InferenceTensor(ABC):
             f"Could not idenify which overload to use given args, and kwargs: {args}{kwargs}"
         )
 
-    def _clone_with_globals(
-        self, new_globals: dict[str, torch.Tensor]
+    def _clone_with_subtensors(
+        self, new_subtensors: dict[str, torch.Tensor]
     ) -> "InferenceTensor":
+        """
+        Creates a clone of this InferenceTensor but with new subtensors.
+        Other properties (like name, shape, etc.) are copied over from this InferenceTensor.
+
+        Args:
+            new_subtensors: A mapping of names to new underlying torch.Tensors that make up this InferenceTensor.
+                            The names must match the original InferenceTensor's subtensors.
+                            If the InferenceTensor is a global tensor from a Theta, then the names must be their unique global names.
+        Returns:
+            A new InferenceTensor with the same type as this one, but with the new subtensors.
+        """
         raise NotImplementedError(
-            f"InferenceTensor {type(self)} does not implement _clone_with_globals"
+            f"InferenceTensor {type(self)} does not implement _clone_with_subtensors"
         )
 
     @property
@@ -724,7 +741,7 @@ class DefaultPrimitiveTensor(PrimitiveTensor):
         return self._data
 
     @property
-    def globals(self) -> dict[str, torch.Tensor]:
+    def subtensors(self) -> dict[str, torch.Tensor]:
         return {
             self.name: self._data,
         }
@@ -734,10 +751,10 @@ class DefaultPrimitiveTensor(PrimitiveTensor):
         builder.add_tensor(self.name, self._data)
         return InferenceTensorMetadata(self.serialized_name(), {"": self.name})
 
-    def _clone_with_globals(
-        self, new_globals: dict[str, torch.Tensor]
+    def _clone_with_subtensors(
+        self, new_subtensors: dict[str, torch.Tensor]
     ) -> "InferenceTensor":
-        return DefaultPrimitiveTensor(name=self.name, data=new_globals[self.name])
+        return DefaultPrimitiveTensor(name=self.name, data=new_subtensors[self.name])
 
     def __invert__(self):
         return DefaultPrimitiveTensor(data=~self._data, name=self.name)
@@ -836,13 +853,13 @@ class PlanarQuantizedTensor(QuantizedTensor):
         return self.layout
 
     @property
-    def globals(self) -> dict[str, torch.Tensor]:
+    def subtensors(self) -> dict[str, torch.Tensor]:
         global_name = self.name
         planes = self.layout.planes
         return {f"{global_name}:{k}": v for k, v in planes.items()}
 
-    def _clone_with_globals(
-        self, new_globals: dict[str, torch.Tensor]
+    def _clone_with_subtensors(
+        self, new_subtensors: dict[str, torch.Tensor]
     ) -> "InferenceTensor":
         # Clone it via layout serialization.
         serialized_name = self.layout.serialized_name()
@@ -852,7 +869,7 @@ class PlanarQuantizedTensor(QuantizedTensor):
         for plane_name in orig_planes.keys():
             # Planes are stored in the globals dict with the inference
             # tensor's name and colon prepended, so look up that way.
-            new_planes[plane_name] = new_globals[f"{global_prefix}{plane_name}"]
+            new_planes[plane_name] = new_subtensors[f"{global_prefix}{plane_name}"]
 
         # Create a new layout via the serialization adaptor.
         try:
@@ -936,7 +953,7 @@ class ShardedTensor(InferenceTensor):
     def __init__(
         self,
         *,
-        ts: list[torch.Tensor] | list[DefaultPrimitiveTensor],
+        ts: list[torch.Tensor] | list[DefaultPrimitiveTensor] | list[QuantizedTensor],
         shape: list[int],
         shard_dim: int | None,
         name: str = UnnamedTensorName,
@@ -945,7 +962,9 @@ class ShardedTensor(InferenceTensor):
         super().__init__(name=name, shape=shape)
         self.shard_dim = shard_dim
         self._devices = devices
-        self._shards: tuple[DefaultPrimitiveTensor] = tuple(
+        self._shards: tuple[DefaultPrimitiveTensor, ...] | tuple[
+            QuantizedTensor, ...
+        ] = tuple(
             DefaultPrimitiveTensor(
                 name=f"{name}.shard.{i}",
                 data=t,
@@ -1005,20 +1024,20 @@ class ShardedTensor(InferenceTensor):
         return self.shards[0].dtype
 
     @property
-    def globals(self) -> dict[str, torch.Tensor]:
-        _globals = {}
+    def subtensors(self) -> dict[str, torch.Tensor]:
+        _subtensors = {}
         for shard in self.shards:
-            for name, tensor in shard.globals.items():
-                _globals[name] = tensor
-        return _globals
+            for name, subtensor in shard.subtensors.items():
+                _subtensors[name] = subtensor
+        return _subtensors
 
     @staticmethod
     def move_shards_to_new_devices(
-        shards: Tuple[torch.Tensor | DefaultPrimitiveTensor, ...],
+        shards: Tuple[Tensor | DefaultPrimitiveTensor | QuantizedTensor, ...],
         *,
         old_devices: Tuple[int, ...],
         new_devices: Tuple[int, ...],
-    ) -> Tuple[DefaultPrimitiveTensor, ...]:
+    ) -> Tuple[Tensor | DefaultPrimitiveTensor | QuantizedTensor, ...]:
         from sharktank.ops import transfer_to_logical_device, barrier_on_logical_device
 
         return tuple(
@@ -1080,20 +1099,20 @@ class ShardedTensorBase(ShardedTensor):
             extra_properties=extra_properties,
         )
 
-    def _clone_with_globals(
-        self, new_globals: dict[str, torch.Tensor]
+    def _clone_with_subtensors(
+        self, new_subtensors: dict[str, torch.Tensor]
     ) -> "InferenceTensor":
         # NOTE: Assuming that the type of each shard does not change
         if len(self._shards) == 1:
-            ts = [self._shards[0]._clone_with_globals(new_globals)]
+            ts = [self._shards[0]._clone_with_subtensors(new_subtensors)]
         else:
-            all_new_keys = list(new_globals.keys())
+            all_new_keys = list(new_subtensors.keys())
             ts = []
             for i, shard in enumerate(self._shards):
                 shard_i_key = f".shard.{i}"
                 matching_keys = [k for k in all_new_keys if shard_i_key in k]
-                new_sub_globals = {k: new_globals.pop(k) for k in matching_keys}
-                ts.append(shard._clone_with_globals(new_sub_globals))
+                new_sub_globals = {k: new_subtensors.pop(k) for k in matching_keys}
+                ts.append(shard._clone_with_subtensors(new_sub_globals))
         return self.__class__(
             name=self.name,
             shape=self.shape,
@@ -1381,7 +1400,7 @@ class ReplicatedTensor(ShardedTensor):
     def __init__(
         self,
         *,
-        ts: list[torch.Tensor] | torch.Tensor,
+        ts: Union[list["AnyTensor"], "AnyTensor"],
         shard_count: None | int = None,
         name: str = UnnamedTensorName,
         devices: Tuple[int] | None = None,
@@ -1393,16 +1412,19 @@ class ReplicatedTensor(ShardedTensor):
         will be replicated that many times.
         """
         if devices is None:
-            num_shards = shard_count if isinstance(ts, torch.Tensor) else len(ts)
+            num_shards = len(ts) if isinstance(ts, list) else shard_count
             devices = tuple(range(num_shards))
 
-        if isinstance(ts, torch.Tensor):
+        if not isinstance(ts, Sequence):
             assert shard_count is not None
             from sharktank.ops import transfer_to_logical_device
 
             ts = [
                 transfer_to_logical_device(ts, devices[i]) for i in range(shard_count)
             ]
+            for i in range(len(ts)):
+                if isinstance(ts[i], InferenceTensor):
+                    ts[i].name = f"{name}.shard.{i}"
             shard_count = None
 
         assert shard_count is None
@@ -1446,20 +1468,20 @@ class ReplicatedTensor(ShardedTensor):
             },
         )
 
-    def _clone_with_globals(
-        self, new_globals: dict[str, torch.Tensor]
+    def _clone_with_subtensors(
+        self, new_subtensors: dict[str, torch.Tensor]
     ) -> "ReplicatedTensor":
         # NOTE: Assuming that the type of each shard does not change
         if len(self._shards) == 1:
-            ts = [self._shards[0]._clone_with_globals(new_globals)]
+            ts = [self._shards[0]._clone_with_subtensors(new_subtensors)]
         else:
-            all_new_keys = list(new_globals.keys())
+            all_new_keys = list(new_subtensors.keys())
             ts = []
             for i, shard in enumerate(self._shards):
                 shard_i_key = f".shard.{i}"
                 matching_keys = [k for k in all_new_keys if shard_i_key in k]
-                new_sub_globals = {k: new_globals.pop(k) for k in matching_keys}
-                ts.append(shard._clone_with_globals(new_sub_globals))
+                new_sub_globals = {k: new_subtensors.pop(k) for k in matching_keys}
+                ts.append(shard._clone_with_subtensors(new_sub_globals))
         return ReplicatedTensor(
             name=self.name,
             ts=ts,

@@ -254,12 +254,11 @@ def fp4_e2m1_to_float32(fp4_indices: torch.Tensor) -> torch.Tensor:
     Raises:
         ValueError: If indices are outside the valid range [0, 15]
     """
-    if torch.any(fp4_indices < _FP4_MIN_INDEX) or torch.any(
-        fp4_indices > _FP4_MAX_INDEX
-    ):
-        raise ValueError(
-            f"FP4 indices must be in range [{_FP4_MIN_INDEX}, {_FP4_MAX_INDEX}], got min={fp4_indices.min().item()}, max={fp4_indices.max().item()}"
-        )
+    torch._check(
+        fp4_indices.min().item() >= _FP4_MIN_INDEX
+        or fp4_indices.max().item() <= _FP4_MAX_INDEX,
+        f"FP4 indices must be in range [{_FP4_MIN_INDEX}, {_FP4_MAX_INDEX}], got min={fp4_indices.min().item()}, max={fp4_indices.max().item()}",
+    )
 
     lookup_table = get_fp4_lookup_table(FloatingPointFormat.E2M1)
     return lookup_table[fp4_indices.long()]

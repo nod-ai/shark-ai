@@ -28,6 +28,7 @@ from .utils import trivially_replicable
 from . import default_impls
 from . import custom_impls
 from . import sharded_impls
+from . import quantized_impls
 
 from . import attention_impls
 
