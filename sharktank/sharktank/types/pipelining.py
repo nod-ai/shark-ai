@@ -40,32 +40,13 @@ def pipeline_parallelize_theta(
         """
         for block_key in list(block_data.keys()):
             tensor = block_data[block_key]
-
-            old_shards, old_devices = [tensor], (0,)
-            if isinstance(tensor, ShardedTensor):
-                old_shards, old_devices = tensor.shards, tensor.devices
-
-            new_shards = ShardedTensor.move_shards_to_new_devices(
-                old_shards, old_devices=old_devices, new_devices=new_devices
-            )
-
-            for i, (old_shard, new_shard) in enumerate(zip(old_shards, new_shards)):
-                old_subtensors = old_shard.subtensors
-                new_subtensors = new_shard.subtensors
-
-                for key in new_subtensors.keys():
-                    DeviceTensorTrait(new_devices[i]).set(new_subtensors[key])
-                    if old_tensor_trait := ExternalTensorTrait.get(old_subtensors[key]):
-                        ExternalTensorTrait(
-                            old_tensor_trait.external_scope,
-                            old_tensor_trait.external_name,
-                        ).set(new_subtensors[key])
+            shards = tensor.shards if isinstance(tensor, ShardedTensor) else [tensor]
 
             if isinstance(tensor, ShardedTensor):
-                new_tensor = tensor.clone(ts=new_shards, devices=new_devices)
+                new_tensor = tensor.clone(ts=shards, devices=new_devices)
             else:
                 new_tensor = ReplicatedTensor(
-                    ts=new_shards, name=tensor.name, devices=new_devices
+                    ts=shards, name=tensor.name, devices=new_devices
                 )
 
             block_data[block_key] = new_tensor
