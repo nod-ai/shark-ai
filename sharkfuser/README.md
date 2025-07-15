@@ -83,7 +83,7 @@ Tests and samples that are built with the cmake flag `-DSHARKFUSER_DEBUG_BUILD=O
 ## Project Roadmap
 - [x] Build/test infra, logging, code coverage reporting
 - [x] Graph, tensor, node datastructures / builder API
-- [ ] CI (GHA workflows)
+- [x] CI (GHA workflows)
 - [ ] conv_fprop MLIR ASM emitter
 - [ ] IREE compiler integration
 - [ ] IREE runtime integration

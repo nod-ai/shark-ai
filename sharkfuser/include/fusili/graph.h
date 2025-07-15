@@ -96,31 +96,6 @@ inline Graph &Graph::set_intermediate_data_type(DataType_t const type) {
   return *this;
 }
 
-inline std::shared_ptr<TensorAttr> Graph::tensor(TensorAttr const &tensor) {
-  auto tensor_ptr = std::make_shared<TensorAttr>(tensor);
-  full_graph_inputs.insert(tensor_ptr);
-  return tensor_ptr;
-}
-
-inline std::shared_ptr<TensorAttr>
-Graph::conv_fprop(std::shared_ptr<TensorAttr> const &x,
-                  std::shared_ptr<TensorAttr> const &w, ConvFPropAttr &attr) {
-
-  // Set inputs
-  attr.set_X(x).set_W(w);
-
-  // Set outputs
-  if (attr.get_name().empty())
-    attr.set_name("conv_fprop_" + std::to_string(sub_nodes.size()));
-  auto y = output_tensor(attr.get_name() + "::Y");
-  attr.set_Y(y);
-
-  sub_nodes.emplace_back(
-      std::make_unique<ConvFPropNode>(std::move(attr), context));
-
-  return y;
-}
-
 inline error_t Graph::query_tensor_of_uid(int64_t const uid,
                                           TensorAttr &tensor) const {
   for (auto const &i_tensor : full_graph_inputs) {
@@ -137,6 +112,37 @@ inline error_t Graph::query_tensor_of_uid(int64_t const uid,
   }
   return {error_code_t::TENSOR_NOT_FOUND,
           "Tensor with UID " + std::to_string(uid) + " not found"};
+}
+
+inline std::shared_ptr<TensorAttr> Graph::tensor(TensorAttr const &tensor) {
+  auto tensor_ptr = std::make_shared<TensorAttr>(tensor);
+  full_graph_inputs.insert(tensor_ptr);
+  return tensor_ptr;
+}
+
+inline std::shared_ptr<TensorAttr>
+Graph::conv_fprop(std::shared_ptr<TensorAttr> const &x,
+                  std::shared_ptr<TensorAttr> const &w,
+                  ConvFPropAttr &conv_attr) {
+  if (conv_attr.get_name().empty())
+    conv_attr.set_name("conv_fprop_" + std::to_string(sub_nodes.size()));
+
+  if (x->get_name().empty())
+    x->set_name(conv_attr.get_name() + "::X");
+  if (w->get_name().empty())
+    w->set_name(conv_attr.get_name() + "::W");
+
+  // Set inputs
+  conv_attr.set_X(x).set_W(w);
+
+  // Set outputs
+  auto y = output_tensor(conv_attr.get_name() + "::Y");
+  conv_attr.set_Y(y);
+
+  sub_nodes.emplace_back(
+      std::make_unique<ConvFPropNode>(std::move(conv_attr), context));
+
+  return y;
 }
 
 } // namespace fusili

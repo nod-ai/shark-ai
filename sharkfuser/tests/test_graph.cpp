@@ -23,30 +23,33 @@ TEST_CASE("Graph tensor() adds input tensor", "[graph]") {
 TEST_CASE("Graph conv_fprop() adds ConvFPropNode and output tensor",
           "[graph]") {
   Graph g;
-  auto x = g.tensor(TensorAttr()
-                        .set_name("X")
-                        .set_dim({1, 3, 8, 8})
-                        .set_stride({192, 1, 24, 3}));
-  auto w = g.tensor(TensorAttr()
-                        .set_name("W")
-                        .set_dim({4, 3, 3, 3})
-                        .set_stride({27, 1, 9, 3}));
+  auto x =
+      g.tensor(TensorAttr().set_dim({1, 3, 8, 8}).set_stride({192, 1, 24, 3}));
+  auto w =
+      g.tensor(TensorAttr().set_dim({4, 3, 3, 3}).set_stride({27, 1, 9, 3}));
   ConvFPropAttr attr;
   attr.set_padding({0, 0}).set_stride({1, 1}).set_dilation({1, 1});
   auto y = g.conv_fprop(x, w, attr);
-  y->set_output(true);
+
+  // Names for inputs are auto-populated when not set
+  REQUIRE(x->get_name() == "conv_fprop_0::X");
+  REQUIRE(w->get_name() == "conv_fprop_0::W");
   REQUIRE(y->get_name() == "conv_fprop_0::Y");
+
+  // Y is virtual (intermediate tensor) unless specified as output
+  REQUIRE(y->get_is_virtual() == true);
+  y->set_output(true);
   REQUIRE(y->get_is_virtual() == false);
 }
 
 TEST_CASE("Graph validate() returns OK for valid graph", "[graph]") {
   Graph g;
   auto x = g.tensor(TensorAttr()
-                        .set_name("x")
+                        .set_name("X")
                         .set_dim({1, 3, 8, 8})
                         .set_stride({192, 1, 24, 3}));
   auto w = g.tensor(TensorAttr()
-                        .set_name("w")
+                        .set_name("W")
                         .set_dim({4, 3, 3, 3})
                         .set_stride({27, 1, 9, 3}));
   ConvFPropAttr attr;
