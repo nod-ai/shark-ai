@@ -46,9 +46,10 @@ class RequestQueueManager:
         self.model_params = model_params
         self.available_page_count = max_page_count
 
-
-        logger.debug(f"Initialized with max queue size: {self._max_queue_size}, "
-                     f"available pages: {self.available_page_count}")
+        logger.debug(
+            f"Initialized with max queue size: {self._max_queue_size}, "
+            f"available pages: {self.available_page_count}"
+        )
 
     def current_tasks(self) -> list[int]:
         """Returns the IDs of current tasks in the queue."""
@@ -134,7 +135,9 @@ class RequestQueueManager:
             return None
 
         # Pre-calculate total needed pages
-        total_needed_pages = self._calculate_needed_pages(decode_configs, input_batch, is_pretokenized)
+        total_needed_pages = self._calculate_needed_pages(
+            decode_configs, input_batch, is_pretokenized
+        )
 
         # Check if total memory fits
         with self._lock:
