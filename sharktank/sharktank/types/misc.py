@@ -4,12 +4,13 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from numbers import Integral
 from collections.abc import Sequence
 
 __all__ = [
+    "canonicalize_index",
     "canonicalize_slice_descriptor",
     "canonicalize_slice_object",
+    "CanonicalSlice",
     "Slice",
     "squeeze_slice",
     "unsqueeze_shape_for_slicing",
@@ -17,51 +18,71 @@ __all__ = [
 ]
 
 Slice = (
-    slice
-    | Integral
-    | Sequence[Integral]
-    | tuple[slice | None | Integral | Sequence[Integral], ...]
+    slice | None | int | Sequence[int] | tuple[slice | None | int | Sequence[int], ...]
 )
-CanonicalSlice = tuple[slice | Integral | Sequence[Integral], ...]
+CanonicalSlice = tuple[slice | int | Sequence[int], ...]
 """In canonical form the slice is a tuple with size equal to the rank of the shape +
 number of singleton dimensions to insert.
 Ranges for a dimension are always represented as a slice object, and insertion of singleton dimensions as None.
 The slice always has start, stop and step as non-negative numbers.
+Indices are always positive.
 """
-
-# def canonicalize_range_boundary(b: int | None, size: int) -> int:
-#     b = 0 if b is None else b
-#     return b if b >= 0 else b + size
 
 
 def canonicalize_slice_descriptor(s: Slice, shape: Sequence[int]) -> CanonicalSlice:
     """Make a slice in canonical form."""
+    if not isinstance(s, tuple):
+        s = (s,)
 
     slice_ = squeeze_slice(s)
 
-    if not isinstance(s, tuple):
-        res = [canonicalize_slice_object(slice_, shape[0])]
-    else:
-        res = list(canonicalize_slice_object(e, shape[i]) for i, e in enumerate(slice_))
+    res = list(
+        canonicalize_slice_object(e, shape[i])
+        if isinstance(e, slice)
+        else canonicalize_index(e, shape[i])
+        for i, e in enumerate(slice_)
+    )
 
     res.extend(slice(0, shape[i], 1) for i in range(len(res), len(shape)))
     return unsqueeze_slice_like(tuple(res), s)
 
 
+def canonicalize_index(index: int | Sequence[int], size: int) -> int | Sequence[int]:
+    """Make the index positive. size + index for size < 0."""
+
+    if isinstance(index, int):
+        if size < abs(index):
+            raise IndexError(f"Index {index} out of bounds ({-size}, {size})")
+        return index if index >= 0 else size + index
+
+    return [canonicalize_index(i, size) for i in index]
+
+
 def canonicalize_slice_object(s: slice, size: int) -> slice:
-    """Make the slice boundaries always positive numbers and the step always a number."""
+    """Make the slice boundaries always positive numbers and the step always a number.
+
+    E.g.
+    For size=3
+    slice(None, None, None) -> slice(0, 3, 1)
+    slice(-2, -1, 2) -> slice(1, 2, 2)
+    """
     start = 0 if s.start is None else s.start
-    start = start if start >= 0 else size + start
+    start = canonicalize_index(start, size)
 
     stop = size if s.stop is None else s.stop
-    stop = stop if stop >= 0 else size + stop
+    stop = canonicalize_index(stop, size)
 
     step = 1 if s.step is None else s.step
     return slice(start, stop, step)
 
 
 def squeeze_slice(s: Slice) -> Slice:
-    """Remove Nones that represent insertion of a singleton dimensions."""
+    """Remove Nones that represent insertion of a singleton dimensions.
+
+    In slicing None represents an insertion of a dimension with size 1.
+
+    E.g.
+    (None, 1, None, slice(1), None) -> (1, slice(1))"""
     if not isinstance(s, tuple):
         s = (s,)
 
