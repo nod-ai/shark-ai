@@ -495,6 +495,11 @@ def run_iree_module_function(
 ) -> List[iree.runtime.DeviceArray]:
     """Run IREE module function with optional tracing of arguments/results."""
     vm_function = module.lookup_function(function_name)
+    if vm_function is None:
+        available_functions = module.function_names
+        raise ValueError(
+            f"Function '{function_name}' not found in module. Available functions: {available_functions}"
+        )
     invoker = iree.runtime.FunctionInvoker(
         vm_context=vm_context,
         # TODO: rework iree.runtime.FunctionInvoker interface for multiple devices.
