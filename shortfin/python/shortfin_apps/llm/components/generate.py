@@ -18,6 +18,7 @@ import threading
 
 # TODO: Have a generic "Responder" interface vs just the concrete impl.
 from shortfin.support.responder import AbstractResponder, ResponderErrorCodes
+from shortfin_apps.llm.components.decoder.decoder import LlmDecoder
 
 from .config_struct import DecodeConfig
 from .io_struct import (
@@ -97,6 +98,47 @@ class GenerateItemProcess(sf.Process):
             exec_req.free_cache_pages()
 
     def results_callback(self, result: List[List[int]]):
+        self.result_token_ids = result
+
+
+class NewGenerateItemProcess(sf.Process):
+    def __init__(
+        self,
+        *,
+        rid: int,
+        prefill_batcher,
+        decode_batcher,
+        page_cache,
+        input_text: str,
+        input_token_ids: list[int],
+        decode_config: DecodeConfig,
+        fiber: sf.Fiber,
+    ):
+        super().__init__(fiber=fiber)
+        self.rid = rid
+        self.input_text = input_text
+        self.input_token_ids = input_token_ids
+        self.result_token_ids: list[int] = []
+        self.decode_config = decode_config
+        self.cache = page_cache
+        self.decoder = LlmDecoder(
+            decode_config,
+            prefill_batcher=prefill_batcher,
+            decode_batcher=decode_batcher,
+            results_callback=self.results_callback,
+            rid=self.rid,
+        )
+
+    def cancel(self):
+        self.decoder.cancel()
+
+    async def run(self):
+        try:
+            await self.decoder.run(input_ids=self.input_token_ids)
+        finally:
+            self.decoder.release()
+
+    def results_callback(self, result: list[list[int]]):
         self.result_token_ids = result
 
 
@@ -200,8 +242,6 @@ class ClientGenerateBatchProcess(sf.Process):
                     else self.gen_req.text
                 )
 
-                input_tokens = input_tokens if is_pretokenized else input_tokens.ids
-
                 idx, fiber = await self.service.main_fiber_pool.get()
                 indices.append(idx)
 
@@ -211,16 +251,30 @@ class ClientGenerateBatchProcess(sf.Process):
                     else self.gen_req.rid[index]
                 )
 
-                gen_process = GenerateItemProcess(
-                    prefill_batcher=self.service.prefill_batcher,
-                    decode_batcher=self.service.decode_batcher,
-                    page_cache=self.service.page_cache,
-                    rid=rid,
-                    input_text=input_text,
-                    input_token_ids=input_tokens,
-                    decode_config=decode_config,
-                    fiber=fiber,
-                )
+                input_tokens = input_tokens if is_pretokenized else input_tokens.ids
+                if self.service.server_params.use_new_decoder:
+                    gen_process = NewGenerateItemProcess(
+                        prefill_batcher=self.service.prefill_batcher,
+                        decode_batcher=self.service.decode_batcher,
+                        page_cache=self.service.page_cache,
+                        rid=rid,
+                        input_text=input_text,
+                        input_token_ids=input_tokens,
+                        decode_config=decode_config,
+                        fiber=fiber,
+                    )
+                else:
+                    gen_process = GenerateItemProcess(
+                        prefill_batcher=self.service.prefill_batcher,
+                        decode_batcher=self.service.decode_batcher,
+                        page_cache=self.service.page_cache,
+                        rid=rid,
+                        input_text=input_text,
+                        input_token_ids=input_tokens,
+                        decode_config=decode_config,
+                        fiber=fiber,
+                    )
+
                 gen_processes.append(gen_process)
                 gen_process.launch()
 
