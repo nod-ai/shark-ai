@@ -23,8 +23,10 @@ from shortfin_apps.llm.components.messages import (
 from typing import Callable, List, Union
 
 
-def combine_scores_null():
-    raise ValueError("Unimplemented")
+def combine_scores_null(old_score: np.ndarray, step: np.ndarray, norm: float):
+    new_score = old_score + step
+    new_score = new_score - norm
+    return new_score
 
 
 def combine_scores_softmax(old_score: np.ndarray, step: np.ndarray, norm: float):
