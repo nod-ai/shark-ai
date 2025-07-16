@@ -28,7 +28,6 @@ from sharktank.types import (
     StaticScaledQuantizer,
     TensorScaledLayout,
 )
-from sharktank.types.tensors import unbox_tensor_sharded
 from sharktank import ops, kernels
 from sharktank.kernels.mlir_kernel import *
 
