@@ -16,6 +16,8 @@ import unittest
 from typing import List, Optional
 import os
 
+from sharktank.utils.testing import assert_tensor_close
+
 
 def test_sharded_rotary_table():
     bs = 4

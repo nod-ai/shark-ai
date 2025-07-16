@@ -13,6 +13,7 @@ from sharktank.layers import (
 from sharktank.layers.testing import make_llama_attention_block_theta
 from sharktank.types.sharding import PagedLlamaAttentionBlockSharding
 from sharktank.types import SplitPrimitiveTensor, unbox_tensor
+from sharktank.utils.misc import iterables_equal
 from sharktank.utils.random import make_rand_torch
 import torch
 from sharktank import ops
@@ -85,7 +86,7 @@ class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
             sharded_state_as_unsharded = sharded_cache.unshard_state(
                 sharded_cache_state
             )[0]
-            assert sharded_state_as_unsharded.shape == cache_state.shape
+            assert iterables_equal(sharded_state_as_unsharded.shape, cache_state.shape)
             assert ops.equal(
                 cache_state,
                 sharded_state_as_unsharded,
@@ -99,7 +100,7 @@ class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
             sharded_state_as_unsharded = sharded_cache.unshard_state(
                 sharded_cache_state
             )[0]
-            assert sharded_state_as_unsharded.shape == cache_state.shape
+            assert iterables_equal(sharded_state_as_unsharded.shape, cache_state.shape)
             torch.testing.assert_close(
                 unbox_tensor(cache_state),
                 unbox_tensor(sharded_state_as_unsharded),

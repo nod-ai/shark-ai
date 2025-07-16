@@ -73,7 +73,7 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
         sharded_state_as_unsharded = self.sharded_cache.unshard_state(
             sharded_cache_state
         )[0]
-        assert sharded_state_as_unsharded.shape == cache_state.shape
+        assert iterables_equal(sharded_state_as_unsharded.shape, cache_state.shape)
         assert ops.equal(
             cache_state,
             sharded_state_as_unsharded,

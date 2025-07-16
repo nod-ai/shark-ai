@@ -14,6 +14,7 @@ from sharktank.models.punet.layers import ResnetBlock2D
 from sharktank.types import *
 from sharktank.models.punet.sharding import ResnetBlock2DSplitOutputChannelsSharding
 from sharktank import ops
+from sharktank.utils.testing import assert_tensor_close
 
 
 class ResnetBlockTest(unittest.TestCase):
@@ -85,9 +86,7 @@ class ResnetBlockTest(unittest.TestCase):
                 and sharded_result.shard_count == shard_count
             )
             actual_result = ops.unshard(sharded_result)
-            torch.testing.assert_close(
-                expected_result, actual_result, rtol=0, atol=5e-4
-            )
+            assert_tensor_close(expected_result, actual_result, rtol=0, atol=5e-4)
 
 
 if __name__ == "__main__":

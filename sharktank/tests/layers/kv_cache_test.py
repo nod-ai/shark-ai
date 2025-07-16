@@ -7,9 +7,10 @@
 import pytest
 import torch
 
-from sharktank.ops import replicate, reshard_split, unshard
+from sharktank.ops import replicate, reshard_split, unshard, cat
 from sharktank.layers import *
 from sharktank.types import *
+from sharktank.utils.testing import assert_tensor_close
 
 
 @pytest.mark.parametrize(
@@ -65,8 +66,8 @@ def test_paged(dtype: torch.dtype):
         transformer_block_index=1,
         page_ids=write_page_ids,
     )
-    torch.testing.assert_close(write_ones, read_back[0])
-    torch.testing.assert_close(write_twos, read_back[1])
+    assert_tensor_close(write_ones, read_back[0])
+    assert_tensor_close(write_twos, read_back[1])
 
     # Check the others are still zero:
     for i in range(transformer_block_count):
@@ -77,10 +78,10 @@ def test_paged(dtype: torch.dtype):
             transformer_block_index=i,
             page_ids=write_page_ids,
         )
-        torch.testing.assert_close(
+        assert_tensor_close(
             read_ones[0], torch.full(read_ones[0].shape, 0.0).to(dtype=dtype)
         )
-        torch.testing.assert_close(
+        assert_tensor_close(
             read_ones[1], torch.full(read_ones[0].shape, 0.0).to(dtype=dtype)
         )
 
@@ -124,8 +125,8 @@ def test_paged(dtype: torch.dtype):
             [write_twos] + [write_fours] * block_seq_stride, dim=1
         )
 
-    torch.testing.assert_close(check_concat_0, read_back[0])
-    torch.testing.assert_close(check_concat_1, read_back[1])
+    assert_tensor_close(check_concat_0, read_back[0])
+    assert_tensor_close(check_concat_1, read_back[1])
 
 
 @pytest.mark.parametrize(
@@ -199,12 +200,12 @@ def test_write_range(dtype: torch.dtype, write_seq_len: int):
 
     # Check that the correct slice was written
     check_1 = read_back[0][:, seq_length - write_seq_len :]
-    torch.testing.assert_close(
+    assert_tensor_close(
         check_1,
         write_ones,
     )
     check_2 = read_back[1][:, seq_length - write_seq_len :]
-    torch.testing.assert_close(
+    assert_tensor_close(
         check_2,
         write_twos,
     )
@@ -263,7 +264,7 @@ def test_write_range_varied_start_positions():
             start = start_positions[i].item()
             expected = written[i]
             actual = read_back[part_id][i, start : start + write_seq_len]
-            torch.testing.assert_close(actual, expected)
+            assert_tensor_close(actual, expected)
 
 
 def test_sharded_paged():
@@ -311,8 +312,8 @@ def test_sharded_paged():
         transformer_block_index=1,
         page_ids=write_page_ids,
     )
-    torch.testing.assert_close(unshard(write_ones), unshard(read_back[0]))
-    torch.testing.assert_close(unshard(write_twos), unshard(read_back[1]))
+    assert_tensor_close(unshard(write_ones), unshard(read_back[0]))
+    assert_tensor_close(unshard(write_twos), unshard(read_back[1]))
 
     # Write timestep
     shape = (bs, 1, attn_head_count, attn_head_dim)
@@ -338,12 +339,12 @@ def test_sharded_paged():
         page_ids=page_ids,
     )
 
-    check_concat_0 = torch.concat(
+    check_concat_0 = cat(
         [unshard(write_ones)] + block_seq_stride * [unshard(write_threes)], dim=1
     )
-    check_concat_1 = torch.concat(
+    check_concat_1 = cat(
         [unshard(write_twos)] + block_seq_stride * [unshard(write_fours)], dim=1
     )
 
-    torch.testing.assert_close(check_concat_0, unshard(read_back[0]))
-    torch.testing.assert_close(check_concat_1, unshard(read_back[1]))
+    assert_tensor_close(check_concat_0, unshard(read_back[0]))
+    assert_tensor_close(check_concat_1, unshard(read_back[1]))

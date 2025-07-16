@@ -216,7 +216,7 @@ class Batch:
         self,
         phase: str,
         arg_name: str,
-        arg: torch.Tensor | ShardedTensor | list[torch.Tensor | ShardedTensor],
+        arg: AnyTensor | list[AnyTensor],
         decode_step: int | None = None,
         rank: int | None = None,
     ):
@@ -230,6 +230,7 @@ class Batch:
                     phase, arg_name, arg.shards[rank]._data, decode_step, rank
                 )
         else:
+            arg = unbox_tensor(arg)
             if arg.dtype in [torch.float8_e4m3fnuz, torch.bfloat16]:
                 arg = arg.to(torch.uint8)
             if phase == "decode":
