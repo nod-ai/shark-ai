@@ -38,7 +38,7 @@ def model_params():
         paged_kv_cache=PagedKVCacheParams(
             block_seq_stride=2,
             attention_head_count_kv=42,
-            device_block_count=256,
+            device_block_count=100,
             kv_cache_dtype=sfnp.float16,
         ),
     )
@@ -53,7 +53,6 @@ def responder():
 def manager(model_params):
     return RequestQueueManager(
         model_params=model_params,
-        max_page_count=100,
         max_queue_size=3,
     )
 

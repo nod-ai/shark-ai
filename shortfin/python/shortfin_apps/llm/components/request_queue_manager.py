@@ -28,7 +28,6 @@ class RequestQueueManager:
         self,
         *,
         model_params: ModelParams,
-        max_page_count: int,
         max_queue_size: int = DEFAULT_MAX_QUEUE_SIZE,
     ):
         # Use model_params.decode_batch_sizes to decide actual _max_queue_size
@@ -44,7 +43,7 @@ class RequestQueueManager:
         self._request_pages = {}
 
         self.model_params = model_params
-        self.available_page_count = max_page_count
+        self.available_page_count = self.model_params.paged_kv_cache.device_block_count
 
         logger.debug(
             f"Initialized with max queue size: {self._max_queue_size}, "
