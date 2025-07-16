@@ -121,7 +121,7 @@
 | sharktank/sharktank/types/gguf\_interop/layouts.py                            |      104 |       68 |     35% |47-49, 53-60, 64, 67, 107-110, 118-144, 157, 160, 170-217, 226-227, 230, 234, 237, 246-247, 250, 254, 257, 282-283, 287-300, 304, 307 |
 | sharktank/sharktank/types/layout\_utils.py                                    |      111 |        8 |     93% |90, 125, 127, 204-207, 250, 259 |
 | sharktank/sharktank/types/layouts.py                                          |      268 |       51 |     81% |113, 156-157, 162-163, 188-195, 282-294, 332, 337, 342, 391, 395, 471, 479, 487, 495, 508, 521, 529, 541, 544, 547-555, 558-568, 634, 642, 645, 662, 667 |
-| sharktank/sharktank/types/ocp\_floats.py                                      |       79 |       18 |     77% |89-114, 159 |
+| sharktank/sharktank/types/ocp\_floats.py                                      |       82 |       18 |     78% |89-114, 159 |
 | sharktank/sharktank/types/pipelining.py                                       |       42 |        0 |    100% |           |
 | sharktank/sharktank/types/quantizers.py                                       |      329 |       59 |     82% |75-83, 94, 148, 240, 271-272, 275-276, 292-298, 309, 329-330, 341, 419-420, 429, 444, 450, 464, 470, 495, 497, 556, 558, 588, 592, 607-608, 625, 652, 661, 692, 694, 727, 731, 735, 758, 776, 783, 813-814, 818, 830-840 |
 | sharktank/sharktank/types/sharding.py                                         |      158 |        8 |     95% |18, 34, 100, 137-148, 321 |
@@ -219,7 +219,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |       88 |        4 |     95% |   279-292 |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **20564** | **4110** | **80%** |           |
+|                                                                     **TOTAL** | **20567** | **4110** | **80%** |           |
 
 
 ## Setup coverage badge
