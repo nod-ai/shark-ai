@@ -238,10 +238,18 @@ def mlir_kernel(
                 # Create input descriptions.
                 input_descs = [sel.arg_tensor(i) for i in range(len(input_args))]
 
+                def is_scalar(dim: _Dim) -> bool:
+                    """
+                    Scalars have no dimensions.
+                    """
+                    return bool(dim.value is not None and dim.value == 0)
+
                 # Specialize static dimensions.
                 for sym_ty, desc in zip(inputs, input_descs):
                     static_dims = [
-                        i for i, dim in enumerate(sym_ty.shapes) if not dim.dynamic
+                        i
+                        for i, dim in enumerate(sym_ty.shapes)
+                        if not dim.dynamic and not is_scalar(dim)
                     ]
                     desc.specialize_dims(*static_dims)
 

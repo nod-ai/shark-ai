@@ -11,21 +11,21 @@ from sharktank.kernels.mlir_kernel import *
 
 N = DynDim.N
 M = StaticDim.M
+D = StaticDim.DIMENSION_IDX(0)
 
 S = Dtype.S
 I64 = Dtype.I64
 
 
 @mlir_kernel(
-    inputs=(MLIRTensor[N, M, S], MLIRTensor[N, I64]),
+    inputs=(MLIRTensor[N, M, S], MLIRTensor[N, I64], MLIRTensor[D, I64]),
     results=(MLIRTensor[N, M, S],),
 )
-def sharktank_gather(source, indices, result=None):
+def sharktank_gather(source, indices, dimension_idx, result=None):
     mlir = """
     module {
-    util.func @{{kernel_name}}(%source: !source, %indices: !indices) -> !result {
-      %c0 = arith.constant 0 : index
-      %n_dim = tensor.dim %source, %c0 : !source
+    util.func @{{kernel_name}}(%source: !source, %indices: !indices, %dimension_idx: !dimension_idx) -> !result {
+      %n_dim = tensor.dim %source, %dimension_idx : !source
       %empty = tensor.empty(%n_dim) : !result
       %result = linalg.generic {
         indexing_maps = [
@@ -54,7 +54,8 @@ class mlir_kernel_test(unittest.TestCase):
     def test_mlir_kernel(self):
         source = torch.randn([64, 32]).to(torch.float16)
         indices = torch.tensor([3, 7, 54])
-        out = sharktank_gather(source, indices)
+        dimension_idx = torch.tensor(0)
+        out = sharktank_gather(source, indices, dimension_idx)
         torch.testing.assert_close(source[3], out[0])
         torch.testing.assert_close(source[7], out[1])
         torch.testing.assert_close(source[54], out[2])
