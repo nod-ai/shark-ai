@@ -285,6 +285,9 @@ def float32_to_fp4_e2m1(values: torch.Tensor) -> torch.Tensor:
     Returns:
         torch.Tensor: FP4 indices as unpacked uint8 values in range [0, 15]
     """
+    if values.numel() == 0:
+        return torch.empty_like(values, dtype=torch.uint8)
+
     lookup_table = get_fp4_lookup_table(FloatingPointFormat.E2M1)
 
     # Find closest FP4 value for each input
