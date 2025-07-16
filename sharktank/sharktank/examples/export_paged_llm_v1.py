@@ -9,7 +9,7 @@
 import os
 import logging
 import json
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, Optional
 import torch
 
 from iree.turbine.aot import *
@@ -336,7 +336,7 @@ def main():
                 return logits
 
             if top_k == 1:
-                return argmax_output(logits, chunk_size=hp.context_length // 128)
+                return argmax_output(logits, chunk_size=None)
 
             return topk_output(
                 logits,
@@ -482,7 +482,7 @@ def main():
                 return logits
 
             if top_k == 1:
-                return argmax_output(logits, chunk_size=hp.context_length // 128)
+                return argmax_output(logits, chunk_size=None)
 
             return topk_output(
                 logits,
@@ -492,7 +492,7 @@ def main():
             )
 
     def argmax_output(
-        logits: torch.Tensor, chunk_size: int
+        logits: torch.Tensor, chunk_size: Optional[int]
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Return the max logits and indices for the given logits.
 

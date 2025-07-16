@@ -47,8 +47,7 @@ def build_token_selector_config(
         decode_config,
         prefill_callback=prefill_batcher.submit,
         decode_callback=decode_batcher.submit,
-        decode_begin_callback=decode_batcher.reserve_workitem,
-        decode_end_callback=decode_batcher.complete_workitem,
+        decode_reserve_callback=decode_batcher.reserve_workload,
         results_callback=results_callback,
     )
 

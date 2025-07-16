@@ -125,6 +125,14 @@ class PagePool:
             page_table_host.copy_to(page_table)
             self.page_tables.append(page_table)
 
+    def available_page_count(self):
+        with self._lock:
+            return len(self.available_pages)
+
+    def total_page_count(self):
+        with self._lock:
+            return len(self.attn_page_entries)
+
     def acquire_free_pages(self, count: int) -> list[PageInfo] | None:
         with self._lock:
             available = len(self.available_pages)
@@ -135,6 +143,16 @@ class PagePool:
     def free_pages(self, pages: list[PageInfo]):
         with self._lock:
             self.available_pages.extend(pages)
+
+    def copy_page_index(self, src_page: int, dst_page: int):
+        # Copy the data on each device
+        for page_table in self.page_tables:
+            # View of source and destination pages
+            src_view = page_table.view(src_page)
+            dst_view = page_table.view(dst_page)
+
+            # Copy the data
+            dst_view.copy_from(src_view)
 
     def copy_page(self, src_page: PageInfo) -> PageInfo:
         """
@@ -154,14 +172,7 @@ class PagePool:
 
         dst_page = dst_page[0]
 
-        # Copy the data on each device
-        for page_table in self.page_tables:
-            # View of source and destination pages
-            src_view = page_table.view(src_page.index)
-            dst_view = page_table.view(dst_page.index)
-
-            # Copy the data
-            dst_view.copy_from(src_view)
+        self.copy_page_index(src_page=src_page.index, dst_page=dst_page.index)
 
         return dst_page
 

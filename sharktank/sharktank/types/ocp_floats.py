@@ -168,6 +168,7 @@ _FP4_E2M1_MIN_VALUE = -6.0
 _FP4_E2M1_MAX_VALUE = 6.0
 _FP4_MIN_INDEX = 0
 _FP4_MAX_INDEX = 15
+_FP4_E2M1_MAX_EXPONENT = 2
 
 
 def e8m0_to_float32(e8m0_values: torch.Tensor) -> torch.Tensor:
@@ -228,15 +229,16 @@ def compute_fp4_block_scales(
     if use_fe8m0_scale:
         finfo = torch.finfo(dtype)
         block_max.clamp_(min=finfo.eps)
-        fe8m0_scales = torch.ceil(block_max)
-        e8m0_values = float32_to_e8m0(fe8m0_scales)
+        exponent = torch.floor(torch.log2(block_max)) - _FP4_E2M1_MAX_EXPONENT
+        scales_float = torch.pow(2.0, exponent)
+        e8m0_values = float32_to_e8m0(scales_float)
         scales = e8m0_values.squeeze(-1)
         scales_float = e8m0_to_float32(e8m0_values)
     else:
-        # Use regular float scales - scale to use full FP4 range
         finfo = torch.finfo(torch.float32)
-        scales_float = block_max / _FP4_E2M1_MAX_VALUE
-        scales_float.clamp_(min=finfo.eps)  # In-place clamp
+        block_max.clamp_(min=finfo.eps)
+        exponent = torch.floor(torch.log2(block_max)) - _FP4_E2M1_MAX_EXPONENT
+        scales_float = torch.pow(2.0, exponent)
         scales = scales_float.squeeze(-1)
 
     return scales, scales_float
