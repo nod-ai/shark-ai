@@ -28,7 +28,7 @@ from sharktank.types import (
     StaticScaledQuantizer,
     TensorScaledLayout,
 )
-from sharktank.types.tensors import unbox_tensor
+from sharktank.types.tensors import unbox_tensor_sharded
 from sharktank import ops, kernels
 from sharktank.kernels.mlir_kernel import *
 
@@ -1185,9 +1185,9 @@ class PagedAttention:
         if softcap is not None:
             raise ValueError("softcap not supported yet")
 
-        q = unbox_tensor(q)
-        k = unbox_tensor(k)
-        v = unbox_tensor(v)
+        q = unbox_tensor_sharded(q)
+        k = unbox_tensor_sharded(k)
+        v = unbox_tensor_sharded(v)
         if q.dtype != self.attn_dtype:
             q = q.to(self.attn_dtype)
         if k.dtype != self.attn_dtype:
@@ -1196,7 +1196,7 @@ class PagedAttention:
             v = v.to(self.attn_dtype)
 
         if mask is not None:
-            mask = unbox_tensor(mask)
+            mask = unbox_tensor_sharded(mask)
             if mask.dtype != self.attn_dtype:
                 mask = mask.to(self.attn_dtype)
 

@@ -1626,6 +1626,27 @@ def unbox_tensor(t: Any) -> Tensor:
     raise ValueError(f"Expected a Tensor or PrimitiveTensor but got {type(t)}")
 
 
+def unbox_tensor_sharded(t: Any):
+    """Unboxes a value while preserving sharding structure.
+
+    For ShardedTensors, this unboxes the individual shards but keeps the sharding
+    structure intact. For other tensors, behaves like unbox_tensor.
+    """
+    if isinstance(t, Tensor):
+        return t
+    elif isinstance(t, PrimitiveTensor):
+        return t.as_torch()
+    elif isinstance(t, QuantizedTensor):
+        return t.unpack().dequant()
+    elif isinstance(t, ShardedTensor):
+        # Unbox the individual shards while preserving sharding structure
+        unboxed_shards = [unbox_tensor_sharded(shard) for shard in t.shards]
+        return t.clone(ts=unboxed_shards)
+    elif t is None:
+        return None
+    raise ValueError(f"Expected a Tensor or PrimitiveTensor but got {type(t)}")
+
+
 ########################################################################################
 # Serialization helpers
 ########################################################################################
