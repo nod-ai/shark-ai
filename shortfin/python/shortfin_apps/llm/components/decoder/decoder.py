@@ -20,7 +20,7 @@ from shortfin_apps.llm.components.messages import (
     LlmInferenceExecRequest,
     InferencePhase,
 )
-from typing import Callable, List, Union
+from typing import Callable, List, Optional, Tuple, Union
 
 
 def combine_scores_null(old_score: np.ndarray, step: np.ndarray, norm: float):
@@ -126,6 +126,98 @@ class PageManager:
         self._allocated_pages = []
 
 
+class TokenSelector:
+    def __init__(self, decode_config: DecodeConfig):
+        self._selected_tokens: List[List[int]] = []
+        self._selected_beams: List[List[int]] = []
+        self._scores: List[float] = [0.0]
+        self._completed: List[Tuple[int, int]] = []
+
+        self._decode_config = decode_config
+        self._eos_token_id = self._decode_config.eos_token_id
+        self._hypothesis = self._decode_config.num_beams
+
+        self._select_function = None
+        self._select_function = (
+            select_topk if decode_config.use_beam_search else select_greedy
+        )
+
+        self._score_function = None
+        self._score_function = _score_functions[decode_config.logits_normalization]
+
+    def _select(self, logits: List[np.ndarray], indices: List[Optional[np.ndarray]]):
+        # Setup next steps:
+        step = len(self._selected_beams)
+        max_score = max(self._scores)
+
+        logits = [
+            self._score_function(np.asarray(l), s, max_score)
+            for l, s in zip(logits, self._scores)
+        ]
+
+        logits = np.concatenate(logits, axis=1)[0]
+        token_options = logits.shape[-1]
+        tokens, scores = self._select_function(logits, self._decode_config)
+
+        if indices[0] is not None:
+            indices = [np.asarray(i) for i in indices]
+            indices = np.concatenate(indices, axis=1)[0]
+            beams = tokens // token_options
+            tokens = np.take(indices, tokens)
+        else:
+            beams = tokens // token_options
+            tokens = tokens % token_options
+
+        # Filter out eos cases
+        eos = self._eos_token_id
+        next_tokens = [token for token in tokens if token != eos]
+        next_beams = [beam for token, beam in zip(tokens, beams) if token != eos]
+        next_scores = [score for token, score in zip(tokens, scores) if token != eos]
+        next_completed = [
+            (beam, step) for token, beam in zip(tokens, beams) if token == eos
+        ]
+
+        self._completed.extend(next_completed)
+        self._selected_beams.append(next_beams)
+        self._selected_tokens.append(next_tokens)
+        self._scores = next_scores
+
+        return next_beams, next_tokens
+
+    def step(self, logits: list[np.ndarray], indices: list[Optional[np.ndarray]]):
+        beams, tokens = self._select(logits, indices)
+
+        return beams, tokens
+
+    def done(self):
+        return len(self._completed) >= self._hypothesis
+
+    def _build_response(self, beam, end_step):
+        tokens = []
+        for step in range(end_step - 1, -1, -1):
+            token = self._selected_tokens[step][beam]
+            beam = self._selected_beams[step][beam]
+            tokens.append(token)
+        tokens.reverse()
+        return tokens
+
+    def results(self):
+        results = []
+        for completed in self._completed:
+            beam, end_step = completed
+            result = self._build_response(beam, end_step)
+            result.append(self._eos_token_id)
+            results.append(result)
+
+        # Build remaining necessary that are in flight
+        more = self._hypothesis - len(results)
+        for i in np.argsort(self._scores)[-more:]:
+            result = self._build_response(i, len(self._selected_beams))
+            results.append(result)
+
+        return results
+
+
 class LlmDecoder:
     def __init__(
         self,
@@ -135,6 +227,7 @@ class LlmDecoder:
         results_callback: Callable[[Union[int, List[int]]], None],
         rid,
     ):
+        decode_config.eos_token_id = 374
         self._decode_config = decode_config
         self._eos_token = self._decode_config.eos_token_id
         self._prefill_batcher = prefill_batcher
@@ -148,14 +241,6 @@ class LlmDecoder:
         self._lock = threading.Lock()
         self._cancelled = False
 
-        self._select_function = (
-            select_topk if self._decode_config.use_beam_search else select_greedy
-        )
-
-        self._score_function = _score_functions[
-            self._decode_config.logits_normalization
-        ]
-
     def cancel(self):
         """Cancel inproceess work."""
         with self._lock:
@@ -165,45 +250,17 @@ class LlmDecoder:
         """Release any remain resources held by the decoder"""
         self._page_manager.release_pages()
 
-    def select(self, reqs):
-        # Setup next steps:
-        max_score = max(req.score for req in reqs)
-        logits = [
-            self._score_function(np.asarray(req.result_logits), req.score, max_score)
-            for req in reqs
-        ]
-        logits = np.concatenate(logits, axis=1)[0]
-
-        token_options = logits.shape[-1]
-        tokens, scores = self._select_function(logits, self._decode_config)
-
-        indices = [np.asarray(req.result_indices) for req in reqs]
-
-        if indices[0] is not None:
-            indices = np.concatenate(indices, axis=1)[0]
-            beams = tokens // token_options
-            tokens = np.take(indices, tokens)
-        else:
-            beams = tokens // token_options
-            tokens = tokens % token_options
-
-        return beams, tokens, scores
-
-    def setup_req(self, decode_reqs, beams, tokens, scores):
+    def setup_req(self, decode_reqs, beams, tokens, position):
         next_token_ids = []
         next_page_ids = []
 
         # TODO: Allocation more requests
-        if len(decode_reqs) < tokens.shape[0]:
+        if len(decode_reqs) < len(tokens):
             raise ValueError("NEED TO ALLOCATE MORE REQS")
 
-        completed = []
         for beam, token in zip(beams, tokens):
             req = decode_reqs[beam]
-            next_tokens = req.input_token_ids + [token]
-            if token == self._eos_token:
-                completed.append(next_tokens)
-                continue
+            next_tokens = [token]
 
             next_page_ids.append(req.page_ids)
             next_token_ids.append(next_tokens)
@@ -218,11 +275,10 @@ class LlmDecoder:
 
         for i, ids in enumerate(next_token_ids):
             decode_reqs[i].input_token_ids = ids
-            decode_reqs[i].start_position = len(ids) - 1
+            decode_reqs[i].start_position = position
             decode_reqs[i].page_ids = next_page_ids[i]
-            decode_reqs[i].score = scores[i]
 
-        return decode_reqs[: tokens.shape[0]], completed
+        return decode_reqs[: len(tokens)]
 
     def create_decode_reqs(self, prefill_req: LlmInferenceExecRequest):
         num_beams = (
@@ -241,32 +297,39 @@ class LlmDecoder:
             for _ in range(num_beams)
         ]
 
+        for req in decode_reqs:
+            req.start_position = len(prefill_req.input_token_ids)
+
         return decode_reqs
 
     async def run(self, input_ids):
+        input_length = len(input_ids)
         prefill_req = LlmInferenceExecRequest(
             phase=InferencePhase.PREFILL,
             input_token_ids=input_ids,
             rid=self._rid,
         )
-        prompt_length = len(input_ids)
         prefill_req._cache = self._page_cache
 
         # Run Prefill:
         self._prefill_batcher.submit(prefill_req)
         await prefill_req.done
 
+        token_selector = TokenSelector(self._decode_config)
+
         # Run token selection and send to emitter:
-        beams, tokens, scores = self.select([prefill_req])
+        beams, tokens = token_selector.step(
+            [prefill_req.result_logits], [prefill_req.result_indices]
+        )
 
         # Decode requests:
         decode_reqs = self.create_decode_reqs(prefill_req)
 
         # Update the reqs:
-        to_run, completed = self.setup_req(decode_reqs, beams, tokens, scores)
+        to_run = self.setup_req(decode_reqs, beams, tokens, input_length)
 
         # Run Decoder:
-        for _ in range(self._decode_config.max_completion_tokens - 1):
+        for i in range(self._decode_config.max_completion_tokens - 1):
             self._decode_batcher.reserve_workload(
                 rid=prefill_req.orig_instance_id, count=len(to_run)
             )
@@ -278,28 +341,21 @@ class LlmDecoder:
             gathered = asyncio.gather(*[req.done for req in to_run])
             await gathered
 
-            beams, tokens, scores = self.select(to_run)
+            beams, tokens = token_selector.step(
+                [req.result_logits for req in to_run],
+                [req.result_indices for req in to_run],
+            )
 
-            to_run, new_completed = self.setup_req(decode_reqs, beams, tokens, scores)
-            completed.extend(new_completed)
+            to_run = self.setup_req(decode_reqs, beams, tokens, input_length + i + 1)
 
-            if len(completed) > self._decode_config.num_beams:
-                break
-
-            if self._cancelled:
+            if token_selector.done() or self._cancelled:
                 break
 
         # Remove the reservation:
         self._decode_batcher.reserve_workload(rid=prefill_req.orig_instance_id, count=0)
 
-        # Finish out with uncomplete responses:
-        incomplete_needed = max(self._decode_config.num_beams - len(completed), 0)
-        incomplete_responses = [
-            req.input_token_ids for req in to_run[:incomplete_needed]
-        ]
-        completed.extend(incomplete_responses)
-
-        completed = [resp[prompt_length:] for resp in completed]
+        # Grab responses:
+        completed = token_selector.results()
 
         # Return Results:
         self._results_callback(completed)

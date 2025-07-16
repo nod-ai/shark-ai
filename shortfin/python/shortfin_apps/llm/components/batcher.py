@@ -582,7 +582,8 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         seq_stride = self.seq_stride
         bsl = max((1 + len(r.input_token_ids)) for r in self.exec_requests)
         bsl = int(math.ceil(bsl / seq_stride) * seq_stride)
-        block_count = bsl // seq_stride
+        block_count = max(r.block_count for r in self.exec_requests)
+        block_count = max(bsl // seq_stride, block_count)
         req_count = len(self.exec_requests)
         logger.debug("Decode bs=%d, bsl=%d", bs, bsl)
 
