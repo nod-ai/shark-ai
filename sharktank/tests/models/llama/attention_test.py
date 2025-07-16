@@ -8,8 +8,8 @@ import unittest
 
 import torch
 
+from sharktank.layers import build_rotary_layer
 from sharktank.layers.configs.llm_configs import *
-from sharktank.layers.rotary_embedding import build_rotary_layer
 from sharktank.layers.paged_attention import PagedAttention
 from sharktank.models.llm import AttentionFFNBlock
 from sharktank.models.llama.testing import *
@@ -19,6 +19,7 @@ from transformers.models.llama.modeling_llama import (
     LlamaMLP,
     LlamaRMSNorm,
     LlamaDecoderLayer,
+    LlamaRotaryEmbedding,
 )
 from transformers.models.llama.configuration_llama import LlamaConfig
 
@@ -82,7 +83,6 @@ class AttentionBlockTest(unittest.TestCase):
         attention_embedding = build_rotary_layer(
             rope_dimension_count=rope_dimension_count,
             rope_freq_base=rope_freq_base,
-            max_seqlen=max_seq_len,
             device="cpu",
             use_hf=True,
             yarn_beta_slow=1,
@@ -90,7 +90,6 @@ class AttentionBlockTest(unittest.TestCase):
             yarn_factor=8,
             yarn_original_context_len=8192,
         )
-        position_embeddings = attention_embedding.rotary_embed_table()
         input_tensor = make_rand_torch(
             (1, seq_len, head_count * head_dim), dtype=torch.float32
         )
@@ -111,6 +110,13 @@ class AttentionBlockTest(unittest.TestCase):
             max_position_embeddings=max_seq_len,
             rms_norm_eps=rms_epsilon,
             rope_theta=10000,
+            rope_scaling={
+                "factor": 8.0,
+                "low_freq_factor": 1.0,
+                "high_freq_factor": 4.0,
+                "original_max_position_embeddings": 8192,
+                "rope_type": "llama3",
+            },
         )
         llama_attention_block = LlamaAttention(
             config=llama_config, layer_idx=block_index
@@ -161,11 +167,14 @@ class AttentionBlockTest(unittest.TestCase):
         llama_decoder_layer = LlamaDecoderLayer(
             config=llama_config, layer_idx=block_index
         )
+        llama_rotary_embedding = LlamaRotaryEmbedding(config=llama_config)
+        position_embeddings = llama_rotary_embedding(
+            input_tensor, torch.arange(seq_len).unsqueeze(0)
+        )
         llama_decoder_layer.self_attn = llama_attention_block
         llama_decoder_layer.mlp = llama_mlp
         llama_decoder_layer.input_layernorm = llama_input_layernorm
         llama_decoder_layer.post_attention_layernorm = llama_post_attention_layernorm
-        position_embeddings = [x[:seq_len, :].unsqueeze(0) for x in position_embeddings]
         huggingface_output = llama_decoder_layer(
             input_tensor,
             position_embeddings=position_embeddings,

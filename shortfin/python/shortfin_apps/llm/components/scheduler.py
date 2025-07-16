@@ -12,14 +12,7 @@ import threading
 logger = logging.getLogger(__name__)
 
 
-class NewWorkItem(sf.Message):
-    def __init__(self, *, count: int, rid: int):
-        super().__init__()
-        self.count = count
-        self.rid = rid
-
-
-class DoneWorkItem(sf.Message):
+class UpdateWorkload(sf.Message):
     def __init__(self, *, count: int, rid: int):
         super().__init__()
         self.count = count
@@ -46,10 +39,7 @@ class Workgroup:
     def members(self):
         return set(self._members.keys())
 
-    def get_members(self, members):
-        return set(members) & set(self._members.keys())
-
-    def is_member(self, rid):
+    def has_member(self, rid):
         return rid in self._members
 
     def member_count(self, rid):
@@ -61,25 +51,20 @@ class Workgroup:
     def can_add(self, count):
         return self._size + count <= self._max_size
 
-    def add(self, *, rid, count):
+    def remove(self, *, rid):
         if rid in self._members:
-            new_size = self._members[rid] + count
-            self._members[rid] = new_size
-        else:
-            self._members[rid] = count
-
-        self._size = self._size + count
-
-    def remove(self, *, rid, count):
-        assert rid in self._members
-        assert count <= self._members[rid]
-
-        self._size = self._size - count
-        new_count = self._members[rid] - count
-        if new_count == 0:
+            old_count = self._members[rid]
             self._members.pop(rid)
-        else:
-            self._members[rid] = new_count
+            self._size = self._size - old_count
+
+    def resize(self, *, rid, count):
+        if count == 0:
+            self.remove(rid=rid)
+            return
+
+        old_count = 0 if rid not in self._members else self._members[rid]
+        self._members[rid] = count
+        self._size = self._size + count - old_count
 
     def schedule(self, *, pending, strobe: int):
         pending = [pending[rid] for rid in pending if rid in self._members]
@@ -202,13 +187,13 @@ class Scheduler:
         if rid in self._workgroup_placement:
             wid = self._workgroup_placement[rid]
             workgroup = self._workgroups[wid]
-            if workgroup.can_add(count):
-                workgroup.add(rid=rid, count=count)
-                return
             existing = workgroup.member_count(rid=rid)
-            workgroup.remove(rid=rid, count=existing)
-            count = count + existing
+            if workgroup.can_add(count - existing):
+                workgroup.resize(rid=rid, count=count)
+                return
 
+            # If we cannot fit the workgroup in the existing dispatch we need to redistribute:
+            workgroup.remove(rid=rid)
             self._workgroup_placement.pop(rid)
             if workgroup.is_empty():
                 self._workgroups.pop(wid)
@@ -218,7 +203,7 @@ class Scheduler:
             wid = self._wid
 
             wg = Workgroup(wid=wid, max_size=self._ideal_batch_size)
-            wg.add(rid=rid, count=count)
+            wg.resize(rid=rid, count=count)
             self._workgroups[wid] = wg
             self._workgroup_placement[rid] = wid
 
@@ -241,42 +226,36 @@ class Scheduler:
             schedule_new()
             return
 
-        workgroup_sel.add(count=count, rid=rid)
+        workgroup_sel.resize(count=count, rid=rid)
         self._workgroup_placement[rid] = workgroup_sel.wid
 
-    def _release(self, *, rid, count):
+    def _remove(self, *, rid):
         assert rid in self._workgroup_placement
 
         wid = self._workgroup_placement[rid]
         workgroup = self._workgroups[wid]
 
-        workgroup.remove(rid=rid, count=count)
+        workgroup.remove(rid=rid)
         if workgroup.is_empty():
             self._workgroups.pop(wid)
 
-        remove = True
         for wid in self._workgroups:
             workgroup = self._workgroups[wid]
-            if workgroup.is_member(rid=rid):
-                remove = False
+            if workgroup.has_member(rid=rid):
                 break
 
-        if remove:
-            self._workgroup_placement.pop(rid)
+        self._workgroup_placement.pop(rid)
 
     def handle_scheduler(self, msg):
-        if isinstance(msg, NewWorkItem):
-            self._schedule(rid=msg.rid, count=msg.count)
-            return True
+        if isinstance(msg, UpdateWorkload):
+            if msg.count == 0:
+                self._remove(rid=msg.rid)
+                return True
 
-        if isinstance(msg, DoneWorkItem):
-            self._release(rid=msg.rid, count=msg.count)
+            self._schedule(rid=msg.rid, count=msg.count)
             return True
 
         return False
 
-    def reserve_workitem(self, *, batcher, count, rid):
-        batcher.submit(NewWorkItem(count=count, rid=rid))
-
-    def release_workitem(self, *, batcher, count, rid):
-        batcher.submit(DoneWorkItem(count=count, rid=rid))
+    def reserve_workload(self, *, batcher, count, rid):
+        batcher.submit(UpdateWorkload(count=count, rid=rid))

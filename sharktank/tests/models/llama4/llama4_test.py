@@ -30,9 +30,8 @@ class Llama4Test(TempDirTestBase):
 
     @pytest.mark.xfail(
         is_mi300x,
-        raises=TypeError,
         strict=False,
-        reason="argument of type 'NoneType' is not iterable",
+        reason="argument of type 'NoneType' is not iterable / numerical errors",
     )
     def testCompareToyEagerVsHuggingFace(self):
         dtype = torch.float32
@@ -46,7 +45,6 @@ class Llama4Test(TempDirTestBase):
         model = PagedLlmModelV1(theta=theta, config=config)
         hf_model = transformers.models.llama4.Llama4ForCausalLM(hf_config)
 
-        orig_state_dict = hf_model.state_dict()
         hf_state_dict = theta_to_hugging_face_state_dict(theta, config)
         hf_model.load_state_dict(hf_state_dict)
 

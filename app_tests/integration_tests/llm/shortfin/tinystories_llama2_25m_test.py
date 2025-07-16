@@ -106,12 +106,12 @@ pytestmark = pytest.mark.parametrize(
 # goldens are generated in: https://colab.research.google.com/drive/1pFiyvyIxk1RsHnw5gTk_gu9QiQNy9gfW?usp=sharing
 GOLDEN_PROMPT = "Once upon a time"
 GOLDEN_RESPONSE = {
-    ", there was a little girl named Lily. She loved to play with her"
+    ", there was a little girl named Lily. She loved to play with"
 }  # this assumes purely deterministic greedy search
 
 GOLDEN_BEAM_SEARCH_RESPONSE = {
-    ", there was a little girl named Lily. She loved to play with her",
-    ", there was a little girl named Lily. She had a big, red",
+    ", there was a little girl named Lily. She loved to play with",
+    ", there was a little girl named Lily. She had a big,",
 }  # this assumes purely deterministic beam search with 2 beams
 
 

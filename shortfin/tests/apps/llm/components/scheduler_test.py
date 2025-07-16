@@ -22,13 +22,7 @@ class FakeBatcher:
 
 def reserve_helper(scheduler, *, rid, count):
     batcher = FakeBatcher()
-    scheduler.reserve_workitem(rid=rid, count=count, batcher=batcher)
-    assert scheduler.handle_scheduler(batcher.pop()[0]) == True
-
-
-def release_helper(scheduler, *, rid, count):
-    batcher = FakeBatcher()
-    scheduler.release_workitem(rid=rid, count=count, batcher=batcher)
+    scheduler.reserve_workload(rid=rid, count=count, batcher=batcher)
     assert scheduler.handle_scheduler(batcher.pop()[0]) == True
 
 
@@ -124,7 +118,7 @@ def test_scheduler_reserved_basic():
     assert len(to_schedule) == 1
     assert to_schedule[0] == workload[0]
 
-    release_helper(scheduler, rid=0, count=1)
+    reserve_helper(scheduler, rid=0, count=4)
     workload = make_workload({0: 4})
     to_schedule = scheduler.should_execute(pending=workload, strobe=2)
     assert len(to_schedule) == 1

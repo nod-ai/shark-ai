@@ -6,7 +6,7 @@
 
 import torch
 
-from sharktank.layers.rotary_embedding_hf import RotaryEmbeddingHfLayer
+from sharktank.layers.rotary_embedding_hf import RotaryEmbeddingLayer
 from transformers.models.llama.modeling_llama import (
     LlamaRotaryEmbedding,
     apply_rotary_pos_emb,
@@ -39,13 +39,15 @@ class HFRotaryEmbedding(torch.nn.Module):
 class STRotaryEmbedding(torch.nn.Module):
     def __init__(self, head_dim, rope_theta, interleaved: bool = True):
         super().__init__()
-        self._rotary = RotaryEmbeddingHfLayer(
+        self._rotary = RotaryEmbeddingLayer(
             head_dim=head_dim, rope_theta=rope_theta, interleaved=interleaved
         )
 
     def forward(self, q, k, positions):
-        cossin_cache = self._rotary.compute_sincos_cache(positions, q.dtype, q.device)
-        return self._rotary(q, k, cossin_cache)
+        cossin_cache = self._rotary.compute_sincos_cache(positions, q.dtype)
+        q = self._rotary(q, cossin_cache)
+        k = self._rotary(k, cossin_cache)
+        return (q, k)
 
 
 @pytest.mark.parametrize(

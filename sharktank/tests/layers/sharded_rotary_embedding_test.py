@@ -10,11 +10,7 @@ import torch
 from sharktank.layers.rotary_embedding import build_rotary_layer
 from sharktank.utils.testing import assert_tensor_close
 from sharktank import ops
-from sharktank.types import (
-    ShardedTensor,
-    SplitPrimitiveTensor,
-    unbox_tensor,
-)
+from sharktank.types import SplitPrimitiveTensor
 
 import unittest
 from typing import List, Optional
@@ -33,7 +29,6 @@ def test_sharded_rotary_table():
     xk = torch.rand((bs, max_seqlen, heads, rope_dims), dtype=torch.float)
     default_layer = build_rotary_layer(
         rope_dimension_count=rope_dims,
-        max_seqlen=max_seqlen,
         rope_freq_base=rope_freq_base,
     )
     oq = default_layer(xt=xq, start_index=0)
@@ -44,7 +39,6 @@ def test_sharded_rotary_table():
     xk = SplitPrimitiveTensor(ts=xk, shard_dim=2, shard_count=4)
     shard_layer = build_rotary_layer(
         rope_dimension_count=rope_dims,
-        max_seqlen=max_seqlen,
         rope_freq_base=rope_freq_base,
         tensor_parallelism_size=4,
     )
