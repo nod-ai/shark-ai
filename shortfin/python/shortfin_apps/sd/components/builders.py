@@ -63,12 +63,12 @@ def get_vmfb_filenames(
     model_params: ModelParams,
     model=None,
     target: str = "gfx942",
-    driver: str = "amdgpu",
+    driver: str = "hip",
 ) -> list:
     vmfb_filenames = []
     file_stems = get_file_stems(model_params)
     for stem in file_stems:
-        vmfb_filenames.extend([stem + "_" + driver + ".vmfb"])
+        vmfb_filenames.extend([stem + "_" + target + ".vmfb"])
     return filter_by_model(vmfb_filenames, model)
 
 
