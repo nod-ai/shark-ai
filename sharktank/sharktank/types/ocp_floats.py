@@ -168,6 +168,7 @@ _FP4_E2M1_MIN_VALUE = -6.0
 _FP4_E2M1_MAX_VALUE = 6.0
 _FP4_MIN_INDEX = 0
 _FP4_MAX_INDEX = 15
+_FP4_E2M1_MAX_EXPONENT = 2
 
 
 def e8m0_to_float32(e8m0_values: torch.Tensor) -> torch.Tensor:
@@ -228,15 +229,16 @@ def compute_fp4_block_scales(
     if use_fe8m0_scale:
         finfo = torch.finfo(dtype)
         block_max.clamp_(min=finfo.eps)
-        fe8m0_scales = torch.ceil(block_max)
-        e8m0_values = float32_to_e8m0(fe8m0_scales)
+        exponent = torch.floor(torch.log2(block_max)) - _FP4_E2M1_MAX_EXPONENT
+        scales_float = torch.pow(2.0, exponent)
+        e8m0_values = float32_to_e8m0(scales_float)
         scales = e8m0_values.squeeze(-1)
         scales_float = e8m0_to_float32(e8m0_values)
     else:
-        # Use regular float scales - scale to use full FP4 range
         finfo = torch.finfo(torch.float32)
-        scales_float = block_max / _FP4_E2M1_MAX_VALUE
-        scales_float.clamp_(min=finfo.eps)  # In-place clamp
+        block_max.clamp_(min=finfo.eps)
+        exponent = torch.floor(torch.log2(block_max)) - _FP4_E2M1_MAX_EXPONENT
+        scales_float = torch.pow(2.0, exponent)
         scales = scales_float.squeeze(-1)
 
     return scales, scales_float
@@ -254,12 +256,11 @@ def fp4_e2m1_to_float32(fp4_indices: torch.Tensor) -> torch.Tensor:
     Raises:
         ValueError: If indices are outside the valid range [0, 15]
     """
-    if torch.any(fp4_indices < _FP4_MIN_INDEX) or torch.any(
-        fp4_indices > _FP4_MAX_INDEX
-    ):
-        raise ValueError(
-            f"FP4 indices must be in range [{_FP4_MIN_INDEX}, {_FP4_MAX_INDEX}], got min={fp4_indices.min().item()}, max={fp4_indices.max().item()}"
-        )
+    torch._check(
+        fp4_indices.min().item() >= _FP4_MIN_INDEX
+        or fp4_indices.max().item() <= _FP4_MAX_INDEX,
+        f"FP4 indices must be in range [{_FP4_MIN_INDEX}, {_FP4_MAX_INDEX}], got min={fp4_indices.min().item()}, max={fp4_indices.max().item()}",
+    )
 
     lookup_table = get_fp4_lookup_table(FloatingPointFormat.E2M1)
     return lookup_table[fp4_indices.long()]

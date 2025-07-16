@@ -700,8 +700,8 @@ def assert_text_encoder_state_close(
 
 
 def assert_logits_kl_divergence_close(
-    actual: torch.Tensor,
-    expected: torch.Tensor,
+    actual: AnyTensor,
+    expected: AnyTensor,
     atol: float,
 ):
     """
@@ -713,8 +713,10 @@ def assert_logits_kl_divergence_close(
         expected: The expected logits tensor.
         atol: The absolute tolerance for the KL divergence loss.
     """
-    actual_probabilities = actual.log_softmax(dim=2, dtype=torch.float32)
-    expected_probabilities = expected.log_softmax(dim=2, dtype=torch.float32)
+    actual_probabilities = unbox_tensor(actual).log_softmax(dim=2, dtype=torch.float32)
+    expected_probabilities = unbox_tensor(expected).log_softmax(
+        dim=2, dtype=torch.float32
+    )
 
     kl_loss = torch.nn.KLDivLoss(reduction="batchmean", log_target=True)
     loss = kl_loss(input=actual_probabilities, target=expected_probabilities)

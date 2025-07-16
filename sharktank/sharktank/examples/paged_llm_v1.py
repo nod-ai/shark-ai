@@ -71,14 +71,12 @@ def main(cli_args: list[str] | None = None):
         intermediates_saver = SaveModuleResultTensorsPatch()
         intermediates_saver.patch_child_modules(model)
 
-    generator = TorchGenerator(model, tokenizer, max_decode_steps=args.max_decode_steps)
+    generator = TorchGenerator(model, tokenizer)
 
-    assert (
-        args.prompt is None or args.prompt_seq_len is None
-    ), 'CLI args "--prompt-seq-len" and "--prompt" are mutually exclusive'
-    assert (
-        args.prompt is not None or args.prompt_seq_len is not None
-    ), 'Exactly one of CLI args "--prompt-seq-len" and "--prompt" must be provided.'
+    assert (args.prompt is None) ^ (
+        args.prompt_seq_len is None
+    ), 'Exactly one of "--prompt" or "--prompt-seq-len" must be provided'
+
     if args.prompt_seq_len is not None:
         torch.random.manual_seed(0)
         token_ids, seq_lens = generator.generate_random_tokens(
@@ -91,6 +89,7 @@ def main(cli_args: list[str] | None = None):
         seq_lens=seq_lens,
         dump_path=args.dump_path,
         dump_decode_steps=args.dump_decode_steps,
+        max_decode_steps=args.max_decode_steps,
         use_attention_mask=args.use_attention_mask,
     )
     results = batch.prefill()
@@ -104,7 +103,6 @@ def main(cli_args: list[str] | None = None):
         counter = 0
         while not batch.done:
             results = batch.decode(results)
-            batch.print_current_results()
 
             if args.save_intermediates_path:
                 intermediates_saver.save_file(

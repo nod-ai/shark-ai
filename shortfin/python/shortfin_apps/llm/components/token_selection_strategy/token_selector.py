@@ -45,26 +45,14 @@ class TokenSelector(BaseTokenSelectionStrategy):
             config.decode_config,
         )
 
-        reservations = beam_group.active_beam_count
-        config.decode_begin_callback(rid=exec_req.orig_instance_id, count=reservations)
-        for _ in range(config.decode_config.max_completion_tokens):
+        for _ in range(config.decode_config.max_completion_tokens - 1):
             if self.cancelled:
                 break
 
             active_beam_count = len(beam_group.active_beams)
-            if reservations > active_beam_count:
-                release_amount = reservations - active_beam_count
-                config.decode_end_callback(
-                    rid=exec_req.orig_instance_id, count=release_amount
-                )
-                reservations = active_beam_count
-
-            if reservations < active_beam_count:
-                acquire_amount = active_beam_count - reservations
-                config.decode_begin_callback(
-                    rid=exec_req.orig_instance_id, count=acquire_amount
-                )
-                reservations = active_beam_count
+            config.decode_reserve_callback(
+                rid=exec_req.orig_instance_id, count=active_beam_count
+            )
 
             for beam in beam_group.active_beams:
                 req = beam.exec_req
@@ -77,7 +65,7 @@ class TokenSelector(BaseTokenSelectionStrategy):
             if not beam_group.active_beams:
                 break
 
-        config.decode_end_callback(rid=exec_req.orig_instance_id, count=reservations)
+        config.decode_reserve_callback(rid=exec_req.orig_instance_id, count=0)
         beam_group.clean_up()
 
         results = beam_group.get_results()

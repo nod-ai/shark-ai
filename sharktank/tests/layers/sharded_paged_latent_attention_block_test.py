@@ -9,8 +9,8 @@ from copy import deepcopy
 
 import torch
 
+from sharktank.layers import build_rotary_layer
 from sharktank.layers.paged_llama_attention_block import PagedLlamaAttentionBlock
-from sharktank.layers.rotary_embedding import build_rotary_layer
 from sharktank.layers.testing import make_rand_torch
 
 from sharktank.models.deepseek.toy_deepseek import generate
@@ -19,6 +19,8 @@ from sharktank.types import unbox_tensor, SplitPrimitiveTensor
 from sharktank.types.sharding import shard_theta, LatentAttentionBlockSharding
 from sharktank import ops
 from sharktank.utils.create_cache import *
+from sharktank.utils import iterables_equal
+from sharktank.utils.testing import assert_tensor_close
 
 
 class ShardedPagedLatentAttentionBlockTest(unittest.TestCase):
@@ -79,7 +81,7 @@ class ShardedPagedLatentAttentionBlockTest(unittest.TestCase):
             sharded_state_as_unsharded = sharded_cache.unshard_state(
                 sharded_cache_state
             )[0]
-            assert sharded_state_as_unsharded.shape == cache_state.shape
+            assert iterables_equal(sharded_state_as_unsharded.shape, cache_state.shape)
             assert ops.equal(
                 cache_state,
                 sharded_state_as_unsharded,
@@ -93,10 +95,10 @@ class ShardedPagedLatentAttentionBlockTest(unittest.TestCase):
             sharded_state_as_unsharded = sharded_cache.unshard_state(
                 sharded_cache_state
             )[0]
-            assert sharded_state_as_unsharded.shape == cache_state.shape
-            torch.testing.assert_close(
-                unbox_tensor(cache_state),
-                unbox_tensor(sharded_state_as_unsharded),
+            assert iterables_equal(sharded_state_as_unsharded.shape, cache_state.shape)
+            assert_tensor_close(
+                cache_state,
+                sharded_state_as_unsharded,
                 rtol=rtol,
                 atol=atol,
             )
@@ -120,7 +122,6 @@ class ShardedPagedLatentAttentionBlockTest(unittest.TestCase):
         embedding = build_rotary_layer(
             rope_dimension_count=hp.rope_dimension_count,
             rope_freq_base=hp.rope_freq_base,
-            max_seqlen=hp.context_length,
         )
 
         reference_model = PagedLlamaAttentionBlock(
@@ -147,7 +148,6 @@ class ShardedPagedLatentAttentionBlockTest(unittest.TestCase):
         sharded_embedding = build_rotary_layer(
             rope_dimension_count=hp.rope_dimension_count,
             rope_freq_base=hp.rope_freq_base,
-            max_seqlen=hp.context_length,
             tensor_parallelism_size=tensor_parallelism_size,
         )
 
@@ -174,7 +174,7 @@ class ShardedPagedLatentAttentionBlockTest(unittest.TestCase):
 
         actual_result = unbox_tensor(ops.unshard(sharded_result))
 
-        torch.testing.assert_close(actual_result, expected_result, rtol=rtol, atol=atol)
+        assert_tensor_close(actual_result, expected_result, rtol=rtol, atol=atol)
         assert_close_unsharded_and_sharded_cache_states(
             cache_state, sharded_cache_state
         )
