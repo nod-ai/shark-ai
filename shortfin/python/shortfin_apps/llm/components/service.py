@@ -55,7 +55,7 @@ class LlmGenerateService(GenerateService):
         self._initialize_worker_and_fiber()
         self._initialize_page_cache()
         self.queue_manager = RequestQueueManager(
-            model_params=self.model_params, page_pool=self.page_pool
+            model_params=self.model_params, max_page_count=self.model_params.paged_kv_cache.device_block_count
         )
 
         self.main_fiber_pool = FiberPool(
@@ -102,10 +102,6 @@ class LlmGenerateService(GenerateService):
             raise ValueError(
                 f"Unknown prefix_sharing_algorithm {self.server_params.prefix_sharing_algorithm}. Currently only supporting 'trie' and 'none'."
             )
-
-    @property
-    def page_pool(self):
-        return self.page_cache.page_pool  # Delegates access
 
     def start(self):
         component_modules = self.initialize_program_modules("main")
