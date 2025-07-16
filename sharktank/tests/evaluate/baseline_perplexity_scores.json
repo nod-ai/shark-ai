@@ -223,12 +223,12 @@
   },
   "deepseek_v3_torch": {
     "perplexities": [
-      1478.516846,
-      5466.473633,
-      3303.35376,
-      290.115479
+      1473.71228,
+      5495.096191,
+      3287.181885,
+      290.746002
     ],
-    "mean_perplexity": 2634.61493
+    "mean_perplexity": 2636.684089
   },
   "deepseek_v3_iree": {
     "perplexities": [
