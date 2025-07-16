@@ -232,14 +232,14 @@ def compute_fp4_block_scales(
         exponent = torch.floor(torch.log2(block_max)) - _FP4_E2M1_MAX_EXPONENT
         scales_float = torch.pow(2.0, exponent)
         e8m0_values = float32_to_e8m0(scales_float)
-        scales = e8m0_values.squeeze(-1)
+        scales = e8m0_values
         scales_float = e8m0_to_float32(e8m0_values)
     else:
         finfo = torch.finfo(torch.float32)
         block_max.clamp_(min=finfo.eps)
         exponent = torch.floor(torch.log2(block_max)) - _FP4_E2M1_MAX_EXPONENT
         scales_float = torch.pow(2.0, exponent)
-        scales = scales_float.squeeze(-1)
+        scales = scales_float
 
     return scales, scales_float
 
