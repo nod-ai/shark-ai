@@ -1180,7 +1180,10 @@ class ShardedTensorBase(ShardedTensor):
             return False
         if not self._is_deep_equal(other, compare_name=compare_name):
             return False
-        return all(a.is_deep_equal(b) for a, b in zip(self.shards, other.shards))
+        return all(
+            a.is_deep_equal(b, compare_name=compare_name)
+            for a, b in zip(self.shards, other.shards)
+        )
 
 
 def _is_tuple_of_integral_numbers(x) -> bool:
@@ -1555,7 +1558,7 @@ class ReplicatedTensor(ShardedTensor):
             return False
         if not self._is_deep_equal(other, compare_name=compare_name):
             return False
-        return self.shards[0].is_deep_equal(other.shards[0])
+        return self.shards[0].is_deep_equal(other.shards[0], compare_name=compare_name)
 
 
 @register_inference_tensor

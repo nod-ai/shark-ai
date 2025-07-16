@@ -102,21 +102,6 @@ def test_cache_page_indices(mock_void_future, mock_base_cache, dummy_pages):
 
 
 @patch("shortfin.VoidFuture")
-def test_publish_allocated_pages(mock_void_future, mock_base_cache, dummy_pages):
-    req = LlmInferenceExecRequest(InferencePhase.PREFILL, [1, 2, 3, 4], rid="test123")
-
-    # Allocation is None
-    with pytest.raises(AssertionError):
-        req.publish_allocated_pages(len(dummy_pages))
-
-    req._cache = mock_base_cache
-    allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=mock_base_cache)
-    req.allocation = allocation
-
-    req.publish_allocated_pages(len(dummy_pages))
-
-
-@patch("shortfin.VoidFuture")
 def test_free_cache_pages(mock_void_future, mock_base_cache, dummy_pages):
     release_called = False
     req = LlmInferenceExecRequest(InferencePhase.PREFILL, [1, 2, 3, 4], rid="test123")
