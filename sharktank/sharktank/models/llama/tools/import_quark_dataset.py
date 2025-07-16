@@ -403,7 +403,7 @@ def update_norm_layer(
             )
             if weight_dtype_override is not None:
                 prob_output_scale = prob_output_scale.to(weight_dtype_override)
-            new_name = f"blk.{layer_idx}.attn_scale"
+            new_name = f"blk.{layer_idx}.attn_scale"  # TODO: Here
             updated_tensors[new_name] = DefaultPrimitiveTensor(
                 name=new_name, data=prob_output_scale
             )
