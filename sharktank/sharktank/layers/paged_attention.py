@@ -28,6 +28,7 @@ from sharktank.types import (
     StaticScaledQuantizer,
     TensorScaledLayout,
 )
+from sharktank.types.tensors import unbox_tensor
 from sharktank import ops, kernels
 from sharktank.kernels.mlir_kernel import *
 
@@ -1184,10 +1185,19 @@ class PagedAttention:
         if softcap is not None:
             raise ValueError("softcap not supported yet")
 
-        if q.dtype != v.dtype:
-            q = q.to(v.dtype)
-        if k.dtype != v.dtype:
-            k = k.to(v.dtype)
+        # Convert to attention dtype if needed
+        q = unbox_tensor(q)
+        k = unbox_tensor(k)
+        v = unbox_tensor(v)
+        mask = unbox_tensor(mask)
+        if q.dtype != self.attn_dtype:
+            q = q.to(self.attn_dtype)
+        if k.dtype != self.attn_dtype:
+            k = k.to(self.attn_dtype)
+        if v.dtype != self.attn_dtype:
+            v = v.to(self.attn_dtype)
+        if mask.dtype != self.attn_dtype:
+            mask = mask.to(self.attn_dtype)
 
         return ops.scaled_dot_product_attention(
             q=q,  # [bs, ..., sl, dim]
