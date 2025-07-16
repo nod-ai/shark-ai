@@ -26,9 +26,6 @@ def encoding_2():
     return mock_encoding
 
 
-# Use `mock_encoding` in place of `input_batch[0]`
-
-
 @pytest.fixture
 def model_params():
     return ModelParams(
@@ -48,24 +45,20 @@ def model_params():
 
 
 @pytest.fixture
-def page_pool():
-    return MagicMock()
-
-
-@pytest.fixture
 def responder():
     return MagicMock()
 
 
 @pytest.fixture
-def manager(model_params, page_pool):
+def manager(model_params):
     return RequestQueueManager(
-        model_params=model_params, page_pool=page_pool, max_queue_size=3
+        model_params=model_params,
+        max_page_count=100,
+        max_queue_size=3,
     )
 
 
-def test_add_to_queue_success(manager, page_pool, responder, encoding_4):
-    page_pool.get_available_pages_num.return_value = 100
+def test_add_to_queue_success(manager, responder, encoding_4):
     decode_config = DecodeConfig(
         num_beams=1, top_k=5, use_beam_search=False, max_completion_tokens=10
     )
@@ -76,6 +69,7 @@ def test_add_to_queue_success(manager, page_pool, responder, encoding_4):
         responder=responder,
     )
     assert request_id is not None
+    assert manager.available_page_count < 100
 
 
 def test_add_to_queue_full(manager, responder, encoding_2):
@@ -83,7 +77,6 @@ def test_add_to_queue_full(manager, responder, encoding_2):
     decode_config = DecodeConfig(
         num_beams=1, top_k=5, use_beam_search=False, max_completion_tokens=10
     )
-    manager.page_pool.get_available_pages_num.return_value = 100
     request_id = manager.add_to_queue(
         decode_configs=[decode_config],
         input_batch=[encoding_2],
@@ -109,8 +102,8 @@ def test_add_to_queue_topk_mismatch(manager, responder, encoding_2):
     responder.send_error.assert_called_once()
 
 
-def test_add_to_queue_memory_fail(manager, page_pool, responder, encoding_4):
-    page_pool.get_available_pages_num.return_value = 1
+def test_add_to_queue_memory_fail(manager, responder, encoding_4):
+    manager.available_page_count = 1  # Force failure
     decode_config = DecodeConfig(
         num_beams=1, top_k=5, use_beam_search=False, max_completion_tokens=100
     )
@@ -124,12 +117,24 @@ def test_add_to_queue_memory_fail(manager, page_pool, responder, encoding_4):
     responder.send_error.assert_called_once()
 
 
-def test_remove_from_queue_success(manager):
-    manager._current_tasks = {1: 1}
-    manager._current_queue_size = 1
-    manager.remove_from_queue(1)
-    assert manager._current_queue_size == 0
-    assert 1 not in manager._current_tasks
+def test_remove_from_queue_success(manager, encoding_2, responder):
+    decode_config = DecodeConfig(
+        num_beams=1, top_k=5, use_beam_search=False, max_completion_tokens=10
+    )
+    request_id = manager.add_to_queue(
+        decode_configs=[decode_config],
+        input_batch=[encoding_2],
+        is_pretokenized=True,
+        responder=responder,
+    )
+    used_pages = manager._request_pages[request_id]
+    available_before = manager.available_page_count
+
+    manager.remove_from_queue(request_id)
+
+    assert request_id not in manager._current_tasks
+    assert request_id not in manager._request_pages
+    assert manager.available_page_count == available_before + used_pages
 
 
 def test_remove_from_queue_invalid_id(manager):

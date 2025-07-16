@@ -12,7 +12,6 @@ from typing import Optional
 from .token_selection_strategy.config import DecodeConfig
 from shortfin.interop.fastapi import FastAPIResponder
 from shortfin.support.responder import ResponderErrorCodes
-from .kvcache.page_pool import PagePool
 from .tokenizer import Encoding
 
 logger = logging.getLogger(__name__)
@@ -29,24 +28,27 @@ class RequestQueueManager:
         self,
         *,
         model_params: ModelParams,
-        page_pool: PagePool,
+        max_page_count: int,
         max_queue_size: int = DEFAULT_MAX_QUEUE_SIZE,
     ):
-        self._max_queue_size = max_queue_size
-        self._lock = threading.Lock()
-        self._current_queue_size = 0
-        self._current_id = 0
-        self._current_tasks = {}
-
-        self.model_params = model_params
-        self.page_pool = page_pool
         # Use model_params.decode_batch_sizes to decide actual _max_queue_size
         self._max_queue_size = (
             max(model_params.decode_batch_sizes)
             if model_params.decode_batch_sizes
             else max_queue_size
         )
-        logger.debug(f"Initialized with max queue size: {self._max_queue_size}")
+        self._lock = threading.Lock()
+        self._current_queue_size = 0
+        self._current_id = 0
+        self._current_tasks = {}
+        self._request_pages = {}
+
+        self.model_params = model_params
+        self.available_page_count = max_page_count
+
+
+        logger.debug(f"Initialized with max queue size: {self._max_queue_size}, "
+                     f"available pages: {self.available_page_count}")
 
     def current_tasks(self) -> list[int]:
         """Returns the IDs of current tasks in the queue."""
@@ -92,27 +94,28 @@ class RequestQueueManager:
 
         return True
 
-    def _check_memory_availability(
+    def _calculate_needed_pages(
         self,
-        *,
-        input_token_ids_len: int,
-        available_pages: int,
-        decode_config: DecodeConfig,
-    ) -> tuple[bool, int]:
+        decode_configs: list[DecodeConfig],
+        input_batch: list[Encoding],
+        is_pretokenized: bool,
+    ) -> int:
         stride = self.model_params.paged_kv_cache.block_seq_stride
-        total_beams = decode_config.num_beams
-        input_pages = math.ceil(input_token_ids_len / stride)
-        copy_pages = total_beams - 1
-        output_pages = total_beams * math.ceil(
-            decode_config.max_completion_tokens / stride
-        )
-        needed_pages = input_pages + copy_pages + output_pages
+        total_needed_pages = 0
 
-        logger.debug(
-            f"Memory check: needed={needed_pages}, available={available_pages}"
-        )
+        for index, input_tokens in enumerate(input_batch):
+            decode_config = decode_configs[index]
+            input_token_ids = input_tokens if is_pretokenized else input_tokens.ids
 
-        return needed_pages <= available_pages, needed_pages
+            input_pages = math.ceil(len(input_token_ids) / stride)
+            copy_pages = decode_config.num_beams - 1
+            output_pages = decode_config.num_beams * math.ceil(
+                decode_config.max_completion_tokens / stride
+            )
+
+            total_needed_pages += input_pages + copy_pages + output_pages
+
+        return total_needed_pages
 
     def add_to_queue(
         self,
@@ -130,37 +133,23 @@ class RequestQueueManager:
         if not self._check_topk_params(decode_configs, responder):
             return None
 
-        # Step 2: Pre-calculate total needed pages
-        stride = self.model_params.paged_kv_cache.block_seq_stride
-        available_pages = self.page_pool.get_available_pages_num()
-        total_needed_pages = 0
+        # Pre-calculate total needed pages
+        total_needed_pages = self._calculate_needed_pages(decode_configs, input_batch, is_pretokenized)
 
-        for index, input_tokens in enumerate(input_batch):
-            decode_config = decode_configs[index]
-            input_token_ids = input_tokens if is_pretokenized else input_tokens.ids
-
-            input_pages = math.ceil(len(input_token_ids) / stride)
-            copy_pages = decode_config.num_beams - 1
-            output_pages = decode_config.num_beams * math.ceil(
-                decode_config.max_completion_tokens / stride
-            )
-
-            total_needed_pages += input_pages + copy_pages + output_pages
-
-        # Step 3: Check if total memory fits
-        if total_needed_pages > available_pages:
-            responder.send_error(
-                error_message="Not enough memory pages available.",
-                code=ResponderErrorCodes.KVCACHE_PAGES_FULL,
-                extra_fields={
-                    "available_page": available_pages,
-                    "requested_page": total_needed_pages,
-                },
-            )
-            return None
-
-        request_size = sum(config.num_beams for config in decode_configs)
+        # Check if total memory fits
         with self._lock:
+            if total_needed_pages > self.available_page_count:
+                responder.send_error(
+                    error_message="Not enough memory pages available.",
+                    code=ResponderErrorCodes.KVCACHE_PAGES_FULL,
+                    extra_fields={
+                        "available_page": self.available_page_count,
+                        "requested_page": total_needed_pages,
+                    },
+                )
+                return None
+
+            request_size = sum(config.num_beams for config in decode_configs)
             if self._current_queue_size + request_size > self._max_queue_size:
                 responder.send_error(
                     error_message="Server queue is full. Please try again later.",
@@ -180,6 +169,8 @@ class RequestQueueManager:
             self._current_queue_size += request_size
             assert self._current_id not in self._current_tasks
             self._current_tasks[self._current_id] = request_size
+            self._request_pages[self._current_id] = total_needed_pages
+            self.available_page_count -= total_needed_pages
 
             logger.debug(
                 f"Request added: id={self._current_id}, new queue size={self._current_queue_size}"
@@ -204,9 +195,10 @@ class RequestQueueManager:
                 logger.debug(error_msg)
                 raise RuntimeError(error_msg)
 
-            request_size = self._current_tasks[id]
-            del self._current_tasks[id]
+            request_size = self._current_tasks.pop(id)
             self._current_queue_size -= request_size
+            released_pages = self._request_pages.pop(id, 0)
+            self.available_page_count += released_pages
             logger.debug(
                 f"Request removed: id={id}, new queue size={self._current_queue_size}"
             )
