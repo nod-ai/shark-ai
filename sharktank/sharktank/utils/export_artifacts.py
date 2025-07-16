@@ -3,20 +3,20 @@
 # Licensed under the Apache License v2.0 with LLVM Exceptions.
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 import os
 import shutil
-import sys
 import subprocess
 import logging
 import tempfile
 import time
 from pathlib import Path
-from datetime import timedelta
 from typing import Any, List, Optional, TYPE_CHECKING
 
 import numpy as np
 import torch
 from sharktank.utils.iree import get_iree_compiler_flags_from_object
+from sharktank.utils.evaluate import *
 
 if TYPE_CHECKING:
     from sharktank.layers import LlamaModelConfig
@@ -262,22 +262,10 @@ class ExportArtifacts:
 
     def timeit(func):
         def wrapper(*args, **kwargs):
-            start = time.time()
+            start = time.time_ns()
             result = func(*args, **kwargs)
-            end = time.time()
-            total_seconds = end - start
-            time_taken = str(abs(timedelta(seconds=total_seconds)))
-            hours, minutes, seconds = time_taken.split(":")
-
-            if total_seconds < 1:
-                time_taken = f" {round(total_seconds * 1000, 3)} ms"
-            elif total_seconds < 60:
-                time_taken = "{:.2f} secs".format(round(float(total_seconds), 2))
-            else:
-                time_taken = "{:02d} hrs : {:02d} mins : {:.2f} secs".format(
-                    int(hours), int(minutes), round(float(seconds), 2)
-                )
-
+            end = time.time_ns()
+            time_taken = calc_time(start, end)
             func_name = func.__name__
             logger.info(f" {func_name}: {time_taken}")
             return result
@@ -396,7 +384,7 @@ class ExportArtifacts:
         """
 
         if self.output_vmfb is not None:
-            logger.info(f" Using pre-exported vmfb: {self.output_vmfb}")
+            logger.info(f" Using pre-compiled vmfb: {self.output_vmfb}")
             return
         else:
             self.output_vmfb = self.output_name.with_suffix(".vmfb")
@@ -542,6 +530,10 @@ class ExportArtifacts:
         Returns:
             The path to the compiled VMFB file as a string.
         """
+        if self.output_vmfb is not None:
+            logger.info(f" Using pre-compiled vmfb: {self.output_vmfb}")
+            return str(Path(self.output_vmfb).resolve())
+
         self.export_llm_to_mlir(batch_size=batch_size, skip_decode=skip_decode)
         self.compile_to_vmfb(extra_args=extra_compile_args, hal_dump_path=hal_dump_path)
         return str(Path(self.output_vmfb).resolve())

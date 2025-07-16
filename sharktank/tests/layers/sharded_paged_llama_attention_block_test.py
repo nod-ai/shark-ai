@@ -136,7 +136,6 @@ class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
         )
         embedding_module = build_rotary_layer(
             rope_dimension_count=self.rope_dimension_count,
-            max_seqlen=self.max_seqlen,
             rope_freq_base=self.rope_freq_base,
         )
 
@@ -169,7 +168,6 @@ class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
         sharded_seq_block_ids = ops.replicate(seq_block_ids, count=self.shard_count)
         sharded_embedding_module = build_rotary_layer(
             rope_dimension_count=self.rope_dimension_count,
-            max_seqlen=self.max_seqlen,
             rope_freq_base=self.rope_freq_base,
             tensor_parallelism_size=self.shard_count,
         )

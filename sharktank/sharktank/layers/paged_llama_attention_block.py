@@ -12,9 +12,9 @@ from sharktank.types import *
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
 from .norm import RMSNormLayer, L2Norm
-from .rotary_embedding import RotaryEmbeddingLayer
 from .latent_attention_block import LatentAttentionBlock
 from .paged_attention import PagedAttention, attn_type_map
+from .rotary_embedding import ShardedRotaryLayer
 from sharktank import ops
 
 __all__ = [
@@ -62,7 +62,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self.softcap = softcap
         self.fake_quant = fake_quant
         self.cache_quantizer = None
-        self.probs_quantizer = None
         self.model_arch = model_arch
         self.v_head_dim = v_head_dim
         self.use_rope = use_rope
@@ -116,14 +115,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             self.cache_quantizer: Optional[QuantizerTensor] = theta.optional_tensor(
                 "kv_cache.quantizer"
             )
-        if "attn_scale" in theta.keys:
-            self.attention_scale = theta("attn_scale").as_torch()
-            self.probs_quantizer = StaticScaledQuantizer(
-                name="attn_scale.quantizer",
-                scale=1.0 / (self.attention_scale * 2.0),
-                reciprocal_scale=self.attention_scale * 2.0,
-                dtype=torch.float8_e4m3fnuz,
-            )
 
         if theta.optional_tensor("attn_output_norm") is None:
             self.add_module(
@@ -140,7 +131,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self,
         x: torch.Tensor | ReplicatedTensor,
         start_index: int,
-        embedding: RotaryEmbeddingLayer,
+        embedding: ShardedRotaryLayer,
         embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
     ):
         bs, batch_seq_len, _ = x.shape
@@ -179,7 +170,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self,
         x: torch.Tensor | ReplicatedTensor,
         start_index: int,
-        embedding: RotaryEmbeddingLayer,
+        embedding: ShardedRotaryLayer,
         embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
     ):
         """
@@ -209,7 +200,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self,
         h: torch.Tensor | ShardedTensor,
         *,
-        embedding: RotaryEmbeddingLayer,
+        embedding: ShardedRotaryLayer,
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor,
         start_index: Optional[int] = None,
@@ -257,10 +248,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         # Used by fp8_e4m3fnuz model
         if self.cache_quantizer is not None:
             if not self.fake_quant:
-                # TODO: this seems like a bastardization of our quantized tensor api
-                # Probably want to add support for using quantized tensors more directly
-                xk = self.cache_quantizer.quantize(xk).unpack().qs
-                xv = self.cache_quantizer.quantize(xv).unpack().qs
+                xk = self.cache_quantizer.quantize(xk)
+                xv = self.cache_quantizer.quantize(xv)
 
         # Pad final dim of v to match with kv cache
         if self.attn_type == "mla" and self.head_dim != self.v_head_dim:
@@ -275,13 +264,11 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 seq_block_ids=seq_block_ids,
                 block_index=self.block_index,
                 head_count_attn=self.head_count,
-                cache_quantizer=self.cache_quantizer,
                 fake_quant=self.fake_quant,
                 attention_kernel=self.attention_kernel,
                 mask=attention_mask,
                 scale=self.attention_scale,
                 softcap=self.softcap,
-                probs_quantizer=self.probs_quantizer,
             )
         else:
             attn_output = self.paged_attention.forward_decode(
@@ -293,7 +280,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 block_index=self.block_index,
                 start_positions=start_positions,
                 head_count_attn=self.head_count,
-                cache_quantizer=self.cache_quantizer,
                 fake_quant=self.fake_quant,
                 attention_kernel=self.attention_kernel,
                 mask=attention_mask,
