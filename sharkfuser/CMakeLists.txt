@@ -77,7 +77,7 @@ message(STATUS "  - Host")
 ################################################################################
 
 set(IREE_VISIBILITY_HIDDEN OFF)
-set(IREE_BUILD_COMPILER OFF)
+set(IREE_BUILD_COMPILER ON)
 set(IREE_BUILD_TESTS OFF)
 set(IREE_BUILD_SAMPLES OFF)
 set(IREE_ERROR_ON_MISSING_SUBMODULES OFF)
@@ -94,7 +94,17 @@ if(SHARKFUSER_IREE_SOURCE_DIR)
   add_subdirectory(${SHARKFUSER_IREE_SOURCE_DIR} sharkfuser_iree SYSTEM EXCLUDE_FROM_ALL)
 else()
   message(STATUS "Fetching IREE sources from tag ${SHARKFUSER_IREE_GIT_TAG}")
-  set(IREE_SUBMODULES "third_party/benchmark third_party/cpuinfo third_party/flatcc third_party/hip-build-deps")
+  set(IREE_SUBMODULES "")
+  list(APPEND IREE_SUBMODULES "third_party/benchmark")
+  list(APPEND IREE_SUBMODULES "third_party/cpuinfo")
+  list(APPEND IREE_SUBMODULES "third_party/flatcc")
+  list(APPEND IREE_SUBMODULES "third_party/hip-build-deps")
+  if(IREE_BUILD_COMPILER)
+    list(APPEND IREE_SUBMODULES "third_party/llvm-project")
+    list(APPEND IREE_SUBMODULES "third_party/stablehlo")
+    list(APPEND IREE_SUBMODULES "third_party/spirv_cross")
+    list(APPEND IREE_SUBMODULES "third_party/torch-mlir")
+  endif()
   FetchContent_Declare(
     sharkfuser_iree
     GIT_REPOSITORY  https://github.com/iree-org/iree.git
@@ -119,6 +129,15 @@ endif()
 # Build tests
 if(SHARKFUSER_BUILD_TESTS)
   message(STATUS "Building SharkFuser tests")
+
+  # Require Python 3.8+ for lit tests
+  find_package(Python3 3.8 REQUIRED COMPONENTS Interpreter)
+
+  # Grab lit from IREE LLVM. We could also look into using a python pip
+  # dependency.
+  set(LLVM_EXTERNAL_LIT "${LLVM_SOURCE_DIR}/utils/lit/lit.py")
+  message(STATUS "LLVM_EXTERNAL_LIT ${LLVM_EXTERNAL_LIT}")
+
   add_subdirectory(tests)
   enable_testing()
 endif()
