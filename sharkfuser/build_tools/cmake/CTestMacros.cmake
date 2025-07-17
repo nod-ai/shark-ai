@@ -46,7 +46,7 @@ function(add_sharkfuser_test)
   # Place executable in the bin directory
   set_target_properties(
       ${_RULE_NAME} PROPERTIES
-      RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin
+      RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
   )
 endfunction()
 
@@ -92,6 +92,6 @@ function(add_sharkfuser_sample)
   # Place executable in the bin directory
   set_target_properties(
       ${_RULE_NAME} PROPERTIES
-      RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin
+      RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
   )
 endfunction()
