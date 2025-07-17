@@ -346,10 +346,10 @@ class LlmDecoder:
                 [req.result_indices for req in to_run],
             )
 
-            to_run = self.setup_req(decode_reqs, beams, tokens, input_length + i + 1)
-
-            if token_selector.done() or self._cancelled:
+            if token_selector.done() or self._cancelled or len(beams) == 0:
                 break
+
+            to_run = self.setup_req(decode_reqs, beams, tokens, input_length + i + 1)
 
         # Remove the reservation:
         self._decode_batcher.reserve_workload(rid=prefill_req.orig_instance_id, count=0)
