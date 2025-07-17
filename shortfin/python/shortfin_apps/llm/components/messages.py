@@ -76,8 +76,11 @@ class LlmInferenceExecRequest(InferenceExecRequest):
     def block_count(self):
         if self.page_ids:
             return len(self.page_ids)
-        
-        return len(self.allocation.pages)
+
+        if self.allocation:
+            return len(self.allocation.pages)
+
+        return 0
 
     @classmethod
     def copy_exec_request(
