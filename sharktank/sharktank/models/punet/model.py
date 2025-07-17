@@ -150,11 +150,9 @@ class Unet2DConditionModel(ThetaLayer):
         add_embeds = torch.cat([text_embeds, time_embeds], dim=-1).to(emb.dtype)
         aug_embed = self.add_embedding(add_embeds)
         emb = emb + aug_embed
-        self.trace_tensor("emb", emb)
 
         # 2. Pre-process.
         sample = self.conv_in(sample)
-        self.trace_tensor("preprocess", sample)
 
         # 3. Down.
         down_block_res_samples = (sample,)
@@ -167,7 +165,6 @@ class Unet2DConditionModel(ThetaLayer):
                 encoder_attention_mask=None,
             )
             down_block_res_samples += res_samples
-            self.trace_tensor(f"down_block_{i}", sample)
 
         # 4. Mid.
         sample, _ = self.mid_block(
@@ -177,7 +174,6 @@ class Unet2DConditionModel(ThetaLayer):
             attention_mask=None,
             encoder_attention_mask=None,
         )
-        self.trace_tensor("mid_block", sample)
 
         # 5. Up.
         for i, up_block in enumerate(self.up_blocks):
@@ -193,14 +189,12 @@ class Unet2DConditionModel(ThetaLayer):
                 attention_mask=None,
                 encoder_attention_mask=None,
             )
-            self.trace_tensor(f"up_block_{i}", sample)
 
         # 6. Post-process.
         if self.conv_norm_out:
             sample = self.conv_norm_out(sample)
             sample = ops.elementwise(self.conv_act, sample)
         sample = self.conv_out(sample)
-        self.trace_tensor(f"output", sample)
         return sample
 
     def _create_down_block(

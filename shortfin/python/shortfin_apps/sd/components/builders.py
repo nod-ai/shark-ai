@@ -375,7 +375,8 @@ def sdxl(
         model_params, model=model, target=target, driver=driver
     )
 
-    if build_preference == "export":
+
+    if build_preference == "export" or build_preference == "export_only":
         from iree.turbine.aot.build_actions import turbine_generate
         from shortfin_apps.sd.components.exports import export_sdxl_model
 
@@ -453,7 +454,9 @@ def sdxl(
                 fetch_http_check_size(name=f, url=url)
             else:
                 get_cached(f, ctx, FileNamespace.GEN)
-    if build_preference != "precompiled":
+    if build_preference == "export_only":
+        return [*mlir_filenames, params_filename]
+    elif build_preference != "precompiled":
         for idx, f in enumerate(copy.deepcopy(vmfb_filenames)):
             # We return .vmfb file stems for the compile builder.
             mlir_stem = "_".join(f.split("_")[:-2])
