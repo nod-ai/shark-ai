@@ -30,6 +30,7 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         input_token_ids: list[int],
         rid=None,
         orig_instance_id=None,
+        page_ids: list[int] | None = None,
         status_tracker: RequestStatusTracker | None = None,
     ):
         super().__init__()
@@ -62,9 +63,13 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         self.result_logits: sfnp.device_array | None = None
         self.result_indices: sfnp.device_array | None = None
 
+        # Current running score of the decode req
+        self.score: float = 0.0
+
         # Cache pages that have been locked for this request.
         self._cache: BasePagedAttentionCache | None = None
         self.allocation: PageAllocation | None = None
+        self.page_ids: list[int] = page_ids
         self.status_tracker: RequestStatusTracker | None = status_tracker
 
     @classmethod
@@ -103,16 +108,19 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         self.result_logits = None
 
     def cache_page_indices(self, max_len: int) -> list[int]:
+        if self.page_ids:
+            return self.page_ids
+
         if not self.allocation:
             return []
         indices = [p.index for p in self.allocation.pages[:max_len]]
         return indices
 
     def publish_allocated_pages(self, up_to_page_index: int):
-        assert self.allocation
-        self.allocation.publish_pages_for_tokens(
-            self.input_token_ids, publish_incomplete_page=False
-        )
+        if self.allocation is not None:
+            self.allocation.publish_pages_for_tokens(
+                self.input_token_ids, publish_incomplete_page=False
+            )
 
     def free_cache_pages(self):
         if self.allocation:

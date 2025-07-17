@@ -1184,11 +1184,6 @@ class PagedAttention:
         if softcap is not None:
             raise ValueError("softcap not supported yet")
 
-        if q.dtype != v.dtype:
-            q = q.to(v.dtype)
-        if k.dtype != v.dtype:
-            k = k.to(v.dtype)
-
         return ops.scaled_dot_product_attention(
             q=q,  # [bs, ..., sl, dim]
             k=k,  # [bs, ..., sl, dim]
@@ -1196,6 +1191,7 @@ class PagedAttention:
             a=mask,  # [bs, ..., sl, sl]
             is_causal=mask is None,  # assumes causal masking when true
             scale=scale,  # defaults to 1/sqrt(dim)
+            dtype=self.attn_dtype,  # apply dtype casting
         )
 
     def forward_decode(
