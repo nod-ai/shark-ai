@@ -500,6 +500,13 @@ class TransferAndBarrierTest(TempDirTestBase):
                 name="", raw_tensors=raw_tensors, extra_properties=extra_properties
             )
 
+        if issubclass(tensor_class, BlockScaledFp4Layout):
+            block_size = 4
+            dtype = torch.float32
+            quantizer = DynamicFp4BlockQuantizer(
+                block_size=block_size, use_fe8m0_scale=True
+            )
+            return quantizer.quantize(base_tensor)
         if issubclass(tensor_class, QuantizedLayout):
             metadata = {"block_size": 1, "use_f38m0_scale": True, "signed": True}
             planes = {
@@ -926,10 +933,13 @@ class TransposeTest(unittest.TestCase):
             [[[-6, -4, -2, 0], [-4, -3, -2, -1]], [[6, 4, 2, 1], [4, 3, 1, -1]]],
             dtype=torch.float32,
         )
+        block_size = 2
+        scales_shape = list(expected.shape)
+        scales_shape[-1] //= block_size
         quantizer = StaticFp4BlockQuantizer(
-            scales=torch.tensor(1.0, dtype=torch.float32),
+            scales=torch.ones(size=scales_shape, dtype=torch.float32),
             dtype=torch.float32,
-            block_size=2,
+            block_size=block_size,
             use_fe8m0_scale=False,
         )
         self.quantized_tensor_helper(quantizer, expected)
@@ -938,10 +948,13 @@ class TransposeTest(unittest.TestCase):
         expected = torch.tensor(
             [[-6, -4, -2, 0], [-5, -3, -2, -1]], dtype=torch.float32
         )
+        block_size = 2
+        scales_shape = list(expected.shape)
+        scales_shape[-1] //= block_size
         quantizer = StaticFp4BlockQuantizer(
-            scales=torch.tensor(0.5, dtype=torch.float32),
+            scales=torch.full(size=scales_shape, fill_value=0.5, dtype=torch.float32),
             dtype=torch.float32,
-            block_size=2,
+            block_size=block_size,
             use_fe8m0_scale=False,
         )
         with pytest.raises(

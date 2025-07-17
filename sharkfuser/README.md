@@ -23,7 +23,7 @@ ctest --test-dir build
 
 To re-run failed tests verbosely:
 ```shell
-ctest --test-dir build --rerun-failed --output-on-failure --extra-verbose
+ctest --test-dir build --rerun-failed --output-on-failure --verbose
 ```
 
 ### Code coverage (using gcov + lcov):
@@ -83,16 +83,17 @@ Tests and samples that are built with the cmake flag `-DSHARKFUSER_DEBUG_BUILD=O
 ## Project Roadmap
 - [x] Build/test infra, logging, code coverage reporting
 - [x] Graph, tensor, node datastructures / builder API
-- [ ] CI (GHA workflows)
+- [x] CI (GHA workflows)
 - [ ] conv_fprop MLIR ASM emitter
 - [ ] IREE compiler integration
 - [ ] IREE runtime integration
 - [ ] `g->execute()` (calls IREE compiler/runtime C API)
 - [ ] conv_fprop integration testing
 - [ ] Kernel cache
+- [ ] Shape inference for static dims
+- [ ] Non-contiguous (strided) tensor support
 - [ ] Elementwise ops (relu?)
 - [ ] Op fusion templates
 - [ ] Python bindings
-- [ ] Shape inference for static dims
 - [ ] Serialization
 - [ ] hipDNN integration

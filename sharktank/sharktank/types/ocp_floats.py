@@ -198,7 +198,12 @@ def float32_to_e8m0(values: torch.Tensor) -> torch.Tensor:
     Returns:
         torch.Tensor: Corresponding uint8 e8m0 values, clamped to [0, 255]
     """
-    return torch.log2(values).add(127.0).clamp(0, 255).to(torch.uint8)
+    return (
+        torch.log2(values.to(dtype=torch.float32))
+        .add(127.0)
+        .clamp(0, 255)
+        .to(torch.uint8)
+    )
 
 
 def convert_fp4_scales_to_float(
@@ -226,20 +231,21 @@ def compute_fp4_block_scales(
         Tuple of (scales, scales_float) where scales are in storage format
         and scales_float are ready for computation
     """
+    block_max = block_max.to(dtype=dtype)
     if use_fe8m0_scale:
         finfo = torch.finfo(dtype)
         block_max.clamp_(min=finfo.eps)
         exponent = torch.floor(torch.log2(block_max)) - _FP4_E2M1_MAX_EXPONENT
         scales_float = torch.pow(2.0, exponent)
         e8m0_values = float32_to_e8m0(scales_float)
-        scales = e8m0_values.squeeze(-1)
+        scales = e8m0_values
         scales_float = e8m0_to_float32(e8m0_values)
     else:
         finfo = torch.finfo(torch.float32)
         block_max.clamp_(min=finfo.eps)
         exponent = torch.floor(torch.log2(block_max)) - _FP4_E2M1_MAX_EXPONENT
         scales_float = torch.pow(2.0, exponent)
-        scales = scales_float.squeeze(-1)
+        scales = scales_float
 
     return scales, scales_float
 

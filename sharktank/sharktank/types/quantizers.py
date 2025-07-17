@@ -40,11 +40,13 @@ from .ocp_floats import (
 )
 
 from .tensors import (
+    AnyTensor,
     InferenceTensor,
     InferenceTensorMetadata,
     PlanarQuantizedTensor,
     PrimitiveTensor,
     QuantizedTensor,
+    ReplicatedTensor,
     UnnamedTensorName,
     register_inference_tensor,
     serialized_name_to_dtype,
@@ -55,6 +57,7 @@ __all__ = [
     "DynamicFp4BlockQuantizer",
     "DynamicScaledQuantizer",
     "QuantizerTensor",
+    "ReplicatedQuantizerTensor",
     "StaticFp4BlockQuantizer",
     "StaticScaledQuantizer",
 ]
@@ -64,8 +67,8 @@ class QuantizerTensor(InferenceTensor):
     """A tensor that knows how to quantize some other tensor."""
 
     def quantize(
-        self, t: torch.Tensor | InferenceTensor, *, name: str = UnnamedTensorName
-    ) -> QuantizedTensor:
+        self, t: AnyTensor, *, name: str = UnnamedTensorName
+    ) -> QuantizedTensor | ReplicatedTensor:
         """Quantize from an arbitrary source tensor (framework or inference).
 
         This has some additional heuristics for unpacking and rescaling
@@ -92,6 +95,25 @@ class QuantizerTensor(InferenceTensor):
     def _quantize_raw_tensor(self, t: torch.Tensor, *, name: str) -> QuantizedTensor:
         """Performs a quantizing transformation on t, returning a QuantizeTensor."""
         ...
+
+
+class ReplicatedQuantizerTensor(ReplicatedTensor, QuantizerTensor):
+    def quantize(
+        self, t: ReplicatedTensor, *, name=UnnamedTensorName
+    ) -> ReplicatedTensor:
+        assert isinstance(t, ReplicatedTensor)
+
+        quantized_shards = [
+            quantizer.quantize(shard, name=f"{name}.rank{i}")
+            for i, (quantizer, shard) in enumerate(zip(self.shards, t.shards))
+        ]
+        return ReplicatedTensor(ts=quantized_shards, devices=t.devices, name=name)
+
+    def _quantize_raw_tensor(
+        self, t: AnyTensor, *, name: str = UnnamedTensorName
+    ) -> QuantizedTensor:
+        """Performs a quantizing transformation on t, returning a QuantizeTensor."""
+        raise NotImplementedError("Should be using the version in the shards.")
 
 
 @register_inference_tensor
@@ -148,7 +170,7 @@ class StaticScaledQuantizer(QuantizerTensor):
         return (
             PlanarQuantizedTensor(
                 shape=t.shape,
-                name=t.name,
+                name=name,
                 layout=TensorScaledLayout(
                     shape=t.shape,
                     d=self._reciprocal_scale,

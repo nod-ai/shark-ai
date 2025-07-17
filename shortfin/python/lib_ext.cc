@@ -6,15 +6,20 @@
 
 #include "./lib_ext.h"
 
+#include <nanobind/ndarray.h>
+
 #include "./utils.h"
 #include "shortfin/array/array.h"
 #include "shortfin/array/storage.h"
+#include "shortfin/components/llm/data.h"
+#include "shortfin/components/llm/selectors.h"
 #include "shortfin/local/async.h"
 #include "shortfin/local/fiber.h"
 #include "shortfin/local/messaging.h"
 #include "shortfin/local/process.h"
 #include "shortfin/local/program.h"
 #include "shortfin/local/system.h"
+
 #if defined(SHORTFIN_HAVE_AMDGPU)
 #include "shortfin/local/systems/amdgpu.h"
 #endif  // SHORTFIN_HAVE_AMDGPU
@@ -546,6 +551,9 @@ NB_MODULE(lib, m) {
 
   auto array_m = m.def_submodule("array");
   BindArray(array_m);
+
+  auto llm_m = m.def_submodule("llm");
+  BindLLM(llm_m);
 }
 
 void BindLocal(py::module_ &m) {
@@ -1538,5 +1546,46 @@ void BindAMDGPUSystem(py::module_ &global_m) {
   py::class_<local::systems::AMDGPUDevice, local::Device>(m, "AMDGPUDevice");
 }
 #endif  // SHORTFIN_HAVE_AMDGPU
+
+void BindLLM(py::module_ &m) {
+  // Bind LogitsNormalization enum
+  py::enum_<llm::LogitsNormalization>(m, "LogitsNormalization")
+      .value("NONE", llm::LogitsNormalization::NONE)
+      .value("SOFTMAX", llm::LogitsNormalization::SOFTMAX)
+      .value("LOG_SOFTMAX", llm::LogitsNormalization::LOG_SOFTMAX)
+      .export_values();
+
+  // Bind DecodeConfig structure
+  py::class_<llm::DecodeConfig>(m, "DecodeConfig")
+      .def(py::init<>())
+      .def_rw("num_beams", &llm::DecodeConfig::num_beams)
+      .def_rw("temperature", &llm::DecodeConfig::temperature)
+      .def_rw("top_k", &llm::DecodeConfig::top_k)
+      .def_rw("top_p", &llm::DecodeConfig::top_p)
+      .def_rw("use_beam_search", &llm::DecodeConfig::use_beam_search)
+      .def_rw("eos_token_id", &llm::DecodeConfig::eos_token_id)
+      .def_rw("logits_normalization", &llm::DecodeConfig::logits_normalization)
+      .def_rw("max_completion_tokens",
+              &llm::DecodeConfig::max_completion_tokens);
+  m.def(
+      "select_tokens",
+      [](py::ndarray<py::numpy, const float> scores,
+         const llm::DecodeConfig &config) -> py::tuple {
+        std::vector<float> scores_vec(scores.data(),
+                                      scores.data() + scores.size());
+        std::vector<int> selected_tokens;
+        std::vector<float> selected_scores;
+        // Release GIL during C++ computation
+        {
+          py::gil_scoped_release release;
+          llm::SelectTokens(scores_vec, config, selected_tokens,
+                            selected_scores);
+        }
+
+        return py::make_tuple(std::move(selected_tokens),
+                              std::move(selected_scores));
+      },
+      py::arg("scores"), py::arg("config"));
+}
 
 }  // namespace shortfin::python

@@ -59,13 +59,13 @@ TEST_CASE("TensorAttr method chaining", "[TensorAttr]") {
 TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
   SECTION("Empty dim fails validation") {
     TensorAttr t;
-    t.set_stride({1});
+    t.set_name("nodim").set_stride({1});
     REQUIRE(t.validate().is_failure());
   }
 
   SECTION("Empty stride fails validation") {
     TensorAttr t;
-    t.set_dim({1});
+    t.set_name("nostride").set_dim({1});
     REQUIRE(t.validate().is_failure());
   }
 
@@ -77,7 +77,7 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
 
   SECTION("Dim and stride of different ranks is invalid") {
     TensorAttr t;
-    t.set_dim({2}).set_stride({1, 1});
+    t.set_name("diffrank").set_dim({2}).set_stride({1, 1});
     REQUIRE(t.validate().is_failure());
   }
 
@@ -90,9 +90,19 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
 
   SECTION("Zero dimension in tensor") {
     TensorAttr t;
-    t.set_name("zero").set_dim({2, 0, 3}).set_stride({0, 0, 1});
+    t.set_name("zero").set_dim({2, 0, 3}).set_stride({6, 3, 1});
     REQUIRE(t.validate().is_ok());
     REQUIRE(t.get_volume() == 0);
+  }
+
+  SECTION("Non-contiguous (strided) tensors fail validation") {
+    TensorAttr t1, t2;
+
+    t1.set_name("contig").set_dim({4, 3}).set_stride({3, 1});
+    REQUIRE(t1.validate().is_ok());
+
+    t2.set_name("non_contig").set_dim({4, 3}).set_stride({1, 4});
+    REQUIRE(t2.validate().is_failure());
   }
 
   SECTION("Virtual and scalar tensors can't coexist") {
