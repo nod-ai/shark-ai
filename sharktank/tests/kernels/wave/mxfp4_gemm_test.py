@@ -33,11 +33,13 @@ class wave_fp4_gemm(unittest.TestCase):
                 torch.empty((4, 1024, 32), dtype=torch.uint8),
                 torch.empty((1024, 512), dtype=torch.uint8),
                 torch.empty((1024, 32), dtype=torch.uint8),
-                torch.empty((4, 1024, 1024), dtype=torch.float32),
+                torch.empty((4, 1024, 1024), dtype=torch.float16),
             ),
         )
         e.verify()
         mlir_asm = str(e.mlir_module)
+        with open("test.mlir", "w") as f:
+            f.write(mlir_asm)
         self.assertIn(
             ("func.func @main"),
             mlir_asm,
