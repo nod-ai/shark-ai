@@ -69,12 +69,12 @@ TEST_CASE("Graph query_tensor_of_uid finds tensors by UID", "[graph]") {
   Graph g;
   auto x = g.tensor(TensorAttr()
                         .set_name("X")
-                        .set_dim({1, 3, 8, 8})
-                        .set_stride({192, 1, 24, 3}));
+                        .set_dim({1, 8, 8, 3})
+                        .set_stride({192, 24, 3, 1}));
   auto w = g.tensor(TensorAttr()
                         .set_name("W")
                         .set_dim({4, 3, 3, 3})
-                        .set_stride({27, 1, 9, 3}));
+                        .set_stride({27, 9, 3, 1}));
 
   ConvFPropAttr attr;
   attr.set_padding({0, 0}).set_stride({1, 1}).set_dilation({1, 1}).set_name(
@@ -97,18 +97,18 @@ TEST_CASE("Graph check for UID conflicts failing graph validation", "[graph]") {
   Graph g;
   auto x = g.tensor(TensorAttr()
                         .set_name("X")
-                        .set_dim({1, 3, 8, 8})
-                        .set_stride({192, 1, 24, 3}));
+                        .set_dim({1, 8, 8, 3})
+                        .set_stride({192, 24, 3, 1}));
   auto w = g.tensor(TensorAttr()
                         .set_name("W")
                         .set_dim({4, 3, 3, 3})
-                        .set_stride({27, 1, 9, 3}));
+                        .set_stride({27, 9, 3, 1}));
 
   ConvFPropAttr attr;
   attr.set_padding({0, 0}).set_stride({1, 1}).set_dilation({1, 1}).set_name(
       "conv");
   auto y = g.conv_fprop(x, w, attr);
-  y->set_dim({1, 4, 8, 8}).set_stride({256, 1, 32, 4});
+  y->set_dim({1, 8, 8, 4}).set_stride({256, 32, 4, 1});
   y->set_output(true);
 
   // Assign conflicting UIDs

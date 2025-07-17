@@ -37,7 +37,7 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
   auto Y = graph->conv_fprop(X, W, conv_attr);
 
   // Specify Y's dimensions and strides
-  Y->set_dim({n, k, h, w}).set_stride({k * h * w, 1, k * w, k});
+  Y->set_dim({n, k, h, w}).set_stride({k * h * w, h * w, w, 1});
   Y->set_output(true);
 
   REQUIRE(graph->validate().is_ok());

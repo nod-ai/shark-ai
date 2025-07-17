@@ -59,13 +59,13 @@ TEST_CASE("TensorAttr method chaining", "[TensorAttr]") {
 TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
   SECTION("Empty dim fails validation") {
     TensorAttr t;
-    t.set_stride({1});
+    t.set_name("nodim").set_stride({1});
     REQUIRE(t.validate().is_failure());
   }
 
   SECTION("Empty stride fails validation") {
     TensorAttr t;
-    t.set_dim({1});
+    t.set_name("nostride").set_dim({1});
     REQUIRE(t.validate().is_failure());
   }
 
@@ -77,7 +77,7 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
 
   SECTION("Dim and stride of different ranks is invalid") {
     TensorAttr t;
-    t.set_dim({2}).set_stride({1, 1});
+    t.set_name("diffrank").set_dim({2}).set_stride({1, 1});
     REQUIRE(t.validate().is_failure());
   }
 
