@@ -6,17 +6,52 @@
 
 import pytest
 
-from sharktank.utils.testing import xfail
+from pathlib import Path
 
 pytest_plugins = "pytester"
 
 
-def test_strict_xfail_with_successful_match(pytester: pytest.Pytester):
+@pytest.fixture
+def pytester_with_conftest(pytester: pytest.Pytester) -> pytest.Pytester:
+    """Copy our conftest.py into the test dir so that Pytester tests can pick it up."""
+    with open(f"{Path(__file__).parent.parent.parent / 'conftest.py'}", "r") as f:
+        pytester.makeconftest(f.read())
+    return pytester
+
+
+def test_deterministic_random_seed(deterministic_random_seed):
+    """Make the deterministic_random_seed fixture never changes RNG generation compared
+    to the expected.
+    This should not change across different minor versions. It likely would not change
+    across major version bumps."""
+    import torch
+    import numpy
+    import random
+
+    torch_actual = torch.randint(high=99999999, size=[1], dtype=torch.int32)
+    torch_expected = torch.tensor([57136067], dtype=torch.int32)
+    torch.testing.assert_close(torch_actual, torch_expected, atol=0, rtol=0)
+
+    numpy_actual = numpy.random.randint(
+        low=0, high=99999999, size=[1], dtype=numpy.int32
+    )
+    numpy_expected = numpy.array([75434668], dtype=numpy.int32)
+    numpy.testing.assert_equal(numpy_actual, numpy_expected)
+
+    builtin_actual = random.randint(0, 99999999)
+    builtin_expected = 51706749
+    assert builtin_actual == builtin_expected
+
+
+def test_strict_xfail_with_successful_match(pytester_with_conftest: pytest.Pytester):
+    pytester = pytester_with_conftest
     pytester.makepyfile(
         """
-        from sharktank.utils.testing import xfail
+        import pytest
 
-        @xfail(raises=RuntimeError, strict=True, match="test_xfail_with_successful_match")
+        @pytest.mark.xfail(
+            raises=RuntimeError, strict=True, match="test_xfail_with_successful_match"
+        )
         def test_f():
             raise RuntimeError("test_xfail_with_successful_match")
         """
@@ -26,12 +61,15 @@ def test_strict_xfail_with_successful_match(pytester: pytest.Pytester):
     result.assert_outcomes(xfailed=1)
 
 
-def test_strict_xfail_with_failed_match(pytester: pytest.Pytester):
+def test_strict_xfail_with_failed_match(pytester_with_conftest: pytest.Pytester):
+    pytester = pytester_with_conftest
     pytester.makepyfile(
         """
-        from sharktank.utils.testing import xfail
+        import pytest
 
-        @xfail(raises=RuntimeError, strict=True, match="string_that_can_not_be_found")
+        @pytest.mark.xfail(
+            raises=RuntimeError, strict=True, match="string_that_can_not_be_found"
+        )
         def test_f():
             raise RuntimeError("test_xfail_with_failed_match")
         """
@@ -41,12 +79,13 @@ def test_strict_xfail_with_failed_match(pytester: pytest.Pytester):
     result.assert_outcomes(failed=1)
 
 
-def test_non_strict_xfail_with_failed_match(pytester: pytest.Pytester):
+def test_non_strict_xfail_with_failed_match(pytester_with_conftest: pytest.Pytester):
+    pytester = pytester_with_conftest
     pytester.makepyfile(
         """
-        from sharktank.utils.testing import xfail
+        import pytest
 
-        @xfail(raises=RuntimeError, strict=False, match="string_that_can_not_be_found")
+        @pytest.mark.xfail(raises=RuntimeError, strict=False, match="string_that_can_not_be_found")
         def test_f():
             raise RuntimeError("test_xfail_with_failed_match")
         """
@@ -56,12 +95,13 @@ def test_non_strict_xfail_with_failed_match(pytester: pytest.Pytester):
     result.assert_outcomes(failed=1)
 
 
-def test_strict_xfail_without_match(pytester: pytest.Pytester):
+def test_strict_xfail_without_match(pytester_with_conftest: pytest.Pytester):
+    pytester = pytester_with_conftest
     pytester.makepyfile(
         """
-        from sharktank.utils.testing import xfail
+        import pytest
 
-        @xfail(raises=RuntimeError, strict=True)
+        @pytest.mark.xfail(raises=RuntimeError, strict=True)
         def test_f():
             raise RuntimeError("test_xfail_without_match")
         """
@@ -71,12 +111,13 @@ def test_strict_xfail_without_match(pytester: pytest.Pytester):
     result.assert_outcomes(xfailed=1)
 
 
-def test_strict_xfail_with_wrong_exception(pytester: pytest.Pytester):
+def test_strict_xfail_with_wrong_exception(pytester_with_conftest: pytest.Pytester):
+    pytester = pytester_with_conftest
     pytester.makepyfile(
         """
-        from sharktank.utils.testing import xfail
+        import pytest
 
-        @xfail(raises=RuntimeError, strict=True)
+        @pytest.mark.xfail(raises=RuntimeError, strict=True)
         def test_f():
             raise ValueError("")
         """
@@ -87,13 +128,14 @@ def test_strict_xfail_with_wrong_exception(pytester: pytest.Pytester):
 
 
 def test_strict_xfail_match_with_multiple_lines_in_exception_string(
-    pytester: pytest.Pytester,
+    pytester_with_conftest: pytest.Pytester,
 ):
+    pytester = pytester_with_conftest
     pytester.makepyfile(
         """
-        from sharktank.utils.testing import xfail
+        import pytest
 
-        @xfail(raises=RuntimeError, strict=True, match="line2")
+        @pytest.mark.xfail(raises=RuntimeError, strict=True, match="line2")
         def test_f():
             raise RuntimeError("line1\\nline2\\nline3")
         """
@@ -103,12 +145,13 @@ def test_strict_xfail_match_with_multiple_lines_in_exception_string(
     result.assert_outcomes(xfailed=1)
 
 
-def test_xfail_xpass_with_match(pytester: pytest.Pytester):
+def test_xfail_xpass_with_match(pytester_with_conftest: pytest.Pytester):
+    pytester = pytester_with_conftest
     pytester.makepyfile(
         """
-        from sharktank.utils.testing import xfail
+        import pytest
 
-        @xfail(match="match")
+        @pytest.mark.xfail(match="match")
         def test_f():
             pass
         """
@@ -118,13 +161,16 @@ def test_xfail_xpass_with_match(pytester: pytest.Pytester):
     result.assert_outcomes(xpassed=1)
 
 
-def test_multiple_strict_xfails_with_successful_match(pytester: pytest.Pytester):
+def test_multiple_strict_xfails_with_successful_match(
+    pytester_with_conftest: pytest.Pytester,
+):
+    pytester = pytester_with_conftest
     pytester.makepyfile(
         """
-        from sharktank.utils.testing import xfail
+        import pytest
 
-        @xfail(raises=ValueError, strict=True, match="match")
-        @xfail(raises=ValueError, strict=True, match="match")
+        @pytest.mark.xfail(raises=ValueError, strict=True, match="match")
+        @pytest.mark.xfail(raises=ValueError, strict=True, match="match")
         def test_f():
             raise ValueError("match")
         """
@@ -135,13 +181,16 @@ def test_multiple_strict_xfails_with_successful_match(pytester: pytest.Pytester)
 
 
 def test_strict_xfail_with_successful_match_and_false_condition(
-    pytester: pytest.Pytester,
+    pytester_with_conftest: pytest.Pytester,
 ):
+    pytester = pytester_with_conftest
     pytester.makepyfile(
         """
-        from sharktank.utils.testing import xfail
+        import pytest
 
-        @xfail(condition=False, raises=ValueError, reason="", strict=True, match="match")
+        @pytest.mark.xfail(
+            condition=False, raises=ValueError, reason="", strict=True, match="match"
+        )
         def test_f():
             raise ValueError("match")
         """
@@ -151,12 +200,21 @@ def test_strict_xfail_with_successful_match_and_false_condition(
     result.assert_outcomes(failed=1)
 
 
-def test_strict_xfail_with_failed_match_and_true_condition(pytester: pytest.Pytester):
+def test_strict_xfail_with_failed_match_and_true_condition(
+    pytester_with_conftest: pytest.Pytester,
+):
+    pytester = pytester_with_conftest
     pytester.makepyfile(
         """
-        from sharktank.utils.testing import xfail
+        import pytest
 
-        @xfail(condition=True, raises=ValueError, reason="", strict=True, match="not a match")
+        @pytest.mark.xfail(
+            condition=True,
+            raises=ValueError,
+            reason="",
+            strict=True,
+            match="not a match"
+        )
         def test_f():
             raise ValueError("match")
         """
@@ -167,14 +225,23 @@ def test_strict_xfail_with_failed_match_and_true_condition(pytester: pytest.Pyte
 
 
 def test_multiple_strict_xfails_with_failed_match_and_false_condition_in_first_xfail(
-    pytester: pytest.Pytester,
+    pytester_with_conftest: pytest.Pytester,
 ):
+    pytester = pytester_with_conftest
     pytester.makepyfile(
         """
-        from sharktank.utils.testing import xfail
+        import pytest
 
-        @xfail(condition=True, raises=ValueError, reason="", strict=True, match="match")
-        @xfail(condition=False, raises=ValueError, reason="", strict=True, match="not a match")
+        @pytest.mark.xfail(
+            condition=True, raises=ValueError, reason="", strict=True, match="match"
+        )
+        @pytest.mark.xfail(
+            condition=False,
+            raises=ValueError,
+            reason="",
+            strict=True,
+            match="not a match"
+        )
         def test_f():
             raise ValueError("match")
         """
@@ -185,14 +252,23 @@ def test_multiple_strict_xfails_with_failed_match_and_false_condition_in_first_x
 
 
 def test_multiple_strict_xfails_with_failed_match_and_true_condition_in_first_xfail(
-    pytester: pytest.Pytester,
+    pytester_with_conftest: pytest.Pytester,
 ):
+    pytester = pytester_with_conftest
     pytester.makepyfile(
         """
-        from sharktank.utils.testing import xfail
+        import pytest
 
-        @xfail(condition=True, raises=ValueError, reason="", strict=True, match="match")
-        @xfail(condition=True, raises=ValueError, reason="", strict=True, match="not a match")
+        @pytest.mark.xfail(
+            condition=True, raises=ValueError, reason="", strict=True, match="match"
+        )
+        @pytest.mark.xfail(
+            condition=True,
+            raises=ValueError,
+            reason="",
+            strict=True,
+            match="not a match"
+        )
         def test_f():
             raise ValueError("match")
         """
@@ -203,14 +279,15 @@ def test_multiple_strict_xfails_with_failed_match_and_true_condition_in_first_xf
 
 
 def test_multiple_non_strict_xfails_with_false_condition_in_first_xfail(
-    pytester: pytest.Pytester,
+    pytester_with_conftest: pytest.Pytester,
 ):
+    pytester = pytester_with_conftest
     pytester.makepyfile(
         """
-        from sharktank.utils.testing import xfail
+        import pytest
 
-        @xfail(strict=False)
-        @xfail(condition=False, strict=False, raises=ValueError, reason="")
+        @pytest.mark.xfail(strict=False)
+        @pytest.mark.xfail(condition=False, strict=False, raises=ValueError, reason="")
         def test_f():
             raise RuntimeError("")
         """
@@ -221,14 +298,15 @@ def test_multiple_non_strict_xfails_with_false_condition_in_first_xfail(
 
 
 def test_xfail_failed_match_does_not_interfere_with_exception_message_of_failed_previous_match(
-    pytester: pytest.Pytester,
+    pytester_with_conftest: pytest.Pytester,
 ):
+    pytester = pytester_with_conftest
     pytester.makepyfile(
         """
-        from sharktank.utils.testing import xfail
+        import pytest
 
-        @xfail(strict=True, match="This is the exception")
-        @xfail(raises=ValueError, match="not a match")
+        @pytest.mark.xfail(strict=True, match="This is the exception")
+        @pytest.mark.xfail(raises=ValueError, match="not a match")
         def test_f():
             raise ValueError("This is the exception")
         """
@@ -239,15 +317,34 @@ def test_xfail_failed_match_does_not_interfere_with_exception_message_of_failed_
 
 
 def test_xfail_failed_match_does_not_interfere_with_exception_message_of_failed_previous_match(
-    pytester: pytest.Pytester,
+    pytester_with_conftest: pytest.Pytester,
 ):
+    pytester = pytester_with_conftest
     pytester.makepyfile(
         """
-        from sharktank.utils.testing import xfail
+        import pytest
 
-        @xfail(strict=True, match="This is the exception")
-        @xfail(raises=ValueError, match="not a match")
+        @pytest.mark.xfail(strict=True, match="This is the exception")
+        @pytest.mark.xfail(raises=ValueError, match="not a match")
         def test_f():
+            raise ValueError("This is the exception")
+        """
+    )
+
+    result = pytester.runpytest()
+    result.assert_outcomes(failed=1)
+
+
+def test_parametrized_xfail_with_failed_match(pytester_with_conftest: pytest.Pytester):
+    pytester = pytester_with_conftest
+    pytester.makepyfile(
+        """
+        import pytest
+
+        @pytest.mark.parametrize(
+            "a", [pytest.param(1, marks=pytest.mark.xfail(match="not a match"))]
+        )
+        def test_f(a: int):
             raise ValueError("This is the exception")
         """
     )

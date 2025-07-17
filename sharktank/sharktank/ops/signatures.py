@@ -1089,10 +1089,10 @@ def _replicate_trampoline(
     devices: tuple[int, ...] | None = None,
 ) -> ShardedTensor:
     tensors = (input,)
-    if isinstance(input, (torch.Tensor, PrimitiveTensor)):
-        devices = devices if devices is not None else tuple(range(count))
-    else:
+    if isinstance(input, ShardedTensor):
         assert devices is None
+    else:
+        devices = devices if devices is not None else tuple(range(count))
 
     for override in d.find_overrides(tensors):
         result = override(input, count=count, devices=devices)
@@ -1110,6 +1110,7 @@ def scaled_dot_product_attention(
     a: Optional[AnyTensor],
     is_causal: bool = False,
     scale: Optional[float] = None,
+    dtype: Optional[torch.dtype] = None,
 ) -> AnyTensor:
     """Computes the scaled dot product attention using QKV."""
     raise NotImplementedError
@@ -1124,13 +1125,14 @@ def _scaled_dot_product_attention(
     a: Optional[AnyTensor],
     is_causal: bool = False,
     scale: Optional[float] = None,
+    dtype: Optional[torch.dtype] = None,
 ):
     tensors = (q, k, v, a)
     for override in d.find_overrides(tensors):
         if is_causal is not None:
-            result = override(q, k, v, a, is_causal=is_causal, scale=scale)
+            result = override(q, k, v, a, is_causal=is_causal, scale=scale, dtype=dtype)
         else:
-            result = override(q, k, v, a, scale=scale)
+            result = override(q, k, v, a, scale=scale, dtype=dtype)
         if result is not NotImplemented:
             return override, result
     else:
@@ -1698,18 +1700,23 @@ def _topk_trampoline(
 
 
 @overridable
-def view(tensor: AnyTensor, shape: List[int]) -> AnyTensor:
+def view(
+    tensor: AnyTensor, shape: List[int] | None = None, dtype: torch.dtype | None = None
+) -> AnyTensor:
     """See torch.Tensor.view"""
     ...
 
 
 @view.trampoline
 def _view_trampoline(
-    d: SignatureDispatcher, tensor: AnyTensor, shape: List[int]
+    d: SignatureDispatcher,
+    tensor: AnyTensor,
+    shape: List[int] | None = None,
+    dtype: torch.dtype | None = None,
 ) -> AnyTensor:
     tensors = (tensor,)
     for override in d.find_overrides(tensors):
-        result = override(tensor, shape)
+        result = override(tensor, shape, dtype)
         if result is not NotImplemented:
             return override, result
     else:

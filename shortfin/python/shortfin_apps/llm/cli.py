@@ -12,17 +12,16 @@ import sys
 import time
 import numpy as np
 
-
 # Import first as it does dep checking and reporting.
 from pathlib import Path
 from typing import Dict, List, Optional
 from shortfin.support.logging_setup import configure_main_logger
 from shortfin.support.responder import AbstractResponder, ResponderErrorCodes
 
-from .components.generate import ClientGenerateBatchProcess
-from .components.io_struct import GenerateReqInput, SamplingParams
-from .components.lifecycle import ShortfinLlmLifecycleManager
-from .server import add_service_args
+from shortfin_apps.llm.components.generate import ClientGenerateBatchProcess
+from shortfin_apps.llm.components.io_struct import GenerateReqInput, SamplingParams
+from shortfin_apps.llm.components.lifecycle import ShortfinLlmLifecycleManager
+from shortfin_apps.llm.server import add_service_args
 
 
 logger = logging.getLogger(__name__)
@@ -173,8 +172,16 @@ class CliResponder(AbstractResponder):
         self.send_response(f"{code}: {error_message}")
         self.ensure_response()
 
+    def _print_response(self, response):
+        response_data = json.loads(response.decode("utf-8"))
+        responses_array = response_data["responses"][0].get("responses", [])
+        print(json.dumps(responses_array, indent=1))
+
     def send_response(self, response):
         logger.info(f"{self.name} Sending response")
+        if self._log_tokens:
+            self._print_response(response)
+
         assert not self.responded, "Response already sent"
         if self._loop.is_closed():
             raise IOError("Web server is shut down")
@@ -322,9 +329,10 @@ async def main(argv):
             gen_req = GenerateReqInput(
                 text=task.prompt, sampling_params=sampling_params, stream=args.stream
             )
-            ClientGenerateBatchProcess(
+            process = ClientGenerateBatchProcess(
                 service, gen_req, responder, fiber=fiber
-            ).launch()
+            )
+            process.launch()
             await responder.response
             task.responder = responder
             task.result = responder.response.result()

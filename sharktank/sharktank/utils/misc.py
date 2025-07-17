@@ -6,9 +6,19 @@
 
 from typing import Any, Callable, List
 from collections.abc import Iterable
+from itertools import zip_longest
 from operator import eq
 import os
 from contextlib import AbstractContextManager
+
+
+def verify_exactly_one_is_not_none(**kwargs):
+    count = 0
+    for v in kwargs.values():
+        if v is not None:
+            count += 1
+    if count != 1:
+        raise ValueError(f"Exactly one of {kwargs.keys()} must be set.")
 
 
 def longest_equal_range(l1: List[Any], l2: List[Any]) -> int:
@@ -26,9 +36,17 @@ def iterables_equal(
     *,
     elements_equal: Callable[[Any, Any], bool] | None = None,
 ) -> bool:
+    non_existent_value = object()
     elements_equal = elements_equal or eq
+
+    def elements_equal_fn(x: Any, y: Any) -> bool:
+        if x is non_existent_value or y is non_existent_value:
+            return False
+        return elements_equal(x, y)
+
     return all(
-        elements_equal(v1, v2) for v1, v2 in zip(iterable1, iterable2, strict=True)
+        elements_equal_fn(v1, v2)
+        for v1, v2 in zip_longest(iterable1, iterable2, fillvalue=non_existent_value)
     )
 
 

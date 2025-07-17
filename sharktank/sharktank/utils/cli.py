@@ -137,6 +137,11 @@ def add_model_options(parser: argparse.ArgumentParser):
         action="store_true",
     )
     parser.add_argument(
+        "--use-qk-norm",
+        help="q and k got normalized in attention layer. for llama4",
+        action="store_true",
+    )
+    parser.add_argument(
         "--use-toy-model",
         help="Generates toy model",
         action="store_true",
@@ -170,6 +175,12 @@ def add_model_options(parser: argparse.ArgumentParser):
         help="Return only the final logits",
         action="store_true",
     )
+    parser.add_argument(
+        "--attention-chunk-size",
+        help="the size of each chunk used during chunked attention computation",
+        type=int,
+        default=None,
+    )
 
 
 def add_model_input_options(parser: argparse.ArgumentParser):
@@ -179,6 +190,12 @@ def add_model_input_options(parser: argparse.ArgumentParser):
         "--prompt",
         nargs="+",
         help="Custom prompt strings to run LLM or perplexity",
+    )
+    parser.add_argument(
+        "--max-decode-steps",
+        type=int,
+        default=None,
+        help="Maximum number of decode steps to perform.",
     )
 
 

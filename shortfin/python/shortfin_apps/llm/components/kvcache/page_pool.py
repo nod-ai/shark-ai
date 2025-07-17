@@ -49,6 +49,8 @@ class PagePoolConfig:
     # 8: head count (32 heads, but every 4 heads share the same kv buffer)
     # 128: hidden dimension
 
+    paged_kv_block_size_elements_per_device: List[int] | None = None
+
 
 class PagePool:
     """Page table based attention cache.
@@ -90,17 +92,28 @@ class PagePool:
 
         self.available_pages = list(self.attn_page_entries)
 
+        paged_kv_block_size_elements_per_device = (
+            self.config.paged_kv_block_size_elements_per_device
+        )
+        if paged_kv_block_size_elements_per_device is None:
+            paged_kv_block_size_elements_per_device = [
+                self.config.paged_kv_block_size_elements // len(devices)
+            ] * len(devices)
+        assert len(devices) == len(paged_kv_block_size_elements_per_device)
+
         # Initialize a page table on each device.
-        page_table_shape = [
-            self.config.alloc_page_count,
-            self.config.paged_kv_block_size_elements // len(devices),
-        ]
-        for device in devices:
+        for device, paged_kv_block_size_elements in zip(
+            devices, paged_kv_block_size_elements_per_device
+        ):
+            page_table_shape = [
+                self.config.alloc_page_count,
+                paged_kv_block_size_elements,
+            ]
             logging.info(
                 "Allocating page table (shape=%r, dtype=%r, size=%s) on %r",
                 page_table_shape,
                 self.config.dtype,
-                human_size(config.dtype.compute_dense_nd_size(page_table_shape)),
+                human_size(self.config.dtype.compute_dense_nd_size(page_table_shape)),
                 device,
             )
             page_table = sf.array.device_array.for_device(
@@ -112,6 +125,14 @@ class PagePool:
             page_table_host.copy_to(page_table)
             self.page_tables.append(page_table)
 
+    def available_page_count(self):
+        with self._lock:
+            return len(self.available_pages)
+
+    def total_page_count(self):
+        with self._lock:
+            return len(self.attn_page_entries)
+
     def acquire_free_pages(self, count: int) -> list[PageInfo] | None:
         with self._lock:
             available = len(self.available_pages)
@@ -122,6 +143,16 @@ class PagePool:
     def free_pages(self, pages: list[PageInfo]):
         with self._lock:
             self.available_pages.extend(pages)
+
+    def copy_page_index(self, src_page: int, dst_page: int):
+        # Copy the data on each device
+        for page_table in self.page_tables:
+            # View of source and destination pages
+            src_view = page_table.view(src_page)
+            dst_view = page_table.view(dst_page)
+
+            # Copy the data
+            dst_view.copy_from(src_view)
 
     def copy_page(self, src_page: PageInfo) -> PageInfo:
         """
@@ -141,14 +172,7 @@ class PagePool:
 
         dst_page = dst_page[0]
 
-        # Copy the data on each device
-        for page_table in self.page_tables:
-            # View of source and destination pages
-            src_view = page_table.view(src_page.index)
-            dst_view = page_table.view(dst_page.index)
-
-            # Copy the data
-            dst_view.copy_from(src_view)
+        self.copy_page_index(src_page=src_page.index, dst_page=dst_page.index)
 
         return dst_page
 

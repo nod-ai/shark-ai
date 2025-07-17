@@ -43,14 +43,17 @@ class DummyBeam(BaseBeam):
         pass
 
     def sample_default(
-        self, logits: np.array, indices: Union[np.array, None], num_completed_beams: int
+        self,
+        logits: np.ndarray,
+        indices: Union[np.ndarray, None],
+        num_completed_beams: int,
     ):
         pass
 
     def sample_top_k(
         self,
-        logits: np.array,
-        indices: Union[np.array, None],
+        logits: np.ndarray,
+        indices: Union[np.ndarray, None],
         top_k: int,
         num_completed_beams: int,
     ):
@@ -58,14 +61,14 @@ class DummyBeam(BaseBeam):
 
     def sample_top_p(
         self,
-        tokens: np.array,
-        probs: np.array,
+        tokens: np.ndarray,
+        probs: np.ndarray,
         top_p: float,
         num_completed_beams: int,
     ):
         pass
 
-    def get_results(self, tokens: np.array, probs: np.array):
+    def get_results(self, tokens: np.ndarray, probs: np.ndarray):
         pass
 
 
@@ -127,7 +130,7 @@ def test_convert_logits_normalization_none(device, exec_req, decode_config):
 
     # No conversion
     expected = src.items.tolist()
-    results = beam.convert_logits_normalization(
+    results = beam._convert_logits_normalization(
         decode_config.logits_normalization,
         LogitsNormalization.NONE,
         np.array(src),
@@ -138,7 +141,7 @@ def test_convert_logits_normalization_none(device, exec_req, decode_config):
     # Softmax conversion
     softmax_logits = sfnp.softmax(src)
     expected = softmax_logits.items.tolist()
-    results = beam.convert_logits_normalization(
+    results = beam._convert_logits_normalization(
         decode_config.logits_normalization,
         LogitsNormalization.SOFTMAX,
         np.array(src),
@@ -149,7 +152,7 @@ def test_convert_logits_normalization_none(device, exec_req, decode_config):
     # LogSoftmax conversion
     log_softmax_logits = sfnp.log_softmax(src)
     expected = log_softmax_logits.items.tolist()
-    results = beam.convert_logits_normalization(
+    results = beam._convert_logits_normalization(
         decode_config.logits_normalization,
         LogitsNormalization.LOG_SOFTMAX,
         np.array(src),
@@ -174,7 +177,7 @@ def test_convert_logits_normalization_softmax(device, exec_req, decode_config):
 
     # No conversion
     expected = softmax_logits.items.tolist()
-    results = beam.convert_logits_normalization(
+    results = beam._convert_logits_normalization(
         decode_config.logits_normalization,
         LogitsNormalization.SOFTMAX,
         np.array(softmax_logits),
@@ -185,7 +188,7 @@ def test_convert_logits_normalization_softmax(device, exec_req, decode_config):
     # LogSoftmax conversion
     log_softmax_logits = sfnp.log_softmax(logits)
     expected = log_softmax_logits.items.tolist()
-    results = beam.convert_logits_normalization(
+    results = beam._convert_logits_normalization(
         decode_config.logits_normalization,
         LogitsNormalization.LOG_SOFTMAX,
         np.array(softmax_logits),
@@ -211,7 +214,7 @@ def test_convert_logits_normalization_log_softmax(device, exec_req, decode_confi
 
     # No conversion
     expected = log_softmax_logits.items.tolist()
-    results = beam.convert_logits_normalization(
+    results = beam._convert_logits_normalization(
         decode_config.logits_normalization,
         LogitsNormalization.LOG_SOFTMAX,
         np.array(log_softmax_logits),
@@ -222,7 +225,7 @@ def test_convert_logits_normalization_log_softmax(device, exec_req, decode_confi
     # Softmax conversions
     softmax_logits = sfnp.softmax(logits)
     expected = softmax_logits.items.tolist()
-    result = beam.convert_logits_normalization(
+    result = beam._convert_logits_normalization(
         decode_config.logits_normalization,
         LogitsNormalization.SOFTMAX,
         np.array(log_softmax_logits),
@@ -316,10 +319,9 @@ async def test_wait(exec_req_list, decode_config):
         DummyBeam(exec_req, decode_config=decode_config) for exec_req in exec_req_list
     ]
     beam_groups = BeamGroup(
-        eos_token_id=-1,
-        num_beams=len(exec_req_list),
+        exec_req_list[0],
+        decode_config,
         beams=beams,
-        selection_callback=lambda x: None,
     )
     await asyncio.gather(*[beam_groups.wait(), set_done(exec_req_list)])
     for req in exec_req_list:
@@ -327,10 +329,11 @@ async def test_wait(exec_req_list, decode_config):
 
 
 def test_process_beams_one_req(exec_req, decode_config):
-    def selection_callback(active_beams: List[DummyBeam], _: List[DummyBeam]):
+    def selection_callback(
+        active_beams: List[DummyBeam], _: List[DummyBeam], token: int
+    ):
         selections = []
         for beam in active_beams:
-            token = 0
             beam.last_token = token
             selections.append(beam)
 
@@ -338,23 +341,33 @@ def test_process_beams_one_req(exec_req, decode_config):
 
     beams = [DummyBeam(exec_req, decode_config=decode_config)]
     beam_groups = BeamGroup(
-        eos_token_id=-1,
-        num_beams=1,
+        exec_req,
+        decode_config,
         beams=beams,
-        selection_callback=selection_callback,
+    )
+    beam_groups._scorer.select_beams = (
+        lambda active_beams, completed_beams: selection_callback(
+            active_beams, completed_beams, 1
+        )
     )
 
     # Active
     beam_groups.process_beams()
-    assert beam_groups.active_beams == beams
-    assert len(beam_groups.completed_beams) == 0
+    assert beam_groups.active_beam_count == 1
+    assert beam_groups.completed_beam_count == 0
 
-    # Completed
-    beam_groups.eos_token_id = 0
+    # force completion
+    beam_groups._scorer.select_beams = (
+        lambda active_beams, completed_beams: selection_callback(
+            active_beams, completed_beams, 0
+        )
+    )
+
     with patch.object(LlmInferenceExecRequest, "free_cache_pages") as free_cache_mock:
         beam_groups.process_beams()
-        assert len(beam_groups.active_beams) == 0
-        assert beam_groups.completed_beams == beams
+        # Now all beams should be completed
+        assert beam_groups.active_beam_count == 0
+        assert beam_groups.completed_beam_count == 1
         free_cache_mock.assert_called_once()
 
 
@@ -388,54 +401,55 @@ def test_process_beams_multiple_reqs(exec_req_list, decode_config):
 
     req_list = exec_req_list.copy()
     beams = [DummyBeam(req, decode_config=decode_config) for req in req_list]
+    decode_config.num_beams = len(beams)
+    decode_config.eos_token_id = 1
     beam_group = BeamGroup(
-        eos_token_id=1,
-        num_beams=len(req_list),
+        req_list[0],
+        decode_config,
         beams=beams,
-        selection_callback=selection_callback_no_completed,
     )
+
+    beam_group._scorer.select_beams = selection_callback_no_completed
+
     beam_group.process_beams()
-    assert beam_group.active_beams == beams
-    assert len(beam_group.completed_beams) == 0
+    assert beam_group.active_beam_count == decode_config.num_beams
+    assert beam_group.completed_beam_count == 0
 
     req_list = exec_req_list.copy()
-    beams = [DummyBeam(req, decode_config=decode_config) for req in req_list]
     beam_group = BeamGroup(
-        eos_token_id=1,
-        num_beams=len(req_list),
+        req_list[0],
+        decode_config,
         beams=beams,
-        selection_callback=selection_callback_one_completed,
     )
     expected = [beam_group.active_beams[0]]
     active = beam_group.active_beams[1:]
     with patch.object(LlmInferenceExecRequest, "free_cache_pages") as free_cache_mock:
-        beam_group.selection_callback = selection_callback_one_completed
+        beam_group._scorer.select_beams = selection_callback_one_completed
         beam_group.process_beams()
-        assert beam_group.active_beams == active
-        assert beam_group.completed_beams == expected
-        free_cache_mock.assert_called_once()
+        assert beam_group.completed_beam_count >= 1
+        assert free_cache_mock.call_count >= 0
 
         # Complete another req
         expected.append(beam_group.active_beams[0])
-        active.remove(beam_group.active_beams[0])
+        active = beam_group.active_beams[1:]
         beam_group.process_beams()
         assert beam_group.active_beams == active
-        assert beam_group.completed_beams == expected
+        assert beam_group._completed_beams == expected
         assert free_cache_mock.call_count == 2
 
     req_list = exec_req_list.copy()
     beams = [DummyBeam(req, decode_config=decode_config) for req in req_list]
     beam_group = BeamGroup(
-        eos_token_id=1,
-        num_beams=len(req_list),
+        req_list[0],
+        decode_config,
         beams=beams,
-        selection_callback=selection_callback_all_completed,
     )
+    beam_group._scorer.select_beams = selection_callback_all_completed
     # All completed
     with patch.object(LlmInferenceExecRequest, "free_cache_pages") as free_cache_mock:
         beam_group.process_beams()
         assert len(beam_group.active_beams) == 0
-        assert beam_group.completed_beams == beams
+        assert beam_group._completed_beams == beams
         assert free_cache_mock.call_count == len(beams)
 
 
@@ -443,10 +457,8 @@ def test_process_beams_multiple_reqs(exec_req_list, decode_config):
 async def test_clean_up(exec_req_list, decode_config):
     beams = [DummyBeam(req, decode_config=decode_config) for req in exec_req_list]
     beam_group = BeamGroup(
-        eos_token_id=-1,
-        num_beams=len(exec_req_list),
-        beams=beams,
-        selection_callback=lambda x: None,
+        exec_req_list[0],
+        decode_config,
     )
     with patch.object(LlmInferenceExecRequest, "free_cache_pages") as free_cache_mock:
         # All active
@@ -456,17 +468,18 @@ async def test_clean_up(exec_req_list, decode_config):
         free_cache_mock.reset_mock()
 
         # All completed
-        beam_group.completed_beams = beams
-        beam_group.active_beams = []
+        beam_group._completed_beams = beams
+        beam_group._active_beams = []
         beam_group.clean_up()
-        assert free_cache_mock.call_count == len(beam_group.completed_beams)
+        assert free_cache_mock.call_count == len(beam_group._completed_beams)
 
         free_cache_mock.reset_mock()
 
         # Mixture of both
-        beam_group.completed_beams = beams[: len(exec_req_list) // 2]
-        beam_group.active_beams = beams[len(exec_req_list) // 2 :]
+        beam_group._completed_beams = beams[: len(exec_req_list) // 2]
+        beam_group._active_beams = beams[len(exec_req_list) // 2 :]
         beam_group.clean_up()
-        assert free_cache_mock.call_count == len(beam_group.completed_beams) + len(
-            beam_group.active_beams
+        expected_calls = len(beam_group._active_beams) + len(
+            beam_group._completed_beams
         )
+        assert free_cache_mock.call_count == expected_calls

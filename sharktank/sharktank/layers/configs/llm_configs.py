@@ -96,6 +96,20 @@ class LlamaHParams:
     n_dense_layers: Optional[int] = None
     route_scale: Optional[float] = None
 
+    # Llama 4 configs
+    # Ensure all layers are rope if `nope_layer_interval` is None.
+    no_rope_layer_step: Optional[list[int]] = None
+
+    # In HuggingFace transformers, this field is represented as an int, but it is only ever used as a boolean.
+    # For clarity and correctness, it should be a bool: if True, enables attention temperature tuning.
+    attn_temperature_tuning: Optional[bool] = None
+
+    # Scaling factor applied to attention scores.
+    attn_scale: Optional[float] = None
+
+    # Scaling factor applied as a floor value in attention computations.
+    floor_scale: Optional[int] = None
+
     @staticmethod
     def from_gguf_props(p: dict[str, Any]):
         name_prefix = p.get("general.architecture", "llama")
@@ -104,17 +118,12 @@ class LlamaHParams:
         default_interleave_moe_layer_step = None
         default_rope_freq_base = 500000.0
         default_rope_dimension_count = 128
-
         attention_head_count = _int_prop(p, f"{name_prefix}.attention.head_count")
         rope_dimension_count = _optional_int_prop(
             p, f"{name_prefix}.rope.dimension_count", default_rope_dimension_count
         )
         expert_count = _optional_int_prop(
             p, f"{name_prefix}.expert_count", default_expert_count
-        )
-        defaut_n_dense_layers = 0 if expert_count and expert_count > 0 else None
-        n_dense_layers = _optional_int_prop(
-            p, f"{name_prefix}.leading_dense_block_count", defaut_n_dense_layers
         )
 
         custom_config = get_custom_configs(p, name_prefix)
@@ -143,11 +152,18 @@ class LlamaHParams:
             moe_intermediate_size=_optional_int_prop(
                 p, f"{name_prefix}.moe_intermediate_size", None
             ),
-            n_dense_layers=n_dense_layers,
             rope_dimension_count=rope_dimension_count,
             rope_freq_base=_optional_float_prop(
                 p, f"{name_prefix}.rope.freq_base", default_rope_freq_base
             ),
+            no_rope_layer_step=_optional_int_prop(
+                p, f"{name_prefix}.no_rope_layer_step", None
+            ),
+            attn_temperature_tuning=_optional_bool_prop(
+                p, f"{name_prefix}.attn_temperature_tuning", None
+            ),
+            attn_scale=_optional_float_prop(p, f"{name_prefix}.attn_scale", None),
+            floor_scale=_optional_int_prop(p, f"{name_prefix}.floor_scale", None),
             **custom_config,
         )
 
@@ -208,6 +224,18 @@ class LlamaHParams:
             ] = self.interleave_moe_layer_step
         if self.vocab_size is not None:
             res[f"{self.model_arch}.vocab_size"] = self.vocab_size
+
+        if self.no_rope_layer_step is not None:
+            res[f"{self.model_arch}.no_rope_layer_step"] = self.no_rope_layer_step
+        if self.attn_temperature_tuning is not None:
+            res[
+                f"{self.model_arch}.attn_temperature_tuning"
+            ] = self.attn_temperature_tuning
+        if self.floor_scale is not None:
+            res[f"{self.model_arch}.floor_scale"] = self.floor_scale
+        if self.attn_scale is not None:
+            res[f"{self.model_arch}.attn_scale"] = self.attn_scale
+
         return res
 
 
@@ -244,6 +272,7 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         )
         res["expert_shared_count"] = _int_prop(p, f"{name_prefix}.expert_shared_count")
         res["attn_head_dim"] = res["qk_nope_head_dim"] + res["qk_rope_head_dim"]
+        res["n_dense_layers"] = _int_prop(p, f"{name_prefix}.leading_dense_block_count")
 
     if name_prefix == "llama4":
         res["interleave_moe_layer_step"] = _int_prop(
@@ -256,7 +285,6 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         res["expert_shared_feed_forward_length"] = _int_prop(
             p, f"{name_prefix}.expert_shared_feed_forward_length"
         )
-        res["vocab_size"] = _int_prop(p, f"{name_prefix}.vocab_size")
 
     return res
 
@@ -286,6 +314,21 @@ def _str_prop(p: dict[str, Any], name: str) -> str:
         raise ValueError(f"Property '{name}' expected to be an str and was not") from e
     except KeyError:
         raise KeyError(f"Property '{name}' not found (among keys {p.keys()})")
+
+
+def _optional_bool_prop(
+    p: dict[str, Any],
+    name: str,
+    default_value: bool | None,
+) -> bool | None:
+    value = p.get(name, default_value)
+
+    if value is None:
+        return None
+    try:
+        return bool(value)
+    except ValueError as e:
+        raise ValueError(f"Property '{name}' expected to be a bool and was not") from e
 
 
 def _optional_float_prop(
@@ -369,30 +412,20 @@ class LlamaModelConfig:
     # the program and not.
     static_tables: bool = True
 
+    # A list of layer indices where chunked attention is applied instead of full attention.
+    chunked_attention_layers: Optional[set[int]] = None
+
     # Specifies the size of each chunk used during chunked attention computation.
     attention_chunk_size: Optional[int] = None
 
-    # A list of layer indices where chunked attention is applied instead of full attention.
-    chunked_attention_layers: Optional[set[int]] = None
+    # If True, applies normalization to the query and key vectors in attention.
+    use_qk_norm: bool = False
 
     # Indices of layers that are MoE.
     moe_layers: Optional[list[int]] = None
 
-    # Indices of layers that use RoPE after the attention.
+    # Indices of layers for rope for llama4
     rope_layers: Optional[list[int]] = None
-
-    use_qk_norm: bool = False
-    # If True, applies normalization to the query and key vectors in attention.
-
-    # In HuggingFace transformers, this field is represented as an int, but it is only ever used as a boolean.
-    # For clarity and correctness, it should be a bool: if True, enables attention temperature tuning.
-    attn_temperature_tuning: Optional[bool] = None
-
-    # Scaling factor applied to attention scores.
-    attn_scale: Optional[float] = None
-
-    # Scaling factor applied as a floor value in attention computations.
-    floor_scale: Optional[int] = None
 
     # The default data type to use for model parameters and computations.
     dtype: Optional[torch.dtype] = None
@@ -418,6 +451,13 @@ class LlamaModelConfig:
         if isinstance(self.dtype, str):
             self.dtype = serialized_name_to_dtype(self.dtype)
 
+        if self.hp.no_rope_layer_step is not None:
+            self.rope_layers = [
+                i
+                for i in range(self.hp.block_count)
+                if int((i + 1) % self.hp.no_rope_layer_step != 0)
+            ]
+
     def to_properties(self) -> "PropertyValueType":
         res = self.hp.to_gguf_props()
         res["kv_cache_type"] = self.kv_cache_type
@@ -434,9 +474,11 @@ class LlamaModelConfig:
         res["attention_kernel"] = self.attention_kernel
         res["use_hf"] = self.use_hf
         res["static_tables"] = self.static_tables
+        res["use_qk_norm"] = self.use_qk_norm
         res["attention_chunk_size"] = self.attention_chunk_size
         if self.chunked_attention_layers is not None:
             res["chunked_attention_layers"] = list(self.chunked_attention_layers)
+
         return res
 
     @staticmethod

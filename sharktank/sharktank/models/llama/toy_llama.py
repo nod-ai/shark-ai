@@ -33,6 +33,7 @@ def generate(
 
     config = LlamaModelConfig(
         hp=LlamaHParams(
+            vocab_size=vocabulary_size,
             context_length=block_seq_stride * max_blocks,
             embedding_length=attention_head_count * attn_head_dim,
             block_count=3,

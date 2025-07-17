@@ -747,7 +747,7 @@ def linear_sharded(
     accum_dtype,
 ) -> SplitPrimitiveTensor:
     # TODO: handle different dtypes
-    result = matmul(input, weight.mT)
+    result = matmul(input, weight, transpose_rhs=True)
     if bias is not None:
         result = elementwise(torch.add, result, bias)
     return result
@@ -926,7 +926,13 @@ def matmul_split(
     Optional[ReplicatedTensor],
 )
 def scaled_dot_product_attention_sharded(
-    q, k, v, a, is_causal, scale
+    q: SplitPrimitiveTensor,
+    k: SplitPrimitiveTensor,
+    v: SplitPrimitiveTensor,
+    a: Optional[ReplicatedTensor],
+    is_causal: bool,
+    scale: Optional[float],
+    dtype: Optional[torch.dtype],
 ) -> SplitPrimitiveTensor:
     if q.shard_count != k.shard_count or q.shard_count != v.shard_count:
         raise ValueError("Incompatible number of shards for qkv")
@@ -949,7 +955,7 @@ def scaled_dot_product_attention_sharded(
     output_shards = []
     for q_s, k_s, v_s, a_s in zip(q.shards, k.shards, v.shards, a_shards):
         o_s = scaled_dot_product_attention(
-            q_s, k_s, v_s, a_s, is_causal=is_causal, scale=scale
+            q_s, k_s, v_s, a_s, is_causal=is_causal, scale=scale, dtype=dtype
         )
         output_shards.append(o_s)
 
@@ -1399,16 +1405,16 @@ def scatter_split_split(
 
 
 @sharded_cat.override(SplitPrimitiveTensor)
-def sharded_cat_unsharded(tensor: SplitPrimitiveTensor):
+def sharded_cat_unsharded(tensor: SplitPrimitiveTensor) -> InferenceTensor:
     shard_ts = [
         (
-            transfer_to_logical_device(shard.as_torch(), tensor.devices[0])
+            transfer_to_logical_device(shard, tensor.devices[0])
             if i != 0
-            else barrier_on_logical_device(shard.as_torch(), tensor.devices[0])
+            else barrier_on_logical_device(shard, tensor.devices[0])
         )
         for i, shard in enumerate(tensor.shards)
     ]
-    return torch.cat(shard_ts, dim=tensor.shard_dim)
+    return cat(shard_ts, dim=tensor.shard_dim)
 
 
 @sharded_gather.override(IsOfType(SplitPrimitiveTensor, ReplicatedTensor))
@@ -1654,17 +1660,17 @@ def unflatten_split(
 
 
 @unshard.override(ReplicatedTensor)
-def unshard_replicated(input: ReplicatedTensor) -> Tensor:
-    return input.shards[0].as_torch()
+def unshard_replicated(input: ReplicatedTensor) -> InferenceTensor:
+    return input.shards[0]
 
 
 @unshard.override(SplitPrimitiveTensor)
-def unshard_split(input: SplitPrimitiveTensor) -> Tensor:
+def unshard_split(input: SplitPrimitiveTensor) -> InferenceTensor:
     return sharded_cat(input)
 
 
 @unshard.override(UnreducedTensor)
-def unshard_unreduced(input: UnreducedTensor) -> Tensor:
+def unshard_unreduced(input: UnreducedTensor) -> InferenceTensor:
     shards = input.shards
     shards = [
         (
@@ -1874,7 +1880,10 @@ def unsqueeze_split(tensor: SplitPrimitiveTensor, dim: int) -> SplitPrimitiveTen
 
 
 @view.override(SplitPrimitiveTensor)
-def view_split(tensor: SplitPrimitiveTensor, shape: List[int]) -> SplitPrimitiveTensor:
+def view_split(
+    tensor: SplitPrimitiveTensor, shape: List[int] | None, dtype: torch.dtype | None
+) -> SplitPrimitiveTensor:
+    assert dtype is None, "Not supported"
     shard_dim = tensor.shard_dim
     mapping = _calculate_view_dimension_mapping(from_shape=tensor.shape, to_shape=shape)
     if len(mapping[shard_dim]) != 1:

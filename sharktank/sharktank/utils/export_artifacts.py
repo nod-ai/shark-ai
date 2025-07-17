@@ -3,20 +3,20 @@
 # Licensed under the Apache License v2.0 with LLVM Exceptions.
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 import os
 import shutil
-import sys
 import subprocess
 import logging
 import tempfile
 import time
 from pathlib import Path
-from datetime import timedelta
 from typing import Any, List, Optional, TYPE_CHECKING
 
 import numpy as np
 import torch
 from sharktank.utils.iree import get_iree_compiler_flags_from_object
+from sharktank.utils.evaluate import *
 
 if TYPE_CHECKING:
     from sharktank.layers import LlamaModelConfig
@@ -117,6 +117,8 @@ class ExportArtifacts:
         output_name: Optional[str | Path] = None,
         cwd: Optional[str | Path] = None,
         hip_device_id: str,
+        use_qk_norm: bool = False,
+        attention_chunk_size: int | None = None,
     ):
         self.tmp_dir = Path(tempfile.mkdtemp(type(self).__qualname__))
         self.cwd = Path(cwd if cwd is not None else self.tmp_dir)
@@ -142,6 +144,8 @@ class ExportArtifacts:
         self.kv_cache_dtype = kv_cache_dtype
         self.use_hf = use_hf
         self.hip_device_id = hip_device_id
+        self.use_qk_norm = use_qk_norm
+        self.attention_chunk_size = attention_chunk_size
 
         self.output_mlir = output_mlir
         self.output_config = output_config
@@ -243,8 +247,13 @@ class ExportArtifacts:
             exception: The exception class to raise if the command fails.
         """
         logger.info(f"{run_msg}:\n" f"cd {self.cwd} && {cmd}")
+
         proc = subprocess.run(
-            cmd, shell=True, capture_output=True, text=True, cwd=self.cwd
+            cmd,
+            shell=True,
+            cwd=self.cwd,
+            capture_output=True,
+            text=True,
         )
         if proc.returncode != 0:
             raise exception(proc, self.cwd)
@@ -253,22 +262,10 @@ class ExportArtifacts:
 
     def timeit(func):
         def wrapper(*args, **kwargs):
-            start = time.time()
+            start = time.time_ns()
             result = func(*args, **kwargs)
-            end = time.time()
-            total_seconds = end - start
-            time_taken = str(abs(timedelta(seconds=total_seconds)))
-            hours, minutes, seconds = time_taken.split(":")
-
-            if total_seconds < 1:
-                time_taken = f" {round(total_seconds * 1000, 3)} ms"
-            elif total_seconds < 60:
-                time_taken = "{:.2f} secs".format(round(float(total_seconds), 2))
-            else:
-                time_taken = "{:02d} hrs : {:02d} mins : {:.2f} secs".format(
-                    int(hours), int(minutes), round(float(seconds), 2)
-                )
-
+            end = time.time_ns()
+            time_taken = calc_time(start, end)
             func_name = func.__name__
             logger.info(f" {func_name}: {time_taken}")
             return result
@@ -357,6 +354,10 @@ class ExportArtifacts:
             export_args.append("--use-attention-mask")
         if self.use_hf:
             export_args.append("--use-hf")
+        if self.use_qk_norm:
+            export_args.append("--use-qk-norm")
+        if self.attention_chunk_size:
+            export_args.append(f"--attention-chunk-size={self.attention_chunk_size}")
 
         self._run_cmd(
             cmd=subprocess.list2cmdline(export_args),
@@ -383,7 +384,7 @@ class ExportArtifacts:
         """
 
         if self.output_vmfb is not None:
-            logger.info(f" Using pre-exported vmfb: {self.output_vmfb}")
+            logger.info(f" Using pre-compiled vmfb: {self.output_vmfb}")
             return
         else:
             self.output_vmfb = self.output_name.with_suffix(".vmfb")
@@ -529,6 +530,10 @@ class ExportArtifacts:
         Returns:
             The path to the compiled VMFB file as a string.
         """
+        if self.output_vmfb is not None:
+            logger.info(f" Using pre-compiled vmfb: {self.output_vmfb}")
+            return str(Path(self.output_vmfb).resolve())
+
         self.export_llm_to_mlir(batch_size=batch_size, skip_decode=skip_decode)
         self.compile_to_vmfb(extra_args=extra_compile_args, hal_dump_path=hal_dump_path)
         return str(Path(self.output_vmfb).resolve())

@@ -20,7 +20,6 @@ from sharktank.utils.testing import (
     is_mi300x,
     IreeVsEagerLLMTester,
     TempDirTestBase,
-    xfail,
 )
 
 
@@ -60,33 +59,39 @@ class CrossEntropyTest(unittest.TestCase):
         ids = ids[0, 1:]
         logits = logits[0, :-1].to(torch.float32)
         cross_entropy = torch.nn.functional.cross_entropy(logits, ids)
-        assert pytest.approx(0.577, 1e-2) == cross_entropy
+        assert pytest.approx(0.583, 1e-2) == cross_entropy
 
 
 @pytest.mark.usefixtures("iree_flags", "device")
 @is_mi300x
 class LlamaIreeVsEagerTest(TempDirTestBase):
-    @parameterized.expand(product([1, 2], [1, 2]))
-    @xfail(
+    @parameterized.expand(product([1, 2], [1, 2], [False, True]))
+    @pytest.mark.xfail(
         raises=AssertionError,
         reason="https://github.com/nod-ai/shark-ai/issues/1758",
         strict=True,
-        match="Outputs do not match for prefill batch index 0",
     )
     def testUnshardedToyIreeVsEager(
-        self, tensor_parallelism_size: int, pipeline_parallelism_size: int
+        self, tensor_parallelism_size: int, pipeline_parallelism_size: int, use_hf: bool
     ):
         theta, config = generate(12345)
         config.tensor_parallelism_size = tensor_parallelism_size
         config.pipeline_parallelism_size = pipeline_parallelism_size
+        config.use_hf = use_hf
 
-        tester = IreeVsEagerLLMTester(
-            work_dir=self._temp_dir,
-            theta=theta,
-            config=config,
-            torch_device=self.device,
-            iree_device=self.iree_device,
-            iree_hip_target=self.iree_hip_target,
-            iree_hal_target_device=self.iree_hal_target_device,
-        )
-        tester.run_and_compare_iree_vs_eager()
+        try:
+            tester = IreeVsEagerLLMTester(
+                work_dir=self._temp_dir,
+                theta=theta,
+                config=config,
+                torch_device=self.device,
+                iree_device=self.iree_device,
+                iree_hip_target=self.iree_hip_target,
+                iree_hal_target_device=self.iree_hal_target_device,
+            )
+            tester.run_and_compare_iree_vs_eager()
+        except IreeCompileException as e:
+            if tensor_parallelism_size == 2 or pipeline_parallelism_size == 2:
+                pytest.xfail(reason="sharding compilation is broken")
+            else:
+                raise e

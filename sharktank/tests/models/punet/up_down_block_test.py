@@ -16,6 +16,7 @@ from sharktank.models.punet.sharding import UpDownBlock2DSplitChannelsSharing
 from sharktank.types import *
 from sharktank import ops
 from sharktank.types.tensors import flatten_tensor_tree
+from sharktank.utils.testing import assert_tensor_close
 
 
 class UpBlock2DTest(unittest.TestCase):
@@ -141,7 +142,7 @@ class UpBlock2DTest(unittest.TestCase):
             actual_result = [ops.unshard(r) for r in sharded_result]
             assert len(expected_result) == len(actual_result)
             for actual, expected in zip(actual_result, expected_result):
-                torch.testing.assert_close(actual, expected, rtol=0, atol=5e-4)
+                assert_tensor_close(actual, expected, rtol=0, atol=5e-4)
 
 
 if __name__ == "__main__":

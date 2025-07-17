@@ -40,11 +40,13 @@ from .ocp_floats import (
 )
 
 from .tensors import (
+    AnyTensor,
     InferenceTensor,
     InferenceTensorMetadata,
     PlanarQuantizedTensor,
     PrimitiveTensor,
     QuantizedTensor,
+    ReplicatedTensor,
     UnnamedTensorName,
     register_inference_tensor,
     serialized_name_to_dtype,
@@ -55,6 +57,7 @@ __all__ = [
     "DynamicFp4BlockQuantizer",
     "DynamicScaledQuantizer",
     "QuantizerTensor",
+    "ReplicatedQuantizerTensor",
     "StaticFp4BlockQuantizer",
     "StaticScaledQuantizer",
 ]
@@ -64,8 +67,8 @@ class QuantizerTensor(InferenceTensor):
     """A tensor that knows how to quantize some other tensor."""
 
     def quantize(
-        self, t: torch.Tensor | InferenceTensor, *, name: str = UnnamedTensorName
-    ) -> QuantizedTensor:
+        self, t: AnyTensor, *, name: str = UnnamedTensorName
+    ) -> QuantizedTensor | ReplicatedTensor:
         """Quantize from an arbitrary source tensor (framework or inference).
 
         This has some additional heuristics for unpacking and rescaling
@@ -92,6 +95,25 @@ class QuantizerTensor(InferenceTensor):
     def _quantize_raw_tensor(self, t: torch.Tensor, *, name: str) -> QuantizedTensor:
         """Performs a quantizing transformation on t, returning a QuantizeTensor."""
         ...
+
+
+class ReplicatedQuantizerTensor(ReplicatedTensor, QuantizerTensor):
+    def quantize(
+        self, t: ReplicatedTensor, *, name=UnnamedTensorName
+    ) -> ReplicatedTensor:
+        assert isinstance(t, ReplicatedTensor)
+
+        quantized_shards = [
+            quantizer.quantize(shard, name=f"{name}.rank{i}")
+            for i, (quantizer, shard) in enumerate(zip(self.shards, t.shards))
+        ]
+        return ReplicatedTensor(ts=quantized_shards, devices=t.devices, name=name)
+
+    def _quantize_raw_tensor(
+        self, t: AnyTensor, *, name: str = UnnamedTensorName
+    ) -> QuantizedTensor:
+        """Performs a quantizing transformation on t, returning a QuantizeTensor."""
+        raise NotImplementedError("Should be using the version in the shards.")
 
 
 @register_inference_tensor
@@ -148,7 +170,7 @@ class StaticScaledQuantizer(QuantizerTensor):
         return (
             PlanarQuantizedTensor(
                 shape=t.shape,
-                name=t.name,
+                name=name,
                 layout=TensorScaledLayout(
                     shape=t.shape,
                     d=self._reciprocal_scale,
@@ -288,7 +310,7 @@ class StaticScaledQuantizer(QuantizerTensor):
         )
 
     @property
-    def globals(self) -> dict[str, torch.Tensor]:
+    def subtensors(self) -> dict[str, torch.Tensor]:
         d = {
             f"{self.name}:scale": self._scale,
             f"{self.name}:rscale": self._reciprocal_scale,
@@ -323,8 +345,8 @@ class StaticScaledQuantizer(QuantizerTensor):
             extra_properties=extra_properties,
         )
 
-    def _clone_with_globals(
-        self, new_globals: dict[str, torch.Tensor]
+    def _clone_with_subtensors(
+        self, new_subtensors: dict[str, torch.Tensor]
     ) -> "InferenceTensor":
         offset_name = f"{self.name}:offset"
         return StaticScaledQuantizer(
@@ -332,9 +354,9 @@ class StaticScaledQuantizer(QuantizerTensor):
             dtype=self.dtype,
             axis=self.axis,
             disable_saturate=self._disable_saturate,
-            scale=new_globals[f"{self.name}:scale"],
-            reciprocal_scale=new_globals[f"{self.name}:rscale"],
-            offset=new_globals.get(offset_name),
+            scale=new_subtensors[f"{self.name}:scale"],
+            reciprocal_scale=new_subtensors[f"{self.name}:rscale"],
+            offset=new_subtensors.get(offset_name),
         )
 
     def __repr__(self):
@@ -425,7 +447,7 @@ class DynamicScaledQuantizer(QuantizerTensor):
         )
 
     @property
-    def globals(self) -> dict[str, torch.Tensor]:
+    def subtensors(self) -> dict[str, torch.Tensor]:
         return {}
 
     def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
@@ -438,8 +460,8 @@ class DynamicScaledQuantizer(QuantizerTensor):
             extra_properties=extra_properties,
         )
 
-    def _clone_with_globals(
-        self, new_globals: dict[str, torch.Tensor]
+    def _clone_with_subtensors(
+        self, new_subtensors: dict[str, torch.Tensor]
     ) -> "InferenceTensor":
         return DynamicScaledQuantizer(
             name=self.name,
@@ -483,7 +505,7 @@ def _fp4_block_quantize_tensor(
 
     Args:
         t: Input tensor of shape [..., N] to quantize (must have N % block_size == 0)
-        scales: Per-block scales (either float or integer exponents, flat)
+        scales: Per-block scales (either float or integer exponents, shape matches blocked tensor)
         block_size: Size of each block
         use_fe8m0_scale: Whether scales are FE8M0
         name: Name for the resulting tensor
@@ -500,7 +522,10 @@ def _fp4_block_quantize_tensor(
         )
 
     # Reshape to [..., num_blocks, block_size] to group into blocks
-    values_blocked = t.view(-1, block_size)
+    orig_shape = list(t.shape)
+    num_blocks = orig_shape[-1] // block_size
+    blocked_shape = orig_shape[:-1] + [num_blocks, block_size]
+    values_blocked = t.reshape(blocked_shape)
 
     # Prepare scales for broadcasting - add dimension for block_size
     if use_fe8m0_scale:
@@ -618,7 +643,7 @@ class StaticFp4BlockQuantizer(QuantizerTensor):
         )
 
     @property
-    def globals(self) -> dict[str, torch.Tensor]:
+    def subtensors(self) -> dict[str, torch.Tensor]:
         return {
             f"{self.name}:scales": self._scales,
         }
@@ -643,12 +668,12 @@ class StaticFp4BlockQuantizer(QuantizerTensor):
             extra_properties=extra_properties,
         )
 
-    def _clone_with_globals(
-        self, new_globals: dict[str, torch.Tensor]
+    def _clone_with_subtensors(
+        self, new_subtensors: dict[str, torch.Tensor]
     ) -> "InferenceTensor":
         return StaticFp4BlockQuantizer(
             name=self.name,
-            scales=new_globals[f"{self.name}:scales"],
+            scales=new_subtensors[f"{self.name}:scales"],
             block_size=self.block_size,
             use_fe8m0_scale=self.use_fe8m0_scale,
             dtype=self.dtype,
@@ -700,8 +725,13 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
         t_padded = pad_tensor_for_block_quantization(t, self._block_size)
 
         # Compute scales per block
-        values_blocked = t_padded.view(-1, self._block_size)
-        block_max = torch.max(torch.abs(values_blocked), dim=1, keepdim=True)[0]
+        orig_shape = list(t_padded.shape)
+        num_blocks = orig_shape[-1] // self._block_size
+        blocked_shape = orig_shape[:-1] + [num_blocks, self._block_size]
+        values_blocked = t_padded.reshape(blocked_shape)
+
+        # Compute max along the block dimension
+        block_max = torch.max(torch.abs(values_blocked), dim=-1, keepdim=False)[0]
         scales, _ = compute_fp4_block_scales(
             block_max, self._use_fe8m0_scale, self._dtype
         )
@@ -746,7 +776,7 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
         )
 
     @property
-    def globals(self) -> dict[str, torch.Tensor]:
+    def subtensors(self) -> dict[str, torch.Tensor]:
         return {}
 
     def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
@@ -762,8 +792,8 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
             extra_properties=extra_properties,
         )
 
-    def _clone_with_globals(
-        self, new_globals: dict[str, torch.Tensor]
+    def _clone_with_subtensors(
+        self, new_subtensors: dict[str, torch.Tensor]
     ) -> "InferenceTensor":
         return DynamicFp4BlockQuantizer(
             name=self.name,

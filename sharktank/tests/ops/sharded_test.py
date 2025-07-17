@@ -9,6 +9,7 @@ from typing import Callable
 import unittest
 import itertools
 import pytest
+import re
 from parameterized import parameterized, parameterized_class
 
 import functools
@@ -19,6 +20,7 @@ from sharktank import ops
 from sharktank.types import *
 from sharktank.types import sharding
 from sharktank.layers import Conv2DLayer
+from sharktank.utils.testing import assert_tensor_close
 
 
 class AllGatherTest(unittest.TestCase):
@@ -27,7 +29,7 @@ class AllGatherTest(unittest.TestCase):
         shard_shape = [3, 4]
         shard_dim = 1
         shards = [
-            torch.rand(shard_shape, dtype=torch.float32) for i in range(shard_count)
+            torch.rand(shard_shape, dtype=torch.float32) for _ in range(shard_count)
         ]
         expected_result = torch.cat(shards, dim=shard_dim)
 
@@ -35,7 +37,7 @@ class AllGatherTest(unittest.TestCase):
         actual_result = ops.all_gather(sharded)
 
         for shard in actual_result.shards:
-            torch.testing.assert_close(shard.as_torch(), expected_result)
+            assert_tensor_close(shard, expected_result)
 
 
 class AllReduceTest(unittest.TestCase):
@@ -44,7 +46,7 @@ class AllReduceTest(unittest.TestCase):
         shard_shape = [3, 4]
         shard_dim = 1
         shards = [
-            torch.rand(shard_shape, dtype=torch.float32) for i in range(shard_count)
+            torch.rand(shard_shape, dtype=torch.float32) for _ in range(shard_count)
         ]
         expected_result = torch.add(torch.add(shards[0], shards[1]), shards[2])
 
@@ -52,7 +54,7 @@ class AllReduceTest(unittest.TestCase):
         actual_result = ops.all_reduce(sharded)
 
         for shard in actual_result.shards:
-            torch.testing.assert_close(shard.as_torch(), expected_result)
+            assert_tensor_close(shard, expected_result)
 
 
 class ArgmaxTest(unittest.TestCase):
@@ -69,7 +71,7 @@ class ArgmaxTest(unittest.TestCase):
         actual_result = ops.argmax(sharded, 0, False)
 
         for i, shard in enumerate(actual_result.shards):
-            torch.testing.assert_close(shard.as_torch(), expected_results[i])
+            assert_tensor_close(shard, expected_results[i])
 
     def testArgmaxReplicated(self):
         shard_count = 3
@@ -81,7 +83,7 @@ class ArgmaxTest(unittest.TestCase):
         actual_result = ops.argmax(sharded_test, 0, False)
 
         for shard in actual_result.shards:
-            torch.testing.assert_close(shard.as_torch(), expected_result)
+            assert_tensor_close(shard, expected_result)
 
     def testSplitArgmax(self):
         shard_count = 3
@@ -96,7 +98,7 @@ class ArgmaxTest(unittest.TestCase):
         actual_result = ops.argmax(sharded, 0, False, 1)
 
         for i, shard in enumerate(actual_result.shards):
-            torch.testing.assert_close(shard.as_torch(), expected_results[i])
+            assert_tensor_close(shard, expected_results[i])
 
     def testSplitArgmaxReplicated(self):
         shard_count = 3
@@ -108,7 +110,7 @@ class ArgmaxTest(unittest.TestCase):
         actual_result = ops.argmax(sharded_test, 0, False, 1)
 
         for shard in actual_result.shards:
-            torch.testing.assert_close(shard.as_torch(), expected_result)
+            assert_tensor_close(shard, expected_result)
 
 
 class CalculateViewDimensionMappingTest(unittest.TestCase):
@@ -353,7 +355,7 @@ class ConvTest(unittest.TestCase):
         )
         actual_result = ops.sharded_cat(sharded_result)
 
-        torch.testing.assert_close(actual_result, expected_result)
+        assert_tensor_close(actual_result, expected_result)
 
     def testCov2dShardedOutputChannelsOneGroup(self):
         batches = 2
@@ -405,7 +407,7 @@ class ConvTest(unittest.TestCase):
         )
         actual_result = ops.sharded_cat(sharded_result)
 
-        torch.testing.assert_close(actual_result, expected_result)
+        assert_tensor_close(actual_result, expected_result)
 
     def testConv2DSplitOutputChannelShardingSpec(self):
         batches = 2
@@ -465,7 +467,7 @@ class ElementwiseTest(unittest.TestCase):
         sharded_result = sharded_a + sharded_b
         actual_result = ops.reshard_like(sharded_result, expected_result)
 
-        torch.testing.assert_close(actual_result, expected_result)
+        assert_tensor_close(actual_result, expected_result)
 
     @parameterized.expand(tuple(itertools.product([0, 1, 2, 3], repeat=2)))
     def testRhsAndLhsShardedAddWithBroadcasting(self, i: int, j: int):
@@ -480,7 +482,7 @@ class ElementwiseTest(unittest.TestCase):
         sharded_result = sharded_a + sharded_b
         actual_result = ops.reshard_like(sharded_result, expected_result)
 
-        torch.testing.assert_close(actual_result, expected_result)
+        assert_tensor_close(actual_result, expected_result)
 
     @parameterized.expand(tuple(itertools.product([0, 1, 2], repeat=2)))
     def testShardedReplicatedAddWithBroadcasting(self, i: int, j: int):
@@ -493,8 +495,8 @@ class ElementwiseTest(unittest.TestCase):
         b_s = ops.reshard_split(b, dim=b.dim() - 1, count=3)
         actual_result = a_s + b_s
         actual_result2 = b_s + a_s
-        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
-        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result2))
+        assert_tensor_close(expected_result, ops.unbox_tensor(actual_result))
+        assert_tensor_close(expected_result, ops.unbox_tensor(actual_result2))
 
     @parameterized.expand(
         [
@@ -522,7 +524,7 @@ class ElementwiseTest(unittest.TestCase):
         assert sharded_result.shard_count == sharded_a.shard_count
         assert sharded_result.shard_dim == sharded_a.shard_dim
         actual_result = ops.reshard_like(sharded_result, expected_result)
-        torch.testing.assert_close(actual_result, expected_result)
+        assert_tensor_close(actual_result, expected_result)
 
         # Replicated LHS and Sharded RHS
         sharded_a = ops.replicate(a, count=shard_count)
@@ -533,7 +535,7 @@ class ElementwiseTest(unittest.TestCase):
         assert sharded_result.shard_count == sharded_b.shard_count
         assert sharded_result.shard_dim == sharded_b.shard_dim
         actual_result = ops.reshard_like(sharded_result, expected_result)
-        torch.testing.assert_close(actual_result, expected_result)
+        assert_tensor_close(actual_result, expected_result)
 
         # Sharded LHS and Replicated RHS
         sharded_a = ops.reshard_split(a, dim=shard_dim, count=shard_count)
@@ -544,7 +546,7 @@ class ElementwiseTest(unittest.TestCase):
         assert sharded_result.shard_count == sharded_a.shard_count
         assert sharded_result.shard_dim == sharded_a.shard_dim
         actual_result = ops.reshard_like(sharded_result, expected_result)
-        torch.testing.assert_close(actual_result, expected_result)
+        assert_tensor_close(actual_result, expected_result)
 
 
 class EqualTest(unittest.TestCase):
@@ -625,7 +627,7 @@ class ExpandTest(unittest.TestCase):
         actual = ops.expand(b, sizes)
 
         for expected_shard, actual_shard in zip(expected, actual.shards):
-            torch.testing.assert_close(actual_shard.as_torch(), expected_shard)
+            assert_tensor_close(actual_shard, expected_shard)
 
     def testExpandSplitAlongSplit(self):
         sizes = [-1, 4, -1]
@@ -650,7 +652,7 @@ class ExpandTest(unittest.TestCase):
         actual = ops.expand(split, sizes)
 
         for pre_shard, post_shard in zip(split.shards, actual.shards):
-            torch.testing.assert_close(pre_shard.as_torch(), post_shard.as_torch())
+            assert_tensor_close(pre_shard, post_shard)
 
     def testExpandReplicated(self):
         sizes = [4, 4, 5]
@@ -662,7 +664,7 @@ class ExpandTest(unittest.TestCase):
         actual = ops.expand(b, sizes)
 
         for shard in actual.shards:
-            torch.testing.assert_close(shard.as_torch(), expected)
+            assert_tensor_close(shard, expected)
 
 
 class GemmTest(unittest.TestCase):
@@ -681,7 +683,7 @@ class GemmTest(unittest.TestCase):
         assert sharded_result.shard_count == 2
         assert sharded_result.shard_dim == 0
         actual = ops.unshard(sharded_result)
-        torch.testing.assert_close(actual, expected)
+        assert_tensor_close(actual, expected)
 
 
 class IndexCopyTest(unittest.TestCase):
@@ -759,7 +761,7 @@ class InterpolateTest(unittest.TestCase):
         assert sharded_result.shard_count == shard_count
         assert sharded_result.shard_dim == 1
         actual_result = ops.unbox_tensor(ops.unshard(sharded_result))
-        torch.testing.assert_close(actual_result, expected_result)
+        assert_tensor_close(actual_result, expected_result)
 
     def testInterpolateReplicated(self):
         batches = 2
@@ -793,7 +795,7 @@ class InterpolateTest(unittest.TestCase):
         assert isinstance(sharded_result, ReplicatedTensor)
         assert sharded_result.shard_count == shard_count
         actual_result = ops.unbox_tensor(ops.unshard(sharded_result))
-        torch.testing.assert_close(actual_result, expected_result)
+        assert_tensor_close(actual_result, expected_result)
 
 
 class NormalizationTest(unittest.TestCase):
@@ -831,7 +833,7 @@ class NormalizationTest(unittest.TestCase):
         )
         actual_result = ops.sharded_cat(sharded_result)
 
-        torch.testing.assert_close(actual_result, expected_result)
+        assert_tensor_close(actual_result, expected_result)
 
     def testLayerNorm(self):
         """Shard an input dimension other than the trailing normalization dimensions."""
@@ -853,7 +855,7 @@ class NormalizationTest(unittest.TestCase):
         )
         actual_result = ops.sharded_cat(sharded_result)
 
-        torch.testing.assert_close(actual_result, expected_result)
+        assert_tensor_close(actual_result, expected_result)
 
 
 class PadTest(unittest.TestCase):
@@ -911,7 +913,7 @@ class AttentionTest(unittest.TestCase):
         expected_result = ops.scaled_dot_product_attention(q, k, v, a=None)
         sharded_result = ops.scaled_dot_product_attention(qs, ks, vs, a=None)
         unsharded_result = ops.sharded_cat(sharded_result)
-        torch.testing.assert_close(unsharded_result, expected_result)
+        assert_tensor_close(unsharded_result, expected_result)
 
     def testAttentionShardedBatchCausal(self):
         q = torch.rand(4, 32, 16, dtype=torch.float32)
@@ -929,7 +931,7 @@ class AttentionTest(unittest.TestCase):
             qs, ks, vs, a=None, is_causal=True
         )
         unsharded_result = ops.sharded_cat(sharded_result)
-        torch.testing.assert_close(unsharded_result, expected_result)
+        assert_tensor_close(unsharded_result, expected_result)
 
     def testAttentionShardedBatchMask(self):
         q = torch.rand(4, 32, 16, dtype=torch.float32)
@@ -949,7 +951,7 @@ class AttentionTest(unittest.TestCase):
             q_s, k_s, v_s, a=a_s, is_causal=False
         )
         unsharded_result = ops.sharded_cat(sharded_result)
-        torch.testing.assert_close(unsharded_result, expected_result)
+        assert_tensor_close(unsharded_result, expected_result)
 
 
 class MaskedFillTest(unittest.TestCase):
@@ -995,7 +997,7 @@ class MatmulTest(unittest.TestCase):
         sharded_result = ops.matmul(t1, t2_sharded.T)
         expected_result = ops.matmul(t1, t2.T)
         unsharded_result = ops.sharded_cat(sharded_result)
-        torch.testing.assert_close(unsharded_result, expected_result)
+        assert_tensor_close(unsharded_result, expected_result)
 
     def testTorchRHSColumnSharded(self):
         t1 = torch.rand(4, 32, 16, dtype=torch.float32)
@@ -1004,7 +1006,7 @@ class MatmulTest(unittest.TestCase):
         sharded_result = ops.matmul(t1, t2_sharded)
         expected_result = ops.matmul(t1, t2)
         unsharded_result = ops.sharded_cat(sharded_result)
-        torch.testing.assert_close(unsharded_result, expected_result)
+        assert_tensor_close(unsharded_result, expected_result)
 
     def testReplicatedLhsShardedParallelDimRhs(self):
         a = torch.rand(2, 5, 3, dtype=torch.float32)
@@ -1047,7 +1049,7 @@ class MatmulTest(unittest.TestCase):
         XA_sharded = ops.matmul(X, A_sharded.T)
         Z_sharded = ops.matmul(XA_sharded, B_sharded.T)
         Z_unsharded = ops.sharded_sum(Z_sharded)
-        torch.testing.assert_close(Z_unsharded, Z)
+        assert_tensor_close(Z_unsharded, Z)
 
     def testShardedParallelAxisInLhs(self):
         a = torch.rand(2, 12, 5, dtype=torch.float32)
@@ -1060,7 +1062,7 @@ class MatmulTest(unittest.TestCase):
         assert res_sharded.shard_dim == 1
         assert res_sharded.shard_count == shard_count
         actual_result = ops.sharded_cat(res_sharded)
-        torch.testing.assert_close(actual_result, expected_result)
+        assert_tensor_close(actual_result, expected_result)
 
     def testShardedParallelAxesInLhsAndRhs(self):
         a = torch.rand(2, 12, 5, dtype=torch.float32)
@@ -1074,7 +1076,7 @@ class MatmulTest(unittest.TestCase):
         assert res_sharded.shard_dim == 1
         assert res_sharded.shard_count == shard_count
         actual_result = ops.sharded_cat(res_sharded)
-        torch.testing.assert_close(actual_result, expected_result)
+        assert_tensor_close(actual_result, expected_result)
 
     def testShardedParallelAxesInLhsAndTransposedRhs(self):
         a = torch.rand(2, 12, 5, dtype=torch.float32)
@@ -1088,7 +1090,7 @@ class MatmulTest(unittest.TestCase):
         assert res_sharded.shard_dim == 1
         assert res_sharded.shard_count == shard_count
         actual_result = ops.sharded_cat(res_sharded)
-        torch.testing.assert_close(actual_result, expected_result)
+        assert_tensor_close(actual_result, expected_result)
 
     def testShardedLhsBatchDimAndRhsParallelDim(self):
         a = torch.rand(12, 2, 5, dtype=torch.float32)
@@ -1102,7 +1104,7 @@ class MatmulTest(unittest.TestCase):
         assert res_sharded.shard_dim == 0
         assert res_sharded.shard_count == shard_count
         actual_result = ops.sharded_cat(res_sharded)
-        torch.testing.assert_close(actual_result, expected_result)
+        assert_tensor_close(actual_result, expected_result)
 
     def testShardedLhsReplcatedRhs(self):
         a = torch.rand(12, 3, 5, dtype=torch.float32)
@@ -1116,7 +1118,7 @@ class MatmulTest(unittest.TestCase):
         assert res_sharded.shard_dim == 1
         assert res_sharded.shard_count == shard_count
         actual_result = ops.sharded_cat(res_sharded)
-        torch.testing.assert_close(actual_result, expected_result)
+        assert_tensor_close(actual_result, expected_result)
 
     def testShardedFFNTransposed(self):
         input = torch.rand(4, 32, 64, dtype=torch.float32)
@@ -1163,7 +1165,7 @@ class MatmulTest(unittest.TestCase):
             sharded_ffn_down_weight,
             sharded_ffn_up_weight,
         )
-        torch.testing.assert_close(Z_sharded, Z_ref)
+        assert_tensor_close(Z_sharded, Z_ref)
 
     def testSameSplitLhsAndRhsBatchDim(self):
         a = torch.rand(3, 4, 5, 6)
@@ -1178,7 +1180,7 @@ class MatmulTest(unittest.TestCase):
         assert sharded_result.shard_count == shard_count
         assert sharded_result.shard_dim == shard_dim
         actual_result = unbox_tensor(ops.unshard(sharded_result))
-        torch.testing.assert_close(actual_result, expected_result)
+        assert_tensor_close(actual_result, expected_result)
 
     def testReplicatedLhsAndRhs(self):
         a = torch.rand(2, 5, 3, dtype=torch.float32)
@@ -1190,7 +1192,7 @@ class MatmulTest(unittest.TestCase):
         b_sharded = ops.replicate(b, count=shard_count)
         actual_result = ops.matmul(a_sharded, b_sharded)
         for shard in actual_result.shards:
-            torch.testing.assert_close(unsharded_result, unbox_tensor(shard))
+            assert_tensor_close(unsharded_result, unbox_tensor(shard))
 
     def testReplicated3DLhsAndSplitBatchDim3DRhs(self):
         """Both LHS and RHS are 3D tensors and RHS is split along the batch dimension."""
@@ -1227,7 +1229,7 @@ class MeanTest(unittest.TestCase):
             dim=self.mean_dim,
             keepdim=self.keepdim,
         )
-        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+        assert_tensor_close(expected_result, ops.unbox_tensor(actual_result))
 
     def testMeanSplit(self):
         tensor = torch.rand(self.shape, dtype=torch.float32)
@@ -1238,7 +1240,7 @@ class MeanTest(unittest.TestCase):
         actual_result = ops.mean(
             sharded_tensor, dim=self.mean_dim, keepdim=self.keepdim
         )
-        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+        assert_tensor_close(expected_result, ops.unbox_tensor(actual_result))
 
     def testMeanSplitNegativeDims(self):
         if self.mean_dim_delta != -1:
@@ -1252,7 +1254,7 @@ class MeanTest(unittest.TestCase):
             tensor, dim=self.shard_dim, count=self.shard_count
         )
         actual_result = ops.mean(sharded_tensor, dim=mean_dim, keepdim=self.keepdim)
-        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+        assert_tensor_close(expected_result, ops.unbox_tensor(actual_result))
 
     def testMeanSplitMultiDim(self):
         tensor = torch.rand(self.shape, dtype=torch.float32)
@@ -1265,7 +1267,7 @@ class MeanTest(unittest.TestCase):
         actual_result = ops.mean(
             sharded_tensor, dim=self.mean_dims_multi, keepdim=self.keepdim
         )
-        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+        assert_tensor_close(expected_result, ops.unbox_tensor(actual_result))
 
 
 class ReduceScatter(unittest.TestCase):
@@ -1622,14 +1624,14 @@ class SigmoidTest(unittest.TestCase):
         tensor = torch.rand(4, 6, dtype=torch.float32)
         expected_result = ops.sigmoid(tensor)
         actual_result = ops.sigmoid(ops.replicate(tensor, count=3))
-        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+        assert_tensor_close(expected_result, ops.unbox_tensor(actual_result))
 
     @parameterized.expand(((0,), (1,)))
     def testSigmoidSplit(self, shard_dim: int):
         tensor = torch.rand(4, 6, dtype=torch.float32)
         expected_result = ops.sigmoid(tensor)
         actual_result = ops.sigmoid(ops.reshard_split(tensor, dim=shard_dim, count=2))
-        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+        assert_tensor_close(expected_result, ops.unbox_tensor(actual_result))
 
 
 class ShardedGatherTest(unittest.TestCase):
@@ -1645,7 +1647,7 @@ class ShardedGatherTest(unittest.TestCase):
 
         actual = ops.sharded_gather(tensor_sp, root_rank=root_rank)
         self.assertEqual(len(actual), 3)
-        self.assertEqual(actual[0].shape, (2, 5, 4))
+        self.assertSequenceEqual(actual[0].shape, [2, 5, 4])
 
         for i, shard in enumerate(actual):
             assert ops.equal(shard, shards[i])
@@ -1676,7 +1678,7 @@ class SoftmaxTest(unittest.TestCase):
         dim = 1
         expected_result = ops.softmax(tensor, dim=dim)
         actual_result = ops.softmax(ops.replicate(tensor, count=3), dim=dim)
-        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+        assert_tensor_close(expected_result, ops.unbox_tensor(actual_result))
 
     def testSoftmaxSplit(self):
         tensor = torch.rand(2, 2, 2, dtype=torch.float32)
@@ -1685,11 +1687,11 @@ class SoftmaxTest(unittest.TestCase):
 
         expected_result = ops.softmax(tensor, dim=dim - 1)
         actual_result = ops.softmax(sharded_tensor, dim=dim - 1)
-        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+        assert_tensor_close(expected_result, ops.unbox_tensor(actual_result))
 
         expected_result = ops.softmax(tensor, dim=dim + 1)
         actual_result = ops.softmax(sharded_tensor, dim=dim + 1)
-        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+        assert_tensor_close(expected_result, ops.unbox_tensor(actual_result))
 
 
 class SplitTest(unittest.TestCase):
@@ -1737,7 +1739,7 @@ class SumTest(unittest.TestCase):
         actual_result = ops.sum(
             ops.replicate(tensor, count=3), dim=sum_dim, keepdim=keepdim
         )
-        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+        assert_tensor_close(expected_result, ops.unbox_tensor(actual_result))
 
     @parameterized.expand(list(itertools.product((0, [0, 1], [2, 0]), [True, False])))
     def testSumSplit(self, sum_dim: int | list[int], keepdim: bool):
@@ -1746,7 +1748,7 @@ class SumTest(unittest.TestCase):
         expected_result = ops.sum(tensor, dim=sum_dim, keepdim=keepdim)
         sharded_tensor = ops.reshard_split(tensor, dim=dim, count=2)
         actual_result = ops.sum(sharded_tensor, dim=sum_dim, keepdim=keepdim)
-        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+        assert_tensor_close(expected_result, ops.unbox_tensor(actual_result))
 
     @parameterized.expand(((list,), (tuple,), (reversed,)))
     def testSumBuiltinFunction(
@@ -1968,7 +1970,7 @@ class TriviallyReplicableTest(unittest.TestCase):
         ),
         strict=True,
         raises=NotImplementedError,
-        match=(
+        match=re.escape(
             "does not have an implementation for argument types:"
             " [<class 'sharktank.types.tensors.ReplicatedTensor'>]"
         ),
