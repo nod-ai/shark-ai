@@ -8,7 +8,6 @@ import asyncio
 import numpy as np
 import operator
 import threading
-from line_profiler import profile
 
 from copy import deepcopy
 from functools import reduce
