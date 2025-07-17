@@ -193,7 +193,7 @@ class Unet2DConditionModel(ThetaLayer):
         # 6. Post-process.
         if self.conv_norm_out:
             sample = self.conv_norm_out(sample)
-            sample = ops.elementwise(self.conv_act, sample)
+            sample = ops.elementwise(self.conv_act, sample).type_as(encoder_hidden_states)
         sample = self.conv_out(sample)
         return sample
 
