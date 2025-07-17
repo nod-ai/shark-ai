@@ -47,7 +47,9 @@ def masked_flash_attention(q, k, v, a, is_causal=False, scale=None, dtype=None):
     ):
         shards = [
             masked_flash_attention(_q, _k, _v, _a)
-            for _q, _k, _v, _a in zip(q.shards, k.shards, v.shards, a.shards, is_causal, scale, dtype)
+            for _q, _k, _v, _a in zip(
+                q.shards, k.shards, v.shards, a.shards, is_causal, scale, dtype
+            )
         ]
         return ReplicatedTensor(ts=shards, devices=q.devices)
 
