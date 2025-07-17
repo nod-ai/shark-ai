@@ -148,14 +148,22 @@ class MoeBlock(ThetaLayer):
         if self.n_expert_groups is not None and self.n_limited_groups is not None:
             scores_for_choice = router_weights.view(-1, self.expert_count)
 
-            group_scores = (
+            group_scores = topk(
                 router_weights.view(
                     -1, self.n_expert_groups, self.expert_count // self.n_expert_groups
-                )
-                .topk(2, dim=-1)[0]
-                .sum(dim=-1)
-            )
-            group_idx = topk(group_scores, k=self.n_limited_groups, dim=-1)[1]
+                ),
+                k=2,
+                dim=-1,
+                sorted=False,
+                use_linalgext_topk=True,
+            )[0].sum(dim=-1)
+            group_idx = topk(
+                group_scores,
+                k=self.n_limited_groups,
+                dim=-1,
+                sorted=False,
+                use_linalgext_topk=True,
+            )[1]
             group_mask = zeros_like(group_scores)
             group_mask.scatter_(1, group_idx, 1)
             score_mask = (
@@ -168,12 +176,20 @@ class MoeBlock(ThetaLayer):
             scores_for_choice = scores_for_choice.masked_fill(~score_mask.bool(), 0.0)
             # shape: (batch_size * sequence_length, expert_used_count)
             expert_gate, top_k_experts = topk(
-                scores_for_choice, k=self.expert_used_count, dim=-1
+                scores_for_choice,
+                k=self.expert_used_count,
+                dim=-1,
+                sorted=False,
+                use_linalgext_topk=True,
             )
         else:
             # shape: (batch_size * sequence_length, expert_used_count)
             expert_gate, top_k_experts = topk(
-                router_weights, self.expert_used_count, dim=-1
+                router_weights,
+                self.expert_used_count,
+                dim=-1,
+                sorted=False,
+                use_linalgext_topk=True,
             )
 
         if self.normalize_experts:
