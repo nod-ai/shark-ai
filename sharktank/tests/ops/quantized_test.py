@@ -12,6 +12,49 @@ from sharktank.utils.testing import assert_tensor_close
 from sharktank import ops
 
 
+class TestCat_BlockScaledFp4Layout:
+    n_values_per_byte = 2
+    block_size = n_values_per_byte * 3
+
+    @pytest.mark.parametrize(
+        "dim",
+        [0, 1, 2],
+    )
+    def test_cat_block_scaled_f4_quantization(
+        self, deterministic_random_seed, dim: int
+    ):
+        dequantized_dtype = torch.float32
+        quantizer = DynamicFp4BlockQuantizer(
+            dtype=torch.float32,
+            block_size=self.block_size,
+            use_fe8m0_scale=True,
+        )
+        tensor_count = 3
+        dequantized_input = [
+            torch.rand([3, 5, quantizer.block_size * 7], dtype=dequantized_dtype)
+            for _ in range(tensor_count)
+        ]
+        quantized_input = [quantizer.quantize(t) for t in dequantized_input]
+
+        # Roundtrip the dequantization and quantization to make sure that
+        # the tensor gets quantized without any loss of precision.
+        dequantized_input = [
+            t.to_planar().layout.dequant(dtype=dequantized_dtype)
+            for t in quantized_input
+        ]
+        quantized_input_roundtripped = [
+            quantizer.quantize(t) for t in dequantized_input
+        ]
+        # Make sure roundtripping is sane.
+        assert_tensor_close(
+            quantized_input, quantized_input_roundtripped, rtol=0, atol=0
+        )
+
+        expected_result = torch.cat(dequantized_input, dim=dim)
+        actual_result = ops.cat(quantized_input, dim=dim)
+        assert_tensor_close(actual_result, expected_result, rtol=0, atol=0)
+
+
 class TestExtractSlice_BlockScaledFp4Layout:
     n_values_per_byte = 2
     block_size = n_values_per_byte * 3
@@ -59,4 +102,46 @@ class TestExtractSlice_BlockScaledFp4Layout:
 
         expected_result = dequantized_input[slice_]
         actual_result = quantized_input[slice_]
+        assert_tensor_close(actual_result, expected_result, rtol=0, atol=0)
+
+
+class TestSplit_BlockScaledFp4Layout:
+    n_values_per_byte = 2
+    block_size = n_values_per_byte * 3
+
+    @pytest.mark.parametrize(
+        "split_size, dim",
+        [
+            (1, 0),
+            (block_size, 2),
+            (2 * block_size, -1),
+            ([3, 2], 1),
+            ([block_size, 2 * block_size, 4 * block_size], 2),
+        ],
+    )
+    def test_split_block_scaled_f4_quantization(
+        self, deterministic_random_seed, split_size: int | list[int], dim: int
+    ):
+        dequantized_dtype = torch.float32
+        quantizer = DynamicFp4BlockQuantizer(
+            dtype=torch.float32,
+            block_size=self.block_size,
+            use_fe8m0_scale=True,
+        )
+        dequantized_input = torch.rand(
+            [3, 5, quantizer.block_size * 7], dtype=dequantized_dtype
+        )
+        quantized_input = quantizer.quantize(dequantized_input)
+
+        # Roundtrip the dequantization and quantization to make sure that
+        # the tensor gets quantized without any loss of precision.
+        dequantized_input = quantized_input.to_planar().layout.dequant(
+            dtype=dequantized_dtype
+        )
+        quantized_input_roundtripped = quantizer.quantize(dequantized_input)
+        # Make sure roundtripping is sane.
+        assert ops.equal(quantized_input, quantized_input_roundtripped)
+
+        expected_result = dequantized_input.split(split_size, dim)
+        actual_result = ops.split(quantized_input, split_size, dim)
         assert_tensor_close(actual_result, expected_result, rtol=0, atol=0)
