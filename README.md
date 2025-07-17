@@ -4,7 +4,7 @@
 
 | Name                                                                          |    Stmts |     Miss |   Cover |   Missing |
 |------------------------------------------------------------------------------ | -------: | -------: | ------: | --------: |
-| sharktank/conftest.py                                                         |      165 |       15 |     91% |352, 357, 364, 371, 446, 470, 475-478, 488, 493, 507, 531, 534-535 |
+| sharktank/conftest.py                                                         |      176 |       15 |     91% |352, 357, 364, 371, 446, 470, 475-478, 488, 493, 507, 531, 534-535 |
 | sharktank/integration/models/punet/integration\_test.py                       |       94 |       57 |     39% |15-16, 21-31, 52-62, 70-80, 90-101, 110-121, 131-143, 150, 155-167, 174, 185-192, 210-220, 242-255 |
 | sharktank/setup.py                                                            |       18 |       18 |      0% |      7-34 |
 | sharktank/sharktank/\_\_init\_\_.py                                           |        4 |        1 |     75% |        15 |
@@ -144,7 +144,7 @@
 | sharktank/sharktank/utils/math.py                                             |       12 |        0 |    100% |           |
 | sharktank/sharktank/utils/misc.py                                             |       40 |        2 |     95% |    21, 82 |
 | sharktank/sharktank/utils/patching.py                                         |       97 |       45 |     54% |16, 56, 60, 75-78, 87-93, 98, 108-133, 141-154, 157-168, 197, 231, 233, 238 |
-| sharktank/sharktank/utils/random.py                                           |        8 |        0 |    100% |           |
+| sharktank/sharktank/utils/random.py                                           |       23 |        0 |    100% |           |
 | sharktank/sharktank/utils/testing.py                                          |      305 |      183 |     40% |146-262, 285-291, 302, 315-325, 338-362, 368-389, 405-414, 419-432, 436-440, 479-563, 590, 626-644, 692, 739, 744, 750-754, 762-765, 771-778, 786-790 |
 | sharktank/sharktank/utils/tokenizer.py                                        |       64 |       43 |     33% |34-38, 42-46, 50, 54, 58, 63-66, 69-72, 76, 80-81, 85-110, 114-119 |
 | sharktank/sharktank/utils/tree.py                                             |       47 |        2 |     96% |   51, 150 |
@@ -218,9 +218,9 @@
 | sharktank/tests/utils/iree\_test.py                                           |       56 |        6 |     89% | 69-73, 93 |
 | sharktank/tests/utils/misc\_test.py                                           |        9 |        0 |    100% |           |
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
-| sharktank/tests/utils/testing\_test.py                                        |       88 |        4 |     95% |   279-292 |
+| sharktank/tests/utils/testing\_test.py                                        |      101 |        4 |     96% |   303-316 |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **20591** | **4100** | **80%** |           |
+|                                                                     **TOTAL** | **20630** | **4100** | **80%** |           |
 
 
 ## Setup coverage badge
