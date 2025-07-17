@@ -19,7 +19,7 @@ function(_add_sharkfuser_target)
   # Link libraries/dependencies
   target_link_libraries(${_RULE_NAME} PRIVATE
     ${_RULE_DEPS}
-    ${SHARKFUSER_LINK_LIBRARY_NAME}
+    libfusili
     Catch2::Catch2WithMain
   )
 

@@ -34,9 +34,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 # Add include directory for header-only library
-add_library(sharkfuser INTERFACE)
-target_include_directories(sharkfuser INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-set(SHARKFUSER_LINK_LIBRARY_NAME "sharkfuser")
+add_library(libfusili INTERFACE)
+target_include_directories(libfusili INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # Version pins for dependencies
 set(SHARKFUSER_IREE_GIT_TAG "iree-3.6.0rc20250612")
