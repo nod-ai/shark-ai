@@ -159,6 +159,7 @@ class LlmDecoder:
         decode_batcher,
         results_callback: Callable[[Union[int, List[int]]], None],
         rid,
+        use_native_impls: bool = False,
     ):
         self._decode_config = decode_config
         self._cpp_decode_config = _convert_to_cpp_decode_config(decode_config)
@@ -173,9 +174,8 @@ class LlmDecoder:
         self._page_manager = PageManager(self._page_pool)
         self._lock = threading.Lock()
         self._cancelled = False
-        self._use_native_select = True
 
-        if self._use_native_select:
+        if use_native_impls:
             self._select_function = self._native_select
         else:
             self._select_function = (

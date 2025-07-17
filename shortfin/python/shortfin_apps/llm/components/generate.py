@@ -113,6 +113,7 @@ class NewGenerateItemProcess(sf.Process):
         input_token_ids: list[int],
         decode_config: DecodeConfig,
         fiber: sf.Fiber,
+        use_native_impls: bool = False,
     ):
         super().__init__(fiber=fiber)
         self.rid = rid
@@ -127,6 +128,7 @@ class NewGenerateItemProcess(sf.Process):
             decode_batcher=decode_batcher,
             results_callback=self.results_callback,
             rid=self.rid,
+            use_native_impls=use_native_impls,
         )
 
     def cancel(self):
@@ -311,6 +313,7 @@ class ClientGenerateBatchProcess(sf.Process):
                         input_token_ids=input_tokens,
                         decode_config=decode_config,
                         fiber=fiber,
+                        use_native_impls=self.service.server_params.use_native_impls,
                     )
                 else:
                     gen_process = GenerateItemProcess(
