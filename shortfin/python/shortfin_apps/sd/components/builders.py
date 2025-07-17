@@ -457,7 +457,7 @@ def sdxl(
         for idx, f in enumerate(copy.deepcopy(vmfb_filenames)):
             # We return .vmfb file stems for the compile builder.
             mlir_stem = "_".join(f.split("_")[:-2])
-            vmfb_stem = f.split(f"_{driver}.vmfb")[0]
+            vmfb_stem = f.split(f"_{target}.vmfb")[0]
             if needs_file(f, ctx, namespace=FileNamespace.BIN) or force_update:
                 for mlirname in mlir_filenames:
                     if mlir_stem in mlirname:
