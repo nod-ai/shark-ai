@@ -38,6 +38,7 @@ if TYPE_CHECKING:
 
 torch_dtype_to_hal_element_type_map = {
     torch.float8_e4m3fnuz: iree.runtime.HalElementType.FLOAT_8_E4M3_FNUZ,
+    torch.float8_e4m3fn: iree.runtime.HalElementType.FLOAT_8_E4M3_FN,
     torch.bfloat16: iree.runtime.HalElementType.BFLOAT_16,
 }
 
