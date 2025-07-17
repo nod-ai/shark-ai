@@ -8,6 +8,7 @@ import asyncio
 import numpy as np
 import operator
 import threading
+from line_profiler import profile
 
 from copy import deepcopy
 from functools import reduce
@@ -22,9 +23,42 @@ from shortfin_apps.llm.components.messages import (
 )
 from typing import Callable, List, Union
 
+try:
+    import _shortfin_default.lib.llm as _llm
 
-def combine_scores_null():
-    raise ValueError("Unimplemented")
+    CPP_AVAILABLE = True
+except ImportError:
+    CPP_AVAILABLE = False
+
+
+def _convert_to_cpp_decode_config(py_config: DecodeConfig):
+    if not CPP_AVAILABLE:
+        return None
+
+    cpp_config = _llm.DecodeConfig()
+    cpp_config.eos_token_id = py_config.eos_token_id
+    cpp_config.num_beams = py_config.num_beams
+    cpp_config.temperature = py_config.temperature
+    cpp_config.use_beam_search = py_config.use_beam_search
+    cpp_config.max_completion_tokens = py_config.max_completion_tokens
+
+    # Convert LogitsNormalization enum
+    cpp_config.logits_normalization = {
+        LogitsNormalization.NONE: _llm.LogitsNormalization.NONE,
+        LogitsNormalization.SOFTMAX: _llm.LogitsNormalization.SOFTMAX,
+        LogitsNormalization.LOG_SOFTMAX: _llm.LogitsNormalization.LOG_SOFTMAX,
+    }[py_config.logits_normalization]
+
+    cpp_config.top_k = py_config.top_k if py_config.top_k is not None else -1
+    cpp_config.top_p = py_config.top_p if py_config.top_p is not None else -1.0
+
+    return cpp_config
+
+
+def combine_scores_null(old_score: np.ndarray, step: np.ndarray, norm: float):
+    new_score = old_score + step
+    new_score = new_score - norm
+    return new_score
 
 
 def combine_scores_softmax(old_score: np.ndarray, step: np.ndarray, norm: float):
@@ -50,7 +84,7 @@ def select_greedy(scores: np.ndarray, decode_config: DecodeConfig):
     assert len(scores.shape) == 2
     scores = scores.flatten()
     argmax = np.argmax(scores)
-    argmax = argmax[None]
+    argmax = np.array([argmax])
 
     return argmax, scores[argmax]
 
@@ -79,6 +113,8 @@ class PageManager:
     def allocate_more(self, count):
         count = max(self._block_allocation, count)
         new_pages = self._page_pool.acquire_free_pages(count)
+        if new_pages is None:
+            return []
         new_page_ids = [p.index for p in new_pages]
         self._allocated_pages.extend(new_pages)
         self._allocated_page_ids.update(new_page_ids)
@@ -134,6 +170,7 @@ class LlmDecoder:
         rid,
     ):
         self._decode_config = decode_config
+        self._cpp_decode_config = _convert_to_cpp_decode_config(decode_config)
         self._eos_token = self._decode_config.eos_token_id
         self._prefill_batcher = prefill_batcher
         self._decode_batcher = decode_batcher
@@ -146,13 +183,21 @@ class LlmDecoder:
         self._lock = threading.Lock()
         self._cancelled = False
 
-        self._select_function = (
-            select_topk if self._decode_config.use_beam_search else select_greedy
-        )
+        if CPP_AVAILABLE:
+            self._select_function = self._native_select
+        else:
+            self._select_function = (
+                select_topk if self._decode_config.use_beam_search else select_greedy
+            )
 
         self._score_function = _score_functions[
             self._decode_config.logits_normalization
         ]
+
+    def _native_select(self, logits, decode_config):
+        tokens, scores = _llm.select_tokens(logits.flatten(), self._cpp_decode_config)
+
+        return np.array(tokens), np.array(scores)
 
     def cancel(self):
         """Cancel inproceess work."""
@@ -163,6 +208,7 @@ class LlmDecoder:
         """Release any remain resources held by the decoder"""
         self._page_manager.release_pages()
 
+    @profile
     def select(self, reqs):
         # Setup next steps:
         max_score = max(req.score for req in reqs)
@@ -241,6 +287,7 @@ class LlmDecoder:
 
         return decode_reqs
 
+    @profile
     async def run(self, input_ids):
         prefill_req = LlmInferenceExecRequest(
             phase=InferencePhase.PREFILL,

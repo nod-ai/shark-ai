@@ -240,7 +240,7 @@ class ClientGenerateBatchProcess(sf.Process):
                 error_message="Server queue is full. Please try again later.",
                 code=ResponderErrorCodes.QUEUE_FULL,
                 extra_fields={
-                    "current_size": self.service.queue_manager.current_queue_size,
+                    "current_size": self.service.queue_manager._current_queue_size,
                     "max_size": self.service.max_queue_size,
                 },
             )
@@ -301,7 +301,7 @@ class ClientGenerateBatchProcess(sf.Process):
                 )
 
                 input_tokens = input_tokens if is_pretokenized else input_tokens.ids
-                if self.service.server_params.use_new_decoder:
+                if True:
                     gen_process = NewGenerateItemProcess(
                         prefill_batcher=self.service.prefill_batcher,
                         decode_batcher=self.service.decode_batcher,
