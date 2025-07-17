@@ -322,7 +322,7 @@ def test_is_valid_mma_schedule(
         k_tile_size=z3.IntVal(2),
     )
 
-    constraints = dispatch_constraints.is_valid_mma_schedule(
+    constraints = dispatch_constraints.is_valid_vector_distribute_mma_schedule(
         matmul=matmul,
         schedule=schedule,
         subgroup_size=subgroup_size,
@@ -344,7 +344,7 @@ def test_is_valid_mma_schedule(
         rhs_type=tuner_ctx.type.f16,
         acc_type=tuner_ctx.type.f32,
     )
-    constraints = dispatch_constraints.is_valid_mma_schedule(
+    constraints = dispatch_constraints.is_valid_vector_distribute_mma_schedule(
         matmul=matmul,
         schedule=schedule,
         subgroup_size=subgroup_size,
