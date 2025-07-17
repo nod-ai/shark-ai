@@ -26,6 +26,8 @@ To re-run failed tests verbosely:
 ctest --test-dir build --rerun-failed --output-on-failure --verbose
 ```
 
+Tests and samples are also built as standalone binary targets in the `build/bin` directory to help with debugging isolated failures.
+
 ### Code coverage (using gcov + lcov):
 
 This works with gcc builds (code coverage with clang instrumentation is future work).
@@ -73,12 +75,12 @@ To configure logging behavior using environment variables:
 | `FUSILI_LOG_FILE` set to `stdout` or `stderr`  | no logging            | logging to cout / cerr
 | `FUSILI_LOG_FILE` set to `/path/to/file.txt`   | no logging            | logging to file.txt
 
-Alternatively, one may call the logging API directly as needed:
+Tests and samples that are built with the cmake flag `-DSHARKFUSER_DEBUG_BUILD=ON` have their env variables automatically configured for logging to cout.
 
+Alternatively, one may call the logging API directly as needed:
 - Calling `fusili::isLoggingEnabled() = <true|false>` has the same effect as setting `FUSILI_LOG_INFO = 1|0`.
 - Calling `fusili::getStream() = <stream_name>` has the same effect as setting the output stream using `FUSILI_LOG_FILE`.
 
-Tests and samples that are built with the cmake flag `-DSHARKFUSER_DEBUG_BUILD=ON` have their env variables automatically configured for logging to cout.
 
 ## Project Roadmap
 - [x] Build/test infra, logging, code coverage reporting

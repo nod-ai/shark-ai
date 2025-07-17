@@ -15,32 +15,35 @@ if(NOT catch2_FOUND)
   FetchContent_MakeAvailable(catch2)
 endif()
 
-# Add test executable
-add_executable(sharkfuser_tests
-  test_tensor.cpp
-  test_logging.cpp
-  test_attributes.cpp
-  test_tensor_attributes.cpp
-  test_conv_attributes.cpp
-  test_context.cpp
-  test_conv_node.cpp
-  test_graph.cpp
+add_sharkfuser_test(
+  NAME sharkfuser_attribute_tests
+  SRCS
+    test_attributes.cpp
+    test_tensor_attributes.cpp
+    test_conv_attributes.cpp
 )
-target_link_libraries(sharkfuser_tests PRIVATE sharkfuser Catch2::Catch2WithMain)
-if(SHARKFUSER_CODE_COVERAGE)
-  target_compile_options(sharkfuser_tests PRIVATE -coverage -O0 -g)
-  target_link_options(sharkfuser_tests PRIVATE -coverage)
-endif()
-add_test(NAME sharkfuser_tests COMMAND sharkfuser_tests)
-if(SHARKFUSER_DEBUG_BUILD)
-  set_tests_properties(
-    sharkfuser_tests PROPERTIES
-    ENVIRONMENT "FUSILI_LOG_INFO=1;FUSILI_LOG_FILE=stdout"
-  )
-endif()
 
-# Place executable in the bin directory
-set_target_properties(
-    sharkfuser_tests PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin
+add_sharkfuser_test(
+  NAME sharkfuser_tensor_tests
+  SRCS
+    test_tensor.cpp
+)
+
+add_sharkfuser_test(
+  NAME sharkfuser_node_tests
+  SRCS
+    test_conv_node.cpp
+)
+
+add_sharkfuser_test(
+  NAME sharkfuser_graph_tests
+  SRCS
+    test_graph.cpp
+    test_context.cpp
+)
+
+add_sharkfuser_test(
+  NAME sharkfuser_logging_tests
+  SRCS
+    test_logging.cpp
 )
