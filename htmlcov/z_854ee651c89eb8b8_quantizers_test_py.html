@@ -54,8 +54,8 @@
             </div>
         </aside>
         <h2>
-            <span class="text">226 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">225<span class="text"> run</span></button>
+            <span class="text">244 statements &nbsp;</span>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">243<span class="text"> run</span></button>
             <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">1<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_854ee651c89eb8b8_tensors_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.2">coverage.py v7.9.2</a>,
-            created at 2025-07-17 16:16 +0000
+            created at 2025-07-17 16:29 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -570,9 +570,55 @@
     <p class="run"><span class="n"><a id="t488" href="#t488">488</a></span><span class="t">            <span class="nam">self</span><span class="op">.</span><span class="nam">assertEqual</span><span class="op">(</span><span class="nam">static_quantizer_rt</span><span class="op">.</span><span class="nam">block_size</span><span class="op">,</span> <span class="nam">block_size</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t489" href="#t489">489</a></span><span class="t">            <span class="nam">torch</span><span class="op">.</span><span class="nam">testing</span><span class="op">.</span><span class="nam">assert_close</span><span class="op">(</span><span class="nam">static_quantizer_rt</span><span class="op">.</span><span class="nam">scales</span><span class="op">,</span> <span class="nam">scales</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t490" href="#t490">490</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t491" href="#t491">491</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t492" href="#t492">492</a></span><span class="t"><span class="key">if</span> <span class="nam">__name__</span> <span class="op">==</span> <span class="str">"__main__"</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t493" href="#t493">493</a></span><span class="t">    <span class="nam">unittest</span><span class="op">.</span><span class="nam">main</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t491" href="#t491">491</a></span><span class="t">    <span class="key">def</span> <span class="nam">testReplicatedStaticFp4Quantizer</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t492" href="#t492">492</a></span><span class="t">        <span class="str">"""Test that replicated static FP4 quantizer works correctly."""</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t493" href="#t493">493</a></span><span class="t">        <span class="nam">orig_value</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">get_fp4_exact_values</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t494" href="#t494">494</a></span><span class="t">        <span class="nam">scales</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">tensor</span><span class="op">(</span><span class="op">[</span><span class="num">1.0</span><span class="op">]</span><span class="op">,</span> <span class="nam">dtype</span><span class="op">=</span><span class="nam">torch</span><span class="op">.</span><span class="nam">float32</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t495" href="#t495">495</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t496" href="#t496">496</a></span><span class="t">        <span class="com"># Create a static quantizer with replicated scales</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t497" href="#t497">497</a></span><span class="t">        <span class="nam">static_quantizer</span> <span class="op">=</span> <span class="nam">StaticFp4BlockQuantizer</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t498" href="#t498">498</a></span><span class="t">            <span class="nam">scales</span><span class="op">=</span><span class="nam">scales</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t499" href="#t499">499</a></span><span class="t">            <span class="nam">block_size</span><span class="op">=</span><span class="num">8</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t500" href="#t500">500</a></span><span class="t">            <span class="nam">use_fe8m0_scale</span><span class="op">=</span><span class="key">False</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t501" href="#t501">501</a></span><span class="t">            <span class="nam">name</span><span class="op">=</span><span class="str">"replicated_static_fp4_quantizer"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t502" href="#t502">502</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t503" href="#t503">503</a></span><span class="t">        <span class="nam">static_quantizer</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_roundtrip</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t504" href="#t504">504</a></span><span class="t">            <span class="nam">static_quantizer</span><span class="op">,</span> <span class="str">"_replicated_static_fp4_quantizer"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t505" href="#t505">505</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t506" href="#t506">506</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t507" href="#t507">507</a></span><span class="t">        <span class="com"># Quantize with static quantizer</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t508" href="#t508">508</a></span><span class="t">        <span class="nam">qt_value</span> <span class="op">=</span> <span class="nam">static_quantizer</span><span class="op">.</span><span class="nam">quantize</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t509" href="#t509">509</a></span><span class="t">            <span class="nam">orig_value</span><span class="op">,</span> <span class="nam">name</span><span class="op">=</span><span class="str">"test_replicated_static_fp4"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t510" href="#t510">510</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t511" href="#t511">511</a></span><span class="t">        <span class="com"># TODO: Enable after generalizating add_to_archive</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t512" href="#t512">512</a></span><span class="t">        <span class="com"># qt_value = self._roundtrip(qt_value, "_replicated_static_fp4_qt_value")</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t513" href="#t513">513</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t514" href="#t514">514</a></span><span class="t">        <span class="nam">layout</span> <span class="op">=</span> <span class="nam">qt_value</span><span class="op">.</span><span class="nam">unpack</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t515" href="#t515">515</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">assertIsInstance</span><span class="op">(</span><span class="nam">layout</span><span class="op">,</span> <span class="nam">BlockScaledFp4Layout</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t516" href="#t516">516</a></span><span class="t">        <span class="nam">dequant_value</span> <span class="op">=</span> <span class="nam">layout</span><span class="op">.</span><span class="nam">dequant</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t517" href="#t517">517</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t518" href="#t518">518</a></span><span class="t">        <span class="com"># Should match original values exactly for representable FP4 values</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t519" href="#t519">519</a></span><span class="t">        <span class="nam">torch</span><span class="op">.</span><span class="nam">testing</span><span class="op">.</span><span class="nam">assert_close</span><span class="op">(</span><span class="nam">orig_value</span><span class="op">,</span> <span class="nam">dequant_value</span><span class="op">,</span> <span class="nam">atol</span><span class="op">=</span><span class="num">0.0</span><span class="op">,</span> <span class="nam">rtol</span><span class="op">=</span><span class="num">0.0</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t520" href="#t520">520</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t521" href="#t521">521</a></span><span class="t">        <span class="nam">replicated_quantizer</span> <span class="op">=</span> <span class="nam">ReplicatedQuantizerTensor</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t522" href="#t522">522</a></span><span class="t">            <span class="nam">ts</span><span class="op">=</span><span class="nam">static_quantizer</span><span class="op">,</span> <span class="nam">shard_count</span><span class="op">=</span><span class="num">4</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t523" href="#t523">523</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t524" href="#t524">524</a></span><span class="t">        <span class="nam">orig_values_replicated</span> <span class="op">=</span> <span class="nam">ReplicatedTensor</span><span class="op">(</span><span class="nam">ts</span><span class="op">=</span><span class="nam">orig_value</span><span class="op">,</span> <span class="nam">shard_count</span><span class="op">=</span><span class="num">4</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t525" href="#t525">525</a></span><span class="t">        <span class="nam">qt_value_replicated</span> <span class="op">=</span> <span class="nam">replicated_quantizer</span><span class="op">.</span><span class="nam">quantize</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t526" href="#t526">526</a></span><span class="t">            <span class="nam">orig_values_replicated</span><span class="op">,</span> <span class="nam">name</span><span class="op">=</span><span class="str">"test_replicated_static_fp4"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t527" href="#t527">527</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t528" href="#t528">528</a></span><span class="t">        <span class="com"># TODO: Enable after generalizating add_to_archive</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t529" href="#t529">529</a></span><span class="t">        <span class="com"># qt_value_replicated = self._roundtrip(qt_value_replicated, "_replicated_static_fp4_qt_value")</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t530" href="#t530">530</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t531" href="#t531">531</a></span><span class="t">        <span class="key">for</span> <span class="nam">qt_shard</span> <span class="key">in</span> <span class="nam">qt_value_replicated</span><span class="op">.</span><span class="nam">shards</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t532" href="#t532">532</a></span><span class="t">            <span class="nam">layout</span> <span class="op">=</span> <span class="nam">qt_shard</span><span class="op">.</span><span class="nam">unpack</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t533" href="#t533">533</a></span><span class="t">            <span class="nam">self</span><span class="op">.</span><span class="nam">assertIsInstance</span><span class="op">(</span><span class="nam">layout</span><span class="op">,</span> <span class="nam">BlockScaledFp4Layout</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t534" href="#t534">534</a></span><span class="t">            <span class="nam">dequant_value</span> <span class="op">=</span> <span class="nam">layout</span><span class="op">.</span><span class="nam">dequant</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t535" href="#t535">535</a></span><span class="t">            <span class="nam">torch</span><span class="op">.</span><span class="nam">testing</span><span class="op">.</span><span class="nam">assert_close</span><span class="op">(</span><span class="nam">orig_value</span><span class="op">,</span> <span class="nam">dequant_value</span><span class="op">,</span> <span class="nam">atol</span><span class="op">=</span><span class="num">0.0</span><span class="op">,</span> <span class="nam">rtol</span><span class="op">=</span><span class="num">0.0</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t536" href="#t536">536</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t537" href="#t537">537</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t538" href="#t538">538</a></span><span class="t"><span class="key">if</span> <span class="nam">__name__</span> <span class="op">==</span> <span class="str">"__main__"</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t539" href="#t539">539</a></span><span class="t">    <span class="nam">unittest</span><span class="op">.</span><span class="nam">main</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
     <div class="content">
@@ -582,7 +628,7 @@
             <a class="nav" href="z_854ee651c89eb8b8_tensors_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.2">coverage.py v7.9.2</a>,
-            created at 2025-07-17 16:16 +0000
+            created at 2025-07-17 16:29 +0000
         </p>
     </div>
 </footer>
