@@ -15,7 +15,7 @@ namespace shortfin::llm {
 void SelectTokensTopK(const std::vector<float> &scores,
                       const DecodeConfig &config,
                       std::vector<int> &selected_tokens,
-                      std::vector<float> &selected_scores) {
+                      std::vector<float> &selected_scores) noexcept {
   int num_select = config.num_beams;
   int vocab_size = scores.size();
 
@@ -52,7 +52,7 @@ void SelectTokensTopK(const std::vector<float> &scores,
 void SelectTokensGreedy(const std::vector<float> &scores,
                         const DecodeConfig &config,
                         std::vector<int> &selected_tokens,
-                        std::vector<float> &selected_scores) {
+                        std::vector<float> &selected_scores) noexcept {
   // Find the token with the highest score
   auto max_it = std::max_element(scores.begin(), scores.end());
   int argmax = std::distance(scores.begin(), max_it);

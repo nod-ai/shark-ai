@@ -16,7 +16,7 @@ namespace shortfin::llm {
 SHORTFIN_API void SelectTokens(const std::vector<float> &scores,
                                const DecodeConfig &config,
                                std::vector<int> &selected_tokens,
-                               std::vector<float> &selected_scores);
+                               std::vector<float> &selected_scores) noexcept;
 
 }  // namespace shortfin::llm
 

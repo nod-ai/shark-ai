@@ -8,6 +8,8 @@
 
 #include <nanobind/ndarray.h>
 
+#include <thread>
+
 #include "./utils.h"
 #include "shortfin/array/array.h"
 #include "shortfin/array/storage.h"
@@ -1567,8 +1569,6 @@ void BindLLM(py::module_ &m) {
       .def_rw("logits_normalization", &llm::DecodeConfig::logits_normalization)
       .def_rw("max_completion_tokens",
               &llm::DecodeConfig::max_completion_tokens);
-
-  // Bind token selection functions
   m.def(
       "select_tokens",
       [](py::ndarray<py::numpy, const float> scores,
@@ -1577,7 +1577,12 @@ void BindLLM(py::module_ &m) {
                                       scores.data() + scores.size());
         std::vector<int> selected_tokens;
         std::vector<float> selected_scores;
-        llm::SelectTokens(scores_vec, config, selected_tokens, selected_scores);
+        // Release GIL during C++ computation
+        {
+          py::gil_scoped_release release;
+          llm::SelectTokens(scores_vec, config, selected_tokens,
+                            selected_scores);
+        }
 
         return py::make_tuple(std::move(selected_tokens),
                               std::move(selected_scores));

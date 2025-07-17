@@ -23,19 +23,11 @@ from shortfin_apps.llm.components.messages import (
 )
 from typing import Callable, List, Union
 
-try:
-    import _shortfin_default.lib.llm as _llm
-
-    CPP_AVAILABLE = True
-except ImportError:
-    CPP_AVAILABLE = False
+from _shortfin import lib as _sfl
 
 
 def _convert_to_cpp_decode_config(py_config: DecodeConfig):
-    if not CPP_AVAILABLE:
-        return None
-
-    cpp_config = _llm.DecodeConfig()
+    cpp_config = _sfl.llm.DecodeConfig()
     cpp_config.eos_token_id = py_config.eos_token_id
     cpp_config.num_beams = py_config.num_beams
     cpp_config.temperature = py_config.temperature
@@ -44,9 +36,9 @@ def _convert_to_cpp_decode_config(py_config: DecodeConfig):
 
     # Convert LogitsNormalization enum
     cpp_config.logits_normalization = {
-        LogitsNormalization.NONE: _llm.LogitsNormalization.NONE,
-        LogitsNormalization.SOFTMAX: _llm.LogitsNormalization.SOFTMAX,
-        LogitsNormalization.LOG_SOFTMAX: _llm.LogitsNormalization.LOG_SOFTMAX,
+        LogitsNormalization.NONE: _sfl.llm.LogitsNormalization.NONE,
+        LogitsNormalization.SOFTMAX: _sfl.llm.LogitsNormalization.SOFTMAX,
+        LogitsNormalization.LOG_SOFTMAX: _sfl.llm.LogitsNormalization.LOG_SOFTMAX,
     }[py_config.logits_normalization]
 
     cpp_config.top_k = py_config.top_k if py_config.top_k is not None else -1
@@ -182,8 +174,9 @@ class LlmDecoder:
         self._page_manager = PageManager(self._page_pool)
         self._lock = threading.Lock()
         self._cancelled = False
+        self.use_native_select = True
 
-        if CPP_AVAILABLE:
+        if self.use_native_select:
             self._select_function = self._native_select
         else:
             self._select_function = (
@@ -195,8 +188,9 @@ class LlmDecoder:
         ]
 
     def _native_select(self, logits, decode_config):
-        tokens, scores = _llm.select_tokens(logits.flatten(), self._cpp_decode_config)
-
+        tokens, scores = _sfl.llm.select_tokens(
+            logits.flatten(), self._cpp_decode_config
+        )
         return np.array(tokens), np.array(scores)
 
     def cancel(self):
