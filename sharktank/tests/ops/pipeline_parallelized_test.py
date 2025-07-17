@@ -13,6 +13,7 @@ from sharktank.ops.sharded_impls import assert_on_same_devices
 from sharktank import ops
 from sharktank.types import *
 from sharktank.utils import iterables_equal
+from sharktank.utils.testing import assert_tensor_close
 
 
 class CheckThatOnSameDevicesTest(unittest.TestCase):
@@ -71,9 +72,7 @@ class AllGatherTest(unittest.TestCase):
         actual_result = ops.all_gather(sharded)
 
         for i in range(shard_count):
-            torch.testing.assert_close(
-                actual_result.shards[i].as_torch(), expected_result
-            )
+            assert_tensor_close(actual_result.shards[i], expected_result)
             assert actual_result.devices[i] == devices[i]
 
 
@@ -92,9 +91,7 @@ class AllReduceTest(unittest.TestCase):
         actual_result = ops.all_reduce(sharded)
 
         for i in range(shard_count):
-            torch.testing.assert_close(
-                actual_result.shards[i].as_torch(), expected_result
-            )
+            assert_tensor_close(actual_result.shards[i], expected_result)
             assert actual_result.devices[i] == devices[i]
 
 
@@ -256,7 +253,7 @@ class MatmulTest(unittest.TestCase):
         for i in range(shard_count):
             assert devices[i] == res_sharded.devices[i]
         actual_result = ops.sharded_cat(res_sharded)
-        torch.testing.assert_close(actual_result, expected_result)
+        assert_tensor_close(actual_result, expected_result)
 
 
 class TransposeTest(unittest.TestCase):

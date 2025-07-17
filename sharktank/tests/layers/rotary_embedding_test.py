@@ -8,14 +8,15 @@ import math
 import unittest
 import torch
 
-from sharktank.layers.rotary_embedding import build_rotary_layer
+from sharktank.layers import build_rotary_layer
 
 
 def validate(xq, em, rope_dims, rope_freq_base, interleaved):
     # Initially we want to compute the lengths of each vector
     if interleaved:
         xq_01 = xq.unflatten(-1, (rope_dims // 2, 2))
-        em_01 = em.unflatten(-1, (rope_dims // 2, 2))
+        em_01 = em.unflatten(-1, (2, rope_dims // 2))
+        em_01 = torch.transpose(em_01, -2, -1)
     else:
         xq_01 = xq.unflatten(-1, (2, rope_dims // 2))
         em_01 = em.unflatten(-1, (2, rope_dims // 2))
@@ -80,7 +81,6 @@ class TestRotaryEmbedding(unittest.TestCase):
         xq = torch.rand((bs, max_seqlen, heads, rope_dims), dtype=torch.float)
         default_layer = build_rotary_layer(
             rope_dimension_count=rope_dims,
-            max_seqlen=max_seqlen,
             rope_freq_base=rope_freq_base,
             use_hf=False,
         )
@@ -104,7 +104,6 @@ class TestRotaryEmbedding(unittest.TestCase):
         xq = torch.rand((bs, max_seqlen, heads, rope_dims), dtype=torch.float)
         default_layer = build_rotary_layer(
             rope_dimension_count=rope_dims,
-            max_seqlen=max_seqlen,
             rope_freq_base=rope_freq_base,
             use_hf=True,
         )

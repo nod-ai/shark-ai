@@ -301,7 +301,7 @@ class ClientGenerateBatchProcess(sf.Process):
                 )
 
                 input_tokens = input_tokens if is_pretokenized else input_tokens.ids
-                if True:
+                if self.service.server_params.use_new_decoder:
                     gen_process = NewGenerateItemProcess(
                         prefill_batcher=self.service.prefill_batcher,
                         decode_batcher=self.service.decode_batcher,

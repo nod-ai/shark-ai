@@ -92,7 +92,10 @@ def _split_argmax(input_tensor, dim, keepdim: bool = False, chunk_size: int = 12
 
 @cat.override(AllOfType(Tensor, PrimitiveTensor))
 def cat_default(tensors: Sequence[Tensor | PrimitiveTensor], dim: int):
-    return torch.cat([unbox_tensor(t) for t in tensors], dim)
+    result = torch.cat([unbox_tensor(t) for t in tensors], dim)
+    if isinstance(tensors[0], PrimitiveTensor):
+        result = DefaultPrimitiveTensor(data=result)
+    return result
 
 
 # conv2d
@@ -567,13 +570,31 @@ def matmul_default(lhs, rhs, *, transpose_rhs: bool) -> Tensor:
 
 
 # Scaled dot product attention
-@scaled_dot_product_attention.override(Tensor, Tensor, Tensor, None)
-def scaled_dot_product_attention_torch(q, k, v, a, is_causal, scale) -> Tensor:
+@scaled_dot_product_attention.override(AnyTensor, AnyTensor, AnyTensor, None)
+def scaled_dot_product_attention_torch(
+    q: AnyTensor,
+    k: AnyTensor,
+    v: AnyTensor,
+    a: Optional[AnyTensor],
+    is_causal: bool,
+    scale: Optional[float],
+    dtype: Optional[torch.dtype],
+) -> Tensor:
     q = unbox_tensor(q)
     k = unbox_tensor(k)
     v = unbox_tensor(v)
     if a is not None:
         a = unbox_tensor(a)
+
+    if dtype is not None:
+        if q.dtype != dtype:
+            q = q.to(dtype)
+        if k.dtype != dtype:
+            k = k.to(dtype)
+        if v.dtype != dtype:
+            v = v.to(dtype)
+        if a is not None and a.dtype != dtype:
+            a = a.to(dtype)
 
     # TODO: plumb dropout and is_causal through ops
     return torch.nn.functional.scaled_dot_product_attention(
@@ -714,7 +735,8 @@ def to_default(tensor: Tensor, *args, **kwargs) -> PrimitiveTensor:
 def trace_tensor(key: str, *tensors: tuple[AnyTensor, ...]):
     if len(tensors) != 1:
         raise ValueError("Tracing more than one tensor at a time is not supported.")
-    iree.turbine.ops.iree.trace_tensor(key, unshard(tensors[0]))
+    tensor = unbox_tensor(unshard(tensors[0]))
+    iree.turbine.ops.iree.trace_tensor(key, tensor)
 
 
 @transfer_to_logical_device.override(Tensor)
