@@ -50,13 +50,13 @@ class wave_fp4_gemm(unittest.TestCase):
         )
         self.assertIn(
             (
-                "func.func private @wave_mxfp4_bmm_B_dyn_M_dyn_HALF_K_512_u8_B_dyn_M_dyn_K_OVER_THIRTYTWO_32_u8_N_1024_HALF_K512_u8_N_1024_K_OVER_THIRTYTWO_32_u8_B_dyn_M_dyn_N_1024_f32"
+                "func.func private @wave_mxfp4_bmm_B_dyn_M_dyn_HALF_K_512_u8_B_dyn_M_dyn_K_OVER_THIRTYTWO_32_u8_N_1024_HALF_K_512_u8_N_1024_K_OVER_THIRTYTWO_32_u8_B_dyn_M_dyn_N_1024_f16"
             ),
             mlir_asm,
         )
         self.assertIn(
             (
-                "util.func private @wave_mxfp4_bmm_B_M_HALF_K_512_i8_B_M_K_OVER_THIRTYTWO_32_i8_N_1024_HALF_K_512_i8_N_1024_K_OVER_THIRTYTWO_32_i8_B_M_N_1024_f32_B_M_N_1024_f32"
+                "util.func private @wave_mxfp4_bmm_B_M_HALF_K_512_i8_B_M_K_OVER_THIRTYTWO_32_i8_N_1024_HALF_K_512_i8_N_1024_K_OVER_THIRTYTWO_32_i8_B_M_N_1024_f16_B_M_N_1024_f16"
             ),
             mlir_asm,
         )
