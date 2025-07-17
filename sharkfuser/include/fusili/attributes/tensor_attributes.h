@@ -50,7 +50,7 @@ public:
         "Tensor '" + name +
             "' is marked as a scalar but does not have a scalar value set");
 
-    // Check if stride is strictly monotonically decreasing
+    // Check for contiguity (inner dim stride is 1, monotonic)
     FUSILI_RETURN_ERROR_IF(
         !(std::is_sorted(stride.begin(), stride.end(),
                          std::greater<int64_t>()) &&
