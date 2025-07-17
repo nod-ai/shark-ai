@@ -1126,13 +1126,21 @@ class ShardedTensorBase(ShardedTensor):
                 matching_keys = [k for k in all_new_keys if shard_i_key in k]
                 new_sub_globals = {k: new_subtensors.pop(k) for k in matching_keys}
                 ts.append(shard._clone_with_subtensors(new_sub_globals))
-        return self.__class__(
-            name=self.name,
-            shape=self.shape,
-            shard_dim=self.shard_dim,
-            ts=ts,
-            devices=self.devices,
-        )
+        if self.shard_dim is None:
+            return self.__class__(
+                name=self.name,
+                shape=self.shape,
+                ts=ts,
+                devices=self.devices,
+            )
+        else:
+            return self.__class__(
+                name=self.name,
+                shape=self.shape,
+                shard_dim=self.shard_dim,
+                ts=ts,
+                devices=self.devices,
+            )
 
     @classmethod
     def create(
