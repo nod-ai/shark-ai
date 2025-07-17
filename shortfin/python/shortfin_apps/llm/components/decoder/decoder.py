@@ -174,9 +174,9 @@ class LlmDecoder:
         self._page_manager = PageManager(self._page_pool)
         self._lock = threading.Lock()
         self._cancelled = False
-        self.use_native_select = True
+        self._use_native_select = True
 
-        if self.use_native_select:
+        if self._use_native_select:
             self._select_function = self._native_select
         else:
             self._select_function = (
@@ -202,7 +202,6 @@ class LlmDecoder:
         """Release any remain resources held by the decoder"""
         self._page_manager.release_pages()
 
-    @profile
     def select(self, reqs):
         # Setup next steps:
         max_score = max(req.score for req in reqs)
@@ -281,7 +280,6 @@ class LlmDecoder:
 
         return decode_reqs
 
-    @profile
     async def run(self, input_ids):
         prefill_req = LlmInferenceExecRequest(
             phase=InferencePhase.PREFILL,

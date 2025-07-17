@@ -8,8 +8,6 @@
 
 #include <nanobind/ndarray.h>
 
-#include <thread>
-
 #include "./utils.h"
 #include "shortfin/array/array.h"
 #include "shortfin/array/storage.h"

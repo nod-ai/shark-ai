@@ -67,7 +67,7 @@ void SelectTokensGreedy(const std::vector<float> &scores,
 
 void SelectTokens(const std::vector<float> &scores, const DecodeConfig &config,
                   std::vector<int> &selected_tokens,
-                  std::vector<float> &selected_scores) {
+                  std::vector<float> &selected_scores) noexcept {
   if (config.use_beam_search) {
     SelectTokensTopK(scores, config, selected_tokens, selected_scores);
   } else {

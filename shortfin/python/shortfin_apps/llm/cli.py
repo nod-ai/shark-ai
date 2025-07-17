@@ -175,11 +175,12 @@ class CliResponder(AbstractResponder):
     def _print_response(self, response):
         response_data = json.loads(response.decode("utf-8"))
         responses_array = response_data["responses"][0].get("responses", [])
-        print(json.dumps(responses_array, indent=2))
+        print(json.dumps(responses_array, indent=1))
 
     def send_response(self, response):
         logger.info(f"{self.name} Sending response")
-        # self._print_response(response)
+        if self._log_tokens:
+            self._print_response(response)
 
         assert not self.responded, "Response already sent"
         if self._loop.is_closed():
