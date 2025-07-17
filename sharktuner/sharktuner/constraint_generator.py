@@ -330,10 +330,6 @@ def generate_attention_solutions(
         workgroup_tile_sizes = [0] * opinfo.domain_rank
         reduction_tile_sizes = [0] * opinfo.domain_rank
 
-        m_dim = opinfo.m_dims[-1]
-        n_dim = opinfo.n_dims[-1]
-        k2_dim = opinfo.k2_dims[-1]
-
         for b in opinfo.batch_dims:
             workgroup_tile_sizes[b] = 1
         for m in opinfo.m_dims[:-1]:
@@ -343,9 +339,9 @@ def generate_attention_solutions(
         for k2 in opinfo.k2_dims[:-1]:
             reduction_tile_sizes[k2] = 1
 
-        workgroup_tile_sizes[m_dim] = lookup(m_var)
-        workgroup_tile_sizes[n_dim] = lookup(n_var)
-        reduction_tile_sizes[k2_dim] = lookup(k_var)
+        workgroup_tile_sizes[opinfo.m_dims[-1]] = lookup(m_var)
+        workgroup_tile_sizes[opinfo.n_dims[-1]] = lookup(n_var)
+        reduction_tile_sizes[opinfo.k2_dims[-1]] = lookup(k_var)
 
         qk_config = {
             "mma_kind": mma_attr,
@@ -555,6 +551,31 @@ class ConvolutionOpInterfaceConstraintGenerator(ConstraintGenerator):
 
 
 class AttentionOpInterfaceConstraintGenerator(ConstraintGenerator):
+    """
+    Constraint generator for the IREE LinalgExt AttentionOp.
+
+    This class extracts structure information from the attention op and generates
+    constraints for exploring valid configurations to generate tuning specs. IREE
+    decomposes the operation into two matrix multiplications for the purpose of
+    Tiling:
+    - QK^T : Q @ K.T (producing scores)
+    - PV   : P @ V   (projected output after softmax)
+
+    Assumed operand shapes:
+    - Q  : [B, M, K1]
+    - K  : [B, K2, K1]
+    - V  : [B, K2, N]
+    - O  : [B, M, N]
+
+    Attributes:
+        transposed_q (bool): True if Q is logically transposed (k1 dim is not last in map).
+        transposed_k (bool): True if K is logically transposed (k1 dim is not last in map).
+        transposed_v (bool): True if V is logically transposed (k2 dim is not last in map).
+        qk_matmul (MatmulShapeType): Shape metadata for Q @ K^T.
+        pv_matmul (MatmulShapeType): Shape metadata for P @ V.
+        opinfo: dimensions info for attention op.
+    """
+
     def __init__(self, root_op: ir.Operation):
         self.root_op = root_op
         indexing_maps_attr = root_op.attributes["indexing_maps"]
@@ -563,10 +584,6 @@ class AttentionOpInterfaceConstraintGenerator(ConstraintGenerator):
         k_map = indexing_maps[1]
         v_map = indexing_maps[2]
         o_map = indexing_maps[-1]
-
-        q_dims = common.get_map_result_dim_positions(q_map)
-        k_dims = common.get_map_result_dim_positions(k_map)
-        v_dims = common.get_map_result_dim_positions(v_map)
 
         raw_opinfo = iree_codegen.get_attention_op_detail(q_map, k_map, v_map, o_map)
         assert raw_opinfo, "no attention info"
@@ -605,6 +622,10 @@ class AttentionOpInterfaceConstraintGenerator(ConstraintGenerator):
         self.transposed_k = k1Dim != k_dim_expr.position
         self.transposed_v = k2Dim != v_dim_expr.position
         self.transposed_q = k1Dim != q_dim_expr.position
+
+        q_dims = common.get_map_result_dim_positions(q_map)
+        k_dims = common.get_map_result_dim_positions(k_map)
+        v_dims = common.get_map_result_dim_positions(v_map)
 
         assert q_dims, "no query dims from attention op"
         assert k_dims, "no key dims from attention op"

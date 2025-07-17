@@ -267,7 +267,7 @@ def generate_tile_and_fuse_constraints(
     return constraints
 
 
-def is_valid_mma_schedule(
+def is_valid_vector_distribute_mma_schedule(
     matmul: common.MatmulShapeType,
     schedule: common.GPUMMASchedule,
     subgroup_size: z3.ArithRef,
@@ -427,7 +427,7 @@ def generate_attention_vector_distribute_constraints(
         k_tile_size=qk_matmul.k / intrinsic_k,
     )
 
-    constraints += is_valid_mma_schedule(
+    constraints += is_valid_vector_distribute_mma_schedule(
         matmul=qk_matmul,
         schedule=qk_schedule,
         subgroup_size=subgroup_size,
@@ -435,7 +435,7 @@ def generate_attention_vector_distribute_constraints(
         transposed_rhs=transposed_k,
     )
 
-    constraints += is_valid_mma_schedule(
+    constraints += is_valid_vector_distribute_mma_schedule(
         matmul=pv_matmul,
         schedule=pv_schedule,
         subgroup_size=subgroup_size,
