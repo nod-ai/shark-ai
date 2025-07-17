@@ -8,7 +8,9 @@
 import functools
 import math
 import inspect
+import torch
 
+from collections.abc import Sequence
 from copy import deepcopy
 from typing import Any, Callable
 from torch import Tensor
@@ -27,7 +29,7 @@ from sharktank.types import (
     unsqueeze_slice_like,
 )
 from sharktank.types.quantizers import QuantizerTensor
-from sharktank.ops.shape import normalize_negative_dim
+from sharktank.ops.shape import cat_shape, normalize_negative_dim
 
 from .signatures import *
 
@@ -131,6 +133,34 @@ def transfer_or_barrier(
     )
 
 
+@cat.override(AllOfType(PlanarQuantizedTensor))
+def cat_BlockScaledFp4Layout(tensors: Sequence[PlanarQuantizedTensor], dim: int):
+    if not all(issubclass(t.layout_type, BlockScaledFp4Layout) for t in tensors):
+        return NotImplemented
+
+    assert all(
+        t.layout.block_size == tensors[0].layout.block_size for t in tensors
+    ), "Concatenating tensors with layout BlockScaledFp4Layout with different block size is not supported"
+    assert all(
+        t.layout.use_fe8m0_scale == tensors[0].layout.use_fe8m0_scale for t in tensors
+    ), "Concatenating tensors with layout BlockScaledFp4Layout with different scale dtypes is not supported."
+    dim = normalize_negative_dim(tensors[0], dim)
+    d = torch.cat([t.layout.d for t in tensors], dim)
+    qs = torch.cat([t.layout.qs_bit_packed for t in tensors], dim)
+    shape = cat_shape(*[t.shape for t in tensors], dim=dim)
+    layout = BlockScaledFp4Layout(
+        shape=shape,
+        d=d,
+        qs=qs,
+        block_size=tensors[0].layout.block_size,
+        use_fe8m0_scale=tensors[0].layout.use_fe8m0_scale,
+    )
+    return PlanarQuantizedTensor(
+        shape=shape,
+        layout=layout,
+    )
+
+
 @extract_slice.override(PlanarQuantizedTensor)
 @quantized_tensor_layout_of_type(tensor=BlockScaledFp4Layout)
 def extract_slice_BlockScaledFp4Layout(tensor: PlanarQuantizedTensor, key: Slice):
@@ -192,3 +222,34 @@ def extract_slice_BlockScaledFp4Layout(tensor: PlanarQuantizedTensor, key: Slice
         shape=result_shape,
         layout=result_layout,
     )
+
+
+@split.override(QuantizedTensor)
+@quantized_tensor_layout_of_type(tensor=BlockScaledFp4Layout)
+def split_BlockScaledFp4Layout(
+    tensor: QuantizedTensor,
+    split_size_or_sections: int | list[int],
+    dim: int = 0,
+) -> tuple[QuantizedTensor, ...]:
+    dim = normalize_negative_dim(tensor, dim)
+    dim_size = tensor.shape[dim]
+    if isinstance(split_size_or_sections, int):
+        sections = [split_size_or_sections] * (dim_size // split_size_or_sections)
+        reminder = dim_size % split_size_or_sections
+        if reminder != 0:
+            sections.append(reminder)
+        return split_BlockScaledFp4Layout(tensor, sections, dim)
+
+    assert len(split_size_or_sections) > 0
+    parts_range = [(0, split_size_or_sections[0])]
+    for s in split_size_or_sections[1:]:
+        parts_range.append((parts_range[-1][1], parts_range[-1][1] + s))
+    assert parts_range[-1][1] == dim_size
+
+    res = []
+    for begin, end in parts_range:
+        slice_ = tuple(
+            slice(begin, end) if i == dim else slice(None) for i in range(dim + 1)
+        )
+        res.append(tensor[slice_])
+    return tuple(res)
