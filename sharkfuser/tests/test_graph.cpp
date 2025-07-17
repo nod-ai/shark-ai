@@ -24,9 +24,9 @@ TEST_CASE("Graph conv_fprop() adds ConvFPropNode and output tensor",
           "[graph]") {
   Graph g;
   auto x =
-      g.tensor(TensorAttr().set_dim({1, 3, 8, 8}).set_stride({192, 1, 24, 3}));
+      g.tensor(TensorAttr().set_dim({1, 8, 8, 3}).set_stride({192, 24, 3, 1}));
   auto w =
-      g.tensor(TensorAttr().set_dim({4, 3, 3, 3}).set_stride({27, 1, 9, 3}));
+      g.tensor(TensorAttr().set_dim({4, 3, 3, 3}).set_stride({27, 9, 3, 1}));
   ConvFPropAttr attr;
   attr.set_padding({0, 0}).set_stride({1, 1}).set_dilation({1, 1});
   auto y = g.conv_fprop(x, w, attr);
