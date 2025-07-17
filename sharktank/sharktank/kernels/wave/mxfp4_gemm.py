@@ -78,12 +78,12 @@ def wave_mxfp4_batched_gemm(
         b_scale: tkl.Memory[N, K / 32, ADDRESS_SPACE, tkl.i8],
         c: tkl.Memory[B, M, N, GLOBAL_ADDRESS_SPACE, c_wave_dtype],
     ):
-        c_reg = tkl.Register[B, M, N, c_wave_dtype](0.0)
+        c_reg = tkl.Register[B, M, N, tkl.f32](0.0)
 
         @tkw.iterate(K, init_args=[c_reg])
         def repeat(
-            acc: tkl.Register[B, M, N, c_wave_dtype],
-        ) -> tkl.Register[B, M, N, c_wave_dtype]:
+            acc: tkl.Register[B, M, N, tkl.f32],
+        ) -> tkl.Register[B, M, N, tkl.f32]:
             a_reg = tkw.read(a)
             a_reg = tkw.bitcast(a_reg, tkl.f4e2m1fn)
             a_scale_reg = tkw.read(a_scale)
@@ -102,7 +102,7 @@ def wave_mxfp4_batched_gemm(
         ADDRESS_SPACE: SHARED_ADDRESS_SPACE,
         BLOCK_B: 1,
         BLOCK_M: 256,
-        BLOCK_N: 256,
+        BLOCK_N: 128,
         BLOCK_K: 256,
         N: shape[2],
         K: shape[3],
@@ -126,7 +126,7 @@ def get_wave_mxfp4_bmm_asm(
     options = WaveCompileOptions(
         subs=hyperparams,
         canonicalize=True,
-        schedule=SchedulingType.PREFETCH,
+        schedule=enable_scheduling,
         use_buffer_load_ops=True,
         use_buffer_store_ops=True,
         use_stride_cache_swizzle=True,
@@ -191,7 +191,7 @@ def wave_mxfp4_bmm(x, x_scales, w_t, w_scales, out, result=None):
     wave_kernel_name = f"wave_mxfp4_bmm_{batch_size}_{m}_HALF_K_{half_k}_{i_type_str}_{batch_size}_{m}_K_OVER_THIRTYTWO_{k_over_thirtytwo}_{i_type_str}_N_{n}_HALF_K_{half_k}_{i_type_str}_N_{n}_K_OVER_THIRTYTWO_{k_over_thirtytwo}_{i_type_str}_{batch_size}_{m}_N_{n}_{o_type_str}"
 
     wave_asm = get_wave_mxfp4_bmm_asm(
-        wave_kernel_name, shape, mfma_variant, SchedulingType.NONE, torch.float16
+        wave_kernel_name, shape, mfma_variant, SchedulingType.PREFETCH, torch.float16
     )
 
     wave_asm_module = Module.parse(wave_asm)
