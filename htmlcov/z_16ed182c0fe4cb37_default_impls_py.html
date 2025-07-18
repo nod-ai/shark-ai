@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_16ed182c0fe4cb37_qconv_impls_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.2">coverage.py v7.9.2</a>,
-            created at 2025-07-18 04:26 +0000
+            created at 2025-07-18 07:08 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -444,13 +444,13 @@
     <p class="run"><span class="n"><a id="t362" href="#t362">362</a></span><span class="t">    <span class="key">return</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">gather</span><span class="op">(</span><span class="nam">unbox_tensor</span><span class="op">(</span><span class="nam">input</span><span class="op">)</span><span class="op">,</span> <span class="nam">dim</span><span class="op">,</span> <span class="nam">unbox_tensor</span><span class="op">(</span><span class="nam">index</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t363" href="#t363">363</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t364" href="#t364">364</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t365" href="#t365">365</a></span><span class="t"><span class="op">@</span><span class="nam">get_index</span><span class="op">.</span><span class="nam">override</span><span class="op">(</span><span class="nam">AllOfType</span><span class="op">(</span><span class="nam">Tensor</span><span class="op">,</span> <span class="nam">PrimitiveTensor</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t366" href="#t366">366</a></span><span class="t"><span class="key">def</span> <span class="nam">get_index_default</span><span class="op">(</span><span class="nam">tensor</span><span class="op">,</span> <span class="nam">key</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t365" href="#t365">365</a></span><span class="t"><span class="op">@</span><span class="nam">extract_slice</span><span class="op">.</span><span class="nam">override</span><span class="op">(</span><span class="nam">AllOfType</span><span class="op">(</span><span class="nam">Tensor</span><span class="op">,</span> <span class="nam">PrimitiveTensor</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t366" href="#t366">366</a></span><span class="t"><span class="key">def</span> <span class="nam">extract_slice_default</span><span class="op">(</span><span class="nam">tensor</span><span class="op">,</span> <span class="nam">key</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t367" href="#t367">367</a></span><span class="t">    <span class="key">return</span> <span class="nam">unbox_tensor</span><span class="op">(</span><span class="nam">tensor</span><span class="op">)</span><span class="op">.</span><span class="nam">__get_item__</span><span class="op">(</span><span class="nam">key</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t368" href="#t368">368</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t369" href="#t369">369</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t370" href="#t370">370</a></span><span class="t"><span class="op">@</span><span class="nam">get_index</span><span class="op">.</span><span class="nam">override</span><span class="op">(</span><span class="nam">QuantizedTensor</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t371" href="#t371">371</a></span><span class="t"><span class="key">def</span> <span class="nam">get_index_QuantizedTensor</span><span class="op">(</span><span class="nam">tensor</span><span class="op">:</span> <span class="nam">QuantizedTensor</span><span class="op">,</span> <span class="nam">key</span><span class="op">:</span> <span class="nam">slice</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t370" href="#t370">370</a></span><span class="t"><span class="op">@</span><span class="nam">extract_slice</span><span class="op">.</span><span class="nam">override</span><span class="op">(</span><span class="nam">QuantizedTensor</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t371" href="#t371">371</a></span><span class="t"><span class="key">def</span> <span class="nam">extract_slice_QuantizedTensor</span><span class="op">(</span><span class="nam">tensor</span><span class="op">:</span> <span class="nam">QuantizedTensor</span><span class="op">,</span> <span class="nam">key</span><span class="op">:</span> <span class="nam">slice</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t372" href="#t372">372</a></span><span class="t">    <span class="nam">unpacked</span> <span class="op">=</span> <span class="nam">tensor</span><span class="op">.</span><span class="nam">unpack</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t373" href="#t373">373</a></span><span class="t">    <span class="key">if</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">unpacked</span><span class="op">,</span> <span class="nam">BlockScaledI4Layout</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t374" href="#t374">374</a></span><span class="t">        <span class="nam">mul</span> <span class="op">=</span> <span class="num">2</span>&nbsp;</span><span class="r"></span></p>
@@ -1149,7 +1149,7 @@
             <a class="nav" href="z_16ed182c0fe4cb37_qconv_impls_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.2">coverage.py v7.9.2</a>,
-            created at 2025-07-18 04:26 +0000
+            created at 2025-07-18 07:08 +0000
         </p>
     </div>
 </footer>

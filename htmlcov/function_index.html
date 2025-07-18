@@ -55,7 +55,7 @@
         </h2>
         <p class="text">
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.2">coverage.py v7.9.2</a>,
-            created at 2025-07-18 04:26 +0000
+            created at 2025-07-18 07:08 +0000
         </p>
     </div>
 </header>
@@ -5770,7 +5770,7 @@
             </tr>
             <tr class="region">
                 <td class="name left"><a href="z_16ed182c0fe4cb37_default_impls_py.html#t366">sharktank/sharktank/ops/default_impls.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_default_impls_py.html#t366"><data value='get_index_default'>get_index_default</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_default_impls_py.html#t366"><data value='extract_slice_default'>extract_slice_default</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
@@ -5778,7 +5778,7 @@
             </tr>
             <tr class="region">
                 <td class="name left"><a href="z_16ed182c0fe4cb37_default_impls_py.html#t371">sharktank/sharktank/ops/default_impls.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_default_impls_py.html#t371"><data value='get_index_QuantizedTensor'>get_index_QuantizedTensor</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_default_impls_py.html#t371"><data value='extract_slice_QuantizedTensor'>extract_slice_QuantizedTensor</data></a></td>
                 <td>19</td>
                 <td>19</td>
                 <td>0</td>
@@ -6257,52 +6257,84 @@
                 <td class="right" data-ratio="16 16">100%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t21">sharktank/sharktank/ops/quantized_impls.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t21"><data value='replicate_quantized'>replicate_quantized</data></a></td>
-                <td>2</td>
-                <td>2</td>
-                <td>0</td>
-                <td class="right" data-ratio="0 2">0%</td>
-            </tr>
-            <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t29">sharktank/sharktank/ops/quantized_impls.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t29"><data value='transfer_to_logical_device_planar_quantized_tensor'>transfer_to_logical_device_planar_quantized_tensor</data></a></td>
-                <td>1</td>
-                <td>0</td>
-                <td>0</td>
-                <td class="right" data-ratio="1 1">100%</td>
-            </tr>
-            <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t38">sharktank/sharktank/ops/quantized_impls.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t38"><data value='barrier_on_logical_device_planar_quantized_tensor'>barrier_on_logical_device_planar_quantized_tensor</data></a></td>
-                <td>1</td>
-                <td>1</td>
-                <td>0</td>
-                <td class="right" data-ratio="0 1">0%</td>
-            </tr>
-            <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t46">sharktank/sharktank/ops/quantized_impls.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t46"><data value='transfer_or_barrier'>transfer_or_barrier</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t37">sharktank/sharktank/ops/quantized_impls.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t37"><data value='quantized_tensor_layout_of_type'>quantized_tensor_layout_of_type</data></a></td>
                 <td>2</td>
                 <td>0</td>
                 <td>0</td>
                 <td class="right" data-ratio="2 2">100%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t49">sharktank/sharktank/ops/quantized_impls.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t49"><data value='operation_transform'>transfer_or_barrier.operation_transform</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t55">sharktank/sharktank/ops/quantized_impls.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t55"><data value='decorator'>quantized_tensor_layout_of_type.decorator</data></a></td>
+                <td>4</td>
+                <td>0</td>
+                <td>0</td>
+                <td class="right" data-ratio="4 4">100%</td>
+            </tr>
+            <tr class="region">
+                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t59">sharktank/sharktank/ops/quantized_impls.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t59"><data value='wrapper'>quantized_tensor_layout_of_type.decorator.wrapper</data></a></td>
+                <td>14</td>
+                <td>6</td>
+                <td>0</td>
+                <td class="right" data-ratio="8 14">57%</td>
+            </tr>
+            <tr class="region">
+                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t98">sharktank/sharktank/ops/quantized_impls.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t98"><data value='replicate_quantized'>replicate_quantized</data></a></td>
+                <td>2</td>
+                <td>2</td>
+                <td>0</td>
+                <td class="right" data-ratio="0 2">0%</td>
+            </tr>
+            <tr class="region">
+                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t106">sharktank/sharktank/ops/quantized_impls.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t106"><data value='transfer_to_logical_device_planar_quantized_tensor'>transfer_to_logical_device_planar_quantized_tensor</data></a></td>
                 <td>1</td>
                 <td>0</td>
                 <td>0</td>
                 <td class="right" data-ratio="1 1">100%</td>
             </tr>
             <tr class="region">
+                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t115">sharktank/sharktank/ops/quantized_impls.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t115"><data value='barrier_on_logical_device_planar_quantized_tensor'>barrier_on_logical_device_planar_quantized_tensor</data></a></td>
+                <td>1</td>
+                <td>1</td>
+                <td>0</td>
+                <td class="right" data-ratio="0 1">0%</td>
+            </tr>
+            <tr class="region">
+                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t123">sharktank/sharktank/ops/quantized_impls.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t123"><data value='transfer_or_barrier'>transfer_or_barrier</data></a></td>
+                <td>2</td>
+                <td>0</td>
+                <td>0</td>
+                <td class="right" data-ratio="2 2">100%</td>
+            </tr>
+            <tr class="region">
+                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t126">sharktank/sharktank/ops/quantized_impls.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t126"><data value='operation_transform'>transfer_or_barrier.operation_transform</data></a></td>
+                <td>1</td>
+                <td>0</td>
+                <td>0</td>
+                <td class="right" data-ratio="1 1">100%</td>
+            </tr>
+            <tr class="region">
+                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t136">sharktank/sharktank/ops/quantized_impls.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html#t136"><data value='extract_slice_BlockScaledFp4Layout'>extract_slice_BlockScaledFp4Layout</data></a></td>
+                <td>20</td>
+                <td>0</td>
+                <td>0</td>
+                <td class="right" data-ratio="20 20">100%</td>
+            </tr>
+            <tr class="region">
                 <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html">sharktank/sharktank/ops/quantized_impls.py</a></td>
                 <td class="name left"><a href="z_16ed182c0fe4cb37_quantized_impls_py.html"><data value=''><span class='no-noun'>(no function)</span></data></a></td>
-                <td>14</td>
+                <td>23</td>
                 <td>0</td>
                 <td>0</td>
-                <td class="right" data-ratio="14 14">100%</td>
+                <td class="right" data-ratio="23 23">100%</td>
             </tr>
             <tr class="region">
                 <td class="name left"><a href="z_16ed182c0fe4cb37_shape_py.html#t11">sharktank/sharktank/ops/shape.py</a></td>
@@ -7177,1008 +7209,1008 @@
                 <td class="right" data-ratio="204 204">100%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t99">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t99"><data value='all_gather'>all_gather</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t100">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t100"><data value='all_gather'>all_gather</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t105">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t105"><data value='all_gather_trampoline'>_all_gather_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t106">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t106"><data value='all_gather_trampoline'>_all_gather_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t118">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t118"><data value='all_reduce'>all_reduce</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t119">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t119"><data value='all_reduce'>all_reduce</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t124">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t124"><data value='all_reduce_trampoline'>_all_reduce_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t125">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t125"><data value='all_reduce_trampoline'>_all_reduce_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t135">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t135"><data value='argmax'>argmax</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t136">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t136"><data value='argmax'>argmax</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t146">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t146"><data value='argmax_trampoline'>_argmax_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t147">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t147"><data value='argmax_trampoline'>_argmax_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t163">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t163"><data value='cat'>cat</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t164">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t164"><data value='cat'>cat</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t168">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t168"><data value='cat_trampoline'>_cat_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t169">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t169"><data value='cat_trampoline'>_cat_trampoline</data></a></td>
                 <td>5</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="4 5">80%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t180">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t180"><data value='conv2d'>conv2d</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t181">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t181"><data value='conv2d'>conv2d</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t199">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t199"><data value='conv2d_trampoline'>_conv2d_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t200">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t200"><data value='conv2d_trampoline'>_conv2d_trampoline</data></a></td>
                 <td>8</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="7 8">88%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t232">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t232"><data value='conv3d'>conv3d</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t233">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t233"><data value='conv3d'>conv3d</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t251">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t251"><data value='conv3d_trampoline'>_conv3d_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t252">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t252"><data value='conv3d_trampoline'>_conv3d_trampoline</data></a></td>
                 <td>8</td>
                 <td>2</td>
                 <td>0</td>
                 <td class="right" data-ratio="6 8">75%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t284">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t284"><data value='conv1d'>conv1d</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t285">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t285"><data value='conv1d'>conv1d</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t303">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t303"><data value='conv1d_trampoline'>_conv1d_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t304">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t304"><data value='conv1d_trampoline'>_conv1d_trampoline</data></a></td>
                 <td>8</td>
                 <td>2</td>
                 <td>0</td>
                 <td class="right" data-ratio="6 8">75%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t336">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t336"><data value='einsum_2args'>einsum_2args</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t337">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t337"><data value='einsum_2args'>einsum_2args</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t354">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t354"><data value='einsum_trampoline'>_einsum_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t355">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t355"><data value='einsum_trampoline'>_einsum_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t367">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t367"><data value='elementwise'>elementwise</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t368">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t368"><data value='elementwise'>elementwise</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t373">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t373"><data value='elementwise_trampoline'>_elementwise_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t374">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t374"><data value='elementwise_trampoline'>_elementwise_trampoline</data></a></td>
                 <td>10</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="9 10">90%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t389">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t389"><data value='embedding_lookup'>embedding_lookup</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t390">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t390"><data value='embedding_lookup'>embedding_lookup</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t402">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t402"><data value='embedding_lookup_trampoline'>_embedding_lookup_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t403">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t403"><data value='embedding_lookup_trampoline'>_embedding_lookup_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t418">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t418"><data value='empty_like'>empty_like</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t419">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t419"><data value='empty_like'>empty_like</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t432">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t432"><data value='empty_like_trampoline'>_empty_like_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t433">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t433"><data value='empty_like_trampoline'>_empty_like_trampoline</data></a></td>
                 <td>6</td>
                 <td>6</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 6">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t459">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t459"><data value='equal'>equal</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t460">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t460"><data value='equal'>equal</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t471">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t471"><data value='equal_trampoline'>_equal_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t472">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t472"><data value='equal_trampoline'>_equal_trampoline</data></a></td>
                 <td>11</td>
                 <td>6</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 11">45%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t493">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t493"><data value='expand'>expand</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t494">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t494"><data value='expand'>expand</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t499">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t499"><data value='expand_trampoline'>_expand_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t500">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t500"><data value='expand_trampoline'>_expand_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t512">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t512"><data value='get_index'>get_index</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t513">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t513"><data value='extract_slice'>extract_slice</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t527">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t527"><data value='get_index_trampoline'>_get_index_trampoline</data></a></td>
-                <td>6</td>
-                <td>6</td>
-                <td>0</td>
-                <td class="right" data-ratio="0 6">0%</td>
-            </tr>
-            <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t538">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t538"><data value='flatten'>flatten</data></a></td>
-                <td>1</td>
-                <td>1</td>
-                <td>0</td>
-                <td class="right" data-ratio="0 1">0%</td>
-            </tr>
-            <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t544">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t544"><data value='flatten_trampoline'>_flatten_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t528">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t528"><data value='extract_slice_trampoline'>_extract_slice_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t557">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t557"><data value='gather'>gather</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t539">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t539"><data value='flatten'>flatten</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t563">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t563"><data value='gather_trampoline'>_gather_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t545">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t545"><data value='flatten_trampoline'>_flatten_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t578">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t578"><data value='gelu_sigmoid_approximation'>gelu_sigmoid_approximation</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t558">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t558"><data value='gather'>gather</data></a></td>
+                <td>1</td>
+                <td>1</td>
+                <td>0</td>
+                <td class="right" data-ratio="0 1">0%</td>
+            </tr>
+            <tr class="region">
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t564">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t564"><data value='gather_trampoline'>_gather_trampoline</data></a></td>
+                <td>6</td>
+                <td>1</td>
+                <td>0</td>
+                <td class="right" data-ratio="5 6">83%</td>
+            </tr>
+            <tr class="region">
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t579">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t579"><data value='gelu_sigmoid_approximation'>gelu_sigmoid_approximation</data></a></td>
                 <td>1</td>
                 <td>0</td>
                 <td>0</td>
                 <td class="right" data-ratio="1 1">100%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t585">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t585"><data value='gelu_tanh_approximation'>gelu_tanh_approximation</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t586">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t586"><data value='gelu_tanh_approximation'>gelu_tanh_approximation</data></a></td>
                 <td>1</td>
                 <td>0</td>
                 <td>0</td>
                 <td class="right" data-ratio="1 1">100%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t603">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t603"><data value='gemm'>gemm</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t604">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t604"><data value='gemm'>gemm</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t620">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t620"><data value='gemm_trampoline'>_gemm_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t621">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t621"><data value='gemm_trampoline'>_gemm_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t642">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t642"><data value='group_norm_affine'>group_norm_affine</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t643">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t643"><data value='group_norm_affine'>group_norm_affine</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t650">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t650"><data value='group_norm_affine_trampoline'>_group_norm_affine_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t651">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t651"><data value='group_norm_affine_trampoline'>_group_norm_affine_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t669">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t669"><data value='index_copy_'>index_copy_</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t670">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t670"><data value='index_copy_'>index_copy_</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t677">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t677"><data value='index_copy__trampoline'>_index_copy__trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t678">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t678"><data value='index_copy__trampoline'>_index_copy__trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t694">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t694"><data value='index_put_'>index_put_</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t695">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t695"><data value='index_put_'>index_put_</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t702">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t702"><data value='index_put__trampoline'>_index_put__trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t703">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t703"><data value='index_put__trampoline'>_index_put__trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t719">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t719"><data value='index_select'>index_select</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t720">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t720"><data value='index_select'>index_select</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t725">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t725"><data value='index_select_trampoline'>_index_select_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t726">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t726"><data value='index_select_trampoline'>_index_select_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t738">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t738"><data value='interpolate'>interpolate</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t739">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t739"><data value='interpolate'>interpolate</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t752">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t752"><data value='interpolate_trampoline'>_interpolate_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t753">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t753"><data value='interpolate_trampoline'>_interpolate_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t780">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t780"><data value='layer_norm'>layer_norm</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t781">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t781"><data value='layer_norm'>layer_norm</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t793">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t793"><data value='layer_norm_trampoline'>_layer_norm_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t794">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t794"><data value='layer_norm_trampoline'>_layer_norm_trampoline</data></a></td>
                 <td>10</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="9 10">90%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t818">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t818"><data value='linear'>linear</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t819">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t819"><data value='linear'>linear</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t844">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t844"><data value='linear_trampoline'>_linear_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t845">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t845"><data value='linear_trampoline'>_linear_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t862">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t862"><data value='masked_fill'>masked_fill</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t863">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t863"><data value='masked_fill'>masked_fill</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t868">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t868"><data value='masked_fill_trampoline'>_masked_fill_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t869">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t869"><data value='masked_fill_trampoline'>_masked_fill_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t884">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t884"><data value='matmul'>matmul</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t885">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t885"><data value='matmul'>matmul</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t901">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t901"><data value='matmul_trampoline'>_matmul_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t902">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t902"><data value='matmul_trampoline'>_matmul_trampoline</data></a></td>
                 <td>6</td>
                 <td>0</td>
                 <td>0</td>
                 <td class="right" data-ratio="6 6">100%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t914">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t914"><data value='pad'>pad</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t915">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t915"><data value='pad'>pad</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t922">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t922"><data value='pad_trampoline'>_pad_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t923">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t923"><data value='pad_trampoline'>_pad_trampoline</data></a></td>
                 <td>8</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="7 8">88%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t941">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t941"><data value='permute'>permute</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t942">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t942"><data value='permute'>permute</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t949">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t949"><data value='permute_trampoline'>_permute_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t950">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t950"><data value='permute_trampoline'>_permute_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t960">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t960"><data value='mean'>mean</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t961">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t961"><data value='mean'>mean</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t972">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t972"><data value='mean_trampoline'>_mean_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t973">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t973"><data value='mean_trampoline'>_mean_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t990">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t990"><data value='module_register_buffer'>module_register_buffer</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t991">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t991"><data value='module_register_buffer'>module_register_buffer</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t998">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t998"><data value='module_register_buffer_trampoline'>_module_register_buffer_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t999">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t999"><data value='module_register_buffer_trampoline'>_module_register_buffer_trampoline</data></a></td>
                 <td>6</td>
                 <td>6</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 6">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1011">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1011"><data value='reduce_scatter'>reduce_scatter</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1012">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1012"><data value='reduce_scatter'>reduce_scatter</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1017">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1017"><data value='reduce_scatter_trampoline'>_reduce_scatter_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1018">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1018"><data value='reduce_scatter_trampoline'>_reduce_scatter_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1030">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1030"><data value='rms_norm'>rms_norm</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1031">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1031"><data value='rms_norm'>rms_norm</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1038">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1038"><data value='rms_norm_trampoline'>_rms_norm_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1039">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1039"><data value='rms_norm_trampoline'>_rms_norm_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1056">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1056"><data value='repeat'>repeat</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1057">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1057"><data value='repeat'>repeat</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1062">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1062"><data value='repeat_trampoline'>_repeat_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1063">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1063"><data value='repeat_trampoline'>_repeat_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1075">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1075"><data value='replicate'>replicate</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1076">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1076"><data value='replicate'>replicate</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1085">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1085"><data value='replicate_trampoline'>_replicate_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1086">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1086"><data value='replicate_trampoline'>_replicate_trampoline</data></a></td>
                 <td>9</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="8 9">89%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1106">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1106"><data value='scaled_dot_product_attention'>scaled_dot_product_attention</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1107">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1107"><data value='scaled_dot_product_attention'>scaled_dot_product_attention</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1120">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1120"><data value='scaled_dot_product_attention'>_scaled_dot_product_attention</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1121">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1121"><data value='scaled_dot_product_attention'>_scaled_dot_product_attention</data></a></td>
                 <td>8</td>
                 <td>2</td>
                 <td>0</td>
                 <td class="right" data-ratio="6 8">75%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1143">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1143"><data value='reshape'>reshape</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1144">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1144"><data value='reshape'>reshape</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1152">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1152"><data value='reshape_trampoline'>_reshape_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1153">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1153"><data value='reshape_trampoline'>_reshape_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1163">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1163"><data value='reshard'>reshard</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1164">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1164"><data value='reshard'>reshard</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1177">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1177"><data value='reshard_trampoline'>_reshard_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1178">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1178"><data value='reshard_trampoline'>_reshard_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1188">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1188"><data value='reshard_split'>reshard_split</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1189">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1189"><data value='reshard_split'>reshard_split</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1199">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1199"><data value='reshard_split_trampoline'>_reshard_split_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1200">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1200"><data value='reshard_split_trampoline'>_reshard_split_trampoline</data></a></td>
                 <td>9</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="8 9">89%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1221">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1221"><data value='reshard_like'>reshard_like</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1222">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1222"><data value='reshard_like'>reshard_like</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1229">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1229"><data value='reshard_like_trampoline'>_reshard_like_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1230">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1230"><data value='reshard_like_trampoline'>_reshard_like_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1245">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1245"><data value='scatter_'>scatter_</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1246">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1246"><data value='scatter_'>scatter_</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1261">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1261"><data value='scatter__trampoline'>_scatter__trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1262">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1262"><data value='scatter__trampoline'>_scatter__trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1280">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1280"><data value='scatter_add'>scatter_add</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1281">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1281"><data value='scatter_add'>scatter_add</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1290">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1290"><data value='scatter_add_trampoline'>_scatter_add_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1291">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1291"><data value='scatter_add_trampoline'>_scatter_add_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1307">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1307"><data value='sharded_cat'>sharded_cat</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1308">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1308"><data value='sharded_cat'>sharded_cat</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1316">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1316"><data value='sharded_cat_trampoline'>_sharded_cat_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1317">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1317"><data value='sharded_cat_trampoline'>_sharded_cat_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1327">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1327"><data value='sharded_gather'>sharded_gather</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1328">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1328"><data value='sharded_gather'>sharded_gather</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1333">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1333"><data value='sharded_gather_trampoline'>_sharded_gather_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1334">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1334"><data value='sharded_gather_trampoline'>_sharded_gather_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1346">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1346"><data value='sharded_sum'>sharded_sum</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1347">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1347"><data value='sharded_sum'>sharded_sum</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1357">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1357"><data value='sharded_sum_trampoline'>_sharded_sum_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1358">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1358"><data value='sharded_sum_trampoline'>_sharded_sum_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1370">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1370"><data value='sigmoid'>sigmoid</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1371">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1371"><data value='sigmoid'>sigmoid</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1376">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1376"><data value='sigmoid_trampoline'>_sigmoid_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1377">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1377"><data value='sigmoid_trampoline'>_sigmoid_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1387">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1387"><data value='softmax'>softmax</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1388">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1388"><data value='softmax'>softmax</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1395">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1395"><data value='softmax_trampoline'>_softmax_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1396">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1396"><data value='softmax_trampoline'>_softmax_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1411">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1411"><data value='split'>split</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1412">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1412"><data value='split'>split</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1419">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1419"><data value='split_trampoline'>_split_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1420">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1420"><data value='split_trampoline'>_split_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1435">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1435"><data value='to'>to</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1436">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1436"><data value='to'>to</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1441">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1441"><data value='to_trampoline'>_to_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1442">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1442"><data value='to_trampoline'>_to_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1452">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1452"><data value='trace_tensor'>trace_tensor</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1453">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1453"><data value='trace_tensor'>trace_tensor</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1477">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1477"><data value='trace_tensor_trampoline'>_trace_tensor_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1478">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1478"><data value='trace_tensor_trampoline'>_trace_tensor_trampoline</data></a></td>
                 <td>5</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="4 5">80%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1489">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1489"><data value='barrier_on_logical_device'>barrier_on_logical_device</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1490">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1490"><data value='barrier_on_logical_device'>barrier_on_logical_device</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1495">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1495"><data value='barrier_on_logical_device_trampoline'>_barrier_on_logical_device_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1496">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1496"><data value='barrier_on_logical_device_trampoline'>_barrier_on_logical_device_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1508">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1508"><data value='transfer_to_logical_device'>transfer_to_logical_device</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1509">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1509"><data value='transfer_to_logical_device'>transfer_to_logical_device</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1514">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1514"><data value='transfer_to_logical_device_trampoline'>_transfer_to_logical_device_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1515">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1515"><data value='transfer_to_logical_device_trampoline'>_transfer_to_logical_device_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1527">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1527"><data value='transpose'>transpose</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1528">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1528"><data value='transpose'>transpose</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1533">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1533"><data value='transpose_trampoline'>_transpose_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1534">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1534"><data value='transpose_trampoline'>_transpose_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1546">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1546"><data value='unflatten'>unflatten</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1547">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1547"><data value='unflatten'>unflatten</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1552">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1552"><data value='unflatten_trampoline'>_unflatten_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1553">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1553"><data value='unflatten_trampoline'>_unflatten_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1565">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1565"><data value='unshard'>unshard</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1566">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1566"><data value='unshard'>unshard</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1571">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1571"><data value='unshard_trampoline'>_unshard_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1572">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1572"><data value='unshard_trampoline'>_unshard_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1582">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1582"><data value='unsqueeze'>unsqueeze</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1583">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1583"><data value='unsqueeze'>unsqueeze</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1588">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1588"><data value='unsqueeze_trampoline'>_unsqueeze_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1589">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1589"><data value='unsqueeze_trampoline'>_unsqueeze_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1601">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1601"><data value='squeeze'>squeeze</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1602">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1602"><data value='squeeze'>squeeze</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1607">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1607"><data value='squeeze_trampoline'>_squeeze_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1608">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1608"><data value='squeeze_trampoline'>_squeeze_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1620">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1620"><data value='sum'>sum</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1621">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1621"><data value='sum'>sum</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1632">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1632"><data value='sum_trampoline'>_sum_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1633">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1633"><data value='sum_trampoline'>_sum_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1650">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1650"><data value='topk'>topk</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1651">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1651"><data value='topk'>topk</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1664">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1664"><data value='topk_trampoline'>_topk_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1665">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1665"><data value='topk_trampoline'>_topk_trampoline</data></a></td>
                 <td>8</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="7 8">88%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1703">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1703"><data value='view'>view</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1704">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1704"><data value='view'>view</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1711">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1711"><data value='view_trampoline'>_view_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1712">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1712"><data value='view_trampoline'>_view_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1727">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1727"><data value='view_as_complex'>view_as_complex</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1728">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1728"><data value='view_as_complex'>view_as_complex</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1733">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1733"><data value='view_as_complex_trampoline'>_view_as_complex_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1734">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1734"><data value='view_as_complex_trampoline'>_view_as_complex_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1744">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1744"><data value='view_as_real'>view_as_real</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1745">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1745"><data value='view_as_real'>view_as_real</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1750">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1750"><data value='view_as_real_trampoline'>_view_as_real_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1751">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1751"><data value='view_as_real_trampoline'>_view_as_real_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="5 6">83%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1761">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1761"><data value='zeros_like'>zeros_like</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1762">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1762"><data value='zeros_like'>zeros_like</data></a></td>
                 <td>1</td>
                 <td>1</td>
                 <td>0</td>
                 <td class="right" data-ratio="0 1">0%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1775">sharktank/sharktank/ops/signatures.py</a></td>
-                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1775"><data value='zeros_like_trampoline'>_zeros_like_trampoline</data></a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1776">sharktank/sharktank/ops/signatures.py</a></td>
+                <td class="name left"><a href="z_16ed182c0fe4cb37_signatures_py.html#t1776"><data value='zeros_like_trampoline'>_zeros_like_trampoline</data></a></td>
                 <td>6</td>
                 <td>1</td>
                 <td>0</td>
@@ -8587,10 +8619,10 @@
             <tr class="region">
                 <td class="name left"><a href="z_ac4d1a0e8fe3aae7___init___py.html">sharktank/sharktank/types/__init__.py</a></td>
                 <td class="name left"><a href="z_ac4d1a0e8fe3aae7___init___py.html"><data value=''><span class='no-noun'>(no function)</span></data></a></td>
-                <td>5</td>
+                <td>6</td>
                 <td>0</td>
                 <td>0</td>
-                <td class="right" data-ratio="5 5">100%</td>
+                <td class="right" data-ratio="6 6">100%</td>
             </tr>
             <tr class="region">
                 <td class="name left"><a href="z_cd2c0381356685a8___init___py.html">sharktank/sharktank/types/gguf_interop/__init__.py</a></td>
@@ -9412,9 +9444,9 @@
                 <td class="name left"><a href="z_ac4d1a0e8fe3aae7_layouts_py.html#t641">sharktank/sharktank/types/layouts.py</a></td>
                 <td class="name left"><a href="z_ac4d1a0e8fe3aae7_layouts_py.html#t641"><data value='block_size'>BlockScaledFp4Layout.block_size</data></a></td>
                 <td>1</td>
-                <td>1</td>
                 <td>0</td>
-                <td class="right" data-ratio="0 1">0%</td>
+                <td>0</td>
+                <td class="right" data-ratio="1 1">100%</td>
             </tr>
             <tr class="region">
                 <td class="name left"><a href="z_ac4d1a0e8fe3aae7_layouts_py.html#t645">sharktank/sharktank/types/layouts.py</a></td>
@@ -9463,6 +9495,62 @@
                 <td>0</td>
                 <td>0</td>
                 <td class="right" data-ratio="123 123">100%</td>
+            </tr>
+            <tr class="region">
+                <td class="name left"><a href="z_ac4d1a0e8fe3aae7_misc_py.html#t32">sharktank/sharktank/types/misc.py</a></td>
+                <td class="name left"><a href="z_ac4d1a0e8fe3aae7_misc_py.html#t32"><data value='canonicalize_slice_descriptor'>canonicalize_slice_descriptor</data></a></td>
+                <td>6</td>
+                <td>0</td>
+                <td>0</td>
+                <td class="right" data-ratio="6 6">100%</td>
+            </tr>
+            <tr class="region">
+                <td class="name left"><a href="z_ac4d1a0e8fe3aae7_misc_py.html#t50">sharktank/sharktank/types/misc.py</a></td>
+                <td class="name left"><a href="z_ac4d1a0e8fe3aae7_misc_py.html#t50"><data value='canonicalize_index'>canonicalize_index</data></a></td>
+                <td>5</td>
+                <td>0</td>
+                <td>0</td>
+                <td class="right" data-ratio="5 5">100%</td>
+            </tr>
+            <tr class="region">
+                <td class="name left"><a href="z_ac4d1a0e8fe3aae7_misc_py.html#t61">sharktank/sharktank/types/misc.py</a></td>
+                <td class="name left"><a href="z_ac4d1a0e8fe3aae7_misc_py.html#t61"><data value='canonicalize_slice_object'>canonicalize_slice_object</data></a></td>
+                <td>6</td>
+                <td>0</td>
+                <td>0</td>
+                <td class="right" data-ratio="6 6">100%</td>
+            </tr>
+            <tr class="region">
+                <td class="name left"><a href="z_ac4d1a0e8fe3aae7_misc_py.html#t79">sharktank/sharktank/types/misc.py</a></td>
+                <td class="name left"><a href="z_ac4d1a0e8fe3aae7_misc_py.html#t79"><data value='squeeze_slice'>squeeze_slice</data></a></td>
+                <td>3</td>
+                <td>0</td>
+                <td>0</td>
+                <td class="right" data-ratio="3 3">100%</td>
+            </tr>
+            <tr class="region">
+                <td class="name left"><a href="z_ac4d1a0e8fe3aae7_misc_py.html#t92">sharktank/sharktank/types/misc.py</a></td>
+                <td class="name left"><a href="z_ac4d1a0e8fe3aae7_misc_py.html#t92"><data value='unsqueeze_shape_for_slicing'>unsqueeze_shape_for_slicing</data></a></td>
+                <td>11</td>
+                <td>0</td>
+                <td>0</td>
+                <td class="right" data-ratio="11 11">100%</td>
+            </tr>
+            <tr class="region">
+                <td class="name left"><a href="z_ac4d1a0e8fe3aae7_misc_py.html#t119">sharktank/sharktank/types/misc.py</a></td>
+                <td class="name left"><a href="z_ac4d1a0e8fe3aae7_misc_py.html#t119"><data value='unsqueeze_slice_like'>unsqueeze_slice_like</data></a></td>
+                <td>13</td>
+                <td>1</td>
+                <td>0</td>
+                <td class="right" data-ratio="12 13">92%</td>
+            </tr>
+            <tr class="region">
+                <td class="name left"><a href="z_ac4d1a0e8fe3aae7_misc_py.html">sharktank/sharktank/types/misc.py</a></td>
+                <td class="name left"><a href="z_ac4d1a0e8fe3aae7_misc_py.html"><data value=''><span class='no-noun'>(no function)</span></data></a></td>
+                <td>11</td>
+                <td>0</td>
+                <td>0</td>
+                <td class="right" data-ratio="11 11">100%</td>
             </tr>
             <tr class="region">
                 <td class="name left"><a href="z_ac4d1a0e8fe3aae7_ocp_floats_py.html#t45">sharktank/sharktank/types/ocp_floats.py</a></td>
@@ -9523,18 +9611,18 @@
             <tr class="region">
                 <td class="name left"><a href="z_ac4d1a0e8fe3aae7_ocp_floats_py.html#t253">sharktank/sharktank/types/ocp_floats.py</a></td>
                 <td class="name left"><a href="z_ac4d1a0e8fe3aae7_ocp_floats_py.html#t253"><data value='fp4_e2m1_to_float32'>fp4_e2m1_to_float32</data></a></td>
-                <td>3</td>
+                <td>4</td>
                 <td>0</td>
                 <td>0</td>
-                <td class="right" data-ratio="3 3">100%</td>
+                <td class="right" data-ratio="4 4">100%</td>
             </tr>
             <tr class="region">
-                <td class="name left"><a href="z_ac4d1a0e8fe3aae7_ocp_floats_py.html#t275">sharktank/sharktank/types/ocp_floats.py</a></td>
-                <td class="name left"><a href="z_ac4d1a0e8fe3aae7_ocp_floats_py.html#t275"><data value='float32_to_fp4_e2m1'>float32_to_fp4_e2m1</data></a></td>
-                <td>6</td>
+                <td class="name left"><a href="z_ac4d1a0e8fe3aae7_ocp_floats_py.html#t276">sharktank/sharktank/types/ocp_floats.py</a></td>
+                <td class="name left"><a href="z_ac4d1a0e8fe3aae7_ocp_floats_py.html#t276"><data value='float32_to_fp4_e2m1'>float32_to_fp4_e2m1</data></a></td>
+                <td>8</td>
+                <td>1</td>
                 <td>0</td>
-                <td>0</td>
-                <td class="right" data-ratio="6 6">100%</td>
+                <td class="right" data-ratio="7 8">88%</td>
             </tr>
             <tr class="region">
                 <td class="name left"><a href="z_ac4d1a0e8fe3aae7_ocp_floats_py.html">sharktank/sharktank/types/ocp_floats.py</a></td>
@@ -9916,9 +10004,9 @@
                 <td class="name left"><a href="z_ac4d1a0e8fe3aae7_quantizers_py.html#t748">sharktank/sharktank/types/quantizers.py</a></td>
                 <td class="name left"><a href="z_ac4d1a0e8fe3aae7_quantizers_py.html#t748"><data value='block_size'>DynamicFp4BlockQuantizer.block_size</data></a></td>
                 <td>1</td>
-                <td>1</td>
                 <td>0</td>
-                <td class="right" data-ratio="0 1">0%</td>
+                <td>0</td>
+                <td class="right" data-ratio="1 1">100%</td>
             </tr>
             <tr class="region">
                 <td class="name left"><a href="z_ac4d1a0e8fe3aae7_quantizers_py.html#t752">sharktank/sharktank/types/quantizers.py</a></td>
@@ -10852,9 +10940,9 @@
                 <td class="name left"><a href="z_ac4d1a0e8fe3aae7_tensors_py.html#t653">sharktank/sharktank/types/tensors.py</a></td>
                 <td class="name left"><a href="z_ac4d1a0e8fe3aae7_tensors_py.html#t653"><data value='getitem__'>InferenceTensor.__getitem__</data></a></td>
                 <td>2</td>
-                <td>2</td>
                 <td>0</td>
-                <td class="right" data-ratio="0 2">0%</td>
+                <td>0</td>
+                <td class="right" data-ratio="2 2">100%</td>
             </tr>
             <tr class="region">
                 <td class="name left"><a href="z_ac4d1a0e8fe3aae7_tensors_py.html#t658">sharktank/sharktank/types/tensors.py</a></td>
@@ -17857,6 +17945,22 @@
                 <td class="right" data-ratio="18 19">95%</td>
             </tr>
             <tr class="region">
+                <td class="name left"><a href="z_143cbfd7fdfbe5eb_quantized_test_py.html#t37">sharktank/tests/ops/quantized_test.py</a></td>
+                <td class="name left"><a href="z_143cbfd7fdfbe5eb_quantized_test_py.html#t37"><data value='test_extract_slice_block_scaled_f4_quantization'>TestExtractSlice_BlockScaledFp4Layout.test_extract_slice_block_scaled_f4_quantization</data></a></td>
+                <td>10</td>
+                <td>0</td>
+                <td>0</td>
+                <td class="right" data-ratio="10 10">100%</td>
+            </tr>
+            <tr class="region">
+                <td class="name left"><a href="z_143cbfd7fdfbe5eb_quantized_test_py.html">sharktank/tests/ops/quantized_test.py</a></td>
+                <td class="name left"><a href="z_143cbfd7fdfbe5eb_quantized_test_py.html"><data value=''><span class='no-noun'>(no function)</span></data></a></td>
+                <td>10</td>
+                <td>0</td>
+                <td>0</td>
+                <td class="right" data-ratio="10 10">100%</td>
+            </tr>
+            <tr class="region">
                 <td class="name left"><a href="z_143cbfd7fdfbe5eb_sharded_test_py.html#t27">sharktank/tests/ops/sharded_test.py</a></td>
                 <td class="name left"><a href="z_143cbfd7fdfbe5eb_sharded_test_py.html#t27"><data value='testAllGather'>AllGatherTest.testAllGather</data></a></td>
                 <td>9</td>
@@ -19529,6 +19633,30 @@
                 <td class="right" data-ratio="17 18">94%</td>
             </tr>
             <tr class="region">
+                <td class="name left"><a href="z_854ee651c89eb8b8_misc_test_py.html#t27">sharktank/tests/types/misc_test.py</a></td>
+                <td class="name left"><a href="z_854ee651c89eb8b8_misc_test_py.html#t27"><data value='test_canonicalize_slice_descriptor'>TestSlice.test_canonicalize_slice_descriptor</data></a></td>
+                <td>3</td>
+                <td>0</td>
+                <td>0</td>
+                <td class="right" data-ratio="3 3">100%</td>
+            </tr>
+            <tr class="region">
+                <td class="name left"><a href="z_854ee651c89eb8b8_misc_test_py.html#t43">sharktank/tests/types/misc_test.py</a></td>
+                <td class="name left"><a href="z_854ee651c89eb8b8_misc_test_py.html#t43"><data value='test_canonicalize_slice_descriptor_exception'>TestSlice.test_canonicalize_slice_descriptor_exception</data></a></td>
+                <td>3</td>
+                <td>0</td>
+                <td>0</td>
+                <td class="right" data-ratio="3 3">100%</td>
+            </tr>
+            <tr class="region">
+                <td class="name left"><a href="z_854ee651c89eb8b8_misc_test_py.html">sharktank/tests/types/misc_test.py</a></td>
+                <td class="name left"><a href="z_854ee651c89eb8b8_misc_test_py.html"><data value=''><span class='no-noun'>(no function)</span></data></a></td>
+                <td>8</td>
+                <td>0</td>
+                <td>0</td>
+                <td class="right" data-ratio="8 8">100%</td>
+            </tr>
+            <tr class="region">
                 <td class="name left"><a href="z_854ee651c89eb8b8_quantizers_test_py.html#t28">sharktank/tests/types/quantizers_test.py</a></td>
                 <td class="name left"><a href="z_854ee651c89eb8b8_quantizers_test_py.html#t28"><data value='roundtrip'>QuantizerTestBase._roundtrip</data></a></td>
                 <td>5</td>
@@ -20221,10 +20349,10 @@
             <tr class="total">
                 <td class="name left">Total</td>
                 <td class="name left">&nbsp;</td>
-                <td>20737</td>
-                <td>4098</td>
+                <td>20879</td>
+                <td>4097</td>
                 <td>0</td>
-                <td class="right" data-ratio="16639 20737">80%</td>
+                <td class="right" data-ratio="16782 20879">80%</td>
             </tr>
         </tfoot>
     </table>
@@ -20236,7 +20364,7 @@
     <div class="content">
         <p>
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.2">coverage.py v7.9.2</a>,
-            created at 2025-07-18 04:26 +0000
+            created at 2025-07-18 07:08 +0000
         </p>
     </div>
     <aside class="hidden">

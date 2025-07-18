@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">853 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">699<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">154<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">701<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">152<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_ac4d1a0e8fe3aae7_theta_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.2">coverage.py v7.9.2</a>,
-            created at 2025-07-18 04:26 +0000
+            created at 2025-07-18 07:08 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -733,9 +733,9 @@
     <p class="run"><span class="n"><a id="t651" href="#t651">651</a></span><span class="t">        <span class="key">return</span> <span class="nam">elementwise</span><span class="op">(</span><span class="nam">torch</span><span class="op">.</span><span class="nam">floor_divide</span><span class="op">,</span> <span class="nam">self</span><span class="op">,</span> <span class="nam">rhs</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t652" href="#t652">652</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t653" href="#t653">653</a></span><span class="t">    <span class="key">def</span> <span class="nam">__getitem__</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">key</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t654" href="#t654">654</a></span><span class="t">        <span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">ops</span> <span class="key">import</span> <span class="nam">get_index</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t654" href="#t654">654</a></span><span class="t">        <span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">ops</span> <span class="key">import</span> <span class="nam">extract_slice</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t655" href="#t655">655</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t656" href="#t656">656</a></span><span class="t">        <span class="key">return</span> <span class="nam">get_index</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">key</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t656" href="#t656">656</a></span><span class="t">        <span class="key">return</span> <span class="nam">extract_slice</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">key</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t657" href="#t657">657</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t658" href="#t658">658</a></span><span class="t">    <span class="key">def</span> <span class="nam">_is_deep_equal</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">other</span><span class="op">:</span> <span class="nam">Any</span><span class="op">,</span> <span class="nam">compare_name</span><span class="op">:</span> <span class="nam">bool</span> <span class="op">=</span> <span class="key">True</span><span class="op">)</span> <span class="op">-></span> <span class="nam">bool</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t659" href="#t659">659</a></span><span class="t">        <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">shape</span> <span class="op">!=</span> <span class="nam">other</span><span class="op">.</span><span class="nam">shape</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -1961,7 +1961,7 @@
             <a class="nav" href="z_ac4d1a0e8fe3aae7_theta_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.2">coverage.py v7.9.2</a>,
-            created at 2025-07-18 04:26 +0000
+            created at 2025-07-18 07:08 +0000
         </p>
     </div>
 </footer>
