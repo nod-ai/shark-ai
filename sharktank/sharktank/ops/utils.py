@@ -5,22 +5,40 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import functools
+import torch
 
 from typing import Callable, Sequence, Any
 from sharktank.utils import tree
+
+__all__ = [
+    "promote_to_float",
+    "trivially_replicable",
+]
+
+
+def promote_to_float(tensor: torch.Tensor) -> torch.Tensor:
+    """Promote to an appropriate floating point dtype that would result in "acceptable"
+    loss of precision."""
+    if tensor.dtype.is_floating_point:
+        return tensor
+
+    if tensor.dtype.itemsize <= 4:
+        return tensor.to(dtype=torch.float32)
+
+    return tensor.to(dtype=torch.float64)
 
 
 def call_trivially_replicable(
     fn: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> Any:
-    """Call an function with replicated tensor arguments that can be called with
+    """Call a function with replicated tensor arguments that can be called with
     unsharded tensors.
 
     It is expected that all replicated tensors have the same number of shards.
     The function will be called with each set of matching shard indices and
     replicated tensor(s) will be constructed from the resulting shards.
 
-    This wrapper handles tee-like structures in the arguments and results. It will
+    This wrapper handles tree-like structures in the arguments and results. It will
     traverse them and handle nested tensors. Note that sequence and dictionary types
     will be reconstructed with dict and tuple types, so the underlying function fn
     must be polymorphic in this regard and not expect concrete types.
