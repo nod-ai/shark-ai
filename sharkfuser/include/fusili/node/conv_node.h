@@ -52,9 +52,9 @@ public:
     auto w_t = attr.getW(); // KCRS
     auto y_t = attr.getY(); // NKPQ
 
-    auto const &x_dim = x_t->get_dim();
-    auto const &w_dim = w_t->get_dim();
-    auto const &y_dim = y_t->get_dim();
+    auto const &x_dim = x_t->getDim();
+    auto const &w_dim = w_t->getDim();
+    auto const &y_dim = y_t->getDim();
 
     if (y_dim.empty()) {
       FUSILI_RETURN_ERROR_IF(true, error_code_t::NOT_IMPLEMENTED,
@@ -62,7 +62,7 @@ public:
                              "yet; please specify output tensor dimensions");
     }
 
-    if (y_t->get_stride().empty()) {
+    if (y_t->getStride().empty()) {
       FUSILI_RETURN_ERROR_IF(
           true, error_code_t::NOT_IMPLEMENTED,
           "Convolution node stride inference not implemented yet; please "

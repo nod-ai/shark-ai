@@ -26,7 +26,7 @@ private:
 
   std::shared_ptr<TensorAttr> output_tensor(std::string const &name) {
     auto tensor = std::make_shared<TensorAttr>();
-    tensor->set_name(name).set_is_virtual(true);
+    tensor->setName(name).setIsVirtual(true);
     full_graph_outputs.insert(tensor);
     return tensor;
   }
@@ -47,11 +47,11 @@ private:
     used_uids.clear();
 
     for (auto const &input : full_graph_inputs) {
-      if (input->has_uid()) {
-        auto uid = input->get_uid();
+      if (input->hasUid()) {
+        auto uid = input->getUid();
         FUSILI_RETURN_ERROR_IF(used_uids.find(uid) != used_uids.end(),
                                error_code_t::INVALID_ATTRIBUTE,
-                               "Tensor named " + input->get_name() +
+                               "Tensor named " + input->getName() +
                                    " uses UID " + std::to_string(uid) +
                                    " which has already been assigned to "
                                    "another tensor in the graph");
@@ -60,11 +60,11 @@ private:
     }
 
     for (auto const &output : full_graph_outputs) {
-      if (output->has_uid()) {
-        auto uid = output->get_uid();
+      if (output->hasUid()) {
+        auto uid = output->getUid();
         FUSILI_RETURN_ERROR_IF(used_uids.find(uid) != used_uids.end(),
                                error_code_t::INVALID_ATTRIBUTE,
-                               "Tensor named " + output->get_name() +
+                               "Tensor named " + output->getName() +
                                    " uses UID " + std::to_string(uid) +
                                    " which has already been assigned to "
                                    "another tensor in the graph");
@@ -119,13 +119,13 @@ public:
 
   error_t query_tensor_of_uid(int64_t const uid, TensorAttr &tensor) const {
     for (auto const &i_tensor : full_graph_inputs) {
-      if (i_tensor->get_uid() == uid) {
+      if (i_tensor->getUid() == uid) {
         tensor = *i_tensor;
         return {error_code_t::OK, ""};
       }
     }
     for (auto const &o_tensor : full_graph_outputs) {
-      if (o_tensor->get_uid() == uid) {
+      if (o_tensor->getUid() == uid) {
         tensor = *o_tensor;
         return {error_code_t::OK, ""};
       }
@@ -156,10 +156,10 @@ Graph::conv_fprop(std::shared_ptr<TensorAttr> const &x,
   // Populate names when not set
   if (conv_attr.getName().empty())
     conv_attr.setName("conv_fprop_" + std::to_string(sub_nodes.size()));
-  if (x->get_name().empty())
-    x->set_name(conv_attr.getName() + "::X");
-  if (w->get_name().empty())
-    w->set_name(conv_attr.getName() + "::W");
+  if (x->getName().empty())
+    x->setName(conv_attr.getName() + "::X");
+  if (w->getName().empty())
+    w->setName(conv_attr.getName() + "::W");
 
   // Set inputs
   conv_attr.setX(x).setW(w);

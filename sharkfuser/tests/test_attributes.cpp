@@ -52,8 +52,8 @@ TEST_CASE(
   attr.setOutput("out", out);
 
   REQUIRE(attr.computeDataType == DataType_t::NOT_SET);
-  REQUIRE(attr.getInput("in")->get_data_type() == DataType_t::FLOAT);
-  REQUIRE(attr.getOutput("out")->get_data_type() == DataType_t::NOT_SET);
+  REQUIRE(attr.getInput("in")->getDataType() == DataType_t::FLOAT);
+  REQUIRE(attr.getOutput("out")->getDataType() == DataType_t::NOT_SET);
 
   Context ctx;
   ctx.set_compute_data_type(DataType_t::DOUBLE)
@@ -62,6 +62,6 @@ TEST_CASE(
 
   attr.fillFromContext(ctx);
   REQUIRE(attr.computeDataType == DataType_t::DOUBLE);
-  REQUIRE(attr.getInput("in")->get_data_type() == DataType_t::FLOAT);
-  REQUIRE(attr.getOutput("out")->get_data_type() == DataType_t::INT32);
+  REQUIRE(attr.getInput("in")->getDataType() == DataType_t::FLOAT);
+  REQUIRE(attr.getOutput("out")->getDataType() == DataType_t::INT32);
 }

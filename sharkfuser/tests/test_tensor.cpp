@@ -21,14 +21,14 @@ TEST_CASE("Tensor query based on uid", "[tensor]") {
   std::string name = "image";
 
   auto X = graph.tensor(TensorAttr()
-                            .set_name(name)
-                            .set_dim({8, 32, 16, 16})
-                            .set_stride({32 * 16 * 16, 1, 32 * 16, 32})
-                            .set_uid(uid));
+                            .setName(name)
+                            .setDim({8, 32, 16, 16})
+                            .setStride({32 * 16 * 16, 1, 32 * 16, 32})
+                            .setUid(uid));
 
   // A new TensorAttr to populate via querying the graph
   TensorAttr t;
-  REQUIRE(t.get_name() == "");
+  REQUIRE(t.getName() == "");
   REQUIRE(graph.query_tensor_of_uid(uid, t).is_ok());
-  REQUIRE(t.get_name() == X->get_name());
+  REQUIRE(t.getName() == X->getName());
 }

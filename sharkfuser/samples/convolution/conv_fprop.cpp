@@ -19,14 +19,14 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
       .set_compute_data_type(DataType_t::FLOAT);
 
   auto X = graph->tensor(TensorAttr()
-                             .set_name("image")
-                             .set_dim({n, c, h, w})
-                             .set_stride({c * h * w, h * w, w, 1}));
+                             .setName("image")
+                             .setDim({n, c, h, w})
+                             .setStride({c * h * w, h * w, w, 1}));
 
   auto W = graph->tensor(TensorAttr()
-                             .set_name("filter")
-                             .set_dim({k, c, r, s})
-                             .set_stride({c * r * s, r * s, s, 1}));
+                             .setName("filter")
+                             .setDim({k, c, r, s})
+                             .setStride({c * r * s, r * s, s, 1}));
 
   auto conv_attr = ConvFPropAttr()
                        .set_padding({0, 0})
@@ -37,8 +37,8 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
   auto Y = graph->conv_fprop(X, W, conv_attr);
 
   // Specify Y's dimensions and strides
-  Y->set_dim({n, k, h, w}).set_stride({k * h * w, h * w, w, 1});
-  Y->set_output(true);
+  Y->setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
+  Y->setOutput(true);
 
   REQUIRE(graph->validate().is_ok());
 }

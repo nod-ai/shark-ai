@@ -69,14 +69,14 @@ public:
     for (auto &kv : self().inputs) {
       auto &tensor = kv.second;
       if (tensor) {
-        tensor->fill_from_context(context);
+        tensor->fillFromContext(context);
       }
     }
 
     for (auto &kv : self().outputs) {
       auto &tensor = kv.second;
       if (tensor) {
-        tensor->fill_from_context(context);
+        tensor->fillFromContext(context);
       }
     }
   }
@@ -87,7 +87,7 @@ private:
   std::string name_;
 };
 
-// Macro helpers for generic input/output tensor getter/setter
+// Helper macros for generic input/output tensor getter/setter
 #define FUSILI_GENERIC_INPUT_TENSOR_GETTER(KTYPE, NAME)                        \
   std::shared_ptr<TensorAttr> get##NAME() const {                              \
     return getInput(KTYPE::NAME);                                              \

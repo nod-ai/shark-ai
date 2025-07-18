@@ -53,23 +53,23 @@ TEST_CASE("ConvFPropAttr setters and getters", "[conv_fprop_attr]") {
   REQUIRE(attr.getW() == w);
   REQUIRE(attr.getY() == y);
 
-  REQUIRE(attr.getX()->get_data_type() == DataType_t::FLOAT);
-  REQUIRE(attr.getW()->get_data_type() == DataType_t::FLOAT);
-  REQUIRE(attr.getY()->get_data_type() == DataType_t::FLOAT);
+  REQUIRE(attr.getX()->getDataType() == DataType_t::FLOAT);
+  REQUIRE(attr.getW()->getDataType() == DataType_t::FLOAT);
+  REQUIRE(attr.getY()->getDataType() == DataType_t::FLOAT);
 
-  REQUIRE(attr.getX()->get_dim() == std::vector<int64_t>{1});
-  REQUIRE(attr.getW()->get_dim() == std::vector<int64_t>{1});
-  REQUIRE(attr.getY()->get_dim() == std::vector<int64_t>{1});
+  REQUIRE(attr.getX()->getDim() == std::vector<int64_t>{1});
+  REQUIRE(attr.getW()->getDim() == std::vector<int64_t>{1});
+  REQUIRE(attr.getY()->getDim() == std::vector<int64_t>{1});
 
-  REQUIRE(attr.getX()->get_stride() == std::vector<int64_t>{1});
-  REQUIRE(attr.getW()->get_stride() == std::vector<int64_t>{1});
-  REQUIRE(attr.getY()->get_stride() == std::vector<int64_t>{1});
+  REQUIRE(attr.getX()->getStride() == std::vector<int64_t>{1});
+  REQUIRE(attr.getW()->getStride() == std::vector<int64_t>{1});
+  REQUIRE(attr.getY()->getStride() == std::vector<int64_t>{1});
 
-  REQUIRE(attr.getX()->get_is_scalar() == true);
-  REQUIRE(attr.getW()->get_is_scalar() == true);
-  REQUIRE(attr.getY()->get_is_scalar() == true);
+  REQUIRE(attr.getX()->isScalar() == true);
+  REQUIRE(attr.getW()->isScalar() == true);
+  REQUIRE(attr.getY()->isScalar() == true);
 
-  REQUIRE(attr.getX()->get_is_virtual() == false);
-  REQUIRE(attr.getW()->get_is_virtual() == false);
-  REQUIRE(attr.getY()->get_is_virtual() == false);
+  REQUIRE(attr.getX()->isVirtual() == false);
+  REQUIRE(attr.getW()->isVirtual() == false);
+  REQUIRE(attr.getY()->isVirtual() == false);
 }
