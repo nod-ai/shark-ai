@@ -112,6 +112,10 @@ jobs:
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
         ctest --test-dir build -T test -T coverage --timeout 30
+        # LLVM includes some broken .gcda files to test llvm-cov. There doesn't
+        # seem to be a way to convince lcov to not scan the broken files, only
+        # to ignore them after the scan, hence the `--ignore-errors` flag as
+        # well as the `--exclude`.
         lcov --capture --directory build --ignore-errors gcov,version --exclude "*/_deps/*" --output-file build/coverage.info
         lcov --remove build/coverage.info 'build/*' '/usr/*' --ignore-errors unused --output-file build/coverage.info
         genhtml build/coverage.info --output-directory coverage_report
