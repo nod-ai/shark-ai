@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
-# Creates and executable target for use in a test.
+# Creates an executable target for use in a test.
 #
 # NAME
 #  The name of the executable target to create (required)
@@ -188,7 +188,7 @@ function(add_sharkfuser_lit_test)
     NAME ${_TEST_NAME}
     SRCS ${_RULE_SRC}
     DEPS ${_RULE_DEPS}
-    BIN_SUBDIR samples
+    BIN_SUBDIR lit
   )
 
   # Pass lit locations of tools in build directory through `--path` arguments.
