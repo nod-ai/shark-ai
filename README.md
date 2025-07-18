@@ -50,7 +50,7 @@
 | sharktank/sharktank/layers/mmdit.py                                           |      103 |        0 |    100% |           |
 | sharktank/sharktank/layers/modulation.py                                      |       21 |        0 |    100% |           |
 | sharktank/sharktank/layers/norm.py                                            |       37 |        0 |    100% |           |
-| sharktank/sharktank/layers/paged\_attention.py                                |      471 |       17 |     96% |136, 143-149, 210, 757, 1123, 1136, 1139, 1143, 1145, 1147, 1166, 1175-1181, 1185 |
+| sharktank/sharktank/layers/paged\_attention.py                                |      474 |       18 |     96% |142, 147, 155-161, 222, 769, 1135, 1148, 1151, 1155, 1157, 1159, 1178, 1187-1193, 1197 |
 | sharktank/sharktank/layers/paged\_llama\_attention\_block.py                  |      118 |        9 |     92% |115, 125, 162, 164, 166, 234, 250-252 |
 | sharktank/sharktank/layers/rotary\_embedding.py                               |       55 |        0 |    100% |           |
 | sharktank/sharktank/layers/rotary\_embedding\_hf.py                           |       78 |        0 |    100% |           |
@@ -98,7 +98,7 @@
 | sharktank/sharktank/models/vae/tools/sample\_data.py                          |       14 |        5 |     64% |27-29, 39-40 |
 | sharktank/sharktank/ops/\_\_init\_\_.py                                       |       12 |        0 |    100% |           |
 | sharktank/sharktank/ops/\_registry.py                                         |      144 |        8 |     94% |108, 113, 229-232, 243, 278, 297 |
-| sharktank/sharktank/ops/attention\_impls.py                                   |       48 |       29 |     40% |32-38, 43-54, 60-81, 88, 99 |
+| sharktank/sharktank/ops/attention\_impls.py                                   |       52 |       33 |     37% |32-38, 43-71, 77-98, 105, 116 |
 | sharktank/sharktank/ops/custom\_impls.py                                      |       86 |       22 |     74% |62-66, 84, 100, 119, 123-134, 149, 153-156, 179, 181, 183 |
 | sharktank/sharktank/ops/default\_impls.py                                     |      508 |       92 |     82% |120, 122, 154, 156, 158, 191, 193, 195, 258-261, 293, 295, 309-310, 325-332, 346-353, 367, 372-390, 404, 414, 591, 593, 595, 597, 616, 635, 646-648, 687, 737, 808, 813, 818, 824, 856-863, 869, 958, 962, 1008, 1013-1030, 1035, 1040 |
 | sharktank/sharktank/ops/qconv\_impls.py                                       |      123 |       31 |     75% |47, 53, 67-71, 88, 94, 109, 137-142, 168-177, 229, 252, 270-285, 298, 303, 310 |
@@ -225,7 +225,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      101 |        4 |     96% |   303-316 |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **20879** | **4097** | **80%** |           |
+|                                                                     **TOTAL** | **20886** | **4102** | **80%** |           |
 
 
 ## Setup coverage badge
