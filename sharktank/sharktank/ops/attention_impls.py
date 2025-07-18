@@ -39,6 +39,7 @@ def _extract_linear_scale(t):
 
 
 def masked_flash_attention(q, k, v, a, is_causal=False, scale=None, dtype=None):
+    # TODO: This and other attention implementation should be registered like other ops.
     if (
         isinstance(q, ReplicatedTensor)
         and isinstance(k, ReplicatedTensor)
